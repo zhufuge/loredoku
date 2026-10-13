@@ -1,0 +1,23 @@
+{
+  "name": "murdoku-maker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Murdoku map editor - monorepo (shared / server / web)",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "dev:server": "pnpm --filter @murdoku/server dev",
+    "dev:web": "pnpm --filter @murdoku/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "db:migrate": "pnpm --filter @murdoku/server db:migrate",
+    "db:rollback": "pnpm --filter @murdoku/server db:rollback",
+    "db:migrate:make": "pnpm --filter @murdoku/server db:migrate:make"
+  }
+}

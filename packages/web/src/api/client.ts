@@ -1,0 +1,56 @@
+import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
+import type { ApiResponse } from '@murdoku/shared';
+
+export class ApiError extends Error {
+  readonly code: number;
+
+  constructor(code: number, message: string) {
+    super(message);
+    this.name = 'ApiError';
+    this.code = code;
+  }
+}
+
+export const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api',
+  timeout: 15000,
+});
+
+async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T> {
+  try {
+    const { data } = await promise;
+    if (data.code !== 0) {
+      throw new ApiError(data.code, data.message);
+    }
+    return data.data as T;
+  } catch (err) {
+    if (err instanceof AxiosError) {
+      const body = err.response?.data as ApiResponse<T> | undefined;
+      if (body && typeof body.code === 'number') {
+        throw new ApiError(body.code, body.message);
+      }
+      throw new ApiError(-1, err.message);
+    }
+    throw err;
+  }
+}
+
+export function apiGet<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  return unwrap<T>(apiClient.get<ApiResponse<T>>(url, config));
+}
+
+export function apiPost<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  return unwrap<T>(apiClient.post<ApiResponse<T>>(url, body, config));
+}
+
+export function apiPatch<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  return unwrap<T>(apiClient.patch<ApiResponse<T>>(url, body, config));
+}
+
+export function apiPut<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  return unwrap<T>(apiClient.put<ApiResponse<T>>(url, body, config));
+}
+
+export function apiDelete<T>(url: string, config?: AxiosRequestConfig): Promise<T> {
+  return unwrap<T>(apiClient.delete<ApiResponse<T>>(url, config));
+}
