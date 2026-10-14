@@ -4,20 +4,34 @@
   "private": true,
   "type": "module",
   "description": "Murdoku map editor - monorepo (shared / server / web)",
-  "packageManager": "pnpm@9.15.0",
+  "workspaces": [
+    "packages/*"
+  ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel dev",
-    "dev:server": "pnpm --filter @murdoku/server dev",
-    "dev:web": "pnpm --filter @murdoku/web dev",
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
-    "test": "pnpm -r test",
-    "db:migrate": "pnpm --filter @murdoku/server db:migrate",
-    "db:rollback": "pnpm --filter @murdoku/server db:rollback",
-    "db:migrate:make": "pnpm --filter @murdoku/server db:migrate:make"
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev --workspace @murdoku/server",
+    "dev:web": "npm run dev --workspace @murdoku/web",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:migrate": "npm run db:migrate --workspace @murdoku/server",
+    "db:rollback": "npm run db:rollback --workspace @murdoku/server",
+    "db:migrate:make": "npm run db:migrate:make --workspace @murdoku/server"
+  },
+  "devDependencies": {
+    "@types/supertest": "^7.2.1",
+    "concurrently": "^9.1.2",
+    "jsdom": "25.0.1",
+    "supertest": "7.0.0",
+    "vitest": "2.1.8"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "esbuild@0.21.5": true,
+    "sharp@0.33.5": true
   }
 }

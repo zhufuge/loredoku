@@ -1,6 +1,5 @@
 # dependencies
 node_modules/
-.pnpm-store/
 
 # build output
 dist/
@@ -15,7 +14,6 @@ build/
 # logs
 *.log
 npm-debug.log*
-pnpm-debug.log*
 
 # uploads (keep folder, ignore content)
 packages/server/storage/uploads/**
