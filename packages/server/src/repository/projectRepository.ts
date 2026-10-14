@@ -56,10 +56,14 @@ function draftCounts(draft: MapDraft | null): {
   for (const key of Object.keys(draft.cells)) {
     if (draft.cells[key]?.object) itemCount += 1;
   }
+  // CLAR-603: participants live in the roster; non-null slots are participants.
+  const characterCount = (draft.characterSlots ?? []).filter(
+    (slot) => slot !== null,
+  ).length;
   return {
     itemCount,
     regionCount: draft.regions?.length ?? 0,
-    characterCount: draft.placedCharacters?.length ?? 0,
+    characterCount,
   };
 }
 

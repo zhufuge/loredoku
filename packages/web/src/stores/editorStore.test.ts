@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { CHARACTER_SLOT_COUNT } from '@murdoku/shared';
+import { DEFAULT_THEME_COLOR } from '@murdoku/shared';
 import type { MapDraft } from '@murdoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
@@ -11,8 +11,7 @@ function draft(gridSize = 6): MapDraft {
     gridSize,
     cells: {},
     regions: [],
-    characterSlots: Array.from({ length: CHARACTER_SLOT_COUNT }, () => null),
-    placedCharacters: [],
+    characterSlots: Array.from({ length: gridSize }, () => null),
   };
 }
 
@@ -48,55 +47,6 @@ describe('placement', () => {
     store().placeObject({ id: 2, widthCells: 2, heightCells: 2 }, 0, 0);
     store().eraseAt(1, 1);
     expect(store().cells.size).toBe(0);
-  });
-});
-
-describe('characters', () => {
-  it('places a character and replaces one on the same cell', () => {
-    store().placeCharacter(3, 1, 1);
-    expect(store().placedCharacters).toEqual([
-      {
-        characterId: 3,
-        x: 1,
-        y: 1,
-        mapMeta: {},
-        // FEAT-502: every participant starts with the default theme and no triggers.
-        themeColor: '#FFFFFF',
-        triggers: [],
-        originSlotIndex: undefined,
-      },
-    ]);
-    store().placeCharacter(4, 1, 1);
-    expect(store().placedCharacters).toHaveLength(1);
-    expect(store().placedCharacters[0]?.characterId).toBe(4);
-  });
-
-  it('removes a character at a coordinate', () => {
-    store().placeCharacter(3, 0, 0);
-    store().removeCharacterAt(0, 0);
-    expect(store().placedCharacters).toHaveLength(0);
-  });
-
-  it('saves participant config as one atomic, undoable step', () => {
-    store().placeCharacter(3, 0, 0);
-    store().setParticipantConfig(3, {
-      themeColor: '#FFCC00',
-      triggers: [
-        {
-          trigger: 'click',
-          targets: [{ type: 'cell', x: 1, y: 1, effect: 'highlight', color: 'red' }],
-        },
-      ],
-    });
-    const placed = store().placedCharacters[0];
-    expect(placed?.themeColor).toBe('#FFCC00');
-    expect(placed?.triggers?.[0]?.targets).toHaveLength(1);
-    expect(store().dirty).toBe(true);
-
-    store().undo();
-    const restored = store().placedCharacters[0];
-    expect(restored?.themeColor).toBe('#FFFFFF');
-    expect(restored?.triggers).toEqual([]);
   });
 });
 
@@ -151,12 +101,6 @@ describe('eraseAt', () => {
       object: { itemId: 2, w: 1, h: 1 },
     });
   });
-
-  it('removes a character before the layers', () => {
-    store().placeCharacter(3, 0, 0);
-    store().eraseAt(0, 0);
-    expect(store().placedCharacters).toHaveLength(0);
-  });
 });
 
 describe('clearCharacterSlot', () => {
@@ -167,7 +111,6 @@ describe('clearCharacterSlot', () => {
     expect(store().characterSlots[1]).toBeNull();
     expect(store().dirty).toBe(true);
     expect(store().past).toHaveLength(baseline + 1);
-    expect(store().placedCharacters).toHaveLength(0);
   });
 
   it('restores the character to the same slot on undo', () => {
@@ -175,8 +118,8 @@ describe('clearCharacterSlot', () => {
     store().setSlot(1, 12);
     store().clearCharacterSlot(1);
     store().undo();
-    expect(store().characterSlots[1]).toEqual({ characterId: 12 });
-    expect(store().characterSlots[0]).toEqual({ characterId: 5 });
+    expect(store().characterSlots[1]).toMatchObject({ characterId: 12 });
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 5 });
   });
 
   it('is idempotent for rapid repeated clicks', () => {
@@ -188,20 +131,16 @@ describe('clearCharacterSlot', () => {
   });
 });
 
-describe('placeCharacter from a roster slot', () => {
-  it('clears the source slot and records its origin', () => {
-    store().setSlot(3, 11);
-    store().placeCharacter(11, 2, 2, 3);
-    expect(store().characterSlots[3]).toBeNull();
-    expect(store().placedCharacters[0]?.originSlotIndex).toBe(3);
-  });
-
-  it('rolls both arrays back on undo', () => {
-    store().setSlot(3, 11);
-    store().placeCharacter(11, 2, 2, 3);
-    store().undo();
-    expect(store().characterSlots[3]).toEqual({ characterId: 11 });
-    expect(store().placedCharacters).toHaveLength(0);
+describe('setSlot preserves participant config', () => {
+  it('keeps existing themeColor / triggers when reassigning a slot', () => {
+    store().setSlot(0, 4);
+    store().setParticipantConfig(0, { themeColor: '#FFCC00', triggers: [] });
+    // Reassigning via setSlot(0, 4) (no-op) preserves the participant config.
+    store().setSlot(0, 4);
+    expect(store().characterSlots[0]).toMatchObject({
+      characterId: 4,
+      themeColor: '#FFCC00',
+    });
   });
 });
 
@@ -298,13 +237,11 @@ describe('region draft selection', () => {
 });
 
 describe('selection', () => {
-  it('stores typed cell, region and character selections', () => {
+  it('stores typed cell and region selections (CLAR-603: no character selection)', () => {
     store().setSelection({ type: 'cell', x: 1, y: 2 });
     expect(store().selection).toEqual({ type: 'cell', x: 1, y: 2 });
     store().setSelection({ type: 'region', regionId: 'rg_a' });
     expect(store().selection).toEqual({ type: 'region', regionId: 'rg_a' });
-    store().setSelection({ type: 'character', characterId: 3, x: 1, y: 2 });
-    expect(store().selection).toEqual({ type: 'character', characterId: 3, x: 1, y: 2 });
     store().setSelection(null);
     expect(store().selection).toBeNull();
   });
@@ -321,18 +258,34 @@ describe('cell clearing', () => {
   });
 });
 
-describe('placed metadata', () => {
-  it('updates the map meta of a placed character', () => {
-    store().placeCharacter(3, 1, 1);
-    store().setPlacedMeta(1, 1, { room: 'A' });
-    expect(store().placedCharacters[0]?.mapMeta).toEqual({ room: 'A' });
+describe('setParticipantConfig (CLAR-603)', () => {
+  it('persists theme + triggers on the roster slot as one atomic step', () => {
+    store().setSlot(2, 9);
+    store().setParticipantConfig(2, {
+      themeColor: '#FFCC00',
+      triggers: [
+        {
+          trigger: 'click',
+          targets: [{ type: 'cell', x: 1, y: 1, effect: 'highlight', color: 'red' }],
+        },
+      ],
+    });
+    const slot = store().characterSlots[2];
+    expect(slot?.themeColor).toBe('#FFCC00');
+    expect(slot?.triggers?.[0]?.targets).toHaveLength(1);
+    expect(store().dirty).toBe(true);
+
+    store().undo();
+    const restored = store().characterSlots[2];
+    expect(restored?.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(restored?.triggers).toEqual([]);
   });
 });
 
 describe('character roster', () => {
   it('assigns and clears a slot', () => {
     store().setSlot(0, 9);
-    expect(store().characterSlots[0]).toEqual({ characterId: 9 });
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 9 });
     store().setSlot(0, null);
     expect(store().characterSlots[0]).toBeNull();
   });
@@ -341,8 +294,8 @@ describe('character roster', () => {
     store().setSlot(0, 9);
     store().setSlot(1, 4);
     store().swapSlots(0, 1);
-    expect(store().characterSlots[0]).toEqual({ characterId: 4 });
-    expect(store().characterSlots[1]).toEqual({ characterId: 9 });
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 4 });
+    expect(store().characterSlots[1]).toMatchObject({ characterId: 9 });
   });
 
   it('sizes the roster to the grid size', () => {
@@ -352,59 +305,13 @@ describe('character roster', () => {
   });
 });
 
-describe('returnCharacterToSlot', () => {
-  it('frees the origin slot on placement and restores it on removal', () => {
-    store().setSlot(2, 9);
-    store().placeCharacter(9, 1, 1);
-    expect(store().characterSlots[2]).toBeNull();
-    expect(store().placedCharacters[0]?.originSlotIndex).toBe(2);
-
-    expect(store().returnCharacterToSlot(9)).toBe(true);
-    expect(store().characterSlots[2]).toEqual({ characterId: 9 });
-    expect(store().placedCharacters).toHaveLength(0);
-  });
-
-  it('rolls both placed and slots back on undo', () => {
-    store().setSlot(0, 4);
-    store().placeCharacter(4, 2, 2);
-    store().undo();
-    expect(store().characterSlots[0]).toEqual({ characterId: 4 });
-    expect(store().placedCharacters).toHaveLength(0);
-    store().redo();
-    expect(store().characterSlots[0]).toBeNull();
-    expect(store().placedCharacters).toHaveLength(1);
-  });
-
-  it('fails without side effects when no slot is available', () => {
-    for (let i = 0; i < store().characterSlots.length; i += 1) store().setSlot(i, 100 + i);
-    store().placeCharacter(999, 0, 0);
-    expect(store().returnCharacterToSlot(999)).toBe(false);
-    expect(store().placedCharacters).toHaveLength(1);
-  });
-
-  it('returns false when the character is not placed', () => {
-    expect(store().returnCharacterToSlot(42)).toBe(false);
-  });
-
-  it('does not duplicate an already occupied slot', () => {
-    store().setSlot(1, 7);
-    store().placeCharacter(7, 0, 0);
-    store().setSlot(1, 7);
-    expect(store().returnCharacterToSlot(7)).toBe(true);
-    expect(store().characterSlots.filter((slot) => slot?.characterId === 7)).toHaveLength(1);
-    expect(store().placedCharacters).toHaveLength(0);
-  });
-});
-
 describe('grid resize', () => {
-  it('crops out-of-bounds cells, regions and characters', () => {
+  it('crops out-of-bounds cells and regions', () => {
     store().placeBackground(1, 5, 5);
-    store().placeCharacter(2, 5, 5);
     store().createRegion(regionInput('rg_a', [[5, 5]]), 'override');
     store().setGridSize(3);
     expect(store().gridSize).toBe(3);
     expect(store().cells.has('5,5')).toBe(false);
-    expect(store().placedCharacters).toHaveLength(0);
     expect(store().regions).toHaveLength(0);
   });
 });
@@ -416,14 +323,19 @@ describe('init', () => {
     loaded.regions = [
       { id: 'rg_x', name: 'Loaded', color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
-    loaded.placedCharacters = [{ characterId: 8, x: 2, y: 2, mapMeta: {} }];
+    loaded.characterSlots = [
+      { characterId: 8, themeColor: '#FFCC00', triggers: [] },
+      null,
+      null,
+      null,
+    ];
     store().init(9, loaded, { updatedAt: '2026-01-01T00:00:00.000Z', currentVersionNo: 2, status: 'published' });
 
     expect(store().projectId).toBe(9);
     expect(store().gridSize).toBe(4);
     expect(store().cells.get('0,0')?.object?.itemId).toBe(3);
     expect(store().regions).toHaveLength(1);
-    expect(store().placedCharacters).toHaveLength(1);
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 8, themeColor: '#FFCC00' });
     expect(store().currentVersionNo).toBe(2);
     expect(store().status).toBe('published');
     expect(store().past).toHaveLength(0);
@@ -432,13 +344,14 @@ describe('init', () => {
 });
 
 describe('toDraft', () => {
-  it('serialises cells, regions, slots and characters', () => {
+  it('serialises cells, regions, slots with theme + triggers', () => {
     store().placeObject({ id: 5, widthCells: 1, heightCells: 1 }, 1, 1);
     store().setSlot(0, 4);
     const output = store().toDraft();
     expect(output.version).toBe(1);
     expect(output.cells['1,1']?.object).toEqual({ itemId: 5, w: 1, h: 1 });
-    expect(output.characterSlots[0]).toEqual({ characterId: 4 });
-    expect(output.placedCharacters).toEqual([]);
+    expect(output.characterSlots[0]).toMatchObject({ characterId: 4 });
+    // CLAR-603: there is no placedCharacters field any more.
+    expect('placedCharacters' in output).toBe(false);
   });
 });

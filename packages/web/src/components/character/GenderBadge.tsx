@@ -1,32 +1,42 @@
 import {
   CHARACTER_GENDER_GLYPHS,
   CHARACTER_GENDER_LABELS,
+  GENDER_SYMBOL_COLORS,
   type CharacterGender,
 } from '@murdoku/shared';
 
 interface GenderBadgeProps {
   gender: CharacterGender | undefined;
-  /** Show the label text next to the glyph (used in the participant dialog). */
+  /** Show the label text next to the glyph. */
   withLabel?: boolean;
 }
 
-/** FEAT-501: `♂` / `♀` / `⚧`, nothing at all when unset. */
-export function GenderBadge({ gender, withLabel = false }: GenderBadgeProps): JSX.Element | null {
-  const key = gender ?? 'unknown';
+/**
+ * OPT-601 (docs/v0.3.1.md §2): the ♂/♀ glyph is tinted (male = light blue,
+ * female = light pink). CLAR-601 guarantees a character always has a gender,
+ * so there is no "unset" branch any more.
+ */
+export function GenderBadge({ gender, withLabel = false }: GenderBadgeProps): JSX.Element {
+  // CLAR-601: missing values are normalised to `male` upstream, but we keep a
+  // fallback so a transient `undefined` (e.g. while a query is loading) still
+  // renders a glyph rather than nothing.
+  const key: CharacterGender = gender ?? 'male';
   const glyph = CHARACTER_GENDER_GLYPHS[key];
-  if (!glyph && !withLabel) return null;
   const label = CHARACTER_GENDER_LABELS[key];
+  const color = GENDER_SYMBOL_COLORS[key];
   return (
     <span
       className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
       title={`性别：${label}`}
     >
-      {glyph ? (
-        <span aria-hidden className="text-[11px] leading-none">
-          {glyph}
-        </span>
-      ) : null}
-      {withLabel ? label : null}
+      <span
+        aria-hidden
+        className="text-[13px] leading-none"
+        style={{ color }}
+      >
+        {glyph}
+      </span>
+      {withLabel ? <span>{label}</span> : null}
     </span>
   );
 }

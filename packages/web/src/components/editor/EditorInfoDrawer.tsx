@@ -1,8 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, X } from 'lucide-react';
-import type { Character, DraftCell, DraftRegion, Item, PlacedCharacter } from '@murdoku/shared';
+import type { Character, DraftCell, DraftRegion, Item } from '@murdoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
-import { GenderBadge } from '@/components/character/GenderBadge';
 import { ItemThumbnail } from '@/components/item/ItemThumbnail';
 import { Button } from '@/components/ui/button';
 import { regionAt } from '@/lib/region';
@@ -15,100 +12,15 @@ interface EditorInfoDrawerProps {
   selection: Selection | null;
   cells: Map<string, DraftCell>;
   regions: DraftRegion[];
-  placedCharacters: PlacedCharacter[];
   charactersById: Map<number, Character>;
   itemsById: Map<number, Item>;
   unplacedCharacterId: number | null;
-  onSelectCharacter: (characterId: number, x: number, y: number) => void;
-  onSaveMeta: (x: number, y: number, meta: Record<string, unknown>) => void;
-  onRemoveCharacter: (x: number, y: number) => void;
-  /** FEAT-502: opens the participant dialog for a placed character. */
-  onConfigureParticipant?: (placed: PlacedCharacter) => void;
+  onClearUnplacedCharacter: () => void;
   onClearCell: (x: number, y: number) => void;
   onClearObject: (x: number, y: number) => void;
   onEditRegion: (region: DraftRegion) => void;
   onDeleteRegion: (region: DraftRegion) => void;
   onLocateRegion: (region: DraftRegion) => void;
-}
-
-function CharacterMetaEditor({
-  value,
-  onSave,
-}: {
-  value: Record<string, unknown>;
-  onSave: (meta: Record<string, unknown>) => void;
-}): JSX.Element {
-  const [rows, setRows] = useState<Array<{ key: string; value: string }>>([]);
-
-  useEffect(() => {
-    setRows(
-      Object.entries(value).map(([key, item]) => ({
-        key,
-        value: typeof item === 'string' ? item : JSON.stringify(item),
-      })),
-    );
-  }, [value]);
-
-  const update = (index: number, patch: Partial<{ key: string; value: string }>): void => {
-    setRows((previous) => previous.map((row, i) => (i === index ? { ...row, ...patch } : row)));
-  };
-
-  const remove = (index: number): void => {
-    setRows((previous) => previous.filter((_, i) => i !== index));
-  };
-
-  const save = (): void => {
-    const meta: Record<string, unknown> = {};
-    for (const row of rows) {
-      const key = row.key.trim();
-      if (key) meta[key] = row.value;
-    }
-    onSave(meta);
-  };
-
-  return (
-    <div className="space-y-2">
-      {rows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">暂无关联信息</p>
-      ) : (
-        rows.map((row, index) => (
-          <div key={index} className="flex items-center gap-1">
-            <input
-              value={row.key}
-              onChange={(event) => update(index, { key: event.target.value })}
-              placeholder="键"
-              className="h-7 w-24 shrink-0 rounded border bg-transparent px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-            <input
-              value={row.value}
-              onChange={(event) => update(index, { value: event.target.value })}
-              placeholder="值"
-              className="h-7 min-w-0 flex-1 rounded border bg-transparent px-2 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-            <button
-              type="button"
-              onClick={() => remove(index)}
-              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="删除"
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        ))
-      )}
-      <Button
-        variant="outline"
-        size="sm"
-        className="h-7 w-full text-[11px]"
-        onClick={() => setRows((previous) => [...previous, { key: '', value: '' }])}
-      >
-        <Plus className="mr-1 h-3 w-3" /> 添加字段
-      </Button>
-      <Button size="sm" className="h-7 w-full text-[11px]" onClick={save}>
-        保存关联信息
-      </Button>
-    </div>
-  );
 }
 
 function RegionInfo({ region }: { region: DraftRegion }): JSX.Element {
@@ -206,10 +118,7 @@ function CellBranch({
   selection,
   cell,
   region,
-  placed,
-  charactersById,
   itemsById,
-  onSelectCharacter,
   onClearCell,
   onClearObject,
   onEditRegion,
@@ -219,10 +128,7 @@ function CellBranch({
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
   region: DraftRegion | undefined;
-  placed: PlacedCharacter | undefined;
-  charactersById: Map<number, Character>;
   itemsById: Map<number, Item>;
-  onSelectCharacter: (characterId: number, x: number, y: number) => void;
   onClearCell: (x: number, y: number) => void;
   onClearObject: (x: number, y: number) => void;
   onEditRegion: (region: DraftRegion) => void;
@@ -232,7 +138,6 @@ function CellBranch({
   const backgroundItem =
     cell?.background?.itemId !== undefined ? itemsById.get(cell.background.itemId) : undefined;
   const objectItem = cell?.object?.itemId !== undefined ? itemsById.get(cell.object.itemId) : undefined;
-  const character = placed ? charactersById.get(placed.characterId) : undefined;
 
   return (
     <>
@@ -273,26 +178,6 @@ function CellBranch({
         )}
       </section>
 
-      <section className="space-y-1">
-        <h3 className="text-xs font-medium text-muted-foreground">角色</h3>
-        {placed ? (
-          <div className="flex items-center gap-2">
-            {character ? <CharacterThumbnail character={character} className="h-8 w-8" /> : null}
-            <span className="truncate text-sm">{character?.name ?? `#${placed.characterId}`}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="ml-auto h-7 text-[11px]"
-              onClick={() => onSelectCharacter(placed.characterId, placed.x, placed.y)}
-            >
-              查看
-            </Button>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">无</p>
-        )}
-      </section>
-
       <RegionSection
         region={region}
         onEditRegion={onEditRegion}
@@ -325,132 +210,34 @@ function CellBranch({
   );
 }
 
-function CharacterProfile({ character }: { character: Character }): JSX.Element {
+function CharacterProfile({
+  character,
+  onClose,
+}: {
+  character: Character;
+  onClose?: () => void;
+}): JSX.Element {
+  // CLAR-603: characters no longer occupy cells, so the empty-state message
+  // points the user at the participant panel rather than a drag-to-canvas
+  // instruction.
   return (
     <>
       <section className="flex flex-col items-center gap-2 border-b pb-4">
         <CharacterThumbnail character={character} className="h-24 w-24" />
-        <p className="flex items-center gap-2 text-base font-semibold">
-          {character.name}
-          <GenderBadge gender={character.gender} />
-        </p>
+        <p className="text-base font-semibold">{character.name}</p>
         <p className="text-xs text-muted-foreground">ID: {character.code}</p>
         {character.description ? (
           <p className="text-center text-xs text-muted-foreground">{character.description}</p>
         ) : null}
       </section>
       <p className="rounded-md border border-dashed bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
-        该角色尚未放置到地图，从右侧队伍槽位拖拽到画布即可放置。
+        该角色尚未加入参与者区。打开左侧「角色」标签，点击「加入」即可放入参与者框。
       </p>
-    </>
-  );
-}
-
-function CharacterBranch({
-  placed,
-  cell,
-  charactersById,
-  itemsById,
-  onSaveMeta,
-  onRemoveCharacter,
-  onConfigureParticipant,
-}: {
-  selection: Extract<Selection, { type: 'character' }>;
-  placed: PlacedCharacter;
-  cell: DraftCell | undefined;
-  charactersById: Map<number, Character>;
-  itemsById: Map<number, Item>;
-  onSaveMeta: (x: number, y: number, meta: Record<string, unknown>) => void;
-  onRemoveCharacter: (x: number, y: number) => void;
-  onConfigureParticipant?: (placed: PlacedCharacter) => void;
-}): JSX.Element {
-  const character = charactersById.get(placed.characterId);
-  const objectItem = cell?.object?.itemId !== undefined ? itemsById.get(cell.object.itemId) : undefined;
-  const blocked = objectItem ? !objectItem.canStand : false;
-  const themeColor = placed.themeColor ?? '#FFFFFF';
-  // Debounce guard so a rapid double click only removes the character once (FIX-307 防连点).
-  const [removing, setRemoving] = useState(false);
-
-  const handleRemove = (): void => {
-    if (removing) return;
-    setRemoving(true);
-    onRemoveCharacter(placed.x, placed.y);
-    setTimeout(() => setRemoving(false), 200);
-  };
-
-  return (
-    <>
-      <section className="flex flex-col items-center gap-2 border-b pb-4">
-        {character ? (
-          <span
-            className="flex h-24 w-24 items-center justify-center rounded-full border-2"
-            style={{ backgroundColor: themeColor }}
-          >
-            <CharacterThumbnail character={character} className="h-20 w-20" />
-          </span>
-        ) : (
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted text-2xl">
-            ?
-          </div>
-        )}
-        <p className="flex items-center gap-2 text-base font-semibold">
-          {character?.name ?? `#${placed.characterId}`}
-          <GenderBadge gender={character?.gender} />
-        </p>
-        <p className="text-xs text-muted-foreground">ID: {character?.code ?? placed.characterId}</p>
-        <p className="text-xs text-muted-foreground">
-          坐标：C{placed.x + 1}, R{placed.y + 1}
-        </p>
-        <p className="text-xs text-muted-foreground">
-          是否可站立：
-          <span className={blocked ? 'font-medium text-destructive' : 'font-medium text-foreground'}>
-            {blocked ? '否' : '是'}
-          </span>
-        </p>
-      </section>
-
-      {blocked ? (
-        <p className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          该格不可站角色，请调整位置或物品。
-        </p>
-      ) : null}
-
-      <section className="space-y-2">
-        <h3 className="text-xs font-medium text-muted-foreground">地图关联信息</h3>
-        <CharacterMetaEditor
-          value={placed.mapMeta}
-          onSave={(meta) => onSaveMeta(placed.x, placed.y, meta)}
-        />
-      </section>
-
-      <section className="space-y-2">
-        <h3 className="text-xs font-medium text-muted-foreground">参与者联动</h3>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>主题色</span>
-          <span className="h-4 w-4 rounded border" style={{ backgroundColor: themeColor }} />
-          <span className="font-mono">{themeColor}</span>
-          <span className="ml-auto">
-            {(placed.triggers ?? []).reduce((sum, group) => sum + group.targets.length, 0)} 个联动目标
-          </span>
-        </div>
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => onConfigureParticipant?.(placed)}
-        >
-          配置参与者
+      {onClose ? (
+        <Button type="button" variant="outline" className="w-full" onClick={onClose}>
+          关闭
         </Button>
-      </section>
-
-      <Button
-        variant="destructive"
-        className="w-full"
-        disabled={removing}
-        title="将该角色撤回到队伍槽位"
-        onClick={handleRemove}
-      >
-        从地图移除
-      </Button>
+      ) : null}
     </>
   );
 }
@@ -462,14 +249,10 @@ export function EditorInfoDrawer({
   selection,
   cells,
   regions,
-  placedCharacters,
   charactersById,
   itemsById,
   unplacedCharacterId,
-  onSelectCharacter,
-  onSaveMeta,
-  onRemoveCharacter,
-  onConfigureParticipant,
+  onClearUnplacedCharacter,
   onClearCell,
   onClearObject,
   onEditRegion,
@@ -483,16 +266,6 @@ export function EditorInfoDrawer({
       ? regions.find((item) => item.id === selection.regionId)
       : selection?.type === 'cell'
         ? regionAt(regions, selection.x, selection.y)
-        : undefined;
-  const placed =
-    selection?.type === 'character' || selection?.type === 'cell'
-      ? placedCharacters.find((p) => p.x === selection.x && p.y === selection.y)
-      : undefined;
-  const characterSelection =
-    selection?.type === 'character'
-      ? selection
-      : placed && selection?.type === 'cell'
-        ? { type: 'character' as const, characterId: placed.characterId, x: selection.x, y: selection.y }
         : undefined;
 
   return (
@@ -530,10 +303,13 @@ export function EditorInfoDrawer({
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3 text-sm">
             {!selection ? (
               unplacedCharacterId !== null && charactersById.has(unplacedCharacterId) ? (
-                <CharacterProfile character={charactersById.get(unplacedCharacterId)!} />
+                <CharacterProfile
+                  character={charactersById.get(unplacedCharacterId)!}
+                  onClose={onClearUnplacedCharacter}
+                />
               ) : (
                 <p className="py-6 text-center text-xs text-muted-foreground">
-                  在画布上点击格位、区域标签、角色或左侧槽位查看详情
+                  在画布上点击格位、区域标签或左侧参与者框查看详情
                 </p>
               )
             ) : selection.type === 'cell' ? (
@@ -541,33 +317,19 @@ export function EditorInfoDrawer({
                 selection={selection}
                 cell={cell}
                 region={region}
-                placed={placed}
-                charactersById={charactersById}
                 itemsById={itemsById}
-                onSelectCharacter={onSelectCharacter}
                 onClearCell={onClearCell}
                 onClearObject={onClearObject}
                 onEditRegion={onEditRegion}
                 onDeleteRegion={onDeleteRegion}
                 onLocateRegion={onLocateRegion}
               />
-            ) : selection.type === 'region' ? (
+            ) : (
               <RegionSection
                 region={region}
                 onEditRegion={onEditRegion}
                 onDeleteRegion={onDeleteRegion}
                 onLocateRegion={onLocateRegion}
-              />
-            ) : (
-              <CharacterBranch
-                selection={selection}
-                placed={placed ?? { characterId: selection.characterId, x: selection.x, y: selection.y, mapMeta: {} }}
-                cell={cell}
-                charactersById={charactersById}
-                itemsById={itemsById}
-                onSaveMeta={onSaveMeta}
-                onRemoveCharacter={onRemoveCharacter}
-                onConfigureParticipant={onConfigureParticipant}
               />
             )}
           </div>

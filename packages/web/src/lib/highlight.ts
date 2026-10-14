@@ -1,12 +1,12 @@
 import {
   EFFECT_COLOR_HEX,
+  type CharacterSlotEntry,
   type DraftCell,
   type DraftRegion,
   type EffectColor,
   type ParticipantTarget,
   type ParticipantTrigger,
   type ParticipantTriggerKey,
-  type PlacedCharacter,
 } from '@murdoku/shared';
 
 export type CellMap = Map<string, DraftCell>;
@@ -20,9 +20,15 @@ export interface HighlightRect {
   color: string;
 }
 
+/**
+ * CLAR-603: characters are no longer placed on the map; highlight requests
+ * resolve roster slots to a synthetic anchor (slot index → pseudo-cell).
+ * The renderer doesn't draw a map character layer any more, so the only
+ * remaining highlight branches are objects, cells and regions.
+ */
 export interface HighlightCharacter {
-  x: number;
-  y: number;
+  /** Slot index of the participant to outline in the roster panel. */
+  slotIndex: number;
   color: string;
 }
 
@@ -36,7 +42,11 @@ export interface HighlightState {
 export interface HighlightContext {
   gridSize: number;
   cells: CellMap;
-  placedCharacters: PlacedCharacter[];
+  /**
+   * Roster slots — same shape as `MapDraft.characterSlots`. The slot index
+   * becomes the highlight character identity.
+   */
+  characterSlots: Array<CharacterSlotEntry | null>;
   regions: DraftRegion[];
 }
 
@@ -99,6 +109,9 @@ export function findItemAnchor(cells: CellMap, itemId: number): HighlightRect | 
  * Turns the declarative participant triggers into concrete rectangles.
  * Unknown / dangling references are skipped so a stale config never breaks
  * rendering (the zod schema already rejects them on save).
+ *
+ * CLAR-603: `characters` no longer carry a cell coordinate — instead we
+ * return the slot index so the roster panel can outline the avatar.
  */
 export function resolveHighlight(
   triggers: ParticipantTrigger[] | undefined,
@@ -116,9 +129,12 @@ export function resolveHighlight(
     const color = effectColorHex(target.color);
 
     if (target.type === 'character') {
-      const placed = ctx.placedCharacters.find((item) => item.characterId === target.id);
-      if (!placed) continue;
-      characters.set(identity, { x: placed.x, y: placed.y, color });
+      // Find the roster slot holding this character.
+      const slotIndex = ctx.characterSlots.findIndex(
+        (slot) => slot?.characterId === target.id,
+      );
+      if (slotIndex === -1) continue;
+      characters.set(identity, { slotIndex, color });
       continue;
     }
 

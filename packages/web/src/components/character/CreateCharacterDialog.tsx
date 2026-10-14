@@ -7,9 +7,11 @@ import {
   CHARACTER_CODE_PATTERN,
   CHARACTER_DESCRIPTION_MAX_LENGTH,
   CHARACTER_GENDERS,
+  CHARACTER_GENDER_GLYPHS,
   CHARACTER_GENDER_LABELS,
   CHARACTER_NAME_MAX_LENGTH,
   DEFAULT_CHARACTER_GENDER,
+  GENDER_SYMBOL_COLORS,
 } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
 import {
@@ -22,7 +24,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateCharacter } from '@/hooks/useCharacters';
 
@@ -61,6 +62,8 @@ export function CreateCharacterDialog({
   const {
     register,
     handleSubmit,
+    watch,
+    setValue,
     reset,
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
@@ -83,6 +86,8 @@ export function CreateCharacterDialog({
     });
   });
 
+  const gender = watch('gender');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -102,14 +107,37 @@ export function CreateCharacterDialog({
             {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="character-gender">性别</Label>
-            <Select id="character-gender" className="max-w-sm" {...register('gender')}>
-              {CHARACTER_GENDERS.map((gender) => (
-                <option key={gender} value={gender}>
-                  {CHARACTER_GENDER_LABELS[gender]}
-                </option>
-              ))}
-            </Select>
+            <Label>性别</Label>
+            {/* CLAR-601: segmented control — only 男 / 女, default 男. */}
+            <div
+              role="radiogroup"
+              aria-label="性别"
+              className="inline-flex overflow-hidden rounded-md border"
+            >
+              {CHARACTER_GENDERS.map((item) => {
+                const selected = gender === item;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setValue('gender', item, { shouldDirty: true })}
+                    className={
+                      'flex items-center gap-1 px-4 py-1.5 text-sm transition-colors ' +
+                      (selected
+                        ? 'bg-secondary text-secondary-foreground'
+                        : 'bg-background text-muted-foreground hover:bg-accent')
+                    }
+                  >
+                    <span style={{ color: GENDER_SYMBOL_COLORS[item] }}>
+                      {CHARACTER_GENDER_GLYPHS[item]}
+                    </span>
+                    <span className="ml-1">{CHARACTER_GENDER_LABELS[item]}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="character-desc">描述</Label>

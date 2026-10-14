@@ -17,8 +17,7 @@ function emptyDraft(gridSize: number): MapDraft {
     gridSize,
     cells: {},
     regions: [],
-    characterSlots: [],
-    placedCharacters: [],
+    characterSlots: Array.from({ length: gridSize }, () => null),
   };
 }
 

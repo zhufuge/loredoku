@@ -63,21 +63,22 @@ export const CHARACTER_DESCRIPTION_MAX_LENGTH = 500;
 export const CHARACTER_AVATAR_MAX_DIMENSION = 256;
 export const CHARACTER_SLOT_COUNT = 20;
 
-// FEAT-501: character gender.
-export const CHARACTER_GENDERS = ['male', 'female', 'other', 'unknown'] as const;
-export const DEFAULT_CHARACTER_GENDER = 'unknown';
+// CLAR-601: gender is restricted to `male` / `female`; default is `male`.
+export const CHARACTER_GENDERS = ['male', 'female'] as const;
+export const DEFAULT_CHARACTER_GENDER = 'male';
 export const CHARACTER_GENDER_LABELS: Record<(typeof CHARACTER_GENDERS)[number], string> = {
   male: '男',
   female: '女',
-  other: '其他',
-  unknown: '未设置',
 };
-/** Small glyph shown next to a character name; `unknown` renders nothing. */
+/** Small glyph shown next to a character name; every character always has one. */
 export const CHARACTER_GENDER_GLYPHS: Record<(typeof CHARACTER_GENDERS)[number], string> = {
   male: '♂',
   female: '♀',
-  other: '⚧',
-  unknown: '',
+};
+// OPT-601: tinted gender glyphs (male = light blue, female = light pink).
+export const GENDER_SYMBOL_COLORS: Record<(typeof CHARACTER_GENDERS)[number], string> = {
+  male: '#7DB9E8',
+  female: '#F4A9C0',
 };
 
 // ---- Project ----

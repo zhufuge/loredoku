@@ -61,42 +61,49 @@ export const characterSlotSchema = z.object({
   characterId: z.number().int().positive(),
 });
 
-/** FEAT-502: a placed character is a participant with theme colour + triggers. */
-export const placedCharacterSchema = z.object({
+/**
+ * CLAR-603: a roster slot carries participant linkage directly. The roster
+ * length equals `gridSize`; null entries represent empty slots.
+ */
+export const characterSlotEntrySchema = z.object({
   characterId: z.number().int().positive(),
-  x: coordSchema,
-  y: coordSchema,
-  mapMeta: z.record(z.unknown()).default({}),
-  originSlotIndex: z.number().int().min(0).optional(),
   themeColor: themeColorSchema,
   triggers: participantTriggersSchema,
 });
 
 /**
- * Participant targets reference other objects in the same map; dangling
- * references are rejected so the highlight engine never resolves to nothing.
+ * CLAR-603: validates that every participant trigger references an object
+ * that exists in the same map. Targets reference:
+ *   - characters → another roster slot's `characterId`
+ *   - items      → an object anchor in `cells`
+ *   - cells      → within the `gridSize` square
+ *   - regions    → a `regions[i].id`
  */
 function validateParticipantReferences(
   draft: z.output<typeof mapDraftBaseSchema>,
   ctx: z.RefinementCtx,
 ): void {
-  const participantIds = new Set(draft.placedCharacters.map((placed) => placed.characterId));
+  const participantIds = new Set<number>();
+  for (const slot of draft.characterSlots) {
+    if (slot) participantIds.add(slot.characterId);
+  }
   const objectItemIds = new Set<number>();
   for (const cell of Object.values(draft.cells)) {
     if (cell.object) objectItemIds.add(cell.object.itemId);
   }
   const regionIds = new Set(draft.regions.map((region) => region.id));
 
-  draft.placedCharacters.forEach((placed, index) => {
-    for (const trigger of placed.triggers) {
+  draft.characterSlots.forEach((slot, slotIndex) => {
+    if (!slot) return;
+    for (const trigger of slot.triggers) {
       trigger.targets.forEach((target, targetIndex) => {
-        const path = ['placedCharacters', index, 'triggers'];
+        const path = ['characterSlots', slotIndex, 'triggers'];
         void targetIndex;
         if (target.type === 'character' && !participantIds.has(target.id)) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             path,
-            message: `联动目标角色 #${target.id} 不在地图中`,
+            message: `联动目标角色 #${target.id} 不在参与者中`,
           });
         }
         if (target.type === 'item' && !objectItemIds.has(target.id)) {
@@ -134,8 +141,7 @@ const mapDraftBaseSchema = z
     gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
     cells: z.record(cellKeySchema, draftCellSchema),
     regions: z.array(draftRegionSchema),
-    characterSlots: z.array(characterSlotSchema.nullable()),
-    placedCharacters: z.array(placedCharacterSchema),
+    characterSlots: z.array(characterSlotEntrySchema.nullable()),
   })
   .strict();
 

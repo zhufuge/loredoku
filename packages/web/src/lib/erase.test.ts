@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DraftCell, PlacedCharacter } from '@murdoku/shared';
+import type { DraftCell } from '@murdoku/shared';
 import {
   isEmptyCell,
   objectFootprintKeys,
@@ -12,24 +12,19 @@ function map(entries: Record<string, DraftCell>): CellMap {
   return new Map(Object.entries(entries));
 }
 
-const placed = (characterId: number, x: number, y: number): PlacedCharacter => ({
-  characterId,
-  x,
-  y,
-  mapMeta: {},
-});
+// CLAR-603: the character layer is gone; tests cover only objects / background.
 
 describe('resolveEraseTarget', () => {
   it('returns null for an empty cell', () => {
-    expect(resolveEraseTarget(map({}), [], 0, 0)).toBeNull();
-    expect(resolveEraseTarget(map({ '0,0': {} }), [], 0, 0)).toBeNull();
+    expect(resolveEraseTarget(map({}), 0, 0)).toBeNull();
+    expect(resolveEraseTarget(map({ '0,0': {} }), 0, 0)).toBeNull();
   });
 
   it('clears the object first when both layers are stacked', () => {
     const cells = map({
       '0,0': { background: { itemId: 1 }, object: { itemId: 2, w: 1, h: 1 } },
     });
-    expect(resolveEraseTarget(cells, [], 0, 0)).toEqual({
+    expect(resolveEraseTarget(cells, 0, 0)).toEqual({
       layer: 'object',
       key: '0,0',
       x: 0,
@@ -39,7 +34,7 @@ describe('resolveEraseTarget', () => {
 
   it('clears the background when only that layer is present', () => {
     const cells = map({ '0,0': { background: { itemId: 1 } } });
-    expect(resolveEraseTarget(cells, [], 0, 0)).toEqual({
+    expect(resolveEraseTarget(cells, 0, 0)).toEqual({
       layer: 'background',
       key: '0,0',
       x: 0,
@@ -49,18 +44,8 @@ describe('resolveEraseTarget', () => {
 
   it('clears the object when only that layer is present', () => {
     const cells = map({ '0,0': { object: { itemId: 2, w: 1, h: 1 } } });
-    expect(resolveEraseTarget(cells, [], 0, 0)).toEqual({
+    expect(resolveEraseTarget(cells, 0, 0)).toEqual({
       layer: 'object',
-      key: '0,0',
-      x: 0,
-      y: 0,
-    });
-  });
-
-  it('clears the character standing on the cell first', () => {
-    const cells = map({ '0,0': { background: { itemId: 1 } } });
-    expect(resolveEraseTarget(cells, [placed(9, 0, 0)], 0, 0)).toEqual({
-      layer: 'character',
       key: '0,0',
       x: 0,
       y: 0,
@@ -74,7 +59,7 @@ describe('resolveEraseTarget', () => {
       '2,3': {},
       '3,3': {},
     });
-    const target = resolveEraseTarget(cells, [], 3, 3) as EraseTarget;
+    const target = resolveEraseTarget(cells, 3, 3) as EraseTarget;
     expect(target.layer).toBe('object');
     expect(target.key).toBe('2,2');
     expect([target.x, target.y]).toEqual([2, 2]);

@@ -5,13 +5,10 @@ import {
   GRID_LINE_COLOR,
   GRID_LINE_WIDTH,
   type CellCoord,
-  type Character,
   type DraftRegion,
   type Item,
-  type PlacedCharacter,
 } from '@murdoku/shared';
 import { buildRegionEdges, computeLabelCell } from '@/lib/region';
-import { isDarkColor } from '@murdoku/shared';
 import type { CellMap, HighlightState } from '@/lib/highlight';
 
 const HOVER_RING = 'inset 0 0 0 2px #3B82F6';
@@ -182,101 +179,6 @@ export function MapObjectLayer({
   );
 }
 
-export interface MapCharacterLayerProps {
-  placedCharacters: PlacedCharacter[];
-  charactersById: Map<number, Character>;
-  interactive?: boolean;
-  hover?: CellCoord | null;
-  selected?: CellCoord | null;
-  /** `${x},${y}` → effect colour, drives the 1s highlight ring + scale. */
-  highlightColors?: Map<string, string>;
-  onPointerEnter?: (placed: PlacedCharacter) => void;
-  onPointerDown?: (placed: PlacedCharacter) => void;
-  onClick?: (placed: PlacedCharacter) => void;
-}
-
-export function MapCharacterLayer({
-  placedCharacters,
-  charactersById,
-  interactive = false,
-  hover = null,
-  selected = null,
-  highlightColors,
-  onPointerEnter,
-  onPointerDown,
-  onClick,
-}: MapCharacterLayerProps): JSX.Element {
-  return (
-    <div className="no-drag pointer-events-none absolute left-0 top-0" style={{ zIndex: 18 }}>
-      {placedCharacters.map((placed) => {
-        const character = charactersById.get(placed.characterId);
-        const src = character?.avatarThumbUrl ?? character?.avatarUrl;
-        const themeColor = placed.themeColor ?? '#FFFFFF';
-        const hovered = hover?.x === placed.x && hover?.y === placed.y;
-        const selectedHere = selected?.x === placed.x && selected?.y === placed.y;
-        const highlightColor = highlightColors?.get(`${placed.x},${placed.y}`) ?? null;
-        return (
-          <button
-            key={`ch-${placed.x},${placed.y}`}
-            type="button"
-            className="absolute flex items-center justify-center transition-transform duration-150"
-            style={{
-              ...cellRectStyle(placed.x, placed.y),
-              zIndex: 18,
-              pointerEvents: interactive ? 'auto' : 'none',
-              cursor: interactive ? 'pointer' : 'inherit',
-              boxShadow: hovered && interactive ? HOVER_RING : undefined,
-              filter: selectedHere ? 'drop-shadow(0 0 6px rgba(59,130,246,0.9))' : undefined,
-              transform: highlightColor ? 'scale(1.08)' : undefined,
-            }}
-            disabled={!interactive}
-            onPointerEnter={() => onPointerEnter?.(placed)}
-            onPointerDown={(event) => {
-              if (!interactive) return;
-              event.stopPropagation();
-              onPointerDown?.(placed);
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-              onClick?.(placed);
-            }}
-            title={character?.name ?? `#${placed.characterId}`}
-          >
-            {/* Theme colour chassis: a ring + plate behind the avatar. */}
-            <span
-              className="absolute inset-[6%] rounded-full"
-              style={{
-                backgroundColor: themeColor,
-                border: highlightColor ? `3px solid ${highlightColor}` : '2px solid rgba(0,0,0,0.35)',
-                boxShadow: highlightColor ? `0 0 0 2px ${highlightColor}` : undefined,
-                transition: 'border-color 150ms ease, box-shadow 150ms ease',
-              }}
-            />
-            {src ? (
-              <img
-                src={src}
-                alt={character?.name ?? ''}
-                draggable={false}
-                className="relative h-[68%] w-[64%] rounded-full object-cover"
-              />
-            ) : (
-              <span
-                className="relative flex h-[68%] w-[64%] items-center justify-center rounded-full text-xs font-semibold"
-                style={{
-                  backgroundColor: isDarkColor(themeColor) ? '#FFFFFF' : '#111827',
-                  color: isDarkColor(themeColor) ? '#111827' : '#FFFFFF',
-                }}
-              >
-                {character?.name?.slice(0, 1) ?? '?'}
-              </span>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 export function MapRegionFillLayer({
   regions,
   gridSize,
@@ -402,8 +304,13 @@ export function MapRegionLabelLayer({
 }
 
 /**
- * Highlight layer: above items and characters, below the grid lines
- * (docs/v0.3.0.md §2.2.4). Shared by the editor and the preview page.
+ * Highlight layer: above items, below the grid lines
+ * (docs/v0.3.0.md §2.2.4, updated by CLAR-603 §3.5). Shared by the editor
+ * and the preview page.
+ *
+ * CLAR-603: characters no longer occupy cells, so the highlight layer only
+ * draws the object / cell / region overlays. The roster panel handles the
+ * `characters` outline directly.
  */
 export function MapHighlightLayer({
   highlight,
@@ -411,8 +318,8 @@ export function MapHighlightLayer({
   highlight: HighlightState | null;
 }): JSX.Element | null {
   if (!highlight) return null;
-  const { characters, objects, cells } = highlight;
-  if (characters.length === 0 && objects.length === 0 && cells.length === 0) return null;
+  const { objects, cells } = highlight;
+  if (objects.length === 0 && cells.length === 0) return null;
   return (
     <div
       className="highlight-fade pointer-events-none absolute left-0 top-0"
@@ -433,19 +340,6 @@ export function MapHighlightLayer({
             ...cellRectStyle(rect.x, rect.y, rect.w, rect.h),
             backgroundColor: rect.color,
             opacity: 0.45,
-          }}
-        />
-      ))}
-      {characters.map((item, index) => (
-        <div
-          key={`hl-ch-${item.x}-${item.y}-${index}`}
-          className="absolute rounded-full"
-          style={{
-            left: item.x * CELL_SIZE + 3,
-            top: item.y * CELL_SIZE + 3,
-            width: CELL_SIZE - 6,
-            height: CELL_SIZE - 6,
-            border: `3px solid ${item.color}`,
           }}
         />
       ))}

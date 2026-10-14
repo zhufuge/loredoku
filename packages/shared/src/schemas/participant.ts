@@ -68,4 +68,5 @@ export type ParticipantTriggerInput = z.infer<typeof participantTriggerSchema>;
 export type ThemeColorInput = z.infer<typeof themeColorSchema>;
 
 // Re-exported so consumers can build gender pickers from one place.
+// CLAR-601: gender is restricted to `male` / `female`.
 export const genderSchema = z.enum(CHARACTER_GENDERS).default(DEFAULT_CHARACTER_GENDER);

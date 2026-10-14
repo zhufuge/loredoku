@@ -1,7 +1,7 @@
-import type { DraftCell, PlacedCharacter } from '@murdoku/shared';
+import type { DraftCell } from '@murdoku/shared';
 import { cellKey, type CellMap } from './hitTest';
 
-export type EraseLayer = 'character' | 'object' | 'background';
+export type EraseLayer = 'object' | 'background';
 
 export interface EraseTarget {
   layer: EraseLayer;
@@ -12,20 +12,18 @@ export interface EraseTarget {
 }
 
 /**
- * Eraser resolution order: characters → object layer → background layer
- * (top-most visual layer first). `activeLayer` is deliberately ignored.
+ * Eraser resolution order: object layer → background layer (top-most visual
+ * layer first). `activeLayer` is deliberately ignored.
+ *
+ * CLAR-603: participants no longer occupy cells, so there is no character
+ * layer to clear.
  */
 export function resolveEraseTarget(
   cells: CellMap,
-  placedCharacters: PlacedCharacter[],
   x: number,
   y: number,
 ): EraseTarget | null {
   const key = cellKey(x, y);
-
-  if (placedCharacters.some((placed) => placed.x === x && placed.y === y)) {
-    return { layer: 'character', key, x, y };
-  }
 
   const cell = cells.get(key);
   if (cell?.object) return { layer: 'object', key, x, y };

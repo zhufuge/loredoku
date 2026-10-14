@@ -8,13 +8,12 @@ import {
   useState,
 } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { CELL_SIZE, type CellCoord, type Character, type DraftRegion, type EditorTool, type Item, type PlacedCharacter, type RegionShape } from '@murdoku/shared';
+import { CELL_SIZE, type CellCoord, type DraftRegion, type EditorTool, type Item, type RegionShape } from '@murdoku/shared';
 import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/region';
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
 import {
   MapBackgroundLayer,
-  MapCharacterLayer,
   MapGridLayer,
   MapHighlightLayer,
   MapObjectLayer,
@@ -36,19 +35,8 @@ import type { Selection } from '@/stores/editorStore';
 const RULER_SIZE = 28;
 const RULER_TEXT_COLOR = '#1F2937';
 const RULER_ACTIVE_COLOR = '#2563EB';
-const VALID_RING = 'inset 0 0 0 2px #22C55E';
-const INVALID_RING = 'inset 0 0 0 2px #EF4444';
 
-/** Ghost/preview state of the roster → canvas pointer drag. */
-export interface CharacterDragPreview {
-  characterId: number;
-  sourceSlotIndex: number;
-  /** Pointer position in client coordinates, used for the translucent ghost. */
-  pointer: { x: number; y: number } | null;
-  target: CellCoord | null;
-  valid: boolean;
-}
-
+/** EditorCanvas no longer carries character drag state (CLAR-603). */
 export interface EditorCanvasHandle {
   clientToCell: (clientX: number, clientY: number) => CellCoord;
   containsPoint: (clientX: number, clientY: number) => boolean;
@@ -61,8 +49,6 @@ interface EditorCanvasProps {
   cells: CellMap;
   itemsById: Map<number, Item>;
   regions: DraftRegion[];
-  placedCharacters: PlacedCharacter[];
-  charactersById: Map<number, Character>;
   selectedRegionId: string | null;
   zoom: number;
   pan: { x: number; y: number };
@@ -73,14 +59,10 @@ interface EditorCanvasProps {
   showRulers: boolean;
   pendingItem: Item | null;
   regionDraftSelection: Set<string>;
-  characterDrag: CharacterDragPreview | null;
   /** Resolved participant highlight (shared with the work preview page). */
   highlight: HighlightState | null;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
-  onSelectCharacter: (characterId: number, x: number, y: number) => void;
-  /** Fired when the pointer enters a participant cell (`touch` trigger). */
-  onTouchCharacter?: (characterId: number, x: number, y: number) => void;
   onAnchorChange: (anchor: CellCoord | null) => void;
   onDraftAdd: (cells: Coord[]) => void;
   onDraftRemove: (cells: Coord[]) => void;
@@ -112,8 +94,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     cells,
     itemsById,
     regions,
-    placedCharacters,
-    charactersById,
     selectedRegionId,
     zoom,
     pan,
@@ -124,12 +104,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     showRulers,
     pendingItem,
     regionDraftSelection,
-    characterDrag,
     highlight,
     onSelect,
     onSelectRegion,
-    onSelectCharacter,
-    onTouchCharacter,
     onAnchorChange,
     onDraftAdd,
     onDraftRemove,
@@ -267,22 +244,15 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   // see docs/v0.2.5.md BUG-401 / BUG-405.
   const selectCellAt = useCallback(
     (coord: CellCoord): void => {
-      const hit = hitTestCell({ x: coord.x, y: coord.y, gridSize, cells, placedCharacters });
+      const hit = hitTestCell({ x: coord.x, y: coord.y, gridSize, cells });
       if (!hit) {
         onSelect(null);
-        return;
-      }
-      if (hit.type === 'character') {
-        const placed = placedCharacters.find(
-          (item) => item.x === hit.x && item.y === hit.y,
-        );
-        if (placed) onSelectCharacter(placed.characterId, placed.x, placed.y);
         return;
       }
       onSelect({ type: 'cell', x: hit.x, y: hit.y });
       onSelectRegion(regionAt(regions, hit.x, hit.y)?.id ?? null);
     },
-    [cells, gridSize, onSelect, onSelectCharacter, onSelectRegion, placedCharacters, regions],
+    [cells, gridSize, onSelect, onSelectRegion, regions],
   );
 
   const pendingFootprint = useMemo<{ w: number; h: number }>(() => {
@@ -341,7 +311,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
 
     if (!inBounds) {
-      if (activeTool === 'select' || activeTool === 'character') {
+      if (activeTool === 'select') {
         onSelect(null);
         onSelectRegion(null);
       }
@@ -356,7 +326,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       return;
     }
 
-    if (activeTool === 'select' || activeTool === 'character') {
+    if (activeTool === 'select') {
       if (event.shiftKey && selectedRegionId) {
         onToggleRegionCell(coord);
         return;
@@ -461,16 +431,15 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
   };
 
-  const cursor = characterDrag
-    ? 'grabbing'
-    : activeTool === 'pan' || spaceHeld
+  const cursor =
+    activeTool === 'pan' || spaceHeld
       ? 'grab'
       : activeTool === 'region'
         ? 'crosshair'
         : 'default';
 
   const showPreview =
-    (activeTool === 'select' || activeTool === 'character') && hover !== null && pendingItem !== null;
+    activeTool === 'select' && hover !== null && pendingItem !== null;
 
   const marqueeRect = marquee
     ? {
@@ -491,21 +460,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   // Cell content is clickable (selection only) unless a brush item is armed or
   // the user is panning; it never carries drag handlers (BUG-405).
   const selectInteractive =
-    (activeTool === 'select' || activeTool === 'character') && pendingItem === null && !spaceHeld;
+    activeTool === 'select' && pendingItem === null && !spaceHeld;
 
   const selectionCell =
-    selection?.type === 'cell' || selection?.type === 'character'
+    selection?.type === 'cell'
       ? { x: selection.x, y: selection.y }
       : null;
-
-  /** `${x},${y}` → effect colour, consumed by the character layer. */
-  const highlightColors = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const item of highlight?.characters ?? []) {
-      map.set(`${item.x},${item.y}`, item.color);
-    }
-    return map;
-  }, [highlight]);
 
   const draftOverlay = (
     <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 28 }}>
@@ -568,18 +528,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       {marqueeRect ? (
         <div className="absolute border-2 border-dashed border-primary bg-primary/10" style={marqueeRect} />
       ) : null}
-      {characterDrag?.target ? (
-        <div
-          className="absolute"
-          style={{
-            left: characterDrag.target.x * CELL_SIZE,
-            top: characterDrag.target.y * CELL_SIZE,
-            width: CELL_SIZE,
-            height: CELL_SIZE,
-            boxShadow: characterDrag.valid ? VALID_RING : INVALID_RING,
-          }}
-        />
-      ) : null}
       {brushCells.map(([x, y]) => (
         <div
           key={`brush-${x}-${y}`}
@@ -589,38 +537,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       ))}
     </div>
   );
-
-  const dragAvatar = characterDrag
-    ? (charactersById.get(characterDrag.characterId)?.avatarThumbUrl ??
-      charactersById.get(characterDrag.characterId)?.avatarUrl)
-    : undefined;
-  const dragName = characterDrag
-    ? charactersById.get(characterDrag.characterId)?.name
-    : undefined;
-  const characterDragGhost =
-    characterDrag && characterDrag.pointer ? (
-      <div
-        className="pointer-events-none fixed z-[70] flex h-12 w-12 items-center justify-center rounded-full opacity-70 shadow-lg"
-        style={{
-          left: characterDrag.pointer.x,
-          top: characterDrag.pointer.y,
-          transform: 'translate(-50%, -50%)',
-        }}
-      >
-        {dragAvatar ? (
-          <img
-            src={dragAvatar}
-            alt=""
-            draggable={false}
-            className="h-full w-full rounded-full border-2 border-white object-cover"
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center rounded-full border-2 border-white bg-primary text-xs font-semibold text-primary-foreground">
-            {dragName?.slice(0, 1) ?? '?'}
-          </span>
-        )}
-      </div>
-    ) : null;
 
   const rulerColumns = useMemo(
     () => Array.from({ length: gridSize }, (_, index) => index + 1),
@@ -678,17 +594,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
         <MapGridLayer gridSize={gridSize} />
 
-        <MapCharacterLayer
-          placedCharacters={placedCharacters}
-          charactersById={charactersById}
-          interactive={selectInteractive}
-          hover={hover}
-          selected={selectionCell}
-          highlightColors={highlightColors}
-          onPointerEnter={(placed) => onTouchCharacter?.(placed.characterId, placed.x, placed.y)}
-          onClick={(placed) => onSelectCharacter(placed.characterId, placed.x, placed.y)}
-        />
-
         <MapHighlightLayer highlight={highlight} />
 
         {selectionOverlay}
@@ -701,8 +606,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           }}
         />
       </div>
-
-      {characterDragGhost}
 
       {showRulers ? (
         <>

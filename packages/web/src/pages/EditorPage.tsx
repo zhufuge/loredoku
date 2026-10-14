@@ -36,17 +36,16 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { EditorCanvas, type CharacterDragPreview, type EditorCanvasHandle } from '@/components/editor/EditorCanvas';
+import { EditorCanvas, type EditorCanvasHandle } from '@/components/editor/EditorCanvas';
 import { EditorLeftPanel } from '@/components/editor/EditorLeftPanel';
 import { EditorToolbar } from '@/components/editor/EditorToolbar';
 import { EditorBottomBar } from '@/components/editor/EditorBottomBar';
 import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
-import { CharacterSlotColumn } from '@/components/editor/CharacterSlotColumn';
+import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
-  ParticipantDialog,
+  ParticipantDrawer,
   type PlacedItemOption,
-} from '@/components/editor/ParticipantDialog';
+} from '@/components/editor/ParticipantDrawer';
 import { RegionDialog } from '@/components/editor/RegionDialog';
 import { RegionSelectionBar } from '@/components/editor/RegionSelectionBar';
 import { WorkHistoryDialog } from '@/components/editor/WorkHistoryDialog';
@@ -58,9 +57,8 @@ import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { useHighlight } from '@/hooks/useHighlight';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { resolveHighlight } from '@/lib/highlight';
-import { DROP_REJECTION_MESSAGES, validateCharacterDrop } from '@/lib/characterDrop';
 import type { Coord } from '@/lib/region';
-import { isConnected, regionAt } from '@/lib/region';
+import { isConnected } from '@/lib/region';
 import { cn } from '@/lib/utils';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 
@@ -69,6 +67,11 @@ interface RegionDialogState {
   mode: 'create' | 'edit';
   cells: Coord[];
   region: DraftRegion | null;
+}
+
+interface SlotDragPreview {
+  slotIndex: number;
+  pointer: { x: number; y: number };
 }
 
 export function EditorPage(): JSX.Element {
@@ -94,7 +97,8 @@ export function EditorPage(): JSX.Element {
   const [regionShape, setRegionShape] = useState<RegionShape>('rect');
   const [itemsOpen, setItemsOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [slotCharacterId, setSlotCharacterId] = useState<number | null>(null);
+  const [unplacedCharacterId, setUnplacedCharacterId] = useState<number | null>(null);
+  const [participantDrawerOpen, setParticipantDrawerOpen] = useState(false);
   const [regionAnchorActive, setRegionAnchorActive] = useState(false);
   const [saveMaskVisible, setSaveMaskVisible] = useState(false);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
@@ -114,6 +118,13 @@ export function EditorPage(): JSX.Element {
     if (typeof window === 'undefined') return true;
     return window.localStorage.getItem('murdoku.editor.ruler') !== 'hidden';
   });
+  const [pickingCell, setPickingCell] = useState(false);
+  const [pickedCell, setPickedCell] = useState<{ x: number; y: number } | null>(null);
+
+  // Slot drag state for roster reordering (CLAR-603 — no longer drops onto the map).
+  const [slotDrag, setSlotDrag] = useState<SlotDragPreview | null>(null);
+  const slotDragRef = useRef<SlotDragPreview | null>(null);
+  slotDragRef.current = slotDrag;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -143,9 +154,20 @@ export function EditorPage(): JSX.Element {
   );
 
   useEffect(() => {
-    if (editor.selection || editor.selectedRegionId || slotCharacterId !== null) setInfoOpen(true);
-    else setInfoOpen(false);
-  }, [editor.selection, editor.selectedRegionId, slotCharacterId]);
+    if (editor.selection || editor.selectedRegionId !== null || editor.selectedSlotIndex !== null) {
+      setInfoOpen(true);
+    } else if (unplacedCharacterId === null) {
+      setInfoOpen(false);
+    }
+  }, [editor.selection, editor.selectedRegionId, editor.selectedSlotIndex, unplacedCharacterId]);
+
+  useEffect(() => {
+    if (editor.selectedSlotIndex !== null) {
+      setParticipantDrawerOpen(true);
+    } else {
+      setParticipantDrawerOpen(false);
+    }
+  }, [editor.selectedSlotIndex]);
 
   useEffect(() => {
     const data = mapQuery.data;
@@ -180,19 +202,13 @@ export function EditorPage(): JSX.Element {
     );
   };
 
-  // ---- FEAT-502: participant linkage ----
+  // ---- CLAR-603: participant linkage lives entirely in the roster ----
   const { highlight, show: showHighlight } = useHighlight();
-  const [participantId, setParticipantId] = useState<number | null>(null);
-  const [pickingCell, setPickingCell] = useState(false);
-  const [pickedCell, setPickedCell] = useState<{ x: number; y: number } | null>(null);
 
-  const participantPlaced = useMemo(
-    () =>
-      participantId === null
-        ? null
-        : editor.placedCharacters.find((item) => item.characterId === participantId) ?? null,
-    [participantId, editor.placedCharacters],
-  );
+  const selectedSlot =
+    editor.selectedSlotIndex === null
+      ? null
+      : editor.characterSlots[editor.selectedSlotIndex] ?? null;
 
   const placedItems = useMemo<PlacedItemOption[]>(() => {
     const list: PlacedItemOption[] = [];
@@ -209,76 +225,45 @@ export function EditorPage(): JSX.Element {
     return list;
   }, [editor.cells, itemsById]);
 
-  const fireTrigger = (characterId: number, trigger: ParticipantTriggerKey): void => {
-    const placed = editor.placedCharacters.find((item) => item.characterId === characterId);
-    if (!placed) return;
+  const fireTrigger = (slotIndex: number, trigger: ParticipantTriggerKey): void => {
+    const slot = editor.characterSlots[slotIndex];
+    if (!slot) return;
     showHighlight(
-      resolveHighlight(placed.triggers, trigger, {
+      resolveHighlight(slot.triggers, trigger, {
         gridSize: editor.gridSize,
         cells: editor.cells,
-        placedCharacters: editor.placedCharacters,
+        characterSlots: editor.characterSlots,
         regions: editor.regions,
       }),
     );
   };
 
   const saveParticipant = (
-    characterId: number,
+    slotIndex: number,
     patch: { themeColor: string; triggers: ParticipantTrigger[] },
   ): void => {
-    editor.setParticipantConfig(characterId, patch);
+    editor.setParticipantConfig(slotIndex, patch);
     toast.success('已保存参与者配置');
+  };
+
+  const removeParticipant = (slotIndex: number): void => {
+    editor.clearCharacterSlot(slotIndex);
+    editor.setSelectedSlot(null);
+    setParticipantDrawerOpen(false);
+    toast.success('已移除参与者');
   };
 
   const setTool = (tool: EditorTool): void => {
     editor.setTool(tool);
     if (tool !== 'select') {
       editor.setSelectedItem(null);
-      editor.setSelectedCharacter(null);
     }
-  };
-
-  const selectCharacter = (characterId: number, x: number, y: number): void => {
-    editor.setSelection({ type: 'character', characterId, x, y });
-    editor.setSelectedRegion(regionAt(editor.regions, x, y)?.id ?? null);
-    editor.setSelectedCharacter(characterId);
-    setSlotCharacterId(null);
-  };
-
-  const selectSlotCharacter = (characterId: number | null): void => {
-    editor.setSelectedCharacter(characterId);
-    if (characterId === null) {
-      setSlotCharacterId(null);
-      return;
-    }
-    const placed = editor.placedCharacters.find((item) => item.characterId === characterId);
-    if (placed) {
-      selectCharacter(characterId, placed.x, placed.y);
-      setSlotCharacterId(null);
-    } else {
-      editor.setSelection(null);
-      setSlotCharacterId(characterId);
-    }
-  };
-
-  const removeCharacter = (x: number, y: number): void => {
-    const placed = editor.placedCharacters.find((item) => item.x === x && item.y === y);
-    if (!placed) return;
-    const returned = editor.returnCharacterToSlot(placed.characterId);
-    if (!returned) {
-      toast.error('无可用槽位，请先清理槽位');
-      return;
-    }
-    toast.success('已移除角色');
-    editor.setSelection(null);
-    editor.setSelectedCharacter(placed.characterId);
-    setSlotCharacterId(placed.characterId);
   };
 
   const assignSlot = (characterId: number): void => {
     const index = editor.characterSlots.findIndex((slot) => slot === null);
     if (index === -1) {
-      toast.error('队伍已满，请先移出角色');
+      toast.error('参与者者区已满，请先移出角色');
       return;
     }
     editor.setSlot(index, characterId);
@@ -288,109 +273,48 @@ export function EditorPage(): JSX.Element {
     const slot = editor.characterSlots[index];
     if (!slot) return;
     editor.clearCharacterSlot(index);
-    if (slot.characterId === editor.selectedCharacterId) {
-      editor.setSelectedCharacter(null);
-      setSlotCharacterId(null);
+    if (editor.selectedSlotIndex === index) {
+      editor.setSelectedSlot(null);
+      setParticipantDrawerOpen(false);
     }
   };
 
-  // ---- Roster → canvas pointer drag (docs/v0.2.5.md BUG-403) ----
-  const [characterDrag, setCharacterDrag] = useState<CharacterDragPreview | null>(null);
-  const characterDragRef = useRef<CharacterDragPreview | null>(null);
-  characterDragRef.current = characterDrag;
-
-  const resolveDropCell = (pointer: { x: number; y: number }): CellCoord | null => {
-    const handle = canvasRef.current;
-    if (!handle) return null;
-    const cell = handle.clientToCell(pointer.x, pointer.y);
-    return isInBounds(cell, editor.gridSize) ? cell : null;
+  // ---- Slot → slot reorder (no longer drops onto the map) ----
+  const beginSlotDrag = (payload: { slotIndex: number; pointer: { x: number; y: number } }): void => {
+    setSlotDrag({ slotIndex: payload.slotIndex, pointer: payload.pointer });
   };
 
-  const checkDrop = (
-    characterId: number,
-    cell: CellCoord | null,
-  ): { cell: CellCoord | null; valid: boolean } => {
-    if (!cell) return { cell: null, valid: false };
-    const result = validateCharacterDrop({
-      cell,
-      gridSize: editor.gridSize,
-      cells: editor.cells,
-      placedCharacters: editor.placedCharacters,
-      characterId,
-      itemsById,
-    });
-    return { cell, valid: result.ok };
-  };
-
-  const beginCharacterDrag = (payload: {
-    characterId: number;
-    sourceSlotIndex: number;
-    pointer: { x: number; y: number };
-  }): void => {
-    setCharacterDrag({
-      characterId: payload.characterId,
-      sourceSlotIndex: payload.sourceSlotIndex,
-      pointer: payload.pointer,
-      target: null,
-      valid: false,
-    });
-  };
-
-  const moveCharacterDrag = (pointer: { x: number; y: number }): void => {
-    const drag = characterDragRef.current;
+  const moveSlotDrag = (pointer: { x: number; y: number }): void => {
+    const drag = slotDragRef.current;
     if (!drag) return;
-    const { cell, valid } = checkDrop(drag.characterId, resolveDropCell(pointer));
-    setCharacterDrag({ ...drag, pointer, target: cell, valid });
+    setSlotDrag({ ...drag, pointer });
   };
 
-  const cancelCharacterDrag = (): void => setCharacterDrag(null);
+  const cancelSlotDrag = (): void => setSlotDrag(null);
 
-  const endCharacterDrag = (pointer: { x: number; y: number }): void => {
-    const drag = characterDragRef.current;
+  const endSlotDrag = (pointer: { x: number; y: number }): void => {
+    const drag = slotDragRef.current;
     if (!drag) return;
-    setCharacterDrag(null);
-
-    // Dropping onto another roster slot reorders the roster.
+    setSlotDrag(null);
     const slotNode = document
       .elementFromPoint(pointer.x, pointer.y)
       ?.closest('[data-slot-index]');
     if (slotNode) {
       const targetIndex = Number(slotNode.getAttribute('data-slot-index'));
-      if (Number.isInteger(targetIndex) && targetIndex !== drag.sourceSlotIndex) {
-        editor.swapSlots(drag.sourceSlotIndex, targetIndex);
+      if (Number.isInteger(targetIndex) && targetIndex !== drag.slotIndex) {
+        editor.swapSlots(drag.slotIndex, targetIndex);
       }
-      return;
     }
-
-    const cell = resolveDropCell(pointer);
-    if (!cell) {
-      toast.error(DROP_REJECTION_MESSAGES['out-of-bounds']);
-      return;
-    }
-    const result = validateCharacterDrop({
-      cell,
-      gridSize: editor.gridSize,
-      cells: editor.cells,
-      placedCharacters: editor.placedCharacters,
-      characterId: drag.characterId,
-      itemsById,
-    });
-    if (!result.ok) {
-      toast.error(DROP_REJECTION_MESSAGES[result.reason]);
-      return;
-    }
-    editor.placeCharacter(drag.characterId, cell.x, cell.y, drag.sourceSlotIndex);
-    toast.success('已放置角色');
   };
 
   useEffect(() => {
-    if (!characterDrag) return;
+    if (!slotDrag) return;
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') cancelCharacterDrag();
+      if (event.key === 'Escape') cancelSlotDrag();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [characterDrag]);
+  }, [slotDrag]);
 
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
     if (regionDialog.mode === 'create') {
@@ -418,10 +342,10 @@ export function EditorPage(): JSX.Element {
           });
         }
         const result = await resizeMutation.mutateAsync({ id, gridSize: size });
-        const { background, object, regions, charactersReturnedToSlot } = result.removed;
-        if (background + object + regions + charactersReturnedToSlot > 0) {
+        const { background, object, regions } = result.removed;
+        if (background + object + regions > 0) {
           toast.message('画布已调整', {
-            description: `已移除越界内容：背景 ${background}、物体 ${object}、区域 ${regions}、角色 ${charactersReturnedToSlot}`,
+            description: `已移除越界内容：背景 ${background}、物体 ${object}、区域 ${regions}`,
           });
         } else {
           toast.success('画布已调整');
@@ -437,7 +361,7 @@ export function EditorPage(): JSX.Element {
 
   const resizeImpact = useMemo(() => {
     if (!resizeOpen) {
-      return { items: [] as string[], regions: [] as string[], characters: [] as string[] };
+      return { items: [] as string[], regions: [] as string[] };
     }
     const size = resizeValue;
     const inBounds = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < size && y < size;
@@ -467,23 +391,8 @@ export function EditorPage(): JSX.Element {
       const count = region.cells.filter(([x, y]) => !inBounds(x, y)).length;
       if (count > 0) regions.push(`区域「${region.name}」部分格子越界（${count} 格）`);
     }
-    const characters: string[] = [];
-    for (const placed of editor.placedCharacters) {
-      if (!inBounds(placed.x, placed.y)) {
-        const character = charactersById.get(placed.characterId);
-        characters.push(`角色「${character?.name ?? `#${placed.characterId}`}」将被撤回槽位`);
-      }
-    }
-    return { items, regions, characters };
-  }, [
-    resizeOpen,
-    resizeValue,
-    editor.cells,
-    editor.regions,
-    editor.placedCharacters,
-    itemsById,
-    charactersById,
-  ]);
+    return { items, regions };
+  }, [resizeOpen, resizeValue, editor.cells, editor.regions, itemsById]);
 
   const publish = (): void => {
     if (editor.dirty || publishMutation.isPending) return;
@@ -593,7 +502,7 @@ export function EditorPage(): JSX.Element {
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         const selection = editor.selection;
-        if (selection && selection.type !== 'region') {
+        if (selection && selection.type === 'cell') {
           event.preventDefault();
           editor.eraseAt(selection.x, selection.y);
         }
@@ -602,18 +511,17 @@ export function EditorPage(): JSX.Element {
       if (event.key === 'Escape') {
         editor.setSelection(null);
         editor.setSelectedItem(null);
-        editor.setSelectedCharacter(null);
-        setSlotCharacterId(null);
+        editor.setSelectedSlot(null);
+        setUnplacedCharacterId(null);
         if (editor.activeTool !== 'region') editor.clearDraftSelection();
         return;
       }
       if (mod) return;
       if (event.key === 'v' || event.key === 'V') setTool('select');
       else if (event.key === 'r' || event.key === 'R') setTool('region');
-      else if (event.key === 'c' || event.key === 'C') setTool('character');
       else if (event.key === 'e' || event.key === 'E') setTool('eraser');
       else if (event.key === 'h' || event.key === 'H') setTool('pan');
-      else if (event.key.startsWith('Arrow') && editor.selection && editor.selection.type !== 'region') {
+      else if (event.key.startsWith('Arrow') && editor.selection && editor.selection.type === 'cell') {
         const step: Record<string, CellCoord> = {
           ArrowUp: { x: 0, y: -1 },
           ArrowDown: { x: 0, y: 1 },
@@ -658,6 +566,14 @@ export function EditorPage(): JSX.Element {
         正在加载画布…
       </div>
     );
+  }
+
+  // Resolve highlight character → slot index mapping for the roster panel.
+  const highlightedSlots = new Set<number>();
+  const highlightColors = new Map<number, string>();
+  for (const character of highlight?.characters ?? []) {
+    highlightedSlots.add(character.slotIndex);
+    highlightColors.set(character.slotIndex, character.color);
   }
 
   return (
@@ -717,7 +633,7 @@ export function EditorPage(): JSX.Element {
               activeLayer={editor.activeLayer}
               selectedItemId={editor.selectedItemId}
               characterSlots={editor.characterSlots}
-              selectedCharacterId={editor.selectedCharacterId}
+              selectedCharacterId={unplacedCharacterId}
               regions={editor.regions}
               selectedRegionId={editor.selectedRegionId}
               onSetTool={setTool}
@@ -726,7 +642,14 @@ export function EditorPage(): JSX.Element {
                 editor.setSelectedItem(null);
               }}
               onSelectItem={(item) => editor.setSelectedItem(item ? item.id : null)}
-              onSelectCharacter={editor.setSelectedCharacter}
+              onSelectCharacter={(id) => {
+                if (id === null) {
+                  setUnplacedCharacterId(null);
+                  return;
+                }
+                setUnplacedCharacterId(id);
+                editor.setSelectedSlot(null);
+              }}
               onAssignSlot={assignSlot}
               onSelectRegion={editor.setSelectedRegion}
               onEditRegion={(region) => {
@@ -745,17 +668,24 @@ export function EditorPage(): JSX.Element {
             panelsDisabled ? 'pointer-events-none opacity-50' : undefined,
           )}
         >
-          <CharacterSlotColumn
+          <ParticipantPanel
             slots={editor.characterSlots}
             charactersById={charactersById}
-            selectedCharacterId={editor.selectedCharacterId}
-            draggingIndex={characterDrag?.sourceSlotIndex ?? null}
-            onSelect={selectSlotCharacter}
+            selectedSlotIndex={editor.selectedSlotIndex}
+            draggingIndex={slotDrag?.slotIndex ?? null}
+            highlightedSlots={highlightedSlots}
+            highlightColors={highlightColors}
+            onSelect={(index) => {
+              editor.setSelectedSlot(index);
+              if (index === null) {
+                setUnplacedCharacterId(null);
+              }
+            }}
             onClear={clearSlot}
-            onDragBegin={beginCharacterDrag}
-            onDragMove={moveCharacterDrag}
-            onDragEnd={endCharacterDrag}
-            onDragCancel={cancelCharacterDrag}
+            onDragBegin={beginSlotDrag}
+            onDragMove={moveSlotDrag}
+            onDragEnd={endSlotDrag}
+            onDragCancel={cancelSlotDrag}
           />
         </div>
 
@@ -766,8 +696,6 @@ export function EditorPage(): JSX.Element {
             cells={editor.cells}
             itemsById={itemsById}
             regions={editor.regions}
-            placedCharacters={editor.placedCharacters}
-            charactersById={charactersById}
             selectedRegionId={editor.selectedRegionId}
             zoom={editor.zoom}
             pan={editor.pan}
@@ -778,7 +706,6 @@ export function EditorPage(): JSX.Element {
             showRulers={rulerVisible}
             pendingItem={pendingItem}
             regionDraftSelection={editor.regionDraftSelection}
-            characterDrag={characterDrag}
             highlight={highlight}
             onSelect={(selection) => {
               if (pickingCell && selection?.type === 'cell') {
@@ -786,15 +713,12 @@ export function EditorPage(): JSX.Element {
                 setPickingCell(false);
               }
               editor.setSelection(selection);
-              setSlotCharacterId(null);
+              if (selection) {
+                editor.setSelectedSlot(null);
+                setUnplacedCharacterId(null);
+              }
             }}
             onSelectRegion={editor.setSelectedRegion}
-            onSelectCharacter={(characterId, x, y) => {
-              selectCharacter(characterId, x, y);
-              fireTrigger(characterId, 'click');
-              setParticipantId(characterId);
-            }}
-            onTouchCharacter={(characterId) => fireTrigger(characterId, 'touch')}
             onAnchorChange={(anchor) => setRegionAnchorActive(anchor !== null)}
             onDraftAdd={editor.addDraftCells}
             onDraftRemove={editor.removeDraftCells}
@@ -892,28 +816,49 @@ export function EditorPage(): JSX.Element {
           />
 
           <EditorInfoDrawer
-            open={infoOpen}
-            onClose={() => setInfoOpen(false)}
+            open={infoOpen && editor.selectedSlotIndex === null}
+            onClose={() => {
+              setInfoOpen(false);
+              setUnplacedCharacterId(null);
+            }}
             onOpen={() => setInfoOpen(true)}
             selection={editor.selection}
             cells={editor.cells}
             regions={editor.regions}
-            placedCharacters={editor.placedCharacters}
             charactersById={charactersById}
             itemsById={itemsById}
-            unplacedCharacterId={slotCharacterId}
-            onSelectCharacter={selectCharacter}
-            onSaveMeta={(x, y, meta) => editor.setPlacedMeta(x, y, meta)}
-            onRemoveCharacter={removeCharacter}
-            onConfigureParticipant={(placed) => setParticipantId(placed.characterId)}
+            unplacedCharacterId={unplacedCharacterId}
+            onClearUnplacedCharacter={() => setUnplacedCharacterId(null)}
             onClearCell={(x, y) => editor.clearCell(x, y)}
             onClearObject={(x, y) => editor.clearObjectAt(x, y)}
             onEditRegion={(region) => {
               editor.setSelectedRegion(region.id);
               setRegionDialog({ open: true, mode: 'edit', cells: region.cells, region });
             }}
-            onDeleteRegion={(region) => setDeleteRegionTarget(region)}
+            onDeleteRegion={setDeleteRegionTarget}
             onLocateRegion={() => canvasRef.current?.centerView()}
+          />
+
+          <ParticipantDrawer
+            open={participantDrawerOpen}
+            onClose={() => {
+              setParticipantDrawerOpen(false);
+              editor.setSelectedSlot(null);
+            }}
+            slotIndex={editor.selectedSlotIndex}
+            slots={editor.characterSlots}
+            character={
+              selectedSlot ? charactersById.get(selectedSlot.characterId) : undefined
+            }
+            charactersById={charactersById}
+            placedItems={placedItems}
+            regions={editor.regions}
+            gridSize={editor.gridSize}
+            pickedCell={pickedCell}
+            onPickCell={() => setPickingCell(true)}
+            onSave={saveParticipant}
+            onRemove={removeParticipant}
+            onPreviewTrigger={fireTrigger}
           />
         </main>
       </div>
@@ -926,29 +871,6 @@ export function EditorPage(): JSX.Element {
         region={regionDialog.region}
         regions={editor.regions}
         onSubmit={submitRegion}
-      />
-
-      <ParticipantDialog
-        open={participantId !== null && !pickingCell}
-        onOpenChange={(open) => {
-          if (!open) setParticipantId(null);
-        }}
-        placed={participantPlaced}
-        character={
-          participantId === null ? undefined : charactersById.get(participantId)
-        }
-        charactersById={charactersById}
-        participants={editor.placedCharacters}
-        placedItems={placedItems}
-        regions={editor.regions}
-        gridSize={editor.gridSize}
-        pickedCell={pickedCell}
-        onPickCell={() => setPickingCell(true)}
-        onSave={saveParticipant}
-        onRemove={(placed) => {
-          removeCharacter(placed.x, placed.y);
-          setParticipantId(null);
-        }}
       />
 
       <WorkHistoryDialog
@@ -1052,18 +974,11 @@ export function EditorPage(): JSX.Element {
               </div>
             </div>
 
-            {resizeImpact.items.length +
-              resizeImpact.regions.length +
-              resizeImpact.characters.length >
-            0 ? (
+            {resizeImpact.items.length + resizeImpact.regions.length > 0 ? (
               <div className="rounded-md border bg-muted/40 p-3 text-xs">
                 <p className="mb-1 font-medium">将被移除：</p>
                 <ul className="space-y-0.5 text-muted-foreground">
-                  {[
-                    ...resizeImpact.items,
-                    ...resizeImpact.regions,
-                    ...resizeImpact.characters,
-                  ].map((line, index) => (
+                  {[...resizeImpact.items, ...resizeImpact.regions].map((line, index) => (
                     <li key={index}>· {line}</li>
                   ))}
                 </ul>

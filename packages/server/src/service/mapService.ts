@@ -27,11 +27,6 @@ async function assertValidReferences(draft: MapDraft, size: number): Promise<voi
       }
     }
   }
-  for (const placed of draft.placedCharacters) {
-    if (placed.x < 0 || placed.y < 0 || placed.x >= size || placed.y >= size) {
-      throw AppError.validation(`角色位置 (${placed.x}, ${placed.y}) 超出边界`);
-    }
-  }
 
   const itemIds = new Set<number>();
   for (const key of Object.keys(draft.cells)) {
@@ -46,8 +41,8 @@ async function assertValidReferences(draft: MapDraft, size: number): Promise<voi
     throw AppError.validation('存在无效的物品引用', missingItems);
   }
 
+  // CLAR-603: participants live in the roster; no placedCharacters check.
   const characterIds = new Set<number>();
-  for (const placed of draft.placedCharacters) characterIds.add(placed.characterId);
   for (const slot of draft.characterSlots) {
     if (slot) characterIds.add(slot.characterId);
   }

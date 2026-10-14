@@ -135,11 +135,7 @@ export interface DraftRegion {
   labelCell?: [number, number] | null;
 }
 
-export interface CharacterSlot {
-  characterId: number;
-}
-
-// ---- Participant linkage (docs/v0.3.0.md FEAT-502) ----
+// ---- Participant linkage (docs/v0.3.1.md CLAR-603) ----
 export type ParticipantTarget =
   | { type: 'character'; id: number; effect: EffectType; color: EffectColor }
   | { type: 'item'; id: number; effect: EffectType; color: EffectColor }
@@ -151,32 +147,31 @@ export interface ParticipantTrigger {
   targets: ParticipantTarget[];
 }
 
-export interface PlacedCharacter {
+/**
+ * CLAR-603: participants never enter the map. A roster slot carries the
+ * participant linkage (theme colour + triggers) directly. `null` represents
+ * an empty slot. The roster length equals `gridSize`.
+ */
+export interface CharacterSlotEntry {
   characterId: number;
-  x: number;
-  y: number;
-  mapMeta: Record<string, unknown>;
-  /** Slot the character came from, so it can return there when removed. */
-  originSlotIndex?: number;
   /** Participant theme colour, defaults to `#FFFFFF`. Never a blue hue. */
   themeColor?: string;
   /** Highlight effects grouped by trigger, each group maintained independently. */
   triggers?: ParticipantTrigger[];
 }
 
-/** A placed character with participant fields normalised (used by UI code). */
-export interface Participant extends PlacedCharacter {
-  themeColor: string;
-  triggers: ParticipantTrigger[];
-}
+/**
+ * Backward-compatible alias kept while callers migrate to {@link CharacterSlotEntry}.
+ * Structurally assignable because the new fields are optional.
+ */
+export type CharacterSlot = { characterId: number };
 
 export interface MapDraft {
   version: number;
   gridSize: number;
   cells: Record<string, DraftCell>;
   regions: DraftRegion[];
-  characterSlots: Array<CharacterSlot | null>;
-  placedCharacters: PlacedCharacter[];
+  characterSlots: Array<CharacterSlotEntry | null>;
 }
 
 export interface MapResponse {

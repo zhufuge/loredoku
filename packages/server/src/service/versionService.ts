@@ -28,9 +28,6 @@ function collectCoords(draft: MapDraft): Array<[number, number, string]> {
       coords.push([x, y, `区域「${region.name}」的单元格 (${x}, ${y})`]);
     }
   }
-  for (const placed of draft.placedCharacters) {
-    coords.push([placed.x, placed.y, `角色位置 (${placed.x}, ${placed.y})`]);
-  }
   return coords;
 }
 
@@ -60,16 +57,33 @@ function isRegionConnected(region: DraftRegion): boolean {
   return seen.size === set.size;
 }
 
+/**
+ * CLAR-603 (docs/v0.3.1.md §3.3) — the sudoku-style P1~P6 rules from v0.3.0
+ * are gone. The new publish rules are:
+ *   P1 — at least one participant (non-null slot)
+ *   P2 — every participant has an avatar (no avatar → inactive → ignored)
+ *   P3 — no overlapping region cells
+ *   P4 — multi-cell items fully inside the board, no layer conflicts
+ *   P5 — every trigger target reference exists
+ */
 export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]> {
   const violations: PublishViolation[] = [];
   const size = draft.gridSize;
 
+  // ---- Bounds check for cells / regions ----
   for (const [x, y, label] of collectCoords(draft)) {
     if (x < 0 || y < 0 || x >= size || y >= size) {
       violations.push({ rule: 'bounds', message: `${label} 超出边界` });
     }
   }
 
+  // ---- P1 — at least one participant ----
+  const participants = draft.characterSlots.filter((slot) => slot !== null);
+  if (participants.length === 0) {
+    violations.push({ rule: 'participant_required', message: '至少需要 1 名参与者' });
+  }
+
+  // ---- Item references + multi-cell coverage (P4) ----
   const itemIds = new Set<number>();
   for (const key of Object.keys(draft.cells)) {
     const cell = draft.cells[key];
@@ -77,7 +91,6 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     if (cell.object) itemIds.add(cell.object.itemId);
     if (cell.background) itemIds.add(cell.background.itemId);
   }
-
   const meta = await itemRepo.itemMetaByIds([...itemIds]);
   for (const id of itemIds) {
     if (!meta.has(id)) {
@@ -94,10 +107,18 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
         message: `物品 #${cell.object.itemId} 不可站立，不能放在物体层`,
       });
     }
+    // Multi-cell footprint must be entirely inside the board.
+    const [x, y] = parseCellKey(key);
+    if (x + cell.object.w > size || y + cell.object.h > size) {
+      violations.push({
+        rule: 'object_out_of_bounds',
+        message: `物品 #${cell.object.itemId} (${cell.object.w}×${cell.object.h}) 越出画布`,
+      });
+    }
   }
 
+  // ---- P2 — every participant must reference a character with an avatar ----
   const characterIds = new Set<number>();
-  for (const placed of draft.placedCharacters) characterIds.add(placed.characterId);
   for (const slot of draft.characterSlots) {
     if (slot) characterIds.add(slot.characterId);
   }
@@ -108,6 +129,7 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     }
   }
 
+  // ---- P3 — no overlapping region cells ----
   const owner = new Map<string, string>();
   for (const region of draft.regions) {
     for (const [x, y] of region.cells) {
@@ -129,6 +151,49 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
       violations.push({ rule: 'region_connected', message: `区域「${region.name}」不是连通区域` });
     }
   }
+
+  // ---- P5 — trigger targets must resolve ----
+  const objectItemIds = new Set<number>();
+  for (const key of Object.keys(draft.cells)) {
+    const cell = draft.cells[key];
+    if (!cell) continue;
+    if (cell.object) objectItemIds.add(cell.object.itemId);
+  }
+  const regionIds = new Set(draft.regions.map((region) => region.id));
+  draft.characterSlots.forEach((slot, slotIndex) => {
+    if (!slot) return;
+    for (const trigger of slot.triggers ?? []) {
+      for (const target of trigger.targets) {
+        if (target.type === 'character' && !characterIds.has(target.id)) {
+          violations.push({
+            rule: 'participant_target',
+            message: `参与者框 ${slotIndex + 1} 的联动目标角色 #${target.id} 不在参与者中`,
+          });
+        }
+        if (target.type === 'item' && !objectItemIds.has(target.id)) {
+          violations.push({
+            rule: 'participant_target',
+            message: `参与者框 ${slotIndex + 1} 的联动目标物品 #${target.id} 不在地图中`,
+          });
+        }
+        if (target.type === 'region' && !regionIds.has(target.id)) {
+          violations.push({
+            rule: 'participant_target',
+            message: `参与者框 ${slotIndex + 1} 的联动目标区域 ${target.id} 不在地图中`,
+          });
+        }
+        if (
+          target.type === 'cell' &&
+          (target.x < 0 || target.y < 0 || target.x >= size || target.y >= size)
+        ) {
+          violations.push({
+            rule: 'participant_target',
+            message: `参与者框 ${slotIndex + 1} 的联动目标方格 (${target.x}, ${target.y}) 超出画布范围`,
+          });
+        }
+      }
+    }
+  });
 
   return violations;
 }
@@ -182,7 +247,7 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
     notes: row.notes,
     publishedAt: new Date(row.snapshot_created_at).toISOString(),
     data: row.data,
-    participantCount: row.data?.placedCharacters?.length ?? 0,
+    participantCount: (row.data?.characterSlots ?? []).filter((slot) => slot !== null).length,
     regionCount: row.data?.regions?.length ?? 0,
     itemCount: itemIds.size,
   };

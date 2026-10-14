@@ -13,8 +13,12 @@ function summarizeData(data: MapDraft | null | undefined): {
     if (cell?.object) itemIds.add(cell.object.itemId);
     if (cell?.background) itemIds.add(cell.background.itemId);
   }
+  // CLAR-603: participants live in the roster; count non-null slots.
+  const participantCount = (draft?.characterSlots ?? []).filter(
+    (slot) => slot !== null,
+  ).length;
   return {
-    participantCount: draft?.placedCharacters?.length ?? 0,
+    participantCount,
     regionCount: draft?.regions?.length ?? 0,
     itemCount: itemIds.size,
   };

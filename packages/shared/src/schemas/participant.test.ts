@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_THEME_COLOR, EFFECT_COLORS } from '../constants';
 import { isReservedBlueColor } from '../color';
-import { mapDraftSchema, placedCharacterSchema } from './mapDraft';
+import { mapDraftSchema } from './mapDraft';
 import { participantTargetSchema, themeColorSchema } from './participant';
 
 const baseDraft = {
@@ -12,10 +12,13 @@ const baseDraft = {
     '1,1': { background: { itemId: 5 } },
   },
   regions: [{ id: 'rg_a1b2c3', name: '森林区', cells: [[2, 2]] }],
-  characterSlots: [],
-  placedCharacters: [
-    { characterId: 5, x: 0, y: 1, themeColor: '#FFCC00', triggers: [] },
-    { characterId: 7, x: 3, y: 3 },
+  characterSlots: [
+    { characterId: 5, themeColor: '#FFCC00', triggers: [] },
+    { characterId: 7, themeColor: '#FFFFFF', triggers: [] },
+    null,
+    null,
+    null,
+    null,
   ],
 };
 
@@ -86,24 +89,14 @@ describe('participantTargetSchema', () => {
   });
 });
 
-describe('placedCharacterSchema', () => {
-  it('applies participant defaults', () => {
-    const parsed = placedCharacterSchema.parse({ characterId: 1, x: 0, y: 0 });
-    expect(parsed.themeColor).toBe(DEFAULT_THEME_COLOR);
-    expect(parsed.triggers).toEqual([]);
-    expect(parsed.mapMeta).toEqual({});
-  });
-});
-
-describe('mapDraftSchema participant references', () => {
-  it('accepts references that exist in the map', () => {
+describe('mapDraftSchema participant references (CLAR-603)', () => {
+  it('accepts references that exist in the roster / map', () => {
     const draft = {
       ...baseDraft,
-      placedCharacters: [
+      characterSlots: [
         {
           characterId: 5,
-          x: 0,
-          y: 1,
+          themeColor: '#FFCC00',
           triggers: [
             {
               trigger: 'click',
@@ -116,7 +109,11 @@ describe('mapDraftSchema participant references', () => {
             },
           ],
         },
-        { characterId: 7, x: 3, y: 3 },
+        { characterId: 7, themeColor: '#FFFFFF', triggers: [] },
+        null,
+        null,
+        null,
+        null,
       ],
     };
     const result = mapDraftSchema.safeParse(draft);
@@ -133,12 +130,38 @@ describe('mapDraftSchema participant references', () => {
     for (const target of failing) {
       const result = mapDraftSchema.safeParse({
         ...baseDraft,
-        placedCharacters: [
-          { characterId: 5, x: 0, y: 1, triggers: [{ trigger: 'click', targets: [target] }] },
-          { characterId: 7, x: 3, y: 3 },
+        characterSlots: [
+          {
+            characterId: 5,
+            themeColor: '#FFCC00',
+            triggers: [{ trigger: 'click', targets: [target] }],
+          },
+          { characterId: 7, themeColor: '#FFFFFF', triggers: [] },
+          null,
+          null,
+          null,
+          null,
         ],
       });
       expect(result.success, JSON.stringify(target)).toBe(false);
     }
+  });
+
+  it('rejects drafts that still carry legacy placedCharacters', () => {
+    const result = mapDraftSchema.safeParse({
+      ...baseDraft,
+      placedCharacters: [{ characterId: 5, x: 0, y: 1, themeColor: '#FFCC00', triggers: [] }],
+    });
+    // Strict schema rejects unknown keys, so a legacy `placedCharacters`
+    // field is rejected outright.
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('CLAR-601: gender enum (only male / female)', () => {
+  it('exposes only male / female via CHARACTER_GENDERS', async () => {
+    const { CHARACTER_GENDERS, DEFAULT_CHARACTER_GENDER } = await import('../constants');
+    expect(CHARACTER_GENDERS).toEqual(['male', 'female']);
+    expect(DEFAULT_CHARACTER_GENDER).toBe('male');
   });
 });

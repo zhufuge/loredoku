@@ -158,13 +158,9 @@ export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number
     const draft = project.draft_data;
     if (!draft) continue;
     let changed = false;
-    const placedCharacters = (draft.placedCharacters ?? []).filter(
-      (placed) => placed.characterId !== id,
-    );
-    if (placedCharacters.length !== (draft.placedCharacters ?? []).length) {
-      draft.placedCharacters = placedCharacters;
-      changed = true;
-    }
+    // CLAR-603: participants live in the roster; remove any slot referencing
+    // the deleted character. Legacy `placedCharacters` is migrated away, so
+    // we only touch `characterSlots`.
     const characterSlots = (draft.characterSlots ?? []).map((slot) =>
       slot && slot.characterId === id ? null : slot,
     );
@@ -201,13 +197,14 @@ export async function getUsages(characterId: number): Promise<CharacterUsage[]> 
 
   const usages: CharacterUsage[] = [];
   for (const project of projects) {
-    const placed = project.draft_data?.placedCharacters ?? [];
-    const matched = placed.filter((p) => p.characterId === characterId);
-    if (matched.length > 0) {
+    const slots = project.draft_data?.characterSlots ?? [];
+    if (slots.some((slot) => slot?.characterId === characterId)) {
       usages.push({
         projectId: Number(project.id),
         projectName: project.name,
-        cells: matched.map((p) => ({ x: p.x, y: p.y })),
+        // CLAR-603: participants no longer occupy cells; coordinates are
+        // historical metadata only.
+        cells: [],
       });
     }
   }

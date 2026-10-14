@@ -3,7 +3,9 @@ import type { Character, CharacterGender } from '@murdoku/shared';
 import {
   CHARACTER_AVATAR_MAX_DIMENSION,
   CHARACTER_GENDERS,
+  CHARACTER_GENDER_GLYPHS,
   CHARACTER_GENDER_LABELS,
+  GENDER_SYMBOL_COLORS,
 } from '@murdoku/shared';
 import {
   AlertDialog,
@@ -17,7 +19,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { ImageUploader } from '@/components/item/ImageUploader';
@@ -38,7 +39,8 @@ export function CharacterDetailForm({
   onRequestDelete,
 }: CharacterDetailFormProps): JSX.Element {
   const [name, setName] = useState(character.name);
-  const [gender, setGender] = useState<CharacterGender>(character.gender ?? 'unknown');
+  // CLAR-601: default is `male`; missing values normalise upstream.
+  const [gender, setGender] = useState<CharacterGender>(character.gender ?? 'male');
   const [description, setDescription] = useState(character.description ?? '');
   const [confirmDeleteAvatar, setConfirmDeleteAvatar] = useState(false);
 
@@ -49,7 +51,7 @@ export function CharacterDetailForm({
 
   useEffect(() => {
     setName(character.name);
-    setGender(character.gender ?? 'unknown');
+    setGender(character.gender ?? 'male');
     setDescription(character.description ?? '');
   }, [character.id, character.updatedAt]);
 
@@ -125,18 +127,37 @@ export function CharacterDetailForm({
 
         <div className="grid gap-2">
           <Label htmlFor="character-gender">性别</Label>
-          <Select
+          {/* CLAR-601: segmented control — only 男 / 女, default 男. */}
+          <div
             id="character-gender"
-            className="max-w-sm"
-            value={gender}
-            onChange={(event) => setGender(event.target.value as CharacterGender)}
+            role="radiogroup"
+            aria-label="性别"
+            className="inline-flex overflow-hidden rounded-md border"
           >
-            {CHARACTER_GENDERS.map((item) => (
-              <option key={item} value={item}>
-                {CHARACTER_GENDER_LABELS[item]}
-              </option>
-            ))}
-          </Select>
+            {CHARACTER_GENDERS.map((item) => {
+              const selected = gender === item;
+              return (
+                <button
+                  key={item}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  onClick={() => setGender(item)}
+                  className={
+                    'flex items-center gap-1 px-4 py-1.5 text-sm transition-colors ' +
+                    (selected
+                      ? 'bg-secondary text-secondary-foreground'
+                      : 'bg-background text-muted-foreground hover:bg-accent')
+                  }
+                >
+                  <span style={{ color: GENDER_SYMBOL_COLORS[item] }}>
+                    {CHARACTER_GENDER_GLYPHS[item]}
+                  </span>
+                  <span className="ml-1">{CHARACTER_GENDER_LABELS[item]}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         <div className="grid gap-2">

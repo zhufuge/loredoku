@@ -15,11 +15,15 @@ export const characterCodeSchema = z
   .max(CHARACTER_CODE_MAX_LENGTH, `角色编码长度不能超过 ${CHARACTER_CODE_MAX_LENGTH}`)
   .regex(CHARACTER_CODE_PATTERN, '角色编码仅允许字母、数字与下划线');
 
-/** FEAT-501: only the four documented enum values are accepted. */
+/**
+ * CLAR-601: gender is restricted to `male` / `female`. Missing / null /
+ * undefined values are normalised to `male` (default), so callers can never
+ * observe `other` / `unknown`.
+ */
 export const characterGenderSchema = z
   .enum(CHARACTER_GENDERS)
   .default(DEFAULT_CHARACTER_GENDER)
-  .describe('角色性别');
+  .describe('角色性别（仅男 / 女，缺省为男）');
 
 export const createCharacterSchema = z.object({
   code: characterCodeSchema,

@@ -19,8 +19,7 @@ export function emptyDraft(gridSize: number): MapDraft {
     gridSize,
     cells: {},
     regions: [],
-    characterSlots: [],
-    placedCharacters: [],
+    characterSlots: Array.from({ length: gridSize }, () => null),
   };
 }
 
@@ -121,19 +120,16 @@ export async function resizeDraft(
       });
     }
 
-    const placedCharacters = draft.placedCharacters.filter((placed) => {
-      if (inBounds(placed.x, placed.y)) return true;
-      removed.charactersReturnedToSlot += 1;
-      return false;
-    });
-
     const next: MapDraft = {
       version: draft.version ?? MAP_JSON_VERSION,
       gridSize,
       cells: nextCells,
       regions: nextRegions,
-      characterSlots: (draft.characterSlots ?? []).slice(0, 20),
-      placedCharacters,
+      // CLAR-603: roster length tracks grid size; participants never enter
+      // the map, so nothing returns to a slot on resize.
+      characterSlots: (draft.characterSlots ?? [])
+        .slice(0, gridSize)
+        .concat(Array.from({ length: Math.max(0, gridSize - (draft.characterSlots ?? []).length) }, () => null)),
     };
 
     const [updated] = (await trx('map_projects')

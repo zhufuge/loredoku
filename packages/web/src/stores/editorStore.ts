@@ -4,14 +4,13 @@ import {
   GRID_SIZE_DEFAULT,
   MAP_JSON_VERSION,
   MAX_HISTORY_STEPS,
-  type CharacterSlot,
+  type CharacterSlotEntry,
   type DraftCell,
   type DraftRegion,
   type EditorLayer,
   type EditorTool,
   type MapDraft,
   type ParticipantTrigger,
-  type PlacedCharacter,
 } from '@murdoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
 import { isEmptyCell, objectFootprintKeys, resolveEraseTarget } from '@/lib/erase';
@@ -26,8 +25,28 @@ export function genRegionId(): string {
   return `rg_${Math.random().toString(16).slice(2, 10)}`;
 }
 
-export function genSlotArray(size: number, existing: Array<CharacterSlot | null> = []): Array<CharacterSlot | null> {
+/**
+ * Builds a roster sized to `size`. CLAR-603: the roster length tracks
+ * `gridSize`. Existing entries are preserved; defaults to `null`.
+ */
+export function genSlotArray(
+  size: number,
+  existing: Array<CharacterSlotEntry | null> = [],
+): Array<CharacterSlotEntry | null> {
   return Array.from({ length: size }, (_, index) => existing[index] ?? null);
+}
+
+/** Normalises a roster entry so it always carries theme + triggers. */
+function ensureEntry(entry: CharacterSlotEntry | null): CharacterSlotEntry | null {
+  if (!entry) return null;
+  return {
+    characterId: entry.characterId,
+    themeColor: entry.themeColor ?? DEFAULT_THEME_COLOR,
+    triggers: (entry.triggers ?? []).map((trigger) => ({
+      trigger: trigger.trigger,
+      targets: trigger.targets.map((target) => ({ ...target })),
+    })),
+  };
 }
 
 export interface EditorMeta {
@@ -47,17 +66,20 @@ export interface RegionInput {
 
 export type ConflictMode = 'override' | 'skip';
 
+/**
+ * CLAR-603: the only selection types are `cell` and `region`. Characters no
+ * longer occupy cells, so clicking a roster slot opens the participant
+ * drawer rather than producing a canvas selection.
+ */
 export type Selection =
   | { type: 'cell'; x: number; y: number }
-  | { type: 'region'; regionId: string }
-  | { type: 'character'; characterId: number; x: number; y: number };
+  | { type: 'region'; regionId: string };
 
 interface Snapshot {
   gridSize: number;
   cells: Map<CellKey, DraftCell>;
   regions: DraftRegion[];
-  characterSlots: Array<CharacterSlot | null>;
-  placedCharacters: PlacedCharacter[];
+  characterSlots: Array<CharacterSlotEntry | null>;
 }
 
 export interface EditorState {
@@ -65,14 +87,14 @@ export interface EditorState {
   gridSize: number;
   cells: Map<CellKey, DraftCell>;
   regions: DraftRegion[];
-  characterSlots: Array<CharacterSlot | null>;
-  placedCharacters: PlacedCharacter[];
+  characterSlots: Array<CharacterSlotEntry | null>;
   activeTool: EditorTool;
   activeLayer: EditorLayer;
   selection: Selection | null;
   selectedRegionId: string | null;
   selectedItemId: number | null;
-  selectedCharacterId: number | null;
+  /** Slot index selected in the participant panel (drives the right drawer). */
+  selectedSlotIndex: number | null;
   regionDraftSelection: Set<string>;
   zoom: number;
   pan: { x: number; y: number };
@@ -89,7 +111,7 @@ export interface EditorState {
   setSelection: (selection: Selection | null) => void;
   setSelectedRegion: (id: string | null) => void;
   setSelectedItem: (id: number | null) => void;
-  setSelectedCharacter: (id: number | null) => void;
+  setSelectedSlot: (index: number | null) => void;
 
   toggleDraftCell: (x: number, y: number) => void;
   addDraftCells: (cells: Array<[number, number]>) => void;
@@ -102,15 +124,12 @@ export interface EditorState {
     x: number,
     y: number,
   ) => void;
-  placeCharacter: (characterId: number, x: number, y: number, preferredSlotIndex?: number) => void;
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
   clearObjectAt: (x: number, y: number) => void;
-  removeCharacterAt: (x: number, y: number) => void;
-  setPlacedMeta: (x: number, y: number, mapMeta: Record<string, unknown>) => void;
-  /** FEAT-502: theme colour + triggers saved as one atomic history step. */
+  /** CLAR-603: persists theme + triggers on the slot in one atomic step. */
   setParticipantConfig: (
-    characterId: number,
+    slotIndex: number,
     patch: { themeColor?: string; triggers?: ParticipantTrigger[] },
   ) => void;
 
@@ -122,7 +141,6 @@ export interface EditorState {
   setSlot: (index: number, characterId: number | null) => void;
   clearCharacterSlot: (index: number) => void;
   swapSlots: (from: number, to: number) => void;
-  returnCharacterToSlot: (characterId: number) => boolean;
 
   setGridSize: (size: number) => void;
   applyDraft: (draft: MapDraft) => void;
@@ -142,16 +160,7 @@ function snapshot(state: EditorState): Snapshot {
     gridSize: state.gridSize,
     cells: new Map(state.cells),
     regions: state.regions.map((region) => ({ ...region, cells: [...region.cells] })),
-    characterSlots: [...state.characterSlots],
-    placedCharacters: state.placedCharacters.map((placed) => ({
-      ...placed,
-      mapMeta: { ...placed.mapMeta },
-      // Triggers are edited in the dialog; copy them so undo keeps the old list.
-      triggers: (placed.triggers ?? []).map((trigger) => ({
-        trigger: trigger.trigger,
-        targets: trigger.targets.map((target) => ({ ...target })),
-      })),
-    })),
+    characterSlots: state.characterSlots.map(ensureEntry),
   };
 }
 
@@ -170,13 +179,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
     cells: new Map(),
     regions: [],
     characterSlots: genSlotArray(GRID_SIZE_DEFAULT),
-    placedCharacters: [],
     activeTool: 'select',
     activeLayer: 'background',
     selection: null,
     selectedRegionId: null,
     selectedItemId: null,
-    selectedCharacterId: null,
+    selectedSlotIndex: null,
     regionDraftSelection: new Set<string>(),
     zoom: 1,
     pan: { x: 0, y: 0 },
@@ -193,20 +201,19 @@ export const useEditorStore = create<EditorState>((set, get) => {
         const cell = draft.cells[key];
         if (cell) cells.set(key as CellKey, cell);
       }
-      const slots = genSlotArray(draft.gridSize, draft.characterSlots);
+      const slots = genSlotArray(draft.gridSize, draft.characterSlots).map(ensureEntry);
       set({
         projectId,
         gridSize: draft.gridSize,
         cells,
         regions: draft.regions,
         characterSlots: slots,
-        placedCharacters: draft.placedCharacters,
         activeTool: 'select',
         activeLayer: 'background',
         selection: null,
         selectedRegionId: null,
         selectedItemId: null,
-        selectedCharacterId: null,
+        selectedSlotIndex: null,
         regionDraftSelection: new Set<string>(),
         zoom: 1,
         pan: { x: 0, y: 0 },
@@ -227,7 +234,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setSelection: (selection) => set({ selection }),
     setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
     setSelectedItem: (selectedItemId) => set({ selectedItemId }),
-    setSelectedCharacter: (selectedCharacterId) => set({ selectedCharacterId }),
+    setSelectedSlot: (selectedSlotIndex) => set({ selectedSlotIndex }),
 
     toggleDraftCell: (x, y) =>
       set((state) => {
@@ -276,62 +283,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
         }
       }),
 
-    // Atomic: frees the roster slot and adds the placement in one history step.
-    placeCharacter: (characterId, x, y, preferredSlotIndex) =>
-      commit((next) => {
-        const preferred =
-          preferredSlotIndex !== undefined &&
-          preferredSlotIndex >= 0 &&
-          preferredSlotIndex < next.characterSlots.length &&
-          next.characterSlots[preferredSlotIndex]?.characterId === characterId
-            ? preferredSlotIndex
-            : -1;
-        const originSlotIndex =
-          preferred !== -1
-            ? preferred
-            : next.characterSlots.findIndex((slot) => slot?.characterId === characterId);
-        if (originSlotIndex !== -1) {
-          next.characterSlots = next.characterSlots.map((slot, index) =>
-            index === originSlotIndex ? null : slot,
-          );
-        }
-        next.placedCharacters = [
-          ...next.placedCharacters.filter(
-            (placed) => placed.characterId !== characterId && !(placed.x === x && placed.y === y),
-          ),
-          {
-            characterId,
-            x,
-            y,
-            mapMeta: {},
-            originSlotIndex: originSlotIndex === -1 ? undefined : originSlotIndex,
-            themeColor: DEFAULT_THEME_COLOR,
-            triggers: [],
-          },
-        ];
-      }),
-
-    removeCharacterAt: (x, y) =>
-      commit((next) => {
-        next.placedCharacters = next.placedCharacters.filter(
-          (placed) => !(placed.x === x && placed.y === y),
-        );
-      }),
-
-    // Eraser order: characters → object layer → background layer (visual top-down).
-    // `activeLayer` is intentionally ignored, see docs/v0.2.5.md BUG-406.
+    // Eraser order: object layer → background layer (CLAR-603: no character layer).
     eraseAt: (x, y) => {
       const state = get();
-      const target = resolveEraseTarget(state.cells, state.placedCharacters, x, y);
+      const target = resolveEraseTarget(state.cells, x, y);
       if (!target) return;
       const targetKey = target.key as CellKey;
       commit((next) => {
-        if (target.layer === 'character') {
-          next.placedCharacters = next.placedCharacters.filter(
-            (placed) => !(placed.x === target.x && placed.y === target.y),
-          );
-          return;
-        }
         if (target.layer === 'object') {
           const anchor = next.cells.get(targetKey)?.object;
           const keys = anchor
@@ -359,9 +317,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     clearCell: (x, y) =>
       commit((next) => {
-        next.placedCharacters = next.placedCharacters.filter(
-          (placed) => !(placed.x === x && placed.y === y),
-        );
         next.cells.delete(cellKey(x, y));
       }),
 
@@ -376,25 +331,22 @@ export const useEditorStore = create<EditorState>((set, get) => {
         else next.cells.set(key, copy);
       }),
 
-    setPlacedMeta: (x, y, mapMeta) =>
+    setParticipantConfig: (slotIndex, patch) => {
+      if (slotIndex < 0 || slotIndex >= get().characterSlots.length) return;
       commit((next) => {
-        next.placedCharacters = next.placedCharacters.map((placed) =>
-          placed.x === x && placed.y === y ? { ...placed, mapMeta } : placed,
-        );
-      }),
-
-    setParticipantConfig: (characterId, patch) =>
-      commit((next) => {
-        next.placedCharacters = next.placedCharacters.map((placed) =>
-          placed.characterId === characterId
+        const entry = next.characterSlots[slotIndex];
+        if (!entry) return;
+        next.characterSlots = next.characterSlots.map((slot, index) =>
+          index === slotIndex
             ? {
-                ...placed,
-                ...(patch.themeColor !== undefined ? { themeColor: patch.themeColor } : {}),
-                ...(patch.triggers !== undefined ? { triggers: patch.triggers } : {}),
+                characterId: entry.characterId,
+                themeColor: patch.themeColor ?? entry.themeColor ?? DEFAULT_THEME_COLOR,
+                triggers: patch.triggers ?? entry.triggers ?? [],
               }
-            : placed,
+            : slot,
         );
-      }),
+      });
+    },
 
     createRegion: (input, mode) => {
       const id = input.id || genRegionId();
@@ -477,7 +429,15 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setSlot: (index, characterId) =>
       commit((next) => {
         next.characterSlots = next.characterSlots.map((slot, i) =>
-          i === index ? (characterId ? { characterId } : null) : slot,
+          i === index
+            ? characterId
+              ? {
+                  characterId,
+                  themeColor: slot?.themeColor ?? DEFAULT_THEME_COLOR,
+                  triggers: slot?.triggers ?? [],
+                }
+              : null
+            : slot,
         );
       }),
 
@@ -500,35 +460,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
         next.characterSlots = slots;
       }),
 
-    returnCharacterToSlot: (characterId) => {
-      const state = get();
-      const placed = state.placedCharacters.find((item) => item.characterId === characterId);
-      if (!placed) return false;
-      const slots = [...state.characterSlots];
-      const alreadySlotted = slots.some((slot) => slot?.characterId === characterId);
-      let target = -1;
-      if (!alreadySlotted) {
-        const origin = placed.originSlotIndex ?? -1;
-        if (origin >= 0 && origin < slots.length && slots[origin] === null) {
-          target = origin;
-        } else {
-          target = slots.findIndex((slot) => slot === null);
-        }
-        if (target === -1) return false;
-      }
-      commit((next) => {
-        if (target !== -1) {
-          next.characterSlots = next.characterSlots.map((slot, index) =>
-            index === target ? { characterId } : slot,
-          );
-        }
-        next.placedCharacters = next.placedCharacters.filter(
-          (item) => item.characterId !== characterId,
-        );
-      });
-      return true;
-    },
-
     setGridSize: (size) =>
       commit((next) => {
         const inBounds = (x: number, y: number): boolean =>
@@ -543,10 +474,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
             return { ...region, cells, labelCell: computeLabelCell(cells) };
           })
           .filter((region) => region.cells.length > 0);
-        next.placedCharacters = next.placedCharacters.filter((placed) =>
-          inBounds(placed.x, placed.y),
-        );
-        next.characterSlots = genSlotArray(size, next.characterSlots);
+        next.characterSlots = genSlotArray(size, next.characterSlots).map(ensureEntry);
         next.gridSize = size;
       }),
 
@@ -562,13 +490,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
           gridSize: draft.gridSize,
           cells,
           regions: draft.regions,
-          characterSlots: genSlotArray(draft.gridSize, draft.characterSlots),
-          placedCharacters: draft.placedCharacters,
+          characterSlots: genSlotArray(draft.gridSize, draft.characterSlots).map(ensureEntry),
           past,
           future: [],
           dirty: true,
           selection: null,
           selectedRegionId: null,
+          selectedSlotIndex: null,
           regionDraftSelection: new Set<string>(),
         };
       }),
@@ -609,8 +537,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         gridSize: state.gridSize,
         cells,
         regions: state.regions,
-        characterSlots: state.characterSlots,
-        placedCharacters: state.placedCharacters,
+        characterSlots: state.characterSlots.map(ensureEntry),
       };
     },
   };

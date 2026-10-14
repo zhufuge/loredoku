@@ -4,16 +4,15 @@ import { ArrowLeft, Loader2, Minus, Plus, RotateCcw } from 'lucide-react';
 import {
   CELL_SIZE,
   type Character,
+  type CharacterSlotEntry,
   type Item,
   type MapDraft,
   type ParticipantTriggerKey,
-  type PlacedCharacter,
 } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import {
   MapBackgroundLayer,
-  MapCharacterLayer,
   MapGridLayer,
   MapHighlightLayer,
   MapObjectLayer,
@@ -50,7 +49,7 @@ export function WorkViewPage(): JSX.Element {
 
   const { highlight, show: showHighlight, clear: clearHighlight } = useHighlight();
   const [tab, setTab] = useState<ParticipantTriggerKey>('click');
-  const [hovered, setHovered] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -84,7 +83,10 @@ export function WorkViewPage(): JSX.Element {
     return map;
   }, [draft]);
 
-  const participants = useMemo<PlacedCharacter[]>(() => draft?.placedCharacters ?? [], [draft]);
+  const slots = useMemo<Array<CharacterSlotEntry | null>>(
+    () => draft?.characterSlots ?? [],
+    [draft],
+  );
   const regions = useMemo(() => draft?.regions ?? [], [draft]);
   const gridSize = draft?.gridSize ?? 0;
   const total = gridSize * CELL_SIZE;
@@ -130,12 +132,14 @@ export function WorkViewPage(): JSX.Element {
     setZoom(next);
   };
 
-  const fireTrigger = (placed: PlacedCharacter, trigger: ParticipantTriggerKey): void => {
+  const fireTrigger = (slotIndex: number, trigger: ParticipantTriggerKey): void => {
+    const slot = slots[slotIndex];
+    if (!slot) return;
     showHighlight(
-      resolveHighlight(placed.triggers, trigger, {
+      resolveHighlight(slot.triggers, trigger, {
         gridSize,
         cells,
-        placedCharacters: participants,
+        characterSlots: slots,
         regions,
       }),
     );
@@ -160,6 +164,10 @@ export function WorkViewPage(): JSX.Element {
       </div>
     );
   }
+
+  const participants = slots
+    .map((slot, index) => ({ slot, index }))
+    .filter((entry): entry is { slot: CharacterSlotEntry; index: number } => entry.slot !== null);
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -216,22 +224,20 @@ export function WorkViewPage(): JSX.Element {
             {participants.length === 0 ? (
               <p className="py-6 text-center text-xs text-muted-foreground">该作品暂无参与者</p>
             ) : (
-              participants.map((placed) => {
-                const character = charactersById.get(placed.characterId);
-                const themeColor = placed.themeColor ?? '#FFFFFF';
+              participants.map(({ slot, index }) => {
+                const character = charactersById.get(slot.characterId);
+                const themeColor = slot.themeColor ?? '#FFFFFF';
                 const avatar = character?.avatarThumbUrl ?? character?.avatarUrl;
                 return (
                   <button
-                    key={`${placed.characterId}-${placed.x}-${placed.y}`}
+                    key={`${slot.characterId}-${index}`}
                     type="button"
-                    onMouseEnter={() => setHovered({ x: placed.x, y: placed.y })}
-                    onMouseLeave={() => setHovered(null)}
-                    onClick={() => fireTrigger(placed, tab)}
+                    onMouseEnter={() => setHoveredSlot(index)}
+                    onMouseLeave={() => setHoveredSlot(null)}
+                    onClick={() => fireTrigger(index, tab)}
                     className={cn(
                       'flex w-full items-center gap-2 rounded-md border p-2 text-left transition-colors',
-                      hovered?.x === placed.x && hovered?.y === placed.y
-                        ? 'border-primary bg-accent'
-                        : 'hover:border-primary',
+                      hoveredSlot === index ? 'border-primary bg-accent' : 'hover:border-primary',
                     )}
                   >
                     <span
@@ -253,11 +259,13 @@ export function WorkViewPage(): JSX.Element {
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="flex items-center gap-1">
-                        <span className="truncate text-sm">{character?.name ?? `#${placed.characterId}`}</span>
+                        <span className="truncate text-sm">
+                          {character?.name ?? `#${slot.characterId}`}
+                        </span>
                         <GenderBadge gender={character?.gender} />
                       </span>
                       <span className="text-[11px] text-muted-foreground">
-                        C{placed.x + 1}, R{placed.y + 1}
+                        参与者框 #{index + 1}
                       </span>
                     </span>
                   </button>
@@ -323,35 +331,7 @@ export function WorkViewPage(): JSX.Element {
             <MapRegionEdgeLayer regions={regions} gridSize={gridSize} />
             <MapObjectLayer cells={cells} itemsById={itemsById} />
             <MapGridLayer gridSize={gridSize} />
-            <MapCharacterLayer
-              placedCharacters={participants}
-              charactersById={charactersById}
-              interactive
-              onPointerEnter={(placed) => {
-                if (tab === 'touch') fireTrigger(placed, 'touch');
-              }}
-              onClick={(placed) => fireTrigger(placed, tab)}
-            />
             <MapHighlightLayer highlight={highlight} />
-
-            {/* Hover preview: theme-coloured outline, no effects triggered. */}
-            {hovered ? (
-              <div
-                className="pointer-events-none absolute rounded-full"
-                style={{
-                  left: hovered.x * CELL_SIZE + 2,
-                  top: hovered.y * CELL_SIZE + 2,
-                  width: CELL_SIZE - 4,
-                  height: CELL_SIZE - 4,
-                  border: `3px solid ${
-                    participants.find(
-                      (item) => item.x === hovered.x && item.y === hovered.y,
-                    )?.themeColor ?? '#FFFFFF'
-                  }`,
-                  zIndex: 24,
-                }}
-              />
-            ) : null}
 
             <MapRegionLabelLayer regions={regions} />
           </div>
