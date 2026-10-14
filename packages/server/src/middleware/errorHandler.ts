@@ -33,6 +33,18 @@ export async function errorHandler(ctx: Context, next: Next): Promise<void> {
       return;
     }
 
+    if (typeof err === 'object' && err !== null && 'code' in err) {
+      const code = (err as { code?: string }).code;
+      if (code === 'LIMIT_FILE_SIZE') {
+        failure(ctx, ErrorCode.FILE_TOO_LARGE, '文件超过大小限制', 413);
+        return;
+      }
+      if (code === 'LIMIT_UNEXPECTED_FILE' || code === 'LIMIT_FILE_COUNT') {
+        failure(ctx, ErrorCode.VALIDATION_FAILED, '上传字段不合法', 400);
+        return;
+      }
+    }
+
     if (isKoaHttpError(err) && err.status < 500) {
       failure(ctx, ErrorCode.VALIDATION_FAILED, err.message, err.status);
       return;

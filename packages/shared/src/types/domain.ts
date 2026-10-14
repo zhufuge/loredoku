@@ -41,6 +41,7 @@ export interface Card {
   name: string;
   imagePath: string | null;
   imageUrl: string | null;
+  imageThumbUrl: string | null;
   imageMime: string | null;
   imageSize: number | null;
   imageWidth: number | null;

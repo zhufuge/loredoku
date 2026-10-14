@@ -2,7 +2,9 @@ import { create } from 'zustand';
 import {
   MAX_HISTORY_STEPS,
   type CardRotation,
+  type CellCoord,
   type EditorTool,
+  type MapCell,
   type RegionData,
 } from '@murdoku/shared';
 
@@ -11,6 +13,8 @@ export interface EditorCell {
   rotation: CardRotation;
   zIndex: number;
 }
+
+export type NewRegionInput = Omit<RegionData, 'id' | 'createdAt' | 'updatedAt'>;
 
 export type CellKey = `${number},${number}`;
 
@@ -30,15 +34,26 @@ export interface EditorState {
   regions: RegionData[];
   activeTool: EditorTool;
   selection: { x: number; y: number } | null;
+  selectedRegionId: number | null;
   zoom: number;
   pan: { x: number; y: number };
   dirty: boolean;
   past: Snapshot[];
   future: Snapshot[];
 
-  init: (projectId: number, gridSize: number) => void;
+  init: (
+    projectId: number,
+    gridSize: number,
+    initial?: { cells?: MapCell[]; regions?: RegionData[] },
+  ) => void;
   setTool: (tool: EditorTool) => void;
   setSelection: (selection: { x: number; y: number } | null) => void;
+  setSelectedRegion: (id: number | null) => void;
+  applyRegionCreate: (input: NewRegionInput, override: boolean) => number;
+  toggleRegionCell: (id: number, coord: CellCoord) => void;
+  setZoom: (zoom: number) => void;
+  setPan: (pan: { x: number; y: number }) => void;
+  resetView: () => void;
   placeCard: (x: number, y: number, cardId: number, rotation?: CardRotation, zIndex?: number) => void;
   removeCard: (x: number, y: number) => void;
   moveCard: (fromX: number, fromY: number, toX: number, toY: number) => void;
@@ -73,29 +88,78 @@ export const useEditorStore = create<EditorState>((set, get) => {
     regions: [],
     activeTool: 'select',
     selection: null,
+    selectedRegionId: null,
     zoom: 1,
     pan: { x: 0, y: 0 },
     dirty: false,
     past: [],
     future: [],
 
-    init: (projectId, gridSize) =>
+    init: (projectId, gridSize, initial) => {
+      const cells = new Map<CellKey, EditorCell>();
+      for (const cell of initial?.cells ?? []) {
+        cells.set(cellKey(cell.x, cell.y), {
+          cardId: cell.cardId,
+          rotation: cell.rotation,
+          zIndex: cell.zIndex,
+        });
+      }
       set({
         projectId,
         gridSize,
-        cells: new Map(),
-        regions: [],
+        cells,
+        regions: initial?.regions ?? [],
         activeTool: 'select',
         selection: null,
+        selectedRegionId: null,
         zoom: 1,
         pan: { x: 0, y: 0 },
         dirty: false,
         past: [],
         future: [],
-      }),
+      });
+    },
 
     setTool: (activeTool) => set({ activeTool }),
     setSelection: (selection) => set({ selection }),
+    setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
+
+    applyRegionCreate: (input, override) => {
+      const state = get();
+      const next = snapshot(state);
+      const incoming = new Set(input.cells.map((cell) => cellKey(cell.x, cell.y)));
+      if (override) {
+        next.regions = next.regions.map((region) => ({
+          ...region,
+          cells: region.cells.filter((cell) => !incoming.has(cellKey(cell.x, cell.y))),
+        }));
+      }
+      const id = next.regions.reduce((max, region) => Math.max(max, region.id), 0) + 1;
+      const now = new Date().toISOString();
+      next.regions = [...next.regions, { ...input, id, createdAt: now, updatedAt: now }];
+      const past = [...state.past, snapshot(state)].slice(-MAX_HISTORY_STEPS);
+      set({ ...next, past, future: [], dirty: true, selectedRegionId: id });
+      return id;
+    },
+
+    toggleRegionCell: (id, coord) =>
+      commit((next) => {
+        next.regions = next.regions.map((region) => {
+          if (region.id !== id) return region;
+          const key = cellKey(coord.x, coord.y);
+          const exists = region.cells.some((cell) => cellKey(cell.x, cell.y) === key);
+          return {
+            ...region,
+            cells: exists
+              ? region.cells.filter((cell) => cellKey(cell.x, cell.y) !== key)
+              : [...region.cells, { x: coord.x, y: coord.y }],
+          };
+        });
+      }),
+
+    setZoom: (zoom) => set({ zoom }),
+    setPan: (pan) => set({ pan }),
+    resetView: () => set({ zoom: 1, pan: { x: 0, y: 0 } }),
 
     placeCard: (x, y, cardId, rotation = 0, zIndex = 0) =>
       commit((next) => {
@@ -132,10 +196,12 @@ export const useEditorStore = create<EditorState>((set, get) => {
         );
       }),
 
-    deleteRegion: (id) =>
+    deleteRegion: (id) => {
       commit((next) => {
         next.regions = next.regions.filter((region) => region.id !== id);
-      }),
+      });
+      if (get().selectedRegionId === id) set({ selectedRegionId: null });
+    },
 
     undo: () => {
       const state = get();

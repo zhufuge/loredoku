@@ -29,6 +29,12 @@ async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T>
       if (body && typeof body.code === 'number') {
         throw new ApiError(body.code, body.message);
       }
+      if (err.code === 'ECONNABORTED') {
+        throw new ApiError(-1, '请求超时，请稍后重试');
+      }
+      if (!err.response) {
+        throw new ApiError(-1, '无法连接到服务器，请检查网络');
+      }
       throw new ApiError(-1, err.message);
     }
     throw err;

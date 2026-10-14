@@ -10,3 +10,14 @@ export function buildFileUrl(relativePath: string): string {
   const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
   return `${publicBaseUrl}/api/files/${normalized}`;
 }
+
+export function buildThumbUrl(relativePath: string): string {
+  const normalized = relativePath.replace(/\\/g, '/').replace(/^\/+/, '');
+  const dot = normalized.lastIndexOf('.');
+  const thumb = dot === -1 ? `${normalized}_thumb.webp` : `${normalized.slice(0, dot)}_thumb.webp`;
+  return `${publicBaseUrl}/api/files/${thumb}`;
+}
+
+export function resolveUploadPath(relativePath: string): string {
+  return resolve(uploadRoot, relativePath);
+}

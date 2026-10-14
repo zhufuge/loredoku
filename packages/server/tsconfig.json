@@ -9,5 +9,5 @@
       "@murdoku/shared/*": ["../shared/src/*"]
     }
   },
-  "include": ["src/**/*.ts", "knexfile.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts", "knexfile.ts"]
 }

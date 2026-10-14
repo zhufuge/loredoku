@@ -55,6 +55,7 @@ export const regionInputSchema = z.object({
 });
 
 export const saveMapSchema = z.object({
+  updatedAt: z.string().optional(),
   cells: z.array(mapCellSchema),
   regions: z.array(regionInputSchema),
 });
@@ -73,3 +74,9 @@ export const updateRegionSchema = z.object({
 export type MapCellInput = z.infer<typeof mapCellSchema>;
 export type RegionInput = z.infer<typeof regionInputSchema>;
 export type SaveMapInput = z.infer<typeof saveMapSchema>;
+export type CreateRegionInput = z.infer<typeof createRegionSchema>;
+export type UpdateRegionInput = z.infer<typeof updateRegionSchema>;
+
+export const regionIdParamSchema = z.object({
+  regionId: z.coerce.number().int().positive(),
+});
