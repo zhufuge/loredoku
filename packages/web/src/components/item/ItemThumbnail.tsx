@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { ImageIcon } from 'lucide-react';
-import type { Card } from '@murdoku/shared';
+import type { Item } from '@murdoku/shared';
 import { cn } from '@/lib/utils';
 
-interface CardThumbnailProps {
-  card: Card;
+interface ItemThumbnailProps {
+  item: Item;
   className?: string;
 }
 
-export function CardThumbnail({ card, className }: CardThumbnailProps): JSX.Element {
+export function ItemThumbnail({ item, className }: ItemThumbnailProps): JSX.Element {
   const [failed, setFailed] = useState(false);
-  const src = failed ? card.imageUrl : card.imageThumbUrl ?? card.imageUrl;
+  const src = failed ? item.imageUrl : item.imageThumbUrl ?? item.imageUrl;
 
   if (!src) {
     return (
@@ -28,7 +28,7 @@ export function CardThumbnail({ card, className }: CardThumbnailProps): JSX.Elem
   return (
     <img
       src={src}
-      alt={card.name}
+      alt={item.name}
       loading="lazy"
       onError={() => setFailed(true)}
       className={cn('rounded border object-cover', className)}

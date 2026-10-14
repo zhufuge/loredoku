@@ -26,7 +26,7 @@ describe('createProjectSchema', () => {
   it('applies the default grid size', () => {
     const parsed = createProjectSchema.parse({ name: '  My Map  ' })
     expect(parsed.name).toBe('My Map')
-    expect(parsed.gridSize).toBe(20)
+    expect(parsed.gridSize).toBe(6)
   })
 
   it('requires a non-empty name', () => {
@@ -69,8 +69,8 @@ describe('mapCellSchema', () => {
 describe('regionInputSchema', () => {
   it('requires at least one cell and applies defaults', () => {
     const parsed = regionInputSchema.parse({ name: 'Room', cells: [{ x: 0, y: 0 }] })
+    expect(parsed.color).toBe('#000000')
     expect(parsed.cells).toHaveLength(1)
-    expect(parsed.color).toBe('#3B82F6')
     expect(regionInputSchema.safeParse({ name: 'Room', cells: [] }).success).toBe(false)
   })
 })

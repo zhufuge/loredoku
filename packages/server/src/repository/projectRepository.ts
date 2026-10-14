@@ -1,6 +1,6 @@
 import { db } from '../db/knex';
 import { buildFileUrl } from '../utils/paths';
-import type { Project, ProjectDetail, ProjectRow } from '@murdoku/shared';
+import type { MapDraft, Project, ProjectDetail, ProjectRow } from '@murdoku/shared';
 
 export interface ListProjectsParams {
   page: number;
@@ -37,9 +37,44 @@ export function toProject(row: ProjectRow): Project {
     gridSize: row.grid_size,
     coverPath: row.cover_path,
     coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
+    status: row.status,
+    currentVersionNo: row.current_version_no,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
+}
+
+function draftCounts(draft: MapDraft | null): {
+  itemCount: number;
+  regionCount: number;
+  characterCount: number;
+} {
+  if (!draft) {
+    return { itemCount: 0, regionCount: 0, characterCount: 0 };
+  }
+  let itemCount = 0;
+  for (const key of Object.keys(draft.cells)) {
+    if (draft.cells[key]?.object) itemCount += 1;
+  }
+  return {
+    itemCount,
+    regionCount: draft.regions?.length ?? 0,
+    characterCount: draft.placedCharacters?.length ?? 0,
+  };
+}
+
+async function versionCounts(ids: number[]): Promise<Map<number, number>> {
+  const result = new Map<number, number>();
+  if (ids.length === 0) return result;
+  const rows = (await db('map_versions')
+    .whereIn('project_id', ids)
+    .groupBy('project_id')
+    .select('project_id')
+    .count('id as count')) as Array<{ project_id: number | string; count: string | number }>;
+  for (const row of rows) {
+    result.set(Number(row.project_id), Number(row.count));
+  }
+  return result;
 }
 
 export async function listProjects(
@@ -53,44 +88,25 @@ export async function listProjects(
   const countRow = (await query.clone().count('id as count').first()) as CountRow;
   const total = Number(countRow?.count ?? 0);
 
-  const rows = await query
+  const rows = (await query
     .clone()
     .orderBy(SORT_COLUMNS[params.sort], params.order)
     .limit(params.pageSize)
     .offset((params.page - 1) * params.pageSize)
-    .select('*');
+    .select('*')) as ProjectRow[];
 
   const ids = rows.map((row) => Number(row.id));
-  const cardCounts = new Map<number, number>();
-  const regionCounts = new Map<number, number>();
-
-  if (ids.length > 0) {
-    const cellCounts = (await db('map_cells')
-      .whereIn('project_id', ids)
-      .whereNotNull('card_id')
-      .groupBy('project_id')
-      .select('project_id')
-      .count('id as count')) as Array<{ project_id: number | string; count: string | number }>;
-    for (const row of cellCounts) {
-      cardCounts.set(Number(row.project_id), Number(row.count));
-    }
-
-    const regionCountRows = (await db('map_regions')
-      .whereIn('project_id', ids)
-      .groupBy('project_id')
-      .select('project_id')
-      .count('id as count')) as Array<{ project_id: number | string; count: string | number }>;
-    for (const row of regionCountRows) {
-      regionCounts.set(Number(row.project_id), Number(row.count));
-    }
-  }
+  const versions = await versionCounts(ids);
 
   const list = rows.map((row) => {
-    const id = Number(row.id);
+    const counts = draftCounts(row.draft_data as MapDraft | null);
     return {
       ...toProject(row),
-      cardCount: cardCounts.get(id) ?? 0,
-      regionCount: regionCounts.get(id) ?? 0,
+      cardCount: counts.itemCount,
+      itemCount: counts.itemCount,
+      regionCount: counts.regionCount,
+      characterCount: counts.characterCount,
+      versionCount: versions.get(Number(row.id)) ?? 0,
     };
   });
 
@@ -104,33 +120,35 @@ export async function findById(id: number): Promise<ProjectRow | undefined> {
 export async function existsByName(name: string, excludeId?: number): Promise<boolean> {
   const query = db('map_projects').where({ name });
   if (excludeId !== undefined) {
-    query.whereNot({ id: excludeId });
+    query.whereNot('id', excludeId);
   }
-  const row = await query.first('id');
+  const row = await query.first();
   return Boolean(row);
 }
 
 export async function getProjectCounts(
   id: number,
-): Promise<{ cardCount: number; regionCount: number }> {
-  const [cellRow, regionRow] = await Promise.all([
-    db('map_cells').where({ project_id: id }).whereNotNull('card_id').count('id as count').first(),
-    db('map_regions').where({ project_id: id }).count('id as count').first(),
-  ]);
+): Promise<Omit<ProjectDetail, keyof Project>> {
+  const row = await findById(id);
+  const counts = draftCounts((row?.draft_data as MapDraft | null) ?? null);
+  const versionRow = await db('map_versions').where({ project_id: id }).count('id as count').first();
   return {
-    cardCount: Number((cellRow as CountRow)?.count ?? 0),
-    regionCount: Number((regionRow as CountRow)?.count ?? 0),
+    cardCount: counts.itemCount,
+    itemCount: counts.itemCount,
+    regionCount: counts.regionCount,
+    characterCount: counts.characterCount,
+    versionCount: Number((versionRow as CountRow)?.count ?? 0),
   };
 }
 
 export async function createProject(data: CreateProjectData): Promise<Project> {
-  const [row] = await db<ProjectRow>('map_projects')
+  const [row] = (await db<ProjectRow>('map_projects')
     .insert({
       name: data.name,
       description: data.description,
       grid_size: data.gridSize,
     })
-    .returning('*');
+    .returning('*')) as ProjectRow[];
   return toProject(row!);
 }
 
@@ -142,7 +160,10 @@ export async function updateProject(
   if (data.name !== undefined) patch.name = data.name;
   if (data.description !== undefined) patch.description = data.description;
 
-  const [row] = await db<ProjectRow>('map_projects').where({ id }).update(patch).returning('*');
+  const [row] = (await db<ProjectRow>('map_projects')
+    .where({ id })
+    .update(patch)
+    .returning('*')) as ProjectRow[];
   return row ? toProject(row) : undefined;
 }
 
@@ -161,59 +182,18 @@ export async function duplicateProject(
       return undefined;
     }
 
-    const [created] = await trx<ProjectRow>('map_projects')
+    const [created] = (await trx<ProjectRow>('map_projects')
       .insert({
         name: newName,
         description: source.description,
         grid_size: source.grid_size,
         cover_path: source.cover_path,
+        status: 'draft',
+        draft_data: source.draft_data,
+        draft_updated_at: source.draft_data ? trx.fn.now() : null,
       })
-      .returning('*');
-    const project = created!;
+      .returning('*')) as ProjectRow[];
 
-    const cells = await trx('map_cells')
-      .where({ project_id: sourceId })
-      .select('x', 'y', 'card_id', 'rotation', 'z_index');
-    if (cells.length > 0) {
-      await trx('map_cells').insert(
-        cells.map((cell: Record<string, unknown>) => ({
-          project_id: project.id,
-          x: cell.x,
-          y: cell.y,
-          card_id: cell.card_id,
-          rotation: cell.rotation,
-          z_index: cell.z_index,
-        })),
-      );
-    }
-
-    const regions = await trx('map_regions').where({ project_id: sourceId }).select('*');
-    for (const region of regions as Array<Record<string, unknown>>) {
-      const [newRegion] = await trx('map_regions')
-        .insert({
-          project_id: project.id,
-          name: region.name,
-          description: region.description,
-          color: region.color,
-          border_width: region.border_width,
-          fill_opacity: region.fill_opacity,
-          meta: region.meta,
-        })
-        .returning('id');
-      const regionCells = await trx('map_region_cells')
-        .where({ region_id: region.id as number })
-        .select('x', 'y');
-      if (regionCells.length > 0) {
-        await trx('map_region_cells').insert(
-          regionCells.map((cell: Record<string, unknown>) => ({
-            region_id: (newRegion as { id: number }).id,
-            x: cell.x,
-            y: cell.y,
-          })),
-        );
-      }
-    }
-
-    return toProject(project);
+    return toProject(created!);
   });
 }

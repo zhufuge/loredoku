@@ -1,43 +1,40 @@
 import type { Context } from 'koa';
 import {
-  createCardSchema,
+  createItemSchema,
   idParamSchema,
-  listCardsQuerySchema,
-  replaceTriggersSchema,
-  updateCardSchema,
+  listItemsQuerySchema,
+  replaceItemTriggersSchema,
+  updateItemSchema,
 } from '@murdoku/shared';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
-import * as cardService from '../service/cardService';
+import * as itemService from '../service/itemService';
 
 export async function list(ctx: Context): Promise<void> {
-  const query = parseOrThrow(listCardsQuerySchema, ctx.query);
-  const cards = await cardService.listCards(query);
-  success(ctx, cards);
+  const query = parseOrThrow(listItemsQuerySchema, ctx.query);
+  success(ctx, await itemService.listItems(query));
 }
 
 export async function detail(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  success(ctx, await cardService.getCard(id));
+  success(ctx, await itemService.getItem(id));
 }
 
 export async function create(ctx: Context): Promise<void> {
-  const body = parseOrThrow(createCardSchema, ctx.request.body ?? {});
-  const card = await cardService.createCard(body);
-  success(ctx, card, '创建成功');
+  const body = parseOrThrow(createItemSchema, ctx.request.body ?? {});
+  success(ctx, await itemService.createItem(body), '创建成功');
 }
 
 export async function update(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const body = parseOrThrow(updateCardSchema, ctx.request.body ?? {});
-  const card = await cardService.updateCard(id, body);
-  success(ctx, card, '更新成功');
+  const body = parseOrThrow(updateItemSchema, ctx.request.body ?? {});
+  success(ctx, await itemService.updateItem(id, body), '更新成功');
 }
 
 export async function remove(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   const clearReferences = ctx.query.clearReferences === 'true';
-  await cardService.deleteCard(id, clearReferences);
+  await itemService.deleteItem(id, clearReferences);
   success(ctx, null, '已停用');
 }
 
@@ -47,24 +44,21 @@ export async function uploadImage(ctx: Context): Promise<void> {
   if (!file) {
     throw new Error('缺少上传文件');
   }
-  const card = await cardService.uploadImage(id, file.buffer);
-  success(ctx, card, '上传成功');
+  success(ctx, await itemService.uploadImage(id, file.buffer), '上传成功');
 }
 
 export async function deleteImage(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const card = await cardService.deleteImage(id);
-  success(ctx, card, '图片已删除');
+  success(ctx, await itemService.deleteImage(id), '图片已删除');
 }
 
 export async function usages(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  success(ctx, await cardService.getUsages(id));
+  success(ctx, await itemService.getUsages(id));
 }
 
 export async function replaceTriggers(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const triggers = parseOrThrow(replaceTriggersSchema, ctx.request.body ?? []);
-  const card = await cardService.replaceTriggers(id, triggers);
-  success(ctx, card, '触发信息已保存');
+  const triggers = parseOrThrow(replaceItemTriggersSchema, ctx.request.body ?? []);
+  success(ctx, await itemService.replaceTriggers(id, triggers), '触发信息已保存');
 }

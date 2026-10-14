@@ -19,7 +19,8 @@ export async function errorHandler(ctx: Context, next: Next): Promise<void> {
     await next();
   } catch (err) {
     if (err instanceof AppError) {
-      failure(ctx, err.code, err.message, err.httpStatus);
+      ctx.status = err.httpStatus;
+      ctx.body = { code: err.code, message: err.message, data: err.details ?? null };
       return;
     }
 

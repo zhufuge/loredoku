@@ -1,20 +1,17 @@
 import { create } from 'zustand';
 import {
+  GRID_SIZE_DEFAULT,
+  MAP_JSON_VERSION,
   MAX_HISTORY_STEPS,
-  type CardRotation,
-  type CellCoord,
+  type CharacterSlot,
+  type DraftCell,
+  type DraftRegion,
+  type EditorLayer,
   type EditorTool,
-  type MapCell,
-  type RegionData,
+  type MapDraft,
+  type PlacedCharacter,
 } from '@murdoku/shared';
-
-export interface EditorCell {
-  cardId: number;
-  rotation: CardRotation;
-  zIndex: number;
-}
-
-export type NewRegionInput = Omit<RegionData, 'id' | 'createdAt' | 'updatedAt'>;
+import { computeLabelCell, coordKey } from '@/lib/region';
 
 export type CellKey = `${number},${number}`;
 
@@ -22,53 +19,110 @@ export function cellKey(x: number, y: number): CellKey {
   return `${x},${y}`;
 }
 
+export function genRegionId(): string {
+  return `rg_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+export function genSlotArray(size: number, existing: Array<CharacterSlot | null> = []): Array<CharacterSlot | null> {
+  return Array.from({ length: size }, (_, index) => existing[index] ?? null);
+}
+
+export interface EditorMeta {
+  updatedAt: string | null;
+  currentVersionNo: number | null;
+  status: 'draft' | 'published';
+}
+
+export interface RegionInput {
+  id: string;
+  name: string;
+  color: string;
+  borderWidth: number;
+  fillOpacity: number;
+  cells: Array<[number, number]>;
+}
+
+export type ConflictMode = 'override' | 'skip';
+
 interface Snapshot {
-  cells: Map<CellKey, EditorCell>;
-  regions: RegionData[];
+  gridSize: number;
+  cells: Map<CellKey, DraftCell>;
+  regions: DraftRegion[];
+  characterSlots: Array<CharacterSlot | null>;
+  placedCharacters: PlacedCharacter[];
 }
 
 export interface EditorState {
   projectId: number | null;
   gridSize: number;
-  cells: Map<CellKey, EditorCell>;
-  regions: RegionData[];
+  cells: Map<CellKey, DraftCell>;
+  regions: DraftRegion[];
+  characterSlots: Array<CharacterSlot | null>;
+  placedCharacters: PlacedCharacter[];
   activeTool: EditorTool;
+  activeLayer: EditorLayer;
   selection: { x: number; y: number } | null;
-  selectedRegionId: number | null;
+  selectedRegionId: string | null;
+  selectedItemId: number | null;
+  selectedCharacterId: number | null;
   zoom: number;
   pan: { x: number; y: number };
   dirty: boolean;
+  updatedAt: string | null;
+  currentVersionNo: number | null;
+  status: 'draft' | 'published';
   past: Snapshot[];
   future: Snapshot[];
 
-  init: (
-    projectId: number,
-    gridSize: number,
-    initial?: { cells?: MapCell[]; regions?: RegionData[] },
-  ) => void;
+  init: (projectId: number, draft: MapDraft, meta: EditorMeta) => void;
   setTool: (tool: EditorTool) => void;
+  setLayer: (layer: EditorLayer) => void;
   setSelection: (selection: { x: number; y: number } | null) => void;
-  setSelectedRegion: (id: number | null) => void;
-  applyRegionCreate: (input: NewRegionInput, override: boolean) => number;
-  toggleRegionCell: (id: number, coord: CellCoord) => void;
+  setSelectedRegion: (id: string | null) => void;
+  setSelectedItem: (id: number | null) => void;
+  setSelectedCharacter: (id: number | null) => void;
+
+  placeBackground: (itemId: number, x: number, y: number) => void;
+  placeObject: (
+    item: { id: number; widthCells: number; heightCells: number },
+    x: number,
+    y: number,
+  ) => void;
+  placeCharacter: (characterId: number, x: number, y: number) => void;
+  eraseAt: (x: number, y: number) => void;
+  clearCell: (x: number, y: number) => void;
+  clearObjectAt: (x: number, y: number) => void;
+  removeCharacterAt: (x: number, y: number) => void;
+  moveObject: (fromX: number, fromY: number, toX: number, toY: number) => void;
+  setPlacedMeta: (x: number, y: number, mapMeta: Record<string, unknown>) => void;
+
+  createRegion: (input: RegionInput, mode: ConflictMode) => string;
+  toggleRegionCell: (id: string, x: number, y: number) => void;
+  updateRegion: (regionId: string, input: RegionInput) => void;
+  deleteRegion: (id: string) => void;
+
+  setSlot: (index: number, characterId: number | null) => void;
+  swapSlots: (from: number, to: number) => void;
+
+  setGridSize: (size: number) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
   resetView: () => void;
-  placeCard: (x: number, y: number, cardId: number, rotation?: CardRotation, zIndex?: number) => void;
-  removeCard: (x: number, y: number) => void;
-  moveCard: (fromX: number, fromY: number, toX: number, toY: number) => void;
-  createRegion: (region: RegionData) => void;
-  updateRegion: (id: number, patch: Partial<Omit<RegionData, 'id'>>) => void;
-  deleteRegion: (id: number) => void;
+
   undo: () => void;
   redo: () => void;
-  markSaved: () => void;
+  markSaved: (updatedAt: string) => void;
+  setVersionInfo: (info: { currentVersionNo: number | null; status: 'draft' | 'published' }) => void;
+  toDraft: () => MapDraft;
 }
 
 function snapshot(state: EditorState): Snapshot {
   return {
+    gridSize: state.gridSize,
     cells: new Map(state.cells),
     regions: state.regions.map((region) => ({ ...region, cells: [...region.cells] })),
+    characterSlots: [...state.characterSlots],
+    placedCharacters: state.placedCharacters.map((placed) => ({ ...placed })),
   };
 }
 
@@ -83,116 +137,242 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
   return {
     projectId: null,
-    gridSize: 20,
+    gridSize: GRID_SIZE_DEFAULT,
     cells: new Map(),
     regions: [],
+    characterSlots: genSlotArray(GRID_SIZE_DEFAULT),
+    placedCharacters: [],
     activeTool: 'select',
+    activeLayer: 'object',
     selection: null,
     selectedRegionId: null,
+    selectedItemId: null,
+    selectedCharacterId: null,
     zoom: 1,
     pan: { x: 0, y: 0 },
     dirty: false,
+    updatedAt: null,
+    currentVersionNo: null,
+    status: 'draft',
     past: [],
     future: [],
 
-    init: (projectId, gridSize, initial) => {
-      const cells = new Map<CellKey, EditorCell>();
-      for (const cell of initial?.cells ?? []) {
-        cells.set(cellKey(cell.x, cell.y), {
-          cardId: cell.cardId,
-          rotation: cell.rotation,
-          zIndex: cell.zIndex,
-        });
+    init: (projectId, draft, meta) => {
+      const cells = new Map<CellKey, DraftCell>();
+      for (const key of Object.keys(draft.cells)) {
+        const cell = draft.cells[key];
+        if (cell) cells.set(key as CellKey, cell);
       }
+      const slots = genSlotArray(draft.gridSize, draft.characterSlots);
       set({
         projectId,
-        gridSize,
+        gridSize: draft.gridSize,
         cells,
-        regions: initial?.regions ?? [],
+        regions: draft.regions,
+        characterSlots: slots,
+        placedCharacters: draft.placedCharacters,
         activeTool: 'select',
+        activeLayer: 'object',
         selection: null,
         selectedRegionId: null,
+        selectedItemId: null,
+        selectedCharacterId: null,
         zoom: 1,
         pan: { x: 0, y: 0 },
         dirty: false,
+        updatedAt: meta.updatedAt,
+        currentVersionNo: meta.currentVersionNo,
+        status: meta.status,
         past: [],
         future: [],
       });
     },
 
     setTool: (activeTool) => set({ activeTool }),
+    setLayer: (activeLayer) => set({ activeLayer }),
     setSelection: (selection) => set({ selection }),
     setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
+    setSelectedItem: (selectedItemId) => set({ selectedItemId }),
+    setSelectedCharacter: (selectedCharacterId) => set({ selectedCharacterId }),
 
-    applyRegionCreate: (input, override) => {
-      const state = get();
-      const next = snapshot(state);
-      const incoming = new Set(input.cells.map((cell) => cellKey(cell.x, cell.y)));
-      if (override) {
-        next.regions = next.regions.map((region) => ({
-          ...region,
-          cells: region.cells.filter((cell) => !incoming.has(cellKey(cell.x, cell.y))),
-        }));
-      }
-      const id = next.regions.reduce((max, region) => Math.max(max, region.id), 0) + 1;
-      const now = new Date().toISOString();
-      next.regions = [...next.regions, { ...input, id, createdAt: now, updatedAt: now }];
-      const past = [...state.past, snapshot(state)].slice(-MAX_HISTORY_STEPS);
-      set({ ...next, past, future: [], dirty: true, selectedRegionId: id });
-      return id;
-    },
-
-    toggleRegionCell: (id, coord) =>
+    placeBackground: (itemId, x, y) =>
       commit((next) => {
-        next.regions = next.regions.map((region) => {
-          if (region.id !== id) return region;
-          const key = cellKey(coord.x, coord.y);
-          const exists = region.cells.some((cell) => cellKey(cell.x, cell.y) === key);
-          return {
-            ...region,
-            cells: exists
-              ? region.cells.filter((cell) => cellKey(cell.x, cell.y) !== key)
-              : [...region.cells, { x: coord.x, y: coord.y }],
-          };
-        });
+        const key = cellKey(x, y);
+        const cell: DraftCell = { ...(next.cells.get(key) ?? {}), background: { itemId } };
+        next.cells.set(key, cell);
       }),
 
-    setZoom: (zoom) => set({ zoom }),
-    setPan: (pan) => set({ pan }),
-    resetView: () => set({ zoom: 1, pan: { x: 0, y: 0 } }),
-
-    placeCard: (x, y, cardId, rotation = 0, zIndex = 0) =>
+    placeObject: (item, x, y) =>
       commit((next) => {
-        next.cells.set(cellKey(x, y), { cardId, rotation, zIndex });
-      }),
-
-    removeCard: (x, y) =>
-      commit((next) => {
-        next.cells.delete(cellKey(x, y));
-      }),
-
-    moveCard: (fromX, fromY, toX, toY) =>
-      commit((next) => {
-        const from = next.cells.get(cellKey(fromX, fromY));
-        if (!from) return;
-        const target = next.cells.get(cellKey(toX, toY));
-        next.cells.set(cellKey(toX, toY), from);
-        if (target) {
-          next.cells.set(cellKey(fromX, fromY), target);
-        } else {
-          next.cells.delete(cellKey(fromX, fromY));
+        for (let dy = 0; dy < item.heightCells; dy += 1) {
+          for (let dx = 0; dx < item.widthCells; dx += 1) {
+            const key = cellKey(x + dx, y + dy);
+            const cell: DraftCell = { ...(next.cells.get(key) ?? {}) };
+            delete cell.object;
+            if (dx === 0 && dy === 0) {
+              cell.object = { itemId: item.id, w: item.widthCells, h: item.heightCells };
+            }
+            next.cells.set(key, cell);
+          }
         }
       }),
 
-    createRegion: (region) =>
+    placeCharacter: (characterId, x, y) =>
       commit((next) => {
-        next.regions = [...next.regions, region];
+        next.placedCharacters = [
+          ...next.placedCharacters.filter((placed) => !(placed.x === x && placed.y === y)),
+          { characterId, x, y, mapMeta: {} },
+        ];
       }),
 
-    updateRegion: (id, patch) =>
+    removeCharacterAt: (x, y) =>
+      commit((next) => {
+        next.placedCharacters = next.placedCharacters.filter(
+          (placed) => !(placed.x === x && placed.y === y),
+        );
+      }),
+
+    eraseAt: (x, y) =>
+      commit((next) => {
+        const hasCharacter = next.placedCharacters.some(
+          (placed) => placed.x === x && placed.y === y,
+        );
+        if (hasCharacter) {
+          next.placedCharacters = next.placedCharacters.filter(
+            (placed) => !(placed.x === x && placed.y === y),
+          );
+          return;
+        }
+        const key = cellKey(x, y);
+        const cell = next.cells.get(key);
+        if (!cell) return;
+        const copy = { ...cell };
+        if (get().activeLayer === 'background') delete copy.background;
+        else delete copy.object;
+        if (!copy.background && !copy.object && !copy.objectRef) next.cells.delete(key);
+        else next.cells.set(key, copy);
+      }),
+
+    clearCell: (x, y) =>
+      commit((next) => {
+        next.placedCharacters = next.placedCharacters.filter(
+          (placed) => !(placed.x === x && placed.y === y),
+        );
+        next.cells.delete(cellKey(x, y));
+      }),
+
+    clearObjectAt: (x, y) =>
+      commit((next) => {
+        const key = cellKey(x, y);
+        const cell = next.cells.get(key);
+        if (!cell) return;
+        const copy = { ...cell };
+        delete copy.object;
+        if (!copy.background && !copy.objectRef) next.cells.delete(key);
+        else next.cells.set(key, copy);
+      }),
+
+    moveObject: (fromX, fromY, toX, toY) =>
+      commit((next) => {
+        const source = next.cells.get(cellKey(fromX, fromY))?.object;
+        if (!source) return;
+        for (let dy = 0; dy < source.h; dy += 1) {
+          for (let dx = 0; dx < source.w; dx += 1) {
+            const key = cellKey(fromX + dx, fromY + dy);
+            const cell = next.cells.get(key);
+            if (!cell) continue;
+            const copy = { ...cell };
+            delete copy.object;
+            if (!copy.background && !copy.objectRef) next.cells.delete(key);
+            else next.cells.set(key, copy);
+          }
+        }
+        for (let dy = 0; dy < source.h; dy += 1) {
+          for (let dx = 0; dx < source.w; dx += 1) {
+            const key = cellKey(toX + dx, toY + dy);
+            const cell: DraftCell = { ...(next.cells.get(key) ?? {}) };
+            delete cell.object;
+            if (dx === 0 && dy === 0) cell.object = { ...source };
+            next.cells.set(key, cell);
+          }
+        }
+      }),
+
+    setPlacedMeta: (x, y, mapMeta) =>
+      commit((next) => {
+        next.placedCharacters = next.placedCharacters.map((placed) =>
+          placed.x === x && placed.y === y ? { ...placed, mapMeta } : placed,
+        );
+      }),
+
+    createRegion: (input, mode) => {
+      const id = input.id || genRegionId();
+      commit((next) => {
+        const keys = new Set(input.cells.map(([x, y]) => coordKey(x, y)));
+        let regions = next.regions;
+        if (mode === 'override') {
+          regions = regions
+            .map((region) => ({
+              ...region,
+              cells: region.cells.filter(([x, y]) => !keys.has(coordKey(x, y))),
+            }))
+            .filter((region) => region.cells.length > 0);
+        }
+        let cells = input.cells;
+        if (mode === 'skip') {
+          const owned = new Set<string>();
+          for (const region of regions) {
+            for (const [x, y] of region.cells) owned.add(coordKey(x, y));
+          }
+          cells = input.cells.filter(([x, y]) => !owned.has(coordKey(x, y)));
+        }
+        next.regions =
+          cells.length === 0
+            ? regions
+            : [
+                ...regions,
+                {
+                  id,
+                  name: input.name,
+                  color: input.color,
+                  borderWidth: input.borderWidth,
+                  fillOpacity: input.fillOpacity,
+                  cells: [...cells],
+                  labelCell: computeLabelCell(cells),
+                },
+              ];
+      });
+      set({ selectedRegionId: id });
+      return id;
+    },
+
+    toggleRegionCell: (id, x, y) =>
+      commit((next) => {
+        const key = coordKey(x, y);
+        next.regions = next.regions.map((region) => {
+          if (region.id !== id) return region;
+          const exists = region.cells.some(([cx, cy]) => coordKey(cx, cy) === key);
+          const cells: Array<[number, number]> = exists
+            ? region.cells.filter(([cx, cy]) => coordKey(cx, cy) !== key)
+            : [...region.cells, [x, y]];
+          return { ...region, cells, labelCell: computeLabelCell(cells) };
+        });
+      }),
+
+    updateRegion: (regionId, input) =>
       commit((next) => {
         next.regions = next.regions.map((region) =>
-          region.id === id ? { ...region, ...patch } : region,
+          region.id === regionId
+            ? {
+                id: input.id || region.id,
+                name: input.name,
+                color: input.color,
+                borderWidth: input.borderWidth,
+                fillOpacity: input.fillOpacity,
+                cells: [...input.cells],
+                labelCell: computeLabelCell(input.cells),
+              }
+            : region,
         );
       }),
 
@@ -202,6 +382,49 @@ export const useEditorStore = create<EditorState>((set, get) => {
       });
       if (get().selectedRegionId === id) set({ selectedRegionId: null });
     },
+
+    setSlot: (index, characterId) =>
+      commit((next) => {
+        next.characterSlots = next.characterSlots.map((slot, i) =>
+          i === index ? (characterId ? { characterId } : null) : slot,
+        );
+      }),
+
+    swapSlots: (from, to) =>
+      commit((next) => {
+        if (from === to) return;
+        const slots = [...next.characterSlots];
+        const a = slots[from] ?? null;
+        const b = slots[to] ?? null;
+        slots[to] = a;
+        slots[from] = b;
+        next.characterSlots = slots;
+      }),
+
+    setGridSize: (size) =>
+      commit((next) => {
+        const inBounds = (x: number, y: number): boolean =>
+          x >= 0 && y >= 0 && x < size && y < size;
+        for (const key of [...next.cells.keys()]) {
+          const [x, y] = key.split(',').map(Number) as [number, number];
+          if (!inBounds(x, y)) next.cells.delete(key);
+        }
+        next.regions = next.regions
+          .map((region) => {
+            const cells = region.cells.filter(([x, y]) => inBounds(x, y));
+            return { ...region, cells, labelCell: computeLabelCell(cells) };
+          })
+          .filter((region) => region.cells.length > 0);
+        next.placedCharacters = next.placedCharacters.filter((placed) =>
+          inBounds(placed.x, placed.y),
+        );
+        next.characterSlots = genSlotArray(size, next.characterSlots);
+        next.gridSize = size;
+      }),
+
+    setZoom: (zoom) => set({ zoom }),
+    setPan: (pan) => set({ pan }),
+    resetView: () => set({ zoom: 1, pan: { x: 0, y: 0 } }),
 
     undo: () => {
       const state = get();
@@ -221,6 +444,23 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({ ...next, past, future, dirty: true });
     },
 
-    markSaved: () => set({ dirty: false }),
+    markSaved: (updatedAt) => set({ dirty: false, updatedAt }),
+    setVersionInfo: ({ currentVersionNo, status }) => set({ currentVersionNo, status }),
+
+    toDraft: () => {
+      const state = get();
+      const cells: Record<string, DraftCell> = {};
+      for (const [key, cell] of state.cells.entries()) {
+        cells[key] = cell;
+      }
+      return {
+        version: MAP_JSON_VERSION,
+        gridSize: state.gridSize,
+        cells,
+        regions: state.regions,
+        characterSlots: state.characterSlots,
+        placedCharacters: state.placedCharacters,
+      };
+    },
   };
 });

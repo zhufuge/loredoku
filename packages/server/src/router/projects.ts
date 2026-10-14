@@ -1,17 +1,29 @@
 import Router from '@koa/router';
 import * as controller from '../controller/projectController';
 import * as mapController from '../controller/mapController';
-import * as regionController from '../controller/regionController';
+import * as versionController from '../controller/versionController';
 
 export const projectsRouter = new Router();
 
 projectsRouter.get('/', controller.list);
 projectsRouter.post('/', controller.create);
-projectsRouter.get('/:id/map', mapController.getMap);
-projectsRouter.put('/:id/map', mapController.saveMap);
-projectsRouter.get('/:id/regions', regionController.list);
-projectsRouter.post('/:id/regions', regionController.create);
 projectsRouter.get('/:id', controller.detail);
 projectsRouter.patch('/:id', controller.update);
 projectsRouter.delete('/:id', controller.remove);
 projectsRouter.post('/:id/duplicate', controller.duplicate);
+
+projectsRouter.get('/:id/map', mapController.getMap);
+projectsRouter.put('/:id/map', mapController.saveMap);
+projectsRouter.patch('/:id/grid-size', mapController.updateGridSize);
+projectsRouter.get('/:id/map/export', mapController.exportMap);
+projectsRouter.post('/:id/map/import', mapController.importMap);
+
+projectsRouter.get('/:id/regions', mapController.listRegions);
+projectsRouter.post('/:id/regions', mapController.createRegion);
+projectsRouter.patch('/:id/regions/:regionId', mapController.updateRegion);
+projectsRouter.delete('/:id/regions/:regionId', mapController.deleteRegion);
+
+projectsRouter.post('/:id/versions', versionController.publish);
+projectsRouter.get('/:id/versions', versionController.list);
+projectsRouter.get('/:id/versions/:versionNo', versionController.detail);
+projectsRouter.post('/:id/versions/:versionNo/draft', versionController.createDraft);

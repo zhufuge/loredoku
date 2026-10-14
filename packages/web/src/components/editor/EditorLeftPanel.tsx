@@ -1,72 +1,95 @@
 import { useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { BoxSelect, Eraser, Hand, MousePointer2 } from 'lucide-react';
-import type { Card, EditorTool, RegionData } from '@murdoku/shared';
-import { CardPalette } from '@/components/editor/CardPalette';
+import { BoxSelect, BoxSelect as RegionIcon } from 'lucide-react';
+import type {
+  Character,
+  DraftRegion,
+  EditorLayer,
+  EditorTool,
+  Item,
+} from '@murdoku/shared';
+import { EDITOR_LAYERS } from '@murdoku/shared';
+import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
+import { ItemPalette } from '@/components/editor/ItemPalette';
 import { RegionList } from '@/components/editor/RegionList';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
-type PanelTab = 'cards' | 'regions' | 'tools';
+type PanelTab = 'items' | 'characters' | 'regions';
 
 const TABS: Array<{ id: PanelTab; label: string }> = [
-  { id: 'cards', label: '卡片' },
+  { id: 'items', label: '物品' },
+  { id: 'characters', label: '角色' },
   { id: 'regions', label: '区域' },
-  { id: 'tools', label: '工具' },
 ];
 
-const TOOLS: Array<{ id: EditorTool; label: string; hint: string; icon: typeof MousePointer2 }> = [
-  { id: 'select', label: '选择 / 放置', hint: 'V', icon: MousePointer2 },
-  { id: 'region', label: '框选区域', hint: 'R', icon: BoxSelect },
-  { id: 'eraser', label: '橡皮擦', hint: 'E', icon: Eraser },
-  { id: 'pan', label: '平移画布', hint: 'Space', icon: Hand },
-];
+const LAYER_LABELS: Record<EditorLayer, string> = {
+  background: '背景层',
+  object: '物体层',
+};
 
 interface EditorLeftPanelProps {
-  cards: Card[] | undefined;
-  cardsLoading: boolean;
-  cardsError: boolean;
-  regions: RegionData[];
-  selectedRegionId: number | null;
-  activeTool: EditorTool;
+  items: Item[] | undefined;
+  itemsLoading: boolean;
+  itemsError: boolean;
+  characters: Character[] | undefined;
+  charactersLoading: boolean;
+  charactersError: boolean;
+  activeLayer: EditorLayer;
+  selectedItemId: number | null;
+  characterSlots: Array<{ characterId: number } | null>;
+  selectedCharacterId: number | null;
+  regions: DraftRegion[];
+  selectedRegionId: string | null;
+  onSetLayer: (layer: EditorLayer) => void;
+  onSelectItem: (item: Item | null) => void;
+  onAssignSlot: (characterId: number) => void;
+  onSelectCharacter: (id: number | null) => void;
   onSetTool: (tool: EditorTool) => void;
-  onStartDrag: (event: ReactPointerEvent, card: Card) => void;
-  onHoverCard: (card: Card | null) => void;
-  onSelectRegion: (id: number | null) => void;
-  onEditRegion: (region: RegionData) => void;
-  onDeleteRegion: (region: RegionData) => void;
+  onSelectRegion: (id: string | null) => void;
+  onEditRegion: (region: DraftRegion) => void;
+  onDeleteRegion: (region: DraftRegion) => void;
 }
 
 export function EditorLeftPanel({
-  cards,
-  cardsLoading,
-  cardsError,
+  items,
+  itemsLoading,
+  itemsError,
+  characters,
+  charactersLoading,
+  charactersError,
+  activeLayer,
+  selectedItemId,
+  characterSlots,
+  selectedCharacterId,
   regions,
   selectedRegionId,
-  activeTool,
+  onSetLayer,
+  onSelectItem,
+  onAssignSlot,
+  onSelectCharacter,
   onSetTool,
-  onStartDrag,
-  onHoverCard,
   onSelectRegion,
   onEditRegion,
   onDeleteRegion,
 }: EditorLeftPanelProps): JSX.Element {
-  const [tab, setTab] = useState<PanelTab>('cards');
+  const [tab, setTab] = useState<PanelTab>('items');
+
+  const rosterIds = new Set(characterSlots.filter(Boolean).map((slot) => slot!.characterId));
 
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r bg-background">
+    <aside className="flex h-full w-[280px] shrink-0 flex-col border-r bg-background">
       <div className="flex shrink-0 border-b">
         {TABS.map((item) => (
           <button
             key={item.id}
             type="button"
             onClick={() => setTab(item.id)}
-            className={cn(
-              'flex-1 border-b-2 px-2 py-2 text-sm font-medium transition-colors',
+            className={
               tab === item.id
-                ? 'border-primary text-foreground'
-                : 'border-transparent text-muted-foreground hover:text-foreground',
-            )}
+                ? 'flex-1 border-b-2 border-primary px-2 py-2 text-sm font-medium text-foreground'
+                : 'flex-1 border-b-2 border-transparent px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground'
+            }
           >
             {item.label}
           </button>
@@ -74,25 +97,97 @@ export function EditorLeftPanel({
       </div>
 
       <div className="min-h-0 flex-1 p-3">
-        {tab === 'cards' ? (
-          <CardPalette
-            cards={cards}
-            isLoading={cardsLoading}
-            isError={cardsError}
-            onStartDrag={onStartDrag}
-            onHoverCard={onHoverCard}
-          />
-        ) : tab === 'regions' ? (
+        {tab === 'items' ? (
+          <div className="flex h-full flex-col gap-3">
+            <div className="flex shrink-0 gap-1 rounded-md border p-1">
+              {(['background', 'object'] as EditorLayer[]).map((layer) => (
+                <button
+                  key={layer}
+                  type="button"
+                  onClick={() => {
+                    onSetLayer(layer);
+                    onSelectItem(null);
+                  }}
+                  className={
+                    activeLayer === layer
+                      ? 'flex-1 rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground'
+                      : 'flex-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent'
+                  }
+                >
+                  {LAYER_LABELS[layer]}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1">
+              <ItemPalette
+                items={items}
+                isLoading={itemsLoading}
+                isError={itemsError}
+                activeLayer={activeLayer}
+                selectedItemId={selectedItemId}
+                onSelect={onSelectItem}
+              />
+            </div>
+          </div>
+        ) : tab === 'characters' ? (
+          <div className="flex h-full flex-col gap-3 overflow-y-auto">
+            <p className="text-xs text-muted-foreground">
+              点击角色可选中并放置到画布；点击「加入」加入右侧队伍槽位。
+            </p>
+            {charactersLoading ? (
+              <Skeleton className="h-24 w-full" />
+            ) : charactersError ? (
+              <p className="py-4 text-center text-xs text-muted-foreground">角色加载失败</p>
+            ) : !characters || characters.length === 0 ? (
+              <p className="py-4 text-center text-xs text-muted-foreground">暂无角色</p>
+            ) : (
+              <div className="grid grid-cols-3 gap-2">
+                {characters.map((character) => (
+                  <div key={character.id} className="flex flex-col items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onSelectCharacter(selectedCharacterId === character.id ? null : character.id)
+                      }
+                      className={
+                        selectedCharacterId === character.id
+                          ? 'rounded-full ring-2 ring-primary'
+                          : 'rounded-full'
+                      }
+                      title={character.name}
+                    >
+                      <CharacterThumbnail character={character} className="h-12 w-12" />
+                    </button>
+                    <span className="w-full truncate text-center text-[11px] text-muted-foreground">
+                      {character.name}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={rosterIds.has(character.id)}
+                      onClick={() => onAssignSlot(character.id)}
+                      className={
+                        rosterIds.has(character.id)
+                          ? 'h-6 w-full rounded border bg-secondary px-2 text-[11px] text-muted-foreground'
+                          : 'h-6 w-full rounded border px-2 text-[11px] hover:border-primary'
+                      }
+                    >
+                      {rosterIds.has(character.id) ? '已加入' : '加入'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
           <div className="flex h-full flex-col gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="shrink-0"
+            <button
+              type="button"
               onClick={() => onSetTool('region')}
+              className="flex shrink-0 items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-sm hover:border-primary"
             >
-              <BoxSelect className="mr-1 h-3.5 w-3.5" />
-              框选区域 (R)
-            </Button>
+              <BoxSelect className="h-3.5 w-3.5" />
+              区域工具 (R)
+            </button>
             <div className="min-h-0 flex-1 overflow-y-auto">
               <RegionList
                 regions={regions}
@@ -102,31 +197,6 @@ export function EditorLeftPanel({
                 onDelete={onDeleteRegion}
               />
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-1">
-            {TOOLS.map((tool) => {
-              const Icon = tool.icon;
-              return (
-                <button
-                  key={tool.id}
-                  type="button"
-                  onClick={() => onSetTool(tool.id)}
-                  className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
-                    activeTool === tool.id
-                      ? 'bg-secondary text-secondary-foreground'
-                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  <span className="flex-1 text-left">{tool.label}</span>
-                  <kbd className="rounded border bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    {tool.hint}
-                  </kbd>
-                </button>
-              );
-            })}
           </div>
         )}
       </div>

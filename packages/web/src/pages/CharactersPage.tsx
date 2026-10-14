@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Plus, Search } from 'lucide-react';
-import type { Card } from '@murdoku/shared';
+import type { Character } from '@murdoku/shared';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,23 +12,23 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Card as CardBox } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { CardDetailForm } from '@/components/card/CardDetailForm';
-import { CardListPanel } from '@/components/card/CardListPanel';
-import { CreateCardDialog } from '@/components/card/CreateCardDialog';
-import { useCardUsages, useCards, useDeleteCard } from '@/hooks/useCards';
+import { CharacterDetailForm } from '@/components/character/CharacterDetailForm';
+import { CharacterListPanel } from '@/components/character/CharacterListPanel';
+import { CreateCharacterDialog } from '@/components/character/CreateCharacterDialog';
+import { useCharacterUsages, useCharacters, useDeleteCharacter } from '@/hooks/useCharacters';
 
-type ActiveFilter = 'all' | 'active' | 'inactive';
+type StatusFilter = 'all' | 'active' | 'inactive';
 
-export function CardsPage(): JSX.Element {
+export function CharactersPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
-  const [filter, setFilter] = useState<ActiveFilter>('all');
+  const [status, setStatus] = useState<StatusFilter>('all');
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Card | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setKeyword(keywordInput.trim()), 300);
@@ -38,29 +38,26 @@ export function CardsPage(): JSX.Element {
   const params = useMemo(
     () => ({
       keyword: keyword || undefined,
-      isActive: filter === 'all' ? undefined : filter === 'active',
+      isActive: status === 'all' ? undefined : status === 'active',
     }),
-    [keyword, filter],
+    [keyword, status],
   );
 
-  const { data: cards, isLoading, isError, error, refetch } = useCards(params);
-  const { data: usages } = useCardUsages(deleteTarget?.id ?? null);
-  const deleteMutation = useDeleteCard();
+  const { data: characters, isLoading, isError, error, refetch } = useCharacters(params);
+  const { data: usages } = useCharacterUsages(deleteTarget?.id ?? null);
+  const deleteMutation = useDeleteCharacter();
 
   useEffect(() => {
-    if (cards && cards.length > 0 && !cards.some((card) => card.id === selectedId)) {
-      setSelectedId(cards[0]!.id);
+    if (
+      characters &&
+      characters.length > 0 &&
+      !characters.some((character) => character.id === selectedId)
+    ) {
+      setSelectedId(characters[0]!.id);
     }
-  }, [cards, selectedId]);
+  }, [characters, selectedId]);
 
-  const selectedCard = cards?.find((card) => card.id === selectedId) ?? null;
-
-  const confirmDelete = (clearReferences: boolean): void => {
-    if (deleteTarget) {
-      deleteMutation.mutate({ id: deleteTarget.id, clearReferences });
-      setDeleteTarget(null);
-    }
-  };
+  const selectedCharacter = characters?.find((character) => character.id === selectedId) ?? null;
 
   function renderList(): JSX.Element {
     if (isLoading) {
@@ -75,39 +72,45 @@ export function CardsPage(): JSX.Element {
 
     if (isError) {
       return (
-        <CardBox className="flex flex-col items-center gap-3 p-8 text-center">
+        <Card className="flex flex-col items-center gap-3 p-8 text-center">
           <p className="text-sm text-muted-foreground">
             {error instanceof Error ? error.message : '加载失败'}
           </p>
           <Button variant="outline" onClick={() => void refetch()}>
             重试
           </Button>
-        </CardBox>
+        </Card>
       );
     }
 
-    if (!cards || cards.length === 0) {
+    if (!characters || characters.length === 0) {
       return (
-        <CardBox className="flex flex-col items-center gap-3 p-8 text-center">
+        <Card className="flex flex-col items-center gap-3 p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            {keyword ? '没有匹配的卡片' : '还没有卡片，先创建一张吧'}
+            {keyword ? '没有匹配的角色' : '还没有角色，先创建一个吧'}
           </p>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
-            新建卡片
+            新建角色
           </Button>
-        </CardBox>
+        </Card>
       );
     }
 
-    return <CardListPanel cards={cards} selectedId={selectedId} onSelect={setSelectedId} />;
+    return (
+      <CharacterListPanel
+        characters={characters}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+      />
+    );
   }
 
   return (
     <section className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold">卡片管理</h1>
-        <p className="text-sm text-muted-foreground">维护卡片图案、业务 ID 与触发信息。</p>
+        <h1 className="text-2xl font-semibold">角色管理</h1>
+        <p className="text-sm text-muted-foreground">维护角色头像与描述，供地图放置使用。</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
@@ -127,8 +130,8 @@ export function CardsPage(): JSX.Element {
             </Button>
           </div>
           <select
-            value={filter}
-            onChange={(event) => setFilter(event.target.value as ActiveFilter)}
+            value={status}
+            onChange={(event) => setStatus(event.target.value as StatusFilter)}
             className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <option value="all">全部状态</option>
@@ -138,40 +141,52 @@ export function CardsPage(): JSX.Element {
           {renderList()}
         </div>
 
-        <CardBox className="p-6">
-          {selectedCard ? (
-            <CardDetailForm card={selectedCard} onRequestDelete={setDeleteTarget} />
+        <Card className="p-6">
+          {selectedCharacter ? (
+            <CharacterDetailForm
+              character={selectedCharacter}
+              onRequestDelete={setDeleteTarget}
+            />
           ) : (
             <div className="flex h-full min-h-64 items-center justify-center text-sm text-muted-foreground">
-              选择左侧卡片进行编辑
+              选择左侧角色进行编辑
             </div>
           )}
-        </CardBox>
+        </Card>
       </div>
 
-      <CreateCardDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={setSelectedId} />
+      <CreateCharacterDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={setSelectedId}
+      />
 
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>停用卡片「{deleteTarget?.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>停用角色「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
               {usages && usages.length > 0
-                ? `该卡片正被 ${usages.length} 个项目使用（${usages
+                ? `该角色正被 ${usages.length} 个项目使用（${usages
                     .map((usage) => usage.projectName)
                     .join('、')}）。`
-                : '该卡片尚未被任何项目使用。'}
-              {' '}停用后不会出现在卡片面板中。
+                : '该角色尚未被任何项目使用。'}{' '}
+              停用后不会出现在角色面板中。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            {usages && usages.length > 0 ? (
-              <AlertDialogAction onClick={() => confirmDelete(true)}>
-                停用并清空引用
-              </AlertDialogAction>
-            ) : null}
-            <AlertDialogAction onClick={() => confirmDelete(false)}>仅停用</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+                setDeleteTarget(null);
+              }}
+            >
+              停用
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

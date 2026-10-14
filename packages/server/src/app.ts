@@ -22,8 +22,8 @@ export function createApp(): Koa {
       multipart: false,
       json: true,
       urlencoded: true,
-      jsonLimit: '1mb',
-      textLimit: '1mb',
+      jsonLimit: '8mb',
+      textLimit: '8mb',
     }),
   );
 

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { CELL_SIZE } from '@murdoku/shared'
-import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_MAX, ZOOM_MIN } from './grid'
+import {
+  boardSize,
+  centerPan,
+  clampZoom,
+  clientToCell,
+  isInBounds,
+  zoomAtPoint,
+  ZOOM_MAX,
+  ZOOM_MIN,
+} from './grid'
 
 const rect = { left: 100, top: 50, width: 600, height: 600 } as DOMRect
 
@@ -52,6 +61,23 @@ describe('isInBounds', () => {
   it('rejects cells on or beyond the edges', () => {
     expect(isInBounds({ x: 5, y: 0 }, 5)).toBe(false)
     expect(isInBounds({ x: -1, y: 0 }, 5)).toBe(false)
+  })
+})
+
+describe('boardSize', () => {
+  it('scales the board with zoom', () => {
+    expect(boardSize(6)).toBe(6 * CELL_SIZE)
+    expect(boardSize(6, 2)).toBe(12 * CELL_SIZE)
+  })
+})
+
+describe('centerPan', () => {
+  it('centers the board within the viewport', () => {
+    const rect = { width: 800, height: 600 } as DOMRect
+    expect(centerPan(rect, 6)).toEqual({
+      x: (800 - 6 * CELL_SIZE) / 2,
+      y: (600 - 6 * CELL_SIZE) / 2,
+    })
   })
 })
 

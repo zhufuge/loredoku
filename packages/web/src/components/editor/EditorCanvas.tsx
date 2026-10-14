@@ -1,11 +1,39 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
-import { CELL_SIZE, GRID_LINE_COLOR } from '@murdoku/shared';
-import type { Card, CellCoord, EditorTool, EffectType, RegionData } from '@murdoku/shared';
-import { cellKey, type EditorCell } from '@/stores/editorStore';
-import { CardThumbnail } from '@/components/card/CardThumbnail';
-import { buildRegionEdges, rectCells } from '@/lib/region';
 import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import {
+  CELL_SIZE,
+  GRID_BORDER_WIDTH,
+  GRID_LINE_COLOR,
+  GRID_LINE_WIDTH,
+  type CellCoord,
+  type Character,
+  type DraftCell,
+  type DraftRegion,
+  type EditorTool,
+  type Item,
+  type PlacedCharacter,
+  type RegionShape,
+} from '@murdoku/shared';
+import {
+  buildRegionEdges,
+  computeLabelCell,
+  contrastTextColor,
+  coordKey,
+  polygonCells,
+  rectCells,
+  regionAt,
+  type Coord,
+} from '@/lib/region';
+import {
+  centerPan,
   clampZoom,
   clientToCell,
   DRAG_THRESHOLD,
@@ -13,83 +41,83 @@ import {
   zoomAtPoint,
   ZOOM_STEP,
 } from '@/lib/grid';
-import { cn } from '@/lib/utils';
 
 export interface EditorCanvasHandle {
   clientToCell: (clientX: number, clientY: number) => CellCoord;
   containsPoint: (clientX: number, clientY: number) => boolean;
   getRect: () => DOMRect | null;
+  centerView: () => void;
 }
 
 interface EditorCanvasProps {
   gridSize: number;
-  cells: Map<string, EditorCell>;
-  regions: RegionData[];
-  selectedRegionId: number | null;
-  cardsById: Map<number, Card>;
+  cells: Map<string, DraftCell>;
+  itemsById: Map<number, Item>;
+  regions: DraftRegion[];
+  placedCharacters: PlacedCharacter[];
+  charactersById: Map<number, Character>;
+  selectedRegionId: string | null;
   zoom: number;
   pan: { x: number; y: number };
   selection: CellCoord | null;
   activeTool: EditorTool;
+  regionShape: RegionShape;
   spaceHeld: boolean;
-  dropPreview: CellCoord | null;
-  highlightEffects: Map<string, HighlightEffect>;
+  pendingItem: Item | null;
+  pendingCharacterId: number | null;
   onSelect: (coord: CellCoord | null) => void;
-  onSelectRegion: (id: number | null) => void;
-  onRegionSelect: (cells: CellCoord[]) => void;
+  onSelectRegionAt: (id: string | null) => void;
+  onRegionSelect: (cells: Coord[]) => void;
   onToggleRegionCell: (coord: CellCoord) => void;
-  onMoveCard: (from: CellCoord, to: CellCoord) => void;
+  onPlaceItem: (coord: CellCoord) => void;
+  onPlaceCharacter: (coord: CellCoord) => void;
+  onOpenCharacter: (coord: CellCoord) => void;
+  onMoveObject: (from: CellCoord, to: CellCoord) => void;
   onErase: (coord: CellCoord) => void;
   onZoom: (zoom: number) => void;
   onPan: (pan: { x: number; y: number }) => void;
 }
 
+interface MoveFootprint {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 type Interaction =
   | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
-  | { kind: 'move'; from: CellCoord; startX: number; startY: number }
+  | { kind: 'move'; from: CellCoord; startX: number; startY: number; w: number; h: number }
   | { kind: 'erase'; last: string | null }
   | { kind: 'marquee'; start: CellCoord }
+  | { kind: 'brush'; keys: Set<string>; erase: boolean }
   | null;
-
-interface MoveDrag {
-  from: CellCoord;
-  cardId: number;
-  clientX: number;
-  clientY: number;
-  target: CellCoord | null;
-}
-
-const EFFECT_CLASS: Record<EffectType, string> = {
-  highlight: 'ring-2 ring-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.9)] scale-105',
-  glow: 'animate-pulse ring-2 ring-sky-400',
-  blink: 'animate-pulse',
-  tooltip: '',
-};
-
-export interface HighlightEffect {
-  effectType: EffectType;
-  text?: string;
-}
 
 export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(function EditorCanvas(
   {
     gridSize,
     cells,
+    itemsById,
     regions,
+    placedCharacters,
+    charactersById,
     selectedRegionId,
-    cardsById,
     zoom,
     pan,
     selection,
     activeTool,
+    regionShape,
     spaceHeld,
-    dropPreview,
-    highlightEffects,
+    pendingItem,
+    pendingCharacterId,
     onSelect,
-    onSelectRegion,
+    onSelectRegionAt,
     onRegionSelect,
     onToggleRegionCell,
-    onMoveCard,
+    onPlaceItem,
+    onPlaceCharacter,
+    onOpenCharacter,
+    onMoveObject,
     onErase,
     onZoom,
     onPan,
@@ -98,21 +126,28 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 ): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<Interaction>(null);
-  const dragRef = useRef<MoveDrag | null>(null);
+  const userPannedRef = useRef(false);
   const [hover, setHover] = useState<CellCoord | null>(null);
-  const [moveDrag, setMoveDrag] = useState<MoveDrag | null>(null);
   const [marquee, setMarquee] = useState<{ start: CellCoord; end: CellCoord } | null>(null);
+  const [moveTarget, setMoveTarget] = useState<MoveFootprint | null>(null);
+  const [polygonPoints, setPolygonPoints] = useState<Coord[]>([]);
+  const [brushCells, setBrushCells] = useState<Coord[]>([]);
+  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 
   const viewRef = useRef({ zoom, pan, onZoom, onPan });
   viewRef.current = { zoom, pan, onZoom, onPan };
 
-  const clampCell = useCallback(
-    (coord: CellCoord): CellCoord => ({
-      x: Math.min(gridSize - 1, Math.max(0, coord.x)),
-      y: Math.min(gridSize - 1, Math.max(0, coord.y)),
-    }),
-    [gridSize],
-  );
+  const total = gridSize * CELL_SIZE;
+
+  const centerView = useCallback((): void => {
+    const node = containerRef.current;
+    if (!node) return;
+    const rect = node.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    userPannedRef.current = false;
+    viewRef.current.onZoom(1);
+    viewRef.current.onPan(centerPan(rect, gridSize, 1));
+  }, [gridSize]);
 
   const toCell = useCallback(
     (clientX: number, clientY: number): CellCoord => {
@@ -121,6 +156,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       return clientToCell(clientX, clientY, { rect, pan, zoom });
     },
     [pan, zoom],
+  );
+
+  const clampCell = useCallback(
+    (coord: CellCoord): CellCoord => ({
+      x: Math.min(gridSize - 1, Math.max(0, coord.x)),
+      y: Math.min(gridSize - 1, Math.max(0, coord.y)),
+    }),
+    [gridSize],
   );
 
   useImperativeHandle(
@@ -132,9 +175,15 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         return node ? node.contains(document.elementFromPoint(clientX, clientY)) : false;
       },
       getRect: () => containerRef.current?.getBoundingClientRect() ?? null,
+      centerView,
     }),
-    [toCell],
+    [toCell, centerView],
   );
+
+  useEffect(() => {
+    if (userPannedRef.current) return;
+    centerView();
+  }, [centerView]);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -146,6 +195,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       const direction = event.deltaY > 0 ? -1 : 1;
       const next = clampZoom(view.zoom + direction * ZOOM_STEP);
       if (next === view.zoom) return;
+      userPannedRef.current = true;
       const rect = node.getBoundingClientRect();
       const nextPan = zoomAtPoint(
         { x: event.clientX, y: event.clientY },
@@ -161,10 +211,31 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     return () => node.removeEventListener('wheel', handleWheel);
   }, []);
 
-  const updateDrag = (drag: MoveDrag | null): void => {
-    dragRef.current = drag;
-    setMoveDrag(drag);
-  };
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      setPolygonPoints([]);
+      setBrushCells([]);
+      interactionRef.current = null;
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    setPolygonPoints([]);
+    setBrushCells([]);
+  }, [activeTool, regionShape]);
+
+  const fits = (x: number, y: number, w: number, h: number): boolean =>
+    x >= 0 && y >= 0 && x + w <= gridSize && y + h <= gridSize;
+
+  const pendingFootprint = useMemo<{ w: number; h: number }>(() => {
+    if (pendingItem && pendingItem.category === 'object') {
+      return { w: pendingItem.widthCells, h: pendingItem.heightCells };
+    }
+    return { w: 1, h: 1 };
+  }, [pendingItem]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const node = containerRef.current;
@@ -189,6 +260,25 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     const inBounds = isInBounds(coord, gridSize);
 
     if (activeTool === 'region') {
+      if (regionShape === 'polygon') {
+        const vertex = clampCell(coord);
+        setPolygonPoints((previous) => {
+          const last = previous.at(-1);
+          if (last && last[0] === vertex.x && last[1] === vertex.y) return previous;
+          return [...previous, [vertex.x, vertex.y]];
+        });
+        return;
+      }
+      if (regionShape === 'brush') {
+        if (!inBounds) return;
+        node.setPointerCapture(event.pointerId);
+        const key = coordKey(coord.x, coord.y);
+        const keys = new Set<string>();
+        if (!event.altKey) keys.add(key);
+        interactionRef.current = { kind: 'brush', keys, erase: event.altKey };
+        setBrushCells(Array.from(keys).map((item) => item.split(',').map(Number) as Coord));
+        return;
+      }
       node.setPointerCapture(event.pointerId);
       const start = clampCell(coord);
       interactionRef.current = { kind: 'marquee', start };
@@ -197,36 +287,47 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
 
     if (!inBounds) {
-      if (activeTool === 'select') {
+      if (activeTool === 'select' || activeTool === 'character') {
         onSelect(null);
-        onSelectRegion(null);
+        onSelectRegionAt(null);
       }
       return;
     }
 
     if (activeTool === 'eraser') {
       node.setPointerCapture(event.pointerId);
-      interactionRef.current = { kind: 'erase', last: cellKey(coord.x, coord.y) };
+      interactionRef.current = { kind: 'erase', last: `${coord.x},${coord.y}` };
       onErase(coord);
       return;
     }
 
-    if (activeTool === 'select') {
-      if (event.shiftKey && selectedRegionId !== null) {
+    if (activeTool === 'select' || activeTool === 'character') {
+      if (event.shiftKey && selectedRegionId) {
         onToggleRegionCell(coord);
         return;
       }
-      if (cells.has(cellKey(coord.x, coord.y))) {
+      if (pendingItem) {
+        if (fits(coord.x, coord.y, pendingFootprint.w, pendingFootprint.h)) onPlaceItem(coord);
+        return;
+      }
+      if (pendingCharacterId !== null) {
+        onPlaceCharacter(coord);
+        return;
+      }
+      const cell = cells.get(`${coord.x},${coord.y}`);
+      if (cell?.object) {
         node.setPointerCapture(event.pointerId);
         interactionRef.current = {
           kind: 'move',
           from: coord,
           startX: event.clientX,
           startY: event.clientY,
+          w: cell.object.w,
+          h: cell.object.h,
         };
       } else {
-        onSelect(null);
-        onSelectRegion(null);
+        onSelect(coord);
+        onSelectRegionAt(regionAt(regions, coord.x, coord.y)?.id ?? null);
       }
     }
   };
@@ -246,6 +347,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     if (!interaction) return;
 
     if (interaction.kind === 'pan') {
+      userPannedRef.current = true;
       onPan({
         x: interaction.panX + (event.clientX - interaction.startX),
         y: interaction.panY + (event.clientY - interaction.startY),
@@ -255,7 +357,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
     if (interaction.kind === 'erase') {
       if (inBounds) {
-        const key = cellKey(coord.x, coord.y);
+        const key = `${coord.x},${coord.y}`;
         if (key !== interaction.last) {
           interaction.last = key;
           onErase(coord);
@@ -269,22 +371,26 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       return;
     }
 
+    if (interaction.kind === 'brush') {
+      if (!inBounds) return;
+      const key = coordKey(coord.x, coord.y);
+      if (interaction.erase) interaction.keys.delete(key);
+      else interaction.keys.add(key);
+      setBrushCells(interaction.keys.size === 0 ? [] : Array.from(interaction.keys).map((item) => item.split(',').map(Number) as Coord));
+      return;
+    }
+
     if (interaction.kind === 'move') {
       const distance = Math.hypot(
         event.clientX - interaction.startX,
         event.clientY - interaction.startY,
       );
       if (distance > DRAG_THRESHOLD) {
-        const source = cells.get(cellKey(interaction.from.x, interaction.from.y));
-        if (source) {
-          updateDrag({
-            from: interaction.from,
-            cardId: source.cardId,
-            clientX: event.clientX,
-            clientY: event.clientY,
-            target: inBounds ? coord : null,
-          });
-        }
+        setMoveTarget(
+          fits(coord.x, coord.y, interaction.w, interaction.h)
+            ? { x: coord.x, y: coord.y, w: interaction.w, h: interaction.h }
+            : null,
+        );
       }
     }
   };
@@ -296,141 +402,54 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     if (interaction?.kind === 'marquee') {
       const end = clampCell(toCell(event.clientX, event.clientY));
       setMarquee(null);
-      onRegionSelect(rectCells(interaction.start, end));
+      onRegionSelect(rectCells([interaction.start.x, interaction.start.y], [end.x, end.y]));
+      return;
+    }
+
+    if (interaction?.kind === 'brush') {
+      const selected = Array.from(interaction.keys).map(
+        (item) => item.split(',').map(Number) as Coord,
+      );
+      setBrushCells([]);
+      if (selected.length > 0) onRegionSelect(selected);
       return;
     }
 
     if (interaction?.kind === 'move') {
-      const drag = dragRef.current;
-      if (drag) {
-        const coord = toCell(event.clientX, event.clientY);
-        if (isInBounds(coord, gridSize) && (coord.x !== drag.from.x || coord.y !== drag.from.y)) {
-          onMoveCard(drag.from, coord);
-        }
-      } else if (activeTool === 'select') {
+      const coord = toCell(event.clientX, event.clientY);
+      if (moveTarget) {
+        onMoveObject(interaction.from, { x: moveTarget.x, y: moveTarget.y });
+      } else if (
+        !(coord.x === interaction.from.x && coord.y === interaction.from.y)
+      ) {
         onSelect(interaction.from);
+        onSelectRegionAt(regionAt(regions, interaction.from.x, interaction.from.y)?.id ?? null);
+      } else {
+        onSelect(coord);
+        onSelectRegionAt(regionAt(regions, coord.x, coord.y)?.id ?? null);
       }
-      updateDrag(null);
+      setMoveTarget(null);
     }
   };
 
-  const total = gridSize * CELL_SIZE;
-
-  const gridBackground = useMemo(
-    () => ({
-      backgroundImage: `linear-gradient(to right, ${GRID_LINE_COLOR} 1px, transparent 1px), linear-gradient(to bottom, ${GRID_LINE_COLOR} 1px, transparent 1px)`,
-      backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
-    }),
-    [],
-  );
-
-  const regionFill = useMemo(
-    () =>
-      regions.flatMap((region) =>
-        region.cells.map((cell) => (
-          <rect
-            key={`${region.id}-${cell.x}-${cell.y}`}
-            x={cell.x * CELL_SIZE}
-            y={cell.y * CELL_SIZE}
-            width={CELL_SIZE}
-            height={CELL_SIZE}
-            fill={region.color}
-            fillOpacity={region.fillOpacity}
-          />
-        )),
-      ),
-    [regions],
-  );
-
-  const regionBorders = useMemo(
-    () =>
-      regions.map((region) => {
-        const selected = region.id === selectedRegionId;
-        const edges = buildRegionEdges(region.cells);
-        const label = region.cells.reduce<CellCoord | null>(
-          (min, cell) =>
-            !min || cell.y < min.y || (cell.y === min.y && cell.x < min.x) ? cell : min,
-          null,
-        );
-        return (
-          <g
-            key={region.id}
-            style={{ filter: selected ? `drop-shadow(0 0 3px ${region.color})` : undefined }}
-          >
-            {edges.map(([x1, y1, x2, y2], index) => (
-              <line
-                key={index}
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={region.color}
-                strokeWidth={region.borderWidth}
-                strokeLinecap="square"
-                strokeLinejoin="miter"
-              />
-            ))}
-            {label ? (
-              <text
-                x={label.x * CELL_SIZE + 4}
-                y={label.y * CELL_SIZE + 14}
-                fill={region.color}
-                fontSize={11}
-                fontWeight={600}
-              >
-                {region.name}
-              </text>
-            ) : null}
-          </g>
-        );
-      }),
-    [regions, selectedRegionId],
-  );
-
-  const cardNodes = useMemo(() => {
-    const nodes: JSX.Element[] = [];
-    for (const [key, cell] of cells) {
-      const card = cardsById.get(cell.cardId);
-      if (!card) continue;
-      const [x, y] = key.split(',');
-      const coord = { x: Number(x), y: Number(y) };
-      const isMoveOrigin = moveDrag?.from.x === coord.x && moveDrag?.from.y === coord.y;
-      const effect = highlightEffects.get(key);
-      nodes.push(
-        <div
-          key={key}
-          className="absolute transition-transform"
-          title={effect?.effectType === 'tooltip' ? effect.text : undefined}
-          style={{
-            left: coord.x * CELL_SIZE,
-            top: coord.y * CELL_SIZE,
-            width: CELL_SIZE,
-            height: CELL_SIZE,
-            zIndex: effect ? 1 : undefined,
-          }}
-        >
-          <CardThumbnail
-            card={card}
-            className={cn(
-              'h-full w-full rounded-none border-0',
-              isMoveOrigin && 'opacity-30',
-              effect && EFFECT_CLASS[effect.effectType],
-            )}
-          />
-        </div>,
-      );
-    }
-    return nodes;
-  }, [cells, cardsById, moveDrag, highlightEffects]);
+  const handleDoubleClick = (): void => {
+    if (activeTool !== 'region' || regionShape !== 'polygon') return;
+    if (polygonPoints.length < 3) return;
+    const covered = polygonCells(polygonPoints);
+    setPolygonPoints([]);
+      if (covered.length > 0) onRegionSelect(covered);
+  };
 
   const cursor =
     activeTool === 'pan' || spaceHeld
       ? 'grab'
-      : activeTool === 'eraser' || activeTool === 'region'
+      : activeTool === 'region' || activeTool === 'eraser'
         ? 'crosshair'
         : 'default';
 
-  const ghostCard = moveDrag ? cardsById.get(moveDrag.cardId) : undefined;
+  const showPreview =
+    (activeTool === 'select' || activeTool === 'character') && hover !== null && pendingItem !== null;
+
   const marqueeRect = marquee
     ? {
         left: Math.min(marquee.start.x, marquee.end.x) * CELL_SIZE,
@@ -439,6 +458,291 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         height: (Math.abs(marquee.end.y - marquee.start.y) + 1) * CELL_SIZE,
       }
     : null;
+
+  const gridBackground = useMemo(
+    () => ({
+      backgroundImage: `linear-gradient(${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px), linear-gradient(90deg, ${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px)`,
+      backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+      border: `${GRID_BORDER_WIDTH}px solid ${GRID_LINE_COLOR}`,
+    }),
+    [],
+  );
+
+  const backgroundNodes = useMemo(
+    () =>
+      [...cells.entries()]
+        .filter(([, cell]) => cell.background)
+        .map(([key, cell]) => {
+          const item = itemsById.get(cell.background!.itemId);
+          if (!item) return null;
+          const [x, y] = key.split(',').map(Number) as [number, number];
+          const src = item.imageThumbUrl ?? item.imageUrl;
+          if (!src) return null;
+          return (
+            <div
+              key={`bg-${key}`}
+              className="absolute overflow-hidden"
+              style={{ left: x * CELL_SIZE, top: y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE, zIndex: 5 }}
+            >
+              <img src={src} alt="" className="h-full w-full object-cover" />
+            </div>
+          );
+        }),
+    [cells, itemsById],
+  );
+
+  const hoveredKeys = useMemo(() => {
+    const region = hoveredRegionId
+      ? regions.find((item) => item.id === hoveredRegionId)
+      : undefined;
+    return new Set(region ? region.cells.map(([x, y]) => `${x},${y}`) : []);
+  }, [hoveredRegionId, regions]);
+
+  const objectNodes = useMemo(
+    () =>
+      [...cells.entries()]
+        .filter(([, cell]) => cell.object)
+        .map(([key, cell]) => {
+          const anchor = cell.object!;
+          const item = itemsById.get(anchor.itemId);
+          const [x, y] = key.split(',').map(Number) as [number, number];
+          const src = item?.imageThumbUrl ?? item?.imageUrl;
+          if (!src) return null;
+          const glow = hoveredKeys.has(key);
+          return (
+            <div
+              key={`obj-${key}`}
+              className="absolute overflow-hidden"
+              style={{
+                left: x * CELL_SIZE,
+                top: y * CELL_SIZE,
+                width: anchor.w * CELL_SIZE,
+                height: anchor.h * CELL_SIZE,
+                zIndex: 15,
+                filter: glow ? 'drop-shadow(0 0 4px #93C5FD)' : undefined,
+              }}
+            >
+              <img src={src} alt="" className="h-full w-full object-cover" />
+            </div>
+          );
+        }),
+    [cells, itemsById, hoveredKeys],
+  );
+
+  const characterNodes = useMemo(
+    () =>
+      placedCharacters.map((placed) => {
+        const character = charactersById.get(placed.characterId);
+        const src = character?.avatarThumbUrl ?? character?.avatarUrl;
+        return (
+          <button
+            key={`ch-${placed.x},${placed.y}`}
+            type="button"
+            className="absolute flex cursor-pointer items-center justify-center"
+            style={{
+              left: placed.x * CELL_SIZE,
+              top: placed.y * CELL_SIZE,
+              width: CELL_SIZE,
+              height: CELL_SIZE,
+              zIndex: 25,
+            }}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenCharacter({ x: placed.x, y: placed.y });
+            }}
+            title={character?.name ?? `#${placed.characterId}`}
+          >
+            {src ? (
+              <img
+                src={src}
+                alt={character?.name ?? ''}
+                className="h-[82%] w-[80%] rounded-full border-2 border-white object-cover shadow-md"
+              />
+            ) : (
+              <span className="flex h-[80%] w-[80%] items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow">
+                {character?.name?.slice(0, 1) ?? '?'}
+              </span>
+            )}
+          </button>
+        );
+      }),
+    [placedCharacters, charactersById, onOpenCharacter],
+  );
+
+  const regionFills = useMemo(
+    () => (
+      <svg
+        className="pointer-events-none absolute left-0 top-0"
+        width={total}
+        height={total}
+        style={{ zIndex: 10 }}
+      >
+        {regions.flatMap((region) =>
+          region.cells.map(([x, y]) => (
+            <rect
+              key={`${region.id}-${x}-${y}`}
+              x={x * CELL_SIZE}
+              y={y * CELL_SIZE}
+              width={CELL_SIZE}
+              height={CELL_SIZE}
+              fill={region.color}
+              fillOpacity={region.fillOpacity}
+            />
+          )),
+        )}
+      </svg>
+    ),
+    [regions, total],
+  );
+
+  const regionEdges = useMemo(
+    () => (
+      <svg
+        className="pointer-events-none absolute left-0 top-0"
+        width={total}
+        height={total}
+        style={{ zIndex: 20 }}
+      >
+        {regions.map((region) => {
+          const highlighted = hoveredRegionId === region.id || selectedRegionId === region.id;
+          const edges = buildRegionEdges(region.cells);
+          return (
+            <g
+              key={region.id}
+              style={highlighted ? { filter: `drop-shadow(0 0 4px ${region.color})` } : undefined}
+            >
+              {edges.map((edge, index) => (
+                <line
+                  key={index}
+                  x1={edge.x1}
+                  y1={edge.y1}
+                  x2={edge.x2}
+                  y2={edge.y2}
+                  stroke={region.color}
+                  strokeWidth={highlighted ? region.borderWidth + 2 : region.borderWidth}
+                  strokeLinecap="square"
+                  strokeLinejoin="miter"
+                />
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+    ),
+    [regions, total, hoveredRegionId, selectedRegionId],
+  );
+
+  const regionLabels = useMemo(
+    () => (
+      <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 27 }}>
+        {regions.map((region) => {
+          const label = region.labelCell ?? computeLabelCell(region.cells);
+          if (!label) return null;
+          return (
+            <button
+              key={`label-${region.id}`}
+              type="button"
+              className="pointer-events-auto absolute -translate-x-1/2 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold shadow"
+              style={{
+                left: (label[0] + 0.5) * CELL_SIZE,
+                top: (label[1] + 1) * CELL_SIZE + 2,
+                backgroundColor: region.color,
+                borderColor: region.color,
+                color: contrastTextColor(region.color),
+              }}
+              onMouseEnter={() => setHoveredRegionId(region.id)}
+              onMouseLeave={() => setHoveredRegionId((current) => (current === region.id ? null : current))}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onSelectRegionAt(region.id);
+              }}
+              title={region.id}
+            >
+              {region.name}
+            </button>
+          );
+        })}
+      </div>
+    ),
+    [regions, onSelectRegionAt],
+  );
+
+  const selectionOverlay = (
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 26 }}>
+      {selection ? (
+        <div
+          className="absolute ring-2 ring-inset ring-primary"
+          style={{
+            left: selection.x * CELL_SIZE,
+            top: selection.y * CELL_SIZE,
+            width: CELL_SIZE,
+            height: CELL_SIZE,
+          }}
+        />
+      ) : null}
+      {showPreview && hover ? (
+        <div
+          className="absolute border-2 border-dashed border-primary bg-primary/20"
+          style={{
+            left: hover.x * CELL_SIZE,
+            top: hover.y * CELL_SIZE,
+            width: pendingFootprint.w * CELL_SIZE,
+            height: pendingFootprint.h * CELL_SIZE,
+          }}
+        />
+      ) : null}
+      {moveTarget ? (
+        <div
+          className="absolute border-2 border-primary bg-primary/15"
+          style={{
+            left: moveTarget.x * CELL_SIZE,
+            top: moveTarget.y * CELL_SIZE,
+            width: moveTarget.w * CELL_SIZE,
+            height: moveTarget.h * CELL_SIZE,
+          }}
+        />
+      ) : null}
+      {marqueeRect ? (
+        <div className="absolute border-2 border-dashed border-primary bg-primary/10" style={marqueeRect} />
+      ) : null}
+      {brushCells.map(([x, y]) => (
+        <div
+          key={`brush-${x}-${y}`}
+          className="absolute border border-primary bg-primary/30"
+          style={{ left: x * CELL_SIZE, top: y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
+        />
+      ))}
+      {polygonPoints.length > 1 ? (
+        <svg className="absolute left-0 top-0 overflow-visible" width={total} height={total}>
+          <polyline
+            points={polygonPoints
+              .map(([x, y]) => `${x * CELL_SIZE + CELL_SIZE / 2},${y * CELL_SIZE + CELL_SIZE / 2}`)
+              .join(' ')}
+            fill="none"
+            stroke="#3B82F6"
+            strokeWidth={2}
+            strokeDasharray="4 3"
+          />
+          {polygonPoints.map(([x, y], index) => (
+            <circle
+              key={index}
+              cx={x * CELL_SIZE + CELL_SIZE / 2}
+              cy={y * CELL_SIZE + CELL_SIZE / 2}
+              r={4}
+              fill="#3B82F6"
+            />
+          ))}
+        </svg>
+      ) : null}
+    </div>
+  );
+
+  const rulerColumns = useMemo(
+    () => Array.from({ length: gridSize }, (_, index) => index + 1),
+    [gridSize],
+  );
 
   return (
     <div
@@ -449,6 +753,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={() => setHover(null)}
+      onDoubleClick={handleDoubleClick}
     >
       <div
         className="absolute left-0 top-0"
@@ -460,94 +765,71 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         }}
       >
         <div
-          className="absolute left-0 top-0 border-l border-t border-[#E5E7EB] bg-background"
+          className="absolute left-0 top-0 bg-background"
           style={{ width: total, height: total, ...gridBackground }}
         />
 
-        <svg
-          className="pointer-events-none absolute left-0 top-0"
-          width={total}
-          height={total}
-          style={{ zIndex: 10 }}
-        >
-          {regionFill}
-        </svg>
+        {backgroundNodes}
+        {regionFills}
+        {regionEdges}
 
         <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 15 }}>
-          {cardNodes}
+          {objectNodes}
         </div>
-
-        <svg
-          className="pointer-events-none absolute left-0 top-0"
-          width={total}
-          height={total}
-          style={{ zIndex: 20 }}
-        >
-          {regionBorders}
-        </svg>
 
         <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 25 }}>
-          {selection ? (
-            <div
-              className="absolute ring-2 ring-inset ring-primary"
-              style={{
-                left: selection.x * CELL_SIZE,
-                top: selection.y * CELL_SIZE,
-                width: CELL_SIZE,
-                height: CELL_SIZE,
-              }}
-            />
-          ) : null}
-          {hover && !moveDrag ? (
-            <div
-              className="absolute bg-black/5"
-              style={{
-                left: hover.x * CELL_SIZE,
-                top: hover.y * CELL_SIZE,
-                width: CELL_SIZE,
-                height: CELL_SIZE,
-              }}
-            />
-          ) : null}
-          {dropPreview ? (
-            <div
-              className="absolute bg-primary/15 ring-2 ring-inset ring-primary"
-              style={{
-                left: dropPreview.x * CELL_SIZE,
-                top: dropPreview.y * CELL_SIZE,
-                width: CELL_SIZE,
-                height: CELL_SIZE,
-              }}
-            />
-          ) : null}
-          {moveDrag?.target ? (
-            <div
-              className="absolute ring-2 ring-inset ring-primary"
-              style={{
-                left: moveDrag.target.x * CELL_SIZE,
-                top: moveDrag.target.y * CELL_SIZE,
-                width: CELL_SIZE,
-                height: CELL_SIZE,
-              }}
-            />
-          ) : null}
-          {marqueeRect ? (
-            <div
-              className="absolute border-2 border-dashed border-primary bg-primary/10"
-              style={marqueeRect}
-            />
-          ) : null}
+          {characterNodes}
         </div>
+
+        {selectionOverlay}
+        {regionLabels}
       </div>
 
-      {moveDrag && ghostCard ? (
-        <div
-          className="pointer-events-none fixed z-50 h-12 w-12 -translate-x-1/2 -translate-y-1/2 opacity-80"
-          style={{ left: moveDrag.clientX, top: moveDrag.clientY }}
-        >
-          <CardThumbnail card={ghostCard} className="h-full w-full shadow-lg" />
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 z-30 h-7 border-b border-[#E5E7EB] bg-[#F9FAFB]"
+        style={{ overflow: 'hidden' }}
+      >
+        {rulerColumns.map((column) => {
+          const active =
+            hover?.x === column - 1 || selection?.x === column - 1;
+          return (
+            <div
+              key={`rul-col-${column}`}
+              className="absolute top-0 flex h-full items-center justify-center border-r border-[#E5E7EB] text-[11px]"
+              style={{
+                left: pan.x + (column - 1) * CELL_SIZE * zoom,
+                width: CELL_SIZE * zoom,
+                backgroundColor: active ? '#DBEAFE' : '#F9FAFB',
+                color: active ? '#1E3A8A' : '#374151',
+              }}
+            >
+              C{column}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="pointer-events-none absolute left-0 top-0 z-40 h-7 w-7 border-b border-r border-[#E5E7EB] bg-white" />
+
+      <div className="absolute left-0 top-7 bottom-0 z-30 w-7 overflow-hidden">
+        <div className="relative h-full w-full">
+          {rulerColumns.map((row) => (
+            <div
+              key={`rul-row-${row}`}
+              className="absolute left-0 flex w-full -translate-y-1/2 items-center justify-center border-r border-[#E5E7EB] text-[11px]"
+              style={{
+                top: pan.y + (row - 0.5) * CELL_SIZE * zoom - 28,
+                height: 16,
+                backgroundColor:
+                  hover?.y === row - 1 || selection?.y === row - 1 ? '#DBEAFE' : '#F9FAFB',
+                color: hover?.y === row - 1 || selection?.y === row - 1 ? '#1E3A8A' : '#374151',
+              }}
+            >
+              R{row}
+            </div>
+          ))}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 });

@@ -1,144 +1,205 @@
-import type { CellCoord, MapData, RegionData, RegionInput, SaveMapInput } from '@murdoku/shared';
+import { ErrorCode } from '@murdoku/shared';
+import type {
+  DraftRegion,
+  MapDraft,
+  MapResponse,
+  ResizeResult,
+  SaveMapDraftInput,
+} from '@murdoku/shared';
 import * as mapRepo from '../repository/mapRepository';
-import * as projectRepo from '../repository/projectRepository';
+import { toProject } from '../repository/projectRepository';
+import * as itemRepo from '../repository/itemRepository';
+import * as characterRepo from '../repository/characterRepository';
 import { AppError } from '../utils/AppError';
 
-function assertCoordsInBounds(cells: CellCoord[], size: number, label: string): void {
-  for (const cell of cells) {
-    if (cell.x < 0 || cell.y < 0 || cell.x >= size || cell.y >= size) {
-      throw AppError.validation(`${label} 坐标超出画布范围`, [{ x: cell.x, y: cell.y }]);
+async function assertValidReferences(draft: MapDraft, size: number): Promise<void> {
+  for (const key of Object.keys(draft.cells)) {
+    const [x, y] = key.split(',').map(Number) as [number, number];
+    if (x < 0 || y < 0 || x >= size || y >= size) {
+      throw AppError.validation(`单元格 (${x}, ${y}) 超出边界`);
     }
   }
-}
 
-function assertNoDuplicateCells(cells: Array<{ x: number; y: number }>): void {
-  const seen = new Set<string>();
-  for (const cell of cells) {
-    const key = `${cell.x},${cell.y}`;
-    if (seen.has(key)) {
-      throw AppError.validation('存在重复的单元格坐标', [{ x: cell.x, y: cell.y }]);
-    }
-    seen.add(key);
-  }
-}
-
-function assertRegionExclusivity(regions: Array<{ name: string; cells: CellCoord[] }>): void {
-  const owners = new Map<string, string>();
-  for (const region of regions) {
-    for (const cell of region.cells) {
-      const key = `${cell.x},${cell.y}`;
-      const owner = owners.get(key);
-      if (owner !== undefined) {
-        throw AppError.conflict(`单元格 (${cell.x}, ${cell.y}) 同时属于「${owner}」和「${region.name}」`);
+  for (const region of draft.regions) {
+    for (const [x, y] of region.cells) {
+      if (x < 0 || y < 0 || x >= size || y >= size) {
+        throw AppError.validation(`区域「${region.name}」的单元格 (${x}, ${y}) 超出边界`);
       }
-      owners.set(key, region.name);
+    }
+  }
+  for (const placed of draft.placedCharacters) {
+    if (placed.x < 0 || placed.y < 0 || placed.x >= size || placed.y >= size) {
+      throw AppError.validation(`角色位置 (${placed.x}, ${placed.y}) 超出边界`);
+    }
+  }
+
+  const itemIds = new Set<number>();
+  for (const key of Object.keys(draft.cells)) {
+    const cell = draft.cells[key];
+    if (!cell) continue;
+    if (cell.object) itemIds.add(cell.object.itemId);
+    if (cell.background) itemIds.add(cell.background.itemId);
+  }
+  const existingItems = await itemRepo.existingItemIds([...itemIds]);
+  const missingItems = [...itemIds].filter((id) => !existingItems.has(id));
+  if (missingItems.length > 0) {
+    throw AppError.validation('存在无效的物品引用', missingItems);
+  }
+
+  const characterIds = new Set<number>();
+  for (const placed of draft.placedCharacters) characterIds.add(placed.characterId);
+  for (const slot of draft.characterSlots) {
+    if (slot) characterIds.add(slot.characterId);
+  }
+  const existingCharacters = await characterRepo.existingCharacterIds([...characterIds]);
+  const missingCharacters = [...characterIds].filter((id) => !existingCharacters.has(id));
+  if (missingCharacters.length > 0) {
+    throw AppError.validation('存在无效的角色引用', missingCharacters);
+  }
+}
+
+function assertNoRegionOverlap(regions: DraftRegion[]): void {
+  const owner = new Map<string, string>();
+  for (const region of regions) {
+    for (const [x, y] of region.cells) {
+      const key = `${x},${y}`;
+      const previous = owner.get(key);
+      if (previous) {
+        throw new AppError(
+          ErrorCode.REGION_OVERLAP,
+          `单元格 (${x}, ${y}) 同时属于「${previous}」与「${region.name}」`,
+        );
+      }
+      owner.set(key, region.name);
     }
   }
 }
 
-export async function getMap(projectId: number): Promise<MapData> {
-  const project = await projectRepo.findById(projectId);
-  if (!project) {
+export async function getMap(projectId: number): Promise<MapResponse> {
+  const row = await mapRepo.getProjectRow(projectId);
+  if (!row) {
     throw AppError.notFound('项目不存在');
   }
-  const data = await mapRepo.getMapData(projectId);
-  return { project: projectRepo.toProject(project), ...data };
+  const record = await mapRepo.getDraft(projectId);
+  if (!record) {
+    throw AppError.notFound('项目不存在');
+  }
+  return { project: toProject(row), draft: record.draft, updatedAt: record.updatedAt };
 }
 
-export async function saveMap(projectId: number, input: SaveMapInput): Promise<MapData> {
-  const project = await projectRepo.findById(projectId);
-  if (!project) {
+export async function saveMap(projectId: number, input: SaveMapDraftInput): Promise<MapResponse> {
+  const row = await mapRepo.getProjectRow(projectId);
+  if (!row) {
     throw AppError.notFound('项目不存在');
   }
 
-  if (input.updatedAt && new Date(project.updated_at).toISOString() !== input.updatedAt) {
-    throw AppError.conflict('数据已被他人修改，请刷新后重试');
+  const draft: MapDraft = { ...input.data, gridSize: row.grid_size };
+  await assertValidReferences(draft, row.grid_size);
+  assertNoRegionOverlap(draft.regions);
+
+  const saved = await mapRepo.saveDraft(projectId, input.updatedAt ?? null, draft);
+  if (saved === undefined) {
+    throw AppError.notFound('项目不存在');
   }
-
-  assertCoordsInBounds(
-    input.cells.map((cell) => ({ x: cell.x, y: cell.y })),
-    project.grid_size,
-    '卡片',
-  );
-  assertNoDuplicateCells(input.cells);
-
-  for (const region of input.regions) {
-    assertCoordsInBounds(region.cells, project.grid_size, `区域「${region.name}」`);
-    assertNoDuplicateCells(region.cells);
+  if (saved === null) {
+    throw new AppError(ErrorCode.DRAFT_CONFLICT, '草稿已被其他会话修改，请刷新后重试');
   }
-  assertRegionExclusivity(input.regions);
-
-  const cardIds = [...new Set(input.cells.map((cell) => cell.cardId))];
-  const existing = await mapRepo.existingCardIds(cardIds);
-  const missing = cardIds.filter((cardId) => !existing.has(cardId));
-  if (missing.length > 0) {
-    throw AppError.validation('存在无效的卡片引用', missing);
-  }
-
-  const data = await mapRepo.replaceMap(projectId, input);
-  const fresh = await projectRepo.findById(projectId);
-  return { project: projectRepo.toProject(fresh ?? project), ...data };
+  const fresh = await mapRepo.getProjectRow(projectId);
+  return { project: toProject(fresh ?? row), draft: saved.draft, updatedAt: saved.updatedAt };
 }
 
-export async function listRegions(projectId: number): Promise<RegionData[]> {
-  const project = await projectRepo.findById(projectId);
-  if (!project) {
+export async function updateGridSize(projectId: number, gridSize: number): Promise<ResizeResult> {
+  const outcome = await mapRepo.resizeDraft(projectId, gridSize);
+  if (!outcome) {
+    throw AppError.notFound('项目不存在');
+  }
+  return { gridSize: outcome.record.draft.gridSize, removed: outcome.removed };
+}
+
+export async function exportMap(projectId: number): Promise<MapDraft> {
+  const record = await mapRepo.getDraft(projectId);
+  if (!record) {
+    throw AppError.notFound('项目不存在');
+  }
+  return record.draft;
+}
+
+export async function importMap(projectId: number, data: MapDraft): Promise<MapResponse> {
+  const row = await mapRepo.getProjectRow(projectId);
+  if (!row) {
+    throw AppError.notFound('项目不存在');
+  }
+  await assertValidReferences(data, data.gridSize);
+  assertNoRegionOverlap(data.regions);
+  const saved = await mapRepo.overwriteDraft(projectId, data);
+  if (!saved) {
+    throw AppError.notFound('项目不存在');
+  }
+  return { project: toProject(row), draft: saved.draft, updatedAt: saved.updatedAt };
+}
+
+export async function listRegions(projectId: number): Promise<DraftRegion[]> {
+  const row = await mapRepo.getProjectRow(projectId);
+  if (!row) {
     throw AppError.notFound('项目不存在');
   }
   return mapRepo.listRegions(projectId);
 }
 
-export async function createRegion(projectId: number, input: RegionInput): Promise<RegionData> {
-  const project = await projectRepo.findById(projectId);
-  if (!project) {
+export async function createRegion(
+  projectId: number,
+  input: Omit<DraftRegion, 'id'> & { id?: string },
+): Promise<DraftRegion> {
+  const row = await mapRepo.getProjectRow(projectId);
+  if (!row) {
     throw AppError.notFound('项目不存在');
   }
-  assertCoordsInBounds(input.cells, project.grid_size, `区域「${input.name}」`);
-  assertNoDuplicateCells(input.cells);
-
-  const owners = await mapRepo.regionCellOwners(projectId);
-  const conflict = input.cells.find((cell) => owners.has(`${cell.x},${cell.y}`));
-  if (conflict) {
-    throw AppError.conflict(`单元格 (${conflict.x}, ${conflict.y}) 已被其它区域占用`);
+  for (const [x, y] of input.cells) {
+    if (x < 0 || y < 0 || x >= row.grid_size || y >= row.grid_size) {
+      throw AppError.validation(`区域单元格 (${x}, ${y}) 超出边界`);
+    }
   }
-
-  return mapRepo.createRegion(projectId, input);
+  const existing = await mapRepo.listRegions(projectId);
+  assertNoRegionOverlap([...existing, { ...input, id: input.id ?? '__new__' }]);
+  const created = await mapRepo.createRegion(projectId, input);
+  if (!created) {
+    throw AppError.notFound('项目不存在');
+  }
+  return created;
 }
 
 export async function updateRegion(
-  regionId: number,
-  patch: mapRepo.RegionPatch,
-): Promise<RegionData> {
-  const region = await mapRepo.findRegion(regionId);
+  projectId: number,
+  regionId: string,
+  patch: Partial<Omit<DraftRegion, 'id'>>,
+): Promise<DraftRegion> {
+  const row = await mapRepo.getProjectRow(projectId);
+  if (!row) {
+    throw AppError.notFound('项目不存在');
+  }
+  const region = await mapRepo.findRegion(projectId, regionId);
   if (!region) {
     throw AppError.notFound('区域不存在');
   }
-  const project = await projectRepo.findById(Number(region.project_id));
-  if (!project) {
-    throw AppError.notFound('项目不存在');
-  }
-
   if (patch.cells) {
-    assertCoordsInBounds(patch.cells, project.grid_size, `区域「${region.name}」`);
-    assertNoDuplicateCells(patch.cells);
-    const owners = await mapRepo.regionCellOwners(Number(region.project_id), regionId);
-    const conflict = patch.cells.find((cell) => owners.has(`${cell.x},${cell.y}`));
-    if (conflict) {
-      throw AppError.conflict(`单元格 (${conflict.x}, ${conflict.y}) 已被其它区域占用`);
+    for (const [x, y] of patch.cells) {
+      if (x < 0 || y < 0 || x >= row.grid_size || y >= row.grid_size) {
+        throw AppError.validation(`区域单元格 (${x}, ${y}) 超出边界`);
+      }
     }
+    const others = (await mapRepo.listRegions(projectId)).filter((item) => item.id !== regionId);
+    assertNoRegionOverlap([...others, { ...region, ...patch, id: regionId }]);
   }
-
-  const updated = await mapRepo.updateRegion(regionId, patch);
+  const updated = await mapRepo.updateRegion(projectId, regionId, patch);
   if (!updated) {
     throw AppError.notFound('区域不存在');
   }
   return updated;
 }
 
-export async function deleteRegion(regionId: number): Promise<void> {
-  const region = await mapRepo.findRegion(regionId);
-  if (!region) {
+export async function deleteRegion(projectId: number, regionId: string): Promise<void> {
+  const removed = await mapRepo.deleteRegion(projectId, regionId);
+  if (!removed) {
     throw AppError.notFound('区域不存在');
   }
-  await mapRepo.deleteRegion(regionId);
 }

@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Map, LayoutGrid, Image as ImageIcon } from 'lucide-react';
+import { Map, LayoutGrid, Package, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/projects', label: '地图项目', icon: Map },
-  { to: '/cards', label: '卡片管理', icon: ImageIcon },
+  { to: '/items', label: '物品管理', icon: Package },
+  { to: '/characters', label: '角色管理', icon: Users },
 ];
 
 export function AppShell(): JSX.Element {

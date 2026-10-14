@@ -1,32 +1,44 @@
 import { useRef, useState } from 'react';
 import { ImagePlus, Trash2, Upload } from 'lucide-react';
-import type { Card } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
-import { CardThumbnail } from '@/components/card/CardThumbnail';
+import { cn } from '@/lib/utils';
 
 interface ImageUploaderProps {
-  card: Card;
+  imageUrl: string | null;
+  thumbUrl?: string | null;
+  width?: number | null;
+  height?: number | null;
+  size?: number | null;
   uploading: boolean;
   deleting: boolean;
+  accept?: string;
+  maxDimension?: number;
   onUpload: (file: File) => void;
   onDelete: () => void;
 }
 
+const DEFAULT_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
+
 export function ImageUploader({
-  card,
+  imageUrl,
+  thumbUrl,
+  width,
+  height,
+  size,
   uploading,
   deleting,
+  accept = DEFAULT_ACCEPT,
+  maxDimension,
   onUpload,
   onDelete,
 }: ImageUploaderProps): JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
+  const preview = thumbUrl ?? imageUrl;
 
   const handleFiles = (files: FileList | null): void => {
     const file = files?.[0];
-    if (file) {
-      onUpload(file);
-    }
+    if (file) onUpload(file);
   };
 
   return (
@@ -46,12 +58,13 @@ export function ImageUploader({
           setDragging(false);
           handleFiles(event.dataTransfer.files);
         }}
-        className={`flex h-32 w-32 cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed text-center text-xs text-muted-foreground transition-colors ${
-          dragging ? 'border-primary bg-accent' : 'border-input'
-        }`}
+        className={cn(
+          'flex h-32 w-32 cursor-pointer flex-col items-center justify-center gap-2 overflow-hidden rounded-md border-2 border-dashed text-center text-xs text-muted-foreground transition-colors',
+          dragging ? 'border-primary bg-accent' : 'border-input',
+        )}
       >
-        {card.imageUrl ? (
-          <CardThumbnail card={card} className="h-full w-full border-0" />
+        {preview ? (
+          <img src={preview} alt="预览" className="h-full w-full object-cover" />
         ) : (
           <>
             <ImagePlus className="h-5 w-5" />
@@ -62,11 +75,14 @@ export function ImageUploader({
 
       <div className="flex flex-1 flex-col justify-between">
         <div className="space-y-1 text-xs text-muted-foreground">
-          <p>支持 PNG / JPEG / WebP / SVG，≤ 2 MB。</p>
-          {card.imageUrl ? (
+          <p>
+            支持 PNG / JPEG / WebP / SVG，≤ 2 MB
+            {maxDimension ? `，最长边将压缩至 ${maxDimension}px` : ''}。
+          </p>
+          {imageUrl ? (
             <p>
-              {card.imageWidth ?? '?'} × {card.imageHeight ?? '?'}
-              {card.imageSize ? ` · ${(card.imageSize / 1024).toFixed(0)} KB` : ''}
+              {width ?? '?'} × {height ?? '?'}
+              {size ? ` · ${(size / 1024).toFixed(0)} KB` : ''}
             </p>
           ) : (
             <p>尚未上传图片。</p>
@@ -81,9 +97,9 @@ export function ImageUploader({
             onClick={() => inputRef.current?.click()}
           >
             <Upload className="mr-1 h-3.5 w-3.5" />
-            {card.imageUrl ? '替换' : '上传'}
+            {imageUrl ? '替换' : '上传'}
           </Button>
-          {card.imageUrl ? (
+          {imageUrl ? (
             <Button
               type="button"
               size="sm"
@@ -102,7 +118,7 @@ export function ImageUploader({
       <input
         ref={inputRef}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        accept={accept}
         className="hidden"
         onChange={(event) => {
           handleFiles(event.target.files);

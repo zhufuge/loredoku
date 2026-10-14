@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
-import { ErrorCode, THUMBNAIL_MAX_DIMENSION, UPLOAD_ALLOWED_MIME } from '@murdoku/shared';
+import {
+  CHARACTER_AVATAR_MAX_DIMENSION,
+  ErrorCode,
+  THUMBNAIL_MAX_DIMENSION,
+  UPLOAD_ALLOWED_MIME,
+} from '@murdoku/shared';
 import { AppError } from './AppError';
 import { uploadRoot } from './paths';
 
@@ -57,12 +62,25 @@ export function detectImageType(buffer: Buffer): DetectedImage | null {
 }
 
 export async function processCardImage(cardId: number, buffer: Buffer): Promise<ProcessedImage> {
+  return processImage('cards', cardId, buffer, THUMBNAIL_MAX_DIMENSION);
+}
+
+export async function processAvatarImage(characterId: number, buffer: Buffer): Promise<ProcessedImage> {
+  return processImage('characters', characterId, buffer, CHARACTER_AVATAR_MAX_DIMENSION);
+}
+
+async function processImage(
+  folder: string,
+  ownerId: number,
+  buffer: Buffer,
+  maxDimension: number,
+): Promise<ProcessedImage> {
   const detected = detectImageType(buffer);
   if (!detected) {
-    throw new AppError(ErrorCode.UNSUPPORTED_MEDIA_TYPE, '不支持的图片类型');
+    throw new AppError(ErrorCode.UNSUPPORTED_MEDIA_TYPE, '不支持的图片格式');
   }
 
-  const dir = join(uploadRoot, 'cards', String(cardId));
+  const dir = join(uploadRoot, folder, String(ownerId));
   await mkdir(dir, { recursive: true });
 
   const uuid = randomUUID();
@@ -77,7 +95,7 @@ export async function processCardImage(cardId: number, buffer: Buffer): Promise<
     width = metadata.width ?? null;
     height = metadata.height ?? null;
     await sharp(buffer, { density: 96 })
-      .resize(THUMBNAIL_MAX_DIMENSION, THUMBNAIL_MAX_DIMENSION, {
+      .resize(maxDimension, maxDimension, {
         fit: 'inside',
         withoutEnlargement: true,
       })
@@ -89,7 +107,7 @@ export async function processCardImage(cardId: number, buffer: Buffer): Promise<
   }
 
   return {
-    relativePath: `cards/${cardId}/${originalName}`,
+    relativePath: `${folder}/${ownerId}/${originalName}`,
     mime: detected.mime,
     size: buffer.length,
     width,

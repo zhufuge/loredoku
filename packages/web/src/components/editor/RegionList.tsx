@@ -1,14 +1,14 @@
 import { Pencil, Trash2 } from 'lucide-react';
-import type { RegionData } from '@murdoku/shared';
+import type { DraftRegion } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 interface RegionListProps {
-  regions: RegionData[];
-  selectedRegionId: number | null;
-  onSelect: (id: number | null) => void;
-  onEdit: (region: RegionData) => void;
-  onDelete: (region: RegionData) => void;
+  regions: DraftRegion[];
+  selectedRegionId: string | null;
+  onSelect: (id: string | null) => void;
+  onEdit: (region: DraftRegion) => void;
+  onDelete: (region: DraftRegion) => void;
 }
 
 export function RegionList({
@@ -35,19 +35,19 @@ export function RegionList({
           tabIndex={0}
           onClick={() => onSelect(region.id === selectedRegionId ? null : region.id)}
           onKeyDown={(event) => event.key === 'Enter' && onSelect(region.id)}
-          className={cn(
-            'group flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors',
-            region.id === selectedRegionId
+          className={
+            'group flex cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-sm transition-colors ' +
+            (region.id === selectedRegionId
               ? 'border-primary bg-accent'
-              : 'border-transparent hover:bg-accent',
-          )}
+              : 'border-transparent hover:bg-accent')
+          }
         >
           <span
-            className="h-3.5 w-3.5 shrink-0 rounded-full border"
-            style={{ backgroundColor: region.color }}
+            className="h-4 w-4 shrink-0 rounded-full border"
+            style={{ backgroundColor: region.color, borderColor: region.color }}
           />
           <span className="min-w-0 flex-1 truncate">{region.name}</span>
-          <span className="shrink-0 text-xs text-muted-foreground">{region.cells.length}</span>
+          <span className="text-[10px] text-muted-foreground">{region.cells.length}格</span>
           <Button
             variant="ghost"
             size="icon"

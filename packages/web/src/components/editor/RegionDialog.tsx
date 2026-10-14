@@ -4,13 +4,14 @@ import {
   REGION_BORDER_WIDTH_DEFAULT,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
-  REGION_DESCRIPTION_MAX_LENGTH,
   REGION_FILL_OPACITY_DEFAULT,
   REGION_FILL_OPACITY_MAX,
   REGION_FILL_OPACITY_MIN,
+  REGION_ID_MAX_LENGTH,
+  REGION_ID_PATTERN,
   REGION_NAME_MAX_LENGTH,
 } from '@murdoku/shared';
-import type { CellCoord, RegionData } from '@murdoku/shared';
+import type { DraftRegion } from '@murdoku/shared';
 import {
   Dialog,
   DialogContent,
@@ -22,30 +23,20 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { findConflicts } from '@/lib/region';
-import type { NewRegionInput } from '@/stores/editorStore';
+import { findOverlap, isConnected, type Coord } from '@/lib/region';
+import { genRegionId, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 import { cn } from '@/lib/utils';
 
-const COLOR_PRESETS = [
-  '#3B82F6',
-  '#22C55E',
-  '#EF4444',
-  '#F59E0B',
-  '#8B5CF6',
-  '#14B8A6',
-];
-
-type ConflictMode = 'override' | 'skip';
+const COLOR_PRESETS = ['#000000', '#3B82F6', '#22C55E', '#EF4444', '#F59E0B', '#8B5CF6', '#14B8A6'];
 
 interface RegionDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   mode: 'create' | 'edit';
-  cells: CellCoord[];
-  region?: RegionData | null;
-  regions: RegionData[];
-  onSubmit: (input: NewRegionInput, conflictMode: ConflictMode) => void;
+  cells: Coord[];
+  region?: DraftRegion | null;
+  regions: DraftRegion[];
+  onSubmit: (input: RegionInput, conflictMode: ConflictMode) => void;
 }
 
 export function RegionDialog({
@@ -57,8 +48,8 @@ export function RegionDialog({
   regions,
   onSubmit,
 }: RegionDialogProps): JSX.Element {
+  const [regionId, setRegionId] = useState('');
   const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
   const [color, setColor] = useState(DEFAULT_REGION_COLOR);
   const [borderWidth, setBorderWidth] = useState(REGION_BORDER_WIDTH_DEFAULT);
   const [fillOpacity, setFillOpacity] = useState(REGION_FILL_OPACITY_DEFAULT);
@@ -67,62 +58,80 @@ export function RegionDialog({
 
   useEffect(() => {
     if (!open) return;
+    setRegionId(mode === 'create' ? genRegionId() : (region?.id ?? ''));
     setName(region?.name ?? '');
-    setDescription(region?.description ?? '');
     setColor(region?.color ?? DEFAULT_REGION_COLOR);
     setBorderWidth(region?.borderWidth ?? REGION_BORDER_WIDTH_DEFAULT);
     setFillOpacity(region?.fillOpacity ?? REGION_FILL_OPACITY_DEFAULT);
     setConflictMode('override');
     setError(null);
-  }, [open, region]);
+  }, [open, region, mode]);
+
+  const connected = useMemo(() => isConnected(cells), [cells]);
 
   const conflicts = useMemo(
-    () => (mode === 'create' ? findConflicts(cells, regions) : []),
-    [mode, cells, regions],
+    () => (mode === 'create' ? findOverlap(regions, { id: region?.id ?? '__new__', cells }) : []),
+    [mode, cells, regions, region],
   );
 
   const handleSubmit = (): void => {
+    const trimmedId = regionId.trim();
+    if (!trimmedId) {
+      setError('请填写区域 ID');
+      return;
+    }
+    if (trimmedId.length > REGION_ID_MAX_LENGTH || !REGION_ID_PATTERN.test(trimmedId)) {
+      setError('区域 ID 只能包含字母、数字与下划线');
+      return;
+    }
+    const duplicated = regions.some(
+      (item) => item.id === trimmedId && item.id !== (mode === 'edit' ? region?.id : undefined),
+    );
+    if (duplicated) {
+      setError('区域 ID 已存在，请更换');
+      return;
+    }
     const trimmed = name.trim();
     if (!trimmed) {
       setError('请填写区域名称');
       return;
     }
-    const effectiveCells =
-      mode === 'create' && conflictMode === 'skip'
-        ? cells.filter(
-            (cell) => !conflicts.some((conflict) => conflict.x === cell.x && conflict.y === cell.y),
-          )
-        : cells;
-    if (effectiveCells.length === 0) {
-      setError('至少需要一个单元格');
+    if (cells.length === 0) {
+      setError('区域至少需要一个单元格');
       return;
     }
-    onSubmit(
-      {
-        name: trimmed,
-        description: description.trim() || null,
-        color,
-        borderWidth,
-        fillOpacity,
-        cells: effectiveCells,
-      },
-      conflictMode,
-    );
-    onOpenChange(false);
+    if (!connected) {
+      setError('区域必须是连通的（四邻接），当前选择包含断开的部分');
+      return;
+    }
+    onSubmit({ id: trimmedId, name: trimmed, color, borderWidth, fillOpacity, cells }, conflictMode);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{mode === 'create' ? '新建区域' : '编辑区域'}</DialogTitle>
+          <DialogTitle>{mode === 'create' ? '创建区域' : '编辑区域'}</DialogTitle>
           <DialogDescription>
-            已选择 {cells.length} 个单元格
-            {conflicts.length > 0 ? `，其中 ${conflicts.length} 个已被其它区域占用` : ''}。
+            共 {cells.length} 个单元格
+            {!connected && cells.length > 1 ? ' · 当前选择不连通' : ''}
+            {conflicts.length > 0 ? ` · ${conflicts.length} 个与现有区域冲突` : ''}
           </DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="region-id">区域 ID</Label>
+            <Input
+              id="region-id"
+              value={regionId}
+              maxLength={REGION_ID_MAX_LENGTH}
+              onChange={(event) => setRegionId(event.target.value)}
+              placeholder="如：forest"
+            />
+            <span className="text-xs text-muted-foreground">仅字母、数字与下划线</span>
+          </div>
+
           <div className="grid gap-2">
             <Label htmlFor="region-name">区域名称</Label>
             <Input
@@ -131,18 +140,6 @@ export function RegionDialog({
               maxLength={REGION_NAME_MAX_LENGTH}
               onChange={(event) => setName(event.target.value)}
               placeholder="如：森林区"
-            />
-          </div>
-
-          <div className="grid gap-2">
-            <Label htmlFor="region-desc">描述</Label>
-            <Textarea
-              id="region-desc"
-              value={description}
-              maxLength={REGION_DESCRIPTION_MAX_LENGTH}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder="选填"
-              rows={2}
             />
           </div>
 

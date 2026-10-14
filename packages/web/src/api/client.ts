@@ -3,11 +3,13 @@ import type { ApiResponse } from '@murdoku/shared';
 
 export class ApiError extends Error {
   readonly code: number;
+  readonly details: unknown;
 
-  constructor(code: number, message: string) {
+  constructor(code: number, message: string, details?: unknown) {
     super(message);
     this.name = 'ApiError';
     this.code = code;
+    this.details = details;
   }
 }
 
@@ -20,14 +22,17 @@ async function unwrap<T>(promise: Promise<{ data: ApiResponse<T> }>): Promise<T>
   try {
     const { data } = await promise;
     if (data.code !== 0) {
-      throw new ApiError(data.code, data.message);
+      throw new ApiError(data.code, data.message, (data as { data?: unknown }).data);
     }
     return data.data as T;
   } catch (err) {
+    if (err instanceof ApiError) {
+      throw err;
+    }
     if (err instanceof AxiosError) {
       const body = err.response?.data as ApiResponse<T> | undefined;
       if (body && typeof body.code === 'number') {
-        throw new ApiError(body.code, body.message);
+        throw new ApiError(body.code, body.message, (body as { data?: unknown }).data);
       }
       if (err.code === 'ECONNABORTED') {
         throw new ApiError(-1, '请求超时，请稍后重试');
