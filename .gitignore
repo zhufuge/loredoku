@@ -26,3 +26,6 @@ packages/server/storage/uploads/**
 .idea/
 .DS_Store
 Thumbs.db
+
+# docs
+docs/sessions/
