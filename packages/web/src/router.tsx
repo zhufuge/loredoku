@@ -5,6 +5,8 @@ import { EditorPage } from '@/pages/EditorPage';
 import { ItemsPage } from '@/pages/ItemsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
+import { WorksPage } from '@/pages/WorksPage';
+import { WorkViewPage } from '@/pages/WorkViewPage';
 
 export const router = createBrowserRouter([
   {
@@ -15,6 +17,8 @@ export const router = createBrowserRouter([
       { path: 'projects', element: <ProjectsPage /> },
       { path: 'items', element: <ItemsPage /> },
       { path: 'characters', element: <CharactersPage /> },
+      // FEAT-503: 版本 → 作品（后端语义不变）
+      { path: 'works', element: <WorksPage /> },
       { path: 'cards', element: <Navigate to="/items" replace /> },
       { path: '*', element: <NotFoundPage /> },
     ],
@@ -22,5 +26,9 @@ export const router = createBrowserRouter([
   {
     path: '/editor/:projectId',
     element: <EditorPage />,
+  },
+  {
+    path: '/works/:workId/view',
+    element: <WorkViewPage />,
   },
 ]);

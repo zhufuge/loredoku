@@ -1,4 +1,11 @@
-import type { CardRotation, EffectType, ItemCategory, ItemFitMode, MapDraft } from './domain';
+import type {
+  CardRotation,
+  CharacterGender,
+  EffectType,
+  ItemCategory,
+  ItemFitMode,
+  MapDraft,
+} from './domain';
 import type { PROJECT_STATUSES } from '../constants';
 
 export interface ProjectRow {
@@ -54,6 +61,7 @@ export interface CharacterRow {
   id: string | number;
   code: string;
   name: string;
+  gender: CharacterGender;
   description: string | null;
   avatar_path: string | null;
   avatar_mime: string | null;

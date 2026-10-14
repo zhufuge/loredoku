@@ -33,8 +33,9 @@ export function CharacterThumbnail({
       src={src}
       alt={character.name}
       loading="lazy"
+      draggable={false}
       onError={() => setFailed(true)}
-      className={cn('rounded-full border object-cover', className)}
+      className={cn('no-drag rounded-full border object-cover', className)}
     />
   );
 }

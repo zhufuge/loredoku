@@ -1,6 +1,10 @@
 import type { MapDraft, MapVersionDetail, MapVersionSummary } from '@murdoku/shared';
-import { apiGet, apiPost } from './client';
+import { apiDelete, apiGet, apiPost } from './client';
 
+/**
+ * Works = published map versions (`map_versions`).
+ * The backend keeps the `version` wording; the UI calls them 作品.
+ */
 export const versionsApi = {
   publish(id: number, notes?: string): Promise<MapVersionSummary> {
     return apiPost<MapVersionSummary>(`/projects/${id}/versions`, { notes });
@@ -14,7 +18,10 @@ export const versionsApi = {
   createDraftFromVersion(
     id: number,
     versionNo: number,
-  ): Promise<{ draft: import('@murdoku/shared').MapDraft; updatedAt: string | null }> {
+  ): Promise<{ draft: MapDraft; updatedAt: string | null }> {
     return apiPost(`/projects/${id}/versions/${versionNo}/draft`);
+  },
+  remove(id: number, versionNo: number): Promise<null> {
+    return apiDelete<null>(`/projects/${id}/versions/${versionNo}`);
   },
 };

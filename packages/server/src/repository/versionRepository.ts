@@ -1,6 +1,25 @@
 import { db } from '../db/knex';
 import type { MapDraft, MapVersionRow, MapVersionSummary } from '@murdoku/shared';
 
+/** FEAT-503: the works panel shows participant / region / item totals. */
+function summarizeData(data: MapDraft | null | undefined): {
+  participantCount: number;
+  regionCount: number;
+  itemCount: number;
+} {
+  const draft = data ?? null;
+  const itemIds = new Set<number>();
+  for (const cell of Object.values(draft?.cells ?? {})) {
+    if (cell?.object) itemIds.add(cell.object.itemId);
+    if (cell?.background) itemIds.add(cell.background.itemId);
+  }
+  return {
+    participantCount: draft?.placedCharacters?.length ?? 0,
+    regionCount: draft?.regions?.length ?? 0,
+    itemCount: itemIds.size,
+  };
+}
+
 function toSummary(row: MapVersionRow): MapVersionSummary {
   return {
     id: Number(row.id),
@@ -8,6 +27,7 @@ function toSummary(row: MapVersionRow): MapVersionSummary {
     gridSize: row.grid_size,
     notes: row.notes,
     publishedAt: new Date(row.snapshot_created_at).toISOString(),
+    ...summarizeData(row.data),
   };
 }
 
@@ -69,5 +89,27 @@ export async function createVersion(data: CreateVersionData): Promise<MapVersion
       });
 
     return toSummary(row!);
+  });
+}
+
+/** FEAT-503: delete a published work and keep the project pointer in sync. */
+export async function deleteVersion(projectId: number, versionNo: number): Promise<boolean> {
+  return db.transaction(async (trx) => {
+    const affected = await trx('map_versions')
+      .where({ project_id: projectId, version_no: versionNo })
+      .del();
+    if (affected === 0) return false;
+
+    const remaining = await trx('map_versions')
+      .where({ project_id: projectId })
+      .max('version_no as max')
+      .first();
+    const max = Number((remaining as { max?: string | number | null } | undefined)?.max ?? 0);
+    await trx('map_projects').where({ id: projectId }).update({
+      current_version_no: max > 0 ? max : null,
+      status: max > 0 ? 'published' : 'draft',
+      updated_at: trx.fn.now(),
+    });
+    return true;
   });
 }

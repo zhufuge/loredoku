@@ -27,3 +27,4 @@ projectsRouter.post('/:id/versions', versionController.publish);
 projectsRouter.get('/:id/versions', versionController.list);
 projectsRouter.get('/:id/versions/:versionNo', versionController.detail);
 projectsRouter.post('/:id/versions/:versionNo/draft', versionController.createDraft);
+projectsRouter.delete('/:id/versions/:versionNo', versionController.remove);

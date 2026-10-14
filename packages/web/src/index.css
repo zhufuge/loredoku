@@ -58,3 +58,32 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* OPT-501: never let the browser start its own image drag from the canvas,
+   the item drawer or the roster slots — all dragging is pointer-based. */
+@layer components {
+  .cell img,
+  .cell [draggable],
+  .no-drag,
+  .no-drag img {
+    -webkit-user-drag: none;
+    user-select: none;
+  }
+}
+
+/* FEAT-502: highlights stay solid for 1s then fade out. */
+@layer utilities {
+  .highlight-fade {
+    animation: highlight-fade 1s linear forwards;
+  }
+
+  @keyframes highlight-fade {
+    0%,
+    85% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+}

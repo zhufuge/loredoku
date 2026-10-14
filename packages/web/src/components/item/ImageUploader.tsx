@@ -64,7 +64,12 @@ export function ImageUploader({
         )}
       >
         {preview ? (
-          <img src={preview} alt="预览" className="h-full w-full object-cover" />
+          <img
+            src={preview}
+            alt="预览"
+            draggable={false}
+            className="no-drag h-full w-full object-cover"
+          />
         ) : (
           <>
             <ImagePlus className="h-5 w-5" />

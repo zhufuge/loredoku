@@ -6,7 +6,10 @@ import {
   CHARACTER_CODE_MAX_LENGTH,
   CHARACTER_CODE_PATTERN,
   CHARACTER_DESCRIPTION_MAX_LENGTH,
+  CHARACTER_GENDERS,
+  CHARACTER_GENDER_LABELS,
   CHARACTER_NAME_MAX_LENGTH,
+  DEFAULT_CHARACTER_GENDER,
 } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
 import {
@@ -19,6 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreateCharacter } from '@/hooks/useCharacters';
 
@@ -30,12 +34,18 @@ const schema = z.object({
     .min(1, '请输入业务 ID')
     .max(CHARACTER_CODE_MAX_LENGTH, '业务 ID 过长')
     .regex(CHARACTER_CODE_PATTERN, '业务 ID 仅允许字母、数字与下划线'),
+  gender: z.enum(CHARACTER_GENDERS),
   description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH, '描述过长').optional(),
 });
 
 type FormValues = z.infer<typeof schema>;
 
-const DEFAULTS: FormValues = { name: '', code: '', description: '' };
+const DEFAULTS: FormValues = {
+  name: '',
+  code: '',
+  gender: DEFAULT_CHARACTER_GENDER,
+  description: '',
+};
 
 interface CreateCharacterDialogProps {
   open: boolean;
@@ -68,6 +78,7 @@ export function CreateCharacterDialog({
     createMutation.mutate({
       name: values.name,
       code: values.code,
+      gender: values.gender,
       description: values.description || undefined,
     });
   });
@@ -89,6 +100,16 @@ export function CreateCharacterDialog({
             <Label htmlFor="character-code">业务 ID</Label>
             <Input id="character-code" placeholder="detective" {...register('code')} />
             {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="character-gender">性别</Label>
+            <Select id="character-gender" className="max-w-sm" {...register('gender')}>
+              {CHARACTER_GENDERS.map((gender) => (
+                <option key={gender} value={gender}>
+                  {CHARACTER_GENDER_LABELS[gender]}
+                </option>
+              ))}
+            </Select>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="character-desc">描述</Label>

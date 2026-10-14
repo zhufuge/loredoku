@@ -54,7 +54,18 @@ describe('placement', () => {
 describe('characters', () => {
   it('places a character and replaces one on the same cell', () => {
     store().placeCharacter(3, 1, 1);
-    expect(store().placedCharacters).toEqual([{ characterId: 3, x: 1, y: 1, mapMeta: {} }]);
+    expect(store().placedCharacters).toEqual([
+      {
+        characterId: 3,
+        x: 1,
+        y: 1,
+        mapMeta: {},
+        // FEAT-502: every participant starts with the default theme and no triggers.
+        themeColor: '#FFFFFF',
+        triggers: [],
+        originSlotIndex: undefined,
+      },
+    ]);
     store().placeCharacter(4, 1, 1);
     expect(store().placedCharacters).toHaveLength(1);
     expect(store().placedCharacters[0]?.characterId).toBe(4);
@@ -64,6 +75,28 @@ describe('characters', () => {
     store().placeCharacter(3, 0, 0);
     store().removeCharacterAt(0, 0);
     expect(store().placedCharacters).toHaveLength(0);
+  });
+
+  it('saves participant config as one atomic, undoable step', () => {
+    store().placeCharacter(3, 0, 0);
+    store().setParticipantConfig(3, {
+      themeColor: '#FFCC00',
+      triggers: [
+        {
+          trigger: 'click',
+          targets: [{ type: 'cell', x: 1, y: 1, effect: 'highlight', color: 'red' }],
+        },
+      ],
+    });
+    const placed = store().placedCharacters[0];
+    expect(placed?.themeColor).toBe('#FFCC00');
+    expect(placed?.triggers?.[0]?.targets).toHaveLength(1);
+    expect(store().dirty).toBe(true);
+
+    store().undo();
+    const restored = store().placedCharacters[0];
+    expect(restored?.themeColor).toBe('#FFFFFF');
+    expect(restored?.triggers).toEqual([]);
   });
 });
 

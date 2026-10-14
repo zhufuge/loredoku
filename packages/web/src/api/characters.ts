@@ -1,4 +1,4 @@
-import type { Character, CharacterUsage } from '@murdoku/shared';
+import type { Character, CharacterGender, CharacterUsage } from '@murdoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 export interface ListCharactersParams {
@@ -9,12 +9,15 @@ export interface ListCharactersParams {
 export interface CreateCharacterPayload {
   code: string;
   name: string;
+  /** FEAT-501 */
+  gender?: CharacterGender;
   description?: string | null;
   meta?: Record<string, unknown>;
 }
 
 export interface UpdateCharacterPayload {
   name?: string;
+  gender?: CharacterGender;
   description?: string | null;
   meta?: Record<string, unknown>;
   isActive?: boolean;

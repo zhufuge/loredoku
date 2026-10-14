@@ -30,8 +30,9 @@ export function ItemThumbnail({ item, className }: ItemThumbnailProps): JSX.Elem
       src={src}
       alt={item.name}
       loading="lazy"
+      draggable={false}
       onError={() => setFailed(true)}
-      className={cn('rounded border object-cover', className)}
+      className={cn('no-drag rounded border object-cover', className)}
     />
   );
 }

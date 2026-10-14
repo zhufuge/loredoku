@@ -28,6 +28,7 @@ export async function createCharacter(input: CreateCharacterInput): Promise<Char
   const id = await repo.create({
     code: input.code,
     name: input.name,
+    gender: input.gender,
     description: input.description ?? null,
     meta: input.meta,
   });

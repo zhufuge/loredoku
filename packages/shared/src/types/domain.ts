@@ -7,6 +7,10 @@ import type {
   EDITOR_LAYERS,
   REGION_SHAPES,
   PROJECT_STATUSES,
+  CHARACTER_GENDERS,
+  PARTICIPANT_TRIGGERS,
+  PARTICIPANT_TARGET_TYPES,
+  EFFECT_COLORS,
 } from '../constants';
 
 export type EffectType = (typeof EFFECT_TYPES)[number];
@@ -17,6 +21,10 @@ export type ItemFitMode = (typeof ITEM_FIT_MODES)[number];
 export type EditorLayer = (typeof EDITOR_LAYERS)[number];
 export type RegionShape = (typeof REGION_SHAPES)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+export type CharacterGender = (typeof CHARACTER_GENDERS)[number];
+export type ParticipantTriggerKey = (typeof PARTICIPANT_TRIGGERS)[number];
+export type ParticipantTargetType = (typeof PARTICIPANT_TARGET_TYPES)[number];
+export type EffectColor = (typeof EFFECT_COLORS)[number];
 
 /** A `(x, y)` grid coordinate. */
 export interface CellCoord {
@@ -85,6 +93,7 @@ export interface Character {
   id: number;
   code: string;
   name: string;
+  gender: CharacterGender;
   description: string | null;
   avatarPath: string | null;
   avatarUrl: string | null;
@@ -130,6 +139,18 @@ export interface CharacterSlot {
   characterId: number;
 }
 
+// ---- Participant linkage (docs/v0.3.0.md FEAT-502) ----
+export type ParticipantTarget =
+  | { type: 'character'; id: number; effect: EffectType; color: EffectColor }
+  | { type: 'item'; id: number; effect: EffectType; color: EffectColor }
+  | { type: 'cell'; x: number; y: number; effect: EffectType; color: EffectColor }
+  | { type: 'region'; id: string; effect: EffectType; color: EffectColor };
+
+export interface ParticipantTrigger {
+  trigger: ParticipantTriggerKey;
+  targets: ParticipantTarget[];
+}
+
 export interface PlacedCharacter {
   characterId: number;
   x: number;
@@ -137,6 +158,16 @@ export interface PlacedCharacter {
   mapMeta: Record<string, unknown>;
   /** Slot the character came from, so it can return there when removed. */
   originSlotIndex?: number;
+  /** Participant theme colour, defaults to `#FFFFFF`. Never a blue hue. */
+  themeColor?: string;
+  /** Highlight effects grouped by trigger, each group maintained independently. */
+  triggers?: ParticipantTrigger[];
+}
+
+/** A placed character with participant fields normalised (used by UI code). */
+export interface Participant extends PlacedCharacter {
+  themeColor: string;
+  triggers: ParticipantTrigger[];
 }
 
 export interface MapDraft {
@@ -160,6 +191,10 @@ export interface MapVersionSummary {
   gridSize: number;
   notes: string | null;
   publishedAt: string;
+  /** Snapshot totals shown on the works panel (docs/v0.3.0.md FEAT-503). */
+  participantCount: number;
+  regionCount: number;
+  itemCount: number;
 }
 
 export interface MapVersionDetail extends MapVersionSummary {

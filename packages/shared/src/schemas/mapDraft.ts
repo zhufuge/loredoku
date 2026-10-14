@@ -13,6 +13,7 @@ import {
   REGION_NAME_MAX_LENGTH,
 } from '../constants';
 import { regionColorSchema } from './map';
+import { participantTriggersSchema, themeColorSchema } from './participant';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 const cellKeySchema = z.string().regex(/^\d+,\d+$/, '单元格坐标格式应为 "x,y"');
@@ -60,14 +61,74 @@ export const characterSlotSchema = z.object({
   characterId: z.number().int().positive(),
 });
 
+/** FEAT-502: a placed character is a participant with theme colour + triggers. */
 export const placedCharacterSchema = z.object({
   characterId: z.number().int().positive(),
   x: coordSchema,
   y: coordSchema,
   mapMeta: z.record(z.unknown()).default({}),
+  originSlotIndex: z.number().int().min(0).optional(),
+  themeColor: themeColorSchema,
+  triggers: participantTriggersSchema,
 });
 
-export const mapDraftSchema = z
+/**
+ * Participant targets reference other objects in the same map; dangling
+ * references are rejected so the highlight engine never resolves to nothing.
+ */
+function validateParticipantReferences(
+  draft: z.output<typeof mapDraftBaseSchema>,
+  ctx: z.RefinementCtx,
+): void {
+  const participantIds = new Set(draft.placedCharacters.map((placed) => placed.characterId));
+  const objectItemIds = new Set<number>();
+  for (const cell of Object.values(draft.cells)) {
+    if (cell.object) objectItemIds.add(cell.object.itemId);
+  }
+  const regionIds = new Set(draft.regions.map((region) => region.id));
+
+  draft.placedCharacters.forEach((placed, index) => {
+    for (const trigger of placed.triggers) {
+      trigger.targets.forEach((target, targetIndex) => {
+        const path = ['placedCharacters', index, 'triggers'];
+        void targetIndex;
+        if (target.type === 'character' && !participantIds.has(target.id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path,
+            message: `联动目标角色 #${target.id} 不在地图中`,
+          });
+        }
+        if (target.type === 'item' && !objectItemIds.has(target.id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path,
+            message: `联动目标物品 #${target.id} 不在地图中`,
+          });
+        }
+        if (target.type === 'region' && !regionIds.has(target.id)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path,
+            message: `联动目标区域 ${target.id} 不在地图中`,
+          });
+        }
+        if (
+          target.type === 'cell' &&
+          (target.x >= draft.gridSize || target.y >= draft.gridSize)
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path,
+            message: `联动目标方格 (${target.x}, ${target.y}) 超出画布范围`,
+          });
+        }
+      });
+    }
+  });
+}
+
+const mapDraftBaseSchema = z
   .object({
     version: z.number().int().positive(),
     gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
@@ -77,6 +138,10 @@ export const mapDraftSchema = z
     placedCharacters: z.array(placedCharacterSchema),
   })
   .strict();
+
+export const mapDraftSchema = mapDraftBaseSchema.superRefine((draft, ctx) =>
+  validateParticipantReferences(draft, ctx),
+);
 
 export const createRegionInputSchema = draftRegionSchema.omit({ id: true });
 export const updateRegionInputSchema = draftRegionSchema.omit({ id: true }).partial();

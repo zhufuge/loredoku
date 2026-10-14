@@ -1,5 +1,6 @@
 import type { Character } from '@murdoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
+import { GenderBadge } from '@/components/character/GenderBadge';
 import { cn } from '@/lib/utils';
 
 interface CharacterListPanelProps {
@@ -29,6 +30,7 @@ export function CharacterListPanel({
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
                 <span className="truncate font-medium">{character.name}</span>
+                <GenderBadge gender={character.gender} />
                 {!character.isActive ? (
                   <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
                     {character.avatarUrl ? '已停用' : '未启用'}

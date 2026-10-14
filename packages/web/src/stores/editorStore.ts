@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import {
+  DEFAULT_THEME_COLOR,
   GRID_SIZE_DEFAULT,
   MAP_JSON_VERSION,
   MAX_HISTORY_STEPS,
@@ -9,6 +10,7 @@ import {
   type EditorLayer,
   type EditorTool,
   type MapDraft,
+  type ParticipantTrigger,
   type PlacedCharacter,
 } from '@murdoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
@@ -106,6 +108,11 @@ export interface EditorState {
   clearObjectAt: (x: number, y: number) => void;
   removeCharacterAt: (x: number, y: number) => void;
   setPlacedMeta: (x: number, y: number, mapMeta: Record<string, unknown>) => void;
+  /** FEAT-502: theme colour + triggers saved as one atomic history step. */
+  setParticipantConfig: (
+    characterId: number,
+    patch: { themeColor?: string; triggers?: ParticipantTrigger[] },
+  ) => void;
 
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
   toggleRegionCell: (id: string, x: number, y: number) => void;
@@ -136,7 +143,15 @@ function snapshot(state: EditorState): Snapshot {
     cells: new Map(state.cells),
     regions: state.regions.map((region) => ({ ...region, cells: [...region.cells] })),
     characterSlots: [...state.characterSlots],
-    placedCharacters: state.placedCharacters.map((placed) => ({ ...placed })),
+    placedCharacters: state.placedCharacters.map((placed) => ({
+      ...placed,
+      mapMeta: { ...placed.mapMeta },
+      // Triggers are edited in the dialog; copy them so undo keeps the old list.
+      triggers: (placed.triggers ?? []).map((trigger) => ({
+        trigger: trigger.trigger,
+        targets: trigger.targets.map((target) => ({ ...target })),
+      })),
+    })),
   };
 }
 
@@ -290,6 +305,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
             y,
             mapMeta: {},
             originSlotIndex: originSlotIndex === -1 ? undefined : originSlotIndex,
+            themeColor: DEFAULT_THEME_COLOR,
+            triggers: [],
           },
         ];
       }),
@@ -363,6 +380,19 @@ export const useEditorStore = create<EditorState>((set, get) => {
       commit((next) => {
         next.placedCharacters = next.placedCharacters.map((placed) =>
           placed.x === x && placed.y === y ? { ...placed, mapMeta } : placed,
+        );
+      }),
+
+    setParticipantConfig: (characterId, patch) =>
+      commit((next) => {
+        next.placedCharacters = next.placedCharacters.map((placed) =>
+          placed.characterId === characterId
+            ? {
+                ...placed,
+                ...(patch.themeColor !== undefined ? { themeColor: patch.themeColor } : {}),
+                ...(patch.triggers !== undefined ? { triggers: patch.triggers } : {}),
+              }
+            : placed,
         );
       }),
 

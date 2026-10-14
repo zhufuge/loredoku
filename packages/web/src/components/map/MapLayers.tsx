@@ -1,0 +1,454 @@
+import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
+import {
+  CELL_SIZE,
+  GRID_BORDER_WIDTH,
+  GRID_LINE_COLOR,
+  GRID_LINE_WIDTH,
+  type CellCoord,
+  type Character,
+  type DraftRegion,
+  type Item,
+  type PlacedCharacter,
+} from '@murdoku/shared';
+import { buildRegionEdges, computeLabelCell } from '@/lib/region';
+import { isDarkColor } from '@murdoku/shared';
+import type { CellMap, HighlightState } from '@/lib/highlight';
+
+const HOVER_RING = 'inset 0 0 0 2px #3B82F6';
+
+function cellRectStyle(x: number, y: number, w = 1, h = 1): CSSProperties {
+  return {
+    left: x * CELL_SIZE,
+    top: y * CELL_SIZE,
+    width: w * CELL_SIZE,
+    height: h * CELL_SIZE,
+  };
+}
+
+/** Grid: `n-1` inner separators plus a 3px outer border, drawn above content. */
+export function MapGridLayer({ gridSize }: { gridSize: number }): JSX.Element {
+  const total = gridSize * CELL_SIZE;
+  const lines: JSX.Element[] = [];
+  for (let i = 1; i < gridSize; i += 1) {
+    const pos = i * CELL_SIZE;
+    lines.push(
+      <line
+        key={`grid-v-${i}`}
+        x1={pos}
+        y1={0}
+        x2={pos}
+        y2={total}
+        stroke={GRID_LINE_COLOR}
+        strokeWidth={GRID_LINE_WIDTH}
+      />,
+      <line
+        key={`grid-h-${i}`}
+        x1={0}
+        y1={pos}
+        x2={total}
+        y2={pos}
+        stroke={GRID_LINE_COLOR}
+        strokeWidth={GRID_LINE_WIDTH}
+      />,
+    );
+  }
+  return (
+    <svg
+      className="pointer-events-none absolute left-0 top-0"
+      width={total}
+      height={total}
+      style={{ zIndex: 25 }}
+    >
+      {lines}
+      <rect
+        x={GRID_BORDER_WIDTH / 2}
+        y={GRID_BORDER_WIDTH / 2}
+        width={Math.max(0, total - GRID_BORDER_WIDTH)}
+        height={Math.max(0, total - GRID_BORDER_WIDTH)}
+        fill="none"
+        stroke={GRID_LINE_COLOR}
+        strokeWidth={GRID_BORDER_WIDTH}
+      />
+    </svg>
+  );
+}
+
+export function MapBackgroundLayer({
+  cells,
+  itemsById,
+}: {
+  cells: CellMap;
+  itemsById: Map<number, Item>;
+}): JSX.Element {
+  return (
+    <div className="no-drag pointer-events-none absolute left-0 top-0" style={{ zIndex: 5 }}>
+      {[...cells.entries()]
+        .filter(([, cell]) => cell.background)
+        .map(([key, cell]) => {
+          const item = itemsById.get(cell.background!.itemId);
+          if (!item) return null;
+          const [x, y] = key.split(',').map(Number) as [number, number];
+          const src = item.imageThumbUrl ?? item.imageUrl;
+          if (!src) return null;
+          return (
+            <div
+              key={`bg-${key}`}
+              className="absolute overflow-hidden"
+              style={{ ...cellRectStyle(x, y), zIndex: 5 }}
+            >
+              <img
+                src={src}
+                alt=""
+                draggable={false}
+                className="block h-full w-full"
+                style={{ objectFit: item.fitMode === 'contain' ? 'contain' : 'cover' }}
+              />
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+export function MapObjectLayer({
+  cells,
+  itemsById,
+  interactive = false,
+  hover = null,
+  glowKeys,
+  onPointerDown,
+  onClick,
+}: {
+  cells: CellMap;
+  itemsById: Map<number, Item>;
+  interactive?: boolean;
+  hover?: CellCoord | null;
+  glowKeys?: Set<string>;
+  onPointerDown?: (coord: CellCoord) => void;
+  onClick?: (coord: CellCoord, event: ReactMouseEvent<HTMLDivElement>) => void;
+}): JSX.Element {
+  return (
+    <div className="no-drag pointer-events-none absolute left-0 top-0" style={{ zIndex: 12 }}>
+      {[...cells.entries()]
+        .filter(([, cell]) => cell.object)
+        .map(([key, cell]) => {
+          const anchor = cell.object!;
+          const item = itemsById.get(anchor.itemId);
+          const [x, y] = key.split(',').map(Number) as [number, number];
+          const src = item?.imageThumbUrl ?? item?.imageUrl;
+          if (!src) return null;
+          const glow = glowKeys?.has(key) ?? false;
+          const hovered =
+            hover !== null &&
+            hover.x >= x &&
+            hover.x < x + anchor.w &&
+            hover.y >= y &&
+            hover.y < y + anchor.h;
+          return (
+            <div
+              key={`obj-${key}`}
+              className="absolute overflow-hidden"
+              style={{
+                ...cellRectStyle(x, y, anchor.w, anchor.h),
+                zIndex: 12,
+                pointerEvents: interactive ? 'auto' : 'none',
+                cursor: interactive ? 'pointer' : 'inherit',
+                boxShadow: hovered && interactive ? HOVER_RING : undefined,
+                filter: glow ? 'drop-shadow(0 0 4px #93C5FD)' : undefined,
+              }}
+              title={item?.name ?? undefined}
+              onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
+                if (!interactive) return;
+                event.stopPropagation();
+                onPointerDown?.({ x, y });
+              }}
+              onClick={(event) => {
+                if (!interactive) return;
+                event.stopPropagation();
+                onClick?.({ x, y }, event);
+              }}
+            >
+              <img
+                src={src}
+                alt=""
+                draggable={false}
+                className="block h-full w-full"
+                style={{ objectFit: item?.fitMode === 'contain' ? 'contain' : 'cover' }}
+              />
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+export interface MapCharacterLayerProps {
+  placedCharacters: PlacedCharacter[];
+  charactersById: Map<number, Character>;
+  interactive?: boolean;
+  hover?: CellCoord | null;
+  selected?: CellCoord | null;
+  /** `${x},${y}` → effect colour, drives the 1s highlight ring + scale. */
+  highlightColors?: Map<string, string>;
+  onPointerEnter?: (placed: PlacedCharacter) => void;
+  onPointerDown?: (placed: PlacedCharacter) => void;
+  onClick?: (placed: PlacedCharacter) => void;
+}
+
+export function MapCharacterLayer({
+  placedCharacters,
+  charactersById,
+  interactive = false,
+  hover = null,
+  selected = null,
+  highlightColors,
+  onPointerEnter,
+  onPointerDown,
+  onClick,
+}: MapCharacterLayerProps): JSX.Element {
+  return (
+    <div className="no-drag pointer-events-none absolute left-0 top-0" style={{ zIndex: 18 }}>
+      {placedCharacters.map((placed) => {
+        const character = charactersById.get(placed.characterId);
+        const src = character?.avatarThumbUrl ?? character?.avatarUrl;
+        const themeColor = placed.themeColor ?? '#FFFFFF';
+        const hovered = hover?.x === placed.x && hover?.y === placed.y;
+        const selectedHere = selected?.x === placed.x && selected?.y === placed.y;
+        const highlightColor = highlightColors?.get(`${placed.x},${placed.y}`) ?? null;
+        return (
+          <button
+            key={`ch-${placed.x},${placed.y}`}
+            type="button"
+            className="absolute flex items-center justify-center transition-transform duration-150"
+            style={{
+              ...cellRectStyle(placed.x, placed.y),
+              zIndex: 18,
+              pointerEvents: interactive ? 'auto' : 'none',
+              cursor: interactive ? 'pointer' : 'inherit',
+              boxShadow: hovered && interactive ? HOVER_RING : undefined,
+              filter: selectedHere ? 'drop-shadow(0 0 6px rgba(59,130,246,0.9))' : undefined,
+              transform: highlightColor ? 'scale(1.08)' : undefined,
+            }}
+            disabled={!interactive}
+            onPointerEnter={() => onPointerEnter?.(placed)}
+            onPointerDown={(event) => {
+              if (!interactive) return;
+              event.stopPropagation();
+              onPointerDown?.(placed);
+            }}
+            onClick={(event) => {
+              event.stopPropagation();
+              onClick?.(placed);
+            }}
+            title={character?.name ?? `#${placed.characterId}`}
+          >
+            {/* Theme colour chassis: a ring + plate behind the avatar. */}
+            <span
+              className="absolute inset-[6%] rounded-full"
+              style={{
+                backgroundColor: themeColor,
+                border: highlightColor ? `3px solid ${highlightColor}` : '2px solid rgba(0,0,0,0.35)',
+                boxShadow: highlightColor ? `0 0 0 2px ${highlightColor}` : undefined,
+                transition: 'border-color 150ms ease, box-shadow 150ms ease',
+              }}
+            />
+            {src ? (
+              <img
+                src={src}
+                alt={character?.name ?? ''}
+                draggable={false}
+                className="relative h-[68%] w-[64%] rounded-full object-cover"
+              />
+            ) : (
+              <span
+                className="relative flex h-[68%] w-[64%] items-center justify-center rounded-full text-xs font-semibold"
+                style={{
+                  backgroundColor: isDarkColor(themeColor) ? '#FFFFFF' : '#111827',
+                  color: isDarkColor(themeColor) ? '#111827' : '#FFFFFF',
+                }}
+              >
+                {character?.name?.slice(0, 1) ?? '?'}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+export function MapRegionFillLayer({
+  regions,
+  gridSize,
+}: {
+  regions: DraftRegion[];
+  gridSize: number;
+}): JSX.Element {
+  const total = gridSize * CELL_SIZE;
+  return (
+    <svg
+      className="pointer-events-none absolute left-0 top-0"
+      width={total}
+      height={total}
+      style={{ zIndex: 8 }}
+    >
+      {regions.flatMap((region) =>
+        region.cells.map(([x, y]) => (
+          <rect
+            key={`${region.id}-${x}-${y}`}
+            x={x * CELL_SIZE}
+            y={y * CELL_SIZE}
+            width={CELL_SIZE}
+            height={CELL_SIZE}
+            fill={region.color}
+            fillOpacity={region.fillOpacity}
+          />
+        )),
+      )}
+    </svg>
+  );
+}
+
+export function MapRegionEdgeLayer({
+  regions,
+  gridSize,
+  hoveredRegionId = null,
+  selectedRegionId = null,
+}: {
+  regions: DraftRegion[];
+  gridSize: number;
+  hoveredRegionId?: string | null;
+  selectedRegionId?: string | null;
+}): JSX.Element {
+  const total = gridSize * CELL_SIZE;
+  return (
+    <svg
+      className="pointer-events-none absolute left-0 top-0"
+      width={total}
+      height={total}
+      style={{ zIndex: 15 }}
+    >
+      {regions.map((region) => {
+        const highlighted = hoveredRegionId === region.id || selectedRegionId === region.id;
+        const edges = buildRegionEdges(region.cells);
+        return (
+          <g key={region.id}>
+            {edges.map((edge, index) => (
+              <line
+                key={index}
+                x1={edge.x1}
+                y1={edge.y1}
+                x2={edge.x2}
+                y2={edge.y2}
+                stroke={region.color}
+                strokeOpacity={highlighted ? 1 : 0.7}
+                strokeWidth={highlighted ? region.borderWidth + 2 : region.borderWidth}
+                strokeLinecap="square"
+                strokeLinejoin="miter"
+              />
+            ))}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+export function MapRegionLabelLayer({
+  regions,
+  onHover,
+  onSelect,
+}: {
+  regions: DraftRegion[];
+  onHover?: (id: string | null) => void;
+  onSelect?: (id: string) => void;
+}): JSX.Element {
+  return (
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 32 }}>
+      {regions.map((region) => {
+        const label = region.labelCell ?? computeLabelCell(region.cells);
+        if (!label) return null;
+        return (
+          <button
+            key={`label-${region.id}`}
+            type="button"
+            className="region-label pointer-events-auto absolute whitespace-nowrap"
+            style={{
+              left: (label[0] + 0.5) * CELL_SIZE,
+              top: (label[1] + 1) * CELL_SIZE - 2,
+              transform: 'translate(-50%, -100%)',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              fontSize: 14,
+              lineHeight: 1.1,
+              WebkitTextStroke: '3px #000000',
+              paintOrder: 'stroke fill',
+            } as CSSProperties}
+            onMouseEnter={() => onHover?.(region.id)}
+            onMouseLeave={() => onHover?.(null)}
+            onPointerDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect?.(region.id);
+            }}
+            title={region.name}
+          >
+            {region.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Highlight layer: above items and characters, below the grid lines
+ * (docs/v0.3.0.md §2.2.4). Shared by the editor and the preview page.
+ */
+export function MapHighlightLayer({
+  highlight,
+}: {
+  highlight: HighlightState | null;
+}): JSX.Element | null {
+  if (!highlight) return null;
+  const { characters, objects, cells } = highlight;
+  if (characters.length === 0 && objects.length === 0 && cells.length === 0) return null;
+  return (
+    <div
+      className="highlight-fade pointer-events-none absolute left-0 top-0"
+      style={{ zIndex: 22 }}
+    >
+      {cells.map((rect, index) => (
+        <div
+          key={`hl-cell-${rect.x}-${rect.y}-${index}`}
+          className="absolute"
+          style={{ ...cellRectStyle(rect.x, rect.y, rect.w, rect.h), backgroundColor: rect.color }}
+        />
+      ))}
+      {objects.map((rect, index) => (
+        <div
+          key={`hl-obj-${rect.x}-${rect.y}-${index}`}
+          className="absolute"
+          style={{
+            ...cellRectStyle(rect.x, rect.y, rect.w, rect.h),
+            backgroundColor: rect.color,
+            opacity: 0.45,
+          }}
+        />
+      ))}
+      {characters.map((item, index) => (
+        <div
+          key={`hl-ch-${item.x}-${item.y}-${index}`}
+          className="absolute rounded-full"
+          style={{
+            left: item.x * CELL_SIZE + 3,
+            top: item.y * CELL_SIZE + 3,
+            width: CELL_SIZE - 6,
+            height: CELL_SIZE - 6,
+            border: `3px solid ${item.color}`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}

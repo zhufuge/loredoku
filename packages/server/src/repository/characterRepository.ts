@@ -1,7 +1,13 @@
 import type { Knex } from 'knex';
 import { db } from '../db/knex';
 import { buildFileUrl, buildThumbUrl } from '../utils/paths';
-import type { Character, CharacterRow, CharacterUsage, MapDraft } from '@murdoku/shared';
+import type {
+  Character,
+  CharacterGender,
+  CharacterRow,
+  CharacterUsage,
+  MapDraft,
+} from '@murdoku/shared';
 
 export interface ListCharactersParams {
   keyword?: string;
@@ -11,12 +17,15 @@ export interface ListCharactersParams {
 export interface CreateCharacterData {
   code: string;
   name: string;
+  /** FEAT-501 */
+  gender: CharacterGender;
   description: string | null;
   meta: Record<string, unknown>;
 }
 
 export interface UpdateCharacterData {
   name?: string;
+  gender?: CharacterGender;
   description?: string | null;
   meta?: Record<string, unknown>;
   isActive?: boolean;
@@ -35,6 +44,7 @@ function toCharacter(row: CharacterRow): Character {
     id: Number(row.id),
     code: row.code,
     name: row.name,
+    gender: row.gender,
     description: row.description,
     avatarPath: row.avatar_path,
     avatarUrl: row.avatar_path ? buildFileUrl(row.avatar_path) : null,
@@ -81,6 +91,7 @@ export async function create(data: CreateCharacterData): Promise<number> {
     .insert({
       code: data.code,
       name: data.name,
+      gender: data.gender,
       description: data.description,
       meta: data.meta,
       // OPT-305: 新建角色未上传头像，初始状态为停用；上传头像后需手动启用。
@@ -93,6 +104,7 @@ export async function create(data: CreateCharacterData): Promise<number> {
 export async function update(id: number, data: UpdateCharacterData): Promise<boolean> {
   const patch: Record<string, unknown> = { updated_at: db.fn.now() };
   if (data.name !== undefined) patch.name = data.name;
+  if (data.gender !== undefined) patch.gender = data.gender;
   if (data.description !== undefined) patch.description = data.description;
   if (data.meta !== undefined) patch.meta = data.meta;
   if (data.isActive !== undefined) patch.is_active = data.isActive;

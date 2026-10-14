@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
-import type { Character } from '@murdoku/shared';
-import { CHARACTER_AVATAR_MAX_DIMENSION } from '@murdoku/shared';
+import type { Character, CharacterGender } from '@murdoku/shared';
+import {
+  CHARACTER_AVATAR_MAX_DIMENSION,
+  CHARACTER_GENDERS,
+  CHARACTER_GENDER_LABELS,
+} from '@murdoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -13,7 +17,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { GenderBadge } from '@/components/character/GenderBadge';
 import { ImageUploader } from '@/components/item/ImageUploader';
 import {
   useDeleteCharacterAvatar,
@@ -32,6 +38,7 @@ export function CharacterDetailForm({
   onRequestDelete,
 }: CharacterDetailFormProps): JSX.Element {
   const [name, setName] = useState(character.name);
+  const [gender, setGender] = useState<CharacterGender>(character.gender ?? 'unknown');
   const [description, setDescription] = useState(character.description ?? '');
   const [confirmDeleteAvatar, setConfirmDeleteAvatar] = useState(false);
 
@@ -42,13 +49,18 @@ export function CharacterDetailForm({
 
   useEffect(() => {
     setName(character.name);
+    setGender(character.gender ?? 'unknown');
     setDescription(character.description ?? '');
   }, [character.id, character.updatedAt]);
 
   const handleSave = (): void => {
     updateMutation.mutate({
       id: character.id,
-      payload: { name: name.trim(), description: description.trim() || null },
+      payload: {
+        name: name.trim(),
+        gender,
+        description: description.trim() || null,
+      },
     });
   };
 
@@ -56,7 +68,10 @@ export function CharacterDetailForm({
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">{character.name}</h2>
+          <h2 className="flex items-center gap-2 text-xl font-semibold">
+            {character.name}
+            <GenderBadge gender={character.gender} />
+          </h2>
           <p className="text-xs text-muted-foreground">业务 ID：{character.code}（不可修改）</p>
         </div>
         <div className="flex items-center gap-2">
@@ -106,6 +121,22 @@ export function CharacterDetailForm({
             onChange={(event) => setName(event.target.value)}
             className="max-w-sm"
           />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="character-gender">性别</Label>
+          <Select
+            id="character-gender"
+            className="max-w-sm"
+            value={gender}
+            onChange={(event) => setGender(event.target.value as CharacterGender)}
+          >
+            {CHARACTER_GENDERS.map((item) => (
+              <option key={item} value={item}>
+                {CHARACTER_GENDER_LABELS[item]}
+              </option>
+            ))}
+          </Select>
         </div>
 
         <div className="grid gap-2">

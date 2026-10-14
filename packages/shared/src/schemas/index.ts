@@ -5,3 +5,4 @@ export * from './card';
 export * from './character';
 export * from './map';
 export * from './mapDraft';
+export * from './participant';

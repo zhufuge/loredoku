@@ -170,6 +170,11 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
   if (!row) {
     throw AppError.notFound('版本不存在');
   }
+  const itemIds = new Set<number>();
+  for (const cell of Object.values(row.data?.cells ?? {})) {
+    if (cell?.object) itemIds.add(cell.object.itemId);
+    if (cell?.background) itemIds.add(cell.background.itemId);
+  }
   return {
     id: Number(row.id),
     versionNo: row.version_no,
@@ -177,7 +182,18 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
     notes: row.notes,
     publishedAt: new Date(row.snapshot_created_at).toISOString(),
     data: row.data,
+    participantCount: row.data?.placedCharacters?.length ?? 0,
+    regionCount: row.data?.regions?.length ?? 0,
+    itemCount: itemIds.size,
   };
+}
+
+export async function deleteVersion(projectId: number, versionNo: number): Promise<void> {
+  const row = await versionRepo.getVersion(projectId, versionNo);
+  if (!row) {
+    throw AppError.notFound('作品不存在');
+  }
+  await versionRepo.deleteVersion(projectId, versionNo);
 }
 
 export async function createDraftFromVersion(

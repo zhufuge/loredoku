@@ -2,34 +2,56 @@ import { describe, expect, it } from 'vitest';
 
 // Vite/vitest exposes the component sources as raw strings, so this test can
 // assert the architectural rule directly: cell content is clickable, never draggable
-// (docs/v0.2.5.md BUG-401 / BUG-405).
+// (docs/v0.2.5.md BUG-401 / BUG-405, docs/v0.3.0.md OPT-501).
+//
+// The cell layers are shared with the work preview page, so they live in
+// `components/map/MapLayers.tsx`.
 const raw = import.meta.glob('./*.tsx', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+const mapRaw = import.meta.glob('../map/*.tsx', {
   query: '?raw',
   import: 'default',
   eager: true,
 }) as Record<string, string>;
 
 const source = raw['./EditorCanvas.tsx'] ?? '';
+const layerSource = mapRaw['../map/MapLayers.tsx'] ?? '';
 
-function segment(startMarker: string, endMarker: string): string {
-  const start = source.indexOf(startMarker);
-  const end = source.indexOf(endMarker, start);
+function segment(haystack: string, startMarker: string, endMarker: string): string {
+  const start = haystack.indexOf(startMarker);
+  const end = haystack.indexOf(endMarker, start);
   if (start === -1 || end === -1) {
-    throw new Error(`EditorCanvas segment not found: ${startMarker}`);
+    throw new Error(`segment not found: ${startMarker}`);
   }
-  return source.slice(start, end);
+  return haystack.slice(start, end);
 }
 
-const objectNodes = segment('const objectNodes', 'const characterNodes');
-const characterNodes = segment('const characterNodes', 'const regionFills');
+const objectNodes = segment(
+  layerSource,
+  'export function MapObjectLayer',
+  'export interface MapCharacterLayerProps',
+);
+const characterNodes = segment(
+  layerSource,
+  'export function MapCharacterLayer',
+  'export function MapRegionFillLayer',
+);
 const contentNodes = [objectNodes, characterNodes];
 
-describe('EditorCanvas cell content', () => {
+describe('cell content layers', () => {
+  it('are present in the shared map module', () => {
+    expect(layerSource.length).toBeGreaterThan(0);
+    expect(source).toContain('MapObjectLayer');
+    expect(source).toContain('MapCharacterLayer');
+  });
+
   it('selects on click with a pointer cursor', () => {
-    expect(source.length).toBeGreaterThan(0);
     for (const part of contentNodes) {
       expect(part).toContain('onClick');
-      expect(part).toContain("cursor: ");
+      expect(part).toContain('cursor: ');
       expect(part).toContain("'pointer'");
     }
   });
@@ -62,9 +84,9 @@ describe('drag sources across the editor', () => {
   });
 
   it('removes the legacy HTML5 character drag entirely', () => {
-    for (const [name, content] of Object.entries(raw)) {
-      expect(content.includes('onDragStart')).toBe(false);
-      expect(content.includes('CHARACTER_DND_TYPE')).toBe(false);
+    for (const [name, content] of Object.entries({ ...raw, ...mapRaw })) {
+      expect(content.includes('onDragStart'), name).toBe(false);
+      expect(content.includes('CHARACTER_DND_TYPE'), name).toBe(false);
     }
   });
 });

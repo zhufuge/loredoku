@@ -7,29 +7,21 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
-import {
-  CELL_SIZE,
-  GRID_BORDER_WIDTH,
-  GRID_LINE_COLOR,
-  GRID_LINE_WIDTH,
-  type CellCoord,
-  type Character,
-  type DraftRegion,
-  type EditorTool,
-  type Item,
-  type PlacedCharacter,
-  type RegionShape,
-} from '@murdoku/shared';
-import {
-  buildRegionEdges,
-  computeLabelCell,
-  coordKey,
-  regionAt,
-  resolveRegionPointerUp,
-  type Coord,
-} from '@/lib/region';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import { CELL_SIZE, type CellCoord, type Character, type DraftRegion, type EditorTool, type Item, type PlacedCharacter, type RegionShape } from '@murdoku/shared';
+import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/region';
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
+import type { HighlightState } from '@/lib/highlight';
+import {
+  MapBackgroundLayer,
+  MapCharacterLayer,
+  MapGridLayer,
+  MapHighlightLayer,
+  MapObjectLayer,
+  MapRegionEdgeLayer,
+  MapRegionFillLayer,
+  MapRegionLabelLayer,
+} from '@/components/map/MapLayers';
 import {
   centerPan,
   clampZoom,
@@ -44,7 +36,6 @@ import type { Selection } from '@/stores/editorStore';
 const RULER_SIZE = 28;
 const RULER_TEXT_COLOR = '#1F2937';
 const RULER_ACTIVE_COLOR = '#2563EB';
-const HOVER_RING = 'inset 0 0 0 2px #3B82F6';
 const VALID_RING = 'inset 0 0 0 2px #22C55E';
 const INVALID_RING = 'inset 0 0 0 2px #EF4444';
 
@@ -83,9 +74,13 @@ interface EditorCanvasProps {
   pendingItem: Item | null;
   regionDraftSelection: Set<string>;
   characterDrag: CharacterDragPreview | null;
+  /** Resolved participant highlight (shared with the work preview page). */
+  highlight: HighlightState | null;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
   onSelectCharacter: (characterId: number, x: number, y: number) => void;
+  /** Fired when the pointer enters a participant cell (`touch` trigger). */
+  onTouchCharacter?: (characterId: number, x: number, y: number) => void;
   onAnchorChange: (anchor: CellCoord | null) => void;
   onDraftAdd: (cells: Coord[]) => void;
   onDraftRemove: (cells: Coord[]) => void;
@@ -130,9 +125,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     pendingItem,
     regionDraftSelection,
     characterDrag,
+    highlight,
     onSelect,
     onSelectRegion,
     onSelectCharacter,
+    onTouchCharacter,
     onAnchorChange,
     onDraftAdd,
     onDraftRemove,
@@ -484,80 +481,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       }
     : null;
 
-  const gridSvg = useMemo(() => {
-    const lines: JSX.Element[] = [];
-    for (let i = 1; i < gridSize; i += 1) {
-      const pos = i * CELL_SIZE;
-      lines.push(
-        <line
-          key={`grid-v-${i}`}
-          x1={pos}
-          y1={0}
-          x2={pos}
-          y2={total}
-          stroke={GRID_LINE_COLOR}
-          strokeWidth={GRID_LINE_WIDTH}
-        />,
-        <line
-          key={`grid-h-${i}`}
-          x1={0}
-          y1={pos}
-          x2={total}
-          y2={pos}
-          stroke={GRID_LINE_COLOR}
-          strokeWidth={GRID_LINE_WIDTH}
-        />,
-      );
-    }
-    return (
-      <svg
-        className="pointer-events-none absolute left-0 top-0"
-        width={total}
-        height={total}
-        style={{ zIndex: 25 }}
-      >
-        {lines}
-        <rect
-          x={GRID_BORDER_WIDTH / 2}
-          y={GRID_BORDER_WIDTH / 2}
-          width={Math.max(0, total - GRID_BORDER_WIDTH)}
-          height={Math.max(0, total - GRID_BORDER_WIDTH)}
-          fill="none"
-          stroke={GRID_LINE_COLOR}
-          strokeWidth={GRID_BORDER_WIDTH}
-        />
-      </svg>
-    );
-  }, [gridSize, total]);
-
-  const backgroundNodes = useMemo(
-    () =>
-      [...cells.entries()]
-        .filter(([, cell]) => cell.background)
-        .map(([key, cell]) => {
-          const item = itemsById.get(cell.background!.itemId);
-          if (!item) return null;
-          const [x, y] = key.split(',').map(Number) as [number, number];
-          const src = item.imageThumbUrl ?? item.imageUrl;
-          if (!src) return null;
-          return (
-            <div
-              key={`bg-${key}`}
-              className="absolute overflow-hidden"
-              style={{ left: x * CELL_SIZE, top: y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE, zIndex: 5 }}
-            >
-              <img
-                src={src}
-                alt=""
-                className="block h-full w-full"
-                style={{ objectFit: item.fitMode === 'contain' ? 'contain' : 'cover' }}
-              />
-            </div>
-          );
-        }),
-    [cells, itemsById],
-  );
-
   const hoveredKeys = useMemo(() => {
     const region = hoveredRegionId
       ? regions.find((item) => item.id === hoveredRegionId)
@@ -570,226 +493,19 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const selectInteractive =
     (activeTool === 'select' || activeTool === 'character') && pendingItem === null && !spaceHeld;
 
-  const objectNodes = useMemo(
-    () =>
-      [...cells.entries()]
-        .filter(([, cell]) => cell.object)
-        .map(([key, cell]) => {
-          const anchor = cell.object!;
-          const item = itemsById.get(anchor.itemId);
-          const [x, y] = key.split(',').map(Number) as [number, number];
-          const src = item?.imageThumbUrl ?? item?.imageUrl;
-          if (!src) return null;
-          const glow = hoveredKeys.has(key);
-          const hovered =
-            hover !== null &&
-            hover.x >= x &&
-            hover.x < x + anchor.w &&
-            hover.y >= y &&
-            hover.y < y + anchor.h;
-          return (
-            <div
-              key={`obj-${key}`}
-              className="absolute overflow-hidden"
-              style={{
-                left: x * CELL_SIZE,
-                top: y * CELL_SIZE,
-                width: anchor.w * CELL_SIZE,
-                height: anchor.h * CELL_SIZE,
-                zIndex: 12,
-                pointerEvents: selectInteractive ? 'auto' : 'none',
-                cursor: selectInteractive ? 'pointer' : 'inherit',
-                boxShadow: hovered && selectInteractive ? HOVER_RING : undefined,
-                filter: glow ? 'drop-shadow(0 0 4px #93C5FD)' : undefined,
-              }}
-              title={item?.name ?? undefined}
-              onPointerDown={(event) => {
-                if (selectInteractive) event.stopPropagation();
-              }}
-              onClick={(event) => {
-                if (!selectInteractive) return;
-                event.stopPropagation();
-                if (event.shiftKey && selectedRegionId) {
-                  onToggleRegionCell({ x, y });
-                  return;
-                }
-                selectCellAt({ x, y });
-              }}
-            >
-              <img
-                src={src}
-                alt=""
-                draggable={false}
-                className="block h-full w-full"
-                style={{ objectFit: item?.fitMode === 'contain' ? 'contain' : 'cover' }}
-              />
-            </div>
-          );
-        }),
-    [cells, itemsById, hoveredKeys, hover, selectInteractive, selectCellAt, selectedRegionId, onToggleRegionCell],
-  );
-
-  const characterNodes = useMemo(
-    () =>
-      placedCharacters.map((placed) => {
-        const character = charactersById.get(placed.characterId);
-        const src = character?.avatarThumbUrl ?? character?.avatarUrl;
-        const interactive = selectInteractive;
-        const hovered = hover?.x === placed.x && hover?.y === placed.y;
-        const selected =
-          selection?.type === 'character' &&
-          selection.x === placed.x &&
-          selection.y === placed.y;
-        return (
-          <button
-            key={`ch-${placed.x},${placed.y}`}
-            type="button"
-            className="absolute flex items-center justify-center"
-            style={{
-              left: placed.x * CELL_SIZE,
-              top: placed.y * CELL_SIZE,
-              width: CELL_SIZE,
-              height: CELL_SIZE,
-              zIndex: 18,
-              pointerEvents: interactive ? 'auto' : 'none',
-              cursor: interactive ? 'pointer' : 'inherit',
-              boxShadow: hovered && interactive ? HOVER_RING : undefined,
-              filter: selected ? 'drop-shadow(0 0 6px rgba(59,130,246,0.9))' : undefined,
-            }}
-            disabled={!interactive}
-            onPointerDown={(event) => {
-              if (interactive) event.stopPropagation();
-            }}
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelectCharacter(placed.characterId, placed.x, placed.y);
-            }}
-            title={character?.name ?? `#${placed.characterId}`}
-          >
-            {src ? (
-              <img
-                src={src}
-                alt={character?.name ?? ''}
-                draggable={false}
-                className="h-[82%] w-[80%] rounded-full border-2 border-white object-cover shadow-md"
-              />
-            ) : (
-              <span className="flex h-[80%] w-[80%] items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground shadow">
-                {character?.name?.slice(0, 1) ?? '?'}
-              </span>
-            )}
-          </button>
-        );
-      }),
-    [placedCharacters, charactersById, onSelectCharacter, selection, selectInteractive, hover],
-  );
-
-  const regionFills = useMemo(
-    () => (
-      <svg
-        className="pointer-events-none absolute left-0 top-0"
-        width={total}
-        height={total}
-        style={{ zIndex: 8 }}
-      >
-        {regions.flatMap((region) =>
-          region.cells.map(([x, y]) => (
-            <rect
-              key={`${region.id}-${x}-${y}`}
-              x={x * CELL_SIZE}
-              y={y * CELL_SIZE}
-              width={CELL_SIZE}
-              height={CELL_SIZE}
-              fill={region.color}
-              fillOpacity={region.fillOpacity}
-            />
-          )),
-        )}
-      </svg>
-    ),
-    [regions, total],
-  );
-
-  const regionEdges = useMemo(
-    () => (
-      <svg
-        className="pointer-events-none absolute left-0 top-0"
-        width={total}
-        height={total}
-        style={{ zIndex: 15 }}
-      >
-        {regions.map((region) => {
-          const highlighted = hoveredRegionId === region.id || selectedRegionId === region.id;
-          const edges = buildRegionEdges(region.cells);
-          return (
-            <g key={region.id}>
-              {edges.map((edge, index) => (
-                <line
-                  key={index}
-                  x1={edge.x1}
-                  y1={edge.y1}
-                  x2={edge.x2}
-                  y2={edge.y2}
-                  stroke={region.color}
-                  strokeOpacity={highlighted ? 1 : 0.7}
-                  strokeWidth={highlighted ? region.borderWidth + 2 : region.borderWidth}
-                  strokeLinecap="square"
-                  strokeLinejoin="miter"
-                />
-              ))}
-            </g>
-          );
-        })}
-      </svg>
-    ),
-    [regions, total, hoveredRegionId, selectedRegionId],
-  );
-
-  const regionLabels = useMemo(
-    () => (
-      <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 32 }}>
-        {regions.map((region) => {
-          const label = region.labelCell ?? computeLabelCell(region.cells);
-          if (!label) return null;
-          return (
-            <button
-              key={`label-${region.id}`}
-              type="button"
-              className="region-label pointer-events-auto absolute whitespace-nowrap"
-              style={{
-                left: (label[0] + 0.5) * CELL_SIZE,
-                top: (label[1] + 1) * CELL_SIZE - 2,
-                transform: 'translate(-50%, -100%)',
-                color: '#FFFFFF',
-                fontWeight: 700,
-                fontSize: 14,
-                lineHeight: 1.1,
-                WebkitTextStroke: '3px #000000',
-                paintOrder: 'stroke fill',
-              } as CSSProperties}
-              onMouseEnter={() => setHoveredRegionId(region.id)}
-              onMouseLeave={() => setHoveredRegionId((current) => (current === region.id ? null : current))}
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                onSelect({ type: 'region', regionId: region.id });
-                onSelectRegion(region.id);
-              }}
-              title={region.name}
-            >
-              {region.name}
-            </button>
-          );
-        })}
-      </div>
-    ),
-    [regions, onSelect, onSelectRegion],
-  );
-
   const selectionCell =
     selection?.type === 'cell' || selection?.type === 'character'
       ? { x: selection.x, y: selection.y }
       : null;
+
+  /** `${x},${y}` → effect colour, consumed by the character layer. */
+  const highlightColors = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const item of highlight?.characters ?? []) {
+      map.set(`${item.x},${item.y}`, item.color);
+    }
+    return map;
+  }, [highlight]);
 
   const draftOverlay = (
     <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 28 }}>
@@ -935,23 +651,55 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={{ width: total, height: total }}
         />
 
-        {backgroundNodes}
-        {regionFills}
-        {regionEdges}
+        <MapBackgroundLayer cells={cells} itemsById={itemsById} />
+        <MapRegionFillLayer regions={regions} gridSize={gridSize} />
+        <MapRegionEdgeLayer
+          regions={regions}
+          gridSize={gridSize}
+          hoveredRegionId={hoveredRegionId}
+          selectedRegionId={selectedRegionId}
+        />
         {draftOverlay}
 
-        <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 12 }}>
-          {objectNodes}
-        </div>
+        <MapObjectLayer
+          cells={cells}
+          itemsById={itemsById}
+          interactive={selectInteractive}
+          hover={hover}
+          glowKeys={hoveredKeys}
+          onClick={(coord, event) => {
+            if (event.shiftKey && selectedRegionId) {
+              onToggleRegionCell(coord);
+              return;
+            }
+            selectCellAt(coord);
+          }}
+        />
 
-        {gridSvg}
+        <MapGridLayer gridSize={gridSize} />
 
-        <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 18 }}>
-          {characterNodes}
-        </div>
+        <MapCharacterLayer
+          placedCharacters={placedCharacters}
+          charactersById={charactersById}
+          interactive={selectInteractive}
+          hover={hover}
+          selected={selectionCell}
+          highlightColors={highlightColors}
+          onPointerEnter={(placed) => onTouchCharacter?.(placed.characterId, placed.x, placed.y)}
+          onClick={(placed) => onSelectCharacter(placed.characterId, placed.x, placed.y)}
+        />
+
+        <MapHighlightLayer highlight={highlight} />
 
         {selectionOverlay}
-        {regionLabels}
+        <MapRegionLabelLayer
+          regions={regions}
+          onHover={setHoveredRegionId}
+          onSelect={(id) => {
+            onSelect({ type: 'region', regionId: id });
+            onSelectRegion(id);
+          }}
+        />
       </div>
 
       {characterDragGhost}

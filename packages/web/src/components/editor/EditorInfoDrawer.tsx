@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import type { Character, DraftCell, DraftRegion, Item, PlacedCharacter } from '@murdoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
+import { GenderBadge } from '@/components/character/GenderBadge';
 import { ItemThumbnail } from '@/components/item/ItemThumbnail';
 import { Button } from '@/components/ui/button';
 import { regionAt } from '@/lib/region';
@@ -21,6 +22,8 @@ interface EditorInfoDrawerProps {
   onSelectCharacter: (characterId: number, x: number, y: number) => void;
   onSaveMeta: (x: number, y: number, meta: Record<string, unknown>) => void;
   onRemoveCharacter: (x: number, y: number) => void;
+  /** FEAT-502: opens the participant dialog for a placed character. */
+  onConfigureParticipant?: (placed: PlacedCharacter) => void;
   onClearCell: (x: number, y: number) => void;
   onClearObject: (x: number, y: number) => void;
   onEditRegion: (region: DraftRegion) => void;
@@ -327,7 +330,10 @@ function CharacterProfile({ character }: { character: Character }): JSX.Element 
     <>
       <section className="flex flex-col items-center gap-2 border-b pb-4">
         <CharacterThumbnail character={character} className="h-24 w-24" />
-        <p className="text-base font-semibold">{character.name}</p>
+        <p className="flex items-center gap-2 text-base font-semibold">
+          {character.name}
+          <GenderBadge gender={character.gender} />
+        </p>
         <p className="text-xs text-muted-foreground">ID: {character.code}</p>
         {character.description ? (
           <p className="text-center text-xs text-muted-foreground">{character.description}</p>
@@ -347,6 +353,7 @@ function CharacterBranch({
   itemsById,
   onSaveMeta,
   onRemoveCharacter,
+  onConfigureParticipant,
 }: {
   selection: Extract<Selection, { type: 'character' }>;
   placed: PlacedCharacter;
@@ -355,10 +362,12 @@ function CharacterBranch({
   itemsById: Map<number, Item>;
   onSaveMeta: (x: number, y: number, meta: Record<string, unknown>) => void;
   onRemoveCharacter: (x: number, y: number) => void;
+  onConfigureParticipant?: (placed: PlacedCharacter) => void;
 }): JSX.Element {
   const character = charactersById.get(placed.characterId);
   const objectItem = cell?.object?.itemId !== undefined ? itemsById.get(cell.object.itemId) : undefined;
   const blocked = objectItem ? !objectItem.canStand : false;
+  const themeColor = placed.themeColor ?? '#FFFFFF';
   // Debounce guard so a rapid double click only removes the character once (FIX-307 防连点).
   const [removing, setRemoving] = useState(false);
 
@@ -373,13 +382,21 @@ function CharacterBranch({
     <>
       <section className="flex flex-col items-center gap-2 border-b pb-4">
         {character ? (
-          <CharacterThumbnail character={character} className="h-24 w-24" />
+          <span
+            className="flex h-24 w-24 items-center justify-center rounded-full border-2"
+            style={{ backgroundColor: themeColor }}
+          >
+            <CharacterThumbnail character={character} className="h-20 w-20" />
+          </span>
         ) : (
           <div className="flex h-24 w-24 items-center justify-center rounded-full bg-muted text-2xl">
             ?
           </div>
         )}
-        <p className="text-base font-semibold">{character?.name ?? `#${placed.characterId}`}</p>
+        <p className="flex items-center gap-2 text-base font-semibold">
+          {character?.name ?? `#${placed.characterId}`}
+          <GenderBadge gender={character?.gender} />
+        </p>
         <p className="text-xs text-muted-foreground">ID: {character?.code ?? placed.characterId}</p>
         <p className="text-xs text-muted-foreground">
           坐标：C{placed.x + 1}, R{placed.y + 1}
@@ -404,6 +421,25 @@ function CharacterBranch({
           value={placed.mapMeta}
           onSave={(meta) => onSaveMeta(placed.x, placed.y, meta)}
         />
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-xs font-medium text-muted-foreground">参与者联动</h3>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span>主题色</span>
+          <span className="h-4 w-4 rounded border" style={{ backgroundColor: themeColor }} />
+          <span className="font-mono">{themeColor}</span>
+          <span className="ml-auto">
+            {(placed.triggers ?? []).reduce((sum, group) => sum + group.targets.length, 0)} 个联动目标
+          </span>
+        </div>
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => onConfigureParticipant?.(placed)}
+        >
+          配置参与者
+        </Button>
       </section>
 
       <Button
@@ -433,6 +469,7 @@ export function EditorInfoDrawer({
   onSelectCharacter,
   onSaveMeta,
   onRemoveCharacter,
+  onConfigureParticipant,
   onClearCell,
   onClearObject,
   onEditRegion,
@@ -530,6 +567,7 @@ export function EditorInfoDrawer({
                 itemsById={itemsById}
                 onSaveMeta={onSaveMeta}
                 onRemoveCharacter={onRemoveCharacter}
+                onConfigureParticipant={onConfigureParticipant}
               />
             )}
           </div>

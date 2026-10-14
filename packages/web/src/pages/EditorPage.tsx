@@ -12,6 +12,8 @@ import {
   type EditorTool,
   type Item,
   type MapDraft,
+  type ParticipantTrigger,
+  type ParticipantTriggerKey,
   type PublishViolation,
   type RegionShape,
 } from '@murdoku/shared';
@@ -41,15 +43,21 @@ import { EditorToolbar } from '@/components/editor/EditorToolbar';
 import { EditorBottomBar } from '@/components/editor/EditorBottomBar';
 import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
 import { CharacterSlotColumn } from '@/components/editor/CharacterSlotColumn';
+import {
+  ParticipantDialog,
+  type PlacedItemOption,
+} from '@/components/editor/ParticipantDialog';
 import { RegionDialog } from '@/components/editor/RegionDialog';
 import { RegionSelectionBar } from '@/components/editor/RegionSelectionBar';
-import { VersionHistoryDialog } from '@/components/editor/VersionHistoryDialog';
+import { WorkHistoryDialog } from '@/components/editor/WorkHistoryDialog';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useProjectMap, useSaveMap, useUpdateGridSize } from '@/hooks/useMap';
 import { usePublishProject } from '@/hooks/useVersions';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
+import { useHighlight } from '@/hooks/useHighlight';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
+import { resolveHighlight } from '@/lib/highlight';
 import { DROP_REJECTION_MESSAGES, validateCharacterDrop } from '@/lib/characterDrop';
 import type { Coord } from '@/lib/region';
 import { isConnected, regionAt } from '@/lib/region';
@@ -170,6 +178,56 @@ export function EditorPage(): JSX.Element {
         },
       },
     );
+  };
+
+  // ---- FEAT-502: participant linkage ----
+  const { highlight, show: showHighlight } = useHighlight();
+  const [participantId, setParticipantId] = useState<number | null>(null);
+  const [pickingCell, setPickingCell] = useState(false);
+  const [pickedCell, setPickedCell] = useState<{ x: number; y: number } | null>(null);
+
+  const participantPlaced = useMemo(
+    () =>
+      participantId === null
+        ? null
+        : editor.placedCharacters.find((item) => item.characterId === participantId) ?? null,
+    [participantId, editor.placedCharacters],
+  );
+
+  const placedItems = useMemo<PlacedItemOption[]>(() => {
+    const list: PlacedItemOption[] = [];
+    for (const [key, cell] of editor.cells.entries()) {
+      if (!cell.object) continue;
+      const [x, y] = key.split(',').map(Number) as [number, number];
+      list.push({
+        itemId: cell.object.itemId,
+        name: itemsById.get(cell.object.itemId)?.name ?? '',
+        x,
+        y,
+      });
+    }
+    return list;
+  }, [editor.cells, itemsById]);
+
+  const fireTrigger = (characterId: number, trigger: ParticipantTriggerKey): void => {
+    const placed = editor.placedCharacters.find((item) => item.characterId === characterId);
+    if (!placed) return;
+    showHighlight(
+      resolveHighlight(placed.triggers, trigger, {
+        gridSize: editor.gridSize,
+        cells: editor.cells,
+        placedCharacters: editor.placedCharacters,
+        regions: editor.regions,
+      }),
+    );
+  };
+
+  const saveParticipant = (
+    characterId: number,
+    patch: { themeColor: string; triggers: ParticipantTrigger[] },
+  ): void => {
+    editor.setParticipantConfig(characterId, patch);
+    toast.success('已保存参与者配置');
   };
 
   const setTool = (tool: EditorTool): void => {
@@ -721,12 +779,22 @@ export function EditorPage(): JSX.Element {
             pendingItem={pendingItem}
             regionDraftSelection={editor.regionDraftSelection}
             characterDrag={characterDrag}
+            highlight={highlight}
             onSelect={(selection) => {
+              if (pickingCell && selection?.type === 'cell') {
+                setPickedCell({ x: selection.x, y: selection.y });
+                setPickingCell(false);
+              }
               editor.setSelection(selection);
               setSlotCharacterId(null);
             }}
             onSelectRegion={editor.setSelectedRegion}
-            onSelectCharacter={(characterId, x, y) => selectCharacter(characterId, x, y)}
+            onSelectCharacter={(characterId, x, y) => {
+              selectCharacter(characterId, x, y);
+              fireTrigger(characterId, 'click');
+              setParticipantId(characterId);
+            }}
+            onTouchCharacter={(characterId) => fireTrigger(characterId, 'touch')}
             onAnchorChange={(anchor) => setRegionAnchorActive(anchor !== null)}
             onDraftAdd={editor.addDraftCells}
             onDraftRemove={editor.removeDraftCells}
@@ -782,6 +850,22 @@ export function EditorPage(): JSX.Element {
               }}
             />
           ) : null}
+          {pickingCell ? (
+            <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-4">
+              <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-xs shadow-lg">
+                点击画布空格以确定目标方格
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setPickingCell(false)}
+                >
+                  取消
+                </Button>
+              </div>
+            </div>
+          ) : null}
+
           <EditorBottomBar
             activeTool={editor.activeTool}
             regionShape={regionShape}
@@ -821,6 +905,7 @@ export function EditorPage(): JSX.Element {
             onSelectCharacter={selectCharacter}
             onSaveMeta={(x, y, meta) => editor.setPlacedMeta(x, y, meta)}
             onRemoveCharacter={removeCharacter}
+            onConfigureParticipant={(placed) => setParticipantId(placed.characterId)}
             onClearCell={(x, y) => editor.clearCell(x, y)}
             onClearObject={(x, y) => editor.clearObjectAt(x, y)}
             onEditRegion={(region) => {
@@ -843,7 +928,30 @@ export function EditorPage(): JSX.Element {
         onSubmit={submitRegion}
       />
 
-      <VersionHistoryDialog
+      <ParticipantDialog
+        open={participantId !== null && !pickingCell}
+        onOpenChange={(open) => {
+          if (!open) setParticipantId(null);
+        }}
+        placed={participantPlaced}
+        character={
+          participantId === null ? undefined : charactersById.get(participantId)
+        }
+        charactersById={charactersById}
+        participants={editor.placedCharacters}
+        placedItems={placedItems}
+        regions={editor.regions}
+        gridSize={editor.gridSize}
+        pickedCell={pickedCell}
+        onPickCell={() => setPickingCell(true)}
+        onSave={saveParticipant}
+        onRemove={(placed) => {
+          removeCharacter(placed.x, placed.y);
+          setParticipantId(null);
+        }}
+      />
+
+      <WorkHistoryDialog
         projectId={id}
         open={versionsOpen}
         onOpenChange={setVersionsOpen}

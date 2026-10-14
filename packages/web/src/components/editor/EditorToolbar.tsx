@@ -68,7 +68,7 @@ export function EditorToolbar({
           size="icon"
           onClick={onOpenVersions}
           disabled={saving}
-          title="版本历史"
+          title="作品历史"
         >
           <History className="h-4 w-4" />
         </Button>

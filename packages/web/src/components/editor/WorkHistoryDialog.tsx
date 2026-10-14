@@ -10,19 +10,19 @@ import { Button } from '@/components/ui/button';
 import { useCreateDraftFromVersion, useVersions } from '@/hooks/useVersions';
 import { formatDateTime } from '@/lib/format';
 
-interface VersionHistoryDialogProps {
+interface WorkHistoryDialogProps {
   projectId: number;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentVersionNo: number | null;
 }
 
-export function VersionHistoryDialog({
+export function WorkHistoryDialog({
   projectId,
   open,
   onOpenChange,
   currentVersionNo,
-}: VersionHistoryDialogProps): JSX.Element {
+}: WorkHistoryDialogProps): JSX.Element {
   const versionsQuery = useVersions(open ? projectId : null);
   const createDraft = useCreateDraftFromVersion();
 
@@ -41,10 +41,10 @@ export function VersionHistoryDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            版本历史
+            作品历史
           </DialogTitle>
           <DialogDescription>
-            回滚会用所选版本覆盖当前草稿（含未保存的修改）。
+            回滚会用所选作品覆盖当前草稿（含未保存的修改）。
           </DialogDescription>
         </DialogHeader>
 
@@ -54,9 +54,9 @@ export function VersionHistoryDialog({
             正在加载…
           </div>
         ) : versionsQuery.isError ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">版本加载失败</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">作品加载失败</p>
         ) : versions.length === 0 ? (
-          <p className="py-10 text-center text-sm text-muted-foreground">暂无发布版本</p>
+          <p className="py-10 text-center text-sm text-muted-foreground">暂无作品，发布一个试试</p>
         ) : (
           <ul className="max-h-80 space-y-2 overflow-y-auto">
             {versions.map((version) => (
@@ -94,7 +94,7 @@ export function VersionHistoryDialog({
 
         {versionsQuery.isError ? (
           <p className="text-center text-xs text-muted-foreground">
-            无法加载版本列表，请稍后重试。
+            无法加载作品列表，请稍后重试。
           </p>
         ) : null}
 

@@ -63,6 +63,23 @@ export const CHARACTER_DESCRIPTION_MAX_LENGTH = 500;
 export const CHARACTER_AVATAR_MAX_DIMENSION = 256;
 export const CHARACTER_SLOT_COUNT = 20;
 
+// FEAT-501: character gender.
+export const CHARACTER_GENDERS = ['male', 'female', 'other', 'unknown'] as const;
+export const DEFAULT_CHARACTER_GENDER = 'unknown';
+export const CHARACTER_GENDER_LABELS: Record<(typeof CHARACTER_GENDERS)[number], string> = {
+  male: '男',
+  female: '女',
+  other: '其他',
+  unknown: '未设置',
+};
+/** Small glyph shown next to a character name; `unknown` renders nothing. */
+export const CHARACTER_GENDER_GLYPHS: Record<(typeof CHARACTER_GENDERS)[number], string> = {
+  male: '♂',
+  female: '♀',
+  other: '⚧',
+  unknown: '',
+};
+
 // ---- Project ----
 export const PROJECT_NAME_MAX_LENGTH = 100;
 export const PROJECT_DESCRIPTION_MAX_LENGTH = 500;
@@ -75,6 +92,44 @@ export const MAP_JSON_VERSION = 1;
 
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
+
+// ---- Participant linkage (docs/v0.3.0.md FEAT-502) ----
+export const PARTICIPANT_TRIGGERS = ['click', 'touch'] as const;
+export const PARTICIPANT_TARGET_TYPES = ['character', 'item', 'cell', 'region'] as const;
+/** `blue` is reserved for the canvas highlight colour, theme colours may not use it. */
+export const EFFECT_COLORS = ['red', 'blue'] as const;
+export const EFFECT_COLOR_HEX: Record<(typeof EFFECT_COLORS)[number], string> = {
+  red: '#EF4444',
+  blue: '#3B82F6',
+};
+export const EFFECT_COLOR_LABELS: Record<(typeof EFFECT_COLORS)[number], string> = {
+  red: '红',
+  blue: '蓝',
+};
+export const DEFAULT_THEME_COLOR = '#FFFFFF';
+/** Preset theme swatches; deliberately free of any blue hue. */
+export const THEME_COLOR_PALETTE = [
+  '#FFFFFF',
+  '#000000',
+  '#EF4444',
+  '#F97316',
+  '#FACC15',
+  '#22C55E',
+  '#A855F7',
+  '#EC4899',
+  '#9CA3AF',
+  '#92400E',
+] as const;
+/**
+ * Hue window (degrees) treated as "blue is reserved for highlights".
+ * The lower bound is 195 instead of the documented 200 so cyan-leaning blues
+ * such as `#0EA5E9` (hue ≈ 198.6) are also rejected.
+ */
+export const THEME_COLOR_BLUE_HUE_MIN = 195;
+export const THEME_COLOR_BLUE_HUE_MAX = 240;
+export const THEME_COLOR_BLUE_MIN_SATURATION = 0.25;
+export const THEME_COLOR_BLUE_MIN_VALUE = 0.25;
+export const HIGHLIGHT_DURATION_MS = 1000;
 
 // ---- Editor tools ----
 export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] as const;
