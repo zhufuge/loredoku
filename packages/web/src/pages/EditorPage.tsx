@@ -30,8 +30,8 @@ import { EditorToolbar } from '@/components/editor/EditorToolbar';
 import { EditorBottomBar } from '@/components/editor/EditorBottomBar';
 import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
 import { CharacterSlotColumn } from '@/components/editor/CharacterSlotColumn';
-import { CharacterMetaDialog } from '@/components/editor/CharacterMetaDialog';
 import { RegionDialog } from '@/components/editor/RegionDialog';
+import { RegionSelectionBar } from '@/components/editor/RegionSelectionBar';
 import { VersionHistoryDialog } from '@/components/editor/VersionHistoryDialog';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
@@ -40,7 +40,7 @@ import { usePublishProject } from '@/hooks/useVersions';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import type { Coord } from '@/lib/region';
-import { regionAt } from '@/lib/region';
+import { isConnected, regionAt } from '@/lib/region';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 
 interface RegionDialogState {
@@ -74,7 +74,7 @@ export function EditorPage(): JSX.Element {
   const [regionShape, setRegionShape] = useState<RegionShape>('rect');
   const [itemsOpen, setItemsOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [metaTarget, setMetaTarget] = useState<{ x: number; y: number } | null>(null);
+  const [slotCharacterId, setSlotCharacterId] = useState<number | null>(null);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
     open: false,
     mode: 'create',
@@ -82,6 +82,7 @@ export function EditorPage(): JSX.Element {
     region: null,
   });
   const [deleteRegionTarget, setDeleteRegionTarget] = useState<DraftRegion | null>(null);
+  const [regionError, setRegionError] = useState<string | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [violations, setViolations] = useState<PublishViolation[] | null>(null);
   const [resizeTarget, setResizeTarget] = useState<number | null>(null);
@@ -104,25 +105,9 @@ export function EditorPage(): JSX.Element {
   );
 
   useEffect(() => {
-    if (editor.selection || editor.selectedRegionId) setInfoOpen(true);
+    if (editor.selection || editor.selectedRegionId || slotCharacterId !== null) setInfoOpen(true);
     else setInfoOpen(false);
-  }, [editor.selection, editor.selectedRegionId]);
-
-  const selectedCell = editor.selection
-    ? editor.cells.get(`${editor.selection.x},${editor.selection.y}`)
-    : undefined;
-  const selectedRegion = editor.selection
-    ? regionAt(editor.regions, editor.selection.x, editor.selection.y)
-    : editor.selectedRegionId
-      ? editor.regions.find((region) => region.id === editor.selectedRegionId)
-      : undefined;
-  const selectedPlaced = editor.selection
-    ? editor.placedCharacters.find(
-        (placed) => placed.x === editor.selection!.x && placed.y === editor.selection!.y,
-      )
-    : undefined;
-  const selectedCharacter =
-    selectedPlaced !== undefined ? charactersById.get(selectedPlaced.characterId) : undefined;
+  }, [editor.selection, editor.selectedRegionId, slotCharacterId]);
 
   useEffect(() => {
     const data = mapQuery.data;
@@ -165,6 +150,43 @@ export function EditorPage(): JSX.Element {
     }
   };
 
+  const selectCharacter = (characterId: number, x: number, y: number): void => {
+    editor.setSelection({ type: 'character', characterId, x, y });
+    editor.setSelectedRegion(regionAt(editor.regions, x, y)?.id ?? null);
+    editor.setSelectedCharacter(characterId);
+    setSlotCharacterId(null);
+  };
+
+  const selectSlotCharacter = (characterId: number | null): void => {
+    editor.setSelectedCharacter(characterId);
+    if (characterId === null) {
+      setSlotCharacterId(null);
+      return;
+    }
+    const placed = editor.placedCharacters.find((item) => item.characterId === characterId);
+    if (placed) {
+      selectCharacter(characterId, placed.x, placed.y);
+      setSlotCharacterId(null);
+    } else {
+      editor.setSelection(null);
+      setSlotCharacterId(characterId);
+    }
+  };
+
+  const removeCharacter = (x: number, y: number): void => {
+    const placed = editor.placedCharacters.find((item) => item.x === x && item.y === y);
+    if (!placed) return;
+    const emptySlot = editor.characterSlots.findIndex((slot) => slot === null);
+    if (emptySlot === -1) {
+      toast.error('槽位已满，无法将角色放回槽位');
+      return;
+    }
+    editor.setSlot(emptySlot, placed.characterId);
+    editor.removeCharacterAt(x, y);
+    editor.setSelection(null);
+    editor.setSelectedCharacter(null);
+  };
+
   const assignSlot = (characterId: number): void => {
     const index = editor.characterSlots.findIndex((slot) => slot === null);
     if (index === -1) {
@@ -178,13 +200,15 @@ export function EditorPage(): JSX.Element {
     const slot = editor.characterSlots[index];
     if (slot && slot.characterId === editor.selectedCharacterId) {
       editor.setSelectedCharacter(null);
+      setSlotCharacterId(null);
     }
-    editor.setSlot(index, null);
   };
 
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
     if (regionDialog.mode === 'create') {
       editor.createRegion(input, conflictMode);
+      editor.clearDraftSelection();
+      setTool('select');
     } else if (regionDialog.region) {
       editor.updateRegion(regionDialog.region.id, input);
     }
@@ -303,7 +327,7 @@ export function EditorPage(): JSX.Element {
       }
       if (event.key === 'Delete' || event.key === 'Backspace') {
         const selection = editor.selection;
-        if (selection) {
+        if (selection && selection.type !== 'region') {
           event.preventDefault();
           editor.eraseAt(selection.x, selection.y);
         }
@@ -313,6 +337,7 @@ export function EditorPage(): JSX.Element {
         editor.setSelection(null);
         editor.setSelectedItem(null);
         editor.setSelectedCharacter(null);
+        editor.clearDraftSelection();
         return;
       }
       if (mod) return;
@@ -321,7 +346,7 @@ export function EditorPage(): JSX.Element {
       else if (event.key === 'c' || event.key === 'C') setTool('character');
       else if (event.key === 'e' || event.key === 'E') setTool('eraser');
       else if (event.key === 'h' || event.key === 'H') setTool('pan');
-      else if (event.key.startsWith('Arrow') && editor.selection) {
+      else if (event.key.startsWith('Arrow') && editor.selection && editor.selection.type !== 'region') {
         const step: Record<string, CellCoord> = {
           ArrowUp: { x: 0, y: -1 },
           ArrowDown: { x: 0, y: 1 },
@@ -330,7 +355,9 @@ export function EditorPage(): JSX.Element {
         };
         const delta = step[event.key] ?? { x: 0, y: 0 };
         const next = { x: editor.selection.x + delta.x, y: editor.selection.y + delta.y };
-        if (isInBounds(next, editor.gridSize)) editor.setSelection(next);
+        if (isInBounds(next, editor.gridSize)) {
+          editor.setSelection({ type: 'cell', x: next.x, y: next.y });
+        }
       }
     };
     const onKeyUp = (event: KeyboardEvent): void => {
@@ -436,7 +463,7 @@ export function EditorPage(): JSX.Element {
           slots={editor.characterSlots}
           charactersById={charactersById}
           selectedCharacterId={editor.selectedCharacterId}
-          onSelect={editor.setSelectedCharacter}
+          onSelect={selectSlotCharacter}
           onSwap={editor.swapSlots}
           onClear={clearSlot}
         />
@@ -459,13 +486,17 @@ export function EditorPage(): JSX.Element {
             spaceHeld={spaceHeld}
             pendingItem={pendingItem}
             pendingCharacterId={editor.selectedCharacterId}
-            onSelect={editor.setSelection}
-            onSelectRegionAt={editor.setSelectedRegion}
-            onRegionSelect={(cells) => {
-              if (cells.length > 0) {
-                setRegionDialog({ open: true, mode: 'create', cells, region: null });
-              }
+            regionDraftSelection={editor.regionDraftSelection}
+            onSelect={(selection) => {
+              editor.setSelection(selection);
+              setSlotCharacterId(null);
             }}
+            onSelectRegion={editor.setSelectedRegion}
+            onSelectCharacter={(characterId, x, y) => selectCharacter(characterId, x, y)}
+            onDraftToggle={(coord) => editor.toggleDraftCell(coord.x, coord.y)}
+            onDraftAdd={editor.addDraftCells}
+            onDraftRemove={editor.removeDraftCells}
+            onDraftClear={editor.clearDraftSelection}
             onToggleRegionCell={(coord) => {
               if (editor.selectedRegionId !== null) {
                 editor.toggleRegionCell(editor.selectedRegionId, coord.x, coord.y);
@@ -492,13 +523,36 @@ export function EditorPage(): JSX.Element {
                 editor.placeCharacter(editor.selectedCharacterId, coord.x, coord.y);
               }
             }}
-            onOpenCharacter={(coord) => setMetaTarget({ x: coord.x, y: coord.y })}
             onMoveObject={(from, to) => editor.moveObject(from.x, from.y, to.x, to.y)}
             onErase={(coord) => editor.eraseAt(coord.x, coord.y)}
             onZoom={editor.setZoom}
             onPan={editor.setPan}
           />
 
+          {editor.activeTool === 'region' ? (
+            <RegionSelectionBar
+              count={editor.regionDraftSelection.size}
+              onClear={editor.clearDraftSelection}
+              onConfirm={() => {
+                const cells = Array.from(editor.regionDraftSelection).map(
+                  (key) => key.split(',').map(Number) as Coord,
+                );
+                if (cells.length === 0) {
+                  toast.error('请先选择至少一个格子');
+                  return;
+                }
+                if (!isConnected(cells)) {
+                  setRegionError('区域必须是相连的方格，请调整选区。');
+                  return;
+                }
+                setRegionDialog({ open: true, mode: 'create', cells, region: null });
+              }}
+              onCancel={() => {
+                editor.clearDraftSelection();
+                setTool('select');
+              }}
+            />
+          ) : null}
           <EditorBottomBar
             activeTool={editor.activeTool}
             regionShape={regionShape}
@@ -525,36 +579,22 @@ export function EditorPage(): JSX.Element {
             onClose={() => setInfoOpen(false)}
             onOpen={() => setInfoOpen(true)}
             selection={editor.selection}
-            cell={selectedCell}
-            region={selectedRegion}
-            placedCharacter={selectedPlaced}
-            character={selectedCharacter}
+            cells={editor.cells}
+            regions={editor.regions}
+            placedCharacters={editor.placedCharacters}
+            charactersById={charactersById}
             itemsById={itemsById}
-            onEditCharacterMeta={() => {
-              if (editor.selection) {
-                setMetaTarget({ x: editor.selection.x, y: editor.selection.y });
-              }
+            unplacedCharacterId={slotCharacterId}
+            onSelectCharacter={selectCharacter}
+            onSaveMeta={(x, y, meta) => editor.setPlacedMeta(x, y, meta)}
+            onRemoveCharacter={removeCharacter}
+            onClearCell={(x, y) => editor.clearCell(x, y)}
+            onClearObject={(x, y) => editor.clearObjectAt(x, y)}
+            onEditRegion={(region) => {
+              editor.setSelectedRegion(region.id);
+              setRegionDialog({ open: true, mode: 'edit', cells: region.cells, region });
             }}
-            onClearCell={() => {
-              if (editor.selection) editor.clearCell(editor.selection.x, editor.selection.y);
-            }}
-            onClearObject={() => {
-              if (editor.selection) editor.clearObjectAt(editor.selection.x, editor.selection.y);
-            }}
-            onEditRegion={() => {
-              if (selectedRegion) {
-                editor.setSelectedRegion(selectedRegion.id);
-                setRegionDialog({
-                  open: true,
-                  mode: 'edit',
-                  cells: selectedRegion.cells,
-                  region: selectedRegion,
-                });
-              }
-            }}
-            onDeleteRegion={() => {
-              if (selectedRegion) setDeleteRegionTarget(selectedRegion);
-            }}
+            onDeleteRegion={(region) => setDeleteRegionTarget(region)}
             onLocateRegion={() => canvasRef.current?.centerView()}
           />
         </main>
@@ -634,45 +674,38 @@ export function EditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      <CharacterMetaDialog
-        open={metaTarget !== null}
-        onOpenChange={(open) => {
-          if (!open) setMetaTarget(null);
-        }}
-        characterName={
-          selectedPlaced !== undefined
-            ? charactersById.get(selectedPlaced.characterId)?.name
-            : undefined
-        }
-        value={
-          metaTarget
-            ? editor.placedCharacters.find(
-                (placed) => placed.x === metaTarget.x && placed.y === metaTarget.y,
-              )?.mapMeta ?? {}
-            : {}
-        }
-        onSubmit={(meta) => {
-          if (metaTarget) editor.setPlacedMeta(metaTarget.x, metaTarget.y, meta);
-          setMetaTarget(null);
-        }}
-      />
-
-      <AlertDialog
-        open={leaveGuard.open}
-        onOpenChange={(open) => {
-          if (!open) leaveGuard.cancelLeave();
-        }}
-      >
+      <AlertDialog open={regionError !== null} onOpenChange={(open) => !open && setRegionError(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>离开编辑器？</AlertDialogTitle>
+            <AlertDialogTitle>区域必须是相连的方格</AlertDialogTitle>
+            <AlertDialogDescription>{regionError}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setRegionError(null)}>我知道了</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={leaveGuard.open}>
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            leaveGuard.cancelLeave();
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>有未保存的修改</AlertDialogTitle>
             <AlertDialogDescription>
-              当前修改尚未保存，离开将丢失这些更改。
+              离开将丢失当前修改，确定离开吗？
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={leaveGuard.cancelLeave}>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={leaveGuard.confirmLeave}>离开</AlertDialogAction>
+            <Button variant="outline" onClick={leaveGuard.cancelLeave}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={leaveGuard.confirmLeave}>
+              离开
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -158,6 +158,63 @@ describe('regions', () => {
   });
 });
 
+describe('region draft selection', () => {
+  it('toggles, adds, removes and clears draft cells', () => {
+    store().toggleDraftCell(0, 0);
+    expect(Array.from(store().regionDraftSelection)).toEqual(['0,0']);
+    store().toggleDraftCell(0, 0);
+    expect(store().regionDraftSelection.size).toBe(0);
+
+    store().addDraftCells([[1, 0], [1, 1]]);
+    expect(store().regionDraftSelection.size).toBe(2);
+    store().removeDraftCells([[1, 0]]);
+    expect(Array.from(store().regionDraftSelection)).toEqual(['1,1']);
+    store().clearDraftSelection();
+    expect(store().regionDraftSelection.size).toBe(0);
+  });
+
+  it('clears the draft when switching away from the region tool', () => {
+    store().setTool('region');
+    store().addDraftCells([[0, 0]]);
+    store().setTool('region');
+    expect(store().regionDraftSelection.size).toBe(1);
+    store().setTool('select');
+    expect(store().regionDraftSelection.size).toBe(0);
+  });
+});
+
+describe('selection', () => {
+  it('stores typed cell, region and character selections', () => {
+    store().setSelection({ type: 'cell', x: 1, y: 2 });
+    expect(store().selection).toEqual({ type: 'cell', x: 1, y: 2 });
+    store().setSelection({ type: 'region', regionId: 'rg_a' });
+    expect(store().selection).toEqual({ type: 'region', regionId: 'rg_a' });
+    store().setSelection({ type: 'character', characterId: 3, x: 1, y: 2 });
+    expect(store().selection).toEqual({ type: 'character', characterId: 3, x: 1, y: 2 });
+    store().setSelection(null);
+    expect(store().selection).toBeNull();
+  });
+});
+
+describe('cell clearing', () => {
+  it('clears a cell object and then the whole cell', () => {
+    store().placeBackground(1, 0, 0);
+    store().placeObject({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
+    store().clearObjectAt(0, 0);
+    expect(store().cells.get('0,0')).toEqual({ background: { itemId: 1 } });
+    store().clearCell(0, 0);
+    expect(store().cells.has('0,0')).toBe(false);
+  });
+});
+
+describe('placed metadata', () => {
+  it('updates the map meta of a placed character', () => {
+    store().placeCharacter(3, 1, 1);
+    store().setPlacedMeta(1, 1, { room: 'A' });
+    expect(store().placedCharacters[0]?.mapMeta).toEqual({ room: 'A' });
+  });
+});
+
 describe('character roster', () => {
   it('assigns and clears a slot', () => {
     store().setSlot(0, 9);

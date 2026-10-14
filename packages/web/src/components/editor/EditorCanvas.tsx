@@ -41,6 +41,7 @@ import {
   zoomAtPoint,
   ZOOM_STEP,
 } from '@/lib/grid';
+import type { Selection } from '@/stores/editorStore';
 
 export interface EditorCanvasHandle {
   clientToCell: (clientX: number, clientY: number) => CellCoord;
@@ -59,19 +60,23 @@ interface EditorCanvasProps {
   selectedRegionId: string | null;
   zoom: number;
   pan: { x: number; y: number };
-  selection: CellCoord | null;
+  selection: Selection | null;
   activeTool: EditorTool;
   regionShape: RegionShape;
   spaceHeld: boolean;
   pendingItem: Item | null;
   pendingCharacterId: number | null;
-  onSelect: (coord: CellCoord | null) => void;
-  onSelectRegionAt: (id: string | null) => void;
-  onRegionSelect: (cells: Coord[]) => void;
+  regionDraftSelection: Set<string>;
+  onSelect: (selection: Selection | null) => void;
+  onSelectRegion: (id: string | null) => void;
+  onSelectCharacter: (characterId: number, x: number, y: number) => void;
+  onDraftToggle: (coord: CellCoord) => void;
+  onDraftAdd: (cells: Coord[]) => void;
+  onDraftRemove: (cells: Coord[]) => void;
+  onDraftClear: () => void;
   onToggleRegionCell: (coord: CellCoord) => void;
   onPlaceItem: (coord: CellCoord) => void;
   onPlaceCharacter: (coord: CellCoord) => void;
-  onOpenCharacter: (coord: CellCoord) => void;
   onMoveObject: (from: CellCoord, to: CellCoord) => void;
   onErase: (coord: CellCoord) => void;
   onZoom: (zoom: number) => void;
@@ -89,7 +94,7 @@ type Interaction =
   | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
   | { kind: 'move'; from: CellCoord; startX: number; startY: number; w: number; h: number }
   | { kind: 'erase'; last: string | null }
-  | { kind: 'marquee'; start: CellCoord }
+  | { kind: 'region-rect'; start: CellCoord; add: boolean; alt: boolean }
   | { kind: 'brush'; keys: Set<string>; erase: boolean }
   | null;
 
@@ -110,13 +115,17 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     spaceHeld,
     pendingItem,
     pendingCharacterId,
+    regionDraftSelection,
     onSelect,
-    onSelectRegionAt,
-    onRegionSelect,
+    onSelectRegion,
+    onSelectCharacter,
+    onDraftToggle,
+    onDraftAdd,
+    onDraftRemove,
+    onDraftClear,
     onToggleRegionCell,
     onPlaceItem,
     onPlaceCharacter,
-    onOpenCharacter,
     onMoveObject,
     onErase,
     onZoom,
@@ -217,10 +226,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       setPolygonPoints([]);
       setBrushCells([]);
       interactionRef.current = null;
+      onDraftClear();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  }, [onDraftClear]);
 
   useEffect(() => {
     setPolygonPoints([]);
@@ -273,15 +283,19 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         if (!inBounds) return;
         node.setPointerCapture(event.pointerId);
         const key = coordKey(coord.x, coord.y);
-        const keys = new Set<string>();
-        if (!event.altKey) keys.add(key);
+        const keys = new Set<string>([key]);
         interactionRef.current = { kind: 'brush', keys, erase: event.altKey };
         setBrushCells(Array.from(keys).map((item) => item.split(',').map(Number) as Coord));
         return;
       }
       node.setPointerCapture(event.pointerId);
       const start = clampCell(coord);
-      interactionRef.current = { kind: 'marquee', start };
+      interactionRef.current = {
+        kind: 'region-rect',
+        start,
+        add: !event.shiftKey,
+        alt: event.altKey,
+      };
       setMarquee({ start, end: start });
       return;
     }
@@ -289,7 +303,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     if (!inBounds) {
       if (activeTool === 'select' || activeTool === 'character') {
         onSelect(null);
-        onSelectRegionAt(null);
+        onSelectRegion(null);
       }
       return;
     }
@@ -326,8 +340,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           h: cell.object.h,
         };
       } else {
-        onSelect(coord);
-        onSelectRegionAt(regionAt(regions, coord.x, coord.y)?.id ?? null);
+        onSelect({ type: 'cell', x: coord.x, y: coord.y });
+        onSelectRegion(regionAt(regions, coord.x, coord.y)?.id ?? null);
       }
     }
   };
@@ -366,17 +380,20 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       return;
     }
 
-    if (interaction.kind === 'marquee') {
-      setMarquee({ start: interaction.start, end: clampCell(coord) });
+    if (interaction.kind === 'region-rect') {
+      setMarquee((previous) =>
+        previous && previous.end.x === coord.x && previous.end.y === coord.y
+          ? previous
+          : { start: interaction.start, end: clampCell(coord) },
+      );
       return;
     }
 
     if (interaction.kind === 'brush') {
       if (!inBounds) return;
       const key = coordKey(coord.x, coord.y);
-      if (interaction.erase) interaction.keys.delete(key);
-      else interaction.keys.add(key);
-      setBrushCells(interaction.keys.size === 0 ? [] : Array.from(interaction.keys).map((item) => item.split(',').map(Number) as Coord));
+      interaction.keys.add(key);
+      setBrushCells(Array.from(interaction.keys).map((item) => item.split(',').map(Number) as Coord));
       return;
     }
 
@@ -399,10 +416,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     const interaction = interactionRef.current;
     interactionRef.current = null;
 
-    if (interaction?.kind === 'marquee') {
+    if (interaction?.kind === 'region-rect') {
       const end = clampCell(toCell(event.clientX, event.clientY));
       setMarquee(null);
-      onRegionSelect(rectCells([interaction.start.x, interaction.start.y], [end.x, end.y]));
+      const moved = end.x !== interaction.start.x || end.y !== interaction.start.y;
+      if (!moved) {
+        if (interaction.alt) onDraftRemove([[interaction.start.x, interaction.start.y]]);
+        else onDraftToggle(interaction.start);
+        return;
+      }
+      const rect = rectCells([interaction.start.x, interaction.start.y], [end.x, end.y]);
+      if (interaction.add) onDraftAdd(rect);
+      else onDraftRemove(rect);
       return;
     }
 
@@ -411,7 +436,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         (item) => item.split(',').map(Number) as Coord,
       );
       setBrushCells([]);
-      if (selected.length > 0) onRegionSelect(selected);
+      if (selected.length > 0) {
+        if (interaction.erase) onDraftRemove(selected);
+        else onDraftAdd(selected);
+      }
       return;
     }
 
@@ -422,11 +450,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       } else if (
         !(coord.x === interaction.from.x && coord.y === interaction.from.y)
       ) {
-        onSelect(interaction.from);
-        onSelectRegionAt(regionAt(regions, interaction.from.x, interaction.from.y)?.id ?? null);
+        onSelect({ type: 'cell', x: interaction.from.x, y: interaction.from.y });
+        onSelectRegion(regionAt(regions, interaction.from.x, interaction.from.y)?.id ?? null);
       } else {
-        onSelect(coord);
-        onSelectRegionAt(regionAt(regions, coord.x, coord.y)?.id ?? null);
+        onSelect({ type: 'cell', x: coord.x, y: coord.y });
+        onSelectRegion(regionAt(regions, coord.x, coord.y)?.id ?? null);
       }
       setMoveTarget(null);
     }
@@ -437,7 +465,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     if (polygonPoints.length < 3) return;
     const covered = polygonCells(polygonPoints);
     setPolygonPoints([]);
-      if (covered.length > 0) onRegionSelect(covered);
+    if (covered.length > 0) onDraftAdd(covered);
   };
 
   const cursor =
@@ -534,22 +562,28 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       placedCharacters.map((placed) => {
         const character = charactersById.get(placed.characterId);
         const src = character?.avatarThumbUrl ?? character?.avatarUrl;
+        const selected =
+          selection?.type === 'character' &&
+          selection.x === placed.x &&
+          selection.y === placed.y;
         return (
           <button
             key={`ch-${placed.x},${placed.y}`}
             type="button"
-            className="absolute flex cursor-pointer items-center justify-center"
+            className="pointer-events-auto absolute flex cursor-pointer items-center justify-center transition-transform"
             style={{
               left: placed.x * CELL_SIZE,
               top: placed.y * CELL_SIZE,
               width: CELL_SIZE,
               height: CELL_SIZE,
               zIndex: 25,
+              transform: selected ? 'scale(1.06)' : undefined,
+              filter: selected ? 'drop-shadow(0 0 6px rgba(59,130,246,0.9))' : undefined,
             }}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
-              onOpenCharacter({ x: placed.x, y: placed.y });
+              onSelectCharacter(placed.characterId, placed.x, placed.y);
             }}
             title={character?.name ?? `#${placed.characterId}`}
           >
@@ -567,7 +601,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           </button>
         );
       }),
-    [placedCharacters, charactersById, onOpenCharacter],
+    [placedCharacters, charactersById, onSelectCharacter, selection],
   );
 
   const regionFills = useMemo(
@@ -656,7 +690,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
               onPointerDown={(event) => event.stopPropagation()}
               onClick={(event) => {
                 event.stopPropagation();
-                onSelectRegionAt(region.id);
+                onSelect({ type: 'region', regionId: region.id });
+                onSelectRegion(region.id);
               }}
               title={region.id}
             >
@@ -666,17 +701,44 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         })}
       </div>
     ),
-    [regions, onSelectRegionAt],
+    [regions, onSelect, onSelectRegion],
+  );
+
+  const selectionCell =
+    selection?.type === 'cell' || selection?.type === 'character'
+      ? { x: selection.x, y: selection.y }
+      : null;
+
+  const draftOverlay = (
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 12 }}>
+      {Array.from(regionDraftSelection).map((key) => {
+        const [x, y] = key.split(',').map(Number) as [number, number];
+        return (
+          <div
+            key={`draft-${key}`}
+            className="absolute"
+            style={{
+              left: x * CELL_SIZE,
+              top: y * CELL_SIZE,
+              width: CELL_SIZE,
+              height: CELL_SIZE,
+              backgroundColor: 'rgba(59,130,246,0.25)',
+              boxShadow: 'inset 0 0 0 1px #3B82F6',
+            }}
+          />
+        );
+      })}
+    </div>
   );
 
   const selectionOverlay = (
     <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 26 }}>
-      {selection ? (
+      {selectionCell ? (
         <div
           className="absolute ring-2 ring-inset ring-primary"
           style={{
-            left: selection.x * CELL_SIZE,
-            top: selection.y * CELL_SIZE,
+            left: selectionCell.x * CELL_SIZE,
+            top: selectionCell.y * CELL_SIZE,
             width: CELL_SIZE,
             height: CELL_SIZE,
           }}
@@ -772,6 +834,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         {backgroundNodes}
         {regionFills}
         {regionEdges}
+        {draftOverlay}
 
         <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 15 }}>
           {objectNodes}
@@ -791,7 +854,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       >
         {rulerColumns.map((column) => {
           const active =
-            hover?.x === column - 1 || selection?.x === column - 1;
+            hover?.x === column - 1 || selectionCell?.x === column - 1;
           return (
             <div
               key={`rul-col-${column}`}
@@ -821,8 +884,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                 top: pan.y + (row - 0.5) * CELL_SIZE * zoom - 28,
                 height: 16,
                 backgroundColor:
-                  hover?.y === row - 1 || selection?.y === row - 1 ? '#DBEAFE' : '#F9FAFB',
-                color: hover?.y === row - 1 || selection?.y === row - 1 ? '#1E3A8A' : '#374151',
+                  hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#DBEAFE' : '#F9FAFB',
+                color: hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#1E3A8A' : '#374151',
               }}
             >
               R{row}

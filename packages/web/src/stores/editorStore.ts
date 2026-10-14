@@ -44,6 +44,11 @@ export interface RegionInput {
 
 export type ConflictMode = 'override' | 'skip';
 
+export type Selection =
+  | { type: 'cell'; x: number; y: number }
+  | { type: 'region'; regionId: string }
+  | { type: 'character'; characterId: number; x: number; y: number };
+
 interface Snapshot {
   gridSize: number;
   cells: Map<CellKey, DraftCell>;
@@ -61,10 +66,11 @@ export interface EditorState {
   placedCharacters: PlacedCharacter[];
   activeTool: EditorTool;
   activeLayer: EditorLayer;
-  selection: { x: number; y: number } | null;
+  selection: Selection | null;
   selectedRegionId: string | null;
   selectedItemId: number | null;
   selectedCharacterId: number | null;
+  regionDraftSelection: Set<string>;
   zoom: number;
   pan: { x: number; y: number };
   dirty: boolean;
@@ -77,10 +83,15 @@ export interface EditorState {
   init: (projectId: number, draft: MapDraft, meta: EditorMeta) => void;
   setTool: (tool: EditorTool) => void;
   setLayer: (layer: EditorLayer) => void;
-  setSelection: (selection: { x: number; y: number } | null) => void;
+  setSelection: (selection: Selection | null) => void;
   setSelectedRegion: (id: string | null) => void;
   setSelectedItem: (id: number | null) => void;
   setSelectedCharacter: (id: number | null) => void;
+
+  toggleDraftCell: (x: number, y: number) => void;
+  addDraftCells: (cells: Array<[number, number]>) => void;
+  removeDraftCells: (cells: Array<[number, number]>) => void;
+  clearDraftSelection: () => void;
 
   placeBackground: (itemId: number, x: number, y: number) => void;
   placeObject: (
@@ -148,6 +159,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     selectedRegionId: null,
     selectedItemId: null,
     selectedCharacterId: null,
+    regionDraftSelection: new Set<string>(),
     zoom: 1,
     pan: { x: 0, y: 0 },
     dirty: false,
@@ -177,6 +189,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selectedRegionId: null,
         selectedItemId: null,
         selectedCharacterId: null,
+        regionDraftSelection: new Set<string>(),
         zoom: 1,
         pan: { x: 0, y: 0 },
         dirty: false,
@@ -188,12 +201,40 @@ export const useEditorStore = create<EditorState>((set, get) => {
       });
     },
 
-    setTool: (activeTool) => set({ activeTool }),
+    setTool: (activeTool) =>
+      activeTool === 'region'
+        ? set({ activeTool })
+        : set({ activeTool, regionDraftSelection: new Set<string>() }),
     setLayer: (activeLayer) => set({ activeLayer }),
     setSelection: (selection) => set({ selection }),
     setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
     setSelectedItem: (selectedItemId) => set({ selectedItemId }),
     setSelectedCharacter: (selectedCharacterId) => set({ selectedCharacterId }),
+
+    toggleDraftCell: (x, y) =>
+      set((state) => {
+        const key = coordKey(x, y);
+        const next = new Set(state.regionDraftSelection);
+        if (next.has(key)) next.delete(key);
+        else next.add(key);
+        return { regionDraftSelection: next };
+      }),
+
+    addDraftCells: (cells) =>
+      set((state) => {
+        const next = new Set(state.regionDraftSelection);
+        for (const [x, y] of cells) next.add(coordKey(x, y));
+        return { regionDraftSelection: next };
+      }),
+
+    removeDraftCells: (cells) =>
+      set((state) => {
+        const next = new Set(state.regionDraftSelection);
+        for (const [x, y] of cells) next.delete(coordKey(x, y));
+        return { regionDraftSelection: next };
+      }),
+
+    clearDraftSelection: () => set({ regionDraftSelection: new Set<string>() }),
 
     placeBackground: (itemId, x, y) =>
       commit((next) => {
