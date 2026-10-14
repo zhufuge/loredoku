@@ -35,7 +35,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { EditorCanvas, type EditorCanvasHandle } from '@/components/editor/EditorCanvas';
+import { EditorCanvas, type CharacterDragPreview, type EditorCanvasHandle } from '@/components/editor/EditorCanvas';
 import { EditorLeftPanel } from '@/components/editor/EditorLeftPanel';
 import { EditorToolbar } from '@/components/editor/EditorToolbar';
 import { EditorBottomBar } from '@/components/editor/EditorBottomBar';
@@ -50,6 +50,7 @@ import { useProjectMap, useSaveMap, useUpdateGridSize } from '@/hooks/useMap';
 import { usePublishProject } from '@/hooks/useVersions';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
+import { DROP_REJECTION_MESSAGES, validateCharacterDrop } from '@/lib/characterDrop';
 import type { Coord } from '@/lib/region';
 import { isConnected, regionAt } from '@/lib/region';
 import { cn } from '@/lib/utils';
@@ -227,11 +228,111 @@ export function EditorPage(): JSX.Element {
 
   const clearSlot = (index: number): void => {
     const slot = editor.characterSlots[index];
-    if (slot && slot.characterId === editor.selectedCharacterId) {
+    if (!slot) return;
+    editor.clearCharacterSlot(index);
+    if (slot.characterId === editor.selectedCharacterId) {
       editor.setSelectedCharacter(null);
       setSlotCharacterId(null);
     }
   };
+
+  // ---- Roster → canvas pointer drag (docs/v0.2.5.md BUG-403) ----
+  const [characterDrag, setCharacterDrag] = useState<CharacterDragPreview | null>(null);
+  const characterDragRef = useRef<CharacterDragPreview | null>(null);
+  characterDragRef.current = characterDrag;
+
+  const resolveDropCell = (pointer: { x: number; y: number }): CellCoord | null => {
+    const handle = canvasRef.current;
+    if (!handle) return null;
+    const cell = handle.clientToCell(pointer.x, pointer.y);
+    return isInBounds(cell, editor.gridSize) ? cell : null;
+  };
+
+  const checkDrop = (
+    characterId: number,
+    cell: CellCoord | null,
+  ): { cell: CellCoord | null; valid: boolean } => {
+    if (!cell) return { cell: null, valid: false };
+    const result = validateCharacterDrop({
+      cell,
+      gridSize: editor.gridSize,
+      cells: editor.cells,
+      placedCharacters: editor.placedCharacters,
+      characterId,
+      itemsById,
+    });
+    return { cell, valid: result.ok };
+  };
+
+  const beginCharacterDrag = (payload: {
+    characterId: number;
+    sourceSlotIndex: number;
+    pointer: { x: number; y: number };
+  }): void => {
+    setCharacterDrag({
+      characterId: payload.characterId,
+      sourceSlotIndex: payload.sourceSlotIndex,
+      pointer: payload.pointer,
+      target: null,
+      valid: false,
+    });
+  };
+
+  const moveCharacterDrag = (pointer: { x: number; y: number }): void => {
+    const drag = characterDragRef.current;
+    if (!drag) return;
+    const { cell, valid } = checkDrop(drag.characterId, resolveDropCell(pointer));
+    setCharacterDrag({ ...drag, pointer, target: cell, valid });
+  };
+
+  const cancelCharacterDrag = (): void => setCharacterDrag(null);
+
+  const endCharacterDrag = (pointer: { x: number; y: number }): void => {
+    const drag = characterDragRef.current;
+    if (!drag) return;
+    setCharacterDrag(null);
+
+    // Dropping onto another roster slot reorders the roster.
+    const slotNode = document
+      .elementFromPoint(pointer.x, pointer.y)
+      ?.closest('[data-slot-index]');
+    if (slotNode) {
+      const targetIndex = Number(slotNode.getAttribute('data-slot-index'));
+      if (Number.isInteger(targetIndex) && targetIndex !== drag.sourceSlotIndex) {
+        editor.swapSlots(drag.sourceSlotIndex, targetIndex);
+      }
+      return;
+    }
+
+    const cell = resolveDropCell(pointer);
+    if (!cell) {
+      toast.error(DROP_REJECTION_MESSAGES['out-of-bounds']);
+      return;
+    }
+    const result = validateCharacterDrop({
+      cell,
+      gridSize: editor.gridSize,
+      cells: editor.cells,
+      placedCharacters: editor.placedCharacters,
+      characterId: drag.characterId,
+      itemsById,
+    });
+    if (!result.ok) {
+      toast.error(DROP_REJECTION_MESSAGES[result.reason]);
+      return;
+    }
+    editor.placeCharacter(drag.characterId, cell.x, cell.y, drag.sourceSlotIndex);
+    toast.success('已放置角色');
+  };
+
+  useEffect(() => {
+    if (!characterDrag) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') cancelCharacterDrag();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [characterDrag]);
 
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
     if (regionDialog.mode === 'create') {
@@ -590,9 +691,13 @@ export function EditorPage(): JSX.Element {
             slots={editor.characterSlots}
             charactersById={charactersById}
             selectedCharacterId={editor.selectedCharacterId}
+            draggingIndex={characterDrag?.sourceSlotIndex ?? null}
             onSelect={selectSlotCharacter}
-            onSwap={editor.swapSlots}
             onClear={clearSlot}
+            onDragBegin={beginCharacterDrag}
+            onDragMove={moveCharacterDrag}
+            onDragEnd={endCharacterDrag}
+            onDragCancel={cancelCharacterDrag}
           />
         </div>
 
@@ -615,6 +720,7 @@ export function EditorPage(): JSX.Element {
             showRulers={rulerVisible}
             pendingItem={pendingItem}
             regionDraftSelection={editor.regionDraftSelection}
+            characterDrag={characterDrag}
             onSelect={(selection) => {
               editor.setSelection(selection);
               setSlotCharacterId(null);
@@ -645,9 +751,6 @@ export function EditorPage(): JSX.Element {
                   coord.y,
                 );
               }
-            }}
-            onDropCharacter={(characterId, coord) => {
-              editor.placeCharacter(characterId, coord.x, coord.y);
             }}
             onErase={(coord) => editor.eraseAt(coord.x, coord.y)}
             onZoom={editor.setZoom}

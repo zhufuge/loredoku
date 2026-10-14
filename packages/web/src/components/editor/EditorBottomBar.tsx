@@ -19,11 +19,29 @@ import type { EditorTool, RegionShape } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const TOOLS: Array<{ id: EditorTool; label: string; hint: string; icon: typeof MousePointer2 }> = [
+const TOOLS: Array<{
+  id: EditorTool;
+  label: string;
+  hint: string;
+  tip?: string;
+  icon: typeof MousePointer2;
+}> = [
   { id: 'select', label: '选择 / 放置', hint: 'V', icon: MousePointer2 },
   { id: 'region', label: '区域选择', hint: 'R', icon: BoxSelect },
-  { id: 'character', label: '放置角色', hint: 'C', icon: User },
-  { id: 'eraser', label: '橡皮擦', hint: 'E', icon: Eraser },
+  {
+    id: 'character',
+    label: '放置角色',
+    hint: 'C',
+    tip: '从左侧队伍槽位拖拽角色到画布即可落位',
+    icon: User,
+  },
+  {
+    id: 'eraser',
+    label: '橡皮擦',
+    hint: 'E',
+    tip: '按 物件 → 背景 顺序逐层清除',
+    icon: Eraser,
+  },
   { id: 'pan', label: '平移画布', hint: 'Space', icon: Hand },
 ];
 
@@ -86,7 +104,7 @@ export function EditorBottomBar({
               variant={activeTool === tool.id ? 'secondary' : 'ghost'}
               size="icon"
               className="h-9 w-9 rounded-full"
-              title={`${tool.label} (${tool.hint})`}
+              title={[`${tool.label} (${tool.hint})`, tool.tip].filter(Boolean).join(' · ')}
               onClick={() => onSetTool(tool.id)}
             >
               <Icon className="h-4 w-4" />

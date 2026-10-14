@@ -172,7 +172,9 @@ export function RegionDialog({
           <div className="grid gap-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="region-border">边界线宽</Label>
-              <span className="text-xs tabular-nums text-muted-foreground">{borderWidth}px</span>
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {borderWidth}px（默认 {REGION_BORDER_WIDTH_DEFAULT}）
+              </span>
             </div>
             <input
               id="region-border"

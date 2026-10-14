@@ -156,7 +156,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           ) : (
             <>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {item.imageUrl ? '已停用' : '未启用（缺图片）'}
+                {item.imageUrl ? '已停用' : '未启用'}
               </span>
               <Button
                 variant="outline"

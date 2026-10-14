@@ -12,6 +12,7 @@ import {
   type PlacedCharacter,
 } from '@murdoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
+import { isEmptyCell, objectFootprintKeys, resolveEraseTarget } from '@/lib/erase';
 
 export type CellKey = `${number},${number}`;
 
@@ -99,12 +100,11 @@ export interface EditorState {
     x: number,
     y: number,
   ) => void;
-  placeCharacter: (characterId: number, x: number, y: number) => void;
+  placeCharacter: (characterId: number, x: number, y: number, preferredSlotIndex?: number) => void;
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
   clearObjectAt: (x: number, y: number) => void;
   removeCharacterAt: (x: number, y: number) => void;
-  moveObject: (fromX: number, fromY: number, toX: number, toY: number) => void;
   setPlacedMeta: (x: number, y: number, mapMeta: Record<string, unknown>) => void;
 
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
@@ -113,6 +113,7 @@ export interface EditorState {
   deleteRegion: (id: string) => void;
 
   setSlot: (index: number, characterId: number | null) => void;
+  clearCharacterSlot: (index: number) => void;
   swapSlots: (from: number, to: number) => void;
   returnCharacterToSlot: (characterId: number) => boolean;
 
@@ -260,11 +261,20 @@ export const useEditorStore = create<EditorState>((set, get) => {
         }
       }),
 
-    placeCharacter: (characterId, x, y) =>
+    // Atomic: frees the roster slot and adds the placement in one history step.
+    placeCharacter: (characterId, x, y, preferredSlotIndex) =>
       commit((next) => {
-        const originSlotIndex = next.characterSlots.findIndex(
-          (slot) => slot?.characterId === characterId,
-        );
+        const preferred =
+          preferredSlotIndex !== undefined &&
+          preferredSlotIndex >= 0 &&
+          preferredSlotIndex < next.characterSlots.length &&
+          next.characterSlots[preferredSlotIndex]?.characterId === characterId
+            ? preferredSlotIndex
+            : -1;
+        const originSlotIndex =
+          preferred !== -1
+            ? preferred
+            : next.characterSlots.findIndex((slot) => slot?.characterId === characterId);
         if (originSlotIndex !== -1) {
           next.characterSlots = next.characterSlots.map((slot, index) =>
             index === originSlotIndex ? null : slot,
@@ -291,26 +301,44 @@ export const useEditorStore = create<EditorState>((set, get) => {
         );
       }),
 
-    eraseAt: (x, y) =>
+    // Eraser order: characters → object layer → background layer (visual top-down).
+    // `activeLayer` is intentionally ignored, see docs/v0.2.5.md BUG-406.
+    eraseAt: (x, y) => {
+      const state = get();
+      const target = resolveEraseTarget(state.cells, state.placedCharacters, x, y);
+      if (!target) return;
+      const targetKey = target.key as CellKey;
       commit((next) => {
-        const hasCharacter = next.placedCharacters.some(
-          (placed) => placed.x === x && placed.y === y,
-        );
-        if (hasCharacter) {
+        if (target.layer === 'character') {
           next.placedCharacters = next.placedCharacters.filter(
-            (placed) => !(placed.x === x && placed.y === y),
+            (placed) => !(placed.x === target.x && placed.y === target.y),
           );
           return;
         }
-        const key = cellKey(x, y);
-        const cell = next.cells.get(key);
+        if (target.layer === 'object') {
+          const anchor = next.cells.get(targetKey)?.object;
+          const keys = anchor
+            ? objectFootprintKeys(anchor, target.x, target.y)
+            : [target.key];
+          for (const rawKey of keys) {
+            const key = rawKey as CellKey;
+            const cell = next.cells.get(key);
+            if (!cell) continue;
+            const copy = { ...cell };
+            delete copy.object;
+            if (isEmptyCell(copy)) next.cells.delete(key);
+            else next.cells.set(key, copy);
+          }
+          return;
+        }
+        const cell = next.cells.get(targetKey);
         if (!cell) return;
         const copy = { ...cell };
-        if (get().activeLayer === 'background') delete copy.background;
-        else delete copy.object;
-        if (!copy.background && !copy.object && !copy.objectRef) next.cells.delete(key);
-        else next.cells.set(key, copy);
-      }),
+        delete copy.background;
+        if (isEmptyCell(copy)) next.cells.delete(targetKey);
+        else next.cells.set(targetKey, copy);
+      });
+    },
 
     clearCell: (x, y) =>
       commit((next) => {
@@ -327,34 +355,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
         if (!cell) return;
         const copy = { ...cell };
         delete copy.object;
-        if (!copy.background && !copy.objectRef) next.cells.delete(key);
+        if (isEmptyCell(copy)) next.cells.delete(key);
         else next.cells.set(key, copy);
-      }),
-
-    moveObject: (fromX, fromY, toX, toY) =>
-      commit((next) => {
-        const source = next.cells.get(cellKey(fromX, fromY))?.object;
-        if (!source) return;
-        for (let dy = 0; dy < source.h; dy += 1) {
-          for (let dx = 0; dx < source.w; dx += 1) {
-            const key = cellKey(fromX + dx, fromY + dy);
-            const cell = next.cells.get(key);
-            if (!cell) continue;
-            const copy = { ...cell };
-            delete copy.object;
-            if (!copy.background && !copy.objectRef) next.cells.delete(key);
-            else next.cells.set(key, copy);
-          }
-        }
-        for (let dy = 0; dy < source.h; dy += 1) {
-          for (let dx = 0; dx < source.w; dx += 1) {
-            const key = cellKey(toX + dx, toY + dy);
-            const cell: DraftCell = { ...(next.cells.get(key) ?? {}) };
-            delete cell.object;
-            if (dx === 0 && dy === 0) cell.object = { ...source };
-            next.cells.set(key, cell);
-          }
-        }
       }),
 
     setPlacedMeta: (x, y, mapMeta) =>
@@ -448,6 +450,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
           i === index ? (characterId ? { characterId } : null) : slot,
         );
       }),
+
+    // Only touches the roster, never map data. Undo restores the slot.
+    clearCharacterSlot: (index) => {
+      if (!get().characterSlots[index]) return;
+      commit((next) => {
+        next.characterSlots = next.characterSlots.map((slot, i) => (i === index ? null : slot));
+      });
+    },
 
     swapSlots: (from, to) =>
       commit((next) => {

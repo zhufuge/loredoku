@@ -44,12 +44,10 @@ describe('placement', () => {
     expect(store().cells.has('1,1')).toBe(true);
   });
 
-  it('moves an object footprint', () => {
-    store().placeObject({ id: 2, widthCells: 2, heightCells: 1 }, 0, 0);
-    store().moveObject(0, 0, 3, 3);
-    expect(store().cells.get('0,0')?.object).toBeUndefined();
-    expect(store().cells.get('3,3')?.object).toEqual({ itemId: 2, w: 2, h: 1 });
-    expect(store().cells.get('4,3')).toEqual({});
+  it('removes a multi-cell object footprint together with its placeholders', () => {
+    store().placeObject({ id: 2, widthCells: 2, heightCells: 2 }, 0, 0);
+    store().eraseAt(1, 1);
+    expect(store().cells.size).toBe(0);
   });
 });
 
@@ -70,23 +68,106 @@ describe('characters', () => {
 });
 
 describe('eraseAt', () => {
-  it('erases from the active layer only', () => {
+  // docs/v0.2.5.md BUG-406 — object layer first, background last.
+  it('erases the object layer before the background layer', () => {
     store().placeBackground(1, 0, 0);
     store().placeObject({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
 
-    store().setLayer('object');
     store().eraseAt(0, 0);
     expect(store().cells.get('0,0')).toEqual({ background: { itemId: 1 } });
 
-    store().setLayer('background');
     store().eraseAt(0, 0);
     expect(store().cells.has('0,0')).toBe(false);
   });
 
-  it('removes a character before the layers', () => {
-    store().placeCharacter(3, 0, 0);
+  it('ignores activeLayer', () => {
+    store().placeBackground(1, 0, 0);
+    store().placeObject({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
+
     store().setLayer('background');
     store().eraseAt(0, 0);
+    expect(store().cells.get('0,0')).toEqual({ background: { itemId: 1 } });
+
+    store().setLayer('object');
+    store().eraseAt(0, 0);
+    expect(store().cells.has('0,0')).toBe(false);
+  });
+
+  it('does not push history for a no-op erase', () => {
+    const before = store().past.length;
+    store().eraseAt(0, 0);
+    expect(store().past).toHaveLength(before);
+    expect(store().dirty).toBe(false);
+  });
+
+  it('records two erases as two steps undone in reverse order', () => {
+    store().placeBackground(1, 0, 0);
+    store().placeObject({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
+    const baseline = store().past.length;
+
+    store().eraseAt(0, 0);
+    store().eraseAt(0, 0);
+    expect(store().past).toHaveLength(baseline + 2);
+    expect(store().cells.has('0,0')).toBe(false);
+
+    store().undo();
+    expect(store().cells.get('0,0')).toEqual({ background: { itemId: 1 } });
+    store().undo();
+    expect(store().cells.get('0,0')).toEqual({
+      background: { itemId: 1 },
+      object: { itemId: 2, w: 1, h: 1 },
+    });
+  });
+
+  it('removes a character before the layers', () => {
+    store().placeCharacter(3, 0, 0);
+    store().eraseAt(0, 0);
+    expect(store().placedCharacters).toHaveLength(0);
+  });
+});
+
+describe('clearCharacterSlot', () => {
+  it('frees a roster slot without touching map data', () => {
+    store().setSlot(1, 12);
+    const baseline = store().past.length;
+    store().clearCharacterSlot(1);
+    expect(store().characterSlots[1]).toBeNull();
+    expect(store().dirty).toBe(true);
+    expect(store().past).toHaveLength(baseline + 1);
+    expect(store().placedCharacters).toHaveLength(0);
+  });
+
+  it('restores the character to the same slot on undo', () => {
+    store().setSlot(0, 5);
+    store().setSlot(1, 12);
+    store().clearCharacterSlot(1);
+    store().undo();
+    expect(store().characterSlots[1]).toEqual({ characterId: 12 });
+    expect(store().characterSlots[0]).toEqual({ characterId: 5 });
+  });
+
+  it('is idempotent for rapid repeated clicks', () => {
+    store().setSlot(2, 8);
+    store().clearCharacterSlot(2);
+    const history = store().past.length;
+    store().clearCharacterSlot(2);
+    expect(store().past).toHaveLength(history);
+  });
+});
+
+describe('placeCharacter from a roster slot', () => {
+  it('clears the source slot and records its origin', () => {
+    store().setSlot(3, 11);
+    store().placeCharacter(11, 2, 2, 3);
+    expect(store().characterSlots[3]).toBeNull();
+    expect(store().placedCharacters[0]?.originSlotIndex).toBe(3);
+  });
+
+  it('rolls both arrays back on undo', () => {
+    store().setSlot(3, 11);
+    store().placeCharacter(11, 2, 2, 3);
+    store().undo();
+    expect(store().characterSlots[3]).toEqual({ characterId: 11 });
     expect(store().placedCharacters).toHaveLength(0);
   });
 });
