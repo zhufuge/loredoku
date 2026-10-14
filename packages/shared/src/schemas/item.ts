@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import {
   DEFAULT_ITEM_CATEGORY,
+  DEFAULT_ITEM_FIT_MODE,
   EFFECT_TYPES,
   ITEM_CATEGORIES,
   ITEM_CODE_MAX_LENGTH,
   ITEM_CODE_PATTERN,
+  ITEM_FIT_MODES,
   ITEM_NAME_MAX_LENGTH,
   ITEM_SIZE_DEFAULT,
   ITEM_SIZE_MAX,
@@ -12,6 +14,8 @@ import {
 } from '../constants';
 
 export const effectTypeSchema = z.enum(EFFECT_TYPES);
+
+export const itemFitModeSchema = z.enum(ITEM_FIT_MODES);
 
 export const itemTriggerInputSchema = z.object({
   triggerKey: z.string().trim().min(1, '触发器 Key 不能为空').max(64),
@@ -38,6 +42,7 @@ export const createItemSchema = z.object({
   widthCells: itemSizeSchema.default(ITEM_SIZE_DEFAULT),
   heightCells: itemSizeSchema.default(ITEM_SIZE_DEFAULT),
   canStand: z.boolean().default(true),
+  fitMode: itemFitModeSchema.default(DEFAULT_ITEM_FIT_MODE),
   meta: z.record(z.unknown()).default({}),
   triggers: z.array(itemTriggerInputSchema).default([]),
 });
@@ -48,6 +53,7 @@ export const updateItemSchema = z.object({
   widthCells: itemSizeSchema.optional(),
   heightCells: itemSizeSchema.optional(),
   canStand: z.boolean().optional(),
+  fitMode: itemFitModeSchema.optional(),
   meta: z.record(z.unknown()).optional(),
   isActive: z.boolean().optional(),
 });

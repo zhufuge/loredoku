@@ -33,8 +33,16 @@ export const charactersApi = {
   update(id: number, payload: UpdateCharacterPayload): Promise<Character> {
     return apiPatch<Character>(`/characters/${id}`, payload);
   },
-  remove(id: number): Promise<null> {
-    return apiDelete<null>(`/characters/${id}`);
+  remove(id: number, options: { hard?: boolean; clearReferences?: boolean } = {}): Promise<null> {
+    return apiDelete<null>(`/characters/${id}`, {
+      params: { hard: options.hard ?? false, clearReferences: options.clearReferences ?? false },
+    });
+  },
+  enable(id: number): Promise<Character> {
+    return apiPost<Character>(`/characters/${id}/enable`, {});
+  },
+  disable(id: number): Promise<Character> {
+    return apiPost<Character>(`/characters/${id}/disable`, {});
   },
   usages(id: number): Promise<CharacterUsage[]> {
     return apiGet<CharacterUsage[]>(`/characters/${id}/usages`);

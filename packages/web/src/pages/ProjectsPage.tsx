@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, List, Plus, Search } from 'lucide-react';
+import { LayoutGrid, List, Loader2, Plus, Search } from 'lucide-react';
 import type { ProjectDetail } from '@murdoku/shared';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -41,6 +40,10 @@ export function ProjectsPage(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<ProjectDetail | null>(null);
 
   useEffect(() => {
+    document.title = '地图 · Murdoku Maker';
+  }, []);
+
+  useEffect(() => {
     const timer = setTimeout(() => {
       setKeyword(keywordInput.trim());
       setPage(1);
@@ -72,11 +75,11 @@ export function ProjectsPage(): JSX.Element {
   };
 
   const confirmDelete = (): void => {
-    if (deleteTarget) {
-      deleteMutation.mutate(deleteTarget.id);
-      setDeleteTarget(null);
-    }
+    if (!deleteTarget) return;
+    deleteMutation.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
   };
+
+  const deleting = deleteMutation.isPending;
 
   function renderContent(): JSX.Element {
     if (isLoading) {
@@ -153,7 +156,7 @@ export function ProjectsPage(): JSX.Element {
     <section className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">地图项目</h1>
+          <h1 className="text-2xl font-semibold">地图</h1>
           <p className="text-sm text-muted-foreground">创建、管理并编辑你的地图。</p>
         </div>
         <Button onClick={() => setCreateOpen(true)}>
@@ -234,8 +237,17 @@ export function ProjectsPage(): JSX.Element {
       <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
       <EditProjectDialog project={editProject} onOpenChange={(open) => !open && setEditProject(null)} />
 
-      <AlertDialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
-        <AlertDialogContent>
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            if (deleting) event.preventDefault();
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle>删除项目「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
@@ -243,8 +255,17 @@ export function ProjectsPage(): JSX.Element {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete}>删除</AlertDialogAction>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <Button variant="destructive" disabled={deleting} onClick={confirmDelete}>
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  删除中…
+                </>
+              ) : (
+                '删除'
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

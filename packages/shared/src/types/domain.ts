@@ -3,6 +3,7 @@ import type {
   EDITOR_TOOLS,
   CARD_ROTATIONS,
   ITEM_CATEGORIES,
+  ITEM_FIT_MODES,
   EDITOR_LAYERS,
   REGION_SHAPES,
   PROJECT_STATUSES,
@@ -12,6 +13,7 @@ export type EffectType = (typeof EFFECT_TYPES)[number];
 export type EditorTool = (typeof EDITOR_TOOLS)[number];
 export type CardRotation = (typeof CARD_ROTATIONS)[number];
 export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
+export type ItemFitMode = (typeof ITEM_FIT_MODES)[number];
 export type EditorLayer = (typeof EDITOR_LAYERS)[number];
 export type RegionShape = (typeof REGION_SHAPES)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
@@ -60,6 +62,7 @@ export interface Item {
   widthCells: number;
   heightCells: number;
   canStand: boolean;
+  fitMode: ItemFitMode;
   imagePath: string | null;
   imageUrl: string | null;
   imageThumbUrl: string | null;

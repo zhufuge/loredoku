@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CELL_SIZE } from '@murdoku/shared';
 import type { DraftRegion } from '@murdoku/shared';
-import { buildRegionEdges, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, polygonCells, rectCells, regionAt, regionCellSet } from './region';
+import { buildRegionEdges, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, rectCells, regionAt, regionCellSet } from './region';
 
 function region(id: string, cells: Array<[number, number]>): DraftRegion {
   return { id, name: `R${id}`, color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells };
@@ -133,26 +133,6 @@ describe('computeLabelCell', () => {
 
   it('returns null for an empty region', () => {
     expect(computeLabelCell([])).toBeNull();
-  });
-});
-
-describe('polygonCells', () => {
-  it('covers the cells enclosed by a square outline', () => {
-    expect(polygonCells([
-      [0, 0],
-      [2, 0],
-      [2, 2],
-      [0, 2],
-    ])).toEqual([
-      [0, 0],
-      [1, 0],
-      [0, 1],
-      [1, 1],
-    ]);
-  });
-
-  it('returns nothing for fewer than three points', () => {
-    expect(polygonCells([[0, 0], [1, 1]])).toEqual([]);
   });
 });
 

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   DEFAULT_REGION_COLOR,
   GRID_SIZE_MAX,
+  GRID_SIZE_MIN,
   PROJECT_NOTE_MAX_LENGTH,
   REGION_BORDER_WIDTH_DEFAULT,
   REGION_BORDER_WIDTH_MAX,
@@ -69,7 +70,7 @@ export const placedCharacterSchema = z.object({
 export const mapDraftSchema = z
   .object({
     version: z.number().int().positive(),
-    gridSize: z.number().int().min(3).max(24),
+    gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
     cells: z.record(cellKeySchema, draftCellSchema),
     regions: z.array(draftRegionSchema),
     characterSlots: z.array(characterSlotSchema.nullable()),
@@ -90,7 +91,7 @@ export const importMapSchema = z.object({
 });
 
 export const updateGridSizeSchema = z.object({
-  gridSize: z.number().int().min(3).max(24),
+  gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
 });
 
 export const publishSchema = z.object({

@@ -9,6 +9,8 @@ charactersRouter.post('/', controller.create);
 charactersRouter.get('/:id', controller.detail);
 charactersRouter.patch('/:id', controller.update);
 charactersRouter.delete('/:id', controller.remove);
+charactersRouter.post('/:id/enable', controller.enable);
+charactersRouter.post('/:id/disable', controller.disable);
 charactersRouter.get('/:id/usages', controller.usages);
 charactersRouter.post('/:id/avatar', characterAvatarUpload.single('file'), controller.uploadAvatar);
 charactersRouter.delete('/:id/avatar', controller.deleteAvatar);

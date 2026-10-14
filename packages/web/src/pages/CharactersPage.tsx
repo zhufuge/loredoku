@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Loader2, Plus, Search } from 'lucide-react';
 import type { Character } from '@murdoku/shared';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -46,6 +45,11 @@ export function CharactersPage(): JSX.Element {
   const { data: characters, isLoading, isError, error, refetch } = useCharacters(params);
   const { data: usages } = useCharacterUsages(deleteTarget?.id ?? null);
   const deleteMutation = useDeleteCharacter();
+  const deleting = deleteMutation.isPending;
+
+  useEffect(() => {
+    document.title = '角色 · Murdoku Maker';
+  }, []);
 
   useEffect(() => {
     if (
@@ -58,6 +62,14 @@ export function CharactersPage(): JSX.Element {
   }, [characters, selectedId]);
 
   const selectedCharacter = characters?.find((character) => character.id === selectedId) ?? null;
+
+  const runDelete = (options: { hard: boolean; clearReferences: boolean }): void => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(
+      { id: deleteTarget.id, ...options },
+      { onSuccess: () => setDeleteTarget(null) },
+    );
+  };
 
   function renderList(): JSX.Element {
     if (isLoading) {
@@ -109,7 +121,7 @@ export function CharactersPage(): JSX.Element {
   return (
     <section className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold">角色管理</h1>
+          <h1 className="text-2xl font-semibold">角色</h1>
         <p className="text-sm text-muted-foreground">维护角色头像与描述，供地图放置使用。</p>
       </div>
 
@@ -163,30 +175,52 @@ export function CharactersPage(): JSX.Element {
 
       <AlertDialog
         open={deleteTarget !== null}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            if (deleting) event.preventDefault();
+          }}
+        >
           <AlertDialogHeader>
-            <AlertDialogTitle>停用角色「{deleteTarget?.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>彻底删除角色「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
               {usages && usages.length > 0
                 ? `该角色正被 ${usages.length} 个项目使用（${usages
                     .map((usage) => usage.projectName)
-                    .join('、')}）。`
-                : '该角色尚未被任何项目使用。'}{' '}
-              停用后不会出现在角色面板中。
+                    .join('、')}）。删除将从数据库移除该角色，并从草稿中移除其放置与槽位。`
+                : '删除后记录将从数据库中移除，且无法恢复。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
-                setDeleteTarget(null);
-              }}
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            {usages && usages.length > 0 ? (
+              <Button
+                variant="outline"
+                disabled={deleting}
+                onClick={() => runDelete({ hard: false, clearReferences: false })}
+              >
+                仅停用
+              </Button>
+            ) : null}
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={() =>
+                runDelete({ hard: true, clearReferences: Boolean(usages && usages.length > 0) })
+              }
             >
-              停用
-            </AlertDialogAction>
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  删除中…
+                </>
+              ) : (
+                '删除'
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

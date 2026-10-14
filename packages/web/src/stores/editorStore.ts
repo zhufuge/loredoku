@@ -116,6 +116,7 @@ export interface EditorState {
   swapSlots: (from: number, to: number) => void;
 
   setGridSize: (size: number) => void;
+  applyDraft: (draft: MapDraft) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
   resetView: () => void;
@@ -154,7 +155,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     characterSlots: genSlotArray(GRID_SIZE_DEFAULT),
     placedCharacters: [],
     activeTool: 'select',
-    activeLayer: 'object',
+    activeLayer: 'background',
     selection: null,
     selectedRegionId: null,
     selectedItemId: null,
@@ -184,7 +185,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         characterSlots: slots,
         placedCharacters: draft.placedCharacters,
         activeTool: 'select',
-        activeLayer: 'object',
+        activeLayer: 'background',
         selection: null,
         selectedRegionId: null,
         selectedItemId: null,
@@ -461,6 +462,29 @@ export const useEditorStore = create<EditorState>((set, get) => {
         );
         next.characterSlots = genSlotArray(size, next.characterSlots);
         next.gridSize = size;
+      }),
+
+    applyDraft: (draft) =>
+      set((state) => {
+        const cells = new Map<CellKey, DraftCell>();
+        for (const key of Object.keys(draft.cells)) {
+          const cell = draft.cells[key];
+          if (cell) cells.set(key as CellKey, cell);
+        }
+        const past = [...state.past, snapshot(state)].slice(-MAX_HISTORY_STEPS);
+        return {
+          gridSize: draft.gridSize,
+          cells,
+          regions: draft.regions,
+          characterSlots: genSlotArray(draft.gridSize, draft.characterSlots),
+          placedCharacters: draft.placedCharacters,
+          past,
+          future: [],
+          dirty: true,
+          selection: null,
+          selectedRegionId: null,
+          regionDraftSelection: new Set<string>(),
+        };
       }),
 
     setZoom: (zoom) => set({ zoom }),

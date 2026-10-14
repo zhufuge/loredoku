@@ -60,7 +60,7 @@ describe('projects API', () => {
   });
 
   it('rejects an out-of-range grid size', async () => {
-    const res = await api.post('/api/projects').send({ name: `Bad ${uniqueCode('p')}`, gridSize: 2 });
+    const res = await api.post('/api/projects').send({ name: `Bad ${uniqueCode('p')}`, gridSize: 1 });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });

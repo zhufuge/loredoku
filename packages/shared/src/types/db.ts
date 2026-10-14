@@ -1,4 +1,4 @@
-import type { CardRotation, EffectType, ItemCategory, MapDraft } from './domain';
+import type { CardRotation, EffectType, ItemCategory, ItemFitMode, MapDraft } from './domain';
 import type { PROJECT_STATUSES } from '../constants';
 
 export interface ProjectRow {
@@ -24,6 +24,7 @@ export interface ItemRow {
   width_cells: number;
   height_cells: number;
   can_stand: boolean;
+  fit_mode: ItemFitMode;
   image_path: string | null;
   image_mime: string | null;
   image_size: number | null;

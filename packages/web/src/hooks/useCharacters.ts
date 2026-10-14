@@ -68,9 +68,30 @@ export function useUpdateCharacter() {
 export function useDeleteCharacter() {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: (id: number) => charactersApi.remove(id),
-    onSuccess: () => {
-      toast.success('角色已停用');
+    mutationFn: ({
+      id,
+      hard,
+      clearReferences,
+    }: {
+      id: number;
+      hard?: boolean;
+      clearReferences?: boolean;
+    }) => charactersApi.remove(id, { hard, clearReferences }),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.hard ? '角色已删除' : '角色已停用');
+      invalidate();
+    },
+    onError: (error) => toast.error(errorMessage(error, '操作失败')),
+  });
+}
+
+export function useSetCharacterActive() {
+  const invalidate = useInvalidate();
+  return useMutation({
+    mutationFn: ({ id, active }: { id: number; active: boolean }) =>
+      active ? charactersApi.enable(id) : charactersApi.disable(id),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.active ? '角色已启用' : '角色已停用');
       invalidate();
     },
     onError: (error) => toast.error(errorMessage(error, '操作失败')),

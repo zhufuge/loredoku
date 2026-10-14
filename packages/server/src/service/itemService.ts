@@ -45,6 +45,21 @@ export async function deleteItem(id: number, clearReferences: boolean): Promise<
   await repo.softDelete(id, clearReferences);
 }
 
+export async function setItemActive(id: number, isActive: boolean): Promise<Item> {
+  if (!(await repo.findById(id))) {
+    throw AppError.notFound('物品不存在');
+  }
+  await repo.setActive(id, isActive);
+  return getItem(id);
+}
+
+export async function hardDeleteItem(id: number, clearReferences: boolean): Promise<void> {
+  if (!(await repo.findById(id))) {
+    throw AppError.notFound('物品不存在');
+  }
+  await repo.hardDelete(id, clearReferences);
+}
+
 export async function replaceTriggers(id: number, triggers: ItemTriggerInput[]): Promise<Item> {
   if (!(await repo.findById(id))) {
     throw AppError.notFound('物品不存在');

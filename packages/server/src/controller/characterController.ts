@@ -32,8 +32,24 @@ export async function update(ctx: Context): Promise<void> {
 
 export async function remove(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
+  if (ctx.query.hard === 'true') {
+    const clearReferences = ctx.query.clearReferences === 'true';
+    await characterService.hardDeleteCharacter(id, clearReferences);
+    success(ctx, null, '已删除');
+    return;
+  }
   await characterService.deleteCharacter(id);
   success(ctx, null, '已停用');
+}
+
+export async function enable(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  success(ctx, await characterService.setCharacterActive(id, true), '已启用');
+}
+
+export async function disable(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  success(ctx, await characterService.setCharacterActive(id, false), '已停用');
 }
 
 export async function uploadAvatar(ctx: Context): Promise<void> {

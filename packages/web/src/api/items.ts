@@ -1,4 +1,4 @@
-import type { Item, ItemCategory, ItemTriggerInput, ItemUsage } from '@murdoku/shared';
+import type { Item, ItemCategory, ItemFitMode, ItemTriggerInput, ItemUsage } from '@murdoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client';
 
 export interface ListItemsParams {
@@ -14,6 +14,7 @@ export interface CreateItemPayload {
   widthCells?: number;
   heightCells?: number;
   canStand?: boolean;
+  fitMode?: ItemFitMode;
   meta?: Record<string, unknown>;
   triggers?: ItemTriggerInput[];
 }
@@ -24,6 +25,7 @@ export interface UpdateItemPayload {
   widthCells?: number;
   heightCells?: number;
   canStand?: boolean;
+  fitMode?: ItemFitMode;
   meta?: Record<string, unknown>;
   isActive?: boolean;
 }
@@ -41,8 +43,16 @@ export const itemsApi = {
   update(id: number, payload: UpdateItemPayload): Promise<Item> {
     return apiPatch<Item>(`/items/${id}`, payload);
   },
-  remove(id: number, clearReferences: boolean): Promise<null> {
-    return apiDelete<null>(`/items/${id}`, { params: { clearReferences } });
+  remove(id: number, options: { hard?: boolean; clearReferences?: boolean } = {}): Promise<null> {
+    return apiDelete<null>(`/items/${id}`, {
+      params: { hard: options.hard ?? false, clearReferences: options.clearReferences ?? false },
+    });
+  },
+  enable(id: number): Promise<Item> {
+    return apiPost<Item>(`/items/${id}/enable`, {});
+  },
+  disable(id: number): Promise<Item> {
+    return apiPost<Item>(`/items/${id}/disable`, {});
   },
   usages(id: number): Promise<ItemUsage[]> {
     return apiGet<ItemUsage[]>(`/items/${id}/usages`);

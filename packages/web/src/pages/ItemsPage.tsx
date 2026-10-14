@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Loader2, Plus, Search } from 'lucide-react';
 import { ITEM_CATEGORIES, ITEM_CATEGORY_LABELS, type Item, type ItemCategory } from '@murdoku/shared';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -49,6 +48,11 @@ export function ItemsPage(): JSX.Element {
   const { data: items, isLoading, isError, error, refetch } = useItems(params);
   const { data: usages } = useItemUsages(deleteTarget?.id ?? null);
   const deleteMutation = useDeleteItem();
+  const deleting = deleteMutation.isPending;
+
+  useEffect(() => {
+    document.title = '物品 · Murdoku Maker';
+  }, []);
 
   useEffect(() => {
     if (items && items.length > 0 && !items.some((item) => item.id === selectedId)) {
@@ -58,11 +62,12 @@ export function ItemsPage(): JSX.Element {
 
   const selectedItem = items?.find((item) => item.id === selectedId) ?? null;
 
-  const confirmDelete = (clearReferences: boolean): void => {
-    if (deleteTarget) {
-      deleteMutation.mutate({ id: deleteTarget.id, clearReferences });
-      setDeleteTarget(null);
-    }
+  const runDelete = (options: { hard: boolean; clearReferences: boolean }): void => {
+    if (!deleteTarget) return;
+    deleteMutation.mutate(
+      { id: deleteTarget.id, ...options },
+      { onSuccess: () => setDeleteTarget(null) },
+    );
   };
 
   function renderList(): JSX.Element {
@@ -109,7 +114,7 @@ export function ItemsPage(): JSX.Element {
   return (
     <section className="space-y-5">
       <div>
-        <h1 className="text-2xl font-semibold">物品管理</h1>
+          <h1 className="text-2xl font-semibold">物品</h1>
         <p className="text-sm text-muted-foreground">维护背景 / 物体图案、占格尺寸与触发信息。</p>
       </div>
 
@@ -170,28 +175,52 @@ export function ItemsPage(): JSX.Element {
 
       <AlertDialog
         open={deleteTarget !== null}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onOpenChange={(open) => {
+          if (!open && !deleting) setDeleteTarget(null);
+        }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            if (deleting) event.preventDefault();
+          }}
+        >
           <AlertDialogHeader>
-            <AlertDialogTitle>停用物品「{deleteTarget?.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>彻底删除物品「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
               {usages && usages.length > 0
                 ? `该物品正被 ${usages.length} 个项目使用（${usages
                     .map((usage) => usage.projectName)
-                    .join('、')}）。`
-                : '该物品尚未被任何项目使用。'}{' '}
-              停用后不会出现在物品面板中。
+                    .join('、')}）。删除将从数据库移除该物品，并清除草稿中的引用。`
+                : '删除后记录将从数据库中移除，且无法恢复。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
             {usages && usages.length > 0 ? (
-              <AlertDialogAction onClick={() => confirmDelete(true)}>
-                停用并清空引用
-              </AlertDialogAction>
+              <Button
+                variant="outline"
+                disabled={deleting}
+                onClick={() => runDelete({ hard: false, clearReferences: false })}
+              >
+                仅停用
+              </Button>
             ) : null}
-            <AlertDialogAction onClick={() => confirmDelete(false)}>仅停用</AlertDialogAction>
+            <Button
+              variant="destructive"
+              disabled={deleting}
+              onClick={() =>
+                runDelete({ hard: true, clearReferences: Boolean(usages && usages.length > 0) })
+              }
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  删除中…
+                </>
+              ) : (
+                '删除'
+              )}
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

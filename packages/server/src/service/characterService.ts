@@ -52,6 +52,21 @@ export async function deleteCharacter(id: number): Promise<void> {
   await repo.softDelete(id);
 }
 
+export async function setCharacterActive(id: number, isActive: boolean): Promise<Character> {
+  if (!(await repo.findById(id))) {
+    throw AppError.notFound('角色不存在');
+  }
+  await repo.setActive(id, isActive);
+  return getCharacter(id);
+}
+
+export async function hardDeleteCharacter(id: number, clearReferences: boolean): Promise<void> {
+  if (!(await repo.findById(id))) {
+    throw AppError.notFound('角色不存在');
+  }
+  await repo.hardDelete(id, clearReferences);
+}
+
 export async function uploadAvatar(id: number, buffer: Buffer): Promise<Character> {
   if (!(await repo.findById(id))) {
     throw AppError.notFound('角色不存在');

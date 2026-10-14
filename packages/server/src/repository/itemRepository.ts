@@ -1,7 +1,9 @@
+import type { Knex } from 'knex';
 import { db } from '../db/knex';
 import { buildFileUrl, buildThumbUrl } from '../utils/paths';
 import type {
   Item,
+  ItemFitMode,
   ItemTrigger,
   ItemTriggerInput,
   ItemTriggerRow,
@@ -23,6 +25,7 @@ export interface CreateItemData {
   widthCells: number;
   heightCells: number;
   canStand: boolean;
+  fitMode: ItemFitMode;
   meta: Record<string, unknown>;
   triggers: ItemTriggerInput[];
 }
@@ -33,6 +36,7 @@ export interface UpdateItemData {
   widthCells?: number;
   heightCells?: number;
   canStand?: boolean;
+  fitMode?: ItemFitMode;
   meta?: Record<string, unknown>;
   isActive?: boolean;
 }
@@ -64,6 +68,7 @@ function toItem(row: ItemRow, triggers: ItemTrigger[]): Item {
     widthCells: row.width_cells,
     heightCells: row.height_cells,
     canStand: row.can_stand,
+    fitMode: row.fit_mode,
     imagePath: row.image_path,
     imageUrl: row.image_path ? buildFileUrl(row.image_path) : null,
     imageThumbUrl: row.image_path ? buildThumbUrl(row.image_path) : null,
@@ -134,10 +139,11 @@ export async function create(data: CreateItemData): Promise<number> {
         code: data.code,
         name: data.name,
         category: data.category,
-        width_cells: data.widthCells,
-        height_cells: data.heightCells,
-        can_stand: data.canStand,
-        meta: data.meta,
+      width_cells: data.widthCells,
+      height_cells: data.heightCells,
+      can_stand: data.canStand,
+      fit_mode: data.fitMode,
+      meta: data.meta,
         is_active: true,
       })
       .returning('id');
@@ -164,6 +170,7 @@ export async function update(id: number, data: UpdateItemData): Promise<boolean>
   if (data.widthCells !== undefined) patch.width_cells = data.widthCells;
   if (data.heightCells !== undefined) patch.height_cells = data.heightCells;
   if (data.canStand !== undefined) patch.can_stand = data.canStand;
+  if (data.fitMode !== undefined) patch.fit_mode = data.fitMode;
   if (data.meta !== undefined) patch.meta = data.meta;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
   const affected = await db('items').where({ id }).update(patch);
@@ -217,38 +224,60 @@ export interface ProcessedImageAlias {
   height: number | null;
 }
 
+export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Promise<void> {
+  const projects = (await trx('map_projects')
+    .whereNotNull('draft_data')
+    .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: unknown }>;
+  for (const project of projects) {
+    const draft = project.draft_data as MapDraft | null;
+    if (!draft?.cells) continue;
+    let changed = false;
+    for (const key of Object.keys(draft.cells)) {
+      const cell = draft.cells[key];
+      if (!cell) continue;
+      if (cell.object?.itemId === id || cell.background?.itemId === id) {
+        const next = { ...cell };
+        if (cell.object?.itemId === id) delete next.object;
+        if (cell.background?.itemId === id) delete next.background;
+        if (!next.object && !next.objectRef && !next.background) delete draft.cells[key];
+        else draft.cells[key] = next;
+        changed = true;
+      }
+    }
+    if (changed) {
+      await trx('map_projects')
+        .where({ id: project.id })
+        .update({ draft_data: draft, draft_updated_at: trx.fn.now() });
+    }
+  }
+}
+
+export async function setActive(id: number, isActive: boolean): Promise<boolean> {
+  const affected = await db('items')
+    .where({ id })
+    .update({ is_active: isActive, updated_at: db.fn.now() });
+  return affected > 0;
+}
+
 export async function softDelete(id: number, clearReferences: boolean): Promise<boolean> {
   return db.transaction(async (trx) => {
     if (clearReferences) {
-      const projects = (await trx('map_projects')
-        .whereNotNull('draft_data')
-        .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: unknown }>;
-      for (const project of projects) {
-        const draft = project.draft_data as MapDraft | null;
-        if (!draft?.cells) continue;
-        let changed = false;
-        for (const key of Object.keys(draft.cells)) {
-          const cell = draft.cells[key];
-          if (!cell) continue;
-          if (cell.object?.itemId === id || cell.background?.itemId === id) {
-            const next = { ...cell };
-            if (cell.object?.itemId === id) delete next.object;
-            if (cell.background?.itemId === id) delete next.background;
-            if (!next.object && !next.objectRef && !next.background) delete draft.cells[key];
-            else draft.cells[key] = next;
-            changed = true;
-          }
-        }
-        if (changed) {
-          await trx('map_projects')
-            .where({ id: project.id })
-            .update({ draft_data: draft, draft_updated_at: trx.fn.now() });
-        }
-      }
+      await clearItemFromDrafts(trx, id);
     }
     const affected = await trx('items')
       .where({ id })
       .update({ is_active: false, updated_at: trx.fn.now() });
+    return affected > 0;
+  });
+}
+
+export async function hardDelete(id: number, clearReferences: boolean): Promise<boolean> {
+  return db.transaction(async (trx) => {
+    if (clearReferences) {
+      await clearItemFromDrafts(trx, id);
+    }
+    await trx('item_triggers').where({ item_id: id }).del();
+    const affected = await trx('items').where({ id }).del();
     return affected > 0;
   });
 }

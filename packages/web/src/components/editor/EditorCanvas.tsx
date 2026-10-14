@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
 import {
   CELL_SIZE,
   GRID_BORDER_WIDTH,
@@ -25,9 +25,7 @@ import {
 import {
   buildRegionEdges,
   computeLabelCell,
-  contrastTextColor,
   coordKey,
-  polygonCells,
   rectCells,
   regionAt,
   type Coord,
@@ -42,6 +40,8 @@ import {
   ZOOM_STEP,
 } from '@/lib/grid';
 import type { Selection } from '@/stores/editorStore';
+
+const RULER_SIZE = 28;
 
 export interface EditorCanvasHandle {
   clientToCell: (clientX: number, clientY: number) => CellCoord;
@@ -64,6 +64,7 @@ interface EditorCanvasProps {
   activeTool: EditorTool;
   regionShape: RegionShape;
   spaceHeld: boolean;
+  showRulers: boolean;
   pendingItem: Item | null;
   pendingCharacterId: number | null;
   regionDraftSelection: Set<string>;
@@ -94,7 +95,7 @@ type Interaction =
   | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
   | { kind: 'move'; from: CellCoord; startX: number; startY: number; w: number; h: number }
   | { kind: 'erase'; last: string | null }
-  | { kind: 'region-rect'; start: CellCoord; add: boolean; alt: boolean }
+  | { kind: 'region-rect'; start: CellCoord; startX: number; startY: number; remove: boolean }
   | { kind: 'brush'; keys: Set<string>; erase: boolean }
   | null;
 
@@ -113,6 +114,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     activeTool,
     regionShape,
     spaceHeld,
+    showRulers,
     pendingItem,
     pendingCharacterId,
     regionDraftSelection,
@@ -139,7 +141,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const [hover, setHover] = useState<CellCoord | null>(null);
   const [marquee, setMarquee] = useState<{ start: CellCoord; end: CellCoord } | null>(null);
   const [moveTarget, setMoveTarget] = useState<MoveFootprint | null>(null);
-  const [polygonPoints, setPolygonPoints] = useState<Coord[]>([]);
   const [brushCells, setBrushCells] = useState<Coord[]>([]);
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 
@@ -223,7 +224,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
-      setPolygonPoints([]);
       setBrushCells([]);
       interactionRef.current = null;
       onDraftClear();
@@ -233,7 +233,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   }, [onDraftClear]);
 
   useEffect(() => {
-    setPolygonPoints([]);
     setBrushCells([]);
   }, [activeTool, regionShape]);
 
@@ -270,15 +269,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     const inBounds = isInBounds(coord, gridSize);
 
     if (activeTool === 'region') {
-      if (regionShape === 'polygon') {
-        const vertex = clampCell(coord);
-        setPolygonPoints((previous) => {
-          const last = previous.at(-1);
-          if (last && last[0] === vertex.x && last[1] === vertex.y) return previous;
-          return [...previous, [vertex.x, vertex.y]];
-        });
-        return;
-      }
       if (regionShape === 'brush') {
         if (!inBounds) return;
         node.setPointerCapture(event.pointerId);
@@ -293,8 +283,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       interactionRef.current = {
         kind: 'region-rect',
         start,
-        add: !event.shiftKey,
-        alt: event.altKey,
+        startX: event.clientX,
+        startY: event.clientY,
+        remove: event.altKey,
       };
       setMarquee({ start, end: start });
       return;
@@ -419,15 +410,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     if (interaction?.kind === 'region-rect') {
       const end = clampCell(toCell(event.clientX, event.clientY));
       setMarquee(null);
-      const moved = end.x !== interaction.start.x || end.y !== interaction.start.y;
-      if (!moved) {
-        if (interaction.alt) onDraftRemove([[interaction.start.x, interaction.start.y]]);
+      const distance = Math.hypot(
+        event.clientX - interaction.startX,
+        event.clientY - interaction.startY,
+      );
+      if (distance < DRAG_THRESHOLD) {
+        if (interaction.remove) onDraftRemove([[interaction.start.x, interaction.start.y]]);
         else onDraftToggle(interaction.start);
         return;
       }
       const rect = rectCells([interaction.start.x, interaction.start.y], [end.x, end.y]);
-      if (interaction.add) onDraftAdd(rect);
-      else onDraftRemove(rect);
+      if (interaction.remove) onDraftRemove(rect);
+      else onDraftAdd(rect);
       return;
     }
 
@@ -460,14 +454,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
   };
 
-  const handleDoubleClick = (): void => {
-    if (activeTool !== 'region' || regionShape !== 'polygon') return;
-    if (polygonPoints.length < 3) return;
-    const covered = polygonCells(polygonPoints);
-    setPolygonPoints([]);
-    if (covered.length > 0) onDraftAdd(covered);
-  };
-
   const cursor =
     activeTool === 'pan' || spaceHeld
       ? 'grab'
@@ -496,6 +482,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     [],
   );
 
+  const gridLines = useMemo(
+    () => ({
+      backgroundImage: `linear-gradient(${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px), linear-gradient(90deg, ${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px)`,
+      backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
+    }),
+    [],
+  );
+
   const backgroundNodes = useMemo(
     () =>
       [...cells.entries()]
@@ -512,7 +506,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
               className="absolute overflow-hidden"
               style={{ left: x * CELL_SIZE, top: y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE, zIndex: 5 }}
             >
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <img
+                src={src}
+                alt=""
+                className="block h-full w-full"
+                style={{ objectFit: item.fitMode === 'contain' ? 'contain' : 'cover' }}
+              />
             </div>
           );
         }),
@@ -550,7 +549,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                 filter: glow ? 'drop-shadow(0 0 4px #93C5FD)' : undefined,
               }}
             >
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <img
+                src={src}
+                alt=""
+                className="block h-full w-full"
+                style={{ objectFit: item?.fitMode === 'contain' ? 'contain' : 'cover' }}
+              />
             </div>
           );
         }),
@@ -570,16 +574,19 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           <button
             key={`ch-${placed.x},${placed.y}`}
             type="button"
-            className="pointer-events-auto absolute flex cursor-pointer items-center justify-center transition-transform"
+            className="absolute flex items-center justify-center transition-transform"
             style={{
               left: placed.x * CELL_SIZE,
               top: placed.y * CELL_SIZE,
               width: CELL_SIZE,
               height: CELL_SIZE,
               zIndex: 25,
+              pointerEvents: activeTool === 'region' ? 'none' : 'auto',
+              cursor: activeTool === 'region' ? 'inherit' : 'pointer',
               transform: selected ? 'scale(1.06)' : undefined,
               filter: selected ? 'drop-shadow(0 0 6px rgba(59,130,246,0.9))' : undefined,
             }}
+            disabled={activeTool === 'region'}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -601,7 +608,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           </button>
         );
       }),
-    [placedCharacters, charactersById, onSelectCharacter, selection],
+    [placedCharacters, charactersById, onSelectCharacter, selection, activeTool],
   );
 
   const regionFills = useMemo(
@@ -642,10 +649,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           const highlighted = hoveredRegionId === region.id || selectedRegionId === region.id;
           const edges = buildRegionEdges(region.cells);
           return (
-            <g
-              key={region.id}
-              style={highlighted ? { filter: `drop-shadow(0 0 4px ${region.color})` } : undefined}
-            >
+            <g key={region.id}>
               {edges.map((edge, index) => (
                 <line
                   key={index}
@@ -654,6 +658,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                   x2={edge.x2}
                   y2={edge.y2}
                   stroke={region.color}
+                  strokeOpacity={highlighted ? 1 : 0.7}
                   strokeWidth={highlighted ? region.borderWidth + 2 : region.borderWidth}
                   strokeLinecap="square"
                   strokeLinejoin="miter"
@@ -677,14 +682,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
             <button
               key={`label-${region.id}`}
               type="button"
-              className="pointer-events-auto absolute -translate-x-1/2 whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-semibold shadow"
+              className="region-label pointer-events-auto absolute -translate-x-1/2 whitespace-nowrap"
               style={{
                 left: (label[0] + 0.5) * CELL_SIZE,
-                top: (label[1] + 1) * CELL_SIZE + 2,
-                backgroundColor: region.color,
-                borderColor: region.color,
-                color: contrastTextColor(region.color),
-              }}
+                top: label[1] * CELL_SIZE + 2,
+                color: '#FFFFFF',
+                fontWeight: 700,
+                fontSize: 12,
+                WebkitTextStroke: '2px #000000',
+                paintOrder: 'stroke fill',
+              } as CSSProperties}
               onMouseEnter={() => setHoveredRegionId(region.id)}
               onMouseLeave={() => setHoveredRegionId((current) => (current === region.id ? null : current))}
               onPointerDown={(event) => event.stopPropagation()}
@@ -693,7 +700,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                 onSelect({ type: 'region', regionId: region.id });
                 onSelectRegion(region.id);
               }}
-              title={region.id}
+              title={region.name}
             >
               {region.name}
             </button>
@@ -776,28 +783,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={{ left: x * CELL_SIZE, top: y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
         />
       ))}
-      {polygonPoints.length > 1 ? (
-        <svg className="absolute left-0 top-0 overflow-visible" width={total} height={total}>
-          <polyline
-            points={polygonPoints
-              .map(([x, y]) => `${x * CELL_SIZE + CELL_SIZE / 2},${y * CELL_SIZE + CELL_SIZE / 2}`)
-              .join(' ')}
-            fill="none"
-            stroke="#3B82F6"
-            strokeWidth={2}
-            strokeDasharray="4 3"
-          />
-          {polygonPoints.map(([x, y], index) => (
-            <circle
-              key={index}
-              cx={x * CELL_SIZE + CELL_SIZE / 2}
-              cy={y * CELL_SIZE + CELL_SIZE / 2}
-              r={4}
-              fill="#3B82F6"
-            />
-          ))}
-        </svg>
-      ) : null}
     </div>
   );
 
@@ -815,7 +800,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={() => setHover(null)}
-      onDoubleClick={handleDoubleClick}
     >
       <div
         className="absolute left-0 top-0"
@@ -840,6 +824,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           {objectNodes}
         </div>
 
+        <div
+          className="pointer-events-none absolute left-0 top-0"
+          style={{ width: total, height: total, zIndex: 16, ...gridLines }}
+        />
+
         <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 25 }}>
           {characterNodes}
         </div>
@@ -848,51 +837,58 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         {regionLabels}
       </div>
 
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 z-30 h-7 border-b border-[#E5E7EB] bg-[#F9FAFB]"
-        style={{ overflow: 'hidden' }}
-      >
-        {rulerColumns.map((column) => {
-          const active =
-            hover?.x === column - 1 || selectionCell?.x === column - 1;
-          return (
-            <div
-              key={`rul-col-${column}`}
-              className="absolute top-0 flex h-full items-center justify-center border-r border-[#E5E7EB] text-[11px]"
-              style={{
-                left: pan.x + (column - 1) * CELL_SIZE * zoom,
-                width: CELL_SIZE * zoom,
-                backgroundColor: active ? '#DBEAFE' : '#F9FAFB',
-                color: active ? '#1E3A8A' : '#374151',
-              }}
-            >
-              C{column}
-            </div>
-          );
-        })}
-      </div>
+      {showRulers ? (
+        <>
+          <div
+            className="pointer-events-none absolute z-30 h-7 border-b border-[#E5E7EB] bg-[#F9FAFB]"
+            style={{ left: pan.x - RULER_SIZE, top: pan.y - RULER_SIZE, width: total * zoom + RULER_SIZE, overflow: 'hidden' }}
+          >
+            {rulerColumns.map((column) => {
+              const active = hover?.x === column - 1 || selectionCell?.x === column - 1;
+              return (
+                <div
+                  key={`rul-col-${column}`}
+                  className="absolute top-0 flex h-full items-center justify-center border-r border-[#E5E7EB] text-[11px]"
+                  style={{
+                    left: RULER_SIZE + (column - 1) * CELL_SIZE * zoom,
+                    width: CELL_SIZE * zoom,
+                    backgroundColor: active ? '#DBEAFE' : '#F9FAFB',
+                    color: active ? '#1E3A8A' : '#374151',
+                  }}
+                >
+                  C{column}
+                </div>
+              );
+            })}
+          </div>
 
-      <div className="pointer-events-none absolute left-0 top-0 z-40 h-7 w-7 border-b border-r border-[#E5E7EB] bg-white" />
+          <div
+            className="pointer-events-none absolute z-40 border-b border-r border-[#E5E7EB] bg-[#F9FAFB]"
+            style={{ left: pan.x - RULER_SIZE, top: pan.y - RULER_SIZE, width: RULER_SIZE, height: RULER_SIZE }}
+          />
 
-      <div className="absolute left-0 top-7 bottom-0 z-30 w-7 overflow-hidden">
-        <div className="relative h-full w-full">
-          {rulerColumns.map((row) => (
-            <div
-              key={`rul-row-${row}`}
-              className="absolute left-0 flex w-full -translate-y-1/2 items-center justify-center border-r border-[#E5E7EB] text-[11px]"
-              style={{
-                top: pan.y + (row - 0.5) * CELL_SIZE * zoom - 28,
-                height: 16,
-                backgroundColor:
-                  hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#DBEAFE' : '#F9FAFB',
-                color: hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#1E3A8A' : '#374151',
-              }}
-            >
-              R{row}
-            </div>
-          ))}
-        </div>
-      </div>
+          <div
+            className="pointer-events-none absolute z-30 border-r border-[#E5E7EB] bg-[#F9FAFB]"
+            style={{ left: pan.x - RULER_SIZE, top: pan.y - RULER_SIZE, width: RULER_SIZE, height: total * zoom + RULER_SIZE, overflow: 'hidden' }}
+          >
+            {rulerColumns.map((row) => (
+              <div
+                key={`rul-row-${row}`}
+                className="absolute left-0 flex w-full -translate-y-1/2 items-center justify-center border-r border-[#E5E7EB] text-[11px]"
+                style={{
+                  top: RULER_SIZE + (row - 0.5) * CELL_SIZE * zoom,
+                  height: 16,
+                  backgroundColor:
+                    hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#DBEAFE' : '#F9FAFB',
+                  color: hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#1E3A8A' : '#374151',
+                }}
+              >
+                R{row}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
     </div>
   );
 });

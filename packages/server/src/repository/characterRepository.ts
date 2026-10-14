@@ -1,3 +1,4 @@
+import type { Knex } from 'knex';
 import { db } from '../db/knex';
 import { buildFileUrl, buildThumbUrl } from '../utils/paths';
 import type { Character, CharacterRow, CharacterUsage, MapDraft } from '@murdoku/shared';
@@ -125,6 +126,53 @@ export async function softDelete(id: number): Promise<boolean> {
     .where({ id })
     .update({ is_active: false, updated_at: db.fn.now() });
   return affected > 0;
+}
+
+export async function setActive(id: number, isActive: boolean): Promise<boolean> {
+  const affected = await db('characters')
+    .where({ id })
+    .update({ is_active: isActive, updated_at: db.fn.now() });
+  return affected > 0;
+}
+
+export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number): Promise<void> {
+  const projects = (await trx('map_projects')
+    .whereNotNull('draft_data')
+    .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: MapDraft | null }>;
+  for (const project of projects) {
+    const draft = project.draft_data;
+    if (!draft) continue;
+    let changed = false;
+    const placedCharacters = (draft.placedCharacters ?? []).filter(
+      (placed) => placed.characterId !== id,
+    );
+    if (placedCharacters.length !== (draft.placedCharacters ?? []).length) {
+      draft.placedCharacters = placedCharacters;
+      changed = true;
+    }
+    const characterSlots = (draft.characterSlots ?? []).map((slot) =>
+      slot && slot.characterId === id ? null : slot,
+    );
+    if (JSON.stringify(characterSlots) !== JSON.stringify(draft.characterSlots ?? [])) {
+      draft.characterSlots = characterSlots;
+      changed = true;
+    }
+    if (changed) {
+      await trx('map_projects')
+        .where({ id: project.id })
+        .update({ draft_data: draft, draft_updated_at: trx.fn.now() });
+    }
+  }
+}
+
+export async function hardDelete(id: number, clearReferences: boolean): Promise<boolean> {
+  return db.transaction(async (trx) => {
+    if (clearReferences) {
+      await clearCharacterFromDrafts(trx, id);
+    }
+    const affected = await trx('characters').where({ id }).del();
+    return affected > 0;
+  });
 }
 
 export async function getUsages(characterId: number): Promise<CharacterUsage[]> {

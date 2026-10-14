@@ -82,10 +82,30 @@ export function useReplaceItemTriggers(onSuccess?: () => void) {
 export function useDeleteItem() {
   const invalidate = useInvalidateItems();
   return useMutation({
-    mutationFn: ({ id, clearReferences }: { id: number; clearReferences: boolean }) =>
-      itemsApi.remove(id, clearReferences),
-    onSuccess: () => {
-      toast.success('物品已停用');
+    mutationFn: ({
+      id,
+      hard,
+      clearReferences,
+    }: {
+      id: number;
+      hard?: boolean;
+      clearReferences?: boolean;
+    }) => itemsApi.remove(id, { hard, clearReferences }),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.hard ? '物品已删除' : '物品已停用');
+      invalidate();
+    },
+    onError: (error) => toast.error(errorMessage(error, '操作失败')),
+  });
+}
+
+export function useSetItemActive() {
+  const invalidate = useInvalidateItems();
+  return useMutation({
+    mutationFn: ({ id, active }: { id: number; active: boolean }) =>
+      active ? itemsApi.enable(id) : itemsApi.disable(id),
+    onSuccess: (_data, variables) => {
+      toast.success(variables.active ? '物品已启用' : '物品已停用');
       invalidate();
     },
     onError: (error) => toast.error(errorMessage(error, '操作失败')),

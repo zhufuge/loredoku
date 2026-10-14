@@ -34,8 +34,23 @@ export async function update(ctx: Context): Promise<void> {
 export async function remove(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   const clearReferences = ctx.query.clearReferences === 'true';
+  if (ctx.query.hard === 'true') {
+    await itemService.hardDeleteItem(id, clearReferences);
+    success(ctx, null, '已删除');
+    return;
+  }
   await itemService.deleteItem(id, clearReferences);
   success(ctx, null, '已停用');
+}
+
+export async function enable(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  success(ctx, await itemService.setItemActive(id, true), '已启用');
+}
+
+export async function disable(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  success(ctx, await itemService.setItemActive(id, false), '已停用');
 }
 
 export async function uploadImage(ctx: Context): Promise<void> {

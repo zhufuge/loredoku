@@ -8,6 +8,7 @@ import {
   UPLOAD_MAX_SIZE,
   type Item,
   type ItemCategory,
+  type ItemFitMode,
   type ItemTriggerInput,
 } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
@@ -19,10 +20,16 @@ import { TriggerEditor, type EditableTrigger } from '@/components/item/TriggerEd
 import {
   useDeleteItemImage,
   useReplaceItemTriggers,
+  useSetItemActive,
   useUpdateItem,
   useUploadItemImage,
 } from '@/hooks/useItems';
 import { parseJsonObject } from '@/lib/json';
+
+const FIT_MODE_LABELS: Record<ItemFitMode, string> = {
+  cover: '裁切填满（cover）',
+  contain: '完整留白（contain）',
+};
 
 interface ItemDetailFormProps {
   item: Item;
@@ -51,7 +58,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
   const [widthCells, setWidthCells] = useState(item.widthCells);
   const [heightCells, setHeightCells] = useState(item.heightCells);
   const [canStand, setCanStand] = useState(item.canStand);
-  const [isActive, setIsActive] = useState(item.isActive);
+  const [fitMode, setFitMode] = useState<ItemFitMode>(item.fitMode);
   const [metaRows, setMetaRows] = useState<MetaRow[]>(buildMetaRows(item));
   const [triggerRows, setTriggerRows] = useState<EditableTrigger[]>(buildTriggerRows(item));
 
@@ -59,6 +66,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
   const triggersMutation = useReplaceItemTriggers();
   const uploadMutation = useUploadItemImage();
   const deleteImageMutation = useDeleteItemImage();
+  const activeMutation = useSetItemActive();
 
   useEffect(() => {
     setName(item.name);
@@ -66,7 +74,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
     setWidthCells(item.widthCells);
     setHeightCells(item.heightCells);
     setCanStand(item.canStand);
-    setIsActive(item.isActive);
+    setFitMode(item.fitMode);
     setMetaRows(buildMetaRows(item));
     setTriggerRows(buildTriggerRows(item));
   }, [item.id, item.updatedAt]);
@@ -104,7 +112,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           widthCells,
           heightCells,
           canStand,
-          isActive,
+          fitMode,
           meta,
         },
       });
@@ -122,22 +130,40 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           <p className="text-xs text-muted-foreground">业务 ID：{item.code}（不可修改）</p>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={isActive}
-              onChange={(event) => setIsActive(event.target.checked)}
-              className="h-4 w-4"
-            />
-            启用
-          </label>
-          <Button
-            variant="outline"
-            className="text-destructive hover:text-destructive"
-            onClick={() => onRequestDelete(item)}
-          >
-            停用 / 删除
-          </Button>
+          {item.isActive ? (
+            <>
+              <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
+                启用中
+              </span>
+              <Button
+                variant="outline"
+                disabled={activeMutation.isPending}
+                onClick={() => activeMutation.mutate({ id: item.id, active: false })}
+              >
+                停用
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                已停用
+              </span>
+              <Button
+                variant="outline"
+                disabled={activeMutation.isPending}
+                onClick={() => activeMutation.mutate({ id: item.id, active: true })}
+              >
+                启用
+              </Button>
+              <Button
+                variant="outline"
+                className="text-destructive hover:text-destructive"
+                onClick={() => onRequestDelete(item)}
+              >
+                删除
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -195,6 +221,21 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
             />
             可站立
           </label>
+        </div>
+
+        <div className="grid gap-2">
+          <Label>图片填充方式</Label>
+          <select
+            value={fitMode}
+            onChange={(event) => setFitMode(event.target.value as ItemFitMode)}
+            className="h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {(['cover', 'contain'] as ItemFitMode[]).map((value) => (
+              <option key={value} value={value}>
+                {FIT_MODE_LABELS[value]}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="grid gap-2">

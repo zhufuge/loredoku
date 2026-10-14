@@ -4,6 +4,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  GRID_SIZE_MAX,
+  GRID_SIZE_MIN,
   mapDraftSchema,
   type CellCoord,
   type DraftRegion,
@@ -23,7 +25,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { EditorCanvas, type EditorCanvasHandle } from '@/components/editor/EditorCanvas';
 import { EditorLeftPanel } from '@/components/editor/EditorLeftPanel';
 import { EditorToolbar } from '@/components/editor/EditorToolbar';
@@ -35,12 +46,13 @@ import { RegionSelectionBar } from '@/components/editor/RegionSelectionBar';
 import { VersionHistoryDialog } from '@/components/editor/VersionHistoryDialog';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
-import { useImportMap, useProjectMap, useSaveMap, useUpdateGridSize } from '@/hooks/useMap';
+import { useProjectMap, useSaveMap, useUpdateGridSize } from '@/hooks/useMap';
 import { usePublishProject } from '@/hooks/useVersions';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import type { Coord } from '@/lib/region';
 import { isConnected, regionAt } from '@/lib/region';
+import { cn } from '@/lib/utils';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 
 interface RegionDialogState {
@@ -62,7 +74,6 @@ export function EditorPage(): JSX.Element {
   const charactersQuery = useCharacters({ isActive: true });
   const saveMutation = useSaveMap();
   const resizeMutation = useUpdateGridSize();
-  const importMutation = useImportMap();
   const publishMutation = usePublishProject(id);
   const leaveGuard = useUnsavedChangesGuard(editor.dirty);
 
@@ -85,7 +96,23 @@ export function EditorPage(): JSX.Element {
   const [regionError, setRegionError] = useState<string | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [violations, setViolations] = useState<PublishViolation[] | null>(null);
-  const [resizeTarget, setResizeTarget] = useState<number | null>(null);
+  const [resizeOpen, setResizeOpen] = useState(false);
+  const [resizeValue, setResizeValue] = useState(editor.gridSize);
+  const [pendingImport, setPendingImport] = useState<MapDraft | null>(null);
+  const [rulerVisible, setRulerVisible] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem('murdoku.editor.ruler') !== 'hidden';
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('murdoku.editor.ruler', rulerVisible ? 'visible' : 'hidden');
+    }
+  }, [rulerVisible]);
+
+  useEffect(() => {
+    if (resizeOpen) setResizeValue(editor.gridSize);
+  }, [resizeOpen, editor.gridSize]);
 
   const itemsById = useMemo(() => {
     const map = new Map<number, Item>();
@@ -147,6 +174,9 @@ export function EditorPage(): JSX.Element {
     if (tool !== 'select') {
       editor.setSelectedItem(null);
       editor.setSelectedCharacter(null);
+    }
+    if (tool === 'eraser') {
+      setItemsOpen(false);
     }
   };
 
@@ -216,9 +246,11 @@ export function EditorPage(): JSX.Element {
   };
 
   const confirmResize = (): void => {
-    const size = resizeTarget;
-    setResizeTarget(null);
-    if (size === null || size === editor.gridSize) return;
+    const size = resizeValue;
+    if (size === editor.gridSize) {
+      setResizeOpen(false);
+      return;
+    }
     void (async () => {
       try {
         if (editor.dirty) {
@@ -233,12 +265,67 @@ export function EditorPage(): JSX.Element {
           toast.message('画布已调整', {
             description: `已移除越界内容：背景 ${background}、物体 ${object}、区域 ${regions}、角色 ${charactersReturnedToSlot}`,
           });
+        } else {
+          toast.success('画布已调整');
         }
+        setResizeOpen(false);
       } catch {
-        /* errors surfaced via mutation toasts */
+        /* errors surfaced via mutation toasts; keep dialog open */
       }
     })();
   };
+
+  const resizePending = saveMutation.isPending || resizeMutation.isPending;
+
+  const resizeImpact = useMemo(() => {
+    if (!resizeOpen) {
+      return { items: [] as string[], regions: [] as string[], characters: [] as string[] };
+    }
+    const size = resizeValue;
+    const inBounds = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < size && y < size;
+    const items: string[] = [];
+    const seenObjects = new Set<string>();
+    for (const [key, cell] of editor.cells.entries()) {
+      const [x, y] = key.split(',').map(Number) as [number, number];
+      if (cell.background && !inBounds(x, y)) {
+        const item = itemsById.get(cell.background.itemId);
+        items.push(`物品「${item?.name ?? `#${cell.background.itemId}`}」位于 C${x + 1},R${y + 1}`);
+      }
+      if (
+        cell.object &&
+        !(inBounds(x, y) && x + cell.object.w <= size && y + cell.object.h <= size)
+      ) {
+        if (!seenObjects.has(key)) {
+          seenObjects.add(key);
+          const item = itemsById.get(cell.object.itemId);
+          items.push(
+            `物品「${item?.name ?? `#${cell.object.itemId}`}」(${cell.object.w}×${cell.object.h}) 位于 C${x + 1},R${y + 1}`,
+          );
+        }
+      }
+    }
+    const regions: string[] = [];
+    for (const region of editor.regions) {
+      const count = region.cells.filter(([x, y]) => !inBounds(x, y)).length;
+      if (count > 0) regions.push(`区域「${region.name}」部分格子越界（${count} 格）`);
+    }
+    const characters: string[] = [];
+    for (const placed of editor.placedCharacters) {
+      if (!inBounds(placed.x, placed.y)) {
+        const character = charactersById.get(placed.characterId);
+        characters.push(`角色「${character?.name ?? `#${placed.characterId}`}」将被撤回槽位`);
+      }
+    }
+    return { items, regions, characters };
+  }, [
+    resizeOpen,
+    resizeValue,
+    editor.cells,
+    editor.regions,
+    editor.placedCharacters,
+    itemsById,
+    charactersById,
+  ]);
 
   const publish = (): void => {
     if (editor.dirty || publishMutation.isPending) return;
@@ -252,6 +339,9 @@ export function EditorPage(): JSX.Element {
     );
   };
 
+  const previewCellSize = Math.max(3, Math.floor(180 / editor.gridSize));
+  const panelLocked = editor.activeTool === 'region' || editor.activeTool === 'eraser';
+
   const exportToFile = (): void => {
     const blob = new Blob([JSON.stringify(editor.toDraft(), null, 2)], {
       type: 'application/json',
@@ -262,6 +352,13 @@ export function EditorPage(): JSX.Element {
     anchor.download = `${mapQuery.data?.project.name ?? 'map'}-${id}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
+  };
+
+  const confirmImport = (): void => {
+    if (!pendingImport) return;
+    editor.applyDraft(pendingImport);
+    setPendingImport(null);
+    toast.success('已导入地图，可撤销');
   };
 
   const handleImportFile = (event: ChangeEvent<HTMLInputElement>): void => {
@@ -276,7 +373,7 @@ export function EditorPage(): JSX.Element {
           toast.error('JSON 格式不正确');
           return;
         }
-        importMutation.mutate({ id, data: result.data as MapDraft });
+        setPendingImport(result.data as MapDraft);
       } catch {
         toast.error('无法读取文件');
       }
@@ -405,68 +502,67 @@ export function EditorPage(): JSX.Element {
 
       <EditorToolbar
         projectName={project.name}
-        gridSize={editor.gridSize}
-        zoom={editor.zoom}
         dirty={editor.dirty}
         saving={saveMutation.isPending}
-        canUndo={editor.past.length > 0}
-        canRedo={editor.future.length > 0}
         status={editor.status}
         currentVersionNo={editor.currentVersionNo}
         onBack={() => navigate('/projects')}
-        onZoomIn={() => zoomBy(1)}
-        onZoomOut={() => zoomBy(-1)}
-          onResetZoom={() => canvasRef.current?.centerView()}
-        onUndo={editor.undo}
-        onRedo={editor.redo}
         onSave={save}
         onPublish={publish}
         onOpenVersions={() => setVersionsOpen(true)}
         onExport={exportToFile}
         onImport={() => importInputRef.current?.click()}
-        onResize={setResizeTarget}
       />
 
       <div className="flex min-h-0 flex-1">
         {itemsOpen ? (
-          <EditorLeftPanel
-          items={itemsQuery.data}
-          itemsLoading={itemsQuery.isLoading}
-          itemsError={itemsQuery.isError}
-          characters={charactersQuery.data}
-          charactersLoading={charactersQuery.isLoading}
-          charactersError={charactersQuery.isError}
-          activeLayer={editor.activeLayer}
-          selectedItemId={editor.selectedItemId}
-          characterSlots={editor.characterSlots}
-          selectedCharacterId={editor.selectedCharacterId}
-          regions={editor.regions}
-          selectedRegionId={editor.selectedRegionId}
-          onSetTool={setTool}
-          onSetLayer={(layer) => {
-            editor.setLayer(layer);
-            editor.setSelectedItem(null);
-          }}
-          onSelectItem={(item) => editor.setSelectedItem(item ? item.id : null)}
-          onSelectCharacter={editor.setSelectedCharacter}
-          onAssignSlot={assignSlot}
-          onSelectRegion={editor.setSelectedRegion}
-          onEditRegion={(region) => {
-            editor.setSelectedRegion(region.id);
-            setRegionDialog({ open: true, mode: 'edit', cells: region.cells, region });
-          }}
-          onDeleteRegion={setDeleteRegionTarget}
-        />
+          <div
+            className={cn(
+              'flex min-h-0',
+              panelLocked ? 'pointer-events-none opacity-60' : undefined,
+            )}
+          >
+            <EditorLeftPanel
+              items={itemsQuery.data}
+              itemsLoading={itemsQuery.isLoading}
+              itemsError={itemsQuery.isError}
+              characters={charactersQuery.data}
+              charactersLoading={charactersQuery.isLoading}
+              charactersError={charactersQuery.isError}
+              activeLayer={editor.activeLayer}
+              selectedItemId={editor.selectedItemId}
+              characterSlots={editor.characterSlots}
+              selectedCharacterId={editor.selectedCharacterId}
+              regions={editor.regions}
+              selectedRegionId={editor.selectedRegionId}
+              onSetTool={setTool}
+              onSetLayer={(layer) => {
+                editor.setLayer(layer);
+                editor.setSelectedItem(null);
+              }}
+              onSelectItem={(item) => editor.setSelectedItem(item ? item.id : null)}
+              onSelectCharacter={editor.setSelectedCharacter}
+              onAssignSlot={assignSlot}
+              onSelectRegion={editor.setSelectedRegion}
+              onEditRegion={(region) => {
+                editor.setSelectedRegion(region.id);
+                setRegionDialog({ open: true, mode: 'edit', cells: region.cells, region });
+              }}
+              onDeleteRegion={setDeleteRegionTarget}
+            />
+          </div>
         ) : null}
 
-        <CharacterSlotColumn
-          slots={editor.characterSlots}
-          charactersById={charactersById}
-          selectedCharacterId={editor.selectedCharacterId}
-          onSelect={selectSlotCharacter}
-          onSwap={editor.swapSlots}
-          onClear={clearSlot}
-        />
+        <div className={cn('flex min-h-0', panelLocked ? 'pointer-events-none opacity-60' : undefined)}>
+          <CharacterSlotColumn
+            slots={editor.characterSlots}
+            charactersById={charactersById}
+            selectedCharacterId={editor.selectedCharacterId}
+            onSelect={selectSlotCharacter}
+            onSwap={editor.swapSlots}
+            onClear={clearSlot}
+          />
+        </div>
 
         <main className="relative min-h-0 flex-1">
           <EditorCanvas
@@ -484,6 +580,7 @@ export function EditorPage(): JSX.Element {
             activeTool={editor.activeTool}
             regionShape={regionShape}
             spaceHeld={spaceHeld}
+            showRulers={rulerVisible}
             pendingItem={pendingItem}
             pendingCharacterId={editor.selectedCharacterId}
             regionDraftSelection={editor.regionDraftSelection}
@@ -559,7 +656,9 @@ export function EditorPage(): JSX.Element {
             canUndo={editor.past.length > 0}
             canRedo={editor.future.length > 0}
             zoom={editor.zoom}
+            gridSize={editor.gridSize}
             itemsOpen={itemsOpen}
+            rulerVisible={rulerVisible}
             onSetTool={(tool) => {
               setTool(tool);
               if (tool !== 'region') setRegionShape('rect');
@@ -572,6 +671,8 @@ export function EditorPage(): JSX.Element {
             onZoomReset={() => editor.setZoom(1)}
             onFit={() => canvasRef.current?.centerView()}
             onToggleItems={() => setItemsOpen((open) => !open)}
+            onToggleRuler={() => setRulerVisible((visible) => !visible)}
+            onOpenResize={() => setResizeOpen(true)}
           />
 
           <EditorInfoDrawer
@@ -640,19 +741,133 @@ export function EditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={resizeTarget !== null} onOpenChange={(open) => !open && setResizeTarget(null)}>
+      <Dialog
+        open={resizeOpen}
+        onOpenChange={(open) => {
+          if (!open && !resizePending) setResizeOpen(false);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>调整画布尺寸</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              当前：{editor.gridSize} × {editor.gridSize}
+            </p>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={GRID_SIZE_MIN}
+                max={GRID_SIZE_MAX}
+                value={resizeValue}
+                disabled={resizePending}
+                onChange={(event) => setResizeValue(Number(event.target.value))}
+                className="h-2 flex-1 cursor-pointer accent-primary"
+              />
+              <Input
+                type="number"
+                min={GRID_SIZE_MIN}
+                max={GRID_SIZE_MAX}
+                value={resizeValue}
+                disabled={resizePending}
+                onChange={(event) => {
+                  const value = Number(event.target.value);
+                  if (Number.isFinite(value)) setResizeValue(value);
+                }}
+                onBlur={() =>
+                  setResizeValue((value) =>
+                    Math.min(GRID_SIZE_MAX, Math.max(GRID_SIZE_MIN, Math.round(value))),
+                  )
+                }
+                className="w-20"
+              />
+            </div>
+
+            <div className="flex justify-center">
+              <div
+                style={{
+                  display: 'grid',
+                  gridTemplateColumns: `repeat(${editor.gridSize}, ${previewCellSize}px)`,
+                }}
+              >
+                {Array.from({ length: editor.gridSize * editor.gridSize }, (_, index) => {
+                  const x = index % editor.gridSize;
+                  const y = Math.floor(index / editor.gridSize);
+                  const removed = x >= resizeValue || y >= resizeValue;
+                  return (
+                    <div
+                      key={index}
+                      style={{
+                        width: previewCellSize,
+                        height: previewCellSize,
+                        backgroundColor: removed
+                          ? 'rgba(239,68,68,0.25)'
+                          : 'rgba(34,197,94,0.25)',
+                        border: '1px solid rgba(0,0,0,0.12)',
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {resizeImpact.items.length +
+              resizeImpact.regions.length +
+              resizeImpact.characters.length >
+            0 ? (
+              <div className="rounded-md border bg-muted/40 p-3 text-xs">
+                <p className="mb-1 font-medium">将被移除：</p>
+                <ul className="space-y-0.5 text-muted-foreground">
+                  {[
+                    ...resizeImpact.items,
+                    ...resizeImpact.regions,
+                    ...resizeImpact.characters,
+                  ].map((line, index) => (
+                    <li key={index}>· {line}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={resizePending}
+              onClick={() => setResizeOpen(false)}
+            >
+              取消
+            </Button>
+            <Button type="button" disabled={resizePending} onClick={confirmResize}>
+              {resizePending ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  调整中…
+                </>
+              ) : (
+                '确认调整'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={pendingImport !== null}
+        onOpenChange={(open) => !open && setPendingImport(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              调整画布为 {resizeTarget} × {resizeTarget}？
-            </AlertDialogTitle>
+            <AlertDialogTitle>导入地图？</AlertDialogTitle>
             <AlertDialogDescription>
-              超出新边界的背景、物体、区域与角色会被移除。
+              导入会覆盖当前画布内容，导入后可通过撤销回退。
+              {editor.dirty ? ' 当前有未保存的修改。' : ''}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmResize}>确认调整</AlertDialogAction>
+            <AlertDialogAction onClick={confirmImport}>确认导入</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -122,38 +122,3 @@ export function contrastTextColor(hex: string): string {
   return luminance > 0.6 ? '#111827' : '#FFFFFF';
 }
 
-function pointInPolygon(px: number, py: number, vertices: Coord[]): boolean {
-  let inside = false;
-  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i, i += 1) {
-    const xi = vertices[i]![0];
-    const yi = vertices[i]![1];
-    const xj = vertices[j]![0];
-    const yj = vertices[j]![1];
-    const intersect =
-      yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi || Number.EPSILON) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-/**
- * Rasterises a polygon (vertices snapped to grid points) into covered cells by
- * testing each candidate cell centre with the ray-casting rule.
- */
-export function polygonCells(vertices: Coord[]): Coord[] {
-  if (vertices.length < 3) return [];
-  const xs = vertices.map(([x]) => x);
-  const ys = vertices.map(([, y]) => y);
-  const minX = Math.min(...xs);
-  const maxX = Math.max(...xs);
-  const minY = Math.min(...ys);
-  const maxY = Math.max(...ys);
-  const cells: Coord[] = [];
-  for (let y = minY; y < maxY; y += 1) {
-    for (let x = minX; x < maxX; x += 1) {
-      if (pointInPolygon(x + 0.5, y + 0.5, vertices)) cells.push([x, y]);
-    }
-  }
-  return cells;
-}
-

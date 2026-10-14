@@ -1,13 +1,14 @@
 import {
   BoxSelect,
   Eraser,
+  Grid3x3,
   Hand,
   Maximize,
   MousePointer2,
   Paintbrush,
   Package,
-  Pentagon,
   Redo2,
+  Ruler,
   Square,
   Undo2,
   User,
@@ -28,7 +29,6 @@ const TOOLS: Array<{ id: EditorTool; label: string; hint: string; icon: typeof M
 
 const SHAPES: Array<{ id: RegionShape; label: string; icon: typeof Square }> = [
   { id: 'rect', label: '矩形', icon: Square },
-  { id: 'polygon', label: '多边形', icon: Pentagon },
   { id: 'brush', label: '自由笔刷', icon: Paintbrush },
 ];
 
@@ -38,7 +38,9 @@ interface EditorBottomBarProps {
   canUndo: boolean;
   canRedo: boolean;
   zoom: number;
+  gridSize: number;
   itemsOpen: boolean;
+  rulerVisible: boolean;
   onSetTool: (tool: EditorTool) => void;
   onSetRegionShape: (shape: RegionShape) => void;
   onUndo: () => void;
@@ -48,6 +50,8 @@ interface EditorBottomBarProps {
   onZoomReset: () => void;
   onFit: () => void;
   onToggleItems: () => void;
+  onToggleRuler: () => void;
+  onOpenResize: () => void;
 }
 
 export function EditorBottomBar({
@@ -56,7 +60,9 @@ export function EditorBottomBar({
   canUndo,
   canRedo,
   zoom,
+  gridSize,
   itemsOpen,
+  rulerVisible,
   onSetTool,
   onSetRegionShape,
   onUndo,
@@ -66,6 +72,8 @@ export function EditorBottomBar({
   onZoomReset,
   onFit,
   onToggleItems,
+  onToggleRuler,
+  onOpenResize,
 }: EditorBottomBarProps): JSX.Element {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
@@ -114,10 +122,34 @@ export function EditorBottomBar({
           size="sm"
           className="h-9 gap-1 rounded-full px-3 text-xs"
           title="物品抽屉"
+          disabled={activeTool === 'eraser'}
           onClick={onToggleItems}
         >
           <Package className="h-4 w-4" />
           物品
+        </Button>
+
+        <span className="mx-1 h-6 w-px bg-border" />
+
+        <Button
+          variant={rulerVisible ? 'secondary' : 'ghost'}
+          size="icon"
+          className="h-9 w-9 rounded-full"
+          title="显示 / 隐藏标尺"
+          onClick={onToggleRuler}
+        >
+          <Ruler className="h-4 w-4" />
+        </Button>
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-9 gap-1 rounded-full px-3 text-xs tabular-nums"
+          title="画布尺寸"
+          onClick={onOpenResize}
+        >
+          <Grid3x3 className="h-4 w-4" />
+          {gridSize}×{gridSize}
         </Button>
 
         <span className="mx-1 h-6 w-px bg-border" />

@@ -4,7 +4,7 @@
  */
 
 // ---- Canvas / grid ----
-export const GRID_SIZE_MIN = 3;
+export const GRID_SIZE_MIN = 2;
 export const GRID_SIZE_MAX = 24;
 export const GRID_SIZE_DEFAULT = 6;
 
@@ -26,6 +26,8 @@ export const ITEM_CATEGORY_LABELS: Record<(typeof ITEM_CATEGORIES)[number], stri
   background: '背景',
   object: '物体',
 };
+export const ITEM_FIT_MODES = ['cover', 'contain'] as const;
+export const DEFAULT_ITEM_FIT_MODE = 'cover';
 
 // ---- Editor layers ----
 export const EDITOR_LAYERS = ['background', 'object'] as const;
@@ -49,7 +51,7 @@ export const REGION_FILL_OPACITY_MAX = 1;
 export const REGION_FILL_OPACITY_DEFAULT = 0;
 export const REGION_TRANSPARENT_FILL_OPACITY = 0.3;
 export const DEFAULT_REGION_COLOR = '#000000';
-export const REGION_SHAPES = ['rect', 'polygon', 'brush'] as const;
+export const REGION_SHAPES = ['rect', 'brush'] as const;
 export const REGION_ID_MAX_LENGTH = 64;
 export const REGION_ID_PATTERN = /^[A-Za-z0-9_]+$/;
 
