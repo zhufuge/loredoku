@@ -334,7 +334,7 @@ function CharacterProfile({ character }: { character: Character }): JSX.Element 
         ) : null}
       </section>
       <p className="rounded-md border border-dashed bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
-        该角色尚未放置到地图，选择「角色」工具并点击画布即可放置。
+        该角色尚未放置到地图，从右侧队伍槽位拖拽到画布即可放置。
       </p>
     </>
   );
@@ -359,6 +359,15 @@ function CharacterBranch({
   const character = charactersById.get(placed.characterId);
   const objectItem = cell?.object?.itemId !== undefined ? itemsById.get(cell.object.itemId) : undefined;
   const blocked = objectItem ? !objectItem.canStand : false;
+  // Debounce guard so a rapid double click only removes the character once (FIX-307 防连点).
+  const [removing, setRemoving] = useState(false);
+
+  const handleRemove = (): void => {
+    if (removing) return;
+    setRemoving(true);
+    onRemoveCharacter(placed.x, placed.y);
+    setTimeout(() => setRemoving(false), 200);
+  };
 
   return (
     <>
@@ -400,7 +409,9 @@ function CharacterBranch({
       <Button
         variant="destructive"
         className="w-full"
-        onClick={() => onRemoveCharacter(placed.x, placed.y)}
+        disabled={removing}
+        title="将该角色撤回到队伍槽位"
+        onClick={handleRemove}
       >
         从地图移除
       </Button>

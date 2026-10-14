@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react';
+import type { CSSProperties, DragEvent as ReactDragEvent, PointerEvent as ReactPointerEvent } from 'react';
 import {
   CELL_SIZE,
   GRID_BORDER_WIDTH,
@@ -26,8 +26,8 @@ import {
   buildRegionEdges,
   computeLabelCell,
   coordKey,
-  rectCells,
   regionAt,
+  resolveRegionPointerUp,
   type Coord,
 } from '@/lib/region';
 import {
@@ -42,6 +42,7 @@ import {
 import type { Selection } from '@/stores/editorStore';
 
 const RULER_SIZE = 28;
+export const CHARACTER_DND_TYPE = 'application/x-murdoku-character';
 
 export interface EditorCanvasHandle {
   clientToCell: (clientX: number, clientY: number) => CellCoord;
@@ -66,36 +67,33 @@ interface EditorCanvasProps {
   spaceHeld: boolean;
   showRulers: boolean;
   pendingItem: Item | null;
-  pendingCharacterId: number | null;
   regionDraftSelection: Set<string>;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
   onSelectCharacter: (characterId: number, x: number, y: number) => void;
-  onDraftToggle: (coord: CellCoord) => void;
+  onAnchorChange: (anchor: CellCoord | null) => void;
   onDraftAdd: (cells: Coord[]) => void;
   onDraftRemove: (cells: Coord[]) => void;
   onDraftClear: () => void;
   onToggleRegionCell: (coord: CellCoord) => void;
   onPlaceItem: (coord: CellCoord) => void;
-  onPlaceCharacter: (coord: CellCoord) => void;
-  onMoveObject: (from: CellCoord, to: CellCoord) => void;
+  onDropCharacter: (characterId: number, coord: CellCoord) => void;
   onErase: (coord: CellCoord) => void;
   onZoom: (zoom: number) => void;
   onPan: (pan: { x: number; y: number }) => void;
 }
 
-interface MoveFootprint {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-
 type Interaction =
   | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
-  | { kind: 'move'; from: CellCoord; startX: number; startY: number; w: number; h: number }
   | { kind: 'erase'; last: string | null }
-  | { kind: 'region-rect'; start: CellCoord; startX: number; startY: number; remove: boolean }
+  | {
+      kind: 'region-rect';
+      anchor: CellCoord;
+      startX: number;
+      startY: number;
+      remove: boolean;
+      anchored: boolean;
+    }
   | { kind: 'brush'; keys: Set<string>; erase: boolean }
   | null;
 
@@ -116,19 +114,17 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     spaceHeld,
     showRulers,
     pendingItem,
-    pendingCharacterId,
     regionDraftSelection,
     onSelect,
     onSelectRegion,
     onSelectCharacter,
-    onDraftToggle,
+    onAnchorChange,
     onDraftAdd,
     onDraftRemove,
     onDraftClear,
     onToggleRegionCell,
     onPlaceItem,
-    onPlaceCharacter,
-    onMoveObject,
+    onDropCharacter,
     onErase,
     onZoom,
     onPan,
@@ -140,7 +136,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const userPannedRef = useRef(false);
   const [hover, setHover] = useState<CellCoord | null>(null);
   const [marquee, setMarquee] = useState<{ start: CellCoord; end: CellCoord } | null>(null);
-  const [moveTarget, setMoveTarget] = useState<MoveFootprint | null>(null);
+  const [regionAnchor, setRegionAnchor] = useState<CellCoord | null>(null);
+  const [dropTarget, setDropTarget] = useState<CellCoord | null>(null);
   const [brushCells, setBrushCells] = useState<Coord[]>([]);
   const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
 
@@ -224,16 +221,33 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return;
-      setBrushCells([]);
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+      ) {
+        return;
+      }
       interactionRef.current = null;
-      onDraftClear();
+      setBrushCells([]);
+      setMarquee(null);
+      setRegionAnchor((anchor) => {
+        if (anchor) return null;
+        onDraftClear();
+        return null;
+      });
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onDraftClear]);
 
   useEffect(() => {
+    onAnchorChange(regionAnchor);
+  }, [regionAnchor, onAnchorChange]);
+
+  useEffect(() => {
     setBrushCells([]);
+    setRegionAnchor(null);
   }, [activeTool, regionShape]);
 
   const fits = (x: number, y: number, w: number, h: number): boolean =>
@@ -279,15 +293,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         return;
       }
       node.setPointerCapture(event.pointerId);
-      const start = clampCell(coord);
+      const down = clampCell(coord);
+      const anchored = regionAnchor !== null;
+      const rectAnchor = regionAnchor ?? down;
       interactionRef.current = {
         kind: 'region-rect',
-        start,
+        anchor: rectAnchor,
         startX: event.clientX,
         startY: event.clientY,
         remove: event.altKey,
+        anchored,
       };
-      setMarquee({ start, end: start });
+      setMarquee({ start: rectAnchor, end: down });
       return;
     }
 
@@ -315,25 +332,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         if (fits(coord.x, coord.y, pendingFootprint.w, pendingFootprint.h)) onPlaceItem(coord);
         return;
       }
-      if (pendingCharacterId !== null) {
-        onPlaceCharacter(coord);
-        return;
-      }
-      const cell = cells.get(`${coord.x},${coord.y}`);
-      if (cell?.object) {
-        node.setPointerCapture(event.pointerId);
-        interactionRef.current = {
-          kind: 'move',
-          from: coord,
-          startX: event.clientX,
-          startY: event.clientY,
-          w: cell.object.w,
-          h: cell.object.h,
-        };
-      } else {
-        onSelect({ type: 'cell', x: coord.x, y: coord.y });
-        onSelectRegion(regionAt(regions, coord.x, coord.y)?.id ?? null);
-      }
+      onSelect({ type: 'cell', x: coord.x, y: coord.y });
+      onSelectRegion(regionAt(regions, coord.x, coord.y)?.id ?? null);
     }
   };
 
@@ -375,7 +375,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       setMarquee((previous) =>
         previous && previous.end.x === coord.x && previous.end.y === coord.y
           ? previous
-          : { start: interaction.start, end: clampCell(coord) },
+          : { start: interaction.anchor, end: clampCell(coord) },
       );
       return;
     }
@@ -386,20 +386,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       interaction.keys.add(key);
       setBrushCells(Array.from(interaction.keys).map((item) => item.split(',').map(Number) as Coord));
       return;
-    }
-
-    if (interaction.kind === 'move') {
-      const distance = Math.hypot(
-        event.clientX - interaction.startX,
-        event.clientY - interaction.startY,
-      );
-      if (distance > DRAG_THRESHOLD) {
-        setMoveTarget(
-          fits(coord.x, coord.y, interaction.w, interaction.h)
-            ? { x: coord.x, y: coord.y, w: interaction.w, h: interaction.h }
-            : null,
-        );
-      }
     }
   };
 
@@ -414,14 +400,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         event.clientX - interaction.startX,
         event.clientY - interaction.startY,
       );
-      if (distance < DRAG_THRESHOLD) {
-        if (interaction.remove) onDraftRemove([[interaction.start.x, interaction.start.y]]);
-        else onDraftToggle(interaction.start);
-        return;
-      }
-      const rect = rectCells([interaction.start.x, interaction.start.y], [end.x, end.y]);
-      if (interaction.remove) onDraftRemove(rect);
-      else onDraftAdd(rect);
+      const result = resolveRegionPointerUp({
+        anchor: [interaction.anchor.x, interaction.anchor.y],
+        end: [end.x, end.y],
+        moved: distance > DRAG_THRESHOLD,
+        alt: interaction.remove,
+        anchored: interaction.anchored,
+      });
+      if (result.toAdd.length > 0) onDraftAdd(result.toAdd);
+      if (result.toRemove.length > 0) onDraftRemove(result.toRemove);
+      setRegionAnchor(
+        result.anchor ? { x: result.anchor[0], y: result.anchor[1] } : null,
+      );
       return;
     }
 
@@ -436,28 +426,36 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       }
       return;
     }
+  };
 
-    if (interaction?.kind === 'move') {
-      const coord = toCell(event.clientX, event.clientY);
-      if (moveTarget) {
-        onMoveObject(interaction.from, { x: moveTarget.x, y: moveTarget.y });
-      } else if (
-        !(coord.x === interaction.from.x && coord.y === interaction.from.y)
-      ) {
-        onSelect({ type: 'cell', x: interaction.from.x, y: interaction.from.y });
-        onSelectRegion(regionAt(regions, interaction.from.x, interaction.from.y)?.id ?? null);
-      } else {
-        onSelect({ type: 'cell', x: coord.x, y: coord.y });
-        onSelectRegion(regionAt(regions, coord.x, coord.y)?.id ?? null);
-      }
-      setMoveTarget(null);
-    }
+  const handleDragOver = (event: ReactDragEvent<HTMLDivElement>): void => {
+    if (!event.dataTransfer.types.includes(CHARACTER_DND_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'copy';
+    const coord = toCell(event.clientX, event.clientY);
+    setDropTarget((previous) =>
+      previous && previous.x === coord.x && previous.y === coord.y
+        ? previous
+        : isInBounds(coord, gridSize)
+          ? coord
+          : null,
+    );
+  };
+
+  const handleDrop = (event: ReactDragEvent<HTMLDivElement>): void => {
+    if (!event.dataTransfer.types.includes(CHARACTER_DND_TYPE)) return;
+    event.preventDefault();
+    const characterId = Number(event.dataTransfer.getData(CHARACTER_DND_TYPE));
+    setDropTarget(null);
+    if (!Number.isFinite(characterId)) return;
+    const coord = toCell(event.clientX, event.clientY);
+    if (isInBounds(coord, gridSize)) onDropCharacter(characterId, coord);
   };
 
   const cursor =
     activeTool === 'pan' || spaceHeld
       ? 'grab'
-      : activeTool === 'region' || activeTool === 'eraser'
+      : activeTool === 'region'
         ? 'crosshair'
         : 'default';
 
@@ -473,22 +471,51 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       }
     : null;
 
-  const gridBackground = useMemo(
-    () => ({
-      backgroundImage: `linear-gradient(${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px), linear-gradient(90deg, ${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px)`,
-      backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
-      border: `${GRID_BORDER_WIDTH}px solid ${GRID_LINE_COLOR}`,
-    }),
-    [],
-  );
-
-  const gridLines = useMemo(
-    () => ({
-      backgroundImage: `linear-gradient(${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px), linear-gradient(90deg, ${GRID_LINE_COLOR} ${GRID_LINE_WIDTH}px, transparent ${GRID_LINE_WIDTH}px)`,
-      backgroundSize: `${CELL_SIZE}px ${CELL_SIZE}px`,
-    }),
-    [],
-  );
+  const gridSvg = useMemo(() => {
+    const lines: JSX.Element[] = [];
+    for (let i = 1; i < gridSize; i += 1) {
+      const pos = i * CELL_SIZE;
+      lines.push(
+        <line
+          key={`grid-v-${i}`}
+          x1={pos}
+          y1={0}
+          x2={pos}
+          y2={total}
+          stroke={GRID_LINE_COLOR}
+          strokeWidth={GRID_LINE_WIDTH}
+        />,
+        <line
+          key={`grid-h-${i}`}
+          x1={0}
+          y1={pos}
+          x2={total}
+          y2={pos}
+          stroke={GRID_LINE_COLOR}
+          strokeWidth={GRID_LINE_WIDTH}
+        />,
+      );
+    }
+    return (
+      <svg
+        className="pointer-events-none absolute left-0 top-0"
+        width={total}
+        height={total}
+        style={{ zIndex: 25 }}
+      >
+        {lines}
+        <rect
+          x={GRID_BORDER_WIDTH / 2}
+          y={GRID_BORDER_WIDTH / 2}
+          width={Math.max(0, total - GRID_BORDER_WIDTH)}
+          height={Math.max(0, total - GRID_BORDER_WIDTH)}
+          fill="none"
+          stroke={GRID_LINE_COLOR}
+          strokeWidth={GRID_BORDER_WIDTH}
+        />
+      </svg>
+    );
+  }, [gridSize, total]);
 
   const backgroundNodes = useMemo(
     () =>
@@ -545,8 +572,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                 top: y * CELL_SIZE,
                 width: anchor.w * CELL_SIZE,
                 height: anchor.h * CELL_SIZE,
-                zIndex: 15,
-                filter: glow ? 'drop-shadow(0 0 4px #93C5FD)' : undefined,
+              zIndex: 12,
+              pointerEvents: 'none',
+              filter: glow ? 'drop-shadow(0 0 4px #93C5FD)' : undefined,
               }}
             >
               <img
@@ -566,6 +594,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       placedCharacters.map((placed) => {
         const character = charactersById.get(placed.characterId);
         const src = character?.avatarThumbUrl ?? character?.avatarUrl;
+        const interactive = activeTool === 'select' || activeTool === 'character';
         const selected =
           selection?.type === 'character' &&
           selection.x === placed.x &&
@@ -580,13 +609,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
               top: placed.y * CELL_SIZE,
               width: CELL_SIZE,
               height: CELL_SIZE,
-              zIndex: 25,
-              pointerEvents: activeTool === 'region' ? 'none' : 'auto',
-              cursor: activeTool === 'region' ? 'inherit' : 'pointer',
+              zIndex: 18,
+              pointerEvents: interactive ? 'auto' : 'none',
+              cursor: interactive ? 'pointer' : 'inherit',
               transform: selected ? 'scale(1.06)' : undefined,
               filter: selected ? 'drop-shadow(0 0 6px rgba(59,130,246,0.9))' : undefined,
             }}
-            disabled={activeTool === 'region'}
+            disabled={!interactive}
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
@@ -617,7 +646,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         className="pointer-events-none absolute left-0 top-0"
         width={total}
         height={total}
-        style={{ zIndex: 10 }}
+        style={{ zIndex: 8 }}
       >
         {regions.flatMap((region) =>
           region.cells.map(([x, y]) => (
@@ -643,7 +672,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         className="pointer-events-none absolute left-0 top-0"
         width={total}
         height={total}
-        style={{ zIndex: 20 }}
+        style={{ zIndex: 15 }}
       >
         {regions.map((region) => {
           const highlighted = hoveredRegionId === region.id || selectedRegionId === region.id;
@@ -674,7 +703,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
   const regionLabels = useMemo(
     () => (
-      <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 27 }}>
+      <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 32 }}>
         {regions.map((region) => {
           const label = region.labelCell ?? computeLabelCell(region.cells);
           if (!label) return null;
@@ -682,14 +711,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
             <button
               key={`label-${region.id}`}
               type="button"
-              className="region-label pointer-events-auto absolute -translate-x-1/2 whitespace-nowrap"
+              className="region-label pointer-events-auto absolute whitespace-nowrap"
               style={{
                 left: (label[0] + 0.5) * CELL_SIZE,
-                top: label[1] * CELL_SIZE + 2,
+                top: (label[1] + 1) * CELL_SIZE - 2,
+                transform: 'translate(-50%, -100%)',
                 color: '#FFFFFF',
                 fontWeight: 700,
-                fontSize: 12,
-                WebkitTextStroke: '2px #000000',
+                fontSize: 14,
+                lineHeight: 1.1,
+                WebkitTextStroke: '3px #000000',
                 paintOrder: 'stroke fill',
               } as CSSProperties}
               onMouseEnter={() => setHoveredRegionId(region.id)}
@@ -717,7 +748,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       : null;
 
   const draftOverlay = (
-    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 12 }}>
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 28 }}>
       {Array.from(regionDraftSelection).map((key) => {
         const [x, y] = key.split(',').map(Number) as [number, number];
         return (
@@ -739,7 +770,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   const selectionOverlay = (
-    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 26 }}>
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 30 }}>
       {selectionCell ? (
         <div
           className="absolute ring-2 ring-inset ring-primary"
@@ -762,14 +793,26 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           }}
         />
       ) : null}
-      {moveTarget ? (
+      {dropTarget ? (
         <div
-          className="absolute border-2 border-primary bg-primary/15"
+          className="absolute border-2 border-primary bg-primary/25"
           style={{
-            left: moveTarget.x * CELL_SIZE,
-            top: moveTarget.y * CELL_SIZE,
-            width: moveTarget.w * CELL_SIZE,
-            height: moveTarget.h * CELL_SIZE,
+            left: dropTarget.x * CELL_SIZE,
+            top: dropTarget.y * CELL_SIZE,
+            width: CELL_SIZE,
+            height: CELL_SIZE,
+          }}
+        />
+      ) : null}
+      {regionAnchor ? (
+        <div
+          className="absolute animate-pulse border-[3px] border-primary bg-primary/30"
+          style={{
+            left: regionAnchor.x * CELL_SIZE,
+            top: regionAnchor.y * CELL_SIZE,
+            width: CELL_SIZE,
+            height: CELL_SIZE,
+            boxShadow: '0 0 0 2px rgba(59,130,246,0.4)',
           }}
         />
       ) : null}
@@ -800,6 +843,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={() => setHover(null)}
+      onDragOver={handleDragOver}
+      onDragLeave={() => setDropTarget(null)}
+      onDrop={handleDrop}
     >
       <div
         className="absolute left-0 top-0"
@@ -812,7 +858,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       >
         <div
           className="absolute left-0 top-0 bg-background"
-          style={{ width: total, height: total, ...gridBackground }}
+          style={{ width: total, height: total }}
         />
 
         {backgroundNodes}
@@ -820,16 +866,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         {regionEdges}
         {draftOverlay}
 
-        <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 15 }}>
+        <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 12 }}>
           {objectNodes}
         </div>
 
-        <div
-          className="pointer-events-none absolute left-0 top-0"
-          style={{ width: total, height: total, zIndex: 16, ...gridLines }}
-        />
+        {gridSvg}
 
-        <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 25 }}>
+        <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 18 }}>
           {characterNodes}
         </div>
 
@@ -840,7 +883,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       {showRulers ? (
         <>
           <div
-            className="pointer-events-none absolute z-30 h-7 border-b border-[#E5E7EB] bg-[#F9FAFB]"
+            className="pointer-events-none absolute z-30 h-7 border-b border-[#E5E7EB]"
             style={{ left: pan.x - RULER_SIZE, top: pan.y - RULER_SIZE, width: total * zoom + RULER_SIZE, overflow: 'hidden' }}
           >
             {rulerColumns.map((column) => {
@@ -852,7 +895,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                   style={{
                     left: RULER_SIZE + (column - 1) * CELL_SIZE * zoom,
                     width: CELL_SIZE * zoom,
-                    backgroundColor: active ? '#DBEAFE' : '#F9FAFB',
+                    backgroundColor: active ? '#DBEAFE' : 'transparent',
                     color: active ? '#1E3A8A' : '#374151',
                   }}
                 >
@@ -863,12 +906,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           </div>
 
           <div
-            className="pointer-events-none absolute z-40 border-b border-r border-[#E5E7EB] bg-[#F9FAFB]"
+            className="pointer-events-none absolute z-40 border-b border-r border-[#E5E7EB]"
             style={{ left: pan.x - RULER_SIZE, top: pan.y - RULER_SIZE, width: RULER_SIZE, height: RULER_SIZE }}
           />
 
           <div
-            className="pointer-events-none absolute z-30 border-r border-[#E5E7EB] bg-[#F9FAFB]"
+            className="pointer-events-none absolute z-30 border-r border-[#E5E7EB]"
             style={{ left: pan.x - RULER_SIZE, top: pan.y - RULER_SIZE, width: RULER_SIZE, height: total * zoom + RULER_SIZE, overflow: 'hidden' }}
           >
             {rulerColumns.map((row) => (
@@ -879,7 +922,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                   top: RULER_SIZE + (row - 0.5) * CELL_SIZE * zoom,
                   height: 16,
                   backgroundColor:
-                    hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#DBEAFE' : '#F9FAFB',
+                    hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#DBEAFE' : 'transparent',
                   color: hover?.y === row - 1 || selectionCell?.y === row - 1 ? '#1E3A8A' : '#374151',
                 }}
               >

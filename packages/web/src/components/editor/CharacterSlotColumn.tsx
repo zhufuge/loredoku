@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { X } from 'lucide-react';
 import type { Character, CharacterSlot } from '@murdoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
+import { CHARACTER_DND_TYPE } from '@/components/editor/EditorCanvas';
 import { cn } from '@/lib/utils';
 
 interface CharacterSlotColumnProps {
@@ -39,7 +40,12 @@ export function CharacterSlotColumn({
               ) : null}
               <div
                 draggable={slot !== null}
-                onDragStart={() => setDragIndex(index)}
+                onDragStart={(event) => {
+                  setDragIndex(index);
+                  if (slot) {
+                    event.dataTransfer.setData(CHARACTER_DND_TYPE, String(slot.characterId));
+                  }
+                }}
                 onDragEnd={() => {
                   setDragIndex(null);
                   setOverIndex(null);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Loader2, Plus, Search } from 'lucide-react';
 import type { Character } from '@murdoku/shared';
 import {
@@ -25,7 +26,9 @@ export function CharactersPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialId = searchParams.get('id');
+  const [selectedId, setSelectedId] = useState<number | null>(initialId ? Number(initialId) : null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Character | null>(null);
 
@@ -52,16 +55,27 @@ export function CharactersPage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (
-      characters &&
-      characters.length > 0 &&
-      !characters.some((character) => character.id === selectedId)
-    ) {
-      setSelectedId(characters[0]!.id);
+    if (characters && characters.length > 0) {
+      const idParam = searchParams.get('id');
+      if (idParam) {
+        const id = Number(idParam);
+        if (characters.some((character) => character.id === id)) {
+          if (selectedId !== id) setSelectedId(id);
+          return;
+        }
+      }
+      if (!characters.some((character) => character.id === selectedId)) {
+        setSelectedId(characters[0]!.id);
+      }
     }
-  }, [characters, selectedId]);
+  }, [characters, searchParams, selectedId]);
 
   const selectedCharacter = characters?.find((character) => character.id === selectedId) ?? null;
+
+  const selectCharacter = (id: number): void => {
+    setSelectedId(id);
+    setSearchParams({ id: String(id) }, { replace: true });
+  };
 
   const runDelete = (options: { hard: boolean; clearReferences: boolean }): void => {
     if (!deleteTarget) return;
@@ -113,7 +127,7 @@ export function CharactersPage(): JSX.Element {
       <CharacterListPanel
         characters={characters}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        onSelect={selectCharacter}
       />
     );
   }
@@ -170,7 +184,11 @@ export function CharactersPage(): JSX.Element {
       <CreateCharacterDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={setSelectedId}
+        onCreated={(id) => {
+          setCreateOpen(false);
+          setSelectedId(id);
+          setSearchParams({ id: String(id) }, { replace: true });
+        }}
       />
 
       <AlertDialog

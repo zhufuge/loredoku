@@ -86,6 +86,8 @@ export function EditorPage(): JSX.Element {
   const [itemsOpen, setItemsOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
   const [slotCharacterId, setSlotCharacterId] = useState<number | null>(null);
+  const [regionAnchorActive, setRegionAnchorActive] = useState(false);
+  const [saveMaskVisible, setSaveMaskVisible] = useState(false);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
     open: false,
     mode: 'create',
@@ -175,9 +177,6 @@ export function EditorPage(): JSX.Element {
       editor.setSelectedItem(null);
       editor.setSelectedCharacter(null);
     }
-    if (tool === 'eraser') {
-      setItemsOpen(false);
-    }
   };
 
   const selectCharacter = (characterId: number, x: number, y: number): void => {
@@ -206,15 +205,15 @@ export function EditorPage(): JSX.Element {
   const removeCharacter = (x: number, y: number): void => {
     const placed = editor.placedCharacters.find((item) => item.x === x && item.y === y);
     if (!placed) return;
-    const emptySlot = editor.characterSlots.findIndex((slot) => slot === null);
-    if (emptySlot === -1) {
-      toast.error('槽位已满，无法将角色放回槽位');
+    const returned = editor.returnCharacterToSlot(placed.characterId);
+    if (!returned) {
+      toast.error('无可用槽位，请先清理槽位');
       return;
     }
-    editor.setSlot(emptySlot, placed.characterId);
-    editor.removeCharacterAt(x, y);
+    toast.success('已移除角色');
     editor.setSelection(null);
-    editor.setSelectedCharacter(null);
+    editor.setSelectedCharacter(placed.characterId);
+    setSlotCharacterId(placed.characterId);
   };
 
   const assignSlot = (characterId: number): void => {
@@ -340,7 +339,18 @@ export function EditorPage(): JSX.Element {
   };
 
   const previewCellSize = Math.max(3, Math.floor(180 / editor.gridSize));
-  const panelLocked = editor.activeTool === 'region' || editor.activeTool === 'eraser';
+  const panelsLocked = editor.activeTool === 'region';
+  const panelsDisabled = editor.activeTool === 'eraser';
+
+  const saving = saveMutation.isPending;
+  useEffect(() => {
+    if (saving) {
+      setSaveMaskVisible(true);
+      return;
+    }
+    const timer = setTimeout(() => setSaveMaskVisible(false), 150);
+    return () => clearTimeout(timer);
+  }, [saving]);
 
   const exportToFile = (): void => {
     const blob = new Blob([JSON.stringify(editor.toDraft(), null, 2)], {
@@ -434,7 +444,8 @@ export function EditorPage(): JSX.Element {
         editor.setSelection(null);
         editor.setSelectedItem(null);
         editor.setSelectedCharacter(null);
-        editor.clearDraftSelection();
+        setSlotCharacterId(null);
+        if (editor.activeTool !== 'region') editor.clearDraftSelection();
         return;
       }
       if (mod) return;
@@ -514,12 +525,27 @@ export function EditorPage(): JSX.Element {
         onImport={() => importInputRef.current?.click()}
       />
 
-      <div className="flex min-h-0 flex-1">
+      <div className="relative flex min-h-0 flex-1">
+        {saveMaskVisible ? (
+          <div
+            className={cn(
+              'absolute inset-0 z-50 flex items-center justify-center gap-2 text-sm text-muted-foreground transition-opacity duration-150',
+              saving ? 'opacity-100' : 'opacity-0',
+            )}
+            style={{ background: 'rgba(255,255,255,0.6)', pointerEvents: 'auto' }}
+            aria-hidden={!saving}
+          >
+            <Loader2 className="h-5 w-5 animate-spin" />
+            保存中…
+          </div>
+        ) : null}
+
         {itemsOpen ? (
           <div
             className={cn(
-              'flex min-h-0',
-              panelLocked ? 'pointer-events-none opacity-60' : undefined,
+              'flex min-h-0 transition-opacity',
+              panelsLocked ? 'pointer-events-none opacity-60' : undefined,
+              panelsDisabled ? 'pointer-events-none opacity-50' : undefined,
             )}
           >
             <EditorLeftPanel
@@ -553,7 +579,13 @@ export function EditorPage(): JSX.Element {
           </div>
         ) : null}
 
-        <div className={cn('flex min-h-0', panelLocked ? 'pointer-events-none opacity-60' : undefined)}>
+        <div
+          className={cn(
+            'flex min-h-0 transition-opacity',
+            panelsLocked ? 'pointer-events-none opacity-60' : undefined,
+            panelsDisabled ? 'pointer-events-none opacity-50' : undefined,
+          )}
+        >
           <CharacterSlotColumn
             slots={editor.characterSlots}
             charactersById={charactersById}
@@ -582,7 +614,6 @@ export function EditorPage(): JSX.Element {
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
             pendingItem={pendingItem}
-            pendingCharacterId={editor.selectedCharacterId}
             regionDraftSelection={editor.regionDraftSelection}
             onSelect={(selection) => {
               editor.setSelection(selection);
@@ -590,7 +621,7 @@ export function EditorPage(): JSX.Element {
             }}
             onSelectRegion={editor.setSelectedRegion}
             onSelectCharacter={(characterId, x, y) => selectCharacter(characterId, x, y)}
-            onDraftToggle={(coord) => editor.toggleDraftCell(coord.x, coord.y)}
+            onAnchorChange={(anchor) => setRegionAnchorActive(anchor !== null)}
             onDraftAdd={editor.addDraftCells}
             onDraftRemove={editor.removeDraftCells}
             onDraftClear={editor.clearDraftSelection}
@@ -615,12 +646,9 @@ export function EditorPage(): JSX.Element {
                 );
               }
             }}
-            onPlaceCharacter={(coord) => {
-              if (editor.selectedCharacterId !== null) {
-                editor.placeCharacter(editor.selectedCharacterId, coord.x, coord.y);
-              }
+            onDropCharacter={(characterId, coord) => {
+              editor.placeCharacter(characterId, coord.x, coord.y);
             }}
-            onMoveObject={(from, to) => editor.moveObject(from.x, from.y, to.x, to.y)}
             onErase={(coord) => editor.eraseAt(coord.x, coord.y)}
             onZoom={editor.setZoom}
             onPan={editor.setPan}
@@ -629,6 +657,7 @@ export function EditorPage(): JSX.Element {
           {editor.activeTool === 'region' ? (
             <RegionSelectionBar
               count={editor.regionDraftSelection.size}
+              anchored={regionAnchorActive}
               onClear={editor.clearDraftSelection}
               onConfirm={() => {
                 const cells = Array.from(editor.regionDraftSelection).map(

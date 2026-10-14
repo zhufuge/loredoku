@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { Character } from '@murdoku/shared';
 import { CHARACTER_AVATAR_MAX_DIMENSION } from '@murdoku/shared';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +33,7 @@ export function CharacterDetailForm({
 }: CharacterDetailFormProps): JSX.Element {
   const [name, setName] = useState(character.name);
   const [description, setDescription] = useState(character.description ?? '');
+  const [confirmDeleteAvatar, setConfirmDeleteAvatar] = useState(false);
 
   const updateMutation = useUpdateCharacter();
   const uploadMutation = useUploadCharacterAvatar();
@@ -66,11 +76,12 @@ export function CharacterDetailForm({
           ) : (
             <>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                已停用
+                {character.avatarUrl ? '已停用' : '未启用（缺图片）'}
               </span>
               <Button
                 variant="outline"
-                disabled={activeMutation.isPending}
+                disabled={activeMutation.isPending || !character.avatarUrl}
+                title={character.avatarUrl ? undefined : '请先上传头像后再启用'}
                 onClick={() => activeMutation.mutate({ id: character.id, active: true })}
               >
                 启用
@@ -118,7 +129,7 @@ export function CharacterDetailForm({
             uploading={uploadMutation.isPending}
             deleting={deleteAvatarMutation.isPending}
             onUpload={(file) => uploadMutation.mutate({ id: character.id, file })}
-            onDelete={() => deleteAvatarMutation.mutate(character.id)}
+            onDelete={() => setConfirmDeleteAvatar(true)}
           />
         </div>
       </div>
@@ -128,6 +139,34 @@ export function CharacterDetailForm({
           {updateMutation.isPending ? '保存中…' : '保存'}
         </Button>
       </div>
+
+      <AlertDialog
+        open={confirmDeleteAvatar}
+        onOpenChange={(open) => {
+          if (!open && !deleteAvatarMutation.isPending) setConfirmDeleteAvatar(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除头像？</AlertDialogTitle>
+            <AlertDialogDescription>删除头像后，该角色将自动停用。</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteAvatarMutation.isPending}>取消</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deleteAvatarMutation.isPending}
+              onClick={() =>
+                deleteAvatarMutation.mutate(character.id, {
+                  onSuccess: () => setConfirmDeleteAvatar(false),
+                })
+              }
+            >
+              {deleteAvatarMutation.isPending ? '删除中…' : '删除并停用'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

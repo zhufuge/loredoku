@@ -21,6 +21,47 @@ export function rectCells(a: Coord, b: Coord): Coord[] {
   return cells;
 }
 
+export interface RegionPointerUpResult {
+  toAdd: Coord[];
+  toRemove: Coord[];
+  /** Next click-anchor: set after a lone click, cleared once a rectangle is committed. */
+  anchor: Coord | null;
+}
+
+/**
+ * Resolve what a region-tool pointerup should do (see docs/v0.2.4.md FIX-302).
+ *
+ * - First click (no anchor, no movement): toggles the cell in and remembers it as
+ *   an anchor so the next click forms a rectangle.
+ * - Second click / drag: expands `[anchor..end]` and appends it. `Alt` removes.
+ * - Double-click on the same cell removes it (toggle off).
+ */
+export function resolveRegionPointerUp(input: {
+  anchor: Coord;
+  end: Coord;
+  moved: boolean;
+  alt: boolean;
+  anchored: boolean;
+}): RegionPointerUpResult {
+  const { anchor, end, moved, alt, anchored } = input;
+  const same = anchor[0] === end[0] && anchor[1] === end[1];
+
+  if (!anchored && !moved) {
+    return alt
+      ? { toAdd: [], toRemove: [anchor], anchor }
+      : { toAdd: [anchor], toRemove: [], anchor };
+  }
+
+  if (anchored && !moved && same) {
+    return { toAdd: [], toRemove: [anchor], anchor: null };
+  }
+
+  const rect = rectCells(anchor, end);
+  return alt
+    ? { toAdd: [], toRemove: rect, anchor: null }
+    : { toAdd: rect, toRemove: [], anchor: null };
+}
+
 export function regionCellSet(region: DraftRegion): Set<string> {
   return new Set(region.cells.map(([x, y]) => coordKey(x, y)));
 }

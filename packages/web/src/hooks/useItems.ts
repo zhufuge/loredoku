@@ -45,7 +45,7 @@ export function useCreateItem(onSuccess?: (item: { id: number }) => void) {
   return useMutation({
     mutationFn: (payload: CreateItemPayload) => itemsApi.create(payload),
     onSuccess: (item) => {
-      toast.success('物品创建成功');
+      toast.success('物品创建成功，上传图片后可手动启用');
       invalidate();
       onSuccess?.(item);
     },
@@ -129,7 +129,7 @@ export function useDeleteItemImage() {
   return useMutation({
     mutationFn: (id: number) => itemsApi.deleteImage(id),
     onSuccess: () => {
-      toast.success('图片已删除');
+      toast.success('图片已删除，该物品已自动停用');
       invalidate();
     },
     onError: (error) => toast.error(errorMessage(error, '删除失败')),

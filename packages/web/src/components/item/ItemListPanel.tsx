@@ -30,7 +30,7 @@ export function ItemListPanel({ items, selectedId, onSelect }: ItemListPanelProp
                 </span>
                 {!item.isActive ? (
                   <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                    已停用
+                    {item.imageUrl ? '已停用' : '未启用（缺图片）'}
                   </span>
                 ) : null}
               </div>

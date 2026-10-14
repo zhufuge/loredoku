@@ -32,7 +32,13 @@ export function EditorToolbar({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
       <div className="flex min-w-0 items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onBack} title="返回项目列表">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onBack}
+          disabled={saving}
+          title="返回项目列表"
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex min-w-0 items-center gap-2">
@@ -51,13 +57,19 @@ export function EditorToolbar({
       </div>
 
       <div className="flex items-center gap-1">
-        <Button variant="ghost" size="icon" onClick={onImport} title="导入 JSON">
+        <Button variant="ghost" size="icon" onClick={onImport} disabled={saving} title="导入 JSON">
           <Upload className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={onExport} title="导出 JSON">
+        <Button variant="ghost" size="icon" onClick={onExport} disabled={saving} title="导出 JSON">
           <Download className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={onOpenVersions} title="版本历史">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onOpenVersions}
+          disabled={saving}
+          title="版本历史"
+        >
           <History className="h-4 w-4" />
         </Button>
 

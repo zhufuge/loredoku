@@ -114,6 +114,7 @@ export interface EditorState {
 
   setSlot: (index: number, characterId: number | null) => void;
   swapSlots: (from: number, to: number) => void;
+  returnCharacterToSlot: (characterId: number) => boolean;
 
   setGridSize: (size: number) => void;
   applyDraft: (draft: MapDraft) => void;
@@ -261,9 +262,25 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     placeCharacter: (characterId, x, y) =>
       commit((next) => {
+        const originSlotIndex = next.characterSlots.findIndex(
+          (slot) => slot?.characterId === characterId,
+        );
+        if (originSlotIndex !== -1) {
+          next.characterSlots = next.characterSlots.map((slot, index) =>
+            index === originSlotIndex ? null : slot,
+          );
+        }
         next.placedCharacters = [
-          ...next.placedCharacters.filter((placed) => !(placed.x === x && placed.y === y)),
-          { characterId, x, y, mapMeta: {} },
+          ...next.placedCharacters.filter(
+            (placed) => placed.characterId !== characterId && !(placed.x === x && placed.y === y),
+          ),
+          {
+            characterId,
+            x,
+            y,
+            mapMeta: {},
+            originSlotIndex: originSlotIndex === -1 ? undefined : originSlotIndex,
+          },
         ];
       }),
 
@@ -442,6 +459,35 @@ export const useEditorStore = create<EditorState>((set, get) => {
         slots[from] = b;
         next.characterSlots = slots;
       }),
+
+    returnCharacterToSlot: (characterId) => {
+      const state = get();
+      const placed = state.placedCharacters.find((item) => item.characterId === characterId);
+      if (!placed) return false;
+      const slots = [...state.characterSlots];
+      const alreadySlotted = slots.some((slot) => slot?.characterId === characterId);
+      let target = -1;
+      if (!alreadySlotted) {
+        const origin = placed.originSlotIndex ?? -1;
+        if (origin >= 0 && origin < slots.length && slots[origin] === null) {
+          target = origin;
+        } else {
+          target = slots.findIndex((slot) => slot === null);
+        }
+        if (target === -1) return false;
+      }
+      commit((next) => {
+        if (target !== -1) {
+          next.characterSlots = next.characterSlots.map((slot, index) =>
+            index === target ? { characterId } : slot,
+          );
+        }
+        next.placedCharacters = next.placedCharacters.filter(
+          (item) => item.characterId !== characterId,
+        );
+      });
+      return true;
+    },
 
     setGridSize: (size) =>
       commit((next) => {

@@ -144,7 +144,8 @@ export async function create(data: CreateItemData): Promise<number> {
       can_stand: data.canStand,
       fit_mode: data.fitMode,
       meta: data.meta,
-        is_active: true,
+        // OPT-305: 新建物品未上传图片，初始状态为停用；上传图片后需手动启用。
+        is_active: false,
       })
       .returning('id');
     const id = Number((row as { id: number | string }).id);
@@ -195,6 +196,8 @@ export async function clearImage(id: number): Promise<void> {
     image_size: null,
     image_width: null,
     image_height: null,
+    // OPT-305: 删除图片后自动停用（数据引用保留）。
+    is_active: false,
     updated_at: db.fn.now(),
   });
 }

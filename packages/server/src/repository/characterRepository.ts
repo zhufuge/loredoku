@@ -83,7 +83,8 @@ export async function create(data: CreateCharacterData): Promise<number> {
       name: data.name,
       description: data.description,
       meta: data.meta,
-      is_active: true,
+      // OPT-305: 新建角色未上传头像，初始状态为停用；上传头像后需手动启用。
+      is_active: false,
     })
     .returning('id');
   return Number((row as { id: number | string }).id);
@@ -117,6 +118,8 @@ export async function clearAvatar(id: number): Promise<void> {
     avatar_size: null,
     avatar_width: null,
     avatar_height: null,
+    // OPT-305: 删除头像后自动停用（数据引用保留）。
+    is_active: false,
     updated_at: db.fn.now(),
   });
 }

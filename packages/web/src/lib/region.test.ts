@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CELL_SIZE } from '@murdoku/shared';
 import type { DraftRegion } from '@murdoku/shared';
-import { buildRegionEdges, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, rectCells, regionAt, regionCellSet } from './region';
+import { buildRegionEdges, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, rectCells, regionAt, regionCellSet, resolveRegionPointerUp } from './region';
 
 function region(id: string, cells: Array<[number, number]>): DraftRegion {
   return { id, name: `R${id}`, color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells };
@@ -38,6 +38,102 @@ describe('regionCellSet', () => {
     const set = regionCellSet(region('rg_1', [[0, 0], [1, 0]]));
     expect(set.has('0,0')).toBe(true);
     expect(set.has('2,0')).toBe(false);
+  });
+});
+
+describe('resolveRegionPointerUp', () => {
+  it('adds a lone click and sets the anchor', () => {
+    const result = resolveRegionPointerUp({
+      anchor: [1, 1],
+      end: [1, 1],
+      moved: false,
+      alt: false,
+      anchored: false,
+    });
+    expect(result).toEqual({ toAdd: [[1, 1]], toRemove: [], anchor: [1, 1] });
+  });
+
+  it('expands a rectangle on the second click', () => {
+    const result = resolveRegionPointerUp({
+      anchor: [0, 0],
+      end: [1, 1],
+      moved: false,
+      alt: false,
+      anchored: true,
+    });
+    expect(result.anchor).toBeNull();
+    expect(result.toAdd).toHaveLength(4);
+    expect(result.toAdd).toContainEqual([1, 1]);
+  });
+
+  it('expands a rectangle when dragged', () => {
+    const result = resolveRegionPointerUp({
+      anchor: [0, 0],
+      end: [2, 0],
+      moved: true,
+      alt: false,
+      anchored: false,
+    });
+    expect(result.anchor).toBeNull();
+    expect(result.toAdd).toEqual([
+      [0, 0],
+      [1, 0],
+      [2, 0],
+    ]);
+  });
+
+  it('keeps the first anchor when a click anchor is followed by a drag', () => {
+    // 单击 A 后再拖拽到 C：仍以第一次点击为对角起点，并将矩形整体追加。
+    const result = resolveRegionPointerUp({
+      anchor: [1, 1],
+      end: [3, 2],
+      moved: true,
+      alt: false,
+      anchored: true,
+    });
+    expect(result.anchor).toBeNull();
+    expect(result.toAdd).toHaveLength(6);
+    expect(result.toRemove).toHaveLength(0);
+    expect(result.toAdd).toContainEqual([1, 1]);
+    expect(result.toAdd).toContainEqual([3, 2]);
+  });
+
+  it('appends by default (Shift behaves like the default append)', () => {
+    const result = resolveRegionPointerUp({
+      anchor: [0, 0],
+      end: [1, 0],
+      moved: true,
+      alt: false,
+      anchored: false,
+    });
+    expect(result.toRemove).toHaveLength(0);
+    expect(result.toAdd).toEqual([
+      [0, 0],
+      [1, 0],
+    ]);
+  });
+
+  it('subtracts cells when Alt is held', () => {
+    const result = resolveRegionPointerUp({
+      anchor: [0, 0],
+      end: [0, 0],
+      moved: true,
+      alt: true,
+      anchored: false,
+    });
+    expect(result.toAdd).toHaveLength(0);
+    expect(result.toRemove).toEqual([[0, 0]]);
+  });
+
+  it('removes the cell when the anchor is clicked twice', () => {
+    const result = resolveRegionPointerUp({
+      anchor: [3, 3],
+      end: [3, 3],
+      moved: false,
+      alt: false,
+      anchored: true,
+    });
+    expect(result).toEqual({ toAdd: [], toRemove: [[3, 3]], anchor: null });
   });
 });
 

@@ -44,7 +44,7 @@ export function useCreateCharacter(onSuccess?: (character: { id: number }) => vo
   return useMutation({
     mutationFn: (payload: CreateCharacterPayload) => charactersApi.create(payload),
     onSuccess: (character) => {
-      toast.success('角色创建成功');
+      toast.success('角色创建成功，上传头像后可手动启用');
       invalidate();
       onSuccess?.(character);
     },
@@ -115,7 +115,7 @@ export function useDeleteCharacterAvatar() {
   return useMutation({
     mutationFn: (id: number) => charactersApi.deleteAvatar(id),
     onSuccess: () => {
-      toast.success('头像已删除');
+      toast.success('头像已删除，该角色已自动停用');
       invalidate();
     },
     onError: (error) => toast.error(errorMessage(error, '删除失败')),

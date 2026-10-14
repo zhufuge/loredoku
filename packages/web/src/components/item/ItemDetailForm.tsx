@@ -11,6 +11,15 @@ import {
   type ItemFitMode,
   type ItemTriggerInput,
 } from '@murdoku/shared';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -61,6 +70,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
   const [fitMode, setFitMode] = useState<ItemFitMode>(item.fitMode);
   const [metaRows, setMetaRows] = useState<MetaRow[]>(buildMetaRows(item));
   const [triggerRows, setTriggerRows] = useState<EditableTrigger[]>(buildTriggerRows(item));
+  const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
 
   const updateMutation = useUpdateItem();
   const triggersMutation = useReplaceItemTriggers();
@@ -146,11 +156,12 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           ) : (
             <>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                已停用
+                {item.imageUrl ? '已停用' : '未启用（缺图片）'}
               </span>
               <Button
                 variant="outline"
-                disabled={activeMutation.isPending}
+                disabled={activeMutation.isPending || !item.imageUrl}
+                title={item.imageUrl ? undefined : '请先上传图片后再启用'}
                 onClick={() => activeMutation.mutate({ id: item.id, active: true })}
               >
                 启用
@@ -249,7 +260,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
             uploading={uploadMutation.isPending}
             deleting={deleteImageMutation.isPending}
             onUpload={(file) => uploadMutation.mutate({ id: item.id, file })}
-            onDelete={() => deleteImageMutation.mutate(item.id)}
+            onDelete={() => setConfirmDeleteImage(true)}
           />
         </div>
 
@@ -269,6 +280,36 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           {saving ? '保存中…' : '保存'}
         </Button>
       </div>
+
+      <AlertDialog
+        open={confirmDeleteImage}
+        onOpenChange={(open) => {
+          if (!open && !deleteImageMutation.isPending) setConfirmDeleteImage(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除图片？</AlertDialogTitle>
+            <AlertDialogDescription>
+              删除图片后，该物品将自动停用。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteImageMutation.isPending}>取消</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deleteImageMutation.isPending}
+              onClick={() =>
+                deleteImageMutation.mutate(item.id, {
+                  onSuccess: () => setConfirmDeleteImage(false),
+                })
+              }
+            >
+              {deleteImageMutation.isPending ? '删除中…' : '删除并停用'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Loader2, Plus, Search } from 'lucide-react';
 import { ITEM_CATEGORIES, ITEM_CATEGORY_LABELS, type Item, type ItemCategory } from '@murdoku/shared';
 import {
@@ -27,7 +28,9 @@ export function ItemsPage(): JSX.Element {
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [category, setCategory] = useState<CategoryFilter>('all');
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialId = searchParams.get('id');
+  const [selectedId, setSelectedId] = useState<number | null>(initialId ? Number(initialId) : null);
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
 
@@ -55,12 +58,27 @@ export function ItemsPage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (items && items.length > 0 && !items.some((item) => item.id === selectedId)) {
-      setSelectedId(items[0]!.id);
+    if (items && items.length > 0) {
+      const idParam = searchParams.get('id');
+      if (idParam) {
+        const id = Number(idParam);
+        if (items.some((item) => item.id === id)) {
+          if (selectedId !== id) setSelectedId(id);
+          return;
+        }
+      }
+      if (!items.some((item) => item.id === selectedId)) {
+        setSelectedId(items[0]!.id);
+      }
     }
-  }, [items, selectedId]);
+  }, [items, searchParams, selectedId]);
 
   const selectedItem = items?.find((item) => item.id === selectedId) ?? null;
+
+  const selectItem = (id: number): void => {
+    setSelectedId(id);
+    setSearchParams({ id: String(id) }, { replace: true });
+  };
 
   const runDelete = (options: { hard: boolean; clearReferences: boolean }): void => {
     if (!deleteTarget) return;
@@ -108,7 +126,7 @@ export function ItemsPage(): JSX.Element {
       );
     }
 
-    return <ItemListPanel items={items} selectedId={selectedId} onSelect={setSelectedId} />;
+    return <ItemListPanel items={items} selectedId={selectedId} onSelect={selectItem} />;
   }
 
   return (
@@ -171,7 +189,15 @@ export function ItemsPage(): JSX.Element {
         </Card>
       </div>
 
-      <CreateItemDialog open={createOpen} onOpenChange={setCreateOpen} onCreated={setSelectedId} />
+      <CreateItemDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        onCreated={(id) => {
+          setCreateOpen(false);
+          setSelectedId(id);
+          setSearchParams({ id: String(id) }, { replace: true });
+        }}
+      />
 
       <AlertDialog
         open={deleteTarget !== null}

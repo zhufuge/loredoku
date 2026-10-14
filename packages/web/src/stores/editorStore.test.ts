@@ -238,6 +238,50 @@ describe('character roster', () => {
   });
 });
 
+describe('returnCharacterToSlot', () => {
+  it('frees the origin slot on placement and restores it on removal', () => {
+    store().setSlot(2, 9);
+    store().placeCharacter(9, 1, 1);
+    expect(store().characterSlots[2]).toBeNull();
+    expect(store().placedCharacters[0]?.originSlotIndex).toBe(2);
+
+    expect(store().returnCharacterToSlot(9)).toBe(true);
+    expect(store().characterSlots[2]).toEqual({ characterId: 9 });
+    expect(store().placedCharacters).toHaveLength(0);
+  });
+
+  it('rolls both placed and slots back on undo', () => {
+    store().setSlot(0, 4);
+    store().placeCharacter(4, 2, 2);
+    store().undo();
+    expect(store().characterSlots[0]).toEqual({ characterId: 4 });
+    expect(store().placedCharacters).toHaveLength(0);
+    store().redo();
+    expect(store().characterSlots[0]).toBeNull();
+    expect(store().placedCharacters).toHaveLength(1);
+  });
+
+  it('fails without side effects when no slot is available', () => {
+    for (let i = 0; i < store().characterSlots.length; i += 1) store().setSlot(i, 100 + i);
+    store().placeCharacter(999, 0, 0);
+    expect(store().returnCharacterToSlot(999)).toBe(false);
+    expect(store().placedCharacters).toHaveLength(1);
+  });
+
+  it('returns false when the character is not placed', () => {
+    expect(store().returnCharacterToSlot(42)).toBe(false);
+  });
+
+  it('does not duplicate an already occupied slot', () => {
+    store().setSlot(1, 7);
+    store().placeCharacter(7, 0, 0);
+    store().setSlot(1, 7);
+    expect(store().returnCharacterToSlot(7)).toBe(true);
+    expect(store().characterSlots.filter((slot) => slot?.characterId === 7)).toHaveLength(1);
+    expect(store().placedCharacters).toHaveLength(0);
+  });
+});
+
 describe('grid resize', () => {
   it('crops out-of-bounds cells, regions and characters', () => {
     store().placeBackground(1, 5, 5);

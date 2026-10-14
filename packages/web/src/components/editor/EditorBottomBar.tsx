@@ -122,7 +122,6 @@ export function EditorBottomBar({
           size="sm"
           className="h-9 gap-1 rounded-full px-3 text-xs"
           title="物品抽屉"
-          disabled={activeTool === 'eraser'}
           onClick={onToggleItems}
         >
           <Package className="h-4 w-4" />

@@ -135,6 +135,8 @@ export interface PlacedCharacter {
   x: number;
   y: number;
   mapMeta: Record<string, unknown>;
+  /** Slot the character came from, so it can return there when removed. */
+  originSlotIndex?: number;
 }
 
 export interface MapDraft {
