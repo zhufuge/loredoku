@@ -266,7 +266,7 @@ describe('setParticipantConfig (CLAR-603)', () => {
       triggers: [
         {
           trigger: 'click',
-          targets: [{ type: 'cell', x: 1, y: 1, effect: 'highlight', color: 'red' }],
+          targets: [{ type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'red' }],
         },
       ],
     });

@@ -36,12 +36,13 @@ export function genSlotArray(
   return Array.from({ length: size }, (_, index) => existing[index] ?? null);
 }
 
-/** Normalises a roster entry so it always carries theme + triggers. */
+/** Normalises a roster entry so it always carries theme + clue + triggers. */
 function ensureEntry(entry: CharacterSlotEntry | null): CharacterSlotEntry | null {
   if (!entry) return null;
   return {
     characterId: entry.characterId,
     themeColor: entry.themeColor ?? DEFAULT_THEME_COLOR,
+    clue: entry.clue ?? '',
     triggers: (entry.triggers ?? []).map((trigger) => ({
       trigger: trigger.trigger,
       targets: trigger.targets.map((target) => ({ ...target })),
@@ -127,10 +128,10 @@ export interface EditorState {
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
   clearObjectAt: (x: number, y: number) => void;
-  /** CLAR-603: persists theme + triggers on the slot in one atomic step. */
+  /** CLAR-603 + MOD-702: persists theme + clue + triggers on the slot. */
   setParticipantConfig: (
     slotIndex: number,
-    patch: { themeColor?: string; triggers?: ParticipantTrigger[] },
+    patch: { themeColor?: string; clue?: string; triggers?: ParticipantTrigger[] },
   ) => void;
 
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
@@ -341,6 +342,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
             ? {
                 characterId: entry.characterId,
                 themeColor: patch.themeColor ?? entry.themeColor ?? DEFAULT_THEME_COLOR,
+                clue: patch.clue ?? entry.clue ?? '',
                 triggers: patch.triggers ?? entry.triggers ?? [],
               }
             : slot,
@@ -434,6 +436,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
               ? {
                   characterId,
                   themeColor: slot?.themeColor ?? DEFAULT_THEME_COLOR,
+                  clue: slot?.clue ?? '',
                   triggers: slot?.triggers ?? [],
                 }
               : null

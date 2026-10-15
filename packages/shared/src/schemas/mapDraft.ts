@@ -62,12 +62,14 @@ export const characterSlotSchema = z.object({
 });
 
 /**
- * CLAR-603: a roster slot carries participant linkage directly. The roster
- * length equals `gridSize`; null entries represent empty slots.
+ * CLAR-603 + MOD-702: a roster slot carries participant linkage directly.
+ * The roster length equals `gridSize`; null entries represent empty slots.
+ * `clue` is an optional one-line clue text (0-200 chars, supports `**bold**`).
  */
 export const characterSlotEntrySchema = z.object({
   characterId: z.number().int().positive(),
   themeColor: themeColorSchema,
+  clue: z.string().trim().max(200).default(''),
   triggers: participantTriggersSchema,
 });
 
@@ -120,15 +122,18 @@ function validateParticipantReferences(
             message: `联动目标区域 ${target.id} 不在地图中`,
           });
         }
-        if (
-          target.type === 'cell' &&
-          (target.x >= draft.gridSize || target.y >= draft.gridSize)
-        ) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path,
-            message: `联动目标方格 (${target.x}, ${target.y}) 超出画布范围`,
-          });
+        // MOD-708: cell targets have a `cells` array — validate each coord.
+        if (target.type === 'cell') {
+          for (const [cx, cy] of target.cells) {
+            if (cx >= draft.gridSize || cy >= draft.gridSize) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path,
+                message: `联动目标方格 (${cx}, ${cy}) 超出画布范围`,
+              });
+              break;
+            }
+          }
         }
       });
     }

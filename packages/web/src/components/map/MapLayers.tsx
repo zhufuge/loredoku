@@ -12,6 +12,8 @@ import { buildRegionEdges, computeLabelCell } from '@/lib/region';
 import type { CellMap, HighlightState } from '@/lib/highlight';
 
 const HOVER_RING = 'inset 0 0 0 2px #3B82F6';
+/** MOD-709: region touch border colour. */
+const REGION_TOUCH_BORDER_COLOR = '#3B82F6';
 
 function cellRectStyle(x: number, y: number, w = 1, h = 1): CSSProperties {
   return {
@@ -305,21 +307,24 @@ export function MapRegionLabelLayer({
 
 /**
  * Highlight layer: above items, below the grid lines
- * (docs/v0.3.0.md §2.2.4, updated by CLAR-603 §3.5). Shared by the editor
- * and the preview page.
+ * (docs/v0.3.0.md §2.2.4, updated by CLAR-603 §3.5, MOD-709).
  *
  * CLAR-603: characters no longer occupy cells, so the highlight layer only
  * draws the object / cell / region overlays. The roster panel handles the
  * `characters` outline directly.
+ *
+ * MOD-709: region touch targets render as an inner blue border line.
  */
 export function MapHighlightLayer({
   highlight,
+  regions = [],
 }: {
   highlight: HighlightState | null;
+  regions?: DraftRegion[];
 }): JSX.Element | null {
   if (!highlight) return null;
-  const { objects, cells } = highlight;
-  if (objects.length === 0 && cells.length === 0) return null;
+  const { objects, cells, regionBorders } = highlight;
+  if (objects.length === 0 && cells.length === 0 && regionBorders.length === 0) return null;
   return (
     <div
       className="highlight-fade pointer-events-none absolute left-0 top-0"
@@ -343,6 +348,35 @@ export function MapHighlightLayer({
           }}
         />
       ))}
+      {/* MOD-709: region touch → inner blue border */}
+      {regionBorders.length > 0
+        ? regionBorders.map((border) => {
+            const region = regions.find((r) => r.id === border.regionId);
+            if (!region) return null;
+            const edges = buildRegionEdges(region.cells);
+            return (
+              <svg
+                key={`hl-rb-${border.regionId}`}
+                className="absolute left-0 top-0"
+                style={{ overflow: 'visible', zIndex: 22 }}
+              >
+                {edges.map((edge, index) => (
+                  <line
+                    key={index}
+                    x1={edge.x1 + 1}
+                    y1={edge.y1 + 1}
+                    x2={edge.x2 - (edge.x2 !== edge.x1 ? 1 : 0)}
+                    y2={edge.y2 - (edge.y2 !== edge.y1 ? 1 : 0)}
+                    stroke={REGION_TOUCH_BORDER_COLOR}
+                    strokeWidth={2}
+                    strokeOpacity={0.9}
+                    strokeLinecap="round"
+                  />
+                ))}
+              </svg>
+            );
+          })
+        : null}
     </div>
   );
 }

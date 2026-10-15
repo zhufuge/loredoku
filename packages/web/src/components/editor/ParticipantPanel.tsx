@@ -4,37 +4,31 @@ import type { Character, CharacterSlotEntry } from '@murdoku/shared';
 import { DRAG_THRESHOLD } from '@/lib/grid';
 import {
   computeParticipantLayout,
-  slotPosition,
   type ParticipantLayout,
 } from '@/lib/participantLayout';
+import { parseClue, truncateClue } from '@/lib/clue';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { cn } from '@/lib/utils';
 
 /**
- * CLAR-602 (docs/v0.3.1.md §2.2): the participant panel renders slots in a
- * matrix layout (cols × rows) approximating the golden ratio.
- *
- * CLAR-603: clicking a populated slot opens the right info drawer. Drag is
- * no longer canvas-bound; participants stay in the roster.
- *
- * Slot reorder (LAYOUT-01) uses the same pointer-drag pattern as the old
- * `CharacterSlotColumn`: a `pointerdown` arms a click/drag candidate, then
- * a `pointermove` beyond `DRAG_THRESHOLD` upgrades it to a drag. Pointer
- * capture guarantees we receive `pointerup` even when the pointer leaves
- * the slot.
+ * CLAR-602 + MOD-702/703/705/706/707 (docs/v0.3.1.md + v0.3.2.md):
+ * - Matrix layout with golden-ratio rows/cols
+ * - MOD-707: min cell 56px, gap 10px
+ * - MOD-702: clue display area (40px fixed height) below avatar
+ * - MOD-703: theme color background layer behind avatar (circle, +6px radius)
+ * - MOD-705: removal confirmation handled by parent (via onClearRequest)
+ * - MOD-706: title bar height = 36px, same as item panel header
  */
 interface ParticipantPanelProps {
   slots: Array<CharacterSlotEntry | null>;
   charactersById: Map<number, Character>;
-  /** Slot index currently selected in the drawer. */
   selectedSlotIndex: number | null;
-  /** Slot index being dragged (for visual feedback). */
   draggingIndex: number | null;
-  /** Slot indexes the highlight engine is currently outlining. */
   highlightedSlots?: Set<number>;
   highlightColors?: Map<number, string>;
   onSelect: (slotIndex: number | null) => void;
-  onClear: (index: number) => void;
+  /** Click on × button — parent handles confirmation (MOD-705). */
+  onClearRequest: (index: number) => void;
   onDragBegin: (payload: { slotIndex: number; pointer: { x: number; y: number } }) => void;
   onDragMove: (pointer: { x: number; y: number }) => void;
   onDragEnd: (pointer: { x: number; y: number }) => void;
@@ -43,8 +37,12 @@ interface ParticipantPanelProps {
 
 const CLEAR_BUTTON_ATTR = 'data-slot-clear';
 
-/** Minimum square cell side; below this the panel scrolls. */
-const MIN_CELL_SIZE = 36;
+/** MOD-707: minimum square cell side. */
+const MIN_CELL_SIZE = 56;
+/** MOD-707: gap between cells. */
+const CELL_GAP = 10;
+/** MOD-702: clue display area fixed height. */
+const CLUE_AREA_HEIGHT = 40;
 
 export function ParticipantPanel({
   slots,
@@ -54,7 +52,7 @@ export function ParticipantPanel({
   highlightedSlots,
   highlightColors,
   onSelect,
-  onClear,
+  onClearRequest,
   onDragBegin,
   onDragMove,
   onDragEnd,
@@ -75,18 +73,15 @@ export function ParticipantPanel({
     [slots.length],
   );
 
-  // Auto-fit cell size to the panel width (CLAR-602 §2.2). The wrapper is
-  // 144px wide; subtract the inter-cell gap to compute a square size.
   const measuredRef = useRef<HTMLDivElement | null>(null);
   useMemo(() => {
     if (typeof window === 'undefined') return;
     const node = measuredRef.current;
     if (!node) return;
     const width = node.clientWidth;
-    const gap = 6;
     const cols = layout.cols || 1;
-    const computed = Math.floor((width - gap * (cols - 1)) / cols);
-    setCellSize(Math.max(MIN_CELL_SIZE, Math.min(72, computed || 56)));
+    const computed = Math.floor((width - CELL_GAP * (cols - 1)) / cols);
+    setCellSize(Math.max(MIN_CELL_SIZE, Math.min(80, computed || 56)));
   }, [layout.cols]);
 
   const placedCount = useMemo(() => slots.filter(Boolean).length, [slots]);
@@ -101,9 +96,13 @@ export function ParticipantPanel({
   return (
     <aside
       ref={measuredRef}
-      className="flex w-[144px] shrink-0 flex-col border-r bg-background"
+      className="flex w-[180px] shrink-0 flex-col border-r bg-background"
     >
-      <div className="shrink-0 border-b py-2 text-center text-[10px] font-medium text-muted-foreground">
+      {/* MOD-706: title bar height 36px, font 13px/600, color #1F2937 */}
+      <div
+        className="shrink-0 border-b px-3 text-center"
+        style={{ height: 36, lineHeight: '36px', fontSize: 13, fontWeight: 600, color: '#1F2937' }}
+      >
         参与者 {placedCount}/{slots.length}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
@@ -116,7 +115,7 @@ export function ParticipantPanel({
             className="grid"
             style={{
               gridTemplateColumns: `repeat(${layout.cols}, ${cellSize}px)`,
-              gap: 6,
+              gap: CELL_GAP,
               justifyContent: 'center',
             }}
           >
@@ -128,11 +127,14 @@ export function ParticipantPanel({
               const isHighlighted = highlightedSlots?.has(index) ?? false;
               const highlightColor = highlightColors?.get(index);
               const themeColor = slot?.themeColor ?? '#FFFFFF';
+              const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
+              const clueSegments = slot?.clue ? parseClue(slot.clue) : [];
+              const clueTruncated = slot?.clue ? truncateClue(slot.clue, 30) : '';
               return (
                 <div
                   key={index}
                   data-slot-index={index}
-                  style={{ touchAction: 'none', width: cellSize, height: cellSize }}
+                  style={{ touchAction: 'none', width: cellSize, height: cellSize + CLUE_AREA_HEIGHT }}
                   onPointerDown={(event) => {
                     if (hitClearButton(event.target)) return;
                     if (event.button !== 0) return;
@@ -170,7 +172,6 @@ export function ParticipantPanel({
                       onDragEnd({ x: event.clientX, y: event.clientY });
                       return;
                     }
-                    // No movement → plain click selects the slot (opens the drawer).
                     onSelect(isSelected ? null : index);
                   }}
                   onPointerCancel={() => {
@@ -189,7 +190,7 @@ export function ParticipantPanel({
                       : `空参与者框 ${index + 1}`
                   }
                   className={cn(
-                    'relative flex items-center justify-center rounded-md border',
+                    'relative flex flex-col items-center justify-start rounded-md border',
                     draggingIndex !== null ? 'cursor-grabbing' : slot ? 'cursor-grab' : undefined,
                     slot
                       ? isSelected
@@ -199,35 +200,64 @@ export function ParticipantPanel({
                     isDragging ? 'opacity-40' : undefined,
                   )}
                 >
-                  {slot ? (
-                    <span
-                      className="flex items-center justify-center rounded-full"
-                      style={{
-                        width: cellSize - 8,
-                        height: cellSize - 8,
-                        backgroundColor: themeColor,
-                        border: isHighlighted
-                          ? `3px solid ${highlightColor ?? '#3B82F6'}`
-                          : '2px solid rgba(0,0,0,0.18)',
-                        boxShadow: isHighlighted
-                          ? `0 0 0 2px ${highlightColor ?? '#3B82F6'}`
-                          : undefined,
-                      }}
-                    >
-                      {character ? (
-                        <CharacterThumbnail
-                          character={character}
-                          className="h-[80%] w-[80%]"
-                        />
-                      ) : (
-                        <span className="text-[10px] text-muted-foreground">
-                          #{slot.characterId}
-                        </span>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-[10px] text-muted-foreground">{index + 1}</span>
-                  )}
+                  {/* Avatar area (top portion) */}
+                  <div className="flex items-center justify-center" style={{ height: cellSize }}>
+                    {slot ? (
+                      <span
+                        className="flex items-center justify-center rounded-full"
+                        style={{
+                          width: cellSize - 12,
+                          height: cellSize - 12,
+                          backgroundColor: themeColor,
+                          // MOD-703: white theme → 1px light grey border
+                          border: isHighlighted
+                            ? `3px solid ${highlightColor ?? '#3B82F6'}`
+                            : isWhiteTheme
+                              ? '1px solid #D1D5DB'
+                              : 'none',
+                          boxShadow: isHighlighted
+                            ? `0 0 0 2px ${highlightColor ?? '#3B82F6'}`
+                            : undefined,
+                        }}
+                      >
+                        {character ? (
+                          <CharacterThumbnail
+                            character={character}
+                            className="h-[80%] w-[80%] rounded-full"
+                          />
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">
+                            #{slot.characterId}
+                          </span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">{index + 1}</span>
+                    )}
+                  </div>
+
+                  {/* MOD-702: clue display area (fixed 40px) */}
+                  <div
+                    className="flex w-full items-start justify-center px-1"
+                    style={{ height: CLUE_AREA_HEIGHT }}
+                  >
+                    {clueSegments.length > 0 ? (
+                      <span
+                        className="line-clamp-2 text-center text-[10px] leading-tight"
+                        title={slot?.clue}
+                      >
+                        {clueSegments.map((seg, i) =>
+                          seg.bold ? (
+                            <strong key={i}>{seg.text}</strong>
+                          ) : (
+                            <span key={i}>{seg.text}</span>
+                          ),
+                        )}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {/* MOD-705: × button triggers confirmation via parent */}
                   {slot ? (
                     <button
                       type="button"
@@ -238,7 +268,7 @@ export function ParticipantPanel({
                       onClick={(event) => {
                         event.stopPropagation();
                         if (!slots[index]) return;
-                        onClear(index);
+                        onClearRequest(index);
                         setHoveredSlot(null);
                       }}
                       className={cn(
@@ -261,6 +291,3 @@ export function ParticipantPanel({
     </aside>
   );
 }
-
-// Keep the helper export in case callers compute positions outside React.
-export { slotPosition };

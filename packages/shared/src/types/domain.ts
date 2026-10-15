@@ -135,11 +135,20 @@ export interface DraftRegion {
   labelCell?: [number, number] | null;
 }
 
-// ---- Participant linkage (docs/v0.3.1.md CLAR-603) ----
+// ---- Participant linkage (docs/v0.3.1.md CLAR-603, updated v0.3.2 MOD-702/708) ----
 export type ParticipantTarget =
   | { type: 'character'; id: number; effect: EffectType; color: EffectColor }
-  | { type: 'item'; id: number; effect: EffectType; color: EffectColor }
-  | { type: 'cell'; x: number; y: number; effect: EffectType; color: EffectColor }
+  | {
+      type: 'item';
+      id: number;
+      /** MOD-708: `'all'` highlights every instance of `itemId`; `'instances'` only `instances`. */
+      scope: 'all' | 'instances';
+      /** Coordinates of specific instances when `scope === 'instances'`. */
+      instances?: Array<[number, number]>;
+      effect: EffectType;
+      color: EffectColor;
+    }
+  | { type: 'cell'; cells: Array<[number, number]>; effect: EffectType; color: EffectColor }
   | { type: 'region'; id: string; effect: EffectType; color: EffectColor };
 
 export interface ParticipantTrigger {
@@ -154,8 +163,10 @@ export interface ParticipantTrigger {
  */
 export interface CharacterSlotEntry {
   characterId: number;
-  /** Participant theme colour, defaults to `#FFFFFF`. Never a blue hue. */
+  /** Participant theme colour, defaults to `#FFFFFF`. MOD-710: no blue restriction. */
   themeColor?: string;
+  /** MOD-702: one-line clue shown below the avatar; supports `**bold**` syntax. */
+  clue?: string;
   /** Highlight effects grouped by trigger, each group maintained independently. */
   triggers?: ParticipantTrigger[];
 }

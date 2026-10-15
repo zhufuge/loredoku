@@ -120,6 +120,7 @@ export function EditorPage(): JSX.Element {
   });
   const [pickingCell, setPickingCell] = useState(false);
   const [pickedCell, setPickedCell] = useState<{ x: number; y: number } | null>(null);
+  const [removeParticipantTarget, setRemoveParticipantTarget] = useState<number | null>(null);
 
   // Slot drag state for roster reordering (CLAR-603 — no longer drops onto the map).
   const [slotDrag, setSlotDrag] = useState<SlotDragPreview | null>(null);
@@ -228,28 +229,32 @@ export function EditorPage(): JSX.Element {
   const fireTrigger = (slotIndex: number, trigger: ParticipantTriggerKey): void => {
     const slot = editor.characterSlots[slotIndex];
     if (!slot) return;
-    showHighlight(
-      resolveHighlight(slot.triggers, trigger, {
-        gridSize: editor.gridSize,
-        cells: editor.cells,
-        characterSlots: editor.characterSlots,
-        regions: editor.regions,
-      }),
-    );
+    const state = resolveHighlight(slot.triggers, trigger, {
+      gridSize: editor.gridSize,
+      cells: editor.cells,
+      characterSlots: editor.characterSlots,
+      regions: editor.regions,
+    });
+    showHighlight(state, trigger);
   };
 
   const saveParticipant = (
     slotIndex: number,
-    patch: { themeColor: string; triggers: ParticipantTrigger[] },
+    patch: { themeColor: string; clue: string; triggers: ParticipantTrigger[] },
   ): void => {
     editor.setParticipantConfig(slotIndex, patch);
     toast.success('已保存参与者配置');
   };
 
-  const removeParticipant = (slotIndex: number): void => {
+  const confirmRemoveParticipant = (): void => {
+    if (removeParticipantTarget === null) return;
+    const slotIndex = removeParticipantTarget;
     editor.clearCharacterSlot(slotIndex);
-    editor.setSelectedSlot(null);
-    setParticipantDrawerOpen(false);
+    if (editor.selectedSlotIndex === slotIndex) {
+      editor.setSelectedSlot(null);
+      setParticipantDrawerOpen(false);
+    }
+    setRemoveParticipantTarget(null);
     toast.success('已移除参与者');
   };
 
@@ -272,11 +277,7 @@ export function EditorPage(): JSX.Element {
   const clearSlot = (index: number): void => {
     const slot = editor.characterSlots[index];
     if (!slot) return;
-    editor.clearCharacterSlot(index);
-    if (editor.selectedSlotIndex === index) {
-      editor.setSelectedSlot(null);
-      setParticipantDrawerOpen(false);
-    }
+    setRemoveParticipantTarget(index);
   };
 
   // ---- Slot → slot reorder (no longer drops onto the map) ----
@@ -681,7 +682,7 @@ export function EditorPage(): JSX.Element {
                 setUnplacedCharacterId(null);
               }
             }}
-            onClear={clearSlot}
+            onClearRequest={clearSlot}
             onDragBegin={beginSlotDrag}
             onDragMove={moveSlotDrag}
             onDragEnd={endSlotDrag}
@@ -854,10 +855,7 @@ export function EditorPage(): JSX.Element {
             placedItems={placedItems}
             regions={editor.regions}
             gridSize={editor.gridSize}
-            pickedCell={pickedCell}
-            onPickCell={() => setPickingCell(true)}
             onSave={saveParticipant}
-            onRemove={removeParticipant}
             onPreviewTrigger={fireTrigger}
           />
         </main>
@@ -1052,6 +1050,33 @@ export function EditorPage(): JSX.Element {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setRegionError(null)}>我知道了</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* MOD-705: participant removal confirmation */}
+      <AlertDialog
+        open={removeParticipantTarget !== null}
+        onOpenChange={(open) => !open && setRemoveParticipantTarget(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              确定移除参与者「
+              {removeParticipantTarget !== null
+                ? charactersById.get(editor.characterSlots[removeParticipantTarget]?.characterId ?? 0)?.name ?? ''
+                : ''}
+              」吗？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              该参与者及其线索与联动配置将一并移除。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemoveParticipant}>
+              移除
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

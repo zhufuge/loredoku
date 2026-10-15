@@ -7,7 +7,7 @@ import type {
 } from '@murdoku/shared';
 import {
   collectTriggerTargets,
-  findItemAnchor,
+  findAllItemAnchors,
   resolveHighlight,
   type CellMap,
 } from './highlight';
@@ -37,8 +37,8 @@ const ctxCells = cells([
 
 // CLAR-603: participants live in the roster. Slot index 1 holds character 7.
 const slots: Array<CharacterSlotEntry | null> = [
-  { characterId: 5, themeColor: '#FFCC00', triggers: [] },
-  { characterId: 7, themeColor: '#FFFFFF', triggers: [] },
+  { characterId: 5, themeColor: '#FFCC00', clue: '', triggers: [] },
+  { characterId: 7, themeColor: '#FFFFFF', clue: '', triggers: [] },
   null,
 ];
 
@@ -47,8 +47,8 @@ const triggers: ParticipantTrigger[] = [
     trigger: 'click',
     targets: [
       { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-      { type: 'item', id: 12, effect: 'highlight', color: 'blue' },
-      { type: 'cell', x: 4, y: 4, effect: 'highlight', color: 'red' },
+      { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
+      { type: 'cell', cells: [[4, 4]], effect: 'highlight', color: 'red' },
     ],
   },
   {
@@ -57,10 +57,12 @@ const triggers: ParticipantTrigger[] = [
   },
 ];
 
-describe('findItemAnchor', () => {
-  it('locates the anchor cell and footprint of a placed item', () => {
-    expect(findItemAnchor(ctxCells, 12)).toMatchObject({ x: 0, y: 0, w: 2, h: 1 });
-    expect(findItemAnchor(ctxCells, 99)).toBeNull();
+describe('findAllItemAnchors', () => {
+  it('locates all anchor cells of a placed item', () => {
+    expect(findAllItemAnchors(ctxCells, 12)).toEqual([
+      { x: 0, y: 0, w: 2, h: 1, color: '' },
+    ]);
+    expect(findAllItemAnchors(ctxCells, 99)).toEqual([]);
   });
 });
 
@@ -70,8 +72,8 @@ describe('collectTriggerTargets', () => {
       {
         trigger: 'click',
         targets: [
-          { type: 'cell', x: 1, y: 1, effect: 'highlight', color: 'red' },
-          { type: 'cell', x: 1, y: 1, effect: 'highlight', color: 'blue' },
+          { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'red' },
+          { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'blue' },
         ],
       },
     ];
@@ -92,22 +94,35 @@ describe('resolveHighlight', () => {
     });
     expect(state).not.toBeNull();
     // Character 7 lives at slot index 1.
-    expect(state!.characters).toEqual([{ slotIndex: 1, color: '#EF4444' }]);
+    expect(state!.characters).toEqual([
+      { slotIndex: 1, color: '#EF4444', trigger: 'click' },
+    ]);
     expect(state!.objects).toEqual([{ x: 0, y: 0, w: 2, h: 1, color: '#3B82F6' }]);
     expect(state!.cells).toEqual([{ x: 4, y: 4, w: 1, h: 1, color: '#EF4444' }]);
   });
 
-  it('expands a region target into every cell it owns', () => {
+  it('MOD-709: touch region → border outline, not cell fill', () => {
     const state = resolveHighlight(triggers, 'touch', {
       gridSize: 6,
       cells: ctxCells,
       characterSlots: slots,
       regions,
     });
-    expect(state!.cells).toEqual([
-      { x: 2, y: 2, w: 1, h: 1, color: '#3B82F6' },
-      { x: 3, y: 2, w: 1, h: 1, color: '#3B82F6' },
+    expect(state!.cells).toEqual([]);
+    expect(state!.regionBorders).toEqual([
+      { regionId: 'rg_forest', color: '#3B82F6' },
     ]);
+  });
+
+  it('MOD-708: cell targets with multiple coords produce multiple rects', () => {
+    const state = resolveHighlight(
+      [{ trigger: 'click', targets: [
+        { type: 'cell', cells: [[1, 1], [2, 2], [3, 3]], effect: 'highlight', color: 'red' },
+      ] }],
+      'click',
+      { gridSize: 6, cells: ctxCells, characterSlots: slots, regions },
+    );
+    expect(state!.cells).toHaveLength(3);
   });
 
   it('skips dangling references instead of throwing', () => {
@@ -117,28 +132,25 @@ describe('resolveHighlight', () => {
           trigger: 'click',
           targets: [
             { type: 'character', id: 404, effect: 'highlight', color: 'red' },
-            { type: 'cell', x: 4, y: 4, effect: 'highlight', color: 'red' },
+            { type: 'cell', cells: [[4, 4]], effect: 'highlight', color: 'red' },
           ],
         },
       ],
       'click',
       { gridSize: 6, cells: ctxCells, characterSlots: slots, regions },
     );
-    // Character 404 is not in the roster, so no character highlight survives.
     expect(state!.characters).toHaveLength(0);
     expect(state!.cells).toHaveLength(1);
   });
 
   it('returns null when nothing resolves or the group is empty', () => {
-    // Every target of this group is a reference, so nothing survives on an
-    // empty roster.
     expect(resolveHighlight(
       [
         {
           trigger: 'click',
           targets: [
             { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-            { type: 'item', id: 12, effect: 'highlight', color: 'blue' },
+            { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
           ],
         },
       ],
@@ -156,5 +168,34 @@ describe('resolveHighlight', () => {
       characterSlots: slots,
       regions,
     })).toBeNull();
+  });
+
+  it('MOD-708: item scope instances highlights only specified coords', () => {
+    // Place two instances of item 12
+    const multiCells = cells([
+      ['0,0', { object: { itemId: 12, w: 1, h: 1 } }],
+      ['2,2', { object: { itemId: 12, w: 1, h: 1 } }],
+    ]);
+    const state = resolveHighlight(
+      [{ trigger: 'click', targets: [
+        { type: 'item', id: 12, scope: 'instances', instances: [[2, 2]], effect: 'highlight', color: 'red' },
+      ] }],
+      'click',
+      { gridSize: 6, cells: multiCells, characterSlots: slots, regions },
+    );
+    expect(state!.objects).toHaveLength(1);
+    expect(state!.objects[0]).toMatchObject({ x: 2, y: 2 });
+  });
+
+  it('MOD-710: blue is now accepted for region click highlight', () => {
+    const state = resolveHighlight(
+      [{ trigger: 'click', targets: [
+        { type: 'region', id: 'rg_forest', effect: 'highlight', color: 'blue' },
+      ] }],
+      'click',
+      { gridSize: 6, cells: ctxCells, characterSlots: slots, regions },
+    );
+    expect(state!.cells).toHaveLength(2);
+    expect(state!.cells[0]).toMatchObject({ color: '#3B82F6' });
   });
 });

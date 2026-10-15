@@ -135,14 +135,13 @@ export function WorkViewPage(): JSX.Element {
   const fireTrigger = (slotIndex: number, trigger: ParticipantTriggerKey): void => {
     const slot = slots[slotIndex];
     if (!slot) return;
-    showHighlight(
-      resolveHighlight(slot.triggers, trigger, {
-        gridSize,
-        cells,
-        characterSlots: slots,
-        regions,
-      }),
-    );
+    const state = resolveHighlight(slot.triggers, trigger, {
+      gridSize,
+      cells,
+      characterSlots: slots,
+      regions,
+    });
+    showHighlight(state, trigger);
   };
 
   if (detailQuery.isLoading) {
@@ -227,6 +226,7 @@ export function WorkViewPage(): JSX.Element {
               participants.map(({ slot, index }) => {
                 const character = charactersById.get(slot.characterId);
                 const themeColor = slot.themeColor ?? '#FFFFFF';
+                const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
                 const avatar = character?.avatarThumbUrl ?? character?.avatarUrl;
                 return (
                   <button
@@ -241,8 +241,11 @@ export function WorkViewPage(): JSX.Element {
                     )}
                   >
                     <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border-2"
-                      style={{ backgroundColor: themeColor }}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                      style={{
+                        backgroundColor: themeColor,
+                        border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
+                      }}
                     >
                       {avatar ? (
                         <img
@@ -331,7 +334,7 @@ export function WorkViewPage(): JSX.Element {
             <MapRegionEdgeLayer regions={regions} gridSize={gridSize} />
             <MapObjectLayer cells={cells} itemsById={itemsById} />
             <MapGridLayer gridSize={gridSize} />
-            <MapHighlightLayer highlight={highlight} />
+            <MapHighlightLayer highlight={highlight} regions={regions} />
 
             <MapRegionLabelLayer regions={regions} />
           </div>

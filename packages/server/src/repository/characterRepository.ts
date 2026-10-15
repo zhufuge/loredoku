@@ -216,3 +216,26 @@ export async function existingCharacterIds(ids: number[]): Promise<Set<number>> 
   const rows = (await db('characters').whereIn('id', ids).select('id')) as Array<{ id: number | string }>;
   return new Set(rows.map((row) => Number(row.id)));
 }
+
+export interface CharacterSlotMeta {
+  hasAvatar: boolean;
+}
+
+/**
+ * CLAR-603 P2 (docs/v0.3.1.md §3.3): participants without an avatar are
+ * treated as not enabled and are not counted. Only ids that exist are
+ * present in the returned map.
+ */
+export async function characterSlotMetaByIds(
+  ids: number[],
+): Promise<Map<number, CharacterSlotMeta>> {
+  const meta = new Map<number, CharacterSlotMeta>();
+  if (ids.length === 0) return meta;
+  const rows = (await db('characters')
+    .whereIn('id', ids)
+    .select('id', 'avatar_path')) as Array<{ id: number | string; avatar_path: string | null }>;
+  for (const row of rows) {
+    meta.set(Number(row.id), { hasAvatar: row.avatar_path !== null });
+  }
+  return meta;
+}

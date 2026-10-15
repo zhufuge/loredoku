@@ -1,13 +1,11 @@
 /**
  * Colour helpers shared by the zod schemas (server-side validation) and the
  * editor UI (theme colour picker) — docs/v0.3.0.md FEAT-502.
+ *
+ * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed. The only
+ * remaining colour guard is a non-blocking warning for very high luminance.
  */
-import {
-  THEME_COLOR_BLUE_HUE_MAX,
-  THEME_COLOR_BLUE_HUE_MIN,
-  THEME_COLOR_BLUE_MIN_SATURATION,
-  THEME_COLOR_BLUE_MIN_VALUE,
-} from './constants';
+import { THEME_COLOR_HIGH_LUMINANCE } from './constants';
 
 export interface Hsv {
   h: number;
@@ -64,14 +62,26 @@ export function hexToHsv(hex: string): Hsv {
 }
 
 /**
- * Blue hues are reserved for the highlight effect, so a participant theme
- * colour may not be blue (docs/v0.3.0.md §2.2.3).
+ * MOD-710: returns `true` when HSL lightness exceeds the threshold.
+ * Non-blocking — used only for a UI hint, not schema rejection.
  */
-export function isReservedBlueColor(hex: string): boolean {
-  if (!isHexColor(hex.trim()) && !/^#[0-9a-fA-F]{3}$/.test(hex.trim())) return false;
-  const { h, s, v } = hexToHsv(hex);
-  if (h < THEME_COLOR_BLUE_HUE_MIN || h > THEME_COLOR_BLUE_HUE_MAX) return false;
-  return s >= THEME_COLOR_BLUE_MIN_SATURATION && v >= THEME_COLOR_BLUE_MIN_VALUE;
+export function isHighLuminanceColor(hex: string): boolean {
+  const { r, g, b } = hexToRgb(hex);
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  // HSL lightness = (max + min) / 2
+  return (max + min) / 2 > THEME_COLOR_HIGH_LUMINANCE;
+}
+
+/**
+ * @deprecated MOD-710 removes the blue restriction. This function always
+ * returns `false` and is kept only for callers that haven't been updated.
+ */
+export function isReservedBlueColor(_hex: string): boolean {
+  return false;
 }
 
 /** Relative luminance (0…1) used to pick readable text on a theme swatch. */

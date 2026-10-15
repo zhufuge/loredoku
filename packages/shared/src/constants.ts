@@ -108,29 +108,40 @@ export const EFFECT_COLOR_LABELS: Record<(typeof EFFECT_COLORS)[number], string>
   blue: '蓝',
 };
 export const DEFAULT_THEME_COLOR = '#FFFFFF';
-/** Preset theme swatches; deliberately free of any blue hue. */
+/**
+ * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed.
+ * The palette excludes high-luminance colours so participant boxes stay
+ * readable on a light background, but deep blue (#1E40AF) is allowed as
+ * a theme colour.
+ */
 export const THEME_COLOR_PALETTE = [
   '#FFFFFF',
   '#000000',
-  '#EF4444',
-  '#F97316',
-  '#FACC15',
-  '#22C55E',
-  '#A855F7',
-  '#EC4899',
-  '#9CA3AF',
-  '#92400E',
+  '#6B7280',
+  '#8B4513',
+  '#C08B4F',
+  '#DC2626',
+  '#EA580C',
+  '#CA8A04',
+  '#16A34A',
+  '#0D9488',
+  '#7C3AED',
+  '#DB2777',
+  '#BE185D',
+  '#1E40AF',
+  '#0F766E',
 ] as const;
 /**
- * Hue window (degrees) treated as "blue is reserved for highlights".
- * The lower bound is 195 instead of the documented 200 so cyan-leaning blues
- * such as `#0EA5E9` (hue ≈ 198.6) are also rejected.
+ * High-luminance threshold (HSL L > 85%). Non-blocking front-end warning only.
+ * (docs/v0.3.2.md MOD-710 §3.3)
  */
-export const THEME_COLOR_BLUE_HUE_MIN = 195;
-export const THEME_COLOR_BLUE_HUE_MAX = 240;
-export const THEME_COLOR_BLUE_MIN_SATURATION = 0.25;
-export const THEME_COLOR_BLUE_MIN_VALUE = 0.25;
-export const HIGHLIGHT_DURATION_MS = 1000;
+export const THEME_COLOR_HIGH_LUMINANCE = 0.85;
+/** Click highlight duration: 3 seconds (docs/v0.3.2.md MOD-701). */
+export const HIGHLIGHT_DURATION_CLICK_MS = 3000;
+/** Touch highlight duration: 1 second (docs/v0.3.2.md MOD-701). */
+export const HIGHLIGHT_DURATION_TOUCH_MS = 1000;
+/** Kept for backward compatibility — alias of touch duration. */
+export const HIGHLIGHT_DURATION_MS = HIGHLIGHT_DURATION_TOUCH_MS;
 
 // ---- Editor tools ----
 export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] as const;

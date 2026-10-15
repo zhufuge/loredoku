@@ -16,12 +16,14 @@ import {
   type ParticipantTrigger,
   type ParticipantTriggerKey,
 } from '@murdoku/shared';
-import { isReservedBlueColor, normalizeHexColor } from '@murdoku/shared';
+import { normalizeHexColor, isHighLuminanceColor } from '@murdoku/shared';
+import { parseClue } from '@/lib/clue';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 
 type TargetType = ParticipantTarget['type'];
 
@@ -37,6 +39,9 @@ const TARGET_TYPE_LABELS: Record<TargetType, string> = {
   region: '区域',
 };
 
+/** MOD-702: max clue length. */
+const CLUE_MAX = 200;
+
 export interface PlacedItemOption {
   itemId: number;
   name: string;
@@ -47,23 +52,17 @@ export interface PlacedItemOption {
 interface ParticipantDrawerProps {
   open: boolean;
   onClose: () => void;
-  /** Index of the selected slot in the roster; null when nothing is selected. */
   slotIndex: number | null;
-  /** Roster snapshot used to enumerate character targets. */
   slots: Array<CharacterSlotEntry | null>;
   character: Character | undefined;
   charactersById: Map<number, Character>;
   placedItems: PlacedItemOption[];
   regions: DraftRegion[];
   gridSize: number;
-  /** Cell picked from the canvas while the drawer was temporarily closed. */
-  pickedCell: { x: number; y: number } | null;
-  onPickCell: () => void;
   onSave: (
     slotIndex: number,
-    patch: { themeColor: string; triggers: ParticipantTrigger[] },
+    patch: { themeColor: string; clue: string; triggers: ParticipantTrigger[] },
   ) => void;
-  onRemove: (slotIndex: number) => void;
   onPreviewTrigger?: (slotIndex: number, trigger: ParticipantTriggerKey) => void;
 }
 
@@ -71,8 +70,6 @@ interface AddDraft {
   type: TargetType | null;
   characterId: number | null;
   itemId: number | null;
-  x: number;
-  y: number;
   regionId: string | null;
   color: EffectColor;
 }
@@ -81,8 +78,6 @@ const EMPTY_ADD: AddDraft = {
   type: null,
   characterId: null,
   itemId: null,
-  x: 0,
-  y: 0,
   regionId: null,
   color: 'red',
 };
@@ -103,15 +98,19 @@ function sameTarget(a: ParticipantTarget, b: ParticipantTarget): boolean {
   if (a.type === 'character' && b.type === 'character') return a.id === b.id;
   if (a.type === 'item' && b.type === 'item') return a.id === b.id;
   if (a.type === 'region' && b.type === 'region') return a.id === b.id;
-  if (a.type === 'cell' && b.type === 'cell') return a.x === b.x && a.y === b.y;
+  if (a.type === 'cell' && b.type === 'cell') {
+    const ak = a.cells.map((c) => c.join(',')).sort().join('|');
+    const bk = b.cells.map((c) => c.join(',')).sort().join('|');
+    return ak === bk;
+  }
   return false;
 }
 
 /**
- * CLAR-603 (docs/v0.3.1.md §3.4): a right-side info drawer replaces the old
- * `ParticipantDialog`. Participants never enter the map, so the drawer has
- * no coordinates / can-stand fields. The remove button reads "从参与者区
- * 移除" instead of "从地图移除".
+ * CLAR-603 + MOD-702 (docs/v0.3.2.md): right-side info drawer.
+ * MOD-702: removes "从参与者区移除" button — removal is via × on the panel.
+ * Adds clue editor with live bold preview.
+ * MOD-710: removes blue restriction text.
  */
 export function ParticipantDrawer({
   open,
@@ -123,15 +122,13 @@ export function ParticipantDrawer({
   placedItems,
   regions,
   gridSize,
-  pickedCell,
-  onPickCell,
   onSave,
-  onRemove,
   onPreviewTrigger,
 }: ParticipantDrawerProps): JSX.Element | null {
   const [tab, setTab] = useState<ParticipantTriggerKey>('click');
   const [themeColor, setThemeColor] = useState<string>(DEFAULT_THEME_COLOR);
   const [hexDraft, setHexDraft] = useState<string>(DEFAULT_THEME_COLOR);
+  const [clue, setClue] = useState<string>('');
   const [triggers, setTriggers] = useState<ParticipantTrigger[]>([]);
   const [add, setAdd] = useState<AddDraft>(EMPTY_ADD);
 
@@ -141,21 +138,11 @@ export function ParticipantDrawer({
     if (!open || !slot) return;
     setThemeColor(slot.themeColor ?? DEFAULT_THEME_COLOR);
     setHexDraft(slot.themeColor ?? DEFAULT_THEME_COLOR);
+    setClue(slot.clue ?? '');
     setTriggers(normalize(slot.triggers));
     setAdd(EMPTY_ADD);
     setTab('click');
   }, [open, slot]);
-
-  // A cell picked from the canvas re-opens the drawer on the cell step.
-  useEffect(() => {
-    if (!open || !pickedCell) return;
-    setAdd((previous) => ({
-      ...previous,
-      type: 'cell',
-      x: pickedCell.x,
-      y: pickedCell.y,
-    }));
-  }, [open, pickedCell]);
 
   const activeTargets = useMemo(
     () => triggers.find((group) => group.trigger === tab)?.targets ?? [],
@@ -181,21 +168,14 @@ export function ParticipantDrawer({
       target = { type: 'character', id: draft.characterId, effect: 'highlight', color: draft.color };
     } else if (draft.type === 'item') {
       if (draft.itemId === null) return;
-      target = { type: 'item', id: draft.itemId, effect: 'highlight', color: draft.color };
-    } else if (draft.type === 'cell') {
-      if (draft.x < 0 || draft.y < 0 || draft.x >= gridSize || draft.y >= gridSize) return;
-      target = {
-        type: 'cell',
-        x: draft.x,
-        y: draft.y,
-        effect: 'highlight',
-        color: draft.color,
-      };
-    } else {
+      target = { type: 'item', id: draft.itemId, scope: 'all', effect: 'highlight', color: draft.color };
+    } else if (draft.type === 'region') {
       if (!draft.regionId) return;
       target = { type: 'region', id: draft.regionId, effect: 'highlight', color: draft.color };
+    } else {
+      // cell — MOD-708: use cells array, default to [[0,0]]
+      target = { type: 'cell', cells: [[0, 0]], effect: 'highlight', color: draft.color };
     }
-    // Same object + same colour is de-duplicated (docs/v0.3.0.md §2.2.3).
     const duplicate = activeTargets.some(
       (item) => sameTarget(item, target) && item.color === target.color,
     );
@@ -213,16 +193,27 @@ export function ParticipantDrawer({
       setHexDraft(themeColor);
       return;
     }
-    if (isReservedBlueColor(normalized)) {
-      setHexDraft(themeColor);
-      return;
-    }
+    // MOD-710: no blue rejection — any valid hex is accepted
     setThemeColor(normalized);
     setHexDraft(normalized);
   };
 
+  // MOD-710: non-blocking high-luminance warning
+  const hexWarning = useMemo(() => {
+    const normalized = normalizeHexColor(hexDraft);
+    if (!normalized) return null;
+    if (isHighLuminanceColor(normalized)) {
+      return '该颜色较亮，可能影响可读性';
+    }
+    return null;
+  }, [hexDraft]);
+
+  // MOD-702: clue char count
+  const clueOverLimit = clue.length > CLUE_MAX;
+
   const avatar = character?.avatarThumbUrl ?? character?.avatarUrl;
   const name = character?.name ?? (slot ? `#${slot.characterId}` : '');
+  const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
 
   return (
     <aside
@@ -254,10 +245,14 @@ export function ParticipantDrawer({
             </p>
           ) : (
             <>
+              {/* Avatar + name — MOD-703: theme color background layer */}
               <div className="flex items-start gap-4">
                 <div
-                  className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full border-2"
-                  style={{ backgroundColor: themeColor }}
+                  className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full"
+                  style={{
+                    backgroundColor: themeColor,
+                    border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
+                  }}
                 >
                   {avatar ? (
                     <img
@@ -283,6 +278,7 @@ export function ParticipantDrawer({
                 </div>
               </div>
 
+              {/* Theme color picker — MOD-710: no blue restriction */}
               <div className="space-y-2">
                 <Label>主题色</Label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -326,12 +322,43 @@ export function ParticipantDrawer({
                   <Button variant="outline" size="sm" className="h-8" onClick={applyHex}>
                     应用
                   </Button>
-                  <span className="text-xs text-muted-foreground">
-                    蓝色为高亮专用色，不可作为主题色
-                  </span>
+                  {hexWarning ? (
+                    <span className="text-xs text-amber-600">{hexWarning}</span>
+                  ) : null}
                 </div>
               </div>
 
+              {/* MOD-702: clue editor */}
+              <div className="space-y-2">
+                <Label>线索</Label>
+                <Textarea
+                  value={clue}
+                  onChange={(event) => setClue(event.target.value)}
+                  rows={3}
+                  placeholder="用 **文字** 表示加粗"
+                  className={clueOverLimit ? 'border-destructive' : ''}
+                />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>用 **文字** 表示加粗</span>
+                  <span className={clueOverLimit ? 'text-destructive font-medium' : ''}>
+                    {clue.length} / {CLUE_MAX}
+                  </span>
+                </div>
+                {/* Live bold preview */}
+                {clue.trim() ? (
+                  <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs">
+                    {parseClue(clue).map((seg, i) =>
+                      seg.bold ? (
+                        <strong key={i}>{seg.text}</strong>
+                      ) : (
+                        <span key={i}>{seg.text}</span>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
+              {/* Trigger effects */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-medium">触发效果</h3>
@@ -468,39 +495,9 @@ export function ParticipantDrawer({
                   ) : null}
 
                   {add.type === 'cell' ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        type="number"
-                        min={0}
-                        max={Math.max(0, gridSize - 1)}
-                        value={add.x}
-                        onChange={(event) =>
-                          setAdd({
-                            ...add,
-                            x: clampCoord(Number(event.target.value), gridSize),
-                          })
-                        }
-                        className="h-8 w-20"
-                        aria-label="方格 X"
-                      />
-                      <Input
-                        type="number"
-                        min={0}
-                        max={Math.max(0, gridSize - 1)}
-                        value={add.y}
-                        onChange={(event) =>
-                          setAdd({
-                            ...add,
-                            y: clampCoord(Number(event.target.value), gridSize),
-                          })
-                        }
-                        className="h-8 w-20"
-                        aria-label="方格 Y"
-                      />
-                      <Button variant="outline" size="sm" className="h-8" onClick={onPickCell}>
-                        从画布选择
-                      </Button>
-                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      添加后请在联动列表中编辑方格坐标（矩阵选择器将在后续版本提供）。
+                    </p>
                   ) : null}
 
                   <div className="flex items-center gap-2">
@@ -531,28 +528,18 @@ export function ParticipantDrawer({
                 </div>
               </div>
 
+              {/* MOD-702: save only — no "从参与者区移除" button */}
               <div className="space-y-2 border-t pt-3">
                 <Button
                   type="button"
                   className="w-full"
-                  disabled={!slot}
+                  disabled={!slot || clueOverLimit}
                   onClick={() => {
                     if (slotIndex === null) return;
-                    onSave(slotIndex, { themeColor, triggers });
+                    onSave(slotIndex, { themeColor, clue, triggers });
                   }}
                 >
                   保存
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  className="w-full"
-                  onClick={() => {
-                    if (slotIndex === null) return;
-                    onRemove(slotIndex);
-                  }}
-                >
-                  从参与者区移除
                 </Button>
               </div>
             </>
@@ -561,11 +548,6 @@ export function ParticipantDrawer({
       </div>
     </aside>
   );
-}
-
-function clampCoord(value: number, gridSize: number): number {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(gridSize - 1, Math.max(0, Math.round(value)));
 }
 
 /** Human readable label for one configured target. */
@@ -581,9 +563,9 @@ function describeTarget(
     case 'item':
       return `物品 #${target.id} ${
         placedItems.find((item) => item.itemId === target.id)?.name ?? ''
-      }`.trim();
+      } (${target.scope === 'all' ? '全部' : `${target.instances?.length ?? 0} 实例`})`.trim();
     case 'cell':
-      return `方格 (${target.x}, ${target.y})`;
+      return `方格 ${target.cells.map((c) => `(${c[0]},${c[1]})`).join(', ')}`;
     case 'region':
       return `区域 ${regions.find((item) => item.id === target.id)?.name ?? target.id}`;
   }

@@ -127,12 +127,13 @@ export function CharacterDetailForm({
 
         <div className="grid gap-2">
           <Label htmlFor="character-gender">性别</Label>
-          {/* CLAR-601: segmented control — only 男 / 女, default 男. */}
+          {/* CLAR-601 + MOD-704: segmented control, fixed width ~130px */}
           <div
             id="character-gender"
             role="radiogroup"
             aria-label="性别"
             className="inline-flex overflow-hidden rounded-md border"
+            style={{ width: 'max-content' }}
           >
             {CHARACTER_GENDERS.map((item) => {
               const selected = gender === item;
@@ -149,6 +150,7 @@ export function CharacterDetailForm({
                       ? 'bg-secondary text-secondary-foreground'
                       : 'bg-background text-muted-foreground hover:bg-accent')
                   }
+                  style={{ minWidth: 60 }}
                 >
                   <span style={{ color: GENDER_SYMBOL_COLORS[item] }}>
                     {CHARACTER_GENDER_GLYPHS[item]}

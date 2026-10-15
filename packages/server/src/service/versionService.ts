@@ -60,8 +60,10 @@ function isRegionConnected(region: DraftRegion): boolean {
 /**
  * CLAR-603 (docs/v0.3.1.md §3.3) — the sudoku-style P1~P6 rules from v0.3.0
  * are gone. The new publish rules are:
- *   P1 — at least one participant (non-null slot)
- *   P2 — every participant has an avatar (no avatar → inactive → ignored)
+ *   P1 — at least one usable participant (a slot whose character exists and
+ *        has an avatar)
+ *   P2 — participants without an avatar are treated as not enabled and are
+ *        not counted (see P1)
  *   P3 — no overlapping region cells
  *   P4 — multi-cell items fully inside the board, no layer conflicts
  *   P5 — every trigger target reference exists
@@ -77,9 +79,23 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     }
   }
 
-  // ---- P1 — at least one participant ----
-  const participants = draft.characterSlots.filter((slot) => slot !== null);
-  if (participants.length === 0) {
+  // ---- P1 / P2 — at least one usable participant ----
+  // P2 (docs/v0.3.1.md §3.3): a participant whose character has no avatar is
+  // treated as not enabled and is not counted towards the P1 minimum.
+  const slotCharacterIds = new Set<number>();
+  for (const slot of draft.characterSlots) {
+    if (slot) slotCharacterIds.add(slot.characterId);
+  }
+  const characterMeta = await characterRepo.characterSlotMetaByIds([...slotCharacterIds]);
+  for (const id of slotCharacterIds) {
+    if (!characterMeta.has(id)) {
+      violations.push({ rule: 'character_reference', message: `角色 #${id} 不存在` });
+    }
+  }
+  const usableParticipants = draft.characterSlots.filter(
+    (slot) => slot !== null && characterMeta.get(slot.characterId)?.hasAvatar === true,
+  );
+  if (usableParticipants.length === 0) {
     violations.push({ rule: 'participant_required', message: '至少需要 1 名参与者' });
   }
 
@@ -114,18 +130,6 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
         rule: 'object_out_of_bounds',
         message: `物品 #${cell.object.itemId} (${cell.object.w}×${cell.object.h}) 越出画布`,
       });
-    }
-  }
-
-  // ---- P2 — every participant must reference a character with an avatar ----
-  const characterIds = new Set<number>();
-  for (const slot of draft.characterSlots) {
-    if (slot) characterIds.add(slot.characterId);
-  }
-  const existingCharacters = await characterRepo.existingCharacterIds([...characterIds]);
-  for (const id of characterIds) {
-    if (!existingCharacters.has(id)) {
-      violations.push({ rule: 'character_reference', message: `角色 #${id} 不存在` });
     }
   }
 
@@ -164,7 +168,7 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     if (!slot) return;
     for (const trigger of slot.triggers ?? []) {
       for (const target of trigger.targets) {
-        if (target.type === 'character' && !characterIds.has(target.id)) {
+        if (target.type === 'character' && !slotCharacterIds.has(target.id)) {
           violations.push({
             rule: 'participant_target',
             message: `参与者框 ${slotIndex + 1} 的联动目标角色 #${target.id} 不在参与者中`,
@@ -182,14 +186,17 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
             message: `参与者框 ${slotIndex + 1} 的联动目标区域 ${target.id} 不在地图中`,
           });
         }
-        if (
-          target.type === 'cell' &&
-          (target.x < 0 || target.y < 0 || target.x >= size || target.y >= size)
-        ) {
-          violations.push({
-            rule: 'participant_target',
-            message: `参与者框 ${slotIndex + 1} 的联动目标方格 (${target.x}, ${target.y}) 超出画布范围`,
-          });
+        // MOD-708: cell targets carry a `cells` array
+        if (target.type === 'cell') {
+          for (const [cx, cy] of target.cells) {
+            if (cx < 0 || cy < 0 || cx >= size || cy >= size) {
+              violations.push({
+                rule: 'participant_target',
+                message: `参与者框 ${slotIndex + 1} 的联动目标方格 (${cx}, ${cy}) 超出画布范围`,
+              });
+              break;
+            }
+          }
         }
       }
     }

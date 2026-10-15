@@ -9,17 +9,25 @@ import {
   PARTICIPANT_TARGET_TYPES,
   PARTICIPANT_TRIGGERS,
 } from '../constants';
-import { isReservedBlueColor } from '../color';
+import { normalizeHexColor } from '../color';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
+const coordTupleSchema = z.tuple([coordSchema, coordSchema]);
 const regionIdSchema = z.string().trim().min(1).max(64);
 
-/** `#RRGGBB` theme colour; blue hues are rejected (reserved for highlights). */
+/**
+ * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed. Any
+ * `#RRGGBB` is accepted. The front end provides a non-blocking warning
+ * for very high-luminance colours, but the schema does not reject them.
+ */
 export const themeColorSchema = z
   .string()
   .trim()
   .regex(/^#[0-9a-fA-F]{6}$/, '主题色需为 #RRGGBB 格式')
-  .refine((value) => !isReservedBlueColor(value), '蓝色为高亮专用色，请选择其他颜色')
+  .refine(
+    (value) => normalizeHexColor(value) !== null,
+    '主题色需为 #RRGGBB 格式',
+  )
   .default(DEFAULT_THEME_COLOR);
 
 export const effectColorSchema = z.enum(EFFECT_COLORS);
@@ -28,6 +36,10 @@ export const participantEffectTypeSchema = z.enum(EFFECT_TYPES);
 export const participantTriggerKeySchema = z.enum(PARTICIPANT_TRIGGERS);
 export const participantTargetTypeSchema = z.enum(PARTICIPANT_TARGET_TYPES);
 
+/**
+ * MOD-708 (docs/v0.3.2.md): cell targets carry a `cells` array instead of
+ * a single {x, y}. Item targets gain a `scope` field.
+ */
 export const participantTargetSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('character'),
@@ -38,13 +50,14 @@ export const participantTargetSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('item'),
     id: z.number().int().positive(),
+    scope: z.enum(['all', 'instances']).default('all'),
+    instances: z.array(coordTupleSchema).optional(),
     effect: participantEffectTypeSchema,
     color: effectColorSchema,
   }),
   z.object({
     type: z.literal('cell'),
-    x: coordSchema,
-    y: coordSchema,
+    cells: z.array(coordTupleSchema).min(1),
     effect: participantEffectTypeSchema,
     color: effectColorSchema,
   }),

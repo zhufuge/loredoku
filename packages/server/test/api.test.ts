@@ -1,11 +1,14 @@
 import { afterAll, describe, expect, it } from 'vitest';
+import { rm } from 'node:fs/promises';
 import { ErrorCode } from '@murdoku/shared';
 import type { MapDraft } from '@murdoku/shared';
 import { api } from './helpers';
+import { resolveUploadPath } from '../src/utils/paths';
 
 const createdProjects: number[] = [];
 const createdItems: number[] = [];
 const createdCharacters: number[] = [];
+const uploadedAvatarDirs: string[] = [];
 
 function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
@@ -47,6 +50,27 @@ async function createCharacter(body: Record<string, unknown> = {}): Promise<numb
   expect(res.status).toBe(200);
   const id = res.body.data.id as number;
   createdCharacters.push(id);
+  return id;
+}
+
+/** 1×1 PNG — enough for the avatar upload pipeline to accept it. */
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+/**
+ * v0.3.1 P2: only characters with an avatar count as participants, so a
+ * publishable draft needs a character whose avatar has been uploaded.
+ */
+async function createCharacterWithAvatar(body: Record<string, unknown> = {}): Promise<number> {
+  const id = await createCharacter(body);
+  const uploaded = await api
+    .post(`/api/characters/${id}/avatar`)
+    .attach('file', TINY_PNG, 'avatar.png');
+  expect(uploaded.status).toBe(200);
+  expect(uploaded.body.data.avatarThumbUrl).toBeTruthy();
+  uploadedAvatarDirs.push(resolveUploadPath(`characters/${id}`));
   return id;
 }
 
@@ -268,14 +292,18 @@ describe('versions API', () => {
   it('publishes, lists, reads and restores a draft from a version', async () => {
     const projectId = await createProject({ name: `Versions ${uniqueCode('p')}`, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
+    // v0.3.1 P1/P2: publishing needs at least one participant whose character has an avatar.
+    const characterId = await createCharacterWithAvatar();
 
     const draft = emptyDraft(6);
     draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
+    draft.characterSlots[0] = { characterId };
     await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
 
     const published = await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'first' });
     expect(published.status).toBe(200);
     expect(published.body.data.versionNo).toBe(1);
+    expect(published.body.data.participantCount).toBe(1);
 
     const list = await api.get(`/api/projects/${projectId}/versions`);
     expect(list.body.data).toHaveLength(1);
@@ -303,6 +331,24 @@ describe('versions API', () => {
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThan(0);
   });
+
+  it('rejects publishing when the only participant has no avatar', async () => {
+    const projectId = await createProject({ name: `NoAvatar ${uniqueCode('p')}`, gridSize: 6 });
+    const characterId = await createCharacter();
+
+    const draft = emptyDraft(6);
+    draft.characterSlots[0] = { characterId };
+    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+
+    const res = await api.post(`/api/projects/${projectId}/versions`).send({});
+    expect(res.status).toBe(422);
+    expect(res.body.code).toBe(ErrorCode.PUBLISH_VALIDATION_FAILED);
+    expect(
+      (res.body.data as Array<{ rule: string }>).some(
+        (violation) => violation.rule === 'participant_required',
+      ),
+    ).toBe(true);
+  });
 });
 
 afterAll(async () => {
@@ -311,4 +357,7 @@ afterAll(async () => {
   if (createdItems.length) await db('items').whereIn('id', createdItems).del();
   if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
   await db.destroy();
+  for (const dir of uploadedAvatarDirs) {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

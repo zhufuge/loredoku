@@ -108,11 +108,12 @@ export function CreateCharacterDialog({
           </div>
           <div className="grid gap-2">
             <Label>性别</Label>
-            {/* CLAR-601: segmented control — only 男 / 女, default 男. */}
+            {/* CLAR-601 + MOD-704: segmented control, fixed width */}
             <div
               role="radiogroup"
               aria-label="性别"
               className="inline-flex overflow-hidden rounded-md border"
+              style={{ width: 'max-content' }}
             >
               {CHARACTER_GENDERS.map((item) => {
                 const selected = gender === item;

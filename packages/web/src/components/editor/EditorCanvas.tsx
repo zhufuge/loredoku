@@ -594,7 +594,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
         <MapGridLayer gridSize={gridSize} />
 
-        <MapHighlightLayer highlight={highlight} />
+        <MapHighlightLayer highlight={highlight} regions={regions} />
 
         {selectionOverlay}
         <MapRegionLabelLayer

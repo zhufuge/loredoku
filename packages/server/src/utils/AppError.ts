@@ -14,6 +14,15 @@ export class AppError extends Error {
     Object.setPrototypeOf(this, AppError.prototype);
   }
 
+  /**
+   * Alias so generic HTTP middleware (koa-logger, koa's own error handling)
+   * reports the real status instead of defaulting to 500 when an AppError
+   * propagates through it before `errorHandler` converts it.
+   */
+  get status(): number {
+    return this.httpStatus;
+  }
+
   static notFound(message = '资源不存在'): AppError {
     return new AppError(ErrorCode.NOT_FOUND, message);
   }
