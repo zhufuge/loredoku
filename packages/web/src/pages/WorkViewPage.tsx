@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw } from 'lucide-react';
 import {
-  CANVAS_PADDING,
   DEFAULT_CELL_SIZE,
   MAP_LAYER_Z,
   type CellCoord,
@@ -15,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import {
   MapBackgroundLayer,
+  MapCanvasFrameLayer,
   MapCellCursorLayer,
   MapGridLayer,
   MapHighlightLayer,
@@ -29,20 +29,13 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useWorkDetail } from '@/hooks/useVersions';
-import {
-  centerPan,
-  clampZoom,
-  clientToCell,
-  isInBounds,
-  zoomAtPoint,
-  ZOOM_STEP,
-} from '@/lib/grid';
+import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import {
   collectNoStandCells,
   collectObjectCells,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
-import { computeCellSizeForViewport } from '@/lib/canvasSize';
+import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
 import { resolveHighlight } from '@/lib/highlight';
 import {
   INACTIVE_ACTIVATION,
@@ -161,15 +154,11 @@ export function WorkViewPage(): JSX.Element {
     if (!node || gridSize === 0) return;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    const next = computeCellSizeForViewport({
-      width: rect.width,
-      height: rect.height,
-      gridSize,
-      padding: CANVAS_PADDING,
-    });
+    const insets = canvasInsets();
+    const next = computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
     setCellSize((previous) => (previous === next ? previous : next));
     setZoom(1);
-    setPan(centerPan(rect, gridSize, next, 1));
+    setPan(centeredPan(rect, insets, gridSize, next, 1));
   };
 
   useEffect(() => {
@@ -477,6 +466,8 @@ export function WorkViewPage(): JSX.Element {
               hoveredRegionId={hoveredRegionId}
               onHover={setLabelRegionId}
             />
+
+            <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} />
 
             {/* OPT-A05 §4.1 layer 1 — 鼠标提示框（预览页无操作提示框）. */}
             <MapCellCursorLayer

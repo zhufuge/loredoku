@@ -7,7 +7,7 @@ import type {
   EditorTool,
   Item,
 } from '@murdoku/shared';
-import { EDITOR_LAYERS } from '@murdoku/shared';
+import { EDITOR_LAYERS, PARTICIPANT_HEADER_HEIGHT } from '@murdoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { ItemPalette } from '@/components/editor/ItemPalette';
 import { RegionList } from '@/components/editor/RegionList';
@@ -79,7 +79,8 @@ export function EditorLeftPanel({
 
   return (
     <aside className="flex h-full w-[280px] shrink-0 flex-col border-r bg-background">
-      <div className="flex shrink-0 border-b">
+      {/* OPT-B06 §6.1: header aligns with the participant panel title bar */}
+      <div className="flex shrink-0 border-b" style={{ height: PARTICIPANT_HEADER_HEIGHT }}>
         {TABS.map((item) => (
           <button
             key={item.id}
@@ -87,8 +88,8 @@ export function EditorLeftPanel({
             onClick={() => setTab(item.id)}
             className={
               tab === item.id
-                ? 'flex-1 border-b-2 border-primary px-2 py-2 text-sm font-medium text-foreground'
-                : 'flex-1 border-b-2 border-transparent px-2 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground'
+                ? 'flex-1 border-b-2 border-primary px-2 text-sm font-medium text-foreground'
+                : 'flex-1 border-b-2 border-transparent px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground'
             }
           >
             {item.label}

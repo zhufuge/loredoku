@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { DEFAULT_CELL_SIZE } from '@murdoku/shared'
 import {
   boardSize,
-  centerPan,
   clampZoom,
   clientToCell,
   isInBounds,
@@ -69,16 +68,6 @@ describe('boardSize', () => {
   it('scales the board with zoom', () => {
     expect(boardSize(6, DEFAULT_CELL_SIZE)).toBe(6 * DEFAULT_CELL_SIZE)
     expect(boardSize(6, DEFAULT_CELL_SIZE, 2)).toBe(12 * DEFAULT_CELL_SIZE)
-  })
-})
-
-describe('centerPan', () => {
-  it('centers the board within the viewport', () => {
-    const rect = { width: 800, height: 600 } as DOMRect
-    expect(centerPan(rect, 6, DEFAULT_CELL_SIZE)).toEqual({
-      x: (800 - 6 * DEFAULT_CELL_SIZE) / 2,
-      y: (600 - 6 * DEFAULT_CELL_SIZE) / 2,
-    })
   })
 })
 

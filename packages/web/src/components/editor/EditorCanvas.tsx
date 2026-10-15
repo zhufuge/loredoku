@@ -9,10 +9,10 @@ import {
 } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
-  CANVAS_PADDING,
   DEFAULT_CELL_SIZE,
   HIGHLIGHT_BLUE,
   MAP_LAYER_Z,
+  RULER_SIZE,
   type CellCoord,
   type DraftRegion,
   type EditorTool,
@@ -24,6 +24,7 @@ import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
 import {
   MapBackgroundLayer,
+  MapCanvasFrameLayer,
   MapCellCursorLayer,
   MapGridLayer,
   MapHighlightLayer,
@@ -41,9 +42,14 @@ import {
   resolveCursorBoxes,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
-import { computeCellSizeForViewport } from '@/lib/canvasSize';
 import {
-  centerPan,
+  canvasInsets,
+  centeredPan,
+  computeCellSizeForInsets,
+} from '@/lib/canvasSize';
+import { cellScale } from '@/lib/canvasScale';
+import { buildRulerGlyphs } from '@/lib/ruler';
+import {
   clampZoom,
   clientToCell,
   DRAG_THRESHOLD,
@@ -52,10 +58,6 @@ import {
   ZOOM_STEP,
 } from '@/lib/grid';
 import type { Selection } from '@/stores/editorStore';
-
-const RULER_SIZE = 28;
-const RULER_TEXT_COLOR = '#1F2937';
-const RULER_ACTIVE_COLOR = '#2563EB';
 
 /**
  * OPT-A05 §1.1 layer 1 covers "current operation or selection" markers. The
@@ -173,9 +175,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
    * Clearing `userPannedRef` is what re-arms the automatic pass, so this is
    * also what "重置视图" (Ctrl+0) does.
    *
-   * The visible rulers live inside the same viewport, so the inset grows to
-   * keep them off the board (`CANVAS_PADDING` is the plain inset used by
-   * §1.1 when no ruler is shown).
+   * OPT-B02 §2.2: the inset is asymmetric — the ruler strips run along the
+   * top / left edges and the bottom toolbar floats over the viewport, so the
+   * adaptive height subtracts 72px for it (`BOTTOM_BAR_RESERVE`).
    */
   const centerView = useCallback((): void => {
     const node = containerRef.current;
@@ -183,15 +185,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     userPannedRef.current = false;
-    const next = computeCellSizeForViewport({
+    const insets = canvasInsets({ showRulers, showBottomBar: true });
+    const next = computeCellSizeForInsets({
       width: rect.width,
       height: rect.height,
       gridSize,
-      padding: showRulers ? RULER_SIZE + CANVAS_PADDING : CANVAS_PADDING,
+      insets,
     });
     setCellSize((previous) => (previous === next ? previous : next));
     viewRef.current.onZoom(1);
-    viewRef.current.onPan(centerPan(rect, gridSize, next, 1));
+    viewRef.current.onPan(centeredPan(rect, insets, gridSize, next, 1));
   }, [gridSize, showRulers]);
 
   const toCell = useCallback(
@@ -612,9 +615,35 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     </div>
   );
 
+  /**
+   * OPT-B05 §5: both ruler strips share one state machine — idle glyphs, the
+   * hovered row / column, and the row / column of the operation box (which
+   * wins and grows from 15px to 17px, both × scale).
+   */
+  const rulerScale = cellScale(cellSize);
   const rulerColumns = useMemo(
-    () => Array.from({ length: gridSize }, (_, index) => index + 1),
-    [gridSize],
+    () =>
+      buildRulerGlyphs({
+        gridSize,
+        axis: 'column',
+        hoverIndex: hover?.x ?? null,
+        operationIndex: selectionCell?.x ?? null,
+        scale: rulerScale,
+        zoom,
+      }),
+    [gridSize, hover?.x, selectionCell?.x, rulerScale, zoom],
+  );
+  const rulerRows = useMemo(
+    () =>
+      buildRulerGlyphs({
+        gridSize,
+        axis: 'row',
+        hoverIndex: hover?.y ?? null,
+        operationIndex: selectionCell?.y ?? null,
+        scale: rulerScale,
+        zoom,
+      }),
+    [gridSize, hover?.y, selectionCell?.y, rulerScale, zoom],
   );
 
   return (
@@ -662,7 +691,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         {draftOverlay}
 
         <MapGridLayer gridSize={gridSize} cellSize={cellSize} />
-
         <MapObjectLayer
           cells={cells}
           itemsById={itemsById}
@@ -689,6 +717,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           }}
         />
 
+        {/* OPT-B04 §4.2 — the board frame renders above every item /
+            highlight layer so nothing can cover it. */}
+        <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} />
+
         {selectionOverlay}
         {/* OPT-A05 §4.1 layer 1 — 操作提示框 first, 鼠标提示框 on top of it. */}
         <MapOperationCursorLayer cell={cursorBoxes.operation} cellSize={cellSize} />
@@ -701,7 +733,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
       {showRulers ? (
         <>
-          {/* Column ruler: transparent, borderless, 13px/600 text, underline highlight. */}
+          {/* Column ruler — OPT-B05: transparent, borderless, ×scale glyphs. */}
           <div
             className="pointer-events-none absolute z-30 h-7"
             style={{
@@ -711,33 +743,29 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
               overflow: 'hidden',
             }}
           >
-            {rulerColumns.map((column) => {
-              const active = hover?.x === column - 1 || selectionCell?.x === column - 1;
-              return (
-                <div
-                  key={`rul-col-${column}`}
-                  className="absolute top-0 flex h-full items-center justify-center"
+            {rulerColumns.map((glyph) => (
+              <div
+                key={`rul-col-${glyph.label}`}
+                className="absolute top-0 flex h-full items-center justify-center"
+                style={{
+                  left: glyph.index * cellSize * zoom,
+                  width: cellSize * zoom,
+                  overflow: 'hidden',
+                }}
+              >
+                <span
+                  className="whitespace-nowrap"
                   style={{
-                    left: (column - 1) * cellSize * zoom,
-                    width: cellSize * zoom,
-                    overflow: 'hidden',
+                    fontSize: glyph.fontSize,
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    color: glyph.color,
                   }}
                 >
-                  <span
-                    className="whitespace-nowrap"
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      lineHeight: 1,
-                      color: active ? RULER_ACTIVE_COLOR : RULER_TEXT_COLOR,
-                      borderBottom: active ? `2px solid ${RULER_ACTIVE_COLOR}` : 'none',
-                    }}
-                  >
-                    C{column}
-                  </span>
-                </div>
-              );
-            })}
+                  {glyph.label}
+                </span>
+              </div>
+            ))}
           </div>
 
           {/* Row ruler */}
@@ -751,33 +779,29 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
               overflow: 'hidden',
             }}
           >
-            {rulerColumns.map((row) => {
-              const active = hover?.y === row - 1 || selectionCell?.y === row - 1;
-              return (
-                <div
-                  key={`rul-row-${row}`}
-                  className="absolute left-0 flex w-full items-center justify-center"
+            {rulerRows.map((glyph) => (
+              <div
+                key={`rul-row-${glyph.label}`}
+                className="absolute left-0 flex w-full items-center justify-center"
+                style={{
+                  top: glyph.index * cellSize * zoom,
+                  height: cellSize * zoom,
+                  overflow: 'hidden',
+                }}
+              >
+                <span
+                  className="whitespace-nowrap"
                   style={{
-                    top: (row - 1) * cellSize * zoom,
-                    height: cellSize * zoom,
-                    overflow: 'hidden',
+                    fontSize: glyph.fontSize,
+                    fontWeight: 600,
+                    lineHeight: 1,
+                    color: glyph.color,
                   }}
                 >
-                  <span
-                    className="whitespace-nowrap"
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      lineHeight: 1,
-                      color: active ? RULER_ACTIVE_COLOR : RULER_TEXT_COLOR,
-                      borderBottom: active ? `2px solid ${RULER_ACTIVE_COLOR}` : 'none',
-                    }}
-                  >
-                    R{row}
-                  </span>
-                </div>
-              );
-            })}
+                  {glyph.label}
+                </span>
+              </div>
+            ))}
           </div>
         </>
       ) : null}

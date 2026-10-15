@@ -95,6 +95,31 @@ export function computeParticipantLayout(n: number): ParticipantLayout {
 }
 
 /**
+ * OPT-B06 (docs/v0.3.6.md §6.3): the sequence badge shown in a cell's
+ * top-left corner. The number matches `characterSlots` order, which is the
+ * row-major order {@link slotIndex} produces.
+ */
+export function participantSequence(index: number): number {
+  return index + 1;
+}
+
+/**
+ * OPT-B06 §6.3: the order the matrix renders slots in — top to bottom, then
+ * left to right. Returns `[0 … n-1]`; the centred gap of a short last row is
+ * skipped without disturbing the order.
+ */
+export function matrixOrder(layout: ParticipantLayout): number[] {
+  const order: number[] = [];
+  for (let row = 0; row < layout.rows; row += 1) {
+    for (let col = 0; col < layout.cols; col += 1) {
+      const index = slotIndex({ row, col }, layout);
+      if (index !== null) order.push(index);
+    }
+  }
+  return order;
+}
+
+/**
  * Maps a flat index (0..n-1) to a `{ row, col }` position inside the matrix.
  * The last row is centred, so its first cell sits at `col = leadingOffset`.
  */

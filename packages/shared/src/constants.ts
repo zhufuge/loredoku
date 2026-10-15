@@ -19,6 +19,23 @@ export const MAX_CELL_SIZE = 240;
 export const DEFAULT_CELL_SIZE = MIN_CELL_SIZE;
 /** Horizontal / vertical inset the adaptive pass leaves around the board. */
 export const CANVAS_PADDING = 16;
+/**
+ * OPT-B02 (docs/v0.3.6.md §2.2): the bottom toolbar floats over the canvas, so
+ * the adaptive height subtracts a fixed reserve for it (toolbar + breathing
+ * room = 72px). `availableH = height - 72 - 28(ruler) - 32(padding)`.
+ */
+export const BOTTOM_BAR_RESERVE = 72;
+
+/**
+ * OPT-B03 (docs/v0.3.6.md §3.2): every line width and font size is authored
+ * against this reference cell width and multiplied by `cellSize / BASE_CELL`.
+ */
+export const BASE_CELL = 120;
+/** Guard rails so lines never vanish on small cells or bloat on big ones. */
+export const LINE_WIDTH_MIN = 0.5;
+export const LINE_WIDTH_MAX = 12;
+export const FONT_SIZE_MIN = 9;
+export const FONT_SIZE_MAX = 28;
 
 /**
  * OPT-A04 (docs/v0.3.5.md §3.2): the four line elements of a cell, named as
@@ -30,10 +47,20 @@ export const CANVAS_PADDING = 16;
  */
 export const LINE_COLOR = '#000000';
 export const BORDER_WIDTH = 2;
+/**
+ * @deprecated v0.3.6 OPT-B04 replaced the 3px outer frame with
+ * {@link CANVAS_OUTER_BORDER_WIDTH} (the default region border width, 6px).
+ * Kept only because `GRID_BORDER_WIDTH` is still exported as an alias.
+ */
 export const OUTLINE_WIDTH = 3;
 export const INNER_LINE_WIDTH = 1;
 /** Region outline width range — the region's own `borderWidth` attribute. */
 export const REGION_BORDER_WIDTH = 6;
+/**
+ * OPT-B04 (docs/v0.3.6.md §4): the board's outermost frame uses the **default**
+ * region border width and never follows a region's customised `borderWidth`.
+ */
+export const CANVAS_OUTER_BORDER_WIDTH = REGION_BORDER_WIDTH;
 
 // Deprecated aliases (kept so older imports keep compiling).
 export const GRID_LINE_COLOR = LINE_COLOR;
@@ -152,10 +179,8 @@ export const EFFECT_COLOR_LABELS: Record<(typeof EFFECT_COLORS)[number], string>
  * OPT-A06 §5.1: the blue is the softened `#90CAF9`.
  */
 export const REGION_HIGHLIGHT_BORDER_COLOR = HIGHLIGHT_BLUE;
-/** Width (px) of the region highlight border, inset from the region edge. */
-export const REGION_HIGHLIGHT_BORDER_WIDTH = 2;
-/** Inset (px) of the region highlight border from the region edge. */
-export const REGION_HIGHLIGHT_BORDER_INSET = 2;
+/** OPT-B01 (docs/v0.3.6.md §1.1): 2px → 4px, growing **inwards**. */
+export const REGION_HIGHLIGHT_WIDTH = 4;
 export const DEFAULT_THEME_COLOR = '#FFFFFF';
 /**
  * MOD-801 (docs/v0.3.3.md §1.1.1): the v0.3.2 palette is darkened by
@@ -259,6 +284,13 @@ export const NO_STAND_SHADOW_COLOR = 'rgba(0,0,0,0.18)';
  */
 export const NO_STAND_SHADOW_Z = MAP_LAYER_Z.object + 1;
 
+/**
+ * OPT-B04 §4.2: the board's outermost frame must not be covered by any item
+ * or highlight layer, so it renders above them — just under the region
+ * labels and the cursor boxes.
+ */
+export const CANVAS_FRAME_Z = MAP_LAYER_Z.regionLabel;
+
 // ---- OPT-901 §1.2.2 区域名称 ----
 /** v0.3.4 §1.2.2: the outline is one notch thicker than v0.3.3 (3px → 4px). */
 export const REGION_LABEL_STROKE_WIDTH = 4;
@@ -274,6 +306,39 @@ export const REGION_LABEL_HOVER_FONT_SIZE = 16;
 /** The object image stretches upward by this many pixels while hovered. */
 export const OBJECT_HOVER_LIFT_PX = 4;
 export const OBJECT_HOVER_TRANSITION_MS = 120;
+
+// ---- OPT-B05 标尺字符（docs/v0.3.6.md §5） ----
+/** Ruler glyph base sizes; both are multiplied by the OPT-B03 `scale`. */
+export const RULER_FONT_SIZE = 15;
+/** The cell the operation box is pinned to gets the larger glyph (§5.3). */
+export const RULER_FONT_SIZE_ACTIVE = 17;
+/** Idle colour — a light grey (§5.1). */
+export const RULER_COLOR = '#9CA3AF';
+/** Hovered / operated row & column — darker grey, deliberately not blue (§5.2). */
+export const RULER_COLOR_HOVER = '#374151';
+/** Height of the ruler strip along the top and left edges. */
+export const RULER_SIZE = 28;
+
+// ---- OPT-B06 参与者区（docs/v0.3.6.md §6） ----
+/** Minimum participant cell width; the height stays at the v0.3.5 value. */
+export const PARTICIPANT_MIN_WIDTH = 110;
+/** Participant title bar height, kept in sync with the item panel header. */
+export const PARTICIPANT_HEADER_HEIGHT = 40;
+/** Participant cell minimum height (v0.3.5 OPT-A02). */
+export const PARTICIPANT_MIN_HEIGHT = 104;
+/** Clue display area under the avatar (3 lines). */
+export const PARTICIPANT_CLUE_HEIGHT = 72;
+/** Gap between participant cells. */
+export const PARTICIPANT_CELL_GAP = 14;
+/** Minimum avatar diameter (v0.3.5 OPT-A02). */
+export const PARTICIPANT_AVATAR_MIN = 56;
+/** OPT-B06 §6.3: the sequence badge tucked into the cell's top-left corner. */
+export const PARTICIPANT_SEQ_INSET = 4;
+export const PARTICIPANT_SEQ_FONT_SIZE = 12;
+export const PARTICIPANT_SEQ_COLOR = '#374151';
+/** Translucent white so the badge stays readable on any theme colour. */
+export const PARTICIPANT_SEQ_BACKGROUND = 'rgba(255,255,255,0.85)';
+export const PARTICIPANT_SEQ_BORDER = '1px solid rgba(0,0,0,0.1)';
 
 // ---- Editor tools ----
 export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] as const;

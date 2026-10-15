@@ -1,4 +1,5 @@
 import {
+  BASE_CELL,
   BORDER_WIDTH,
   CELL_CURSOR_BLOCKED_COLOR,
   CELL_CURSOR_COLOR,
@@ -15,6 +16,7 @@ import {
   type Item,
   type MapLayerName,
 } from '@murdoku/shared';
+import { cellScale, scaleLineWidth } from '@/lib/canvasScale';
 import { regionAt } from '@/lib/region';
 
 export type CellMap = Map<string, DraftCell>;
@@ -34,8 +36,13 @@ export function layerStack(): Array<{ name: MapLayerName; z: number }> {
   return MAP_LAYER_ORDER.map((name) => ({ name, z: MAP_LAYER_Z[name] }));
 }
 
-/** The shadow ring inset of the non-standable mask (Border inner edge). */
+/** Base inset of the non-standable mask before the OPT-B03 scale is applied. */
 export const NO_STAND_SHADOW_INSET = BORDER_WIDTH / 2;
+
+/** OPT-B03: the mask inset follows the scaled Border width. */
+export function noStandShadowInset(cellSize: number): number {
+  return scaleLineWidth(BORDER_WIDTH, cellScale(cellSize)) / 2;
+}
 
 /** Splits a `"x,y"` cell key back into numbers. */
 function parseKey(key: string): [number, number] {
@@ -130,13 +137,19 @@ export function resolveHoverEffects(input: {
 }
 
 /**
- * OPT-A05 §4.1/§3.3.1 (mouse box) — a 1px Inner Line in the state colour
- * (white for a free cell, pale red for a non-standable one) plus a grey ring
+ * OPT-A05 §4.1/§3.3.1 (mouse box) — an Inner Line in the state colour (white
+ * for a free cell, pale red for a non-standable one) plus a grey ring
  * covering the Border. Returned as one `box-shadow` so the shape never moves.
+ *
+ * OPT-B03 §3.2: both widths are multiplied by `cellSize / BASE_CELL`, so the
+ * default `cellSize` reproduces the v0.3.5 look exactly.
  */
-export function cellCursorShadow(blocked: boolean): string {
+export function cellCursorShadow(blocked: boolean, cellSize = BASE_CELL): string {
+  const scale = cellScale(cellSize);
   const stroke = blocked ? CELL_CURSOR_BLOCKED_COLOR : CELL_CURSOR_COLOR;
-  return `inset 0 0 0 ${INNER_LINE_WIDTH}px ${stroke}, 0 0 0 ${BORDER_WIDTH}px ${CELL_CURSOR_SHADOW_COLOR}`;
+  const inner = scaleLineWidth(INNER_LINE_WIDTH, scale);
+  const gap = scaleLineWidth(BORDER_WIDTH, scale);
+  return `inset 0 0 0 ${inner}px ${stroke}, 0 0 0 ${gap}px ${CELL_CURSOR_SHADOW_COLOR}`;
 }
 
 /**
@@ -146,14 +159,20 @@ export function cellCursorShadow(blocked: boolean): string {
  * offset rather than another inset ring: with both boxes on the same cell the
  * white mouse line ends up inside and the blue outline outside.
  */
-export function operationCursorOutline(): string {
-  return `${OPERATION_CURSOR_OUTLINE_WIDTH}px solid ${OPERATION_CURSOR_COLOR}`;
+export function operationCursorOutline(cellSize = BASE_CELL): string {
+  const width = scaleLineWidth(OPERATION_CURSOR_OUTLINE_WIDTH, cellScale(cellSize));
+  return `${width}px solid ${OPERATION_CURSOR_COLOR}`;
 }
 
-export const OPERATION_CURSOR_STYLE = {
-  outline: operationCursorOutline(),
-  outlineOffset: `${OPERATION_CURSOR_OUTLINE_OFFSET}px`,
-} as const;
+export function operationCursorStyle(cellSize = BASE_CELL): {
+  outline: string;
+  outlineOffset: string;
+} {
+  return {
+    outline: operationCursorOutline(cellSize),
+    outlineOffset: `${OPERATION_CURSOR_OUTLINE_OFFSET}px`,
+  };
+}
 
 /**
  * OPT-A05 §4.1/§4.3: the two cursor boxes are independent elements that can

@@ -1,16 +1,21 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import {
+  BASE_CELL,
   BORDER_WIDTH,
+  CANVAS_FRAME_Z,
+  CANVAS_OUTER_BORDER_WIDTH,
+  INNER_LINE_WIDTH,
   LINE_COLOR,
   MAP_LAYER_Z,
   NO_STAND_SHADOW_COLOR,
   NO_STAND_SHADOW_Z,
   OBJECT_HOVER_LIFT_PX,
   OBJECT_HOVER_TRANSITION_MS,
-  OUTLINE_WIDTH,
+  OPERATION_CURSOR_COLOR,
+  OPERATION_CURSOR_OUTLINE_OFFSET,
+  OPERATION_CURSOR_OUTLINE_WIDTH,
   REGION_HIGHLIGHT_BORDER_COLOR,
-  REGION_HIGHLIGHT_BORDER_INSET,
-  REGION_HIGHLIGHT_BORDER_WIDTH,
+  REGION_HIGHLIGHT_WIDTH,
   REGION_LABEL_COLOR,
   REGION_LABEL_FONT_SIZE,
   REGION_LABEL_HOVER_FONT_SIZE,
@@ -22,10 +27,11 @@ import {
 } from '@murdoku/shared';
 import { buildRegionEdges, computeLabelCell } from '@/lib/region';
 import { HIGHLIGHT_FADEOUT_MS, type CellMap, type HighlightState } from '@/lib/highlight';
-import { NO_STAND_SHADOW_INSET, OPERATION_CURSOR_STYLE, cellCursorShadow } from '@/lib/canvasLayers';
+import { cellScale, scaleFontSize, scaleLineWidth } from '@/lib/canvasScale';
+import { cellCursorShadow } from '@/lib/canvasLayers';
 
 /**
- * OPT-A01 does not list the region *fill* (a v0.2.5 leftover), so it is
+ * OPT-B03 does not list the region *fill* (a v0.2.5 leftover), so it is
  * parked between 背景 (10) and 背景高亮 (9).
  */
 const REGION_FILL_Z = MAP_LAYER_Z.background + 2;
@@ -49,16 +55,34 @@ function parseKey(key: string): [number, number] {
   return key.split(',').map(Number) as [number, number];
 }
 
-/** OPT-A04 §3.3.2: a region outline, shared by hover and linkage borders. */
+/**
+ * OPT-B01 (docs/v0.3.6.md §1): the highlight hugs the **inner** side of the
+ * region boundary and grows inwards, never covering it. The boundary itself
+ * is a `borderWidth × scale` stroke centred on the contour, so it eats
+ * `borderWidth × scale / 2` into the region; the highlight starts exactly
+ * there.
+ */
+function regionHighlightInset(borderWidth: number, cellSize: number): number {
+  const scale = cellScale(cellSize);
+  const border = scaleLineWidth(borderWidth, scale);
+  const highlight = scaleLineWidth(REGION_HIGHLIGHT_WIDTH, scale);
+  return border / 2 + highlight / 2;
+}
+
+/** A region outline / highlight, shared by hover and linkage borders. */
 function RegionInnerBorder({
   cells,
   cellSize,
+  borderWidth,
 }: {
   cells: Array<[number, number]>;
   cellSize: number;
+  /** The region's own `borderWidth`; the highlight nests inside it. */
+  borderWidth: number;
 }): JSX.Element {
   const edges = buildRegionEdges(cells, cellSize);
-  const inset = REGION_HIGHLIGHT_BORDER_INSET;
+  const inset = regionHighlightInset(borderWidth, cellSize);
+  const width = scaleLineWidth(REGION_HIGHLIGHT_WIDTH, cellScale(cellSize));
   return (
     <svg className="absolute left-0 top-0" style={{ overflow: 'visible' }}>
       {edges.map((edge, index) => (
@@ -69,7 +93,7 @@ function RegionInnerBorder({
           x2={edge.x2 - (edge.x2 !== edge.x1 ? inset : 0)}
           y2={edge.y2 - (edge.y2 !== edge.y1 ? inset : 0)}
           stroke={REGION_HIGHLIGHT_BORDER_COLOR}
-          strokeWidth={REGION_HIGHLIGHT_BORDER_WIDTH}
+          strokeWidth={width}
           strokeOpacity={0.9}
           strokeLinecap="round"
         />
@@ -79,9 +103,9 @@ function RegionInnerBorder({
 }
 
 /**
- * OPT-A04 §3.2.1 (docs/v0.3.5.md): every line in the grid is a **Border** and
- * adjacent cells share one — `n-1` internal separators plus a single outer
- * `Outline` rect, never four lines per cell (no double borders).
+ * OPT-B03 §3.2 + OPT-A04 §3.2.1: every internal grid separator is a **Border**
+ * and adjacent cells share one — `n-1` lines per axis, never four per cell.
+ * The outermost frame is a separate layer (see {@link MapCanvasFrameLayer}).
  */
 export function MapGridLayer({
   gridSize,
@@ -91,6 +115,7 @@ export function MapGridLayer({
   cellSize: number;
 }): JSX.Element {
   const total = gridSize * cellSize;
+  const width = scaleLineWidth(BORDER_WIDTH, cellScale(cellSize));
   const lines: JSX.Element[] = [];
   for (let i = 1; i < gridSize; i += 1) {
     const pos = i * cellSize;
@@ -102,7 +127,7 @@ export function MapGridLayer({
         x2={pos}
         y2={total}
         stroke={LINE_COLOR}
-        strokeWidth={BORDER_WIDTH}
+        strokeWidth={width}
       />,
       <line
         key={`grid-h-${i}`}
@@ -111,7 +136,7 @@ export function MapGridLayer({
         x2={total}
         y2={pos}
         stroke={LINE_COLOR}
-        strokeWidth={BORDER_WIDTH}
+        strokeWidth={width}
       />,
     );
   }
@@ -123,14 +148,44 @@ export function MapGridLayer({
       style={{ zIndex: MAP_LAYER_Z.gridBorder }}
     >
       {lines}
+    </svg>
+  );
+}
+
+/**
+ * OPT-B04 (docs/v0.3.6.md §4): the board's outermost frame — as thick as the
+ * default region border (`CANVAS_OUTER_BORDER_WIDTH × scale`) and visibly
+ * heavier than the 2px internal separators.
+ *
+ * §4.2: it is drawn fully **outside** the board rectangle so no item or
+ * highlight layer can overlap it, which is why the 6px stroke is offset by
+ * half its width (the SVG needs `overflow: visible` for that).
+ */
+export function MapCanvasFrameLayer({
+  gridSize,
+  cellSize,
+}: {
+  gridSize: number;
+  cellSize: number;
+}): JSX.Element {
+  const total = gridSize * cellSize;
+  const width = scaleLineWidth(CANVAS_OUTER_BORDER_WIDTH, cellScale(cellSize));
+  return (
+    <svg
+      className="pointer-events-none absolute left-0 top-0"
+      width={total}
+      height={total}
+      style={{ overflow: 'visible', zIndex: CANVAS_FRAME_Z }}
+    >
       <rect
-        x={OUTLINE_WIDTH / 2}
-        y={OUTLINE_WIDTH / 2}
-        width={Math.max(0, total - OUTLINE_WIDTH)}
-        height={Math.max(0, total - OUTLINE_WIDTH)}
+        x={0}
+        y={0}
+        width={total}
+        height={total}
         fill="none"
         stroke={LINE_COLOR}
-        strokeWidth={OUTLINE_WIDTH}
+        strokeWidth={width}
+        style={{ transform: `translate(${-width / 2}px, ${-width / 2}px)` }}
       />
     </svg>
   );
@@ -325,6 +380,7 @@ export function MapRegionEdgeLayer({
   selectedRegionId?: string | null;
 }): JSX.Element {
   const total = gridSize * cellSize;
+  const scale = cellScale(cellSize);
   return (
     <svg
       className="pointer-events-none absolute left-0 top-0"
@@ -335,6 +391,7 @@ export function MapRegionEdgeLayer({
       {regions.map((region) => {
         const selected = selectedRegionId === region.id;
         const edges = buildRegionEdges(region.cells, cellSize);
+        const width = scaleLineWidth(region.borderWidth + (selected ? 2 : 0), scale);
         return (
           <g key={region.id}>
             {edges.map((edge, index) => (
@@ -346,7 +403,7 @@ export function MapRegionEdgeLayer({
                 y2={edge.y2}
                 stroke={region.color}
                 strokeOpacity={1}
-                strokeWidth={selected ? region.borderWidth + 2 : region.borderWidth}
+                strokeWidth={width}
                 strokeLinecap="square"
                 strokeLinejoin="miter"
               />
@@ -359,8 +416,9 @@ export function MapRegionEdgeLayer({
 }
 
 /**
- * Layer 7 · 区域高亮线 — the pale blue 2px inner line shown while a region is
- * hovered (§2.2) or targeted by a linkage (§3).
+ * Layer 7 · 区域高亮线 — the pale blue inner line shown while a region is
+ * hovered (§2.2) or targeted by a linkage (§3). OPT-B01 widened it to 4px,
+ * growing inwards from the region boundary.
  */
 export function MapRegionHoverLayer({
   region,
@@ -375,7 +433,7 @@ export function MapRegionHoverLayer({
       className="pointer-events-none absolute left-0 top-0"
       style={{ zIndex: MAP_LAYER_Z.regionHighlight }}
     >
-      <RegionInnerBorder cells={region.cells} cellSize={cellSize} />
+      <RegionInnerBorder cells={region.cells} cellSize={cellSize} borderWidth={region.borderWidth} />
     </div>
   );
 }
@@ -393,7 +451,9 @@ export function MapNoStandShadowLayer({
   cellSize: number;
 }): JSX.Element | null {
   if (noStandCells.size === 0) return null;
-  const size = cellSize - NO_STAND_SHADOW_INSET * 2;
+  // OPT-B03: the inset follows the scaled Border width.
+  const inset = scaleLineWidth(BORDER_WIDTH, cellScale(cellSize)) / 2;
+  const size = cellSize - inset * 2;
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
@@ -406,8 +466,8 @@ export function MapNoStandShadowLayer({
             key={`nostand-${key}`}
             className="absolute"
             style={{
-              left: x * cellSize + NO_STAND_SHADOW_INSET,
-              top: y * cellSize + NO_STAND_SHADOW_INSET,
+              left: x * cellSize + inset,
+              top: y * cellSize + inset,
               width: size,
               height: size,
               backgroundColor: NO_STAND_SHADOW_COLOR,
@@ -442,7 +502,7 @@ export function MapCellCursorLayer({
         className="absolute"
         style={{
           ...cellRectStyle(cell.x, cell.y, cellSize),
-          boxShadow: cellCursorShadow(blocked),
+          boxShadow: cellCursorShadow(blocked, cellSize),
         }}
       />
     </div>
@@ -462,6 +522,7 @@ export function MapOperationCursorLayer({
   cellSize: number;
 }): JSX.Element | null {
   if (!cell) return null;
+  const scale = cellScale(cellSize);
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
@@ -469,7 +530,11 @@ export function MapOperationCursorLayer({
     >
       <div
         className="absolute"
-        style={{ ...cellRectStyle(cell.x, cell.y, cellSize), ...OPERATION_CURSOR_STYLE }}
+        style={{
+          ...cellRectStyle(cell.x, cell.y, cellSize),
+          outline: `${scaleLineWidth(OPERATION_CURSOR_OUTLINE_WIDTH, scale)}px solid ${OPERATION_CURSOR_COLOR}`,
+          outlineOffset: `${OPERATION_CURSOR_OUTLINE_OFFSET}px`,
+        }}
       />
     </div>
   );
@@ -488,6 +553,8 @@ export function MapRegionLabelLayer({
   onHover?: (id: string | null) => void;
   onSelect?: (id: string) => void;
 }): JSX.Element {
+  const scale = cellScale(cellSize);
+  const strokeWidth = scaleLineWidth(REGION_LABEL_STROKE_WIDTH, scale);
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
@@ -508,9 +575,13 @@ export function MapRegionLabelLayer({
               transform: 'translate(-50%, -100%)',
               color: REGION_LABEL_COLOR,
               fontWeight: 700,
-              fontSize: hovered ? REGION_LABEL_HOVER_FONT_SIZE : REGION_LABEL_FONT_SIZE,
+              // OPT-B03 §3.2: 14px → 16px when hovered, both × scale.
+              fontSize: scaleFontSize(
+                hovered ? REGION_LABEL_HOVER_FONT_SIZE : REGION_LABEL_FONT_SIZE,
+                scale,
+              ),
               lineHeight: 1.1,
-              WebkitTextStroke: `${REGION_LABEL_STROKE_WIDTH}px ${
+              WebkitTextStroke: `${strokeWidth}px ${
                 hovered ? REGION_HIGHLIGHT_BORDER_COLOR : REGION_LABEL_STROKE_COLOR
               }`,
               paintOrder: 'stroke fill',
@@ -627,6 +698,7 @@ export function MapHighlightLayer({
                 key={`hl-rb-${border.regionId}`}
                 cells={region.cells}
                 cellSize={cellSize}
+                borderWidth={region.borderWidth}
               />
             );
           })}

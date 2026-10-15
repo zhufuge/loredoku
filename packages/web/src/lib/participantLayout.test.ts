@@ -3,6 +3,8 @@ import {
   computeParticipantLayout,
   deriveLayout,
   fitColumns,
+  matrixOrder,
+  participantSequence,
   slotIndex,
   slotPosition,
 } from './participantLayout';
@@ -184,5 +186,42 @@ describe('fitColumns (MOD-803 layout adaptivity)', () => {
         expect(cols * CELL + (cols - 1) * GAP).toBeLessThanOrEqual(width);
       }
     }
+  });
+});
+
+// ---- OPT-B06 §6.3: participant sequence numbers ----
+describe('participantSequence (OPT-B06 §6.3)', () => {
+  it('is 1-based and matches the slot array order', () => {
+    expect(participantSequence(0)).toBe(1);
+    expect(participantSequence(4)).toBe(5);
+  });
+});
+
+describe('matrixOrder (OPT-B06 §6.3)', () => {
+  it('reads top-to-bottom, then left-to-right, for every n ≥ 2', () => {
+    for (let n = 2; n <= 24; n += 1) {
+      const layout = computeParticipantLayout(n);
+      const order = matrixOrder(layout);
+      expect(order).toHaveLength(n);
+      expect(order).toEqual(Array.from({ length: n }, (_, index) => index));
+    }
+  });
+
+  it('keeps the order when the last row is centred', () => {
+    // 6 slots in a 4-column matrix: row 2 has a 1-cell gap on each side.
+    const layout = deriveLayout(6, 4);
+    expect(layout).toMatchObject({ cols: 4, rows: 2, lastRowCount: 2, leadingOffset: 1 });
+    expect(matrixOrder(layout)).toEqual([0, 1, 2, 3, 4, 5]);
+    // The numbers displayed in the cells are 1..6 in that order.
+    expect(matrixOrder(layout).map(participantSequence)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
+  it('skips the gap cells of a short last row', () => {
+    const layout = deriveLayout(5, 3);
+    expect(matrixOrder(layout)).toHaveLength(5);
+  });
+
+  it('returns nothing for an empty layout', () => {
+    expect(matrixOrder(computeParticipantLayout(0))).toEqual([]);
   });
 });

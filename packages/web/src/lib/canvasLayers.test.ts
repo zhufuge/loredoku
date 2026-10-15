@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BASE_CELL,
   BORDER_WIDTH,
+  CANVAS_FRAME_Z,
+  CANVAS_OUTER_BORDER_WIDTH,
   CELL_CURSOR_BLOCKED_COLOR,
   CELL_CURSOR_COLOR,
   CELL_CURSOR_SHADOW_COLOR,
@@ -14,6 +17,8 @@ import {
   NO_STAND_SHADOW_COLOR,
   NO_STAND_SHADOW_Z,
   OPERATION_CURSOR_COLOR,
+  PARTICIPANT_HEADER_HEIGHT,
+  PARTICIPANT_MIN_WIDTH,
   OPERATION_CURSOR_OUTLINE_OFFSET,
   OPERATION_CURSOR_OUTLINE_WIDTH,
   OUTLINE_WIDTH,
@@ -21,6 +26,11 @@ import {
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
   REGION_HIGHLIGHT_BORDER_COLOR,
+  REGION_HIGHLIGHT_WIDTH,
+  RULER_COLOR,
+  RULER_COLOR_HOVER,
+  RULER_FONT_SIZE,
+  RULER_FONT_SIZE_ACTIVE,
   type DraftCell,
   type DraftRegion,
   type Item,
@@ -35,7 +45,9 @@ import {
   NO_CURSOR_BOXES,
   NO_HOVER_EFFECTS,
   NO_STAND_SHADOW_INSET,
+  noStandShadowInset,
   operationCursorOutline,
+  operationCursorStyle,
   resolveCursorBoxes,
   resolveHoverEffects,
   type CellMap,
@@ -414,5 +426,65 @@ describe('placement validation (OPT-904 §4.1)', () => {
 
   it('rejects an unarmed palette', () => {
     expect(canPlaceItemOnLayer(null, 'object')).toBe(false);
+  });
+});
+
+// ---- OPT-B01 §1.1 / OPT-B04 §4 + docs/v0.3.6.md §7 constant table ----
+describe('v0.3.6 constants (§7)', () => {
+  it('names and sizes every constant the spec lists', () => {
+    expect(BASE_CELL).toBe(120);
+    expect(BORDER_WIDTH).toBe(2);
+    expect(CANVAS_OUTER_BORDER_WIDTH).toBe(6);
+    expect(INNER_LINE_WIDTH).toBe(1);
+    expect(REGION_HIGHLIGHT_WIDTH).toBe(4);
+    expect(RULER_FONT_SIZE).toBe(15);
+    expect(RULER_FONT_SIZE_ACTIVE).toBe(17);
+    expect(RULER_COLOR).toBe('#9CA3AF');
+    expect(RULER_COLOR_HOVER).toBe('#374151');
+    expect(PARTICIPANT_MIN_WIDTH).toBe(110);
+    expect(PARTICIPANT_HEADER_HEIGHT).toBe(40);
+  });
+
+  it('§4: the board frame matches the default region border width', () => {
+    expect(CANVAS_OUTER_BORDER_WIDTH).toBe(REGION_BORDER_WIDTH);
+    expect(CANVAS_OUTER_BORDER_WIDTH).toBeGreaterThan(BORDER_WIDTH);
+    // §4.2: nothing on the board may cover it.
+    expect(CANVAS_FRAME_Z).toBeGreaterThan(MAP_LAYER_Z.object);
+    expect(CANVAS_FRAME_Z).toBeGreaterThan(MAP_LAYER_Z.cellHighlight);
+    // Only the cursor boxes sit above it.
+    expect(CANVAS_FRAME_Z).toBeLessThan(MAP_LAYER_Z.cellCursor);
+  });
+
+  it('§1.1: the region highlight is 4px, still the pale blue', () => {
+    expect(REGION_HIGHLIGHT_WIDTH).toBe(4);
+    expect(REGION_HIGHLIGHT_BORDER_COLOR).toBe(HIGHLIGHT_BLUE);
+  });
+});
+
+describe('OPT-B03: scaled cursor geometry', () => {
+  it('keeps the v0.3.5 look at the reference cell width', () => {
+    const shadow = cellCursorShadow(false, BASE_CELL);
+    expect(shadow).toContain(`inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_COLOR}`);
+    expect(shadow).toContain(`0 0 0 ${BORDER_WIDTH}px ${CELL_CURSOR_SHADOW_COLOR}`);
+    expect(operationCursorOutline(BASE_CELL)).toContain('2px solid');
+  });
+
+  it('doubles both rings at the maximum cell width', () => {
+    const shadow = cellCursorShadow(true, 240);
+    expect(shadow).toContain(`inset 0 0 0 2px ${CELL_CURSOR_BLOCKED_COLOR}`);
+    expect(shadow).toContain(`0 0 0 4px ${CELL_CURSOR_SHADOW_COLOR}`);
+    expect(operationCursorOutline(240)).toBe(`4px solid ${OPERATION_CURSOR_COLOR}`);
+    expect(operationCursorStyle(240).outlineOffset).toBe(
+      `${OPERATION_CURSOR_OUTLINE_OFFSET}px`,
+    );
+  });
+
+  it('shrinks both rings at the minimum cell width', () => {
+    const shadow = cellCursorShadow(false, 90);
+    expect(shadow).toContain('inset 0 0 0 0.75px');
+    expect(shadow).toContain('0 0 0 1.5px');
+    // 1.5px / 2 = 0.75, matching the scaled Border.
+    expect(noStandShadowInset(90)).toBeCloseTo(0.75, 6);
+    expect(NO_STAND_SHADOW_INSET).toBeCloseTo(1, 6);
   });
 });

@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { BORDER_WIDTH, DEFAULT_CELL_SIZE, MAX_CELL_SIZE, MIN_CELL_SIZE } from '@murdoku/shared';
 import {
+  BORDER_WIDTH,
+  BOTTOM_BAR_RESERVE,
+  CANVAS_PADDING,
+  DEFAULT_CELL_SIZE,
+  MAX_CELL_SIZE,
+  MIN_CELL_SIZE,
+  RULER_SIZE,
+} from '@murdoku/shared';
+import {
+  availableBox,
+  canvasInsets,
+  centeredPan,
   computeCellSize,
-  computeCellSizeForViewport,
+  computeCellSizeForInsets,
   renderedCellSize,
 } from './canvasSize';
 
@@ -82,25 +93,98 @@ describe('computeCellSize (OPT-A01 §1.1)', () => {
   });
 });
 
-describe('computeCellSizeForViewport (OPT-A01 §1.1/§1.2)', () => {
-  it('removes the canvas padding from both axes first', () => {
-    const withPadding = computeCellSizeForViewport({
-      width: 432,
-      height: 432,
-      gridSize: 4,
-      padding: 16,
-    });
-    // (432 - 32 - 6) / 4 = 98.5 → 99, same as passing the inset area directly.
-    expect(withPadding).toBe(
-      computeCellSize({ availableWidth: 400, availableHeight: 400, gridSize: 4 }),
-    );
-  });
-});
-
 describe('renderedCellSize (OPT-A01 §1.3)', () => {
   it('scales the base cell size by the zoom factor', () => {
     expect(renderedCellSize(120, 1)).toBe(120);
     expect(renderedCellSize(120, 2)).toBe(240);
     expect(renderedCellSize(120, 0.25)).toBe(30);
+  });
+});
+
+// ---- OPT-B02 §2.2: asymmetric insets ----
+describe('canvasInsets (OPT-B02 §2.2)', () => {
+  it('reserves the ruler, the bottom toolbar and the padding', () => {
+    const insets = canvasInsets({ showRulers: true, showBottomBar: true });
+    expect(RULER_SIZE).toBe(28);
+    expect(BOTTOM_BAR_RESERVE).toBe(72);
+    expect(CANVAS_PADDING).toBe(16);
+    expect(insets).toEqual({ top: 44, right: 16, bottom: 88, left: 44 });
+  });
+
+  it('drops the ruler / toolbar bands when they are hidden', () => {
+    expect(canvasInsets()).toEqual({ top: 16, right: 16, bottom: 16, left: 16 });
+    expect(canvasInsets({ showRulers: true })).toEqual({
+      top: 44,
+      right: 16,
+      bottom: 16,
+      left: 44,
+    });
+    expect(canvasInsets({ showBottomBar: true })).toEqual({
+      top: 16,
+      right: 16,
+      bottom: 88,
+      left: 16,
+    });
+  });
+
+  it('§2.2: availableH = 高度 - 72 - 28 - 32', () => {
+    const height = 900;
+    const box = availableBox({ width: 1200, height }, canvasInsets({ showRulers: true, showBottomBar: true }));
+    expect(box.height).toBe(height - BOTTOM_BAR_RESERVE - RULER_SIZE - CANVAS_PADDING * 2);
+    expect(box.width).toBe(1200 - RULER_SIZE - CANVAS_PADDING * 2);
+  });
+
+  it('never reports a negative content box', () => {
+    const box = availableBox({ width: 10, height: 10 }, canvasInsets({ showRulers: true, showBottomBar: true }));
+    expect(box).toEqual({ width: 0, height: 0 });
+  });
+});
+
+describe('computeCellSizeForInsets (§2.2)', () => {
+  it('is the plain computation over the inset content area', () => {
+    const insets = canvasInsets({ showRulers: true, showBottomBar: true });
+    const box = availableBox({ width: 1280, height: 860 }, insets);
+    expect(
+      computeCellSizeForInsets({ width: 1280, height: 860, gridSize: 6, insets }),
+    ).toBe(computeCellSize({ availableWidth: box.width, availableHeight: box.height, gridSize: 6 }));
+  });
+
+  it('§2.3: the bottom reserve can push the cell down to the minimum', () => {
+    const insets = canvasInsets({ showRulers: true, showBottomBar: true });
+    // 24 cells in a short viewport → clamped to 90, and the board scrolls.
+    expect(computeCellSizeForInsets({ width: 700, height: 600, gridSize: 24, insets })).toBe(
+      MIN_CELL_SIZE,
+    );
+    // A roomy viewport still reaches the maximum.
+    expect(computeCellSizeForInsets({ width: 3000, height: 3000, gridSize: 2, insets })).toBe(
+      MAX_CELL_SIZE,
+    );
+  });
+});
+
+describe('centeredPan (OPT-B02 §2.2)', () => {
+  it('centres the board inside the content box, not the raw viewport', () => {
+    const insets = canvasInsets({ showRulers: true, showBottomBar: true });
+    const rect = { width: 1000, height: 800 };
+    const cellSize = 100;
+    const pan = centeredPan(rect, insets, 6, cellSize);
+    // Board = 600px; content box = (1000-44-16) × (800-44-88) = 940 × 668.
+    const box = availableBox(rect, insets);
+    expect(box).toEqual({ width: 940, height: 668 });
+    expect(pan.x).toBe(Math.round(insets.left + (box.width - 600) / 2));
+    expect(pan.y).toBe(Math.round(insets.top + (box.height - 600) / 2));
+    expect(pan).toEqual({ x: 214, y: 78 });
+    // The board never intrudes into the reserved bands.
+    expect(pan.x).toBeGreaterThanOrEqual(insets.left);
+    expect(pan.y).toBeGreaterThanOrEqual(insets.top);
+    expect(pan.y + 6 * cellSize).toBeLessThanOrEqual(800 - insets.bottom);
+  });
+
+  it('scales the board with zoom before centring', () => {
+    const insets = canvasInsets();
+    const rect = { width: 600, height: 600 };
+    const pan = centeredPan(rect, insets, 2, 100, 2);
+    // Board = 2 × 100 × 2 = 400 → (600 - 32 - 400) / 2 = 84
+    expect(pan).toEqual({ x: 16 + 84, y: 16 + 84 });
   });
 });

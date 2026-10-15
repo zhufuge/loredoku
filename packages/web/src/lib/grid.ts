@@ -37,19 +37,6 @@ export function boardSize(gridSize: number, cellSize: number, zoom = 1): number 
   return gridSize * cellSize * zoom;
 }
 
-export function centerPan(
-  rect: { width: number; height: number },
-  gridSize: number,
-  cellSize: number,
-  zoom = 1,
-): { x: number; y: number } {
-  const board = boardSize(gridSize, cellSize, zoom);
-  return {
-    x: Math.round((rect.width - board) / 2),
-    y: Math.round((rect.height - board) / 2),
-  };
-}
-
 export function zoomAtPoint(
   pointer: { x: number; y: number },
   rect: DOMRect,

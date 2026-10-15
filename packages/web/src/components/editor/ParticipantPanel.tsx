@@ -1,11 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { HIGHLIGHT_BLUE, type Character, type CharacterSlotEntry } from '@murdoku/shared';
+import {
+  HIGHLIGHT_BLUE,
+  PARTICIPANT_AVATAR_MIN,
+  PARTICIPANT_CELL_GAP,
+  PARTICIPANT_CLUE_HEIGHT,
+  PARTICIPANT_HEADER_HEIGHT,
+  PARTICIPANT_MIN_HEIGHT,
+  PARTICIPANT_MIN_WIDTH,
+  PARTICIPANT_SEQ_BACKGROUND,
+  PARTICIPANT_SEQ_BORDER,
+  PARTICIPANT_SEQ_COLOR,
+  PARTICIPANT_SEQ_FONT_SIZE,
+  PARTICIPANT_SEQ_INSET,
+  type Character,
+  type CharacterSlotEntry,
+} from '@murdoku/shared';
 import { DRAG_THRESHOLD } from '@/lib/grid';
 import {
   computeParticipantLayout,
   deriveLayout,
   fitColumns,
+  participantSequence,
   slotIndex,
   type ParticipantLayout,
 } from '@/lib/participantLayout';
@@ -14,17 +30,19 @@ import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { cn } from '@/lib/utils';
 
 /**
- * CLAR-602 + MOD-702/703/705/706/707/802/803 + OPT-A02
- * (docs/v0.3.1.md + v0.3.2.md + v0.3.3.md + v0.3.5.md):
+ * CLAR-602 + MOD-702/703/705/706/707/802/803 + OPT-A02 + OPT-B06
+ * (docs/v0.3.1.md + v0.3.2.md + v0.3.3.md + v0.3.5.md + v0.3.6.md):
  * - Matrix layout with golden-ratio rows/cols, last row centred
- * - OPT-A02: cell min 88×104px, gap 14px, avatar ≥56×56, clue area 72px
+ * - OPT-A02: cell min 104px tall, avatar ≥56×56, clue area 72px
  *   (3 lines @ 11px/20px), columns shrink to fit before scrolling
+ * - OPT-B06: cell min width 110px, title bar 40px (aligned with the item
+ *   panel header) and a 1-based sequence badge in each cell's top-left corner
  * - MOD-802: hover activates the participant's linkages, click toggles
  *   (and opens the info drawer); the parent owns the single-active state
  * - MOD-702: clue display area below the avatar
  * - MOD-703: theme color background layer behind avatar
  * - MOD-705: removal confirmation handled by parent (via onClearRequest)
- * - MOD-706: title bar height = 36px, same as item panel header
+ * - MOD-706: title bar shares the item panel header height
  */
 interface ParticipantPanelProps {
   slots: Array<CharacterSlotEntry | null>;
@@ -53,21 +71,21 @@ interface ParticipantPanelProps {
 const CLEAR_BUTTON_ATTR = 'data-slot-clear';
 
 /**
- * OPT-A02 (docs/v0.3.5.md §2): the roster cells grow again — 72→88px wide and
- * 72→104px tall, a ≥56px avatar, a 72px clue area (3 lines) and a 14px gap.
+ * OPT-B06 (docs/v0.3.6.md §6.2): the cell is now 110px wide (was 88) while
+ * every other metric keeps its v0.3.5 value.
  */
-const PANEL_CELL_WIDTH = 88;
-const PANEL_CELL_HEIGHT = 104;
+const PANEL_CELL_WIDTH = PARTICIPANT_MIN_WIDTH;
+const PANEL_CELL_HEIGHT = PARTICIPANT_MIN_HEIGHT;
 /** OPT-A02: gap between cells. */
-const CELL_GAP = 14;
+const CELL_GAP = PARTICIPANT_CELL_GAP;
 /** OPT-A02: clue display area fixed height (3 lines × 20px). */
-const CLUE_AREA_HEIGHT = 72;
+const CLUE_AREA_HEIGHT = PARTICIPANT_CLUE_HEIGHT;
 /** OPT-A02: clue line height. */
 const CLUE_LINE_HEIGHT = 20;
 /** Padding between the cell edge and the theme-color circle. */
 const AVATAR_PADDING = 8;
 /** OPT-A02: minimum avatar diameter (≥56×56). */
-const AVATAR_MIN_SIZE = 56;
+const AVATAR_MIN_SIZE = PARTICIPANT_AVATAR_MIN;
 /** MOD-802: don't hover-activate while a slot is being dragged. */
 const DRAG_HOVER_LOCK = true;
 
@@ -156,12 +174,18 @@ export function ParticipantPanel({
   return (
     <aside
       ref={measuredRef}
-      className="flex w-[216px] shrink-0 flex-col border-r bg-background"
+      className="flex w-[256px] shrink-0 flex-col border-r bg-background"
     >
-      {/* MOD-706: title bar height 36px, font 13px/600, color #1F2937 */}
+      {/* OPT-B06 §6.1: title bar 40px, aligned with the item panel header */}
       <div
         className="shrink-0 border-b px-3 text-center"
-        style={{ height: 36, lineHeight: '36px', fontSize: 13, fontWeight: 600, color: '#1F2937' }}
+        style={{
+          height: PARTICIPANT_HEADER_HEIGHT,
+          lineHeight: `${PARTICIPANT_HEADER_HEIGHT}px`,
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#1F2937',
+        }}
       >
         参与者 {placedCount}/{slots.length}
       </div>
@@ -284,6 +308,28 @@ export function ParticipantPanel({
                     isDragging ? 'opacity-40' : undefined,
                   )}
                 >
+                  {/* OPT-B06 §6.3: 1-based sequence, top-left corner */}
+                  <span
+                    data-testid={`slot-seq-${index}`}
+                    className="absolute flex items-center justify-center"
+                    style={{
+                      top: PARTICIPANT_SEQ_INSET,
+                      left: PARTICIPANT_SEQ_INSET,
+                      minWidth: 16,
+                      height: 16,
+                      padding: '0 4px',
+                      borderRadius: 4,
+                      fontSize: PARTICIPANT_SEQ_FONT_SIZE,
+                      fontWeight: 600,
+                      lineHeight: '16px',
+                      color: PARTICIPANT_SEQ_COLOR,
+                      background: PARTICIPANT_SEQ_BACKGROUND,
+                      border: PARTICIPANT_SEQ_BORDER,
+                    }}
+                  >
+                    {participantSequence(index)}
+                  </span>
+
                   {/* Avatar area (top portion) — MOD-803: 8px padding */}
                   <div
                     className="flex items-center justify-center"
@@ -320,7 +366,7 @@ export function ParticipantPanel({
                         )}
                       </span>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground">{index + 1}</span>
+                      <span className="text-[10px] text-muted-foreground">空</span>
                     )}
                   </div>
 
