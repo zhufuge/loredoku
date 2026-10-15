@@ -102,19 +102,19 @@ const region: DraftRegion = {
 describe('canvas layer priority (OPT-901 §1.1)', () => {
   it('lists the thirteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
     expect(MAP_LAYER_ORDER).toEqual([
-      'cellMouseCursor',
-      'cellOperationCursor',
+      'mouseCursorBox',
+      'operationCursorBox',
       'regionLabel',
-      'object',
+      'objectLayer',
       'canvasFrame',
-      'gridBorder',
-      'regionEdge',
-      'noStandShadow',
+      'gridSeparator',
+      'regionOutline',
+      'nonStandableMask',
       'regionHighlight',
       'cellHighlight',
       'backgroundHighlight',
-      'background',
-      'emptyCell',
+      'backgroundLayer',
+      'canvasBase',
     ]);
   });
 
@@ -127,28 +127,28 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
 
   it('keeps the ordering rules the spec calls out explicitly', () => {
     // "「物体」位于 Border 之上" — items are never cut by the grid lines.
-    expect(layerZ('object')).toBeGreaterThan(layerZ('gridBorder'));
+    expect(layerZ('objectLayer')).toBeGreaterThan(layerZ('gridSeparator'));
     // "「区域边界线」位于 Border 之下" — the Border stays readable.
-    expect(layerZ('regionEdge')).toBeLessThan(layerZ('gridBorder'));
+    expect(layerZ('regionOutline')).toBeLessThan(layerZ('gridSeparator'));
     // The board frame sits below the items, above the separators.
-    expect(layerZ('canvasFrame')).toBeLessThan(layerZ('object'));
-    expect(layerZ('canvasFrame')).toBeGreaterThan(layerZ('gridBorder'));
+    expect(layerZ('canvasFrame')).toBeLessThan(layerZ('objectLayer'));
+    expect(layerZ('canvasFrame')).toBeGreaterThan(layerZ('gridSeparator'));
     // v0.3.8 SPEC-D01: the mask moves below 区域边界线, above 区域高亮线.
-    expect(layerZ('noStandShadow')).toBeLessThan(layerZ('regionEdge'));
-    expect(layerZ('noStandShadow')).toBeGreaterThan(layerZ('regionHighlight'));
+    expect(layerZ('nonStandableMask')).toBeLessThan(layerZ('regionOutline'));
+    expect(layerZ('nonStandableMask')).toBeGreaterThan(layerZ('regionHighlight'));
     // 区域高亮线 / 方块高亮 / 背景高亮 / 背景
     expect(layerZ('regionHighlight')).toBeGreaterThan(layerZ('cellHighlight'));
     expect(layerZ('cellHighlight')).toBeGreaterThan(layerZ('backgroundHighlight'));
-    expect(layerZ('backgroundHighlight')).toBeGreaterThan(layerZ('background'));
+    expect(layerZ('backgroundHighlight')).toBeGreaterThan(layerZ('backgroundLayer'));
     // The mouse box is the top-most element, the operation box right below it.
-    expect(layerZ('cellMouseCursor')).toBe(Math.max(...Object.values(MAP_LAYER_Z)));
-    expect(layerZ('cellOperationCursor')).toBeLessThan(layerZ('cellMouseCursor'));
-    expect(layerZ('regionLabel')).toBeLessThan(layerZ('cellOperationCursor'));
-    expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('object'));
+    expect(layerZ('mouseCursorBox')).toBe(Math.max(...Object.values(MAP_LAYER_Z)));
+    expect(layerZ('operationCursorBox')).toBeLessThan(layerZ('mouseCursorBox'));
+    expect(layerZ('regionLabel')).toBeLessThan(layerZ('operationCursorBox'));
+    expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('objectLayer'));
   });
 
   it('v0.3.8 SPEC-D01: the two cursor boxes are adjacent layers', () => {
-    expect(layerZ('cellMouseCursor') - layerZ('cellOperationCursor')).toBe(1);
+    expect(layerZ('mouseCursorBox') - layerZ('operationCursorBox')).toBe(1);
   });
 });
 
@@ -194,9 +194,9 @@ describe('non-standable shadow (OPT-901 §1.2.5)', () => {
   });
 
   it('v0.3.8 SPEC-D01: renders below 区域边界线 and above 区域高亮线', () => {
-    expect(MAP_LAYER_Z.noStandShadow).toBeLessThan(MAP_LAYER_Z.regionEdge);
-    expect(MAP_LAYER_Z.noStandShadow).toBeGreaterThan(MAP_LAYER_Z.regionHighlight);
-    expect(MAP_LAYER_Z.noStandShadow).toBeLessThan(MAP_LAYER_Z.regionLabel);
+    expect(MAP_LAYER_Z.nonStandableMask).toBeLessThan(MAP_LAYER_Z.regionOutline);
+    expect(MAP_LAYER_Z.nonStandableMask).toBeGreaterThan(MAP_LAYER_Z.regionHighlight);
+    expect(MAP_LAYER_Z.nonStandableMask).toBeLessThan(MAP_LAYER_Z.regionLabel);
     expect(NO_STAND_SHADOW_INSET).toBeGreaterThan(0);
   });
 
@@ -469,8 +469,8 @@ describe('v0.3.6 constants (§7)', () => {
     expect(CANVAS_OUTER_BORDER_WIDTH).toBe(REGION_BORDER_WIDTH);
     expect(CANVAS_OUTER_BORDER_WIDTH).toBeGreaterThan(BORDER_WIDTH);
     // It has its own layer now, below the items but above the separators.
-    expect(MAP_LAYER_Z.canvasFrame).toBeLessThan(MAP_LAYER_Z.object);
-    expect(MAP_LAYER_Z.canvasFrame).toBeGreaterThan(MAP_LAYER_Z.gridBorder);
+    expect(MAP_LAYER_Z.canvasFrame).toBeLessThan(MAP_LAYER_Z.objectLayer);
+    expect(MAP_LAYER_Z.canvasFrame).toBeGreaterThan(MAP_LAYER_Z.gridSeparator);
     expect(MAP_LAYER_Z.canvasFrame).toBeGreaterThan(MAP_LAYER_Z.cellHighlight);
   });
 

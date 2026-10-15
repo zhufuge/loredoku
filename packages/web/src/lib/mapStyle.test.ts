@@ -20,6 +20,9 @@ import {
 import {
   clampCellSize,
   clampLineWidth,
+  clampRulerFontSize,
+  clampRulerGap,
+  mapStyleEquals,
   clampOperationOffset,
   clampRegionBorderWidth,
   clampRegionLabelFont,
@@ -54,10 +57,10 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     const style = resolveMapStyle(undefined);
     expect(style.cellSize).toBeNull();
     expect(style.canvasFrame).toEqual({ width: 6, color: '#000000' });
-    expect(style.border).toEqual({ width: 2, color: '#000000' });
-    expect(style.mouseCursor.color).toBe('#FFFFFF');
-    expect(style.mouseCursor.blockedColor).toBe(HIGHLIGHT_RED);
-    expect(style.operationCursor.color).toBe(HIGHLIGHT_BLUE);
+    expect(style.gridSeparator).toEqual({ width: 2, color: '#000000' });
+    expect(style.mouseCursorBox.color).toBe('#FFFFFF');
+    expect(style.mouseCursorBox.blockedColor).toBe(HIGHLIGHT_RED);
+    expect(style.operationCursorBox.color).toBe(HIGHLIGHT_BLUE);
     expect(style.regionLabel.fontSize).toBe(17);
     expect(style.regionLabel.hoverFontSize).toBe(19);
     expect(style.regionLabel.hoverStrokeColor).toBe(HIGHLIGHT_BLUE);
@@ -69,30 +72,30 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     const style = resolveMapStyle({
       cellSize: 5000,
       canvasFrame: { width: 99, color: '#123456' },
-      border: { width: 0 },
+      gridSeparator: { width: 0 },
       regionHighlight: { width: -4 },
-      regionBorder: { width: 40 },
-      operationCursor: { offset: 99 },
+      regionOutline: { width: 40 },
+      operationCursorBox: { offset: 99 },
       regionLabel: { fontSize: 400, strokeWidth: 99 },
     } as Partial<MapStyle>);
     expect(style.cellSize).toBe(MAP_STYLE_CELL_SIZE_MAX);
     expect(style.canvasFrame.width).toBe(MAP_STYLE_LINE_WIDTH_MAX);
     expect(style.canvasFrame.color).toBe('#123456');
-    expect(style.border.width).toBe(MAP_STYLE_LINE_WIDTH_MIN);
+    expect(style.gridSeparator.width).toBe(MAP_STYLE_LINE_WIDTH_MIN);
     expect(style.regionHighlight.width).toBe(MAP_STYLE_LINE_WIDTH_MIN);
     // Region outlines have their own 4 ~ 12 range.
-    expect(style.regionBorder.width).toBe(12);
-    expect(style.operationCursor.offset).toBe(8);
+    expect(style.regionOutline.width).toBe(12);
+    expect(style.operationCursorBox.offset).toBe(8);
     expect(style.regionLabel.fontSize).toBe(48);
     expect(style.regionLabel.strokeWidth).toBe(12);
   });
 
   it('rejects malformed colours and keeps the default', () => {
     const style = resolveMapStyle({
-      border: { color: 'red' },
+      gridSeparator: { color: 'red' },
       canvasFrame: { color: '#GGGGGG' },
     } as Partial<MapStyle>);
-    expect(style.border.color).toBe(DEFAULT_MAP_STYLE.border.color);
+    expect(style.gridSeparator.color).toBe(DEFAULT_MAP_STYLE.gridSeparator.color);
     expect(style.canvasFrame.color).toBe(DEFAULT_MAP_STYLE.canvasFrame.color);
   });
 
@@ -101,9 +104,9 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(isValidShadowColor('#000000')).toBe(true);
     expect(isValidShadowColor('nope')).toBe(false);
     const style = resolveMapStyle({
-      mouseCursor: { shadowColor: 'rgba(10,20,30,0.4)' },
+      mouseCursorBox: { shadowColor: 'rgba(10,20,30,0.4)' },
     } as Partial<MapStyle>);
-    expect(style.mouseCursor.shadowColor).toBe('rgba(10,20,30,0.4)');
+    expect(style.mouseCursorBox.shadowColor).toBe('rgba(10,20,30,0.4)');
   });
 
   it('treats a non-finite cell size as "adaptive"', () => {
@@ -243,5 +246,87 @@ describe('styleLineWidth (FEAT-D02 §关键规则 1)', () => {
     expect(styleLineWidth(2, 90)).toBeCloseTo(1.5, 6);
     // 12 × 2 = 24 → clamped to the 12px ceiling.
     expect(styleLineWidth(12, 240)).toBe(12);
+  });
+});
+
+// ---- v0.3.9 SPEC-E01: 规范图层命名 ----
+describe('layer naming (SPEC-E01)', () => {
+  it('exposes the规范 field names', () => {
+    const style = resolveMapStyle(undefined);
+    expect(style.canvasFrame).toEqual({ width: 6, color: '#000000' });
+    expect(style.gridSeparator).toEqual({ width: 2, color: '#000000' });
+    expect(style.mouseCursorBox.width).toBe(2);
+    expect(style.operationCursorBox.offset).toBe(1);
+    expect(style.regionOutline).toEqual({ width: 6, color: '#000000' });
+    expect(style.regionHighlight).toEqual({ width: 4, color: '#90CAF9' });
+  });
+
+  it('ignores the pre-v0.3.9 field names', () => {
+    const legacy = {
+      border: { width: 9, color: '#FF0000' },
+      regionBorder: { width: 12 },
+      mouseCursor: { width: 11 },
+    } as unknown as Partial<MapStyle>;
+    const style = resolveMapStyle(legacy);
+    // Unknown keys fall through to the defaults instead of half-applying.
+    expect(style.gridSeparator).toEqual(DEFAULT_MAP_STYLE.gridSeparator);
+    expect(style.regionOutline).toEqual(DEFAULT_MAP_STYLE.regionOutline);
+    expect(style.mouseCursorBox).toEqual(DEFAULT_MAP_STYLE.mouseCursorBox);
+  });
+});
+
+// ---- v0.3.9 FEAT-E02: 标尺文本大小与间距 ----
+describe('ruler style (FEAT-E02)', () => {
+  it('defaults to the v0.3.6 values', () => {
+    expect(resolveMapStyle(undefined).ruler).toEqual({ fontSize: 17, gap: 6 });
+  });
+
+  it('clamps the text size and the gap', () => {
+    expect(resolveMapStyle({ ruler: { fontSize: 2 } } as Partial<MapStyle>).ruler.fontSize).toBe(9);
+    expect(resolveMapStyle({ ruler: { fontSize: 99 } } as Partial<MapStyle>).ruler.fontSize).toBe(32);
+    expect(resolveMapStyle({ ruler: { gap: -4 } } as Partial<MapStyle>).ruler.gap).toBe(0);
+    expect(resolveMapStyle({ ruler: { gap: 99 } } as Partial<MapStyle>).ruler.gap).toBe(32);
+  });
+
+  it('rounds the text size to whole pixels', () => {
+    expect(resolveMapStyle({ ruler: { fontSize: 17.6 } } as Partial<MapStyle>).ruler.fontSize).toBe(18);
+  });
+
+  it('provides dedicated clamp helpers for the form', () => {
+    expect(clampRulerFontSize(3)).toBe(9);
+    expect(clampRulerFontSize(31.4)).toBe(31);
+    expect(clampRulerFontSize(999)).toBe(32);
+    expect(clampRulerGap(-1)).toBe(0);
+    expect(clampRulerGap(40)).toBe(32);
+  });
+});
+
+// ---- v0.3.9 FEAT-E01: 草稿比较 ----
+describe('mapStyleEquals (FEAT-E01)', () => {
+  it('treats two independently resolved defaults as equal', () => {
+    expect(mapStyleEquals(resolveMapStyle(undefined), resolveMapStyle(undefined))).toBe(true);
+  });
+
+  it('detects any difference, including inside the palette', () => {
+    const base = resolveMapStyle(undefined);
+    expect(
+      mapStyleEquals(base, resolveMapStyle({ gridSeparator: { width: 3 } } as Partial<MapStyle>)),
+    ).toBe(false);
+    expect(
+      mapStyleEquals(base, resolveMapStyle({ ruler: { gap: 7 } } as Partial<MapStyle>)),
+    ).toBe(false);
+    const paletteChanged = {
+      ...base,
+      linkageColors: [
+        { key: 'red', label: '红', color: '#EF9A9A' },
+        { key: 'blue', label: '蓝', color: '#0000FF' },
+      ],
+    };
+    expect(mapStyleEquals(base, paletteChanged)).toBe(false);
+  });
+
+  it('is a cheap identity check for the same object', () => {
+    const style = resolveMapStyle(undefined);
+    expect(mapStyleEquals(style, style)).toBe(true);
   });
 });

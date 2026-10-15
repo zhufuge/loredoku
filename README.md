@@ -4,7 +4,7 @@
 
 - 技术栈：Node.js + TypeScript · Koa + PostgreSQL（Knex）· Vite + React 18 + TailwindCSS + shadcn/ui
 - 仓库形态：npm workspaces monorepo（`shared` / `server` / `web`）
-- 需求文档：见 [`docs/`](./docs)（`v0.1.0` ~ `v0.3.8` 逐版需求，最新为 v0.3.8）
+- 需求文档：见 [`docs/`](./docs)（`v0.1.0` ~ `v0.3.9` 逐版需求，最新为 v0.3.9）
 
 ---
 
@@ -130,8 +130,10 @@ npm run dev
 - **地图项目（`/projects`）**：创建 / 编辑 / 删除 / 复制地图，指定画布尺寸 `n × n`（2 ~ 24）。
 - **物品管理（`/items`）**：维护图案方块（背景 / 物体两类），支持图片上传、尺寸、`canStand`（是否可站立）、缩略图与触发信息。
 - **角色管理（`/characters`）**：维护参与者角色（头像、性别等）。
-- **可视化编辑器（`/editor/:projectId`）**：拖拽放置物品、框选 / 笔刷绘制区域、区域命名与配色、橡皮擦、平移、撤销 / 重做（上限 50 步）；画布**自适应方格宽度 90 ~ 240px**（v0.3.5 OPT-A01，v0.3.6 OPT-B02 追加底部工具条留白，v0.3.7 OPT-C01 四边各加 24px 外边距），缩放 25% ~ 400%；线条与字体随方格尺寸**等比缩放**（v0.3.6 OPT-B03）。
-- **地图基本信息（`/editor/:projectId` 顶栏「基本信息」）**：右侧抽屉统一编辑本图的显示常量 —— `n`、方格大小（缺省为自适应值，可覆盖 90 ~ 240）、地图最外边框 / 边框 border / 鼠标框 / 操作框 / 区域边界线 / 区域高亮线的线宽与颜色、区域名称的字号 / 描边 / 颜色 / 高亮配色、联动主题色调色板（默认红蓝，可增删改）。全部随草稿保存、随作品快照发布、可撤销（v0.3.8 FEAT-D01/D02/D03/D04）。
+- **可视化编辑器（`/editor/:projectId`）**：拖拽放置物品、框选 / 笔刷绘制区域、区域命名与配色、橡皮擦、撤销 / 重做（上限 50 步）；画布**自适应方格宽度 90 ~ 240px**（v0.3.5 OPT-A01，v0.3.6 OPT-B02 追加底部工具条留白，v0.3.7 OPT-C01 四边各加 24px 外边距），缩放 25% ~ 400%；线条与字体随方格尺寸**等比缩放**（v0.3.6 OPT-B03）。
+- **画布平移（v0.3.9 FEAT-E03）**：在地图**方格以外**的空白处按下并拖动即可平移画布；指针进入方格为 `pointer`（v0.3.9 FEAT-E04），空白处为 `grab` / 拖拽中 `grabbing`。工具栏中的「拖动」按钮已移除。
+- **地图基本信息（`/editor/:projectId` 顶栏「基本信息」）**：右侧抽屉统一编辑本图的显示常量 —— 方格大小（缺省为自适应值，可覆盖 90 ~ 240）、画布外框 / 网格分隔线 / 鼠标光标框 / 操作光标框 / 区域轮廓线 / 区域高亮线的线宽与颜色、区域标签的字号 / 描边 / 颜色 / 高亮配色、标尺文本大小与到地图的间距、联动主题色调色板（默认红蓝，可增删改）。全部随草稿保存、随作品快照发布、可撤销（v0.3.8 FEAT-D01/D02/D03/D04）。
+- **基本信息草稿化（v0.3.9 FEAT-E01）**：抽屉内的修改是**草稿**，不会立即改变画布，须点击底部的「保存」才生效；底部另有「取消」可放弃修改。有未保存修改时切换到其它信息栏会先弹出确认（继续编辑 / 放弃修改 / 保存并继续）。发布成功后画布保持原位，不再重置视口（v0.3.9 FIX-E01）。
 - **画布缩放与方格大小相互独立（v0.3.8 FEAT-D05）**：底栏的放大 / 缩小 / 百分比只改变查看比例，**不修改任何数值**；只有「基本信息」里的方格大小会改变实际渲染尺寸。
 - **参与者区**：标题栏 40px（与物品栏头部对齐）、单元格 110×104px、每框左上角 1 起序号（v0.3.6 OPT-B06）。
 - **参与者联动**：悬停 / 点击参与者框，高亮其关联的角色、物品、区域、格子（红 / 蓝效果，无时长概念，结束时淡出）。
@@ -143,52 +145,58 @@ npm run dev
 
 | 要素 | 基准值（cellSize = `BASE_CELL` = 120） | 缩放 |
 |---|---|---|
-| 内部分隔线 Border | 2px | × `scale` |
-| 画布外边框（独立成层） | 6px = 区域边界线默认宽 | × `scale` |
-| 内描边 Inner Line（鼠标框） | 2px | × `scale` |
-| 操作框 Outer Line | 2px | × `scale` |
-| 区域边界线 | 区域自身 `borderWidth`（4 ~ 12；缺省取自「基本信息」） | × `scale` |
-| 区域高亮线 | 4px，紧贴区域边界线**内侧**向内扩展 | × `scale` |
-| 区域名称 | 字号 17px（悬停 19px）/ 描边 4px | × `scale` |
+| 网格分隔线（相邻格共享） | 2px | × `scale` |
+| 画布外框（独立成层） | 6px = 区域轮廓线默认宽 | × `scale` |
+| 内描边 Inner Line（鼠标光标框） | 2px | × `scale` |
+| 操作光标框 Outer Line | 2px | × `scale` |
+| 区域轮廓线 | 区域自身 `borderWidth`（4 ~ 12；缺省取自「基本信息」） | × `scale` |
+| 区域高亮线 | 4px，紧贴区域轮廓线**内侧**向内扩展 | × `scale` |
+| 区域标签 | 字号 17px（悬停 19px）/ 描边 4px | × `scale` |
 | 标尺字符 | 17px（操作格 19px） | × `scale` × `zoom` |
 | 物件层物品内边距 | 4px | × `scale`，clamp `[2, 12]` |
 
 `scale = cellSize / BASE_CELL`；线条宽度统一 clamp `[0.5, 12]`、字体 clamp `[9, 28]`（全项目共用一组上下限）。缩放只在 `cellSize` 变化时重算，画布 zoom 由容器 `transform` 负责，不会二次缩放。
 
-### 画布图层堆叠（v0.3.8 SPEC-D01）
+### 画布图层堆叠（v0.3.9 SPEC-E01）
 
-完整规范见 [`docs/layer-priority.md`](./docs/layer-priority.md)，该文档是图层次序的**唯一权威**。
+完整规范见 [`docs/layer-priority.md`](./docs/layer-priority.md)，该文档是图层**命名与次序的唯一权威**。
+每层都有中文名 / 英文名 / 代码常量名三个标识，文档、代码与界面文案必须一致：
 
 优先级（由高到低）与 z-index：
 
-| 序号 | 图层 | z-index |
-|---|---|---|
-| 1 | 当前鼠标所在框（随指针，白 / 淡红） | 46 |
-| 2 | 当前操作方格框（固定在选中格，淡蓝） | 45 |
-| 3 | 区域名称 | 42 |
-| 4 | 物体 | 40 |
-| 5 | 地图最外边框（画在画布矩形之外） | 39 |
-| 6 | 边框 border（内部分隔线） | 38 |
-| 7 | 区域边界线 | 36 |
-| 8 | 不可站立物体阴影（`rgba(0,0,0,0.18)`） | 35 |
-| 9 | 区域高亮线 | 32 |
-| 10 | 方块高亮 | 30 |
-| 11 | 背景高亮 | 28 |
-| 12 | 背景 | 20 |
-| 13 | 空方格 | 10 |
+| 序号 | 中文名 | 英文名 | 代码常量名 | z-index |
+|---|---|---|---|---|
+| 1 | 鼠标光标框 | Mouse Cursor Box | `mouseCursorBox` | 46 |
+| 2 | 操作光标框 | Operation Cursor Box | `operationCursorBox` | 45 |
+| 3 | 区域标签 | Region Label | `regionLabel` | 42 |
+| 4 | 物件图层 | Object Layer | `objectLayer` | 40 |
+| 5 | 画布外框 | Canvas Frame | `canvasFrame` | 39 |
+| 6 | 网格分隔线 | Grid Separator | `gridSeparator` | 38 |
+| 7 | 区域轮廓线 | Region Outline | `regionOutline` | 36 |
+| 8 | 不可站立遮罩 | Non-standable Mask | `nonStandableMask` | 35 |
+| 9 | 区域高亮线 | Region Highlight | `regionHighlight` | 32 |
+| 10 | 方块高亮 | Cell Highlight | `cellHighlight` | 30 |
+| 11 | 背景高亮 | Background Highlight | `backgroundHighlight` | 28 |
+| 12 | 背景图层 | Background Layer | `backgroundLayer` | 20 |
+| 13 | 画布底色 | Canvas Base | `canvasBase` | 10 |
 
 表内 13 层与 `MAP_LAYER_ORDER` 一一对应；区域填充（z = 22）是 v0.2.5 遗留层，不在表内。
-不可站立阴影位于区域边界线**之下**、区域高亮线**之上**（v0.3.8 起，取代 v0.3.5 的「覆盖物品图」约定）。
+不可站立遮罩位于区域轮廓线**之下**、区域高亮线**之上**（v0.3.8 起，取代 v0.3.5 的「覆盖物品图」约定）。
+v0.3.9 的旧名 → 新名对照见规范文档 §6 命名迁移记录。
+
+**区域高亮线（v0.3.9 FIX-E02）**：由纯函数 `buildRegionHighlightPaths`（`packages/web/src/lib/region.ts`）
+先追踪区域闭合轮廓、再把每条边的支撑线沿法向向内偏移、最后用相邻偏移直线的**交点**重建顶点，
+输出单条**连续闭合**路径（`M..L..Z` + `strokeLinejoin="miter"`），直线段与拐角均不再断开。
 
 ### 交互色板（v0.3.5 OPT-A06 §5.1）
 
 `HIGHLIGHT_RED = #EF9A9A`、`HIGHLIGHT_BLUE = #90CAF9` 是默认调色板项，v0.3.8 起实际取值来自**每张地图自己的调色板**（`style.linkageColors`，key → hex），统一驱动方块高亮、背景高亮与区域高亮线，同时是鼠标提示框「被阻挡色」与操作提示框颜色的缺省值。参与者主题色 / 区域颜色 / 物品图 不受调色板影响。
 
-### 标尺字符（v0.3.6 OPT-B05 §5 + v0.3.7 OPT-C02）
+### 标尺字符（v0.3.6 OPT-B05 §5 + v0.3.7 OPT-C02 + v0.3.9 FEAT-E02）
 
-默认淡灰 `#9CA3AF` / **17px**；鼠标所在行列变深灰 `#374151`（字号不变，**不使用蓝色或下划线**）；操作提示框所在行列深灰 + **19px**（叠加时操作格优先）。标尺条与画布之间保留 `RULER_GAP = 6px` 间隙；字号均随 `scale × zoom` 缩放。
+默认淡灰 `#9CA3AF` / **17px**；鼠标所在行列变深灰 `#374151`（字号不变，**不使用蓝色或下划线**）；操作光标框所在行列深灰 + **19px**（叠加时操作格优先）。字号与到地图的间距均可在「基本信息 → 标尺」中配置（v0.3.9 FEAT-E02）：文本大小 9 ~ 32（默认 17，操作格恒为 +2）、间距 0 ~ 32（默认 6）。标尺条厚度由 `rulerStripSize({maxFontSize, gap})` 动态求得（不小于 `RULER_SIZE = 28`），因此加大字号不会让文字溢出。字号仍随 `scale × zoom` 缩放。
 
-### 地图样式常量与缺省值（v0.3.8 FEAT-D02）
+### 地图样式常量与缺省值（v0.3.8 FEAT-D02 + v0.3.9 SPEC-E01 / FEAT-E02）
 
 `MapDraft.style`（可缺省，缺省即内置默认）保存本图的显示常量，编辑器保存时始终写回完整样式：
 
@@ -196,16 +204,18 @@ npm run dev
 |---|---|---|---|
 | 画布 | `cellSize` | `null`（自适应） | 90 ~ 240 整数 |
 | 线条 | `canvasFrame` 线宽 / 颜色 | 6px / `#000000` | 1 ~ 12 / `#RRGGBB` |
-| 线条 | `border` 线宽 / 颜色 | 2px / `#000000` | 1 ~ 12 / `#RRGGBB` |
-| 线条 | `mouseCursor` 线宽 / 颜色 / 阻挡色 / 阴影环 | 2px / `#FFFFFF` / `#EF9A9A` / `rgba(0,0,0,0.15)` | 1 ~ 12 / `#RRGGBB` |
-| 线条 | `operationCursor` 线宽 / 颜色 / 外扩 | 2px / `#90CAF9` / 1px | 1 ~ 12 / 0 ~ 8 |
-| 线条 | `regionBorder` 线宽 / 颜色 | 6px / `#000000` | 4 ~ 12（改宽同步所有区域） |
+| 线条 | `gridSeparator` 线宽 / 颜色（原 `border`） | 2px / `#000000` | 1 ~ 12 / `#RRGGBB` |
+| 线条 | `mouseCursorBox` 线宽 / 颜色 / 阻挡色 / 阴影环（原 `mouseCursor`） | 2px / `#FFFFFF` / `#EF9A9A` / `rgba(0,0,0,0.15)` | 1 ~ 12 / `#RRGGBB` |
+| 线条 | `operationCursorBox` 线宽 / 颜色 / 外扩（原 `operationCursor`） | 2px / `#90CAF9` / 1px | 1 ~ 12 / 0 ~ 8 |
+| 线条 | `regionOutline` 线宽 / 颜色（原 `regionBorder`） | 6px / `#000000` | 4 ~ 12（改宽同步所有区域） |
 | 线条 | `regionHighlight` 线宽 / 颜色 | 4px / `#90CAF9` | 1 ~ 12 / `#RRGGBB` |
-| 区域名称 | `fontSize` / `strokeWidth` / `color` / `strokeColor` | 17 / 4 / `#FFFFFF` / `#000000` | 9 ~ 48 / 0 ~ 12 / `#RRGGBB` |
-| 区域名称 | `hoverFontSize` / `hoverColor` / `hoverStrokeColor` | 19 / `#FFFFFF` / `#90CAF9` | 9 ~ 48 / `#RRGGBB` |
+| 区域标签 | `regionLabel.fontSize` / `strokeWidth` / `color` / `strokeColor` | 17 / 4 / `#FFFFFF` / `#000000` | 9 ~ 48 / 0 ~ 12 / `#RRGGBB` |
+| 区域标签 | `regionLabel.hoverFontSize` / `hoverColor` / `hoverStrokeColor` | 19 / `#FFFFFF` / `#90CAF9` | 9 ~ 48 / `#RRGGBB` |
+| 标尺 | `ruler.fontSize` / `ruler.gap` | 17 / 6 | 9 ~ 32 / 0 ~ 32 |
 | 联动主题色 | `linkageColors: {key,label,color}[]` | 红 / 蓝 | 2 ~ 12 项 |
 
 线宽与字号都是**基准值**，仍按 `cellSize / BASE_CELL` 等比缩放。解析与 clamp 集中在 `packages/web/src/lib/mapStyle.ts` 的 `resolveMapStyle`。草稿 JSON 版本相应提升为 `MAP_JSON_VERSION = 2`（`version = 1` 的旧数据仍被接受，无需迁移脚本）。
+v0.3.9 SPEC-E01 把四个样式字段改名为规范名（见上表括号内旧名），`docs/layer-priority.md` §6 有完整迁移记录。
 
 ### 编辑器焦点互斥（v0.3.7 OPT-C07）
 
@@ -243,9 +253,9 @@ npm run dev
 
 ## 测试说明
 
-- 使用 **Vitest**。组件行为尽量以**无依赖纯函数**覆盖（`lib/linkageActivation`、`lib/cellSelection`、`lib/highlight`、`editorStore` 等）。
+- 使用 **Vitest**（web 侧 `environment: 'jsdom'`）。组件行为尽量以**无依赖纯函数**覆盖（`lib/linkageActivation`、`lib/cellSelection`、`lib/highlight`、`lib/editorInit`、`editorStore` 等）。
 - `EditorCanvas.noDrag.test.ts` 通过 `import.meta.glob(..., { query: '?raw' })` 读取源码，断言画布内「点击可选中、绝不注册拖动」。
-- 本环境无 jsdom / testing-library，前端组件以纯函数与源码断言为主。
+- 少量组件级用例（如 `MapInfoDrawer.test.tsx`）在 jsdom 下直接渲染并断言交互；本环境未安装 testing-library，断言只用原生 DOM API。
 
 ```bash
 npm run typecheck          # 类型检查
@@ -259,6 +269,8 @@ cd packages/server && npx vitest run --no-cache   # 后端接口测试（需 Pos
 
 - **拖拽**：全局仅两类拖拽（队伍槽位 → 画布、物品抽屉 → 画布），统一用 **Pointer Events**（`setPointerCapture`）实现，不使用 HTML5 原生 `draggable`。
 - **画布内行为**：画布内的物品 / 角色仅支持单击选中与删除，**不允许拖动移动**；所有 `<img>` 一律 `draggable={false}`。
+- **平移画布**：在地图方格**以外**的空白处按住拖动即可平移（v0.3.9 FEAT-E03），工具栏不再提供「拖动」按钮；指针在方格内为 `pointer`，空白处为 `grab`。
+- **弹窗关闭方式**：所有 Dialog 统一禁止「点击遮罩关闭」（v0.3.9 FIX-E03），只能通过关闭按钮 / 取消 / `Esc`，避免误触丢失已填内容。
 - **命名一致性**：前端文案与路由统一使用「作品」（`/works`、`/works/:workId/view`）；后端沿用 `map_versions` / `version_no` / `/versions`，不做改动。
 - **数据模型**：参与者不进入地图；`CharacterSlotEntry` 携带 `themeColor` + `clue` + 扁平 `linkages`。`characterSlotEntrySchema` 使用 `.strict()` 拒绝遗留的 `triggers` 字段。
 - **迁移**：`db/migrations/` 目录下的每个文件都会被 Knex 当作迁移加载，辅助模块不要放在该目录（参与者迁移的纯变换函数位于 `server/src/service/draftLinkageMigration.ts`）。
@@ -277,5 +289,6 @@ cd packages/server && npx vitest run --no-cache   # 后端接口测试（需 Pos
 | `docs/v0.3.5.md` | 画布自适应、参与者框加大、方格线条与提示框拆分、高亮调淡 |
 | `docs/v0.3.6.md` | 高亮线加宽、底部留白、线条字体等比缩放、外边框加粗、标尺样式、参与者序号 |
 | `docs/v0.3.7.md` | 区域高亮线斜线修复、外边距、标尺字号、外框分层、区域名称/线宽基准、物体内缩、点击方格清除联动 |
-| `docs/v0.3.8.md` | 区域高亮线接线修复、地图基本信息（样式常量）、方格大小覆盖、联动调色板、缩放语义（当前版本） |
-| `docs/layer-priority.md` | 《画布图层优先级规范》—— 13 层图层次序的唯一权威 |
+| `docs/v0.3.8.md` | 区域高亮线接线修复、地图基本信息（样式常量）、方格大小覆盖、联动调色板、缩放语义 |
+| `docs/v0.3.9.md` | 发布后保持视口、区域高亮线闭合、基本信息草稿化与保存 / 取消、标尺配置、画布外空白拖拽平移、图层命名规范化（当前版本） |
+| `docs/layer-priority.md` | 《画布图层优先级规范》—— 13 层的中文名 / 英文名 / 次序的唯一权威 |

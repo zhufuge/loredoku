@@ -13,6 +13,7 @@ import {
   type EditorTool,
   type Item,
   type MapDraft,
+  type MapStyle,
   type ParticipantTarget,
   type PublishViolation,
   type RegionShape,
@@ -41,7 +42,10 @@ import { EditorLeftPanel } from '@/components/editor/EditorLeftPanel';
 import { EditorToolbar } from '@/components/editor/EditorToolbar';
 import { EditorBottomBar } from '@/components/editor/EditorBottomBar';
 import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
-import { MapInfoDrawer } from '@/components/editor/MapInfoDrawer';
+import {
+  MapInfoDrawer,
+  type MapInfoDrawerHandle,
+} from '@/components/editor/MapInfoDrawer';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
   ParticipantDrawer,
@@ -63,6 +67,7 @@ import {
   type EditorFocus,
   type FocusEvent,
 } from '@/lib/editorFocus';
+import { resolveEditorInit } from '@/lib/editorInit';
 import { resolveHighlight } from '@/lib/highlight';
 import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
@@ -99,6 +104,12 @@ export function EditorPage(): JSX.Element {
   const canvasRef = useRef<EditorCanvasHandle | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const initKeyRef = useRef<number | null>(null);
+  const mapInfoRef = useRef<MapInfoDrawerHandle | null>(null);
+  /**
+   * FEAT-E01: a drawer switch (or a close) that is waiting for the user to
+   * decide what happens to unsaved 基本信息 edits.
+   */
+  const [pendingMapInfoAction, setPendingMapInfoAction] = useState<(() => void) | null>(null);
 
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [regionShape, setRegionShape] = useState<RegionShape>('rect');
@@ -166,8 +177,6 @@ export function EditorPage(): JSX.Element {
   useEffect(() => {
     if (editor.selection || editor.selectedRegionId !== null || editor.selectedSlotIndex !== null) {
       setInfoOpen(true);
-      // FEAT-D01: the three right-side drawers are mutually exclusive.
-      setMapInfoOpen(false);
     } else if (unplacedCharacterId === null) {
       setInfoOpen(false);
     }
@@ -184,12 +193,31 @@ export function EditorPage(): JSX.Element {
   useEffect(() => {
     const data = mapQuery.data;
     if (!data) return;
-    const sameDraft =
-      initKeyRef.current === id &&
-      editor.updatedAt === data.updatedAt &&
-      editor.currentVersionNo === data.project.currentVersionNo &&
-      editor.status === data.project.status;
-    if (sameDraft) return;
+    /**
+     * FIX-E01 (docs/v0.3.9.md §1): publishing bumps `currentVersionNo` /
+     * `status` on the project row and invalidates this query, but it does **not**
+     * touch the draft. Only a changed draft triggers a real re-init (which
+     * resets zoom / pan); a metadata-only change just refreshes the version
+     * badge, so the canvas stays exactly where the user left it.
+     */
+    const action = resolveEditorInit({
+      loadedProjectId: initKeyRef.current,
+      projectId: id,
+      storedUpdatedAt: editor.updatedAt,
+      fetchedUpdatedAt: data.updatedAt,
+      storedVersionNo: editor.currentVersionNo,
+      fetchedVersionNo: data.project.currentVersionNo,
+      storedStatus: editor.status,
+      fetchedStatus: data.project.status,
+    });
+    if (action === 'none') return;
+    if (action === 'sync-version') {
+      editor.setVersionInfo({
+        currentVersionNo: data.project.currentVersionNo,
+        status: data.project.status,
+      });
+      return;
+    }
     initKeyRef.current = id;
     editor.init(id, data.draft, {
       updatedAt: data.updatedAt,
@@ -297,6 +325,40 @@ export function EditorPage(): JSX.Element {
       editor.activateParticipantClick(next.activation.activeParticipantId);
     }
     if (next.selection !== current.selection) editor.setSelection(next.selection);
+  };
+
+  /**
+   * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a form, so
+   * leaving it with unsaved edits has to be confirmed. Every path that closes
+   * the drawer or hands focus to another panel goes through this guard.
+   */
+  const guardMapInfo = (proceed: () => void): void => {
+    if (!mapInfoOpen || !mapInfoRef.current?.isDirty()) {
+      proceed();
+      return;
+    }
+    setPendingMapInfoAction(() => proceed);
+  };
+
+  const commitMapInfo = (next: MapStyle): void => {
+    editor.setMapStyle(() => next);
+    setMapInfoOpen(false);
+  };
+
+  const closeMapInfo = (): void => {
+    guardMapInfo(() => setMapInfoOpen(false));
+  };
+
+  /** Runs the deferred switch, saving first when the user asked to. */
+  const resolvePendingMapInfo = (mode: 'save' | 'discard'): void => {
+    const action = pendingMapInfoAction;
+    setPendingMapInfoAction(null);
+    if (mode === 'save') mapInfoRef.current?.save();
+    else {
+      mapInfoRef.current?.discard();
+      setMapInfoOpen(false);
+    }
+    action?.();
   };
 
   const saveParticipant = (
@@ -573,7 +635,12 @@ export function EditorPage(): JSX.Element {
         return;
       }
       if (event.key === 'Escape') {
-        setMapInfoOpen(false);
+        if (mapInfoOpen) {
+          // FEAT-E01: Esc leaves the info drawer first — and asks when there
+          // are unsaved edits. It does not touch the cell / participant focus.
+          closeMapInfo();
+          return;
+        }
         editor.clearActivation();
         editor.setSelection(null);
         editor.setSelectedItem(null);
@@ -586,7 +653,8 @@ export function EditorPage(): JSX.Element {
       if (event.key === 'v' || event.key === 'V') setTool('select');
       else if (event.key === 'r' || event.key === 'R') setTool('region');
       else if (event.key === 'e' || event.key === 'E') setTool('eraser');
-      else if (event.key === 'h' || event.key === 'H') setTool('pan');
+      // FEAT-E03: no pan-tool shortcut any more — drag the empty area outside
+      // the board (or hold Space) to pan.
       else if (event.key.startsWith('Arrow') && editor.selection && editor.selection.type === 'cell') {
         const step: Record<string, CellCoord> = {
           ArrowUp: { x: 0, y: -1 },
@@ -664,17 +732,16 @@ export function EditorPage(): JSX.Element {
         onOpenVersions={() => setVersionsOpen(true)}
         mapInfoOpen={mapInfoOpen}
         onOpenMapInfo={() => {
-          setMapInfoOpen((previous) => {
-            const next = !previous;
-            if (next) {
-              // FEAT-D01: opening it drops any cell / participant focus.
-              editor.setSelection(null);
-              editor.setSelectedSlot(null);
-              setUnplacedCharacterId(null);
-              setInfoOpen(false);
-            }
-            return next;
-          });
+          if (mapInfoOpen) {
+            closeMapInfo();
+            return;
+          }
+          // FEAT-D01: opening it drops any cell / participant focus.
+          setMapInfoOpen(true);
+          editor.setSelection(null);
+          editor.setSelectedSlot(null);
+          setUnplacedCharacterId(null);
+          setInfoOpen(false);
         }}
         onExport={exportToFile}
         onImport={() => importInputRef.current?.click()}
@@ -757,17 +824,22 @@ export function EditorPage(): JSX.Element {
             highlightedSlots={highlightedSlots}
             highlightColors={highlightColors}
             onSelect={(index) => {
-              editor.setSelectedSlot(index);
-              if (index === null) {
-                setUnplacedCharacterId(null);
-              }
+              guardMapInfo(() => {
+                editor.setSelectedSlot(index);
+                if (index === null) {
+                  setUnplacedCharacterId(null);
+                }
+              });
             }}
             onActivateHover={editor.activateParticipantHover}
             onDeactivateHover={editor.deactivateParticipantHover}
             onActivateClick={(index) => {
               // OPT-C07: pinning a participant drops the cell selection so the
-              // drawer stays exclusive.
-              applyFocus({ type: 'participant', participantId: index });
+              // drawer stays exclusive. FEAT-E01: confirmed when the info
+              // drawer has unsaved edits.
+              guardMapInfo(() => {
+                applyFocus({ type: 'participant', participantId: index });
+              });
             }}
             onClearRequest={clearSlot}
             onDragBegin={beginSlotDrag}
@@ -801,11 +873,14 @@ export function EditorPage(): JSX.Element {
             onSelect={(selection) => {
               // OPT-C07: clicking the board clears the participant activation
               // (hover- or click-pinned) and hands the focus to the cell.
-              applyFocus({ type: 'cell', selection });
-              if (selection) {
-                editor.setSelectedSlot(null);
-                setUnplacedCharacterId(null);
-              }
+              // FEAT-E01: switching away from the info drawer is confirmed first.
+              guardMapInfo(() => {
+                applyFocus({ type: 'cell', selection });
+                if (selection) {
+                  editor.setSelectedSlot(null);
+                  setUnplacedCharacterId(null);
+                }
+              });
             }}
             onSelectRegion={editor.setSelectedRegion}
             onAnchorChange={(anchor) => setRegionAnchorActive(anchor !== null)}
@@ -939,20 +1014,19 @@ export function EditorPage(): JSX.Element {
           />
 
           <MapInfoDrawer
+            ref={mapInfoRef}
             open={mapInfoOpen}
-            onClose={() => setMapInfoOpen(false)}
             gridSize={editor.gridSize}
             autoCellSize={autoCellSize}
             style={editor.style}
             characterSlots={editor.characterSlots}
-            onSetStyle={editor.setMapStyle}
-            onSetCellSize={editor.setCellSizeOverride}
-            onApplyRegionBorder={editor.applyRegionBorderStyle}
-            onSetLinkageColors={editor.setLinkageColors}
-            onRemoveLinkageColor={editor.removeLinkageColor}
+            onRequestClose={closeMapInfo}
+            onCommit={commitMapInfo}
             onRequestResize={(next) => {
-              setResizeValue(next);
-              setResizeOpen(true);
+              guardMapInfo(() => {
+                setResizeValue(next);
+                setResizeOpen(true);
+              });
             }}
           />
         </main>
@@ -965,7 +1039,7 @@ export function EditorPage(): JSX.Element {
         cells={regionDialog.cells}
         region={regionDialog.region}
         regions={editor.regions}
-        defaultBorderWidth={editor.style.regionBorder.width}
+        defaultBorderWidth={editor.style.regionOutline.width}
         onSubmit={submitRegion}
       />
 
@@ -1175,6 +1249,30 @@ export function EditorPage(): JSX.Element {
             <AlertDialogAction onClick={confirmRemoveParticipant}>
               移除
             </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* FEAT-E01: leaving the 「地图基本信息」form with unsaved edits */}
+      <AlertDialog
+        open={pendingMapInfoAction !== null}
+        onOpenChange={(open) => !open && setPendingMapInfoAction(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>基本信息有未保存的修改</AlertDialogTitle>
+            <AlertDialogDescription>
+              继续切换会丢失这些修改，是否先保存？
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <Button variant="outline" onClick={() => setPendingMapInfoAction(null)}>
+              继续编辑
+            </Button>
+            <Button variant="destructive" onClick={() => resolvePendingMapInfo('discard')}>
+              放弃修改
+            </Button>
+            <Button onClick={() => resolvePendingMapInfo('save')}>保存并继续</Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

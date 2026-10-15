@@ -441,7 +441,7 @@ describe('toDraft', () => {
 
   it('FEAT-D02: serialises the resolved map style', () => {
     const output = store().toDraft();
-    expect(output.style?.border).toEqual({ width: 2, color: '#000000' });
+    expect(output.style?.gridSeparator).toEqual({ width: 2, color: '#000000' });
     expect(output.style?.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
   });
 });
@@ -461,13 +461,13 @@ describe('map style (v0.3.8 FEAT-D02/D03/D04)', () => {
         ...draft(),
         style: {
           cellSize: 150,
-          border: { width: 4, color: '#112233' },
+          gridSeparator: { width: 4, color: '#112233' },
         },
       } as MapDraft,
       { updatedAt: null, currentVersionNo: null, status: 'draft' },
     );
     expect(store().style.cellSize).toBe(150);
-    expect(store().style.border).toEqual({ width: 4, color: '#112233' });
+    expect(store().style.gridSeparator).toEqual({ width: 4, color: '#112233' });
     // Untouched fields keep their defaults.
     expect(store().style.canvasFrame).toEqual({ width: 6, color: '#000000' });
   });
@@ -496,15 +496,26 @@ describe('map style (v0.3.8 FEAT-D02/D03/D04)', () => {
   it('FEAT-D02 §关键规则 4: the region outline width syncs to every region', () => {
     store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
     store().createRegion(regionInput('rg_b', [[2, 2]]), 'override');
-    store().applyRegionBorderStyle({ width: 10 });
-    expect(store().style.regionBorder.width).toBe(10);
+    store().setMapStyle((current) => ({
+      ...current,
+      regionOutline: { ...current.regionOutline, width: 10 },
+    }));
+    expect(store().style.regionOutline.width).toBe(10);
     expect(store().regions.map((region) => region.borderWidth)).toEqual([10, 10]);
+    // Style + regions are one undo step.
+    expect(store().past).toHaveLength(3);
+    store().undo();
+    expect(store().style.regionOutline.width).toBe(6);
+    expect(store().regions.map((region) => region.borderWidth)).toEqual([4, 4]);
   });
 
   it('FEAT-D02 §关键规则 4: the region outline colour is map-level only', () => {
     store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
-    store().applyRegionBorderStyle({ color: '#FF0000' });
-    expect(store().style.regionBorder.color).toBe('#FF0000');
+    store().setMapStyle((current) => ({
+      ...current,
+      regionOutline: { ...current.regionOutline, color: '#FF0000' },
+    }));
+    expect(store().style.regionOutline.color).toBe('#FF0000');
     // The region keeps its own colour — it drives the fill.
     expect(store().regions[0]?.color).toBe('#3B82F6');
     // ...and its width is untouched when only the colour changed.
@@ -553,10 +564,10 @@ describe('map style (v0.3.8 FEAT-D02/D03/D04)', () => {
   });
 
   it('applyDraft adopts the imported style and resets the history', () => {
-    store().setMapStyle((current) => ({ ...current, border: { ...current.border, width: 8 } }));
+    store().setMapStyle((current) => ({ ...current, border: { ...current.gridSeparator, width: 8 } }));
     store().applyDraft({ ...draft(), style: { cellSize: 200 } } as MapDraft);
     expect(store().style.cellSize).toBe(200);
-    expect(store().style.border.width).toBe(2);
+    expect(store().style.gridSeparator.width).toBe(2);
     expect(store().dirty).toBe(true);
   });
 });

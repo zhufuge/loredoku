@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CELL_SIZE } from '@murdoku/shared';
 import type { DraftRegion } from '@murdoku/shared';
-import { buildRegionEdges, buildRegionInnerEdges, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, rectCells, regionAt, regionCellSet, resolveRegionPointerUp } from './region';
+import { buildRegionEdges, buildRegionHighlightPaths, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, rectCells, regionAt, regionCellSet, resolveRegionPointerUp } from './region';
 
 function region(id: string, cells: Array<[number, number]>): DraftRegion {
   return { id, name: `R${id}`, color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells };
@@ -254,11 +254,8 @@ describe('contrastTextColor', () => {
   });
 });
 
-// ---- FIX-C01 (docs/v0.3.7.md §1): the inset region outline ----
-describe('buildRegionInnerEdges', () => {
-  const isAxisAligned = (edge: { x1: number; y1: number; x2: number; y2: number }): boolean =>
-    edge.x1 === edge.x2 || edge.y1 === edge.y2;
-
+// ---- FIX-E02 (docs/v0.3.9.md §2): the inset region highlight outline ----
+describe('buildRegionHighlightPaths', () => {
   const SHAPES: Array<{ name: string; cells: Array<[number, number]> }> = [
     { name: '单格', cells: [[0, 0]] },
     {
@@ -281,7 +278,7 @@ describe('buildRegionInnerEdges', () => {
       ],
     },
     {
-      name: '十字形（多连通）',
+      name: '十字形',
       cells: [
         [1, 0],
         [0, 1],
@@ -291,7 +288,7 @@ describe('buildRegionInnerEdges', () => {
       ],
     },
     {
-      name: '回字形',
+      name: '回字形（带洞）',
       cells: [
         [0, 0],
         [1, 0],
@@ -303,45 +300,61 @@ describe('buildRegionInnerEdges', () => {
         [2, 2],
       ],
     },
+    {
+      name: '蛇形',
+      cells: [
+        [0, 0],
+        [1, 0],
+        [1, 1],
+        [2, 1],
+        [2, 2],
+      ],
+    },
   ];
 
-  it('FIX-C01 验收: every edge is strictly horizontal or vertical', () => {
+  /** Parses a `M x y L x y … Z` path back into its vertices. */
+  function vertices(d: string): Array<[number, number]> {
+    const tokens = d.replace(/[MLZ]/g, ' ').trim().split(/\s+/).map(Number);
+    const points: Array<[number, number]> = [];
+    for (let index = 0; index + 1 < tokens.length; index += 2) {
+      points.push([tokens[index]!, tokens[index + 1]!]);
+    }
+    return points;
+  }
+
+  it('FIX-E02 验收: every loop is a closed, gap-free rectilinear outline', () => {
     for (const cellSize of [90, 102, 120, 240]) {
       const inset = 6 * (cellSize / 120) / 2 + 4 * (cellSize / 120) / 2;
       for (const shape of SHAPES) {
-        const edges = buildRegionInnerEdges(shape.cells, cellSize, inset);
-        expect(edges.length, shape.name).toBeGreaterThan(0);
-        for (const edge of edges) {
-          expect(isAxisAligned(edge), `${shape.name} ${JSON.stringify(edge)}`).toBe(true);
+        const paths = buildRegionHighlightPaths(shape.cells, cellSize, inset);
+        expect(paths.length, shape.name).toBeGreaterThan(0);
+        for (const path of paths) {
+          expect(path.d.endsWith(' Z'), shape.name).toBe(true);
+          const points = vertices(path.d);
+          expect(points.length, shape.name).toBe(path.vertices);
+          expect(path.vertices, shape.name).toBeGreaterThanOrEqual(4);
+          // Consecutive vertices always share an axis → the loop is connected.
+          for (let index = 0; index < points.length; index += 1) {
+            const a = points[index]!;
+            const b = points[(index + 1) % points.length]!;
+            expect(
+              a[0] === b[0] || a[1] === b[1],
+              `${shape.name} ${JSON.stringify(a)}->${JSON.stringify(b)}`,
+            ).toBe(true);
+          }
         }
       }
     }
   });
 
-  it('shifts the normal axis and shrinks both tangential ends', () => {
-    const edges = buildRegionInnerEdges([[0, 0]], 100, 10);
-    expect(edges).toHaveLength(4);
-    expect(edges).toContainEqual({ x1: 10, y1: 10, x2: 90, y2: 10 }); // 上边
-    expect(edges).toContainEqual({ x1: 10, y1: 90, x2: 90, y2: 90 }); // 下边
-    expect(edges).toContainEqual({ x1: 10, y1: 10, x2: 10, y2: 90 }); // 左边
-    expect(edges).toContainEqual({ x1: 90, y1: 10, x2: 90, y2: 90 }); // 右边
+  it('insets a single cell on all four sides', () => {
+    const [path] = buildRegionHighlightPaths([[0, 0]], 100, 10);
+    expect(path?.d).toBe('M 10 10 L 90 10 L 90 90 L 10 90 Z');
+    expect(path?.vertices).toBe(4);
   });
 
-  it('keeps the inset outline strictly inside the outer contour', () => {
-    const cells: Array<[number, number]> = [
-      [0, 0],
-      [1, 0],
-      [0, 1],
-    ];
-    const edges = buildRegionInnerEdges(cells, 100, 8);
-    // Bottom edge of the L sits at y = 200 - 8 = 192 (inside), never at 200.
-    expect(edges.some((edge) => edge.y1 === 200 && edge.y2 === 200)).toBe(false);
-    // The left-most normal shift is +8, never 0.
-    expect(Math.min(...edges.map((edge) => edge.x1))).toBe(8);
-  });
-
-  it('omits the shared edge between adjacent cells', () => {
-    const edges = buildRegionInnerEdges(
+  it('keeps a straight run connected (one loop, no gap at cell borders)', () => {
+    const paths = buildRegionHighlightPaths(
       [
         [0, 0],
         [1, 0],
@@ -349,19 +362,72 @@ describe('buildRegionInnerEdges', () => {
       100,
       5,
     );
-    expect(edges).toHaveLength(6);
-    expect(edges.some((edge) => isAxisAligned(edge) === false)).toBe(false);
+    expect(paths).toHaveLength(1);
+    const points = vertices(paths[0]!.d);
+    // The shared cell border at x = 100 stays on the outline, so the top edge
+    // is one unbroken run from x = 5 to x = 195.
+    expect(points).toContainEqual([100, 5]);
+    expect(points).toContainEqual([5, 5]);
+    expect(points).toContainEqual([195, 5]);
+  });
+
+  it('closes the corners of a concave (L-shaped) outline', () => {
+    const paths = buildRegionHighlightPaths(
+      [
+        [0, 0],
+        [0, 1],
+        [0, 2],
+        [1, 2],
+        [2, 2],
+      ],
+      100,
+      5,
+    );
+    expect(paths).toHaveLength(1);
+    const points = vertices(paths[0]!.d);
+    // Inner corner of the L: the vertical run ends exactly where the
+    // horizontal run starts, at (95, 205).
+    expect(points).toContainEqual([95, 205]);
+    expect(
+      points.filter(([x, y]) => x === 95 && y === 205),
+    ).toHaveLength(1);
+  });
+
+  it('emits one loop per boundary (a hole becomes its own loop)', () => {
+    const ring: Array<[number, number]> = [
+      [0, 0],
+      [1, 0],
+      [2, 0],
+      [0, 1],
+      [2, 1],
+      [0, 2],
+      [1, 2],
+      [2, 2],
+    ];
+    const paths = buildRegionHighlightPaths(ring, 100, 5);
+    expect(paths).toHaveLength(2);
+    // The inner loop hugs the hole from the inside.
+    expect(paths.map((path) => path.d).some((d) => d.includes('M 205 95'))).toBe(true);
   });
 
   it('clamps an over-large inset so the shape never inverts', () => {
-    for (const edge of buildRegionInnerEdges([[0, 0]], 100, 500)) {
-      expect(edge.x1).toBeLessThanOrEqual(edge.x2);
-      expect(edge.y1).toBeLessThanOrEqual(edge.y2);
-      expect(isAxisAligned(edge)).toBe(true);
+    for (const path of buildRegionHighlightPaths([[0, 0]], 100, 500)) {
+      expect(path.vertices).toBe(4);
+      for (const [x, y] of vertices(path.d)) {
+        expect(x).toBeGreaterThanOrEqual(0);
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(x).toBeLessThanOrEqual(100);
+        expect(y).toBeLessThanOrEqual(100);
+      }
     }
   });
 
   it('returns nothing for an empty region', () => {
-    expect(buildRegionInnerEdges([], 100, 4)).toEqual([]);
+    expect(buildRegionHighlightPaths([], 100, 4)).toEqual([]);
+  });
+
+  it('accepts a zero inset (degenerate but valid)', () => {
+    const [path] = buildRegionHighlightPaths([[0, 0]], 100, 0);
+    expect(path?.d).toBe('M 0 0 L 100 0 L 100 100 L 0 100 Z');
   });
 });

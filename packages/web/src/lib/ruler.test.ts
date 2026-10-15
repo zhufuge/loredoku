@@ -11,7 +11,13 @@ import {
   RULER_FONT_SIZE_ACTIVE,
 } from '@murdoku/shared';
 import { cellScale } from './canvasScale';
-import { buildRulerGlyphs, rulerColor, rulerFontSize, rulerState } from './ruler';
+import {
+  buildRulerGlyphs,
+  rulerColor,
+  rulerFontSize,
+  rulerState,
+  rulerStripSize,
+} from './ruler';
 
 describe('rulerState (OPT-B05 §5.4)', () => {
   it('defaults to normal', () => {
@@ -194,5 +200,65 @@ describe('ruler zoom (§3.3)', () => {
         zoom: 0,
       })[0]!.fontSize,
     ).toBe(17);
+  });
+});
+
+// ---- v0.3.9 FEAT-E02: 可配置的文本大小与间距 ----
+describe('ruler style config (FEAT-E02)', () => {
+  it('keeps the +2 relationship for the operated row / column', () => {
+    expect(rulerFontSize('normal', 1, 24)).toBe(24);
+    expect(rulerFontSize('operation', 1, 24)).toBe(26);
+    // The default base still reproduces v0.3.6 exactly.
+    expect(rulerFontSize('normal', 1)).toBe(17);
+    expect(rulerFontSize('operation', 1)).toBe(19);
+  });
+
+  it('clamps the configured base before applying the scale', () => {
+    // 40 × 1 = 40 → capped at the 28px ceiling; the active size follows.
+    expect(rulerFontSize('normal', 1, 40)).toBe(28);
+    expect(rulerFontSize('operation', 1, 40)).toBe(28);
+    // 6 × 1 = 6 → floored at 9.
+    expect(rulerFontSize('normal', 1, 6)).toBe(9);
+  });
+
+  it('buildRulerGlyphs honours the configured size', () => {
+    const glyphs = buildRulerGlyphs({
+      gridSize: 3,
+      axis: 'row',
+      hoverIndex: null,
+      operationIndex: 2,
+      scale: 1,
+      fontSize: 20,
+    });
+    expect(glyphs.map((glyph) => glyph.fontSize)).toEqual([20, 20, 22]);
+  });
+
+  it('sizes the strip so the text clears the board by `gap`', () => {
+    // Comfortably above the minimum when the text is large.
+    expect(rulerStripSize({ maxFontSize: 40, gap: 20 })).toBe(66);
+    // Never smaller than the v0.3.6 strip.
+    expect(rulerStripSize({ maxFontSize: 10, gap: 2 })).toBe(28);
+    expect(rulerStripSize({ maxFontSize: 21, gap: 12 })).toBe(39);
+  });
+
+  it('tolerates degenerate input', () => {
+    expect(rulerStripSize({ maxFontSize: Number.NaN, gap: Number.NaN })).toBe(28);
+    expect(rulerStripSize({ maxFontSize: -10, gap: -10 })).toBe(28);
+  });
+
+  it('scales the strip with zoom through the glyph size', () => {
+    const glyphs = buildRulerGlyphs({
+      gridSize: 1,
+      axis: 'column',
+      hoverIndex: null,
+      operationIndex: 0,
+      scale: 1,
+      zoom: 2,
+      fontSize: 20,
+    });
+    const maxFont = Math.max(...glyphs.map((glyph) => glyph.fontSize));
+    expect(maxFont).toBe(44);
+    // 44 (text) + 6 (gap) + 6 (air above the text)
+    expect(rulerStripSize({ maxFontSize: maxFont, gap: 6 })).toBe(56);
   });
 });

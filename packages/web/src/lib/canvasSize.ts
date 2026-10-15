@@ -83,14 +83,20 @@ export function canvasInsets(options: {
   padding?: number;
   /** OPT-C01 extra margin; pass 0 to opt out (e.g. in tests). */
   extraMargin?: number;
+  /**
+   * v0.3.9 FEAT-E02: the ruler strip grows with the configured text size and
+   * gap, so the reserved band has to follow it (defaults to `RULER_SIZE`).
+   */
+  rulerSize?: number;
 } = {}): CanvasInsets {
   const {
     showRulers = false,
     showBottomBar = false,
     padding = CANVAS_PADDING,
     extraMargin = EXTRA_MARGIN,
+    rulerSize = RULER_SIZE,
   } = options;
-  const ruler = showRulers ? RULER_SIZE : 0;
+  const ruler = showRulers ? Math.max(RULER_SIZE, rulerSize) : 0;
   // OPT-C01 §2: `EXTRA_MARGIN` is added to every side, so the board gets more
   // breathing room all round instead of only along the toolbar edge.
   const base = padding + extraMargin;

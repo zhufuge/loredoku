@@ -15,14 +15,14 @@ import { GenderBadge } from '@/components/character/GenderBadge';
 import {
   MapBackgroundLayer,
   MapCanvasFrameLayer,
-  MapCellCursorLayer,
-  MapGridLayer,
+  MapMouseCursorBoxLayer,
+  MapGridSeparatorLayer,
   MapHighlightLayer,
-  MapNoStandShadowLayer,
+  MapNonStandableMaskLayer,
   MapObjectLayer,
-  MapRegionEdgeLayer,
+  MapRegionOutlineLayer,
   MapRegionFillLayer,
-  MapRegionHoverLayer,
+  MapRegionHighlightLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapLayers';
 import { useCharacters } from '@/hooks/useCharacters';
@@ -343,20 +343,25 @@ export function WorkViewPage(): JSX.Element {
                     className={cn(
                       'flex w-full items-center gap-2 rounded-md border p-2 text-left transition-colors',
                       hoveredSlot === index ? 'border-primary bg-accent' : 'hover:border-primary',
-                      isActive ? 'ring-2 ring-primary ring-offset-1' : undefined,
                     )}
+                    // FIX-E04: one highlight frame only, matching the editor.
+                    style={
+                      linkedColor
+                        ? { boxShadow: `0 0 0 2px ${linkedColor}` }
+                        : isActive
+                          ? { boxShadow: '0 0 0 2px hsl(var(--primary))' }
+                          : undefined
+                    }
                   >
                     <span
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
                       style={{
                         backgroundColor: themeColor,
+                        // FIX-E04: the outline lives on the slot row, so the
+                        // avatar only scales up.
                         transform: linkedColor ? 'scale(1.08)' : undefined,
                         transition: 'transform 150ms linear',
-                        border: linkedColor
-                          ? `3px solid ${linkedColor}`
-                          : isWhiteTheme
-                            ? '1px solid #D1D5DB'
-                            : 'none',
+                        border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
                       }}
                     >
                       {avatar ? (
@@ -446,7 +451,7 @@ export function WorkViewPage(): JSX.Element {
           >
             <div
               className="absolute left-0 top-0 bg-background"
-              style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
+              style={{ width: total, height: total, zIndex: MAP_LAYER_Z.canvasBase }}
             />
 
             {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
@@ -459,15 +464,15 @@ export function WorkViewPage(): JSX.Element {
               style={style}
               leaving={highlightLeaving}
             />
-            <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-            <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
-            <MapRegionEdgeLayer
+            <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
+            <MapNonStandableMaskLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
+            <MapRegionOutlineLayer
               regions={regions}
               gridSize={gridSize}
               cellSize={cellSize}
               style={style}
             />
-            <MapGridLayer gridSize={gridSize} cellSize={cellSize} style={style} />
+            <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
             <MapObjectLayer
               cells={cells}
               itemsById={itemsById}
@@ -488,7 +493,7 @@ export function WorkViewPage(): JSX.Element {
             <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
 
             {/* 层 1 — 鼠标提示框（预览页无操作提示框）. */}
-            <MapCellCursorLayer
+            <MapMouseCursorBoxLayer
               cell={hoverEffects.cell}
               blocked={hoverEffects.blocked}
               cellSize={cellSize}

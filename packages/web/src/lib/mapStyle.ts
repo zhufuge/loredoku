@@ -12,22 +12,28 @@ import {
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
   MAP_STYLE_OPERATION_OFFSET_MIN,
+  MAP_STYLE_RULER_FONT_MAX,
+  MAP_STYLE_RULER_FONT_MIN,
+  MAP_STYLE_RULER_GAP_MAX,
+  MAP_STYLE_RULER_GAP_MIN,
   MAP_STYLE_REGION_LABEL_FONT_MAX,
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
+  RULER_ACTIVE_FONT_DELTA,
   type CharacterSlotEntry,
   type MapLinkageColor,
   type MapStyleLine,
-  type MapStyleMouseCursor,
-  type MapStyleOperationCursor,
+  type MapStyleMouseCursorBox,
+  type MapStyleOperationCursorBox,
   type MapStyleRegionLabel,
+  type MapStyleRuler,
   type MapStyle,
   type ParticipantTarget,
 } from '@murdoku/shared';
-import { cellScale, scaleLineWidth } from '@/lib/canvasScale';
+import { cellScale, scaleFontSize, scaleLineWidth } from '@/lib/canvasScale';
 
 /**
  * v0.3.8 FEAT-D02 (docs/v0.3.8.md §FEAT-D02): the map style is a set of
@@ -54,6 +60,16 @@ export function clampRegionLabelStroke(value: number): number {
 
 export function clampOperationOffset(value: number): number {
   return clampNumber(value, MAP_STYLE_OPERATION_OFFSET_MIN, MAP_STYLE_OPERATION_OFFSET_MAX);
+}
+
+/** v0.3.9 FEAT-E02: ruler text size (integer px). */
+export function clampRulerFontSize(value: number): number {
+  return Math.round(clampNumber(value, MAP_STYLE_RULER_FONT_MIN, MAP_STYLE_RULER_FONT_MAX));
+}
+
+/** v0.3.9 FEAT-E02: gap between the ruler text and the board. */
+export function clampRulerGap(value: number): number {
+  return clampNumber(value, MAP_STYLE_RULER_GAP_MIN, MAP_STYLE_RULER_GAP_MAX);
 }
 
 export function clampRegionBorderWidth(value: number): number {
@@ -95,12 +111,13 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
   const fallback = DEFAULT_MAP_STYLE;
 
   const canvasFrame: Partial<MapStyleLine> = source.canvasFrame ?? {};
-  const border: Partial<MapStyleLine> = source.border ?? {};
-  const mouseCursor: Partial<MapStyleMouseCursor> = source.mouseCursor ?? {};
-  const operationCursor: Partial<MapStyleOperationCursor> = source.operationCursor ?? {};
+  const gridSeparator: Partial<MapStyleLine> = source.gridSeparator ?? {};
+  const mouseCursorBox: Partial<MapStyleMouseCursorBox> = source.mouseCursorBox ?? {};
+  const operationCursorBox: Partial<MapStyleOperationCursorBox> = source.operationCursorBox ?? {};
   const regionLabel: Partial<MapStyleRegionLabel> = source.regionLabel ?? {};
-  const regionBorder: Partial<MapStyleLine> = source.regionBorder ?? {};
+  const regionOutline: Partial<MapStyleLine> = source.regionOutline ?? {};
   const regionHighlight: Partial<MapStyleLine> = source.regionHighlight ?? {};
+  const ruler: Partial<MapStyleRuler> = source.ruler ?? {};
 
   return {
     cellSize:
@@ -111,23 +128,27 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
       width: width(fallback.canvasFrame.width, canvasFrame.width),
       color: color(fallback.canvasFrame.color, canvasFrame.color),
     },
-    border: {
-      width: width(fallback.border.width, border.width),
-      color: color(fallback.border.color, border.color),
+    gridSeparator: {
+      width: width(fallback.gridSeparator.width, gridSeparator.width),
+      color: color(fallback.gridSeparator.color, gridSeparator.color),
     },
-    mouseCursor: {
-      width: width(fallback.mouseCursor.width, mouseCursor.width),
-      color: color(fallback.mouseCursor.color, mouseCursor.color),
-      blockedColor: color(fallback.mouseCursor.blockedColor, mouseCursor.blockedColor),
-      shadowColor: color(fallback.mouseCursor.shadowColor, mouseCursor.shadowColor, isValidShadowColor),
+    mouseCursorBox: {
+      width: width(fallback.mouseCursorBox.width, mouseCursorBox.width),
+      color: color(fallback.mouseCursorBox.color, mouseCursorBox.color),
+      blockedColor: color(fallback.mouseCursorBox.blockedColor, mouseCursorBox.blockedColor),
+      shadowColor: color(
+        fallback.mouseCursorBox.shadowColor,
+        mouseCursorBox.shadowColor,
+        isValidShadowColor,
+      ),
     },
-    operationCursor: {
-      width: width(fallback.operationCursor.width, operationCursor.width),
-      color: color(fallback.operationCursor.color, operationCursor.color),
+    operationCursorBox: {
+      width: width(fallback.operationCursorBox.width, operationCursorBox.width),
+      color: color(fallback.operationCursorBox.color, operationCursorBox.color),
       offset:
-        typeof operationCursor.offset === 'number'
-          ? clampOperationOffset(operationCursor.offset)
-          : fallback.operationCursor.offset,
+        typeof operationCursorBox.offset === 'number'
+          ? clampOperationOffset(operationCursorBox.offset)
+          : fallback.operationCursorBox.offset,
     },
     regionLabel: {
       fontSize:
@@ -147,17 +168,24 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
       hoverColor: color(fallback.regionLabel.hoverColor, regionLabel.hoverColor),
       hoverStrokeColor: color(fallback.regionLabel.hoverStrokeColor, regionLabel.hoverStrokeColor),
     },
-    regionBorder: {
+    regionOutline: {
       // The region outline follows its own 4 ~ 12px range, not the line range.
       width:
-        typeof regionBorder.width === 'number'
-          ? clampRegionBorderWidth(regionBorder.width)
-          : fallback.regionBorder.width,
-      color: color(fallback.regionBorder.color, regionBorder.color),
+        typeof regionOutline.width === 'number'
+          ? clampRegionBorderWidth(regionOutline.width)
+          : fallback.regionOutline.width,
+      color: color(fallback.regionOutline.color, regionOutline.color),
     },
     regionHighlight: {
       width: width(fallback.regionHighlight.width, regionHighlight.width),
       color: color(fallback.regionHighlight.color, regionHighlight.color),
+    },
+    ruler: {
+      fontSize:
+        typeof ruler.fontSize === 'number'
+          ? clampRulerFontSize(ruler.fontSize)
+          : fallback.ruler.fontSize,
+      gap: typeof ruler.gap === 'number' ? clampRulerGap(ruler.gap) : fallback.ruler.gap,
     },
     linkageColors: resolveLinkageColors(source.linkageColors),
   };
@@ -270,4 +298,20 @@ export function effectiveCellSize(autoCellSize: number, style: MapStyle): number
 /** The scaled line width for one style field, used by every drawing layer. */
 export function styleLineWidth(base: number, cellSize: number): number {
   return scaleLineWidth(base, cellScale(cellSize));
+}
+
+/**
+ * v0.3.9 FEAT-E01: the 「地图基本信息」drawer keeps a draft and only commits on
+ * save, so it needs to know whether anything actually changed. Comparing the
+ * two resolved styles field by field (palette included) is enough — both sides
+ * have already been normalised by {@link resolveMapStyle}.
+ */
+export function mapStyleEquals(a: MapStyle, b: MapStyle): boolean {
+  if (a === b) return true;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** v0.3.9 FEAT-E02: the operated row / column glyph stays `delta` px larger. */
+export function rulerActiveFontSize(fontSize: number, scale: number): number {
+  return scaleFontSize(fontSize + RULER_ACTIVE_FONT_DELTA, scale);
 }

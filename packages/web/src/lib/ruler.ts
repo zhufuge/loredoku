@@ -1,15 +1,22 @@
-import { RULER_COLOR, RULER_COLOR_HOVER, RULER_FONT_SIZE, RULER_FONT_SIZE_ACTIVE } from '@murdoku/shared';
+import {
+  RULER_ACTIVE_FONT_DELTA,
+  RULER_COLOR,
+  RULER_COLOR_HOVER,
+  RULER_FONT_SIZE,
+  RULER_SIZE,
+} from '@murdoku/shared';
 import { scaleFontSize } from '@/lib/canvasScale';
 
 /**
- * OPT-B05 (docs/v0.3.6.md §5): one state machine drives both ruler strips.
+ * OPT-B05 (docs/v0.3.6.md §5) + v0.3.9 FEAT-E02: one state machine drives both
+ * ruler strips.
  *
  * | 行 / 列状态 | 表现 |
  * |---|---|
- * | 普通 | 淡灰 15px |
- * | 鼠标悬停 | 深灰 15px |
- * | 操作格 | 深灰 17px |
- * | 鼠标悬停 + 操作格 | 深灰 17px（以操作格优先） |
+ * | 普通 | 淡灰，配置的文本大小 |
+ * | 鼠标悬停 | 深灰，字号不变 |
+ * | 操作格 | 深灰，比普通字号大 `RULER_ACTIVE_FONT_DELTA`（默认 +2，即 17 → 19） |
+ * | 鼠标悬停 + 操作格 | 深灰，以操作格优先 |
  */
 export type RulerState = 'normal' | 'hover' | 'operation';
 
@@ -28,11 +35,23 @@ export function rulerColor(state: RulerState): string {
   return state === 'normal' ? RULER_COLOR : RULER_COLOR_HOVER;
 }
 
-/** §5.3: the operated row / column grows from 15px to 17px (both × scale). */
-export function rulerFontSize(state: RulerState, scale: number): number {
-  if (state === 'operation') return scaleFontSize(RULER_FONT_SIZE_ACTIVE, scale);
-  return scaleFontSize(RULER_FONT_SIZE, scale);
-}export interface RulerGlyph {
+/**
+ * §5.3: the operated row / column grows by `RULER_ACTIVE_FONT_DELTA` px.
+ * `fontSize` is the map's configured base size (FEAT-E02); both sizes are
+ * multiplied by `scale`.
+ */
+export function rulerFontSize(
+  state: RulerState,
+  scale: number,
+  fontSize: number = RULER_FONT_SIZE,
+): number {
+  if (state === 'operation') {
+    return scaleFontSize(fontSize + RULER_ACTIVE_FONT_DELTA, scale);
+  }
+  return scaleFontSize(fontSize, scale);
+}
+
+export interface RulerGlyph {
   index: number;
   label: string;
   state: RulerState;
@@ -55,8 +74,10 @@ export function buildRulerGlyphs(input: {
   operationIndex: number | null;
   scale: number;
   zoom?: number;
+  /** FEAT-E02: the map's configured base text size. */
+  fontSize?: number;
 }): RulerGlyph[] {
-  const { gridSize, axis, hoverIndex, operationIndex, scale, zoom = 1 } = input;
+  const { gridSize, axis, hoverIndex, operationIndex, scale, zoom = 1, fontSize = RULER_FONT_SIZE } = input;
   if (!Number.isFinite(gridSize) || gridSize < 1) return [];
   const prefix = axis === 'column' ? 'C' : 'R';
   const zoomFactor = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
@@ -67,7 +88,27 @@ export function buildRulerGlyphs(input: {
       label: `${prefix}${index + 1}`,
       state,
       color: rulerColor(state),
-      fontSize: rulerFontSize(state, scale) * zoomFactor,
+      fontSize: rulerFontSize(state, scale, fontSize) * zoomFactor,
     };
   });
+}
+
+/**
+ * FEAT-E02: the ruler strip must be tall enough for the (zoomed) glyph plus the
+ * configured gap between the text and the board — the text is anchored to the
+ * board side of the strip, so `gap` is literally the text→board distance.
+ */
+export function rulerStripSize(input: {
+  /** Largest glyph height actually rendered (already includes zoom). */
+  maxFontSize: number;
+  /** Configured text→board gap, in unscaled px. */
+  gap: number;
+  /** Minimum strip size (the v0.3.6 constant). */
+  minSize?: number;
+}): number {
+  const { maxFontSize, gap, minSize = RULER_SIZE } = input;
+  const font = Number.isFinite(maxFontSize) ? Math.max(0, maxFontSize) : 0;
+  const spacing = Number.isFinite(gap) ? Math.max(0, gap) : 0;
+  // +6 keeps a little air above the text when both values are large.
+  return Math.max(minSize, Math.ceil(font + spacing + 6));
 }

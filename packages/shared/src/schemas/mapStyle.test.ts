@@ -27,39 +27,39 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
     if (!result.success) return;
     expect(result.data.regionHighlight.width).toBe(6);
     expect(result.data.regionHighlight.color).toBe('#90CAF9');
-    expect(result.data.border).toEqual({ width: 2, color: '#000000' });
+    expect(result.data.gridSeparator).toEqual({ width: 2, color: '#000000' });
     expect(result.data.cellSize).toBeNull();
     expect(result.data.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
   });
 
   it('rejects out-of-range numbers instead of silently clamping', () => {
-    expect(mapStyleSchema.safeParse({ border: { width: 99 } }).success).toBe(false);
-    expect(mapStyleSchema.safeParse({ border: { width: 0 } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ gridSeparator: { width: 99 } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ gridSeparator: { width: 0 } }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ cellSize: 40 }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ cellSize: 400 }).success).toBe(false);
-    expect(mapStyleSchema.safeParse({ regionBorder: { width: 99 } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ regionOutline: { width: 99 } }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ regionLabel: { fontSize: 400 } }).success).toBe(false);
-    expect(mapStyleSchema.safeParse({ operationCursor: { offset: 99 } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ operationCursorBox: { offset: 99 } }).success).toBe(false);
   });
 
   it('accepts every documented boundary value', () => {
     expect(mapStyleSchema.safeParse({ cellSize: 90 }).success).toBe(true);
     expect(mapStyleSchema.safeParse({ cellSize: 240 }).success).toBe(true);
-    expect(mapStyleSchema.safeParse({ regionBorder: { width: 4 } }).success).toBe(true);
-    expect(mapStyleSchema.safeParse({ regionBorder: { width: 12 } }).success).toBe(true);
+    expect(mapStyleSchema.safeParse({ regionOutline: { width: 4 } }).success).toBe(true);
+    expect(mapStyleSchema.safeParse({ regionOutline: { width: 12 } }).success).toBe(true);
   });
 
   it('requires #RRGGBB colours', () => {
-    expect(mapStyleSchema.safeParse({ border: { color: 'red' } }).success).toBe(false);
-    expect(mapStyleSchema.safeParse({ border: { color: '#fff' } }).success).toBe(false);
-    expect(mapStyleSchema.safeParse({ border: { color: '#A1B2C3' } }).success).toBe(true);
+    expect(mapStyleSchema.safeParse({ gridSeparator: { color: 'red' } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ gridSeparator: { color: '#fff' } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ gridSeparator: { color: '#A1B2C3' } }).success).toBe(true);
   });
 
   it('keeps the cursor shadow ring on rgb/rgba too', () => {
-    expect(mapStyleSchema.safeParse({ mouseCursor: { shadowColor: 'rgba(0,0,0,0.15)' } }).success).toBe(
+    expect(mapStyleSchema.safeParse({ mouseCursorBox: { shadowColor: 'rgba(0,0,0,0.15)' } }).success).toBe(
       true,
     );
-    expect(mapStyleSchema.safeParse({ mouseCursor: { shadowColor: 'nope' } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ mouseCursorBox: { shadowColor: 'nope' } }).success).toBe(false);
   });
 
   it('enforces the 2 ~ 12 palette size (FEAT-D04)', () => {

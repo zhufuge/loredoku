@@ -12,8 +12,7 @@ import {
   DEFAULT_CELL_SIZE,
   HIGHLIGHT_BLUE,
   MAP_LAYER_Z,
-  RULER_GAP,
-  RULER_SIZE,
+  RULER_ACTIVE_FONT_DELTA,
   type CellCoord,
   type DraftRegion,
   type EditorTool,
@@ -27,15 +26,15 @@ import type { HighlightState } from '@/lib/highlight';
 import {
   MapBackgroundLayer,
   MapCanvasFrameLayer,
-  MapCellCursorLayer,
-  MapGridLayer,
+  MapMouseCursorBoxLayer,
+  MapGridSeparatorLayer,
   MapHighlightLayer,
-  MapNoStandShadowLayer,
+  MapNonStandableMaskLayer,
   MapObjectLayer,
-  MapOperationCursorLayer,
-  MapRegionEdgeLayer,
+  MapOperationCursorBoxLayer,
+  MapRegionOutlineLayer,
   MapRegionFillLayer,
-  MapRegionHoverLayer,
+  MapRegionHighlightLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapLayers';
 import {
@@ -49,9 +48,9 @@ import {
   centeredPan,
   computeCellSizeForInsets,
 } from '@/lib/canvasSize';
-import { cellScale, objectPadding } from '@/lib/canvasScale';
+import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize } from '@/lib/mapStyle';
-import { buildRulerGlyphs } from '@/lib/ruler';
+import { buildRulerGlyphs, rulerStripSize } from '@/lib/ruler';
 import {
   clampZoom,
   clientToCell,
@@ -67,8 +66,8 @@ import type { Selection } from '@/stores/editorStore';
  * own affordances (marquee, region draft) live just under them and never cover
  * the hover / operation indicators.
  */
-const EDITOR_OVERLAY_Z = MAP_LAYER_Z.cellOperationCursor - 1;
-const DRAFT_OVERLAY_Z = MAP_LAYER_Z.cellOperationCursor - 2;
+const EDITOR_OVERLAY_Z = MAP_LAYER_Z.operationCursorBox - 1;
+const DRAFT_OVERLAY_Z = MAP_LAYER_Z.operationCursorBox - 2;
 
 /** EditorCanvas no longer carries character drag state (CLAR-603). */
 export interface EditorCanvasHandle {
@@ -118,7 +117,19 @@ interface EditorCanvasProps {
 }
 
 type Interaction =
-  | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
+  | {
+      kind: 'pan';
+      startX: number;
+      startY: number;
+      panX: number;
+      panY: number;
+      /**
+       * FEAT-E03: the gesture started on the empty area **outside** the board.
+       * A plain click there still clears the selection; a drag pans the canvas.
+       */
+      outside: boolean;
+      moved: boolean;
+    }
   | { kind: 'erase'; visited: Set<string> }
   | {
       kind: 'region-rect';
@@ -180,6 +191,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const [brushCells, setBrushCells] = useState<Coord[]>([]);
   /** Set when the pointer sits directly on a region label (§2.2). */
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
+  /** v0.3.9 FEAT-E03: dragging the empty area outside the board pans it. */
+  const [panning, setPanning] = useState(false);
 
   const viewRef = useRef({ zoom, pan, onZoom, onPan, onAutoCellSize });
   viewRef.current = { zoom, pan, onZoom, onPan, onAutoCellSize };
@@ -189,6 +202,17 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const styleCellSize = style.cellSize;
 
   const total = gridSize * cellSize;
+
+  /**
+   * v0.3.9 FEAT-E02: ruler geometry comes from the map style — the text size
+   * scales like every other font (× `cellSize / BASE_CELL` × `zoom`) and `gap`
+   * is the literal text→board distance, so the strip has to grow with them.
+   */
+  const rulerScale = cellScale(cellSize);
+  const rulerGap = style.ruler.gap;
+  const rulerMaxFont =
+    scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
+  const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: rulerGap });
 
   /**
    * OPT-A01 §1.2: recompute the adaptive cell size and re-centre the board.
@@ -205,7 +229,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     userPannedRef.current = false;
-    const insets = canvasInsets({ showRulers, showBottomBar: true });
+    const insets = canvasInsets({
+      showRulers,
+      showBottomBar: true,
+      rulerSize: rulerStrip,
+    });
     const next = computeCellSizeForInsets({
       width: rect.width,
       height: rect.height,
@@ -220,7 +248,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     viewRef.current.onPan(
       centeredPan(rect, insets, gridSize, effectiveCellSize(next, styleRef.current), 1),
     );
-  }, [gridSize, showRulers, styleCellSize]);
+  }, [gridSize, showRulers, styleCellSize, rulerStrip]);
 
   const toCell = useCallback(
     (clientX: number, clientY: number): CellCoord => {
@@ -367,7 +395,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         startY: event.clientY,
         panX: pan.x,
         panY: pan.y,
+        outside: false,
+        moved: false,
       };
+      setPanning(true);
       return;
     }
 
@@ -402,11 +433,21 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       return;
     }
 
+    // FEAT-E03: the empty area outside the board is the pan handle. A drag
+    // moves the canvas; a plain click still clears the selection (handled on
+    // pointerup, once we know the gesture did not move).
     if (!inBounds) {
-      if (activeTool === 'select') {
-        onSelect(null);
-        onSelectRegion(null);
-      }
+      node.setPointerCapture(event.pointerId);
+      interactionRef.current = {
+        kind: 'pan',
+        startX: event.clientX,
+        startY: event.clientY,
+        panX: pan.x,
+        panY: pan.y,
+        outside: true,
+        moved: false,
+      };
+      setPanning(true);
       return;
     }
 
@@ -446,6 +487,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     if (!interaction) return;
 
     if (interaction.kind === 'pan') {
+      interaction.moved = true;
       userPannedRef.current = true;
       onPan({
         x: interaction.panX + (event.clientX - interaction.startX),
@@ -488,6 +530,17 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     const interaction = interactionRef.current;
     interactionRef.current = null;
 
+    if (interaction?.kind === 'pan') {
+      setPanning(false);
+      // A click (no drag) on the empty area outside the board clears the
+      // selection, exactly like the v0.3.8 behaviour.
+      if (interaction.outside && !interaction.moved) {
+        onSelect(null);
+        onSelectRegion(null);
+      }
+      return;
+    }
+
     if (interaction?.kind === 'region-rect') {
       const end = clampCell(toCell(event.clientX, event.clientY));
       setMarquee(null);
@@ -523,12 +576,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
   };
 
-  const cursor =
-    activeTool === 'pan' || spaceHeld
-      ? 'grab'
-      : activeTool === 'region'
-        ? 'crosshair'
-        : 'default';
+  /**
+   * FEAT-E04: the cursor is `pointer` over every board cell (whatever the
+   * active tool) and `grab` on the empty area outside it, which doubles as the
+   * pan handle (FEAT-E03).
+   */
+  const cursor = panning || spaceHeld || activeTool === 'pan'
+    ? 'grabbing'
+    : hover !== null
+      ? 'pointer'
+      : 'grab';
 
   const showPreview =
     activeTool === 'select' && hover !== null && pendingItem !== null;
@@ -645,7 +702,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
    * hovered row / column, and the row / column of the operation box (which
    * wins and grows from 15px to 17px, both × scale).
    */
-  const rulerScale = cellScale(cellSize);
   const rulerColumns = useMemo(
     () =>
       buildRulerGlyphs({
@@ -655,8 +711,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         operationIndex: selectionCell?.x ?? null,
         scale: rulerScale,
         zoom,
+        fontSize: style.ruler.fontSize,
       }),
-    [gridSize, hover?.x, selectionCell?.x, rulerScale, zoom],
+    [gridSize, hover?.x, selectionCell?.x, rulerScale, zoom, style.ruler.fontSize],
   );
   const rulerRows = useMemo(
     () =>
@@ -667,8 +724,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         operationIndex: selectionCell?.y ?? null,
         scale: rulerScale,
         zoom,
+        fontSize: style.ruler.fontSize,
       }),
-    [gridSize, hover?.y, selectionCell?.y, rulerScale, zoom],
+    [gridSize, hover?.y, selectionCell?.y, rulerScale, zoom, style.ruler.fontSize],
   );
 
   return (
@@ -692,7 +750,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       >
         <div
           className="absolute left-0 top-0 bg-background"
-          style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
+          style={{ width: total, height: total, zIndex: MAP_LAYER_Z.canvasBase }}
         />
 
         {/* 《画布图层优先级规范》§2 — rendered bottom-up; the z-index of each
@@ -706,9 +764,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={style}
           leaving={highlightLeaving}
         />
-        <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-        <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
-        <MapRegionEdgeLayer
+        <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
+        <MapNonStandableMaskLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
+        <MapRegionOutlineLayer
           regions={regions}
           gridSize={gridSize}
           cellSize={cellSize}
@@ -717,7 +775,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         />
         {draftOverlay}
 
-        <MapGridLayer gridSize={gridSize} cellSize={cellSize} style={style} />
+        <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
         <MapObjectLayer
           cells={cells}
           itemsById={itemsById}
@@ -751,12 +809,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
         {selectionOverlay}
         {/* 层 2 操作提示框 first, 层 1 鼠标提示框 on top of it. */}
-        <MapOperationCursorLayer
+        <MapOperationCursorBoxLayer
           cell={cursorBoxes.operation}
           cellSize={cellSize}
           style={style}
         />
-        <MapCellCursorLayer
+        <MapMouseCursorBoxLayer
           cell={cursorBoxes.mouse}
           blocked={cursorBoxes.mouse?.blocked ?? false}
           cellSize={cellSize}
@@ -768,12 +826,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         <>
           {/* Column ruler — OPT-B05: transparent, borderless, ×scale glyphs. */}
           <div
-            className="pointer-events-none absolute z-30 h-7"
+            className="pointer-events-none absolute z-30"
             style={{
               left: pan.x,
-              // OPT-C02: the strip is pulled out by RULER_GAP so a 6px gap
-              // opens between the ruler and the board.
-              top: pan.y - RULER_SIZE - RULER_GAP,
+              // FEAT-E02: the strip is `rulerStrip` tall and the glyphs are
+              // anchored to its bottom edge with `paddingBottom: rulerGap`, so
+              // `gap` is exactly the text→board distance.
+              top: pan.y - rulerStrip,
+              height: rulerStrip,
               width: total * zoom,
               overflow: 'hidden',
             }}
@@ -781,10 +841,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
             {rulerColumns.map((glyph) => (
               <div
                 key={`rul-col-${glyph.label}`}
-                className="absolute top-0 flex h-full items-center justify-center"
+                className="absolute top-0 flex h-full items-end justify-center"
                 style={{
                   left: glyph.index * cellSize * zoom,
                   width: cellSize * zoom,
+                  paddingBottom: rulerGap,
                   overflow: 'hidden',
                 }}
               >
@@ -803,13 +864,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
             ))}
           </div>
 
-          {/* Row ruler */}
+          {/* Row ruler — the glyphs sit against the strip's right edge. */}
           <div
             className="pointer-events-none absolute z-30"
             style={{
-              left: pan.x - RULER_SIZE - RULER_GAP,
+              left: pan.x - rulerStrip,
               top: pan.y,
-              width: RULER_SIZE,
+              width: rulerStrip,
               height: total * zoom,
               overflow: 'hidden',
             }}
@@ -817,10 +878,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
             {rulerRows.map((glyph) => (
               <div
                 key={`rul-row-${glyph.label}`}
-                className="absolute left-0 flex w-full items-center justify-center"
+                className="absolute left-0 flex w-full items-center justify-end"
                 style={{
                   top: glyph.index * cellSize * zoom,
                   height: cellSize * zoom,
+                  paddingRight: rulerGap,
                   overflow: 'hidden',
                 }}
               >

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { X } from 'lucide-react';
 import {
   HIGHLIGHT_BLUE,
@@ -216,6 +216,17 @@ export function ParticipantPanel({
               const isActive = activeSlotIndex === index;
               const isHighlighted = highlightedSlots?.has(index) ?? false;
               const highlightColor = highlightColors?.get(index);
+              /**
+               * FIX-E04: the slot draws **one** outline. A referenced slot uses
+               * its linkage colour; the previewed slot falls back to the primary
+               * colour. Implemented as a single `box-shadow` ring (no
+               * `ring-offset`) so it hugs the border and reads as one frame.
+               */
+              const focusRingStyle: CSSProperties = isHighlighted
+                ? { boxShadow: `0 0 0 2px ${highlightColor ?? HIGHLIGHT_BLUE}` }
+                : isActive
+                  ? { boxShadow: '0 0 0 2px hsl(var(--primary))' }
+                  : {};
               const themeColor = slot?.themeColor ?? '#FFFFFF';
               const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
               const clueSegments = slot?.clue ? parseClue(slot.clue) : [];
@@ -227,6 +238,8 @@ export function ParticipantPanel({
                     touchAction: 'none',
                     width: PANEL_CELL_WIDTH,
                     height: PANEL_CELL_HEIGHT + CLUE_AREA_HEIGHT,
+                    // FIX-E04: the slot's single highlight frame.
+                    ...focusRingStyle,
                   }}
                   onPointerDown={(event) => {
                     if (hitClearButton(event.target)) return;
@@ -302,9 +315,6 @@ export function ParticipantPanel({
                         ? 'border-primary bg-accent'
                         : 'border-border bg-background hover:border-primary'
                       : 'border-dashed border-muted-foreground/40 bg-muted/30',
-                    // MOD-802: the previewed participant stays visibly marked
-                    // (hover ends on leave, click is a toggle → needs a ring).
-                    isActive ? 'ring-2 ring-primary ring-offset-1' : undefined,
                     isDragging ? 'opacity-40' : undefined,
                   )}
                 >
@@ -342,16 +352,13 @@ export function ParticipantPanel({
                           width: avatarSize,
                           height: avatarSize,
                           backgroundColor: themeColor,
-                          // MOD-802 §1.2.5: highlighted character → 3px param
-                          // colour outline + subtle scale-up.
+                          // MOD-802 §1.2.5 / FIX-E04: highlighting is shown by
+                          // the slot's single outline + this subtle scale-up;
+                          // the avatar no longer draws a second ring.
                           transform: isHighlighted ? 'scale(1.08)' : undefined,
                           transition: 'transform 150ms linear',
                           // MOD-703: white theme → 1px light grey border
-                          border: isHighlighted
-                            ? `3px solid ${highlightColor ?? HIGHLIGHT_BLUE}`
-                            : isWhiteTheme
-                              ? '1px solid #D1D5DB'
-                              : 'none',
+                          border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
                         }}
                       >
                         {character ? (

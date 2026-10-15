@@ -10,7 +10,7 @@ import {
   type Item,
   type MapStyle,
 } from '@murdoku/shared';
-import { buildRegionEdges, buildRegionInnerEdges, computeLabelCell } from '@/lib/region';
+import { buildRegionEdges, buildRegionHighlightPaths, computeLabelCell } from '@/lib/region';
 import { HIGHLIGHT_FADEOUT_MS, type CellMap, type HighlightState } from '@/lib/highlight';
 import { styleLineWidth } from '@/lib/mapStyle';
 import { cellCursorShadow, operationCursorStyle } from '@/lib/canvasLayers';
@@ -49,12 +49,16 @@ function regionHighlightInset(borderWidth: number, cellSize: number, highlightWi
 }
 
 /**
- * FIX-D01 (docs/v0.3.8.md §1): the inset region outline is produced by the
- * pure function `buildRegionInnerEdges` — **never** by shifting endpoints in
- * place. The v0.3.7 fix shipped the function but left this component on the
- * old inline arithmetic, so every edge kept a slope of `inset / 边长`.
+ * 区域高亮线（Region Highlight）— FIX-E02 (docs/v0.3.9.md §2).
+ *
+ * The outline is produced by `buildRegionHighlightPaths`, which traces the
+ * region's closed rectilinear contour and offsets each supporting line inward
+ * by `inset`. Rendering one closed `<path>` per loop is what makes the highlight
+ * **continuous**: the v0.3.8 implementation drew one independently inset
+ * segment per cell edge, leaving a gap at every cell boundary and every
+ * concave corner.
  */
-function RegionInnerBorder({
+function RegionHighlightOutline({
   cells,
   cellSize,
   borderWidth,
@@ -67,21 +71,20 @@ function RegionInnerBorder({
   style: MapStyle;
 }): JSX.Element {
   const inset = regionHighlightInset(borderWidth, cellSize, style.regionHighlight.width);
-  const edges = buildRegionInnerEdges(cells, cellSize, inset);
+  const paths = buildRegionHighlightPaths(cells, cellSize, inset);
   const width = styleLineWidth(style.regionHighlight.width, cellSize);
   return (
     <svg className="absolute left-0 top-0" style={{ overflow: 'visible' }}>
-      {edges.map((edge, index) => (
-        <line
+      {paths.map((path, index) => (
+        <path
           key={index}
-          x1={edge.x1}
-          y1={edge.y1}
-          x2={edge.x2}
-          y2={edge.y2}
+          d={path.d}
+          fill="none"
           stroke={style.regionHighlight.color}
           strokeWidth={width}
           strokeOpacity={0.9}
-          strokeLinecap="square"
+          strokeLinecap="butt"
+          strokeLinejoin="miter"
         />
       ))}
     </svg>
@@ -89,12 +92,14 @@ function RegionInnerBorder({
 }
 
 /**
- * 边框 border（docs/layer-priority.md 层 6）: every internal separator is a
- * **Border** and adjacent cells share one — `n-1` lines per axis, never four
- * per cell. The outermost frame is a separate layer (see
- * {@link MapCanvasFrameLayer}).
+ * 层 6 · 网格分隔线（Grid Separator）: adjacent cells **share** one separator,
+ * so an `n × n` board draws `n-1` lines per axis — never four lines per cell.
+ * The board outline is a separate layer (see {@link MapCanvasFrameLayer}).
+ *
+ * Width and colour come from `style.gridSeparator` (v0.3.8 FEAT-D02); the
+ * width is a base value and is still multiplied by `cellSize / BASE_CELL`.
  */
-export function MapGridLayer({
+export function MapGridSeparatorLayer({
   gridSize,
   cellSize,
   style,
@@ -104,7 +109,7 @@ export function MapGridLayer({
   style: MapStyle;
 }): JSX.Element {
   const total = gridSize * cellSize;
-  const width = styleLineWidth(style.border.width, cellSize);
+  const width = styleLineWidth(style.gridSeparator.width, cellSize);
   const lines: JSX.Element[] = [];
   for (let i = 1; i < gridSize; i += 1) {
     const pos = i * cellSize;
@@ -115,7 +120,7 @@ export function MapGridLayer({
         y1={0}
         x2={pos}
         y2={total}
-        stroke={style.border.color}
+        stroke={style.gridSeparator.color}
         strokeWidth={width}
       />,
       <line
@@ -124,7 +129,7 @@ export function MapGridLayer({
         y1={pos}
         x2={total}
         y2={pos}
-        stroke={style.border.color}
+        stroke={style.gridSeparator.color}
         strokeWidth={width}
       />,
     );
@@ -134,7 +139,7 @@ export function MapGridLayer({
       className="pointer-events-none absolute left-0 top-0"
       width={total}
       height={total}
-      style={{ zIndex: MAP_LAYER_Z.gridBorder }}
+      style={{ zIndex: MAP_LAYER_Z.gridSeparator }}
     >
       {lines}
     </svg>
@@ -142,10 +147,14 @@ export function MapGridLayer({
 }
 
 /**
- * 地图最外边框（docs/layer-priority.md 层 5）: drawn fully **outside** the
- * board rectangle so no item or highlight layer can overlap it, which is why
- * the stroke is offset by half its width (the SVG needs `overflow: visible`
- * for that).
+ * 层 5 · 画布外框（Canvas Frame）: the board's outermost frame, drawn fully
+ * **outside** the board rectangle so no item or highlight layer can overlap it
+ * — which is why the stroke is offset by half its width (the SVG needs
+ * `overflow: visible` for that).
+ *
+ * This is the outer frame only; the lines *between* cells are 网格分隔线
+ * ({@link MapGridSeparatorLayer}). Width and colour come from
+ * `style.canvasFrame`.
  */
 export function MapCanvasFrameLayer({
   gridSize,
@@ -179,7 +188,7 @@ export function MapCanvasFrameLayer({
   );
 }
 
-/** 层 12 · 背景 — background-layer artwork, filling every cell. */
+/** 层 12 · 背景图层（Background Layer）— artwork filling the whole cell. */
 export function MapBackgroundLayer({
   cells,
   itemsById,
@@ -192,7 +201,7 @@ export function MapBackgroundLayer({
   return (
     <div
       className="no-drag pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.background }}
+      style={{ zIndex: MAP_LAYER_Z.backgroundLayer }}
     >
       {[...cells.entries()]
         .filter(([, cell]) => cell.background)
@@ -206,7 +215,7 @@ export function MapBackgroundLayer({
             <div
               key={`bg-${key}`}
               className="absolute overflow-hidden"
-              style={{ ...cellRectStyle(x, y, cellSize), zIndex: MAP_LAYER_Z.background }}
+              style={{ ...cellRectStyle(x, y, cellSize), zIndex: MAP_LAYER_Z.backgroundLayer }}
             >
               <img
                 src={src}
@@ -223,8 +232,9 @@ export function MapBackgroundLayer({
 }
 
 /**
- * 层 4 · 物体 — above the Border so items are never visually cut by the grid
- * lines; the image itself is still clipped inside its cells.
+ * 层 4 · 物件图层（Object Layer）— above the grid separators so items are
+ * never visually cut by them; the image itself is still clipped inside its
+ * cells.
  *
  * OPT-902 §2.3: on hover the image stretches upward by
  * `OBJECT_HOVER_LIFT_PX` with a 120ms ease-out transition.
@@ -255,7 +265,7 @@ export function MapObjectLayer({
   return (
     <div
       className="no-drag pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.object }}
+      style={{ zIndex: MAP_LAYER_Z.objectLayer }}
     >
       {[...cells.entries()]
         .filter(([, cell]) => cell.object)
@@ -278,7 +288,7 @@ export function MapObjectLayer({
               className="absolute"
               style={{
                 ...cellRectStyle(x, y, cellSize, anchor.w, anchor.h),
-                zIndex: MAP_LAYER_Z.object,
+                zIndex: MAP_LAYER_Z.objectLayer,
                 // The lift is allowed to poke past the cell edge while hovered.
                 overflow: lifted ? 'visible' : 'hidden',
                 // OPT-C06: the padding applies to the whole footprint, not per cell.
@@ -354,19 +364,19 @@ export function MapRegionFillLayer({
 }
 
 /**
- * 层 7 · 区域边界线 — the region's outer contour, wider than the grid Border
- * (`region.borderWidth`, 4 ~ 12px) and drawn below it so the grid stays
- * readable.
+ * 层 7 · 区域轮廓线（Region Outline）— the region's outer contour, wider than a
+ * grid separator (`region.borderWidth`, 4 ~ 12px) and drawn below it so the
+ * grid stays readable.
  *
  * v0.3.8 FEAT-D02: the **colour** comes from the map style
- * (`style.regionBorder.color`), so one setting tunes every region; the
- * **width** stays per-region and is initialised from `style.regionBorder.width`.
+ * (`style.regionOutline.color`), so one setting tunes every region; the
+ * **width** stays per-region and is initialised from `style.regionOutline.width`.
  *
  * Adjacent regions each draw their own outline, so a shared edge renders both
  * lines. Nothing is merged and no priority is applied — a thicker junction is
  * the expected result.
  */
-export function MapRegionEdgeLayer({
+export function MapRegionOutlineLayer({
   regions,
   gridSize,
   cellSize,
@@ -385,7 +395,7 @@ export function MapRegionEdgeLayer({
       className="pointer-events-none absolute left-0 top-0"
       width={total}
       height={total}
-      style={{ zIndex: MAP_LAYER_Z.regionEdge }}
+      style={{ zIndex: MAP_LAYER_Z.regionOutline }}
     >
       {regions.map((region) => {
         const selected = selectedRegionId === region.id;
@@ -400,7 +410,7 @@ export function MapRegionEdgeLayer({
                 y1={edge.y1}
                 x2={edge.x2}
                 y2={edge.y2}
-                stroke={style.regionBorder.color}
+                stroke={style.regionOutline.color}
                 strokeOpacity={1}
                 strokeWidth={width}
                 strokeLinecap="square"
@@ -415,10 +425,11 @@ export function MapRegionEdgeLayer({
 }
 
 /**
- * 层 9 · 区域高亮线 — the inner highlight shown while a region is hovered or
- * targeted by a linkage.
+ * 层 9 · 区域高亮线（Region Highlight）— the inner highlight shown while a
+ * region is hovered or targeted by a linkage. Geometry comes from
+ * {@link RegionHighlightOutline}, so the outline is always continuous.
  */
-export function MapRegionHoverLayer({
+export function MapRegionHighlightLayer({
   region,
   cellSize,
   style,
@@ -433,7 +444,7 @@ export function MapRegionHoverLayer({
       className="pointer-events-none absolute left-0 top-0"
       style={{ zIndex: MAP_LAYER_Z.regionHighlight }}
     >
-      <RegionInnerBorder
+      <RegionHighlightOutline
         cells={region.cells}
         cellSize={cellSize}
         borderWidth={region.borderWidth}
@@ -444,16 +455,15 @@ export function MapRegionHoverLayer({
 }
 
 /**
- * 层 8 · 不可站立物体阴影 — a `rgba(0,0,0,0.18)` mask for cells whose
- * object-layer item has `canStand === false`.
+ * 层 8 · 不可站立遮罩（Non-standable Mask）— a `rgba(0,0,0,0.18)` mask for
+ * cells whose object-layer item has `canStand === false`.
  *
- * v0.3.8 SPEC-D01: the mask now sits **below** 区域边界线 and **above**
- * 区域高亮线 (see `docs/layer-priority.md` §2). The item artwork is above it,
- * but every object image keeps a transparent `objectPadding` ring, so the mask
- * stays visible around the artwork. It is inset to the Border so it never
- * paints over the grid line.
+ * v0.3.8 SPEC-D01: the mask sits **below** 区域轮廓线 and **above** 区域高亮线
+ * (see `docs/layer-priority.md` §2). The artwork is above it, but every object
+ * image keeps a transparent `objectPadding` ring, so the mask stays visible
+ * around it. It is inset to the grid separator so it never paints over it.
  */
-export function MapNoStandShadowLayer({
+export function MapNonStandableMaskLayer({
   noStandCells,
   cellSize,
   style,
@@ -463,12 +473,12 @@ export function MapNoStandShadowLayer({
   style: MapStyle;
 }): JSX.Element | null {
   if (noStandCells.size === 0) return null;
-  const inset = styleLineWidth(style.border.width, cellSize) / 2;
+  const inset = styleLineWidth(style.gridSeparator.width, cellSize) / 2;
   const size = Math.max(0, cellSize - inset * 2);
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.noStandShadow }}
+      style={{ zIndex: MAP_LAYER_Z.nonStandableMask }}
     >
       {[...noStandCells].map((key) => {
         const [x, y] = parseKey(key);
@@ -491,10 +501,11 @@ export function MapNoStandShadowLayer({
 }
 
 /**
- * 层 1 · 当前鼠标所在框 — follows the pointer and is always the top-most
- * element on the board.
+ * 层 1 · 鼠标光标框（Mouse Cursor Box）— follows the pointer and is always the
+ * top-most element on the board. Width, colours and the shadow ring come from
+ * `style.mouseCursorBox`.
  */
-export function MapCellCursorLayer({
+export function MapMouseCursorBoxLayer({
   cell,
   blocked,
   cellSize,
@@ -509,13 +520,13 @@ export function MapCellCursorLayer({
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.cellMouseCursor }}
+      style={{ zIndex: MAP_LAYER_Z.mouseCursorBox }}
     >
       <div
         className="absolute"
         style={{
           ...cellRectStyle(cell.x, cell.y, cellSize),
-          boxShadow: cellCursorShadow(blocked, cellSize, style.mouseCursor, style.border.width),
+          boxShadow: cellCursorShadow(blocked, cellSize, style.mouseCursorBox, style.gridSeparator.width),
         }}
       />
     </div>
@@ -523,11 +534,11 @@ export function MapCellCursorLayer({
 }
 
 /**
- * 层 2 · 当前操作方格框 — pinned to the clicked cell. Drawn as an Outline
- * outside the Border, so when it shares a cell with the mouse box the mouse
- * line reads as the inner one.
+ * 层 2 · 操作光标框（Operation Cursor Box）— pinned to the clicked cell. Drawn
+ * as an Outline outside the grid line, so when it shares a cell with the mouse
+ * box the mouse line reads as the inner one.
  */
-export function MapOperationCursorLayer({
+export function MapOperationCursorBoxLayer({
   cell,
   cellSize,
   style,
@@ -540,13 +551,13 @@ export function MapOperationCursorLayer({
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.cellOperationCursor }}
+      style={{ zIndex: MAP_LAYER_Z.operationCursorBox }}
     >
       <div
         className="absolute"
         style={{
           ...cellRectStyle(cell.x, cell.y, cellSize),
-          ...operationCursorStyle(cellSize, style.operationCursor),
+          ...operationCursorStyle(cellSize, style.operationCursorBox),
         }}
       />
     </div>
@@ -554,8 +565,9 @@ export function MapOperationCursorLayer({
 }
 
 /**
- * 层 3 · 区域名称 — words above the artwork, with stroke + fill colours and a
- * hover pair, all driven by `style.regionLabel` (FEAT-D02).
+ * 层 3 · 区域标签（Region Label）— the region name text, drawn above the
+ * artwork with stroke + fill colours and a hover pair, all driven by
+ * `style.regionLabel` (FEAT-D02).
  */
 export function MapRegionLabelLayer({
   regions,
@@ -710,7 +722,7 @@ export function MapHighlightLayer({
             const region = regions.find((item) => item.id === border.regionId);
             if (!region) return null;
             return (
-              <RegionInnerBorder
+              <RegionHighlightOutline
                 key={`hl-rb-${border.regionId}`}
                 cells={region.cells}
                 cellSize={cellSize}

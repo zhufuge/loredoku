@@ -230,64 +230,78 @@ export const THEME_COLOR_PALETTE = [
  * `MAP_LAYER_Z` turns that order into the CSS `z-index` values used by the
  * renderer (higher = closer to the viewer).
  *
- * v0.3.8 SPEC-D01: 13 entries. The old single `cellCursor` layer is split into
- * `cellMouseCursor` / `cellOperationCursor` (the two boxes may stack on one
- * cell), and `noStandShadow` moves **below** `regionEdge` to match the
- * priority list — that order supersedes the v0.3.5 §3.1 “mask above the
- * artwork” convention.
+ * v0.3.9 SPEC-E01 renames every key to the规范 name from that document's §1
+ * table (中文 / English / 代码常量), so code, docs and UI share one
+ * vocabulary:
+ *
+ * | # | 中文 | English | key |
+ * |---|---|---|---|
+ * | 1 | 鼠标光标框 | Mouse Cursor Box | `mouseCursorBox` |
+ * | 2 | 操作光标框 | Operation Cursor Box | `operationCursorBox` |
+ * | 3 | 区域标签 | Region Label | `regionLabel` |
+ * | 4 | 物件图层 | Object Layer | `objectLayer` |
+ * | 5 | 画布外框 | Canvas Frame | `canvasFrame` |
+ * | 6 | 网格分隔线 | Grid Separator | `gridSeparator` |
+ * | 7 | 区域轮廓线 | Region Outline | `regionOutline` |
+ * | 8 | 不可站立遮罩 | Non-standable Mask | `nonStandableMask` |
+ * | 9 | 区域高亮线 | Region Highlight | `regionHighlight` |
+ * | 10 | 方块高亮 | Cell Highlight | `cellHighlight` |
+ * | 11 | 背景高亮 | Background Highlight | `backgroundHighlight` |
+ * | 12 | 背景图层 | Background Layer | `backgroundLayer` |
+ * | 13 | 画布底色 | Canvas Base | `canvasBase` |
  */
 export const MAP_LAYER_ORDER = [
-  'cellMouseCursor',
-  'cellOperationCursor',
+  'mouseCursorBox',
+  'operationCursorBox',
   'regionLabel',
-  'object',
+  'objectLayer',
   'canvasFrame',
-  'gridBorder',
-  'regionEdge',
-  'noStandShadow',
+  'gridSeparator',
+  'regionOutline',
+  'nonStandableMask',
   'regionHighlight',
   'cellHighlight',
   'backgroundHighlight',
-  'background',
-  'emptyCell',
+  'backgroundLayer',
+  'canvasBase',
 ] as const;
 
 export type MapLayerName = (typeof MAP_LAYER_ORDER)[number];
 
 export const MAP_LAYER_Z: Record<MapLayerName, number> = {
-  /** 1 当前鼠标所在框 — always the top-most element. */
-  cellMouseCursor: 46,
-  /** 2 当前操作方格框 — directly under the mouse box. */
-  cellOperationCursor: 45,
-  /** 3 区域名称 */
+  /** 1 鼠标光标框 — follows the pointer, always top-most. */
+  mouseCursorBox: 46,
+  /** 2 操作光标框 — pinned to the clicked cell. */
+  operationCursorBox: 45,
+  /** 3 区域标签 */
   regionLabel: 42,
-  /** 4 物体 — above the grid lines so items are never cut by them. */
-  object: 40,
-  /** 5 地图最外边框 — drawn outside the board rectangle. */
+  /** 4 物件图层 — above the grid lines so items are never cut by them. */
+  objectLayer: 40,
+  /** 5 画布外框 — drawn outside the board rectangle. */
   canvasFrame: 39,
-  /** 6 边框 border（内部分隔线） */
-  gridBorder: 38,
-  /** 7 区域边界线 — below the grid lines so the Border stays readable. */
-  regionEdge: 36,
-  /** 8 不可站立物体阴影 — below 区域边界线, above 区域高亮线. */
-  noStandShadow: 35,
+  /** 6 网格分隔线（内部分隔线） */
+  gridSeparator: 38,
+  /** 7 区域轮廓线 — below the grid lines so the separators stay readable. */
+  regionOutline: 36,
+  /** 8 不可站立遮罩 — below 区域轮廓线, above 区域高亮线. */
+  nonStandableMask: 35,
   /** 9 区域高亮线 */
   regionHighlight: 32,
   /** 10 方块高亮 */
   cellHighlight: 30,
   /** 11 背景高亮 */
   backgroundHighlight: 28,
-  /** 12 背景 */
-  background: 20,
-  /** 13 空方格（画布底色） */
-  emptyCell: 10,
+  /** 12 背景图层 */
+  backgroundLayer: 20,
+  /** 13 画布底色 */
+  canvasBase: 10,
 };
 
 /**
  * 区域填充 is a v0.2.5 leftover that the layer table does not list. It is
- * parked between 背景 (12) and 背景高亮 (11) — see `docs/layer-priority.md` §1.
+ * parked between 背景图层 (12) and 背景高亮 (11) — see `docs/layer-priority.md` §1.
  */
-export const REGION_FILL_Z = MAP_LAYER_Z.background + 2;
+export const REGION_FILL_Z = MAP_LAYER_Z.backgroundLayer + 2;
 
 // ---- Map style (v0.3.8 FEAT-D02) ----
 /**
@@ -304,6 +318,11 @@ export const MAP_STYLE_REGION_LABEL_FONT_MIN = 9;
 export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
 export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
 export const MAP_STYLE_REGION_LABEL_STROKE_MAX = 12;
+/** v0.3.9 FEAT-E02: ruler text size and text→board gap. */
+export const MAP_STYLE_RULER_FONT_MIN = 9;
+export const MAP_STYLE_RULER_FONT_MAX = 32;
+export const MAP_STYLE_RULER_GAP_MIN = 0;
+export const MAP_STYLE_RULER_GAP_MAX = 32;
 export const MAP_STYLE_CELL_SIZE_MIN = MIN_CELL_SIZE;
 export const MAP_STYLE_CELL_SIZE_MAX = MAX_CELL_SIZE;
 
@@ -387,8 +406,14 @@ export const OBJECT_HOVER_TRANSITION_MS = 120;
 export const RULER_FONT_SIZE = 17;
 /** The cell the operation box is pinned to gets the larger glyph (§5.3). */
 export const RULER_FONT_SIZE_ACTIVE = 19;
-/** OPT-C02: visible gap between the ruler strips and the board. */
+/** OPT-C02 + v0.3.9 FEAT-E02: gap between the ruler text and the board. */
 export const RULER_GAP = 6;
+/**
+ * v0.3.9 FEAT-E02: the operated row / column glyph is always this many px
+ * larger than the idle one (v0.3.6 §5.3 shipped 17 → 19), so the relationship
+ * survives a custom `style.ruler.fontSize`.
+ */
+export const RULER_ACTIVE_FONT_DELTA = RULER_FONT_SIZE_ACTIVE - RULER_FONT_SIZE;
 /** Idle colour — a light grey (§5.1). */
 export const RULER_COLOR = '#9CA3AF';
 /** Hovered / operated row & column — darker grey, deliberately not blue (§5.2). */
@@ -424,23 +449,27 @@ export const PARTICIPANT_SEQ_BORDER = '1px solid rgba(0,0,0,0.1)';
  *
  * Everything here is a **default**: per-object settings (a region's own
  * `borderWidth`, participant theme colours, item artwork) still win. The one
- * exception is 区域边界线 colour, which is global — the region's own `color`
+ * exception is 区域轮廓线 colour, which is global — the region's own `color`
  * now only drives the fill.
+ *
+ * v0.3.9 SPEC-E01: field names follow the layer naming table, so
+ * `border` → `gridSeparator`, `regionBorder` → `regionOutline`,
+ * `mouseCursor` → `mouseCursorBox`, `operationCursor` → `operationCursorBox`.
  */
 export interface MapStyleLine {
   width: number;
   color: string;
 }
 
-export interface MapStyleMouseCursor extends MapStyleLine {
+export interface MapStyleMouseCursorBox extends MapStyleLine {
   /** Stroke colour over a cell whose object has `canStand === false`. */
   blockedColor: string;
-  /** Ring drawn over the Border so the box stays readable. */
+  /** Ring drawn over the grid separator so the box stays readable. */
   shadowColor: string;
 }
 
-export interface MapStyleOperationCursor extends MapStyleLine {
-  /** Distance from the cell edge — an Outline sits outside the Border. */
+export interface MapStyleOperationCursorBox extends MapStyleLine {
+  /** Distance from the cell edge — an Outline sits outside the grid line. */
   offset: number;
 }
 
@@ -454,6 +483,12 @@ export interface MapStyleRegionLabel {
   hoverStrokeColor: string;
 }
 
+/** v0.3.9 FEAT-E02: ruler text size + the text→board gap. */
+export interface MapStyleRuler {
+  fontSize: number;
+  gap: number;
+}
+
 export interface MapLinkageColor {
   /** Referenced by `ParticipantTarget.color`. */
   key: string;
@@ -465,12 +500,13 @@ export interface MapStyle {
   /** `null` = use the adaptive cell size; otherwise an explicit override. */
   cellSize: number | null;
   canvasFrame: MapStyleLine;
-  border: MapStyleLine;
-  mouseCursor: MapStyleMouseCursor;
-  operationCursor: MapStyleOperationCursor;
+  gridSeparator: MapStyleLine;
+  mouseCursorBox: MapStyleMouseCursorBox;
+  operationCursorBox: MapStyleOperationCursorBox;
   regionLabel: MapStyleRegionLabel;
-  regionBorder: MapStyleLine;
+  regionOutline: MapStyleLine;
   regionHighlight: MapStyleLine;
+  ruler: MapStyleRuler;
   linkageColors: MapLinkageColor[];
 }
 
@@ -482,14 +518,14 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
   /** FEAT-D03: `null` means "whatever the first adaptive pass computed". */
   cellSize: null,
   canvasFrame: { width: CANVAS_OUTER_BORDER_WIDTH, color: LINE_COLOR },
-  border: { width: BORDER_WIDTH, color: LINE_COLOR },
-  mouseCursor: {
+  gridSeparator: { width: BORDER_WIDTH, color: LINE_COLOR },
+  mouseCursorBox: {
     width: INNER_LINE_WIDTH,
     color: CELL_CURSOR_COLOR,
     blockedColor: CELL_CURSOR_BLOCKED_COLOR,
     shadowColor: CELL_CURSOR_SHADOW_COLOR,
   },
-  operationCursor: {
+  operationCursorBox: {
     width: OPERATION_CURSOR_OUTLINE_WIDTH,
     color: OPERATION_CURSOR_COLOR,
     offset: OPERATION_CURSOR_OUTLINE_OFFSET,
@@ -503,8 +539,9 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
     hoverColor: REGION_LABEL_COLOR,
     hoverStrokeColor: REGION_HIGHLIGHT_BORDER_COLOR,
   },
-  regionBorder: { width: REGION_BORDER_WIDTH_DEFAULT, color: DEFAULT_REGION_COLOR },
+  regionOutline: { width: REGION_BORDER_WIDTH_DEFAULT, color: DEFAULT_REGION_COLOR },
   regionHighlight: { width: REGION_HIGHLIGHT_WIDTH, color: REGION_HIGHLIGHT_BORDER_COLOR },
+  ruler: { fontSize: RULER_FONT_SIZE, gap: RULER_GAP },
   linkageColors: DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry })),
 };
 

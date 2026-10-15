@@ -8,8 +8,8 @@ import {
   type EditorLayer,
   type Item,
   type MapLayerName,
-  type MapStyleMouseCursor,
-  type MapStyleOperationCursor,
+  type MapStyleMouseCursorBox,
+  type MapStyleOperationCursorBox,
 } from '@murdoku/shared';
 import { cellScale, scaleLineWidth } from '@/lib/canvasScale';
 import { regionAt } from '@/lib/region';
@@ -133,7 +133,7 @@ export function resolveHoverEffects(input: {
 
 /**
  * v0.3.8 FEAT-D02: the mouse box geometry is now driven by the map style
- * (`style.mouseCursor` + `style.border`) instead of module constants, so the
+ * (`style.mouseCursorBox` + `style.border`) instead of module constants, so the
  * 「地图基本信息」drawer can retune it per map.
  *
  * §4.1/§3.3.1 (mouse box) — an Inner Line in the state colour (white for a
@@ -146,8 +146,8 @@ export function resolveHoverEffects(input: {
 export function cellCursorShadow(
   blocked: boolean,
   cellSize: number,
-  cursor: MapStyleMouseCursor = DEFAULT_MAP_STYLE.mouseCursor,
-  borderWidth: number = DEFAULT_MAP_STYLE.border.width,
+  cursor: MapStyleMouseCursorBox = DEFAULT_MAP_STYLE.mouseCursorBox,
+  borderWidth: number = DEFAULT_MAP_STYLE.gridSeparator.width,
 ): string {
   const scale = cellScale(cellSize);
   const stroke = blocked ? cursor.blockedColor : cursor.color;
@@ -165,7 +165,7 @@ export function cellCursorShadow(
  */
 export function operationCursorOutline(
   cellSize: number,
-  cursor: MapStyleOperationCursor = DEFAULT_MAP_STYLE.operationCursor,
+  cursor: MapStyleOperationCursorBox = DEFAULT_MAP_STYLE.operationCursorBox,
 ): string {
   const width = scaleLineWidth(cursor.width, cellScale(cellSize));
   return `${width}px solid ${cursor.color}`;
@@ -173,7 +173,7 @@ export function operationCursorOutline(
 
 export function operationCursorStyle(
   cellSize: number,
-  cursor: MapStyleOperationCursor = DEFAULT_MAP_STYLE.operationCursor,
+  cursor: MapStyleOperationCursorBox = DEFAULT_MAP_STYLE.operationCursorBox,
 ): {
   outline: string;
   outlineOffset: string;

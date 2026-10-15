@@ -2,7 +2,6 @@ import {
   BoxSelect,
   Eraser,
   Grid3x3,
-  Hand,
   Maximize,
   MousePointer2,
   Paintbrush,
@@ -42,7 +41,8 @@ const TOOLS: Array<{
     tip: '按 物件 → 背景 顺序逐层清除',
     icon: Eraser,
   },
-  { id: 'pan', label: '平移画布', hint: 'Space', icon: Hand },
+  // v0.3.9 FEAT-E03: the pan tool button is gone — dragging the empty area
+  // outside the board pans the canvas directly, and Space/中键 still work.
 ];
 
 const SHAPES: Array<{ id: RegionShape; label: string; icon: typeof Square }> = [

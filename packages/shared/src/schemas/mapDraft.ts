@@ -16,6 +16,10 @@ import {
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
   MAP_STYLE_OPERATION_OFFSET_MIN,
+  MAP_STYLE_RULER_FONT_MAX,
+  MAP_STYLE_RULER_FONT_MIN,
+  MAP_STYLE_RULER_GAP_MAX,
+  MAP_STYLE_RULER_GAP_MIN,
   MAP_STYLE_REGION_LABEL_FONT_MAX,
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
@@ -56,12 +60,12 @@ const styleLineSchema = (defaults: { width: number; color: string }) =>
     color: styleColorSchema.default(defaults.color),
   });
 
-const regionBorderWidthSchema = z
+const regionOutlineWidthSchema = z
   .number()
   .int()
   .min(REGION_BORDER_WIDTH_MIN)
   .max(REGION_BORDER_WIDTH_MAX)
-  .default(DEFAULT_MAP_STYLE.regionBorder.width);
+  .default(DEFAULT_MAP_STYLE.regionOutline.width);
 
 export const mapLinkageColorSchema = z.object({
   key: z.string().trim().regex(LINKAGE_COLOR_KEY_PATTERN, '主题色 key 需为小写字母开头的标识符'),
@@ -80,35 +84,35 @@ export const mapStyleSchema = z.object({
   canvasFrame: styleLineSchema(DEFAULT_MAP_STYLE.canvasFrame).default(() => ({
     ...DEFAULT_MAP_STYLE.canvasFrame,
   })),
-  border: styleLineSchema(DEFAULT_MAP_STYLE.border).default(() => ({
-    ...DEFAULT_MAP_STYLE.border,
+  gridSeparator: styleLineSchema(DEFAULT_MAP_STYLE.gridSeparator).default(() => ({
+    ...DEFAULT_MAP_STYLE.gridSeparator,
   })),
-  mouseCursor: z.object({
+  mouseCursorBox: z.object({
     width: z
       .number()
       .min(MAP_STYLE_LINE_WIDTH_MIN)
       .max(MAP_STYLE_LINE_WIDTH_MAX)
-      .default(DEFAULT_MAP_STYLE.mouseCursor.width),
-    color: styleColorSchema.default(DEFAULT_MAP_STYLE.mouseCursor.color),
-    blockedColor: styleColorSchema.default(DEFAULT_MAP_STYLE.mouseCursor.blockedColor),
-    shadowColor: styleShadowSchema.default(DEFAULT_MAP_STYLE.mouseCursor.shadowColor),
+      .default(DEFAULT_MAP_STYLE.mouseCursorBox.width),
+    color: styleColorSchema.default(DEFAULT_MAP_STYLE.mouseCursorBox.color),
+    blockedColor: styleColorSchema.default(DEFAULT_MAP_STYLE.mouseCursorBox.blockedColor),
+    shadowColor: styleShadowSchema.default(DEFAULT_MAP_STYLE.mouseCursorBox.shadowColor),
   }).default(() => ({
-    ...DEFAULT_MAP_STYLE.mouseCursor,
+    ...DEFAULT_MAP_STYLE.mouseCursorBox,
   })),
-  operationCursor: z.object({
+  operationCursorBox: z.object({
     width: z
       .number()
       .min(MAP_STYLE_LINE_WIDTH_MIN)
       .max(MAP_STYLE_LINE_WIDTH_MAX)
-      .default(DEFAULT_MAP_STYLE.operationCursor.width),
-    color: styleColorSchema.default(DEFAULT_MAP_STYLE.operationCursor.color),
+      .default(DEFAULT_MAP_STYLE.operationCursorBox.width),
+    color: styleColorSchema.default(DEFAULT_MAP_STYLE.operationCursorBox.color),
     offset: z
       .number()
       .min(MAP_STYLE_OPERATION_OFFSET_MIN)
       .max(MAP_STYLE_OPERATION_OFFSET_MAX)
-      .default(DEFAULT_MAP_STYLE.operationCursor.offset),
+      .default(DEFAULT_MAP_STYLE.operationCursorBox.offset),
   }).default(() => ({
-    ...DEFAULT_MAP_STYLE.operationCursor,
+    ...DEFAULT_MAP_STYLE.operationCursorBox,
   })),
   regionLabel: z.object({
     fontSize: z
@@ -135,15 +139,31 @@ export const mapStyleSchema = z.object({
   }).default(() => ({
     ...DEFAULT_MAP_STYLE.regionLabel,
   })),
-  regionBorder: z
+  regionOutline: z
     .object({
-      width: regionBorderWidthSchema,
-      color: styleColorSchema.default(DEFAULT_MAP_STYLE.regionBorder.color),
+      width: regionOutlineWidthSchema,
+      color: styleColorSchema.default(DEFAULT_MAP_STYLE.regionOutline.color),
     })
-    .default(() => ({ ...DEFAULT_MAP_STYLE.regionBorder })),
+    .default(() => ({ ...DEFAULT_MAP_STYLE.regionOutline })),
   regionHighlight: styleLineSchema(DEFAULT_MAP_STYLE.regionHighlight).default(() => ({
     ...DEFAULT_MAP_STYLE.regionHighlight,
   })),
+  // v0.3.9 FEAT-E02: ruler text size + the text→board gap.
+  ruler: z
+    .object({
+      fontSize: z
+        .number()
+        .int()
+        .min(MAP_STYLE_RULER_FONT_MIN)
+        .max(MAP_STYLE_RULER_FONT_MAX)
+        .default(DEFAULT_MAP_STYLE.ruler.fontSize),
+      gap: z
+        .number()
+        .min(MAP_STYLE_RULER_GAP_MIN)
+        .max(MAP_STYLE_RULER_GAP_MAX)
+        .default(DEFAULT_MAP_STYLE.ruler.gap),
+    })
+    .default(() => ({ ...DEFAULT_MAP_STYLE.ruler })),
   linkageColors: z
     .array(mapLinkageColorSchema)
     .min(LINKAGE_COLOR_MIN_COUNT, '联动主题色至少保留 2 项')

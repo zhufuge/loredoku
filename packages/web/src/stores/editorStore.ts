@@ -13,7 +13,6 @@ import {
   type MapDraft,
   type MapLinkageColor,
   type MapStyle,
-  type MapStyleLine,
   type ParticipantTarget,
 } from '@murdoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
@@ -181,11 +180,6 @@ export interface EditorState {
   setMapStyle: (updater: (style: MapStyle) => MapStyle) => void;
   /** FEAT-D03: `null` restores the adaptive cell size. */
   setCellSizeOverride: (value: number | null) => void;
-  /**
-   * FEAT-D02 §关键规则 4: the region outline is global — writing its width also
-   * syncs every existing region's own `borderWidth`.
-   */
-  applyRegionBorderStyle: (patch: Partial<MapStyleLine>) => void;
   /** FEAT-D04: removes a palette entry and re-points every reference to it. */
   removeLinkageColor: (key: string) => void;
   setLinkageColors: (colors: MapLinkageColor[]) => void;
@@ -595,28 +589,25 @@ export const useEditorStore = create<EditorState>((set, get) => {
         };
       }),
 
+    /**
+     * v0.3.8 FEAT-D02 §关键规则 4 + v0.3.9: the map style is committed in one
+     * step. 区域轮廓线（Region Outline）is a map-level style, so writing its
+     * width also mirrors it onto every existing region's own `borderWidth` —
+     * same undo step, so Ctrl+Z reverts both together.
+     */
     setMapStyle: (updater) =>
       commit((next) => {
+        const previousWidth = next.style.regionOutline.width;
         next.style = resolveMapStyle(updater(next.style));
+        if (next.style.regionOutline.width !== previousWidth) {
+          const width = next.style.regionOutline.width;
+          next.regions = next.regions.map((region) => ({ ...region, borderWidth: width }));
+        }
       }),
 
     setCellSizeOverride: (value) =>
       commit((next) => {
         next.style = resolveMapStyle({ ...next.style, cellSize: value });
-      }),
-
-    applyRegionBorderStyle: (patch) =>
-      commit((next) => {
-        next.style = resolveMapStyle({
-          ...next.style,
-          regionBorder: { ...next.style.regionBorder, ...patch },
-        });
-        // The region outline is a map-level style: keep per-region widths in
-        // step so the change is visible immediately (docs/v0.3.8.md §FEAT-D02).
-        if (patch.width !== undefined) {
-          const width = next.style.regionBorder.width;
-          next.regions = next.regions.map((region) => ({ ...region, borderWidth: width }));
-        }
       }),
 
     setLinkageColors: (colors) =>
