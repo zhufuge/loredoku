@@ -37,6 +37,7 @@ import {
   MapRegionHighlightLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapLayers';
+import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import {
   collectNoStandCells,
   collectObjectCells,
@@ -50,7 +51,7 @@ import {
 } from '@/lib/canvasSize';
 import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize } from '@/lib/mapStyle';
-import { buildRulerGlyphs, rulerStripSize } from '@/lib/ruler';
+import { rulerStripSize } from '@/lib/ruler';
 import {
   clampZoom,
   clientToCell,
@@ -209,10 +210,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
    * is the literal text→board distance, so the strip has to grow with them.
    */
   const rulerScale = cellScale(cellSize);
-  const rulerGap = style.ruler.gap;
   const rulerMaxFont =
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
-  const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: rulerGap });
+  const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
   /**
    * OPT-A01 §1.2: recompute the adaptive cell size and re-centre the board.
@@ -698,37 +698,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   /**
-   * OPT-B05 §5: both ruler strips share one state machine — idle glyphs, the
-   * hovered row / column, and the row / column of the operation box (which
-   * wins and grows from 15px to 17px, both × scale).
+   * v0.3.10 FEAT-F01: the ruler strips are a shared component
+   * (`MapRulerStrips`) so the work preview renders the identical geometry.
+   * Their thickness comes from the same `rulerStripSize` pass the editor uses
+   * to reserve the top / left bands (FEAT-E02).
    */
-  const rulerColumns = useMemo(
-    () =>
-      buildRulerGlyphs({
-        gridSize,
-        axis: 'column',
-        hoverIndex: hover?.x ?? null,
-        operationIndex: selectionCell?.x ?? null,
-        scale: rulerScale,
-        zoom,
-        fontSize: style.ruler.fontSize,
-      }),
-    [gridSize, hover?.x, selectionCell?.x, rulerScale, zoom, style.ruler.fontSize],
-  );
-  const rulerRows = useMemo(
-    () =>
-      buildRulerGlyphs({
-        gridSize,
-        axis: 'row',
-        hoverIndex: hover?.y ?? null,
-        operationIndex: selectionCell?.y ?? null,
-        scale: rulerScale,
-        zoom,
-        fontSize: style.ruler.fontSize,
-      }),
-    [gridSize, hover?.y, selectionCell?.y, rulerScale, zoom, style.ruler.fontSize],
-  );
-
   return (
     <div
       ref={containerRef}
@@ -823,84 +797,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       </div>
 
       {showRulers ? (
-        <>
-          {/* Column ruler — OPT-B05: transparent, borderless, ×scale glyphs. */}
-          <div
-            className="pointer-events-none absolute z-30"
-            style={{
-              left: pan.x,
-              // FEAT-E02: the strip is `rulerStrip` tall and the glyphs are
-              // anchored to its bottom edge with `paddingBottom: rulerGap`, so
-              // `gap` is exactly the text→board distance.
-              top: pan.y - rulerStrip,
-              height: rulerStrip,
-              width: total * zoom,
-              overflow: 'hidden',
-            }}
-          >
-            {rulerColumns.map((glyph) => (
-              <div
-                key={`rul-col-${glyph.label}`}
-                className="absolute top-0 flex h-full items-end justify-center"
-                style={{
-                  left: glyph.index * cellSize * zoom,
-                  width: cellSize * zoom,
-                  paddingBottom: rulerGap,
-                  overflow: 'hidden',
-                }}
-              >
-                <span
-                  className="whitespace-nowrap"
-                  style={{
-                    fontSize: glyph.fontSize,
-                    fontWeight: 600,
-                    lineHeight: 1,
-                    color: glyph.color,
-                  }}
-                >
-                  {glyph.label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          {/* Row ruler — the glyphs sit against the strip's right edge. */}
-          <div
-            className="pointer-events-none absolute z-30"
-            style={{
-              left: pan.x - rulerStrip,
-              top: pan.y,
-              width: rulerStrip,
-              height: total * zoom,
-              overflow: 'hidden',
-            }}
-          >
-            {rulerRows.map((glyph) => (
-              <div
-                key={`rul-row-${glyph.label}`}
-                className="absolute left-0 flex w-full items-center justify-end"
-                style={{
-                  top: glyph.index * cellSize * zoom,
-                  height: cellSize * zoom,
-                  paddingRight: rulerGap,
-                  overflow: 'hidden',
-                }}
-              >
-                <span
-                  className="whitespace-nowrap"
-                  style={{
-                    fontSize: glyph.fontSize,
-                    fontWeight: 600,
-                    lineHeight: 1,
-                    color: glyph.color,
-                  }}
-                >
-                  {glyph.label}
-                </span>
-              </div>
-            ))}
-          </div>
-        </>
+        <MapRulerStrips
+          gridSize={gridSize}
+          cellSize={cellSize}
+          zoom={zoom}
+          pan={pan}
+          total={total}
+          style={style}
+          hover={hover}
+          operationCell={selectionCell}
+        />
       ) : null}
     </div>
   );

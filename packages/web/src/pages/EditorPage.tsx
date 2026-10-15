@@ -106,6 +106,11 @@ export function EditorPage(): JSX.Element {
   const initKeyRef = useRef<number | null>(null);
   const mapInfoRef = useRef<MapInfoDrawerHandle | null>(null);
   /**
+   * FIX-F03: the project id whose 「地图基本信息」 has been auto-persisted on
+   * first entry. `null` = not done yet for the current project.
+   */
+  const basicInfoPersistedRef = useRef<number | null>(null);
+  /**
    * FEAT-E01: a drawer switch (or a close) that is waiting for the user to
    * decide what happens to unsaved 基本信息 edits.
    */
@@ -224,22 +229,53 @@ export function EditorPage(): JSX.Element {
       currentVersionNo: data.project.currentVersionNo,
       status: data.project.status,
     });
+    /**
+     * FIX-F03 (docs/v0.3.10.md §3): a project whose 「地图基本信息」 has never
+     * been persisted has `draft.style === null` — the editor shows the resolved
+     * defaults but nothing is stored. Write the whole draft (defaults + canvas
+     * size) once, on first entry, so what the editor renders and what the draft
+     * holds are the same thing from now on.
+     *
+     * Guarded by a ref (once per project) and by the dirty flag, so a user who
+     * is already editing never gets an implicit save of their work-in-progress.
+     */
+    if (data.draft.style == null && basicInfoPersistedRef.current !== id) {
+      basicInfoPersistedRef.current = id;
+      const store = useEditorStore.getState();
+      if (!store.dirty) {
+        void (async () => {
+          if (await persist()) toast.success('已保存默认地图基本信息');
+        })();
+      }
+    }
   }, [mapQuery.data, id, editor]);
 
+  /**
+   * FIX-F01: one code path persists the **whole** draft (style, canvas size and
+   * every other map datum), so the toolbar's 保存 and the 基本信息 drawer's
+   * 保存 can never disagree about what "saved" means.
+   */
+  const persist = async (): Promise<boolean> => {
+    if (saveMutation.isPending) return false;
+    try {
+      const data = await saveMutation.mutateAsync({
+        id,
+        payload: { data: editor.toDraft(), updatedAt: editor.updatedAt },
+      });
+      editor.markSaved(data.updatedAt ?? new Date().toISOString());
+      editor.setVersionInfo({
+        currentVersionNo: data.project.currentVersionNo,
+        status: data.project.status,
+      });
+      return true;
+    } catch {
+      /* errors surfaced via mutation toasts */
+      return false;
+    }
+  };
+
   const save = (): void => {
-    if (saveMutation.isPending) return;
-    saveMutation.mutate(
-      { id, payload: { data: editor.toDraft(), updatedAt: editor.updatedAt } },
-      {
-        onSuccess: (data) => {
-          editor.markSaved(data.updatedAt ?? new Date().toISOString());
-          editor.setVersionInfo({
-            currentVersionNo: data.project.currentVersionNo,
-            status: data.project.status,
-          });
-        },
-      },
-    );
+    void persist();
   };
 
   // ---- CLAR-603 + MOD-802: participant linkage lives entirely in the roster ----
@@ -340,9 +376,32 @@ export function EditorPage(): JSX.Element {
     setPendingMapInfoAction(() => proceed);
   };
 
-  const commitMapInfo = (next: MapStyle): void => {
+  const commitMapInfo = (next: MapStyle, nextGridSize: number): void => {
+    const gridSizeChanged = nextGridSize !== editor.gridSize;
     editor.setMapStyle(() => next);
+    // FIX-F01: the canvas size is part of the same form now, so it is applied
+    // locally (undoable, immediate visual feedback) and then persisted below.
+    if (gridSizeChanged) editor.setGridSize(nextGridSize);
     setMapInfoOpen(false);
+    void (async () => {
+      // The style (and everything else) goes first, so the resize that follows
+      // re-seeds the editor from a draft that already carries the new style.
+      if (!(await persist())) return;
+      if (!gridSizeChanged) return;
+      try {
+        const result = await resizeMutation.mutateAsync({ id, gridSize: nextGridSize });
+        const { background, object, regions } = result.removed;
+        if (background + object + regions > 0) {
+          toast.message('画布已调整', {
+            description: `已移除越界内容：背景 ${background}、物体 ${object}、区域 ${regions}`,
+          });
+        } else {
+          toast.success('已保存地图基本信息');
+        }
+      } catch {
+        /* errors surfaced via mutation toasts; keep the drawer closed */
+      }
+    })();
   };
 
   const closeMapInfo = (): void => {
@@ -461,12 +520,7 @@ export function EditorPage(): JSX.Element {
     }
     void (async () => {
       try {
-        if (editor.dirty) {
-          await saveMutation.mutateAsync({
-            id,
-            payload: { data: editor.toDraft(), updatedAt: editor.updatedAt },
-          });
-        }
+        if (editor.dirty) await persist();
         const result = await resizeMutation.mutateAsync({ id, gridSize: size });
         const { background, object, regions } = result.removed;
         if (background + object + regions > 0) {
@@ -1022,12 +1076,6 @@ export function EditorPage(): JSX.Element {
             characterSlots={editor.characterSlots}
             onRequestClose={closeMapInfo}
             onCommit={commitMapInfo}
-            onRequestResize={(next) => {
-              guardMapInfo(() => {
-                setResizeValue(next);
-                setResizeOpen(true);
-              });
-            }}
           />
         </main>
       </div>

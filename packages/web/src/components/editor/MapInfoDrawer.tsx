@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { HelpCircle, Plus, RotateCcw, Trash2, X } from 'lucide-react';
 import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
@@ -34,6 +34,7 @@ import {
   type MapStyle,
 } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
+import { ColorInput } from '@/components/ui/color-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -68,11 +69,11 @@ const NEW_COLOR_SUGGESTIONS = ['#FFD166', '#A5D6A7', '#F48FB1', '#B0BEC5', '#CE9
 
 /** Imperative surface used by `EditorPage` to gate drawer switches. */
 export interface MapInfoDrawerHandle {
-  /** True while the draft differs from the committed style. */
+  /** True while the draft differs from the committed style / grid size. */
   isDirty: () => boolean;
   /** Commits the draft (same as pressing 保存). */
   save: () => void;
-  /** Drops the draft and re-reads the committed style. */
+  /** Drops the draft and re-reads the committed style / grid size. */
   discard: () => void;
 }
 
@@ -89,10 +90,12 @@ interface MapInfoDrawerProps {
    * `EditorPage` decides whether to prompt for unsaved edits first.
    */
   onRequestClose: () => void;
-  /** Applies the draft. `EditorPage` closes the drawer afterwards. */
-  onCommit: (style: MapStyle) => void;
-  /** FEAT-D02: `n` reuses the toolbar's resize flow (with the removal preview). */
-  onRequestResize: (gridSize: number) => void;
+  /**
+   * v0.3.10 FIX-F01: applies the whole draft — the style **and** the canvas
+   * size, which now belongs to the same form. `EditorPage` closes the drawer
+   * after it has persisted both.
+   */
+  onCommit: (style: MapStyle, gridSize: number) => void;
   /** FEAT-E01: reports the dirty flag so the parent can gate drawer switches. */
   onDirtyChange?: (dirty: boolean) => void;
 }
@@ -108,6 +111,20 @@ function useDraft<T>(source: T, open: boolean): [T, (next: T | ((current: T) => 
   return [draft, setDraft];
 }
 
+/**
+ * v0.3.10 FIX-F02: a number field that writes through on **every** change.
+ *
+ * The previous implementation kept the parsed value in a local text buffer and
+ * only committed on `blur` / `Enter`, so clicking the input's stepper buttons
+ * left the draft (and therefore 保存) untouched. Now every keystroke and every
+ * stepper click pushes the parsed value into the draft immediately; `blur` /
+ * `Enter` only serve to roll back non-numeric input.
+ *
+ * The text buffer is deliberately **not** re-synced while the field has focus,
+ * otherwise a clamped commit (e.g. typing `1` into a 90 ~ 240 field) would
+ * rewrite the text under the user's cursor and make multi-digit entry
+ * impossible.
+ */
 function NumberField({
   id,
   value,
@@ -126,10 +143,23 @@ function NumberField({
   commit: (value: number) => void;
 }): JSX.Element {
   const [draft, setDraft] = useState(String(value));
-  useEffect(() => setDraft(String(value)), [value]);
+  const focusedRef = useRef(false);
+
+  useEffect(() => {
+    if (focusedRef.current) return;
+    setDraft((current) => (current === String(value) ? current : String(value)));
+  }, [value]);
 
   const flush = (): void => {
-    const parsed = Number(draft);
+    const text = draft.trim();
+    // An emptied field (a `type="number"` input reports `''` for anything
+    // non-numeric) is *not* a value — restore the committed one instead of
+    // silently committing 0.
+    if (text.length === 0) {
+      setDraft(String(value));
+      return;
+    }
+    const parsed = Number(text);
     if (!Number.isFinite(parsed)) {
       setDraft(String(value));
       return;
@@ -146,8 +176,19 @@ function NumberField({
         max={max}
         step={step}
         value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={flush}
+        onChange={(event) => {
+          const text = event.target.value;
+          setDraft(text);
+          const parsed = Number(text);
+          if (text.trim().length > 0 && Number.isFinite(parsed)) commit(parsed);
+        }}
+        onFocus={() => {
+          focusedRef.current = true;
+        }}
+        onBlur={() => {
+          focusedRef.current = false;
+          flush();
+        }}
         onKeyDown={(event) => {
           if (event.key === 'Enter') {
             event.preventDefault();
@@ -202,6 +243,10 @@ function TextField({
   );
 }
 
+/**
+ * v0.3.10 FIX-F04: the colour swatch is the shared `ColorInput` — borderless,
+ * with only a hairline ring so light swatches stay visible.
+ */
 function ColorField({
   id,
   value,
@@ -221,12 +266,13 @@ function ColorField({
 
   return (
     <div className="flex items-center gap-1">
-      <input
+      <ColorInput
         id={id}
-        type="color"
         value={isValidStyleColor(value) ? value : '#000000'}
-        onChange={(event) => commit(event.target.value.toUpperCase())}
-        className="h-7 w-8 cursor-pointer rounded border bg-transparent"
+        onChange={(next) => {
+          setDraft(next);
+          commit(next);
+        }}
         aria-label="选择颜色"
       />
       <Input
@@ -245,6 +291,24 @@ function ColorField({
   );
 }
 
+/**
+ * SPEC-F01: every explanation lives behind a circular question-mark icon that
+ * trails the label — no more `title` on the label itself and no more grey
+ * paragraphs floating under the fields.
+ */
+function Hint({ text }: { text: string }): JSX.Element {
+  return (
+    <span
+      className="ml-1 inline-flex shrink-0 items-center text-muted-foreground"
+      title={text}
+      aria-label={text}
+      role="img"
+    >
+      <HelpCircle className="h-3.5 w-3.5 cursor-help" />
+    </span>
+  );
+}
+
 function Row({
   label,
   hint,
@@ -256,8 +320,9 @@ function Row({
 }): JSX.Element {
   return (
     <div className="flex items-center justify-between gap-2">
-      <Label className="text-[11px] font-normal text-muted-foreground" title={hint}>
-        {label}
+      <Label className="flex items-center text-[11px] font-normal text-muted-foreground">
+        <span>{label}</span>
+        {hint ? <Hint text={hint} /> : null}
       </Label>
       {children}
     </div>
@@ -275,8 +340,9 @@ function Section({
 }): JSX.Element {
   return (
     <section className="space-y-2 border-b px-4 py-3 last:border-b-0">
-      <h3 className="text-xs font-semibold text-foreground" title={hint}>
-        {title}
+      <h3 className="flex items-center text-xs font-semibold text-foreground">
+        <span>{title}</span>
+        {hint ? <Hint text={hint} /> : null}
       </h3>
       <div className="space-y-2">{children}</div>
     </section>
@@ -284,13 +350,15 @@ function Section({
 }
 
 /**
- * v0.3.8 FEAT-D01/D02 + v0.3.9 FEAT-E01 (docs/v0.3.9.md §3): the
- * 「地图基本信息」drawer.
+ * v0.3.8 FEAT-D01/D02 + v0.3.9 FEAT-E01 + v0.3.10 FIX-F01/FIX-F02/FIX-F04/FIX-F05/SPEC-F01:
+ * the 「地图基本信息」drawer.
  *
- * The drawer is a **form**: every control edits a local draft, the canvas only
- * changes when 保存 is pressed, and 取消 / × / switching to another info panel
- * ask for confirmation first (the parent owns that dialog). Layer names follow
- * 《画布图层优先级规范》§1.
+ * The drawer is a **form**: every control edits a local draft (written through in
+ * real time), the canvas only changes when 保存 is pressed, and 取消 / × /
+ * switching to another info panel ask for confirmation first (the parent owns
+ * that dialog). 画布尺寸 is part of the same draft since v0.3.10, so 保存
+ * persists the style **and** the canvas size together.
+ * Layer names follow 《画布图层优先级规范》§1.
  */
 export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>(
   function MapInfoDrawer(
@@ -302,12 +370,12 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       characterSlots,
       onRequestClose,
       onCommit,
-      onRequestResize,
       onDirtyChange,
     },
     ref,
   ): JSX.Element {
     const [draft, setDraft] = useDraft<MapStyle>(style, open);
+    const [draftGridSize, setDraftGridSize] = useDraft<number>(gridSize, open);
     const [deleteColorKey, setDeleteColorKey] = useState<string | null>(null);
     /**
      * Set while committing / discarding. `style` only reaches this component on
@@ -316,9 +384,9 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
      */
     const settledRef = useRef(false);
 
-    const dirty = !mapStyleEquals(draft, style);
-    const latest = useRef({ draft, style, dirty });
-    latest.current = { draft, style, dirty };
+    const dirty = !mapStyleEquals(draft, style) || draftGridSize !== gridSize;
+    const latest = useRef({ draft, draftGridSize, style, gridSize, dirty });
+    latest.current = { draft, draftGridSize, style, gridSize, dirty };
 
     useEffect(() => {
       if (open) settledRef.current = false;
@@ -333,17 +401,18 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       () => ({
         isDirty: () => !settledRef.current && latest.current.dirty,
         save: () => {
-          const { draft: current, dirty: isDirty } = latest.current;
+          const { draft: current, draftGridSize: size, dirty: isDirty } = latest.current;
           settledRef.current = true;
-          if (isDirty) onCommit(current);
+          if (isDirty) onCommit(current, size);
           else onRequestClose();
         },
         discard: () => {
           settledRef.current = true;
           setDraft(latest.current.style);
+          setDraftGridSize(latest.current.gridSize);
         },
       }),
-      [onCommit, onRequestClose, setDraft],
+      [onCommit, onRequestClose, setDraft, setDraftGridSize],
     );
 
     const patch = (updater: (current: MapStyle) => MapStyle): void =>
@@ -403,6 +472,12 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
         linkageColors: current.linkageColors.filter((entry) => entry.key !== key),
       }));
 
+    const cellSizeHint = `方格边长（px），可指定 ${MAP_STYLE_CELL_SIZE_MIN} ~ ${MAP_STYLE_CELL_SIZE_MAX}，未指定时按窗口自适应。${
+      draft.cellSize === null
+        ? `当前为自适应（本次计算值 ${autoCellSize}px），窗口尺寸变化会重新计算。`
+        : '当前已手动指定，窗口尺寸变化不再改变方格大小。'
+    }`;
+
     return (
       <aside
         aria-hidden={!open}
@@ -428,23 +503,24 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
           {/* ---- 画布 ---- */}
-          <Section title="画布">
-            <Row label="画布尺寸" hint="Canvas Size">
+          <Section title="画布" hint="Canvas — 画布的几何尺寸。">
+            <Row
+              label="画布尺寸"
+              hint="画布的边长（格数），最少 2 格、最多 24 格。修改随「保存」一起写入，缩小尺寸时越界的内容会被移除。"
+            >
               <NumberField
                 id="map-info-grid-size"
-                value={gridSize}
+                value={draftGridSize}
                 min={GRID_SIZE_MIN}
                 max={GRID_SIZE_MAX}
-                commit={(value) => {
-                  const next = Math.min(GRID_SIZE_MAX, Math.max(GRID_SIZE_MIN, Math.round(value)));
-                  if (next !== gridSize) onRequestResize(next);
-                }}
+                commit={(value) =>
+                  setDraftGridSize(
+                    Math.min(GRID_SIZE_MAX, Math.max(GRID_SIZE_MIN, Math.round(value))),
+                  )
+                }
               />
             </Row>
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
-              调整画布尺寸会先弹出确认，确认时会先保存草稿。
-            </p>
-            <Row label="方格大小" hint="Cell Size">
+            <Row label="方格大小" hint={cellSizeHint}>
               <div className="flex items-center gap-1">
                 <NumberField
                   id="map-info-cell-size"
@@ -473,18 +549,17 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 </Button>
               </div>
             </Row>
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
-              自适应计算值 {autoCellSize}px；范围 {MAP_STYLE_CELL_SIZE_MIN}~
-              {MAP_STYLE_CELL_SIZE_MAX}px。
-              {draft.cellSize === null
-                ? ' 当前为自适应，窗口尺寸变化会重新计算。'
-                : ' 已手动指定，窗口尺寸变化不再改变方格大小。'}
-            </p>
           </Section>
 
           {/* ---- 线条 ---- */}
-          <Section title="线条">
-            <Row label="画布外框" hint="Canvas Frame — the board's outermost frame">
+          <Section
+            title="线条"
+            hint="Lines — 各图层的线宽与颜色。所有数值都是「基准值」，随方格尺寸等比缩放，不随画布缩放变化。"
+          >
+            <Row
+              label="画布外框"
+              hint="Canvas Frame — 整张画布最外圈的边框线，绘制在画布矩形之外，与格内内容不重叠。"
+            >
               <div className="flex items-center gap-1">
                 <NumberField
                   id="map-info-frame-width"
@@ -511,7 +586,10 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
               </div>
             </Row>
 
-            <Row label="网格分隔线" hint="Grid Separator — the lines between cells">
+            <Row
+              label="网格分隔线"
+              hint="Grid Separator — 方格之间的内部分隔线。相邻两格共享同一条线，因此 n × n 的画布只有 n − 1 条横线与 n − 1 条竖线。"
+            >
               <div className="flex items-center gap-1">
                 <NumberField
                   id="map-info-grid-separator-width"
@@ -539,8 +617,9 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
             </Row>
 
             <div className="space-y-1.5 rounded-md border p-2">
-              <span className="text-[11px] font-medium" title="Mouse Cursor Box">
-                鼠标光标框
+              <span className="flex items-center text-[11px] font-medium">
+                <span>鼠标光标框</span>
+                <Hint text="Mouse Cursor Box — 跟随指针移动的方格提示框，是画布的最高层，任何内容都盖不住它。" />
               </span>
               <Row label="线宽">
                 <NumberField
@@ -582,23 +661,21 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
               </Row>
               <Row label="阴影环">
                 <div className="flex items-center gap-1">
-                  <input
-                    type="color"
+                  <ColorInput
                     value={
                       isValidStyleColor(draft.mouseCursorBox.shadowColor)
                         ? draft.mouseCursorBox.shadowColor
                         : '#000000'
                     }
-                    onChange={(event) =>
+                    onChange={(value) =>
                       patch((current) => ({
                         ...current,
                         mouseCursorBox: {
                           ...current.mouseCursorBox,
-                          shadowColor: event.target.value.toUpperCase(),
+                          shadowColor: value,
                         },
                       }))
                     }
-                    className="h-7 w-8 cursor-pointer rounded border bg-transparent"
                     aria-label="阴影环颜色"
                   />
                   <Input
@@ -618,8 +695,9 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
             </div>
 
             <div className="space-y-1.5 rounded-md border p-2">
-              <span className="text-[11px] font-medium" title="Operation Cursor Box">
-                操作光标框
+              <span className="flex items-center text-[11px] font-medium">
+                <span>操作光标框</span>
+                <Hint text="Operation Cursor Box — 固定在「当前操作方格」上的提示框，以外描边形式画在网格分隔线外侧，不参与布局。" />
               </span>
               <Row label="线宽">
                 <NumberField
@@ -670,7 +748,10 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
               </Row>
             </div>
 
-            <Row label="区域轮廓线" hint="Region Outline — the contour of a region">
+            <Row
+              label="区域轮廓线"
+              hint="Region Outline — 区域外轮廓的描线。改色对所有区域生效；改线宽会同步写入所有现存区域，并成为新建区域的缺省值。区域自身的颜色仍用于区域填充。"
+            >
               <div className="flex items-center gap-1">
                 <NumberField
                   id="map-info-region-outline-width"
@@ -699,12 +780,11 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 />
               </div>
             </Row>
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
-              区域轮廓线为地图级样式：改色对所有区域生效；改线宽会同步写入所有现存区域，并成为新建区域的
-              缺省值。区域自身的颜色仍用于区域填充。
-            </p>
 
-            <Row label="区域高亮线" hint="Region Highlight — shown while a region is active">
+            <Row
+              label="区域高亮线"
+              hint="Region Highlight — 区域被悬停或联动激活时出现的内侧高亮线，连续闭合；激活期间常亮，结束时 150ms 淡出。"
+            >
               <div className="flex items-center gap-1">
                 <NumberField
                   id="map-info-region-highlight-width"
@@ -736,7 +816,10 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
           </Section>
 
           {/* ---- 区域标签 ---- */}
-          <Section title="区域标签" hint="Region Label">
+          <Section
+            title="区域标签"
+            hint="Region Label — 区域名称文字，采用「描边 + 填充」绘制，在深浅背景上都可读。"
+          >
             <Row label="字体大小">
               <NumberField
                 id="map-info-label-font"
@@ -842,8 +925,14 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
           </Section>
 
           {/* ---- 标尺 ---- */}
-          <Section title="标尺" hint="Ruler">
-            <Row label="文本大小" hint="Ruler Font Size">
+          <Section
+            title="标尺"
+            hint="Ruler — 沿画布上边缘与左边缘的行列标尺，透明、无边框、无下划线。"
+          >
+            <Row
+              label="文本大小"
+              hint="标尺文本大小（9 ~ 32px，基准值，随方格尺寸等比缩放）；操作格所在行列比普通文本大 2px。"
+            >
               <NumberField
                 id="map-info-ruler-font"
                 value={draft.ruler.fontSize}
@@ -858,7 +947,10 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 }
               />
             </Row>
-            <Row label="文本到地图的间距" hint="Ruler Gap — text→board distance">
+            <Row
+              label="文本到地图的间距"
+              hint="Ruler Gap — 标尺文本与画布之间的距离（0 ~ 32px）。间距会同时参与标尺条厚度的计算。"
+            >
               <NumberField
                 id="map-info-ruler-gap"
                 value={draft.ruler.gap}
@@ -873,13 +965,13 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 }
               />
             </Row>
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
-              标尺文本随方格尺寸等比缩放；操作格所在行列比普通文本大 2px。
-            </p>
           </Section>
 
           {/* ---- 联动主题色 ---- */}
-          <Section title="联动主题色">
+          <Section
+            title="联动主题色"
+            hint="Linkage Colors — 参与者联动的主题色调色板，以 key 指向具体颜色，驱动方块高亮、背景高亮与区域高亮线。"
+          >
             <ul className="space-y-1.5">
               {linkageColors.map((entry) => (
                 <li key={entry.key} className="flex items-center gap-1">
@@ -943,7 +1035,12 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
           <Button type="button" variant="outline" size="sm" onClick={onRequestClose}>
             取消
           </Button>
-          <Button type="button" size="sm" disabled={!dirty} onClick={() => onCommit(draft)}>
+          <Button
+            type="button"
+            size="sm"
+            disabled={!dirty}
+            onClick={() => onCommit(draft, draftGridSize)}
+          >
             保存
           </Button>
         </footer>

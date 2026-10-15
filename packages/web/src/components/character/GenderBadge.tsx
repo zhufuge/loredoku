@@ -32,7 +32,9 @@ export function GenderBadge({ gender, withLabel = false }: GenderBadgeProps): JS
       <span
         aria-hidden
         className="text-[13px] leading-none"
-        style={{ color }}
+        // v0.3.10 FIX-F06: the ♂ / ♀ glyph is drawn thin by default and reads
+        // blurry at 13px, so it is explicitly bolded (colour unchanged).
+        style={{ color, fontWeight: 700 }}
       >
         {glyph}
       </span>

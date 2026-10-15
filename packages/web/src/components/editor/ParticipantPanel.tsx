@@ -43,6 +43,9 @@ import { cn } from '@/lib/utils';
  * - MOD-703: theme color background layer behind avatar
  * - MOD-705: removal confirmation handled by parent (via onClearRequest)
  * - MOD-706: title bar shares the item panel header height
+ * - v0.3.10 FIX-F07: `readOnly` renders the **same** panel on the work preview
+ *   page — no drag, no remove button, pointer cursor — so the preview roster is
+ *   pixel-identical to the editor's.
  */
 interface ParticipantPanelProps {
   slots: Array<CharacterSlotEntry | null>;
@@ -53,19 +56,25 @@ interface ParticipantPanelProps {
   activeSlotIndex?: number | null;
   highlightedSlots?: Set<number>;
   highlightColors?: Map<number, string>;
-  onSelect: (slotIndex: number | null) => void;
+  /**
+   * v0.3.10 FIX-F07: the work preview reuses this component. Read-only mode
+   * drops every editing affordance (drag, × button, grab cursor) and keeps the
+   * layout, the metrics and the highlight frame identical.
+   */
+  readOnly?: boolean;
+  onSelect?: (slotIndex: number | null) => void;
   /** MOD-802: pointer entered a slot → hover-activate its linkages. */
-  onActivateHover: (slotIndex: number) => void;
+  onActivateHover?: (slotIndex: number) => void;
   /** MOD-802: pointer left a slot → hover-deactivate (no-op when click-active). */
-  onDeactivateHover: (slotIndex: number) => void;
+  onDeactivateHover?: (slotIndex: number) => void;
   /** MOD-802: click a slot → toggle click-activation. */
-  onActivateClick: (slotIndex: number) => void;
+  onActivateClick?: (slotIndex: number) => void;
   /** Click on × button — parent handles confirmation (MOD-705). */
-  onClearRequest: (index: number) => void;
-  onDragBegin: (payload: { slotIndex: number; pointer: { x: number; y: number } }) => void;
-  onDragMove: (pointer: { x: number; y: number }) => void;
-  onDragEnd: (pointer: { x: number; y: number }) => void;
-  onDragCancel: () => void;
+  onClearRequest?: (index: number) => void;
+  onDragBegin?: (payload: { slotIndex: number; pointer: { x: number; y: number } }) => void;
+  onDragMove?: (pointer: { x: number; y: number }) => void;
+  onDragEnd?: (pointer: { x: number; y: number }) => void;
+  onDragCancel?: () => void;
 }
 
 const CLEAR_BUTTON_ATTR = 'data-slot-clear';
@@ -97,6 +106,7 @@ export function ParticipantPanel({
   activeSlotIndex = null,
   highlightedSlots,
   highlightColors,
+  readOnly = false,
   onSelect,
   onActivateHover,
   onDeactivateHover,
@@ -192,7 +202,7 @@ export function ParticipantPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {slots.length === 0 ? (
           <p className="px-2 py-6 text-center text-[10px] text-muted-foreground">
-            从角色列表拖拽到参与者区
+            {readOnly ? '该作品暂无参与者' : '从角色列表拖拽到参与者区'}
           </p>
         ) : (
           <div
@@ -242,6 +252,7 @@ export function ParticipantPanel({
                     ...focusRingStyle,
                   }}
                   onPointerDown={(event) => {
+                    if (readOnly) return;
                     if (hitClearButton(event.target)) return;
                     if (event.button !== 0) return;
                     event.currentTarget.setPointerCapture(event.pointerId);
@@ -254,6 +265,7 @@ export function ParticipantPanel({
                     };
                   }}
                   onPointerMove={(event) => {
+                    if (readOnly) return;
                     const arm = armRef.current;
                     if (!arm || arm.pointerId !== event.pointerId) return;
                     if (!arm.active) {
@@ -263,40 +275,46 @@ export function ParticipantPanel({
                       );
                       if (distance <= DRAG_THRESHOLD) return;
                       arm.active = true;
-                      onDragBegin({
+                      onDragBegin?.({
                         slotIndex: arm.index,
                         pointer: { x: event.clientX, y: event.clientY },
                       });
                     }
-                    onDragMove({ x: event.clientX, y: event.clientY });
+                    onDragMove?.({ x: event.clientX, y: event.clientY });
                   }}
                   onPointerUp={(event) => {
+                    if (readOnly) {
+                      // FIX-F07: read-only mode only toggles the linkage preview.
+                      if (event.button === 0 && slots[index]) onActivateClick?.(index);
+                      return;
+                    }
                     const arm = armRef.current;
                     if (!arm || arm.pointerId !== event.pointerId) return;
                     reset();
                     if (arm.active) {
-                      onDragEnd({ x: event.clientX, y: event.clientY });
+                      onDragEnd?.({ x: event.clientX, y: event.clientY });
                       return;
                     }
                     if (!slots[index]) return;
                     // MOD-802: a click both toggles the linkage activation
                     // and opens the info drawer for editing.
-                    onActivateClick(index);
-                    onSelect(isSelected ? null : index);
+                    onActivateClick?.(index);
+                    onSelect?.(isSelected ? null : index);
                   }}
                   onPointerCancel={() => {
+                    if (readOnly) return;
                     if (!armRef.current) return;
                     const wasActive = armRef.current.active;
                     reset();
-                    if (wasActive) onDragCancel();
+                    if (wasActive) onDragCancel?.();
                   }}
                   onPointerEnter={() => {
                     if (hoverLocked || !slots[index]) return;
-                    onActivateHover(index);
+                    onActivateHover?.(index);
                   }}
                   onPointerLeave={() => {
                     if (hoverLocked || !slots[index]) return;
-                    onDeactivateHover(index);
+                    onDeactivateHover?.(index);
                   }}
                   onMouseEnter={() => setHoveredSlot(index)}
                   onMouseLeave={() =>
@@ -309,7 +327,15 @@ export function ParticipantPanel({
                   }
                   className={cn(
                     'relative flex flex-col items-center justify-start rounded-md border',
-                    draggingIndex !== null ? 'cursor-grabbing' : slot ? 'cursor-grab' : undefined,
+                    readOnly
+                      ? slot
+                        ? 'cursor-pointer'
+                        : 'cursor-default'
+                      : draggingIndex !== null
+                        ? 'cursor-grabbing'
+                        : slot
+                          ? 'cursor-grab'
+                          : undefined,
                     slot
                       ? isSelected
                         ? 'border-primary bg-accent'
@@ -400,7 +426,7 @@ export function ParticipantPanel({
                   </div>
 
                   {/* MOD-705: × button triggers confirmation via parent */}
-                  {slot ? (
+                  {!readOnly && slot ? (
                     <button
                       type="button"
                       {...{ [CLEAR_BUTTON_ATTR]: 'true' }}
@@ -410,7 +436,7 @@ export function ParticipantPanel({
                       onClick={(event) => {
                         event.stopPropagation();
                         if (!slots[index]) return;
-                        onClearRequest(index);
+                        onClearRequest?.(index);
                         setHoveredSlot(null);
                       }}
                       className={cn(

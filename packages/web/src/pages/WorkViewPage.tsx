@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Minus, Plus, RotateCcw } from 'lucide-react';
+import { ArrowLeft, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
   MAP_LAYER_Z,
+  RULER_ACTIVE_FONT_DELTA,
   type CellCoord,
   type Character,
   type CharacterSlotEntry,
@@ -11,7 +12,7 @@ import {
   type MapDraft,
 } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
-import { GenderBadge } from '@/components/character/GenderBadge';
+import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
   MapBackgroundLayer,
   MapCanvasFrameLayer,
@@ -25,6 +26,7 @@ import {
   MapRegionHighlightLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapLayers';
+import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useHighlight } from '@/hooks/useHighlight';
@@ -36,16 +38,28 @@ import {
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
-import { objectPadding } from '@/lib/canvasScale';
+import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
+import { rulerStripSize } from '@/lib/ruler';
 import {
   INACTIVE_ACTIVATION,
   reduceLinkageActivation,
   type LinkageActivationEvent,
   type LinkageActivationState,
 } from '@/lib/linkageActivation';
-import { cn } from '@/lib/utils';
+
+/**
+ * FEAT-F01: the work preview's ruler toggle. The editor owns its own switch;
+ * this key only persists the reader's preference across reloads.
+ */
+const RULER_STORAGE_KEY = 'murdoku.workview.ruler';
+
+/** Reads the persisted toggle, defaulting to visible (the editor's default). */
+function readStoredRulerVisible(): boolean {
+  if (typeof window === 'undefined') return true;
+  return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
+}
 
 export function WorkViewPage(): JSX.Element {
   const { workId } = useParams<{ workId: string }>();
@@ -69,7 +83,7 @@ export function WorkViewPage(): JSX.Element {
   } = useHighlight();
   // MOD-802: single-active linkage preview — hover activates, click toggles.
   const [activation, setActivation] = useState<LinkageActivationState>(INACTIVE_ACTIVATION);
-  const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
+  const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -123,6 +137,16 @@ export function WorkViewPage(): JSX.Element {
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
+  /**
+   * FEAT-F01 / FEAT-F02: the strip thickness is derived from the snapshot's
+   * `style.ruler` with the **same** `rulerStripSize` pass the editor uses, and
+   * the result is fed back into the adaptive insets so the reserved top / left
+   * bands match the rendered strips pixel for pixel.
+   */
+  const rulerScale = cellScale(cellSize);
+  const rulerMaxFont =
+    scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
+  const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 ----
   const noStandCells = useMemo(
@@ -155,26 +179,40 @@ export function WorkViewPage(): JSX.Element {
   /**
    * OPT-A01 §1.2: measure the viewport and re-fit the board. Clears the
    * manual-adjustment flag, so this doubles as "重置视图".
+   *
+   * FEAT-F02: the inset carries `showRulers` / `rulerSize`, so the adaptive
+   * pass reserves exactly the bands the ruler strips occupy. The preview has no
+   * floating bottom toolbar, hence `showBottomBar: false`.
    */
-  const fit = (): void => {
+  const fit = useCallback((): void => {
     const node = containerRef.current;
     userAdjustedRef.current = false;
     if (!node || gridSize === 0) return;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    const insets = canvasInsets();
+    const insets = canvasInsets({
+      showRulers,
+      showBottomBar: false,
+      rulerSize: rulerStrip,
+    });
     const next = computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
     setAutoCellSize((previous) => (previous === next ? previous : next));
     setZoom(1);
     setPan(centeredPan(rect, insets, gridSize, effectiveCellSize(next, style), 1));
-  };
+  }, [gridSize, showRulers, rulerStrip, style]);
+
+  // The ResizeObserver callback must always see the latest `fit` (it depends on
+  // the ruler toggle and on the computed strip thickness), so the effect keeps
+  // a ref instead of closing over one particular render's closure.
+  const fitRef = useRef(fit);
+  fitRef.current = fit;
 
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
     const apply = (): void => {
       if (userAdjustedRef.current) return;
-      fit();
+      fitRef.current();
     };
     apply();
     const observer = new ResizeObserver(apply);
@@ -182,6 +220,15 @@ export function WorkViewPage(): JSX.Element {
     return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridSize]);
+
+  // FEAT-F01 §4: toggling the strips changes the reserved bands, so the board
+  // is re-fitted once (and the reader's choice is persisted).
+  useEffect(() => {
+    fitRef.current();
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(RULER_STORAGE_KEY, showRulers ? 'visible' : 'hidden');
+    }
+  }, [showRulers]);
 
   useEffect(() => {
     const onKeyUp = (event: KeyboardEvent): void => {
@@ -237,6 +284,24 @@ export function WorkViewPage(): JSX.Element {
     );
   }, [activeSlot, gridSize, cells, slots, regions, style, showHighlight, clearHighlight]);
 
+  /**
+   * MOD-802 §1.2.5: characters referenced by the active linkage get a
+   * param-colour outline (a single `boxShadow` ring, FIX-E04) in the roster.
+   */
+  const highlightedSlots = useMemo(() => {
+    const set = new Set<number>();
+    for (const character of highlight?.characters ?? []) set.add(character.slotIndex);
+    return set;
+  }, [highlight]);
+
+  const highlightColors = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const character of highlight?.characters ?? []) {
+      map.set(character.slotIndex, character.color);
+    }
+    return map;
+  }, [highlight]);
+
   // A new snapshot must not inherit a stale activation or hover.
   useEffect(() => {
     setActivation(INACTIVE_ACTIVATION);
@@ -267,17 +332,6 @@ export function WorkViewPage(): JSX.Element {
     );
   }
 
-  const participants = slots
-    .map((slot, index) => ({ slot, index }))
-    .filter((entry): entry is { slot: CharacterSlotEntry; index: number } => entry.slot !== null);
-
-  // MOD-802 §1.2.5: characters referenced by the active linkage get a 3px
-  // param-colour outline (and a slight scale-up) in the roster.
-  const highlightColors = new Map<number, string>();
-  for (const character of highlight?.characters ?? []) {
-    highlightColors.set(character.slotIndex, character.color);
-  }
-
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
@@ -296,6 +350,17 @@ export function WorkViewPage(): JSX.Element {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          {/* FEAT-F01: the reader can hide the strips; the choice is persisted. */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={showRulers ? 'bg-accent text-accent-foreground' : undefined}
+            title="显示 / 隐藏标尺"
+            aria-label="显示 / 隐藏标尺"
+            onClick={() => setShowRulers((current) => !current)}
+          >
+            <Ruler className="h-4 w-4" />
+          </Button>
           <Button variant="ghost" size="icon" title="缩小" onClick={() => zoomBy(-1)}>
             <Minus className="h-4 w-4" />
           </Button>
@@ -312,88 +377,21 @@ export function WorkViewPage(): JSX.Element {
       </header>
 
       <div className="flex min-h-0 flex-1">
-        <aside className="flex w-64 shrink-0 flex-col border-r bg-background">
-          {/* MOD-802: no trigger tabs — hover previews, click pins the preview */}
-          <div
-            className="shrink-0 border-b px-3 text-center"
-            style={{ height: 36, lineHeight: '36px', fontSize: 13, fontWeight: 600, color: '#1F2937' }}
-          >
-            参与者 {participants.length}
-          </div>
-          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-            {participants.length === 0 ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">该作品暂无参与者</p>
-            ) : (
-              participants.map(({ slot, index }) => {
-                const character = charactersById.get(slot.characterId);
-                const themeColor = slot.themeColor ?? '#FFFFFF';
-                const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
-                const avatar = character?.avatarThumbUrl ?? character?.avatarUrl;
-                const isActive = activation.activeParticipantId === index;
-                const linkedColor = highlightColors.get(index);
-                return (
-                  <button
-                    key={`${slot.characterId}-${index}`}
-                    type="button"
-                    onPointerEnter={() => handleActivation({ type: 'enter', participantId: index })}
-                    onPointerLeave={() => handleActivation({ type: 'leave', participantId: index })}
-                    onMouseEnter={() => setHoveredSlot(index)}
-                    onMouseLeave={() => setHoveredSlot(null)}
-                    onClick={() => handleActivation({ type: 'click', participantId: index })}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-md border p-2 text-left transition-colors',
-                      hoveredSlot === index ? 'border-primary bg-accent' : 'hover:border-primary',
-                    )}
-                    // FIX-E04: one highlight frame only, matching the editor.
-                    style={
-                      linkedColor
-                        ? { boxShadow: `0 0 0 2px ${linkedColor}` }
-                        : isActive
-                          ? { boxShadow: '0 0 0 2px hsl(var(--primary))' }
-                          : undefined
-                    }
-                  >
-                    <span
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
-                      style={{
-                        backgroundColor: themeColor,
-                        // FIX-E04: the outline lives on the slot row, so the
-                        // avatar only scales up.
-                        transform: linkedColor ? 'scale(1.08)' : undefined,
-                        transition: 'transform 150ms linear',
-                        border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
-                      }}
-                    >
-                      {avatar ? (
-                        <img
-                          src={avatar}
-                          alt={character?.name ?? ''}
-                          draggable={false}
-                          className="h-[82%] w-[82%] rounded-full object-cover"
-                        />
-                      ) : (
-                        <span className="text-xs font-semibold text-muted-foreground">
-                          {character?.name?.slice(0, 1) ?? '?'}
-                        </span>
-                      )}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="flex items-center gap-1">
-                        <span className="truncate text-sm">
-                          {character?.name ?? `#${slot.characterId}`}
-                        </span>
-                        <GenderBadge gender={character?.gender} />
-                      </span>
-                      <span className="text-[11px] text-muted-foreground">
-                        参与者框 #{index + 1}
-                      </span>
-                    </span>
-                  </button>
-                );
-              })
-            )}
-          </div>
-        </aside>
+        {/* FIX-F07: the very same matrix panel the editor uses — read-only, so
+            there is nothing to drag or remove. */}
+        <ParticipantPanel
+          slots={slots}
+          charactersById={charactersById}
+          selectedSlotIndex={null}
+          draggingIndex={null}
+          activeSlotIndex={activation.activeParticipantId}
+          highlightedSlots={highlightedSlots}
+          highlightColors={highlightColors}
+          readOnly
+          onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
+          onDeactivateHover={(index) => handleActivation({ type: 'leave', participantId: index })}
+          onActivateClick={(index) => handleActivation({ type: 'click', participantId: index })}
+        />
 
         <main
           ref={containerRef}
@@ -500,6 +498,21 @@ export function WorkViewPage(): JSX.Element {
               style={style}
             />
           </div>
+
+          {/* FEAT-F01: the shared ruler strips. The preview has no operation
+              cursor box, so `operationCell` stays `null` — only the hovered
+              row / column turns dark grey. */}
+          {showRulers ? (
+            <MapRulerStrips
+              gridSize={gridSize}
+              cellSize={cellSize}
+              zoom={zoom}
+              pan={pan}
+              total={total}
+              style={style}
+              hover={hover}
+            />
+          ) : null}
         </main>
       </div>
     </div>

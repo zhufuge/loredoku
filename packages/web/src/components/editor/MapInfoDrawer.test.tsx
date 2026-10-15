@@ -11,7 +11,18 @@ import { resolveMapStyle } from '@/lib/mapStyle';
  * control writes a local draft and the map only changes when 保存 is pressed.
  * These are real render tests (jsdom + `react-dom/client`), because the whole
  * point of the fix is that editing no longer touches the store.
+ *
+ * v0.3.10: FIX-F01 (the canvas size joins the draft), FIX-F02 (every change
+ * writes through), FIX-F04 / SPEC-F01 (source-level assertions).
  */
+
+/** The drawer source, read as raw text for the architectural assertions. */
+const drawerSource =
+  (import.meta.glob('./MapInfoDrawer.tsx', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>)['./MapInfoDrawer.tsx'] ?? '';
 
 function setValue(element: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
@@ -26,6 +37,13 @@ function typeInto(element: HTMLInputElement | null, value: string): void {
   element.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
 }
 
+/** FIX-F02: typing only — the field keeps focus, nothing is flushed yet. */
+function changeOnly(element: HTMLInputElement | null, value: string): void {
+  if (!element) throw new Error('input not found');
+  setValue(element, value);
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
 describe('MapInfoDrawer (FEAT-E01)', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -33,7 +51,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
   const style: MapStyle = resolveMapStyle(undefined);
   const onCommit = vi.fn();
   const onRequestClose = vi.fn();
-  const onRequestResize = vi.fn();
   let handle: MapInfoDrawerHandle | null;
 
   function render(): void {
@@ -50,7 +67,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
           characterSlots={[]}
           onRequestClose={onRequestClose}
           onCommit={onCommit}
-          onRequestResize={onRequestResize}
         />,
       );
     });
@@ -60,7 +76,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     handle = null;
     onCommit.mockClear();
     onRequestClose.mockClear();
-    onRequestResize.mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -74,6 +89,12 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
 
   const input = (id: string): HTMLInputElement =>
     container.querySelector<HTMLInputElement>(`#${id}`) as HTMLInputElement;
+
+  const clickSave = (): void => {
+    act(() => {
+      container.querySelector<HTMLButtonElement>('footer button:last-child')?.click();
+    });
+  };
 
   it('FEAT-E01: editing a field does NOT touch the map', () => {
     expect(handle?.isDirty()).toBe(false);
@@ -168,11 +189,88 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     expect((onCommit.mock.calls[0]![0] as MapStyle).cellSize).toBe(240);
   });
 
-  it('画布尺寸 goes straight to the resize flow (its own confirmation)', () => {
+  it('画布尺寸 belongs to the same draft (FIX-F01)', () => {
     act(() => typeInto(input('map-info-grid-size'), '9'));
-    expect(onRequestResize).toHaveBeenCalledWith(9);
-    // It is not part of the draft.
+    expect(handle?.isDirty()).toBe(true);
+    expect(
+      container.querySelector<HTMLButtonElement>('footer button:last-child')?.disabled,
+    ).toBe(false);
+    clickSave();
+    // The second argument carries the canvas size — one commit, both fields.
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit.mock.calls[0]![1]).toBe(9);
+  });
+
+  it('FIX-F01: 保存 persists the style and the canvas size together', () => {
+    act(() => typeInto(input('map-info-grid-separator-width'), '9'));
+    act(() => typeInto(input('map-info-grid-size'), '10'));
+    clickSave();
+    const committed = onCommit.mock.calls[0]![0] as MapStyle;
+    expect(committed.gridSeparator.width).toBe(9);
+    expect(onCommit.mock.calls[0]![1]).toBe(10);
+  });
+
+  it('FIX-F01: discard rolls the canvas size back', () => {
+    act(() => typeInto(input('map-info-grid-size'), '9'));
+    expect(handle?.isDirty()).toBe(true);
+    act(() => handle?.discard());
     expect(handle?.isDirty()).toBe(false);
+    expect(input('map-info-grid-size').value).toBe('6');
+  });
+
+  it('FIX-F02: a change alone (no blur) writes the draft', () => {
+    const save = (): HTMLButtonElement =>
+      container.querySelector<HTMLButtonElement>('footer button:last-child') as HTMLButtonElement;
+    expect(save().disabled).toBe(true);
+    act(() => changeOnly(input('map-info-grid-separator-width'), '7'));
+    expect(handle?.isDirty()).toBe(true);
+    expect(save().disabled).toBe(false);
+    clickSave();
+    expect((onCommit.mock.calls[0]![0] as MapStyle).gridSeparator.width).toBe(7);
+  });
+
+  it('FIX-F02: clicking the stepper writes through without blur or Enter', () => {
+    // The stepper fires a plain `input` event, exactly like `changeOnly`.
+    act(() => changeOnly(input('map-info-frame-width'), '5'));
+    expect(handle?.isDirty()).toBe(true);
+    expect(input('map-info-frame-width').value).toBe('5');
+  });
+
+  it('FIX-F02: non-numeric input stays uncommitted until blur', () => {
+    act(() => changeOnly(input('map-info-frame-width'), 'abc'));
+    expect(handle?.isDirty()).toBe(false);
+    act(() => {
+      input('map-info-frame-width').dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+    });
+    // Blur rolls the text back to the committed value.
+    expect(input('map-info-frame-width').value).toBe(String(style.canvasFrame.width));
+    expect(handle?.isDirty()).toBe(false);
+  });
+
+  it('FIX-F02: out-of-range values converge in real time', () => {
+    act(() => changeOnly(input('map-info-grid-separator-width'), '99'));
+    clickSave();
+    // MAP_STYLE_LINE_WIDTH_MAX is 12 — the commit carries the clamped value.
+    expect((onCommit.mock.calls[0]![0] as MapStyle).gridSeparator.width).toBe(12);
+  });
+
+  it('FIX-F02: the canvas size clamps to 2 ~ 24 while typing', () => {
+    act(() => changeOnly(input('map-info-grid-size'), '99'));
+    clickSave();
+    expect(onCommit.mock.calls[0]![1]).toBe(24);
+  });
+
+  it('FIX-F04: no bare colour input — every swatch is the shared ColorInput', () => {
+    expect(drawerSource).not.toMatch(/type="color"/);
+    expect(drawerSource).toContain("from '@/components/ui/color-input'");
+    expect(drawerSource.match(/<ColorInput/g)?.length ?? 0).toBeGreaterThan(0);
+  });
+
+  it('SPEC-F01: hints are circular icons, never a title on the label', () => {
+    expect(drawerSource).not.toMatch(/<Label[^>]*\stitle=/);
+    expect(drawerSource).toContain('HelpCircle');
+    // FIX-F05: the canvas-size confirmation copy is gone for good.
+    expect(drawerSource).not.toContain('调整画布尺寸会先弹出确认');
   });
 
   it('FEAT-E02: the ruler group edits text size and the text→board gap', () => {
