@@ -7,7 +7,6 @@ import {
   EFFECT_TYPES,
   GRID_SIZE_MAX,
   PARTICIPANT_TARGET_TYPES,
-  PARTICIPANT_TRIGGERS,
 } from '../constants';
 import { normalizeHexColor } from '../color';
 
@@ -16,9 +15,9 @@ const coordTupleSchema = z.tuple([coordSchema, coordSchema]);
 const regionIdSchema = z.string().trim().min(1).max(64);
 
 /**
- * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed. Any
- * `#RRGGBB` is accepted. The front end provides a non-blocking warning
- * for very high-luminance colours, but the schema does not reject them.
+ * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed.
+ * MOD-801 (docs/v0.3.3.md): the high-luminance warning is removed too —
+ * any `#RRGGBB` is accepted with no hints or blocking.
  */
 export const themeColorSchema = z
   .string()
@@ -33,7 +32,6 @@ export const themeColorSchema = z
 export const effectColorSchema = z.enum(EFFECT_COLORS);
 /** Reuses the item effect enum; named to avoid clashing with `./item`. */
 export const participantEffectTypeSchema = z.enum(EFFECT_TYPES);
-export const participantTriggerKeySchema = z.enum(PARTICIPANT_TRIGGERS);
 export const participantTargetTypeSchema = z.enum(PARTICIPANT_TARGET_TYPES);
 
 /**
@@ -69,15 +67,15 @@ export const participantTargetSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-export const participantTriggerSchema = z.object({
-  trigger: participantTriggerKeySchema,
-  targets: z.array(participantTargetSchema),
-});
-
-export const participantTriggersSchema = z.array(participantTriggerSchema).default([]);
+/**
+ * MOD-801 (docs/v0.3.3.md): the click/touch grouping is gone. A slot keeps
+ * one flat, de-duplicated list of linkages; hover and click both play the
+ * whole list (MOD-802).
+ */
+export const participantLinkagesSchema = z.array(participantTargetSchema).default([]);
 
 export type ParticipantTargetInput = z.infer<typeof participantTargetSchema>;
-export type ParticipantTriggerInput = z.infer<typeof participantTriggerSchema>;
+export type ParticipantLinkagesInput = z.infer<typeof participantLinkagesSchema>;
 export type ThemeColorInput = z.infer<typeof themeColorSchema>;
 
 // Re-exported so consumers can build gender pickers from one place.

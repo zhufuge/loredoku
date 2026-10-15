@@ -94,10 +94,9 @@ export const MAP_JSON_VERSION = 1;
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
 
-// ---- Participant linkage (docs/v0.3.0.md FEAT-502) ----
-export const PARTICIPANT_TRIGGERS = ['click', 'touch'] as const;
+// ---- Participant linkage (docs/v0.3.0.md FEAT-502, v0.3.3 MOD-801) ----
+// MOD-801: click/touch trigger grouping is gone — linkages are a flat list.
 export const PARTICIPANT_TARGET_TYPES = ['character', 'item', 'cell', 'region'] as const;
-/** `blue` is reserved for the canvas highlight colour, theme colours may not use it. */
 export const EFFECT_COLORS = ['red', 'blue'] as const;
 export const EFFECT_COLOR_HEX: Record<(typeof EFFECT_COLORS)[number], string> = {
   red: '#EF4444',
@@ -107,41 +106,40 @@ export const EFFECT_COLOR_LABELS: Record<(typeof EFFECT_COLORS)[number], string>
   red: '红',
   blue: '蓝',
 };
+/**
+ * MOD-802 (docs/v0.3.3.md): region highlights are a fixed inner blue
+ * border — the linkage's red/blue parameter does not apply to regions.
+ */
+export const REGION_HIGHLIGHT_BORDER_COLOR = '#3B82F6';
+/** Width (px) of the region highlight border, inset from the region edge. */
+export const REGION_HIGHLIGHT_BORDER_WIDTH = 2;
+/** Inset (px) of the region highlight border from the region edge. */
+export const REGION_HIGHLIGHT_BORDER_INSET = 2;
 export const DEFAULT_THEME_COLOR = '#FFFFFF';
 /**
- * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed.
- * The palette excludes high-luminance colours so participant boxes stay
- * readable on a light background, but deep blue (#1E40AF) is allowed as
- * a theme colour.
+ * MOD-801 (docs/v0.3.3.md §1.1.1): the v0.3.2 palette is darkened by
+ * ~12% (no fluorescent / bright colours), one new deep mist blue
+ * (`#5B7C99`) is added, and the near-duplicate teal `#0F766E` is
+ * dropped so the palette stays at 15 swatches. `#FFFFFF` is kept as
+ * the default (unset) theme colour.
  */
 export const THEME_COLOR_PALETTE = [
   '#FFFFFF',
   '#000000',
-  '#6B7280',
-  '#8B4513',
-  '#C08B4F',
-  '#DC2626',
-  '#EA580C',
-  '#CA8A04',
-  '#16A34A',
-  '#0D9488',
-  '#7C3AED',
-  '#DB2777',
-  '#BE185D',
-  '#1E40AF',
-  '#0F766E',
+  '#5B616D',
+  '#763B10',
+  '#A37643',
+  '#BB201D',
+  '#C74B0A',
+  '#AC7503',
+  '#138B3F',
+  '#0B7E74',
+  '#6931C9',
+  '#BA2165',
+  '#A2144F',
+  '#1A3695',
+  '#5B7C99',
 ] as const;
-/**
- * High-luminance threshold (HSL L > 85%). Non-blocking front-end warning only.
- * (docs/v0.3.2.md MOD-710 §3.3)
- */
-export const THEME_COLOR_HIGH_LUMINANCE = 0.85;
-/** Click highlight duration: 3 seconds (docs/v0.3.2.md MOD-701). */
-export const HIGHLIGHT_DURATION_CLICK_MS = 3000;
-/** Touch highlight duration: 1 second (docs/v0.3.2.md MOD-701). */
-export const HIGHLIGHT_DURATION_TOUCH_MS = 1000;
-/** Kept for backward compatibility — alias of touch duration. */
-export const HIGHLIGHT_DURATION_MS = HIGHLIGHT_DURATION_TOUCH_MS;
 
 // ---- Editor tools ----
 export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] as const;

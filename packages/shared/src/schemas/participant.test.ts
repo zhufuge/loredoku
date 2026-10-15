@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THEME_COLOR, EFFECT_COLORS } from '../constants';
+import { DEFAULT_THEME_COLOR, EFFECT_COLORS, THEME_COLOR_PALETTE } from '../constants';
 import { mapDraftSchema } from './mapDraft';
-import { participantTargetSchema, themeColorSchema } from './participant';
+import { participantLinkagesSchema, participantTargetSchema, themeColorSchema } from './participant';
 
 const baseDraft = {
   version: 1,
@@ -12,8 +12,8 @@ const baseDraft = {
   },
   regions: [{ id: 'rg_a1b2c3', name: '森林区', cells: [[2, 2]] }],
   characterSlots: [
-    { characterId: 5, themeColor: '#FFCC00', clue: '', triggers: [] },
-    { characterId: 7, themeColor: '#FFFFFF', clue: '', triggers: [] },
+    { characterId: 5, themeColor: '#FFCC00', clue: '', linkages: [] },
+    { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
     null,
     null,
     null,
@@ -33,7 +33,7 @@ describe('themeColorSchema', () => {
   });
 
   it('MOD-710: accepts blue hues (no longer restricted)', () => {
-    for (const blue of ['#3B82F6', '#0EA5E9', '#2563EB', '#1E40AF', '#0F766E']) {
+    for (const blue of ['#3B82F6', '#0EA5E9', '#2563EB', '#1E40AF', '#5B7C99']) {
       expect(themeColorSchema.safeParse(blue).success, blue).toBe(true);
     }
   });
@@ -41,6 +41,27 @@ describe('themeColorSchema', () => {
   it('accepts colours outside the former reserved hue window', () => {
     for (const color of ['#FFFFFF', '#000000', '#EF4444', '#22C55E', '#FACC15']) {
       expect(themeColorSchema.safeParse(color).success).toBe(true);
+    }
+  });
+});
+
+describe('THEME_COLOR_PALETTE (MOD-801)', () => {
+  it('keeps 15 swatches, all darkened, with the new deep mist blue', () => {
+    expect(THEME_COLOR_PALETTE).toHaveLength(15);
+    expect(THEME_COLOR_PALETTE[0]).toBe(DEFAULT_THEME_COLOR);
+    expect(THEME_COLOR_PALETTE).toContain('#5B7C99');
+    // The near-duplicate teal from v0.3.2 was dropped.
+    expect(THEME_COLOR_PALETTE).not.toContain('#0F766E');
+  });
+
+  it('contains no bright / fluorescent colours (every entry is darkened)', () => {
+    // Brightness proxy: no channel above 210 outside white/black.
+    for (const hex of THEME_COLOR_PALETTE) {
+      if (hex === '#FFFFFF' || hex === '#000000') continue;
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      expect(Math.max(r, g, b), hex).toBeLessThanOrEqual(210);
     }
   });
 });
@@ -119,7 +140,30 @@ describe('participantTargetSchema', () => {
   });
 });
 
-describe('mapDraftSchema participant references (CLAR-603 + MOD-708)', () => {
+describe('participantLinkagesSchema (MOD-801)', () => {
+  it('defaults to an empty array', () => {
+    expect(participantLinkagesSchema.parse(undefined)).toEqual([]);
+  });
+
+  it('accepts a flat mixed list (no click/touch grouping)', () => {
+    const result = participantLinkagesSchema.safeParse([
+      { type: 'character', id: 7, effect: 'highlight', color: 'red' },
+      { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
+      { type: 'cell', cells: [[2, 2], [3, 2]], effect: 'highlight', color: 'red' },
+      { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
+    ]);
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects legacy trigger-grouped payloads', () => {
+    const result = participantLinkagesSchema.safeParse([
+      { trigger: 'click', targets: [{ type: 'character', id: 7, effect: 'highlight', color: 'red' }] },
+    ]);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('mapDraftSchema participant references (CLAR-603 + MOD-801)', () => {
   it('accepts references that exist in the roster / map', () => {
     const draft = {
       ...baseDraft,
@@ -128,19 +172,14 @@ describe('mapDraftSchema participant references (CLAR-603 + MOD-708)', () => {
           characterId: 5,
           themeColor: '#FFCC00',
           clue: '他**喜欢**在黄昏。',
-          triggers: [
-            {
-              trigger: 'click',
-              targets: [
-                { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-                { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
-                { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
-                { type: 'cell', cells: [[3, 4]], effect: 'highlight', color: 'red' },
-              ],
-            },
+          linkages: [
+            { type: 'character', id: 7, effect: 'highlight', color: 'red' },
+            { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
+            { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
+            { type: 'cell', cells: [[3, 4]], effect: 'highlight', color: 'red' },
           ],
         },
-        { characterId: 7, themeColor: '#FFFFFF', clue: '', triggers: [] },
+        { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
         null,
         null,
         null,
@@ -151,7 +190,7 @@ describe('mapDraftSchema participant references (CLAR-603 + MOD-708)', () => {
     expect(result.success).toBe(true);
   });
 
-  it('rejects dangling character / item / region references', () => {
+  it('rejects dangling character / item / region / cell references', () => {
     const failing = [
       { type: 'character', id: 999, effect: 'highlight', color: 'red' },
       { type: 'item', id: 999, scope: 'all', effect: 'highlight', color: 'red' },
@@ -162,13 +201,8 @@ describe('mapDraftSchema participant references (CLAR-603 + MOD-708)', () => {
       const result = mapDraftSchema.safeParse({
         ...baseDraft,
         characterSlots: [
-          {
-            characterId: 5,
-            themeColor: '#FFCC00',
-            clue: '',
-            triggers: [{ trigger: 'click', targets: [target] }],
-          },
-          { characterId: 7, themeColor: '#FFFFFF', clue: '', triggers: [] },
+          { characterId: 5, themeColor: '#FFCC00', clue: '', linkages: [target] },
+          { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
           null,
           null,
           null,
@@ -182,7 +216,27 @@ describe('mapDraftSchema participant references (CLAR-603 + MOD-708)', () => {
   it('rejects drafts that still carry legacy placedCharacters', () => {
     const result = mapDraftSchema.safeParse({
       ...baseDraft,
-      placedCharacters: [{ characterId: 5, x: 0, y: 1, themeColor: '#FFCC00', triggers: [] }],
+      placedCharacters: [{ characterId: 5, x: 0, y: 1, themeColor: '#FFCC00', linkages: [] }],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects drafts that still carry legacy triggers on slots', () => {
+    const result = mapDraftSchema.safeParse({
+      ...baseDraft,
+      characterSlots: [
+        {
+          characterId: 5,
+          themeColor: '#FFCC00',
+          clue: '',
+          triggers: [{ trigger: 'click', targets: [] }],
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
     });
     expect(result.success).toBe(false);
   });
@@ -191,7 +245,7 @@ describe('mapDraftSchema participant references (CLAR-603 + MOD-708)', () => {
     const draft = {
       ...baseDraft,
       characterSlots: [
-        { characterId: 5, themeColor: '#FFCC00', clue: '他**喜欢**在湖边。', triggers: [] },
+        { characterId: 5, themeColor: '#FFCC00', clue: '他**喜欢**在湖边。', linkages: [] },
         null, null, null, null, null,
       ],
     };
@@ -199,11 +253,11 @@ describe('mapDraftSchema participant references (CLAR-603 + MOD-708)', () => {
     expect(result.success).toBe(true);
   });
 
-  it('MOD-710: accepts deep blue as theme colour (#1E40AF)', () => {
+  it('MOD-801: accepts deep blue as theme colour (#1A3695)', () => {
     const draft = {
       ...baseDraft,
       characterSlots: [
-        { characterId: 5, themeColor: '#1E40AF', clue: '', triggers: [] },
+        { characterId: 5, themeColor: '#1A3695', clue: '', linkages: [] },
         null, null, null, null, null,
       ],
     };

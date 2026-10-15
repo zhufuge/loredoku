@@ -7,7 +7,6 @@ import {
   type CharacterSlotEntry,
   type Item,
   type MapDraft,
-  type ParticipantTriggerKey,
 } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
 import { GenderBadge } from '@/components/character/GenderBadge';
@@ -26,12 +25,13 @@ import { useHighlight } from '@/hooks/useHighlight';
 import { useWorkDetail } from '@/hooks/useVersions';
 import { centerPan, clampZoom, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { resolveHighlight } from '@/lib/highlight';
+import {
+  INACTIVE_ACTIVATION,
+  reduceLinkageActivation,
+  type LinkageActivationEvent,
+  type LinkageActivationState,
+} from '@/lib/linkageActivation';
 import { cn } from '@/lib/utils';
-
-const TRIGGER_TABS: Array<{ key: ParticipantTriggerKey; label: string }> = [
-  { key: 'click', label: '点击时' },
-  { key: 'touch', label: '触碰时' },
-];
 
 export function WorkViewPage(): JSX.Element {
   const { workId } = useParams<{ workId: string }>();
@@ -47,8 +47,14 @@ export function WorkViewPage(): JSX.Element {
   const itemsQuery = useItems({});
   const charactersQuery = useCharacters({});
 
-  const { highlight, show: showHighlight, clear: clearHighlight } = useHighlight();
-  const [tab, setTab] = useState<ParticipantTriggerKey>('click');
+  const {
+    highlight,
+    show: showHighlight,
+    clear: clearHighlight,
+    leaving: highlightLeaving,
+  } = useHighlight();
+  // MOD-802: single-active linkage preview — hover activates, click toggles.
+  const [activation, setActivation] = useState<LinkageActivationState>(INACTIVE_ACTIVATION);
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -132,17 +138,38 @@ export function WorkViewPage(): JSX.Element {
     setZoom(next);
   };
 
-  const fireTrigger = (slotIndex: number, trigger: ParticipantTriggerKey): void => {
-    const slot = slots[slotIndex];
-    if (!slot) return;
-    const state = resolveHighlight(slot.triggers, trigger, {
-      gridSize,
-      cells,
-      characterSlots: slots,
-      regions,
-    });
-    showHighlight(state, trigger);
-  };
+  /**
+   * MOD-802: the highlight is a projection of the single-active state
+   * machine, so it stays up until the activation ends and then fades out
+   * over 150ms.
+   */
+  const activeSlot =
+    activation.activeParticipantId === null
+      ? null
+      : slots[activation.activeParticipantId] ?? null;
+
+  useEffect(() => {
+    if (!activeSlot) {
+      clearHighlight();
+      return;
+    }
+    showHighlight(
+      resolveHighlight(activeSlot.linkages, {
+        gridSize,
+        cells,
+        characterSlots: slots,
+        regions,
+      }),
+    );
+  }, [activeSlot, gridSize, cells, slots, regions, showHighlight, clearHighlight]);
+
+  // A new snapshot must not inherit a stale activation.
+  useEffect(() => {
+    setActivation(INACTIVE_ACTIVATION);
+  }, [draft]);
+
+  const handleActivation = (event: LinkageActivationEvent): void =>
+    setActivation((state) => reduceLinkageActivation(state, event));
 
   if (detailQuery.isLoading) {
     return (
@@ -167,6 +194,13 @@ export function WorkViewPage(): JSX.Element {
   const participants = slots
     .map((slot, index) => ({ slot, index }))
     .filter((entry): entry is { slot: CharacterSlotEntry; index: number } => entry.slot !== null);
+
+  // MOD-802 §1.2.5: characters referenced by the active linkage get a 3px
+  // param-colour outline (and a slight scale-up) in the roster.
+  const highlightColors = new Map<number, string>();
+  for (const character of highlight?.characters ?? []) {
+    highlightColors.set(character.slotIndex, character.color);
+  }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -203,21 +237,12 @@ export function WorkViewPage(): JSX.Element {
 
       <div className="flex min-h-0 flex-1">
         <aside className="flex w-64 shrink-0 flex-col border-r bg-background">
-          <div className="flex shrink-0 gap-1 border-b p-2">
-            {TRIGGER_TABS.map((item) => (
-              <Button
-                key={item.key}
-                size="sm"
-                variant={tab === item.key ? 'secondary' : 'ghost'}
-                className="h-7 flex-1 text-xs"
-                onClick={() => {
-                  setTab(item.key);
-                  clearHighlight();
-                }}
-              >
-                {item.label}
-              </Button>
-            ))}
+          {/* MOD-802: no trigger tabs — hover previews, click pins the preview */}
+          <div
+            className="shrink-0 border-b px-3 text-center"
+            style={{ height: 36, lineHeight: '36px', fontSize: 13, fontWeight: 600, color: '#1F2937' }}
+          >
+            参与者 {participants.length}
           </div>
           <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
             {participants.length === 0 ? (
@@ -228,23 +253,34 @@ export function WorkViewPage(): JSX.Element {
                 const themeColor = slot.themeColor ?? '#FFFFFF';
                 const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
                 const avatar = character?.avatarThumbUrl ?? character?.avatarUrl;
+                const isActive = activation.activeParticipantId === index;
+                const linkedColor = highlightColors.get(index);
                 return (
                   <button
                     key={`${slot.characterId}-${index}`}
                     type="button"
+                    onPointerEnter={() => handleActivation({ type: 'enter', participantId: index })}
+                    onPointerLeave={() => handleActivation({ type: 'leave', participantId: index })}
                     onMouseEnter={() => setHoveredSlot(index)}
                     onMouseLeave={() => setHoveredSlot(null)}
-                    onClick={() => fireTrigger(index, tab)}
+                    onClick={() => handleActivation({ type: 'click', participantId: index })}
                     className={cn(
                       'flex w-full items-center gap-2 rounded-md border p-2 text-left transition-colors',
                       hoveredSlot === index ? 'border-primary bg-accent' : 'hover:border-primary',
+                      isActive ? 'ring-2 ring-primary ring-offset-1' : undefined,
                     )}
                   >
                     <span
                       className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
                       style={{
                         backgroundColor: themeColor,
-                        border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
+                        transform: linkedColor ? 'scale(1.08)' : undefined,
+                        transition: 'transform 150ms linear',
+                        border: linkedColor
+                          ? `3px solid ${linkedColor}`
+                          : isWhiteTheme
+                            ? '1px solid #D1D5DB'
+                            : 'none',
                       }}
                     >
                       {avatar ? (
@@ -334,7 +370,11 @@ export function WorkViewPage(): JSX.Element {
             <MapRegionEdgeLayer regions={regions} gridSize={gridSize} />
             <MapObjectLayer cells={cells} itemsById={itemsById} />
             <MapGridLayer gridSize={gridSize} />
-            <MapHighlightLayer highlight={highlight} regions={regions} />
+            <MapHighlightLayer
+              highlight={highlight}
+              regions={regions}
+              leaving={highlightLeaving}
+            />
 
             <MapRegionLabelLayer regions={regions} />
           </div>

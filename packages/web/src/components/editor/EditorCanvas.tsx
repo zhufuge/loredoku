@@ -61,6 +61,8 @@ interface EditorCanvasProps {
   regionDraftSelection: Set<string>;
   /** Resolved participant highlight (shared with the work preview page). */
   highlight: HighlightState | null;
+  /** MOD-802: true while the highlight is fading out (150ms). */
+  highlightLeaving?: boolean;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
   onAnchorChange: (anchor: CellCoord | null) => void;
@@ -105,6 +107,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     pendingItem,
     regionDraftSelection,
     highlight,
+    highlightLeaving = false,
     onSelect,
     onSelectRegion,
     onAnchorChange,
@@ -594,7 +597,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
         <MapGridLayer gridSize={gridSize} />
 
-        <MapHighlightLayer highlight={highlight} regions={regions} />
+        <MapHighlightLayer highlight={highlight} regions={regions} leaving={highlightLeaving} />
 
         {selectionOverlay}
         <MapRegionLabelLayer

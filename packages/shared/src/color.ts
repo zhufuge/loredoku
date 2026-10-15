@@ -2,10 +2,10 @@
  * Colour helpers shared by the zod schemas (server-side validation) and the
  * editor UI (theme colour picker) — docs/v0.3.0.md FEAT-502.
  *
- * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed. The only
- * remaining colour guard is a non-blocking warning for very high luminance.
+ * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed.
+ * MOD-801 (docs/v0.3.3.md): the high-luminance warning is removed too —
+ * any valid hex is accepted with no hints.
  */
-import { THEME_COLOR_HIGH_LUMINANCE } from './constants';
 
 export interface Hsv {
   h: number;
@@ -59,21 +59,6 @@ export function hexToHsv(hex: string): Hsv {
   }
 
   return { h, s: max === 0 ? 0 : delta / max, v: max };
-}
-
-/**
- * MOD-710: returns `true` when HSL lightness exceeds the threshold.
- * Non-blocking — used only for a UI hint, not schema rejection.
- */
-export function isHighLuminanceColor(hex: string): boolean {
-  const { r, g, b } = hexToRgb(hex);
-  const rn = r / 255;
-  const gn = g / 255;
-  const bn = b / 255;
-  const max = Math.max(rn, gn, bn);
-  const min = Math.min(rn, gn, bn);
-  // HSL lightness = (max + min) / 2
-  return (max + min) / 2 > THEME_COLOR_HIGH_LUMINANCE;
 }
 
 /**

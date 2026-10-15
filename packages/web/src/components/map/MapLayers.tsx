@@ -4,16 +4,17 @@ import {
   GRID_BORDER_WIDTH,
   GRID_LINE_COLOR,
   GRID_LINE_WIDTH,
+  REGION_HIGHLIGHT_BORDER_COLOR,
+  REGION_HIGHLIGHT_BORDER_INSET,
+  REGION_HIGHLIGHT_BORDER_WIDTH,
   type CellCoord,
   type DraftRegion,
   type Item,
 } from '@murdoku/shared';
 import { buildRegionEdges, computeLabelCell } from '@/lib/region';
-import type { CellMap, HighlightState } from '@/lib/highlight';
+import { HIGHLIGHT_FADEOUT_MS, type CellMap, type HighlightState } from '@/lib/highlight';
 
 const HOVER_RING = 'inset 0 0 0 2px #3B82F6';
-/** MOD-709: region touch border colour. */
-const REGION_TOUCH_BORDER_COLOR = '#3B82F6';
 
 function cellRectStyle(x: number, y: number, w = 1, h = 1): CSSProperties {
   return {
@@ -307,28 +308,37 @@ export function MapRegionLabelLayer({
 
 /**
  * Highlight layer: above items, below the grid lines
- * (docs/v0.3.0.md §2.2.4, updated by CLAR-603 §3.5, MOD-709).
+ * (docs/v0.3.0.md §2.2.4, updated by CLAR-603 §3.5, MOD-802).
  *
  * CLAR-603: characters no longer occupy cells, so the highlight layer only
  * draws the object / cell / region overlays. The roster panel handles the
  * `characters` outline directly.
  *
- * MOD-709: region touch targets render as an inner blue border line.
+ * MOD-802: highlights are persistent (no auto-expiry). `leaving` applies
+ * the 150ms fade-out when an activation ends. Region highlights are always
+ * an inner blue border (click and hover render identically).
  */
 export function MapHighlightLayer({
   highlight,
   regions = [],
+  leaving = false,
 }: {
   highlight: HighlightState | null;
   regions?: DraftRegion[];
+  /** MOD-802: fade the layer out over 150ms instead of unmounting instantly. */
+  leaving?: boolean;
 }): JSX.Element | null {
   if (!highlight) return null;
   const { objects, cells, regionBorders } = highlight;
   if (objects.length === 0 && cells.length === 0 && regionBorders.length === 0) return null;
   return (
     <div
-      className="highlight-fade pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: 22 }}
+      className="pointer-events-none absolute left-0 top-0"
+      style={{
+        zIndex: 22,
+        opacity: leaving ? 0 : 1,
+        transition: `opacity ${HIGHLIGHT_FADEOUT_MS}ms linear`,
+      }}
     >
       {cells.map((rect, index) => (
         <div
@@ -348,12 +358,13 @@ export function MapHighlightLayer({
           }}
         />
       ))}
-      {/* MOD-709: region touch → inner blue border */}
+      {/* MOD-802: region → inner blue border, unified for click / hover */}
       {regionBorders.length > 0
         ? regionBorders.map((border) => {
             const region = regions.find((r) => r.id === border.regionId);
             if (!region) return null;
             const edges = buildRegionEdges(region.cells);
+            const inset = REGION_HIGHLIGHT_BORDER_INSET;
             return (
               <svg
                 key={`hl-rb-${border.regionId}`}
@@ -363,12 +374,12 @@ export function MapHighlightLayer({
                 {edges.map((edge, index) => (
                   <line
                     key={index}
-                    x1={edge.x1 + 1}
-                    y1={edge.y1 + 1}
-                    x2={edge.x2 - (edge.x2 !== edge.x1 ? 1 : 0)}
-                    y2={edge.y2 - (edge.y2 !== edge.y1 ? 1 : 0)}
-                    stroke={REGION_TOUCH_BORDER_COLOR}
-                    strokeWidth={2}
+                    x1={edge.x1 + inset}
+                    y1={edge.y1 + inset}
+                    x2={edge.x2 - (edge.x2 !== edge.x1 ? inset : 0)}
+                    y2={edge.y2 - (edge.y2 !== edge.y1 ? inset : 0)}
+                    stroke={REGION_HIGHLIGHT_BORDER_COLOR}
+                    strokeWidth={REGION_HIGHLIGHT_BORDER_WIDTH}
                     strokeOpacity={0.9}
                     strokeLinecap="round"
                   />

@@ -1,21 +1,28 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import type { Character, CharacterSlotEntry } from '@murdoku/shared';
 import { DRAG_THRESHOLD } from '@/lib/grid';
 import {
   computeParticipantLayout,
+  deriveLayout,
+  fitColumns,
+  slotIndex,
   type ParticipantLayout,
 } from '@/lib/participantLayout';
-import { parseClue, truncateClue } from '@/lib/clue';
+import { parseClue } from '@/lib/clue';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { cn } from '@/lib/utils';
 
 /**
- * CLAR-602 + MOD-702/703/705/706/707 (docs/v0.3.1.md + v0.3.2.md):
- * - Matrix layout with golden-ratio rows/cols
- * - MOD-707: min cell 56px, gap 10px
- * - MOD-702: clue display area (40px fixed height) below avatar
- * - MOD-703: theme color background layer behind avatar (circle, +6px radius)
+ * CLAR-602 + MOD-702/703/705/706/707/802/803
+ * (docs/v0.3.1.md + v0.3.2.md + v0.3.3.md):
+ * - Matrix layout with golden-ratio rows/cols, last row centred
+ * - MOD-803: min cell 72px, gap 12px, avatar padding 8px, clue area 56px
+ *   (3 lines @ 11px/16px), avatar min 48×48, columns shrink to fit
+ * - MOD-802: hover activates the participant's linkages, click toggles
+ *   (and opens the info drawer); the parent owns the single-active state
+ * - MOD-702: clue display area below the avatar
+ * - MOD-703: theme color background layer behind avatar
  * - MOD-705: removal confirmation handled by parent (via onClearRequest)
  * - MOD-706: title bar height = 36px, same as item panel header
  */
@@ -24,9 +31,17 @@ interface ParticipantPanelProps {
   charactersById: Map<number, Character>;
   selectedSlotIndex: number | null;
   draggingIndex: number | null;
+  /** MOD-802: slot whose linkages are currently previewed. */
+  activeSlotIndex?: number | null;
   highlightedSlots?: Set<number>;
   highlightColors?: Map<number, string>;
   onSelect: (slotIndex: number | null) => void;
+  /** MOD-802: pointer entered a slot → hover-activate its linkages. */
+  onActivateHover: (slotIndex: number) => void;
+  /** MOD-802: pointer left a slot → hover-deactivate (no-op when click-active). */
+  onDeactivateHover: (slotIndex: number) => void;
+  /** MOD-802: click a slot → toggle click-activation. */
+  onActivateClick: (slotIndex: number) => void;
   /** Click on × button — parent handles confirmation (MOD-705). */
   onClearRequest: (index: number) => void;
   onDragBegin: (payload: { slotIndex: number; pointer: { x: number; y: number } }) => void;
@@ -37,21 +52,31 @@ interface ParticipantPanelProps {
 
 const CLEAR_BUTTON_ATTR = 'data-slot-clear';
 
-/** MOD-707: minimum square cell side. */
-const MIN_CELL_SIZE = 56;
-/** MOD-707: gap between cells. */
-const CELL_GAP = 10;
-/** MOD-702: clue display area fixed height. */
-const CLUE_AREA_HEIGHT = 40;
+/** MOD-803: minimum (and default) square cell side. */
+const MIN_CELL_SIZE = 72;
+/** MOD-803: gap between cells. */
+const CELL_GAP = 12;
+/** MOD-803: clue display area fixed height (3 lines). */
+const CLUE_AREA_HEIGHT = 56;
+/** MOD-803: padding between the cell edge and the theme-color circle. */
+const AVATAR_PADDING = 8;
+/** MOD-803: minimum avatar diameter. */
+const AVATAR_MIN_SIZE = 48;
+/** MOD-802: don't hover-activate while a slot is being dragged. */
+const DRAG_HOVER_LOCK = true;
 
 export function ParticipantPanel({
   slots,
   charactersById,
   selectedSlotIndex,
   draggingIndex,
+  activeSlotIndex = null,
   highlightedSlots,
   highlightColors,
   onSelect,
+  onActivateHover,
+  onDeactivateHover,
+  onActivateClick,
   onClearRequest,
   onDragBegin,
   onDragMove,
@@ -59,7 +84,7 @@ export function ParticipantPanel({
   onDragCancel,
 }: ParticipantPanelProps): JSX.Element {
   const [hoveredSlot, setHoveredSlot] = useState<number | null>(null);
-  const [cellSize, setCellSize] = useState(56);
+  const [panelWidth, setPanelWidth] = useState(0);
   const armRef = useRef<{
     index: number;
     startX: number;
@@ -68,21 +93,35 @@ export function ParticipantPanel({
     pointerId: number | null;
   } | null>(null);
 
-  const layout: ParticipantLayout = useMemo(
+  const preferred = useMemo<ParticipantLayout>(
     () => computeParticipantLayout(slots.length),
     [slots.length],
   );
 
+  // MOD-803: shrink the column count when the panel can't hold it; when even
+  // one column doesn't fit, the scroll container takes over.
+  const layout = useMemo<ParticipantLayout>(() => {
+    if (panelWidth <= 0) return preferred;
+    const cols = fitColumns(panelWidth - 16, preferred.cols, MIN_CELL_SIZE, CELL_GAP);
+    return deriveLayout(slots.length, cols);
+  }, [panelWidth, preferred, slots.length]);
+
   const measuredRef = useRef<HTMLDivElement | null>(null);
-  useMemo(() => {
-    if (typeof window === 'undefined') return;
+
+  // MOD-803: track the panel width so the column count can shrink to fit.
+  useEffect(() => {
     const node = measuredRef.current;
-    if (!node) return;
-    const width = node.clientWidth;
-    const cols = layout.cols || 1;
-    const computed = Math.floor((width - CELL_GAP * (cols - 1)) / cols);
-    setCellSize(Math.max(MIN_CELL_SIZE, Math.min(80, computed || 56)));
-  }, [layout.cols]);
+    if (!node || typeof window === 'undefined') return;
+    const update = (): void => {
+      const width = node.clientWidth;
+      setPanelWidth((current) => (current === width ? current : width));
+    };
+    update();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(update);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
 
   const placedCount = useMemo(() => slots.filter(Boolean).length, [slots]);
 
@@ -92,6 +131,21 @@ export function ParticipantPanel({
 
   const hitClearButton = (target: EventTarget | null): boolean =>
     target instanceof Element && target.closest(`[${CLEAR_BUTTON_ATTR}]`) !== null;
+
+  // Row-major render order with placeholders for the centred last-row gap.
+  const cells = useMemo(() => {
+    const items: Array<{ kind: 'slot'; index: number } | { kind: 'gap' }> = [];
+    for (let row = 0; row < layout.rows; row += 1) {
+      for (let col = 0; col < layout.cols; col += 1) {
+        const index = slotIndex({ row, col }, layout);
+        items.push(index === null ? { kind: 'gap' } : { kind: 'slot', index });
+      }
+    }
+    return items;
+  }, [layout]);
+
+  const avatarSize = Math.max(AVATAR_MIN_SIZE, MIN_CELL_SIZE - AVATAR_PADDING * 2);
+  const hoverLocked = DRAG_HOVER_LOCK && draggingIndex !== null;
 
   return (
     <aside
@@ -114,27 +168,36 @@ export function ParticipantPanel({
           <div
             className="grid"
             style={{
-              gridTemplateColumns: `repeat(${layout.cols}, ${cellSize}px)`,
+              gridTemplateColumns: `repeat(${layout.cols}, ${MIN_CELL_SIZE}px)`,
               gap: CELL_GAP,
               justifyContent: 'center',
             }}
           >
-            {slots.map((slot, index) => {
+            {cells.map((item, position) => {
+              if (item.kind === 'gap') {
+                return <div key={`gap-${position}`} aria-hidden="true" />;
+              }
+              const index = item.index;
+              const slot = slots[index] ?? null;
               const character = slot ? charactersById.get(slot.characterId) : undefined;
               const isSelected = selectedSlotIndex === index;
               const isHovered = hoveredSlot === index;
               const isDragging = draggingIndex === index;
+              const isActive = activeSlotIndex === index;
               const isHighlighted = highlightedSlots?.has(index) ?? false;
               const highlightColor = highlightColors?.get(index);
               const themeColor = slot?.themeColor ?? '#FFFFFF';
               const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
               const clueSegments = slot?.clue ? parseClue(slot.clue) : [];
-              const clueTruncated = slot?.clue ? truncateClue(slot.clue, 30) : '';
               return (
                 <div
                   key={index}
                   data-slot-index={index}
-                  style={{ touchAction: 'none', width: cellSize, height: cellSize + CLUE_AREA_HEIGHT }}
+                  style={{
+                    touchAction: 'none',
+                    width: MIN_CELL_SIZE,
+                    height: MIN_CELL_SIZE + CLUE_AREA_HEIGHT,
+                  }}
                   onPointerDown={(event) => {
                     if (hitClearButton(event.target)) return;
                     if (event.button !== 0) return;
@@ -172,6 +235,10 @@ export function ParticipantPanel({
                       onDragEnd({ x: event.clientX, y: event.clientY });
                       return;
                     }
+                    if (!slots[index]) return;
+                    // MOD-802: a click both toggles the linkage activation
+                    // and opens the info drawer for editing.
+                    onActivateClick(index);
                     onSelect(isSelected ? null : index);
                   }}
                   onPointerCancel={() => {
@@ -179,6 +246,14 @@ export function ParticipantPanel({
                     const wasActive = armRef.current.active;
                     reset();
                     if (wasActive) onDragCancel();
+                  }}
+                  onPointerEnter={() => {
+                    if (hoverLocked || !slots[index]) return;
+                    onActivateHover(index);
+                  }}
+                  onPointerLeave={() => {
+                    if (hoverLocked || !slots[index]) return;
+                    onDeactivateHover(index);
                   }}
                   onMouseEnter={() => setHoveredSlot(index)}
                   onMouseLeave={() =>
@@ -197,27 +272,34 @@ export function ParticipantPanel({
                         ? 'border-primary bg-accent'
                         : 'border-border bg-background hover:border-primary'
                       : 'border-dashed border-muted-foreground/40 bg-muted/30',
+                    // MOD-802: the previewed participant stays visibly marked
+                    // (hover ends on leave, click is a toggle → needs a ring).
+                    isActive ? 'ring-2 ring-primary ring-offset-1' : undefined,
                     isDragging ? 'opacity-40' : undefined,
                   )}
                 >
-                  {/* Avatar area (top portion) */}
-                  <div className="flex items-center justify-center" style={{ height: cellSize }}>
+                  {/* Avatar area (top portion) — MOD-803: 8px padding */}
+                  <div
+                    className="flex items-center justify-center"
+                    style={{ height: MIN_CELL_SIZE, padding: AVATAR_PADDING }}
+                  >
                     {slot ? (
                       <span
                         className="flex items-center justify-center rounded-full"
                         style={{
-                          width: cellSize - 12,
-                          height: cellSize - 12,
+                          width: avatarSize,
+                          height: avatarSize,
                           backgroundColor: themeColor,
+                          // MOD-802 §1.2.5: highlighted character → 3px param
+                          // colour outline + subtle scale-up.
+                          transform: isHighlighted ? 'scale(1.08)' : undefined,
+                          transition: 'transform 150ms linear',
                           // MOD-703: white theme → 1px light grey border
                           border: isHighlighted
                             ? `3px solid ${highlightColor ?? '#3B82F6'}`
                             : isWhiteTheme
                               ? '1px solid #D1D5DB'
                               : 'none',
-                          boxShadow: isHighlighted
-                            ? `0 0 0 2px ${highlightColor ?? '#3B82F6'}`
-                            : undefined,
                         }}
                       >
                         {character ? (
@@ -236,14 +318,15 @@ export function ParticipantPanel({
                     )}
                   </div>
 
-                  {/* MOD-702: clue display area (fixed 40px) */}
+                  {/* MOD-803: clue area 56px, 3 lines @ 11px/16px */}
                   <div
                     className="flex w-full items-start justify-center px-1"
                     style={{ height: CLUE_AREA_HEIGHT }}
                   >
                     {clueSegments.length > 0 ? (
                       <span
-                        className="line-clamp-2 text-center text-[10px] leading-tight"
+                        className="line-clamp-3 text-center"
+                        style={{ fontSize: 11, lineHeight: '16px' }}
                         title={slot?.clue}
                       >
                         {clueSegments.map((seg, i) =>

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_THEME_COLOR } from '@murdoku/shared';
-import type { MapDraft } from '@murdoku/shared';
+import type { MapDraft, ParticipantTarget } from '@murdoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();
@@ -132,9 +132,9 @@ describe('clearCharacterSlot', () => {
 });
 
 describe('setSlot preserves participant config', () => {
-  it('keeps existing themeColor / triggers when reassigning a slot', () => {
+  it('keeps existing themeColor / linkages when reassigning a slot', () => {
     store().setSlot(0, 4);
-    store().setParticipantConfig(0, { themeColor: '#FFCC00', triggers: [] });
+    store().setParticipantConfig(0, { themeColor: '#FFCC00', linkages: [] });
     // Reassigning via setSlot(0, 4) (no-op) preserves the participant config.
     store().setSlot(0, 4);
     expect(store().characterSlots[0]).toMatchObject({
@@ -258,27 +258,104 @@ describe('cell clearing', () => {
   });
 });
 
-describe('setParticipantConfig (CLAR-603)', () => {
-  it('persists theme + triggers on the roster slot as one atomic step', () => {
+describe('setParticipantConfig (CLAR-603 + MOD-801)', () => {
+  it('persists theme + flat linkages on the roster slot as one atomic step', () => {
     store().setSlot(2, 9);
     store().setParticipantConfig(2, {
       themeColor: '#FFCC00',
-      triggers: [
-        {
-          trigger: 'click',
-          targets: [{ type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'red' }],
-        },
+      linkages: [
+        { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'red' },
+        { type: 'region', id: 'rg_a', effect: 'highlight', color: 'blue' },
       ],
     });
     const slot = store().characterSlots[2];
     expect(slot?.themeColor).toBe('#FFCC00');
-    expect(slot?.triggers?.[0]?.targets).toHaveLength(1);
+    expect(slot?.linkages).toHaveLength(2);
+    expect(slot?.linkages?.[0]).toMatchObject({ type: 'cell', color: 'red' });
+    // MOD-801: the legacy grouped `triggers` field is gone.
+    expect(slot && 'triggers' in slot).toBe(false);
     expect(store().dirty).toBe(true);
 
     store().undo();
     const restored = store().characterSlots[2];
     expect(restored?.themeColor).toBe(DEFAULT_THEME_COLOR);
-    expect(restored?.triggers).toEqual([]);
+    expect(restored?.linkages).toEqual([]);
+  });
+
+  it('defensively copies the linkages array and its entries', () => {
+    store().setSlot(1, 3);
+    const linkages: ParticipantTarget[] = [
+      { type: 'cell', cells: [[0, 1]], effect: 'highlight', color: 'red' },
+    ];
+    store().setParticipantConfig(1, { linkages });
+    const stored = store().characterSlots[1]?.linkages?.[0];
+    expect(stored).not.toBe(linkages[0]);
+    expect(stored).toMatchObject({ type: 'cell', cells: [[0, 1]] });
+  });
+});
+
+describe('MOD-802 linkage activation (single-active state machine)', () => {
+  it('starts inactive and hover-activates on enter', () => {
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
+    store().activateParticipantHover(2);
+    expect(store().activeParticipantId).toBe(2);
+    expect(store().activationMode).toBe('hover');
+  });
+
+  it('ends a hover activation when the pointer leaves the same slot', () => {
+    store().activateParticipantHover(2);
+    store().deactivateParticipantHover(2);
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
+  });
+
+  it('switches hover activation directly to the newly entered slot', () => {
+    store().activateParticipantHover(2);
+    store().activateParticipantHover(5);
+    expect(store().activeParticipantId).toBe(5);
+  });
+
+  it('click toggles a pinned activation and ignores hover on the same slot', () => {
+    store().activateParticipantClick(1);
+    expect(store().activationMode).toBe('click');
+    // §1.2.4: hovering the pinned participant must not change anything.
+    store().activateParticipantHover(1);
+    expect(store().activeParticipantId).toBe(1);
+    expect(store().activationMode).toBe('click');
+    store().deactivateParticipantHover(1);
+    expect(store().activeParticipantId).toBe(1);
+    store().activateParticipantClick(1);
+    expect(store().activeParticipantId).toBeNull();
+  });
+
+  it('entering another slot auto-ends the previous activation', () => {
+    store().activateParticipantClick(1);
+    store().activateParticipantHover(4);
+    expect(store().activeParticipantId).toBe(4);
+    expect(store().activationMode).toBe('hover');
+  });
+
+  it('clearActivation force-clears (Esc)', () => {
+    store().activateParticipantClick(3);
+    store().clearActivation();
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
+  });
+
+  it('resets the activation on init and applyDraft', () => {
+    store().activateParticipantClick(2);
+    store().init(9, draft(4), {
+      updatedAt: '2026-01-01T00:00:00.000Z',
+      currentVersionNo: 1,
+      status: 'draft',
+    });
+    expect(store().activeParticipantId).toBeNull();
+
+    store().activateParticipantHover(1);
+    store().applyDraft(draft(4));
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
   });
 });
 
@@ -324,7 +401,7 @@ describe('init', () => {
       { id: 'rg_x', name: 'Loaded', color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
     loaded.characterSlots = [
-      { characterId: 8, themeColor: '#FFCC00', triggers: [] },
+      { characterId: 8, themeColor: '#FFCC00', linkages: [] },
       null,
       null,
       null,
@@ -344,14 +421,20 @@ describe('init', () => {
 });
 
 describe('toDraft', () => {
-  it('serialises cells, regions, slots with theme + triggers', () => {
+  it('serialises cells, regions, slots with theme + linkages', () => {
     store().placeObject({ id: 5, widthCells: 1, heightCells: 1 }, 1, 1);
     store().setSlot(0, 4);
     const output = store().toDraft();
     expect(output.version).toBe(1);
     expect(output.cells['1,1']?.object).toEqual({ itemId: 5, w: 1, h: 1 });
-    expect(output.characterSlots[0]).toMatchObject({ characterId: 4 });
+    expect(output.characterSlots[0]).toMatchObject({ characterId: 4, linkages: [] });
     // CLAR-603: there is no placedCharacters field any more.
     expect('placedCharacters' in output).toBe(false);
+    // MOD-801: every serialised slot carries `linkages`, never `triggers`.
+    for (const slot of output.characterSlots) {
+      if (!slot) continue;
+      expect('triggers' in slot).toBe(false);
+      expect(Array.isArray(slot.linkages)).toBe(true);
+    }
   });
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
   computeParticipantLayout,
+  deriveLayout,
+  fitColumns,
   slotIndex,
   slotPosition,
 } from './participantLayout';
@@ -115,6 +117,72 @@ describe('slotPosition / slotIndex round-trip', () => {
     const gapCol = layout.leadingOffset + layout.lastRowCount;
     if (gapCol < layout.cols) {
       expect(slotIndex({ row: layout.rows - 1, col: gapCol }, layout)).toBeNull();
+    }
+  });
+});
+
+describe('deriveLayout (MOD-803 forced column count)', () => {
+  it('rebuilds a layout with a smaller column count', () => {
+    const layout = deriveLayout(24, 2); // computeParticipantLayout(24) is 4 cols
+    expect(layout.cols).toBe(2);
+    expect(layout.rows).toBe(12);
+    expect(layout.total).toBe(24);
+  });
+
+  it('centres a short last row with a real leading offset', () => {
+    // n=5 forced into 2 cols → rows=3, last row 1 → offset floor((2-1)/2)=0.
+    // n=5 forced into 3 cols → rows=2, last row 2 → offset floor((3-2)/2)=0.
+    // n=7 forced into 3 cols → rows=3, last row 1 → offset 1 (real gap).
+    const layout = deriveLayout(7, 3);
+    expect(layout).toMatchObject({ cols: 3, rows: 3, lastRowCount: 1, leadingOffset: 1 });
+    // Round-trip through the gap: col 0 and col 2 of the last row are gaps.
+    expect(slotIndex({ row: 2, col: 0 }, layout)).toBeNull();
+    expect(slotIndex({ row: 2, col: 2 }, layout)).toBeNull();
+    expect(slotIndex({ row: 2, col: 1 }, layout)).toBe(6);
+  });
+
+  it('clamps invalid column counts', () => {
+    expect(deriveLayout(6, 0).cols).toBe(1);
+    expect(deriveLayout(6, 99).cols).toBe(6);
+    expect(deriveLayout(0, 3)).toMatchObject({ cols: 1, rows: 0, total: 0 });
+  });
+});
+
+describe('fitColumns (MOD-803 layout adaptivity)', () => {
+  const CELL = 72;
+  const GAP = 12;
+
+  it('keeps the preferred column count when everything fits', () => {
+    // 4 cols need 4*72 + 3*12 = 324.
+    expect(fitColumns(324, 4, CELL, GAP)).toBe(4);
+    expect(fitColumns(400, 4, CELL, GAP)).toBe(4);
+  });
+
+  it('shrinks the column count when the panel is too narrow', () => {
+    // 3 cols need 252, 2 cols need 156.
+    expect(fitColumns(200, 4, CELL, GAP)).toBe(2);
+    expect(fitColumns(160, 4, CELL, GAP)).toBe(2);
+  });
+
+  it('falls back to one column (caller scrolls vertically)', () => {
+    expect(fitColumns(50, 4, CELL, GAP)).toBe(1);
+    expect(fitColumns(0, 4, CELL, GAP)).toBe(1);
+  });
+
+  it('never exceeds the preferred column count', () => {
+    for (let width = 0; width <= 600; width += 7) {
+      const cols = fitColumns(width, 3, CELL, GAP);
+      expect(cols).toBeGreaterThanOrEqual(1);
+      expect(cols).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it('the fitted matrix always fits the width (unless cols=1)', () => {
+    for (let width = 100; width <= 600; width += 13) {
+      const cols = fitColumns(width, 4, CELL, GAP);
+      if (cols > 1) {
+        expect(cols * CELL + (cols - 1) * GAP).toBeLessThanOrEqual(width);
+      }
     }
   });
 });

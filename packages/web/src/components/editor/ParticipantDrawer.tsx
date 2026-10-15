@@ -1,46 +1,43 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   DEFAULT_THEME_COLOR,
-  EFFECT_COLORS,
   EFFECT_COLOR_HEX,
   EFFECT_COLOR_LABELS,
-  PARTICIPANT_TARGET_TYPES,
-  PARTICIPANT_TRIGGERS,
   THEME_COLOR_PALETTE,
   type Character,
   type CharacterSlotEntry,
   type DraftRegion,
   type EffectColor,
   type ParticipantTarget,
-  type ParticipantTrigger,
-  type ParticipantTriggerKey,
 } from '@murdoku/shared';
-import { normalizeHexColor, isHighLuminanceColor } from '@murdoku/shared';
+import { normalizeHexColor } from '@murdoku/shared';
 import { parseClue } from '@/lib/clue';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-
-type TargetType = ParticipantTarget['type'];
-
-const TRIGGER_LABELS: Record<ParticipantTriggerKey, string> = {
-  click: '点击时',
-  touch: '触碰时',
-};
-
-const TARGET_TYPE_LABELS: Record<TargetType, string> = {
-  character: '角色',
-  item: '物品',
-  cell: '方格',
-  region: '区域',
-};
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  LinkageDialog,
+  type LinkageCharacterOption,
+  type LinkageItemOption,
+} from './LinkageDialog';
 
 /** MOD-702: max clue length. */
 const CLUE_MAX = 200;
+/** OPT-210 pattern: brief feedback window for the delete button spinner. */
+const DELETE_FEEDBACK_MS = 150;
 
 export interface PlacedItemOption {
   itemId: number;
@@ -61,56 +58,18 @@ interface ParticipantDrawerProps {
   gridSize: number;
   onSave: (
     slotIndex: number,
-    patch: { themeColor: string; clue: string; triggers: ParticipantTrigger[] },
+    patch: { themeColor: string; clue: string; linkages: ParticipantTarget[] },
   ) => void;
-  onPreviewTrigger?: (slotIndex: number, trigger: ParticipantTriggerKey) => void;
-}
-
-interface AddDraft {
-  type: TargetType | null;
-  characterId: number | null;
-  itemId: number | null;
-  regionId: string | null;
-  color: EffectColor;
-}
-
-const EMPTY_ADD: AddDraft = {
-  type: null,
-  characterId: null,
-  itemId: null,
-  regionId: null,
-  color: 'red',
-};
-
-function normalize(triggers: ParticipantTrigger[] | undefined): ParticipantTrigger[] {
-  const byKind = new Map<ParticipantTriggerKey, ParticipantTarget[]>();
-  for (const group of triggers ?? []) {
-    byKind.set(group.trigger, group.targets);
-  }
-  return PARTICIPANT_TRIGGERS.map((trigger) => ({
-    trigger,
-    targets: byKind.get(trigger) ?? [],
-  }));
-}
-
-function sameTarget(a: ParticipantTarget, b: ParticipantTarget): boolean {
-  if (a.type !== b.type) return false;
-  if (a.type === 'character' && b.type === 'character') return a.id === b.id;
-  if (a.type === 'item' && b.type === 'item') return a.id === b.id;
-  if (a.type === 'region' && b.type === 'region') return a.id === b.id;
-  if (a.type === 'cell' && b.type === 'cell') {
-    const ak = a.cells.map((c) => c.join(',')).sort().join('|');
-    const bk = b.cells.map((c) => c.join(',')).sort().join('|');
-    return ak === bk;
-  }
-  return false;
 }
 
 /**
- * CLAR-603 + MOD-702 (docs/v0.3.2.md): right-side info drawer.
- * MOD-702: removes "从参与者区移除" button — removal is via × on the panel.
- * Adds clue editor with live bold preview.
- * MOD-710: removes blue restriction text.
+ * CLAR-603 + MOD-702/801 (docs/v0.3.2.md + v0.3.3.md): right-side info drawer.
+ * MOD-801:
+ * - theme colour palette (no luminance hint, no hex hints)
+ * - clue editor without the `**bold**` hint (char count kept)
+ * - 「联动」 module: one flat list (no click/touch tabs), add / edit via
+ *   LinkageDialog, delete via AlertDialog with loading (OPT-210)
+ * - no preview buttons (MOD-802 moved previews to the roster panel)
  */
 export function ParticipantDrawer({
   open,
@@ -123,14 +82,18 @@ export function ParticipantDrawer({
   regions,
   gridSize,
   onSave,
-  onPreviewTrigger,
 }: ParticipantDrawerProps): JSX.Element | null {
-  const [tab, setTab] = useState<ParticipantTriggerKey>('click');
   const [themeColor, setThemeColor] = useState<string>(DEFAULT_THEME_COLOR);
   const [hexDraft, setHexDraft] = useState<string>(DEFAULT_THEME_COLOR);
   const [clue, setClue] = useState<string>('');
-  const [triggers, setTriggers] = useState<ParticipantTrigger[]>([]);
-  const [add, setAdd] = useState<AddDraft>(EMPTY_ADD);
+  const [linkages, setLinkages] = useState<ParticipantTarget[]>([]);
+  const [linkageDialog, setLinkageDialog] = useState<{
+    open: boolean;
+    /** Index into `linkages` when editing; `null` when adding. */
+    editIndex: number | null;
+  }>({ open: false, editIndex: null });
+  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const slot = slotIndex === null ? null : slots[slotIndex] ?? null;
 
@@ -139,53 +102,41 @@ export function ParticipantDrawer({
     setThemeColor(slot.themeColor ?? DEFAULT_THEME_COLOR);
     setHexDraft(slot.themeColor ?? DEFAULT_THEME_COLOR);
     setClue(slot.clue ?? '');
-    setTriggers(normalize(slot.triggers));
-    setAdd(EMPTY_ADD);
-    setTab('click');
+    setLinkages((slot.linkages ?? []).map((linkage) => ({ ...linkage })));
+    setLinkageDialog({ open: false, editIndex: null });
+    setDeleteIndex(null);
+    setDeleting(false);
   }, [open, slot]);
 
-  const activeTargets = useMemo(
-    () => triggers.find((group) => group.trigger === tab)?.targets ?? [],
-    [triggers, tab],
-  );
+  // ---- Linkage dialog option sources ----
+  const characterOptions = useMemo<LinkageCharacterOption[]>(() => {
+    const options: LinkageCharacterOption[] = [];
+    slots.forEach((entry, index) => {
+      if (!entry || index === slotIndex) return;
+      options.push({
+        id: entry.characterId,
+        name: charactersById.get(entry.characterId)?.name ?? '',
+      });
+    });
+    return options;
+  }, [slots, charactersById, slotIndex]);
 
-  const updateTargets = (targets: ParticipantTarget[]): void => {
-    setTriggers((previous) =>
-      previous.map((group) => (group.trigger === tab ? { ...group, targets } : group)),
-    );
-  };
-
-  const removeTarget = (index: number): void => {
-    updateTargets(activeTargets.filter((_, i) => i !== index));
-  };
-
-  const addTarget = (): void => {
-    const draft = add;
-    if (!draft.type) return;
-    let target: ParticipantTarget;
-    if (draft.type === 'character') {
-      if (draft.characterId === null) return;
-      target = { type: 'character', id: draft.characterId, effect: 'highlight', color: draft.color };
-    } else if (draft.type === 'item') {
-      if (draft.itemId === null) return;
-      target = { type: 'item', id: draft.itemId, scope: 'all', effect: 'highlight', color: draft.color };
-    } else if (draft.type === 'region') {
-      if (!draft.regionId) return;
-      target = { type: 'region', id: draft.regionId, effect: 'highlight', color: draft.color };
-    } else {
-      // cell — MOD-708: use cells array, default to [[0,0]]
-      target = { type: 'cell', cells: [[0, 0]], effect: 'highlight', color: draft.color };
+  const itemOptions = useMemo<LinkageItemOption[]>(() => {
+    const byId = new Map<number, LinkageItemOption>();
+    for (const item of placedItems) {
+      const existing = byId.get(item.itemId);
+      if (existing) {
+        existing.instances.push([item.x, item.y]);
+      } else {
+        byId.set(item.itemId, {
+          itemId: item.itemId,
+          name: item.name,
+          instances: [[item.x, item.y]],
+        });
+      }
     }
-    const duplicate = activeTargets.some(
-      (item) => sameTarget(item, target) && item.color === target.color,
-    );
-    if (duplicate) {
-      setAdd(EMPTY_ADD);
-      return;
-    }
-    updateTargets([...activeTargets, target]);
-    setAdd({ ...EMPTY_ADD, type: draft.type, color: draft.color });
-  };
+    return [...byId.values()];
+  }, [placedItems]);
 
   const applyHex = (): void => {
     const normalized = normalizeHexColor(hexDraft);
@@ -193,27 +144,53 @@ export function ParticipantDrawer({
       setHexDraft(themeColor);
       return;
     }
-    // MOD-710: no blue rejection — any valid hex is accepted
+    // MOD-801: any valid hex is accepted — no hints, no blocking.
     setThemeColor(normalized);
     setHexDraft(normalized);
   };
 
-  // MOD-710: non-blocking high-luminance warning
-  const hexWarning = useMemo(() => {
-    const normalized = normalizeHexColor(hexDraft);
-    if (!normalized) return null;
-    if (isHighLuminanceColor(normalized)) {
-      return '该颜色较亮，可能影响可读性';
-    }
-    return null;
-  }, [hexDraft]);
-
-  // MOD-702: clue char count
+  // MOD-702: clue char count (no bold-syntax hint any more).
   const clueOverLimit = clue.length > CLUE_MAX;
+
+  const submitLinkages = (produced: ParticipantTarget[]): void => {
+    setLinkages((previous) => {
+      const editIndex = linkageDialog.editIndex;
+      if (editIndex === null) {
+        // Add: append, skipping exact duplicates.
+        const next = [...previous];
+        for (const linkage of produced) {
+          const duplicate = next.some(
+            (item) =>
+              item.type === linkage.type &&
+              JSON.stringify(stripMeta(item)) === JSON.stringify(stripMeta(linkage)),
+          );
+          if (!duplicate) next.push(linkage);
+        }
+        return next;
+      }
+      // Edit: replace the edited entry with the produced set.
+      const head = previous.slice(0, editIndex);
+      const tail = previous.slice(editIndex + 1);
+      return [...head, ...produced, ...tail];
+    });
+  };
+
+  const confirmDelete = (): void => {
+    if (deleteIndex === null) return;
+    const index = deleteIndex;
+    setDeleting(true);
+    window.setTimeout(() => {
+      setLinkages((previous) => previous.filter((_, i) => i !== index));
+      setDeleting(false);
+      setDeleteIndex(null);
+    }, DELETE_FEEDBACK_MS);
+  };
 
   const avatar = character?.avatarThumbUrl ?? character?.avatarUrl;
   const name = character?.name ?? (slot ? `#${slot.characterId}` : '');
   const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
+
+  if (!open) return null;
 
   return (
     <aside
@@ -278,7 +255,7 @@ export function ParticipantDrawer({
                 </div>
               </div>
 
-              {/* Theme color picker — MOD-710: no blue restriction */}
+              {/* Theme colour picker — MOD-801: darkened 15-colour palette */}
               <div className="space-y-2">
                 <Label>主题色</Label>
                 <div className="flex flex-wrap items-center gap-2">
@@ -322,24 +299,20 @@ export function ParticipantDrawer({
                   <Button variant="outline" size="sm" className="h-8" onClick={applyHex}>
                     应用
                   </Button>
-                  {hexWarning ? (
-                    <span className="text-xs text-amber-600">{hexWarning}</span>
-                  ) : null}
                 </div>
               </div>
 
-              {/* MOD-702: clue editor */}
+              {/* MOD-702: clue editor (no bold hint, char count kept) */}
               <div className="space-y-2">
                 <Label>线索</Label>
                 <Textarea
                   value={clue}
                   onChange={(event) => setClue(event.target.value)}
                   rows={3}
-                  placeholder="用 **文字** 表示加粗"
+                  placeholder="一句话线索"
                   className={clueOverLimit ? 'border-destructive' : ''}
                 />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>用 **文字** 表示加粗</span>
+                <div className="flex items-center justify-end text-xs text-muted-foreground">
                   <span className={clueOverLimit ? 'text-destructive font-medium' : ''}>
                     {clue.length} / {CLUE_MAX}
                   </span>
@@ -358,52 +331,61 @@ export function ParticipantDrawer({
                 ) : null}
               </div>
 
-              {/* Trigger effects */}
+              {/* MOD-801: 联动 module — one flat list, no tabs */}
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <h3 className="text-sm font-medium">触发效果</h3>
-                  <div className="ml-auto flex gap-1">
-                    {PARTICIPANT_TRIGGERS.map((trigger) => (
-                      <Button
-                        key={trigger}
-                        type="button"
-                        size="sm"
-                        variant={tab === trigger ? 'secondary' : 'ghost'}
-                        className="h-7 text-xs"
-                        onClick={() => setTab(trigger)}
-                      >
-                        {TRIGGER_LABELS[trigger]}
-                      </Button>
-                    ))}
-                  </div>
+                  <h3 className="text-sm font-medium">联动</h3>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto h-7 text-xs"
+                    onClick={() => setLinkageDialog({ open: true, editIndex: null })}
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    添加联动
+                  </Button>
                 </div>
 
-                <ul className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
-                  {activeTargets.length === 0 ? (
+                <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+                  {linkages.length === 0 ? (
                     <li className="py-2 text-center text-xs text-muted-foreground">
-                      暂无对象，点击下方「添加对象」
+                      暂无联动，点击「添加联动」
                     </li>
                   ) : (
-                    activeTargets.map((target, index) => (
+                    linkages.map((linkage, index) => (
                       <li
-                        key={`${target.type}-${index}`}
+                        key={`${linkage.type}-${index}`}
                         className="flex items-center gap-2 rounded border px-2 py-1 text-xs"
                       >
+                        <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground">
+                          高亮
+                        </span>
                         <span className="truncate">
-                          {describeTarget(target, charactersById, placedItems, regions)}
+                          {describeLinkage(linkage, charactersById, itemOptions, regions)}
                         </span>
                         <span
                           className="ml-auto h-4 w-4 shrink-0 rounded-full border"
-                          style={{ backgroundColor: EFFECT_COLOR_HEX[target.color] }}
-                          title={EFFECT_COLOR_LABELS[target.color]}
+                          style={{ backgroundColor: EFFECT_COLOR_HEX[linkage.color] }}
+                          title={EFFECT_COLOR_LABELS[linkage.color]}
                         />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-muted-foreground hover:text-primary"
+                          title="编辑"
+                          onClick={() => setLinkageDialog({ open: true, editIndex: index })}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-muted-foreground hover:text-destructive"
                           title="删除"
-                          onClick={() => removeTarget(index)}
+                          onClick={() => setDeleteIndex(index)}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -411,124 +393,9 @@ export function ParticipantDrawer({
                     ))
                   )}
                 </ul>
-
-                <div className="flex gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 flex-1 text-xs"
-                    disabled={activeTargets.length === 0}
-                    onClick={() => onPreviewTrigger?.(slotIndex ?? -1, tab)}
-                  >
-                    预览{TRIGGER_LABELS[tab]}效果
-                  </Button>
-                </div>
-
-                <div className="space-y-2 rounded-md border bg-muted/30 p-2">
-                  <div className="flex flex-wrap gap-1">
-                    {PARTICIPANT_TARGET_TYPES.map((type) => (
-                      <Button
-                        key={type}
-                        type="button"
-                        size="sm"
-                        variant={add.type === type ? 'secondary' : 'outline'}
-                        className="h-7 text-xs"
-                        onClick={() => setAdd({ ...EMPTY_ADD, type, color: add.color })}
-                      >
-                        {TARGET_TYPE_LABELS[type]}
-                      </Button>
-                    ))}
-                  </div>
-
-                  {add.type === 'character' ? (
-                    <Select
-                      value={add.characterId ?? ''}
-                      onChange={(event) =>
-                        setAdd({
-                          ...add,
-                          characterId: Number(event.target.value) || null,
-                        })
-                      }
-                    >
-                      <option value="">选择角色</option>
-                      {slots.map((entry, index) =>
-                        entry && index !== slotIndex ? (
-                          <option key={`${index}-${entry.characterId}`} value={entry.characterId}>
-                            #{entry.characterId} {charactersById.get(entry.characterId)?.name ?? ''}
-                          </option>
-                        ) : null,
-                      )}
-                    </Select>
-                  ) : null}
-
-                  {add.type === 'item' ? (
-                    <Select
-                      value={add.itemId ?? ''}
-                      onChange={(event) =>
-                        setAdd({ ...add, itemId: Number(event.target.value) || null })
-                      }
-                    >
-                      <option value="">选择物品</option>
-                      {placedItems.map((item) => (
-                        <option key={`${item.itemId}-${item.x}-${item.y}`} value={item.itemId}>
-                          #{item.itemId} {item.name}（C{item.x + 1}, R{item.y + 1}）
-                        </option>
-                      ))}
-                    </Select>
-                  ) : null}
-
-                  {add.type === 'region' ? (
-                    <Select
-                      value={add.regionId ?? ''}
-                      onChange={(event) =>
-                        setAdd({ ...add, regionId: event.target.value || null })
-                      }
-                    >
-                      <option value="">选择区域</option>
-                      {regions.map((region) => (
-                        <option key={region.id} value={region.id}>
-                          {region.name}
-                        </option>
-                      ))}
-                    </Select>
-                  ) : null}
-
-                  {add.type === 'cell' ? (
-                    <p className="text-xs text-muted-foreground">
-                      添加后请在联动列表中编辑方格坐标（矩阵选择器将在后续版本提供）。
-                    </p>
-                  ) : null}
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">颜色</span>
-                    {EFFECT_COLORS.map((color) => (
-                      <Button
-                        key={color}
-                        type="button"
-                        size="sm"
-                        variant={add.color === color ? 'secondary' : 'outline'}
-                        className="h-7 text-xs"
-                        onClick={() => setAdd({ ...add, color })}
-                      >
-                        {EFFECT_COLOR_LABELS[color]}
-                      </Button>
-                    ))}
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="ml-auto h-7"
-                      disabled={add.type === null}
-                      onClick={addTarget}
-                    >
-                      <Plus className="mr-1 h-3.5 w-3.5" />
-                      添加对象
-                    </Button>
-                  </div>
-                </div>
               </div>
 
-              {/* MOD-702: save only — no "从参与者区移除" button */}
+              {/* MOD-802: save only — no preview buttons in the drawer */}
               <div className="space-y-2 border-t pt-3">
                 <Button
                   type="button"
@@ -536,7 +403,7 @@ export function ParticipantDrawer({
                   disabled={!slot || clueOverLimit}
                   onClick={() => {
                     if (slotIndex === null) return;
-                    onSave(slotIndex, { themeColor, clue, triggers });
+                    onSave(slotIndex, { themeColor, clue, linkages });
                   }}
                 >
                   保存
@@ -546,27 +413,86 @@ export function ParticipantDrawer({
           )}
         </div>
       </div>
+
+      <LinkageDialog
+        open={linkageDialog.open}
+        onOpenChange={(next) =>
+          setLinkageDialog((state) => ({ open: next, editIndex: next ? state.editIndex : null }))
+        }
+        linkage={
+          linkageDialog.open && linkageDialog.editIndex !== null
+            ? linkages[linkageDialog.editIndex] ?? null
+            : null
+        }
+        characters={characterOptions}
+        items={itemOptions}
+        regions={regions}
+        gridSize={gridSize}
+        onSubmit={submitLinkages}
+      />
+
+      {/* MOD-801: delete confirmation with loading (OPT-210) */}
+      <AlertDialog
+        open={deleteIndex !== null}
+        onOpenChange={(next) => {
+          if (!next && !deleting) setDeleteIndex(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确定删除该联动吗？</AlertDialogTitle>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                confirmDelete();
+              }}
+              disabled={deleting}
+            >
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  删除中…
+                </>
+              ) : (
+                '删除'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
 }
 
-/** Human readable label for one configured target. */
-function describeTarget(
-  target: ParticipantTarget,
+/** Drops `effect` so duplicates compare on object + colour only. */
+function stripMeta(linkage: ParticipantTarget): Record<string, unknown> {
+  const { effect: _effect, ...rest } = linkage;
+  return rest;
+}
+
+/** Human readable label for one stored linkage. */
+function describeLinkage(
+  linkage: ParticipantTarget,
   charactersById: Map<number, Character>,
-  placedItems: PlacedItemOption[],
+  items: LinkageItemOption[],
   regions: DraftRegion[],
 ): string {
-  switch (target.type) {
+  switch (linkage.type) {
     case 'character':
-      return `角色 #${target.id} ${charactersById.get(target.id)?.name ?? ''}`.trim();
-    case 'item':
-      return `物品 #${target.id} ${
-        placedItems.find((item) => item.itemId === target.id)?.name ?? ''
-      } (${target.scope === 'all' ? '全部' : `${target.instances?.length ?? 0} 实例`})`.trim();
+      return `角色 · ${charactersById.get(linkage.id)?.name ?? `#${linkage.id}`}`;
+    case 'item': {
+      const item = items.find((entry) => entry.itemId === linkage.id);
+      const label = item?.name ?? `#${linkage.id}`;
+      return linkage.scope === 'instances'
+        ? `物品 · ${label} · ${linkage.instances?.length ?? 0} 实例`
+        : `物品 · ${label} × ${item?.instances.length ?? 0}`;
+    }
     case 'cell':
-      return `方格 ${target.cells.map((c) => `(${c[0]},${c[1]})`).join(', ')}`;
+      return `方格 · ${linkage.cells.length} 格`;
     case 'region':
-      return `区域 ${regions.find((item) => item.id === target.id)?.name ?? target.id}`;
+      return `区域 · ${regions.find((entry) => entry.id === linkage.id)?.name ?? linkage.id}`;
   }
 }

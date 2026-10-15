@@ -8,7 +8,6 @@ import type {
   REGION_SHAPES,
   PROJECT_STATUSES,
   CHARACTER_GENDERS,
-  PARTICIPANT_TRIGGERS,
   PARTICIPANT_TARGET_TYPES,
   EFFECT_COLORS,
 } from '../constants';
@@ -22,7 +21,6 @@ export type EditorLayer = (typeof EDITOR_LAYERS)[number];
 export type RegionShape = (typeof REGION_SHAPES)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type CharacterGender = (typeof CHARACTER_GENDERS)[number];
-export type ParticipantTriggerKey = (typeof PARTICIPANT_TRIGGERS)[number];
 export type ParticipantTargetType = (typeof PARTICIPANT_TARGET_TYPES)[number];
 export type EffectColor = (typeof EFFECT_COLORS)[number];
 
@@ -135,7 +133,7 @@ export interface DraftRegion {
   labelCell?: [number, number] | null;
 }
 
-// ---- Participant linkage (docs/v0.3.1.md CLAR-603, updated v0.3.2 MOD-702/708) ----
+// ---- Participant linkage (docs/v0.3.1.md CLAR-603, updated v0.3.3 MOD-801) ----
 export type ParticipantTarget =
   | { type: 'character'; id: number; effect: EffectType; color: EffectColor }
   | {
@@ -151,15 +149,10 @@ export type ParticipantTarget =
   | { type: 'cell'; cells: Array<[number, number]>; effect: EffectType; color: EffectColor }
   | { type: 'region'; id: string; effect: EffectType; color: EffectColor };
 
-export interface ParticipantTrigger {
-  trigger: ParticipantTriggerKey;
-  targets: ParticipantTarget[];
-}
-
 /**
  * CLAR-603: participants never enter the map. A roster slot carries the
- * participant linkage (theme colour + triggers) directly. `null` represents
- * an empty slot. The roster length equals `gridSize`.
+ * participant configuration directly. `null` represents an empty slot.
+ * The roster length equals `gridSize`.
  */
 export interface CharacterSlotEntry {
   characterId: number;
@@ -167,8 +160,12 @@ export interface CharacterSlotEntry {
   themeColor?: string;
   /** MOD-702: one-line clue shown below the avatar; supports `**bold**` syntax. */
   clue?: string;
-  /** Highlight effects grouped by trigger, each group maintained independently. */
-  triggers?: ParticipantTrigger[];
+  /**
+   * MOD-801: flat list of highlight linkages. The v0.3.2 click/touch
+   * grouping (`triggers`) is gone — hover and click both play the whole
+   * list (docs/v0.3.3.md MOD-802).
+   */
+  linkages?: ParticipantTarget[];
 }
 
 /**

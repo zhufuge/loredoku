@@ -156,7 +156,7 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     }
   }
 
-  // ---- P5 — trigger targets must resolve ----
+  // ---- P5 — every linkage target must resolve ----
   const objectItemIds = new Set<number>();
   for (const key of Object.keys(draft.cells)) {
     const cell = draft.cells[key];
@@ -166,36 +166,35 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
   const regionIds = new Set(draft.regions.map((region) => region.id));
   draft.characterSlots.forEach((slot, slotIndex) => {
     if (!slot) return;
-    for (const trigger of slot.triggers ?? []) {
-      for (const target of trigger.targets) {
-        if (target.type === 'character' && !slotCharacterIds.has(target.id)) {
-          violations.push({
-            rule: 'participant_target',
-            message: `参与者框 ${slotIndex + 1} 的联动目标角色 #${target.id} 不在参与者中`,
-          });
-        }
-        if (target.type === 'item' && !objectItemIds.has(target.id)) {
-          violations.push({
-            rule: 'participant_target',
-            message: `参与者框 ${slotIndex + 1} 的联动目标物品 #${target.id} 不在地图中`,
-          });
-        }
-        if (target.type === 'region' && !regionIds.has(target.id)) {
-          violations.push({
-            rule: 'participant_target',
-            message: `参与者框 ${slotIndex + 1} 的联动目标区域 ${target.id} 不在地图中`,
-          });
-        }
-        // MOD-708: cell targets carry a `cells` array
-        if (target.type === 'cell') {
-          for (const [cx, cy] of target.cells) {
-            if (cx < 0 || cy < 0 || cx >= size || cy >= size) {
-              violations.push({
-                rule: 'participant_target',
-                message: `参与者框 ${slotIndex + 1} 的联动目标方格 (${cx}, ${cy}) 超出画布范围`,
-              });
-              break;
-            }
+    // MOD-801: flat linkages list (was: triggers[].targets).
+    for (const target of slot.linkages ?? []) {
+      if (target.type === 'character' && !slotCharacterIds.has(target.id)) {
+        violations.push({
+          rule: 'participant_target',
+          message: `参与者框 ${slotIndex + 1} 的联动目标角色 #${target.id} 不在参与者中`,
+        });
+      }
+      if (target.type === 'item' && !objectItemIds.has(target.id)) {
+        violations.push({
+          rule: 'participant_target',
+          message: `参与者框 ${slotIndex + 1} 的联动目标物品 #${target.id} 不在地图中`,
+        });
+      }
+      if (target.type === 'region' && !regionIds.has(target.id)) {
+        violations.push({
+          rule: 'participant_target',
+          message: `参与者框 ${slotIndex + 1} 的联动目标区域 ${target.id} 不在地图中`,
+        });
+      }
+      // MOD-708: cell targets carry a `cells` array
+      if (target.type === 'cell') {
+        for (const [cx, cy] of target.cells) {
+          if (cx < 0 || cy < 0 || cx >= size || cy >= size) {
+            violations.push({
+              rule: 'participant_target',
+              message: `参与者框 ${slotIndex + 1} 的联动目标方格 (${cx}, ${cy}) 超出画布范围`,
+            });
+            break;
           }
         }
       }

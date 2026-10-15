@@ -1,15 +1,17 @@
 import {
   EFFECT_COLOR_HEX,
+  REGION_HIGHLIGHT_BORDER_COLOR,
   type CharacterSlotEntry,
   type DraftCell,
   type DraftRegion,
   type EffectColor,
   type ParticipantTarget,
-  type ParticipantTrigger,
-  type ParticipantTriggerKey,
 } from '@murdoku/shared';
 
 export type CellMap = Map<string, DraftCell>;
+
+/** MOD-802 §1.2.4: deactivation fades the highlight out over 150ms. */
+export const HIGHLIGHT_FADEOUT_MS = 150;
 
 export interface HighlightRect {
   x: number;
@@ -21,21 +23,18 @@ export interface HighlightRect {
 }
 
 /**
- * CLAR-603 + MOD-701: characters are no longer placed on the map; highlight
- * requests resolve roster slots. The renderer doesn't draw a map character
- * layer, so the only remaining highlight branches are objects, cells and
- * regions.
+ * CLAR-603 + MOD-802 (docs/v0.3.3.md): characters are no longer placed on
+ * the map; highlight requests resolve roster slots. The renderer doesn't
+ * draw a map character layer, so the only remaining highlight branches are
+ * objects, cells and regions.
  *
- * MOD-701: click trigger = persistent (3s, scale 1.08 for chars),
- *          touch trigger = transient (1s, no scale).
- * We carry `triggerKey` so the caller knows which duration to apply.
+ * MOD-802: highlights are persistent — they live until the activation ends
+ * (pointer-leave for hover, toggle for click, Esc). No durations.
  */
 export interface HighlightCharacter {
   /** Slot index of the participant to outline in the roster panel. */
   slotIndex: number;
   color: string;
-  /** Whether this came from a click (3s, scale) or touch (1s, no scale). */
-  trigger: ParticipantTriggerKey;
 }
 
 /** Fully resolved highlight request: everything the renderer needs. */
@@ -43,9 +42,10 @@ export interface HighlightState {
   characters: HighlightCharacter[];
   objects: HighlightRect[];
   cells: HighlightRect[];
-  /** The trigger that produced this state (controls duration / behaviour). */
-  trigger?: ParticipantTriggerKey;
-  /** Region border outlines (MOD-709: touch → blue border inside). */
+  /**
+   * MOD-802: region highlights are always an inner blue border
+   * (`#3B82F6`), regardless of how the linkage was activated.
+   */
   regionBorders: Array<{ regionId: string; color: string }>;
 }
 
@@ -90,17 +90,17 @@ export interface TargetSummary {
   target: ParticipantTarget;
 }
 
-/** Flattens the triggers of one group into de-duplicated targets (later wins). */
-export function collectTriggerTargets(
-  triggers: ParticipantTrigger[] | undefined,
-  trigger: ParticipantTriggerKey,
+/**
+ * MOD-801: the flat `linkages` list, de-duplicated by target identity
+ * (later wins). The colour is kept per entry, so the same object can be
+ * highlighted in two colours by two linkages.
+ */
+export function collectLinkages(
+  linkages: ParticipantTarget[] | undefined,
 ): TargetSummary[] {
   const byIdentity = new Map<string, ParticipantTarget>();
-  for (const group of triggers ?? []) {
-    if (group.trigger !== trigger) continue;
-    for (const target of group.targets) {
-      byIdentity.set(targetIdentity(target), target);
-    }
+  for (const target of linkages ?? []) {
+    byIdentity.set(targetIdentity(target), target);
   }
   return [...byIdentity.entries()].map(([identity, target]) => ({ identity, target }));
 }
@@ -121,17 +121,17 @@ export function findAllItemAnchors(
 }
 
 /**
- * Turns the declarative participant triggers into concrete rectangles.
+ * Turns one participant's flat linkage list into concrete rectangles.
  *
  * MOD-708: `cell` targets have `cells` array; `item` targets have `scope`.
- * MOD-709: `region` touch → border outline; click → fill.
+ * MOD-802: `region` targets always produce an inner blue border — click and
+ * hover render identically.
  */
 export function resolveHighlight(
-  triggers: ParticipantTrigger[] | undefined,
-  trigger: ParticipantTriggerKey,
+  linkages: ParticipantTarget[] | undefined,
   ctx: HighlightContext,
 ): HighlightState | null {
-  const targets = collectTriggerTargets(triggers, trigger);
+  const targets = collectLinkages(linkages);
   if (targets.length === 0) return null;
 
   const characters = new Map<string, HighlightCharacter>();
@@ -147,7 +147,7 @@ export function resolveHighlight(
         (slot) => slot?.characterId === target.id,
       );
       if (slotIndex === -1) continue;
-      characters.set(identity, { slotIndex, color, trigger });
+      characters.set(identity, { slotIndex, color });
       continue;
     }
 
@@ -184,18 +184,10 @@ export function resolveHighlight(
       continue;
     }
 
-    // region target
+    // region target — MOD-802: always the inner blue border.
     const region = ctx.regions.find((item) => item.id === target.id);
     if (!region) continue;
-    if (trigger === 'touch') {
-      // MOD-709: touch → border outline
-      regionBorders.push({ regionId: region.id, color: '#3B82F6' });
-    } else {
-      // click → fill all region cells
-      for (const [x, y] of region.cells) {
-        cells.set(`region:${region.id}:${x},${y}`, { x, y, w: 1, h: 1, color });
-      }
-    }
+    regionBorders.push({ regionId: region.id, color: REGION_HIGHLIGHT_BORDER_COLOR });
   }
 
   if (
@@ -211,6 +203,5 @@ export function resolveHighlight(
     objects: [...objects.values()],
     cells: [...cells.values()],
     regionBorders,
-    trigger,
   };
 }

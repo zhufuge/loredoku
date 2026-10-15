@@ -34,6 +34,43 @@ export interface ParticipantLayout {
 const GOLDEN_RATIO = 1.618;
 const TARGET_ASPECT = 1 / GOLDEN_RATIO; // ≈ 0.618
 
+/** Builds a layout for `n` slots forced into exactly `cols` columns. */
+export function deriveLayout(n: number, cols: number): ParticipantLayout {
+  if (!Number.isFinite(n) || n <= 0) {
+    return { cols: 1, rows: 0, total: 0, lastRowCount: 0, leadingOffset: 0 };
+  }
+  const safeCols = Math.max(1, Math.min(n, Math.floor(cols) || 1));
+  const rows = Math.ceil(n / safeCols);
+  const lastRowCount = n % safeCols === 0 ? safeCols : n % safeCols;
+  const leadingOffset = lastRowCount === safeCols ? 0 : Math.floor((safeCols - lastRowCount) / 2);
+  return {
+    cols: safeCols,
+    rows,
+    total: n,
+    lastRowCount,
+    leadingOffset,
+  };
+}
+
+/**
+ * MOD-803: the widest column count ≤ `maxCols` whose cells still fit into
+ * `width` (`cols * cell + (cols - 1) * gap`). Falls back to 1 column — the
+ * caller then scrolls vertically (spec §MOD-803 布局自适应).
+ */
+export function fitColumns(
+  width: number,
+  maxCols: number,
+  cell: number,
+  gap: number,
+): number {
+  const upper = Math.max(1, Math.floor(maxCols) || 1);
+  for (let cols = upper; cols >= 1; cols -= 1) {
+    const required = cols * cell + (cols - 1) * gap;
+    if (required <= width) return cols;
+  }
+  return 1;
+}
+
 /**
  * Pick the column count minimising `|cols/rows - TARGET_ASPECT|`.
  * Iterates every `cols ∈ [1, n]`, ties broken by smaller `cols`.
@@ -54,16 +91,7 @@ export function computeParticipantLayout(n: number): ParticipantLayout {
       bestCols = cols;
     }
   }
-  const rows = Math.ceil(n / bestCols);
-  const lastRowCount = n % bestCols === 0 ? bestCols : n % bestCols;
-  const leadingOffset = lastRowCount === bestCols ? 0 : Math.floor((bestCols - lastRowCount) / 2);
-  return {
-    cols: bestCols,
-    rows,
-    total: n,
-    lastRowCount,
-    leadingOffset,
-  };
+  return deriveLayout(n, bestCols);
 }
 
 /**

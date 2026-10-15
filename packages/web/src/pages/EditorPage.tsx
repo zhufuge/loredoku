@@ -12,8 +12,7 @@ import {
   type EditorTool,
   type Item,
   type MapDraft,
-  type ParticipantTrigger,
-  type ParticipantTriggerKey,
+  type ParticipantTarget,
   type PublishViolation,
   type RegionShape,
 } from '@murdoku/shared';
@@ -118,8 +117,6 @@ export function EditorPage(): JSX.Element {
     if (typeof window === 'undefined') return true;
     return window.localStorage.getItem('murdoku.editor.ruler') !== 'hidden';
   });
-  const [pickingCell, setPickingCell] = useState(false);
-  const [pickedCell, setPickedCell] = useState<{ x: number; y: number } | null>(null);
   const [removeParticipantTarget, setRemoveParticipantTarget] = useState<number | null>(null);
 
   // Slot drag state for roster reordering (CLAR-603 — no longer drops onto the map).
@@ -203,13 +200,50 @@ export function EditorPage(): JSX.Element {
     );
   };
 
-  // ---- CLAR-603: participant linkage lives entirely in the roster ----
-  const { highlight, show: showHighlight } = useHighlight();
+  // ---- CLAR-603 + MOD-802: participant linkage lives entirely in the roster ----
+  const {
+    highlight,
+    show: showHighlight,
+    clear: clearHighlight,
+    leaving: highlightLeaving,
+  } = useHighlight();
 
   const selectedSlot =
     editor.selectedSlotIndex === null
       ? null
       : editor.characterSlots[editor.selectedSlotIndex] ?? null;
+
+  const activeSlot =
+    editor.activeParticipantId === null
+      ? null
+      : editor.characterSlots[editor.activeParticipantId] ?? null;
+
+  /**
+   * MOD-802 §1.2.4: the highlight is a pure projection of the single-active
+   * state machine — persistent while active, faded out (150ms) afterwards.
+   */
+  useEffect(() => {
+    if (!activeSlot) {
+      clearHighlight();
+      return;
+    }
+    showHighlight(
+      resolveHighlight(activeSlot.linkages, {
+        gridSize: editor.gridSize,
+        cells: editor.cells,
+        characterSlots: editor.characterSlots,
+        regions: editor.regions,
+      }),
+    );
+  }, [
+    activeSlot,
+    editor.gridSize,
+    editor.cells,
+    editor.characterSlots,
+    editor.regions,
+    showHighlight,
+    clearHighlight,
+  ]);
 
   const placedItems = useMemo<PlacedItemOption[]>(() => {
     const list: PlacedItemOption[] = [];
@@ -226,21 +260,9 @@ export function EditorPage(): JSX.Element {
     return list;
   }, [editor.cells, itemsById]);
 
-  const fireTrigger = (slotIndex: number, trigger: ParticipantTriggerKey): void => {
-    const slot = editor.characterSlots[slotIndex];
-    if (!slot) return;
-    const state = resolveHighlight(slot.triggers, trigger, {
-      gridSize: editor.gridSize,
-      cells: editor.cells,
-      characterSlots: editor.characterSlots,
-      regions: editor.regions,
-    });
-    showHighlight(state, trigger);
-  };
-
   const saveParticipant = (
     slotIndex: number,
-    patch: { themeColor: string; clue: string; triggers: ParticipantTrigger[] },
+    patch: { themeColor: string; clue: string; linkages: ParticipantTarget[] },
   ): void => {
     editor.setParticipantConfig(slotIndex, patch);
     toast.success('已保存参与者配置');
@@ -250,6 +272,8 @@ export function EditorPage(): JSX.Element {
     if (removeParticipantTarget === null) return;
     const slotIndex = removeParticipantTarget;
     editor.clearCharacterSlot(slotIndex);
+    // MOD-802: the removed participant can no longer own the active linkage.
+    if (editor.activeParticipantId === slotIndex) editor.clearActivation();
     if (editor.selectedSlotIndex === slotIndex) {
       editor.setSelectedSlot(null);
       setParticipantDrawerOpen(false);
@@ -510,6 +534,7 @@ export function EditorPage(): JSX.Element {
         return;
       }
       if (event.key === 'Escape') {
+        editor.clearActivation();
         editor.setSelection(null);
         editor.setSelectedItem(null);
         editor.setSelectedSlot(null);
@@ -674,6 +699,7 @@ export function EditorPage(): JSX.Element {
             charactersById={charactersById}
             selectedSlotIndex={editor.selectedSlotIndex}
             draggingIndex={slotDrag?.slotIndex ?? null}
+            activeSlotIndex={editor.activeParticipantId}
             highlightedSlots={highlightedSlots}
             highlightColors={highlightColors}
             onSelect={(index) => {
@@ -682,6 +708,9 @@ export function EditorPage(): JSX.Element {
                 setUnplacedCharacterId(null);
               }
             }}
+            onActivateHover={editor.activateParticipantHover}
+            onDeactivateHover={editor.deactivateParticipantHover}
+            onActivateClick={editor.activateParticipantClick}
             onClearRequest={clearSlot}
             onDragBegin={beginSlotDrag}
             onDragMove={moveSlotDrag}
@@ -708,11 +737,8 @@ export function EditorPage(): JSX.Element {
             pendingItem={pendingItem}
             regionDraftSelection={editor.regionDraftSelection}
             highlight={highlight}
+            highlightLeaving={highlightLeaving}
             onSelect={(selection) => {
-              if (pickingCell && selection?.type === 'cell') {
-                setPickedCell({ x: selection.x, y: selection.y });
-                setPickingCell(false);
-              }
               editor.setSelection(selection);
               if (selection) {
                 editor.setSelectedSlot(null);
@@ -774,21 +800,6 @@ export function EditorPage(): JSX.Element {
                 setTool('select');
               }}
             />
-          ) : null}
-          {pickingCell ? (
-            <div className="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-4">
-              <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-xs shadow-lg">
-                点击画布空格以确定目标方格
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  onClick={() => setPickingCell(false)}
-                >
-                  取消
-                </Button>
-              </div>
-            </div>
           ) : null}
 
           <EditorBottomBar
@@ -856,7 +867,6 @@ export function EditorPage(): JSX.Element {
             regions={editor.regions}
             gridSize={editor.gridSize}
             onSave={saveParticipant}
-            onPreviewTrigger={fireTrigger}
           />
         </main>
       </div>

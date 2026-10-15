@@ -13,7 +13,7 @@ import {
   REGION_NAME_MAX_LENGTH,
 } from '../constants';
 import { regionColorSchema } from './map';
-import { participantTriggersSchema, themeColorSchema } from './participant';
+import { participantLinkagesSchema, themeColorSchema } from './participant';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 const cellKeySchema = z.string().regex(/^\d+,\d+$/, '单元格坐标格式应为 "x,y"');
@@ -62,20 +62,24 @@ export const characterSlotSchema = z.object({
 });
 
 /**
- * CLAR-603 + MOD-702: a roster slot carries participant linkage directly.
+ * CLAR-603 + MOD-702/801: a roster slot carries participant linkage directly.
  * The roster length equals `gridSize`; null entries represent empty slots.
  * `clue` is an optional one-line clue text (0-200 chars, supports `**bold**`).
+ * `linkages` is the flat MOD-801 list (no click/touch grouping).
  */
-export const characterSlotEntrySchema = z.object({
-  characterId: z.number().int().positive(),
-  themeColor: themeColorSchema,
-  clue: z.string().trim().max(200).default(''),
-  triggers: participantTriggersSchema,
-});
+export const characterSlotEntrySchema = z
+  .object({
+    characterId: z.number().int().positive(),
+    themeColor: themeColorSchema,
+    clue: z.string().trim().max(200).default(''),
+    linkages: participantLinkagesSchema,
+  })
+  // MOD-801: legacy `triggers` payloads are rejected, not silently stripped.
+  .strict();
 
 /**
- * CLAR-603: validates that every participant trigger references an object
- * that exists in the same map. Targets reference:
+ * CLAR-603: validates that every participant linkage references an object
+ * that exists in the same map. Linkages reference:
  *   - characters → another roster slot's `characterId`
  *   - items      → an object anchor in `cells`
  *   - cells      → within the `gridSize` square
@@ -97,46 +101,45 @@ function validateParticipantReferences(
 
   draft.characterSlots.forEach((slot, slotIndex) => {
     if (!slot) return;
-    for (const trigger of slot.triggers) {
-      trigger.targets.forEach((target, targetIndex) => {
-        const path = ['characterSlots', slotIndex, 'triggers'];
-        void targetIndex;
-        if (target.type === 'character' && !participantIds.has(target.id)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path,
-            message: `联动目标角色 #${target.id} 不在参与者中`,
-          });
-        }
-        if (target.type === 'item' && !objectItemIds.has(target.id)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path,
-            message: `联动目标物品 #${target.id} 不在地图中`,
-          });
-        }
-        if (target.type === 'region' && !regionIds.has(target.id)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path,
-            message: `联动目标区域 ${target.id} 不在地图中`,
-          });
-        }
-        // MOD-708: cell targets have a `cells` array — validate each coord.
-        if (target.type === 'cell') {
-          for (const [cx, cy] of target.cells) {
-            if (cx >= draft.gridSize || cy >= draft.gridSize) {
-              ctx.addIssue({
-                code: z.ZodIssueCode.custom,
-                path,
-                message: `联动目标方格 (${cx}, ${cy}) 超出画布范围`,
-              });
-              break;
-            }
+    // MOD-801: flat linkages list (was: triggers[].targets).
+    slot.linkages.forEach((target, targetIndex) => {
+      const path = ['characterSlots', slotIndex, 'linkages'];
+      void targetIndex;
+      if (target.type === 'character' && !participantIds.has(target.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path,
+          message: `联动目标角色 #${target.id} 不在参与者中`,
+        });
+      }
+      if (target.type === 'item' && !objectItemIds.has(target.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path,
+          message: `联动目标物品 #${target.id} 不在地图中`,
+        });
+      }
+      if (target.type === 'region' && !regionIds.has(target.id)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path,
+          message: `联动目标区域 ${target.id} 不在地图中`,
+        });
+      }
+      // MOD-708: cell targets have a `cells` array — validate each coord.
+      if (target.type === 'cell') {
+        for (const [cx, cy] of target.cells) {
+          if (cx >= draft.gridSize || cy >= draft.gridSize) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path,
+              message: `联动目标方格 (${cx}, ${cy}) 超出画布范围`,
+            });
+            break;
           }
         }
-      });
-    }
+      }
+    });
   });
 }
 

@@ -10,10 +10,16 @@ import {
   type EditorLayer,
   type EditorTool,
   type MapDraft,
-  type ParticipantTrigger,
+  type ParticipantTarget,
 } from '@murdoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
 import { isEmptyCell, objectFootprintKeys, resolveEraseTarget } from '@/lib/erase';
+import {
+  INACTIVE_ACTIVATION,
+  reduceLinkageActivation,
+  type ActivationMode,
+  type LinkageActivationState,
+} from '@/lib/linkageActivation';
 
 export type CellKey = `${number},${number}`;
 
@@ -36,17 +42,14 @@ export function genSlotArray(
   return Array.from({ length: size }, (_, index) => existing[index] ?? null);
 }
 
-/** Normalises a roster entry so it always carries theme + clue + triggers. */
+/** Normalises a roster entry so it always carries theme + clue + linkages. */
 function ensureEntry(entry: CharacterSlotEntry | null): CharacterSlotEntry | null {
   if (!entry) return null;
   return {
     characterId: entry.characterId,
     themeColor: entry.themeColor ?? DEFAULT_THEME_COLOR,
     clue: entry.clue ?? '',
-    triggers: (entry.triggers ?? []).map((trigger) => ({
-      trigger: trigger.trigger,
-      targets: trigger.targets.map((target) => ({ ...target })),
-    })),
+    linkages: (entry.linkages ?? []).map((linkage) => ({ ...linkage })),
   };
 }
 
@@ -96,6 +99,13 @@ export interface EditorState {
   selectedItemId: number | null;
   /** Slot index selected in the participant panel (drives the right drawer). */
   selectedSlotIndex: number | null;
+  /**
+   * MOD-802: single-active linkage preview. `activeParticipantId` is the
+   * slot index whose linkages are highlighted; `activationMode` records
+   * whether hover or click triggered it.
+   */
+  activeParticipantId: number | null;
+  activationMode: ActivationMode | null;
   regionDraftSelection: Set<string>;
   zoom: number;
   pan: { x: number; y: number };
@@ -114,6 +124,15 @@ export interface EditorState {
   setSelectedItem: (id: number | null) => void;
   setSelectedSlot: (index: number | null) => void;
 
+  /** MOD-802: pointer entered a slot → hover-activate (auto-ends previous). */
+  activateParticipantHover: (participantId: number) => void;
+  /** MOD-802: pointer left a slot → hover-deactivate (no-op when click-active). */
+  deactivateParticipantHover: (participantId: number) => void;
+  /** MOD-802: click a slot → toggle click-activation. */
+  activateParticipantClick: (participantId: number) => void;
+  /** MOD-802: Esc → force-clear the active linkage. */
+  clearActivation: () => void;
+
   toggleDraftCell: (x: number, y: number) => void;
   addDraftCells: (cells: Array<[number, number]>) => void;
   removeDraftCells: (cells: Array<[number, number]>) => void;
@@ -128,10 +147,10 @@ export interface EditorState {
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
   clearObjectAt: (x: number, y: number) => void;
-  /** CLAR-603 + MOD-702: persists theme + clue + triggers on the slot. */
+  /** CLAR-603 + MOD-801: persists theme + clue + flat linkages on the slot. */
   setParticipantConfig: (
     slotIndex: number,
-    patch: { themeColor?: string; clue?: string; triggers?: ParticipantTrigger[] },
+    patch: { themeColor?: string; clue?: string; linkages?: ParticipantTarget[] },
   ) => void;
 
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
@@ -186,6 +205,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     selectedRegionId: null,
     selectedItemId: null,
     selectedSlotIndex: null,
+    activeParticipantId: null,
+    activationMode: null,
     regionDraftSelection: new Set<string>(),
     zoom: 1,
     pan: { x: 0, y: 0 },
@@ -215,6 +236,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selectedRegionId: null,
         selectedItemId: null,
         selectedSlotIndex: null,
+        ...INACTIVE_ACTIVATION,
         regionDraftSelection: new Set<string>(),
         zoom: 1,
         pan: { x: 0, y: 0 },
@@ -236,6 +258,43 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
     setSelectedItem: (selectedItemId) => set({ selectedItemId }),
     setSelectedSlot: (selectedSlotIndex) => set({ selectedSlotIndex }),
+
+    // MOD-802: all four actions funnel through the pure reducer so the
+    // single-active invariant lives in exactly one place.
+    activateParticipantHover: (participantId) =>
+      set((state) =>
+        reduceLinkageActivation(
+          {
+            activeParticipantId: state.activeParticipantId,
+            activationMode: state.activationMode,
+          },
+          { type: 'enter', participantId },
+        ),
+      ),
+
+    deactivateParticipantHover: (participantId) =>
+      set((state) =>
+        reduceLinkageActivation(
+          {
+            activeParticipantId: state.activeParticipantId,
+            activationMode: state.activationMode,
+          },
+          { type: 'leave', participantId },
+        ),
+      ),
+
+    activateParticipantClick: (participantId) =>
+      set((state) =>
+        reduceLinkageActivation(
+          {
+            activeParticipantId: state.activeParticipantId,
+            activationMode: state.activationMode,
+          },
+          { type: 'click', participantId },
+        ),
+      ),
+
+    clearActivation: () => set({ ...INACTIVE_ACTIVATION }),
 
     toggleDraftCell: (x, y) =>
       set((state) => {
@@ -343,7 +402,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 characterId: entry.characterId,
                 themeColor: patch.themeColor ?? entry.themeColor ?? DEFAULT_THEME_COLOR,
                 clue: patch.clue ?? entry.clue ?? '',
-                triggers: patch.triggers ?? entry.triggers ?? [],
+                linkages: (patch.linkages ?? entry.linkages ?? []).map((linkage) => ({
+                  ...linkage,
+                })),
               }
             : slot,
         );
@@ -437,7 +498,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
                   characterId,
                   themeColor: slot?.themeColor ?? DEFAULT_THEME_COLOR,
                   clue: slot?.clue ?? '',
-                  triggers: slot?.triggers ?? [],
+                  linkages: (slot?.linkages ?? []).map((linkage) => ({ ...linkage })),
                 }
               : null
             : slot,
@@ -500,6 +561,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
           selection: null,
           selectedRegionId: null,
           selectedSlotIndex: null,
+          ...INACTIVE_ACTIVATION,
           regionDraftSelection: new Set<string>(),
         };
       }),
