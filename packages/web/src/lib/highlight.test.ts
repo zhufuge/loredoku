@@ -113,17 +113,17 @@ describe('resolveHighlight', () => {
     const state = resolveHighlight(linkages, { ...ctx, characterSlots: slots });
     expect(state).not.toBeNull();
     // Character 7 lives at slot index 1.
-    expect(state!.characters).toEqual([{ slotIndex: 1, color: '#EF4444' }]);
+    expect(state!.characters).toEqual([{ slotIndex: 1, color: '#EF9A9A' }]);
     // OPT-903 §7.3: a 2×1 object lights up BOTH occupied cells as 方块高亮.
     expect(state!.cellHighlights).toEqual([
-      { x: 0, y: 0, w: 1, h: 1, color: '#3B82F6' },
-      { x: 1, y: 0, w: 1, h: 1, color: '#3B82F6' },
-      { x: 4, y: 4, w: 1, h: 1, color: '#EF4444' },
+      { x: 0, y: 0, w: 1, h: 1, color: '#90CAF9' },
+      { x: 1, y: 0, w: 1, h: 1, color: '#90CAF9' },
+      { x: 4, y: 4, w: 1, h: 1, color: '#EF9A9A' },
     ]);
     expect(state!.backgroundHighlights).toEqual([]);
     // MOD-802: regions always render as the inner blue border.
     expect(state!.regionBorders).toEqual([
-      { regionId: 'rg_forest', color: '#3B82F6' },
+      { regionId: 'rg_forest', color: '#90CAF9' },
     ]);
   });
 
@@ -136,7 +136,7 @@ describe('resolveHighlight', () => {
       expect(state!.cellHighlights).toHaveLength(0);
       expect(state!.backgroundHighlights).toHaveLength(0);
       expect(state!.regionBorders).toEqual([
-        { regionId: 'rg_forest', color: '#3B82F6' },
+        { regionId: 'rg_forest', color: '#90CAF9' },
       ]);
     }
   });
@@ -227,8 +227,8 @@ describe('resolveHighlight', () => {
     );
     // One opaque rect per occupied cell of the 2×1 footprint.
     expect(state!.cellHighlights).toEqual([
-      { x: 0, y: 0, w: 1, h: 1, color: '#EF4444' },
-      { x: 1, y: 0, w: 1, h: 1, color: '#EF4444' },
+      { x: 0, y: 0, w: 1, h: 1, color: '#EF9A9A' },
+      { x: 1, y: 0, w: 1, h: 1, color: '#EF9A9A' },
     ]);
     expect(state).not.toHaveProperty('objects');
     expect(state!.backgroundHighlights).toEqual([]);
@@ -246,11 +246,11 @@ describe('resolveHighlight', () => {
     );
     // Background placements → 背景高亮; the object placement → 方块高亮.
     expect(state!.backgroundHighlights).toEqual([
-      { x: 0, y: 0, w: 1, h: 1, color: '#3B82F6' },
-      { x: 2, y: 2, w: 1, h: 1, color: '#3B82F6' },
+      { x: 0, y: 0, w: 1, h: 1, color: '#90CAF9' },
+      { x: 2, y: 2, w: 1, h: 1, color: '#90CAF9' },
     ]);
     expect(state!.cellHighlights).toEqual([
-      { x: 3, y: 3, w: 1, h: 1, color: '#3B82F6' },
+      { x: 3, y: 3, w: 1, h: 1, color: '#90CAF9' },
     ]);
   });
 

@@ -9,7 +9,9 @@ import {
 } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
-  CELL_SIZE,
+  CANVAS_PADDING,
+  DEFAULT_CELL_SIZE,
+  HIGHLIGHT_BLUE,
   MAP_LAYER_Z,
   type CellCoord,
   type DraftRegion,
@@ -27,6 +29,7 @@ import {
   MapHighlightLayer,
   MapNoStandShadowLayer,
   MapObjectLayer,
+  MapOperationCursorLayer,
   MapRegionEdgeLayer,
   MapRegionFillLayer,
   MapRegionHoverLayer,
@@ -35,8 +38,10 @@ import {
 import {
   collectNoStandCells,
   collectObjectCells,
+  resolveCursorBoxes,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
+import { computeCellSizeForViewport } from '@/lib/canvasSize';
 import {
   centerPan,
   clampZoom,
@@ -53,11 +58,11 @@ const RULER_TEXT_COLOR = '#1F2937';
 const RULER_ACTIVE_COLOR = '#2563EB';
 
 /**
- * OPT-901 §1.1 layer 1 covers "current operation or selection" markers. The
- * editor affordances (selection ring, marquee, region draft) live in the same
- * top band, just under the cursor box so the hover indicator stays on top.
+ * OPT-A05 §1.1 layer 1 covers "current operation or selection" markers. The
+ * editor affordances (marquee, region draft) live in the same top band, just
+ * under the two cursor boxes so the hover indicator stays on top.
  */
-const SELECTION_OVERLAY_Z = MAP_LAYER_Z.cellCursor - 1;
+const EDITOR_OVERLAY_Z = MAP_LAYER_Z.cellCursor - 1;
 const DRAFT_OVERLAY_Z = MAP_LAYER_Z.cellCursor - 2;
 
 /** EditorCanvas no longer carries character drag state (CLAR-603). */
@@ -149,6 +154,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const containerRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<Interaction>(null);
   const userPannedRef = useRef(false);
+  /** OPT-A01 §1.1: adaptive cell width in px at 100% zoom. */
+  const [cellSize, setCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const [hover, setHover] = useState<CellCoord | null>(null);
   const [marquee, setMarquee] = useState<{ start: CellCoord; end: CellCoord } | null>(null);
   const [regionAnchor, setRegionAnchor] = useState<CellCoord | null>(null);
@@ -159,25 +166,41 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const viewRef = useRef({ zoom, pan, onZoom, onPan });
   viewRef.current = { zoom, pan, onZoom, onPan };
 
-  const total = gridSize * CELL_SIZE;
+  const total = gridSize * cellSize;
 
+  /**
+   * OPT-A01 §1.2: recompute the adaptive cell size and re-centre the board.
+   * Clearing `userPannedRef` is what re-arms the automatic pass, so this is
+   * also what "重置视图" (Ctrl+0) does.
+   *
+   * The visible rulers live inside the same viewport, so the inset grows to
+   * keep them off the board (`CANVAS_PADDING` is the plain inset used by
+   * §1.1 when no ruler is shown).
+   */
   const centerView = useCallback((): void => {
     const node = containerRef.current;
     if (!node) return;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     userPannedRef.current = false;
+    const next = computeCellSizeForViewport({
+      width: rect.width,
+      height: rect.height,
+      gridSize,
+      padding: showRulers ? RULER_SIZE + CANVAS_PADDING : CANVAS_PADDING,
+    });
+    setCellSize((previous) => (previous === next ? previous : next));
     viewRef.current.onZoom(1);
-    viewRef.current.onPan(centerPan(rect, gridSize, 1));
-  }, [gridSize]);
+    viewRef.current.onPan(centerPan(rect, gridSize, next, 1));
+  }, [gridSize, showRulers]);
 
   const toCell = useCallback(
     (clientX: number, clientY: number): CellCoord => {
       const node = containerRef.current;
       const rect = node ? node.getBoundingClientRect() : new DOMRect();
-      return clientToCell(clientX, clientY, { rect, pan, zoom });
+      return clientToCell(clientX, clientY, { rect, pan, zoom, cellSize });
     },
-    [pan, zoom],
+    [pan, zoom, cellSize],
   );
 
   const clampCell = useCallback(
@@ -202,9 +225,22 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     [toCell, centerView],
   );
 
+  /**
+   * OPT-A01 §1.2 生效时机: adapt on mount and on every resize, but only while
+   * the user has not manually zoomed (Ctrl+wheel) or dragged the canvas. A
+   * manual interaction flips `userPannedRef`; "重置视图" re-arms it.
+   */
   useEffect(() => {
-    if (userPannedRef.current) return;
-    centerView();
+    const node = containerRef.current;
+    if (!node) return;
+    const apply = (): void => {
+      if (userPannedRef.current) return;
+      centerView();
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(node);
+    return () => observer.disconnect();
   }, [centerView]);
 
   useEffect(() => {
@@ -471,10 +507,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
   const marqueeRect = marquee
     ? {
-        left: Math.min(marquee.start.x, marquee.end.x) * CELL_SIZE,
-        top: Math.min(marquee.start.y, marquee.end.y) * CELL_SIZE,
-        width: (Math.abs(marquee.end.x - marquee.start.x) + 1) * CELL_SIZE,
-        height: (Math.abs(marquee.end.y - marquee.start.y) + 1) * CELL_SIZE,
+        left: Math.min(marquee.start.x, marquee.end.x) * cellSize,
+        top: Math.min(marquee.start.y, marquee.end.y) * cellSize,
+        width: (Math.abs(marquee.end.x - marquee.start.x) + 1) * cellSize,
+        height: (Math.abs(marquee.end.y - marquee.start.y) + 1) * cellSize,
       }
     : null;
 
@@ -506,6 +542,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       ? { x: selection.x, y: selection.y }
       : null;
 
+  /**
+   * OPT-A05 §4: the mouse box follows the pointer, the operation box stays on
+   * the selected cell. Both are rendered from one resolution step.
+   */
+  const cursorBoxes = resolveCursorBoxes({
+    hover: hoverEffects.cell,
+    blocked: hoverEffects.blocked,
+    selection: selectionCell,
+  });
+
   const draftOverlay = (
     <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: DRAFT_OVERLAY_Z }}>
       {Array.from(regionDraftSelection).map((key) => {
@@ -515,12 +561,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
             key={`draft-${key}`}
             className="absolute"
             style={{
-              left: x * CELL_SIZE,
-              top: y * CELL_SIZE,
-              width: CELL_SIZE,
-              height: CELL_SIZE,
+              left: x * cellSize,
+              top: y * cellSize,
+              width: cellSize,
+              height: cellSize,
               backgroundColor: 'rgba(59,130,246,0.25)',
-              boxShadow: 'inset 0 0 0 1px #3B82F6',
+              boxShadow: `inset 0 0 0 1px ${HIGHLIGHT_BLUE}`,
             }}
           />
         );
@@ -529,26 +575,15 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   const selectionOverlay = (
-    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: SELECTION_OVERLAY_Z }}>
-      {selectionCell ? (
-        <div
-          className="absolute ring-2 ring-inset ring-primary"
-          style={{
-            left: selectionCell.x * CELL_SIZE,
-            top: selectionCell.y * CELL_SIZE,
-            width: CELL_SIZE,
-            height: CELL_SIZE,
-          }}
-        />
-      ) : null}
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: EDITOR_OVERLAY_Z }}>
       {showPreview && hover ? (
         <div
           className="absolute border-2 border-dashed border-primary bg-primary/20"
           style={{
-            left: hover.x * CELL_SIZE,
-            top: hover.y * CELL_SIZE,
-            width: pendingFootprint.w * CELL_SIZE,
-            height: pendingFootprint.h * CELL_SIZE,
+            left: hover.x * cellSize,
+            top: hover.y * cellSize,
+            width: pendingFootprint.w * cellSize,
+            height: pendingFootprint.h * cellSize,
           }}
         />
       ) : null}
@@ -556,10 +591,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         <div
           className="absolute animate-pulse border-[3px] border-primary bg-primary/30"
           style={{
-            left: regionAnchor.x * CELL_SIZE,
-            top: regionAnchor.y * CELL_SIZE,
-            width: CELL_SIZE,
-            height: CELL_SIZE,
+            left: regionAnchor.x * cellSize,
+            top: regionAnchor.y * cellSize,
+            width: cellSize,
+            height: cellSize,
             boxShadow: '0 0 0 2px rgba(59,130,246,0.4)',
           }}
         />
@@ -571,7 +606,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         <div
           key={`brush-${x}-${y}`}
           className="absolute border border-primary bg-primary/30"
-          style={{ left: x * CELL_SIZE, top: y * CELL_SIZE, width: CELL_SIZE, height: CELL_SIZE }}
+          style={{ left: x * cellSize, top: y * cellSize, width: cellSize, height: cellSize }}
         />
       ))}
     </div>
@@ -606,21 +641,32 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
         />
 
-        {/* OPT-901 §1.1 — rendered bottom-up; the z-index of each layer is
+        {/* OPT-A05 §3.4 — rendered bottom-up; the z-index of each layer is
             pinned by MAP_LAYER_Z so the stacking order matches the spec. */}
-        <MapBackgroundLayer cells={cells} itemsById={itemsById} />
-        <MapRegionFillLayer regions={regions} gridSize={gridSize} />
-        <MapHighlightLayer highlight={highlight} regions={regions} leaving={highlightLeaving} />
-        <MapRegionHoverLayer region={hoveredRegion} />
-        <MapNoStandShadowLayer noStandCells={noStandCells} />
-        <MapRegionEdgeLayer regions={regions} gridSize={gridSize} selectedRegionId={selectedRegionId} />
+        <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
+        <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
+        <MapHighlightLayer
+          highlight={highlight}
+          regions={regions}
+          cellSize={cellSize}
+          leaving={highlightLeaving}
+        />
+        <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} />
+        <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} />
+        <MapRegionEdgeLayer
+          regions={regions}
+          gridSize={gridSize}
+          cellSize={cellSize}
+          selectedRegionId={selectedRegionId}
+        />
         {draftOverlay}
 
-        <MapGridLayer gridSize={gridSize} />
+        <MapGridLayer gridSize={gridSize} cellSize={cellSize} />
 
         <MapObjectLayer
           cells={cells}
           itemsById={itemsById}
+          cellSize={cellSize}
           interactive={selectInteractive}
           hover={hover}
           onClick={(coord, event) => {
@@ -634,6 +680,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
         <MapRegionLabelLayer
           regions={regions}
+          cellSize={cellSize}
           hoveredRegionId={hoveredRegionId}
           onHover={setLabelRegionId}
           onSelect={(id) => {
@@ -643,8 +690,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         />
 
         {selectionOverlay}
-        {/* OPT-901 layer 1 — always the top-most element (§2.1). */}
-        <MapCellCursorLayer cell={hoverEffects.cell} blocked={hoverEffects.blocked} />
+        {/* OPT-A05 §4.1 layer 1 — 操作提示框 first, 鼠标提示框 on top of it. */}
+        <MapOperationCursorLayer cell={cursorBoxes.operation} cellSize={cellSize} />
+        <MapCellCursorLayer
+          cell={cursorBoxes.mouse}
+          blocked={cursorBoxes.mouse?.blocked ?? false}
+          cellSize={cellSize}
+        />
       </div>
 
       {showRulers ? (
@@ -666,8 +718,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                   key={`rul-col-${column}`}
                   className="absolute top-0 flex h-full items-center justify-center"
                   style={{
-                    left: (column - 1) * CELL_SIZE * zoom,
-                    width: CELL_SIZE * zoom,
+                    left: (column - 1) * cellSize * zoom,
+                    width: cellSize * zoom,
                     overflow: 'hidden',
                   }}
                 >
@@ -706,8 +758,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
                   key={`rul-row-${row}`}
                   className="absolute left-0 flex w-full items-center justify-center"
                   style={{
-                    top: (row - 1) * CELL_SIZE * zoom,
-                    height: CELL_SIZE * zoom,
+                    top: (row - 1) * cellSize * zoom,
+                    height: cellSize * zoom,
                     overflow: 'hidden',
                   }}
                 >

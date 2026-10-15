@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
   EFFECT_COLORS,
+  EFFECT_COLOR_HEX,
   EFFECT_COLOR_LABELS,
   PARTICIPANT_TARGET_TYPES,
   type DraftRegion,
@@ -548,8 +549,8 @@ export function LinkageDialog({
                     <span
                       className="h-3 w-3 rounded-full border"
                       style={{
-                        backgroundColor:
-                          color === 'red' ? '#EF4444' : '#3B82F6',
+                        // OPT-A06 §5.1: the swatch mirrors the rendered colour.
+                        backgroundColor: EFFECT_COLOR_HEX[color],
                       }}
                     />
                     {EFFECT_COLOR_LABELS[color]}

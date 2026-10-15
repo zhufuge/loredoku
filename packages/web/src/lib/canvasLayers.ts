@@ -1,10 +1,14 @@
 import {
+  BORDER_WIDTH,
   CELL_CURSOR_BLOCKED_COLOR,
   CELL_CURSOR_COLOR,
   CELL_CURSOR_SHADOW_COLOR,
-  GRID_LINE_WIDTH,
+  INNER_LINE_WIDTH,
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
+  OPERATION_CURSOR_COLOR,
+  OPERATION_CURSOR_OUTLINE_OFFSET,
+  OPERATION_CURSOR_OUTLINE_WIDTH,
   type DraftCell,
   type DraftRegion,
   type EditorLayer,
@@ -31,7 +35,7 @@ export function layerStack(): Array<{ name: MapLayerName; z: number }> {
 }
 
 /** The shadow ring inset of the non-standable mask (Border inner edge). */
-export const NO_STAND_SHADOW_INSET = GRID_LINE_WIDTH / 2;
+export const NO_STAND_SHADOW_INSET = BORDER_WIDTH / 2;
 
 /** Splits a `"x,y"` cell key back into numbers. */
 function parseKey(key: string): [number, number] {
@@ -126,13 +130,62 @@ export function resolveHoverEffects(input: {
 }
 
 /**
- * OPT-901 §1.2.1: 1px inner stroke in the state colour, plus a grey ring that
- * sits on top of the Border. Returned as a single `box-shadow` so the shape
- * never moves.
+ * OPT-A05 §4.1/§3.3.1 (mouse box) — a 1px Inner Line in the state colour
+ * (white for a free cell, pale red for a non-standable one) plus a grey ring
+ * covering the Border. Returned as one `box-shadow` so the shape never moves.
  */
 export function cellCursorShadow(blocked: boolean): string {
   const stroke = blocked ? CELL_CURSOR_BLOCKED_COLOR : CELL_CURSOR_COLOR;
-  return `inset 0 0 0 1px ${stroke}, 0 0 0 ${GRID_LINE_WIDTH}px ${CELL_CURSOR_SHADOW_COLOR}`;
+  return `inset 0 0 0 ${INNER_LINE_WIDTH}px ${stroke}, 0 0 0 ${BORDER_WIDTH}px ${CELL_CURSOR_SHADOW_COLOR}`;
+}
+
+/**
+ * OPT-A05 §4.1/§4.3 (operation box) — a pale blue Outline pinned to the
+ * clicked cell. §3.2.2 defines the Outline as sitting **outside** the Border
+ * and not participating in layout, which is why it is a CSS `outline` with an
+ * offset rather than another inset ring: with both boxes on the same cell the
+ * white mouse line ends up inside and the blue outline outside.
+ */
+export function operationCursorOutline(): string {
+  return `${OPERATION_CURSOR_OUTLINE_WIDTH}px solid ${OPERATION_CURSOR_COLOR}`;
+}
+
+export const OPERATION_CURSOR_STYLE = {
+  outline: operationCursorOutline(),
+  outlineOffset: `${OPERATION_CURSOR_OUTLINE_OFFSET}px`,
+} as const;
+
+/**
+ * OPT-A05 §4.1/§4.3: the two cursor boxes are independent elements that can
+ * coexist. The mouse box tracks the pointer; the operation box is pinned to
+ * the clicked cell (the cell the info drawer points at). Resolving both from
+ * one place keeps the stacking rule — mouse box on top, blue outline outside
+ * — expressed exactly once.
+ */
+export interface CursorBoxes {
+  /** §4.1 鼠标提示框 — follows the pointer, `null` when off the board. */
+  mouse: { x: number; y: number; blocked: boolean } | null;
+  /** §4.1 操作提示框 — pinned to the clicked cell, `null` when nothing is selected. */
+  operation: { x: number; y: number } | null;
+  /** §4.3: both boxes land on the same cell → white line inside, blue outside. */
+  stacked: boolean;
+}
+
+export const NO_CURSOR_BOXES: CursorBoxes = { mouse: null, operation: null, stacked: false };
+
+export function resolveCursorBoxes(input: {
+  hover: { x: number; y: number } | null;
+  blocked: boolean;
+  selection: { x: number; y: number } | null;
+}): CursorBoxes {
+  const { hover, blocked, selection } = input;
+  const mouse = hover ? { x: hover.x, y: hover.y, blocked } : null;
+  const operation = selection ? { x: selection.x, y: selection.y } : null;
+  return {
+    mouse,
+    operation,
+    stacked: mouse !== null && operation !== null && mouse.x === operation.x && mouse.y === operation.y,
+  };
 }
 
 /**

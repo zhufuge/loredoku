@@ -55,7 +55,8 @@ export interface HighlightState {
   backgroundHighlights: HighlightRect[];
   /**
    * MOD-802: region highlights are always an inner blue border
-   * (`#3B82F6`), regardless of how the linkage was activated.
+   * (`REGION_HIGHLIGHT_BORDER_COLOR`), regardless of how the linkage
+   * was activated.
    */
   regionBorders: Array<{ regionId: string; color: string }>;
 }

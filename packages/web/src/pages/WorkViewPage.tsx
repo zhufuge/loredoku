@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw } from 'lucide-react';
 import {
-  CELL_SIZE,
+  CANVAS_PADDING,
+  DEFAULT_CELL_SIZE,
   MAP_LAYER_Z,
   type CellCoord,
   type Character,
@@ -41,6 +42,7 @@ import {
   collectObjectCells,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
+import { computeCellSizeForViewport } from '@/lib/canvasSize';
 import { resolveHighlight } from '@/lib/highlight';
 import {
   INACTIVE_ACTIVATION,
@@ -81,6 +83,8 @@ export function WorkViewPage(): JSX.Element {
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const panRef = useRef<{ x: number; y: number } | null>(null);
+  /** OPT-A01 §1.2: stops the automatic re-fit after a manual zoom / pan. */
+  const userAdjustedRef = useRef(false);
 
   const draft = detailQuery.data?.data as MapDraft | undefined;
 
@@ -115,7 +119,9 @@ export function WorkViewPage(): JSX.Element {
   );
   const regions = useMemo(() => draft?.regions ?? [], [draft]);
   const gridSize = draft?.gridSize ?? 0;
-  const total = gridSize * CELL_SIZE;
+  /** OPT-A01 §1.1: adaptive cell width at 100% zoom (shared with the editor). */
+  const [cellSize, setCellSize] = useState<number>(DEFAULT_CELL_SIZE);
+  const total = gridSize * cellSize;
 
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 ----
   const noStandCells = useMemo(
@@ -140,20 +146,43 @@ export function WorkViewPage(): JSX.Element {
       rect: node.getBoundingClientRect(),
       pan,
       zoom,
+      cellSize,
     });
     return isInBounds(coord, gridSize) ? coord : null;
   };
 
+  /**
+   * OPT-A01 §1.2: measure the viewport and re-fit the board. Clears the
+   * manual-adjustment flag, so this doubles as "重置视图".
+   */
   const fit = (): void => {
     const node = containerRef.current;
+    userAdjustedRef.current = false;
     if (!node || gridSize === 0) return;
     const rect = node.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const next = computeCellSizeForViewport({
+      width: rect.width,
+      height: rect.height,
+      gridSize,
+      padding: CANVAS_PADDING,
+    });
+    setCellSize((previous) => (previous === next ? previous : next));
     setZoom(1);
-    setPan(centerPan(rect, gridSize, 1));
+    setPan(centerPan(rect, gridSize, next, 1));
   };
 
   useEffect(() => {
-    fit();
+    const node = containerRef.current;
+    if (!node) return;
+    const apply = (): void => {
+      if (userAdjustedRef.current) return;
+      fit();
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
+    observer.observe(node);
+    return () => observer.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gridSize]);
 
@@ -373,6 +402,7 @@ export function WorkViewPage(): JSX.Element {
           onPointerDown={(event) => {
             if (event.button === 1 || spaceHeld) {
               event.currentTarget.setPointerCapture(event.pointerId);
+              userAdjustedRef.current = true;
               panRef.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
             }
           }}
@@ -399,6 +429,7 @@ export function WorkViewPage(): JSX.Element {
             event.preventDefault();
             const next = clampZoom(zoom + (event.deltaY > 0 ? -1 : 1) * ZOOM_STEP);
             if (next === zoom) return;
+            userAdjustedRef.current = true;
             const rect = node.getBoundingClientRect();
             setPan(
               zoomAtPoint({ x: event.clientX, y: event.clientY }, rect, pan, next, zoom),
@@ -420,28 +451,39 @@ export function WorkViewPage(): JSX.Element {
               style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
             />
 
-            {/* OPT-901 §1.1 — bottom-up, each layer pinned by MAP_LAYER_Z. */}
-            <MapBackgroundLayer cells={cells} itemsById={itemsById} />
-            <MapRegionFillLayer regions={regions} gridSize={gridSize} />
+            {/* OPT-A05 §3.4 — bottom-up, each layer pinned by MAP_LAYER_Z. */}
+            <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
+            <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
             <MapHighlightLayer
               highlight={highlight}
               regions={regions}
+              cellSize={cellSize}
               leaving={highlightLeaving}
             />
-            <MapRegionHoverLayer region={hoveredRegion} />
-            <MapNoStandShadowLayer noStandCells={noStandCells} />
-            <MapRegionEdgeLayer regions={regions} gridSize={gridSize} />
-            <MapGridLayer gridSize={gridSize} />
-            <MapObjectLayer cells={cells} itemsById={itemsById} hover={hover} />
+            <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} />
+            <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} />
+            <MapRegionEdgeLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
+            <MapGridLayer gridSize={gridSize} cellSize={cellSize} />
+            <MapObjectLayer
+              cells={cells}
+              itemsById={itemsById}
+              cellSize={cellSize}
+              hover={hover}
+            />
 
             <MapRegionLabelLayer
               regions={regions}
+              cellSize={cellSize}
               hoveredRegionId={hoveredRegionId}
               onHover={setLabelRegionId}
             />
 
-            {/* OPT-901 layer 1 — always the top-most element (§2.1). */}
-            <MapCellCursorLayer cell={hoverEffects.cell} blocked={hoverEffects.blocked} />
+            {/* OPT-A05 §4.1 layer 1 — 鼠标提示框（预览页无操作提示框）. */}
+            <MapCellCursorLayer
+              cell={hoverEffects.cell}
+              blocked={hoverEffects.blocked}
+              cellSize={cellSize}
+            />
           </div>
         </main>
       </div>

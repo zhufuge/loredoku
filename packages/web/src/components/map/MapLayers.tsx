@@ -1,13 +1,13 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import {
-  CELL_SIZE,
-  GRID_BORDER_WIDTH,
-  GRID_LINE_COLOR,
-  GRID_LINE_WIDTH,
+  BORDER_WIDTH,
+  LINE_COLOR,
   MAP_LAYER_Z,
   NO_STAND_SHADOW_COLOR,
+  NO_STAND_SHADOW_Z,
   OBJECT_HOVER_LIFT_PX,
   OBJECT_HOVER_TRANSITION_MS,
+  OUTLINE_WIDTH,
   REGION_HIGHLIGHT_BORDER_COLOR,
   REGION_HIGHLIGHT_BORDER_INSET,
   REGION_HIGHLIGHT_BORDER_WIDTH,
@@ -22,22 +22,26 @@ import {
 } from '@murdoku/shared';
 import { buildRegionEdges, computeLabelCell } from '@/lib/region';
 import { HIGHLIGHT_FADEOUT_MS, type CellMap, type HighlightState } from '@/lib/highlight';
-import { NO_STAND_SHADOW_INSET, cellCursorShadow } from '@/lib/canvasLayers';
-
-const HOVER_RING = 'inset 0 0 0 2px #3B82F6';
+import { NO_STAND_SHADOW_INSET, OPERATION_CURSOR_STYLE, cellCursorShadow } from '@/lib/canvasLayers';
 
 /**
- * OPT-901 §1.1 does not list the region *fill* (a v0.2.5 leftover), so it is
+ * OPT-A01 does not list the region *fill* (a v0.2.5 leftover), so it is
  * parked between 背景 (10) and 背景高亮 (9).
  */
 const REGION_FILL_Z = MAP_LAYER_Z.background + 2;
 
-function cellRectStyle(x: number, y: number, w = 1, h = 1): CSSProperties {
+function cellRectStyle(
+  x: number,
+  y: number,
+  cellSize: number,
+  w = 1,
+  h = 1,
+): CSSProperties {
   return {
-    left: x * CELL_SIZE,
-    top: y * CELL_SIZE,
-    width: w * CELL_SIZE,
-    height: h * CELL_SIZE,
+    left: x * cellSize,
+    top: y * cellSize,
+    width: w * cellSize,
+    height: h * cellSize,
   };
 }
 
@@ -45,9 +49,15 @@ function parseKey(key: string): [number, number] {
   return key.split(',').map(Number) as [number, number];
 }
 
-/** OPT-901 §1.2.4: one region edge set, shared by hover and linkage borders. */
-function RegionInnerBorder({ cells }: { cells: Array<[number, number]> }): JSX.Element {
-  const edges = buildRegionEdges(cells);
+/** OPT-A04 §3.3.2: a region outline, shared by hover and linkage borders. */
+function RegionInnerBorder({
+  cells,
+  cellSize,
+}: {
+  cells: Array<[number, number]>;
+  cellSize: number;
+}): JSX.Element {
+  const edges = buildRegionEdges(cells, cellSize);
   const inset = REGION_HIGHLIGHT_BORDER_INSET;
   return (
     <svg className="absolute left-0 top-0" style={{ overflow: 'visible' }}>
@@ -68,12 +78,22 @@ function RegionInnerBorder({ cells }: { cells: Array<[number, number]> }): JSX.E
   );
 }
 
-/** Grid: `n-1` inner separators plus a 3px outer border (layer 4 · Border). */
-export function MapGridLayer({ gridSize }: { gridSize: number }): JSX.Element {
-  const total = gridSize * CELL_SIZE;
+/**
+ * OPT-A04 §3.2.1 (docs/v0.3.5.md): every line in the grid is a **Border** and
+ * adjacent cells share one — `n-1` internal separators plus a single outer
+ * `Outline` rect, never four lines per cell (no double borders).
+ */
+export function MapGridLayer({
+  gridSize,
+  cellSize,
+}: {
+  gridSize: number;
+  cellSize: number;
+}): JSX.Element {
+  const total = gridSize * cellSize;
   const lines: JSX.Element[] = [];
   for (let i = 1; i < gridSize; i += 1) {
-    const pos = i * CELL_SIZE;
+    const pos = i * cellSize;
     lines.push(
       <line
         key={`grid-v-${i}`}
@@ -81,8 +101,8 @@ export function MapGridLayer({ gridSize }: { gridSize: number }): JSX.Element {
         y1={0}
         x2={pos}
         y2={total}
-        stroke={GRID_LINE_COLOR}
-        strokeWidth={GRID_LINE_WIDTH}
+        stroke={LINE_COLOR}
+        strokeWidth={BORDER_WIDTH}
       />,
       <line
         key={`grid-h-${i}`}
@@ -90,8 +110,8 @@ export function MapGridLayer({ gridSize }: { gridSize: number }): JSX.Element {
         y1={pos}
         x2={total}
         y2={pos}
-        stroke={GRID_LINE_COLOR}
-        strokeWidth={GRID_LINE_WIDTH}
+        stroke={LINE_COLOR}
+        strokeWidth={BORDER_WIDTH}
       />,
     );
   }
@@ -104,25 +124,27 @@ export function MapGridLayer({ gridSize }: { gridSize: number }): JSX.Element {
     >
       {lines}
       <rect
-        x={GRID_BORDER_WIDTH / 2}
-        y={GRID_BORDER_WIDTH / 2}
-        width={Math.max(0, total - GRID_BORDER_WIDTH)}
-        height={Math.max(0, total - GRID_BORDER_WIDTH)}
+        x={OUTLINE_WIDTH / 2}
+        y={OUTLINE_WIDTH / 2}
+        width={Math.max(0, total - OUTLINE_WIDTH)}
+        height={Math.max(0, total - OUTLINE_WIDTH)}
         fill="none"
-        stroke={GRID_LINE_COLOR}
-        strokeWidth={GRID_BORDER_WIDTH}
+        stroke={LINE_COLOR}
+        strokeWidth={OUTLINE_WIDTH}
       />
     </svg>
   );
 }
 
-/** OPT-901 layer 10 · 背景. */
+/** Layer 10 · 背景. */
 export function MapBackgroundLayer({
   cells,
   itemsById,
+  cellSize,
 }: {
   cells: CellMap;
   itemsById: Map<number, Item>;
+  cellSize: number;
 }): JSX.Element {
   return (
     <div
@@ -141,7 +163,7 @@ export function MapBackgroundLayer({
             <div
               key={`bg-${key}`}
               className="absolute overflow-hidden"
-              style={{ ...cellRectStyle(x, y), zIndex: MAP_LAYER_Z.background }}
+              style={{ ...cellRectStyle(x, y, cellSize), zIndex: MAP_LAYER_Z.background }}
             >
               <img
                 src={src}
@@ -158,8 +180,8 @@ export function MapBackgroundLayer({
 }
 
 /**
- * OPT-901 layer 3 · 物体 — above the Border so items are never visually cut
- * by the grid lines; the image itself is still clipped inside its cells.
+ * Layer 3 · 物体 — above the Border so items are never visually cut by the
+ * grid lines; the image itself is still clipped inside its cells.
  *
  * OPT-902 §2.3: on hover the image stretches upward by
  * `OBJECT_HOVER_LIFT_PX` with a 120ms ease-out transition.
@@ -167,20 +189,20 @@ export function MapBackgroundLayer({
 export function MapObjectLayer({
   cells,
   itemsById,
+  cellSize,
   interactive = false,
   hover = null,
   liftOnHover = true,
-  glowKeys,
   onPointerDown,
   onClick,
 }: {
   cells: CellMap;
   itemsById: Map<number, Item>;
+  cellSize: number;
   interactive?: boolean;
   hover?: CellCoord | null;
   /** OPT-902: disable when the caller renders its own hover affordance. */
   liftOnHover?: boolean;
-  glowKeys?: Set<string>;
   onPointerDown?: (coord: CellCoord) => void;
   onClick?: (coord: CellCoord, event: ReactMouseEvent<HTMLDivElement>) => void;
 }): JSX.Element {
@@ -197,7 +219,6 @@ export function MapObjectLayer({
           const [x, y] = parseKey(key);
           const src = item?.imageThumbUrl ?? item?.imageUrl;
           if (!src) return null;
-          const glow = glowKeys?.has(key) ?? false;
           const hovered =
             hover !== null &&
             hover.x >= x &&
@@ -210,14 +231,12 @@ export function MapObjectLayer({
               key={`obj-${key}`}
               className="absolute"
               style={{
-                ...cellRectStyle(x, y, anchor.w, anchor.h),
+                ...cellRectStyle(x, y, cellSize, anchor.w, anchor.h),
                 zIndex: MAP_LAYER_Z.object,
                 // The lift is allowed to poke past the cell edge while hovered.
                 overflow: lifted ? 'visible' : 'hidden',
                 pointerEvents: interactive ? 'auto' : 'none',
                 cursor: interactive ? 'pointer' : 'inherit',
-                boxShadow: hovered && interactive ? HOVER_RING : undefined,
-                filter: glow ? 'drop-shadow(0 0 4px #93C5FD)' : undefined,
               }}
               title={item?.name ?? undefined}
               onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
@@ -253,11 +272,13 @@ export function MapObjectLayer({
 export function MapRegionFillLayer({
   regions,
   gridSize,
+  cellSize,
 }: {
   regions: DraftRegion[];
   gridSize: number;
+  cellSize: number;
 }): JSX.Element {
-  const total = gridSize * CELL_SIZE;
+  const total = gridSize * cellSize;
   return (
     <svg
       className="pointer-events-none absolute left-0 top-0"
@@ -269,10 +290,10 @@ export function MapRegionFillLayer({
         region.cells.map(([x, y]) => (
           <rect
             key={`${region.id}-${x}-${y}`}
-            x={x * CELL_SIZE}
-            y={y * CELL_SIZE}
-            width={CELL_SIZE}
-            height={CELL_SIZE}
+            x={x * cellSize}
+            y={y * cellSize}
+            width={cellSize}
+            height={cellSize}
             fill={region.color}
             fillOpacity={region.fillOpacity}
           />
@@ -283,23 +304,27 @@ export function MapRegionFillLayer({
 }
 
 /**
- * OPT-901 layer 5 · 区域边界线 — below the Border so the grid lines stay
- * readable, and wider than them (`region.borderWidth`, default 6px vs 2px).
+ * Layer 5 · 区域边界线 — an OPT-A04 Border-type outline of the region's outer
+ * contour, wider than the grid Border (`region.borderWidth`, default 6px vs
+ * 2px) and drawn below it so the grid stays readable (§3.4 keeps the v0.3.4
+ * order).
  *
- * §1.2.4: adjacent regions each draw their own outline, so a shared edge
+ * §3.3.2: adjacent regions each draw their own outline, so a shared edge
  * renders both lines. Nothing is merged and no priority is applied — a
  * thicker junction is the expected result.
  */
 export function MapRegionEdgeLayer({
   regions,
   gridSize,
+  cellSize,
   selectedRegionId = null,
 }: {
   regions: DraftRegion[];
   gridSize: number;
+  cellSize: number;
   selectedRegionId?: string | null;
 }): JSX.Element {
-  const total = gridSize * CELL_SIZE;
+  const total = gridSize * cellSize;
   return (
     <svg
       className="pointer-events-none absolute left-0 top-0"
@@ -309,7 +334,7 @@ export function MapRegionEdgeLayer({
     >
       {regions.map((region) => {
         const selected = selectedRegionId === region.id;
-        const edges = buildRegionEdges(region.cells);
+        const edges = buildRegionEdges(region.cells, cellSize);
         return (
           <g key={region.id}>
             {edges.map((edge, index) => (
@@ -334,13 +359,15 @@ export function MapRegionEdgeLayer({
 }
 
 /**
- * OPT-901 layer 7 · 区域高亮线 — the blue 2px inner line shown while a region
- * is hovered (§2.2) or targeted by a linkage (§3).
+ * Layer 7 · 区域高亮线 — the pale blue 2px inner line shown while a region is
+ * hovered (§2.2) or targeted by a linkage (§3).
  */
 export function MapRegionHoverLayer({
   region,
+  cellSize,
 }: {
   region: DraftRegion | null;
+  cellSize: number;
 }): JSX.Element | null {
   if (!region) return null;
   return (
@@ -348,26 +375,29 @@ export function MapRegionHoverLayer({
       className="pointer-events-none absolute left-0 top-0"
       style={{ zIndex: MAP_LAYER_Z.regionHighlight }}
     >
-      <RegionInnerBorder cells={region.cells} />
+      <RegionInnerBorder cells={region.cells} cellSize={cellSize} />
     </div>
   );
 }
 
 /**
- * OPT-901 layer 6 · 不可站立物体阴影 — a `rgba(0,0,0,0.08)` mask inset to the
- * Border, drawn above the object image while staying below the Border.
+ * §3.1 · 不可站立物体阴影 — a `rgba(0,0,0,0.18)` mask (OPT-A03) drawn **above
+ * the object artwork** and inset to the Border, so it tints the item without
+ * hiding it (§7.3) and never paints over the Border ring itself.
  */
 export function MapNoStandShadowLayer({
   noStandCells,
+  cellSize,
 }: {
   noStandCells: Set<string>;
+  cellSize: number;
 }): JSX.Element | null {
   if (noStandCells.size === 0) return null;
-  const size = CELL_SIZE - NO_STAND_SHADOW_INSET * 2;
+  const size = cellSize - NO_STAND_SHADOW_INSET * 2;
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.noStandShadow }}
+      style={{ zIndex: NO_STAND_SHADOW_Z }}
     >
       {[...noStandCells].map((key) => {
         const [x, y] = parseKey(key);
@@ -376,8 +406,8 @@ export function MapNoStandShadowLayer({
             key={`nostand-${key}`}
             className="absolute"
             style={{
-              left: x * CELL_SIZE + NO_STAND_SHADOW_INSET,
-              top: y * CELL_SIZE + NO_STAND_SHADOW_INSET,
+              left: x * cellSize + NO_STAND_SHADOW_INSET,
+              top: y * cellSize + NO_STAND_SHADOW_INSET,
               width: size,
               height: size,
               backgroundColor: NO_STAND_SHADOW_COLOR,
@@ -390,16 +420,17 @@ export function MapNoStandShadowLayer({
 }
 
 /**
- * OPT-901 layer 1 · 当前方格辅助提示框 — the top-most element on the board
- * (§2.1). White when the cell is free, medium red when it holds a
- * non-standable object.
+ * OPT-A05 §4.1 layer 1 · 鼠标提示框 — white (or pale red over a
+ * non-standable object) and always the top-most element on the board.
  */
 export function MapCellCursorLayer({
   cell,
   blocked,
+  cellSize,
 }: {
   cell: CellCoord | null;
   blocked: boolean;
+  cellSize: number;
 }): JSX.Element | null {
   if (!cell) return null;
   return (
@@ -409,7 +440,36 @@ export function MapCellCursorLayer({
     >
       <div
         className="absolute"
-        style={{ ...cellRectStyle(cell.x, cell.y), boxShadow: cellCursorShadow(blocked) }}
+        style={{
+          ...cellRectStyle(cell.x, cell.y, cellSize),
+          boxShadow: cellCursorShadow(blocked),
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * OPT-A05 §4.1 layer 1（次高）· 操作提示框 — the pale blue Outline pinned to
+ * the clicked cell. §4.3: drawn outside the Border, so when it shares a cell
+ * with the mouse box the white line reads as the inner one.
+ */
+export function MapOperationCursorLayer({
+  cell,
+  cellSize,
+}: {
+  cell: CellCoord | null;
+  cellSize: number;
+}): JSX.Element | null {
+  if (!cell) return null;
+  return (
+    <div
+      className="pointer-events-none absolute left-0 top-0"
+      style={{ zIndex: MAP_LAYER_Z.cellCursor }}
+    >
+      <div
+        className="absolute"
+        style={{ ...cellRectStyle(cell.x, cell.y, cellSize), ...OPERATION_CURSOR_STYLE }}
       />
     </div>
   );
@@ -417,11 +477,13 @@ export function MapCellCursorLayer({
 
 export function MapRegionLabelLayer({
   regions,
+  cellSize,
   hoveredRegionId = null,
   onHover,
   onSelect,
 }: {
   regions: DraftRegion[];
+  cellSize: number;
   hoveredRegionId?: string | null;
   onHover?: (id: string | null) => void;
   onSelect?: (id: string) => void;
@@ -441,8 +503,8 @@ export function MapRegionLabelLayer({
             type="button"
             className="region-label pointer-events-auto absolute whitespace-nowrap"
             style={{
-              left: (label[0] + 0.5) * CELL_SIZE,
-              top: (label[1] + 1) * CELL_SIZE - 2,
+              left: (label[0] + 0.5) * cellSize,
+              top: (label[1] + 1) * cellSize - 2,
               transform: 'translate(-50%, -100%)',
               color: REGION_LABEL_COLOR,
               fontWeight: 700,
@@ -452,7 +514,7 @@ export function MapRegionLabelLayer({
                 hovered ? REGION_HIGHLIGHT_BORDER_COLOR : REGION_LABEL_STROKE_COLOR
               }`,
               paintOrder: 'stroke fill',
-              transition: `font-size 120ms ease-out, -webkit-text-stroke-color 120ms ease-out`,
+              transition: 'font-size 120ms ease-out, -webkit-text-stroke-color 120ms ease-out',
             } as CSSProperties}
             onMouseEnter={() => onHover?.(region.id)}
             onMouseLeave={() => onHover?.(null)}
@@ -478,7 +540,7 @@ export function MapRegionLabelLayer({
  * cell / background / region overlays; the roster panel handles the
  * `characters` outline directly.
  *
- * OPT-903 §1.1: 方块高亮 (layer 8) sits above 背景高亮 (layer 9) and both sit
+ * OPT-901 §1.1: 方块高亮 (layer 8) sits above 背景高亮 (layer 9) and both sit
  * under 区域高亮线 (layer 7), so the three groups are rendered as separate
  * z-indexed groups instead of one wrapper (a wrapper with a `z-index` would
  * clip its children's stacking order).
@@ -490,10 +552,12 @@ export function MapRegionLabelLayer({
 export function MapHighlightLayer({
   highlight,
   regions = [],
+  cellSize,
   leaving = false,
 }: {
   highlight: HighlightState | null;
   regions?: DraftRegion[];
+  cellSize: number;
   /** MOD-802: fade the layer out over 150ms instead of unmounting instantly. */
   leaving?: boolean;
 }): JSX.Element | null {
@@ -511,7 +575,7 @@ export function MapHighlightLayer({
 
   return (
     <>
-      {/* OPT-901 layer 9 · 背景高亮 — only replaces the background layer. */}
+      {/* Layer 9 · 背景高亮 — only replaces the background layer. */}
       {backgroundHighlights.length > 0 ? (
         <div
           className="pointer-events-none absolute left-0 top-0"
@@ -521,13 +585,16 @@ export function MapHighlightLayer({
             <div
               key={`hl-bg-${rect.x}-${rect.y}-${index}`}
               className="absolute"
-              style={{ ...cellRectStyle(rect.x, rect.y, rect.w, rect.h), backgroundColor: rect.color }}
+              style={{
+                ...cellRectStyle(rect.x, rect.y, cellSize, rect.w, rect.h),
+                backgroundColor: rect.color,
+              }}
             />
           ))}
         </div>
       ) : null}
 
-      {/* OPT-901 layer 8 · 方块高亮 — opaque block covering the whole cell. */}
+      {/* Layer 8 · 方块高亮 — opaque block covering the whole cell. */}
       {cellHighlights.length > 0 ? (
         <div
           className="pointer-events-none absolute left-0 top-0"
@@ -537,13 +604,16 @@ export function MapHighlightLayer({
             <div
               key={`hl-cell-${rect.x}-${rect.y}-${index}`}
               className="absolute"
-              style={{ ...cellRectStyle(rect.x, rect.y, rect.w, rect.h), backgroundColor: rect.color }}
+              style={{
+                ...cellRectStyle(rect.x, rect.y, cellSize, rect.w, rect.h),
+                backgroundColor: rect.color,
+              }}
             />
           ))}
         </div>
       ) : null}
 
-      {/* OPT-901 layer 7 · 区域高亮线 — blue 2px inner line. */}
+      {/* Layer 7 · 区域高亮线 — pale blue 2px inner line. */}
       {regionBorders.length > 0 ? (
         <div
           className="pointer-events-none absolute left-0 top-0"
@@ -552,7 +622,13 @@ export function MapHighlightLayer({
           {regionBorders.map((border) => {
             const region = regions.find((item) => item.id === border.regionId);
             if (!region) return null;
-            return <RegionInnerBorder key={`hl-rb-${border.regionId}`} cells={region.cells} />;
+            return (
+              <RegionInnerBorder
+                key={`hl-rb-${border.regionId}`}
+                cells={region.cells}
+                cellSize={cellSize}
+              />
+            );
           })}
         </div>
       ) : null}

@@ -1,10 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BORDER_WIDTH,
   CELL_CURSOR_BLOCKED_COLOR,
   CELL_CURSOR_COLOR,
   CELL_CURSOR_SHADOW_COLOR,
+  EFFECT_COLOR_HEX,
+  HIGHLIGHT_BLUE,
+  HIGHLIGHT_RED,
+  INNER_LINE_WIDTH,
+  LINE_COLOR,
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
+  NO_STAND_SHADOW_COLOR,
+  NO_STAND_SHADOW_Z,
+  OPERATION_CURSOR_COLOR,
+  OPERATION_CURSOR_OUTLINE_OFFSET,
+  OPERATION_CURSOR_OUTLINE_WIDTH,
+  OUTLINE_WIDTH,
+  REGION_BORDER_WIDTH,
+  REGION_BORDER_WIDTH_MAX,
+  REGION_BORDER_WIDTH_MIN,
+  REGION_HIGHLIGHT_BORDER_COLOR,
   type DraftCell,
   type DraftRegion,
   type Item,
@@ -16,7 +32,11 @@ import {
   collectObjectCells,
   layerStack,
   layerZ,
+  NO_CURSOR_BOXES,
   NO_HOVER_EFFECTS,
+  NO_STAND_SHADOW_INSET,
+  operationCursorOutline,
+  resolveCursorBoxes,
   resolveHoverEffects,
   type CellMap,
 } from './canvasLayers';
@@ -146,6 +166,15 @@ describe('non-standable shadow (OPT-901 §1.2.5)', () => {
     expect(map.get('0,0')?.object).toEqual({ itemId: 7, w: 1, h: 1 });
   });
 
+  it('§3.1/§7.3: renders above the object artwork but below the labels', () => {
+    // §1.1 puts 物体 above 边框, so "above the artwork, inside the Border"
+    // means one slot above `object` while the mask stays inset by 1px.
+    expect(NO_STAND_SHADOW_Z).toBeGreaterThan(MAP_LAYER_Z.object);
+    expect(NO_STAND_SHADOW_Z).toBeLessThan(MAP_LAYER_Z.regionLabel);
+    expect(NO_STAND_SHADOW_Z).toBeLessThan(MAP_LAYER_Z.cellCursor);
+    expect(NO_STAND_SHADOW_INSET).toBeGreaterThan(0);
+  });
+
   it('collects every covered object cell (not just the anchor)', () => {
     const map = cells([['0,0', { object: { itemId: 7, w: 2, h: 1 } }]]);
     expect([...collectObjectCells(map)].sort()).toEqual(['0,0', '1,0']);
@@ -241,13 +270,132 @@ describe('hover effects (OPT-902 §2.1~2.4)', () => {
   });
 });
 
-describe('cell cursor box (OPT-901 §1.2.1)', () => {
+describe('cell cursor box (OPT-A05 §3.3.1)', () => {
   it('uses a 1px inner stroke in the state colour plus the grey Border shadow', () => {
-    expect(cellCursorShadow(false)).toContain(`inset 0 0 0 1px ${CELL_CURSOR_COLOR}`);
-    expect(cellCursorShadow(true)).toContain(`inset 0 0 0 1px ${CELL_CURSOR_BLOCKED_COLOR}`);
+    expect(cellCursorShadow(false)).toContain(
+      `inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_COLOR}`,
+    );
+    expect(cellCursorShadow(true)).toContain(
+      `inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_BLOCKED_COLOR}`,
+    );
     for (const blocked of [false, true]) {
       expect(cellCursorShadow(blocked)).toContain(CELL_CURSOR_SHADOW_COLOR);
     }
+  });
+});
+
+// ---- OPT-A05 §4: mouse box vs operation box ----
+describe('cursor boxes (OPT-A05 §4.1~§4.3)', () => {
+  it('shows the mouse box alone while nothing is selected', () => {
+    expect(resolveCursorBoxes({ hover: { x: 2, y: 3 }, blocked: false, selection: null })).toEqual({
+      mouse: { x: 2, y: 3, blocked: false },
+      operation: null,
+      stacked: false,
+    });
+  });
+
+  it('keeps the operation box pinned after the pointer leaves', () => {
+    expect(resolveCursorBoxes({ hover: null, blocked: false, selection: { x: 1, y: 1 } })).toEqual({
+      mouse: null,
+      operation: { x: 1, y: 1 },
+      stacked: false,
+    });
+  });
+
+  it('shows both boxes on different cells', () => {
+    const boxes = resolveCursorBoxes({
+      hover: { x: 2, y: 3 },
+      blocked: false,
+      selection: { x: 1, y: 1 },
+    });
+    expect(boxes.mouse).toEqual({ x: 2, y: 3, blocked: false });
+    expect(boxes.operation).toEqual({ x: 1, y: 1 });
+    expect(boxes.stacked).toBe(false);
+  });
+
+  it('§4.3: stacks them when the pointer sits on the selected cell', () => {
+    const boxes = resolveCursorBoxes({
+      hover: { x: 1, y: 1 },
+      blocked: false,
+      selection: { x: 1, y: 1 },
+    });
+    expect(boxes.mouse).toEqual({ x: 1, y: 1, blocked: false });
+    expect(boxes.operation).toEqual({ x: 1, y: 1 });
+    expect(boxes.stacked).toBe(true);
+  });
+
+  it('§4.4: only the mouse box carries the blocked state', () => {
+    const boxes = resolveCursorBoxes({
+      hover: { x: 4, y: 4 },
+      blocked: true,
+      selection: { x: 4, y: 4 },
+    });
+    expect(boxes.mouse?.blocked).toBe(true);
+    // The operation box is always the pale blue outline.
+    expect(boxes.operation).not.toHaveProperty('blocked');
+  });
+
+  it('returns nothing when neither box applies', () => {
+    expect(resolveCursorBoxes({ hover: null, blocked: false, selection: null })).toEqual(
+      NO_CURSOR_BOXES,
+    );
+  });
+
+  it('§3.2.2: the operation box is an Outline outside the Border', () => {
+    expect(operationCursorOutline()).toBe(
+      `${OPERATION_CURSOR_OUTLINE_WIDTH}px solid ${OPERATION_CURSOR_COLOR}`,
+    );
+    expect(OPERATION_CURSOR_OUTLINE_WIDTH).toBe(2);
+    expect(OPERATION_CURSOR_OUTLINE_OFFSET).toBeGreaterThanOrEqual(0);
+  });
+});
+
+// ---- OPT-A04 §3.2: line definitions ----
+describe('line constants (OPT-A04 §3.2)', () => {
+  it('names the four cell elements as the spec does', () => {
+    expect(BORDER_WIDTH).toBe(2);
+    expect(OUTLINE_WIDTH).toBe(3);
+    expect(INNER_LINE_WIDTH).toBe(1);
+    expect(REGION_BORDER_WIDTH).toBe(6);
+    expect(LINE_COLOR).toBe('#000000');
+  });
+
+  it('keeps the region outline wider than the grid Border', () => {
+    expect(REGION_BORDER_WIDTH).toBeGreaterThan(BORDER_WIDTH);
+    expect(REGION_BORDER_WIDTH_MIN).toBeGreaterThan(BORDER_WIDTH);
+    expect(REGION_BORDER_WIDTH_MIN).toBe(4);
+    expect(REGION_BORDER_WIDTH_MAX).toBe(12);
+  });
+});
+
+// ---- OPT-A06 §5.1/§5.2 + OPT-A03 §3.1: colours ----
+describe('highlight palette (OPT-A06)', () => {
+  it('§5.1: softens the red and blue', () => {
+    expect(HIGHLIGHT_RED).toBe('#EF9A9A');
+    expect(HIGHLIGHT_BLUE).toBe('#90CAF9');
+  });
+
+  it('drives every highlight surface from the shared constants', () => {
+    // 方块高亮 / 背景高亮 (角色联动)
+    expect(EFFECT_COLOR_HEX.red).toBe(HIGHLIGHT_RED);
+    expect(EFFECT_COLOR_HEX.blue).toBe(HIGHLIGHT_BLUE);
+    // 区域高亮线
+    expect(REGION_HIGHLIGHT_BORDER_COLOR).toBe(HIGHLIGHT_BLUE);
+    // 鼠标提示框（不可站立物品时）的红色
+    expect(CELL_CURSOR_BLOCKED_COLOR).toBe(HIGHLIGHT_RED);
+    // 操作提示框的蓝色
+    expect(OPERATION_CURSOR_COLOR).toBe(HIGHLIGHT_BLUE);
+    // 鼠标提示框的空格色仍是白色
+    expect(CELL_CURSOR_COLOR).toBe('#FFFFFF');
+  });
+
+  it('§5.1 不调整: the grid lines stay black and outside the palette', () => {
+    expect(LINE_COLOR).toBe('#000000');
+    expect(Object.values(EFFECT_COLOR_HEX)).not.toContain(LINE_COLOR);
+  });
+
+  it('§3.1/§5.2: deepens the non-standable mask to 0.18', () => {
+    expect(NO_STAND_SHADOW_COLOR).toBe('rgba(0,0,0,0.18)');
   });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CELL_SIZE } from '@murdoku/shared';
+import { DEFAULT_CELL_SIZE } from '@murdoku/shared';
 import type { DraftRegion } from '@murdoku/shared';
 import { buildRegionEdges, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, rectCells, regionAt, regionCellSet, resolveRegionPointerUp } from './region';
 
@@ -139,31 +139,37 @@ describe('resolveRegionPointerUp', () => {
 
 describe('buildRegionEdges', () => {
   it('emits four edges for a lone cell', () => {
-    const edges = buildRegionEdges([[0, 0]]);
+    const edges = buildRegionEdges([[0, 0]], DEFAULT_CELL_SIZE);
     expect(edges).toHaveLength(4);
-    expect(edges).toContainEqual({ x1: 0, y1: 0, x2: CELL_SIZE, y2: 0 });
+    expect(edges).toContainEqual({ x1: 0, y1: 0, x2: DEFAULT_CELL_SIZE, y2: 0 });
   });
 
   it('omits the shared edge between adjacent cells', () => {
-    const edges = buildRegionEdges([
-      [0, 0],
-      [1, 0],
-    ]);
+    const edges = buildRegionEdges(
+      [
+        [0, 0],
+        [1, 0],
+      ],
+      DEFAULT_CELL_SIZE,
+    );
     expect(edges).toHaveLength(6);
     expect(edges).not.toContainEqual({
-      x1: CELL_SIZE,
+      x1: DEFAULT_CELL_SIZE,
       y1: 0,
-      x2: CELL_SIZE,
-      y2: CELL_SIZE,
+      x2: DEFAULT_CELL_SIZE,
+      y2: DEFAULT_CELL_SIZE,
     });
   });
 
   it('wraps an L-shape without inner separators', () => {
-    const edges = buildRegionEdges([
-      [0, 0],
-      [0, 1],
-      [1, 1],
-    ]);
+    const edges = buildRegionEdges(
+      [
+        [0, 0],
+        [0, 1],
+        [1, 1],
+      ],
+      DEFAULT_CELL_SIZE,
+    );
     expect(edges).toHaveLength(8);
   });
 });

@@ -1,4 +1,3 @@
-import { CELL_SIZE } from '@murdoku/shared';
 import type { DraftRegion } from '@murdoku/shared';
 
 export type Coord = [number, number];
@@ -73,7 +72,13 @@ export interface Edge {
   y2: number;
 }
 
-export function buildRegionEdges(cells: Coord[], size = CELL_SIZE): Edge[] {
+/**
+ * OPT-A04 (docs/v0.3.5.md §3.3.2): the region outline is a **Border-type**
+ * stroke drawn around the outer contour of the region's cells, wider than the
+ * grid Border. `size` is the adaptive cell width (OPT-A01) and is required so
+ * the outline can never silently drift from the renderer.
+ */
+export function buildRegionEdges(cells: Coord[], size: number): Edge[] {
   const set = new Set(cells.map(([x, y]) => coordKey(x, y)));
   const has = (x: number, y: number): boolean => set.has(coordKey(x, y));
   const edges: Edge[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CELL_SIZE } from '@murdoku/shared'
+import { DEFAULT_CELL_SIZE } from '@murdoku/shared'
 import {
   boardSize,
   centerPan,
@@ -27,18 +27,18 @@ describe('clampZoom', () => {
 
 describe('clientToCell', () => {
   it('maps the top-left visible cell to (0, 0)', () => {
-    expect(clientToCell(rect.left, rect.top, { rect, pan: { x: 0, y: 0 }, zoom: 1 })).toEqual({
+    expect(clientToCell(rect.left, rect.top, { rect, pan: { x: 0, y: 0 }, zoom: 1, cellSize: DEFAULT_CELL_SIZE })).toEqual({
       x: 0,
       y: 0,
     })
   })
 
   it('accounts for pan and zoom', () => {
-    const coord = clientToCell(rect.left + CELL_SIZE * 2 + 1, rect.top + CELL_SIZE * 3 + 1, {
-      rect,
-      pan: { x: 0, y: 0 },
-      zoom: 2,
-    })
+    const coord = clientToCell(
+      rect.left + DEFAULT_CELL_SIZE * 2 + 1,
+      rect.top + DEFAULT_CELL_SIZE * 3 + 1,
+      { rect, pan: { x: 0, y: 0 }, zoom: 2, cellSize: DEFAULT_CELL_SIZE },
+    )
     expect(coord).toEqual({ x: 1, y: 1 })
   })
 
@@ -47,6 +47,7 @@ describe('clientToCell', () => {
       rect,
       pan: { x: 0, y: 0 },
       zoom: 1,
+      cellSize: DEFAULT_CELL_SIZE,
     })
     expect(coord).toEqual({ x: -1, y: -1 })
   })
@@ -66,17 +67,17 @@ describe('isInBounds', () => {
 
 describe('boardSize', () => {
   it('scales the board with zoom', () => {
-    expect(boardSize(6)).toBe(6 * CELL_SIZE)
-    expect(boardSize(6, 2)).toBe(12 * CELL_SIZE)
+    expect(boardSize(6, DEFAULT_CELL_SIZE)).toBe(6 * DEFAULT_CELL_SIZE)
+    expect(boardSize(6, DEFAULT_CELL_SIZE, 2)).toBe(12 * DEFAULT_CELL_SIZE)
   })
 })
 
 describe('centerPan', () => {
   it('centers the board within the viewport', () => {
     const rect = { width: 800, height: 600 } as DOMRect
-    expect(centerPan(rect, 6)).toEqual({
-      x: (800 - 6 * CELL_SIZE) / 2,
-      y: (600 - 6 * CELL_SIZE) / 2,
+    expect(centerPan(rect, 6, DEFAULT_CELL_SIZE)).toEqual({
+      x: (800 - 6 * DEFAULT_CELL_SIZE) / 2,
+      y: (600 - 6 * DEFAULT_CELL_SIZE) / 2,
     })
   })
 })

@@ -8,10 +8,37 @@ export const GRID_SIZE_MIN = 2;
 export const GRID_SIZE_MAX = 24;
 export const GRID_SIZE_DEFAULT = 6;
 
-export const CELL_SIZE = 48;
-export const GRID_LINE_COLOR = '#000000';
-export const GRID_LINE_WIDTH = 2;
-export const GRID_BORDER_WIDTH = 3;
+/**
+ * OPT-A01 (docs/v0.3.5.md §1.1): the board fills the editor's available area
+ * and the cell width is clamped to this range. `MIN_CELL_SIZE` is also the
+ * fallback used before the adaptive pass has measured anything.
+ */
+export const MIN_CELL_SIZE = 90;
+export const MAX_CELL_SIZE = 240;
+/** Alias used as the default cell width before the adaptive pass runs. */
+export const DEFAULT_CELL_SIZE = MIN_CELL_SIZE;
+/** Horizontal / vertical inset the adaptive pass leaves around the board. */
+export const CANVAS_PADDING = 16;
+
+/**
+ * OPT-A04 (docs/v0.3.5.md §3.2): the four line elements of a cell, named as
+ * in 《方框要素定义与命名规范 v1.0》.
+ *
+ * - Border    — the grid line; adjacent cells share one, so no double lines.
+ * - Outline   — drawn outside the Border, does not take part in layout.
+ * - InnerLine — drawn flush inside the Border.
+ */
+export const LINE_COLOR = '#000000';
+export const BORDER_WIDTH = 2;
+export const OUTLINE_WIDTH = 3;
+export const INNER_LINE_WIDTH = 1;
+/** Region outline width range — the region's own `borderWidth` attribute. */
+export const REGION_BORDER_WIDTH = 6;
+
+// Deprecated aliases (kept so older imports keep compiling).
+export const GRID_LINE_COLOR = LINE_COLOR;
+export const GRID_LINE_WIDTH = BORDER_WIDTH;
+export const GRID_BORDER_WIDTH = OUTLINE_WIDTH;
 
 // ---- Item ----
 export const ITEM_NAME_MAX_LENGTH = 100;
@@ -94,13 +121,26 @@ export const MAP_JSON_VERSION = 1;
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
 
+// ---- Highlight palette (OPT-A06, docs/v0.3.5.md §5.1) ----
+/**
+ * OPT-A06 §5.1 centralises the interaction colours so the whole board can be
+ * re-tuned in one place. v0.3.5 softens both highlights: the deep
+ * `#E53935` / `#3B82F6` pair becomes the pale `#EF9A9A` / `#90CAF9`.
+ *
+ * Deliberately **not** covered here (user-configurable, §5.1 不调整):
+ * participant theme colours, region colours, item artwork, and the black
+ * grid lines.
+ */
+export const HIGHLIGHT_RED = '#EF9A9A';
+export const HIGHLIGHT_BLUE = '#90CAF9';
+
 // ---- Participant linkage (docs/v0.3.0.md FEAT-502, v0.3.3 MOD-801) ----
 // MOD-801: click/touch trigger grouping is gone — linkages are a flat list.
 export const PARTICIPANT_TARGET_TYPES = ['character', 'item', 'cell', 'region'] as const;
 export const EFFECT_COLORS = ['red', 'blue'] as const;
 export const EFFECT_COLOR_HEX: Record<(typeof EFFECT_COLORS)[number], string> = {
-  red: '#EF4444',
-  blue: '#3B82F6',
+  red: HIGHLIGHT_RED,
+  blue: HIGHLIGHT_BLUE,
 };
 export const EFFECT_COLOR_LABELS: Record<(typeof EFFECT_COLORS)[number], string> = {
   red: '红',
@@ -109,8 +149,9 @@ export const EFFECT_COLOR_LABELS: Record<(typeof EFFECT_COLORS)[number], string>
 /**
  * MOD-802 (docs/v0.3.3.md): region highlights are a fixed inner blue
  * border — the linkage's red/blue parameter does not apply to regions.
+ * OPT-A06 §5.1: the blue is the softened `#90CAF9`.
  */
-export const REGION_HIGHLIGHT_BORDER_COLOR = '#3B82F6';
+export const REGION_HIGHLIGHT_BORDER_COLOR = HIGHLIGHT_BLUE;
 /** Width (px) of the region highlight border, inset from the region edge. */
 export const REGION_HIGHLIGHT_BORDER_WIDTH = 2;
 /** Inset (px) of the region highlight border from the region edge. */
@@ -188,16 +229,35 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   emptyCell: 10,
 };
 
-// ---- OPT-901 §1.2.1 当前方格辅助提示框 ----
-/** Inner-line stroke when the hovered cell is free. */
+// ---- OPT-A05 当前方格辅助提示框（鼠标框 / 操作框） ----
+/**
+ * OPT-A05 (docs/v0.3.5.md §4): the v0.3.4 single cursor box is split into a
+ * mouse box (follows the pointer) and an operation box (pinned to the clicked
+ * cell). Both may be visible on the same cell, with the mouse box on top.
+ */
+/** Mouse box inner line when the hovered cell is free (§4.1). */
 export const CELL_CURSOR_COLOR = '#FFFFFF';
-/** Inner-line stroke when the hovered cell holds a non-standable object. */
-export const CELL_CURSOR_BLOCKED_COLOR = '#E57373';
-/** Grey shadow that sits on top of the Border ring (§1.2.1). */
+/** Mouse box inner line when the hovered cell holds a non-standable object.
+ *  OPT-A06 §5.1 softens the v0.3.4 `#E57373` to the pale red. */
+export const CELL_CURSOR_BLOCKED_COLOR = HIGHLIGHT_RED;
+/** Grey shadow that sits on top of the Border ring (§3.3.1). */
 export const CELL_CURSOR_SHADOW_COLOR = 'rgba(0,0,0,0.15)';
+/** Operation box colour — OPT-A06 §5.1 pale blue, drawn as an Outline. */
+export const OPERATION_CURSOR_COLOR = HIGHLIGHT_BLUE;
+export const OPERATION_CURSOR_OUTLINE_WIDTH = 2;
+/** Distance from the cell edge (an Outline sits outside the Border). */
+export const OPERATION_CURSOR_OUTLINE_OFFSET = 1;
 
-// ---- OPT-901 §1.2.5 不可站立物体阴影 ----
-export const NO_STAND_SHADOW_COLOR = 'rgba(0,0,0,0.08)';
+// ---- OPT-A03 §3.1 + OPT-A06 §5.2 不可站立物体阴影 ----
+/** Deepened from `rgba(0,0,0,0.08)` to make blocked cells readable. */
+export const NO_STAND_SHADOW_COLOR = 'rgba(0,0,0,0.18)';
+/**
+ * §3.1/§3.3 restate the v0.3.4 mask placement: **above the object artwork,
+ * clipped to the inside of the Border** — so the mask itself never covers the
+ * Border ring. Since §1.1 puts 物体 (layer 3) above 边框 (layer 4), "above the
+ * artwork" means one slot above `object`, not below `gridBorder`.
+ */
+export const NO_STAND_SHADOW_Z = MAP_LAYER_Z.object + 1;
 
 // ---- OPT-901 §1.2.2 区域名称 ----
 /** v0.3.4 §1.2.2: the outline is one notch thicker than v0.3.3 (3px → 4px). */
