@@ -25,6 +25,12 @@ export const CANVAS_PADDING = 16;
  * room = 72px). `availableH = height - 72 - 28(ruler) - 32(padding)`.
  */
 export const BOTTOM_BAR_RESERVE = 72;
+/**
+ * OPT-C01 (docs/v0.3.7.md §OPT-C01): an extra outer margin added to **every**
+ * side of the inset content box, so the board gets more breathing room and
+ * the four sides read more evenly.
+ */
+export const EXTRA_MARGIN = 24;
 
 /**
  * OPT-B03 (docs/v0.3.6.md §3.2): every line width and font size is authored
@@ -53,7 +59,12 @@ export const BORDER_WIDTH = 2;
  * Kept only because `GRID_BORDER_WIDTH` is still exported as an alias.
  */
 export const OUTLINE_WIDTH = 3;
-export const INNER_LINE_WIDTH = 1;
+/**
+ * OPT-C05 (docs/v0.3.7.md §OPT-C05): calibrated from 1px to 2px so the mouse
+ * cursor box reads as clearly as the operation box. The grey ring that covers
+ * the Border is a separate 2px shadow (`BORDER_WIDTH`).
+ */
+export const INNER_LINE_WIDTH = 2;
 /** Region outline width range — the region's own `borderWidth` attribute. */
 export const REGION_BORDER_WIDTH = 6;
 /**
@@ -143,7 +154,12 @@ export const DEFAULT_PROJECT_STATUS = 'draft';
 export const PROJECT_NOTE_MAX_LENGTH = 200;
 
 // ---- Map draft JSON ----
-export const MAP_JSON_VERSION = 1;
+/**
+ * v0.3.8 FEAT-D02: bumped to 2 because the draft may now carry a `style`
+ * block (map-level display constants). `version = 1` payloads stay valid —
+ * a missing `style` resolves to `DEFAULT_MAP_STYLE`.
+ */
+export const MAP_JSON_VERSION = 2;
 
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
@@ -207,16 +223,25 @@ export const THEME_COLOR_PALETTE = [
   '#5B7C99',
 ] as const;
 
-// ---- Canvas layer stacking (docs/v0.3.4.md OPT-901 §1.1) ----
+// ---- Canvas layer stacking (docs/layer-priority.md, the single authority) ----
 /**
- * OPT-901 (docs/v0.3.4.md §1.1): the canvas layers, listed **top-most first**
- * exactly as the spec numbers them. `MAP_LAYER_Z` turns that order into the
- * CSS `z-index` values used by the renderer (higher = closer to the viewer).
+ * The canvas layers, listed **top-most first** exactly as
+ * 《画布图层优先级规范》(`docs/layer-priority.md` §2) numbers them.
+ * `MAP_LAYER_Z` turns that order into the CSS `z-index` values used by the
+ * renderer (higher = closer to the viewer).
+ *
+ * v0.3.8 SPEC-D01: 13 entries. The old single `cellCursor` layer is split into
+ * `cellMouseCursor` / `cellOperationCursor` (the two boxes may stack on one
+ * cell), and `noStandShadow` moves **below** `regionEdge` to match the
+ * priority list — that order supersedes the v0.3.5 §3.1 “mask above the
+ * artwork” convention.
  */
 export const MAP_LAYER_ORDER = [
-  'cellCursor',
+  'cellMouseCursor',
+  'cellOperationCursor',
   'regionLabel',
   'object',
+  'canvasFrame',
   'gridBorder',
   'regionEdge',
   'noStandShadow',
@@ -230,29 +255,77 @@ export const MAP_LAYER_ORDER = [
 export type MapLayerName = (typeof MAP_LAYER_ORDER)[number];
 
 export const MAP_LAYER_Z: Record<MapLayerName, number> = {
-  /** 1 当前方格辅助提示框 — always the top-most element (§1.2.1). */
-  cellCursor: 44,
-  /** 2 区域名称 */
+  /** 1 当前鼠标所在框 — always the top-most element. */
+  cellMouseCursor: 46,
+  /** 2 当前操作方格框 — directly under the mouse box. */
+  cellOperationCursor: 45,
+  /** 3 区域名称 */
   regionLabel: 42,
-  /** 3 物体 — above the grid lines so items are never cut by them (§1.1). */
+  /** 4 物体 — above the grid lines so items are never cut by them. */
   object: 40,
-  /** 4 边框（网格线 + 画布外边框） */
+  /** 5 地图最外边框 — drawn outside the board rectangle. */
+  canvasFrame: 39,
+  /** 6 边框 border（内部分隔线） */
   gridBorder: 38,
-  /** 5 区域边界线 — below the grid lines so the Border stays readable (§1.1). */
+  /** 7 区域边界线 — below the grid lines so the Border stays readable. */
   regionEdge: 36,
-  /** 6 不可站立物体阴影 */
-  noStandShadow: 34,
-  /** 7 区域高亮线 */
+  /** 8 不可站立物体阴影 — below 区域边界线, above 区域高亮线. */
+  noStandShadow: 35,
+  /** 9 区域高亮线 */
   regionHighlight: 32,
-  /** 8 方块高亮 */
+  /** 10 方块高亮 */
   cellHighlight: 30,
-  /** 9 背景高亮 */
+  /** 11 背景高亮 */
   backgroundHighlight: 28,
-  /** 10 背景 */
+  /** 12 背景 */
   background: 20,
-  /** 11 空方格（画布底色） */
+  /** 13 空方格（画布底色） */
   emptyCell: 10,
 };
+
+/**
+ * 区域填充 is a v0.2.5 leftover that the layer table does not list. It is
+ * parked between 背景 (12) and 背景高亮 (11) — see `docs/layer-priority.md` §1.
+ */
+export const REGION_FILL_Z = MAP_LAYER_Z.background + 2;
+
+// ---- Map style (v0.3.8 FEAT-D02) ----
+/**
+ * Every visual constant of the board is a **map-level default** that the
+ * 「地图基本信息」drawer edits. Line widths and font sizes are authored at
+ * `BASE_CELL` and still multiplied by `cellSize / BASE_CELL` (v0.3.6 OPT-B03),
+ * so one configuration reads the same at `n = 2` and `n = 24`.
+ */
+export const MAP_STYLE_LINE_WIDTH_MIN = 1;
+export const MAP_STYLE_LINE_WIDTH_MAX = 12;
+export const MAP_STYLE_OPERATION_OFFSET_MIN = 0;
+export const MAP_STYLE_OPERATION_OFFSET_MAX = 8;
+export const MAP_STYLE_REGION_LABEL_FONT_MIN = 9;
+export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
+export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
+export const MAP_STYLE_REGION_LABEL_STROKE_MAX = 12;
+export const MAP_STYLE_CELL_SIZE_MIN = MIN_CELL_SIZE;
+export const MAP_STYLE_CELL_SIZE_MAX = MAX_CELL_SIZE;
+
+/** `#RRGGBB` — the only colour format the style accepts. */
+export const MAP_STYLE_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/** Linkage palette bounds (FEAT-D04). */
+export const LINKAGE_COLOR_MIN_COUNT = 2;
+export const LINKAGE_COLOR_MAX_COUNT = 12;
+export const LINKAGE_COLOR_KEY_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/;
+export const LINKAGE_COLOR_LABEL_MAX_LENGTH = 16;
+
+/**
+ * FEAT-D04 §「默认至少有红蓝」: the shipped palette. `red` / `blue` are the
+ * historical `EFFECT_COLORS` keys, so v0.3.3-and-earlier drafts keep working
+ * without a migration.
+ */
+export const DEFAULT_LINKAGE_COLORS = [
+  { key: 'red', label: '红', color: HIGHLIGHT_RED },
+  { key: 'blue', label: '蓝', color: HIGHLIGHT_BLUE },
+] as const;
+
 
 // ---- OPT-A05 当前方格辅助提示框（鼠标框 / 操作框） ----
 /**
@@ -276,31 +349,33 @@ export const OPERATION_CURSOR_OUTLINE_OFFSET = 1;
 // ---- OPT-A03 §3.1 + OPT-A06 §5.2 不可站立物体阴影 ----
 /** Deepened from `rgba(0,0,0,0.08)` to make blocked cells readable. */
 export const NO_STAND_SHADOW_COLOR = 'rgba(0,0,0,0.18)';
-/**
- * §3.1/§3.3 restate the v0.3.4 mask placement: **above the object artwork,
- * clipped to the inside of the Border** — so the mask itself never covers the
- * Border ring. Since §1.1 puts 物体 (layer 3) above 边框 (layer 4), "above the
- * artwork" means one slot above `object`, not below `gridBorder`.
- */
-export const NO_STAND_SHADOW_Z = MAP_LAYER_Z.object + 1;
+/* OPT-C03: `noStandShadow` / `canvasFrame` now have their own entries in
+ * `MAP_LAYER_Z`, so the previous `NO_STAND_SHADOW_Z` / `CANVAS_FRAME_Z`
+ * aliases are gone — the layer list is the only source of truth. */
 
-/**
- * OPT-B04 §4.2: the board's outermost frame must not be covered by any item
- * or highlight layer, so it renders above them — just under the region
- * labels and the cursor boxes.
- */
-export const CANVAS_FRAME_Z = MAP_LAYER_Z.regionLabel;
-
-// ---- OPT-901 §1.2.2 区域名称 ----
-/** v0.3.4 §1.2.2: the outline is one notch thicker than v0.3.3 (3px → 4px). */
+// ---- 区域名称 ----
+/** The outline is one notch thicker than v0.3.3 (3px → 4px). */
 export const REGION_LABEL_STROKE_WIDTH = 4;
-export const REGION_LABEL_FONT_SIZE = 14;
+/** OPT-C04: 14 → 17px base (still multiplied by the OPT-B03 scale). */
+export const REGION_LABEL_FONT_SIZE = 17;
 export const REGION_LABEL_COLOR = '#FFFFFF';
 export const REGION_LABEL_STROKE_COLOR = '#000000';
 
-// ---- OPT-902 §2.2 区域悬停 ----
-/** Hovering a region tints its label blue and enlarges it (§2.2). */
-export const REGION_LABEL_HOVER_FONT_SIZE = 16;
+// ---- 区域悬停 ----
+/**
+ * Hovering a region tints its label blue and enlarges it (v0.3.5 §2.2).
+ * OPT-C04: raised to 19px so it stays **larger** than the new 17px base.
+ */
+export const REGION_LABEL_HOVER_FONT_SIZE = 19;
+
+// ---- OPT-C06 物件层内边距 ----
+/**
+ * OPT-C06 (docs/v0.3.7.md §OPT-C06): object-layer artwork is inset inside its
+ * cell so it never touches the grid lines. Backgrounds still fill the cell.
+ */
+export const OBJECT_PADDING_BASE = 4;
+export const OBJECT_PADDING_MIN = 2;
+export const OBJECT_PADDING_MAX = 12;
 
 // ---- OPT-902 §2.3 物品悬停 ----
 /** The object image stretches upward by this many pixels while hovered. */
@@ -309,9 +384,11 @@ export const OBJECT_HOVER_TRANSITION_MS = 120;
 
 // ---- OPT-B05 标尺字符（docs/v0.3.6.md §5） ----
 /** Ruler glyph base sizes; both are multiplied by the OPT-B03 `scale`. */
-export const RULER_FONT_SIZE = 15;
+export const RULER_FONT_SIZE = 17;
 /** The cell the operation box is pinned to gets the larger glyph (§5.3). */
-export const RULER_FONT_SIZE_ACTIVE = 17;
+export const RULER_FONT_SIZE_ACTIVE = 19;
+/** OPT-C02: visible gap between the ruler strips and the board. */
+export const RULER_GAP = 6;
 /** Idle colour — a light grey (§5.1). */
 export const RULER_COLOR = '#9CA3AF';
 /** Hovered / operated row & column — darker grey, deliberately not blue (§5.2). */
@@ -339,6 +416,97 @@ export const PARTICIPANT_SEQ_COLOR = '#374151';
 /** Translucent white so the badge stays readable on any theme colour. */
 export const PARTICIPANT_SEQ_BACKGROUND = 'rgba(255,255,255,0.85)';
 export const PARTICIPANT_SEQ_BORDER = '1px solid rgba(0,0,0,0.1)';
+
+// ---- v0.3.8 FEAT-D02 地图基本信息（地图级缺省值） ----
+/**
+ * The full set of map-level display constants, as edited by the
+ * 「地图基本信息」drawer (docs/v0.3.8.md §FEAT-D02).
+ *
+ * Everything here is a **default**: per-object settings (a region's own
+ * `borderWidth`, participant theme colours, item artwork) still win. The one
+ * exception is 区域边界线 colour, which is global — the region's own `color`
+ * now only drives the fill.
+ */
+export interface MapStyleLine {
+  width: number;
+  color: string;
+}
+
+export interface MapStyleMouseCursor extends MapStyleLine {
+  /** Stroke colour over a cell whose object has `canStand === false`. */
+  blockedColor: string;
+  /** Ring drawn over the Border so the box stays readable. */
+  shadowColor: string;
+}
+
+export interface MapStyleOperationCursor extends MapStyleLine {
+  /** Distance from the cell edge — an Outline sits outside the Border. */
+  offset: number;
+}
+
+export interface MapStyleRegionLabel {
+  fontSize: number;
+  strokeWidth: number;
+  color: string;
+  strokeColor: string;
+  hoverFontSize: number;
+  hoverColor: string;
+  hoverStrokeColor: string;
+}
+
+export interface MapLinkageColor {
+  /** Referenced by `ParticipantTarget.color`. */
+  key: string;
+  label: string;
+  color: string;
+}
+
+export interface MapStyle {
+  /** `null` = use the adaptive cell size; otherwise an explicit override. */
+  cellSize: number | null;
+  canvasFrame: MapStyleLine;
+  border: MapStyleLine;
+  mouseCursor: MapStyleMouseCursor;
+  operationCursor: MapStyleOperationCursor;
+  regionLabel: MapStyleRegionLabel;
+  regionBorder: MapStyleLine;
+  regionHighlight: MapStyleLine;
+  linkageColors: MapLinkageColor[];
+}
+
+/**
+ * Declared **after** every constant it reads — a module-level literal that
+ * referenced a later `const` would hit the temporal dead zone on import.
+ */
+export const DEFAULT_MAP_STYLE: MapStyle = {
+  /** FEAT-D03: `null` means "whatever the first adaptive pass computed". */
+  cellSize: null,
+  canvasFrame: { width: CANVAS_OUTER_BORDER_WIDTH, color: LINE_COLOR },
+  border: { width: BORDER_WIDTH, color: LINE_COLOR },
+  mouseCursor: {
+    width: INNER_LINE_WIDTH,
+    color: CELL_CURSOR_COLOR,
+    blockedColor: CELL_CURSOR_BLOCKED_COLOR,
+    shadowColor: CELL_CURSOR_SHADOW_COLOR,
+  },
+  operationCursor: {
+    width: OPERATION_CURSOR_OUTLINE_WIDTH,
+    color: OPERATION_CURSOR_COLOR,
+    offset: OPERATION_CURSOR_OUTLINE_OFFSET,
+  },
+  regionLabel: {
+    fontSize: REGION_LABEL_FONT_SIZE,
+    strokeWidth: REGION_LABEL_STROKE_WIDTH,
+    color: REGION_LABEL_COLOR,
+    strokeColor: REGION_LABEL_STROKE_COLOR,
+    hoverFontSize: REGION_LABEL_HOVER_FONT_SIZE,
+    hoverColor: REGION_LABEL_COLOR,
+    hoverStrokeColor: REGION_HIGHLIGHT_BORDER_COLOR,
+  },
+  regionBorder: { width: REGION_BORDER_WIDTH_DEFAULT, color: DEFAULT_REGION_COLOR },
+  regionHighlight: { width: REGION_HIGHLIGHT_WIDTH, color: REGION_HIGHLIGHT_BORDER_COLOR },
+  linkageColors: DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry })),
+};
 
 // ---- Editor tools ----
 export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] as const;

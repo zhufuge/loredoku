@@ -286,6 +286,69 @@ describe('map draft API', () => {
     expect(res.status).toBe(404);
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
+
+  // v0.3.8 FEAT-D02: the map style block round-trips through the draft JSON.
+  it('persists and reloads the map style, and still accepts a style-less draft', async () => {
+    const projectId = await createProject({ name: `Style ${uniqueCode('p')}`, gridSize: 6 });
+
+    const initial = await api.get(`/api/projects/${projectId}/map`);
+    const updatedAt = initial.body.data.updatedAt as string;
+
+    const draft = {
+      ...emptyDraft(6),
+      version: 2,
+      style: {
+        cellSize: 150,
+        canvasFrame: { width: 8, color: '#112233' },
+        regionHighlight: { width: 6, color: '#0B7E74' },
+        linkageColors: [
+          { key: 'red', label: '红', color: '#EF9A9A' },
+          { key: 'teal', label: '青', color: '#0B7E74' },
+        ],
+      },
+    };
+    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft, updatedAt });
+    expect(saved.status).toBe(200);
+    expect(saved.body.data.draft.style.cellSize).toBe(150);
+    expect(saved.body.data.draft.style.canvasFrame.color).toBe('#112233');
+
+    const reloaded = await api.get(`/api/projects/${projectId}/map`);
+    expect(reloaded.body.data.draft.style.regionHighlight.width).toBe(6);
+    expect(reloaded.body.data.draft.style.linkageColors.map((entry: { key: string }) => entry.key)).toEqual(
+      ['red', 'teal'],
+    );
+
+    // A v0.3.7-era payload (no style block) is still accepted.
+    const legacy = await api
+      .put(`/api/projects/${projectId}/map`)
+      .send({ data: emptyDraft(6), updatedAt: reloaded.body.data.updatedAt as string });
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.data.draft.style).toBeUndefined();
+  });
+
+  it('rejects a style whose linkage colour is not in the palette', async () => {
+    const projectId = await createProject({ name: `StyleBad ${uniqueCode('p')}`, gridSize: 6 });
+    const characterId = await createCharacterWithAvatar();
+    const draft = emptyDraft(6);
+    draft.characterSlots[0] = {
+      characterId,
+      themeColor: '#FFFFFF',
+      clue: '',
+      linkages: [{ type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'teal' }],
+    };
+    const res = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+  });
+
+  it('rejects an out-of-range style value', async () => {
+    const projectId = await createProject({ name: `StyleRange ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api
+      .put(`/api/projects/${projectId}/map`)
+      .send({ data: { ...emptyDraft(6), style: { cellSize: 500 } } });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+  });
 });
 
 describe('versions API', () => {

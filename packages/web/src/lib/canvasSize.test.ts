@@ -3,6 +3,7 @@ import {
   BORDER_WIDTH,
   BOTTOM_BAR_RESERVE,
   CANVAS_PADDING,
+  EXTRA_MARGIN,
   DEFAULT_CELL_SIZE,
   MAX_CELL_SIZE,
   MIN_CELL_SIZE,
@@ -103,39 +104,57 @@ describe('renderedCellSize (OPT-A01 §1.3)', () => {
 
 // ---- OPT-B02 §2.2: asymmetric insets ----
 describe('canvasInsets (OPT-B02 §2.2)', () => {
-  it('reserves the ruler, the bottom toolbar and the padding', () => {
+  it('reserves the ruler, the bottom toolbar, the padding and the extra margin', () => {
     const insets = canvasInsets({ showRulers: true, showBottomBar: true });
     expect(RULER_SIZE).toBe(28);
     expect(BOTTOM_BAR_RESERVE).toBe(72);
     expect(CANVAS_PADDING).toBe(16);
-    expect(insets).toEqual({ top: 44, right: 16, bottom: 88, left: 44 });
+    expect(EXTRA_MARGIN).toBe(24);
+    // base = 16 + 24 = 40 → top/left 28+40, bottom 72+40, right 40.
+    expect(insets).toEqual({ top: 68, right: 40, bottom: 112, left: 68 });
   });
 
   it('drops the ruler / toolbar bands when they are hidden', () => {
-    expect(canvasInsets()).toEqual({ top: 16, right: 16, bottom: 16, left: 16 });
+    expect(canvasInsets()).toEqual({ top: 40, right: 40, bottom: 40, left: 40 });
     expect(canvasInsets({ showRulers: true })).toEqual({
-      top: 44,
-      right: 16,
-      bottom: 16,
-      left: 44,
+      top: 68,
+      right: 40,
+      bottom: 40,
+      left: 68,
     });
     expect(canvasInsets({ showBottomBar: true })).toEqual({
-      top: 16,
-      right: 16,
-      bottom: 88,
-      left: 16,
+      top: 40,
+      right: 40,
+      bottom: 112,
+      left: 40,
     });
   });
 
-  it('§2.2: availableH = 高度 - 72 - 28 - 32', () => {
+  it('OPT-C01: EXTRA_MARGIN is added to every side', () => {
+    const without = canvasInsets({ showRulers: true, showBottomBar: true, extraMargin: 0 });
+    const with24 = canvasInsets({ showRulers: true, showBottomBar: true });
+    for (const side of ['top', 'right', 'bottom', 'left'] as const) {
+      expect(with24[side] - without[side]).toBe(EXTRA_MARGIN);
+    }
+  });
+
+  it('§2.2 + OPT-C01: availableH = 高度 - 72 - 28 - 32 - 48', () => {
     const height = 900;
-    const box = availableBox({ width: 1200, height }, canvasInsets({ showRulers: true, showBottomBar: true }));
-    expect(box.height).toBe(height - BOTTOM_BAR_RESERVE - RULER_SIZE - CANVAS_PADDING * 2);
-    expect(box.width).toBe(1200 - RULER_SIZE - CANVAS_PADDING * 2);
+    const box = availableBox(
+      { width: 1200, height },
+      canvasInsets({ showRulers: true, showBottomBar: true }),
+    );
+    expect(box.height).toBe(
+      height - BOTTOM_BAR_RESERVE - RULER_SIZE - CANVAS_PADDING * 2 - EXTRA_MARGIN * 2,
+    );
+    expect(box.width).toBe(1200 - RULER_SIZE - CANVAS_PADDING * 2 - EXTRA_MARGIN * 2);
   });
 
   it('never reports a negative content box', () => {
-    const box = availableBox({ width: 10, height: 10 }, canvasInsets({ showRulers: true, showBottomBar: true }));
+    const box = availableBox(
+      { width: 10, height: 10 },
+      canvasInsets({ showRulers: true, showBottomBar: true }),
+    );
     expect(box).toEqual({ width: 0, height: 0 });
   });
 });
@@ -168,9 +187,9 @@ describe('centeredPan (OPT-B02 §2.2)', () => {
     const rect = { width: 1000, height: 800 };
     const cellSize = 100;
     const pan = centeredPan(rect, insets, 6, cellSize);
-    // Board = 600px; content box = (1000-44-16) × (800-44-88) = 940 × 668.
+    // Board = 600px; content box = (1000-68-40) × (800-68-112) = 892 × 620.
     const box = availableBox(rect, insets);
-    expect(box).toEqual({ width: 940, height: 668 });
+    expect(box).toEqual({ width: 892, height: 620 });
     expect(pan.x).toBe(Math.round(insets.left + (box.width - 600) / 2));
     expect(pan.y).toBe(Math.round(insets.top + (box.height - 600) / 2));
     expect(pan).toEqual({ x: 214, y: 78 });
@@ -184,7 +203,7 @@ describe('centeredPan (OPT-B02 §2.2)', () => {
     const insets = canvasInsets();
     const rect = { width: 600, height: 600 };
     const pan = centeredPan(rect, insets, 2, 100, 2);
-    // Board = 2 × 100 × 2 = 400 → (600 - 32 - 400) / 2 = 84
-    expect(pan).toEqual({ x: 16 + 84, y: 16 + 84 });
+    // Board = 2 × 100 × 2 = 400 → (600 - 40 - 40 - 400) / 2 = 60
+    expect(pan).toEqual({ x: 40 + 60, y: 40 + 60 });
   });
 });

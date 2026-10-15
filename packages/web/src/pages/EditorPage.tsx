@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  DEFAULT_CELL_SIZE,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   mapDraftSchema,
@@ -40,6 +41,7 @@ import { EditorLeftPanel } from '@/components/editor/EditorLeftPanel';
 import { EditorToolbar } from '@/components/editor/EditorToolbar';
 import { EditorBottomBar } from '@/components/editor/EditorBottomBar';
 import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
+import { MapInfoDrawer } from '@/components/editor/MapInfoDrawer';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
   ParticipantDrawer,
@@ -56,6 +58,11 @@ import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { useHighlight } from '@/hooks/useHighlight';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { canPlaceItemOnLayer } from '@/lib/canvasLayers';
+import {
+  reduceEditorFocus,
+  type EditorFocus,
+  type FocusEvent,
+} from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
 import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
@@ -97,6 +104,10 @@ export function EditorPage(): JSX.Element {
   const [regionShape, setRegionShape] = useState<RegionShape>('rect');
   const [itemsOpen, setItemsOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
+  /** v0.3.8 FEAT-D01: the 「地图基本信息」drawer. */
+  const [mapInfoOpen, setMapInfoOpen] = useState(false);
+  /** FEAT-D03: the adaptive value the canvas last computed. */
+  const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const [unplacedCharacterId, setUnplacedCharacterId] = useState<number | null>(null);
   const [participantDrawerOpen, setParticipantDrawerOpen] = useState(false);
   const [regionAnchorActive, setRegionAnchorActive] = useState(false);
@@ -155,6 +166,8 @@ export function EditorPage(): JSX.Element {
   useEffect(() => {
     if (editor.selection || editor.selectedRegionId !== null || editor.selectedSlotIndex !== null) {
       setInfoOpen(true);
+      // FEAT-D01: the three right-side drawers are mutually exclusive.
+      setMapInfoOpen(false);
     } else if (unplacedCharacterId === null) {
       setInfoOpen(false);
     }
@@ -260,6 +273,31 @@ export function EditorPage(): JSX.Element {
     }
     return list;
   }, [editor.cells, itemsById]);
+
+  /**
+   * OPT-C07 (docs/v0.3.7.md §OPT-C07): the participant activation and the cell
+   * selection are mutually exclusive. The rule lives in `lib/editorFocus.ts`
+   * so it can be unit-tested without a DOM.
+   */
+  const applyFocus = (event: FocusEvent): void => {
+    const current: EditorFocus = {
+      activation: {
+        activeParticipantId: editor.activeParticipantId,
+        activationMode: editor.activationMode,
+      },
+      selection: editor.selection,
+    };
+    const next = reduceEditorFocus(current, event);
+    if (next.activation.activeParticipantId === null) {
+      if (current.activation.activeParticipantId !== null) editor.clearActivation();
+    } else if (
+      next.activation.activeParticipantId !== current.activation.activeParticipantId ||
+      next.activation.activationMode !== current.activation.activationMode
+    ) {
+      editor.activateParticipantClick(next.activation.activeParticipantId);
+    }
+    if (next.selection !== current.selection) editor.setSelection(next.selection);
+  };
 
   const saveParticipant = (
     slotIndex: number,
@@ -535,6 +573,7 @@ export function EditorPage(): JSX.Element {
         return;
       }
       if (event.key === 'Escape') {
+        setMapInfoOpen(false);
         editor.clearActivation();
         editor.setSelection(null);
         editor.setSelectedItem(null);
@@ -623,6 +662,20 @@ export function EditorPage(): JSX.Element {
         onSave={save}
         onPublish={publish}
         onOpenVersions={() => setVersionsOpen(true)}
+        mapInfoOpen={mapInfoOpen}
+        onOpenMapInfo={() => {
+          setMapInfoOpen((previous) => {
+            const next = !previous;
+            if (next) {
+              // FEAT-D01: opening it drops any cell / participant focus.
+              editor.setSelection(null);
+              editor.setSelectedSlot(null);
+              setUnplacedCharacterId(null);
+              setInfoOpen(false);
+            }
+            return next;
+          });
+        }}
         onExport={exportToFile}
         onImport={() => importInputRef.current?.click()}
       />
@@ -711,7 +764,11 @@ export function EditorPage(): JSX.Element {
             }}
             onActivateHover={editor.activateParticipantHover}
             onDeactivateHover={editor.deactivateParticipantHover}
-            onActivateClick={editor.activateParticipantClick}
+            onActivateClick={(index) => {
+              // OPT-C07: pinning a participant drops the cell selection so the
+              // drawer stays exclusive.
+              applyFocus({ type: 'participant', participantId: index });
+            }}
             onClearRequest={clearSlot}
             onDragBegin={beginSlotDrag}
             onDragMove={moveSlotDrag}
@@ -727,6 +784,8 @@ export function EditorPage(): JSX.Element {
             cells={editor.cells}
             itemsById={itemsById}
             regions={editor.regions}
+            style={editor.style}
+            onAutoCellSize={setAutoCellSize}
             selectedRegionId={editor.selectedRegionId}
             zoom={editor.zoom}
             pan={editor.pan}
@@ -740,7 +799,9 @@ export function EditorPage(): JSX.Element {
             highlight={highlight}
             highlightLeaving={highlightLeaving}
             onSelect={(selection) => {
-              editor.setSelection(selection);
+              // OPT-C07: clicking the board clears the participant activation
+              // (hover- or click-pinned) and hands the focus to the cell.
+              applyFocus({ type: 'cell', selection });
               if (selection) {
                 editor.setSelectedSlot(null);
                 setUnplacedCharacterId(null);
@@ -873,7 +934,26 @@ export function EditorPage(): JSX.Element {
             placedItems={placedItems}
             regions={editor.regions}
             gridSize={editor.gridSize}
+            style={editor.style}
             onSave={saveParticipant}
+          />
+
+          <MapInfoDrawer
+            open={mapInfoOpen}
+            onClose={() => setMapInfoOpen(false)}
+            gridSize={editor.gridSize}
+            autoCellSize={autoCellSize}
+            style={editor.style}
+            characterSlots={editor.characterSlots}
+            onSetStyle={editor.setMapStyle}
+            onSetCellSize={editor.setCellSizeOverride}
+            onApplyRegionBorder={editor.applyRegionBorderStyle}
+            onSetLinkageColors={editor.setLinkageColors}
+            onRemoveLinkageColor={editor.removeLinkageColor}
+            onRequestResize={(next) => {
+              setResizeValue(next);
+              setResizeOpen(true);
+            }}
           />
         </main>
       </div>
@@ -885,6 +965,7 @@ export function EditorPage(): JSX.Element {
         cells={regionDialog.cells}
         region={regionDialog.region}
         regions={editor.regions}
+        defaultBorderWidth={editor.style.regionBorder.width}
         onSubmit={submitRegion}
       />
 

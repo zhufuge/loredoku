@@ -73,6 +73,46 @@ export interface Edge {
 }
 
 /**
+ * FIX-C01 (docs/v0.3.7.md §1): the region **highlight** outline — the same
+ * contour as {@link buildRegionEdges}, moved to the inside of the region
+ * boundary and shrunk along the edge.
+ *
+ * Each edge is handled as two independent steps:
+ *
+ * - **normal** (the axis that is constant along the edge): shifted toward the
+ *   region interior by `inset`, with **both ends taking the same value**;
+ * - **tangential** (the axis that varies): shrunk by `inset` at **both** ends
+ *   so neighbouring inset edges meet at the corners.
+ *
+ * The interior direction comes straight from the `has()` test that decided the
+ * edge exists at all — there is no need to derive a normal vector, and the old
+ * bug (shifting a constant axis on one end only, which gave every edge a slope
+ * of `inset / 边长`) cannot recur. Unit tests assert `x1 === x2 || y1 === y2`
+ * for every returned edge.
+ */
+export function buildRegionInnerEdges(cells: Coord[], size: number, inset: number): Edge[] {
+  const d = Math.max(0, Math.min(inset, size / 2));
+  const set = new Set(cells.map(([x, y]) => coordKey(x, y)));
+  const has = (x: number, y: number): boolean => set.has(coordKey(x, y));
+  const edges: Edge[] = [];
+  for (const [x, y] of cells) {
+    const px = x * size;
+    const py = y * size;
+    const far = px + size - d;
+    const bottom = py + size - d;
+    // 上边：法向 +y
+    if (!has(x, y - 1)) edges.push({ x1: px + d, y1: py + d, x2: far, y2: py + d });
+    // 下边：法向 -y
+    if (!has(x, y + 1)) edges.push({ x1: px + d, y1: bottom, x2: far, y2: bottom });
+    // 左边：法向 +x
+    if (!has(x - 1, y)) edges.push({ x1: px + d, y1: py + d, x2: px + d, y2: bottom });
+    // 右边：法向 -x
+    if (!has(x + 1, y)) edges.push({ x1: far, y1: py + d, x2: far, y2: bottom });
+  }
+  return edges;
+}
+
+/**
  * OPT-A04 (docs/v0.3.5.md §3.3.2): the region outline is a **Border-type**
  * stroke drawn around the outer contour of the region's cells, wider than the
  * grid Border. `size` is the adaptive cell width (OPT-A01) and is required so

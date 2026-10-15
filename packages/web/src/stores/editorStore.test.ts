@@ -425,7 +425,8 @@ describe('toDraft', () => {
     store().placeObject({ id: 5, widthCells: 1, heightCells: 1 }, 1, 1);
     store().setSlot(0, 4);
     const output = store().toDraft();
-    expect(output.version).toBe(1);
+    // v0.3.8: the draft may carry a `style` block, so the JSON version is 2.
+    expect(output.version).toBe(2);
     expect(output.cells['1,1']?.object).toEqual({ itemId: 5, w: 1, h: 1 });
     expect(output.characterSlots[0]).toMatchObject({ characterId: 4, linkages: [] });
     // CLAR-603: there is no placedCharacters field any more.
@@ -436,5 +437,126 @@ describe('toDraft', () => {
       expect('triggers' in slot).toBe(false);
       expect(Array.isArray(slot.linkages)).toBe(true);
     }
+  });
+
+  it('FEAT-D02: serialises the resolved map style', () => {
+    const output = store().toDraft();
+    expect(output.style?.border).toEqual({ width: 2, color: '#000000' });
+    expect(output.style?.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+  });
+});
+
+describe('map style (v0.3.8 FEAT-D02/D03/D04)', () => {
+  it('starts from the shipped defaults and is always fully resolved', () => {
+    const style = store().style;
+    expect(style.cellSize).toBeNull();
+    expect(style.canvasFrame.width).toBe(6);
+    expect(style.regionLabel.fontSize).toBe(17);
+  });
+
+  it('adopts the style block of the loaded draft', () => {
+    store().init(
+      2,
+      {
+        ...draft(),
+        style: {
+          cellSize: 150,
+          border: { width: 4, color: '#112233' },
+        },
+      } as MapDraft,
+      { updatedAt: null, currentVersionNo: null, status: 'draft' },
+    );
+    expect(store().style.cellSize).toBe(150);
+    expect(store().style.border).toEqual({ width: 4, color: '#112233' });
+    // Untouched fields keep their defaults.
+    expect(store().style.canvasFrame).toEqual({ width: 6, color: '#000000' });
+  });
+
+  it('setMapStyle commits one undoable step and clamps the result', () => {
+    store().setMapStyle((current) => ({
+      ...current,
+      canvasFrame: { ...current.canvasFrame, width: 99 },
+    }));
+    expect(store().style.canvasFrame.width).toBe(12);
+    expect(store().dirty).toBe(true);
+    expect(store().past).toHaveLength(1);
+    store().undo();
+    expect(store().style.canvasFrame.width).toBe(6);
+  });
+
+  it('setCellSizeOverride stores an integer and null restores adaptivity', () => {
+    store().setCellSizeOverride(123.6);
+    expect(store().style.cellSize).toBe(124);
+    store().setCellSizeOverride(10);
+    expect(store().style.cellSize).toBe(90);
+    store().setCellSizeOverride(null);
+    expect(store().style.cellSize).toBeNull();
+  });
+
+  it('FEAT-D02 §关键规则 4: the region outline width syncs to every region', () => {
+    store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+    store().createRegion(regionInput('rg_b', [[2, 2]]), 'override');
+    store().applyRegionBorderStyle({ width: 10 });
+    expect(store().style.regionBorder.width).toBe(10);
+    expect(store().regions.map((region) => region.borderWidth)).toEqual([10, 10]);
+  });
+
+  it('FEAT-D02 §关键规则 4: the region outline colour is map-level only', () => {
+    store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+    store().applyRegionBorderStyle({ color: '#FF0000' });
+    expect(store().style.regionBorder.color).toBe('#FF0000');
+    // The region keeps its own colour — it drives the fill.
+    expect(store().regions[0]?.color).toBe('#3B82F6');
+    // ...and its width is untouched when only the colour changed.
+    expect(store().regions[0]?.borderWidth).toBe(4);
+  });
+
+  it('FEAT-D04: removing a palette entry re-points the linkages that used it', () => {
+    store().setLinkageColors([
+      { key: 'red', label: '红', color: '#EF9A9A' },
+      { key: 'blue', label: '蓝', color: '#90CAF9' },
+      { key: 'teal', label: '青', color: '#0B7E74' },
+    ]);
+    store().setSlot(0, 4);
+    store().setParticipantConfig(0, {
+      linkages: [
+        { type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'blue' },
+        { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'teal' },
+      ],
+    });
+    store().removeLinkageColor('blue');
+    // The removed key is gone and its references point at the first entry.
+    expect(store().style.linkageColors.map((entry) => entry.key)).toEqual(['red', 'teal']);
+    expect(store().characterSlots[0]?.linkages?.map((entry) => entry.color)).toEqual([
+      'red',
+      'teal',
+    ]);
+  });
+
+  it('FEAT-D04 §下限: refuses to drop below the 2-entry minimum', () => {
+    store().removeLinkageColor('blue');
+    expect(store().style.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    // Nothing was committed either — a rejected removal must not dirty the map.
+    expect(store().past).toHaveLength(0);
+  });
+
+  it('FEAT-D04: setLinkageColors adds an entry through the schema guard', () => {
+    store().setLinkageColors([
+      { key: 'red', label: '红', color: '#EF9A9A' },
+      { key: 'teal', label: '青', color: '#0B7E74' },
+    ]);
+    expect(store().style.linkageColors[1]).toEqual({
+      key: 'teal',
+      label: '青',
+      color: '#0B7E74',
+    });
+  });
+
+  it('applyDraft adopts the imported style and resets the history', () => {
+    store().setMapStyle((current) => ({ ...current, border: { ...current.border, width: 8 } }));
+    store().applyDraft({ ...draft(), style: { cellSize: 200 } } as MapDraft);
+    expect(store().style.cellSize).toBe(200);
+    expect(store().style.border.width).toBe(2);
+    expect(store().dirty).toBe(true);
   });
 });

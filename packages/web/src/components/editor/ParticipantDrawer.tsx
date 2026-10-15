@@ -2,17 +2,16 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   DEFAULT_THEME_COLOR,
-  EFFECT_COLOR_HEX,
-  EFFECT_COLOR_LABELS,
   THEME_COLOR_PALETTE,
   type Character,
   type CharacterSlotEntry,
   type DraftRegion,
-  type EffectColor,
+  type MapStyle,
   type ParticipantTarget,
 } from '@murdoku/shared';
 import { normalizeHexColor } from '@murdoku/shared';
 import { parseClue } from '@/lib/clue';
+import { linkageColorFor, linkageLabelFor } from '@/lib/mapStyle';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +55,8 @@ interface ParticipantDrawerProps {
   placedItems: PlacedItemOption[];
   regions: DraftRegion[];
   gridSize: number;
+  /** FEAT-D04: the map style carries the linkage palette. */
+  style: MapStyle;
   onSave: (
     slotIndex: number,
     patch: { themeColor: string; clue: string; linkages: ParticipantTarget[] },
@@ -81,6 +82,7 @@ export function ParticipantDrawer({
   placedItems,
   regions,
   gridSize,
+  style,
   onSave,
 }: ParticipantDrawerProps): JSX.Element | null {
   const [themeColor, setThemeColor] = useState<string>(DEFAULT_THEME_COLOR);
@@ -366,8 +368,8 @@ export function ParticipantDrawer({
                         </span>
                         <span
                           className="ml-auto h-4 w-4 shrink-0 rounded-full border"
-                          style={{ backgroundColor: EFFECT_COLOR_HEX[linkage.color] }}
-                          title={EFFECT_COLOR_LABELS[linkage.color]}
+                          style={{ backgroundColor: linkageColorFor(style, linkage.color) }}
+                          title={linkageLabelFor(style, linkage.color)}
                         />
                         <Button
                           type="button"
@@ -428,6 +430,7 @@ export function ParticipantDrawer({
         items={itemOptions}
         regions={regions}
         gridSize={gridSize}
+        linkageColors={style.linkageColors}
         onSubmit={submitLinkages}
       />
 

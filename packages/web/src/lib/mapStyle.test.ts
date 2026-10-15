@@ -1,0 +1,247 @@
+import { describe, expect, it } from 'vitest';
+import {
+  BASE_CELL,
+  DEFAULT_LINKAGE_COLORS,
+  DEFAULT_MAP_STYLE,
+  HIGHLIGHT_BLUE,
+  HIGHLIGHT_RED,
+  LINKAGE_COLOR_MAX_COUNT,
+  LINKAGE_COLOR_MIN_COUNT,
+  MAP_STYLE_CELL_SIZE_MAX,
+  MAP_STYLE_CELL_SIZE_MIN,
+  MAP_STYLE_LINE_WIDTH_MAX,
+  MAP_STYLE_LINE_WIDTH_MIN,
+  MAX_CELL_SIZE,
+  MIN_CELL_SIZE,
+  type CharacterSlotEntry,
+  type MapLinkageColor,
+  type MapStyle,
+} from '@murdoku/shared';
+import {
+  clampCellSize,
+  clampLineWidth,
+  clampOperationOffset,
+  clampRegionBorderWidth,
+  clampRegionLabelFont,
+  clampRegionLabelStroke,
+  countLinkageColorUsage,
+  effectiveCellSize,
+  isValidShadowColor,
+  isValidStyleColor,
+  linkageColorFor,
+  linkageLabelFor,
+  nextLinkageKey,
+  resolveLinkageColors,
+  resolveMapStyle,
+  retargetLinkageColors,
+  styleLineWidth,
+} from './mapStyle';
+
+const slot = (linkages: CharacterSlotEntry['linkages']): CharacterSlotEntry => ({
+  characterId: 1,
+  themeColor: '#FFFFFF',
+  clue: '',
+  linkages,
+});
+
+describe('resolveMapStyle (FEAT-D02)', () => {
+  it('falls back to the shipped defaults for a pre-v0.3.8 draft', () => {
+    expect(resolveMapStyle(undefined)).toEqual(DEFAULT_MAP_STYLE);
+    expect(resolveMapStyle(null)).toEqual(DEFAULT_MAP_STYLE);
+  });
+
+  it('keeps the v0.3.7 look by default', () => {
+    const style = resolveMapStyle(undefined);
+    expect(style.cellSize).toBeNull();
+    expect(style.canvasFrame).toEqual({ width: 6, color: '#000000' });
+    expect(style.border).toEqual({ width: 2, color: '#000000' });
+    expect(style.mouseCursor.color).toBe('#FFFFFF');
+    expect(style.mouseCursor.blockedColor).toBe(HIGHLIGHT_RED);
+    expect(style.operationCursor.color).toBe(HIGHLIGHT_BLUE);
+    expect(style.regionLabel.fontSize).toBe(17);
+    expect(style.regionLabel.hoverFontSize).toBe(19);
+    expect(style.regionLabel.hoverStrokeColor).toBe(HIGHLIGHT_BLUE);
+    expect(style.regionHighlight).toEqual({ width: 4, color: HIGHLIGHT_BLUE });
+    expect(style.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+  });
+
+  it('clamps every numeric field into its documented range', () => {
+    const style = resolveMapStyle({
+      cellSize: 5000,
+      canvasFrame: { width: 99, color: '#123456' },
+      border: { width: 0 },
+      regionHighlight: { width: -4 },
+      regionBorder: { width: 40 },
+      operationCursor: { offset: 99 },
+      regionLabel: { fontSize: 400, strokeWidth: 99 },
+    } as Partial<MapStyle>);
+    expect(style.cellSize).toBe(MAP_STYLE_CELL_SIZE_MAX);
+    expect(style.canvasFrame.width).toBe(MAP_STYLE_LINE_WIDTH_MAX);
+    expect(style.canvasFrame.color).toBe('#123456');
+    expect(style.border.width).toBe(MAP_STYLE_LINE_WIDTH_MIN);
+    expect(style.regionHighlight.width).toBe(MAP_STYLE_LINE_WIDTH_MIN);
+    // Region outlines have their own 4 ~ 12 range.
+    expect(style.regionBorder.width).toBe(12);
+    expect(style.operationCursor.offset).toBe(8);
+    expect(style.regionLabel.fontSize).toBe(48);
+    expect(style.regionLabel.strokeWidth).toBe(12);
+  });
+
+  it('rejects malformed colours and keeps the default', () => {
+    const style = resolveMapStyle({
+      border: { color: 'red' },
+      canvasFrame: { color: '#GGGGGG' },
+    } as Partial<MapStyle>);
+    expect(style.border.color).toBe(DEFAULT_MAP_STYLE.border.color);
+    expect(style.canvasFrame.color).toBe(DEFAULT_MAP_STYLE.canvasFrame.color);
+  });
+
+  it('accepts an rgb/rgba shadow ring but not an arbitrary string', () => {
+    expect(isValidShadowColor('rgba(0,0,0,0.15)')).toBe(true);
+    expect(isValidShadowColor('#000000')).toBe(true);
+    expect(isValidShadowColor('nope')).toBe(false);
+    const style = resolveMapStyle({
+      mouseCursor: { shadowColor: 'rgba(10,20,30,0.4)' },
+    } as Partial<MapStyle>);
+    expect(style.mouseCursor.shadowColor).toBe('rgba(10,20,30,0.4)');
+  });
+
+  it('treats a non-finite cell size as "adaptive"', () => {
+    expect(resolveMapStyle({ cellSize: Number.NaN } as Partial<MapStyle>).cellSize).toBeNull();
+    expect(resolveMapStyle({ cellSize: 123.4 } as Partial<MapStyle>).cellSize).toBe(123);
+  });
+});
+
+describe('clamp helpers (FEAT-D02 §关键规则 6)', () => {
+  it('clamps each field to its own range', () => {
+    expect(clampLineWidth(-1)).toBe(MAP_STYLE_LINE_WIDTH_MIN);
+    expect(clampLineWidth(999)).toBe(MAP_STYLE_LINE_WIDTH_MAX);
+    expect(clampRegionLabelFont(4)).toBe(9);
+    expect(clampRegionLabelFont(999)).toBe(48);
+    expect(clampRegionLabelFont(17.6)).toBe(18);
+    expect(clampRegionLabelStroke(-3)).toBe(0);
+    expect(clampOperationOffset(20)).toBe(8);
+    expect(clampRegionBorderWidth(1)).toBe(4);
+    expect(clampRegionBorderWidth(99)).toBe(12);
+    expect(clampCellSize(10)).toBe(MIN_CELL_SIZE);
+    expect(clampCellSize(10_000)).toBe(MAX_CELL_SIZE);
+    expect(clampCellSize(122.6)).toBe(123);
+  });
+
+  it('rejects non-hex colours', () => {
+    expect(isValidStyleColor('#a1b2c3')).toBe(true);
+    expect(isValidStyleColor('#FFF')).toBe(false);
+    expect(isValidStyleColor('rgb(1,2,3)')).toBe(false);
+  });
+});
+
+describe('linkage palette (FEAT-D04)', () => {
+  it('ships at least red and blue by default', () => {
+    expect(DEFAULT_LINKAGE_COLORS.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    expect(LINKAGE_COLOR_MIN_COUNT).toBe(2);
+  });
+
+  it('drops malformed entries and never re-adds a removed colour', () => {
+    const resolved = resolveLinkageColors([
+      { key: 'red', label: '红', color: '#EF9A9A' },
+      { key: 'BadKey', label: 'x', color: '#000000' },
+      { key: 'nope', label: 'x', color: 'not-a-colour' },
+    ] as MapLinkageColor[]);
+    // The 2-entry minimum is a schema / UI invariant — resolving must not
+    // resurrect a colour the user deleted.
+    expect(resolved.map((entry) => entry.key)).toEqual(['red']);
+  });
+
+  it('falls back to the shipped palette when nothing usable is left', () => {
+    expect(resolveLinkageColors([]).map((entry) => entry.key)).toEqual(['red', 'blue']);
+    expect(resolveLinkageColors(null).map((entry) => entry.key)).toEqual(['red', 'blue']);
+  });
+
+  it('de-duplicates keys (first wins) and caps the list', () => {
+    const many: MapLinkageColor[] = Array.from({ length: 20 }, (_, index) => ({
+      key: `k${index}`,
+      label: `k${index}`,
+      color: '#123456',
+    }));
+    expect(resolveLinkageColors(many)).toHaveLength(LINKAGE_COLOR_MAX_COUNT);
+    const duplicated = resolveLinkageColors([
+      { key: 'a', label: 'A', color: '#111111' },
+      { key: 'a', label: 'B', color: '#222222' },
+    ] as MapLinkageColor[]);
+    expect(duplicated.find((entry) => entry.key === 'a')?.label).toBe('A');
+  });
+
+  it('resolves a key to its hex, falling back to the first entry', () => {
+    const style = resolveMapStyle({
+      linkageColors: [
+        { key: 'red', label: '红', color: '#FF0000' },
+        { key: 'blue', label: '蓝', color: '#0000FF' },
+        { key: 'green', label: '绿', color: '#00FF00' },
+      ],
+    } as Partial<MapStyle>);
+    expect(linkageColorFor(style, 'green')).toBe('#00FF00');
+    expect(linkageLabelFor(style, 'green')).toBe('绿');
+    expect(linkageColorFor(style, 'missing')).toBe('#FF0000');
+    expect(linkageLabelFor(style, 'missing')).toBe('红');
+  });
+
+  it('hands out an unused, well-formed key for a new entry', () => {
+    const key = nextLinkageKey([{ key: 'red', label: '红', color: '#EF9A9A' }]);
+    expect(key).toBe('c2');
+    // `c2` is taken → the next free key is handed out.
+    expect(nextLinkageKey([{ key: 'c2', label: 'x', color: '#000000' }])).toBe('c3');
+  });
+
+  it('re-points every linkage when a palette entry is removed', () => {
+    const slots = [
+      slot([
+        { type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'blue' },
+        { type: 'region', id: 'rg_a', effect: 'highlight', color: 'red' },
+      ]),
+      null,
+      slot([{ type: 'character', id: 2, effect: 'highlight', color: 'blue' }]),
+    ];
+    const next = retargetLinkageColors(slots, 'blue', 'red');
+    expect(next[0]?.linkages?.map((entry) => entry.color)).toEqual(['red', 'red']);
+    expect(next[2]?.linkages?.map((entry) => entry.color)).toEqual(['red']);
+    // Untouched entries keep their identity.
+    expect(next[1]).toBeNull();
+    expect(retargetLinkageColors(slots, 'red', 'red')).toBe(slots);
+  });
+
+  it('counts how many linkages use a key (drives the delete confirm)', () => {
+    const slots = [
+      slot([
+        { type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'blue' },
+        { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'blue' },
+      ]),
+      null,
+    ];
+    expect(countLinkageColorUsage(slots, 'blue')).toBe(2);
+    expect(countLinkageColorUsage(slots, 'red')).toBe(0);
+  });
+});
+
+describe('cell size override (FEAT-D03)', () => {
+  it('uses the adaptive value while the override is null', () => {
+    const style = resolveMapStyle(undefined);
+    expect(effectiveCellSize(123, style)).toBe(123);
+  });
+
+  it('lets the override win, clamped to 90 ~ 240', () => {
+    const style = resolveMapStyle({ cellSize: 200 } as Partial<MapStyle>);
+    expect(effectiveCellSize(123, style)).toBe(200);
+    expect(MAP_STYLE_CELL_SIZE_MIN).toBe(MIN_CELL_SIZE);
+    expect(MAP_STYLE_CELL_SIZE_MAX).toBe(MAX_CELL_SIZE);
+  });
+});
+
+describe('styleLineWidth (FEAT-D02 §关键规则 1)', () => {
+  it('scales from BASE_CELL and clamps like every other line', () => {
+    expect(styleLineWidth(2, BASE_CELL)).toBe(2);
+    expect(styleLineWidth(2, 240)).toBe(4);
+    expect(styleLineWidth(2, 90)).toBeCloseTo(1.5, 6);
+    // 12 × 2 = 24 → clamped to the 12px ceiling.
+    expect(styleLineWidth(12, 240)).toBe(12);
+  });
+});

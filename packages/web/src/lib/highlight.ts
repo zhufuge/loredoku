@@ -1,12 +1,11 @@
 import {
-  EFFECT_COLOR_HEX,
-  REGION_HIGHLIGHT_BORDER_COLOR,
   type CharacterSlotEntry,
   type DraftCell,
   type DraftRegion,
-  type EffectColor,
+  type MapStyle,
   type ParticipantTarget,
 } from '@murdoku/shared';
+import { linkageColorFor, resolveMapStyle } from '@/lib/mapStyle';
 
 export type CellMap = Map<string, DraftCell>;
 
@@ -66,6 +65,11 @@ export interface HighlightContext {
   cells: CellMap;
   characterSlots: Array<CharacterSlotEntry | null>;
   regions: DraftRegion[];
+  /**
+   * FEAT-D04: linkage colours are palette keys, so the resolved hex depends on
+   * the map's own palette. Missing → the shipped red / blue defaults.
+   */
+  style?: MapStyle;
 }
 
 export const EMPTY_HIGHLIGHT: HighlightState = {
@@ -79,8 +83,9 @@ export function cellKey(x: number, y: number): string {
   return `${x},${y}`;
 }
 
-export function effectColorHex(color: EffectColor): string {
-  return EFFECT_COLOR_HEX[color];
+/** FEAT-D04: resolves a palette key to a `#RRGGBB` through the map style. */
+export function effectColorHex(style: MapStyle, key: string): string {
+  return linkageColorFor(style, key);
 }
 
 /** Stable identity of a target so duplicates can be collapsed. */
@@ -190,13 +195,14 @@ export function resolveHighlight(
   const targets = collectLinkages(linkages);
   if (targets.length === 0) return null;
 
+  const style = resolveMapStyle(ctx.style);
   const characters = new Map<string, HighlightCharacter>();
   const cellHighlights = new Map<string, HighlightRect>();
   const backgroundHighlights = new Map<string, HighlightRect>();
   const regionBorders: Array<{ regionId: string; color: string }> = [];
 
   for (const { target } of targets) {
-    const color = effectColorHex(target.color);
+    const color = effectColorHex(style, target.color);
 
     if (target.type === 'character') {
       const slotIndex = ctx.characterSlots.findIndex(
@@ -248,10 +254,10 @@ export function resolveHighlight(
       continue;
     }
 
-    // region target — MOD-802: always the inner blue border.
+    // region target — the highlight line uses the map's region-highlight colour.
     const region = ctx.regions.find((item) => item.id === target.id);
     if (!region) continue;
-    regionBorders.push({ regionId: region.id, color: REGION_HIGHLIGHT_BORDER_COLOR });
+    regionBorders.push({ regionId: region.id, color: style.regionHighlight.color });
   }
 
   if (

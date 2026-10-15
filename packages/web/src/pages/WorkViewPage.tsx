@@ -36,6 +36,8 @@ import {
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
+import { objectPadding } from '@/lib/canvasScale';
+import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import {
   INACTIVE_ACTIVATION,
@@ -112,8 +114,14 @@ export function WorkViewPage(): JSX.Element {
   );
   const regions = useMemo(() => draft?.regions ?? [], [draft]);
   const gridSize = draft?.gridSize ?? 0;
+  /**
+   * v0.3.8 FEAT-D02: the snapshot carries the map's display constants, so a
+   * published work renders exactly like the editor it came from.
+   */
+  const style = useMemo(() => resolveMapStyle(draft?.style), [draft]);
   /** OPT-A01 §1.1: adaptive cell width at 100% zoom (shared with the editor). */
-  const [cellSize, setCellSize] = useState<number>(DEFAULT_CELL_SIZE);
+  const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
+  const cellSize = effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
 
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 ----
@@ -156,9 +164,9 @@ export function WorkViewPage(): JSX.Element {
     if (rect.width === 0 || rect.height === 0) return;
     const insets = canvasInsets();
     const next = computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
-    setCellSize((previous) => (previous === next ? previous : next));
+    setAutoCellSize((previous) => (previous === next ? previous : next));
     setZoom(1);
-    setPan(centeredPan(rect, insets, gridSize, next, 1));
+    setPan(centeredPan(rect, insets, gridSize, effectiveCellSize(next, style), 1));
   };
 
   useEffect(() => {
@@ -224,9 +232,10 @@ export function WorkViewPage(): JSX.Element {
         cells,
         characterSlots: slots,
         regions,
+        style,
       }),
     );
-  }, [activeSlot, gridSize, cells, slots, regions, showHighlight, clearHighlight]);
+  }, [activeSlot, gridSize, cells, slots, regions, style, showHighlight, clearHighlight]);
 
   // A new snapshot must not inherit a stale activation or hover.
   useEffect(() => {
@@ -440,40 +449,50 @@ export function WorkViewPage(): JSX.Element {
               style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
             />
 
-            {/* OPT-A05 §3.4 — bottom-up, each layer pinned by MAP_LAYER_Z. */}
+            {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
             <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
             <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
             <MapHighlightLayer
               highlight={highlight}
               regions={regions}
               cellSize={cellSize}
+              style={style}
               leaving={highlightLeaving}
             />
-            <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} />
-            <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} />
-            <MapRegionEdgeLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
-            <MapGridLayer gridSize={gridSize} cellSize={cellSize} />
+            <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} style={style} />
+            <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
+            <MapRegionEdgeLayer
+              regions={regions}
+              gridSize={gridSize}
+              cellSize={cellSize}
+              style={style}
+            />
+            <MapGridLayer gridSize={gridSize} cellSize={cellSize} style={style} />
             <MapObjectLayer
               cells={cells}
               itemsById={itemsById}
               cellSize={cellSize}
+              // OPT-C06: object artwork is inset inside its footprint.
+              padding={objectPadding(cellSize)}
               hover={hover}
             />
 
             <MapRegionLabelLayer
               regions={regions}
               cellSize={cellSize}
+              style={style}
               hoveredRegionId={hoveredRegionId}
               onHover={setLabelRegionId}
             />
 
-            <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} />
+            <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
 
-            {/* OPT-A05 §4.1 layer 1 — 鼠标提示框（预览页无操作提示框）. */}
+            {/* 层 1 — 鼠标提示框（预览页无操作提示框）. */}
             <MapCellCursorLayer
               cell={hoverEffects.cell}
               blocked={hoverEffects.blocked}
               cellSize={cellSize}
+              style={style}
             />
           </div>
         </main>

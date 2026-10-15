@@ -1,11 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import {
-  EFFECT_COLORS,
-  EFFECT_COLOR_HEX,
-  EFFECT_COLOR_LABELS,
   PARTICIPANT_TARGET_TYPES,
   type DraftRegion,
-  type EffectColor,
+  type LinkageColorKey,
+  type MapLinkageColor,
   type ParticipantTarget,
   type ParticipantTargetType,
 } from '@murdoku/shared';
@@ -73,7 +71,8 @@ export interface LinkageDraft {
   itemInstances: Array<[number, number]>;
   regionIds: string[];
   cells: Array<[number, number]>;
-  color: EffectColor;
+  /** FEAT-D04: a key of the map's `style.linkageColors` palette. */
+  color: LinkageColorKey;
 }
 
 export const EMPTY_LINKAGE_DRAFT: LinkageDraft = {
@@ -167,6 +166,8 @@ interface LinkageDialogProps {
   items: LinkageItemOption[];
   regions: DraftRegion[];
   gridSize: number;
+  /** FEAT-D04: the palette the swatches come from (map-level, extensible). */
+  linkageColors: MapLinkageColor[];
   onSubmit: (linkages: ParticipantTarget[]) => void;
 }
 
@@ -181,6 +182,7 @@ export function LinkageDialog({
   items,
   regions,
   gridSize,
+  linkageColors,
   onSubmit,
 }: LinkageDialogProps): JSX.Element {
   const [draft, setDraft] = useState<LinkageDraft>(() => draftFromLinkage(linkage));
@@ -191,10 +193,16 @@ export function LinkageDialog({
   // mode refills from the linkage.
   useEffect(() => {
     if (!open) return;
-    setDraft(draftFromLinkage(linkage));
+    const seed = draftFromLinkage(linkage);
+    // FEAT-D04: fall back to the first palette key when the stored colour is
+    // not (or no longer) part of this map's palette.
+    const usable = linkageColors.some((entry) => entry.key === seed.color)
+      ? seed.color
+      : (linkageColors[0]?.key ?? seed.color);
+    setDraft({ ...seed, color: usable });
     setQuickMode(null);
     setRectAnchor(null);
-  }, [open, linkage]);
+  }, [open, linkage, linkageColors]);
 
   const cellSelection = useMemo<CellSelection>(
     () => new Set(draft.cells.map(([x, y]) => cellKey(x, y))),
@@ -537,23 +545,23 @@ export function LinkageDialog({
               <span className="text-muted-foreground">效果：高亮（固定）</span>
               <span className="flex items-center gap-2">
                 颜色：
-                {EFFECT_COLORS.map((color) => (
-                  <label key={color} className="flex cursor-pointer items-center gap-1">
+                {linkageColors.map((entry) => (
+                  <label key={entry.key} className="flex cursor-pointer items-center gap-1">
                     <input
                       type="radio"
                       name="linkage-color"
-                      value={color}
-                      checked={draft.color === color}
-                      onChange={() => patch({ color })}
+                      value={entry.key}
+                      checked={draft.color === entry.key}
+                      onChange={() => patch({ color: entry.key })}
                     />
                     <span
                       className="h-3 w-3 rounded-full border"
                       style={{
-                        // OPT-A06 §5.1: the swatch mirrors the rendered colour.
-                        backgroundColor: EFFECT_COLOR_HEX[color],
+                        // FEAT-D04: the swatch mirrors the rendered colour.
+                        backgroundColor: entry.color,
                       }}
                     />
-                    {EFFECT_COLOR_LABELS[color]}
+                    {entry.label}
                   </label>
                 ))}
               </span>

@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   BASE_CELL,
   BORDER_WIDTH,
-  CANVAS_FRAME_Z,
   CANVAS_OUTER_BORDER_WIDTH,
   CELL_CURSOR_BLOCKED_COLOR,
   CELL_CURSOR_COLOR,
@@ -15,7 +14,6 @@ import {
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
   NO_STAND_SHADOW_COLOR,
-  NO_STAND_SHADOW_Z,
   OPERATION_CURSOR_COLOR,
   PARTICIPANT_HEADER_HEIGHT,
   PARTICIPANT_MIN_WIDTH,
@@ -31,6 +29,11 @@ import {
   RULER_COLOR_HOVER,
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
+  EXTRA_MARGIN,
+  OBJECT_PADDING_BASE,
+  OBJECT_PADDING_MAX,
+  OBJECT_PADDING_MIN,
+  RULER_GAP,
   type DraftCell,
   type DraftRegion,
   type Item,
@@ -97,11 +100,13 @@ const region: DraftRegion = {
 
 // ---- OPT-901 §1.1: layer priority ----
 describe('canvas layer priority (OPT-901 §1.1)', () => {
-  it('lists the eleven layers top-most first, exactly as the spec numbers them', () => {
+  it('lists the thirteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
     expect(MAP_LAYER_ORDER).toEqual([
-      'cellCursor',
+      'cellMouseCursor',
+      'cellOperationCursor',
       'regionLabel',
       'object',
+      'canvasFrame',
       'gridBorder',
       'regionEdge',
       'noStandShadow',
@@ -125,15 +130,25 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
     expect(layerZ('object')).toBeGreaterThan(layerZ('gridBorder'));
     // "「区域边界线」位于 Border 之下" — the Border stays readable.
     expect(layerZ('regionEdge')).toBeLessThan(layerZ('gridBorder'));
-    // 不可站立阴影 / 区域高亮线 / 方块高亮 / 背景高亮 / 背景
+    // The board frame sits below the items, above the separators.
+    expect(layerZ('canvasFrame')).toBeLessThan(layerZ('object'));
+    expect(layerZ('canvasFrame')).toBeGreaterThan(layerZ('gridBorder'));
+    // v0.3.8 SPEC-D01: the mask moves below 区域边界线, above 区域高亮线.
+    expect(layerZ('noStandShadow')).toBeLessThan(layerZ('regionEdge'));
     expect(layerZ('noStandShadow')).toBeGreaterThan(layerZ('regionHighlight'));
+    // 区域高亮线 / 方块高亮 / 背景高亮 / 背景
     expect(layerZ('regionHighlight')).toBeGreaterThan(layerZ('cellHighlight'));
     expect(layerZ('cellHighlight')).toBeGreaterThan(layerZ('backgroundHighlight'));
     expect(layerZ('backgroundHighlight')).toBeGreaterThan(layerZ('background'));
-    // The cursor box is the top-most element (§1.2.1).
-    expect(layerZ('cellCursor')).toBe(Math.max(...Object.values(MAP_LAYER_Z)));
-    expect(layerZ('regionLabel')).toBeLessThan(layerZ('cellCursor'));
+    // The mouse box is the top-most element, the operation box right below it.
+    expect(layerZ('cellMouseCursor')).toBe(Math.max(...Object.values(MAP_LAYER_Z)));
+    expect(layerZ('cellOperationCursor')).toBeLessThan(layerZ('cellMouseCursor'));
+    expect(layerZ('regionLabel')).toBeLessThan(layerZ('cellOperationCursor'));
     expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('object'));
+  });
+
+  it('v0.3.8 SPEC-D01: the two cursor boxes are adjacent layers', () => {
+    expect(layerZ('cellMouseCursor') - layerZ('cellOperationCursor')).toBe(1);
   });
 });
 
@@ -178,12 +193,10 @@ describe('non-standable shadow (OPT-901 §1.2.5)', () => {
     expect(map.get('0,0')?.object).toEqual({ itemId: 7, w: 1, h: 1 });
   });
 
-  it('§3.1/§7.3: renders above the object artwork but below the labels', () => {
-    // §1.1 puts 物体 above 边框, so "above the artwork, inside the Border"
-    // means one slot above `object` while the mask stays inset by 1px.
-    expect(NO_STAND_SHADOW_Z).toBeGreaterThan(MAP_LAYER_Z.object);
-    expect(NO_STAND_SHADOW_Z).toBeLessThan(MAP_LAYER_Z.regionLabel);
-    expect(NO_STAND_SHADOW_Z).toBeLessThan(MAP_LAYER_Z.cellCursor);
+  it('v0.3.8 SPEC-D01: renders below 区域边界线 and above 区域高亮线', () => {
+    expect(MAP_LAYER_Z.noStandShadow).toBeLessThan(MAP_LAYER_Z.regionEdge);
+    expect(MAP_LAYER_Z.noStandShadow).toBeGreaterThan(MAP_LAYER_Z.regionHighlight);
+    expect(MAP_LAYER_Z.noStandShadow).toBeLessThan(MAP_LAYER_Z.regionLabel);
     expect(NO_STAND_SHADOW_INSET).toBeGreaterThan(0);
   });
 
@@ -284,14 +297,14 @@ describe('hover effects (OPT-902 §2.1~2.4)', () => {
 
 describe('cell cursor box (OPT-A05 §3.3.1)', () => {
   it('uses a 1px inner stroke in the state colour plus the grey Border shadow', () => {
-    expect(cellCursorShadow(false)).toContain(
+    expect(cellCursorShadow(false, BASE_CELL)).toContain(
       `inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_COLOR}`,
     );
-    expect(cellCursorShadow(true)).toContain(
+    expect(cellCursorShadow(true, BASE_CELL)).toContain(
       `inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_BLOCKED_COLOR}`,
     );
     for (const blocked of [false, true]) {
-      expect(cellCursorShadow(blocked)).toContain(CELL_CURSOR_SHADOW_COLOR);
+      expect(cellCursorShadow(blocked, BASE_CELL)).toContain(CELL_CURSOR_SHADOW_COLOR);
     }
   });
 });
@@ -354,7 +367,7 @@ describe('cursor boxes (OPT-A05 §4.1~§4.3)', () => {
   });
 
   it('§3.2.2: the operation box is an Outline outside the Border', () => {
-    expect(operationCursorOutline()).toBe(
+    expect(operationCursorOutline(BASE_CELL)).toBe(
       `${OPERATION_CURSOR_OUTLINE_WIDTH}px solid ${OPERATION_CURSOR_COLOR}`,
     );
     expect(OPERATION_CURSOR_OUTLINE_WIDTH).toBe(2);
@@ -367,7 +380,8 @@ describe('line constants (OPT-A04 §3.2)', () => {
   it('names the four cell elements as the spec does', () => {
     expect(BORDER_WIDTH).toBe(2);
     expect(OUTLINE_WIDTH).toBe(3);
-    expect(INNER_LINE_WIDTH).toBe(1);
+    // OPT-C05 calibrated the mouse-box inner line from 1px to 2px.
+    expect(INNER_LINE_WIDTH).toBe(2);
     expect(REGION_BORDER_WIDTH).toBe(6);
     expect(LINE_COLOR).toBe('#000000');
   });
@@ -435,24 +449,29 @@ describe('v0.3.6 constants (§7)', () => {
     expect(BASE_CELL).toBe(120);
     expect(BORDER_WIDTH).toBe(2);
     expect(CANVAS_OUTER_BORDER_WIDTH).toBe(6);
-    expect(INNER_LINE_WIDTH).toBe(1);
+    // OPT-C05: the mouse-box inner line was calibrated from 1px to 2px.
+    expect(INNER_LINE_WIDTH).toBe(2);
     expect(REGION_HIGHLIGHT_WIDTH).toBe(4);
-    expect(RULER_FONT_SIZE).toBe(15);
-    expect(RULER_FONT_SIZE_ACTIVE).toBe(17);
+    expect(EXTRA_MARGIN).toBe(24);
+    expect(RULER_GAP).toBe(6);
+    expect(OBJECT_PADDING_BASE).toBe(4);
+    expect(OBJECT_PADDING_MIN).toBe(2);
+    expect(OBJECT_PADDING_MAX).toBe(12);
+    expect(RULER_FONT_SIZE).toBe(17);
+    expect(RULER_FONT_SIZE_ACTIVE).toBe(19);
     expect(RULER_COLOR).toBe('#9CA3AF');
     expect(RULER_COLOR_HOVER).toBe('#374151');
     expect(PARTICIPANT_MIN_WIDTH).toBe(110);
     expect(PARTICIPANT_HEADER_HEIGHT).toBe(40);
   });
 
-  it('§4: the board frame matches the default region border width', () => {
+  it('§OPT-C03: the board frame matches the default region border width', () => {
     expect(CANVAS_OUTER_BORDER_WIDTH).toBe(REGION_BORDER_WIDTH);
     expect(CANVAS_OUTER_BORDER_WIDTH).toBeGreaterThan(BORDER_WIDTH);
-    // §4.2: nothing on the board may cover it.
-    expect(CANVAS_FRAME_Z).toBeGreaterThan(MAP_LAYER_Z.object);
-    expect(CANVAS_FRAME_Z).toBeGreaterThan(MAP_LAYER_Z.cellHighlight);
-    // Only the cursor boxes sit above it.
-    expect(CANVAS_FRAME_Z).toBeLessThan(MAP_LAYER_Z.cellCursor);
+    // It has its own layer now, below the items but above the separators.
+    expect(MAP_LAYER_Z.canvasFrame).toBeLessThan(MAP_LAYER_Z.object);
+    expect(MAP_LAYER_Z.canvasFrame).toBeGreaterThan(MAP_LAYER_Z.gridBorder);
+    expect(MAP_LAYER_Z.canvasFrame).toBeGreaterThan(MAP_LAYER_Z.cellHighlight);
   });
 
   it('§1.1: the region highlight is 4px, still the pale blue', () => {
@@ -471,7 +490,8 @@ describe('OPT-B03: scaled cursor geometry', () => {
 
   it('doubles both rings at the maximum cell width', () => {
     const shadow = cellCursorShadow(true, 240);
-    expect(shadow).toContain(`inset 0 0 0 2px ${CELL_CURSOR_BLOCKED_COLOR}`);
+    // INNER_LINE_WIDTH 2 × scale 2 = 4px; the Border ring 2 × 2 = 4px.
+    expect(shadow).toContain(`inset 0 0 0 4px ${CELL_CURSOR_BLOCKED_COLOR}`);
     expect(shadow).toContain(`0 0 0 4px ${CELL_CURSOR_SHADOW_COLOR}`);
     expect(operationCursorOutline(240)).toBe(`4px solid ${OPERATION_CURSOR_COLOR}`);
     expect(operationCursorStyle(240).outlineOffset).toBe(
@@ -481,7 +501,8 @@ describe('OPT-B03: scaled cursor geometry', () => {
 
   it('shrinks both rings at the minimum cell width', () => {
     const shadow = cellCursorShadow(false, 90);
-    expect(shadow).toContain('inset 0 0 0 0.75px');
+    // INNER_LINE_WIDTH 2 × scale 0.75 = 1.5px; the Border ring 2 × 0.75 = 1.5px.
+    expect(shadow).toContain('inset 0 0 0 1.5px');
     expect(shadow).toContain('0 0 0 1.5px');
     // 1.5px / 2 = 0.75, matching the scaled Border.
     expect(noStandShadowInset(90)).toBeCloseTo(0.75, 6);

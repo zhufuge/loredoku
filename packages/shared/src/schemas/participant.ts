@@ -3,9 +3,9 @@ import {
   CHARACTER_GENDERS,
   DEFAULT_CHARACTER_GENDER,
   DEFAULT_THEME_COLOR,
-  EFFECT_COLORS,
   EFFECT_TYPES,
   GRID_SIZE_MAX,
+  LINKAGE_COLOR_KEY_PATTERN,
   PARTICIPANT_TARGET_TYPES,
 } from '../constants';
 import { normalizeHexColor } from '../color';
@@ -29,7 +29,16 @@ export const themeColorSchema = z
   )
   .default(DEFAULT_THEME_COLOR);
 
-export const effectColorSchema = z.enum(EFFECT_COLORS);
+/**
+ * v0.3.8 FEAT-D04: a linkage colour is the **key** of an entry in the map's
+ * `style.linkageColors` palette. The key format is validated here; the
+ * "key must exist in this map's palette" cross-check lives in
+ * `mapDraftSchema`'s `superRefine` (it needs the draft).
+ */
+export const effectColorSchema = z
+  .string()
+  .trim()
+  .regex(LINKAGE_COLOR_KEY_PATTERN, '联动主题色 key 需为小写字母开头的标识符');
 /** Reuses the item effect enum; named to avoid clashing with `./item`. */
 export const participantEffectTypeSchema = z.enum(EFFECT_TYPES);
 export const participantTargetTypeSchema = z.enum(PARTICIPANT_TARGET_TYPES);

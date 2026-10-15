@@ -36,6 +36,11 @@ interface RegionDialogProps {
   cells: Coord[];
   region?: DraftRegion | null;
   regions: DraftRegion[];
+  /**
+   * v0.3.8 FEAT-D02: the map-level default outline width becomes the initial
+   * value for a new region (docs/v0.3.8.md §FEAT-D02 §关键规则 4).
+   */
+  defaultBorderWidth?: number;
   onSubmit: (input: RegionInput, conflictMode: ConflictMode) => void;
 }
 
@@ -46,6 +51,7 @@ export function RegionDialog({
   cells,
   region,
   regions,
+  defaultBorderWidth = REGION_BORDER_WIDTH_DEFAULT,
   onSubmit,
 }: RegionDialogProps): JSX.Element {
   const [regionId, setRegionId] = useState('');
@@ -61,11 +67,11 @@ export function RegionDialog({
     setRegionId(mode === 'create' ? genRegionId() : (region?.id ?? ''));
     setName(region?.name ?? '');
     setColor(region?.color ?? DEFAULT_REGION_COLOR);
-    setBorderWidth(region?.borderWidth ?? REGION_BORDER_WIDTH_DEFAULT);
+    setBorderWidth(region?.borderWidth ?? defaultBorderWidth);
     setFillOpacity(region?.fillOpacity ?? REGION_FILL_OPACITY_DEFAULT);
     setConflictMode('override');
     setError(null);
-  }, [open, region, mode]);
+  }, [open, region, mode, defaultBorderWidth]);
 
   const connected = useMemo(() => isConnected(cells), [cells]);
 
@@ -144,7 +150,10 @@ export function RegionDialog({
           </div>
 
           <div className="grid gap-2">
-            <Label>颜色</Label>
+            <Label>区域颜色（填充）</Label>
+            <span className="text-xs text-muted-foreground">
+              边界线颜色由「地图基本信息」统一控制。
+            </span>
             <div className="flex items-center gap-2">
               {COLOR_PRESETS.map((preset) => (
                 <button
@@ -173,7 +182,7 @@ export function RegionDialog({
             <div className="flex items-center justify-between">
               <Label htmlFor="region-border">边界线宽</Label>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {borderWidth}px（默认 {REGION_BORDER_WIDTH_DEFAULT}）
+                {borderWidth}px（缺省 {defaultBorderWidth}）
               </span>
             </div>
             <input

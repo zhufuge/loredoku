@@ -90,15 +90,21 @@ describe('participantTargetSchema', () => {
     ).toBe(true);
   });
 
-  it('restricts colours to red / blue and effects to known types', () => {
+  it('accepts palette keys (FEAT-D04) and restricts effects to known types', () => {
     for (const color of EFFECT_COLORS) {
       expect(
         participantTargetSchema.safeParse({ type: 'cell', cells: [[0, 0]], effect: 'highlight', color })
           .success,
       ).toBe(true);
     }
+    // v0.3.8: the palette is extensible, so any well-formed lowercase key is
+    // accepted here; "does this map define it?" is checked by mapDraftSchema.
     expect(
       participantTargetSchema.safeParse({ type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'green' })
+        .success,
+    ).toBe(true);
+    expect(
+      participantTargetSchema.safeParse({ type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'Green' })
         .success,
     ).toBe(false);
     expect(

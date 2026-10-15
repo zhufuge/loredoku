@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, History, Loader2, Save, Send, Upload } from 'lucide-react';
+import { ArrowLeft, Download, History, Loader2, Save, Send, Settings2, Upload } from 'lucide-react';
 import type { ProjectStatus } from '@murdoku/shared';
 import { Button } from '@/components/ui/button';
 
@@ -8,10 +8,13 @@ interface EditorToolbarProps {
   saving: boolean;
   status: ProjectStatus;
   currentVersionNo: number | null;
+  /** v0.3.8 FEAT-D01: toggles the 「地图基本信息」drawer. */
+  mapInfoOpen: boolean;
   onBack: () => void;
   onSave: () => void;
   onPublish: () => void;
   onOpenVersions: () => void;
+  onOpenMapInfo: () => void;
   onExport: () => void;
   onImport: () => void;
 }
@@ -22,10 +25,12 @@ export function EditorToolbar({
   saving,
   status,
   currentVersionNo,
+  mapInfoOpen,
   onBack,
   onSave,
   onPublish,
   onOpenVersions,
+  onOpenMapInfo,
   onExport,
   onImport,
 }: EditorToolbarProps): JSX.Element {
@@ -62,6 +67,17 @@ export function EditorToolbar({
         </Button>
         <Button variant="ghost" size="icon" onClick={onExport} disabled={saving} title="导出 JSON">
           <Download className="h-4 w-4" />
+        </Button>
+        <Button
+          variant={mapInfoOpen ? 'secondary' : 'ghost'}
+          size="sm"
+          className="h-9 gap-1 px-2 text-xs"
+          onClick={onOpenMapInfo}
+          disabled={saving}
+          title="地图基本信息（方格大小、线宽颜色、区域名称、联动主题色）"
+        >
+          <Settings2 className="h-4 w-4" />
+          基本信息
         </Button>
         <Button
           variant="ghost"

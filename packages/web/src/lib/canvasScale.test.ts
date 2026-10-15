@@ -15,8 +15,11 @@ import {
   REGION_LABEL_STROKE_WIDTH,
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
+  OBJECT_PADDING_BASE,
+  OBJECT_PADDING_MAX,
+  OBJECT_PADDING_MIN,
 } from '@murdoku/shared';
-import { canvasMetrics, cellScale, scaleFontSize, scaleLineWidth } from './canvasScale';
+import { canvasMetrics, cellScale, objectPadding, scaleFontSize, scaleLineWidth } from './canvasScale';
 
 describe('cellScale (OPT-B03 §3.2)', () => {
   it('is 1 at the reference cell width', () => {
@@ -45,12 +48,22 @@ describe('scaleLineWidth / scaleFontSize (§3.2 约束)', () => {
     expect(scaleLineWidth(BORDER_WIDTH, 1)).toBe(2);
   });
 
+  it('OPT-C06: object padding scales but stays within [2, 12]', () => {
+    expect(OBJECT_PADDING_BASE).toBe(4);
+    expect(objectPadding(BASE_CELL)).toBe(OBJECT_PADDING_BASE);
+    expect(objectPadding(MIN_CELL_SIZE)).toBe(3); // 4 × 0.75
+    expect(objectPadding(MAX_CELL_SIZE)).toBe(8); // 4 × 2
+    expect(objectPadding(1)).toBe(OBJECT_PADDING_MIN);
+    expect(objectPadding(100000)).toBe(OBJECT_PADDING_MAX);
+    expect(objectPadding(Number.NaN)).toBe(OBJECT_PADDING_BASE);
+  });
+
   it('clamps fonts to [9, 28]', () => {
     expect(FONT_SIZE_MIN).toBe(9);
     expect(FONT_SIZE_MAX).toBe(28);
     expect(scaleFontSize(RULER_FONT_SIZE, 0.01)).toBe(FONT_SIZE_MIN);
     expect(scaleFontSize(RULER_FONT_SIZE_ACTIVE, 10)).toBe(FONT_SIZE_MAX);
-    expect(scaleFontSize(RULER_FONT_SIZE, 1)).toBe(15);
+    expect(scaleFontSize(RULER_FONT_SIZE, 1)).toBe(17);
   });
 
   it('returns the base value for degenerate scales', () => {
@@ -67,8 +80,8 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     expect(metrics.outerBorderWidth).toBe(CANVAS_OUTER_BORDER_WIDTH); // 6
     expect(metrics.innerLineWidth).toBe(INNER_LINE_WIDTH); // 1
     expect(metrics.regionHighlightWidth).toBe(REGION_HIGHLIGHT_WIDTH); // 4
-    expect(metrics.rulerFontSize).toBe(RULER_FONT_SIZE); // 15
-    expect(metrics.rulerFontSizeActive).toBe(RULER_FONT_SIZE_ACTIVE); // 17
+    expect(metrics.rulerFontSize).toBe(RULER_FONT_SIZE); // 17
+    expect(metrics.rulerFontSizeActive).toBe(RULER_FONT_SIZE_ACTIVE); // 19
   });
 
   it('doubles everything at the maximum cell size (240 → scale 2)', () => {
@@ -77,9 +90,10 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     expect(metrics.borderWidth).toBe(4);
     // 6 × 2 = 12, right at the cap.
     expect(metrics.outerBorderWidth).toBe(12);
-    expect(metrics.innerLineWidth).toBe(2);
+    // INNER_LINE_WIDTH is 2 since OPT-C05 → 2 × 2 = 4.
+    expect(metrics.innerLineWidth).toBe(4);
     expect(metrics.regionHighlightWidth).toBe(8);
-    // 15 × 2 = 30 → clamped to the 28px cap.
+    // 17 × 2 = 34 → clamped to the 28px cap.
     expect(metrics.rulerFontSize).toBe(FONT_SIZE_MAX);
     expect(metrics.rulerFontSizeActive).toBe(FONT_SIZE_MAX);
   });
@@ -89,10 +103,10 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     expect(metrics.scale).toBeCloseTo(0.75, 6);
     expect(metrics.borderWidth).toBeCloseTo(1.5, 6);
     expect(metrics.outerBorderWidth).toBeCloseTo(4.5, 6);
-    expect(metrics.innerLineWidth).toBeCloseTo(0.75, 6);
+    expect(metrics.innerLineWidth).toBeCloseTo(1.5, 6);
     expect(metrics.regionHighlightWidth).toBeCloseTo(3, 6);
-    expect(metrics.rulerFontSize).toBeCloseTo(11.25, 6);
-    expect(metrics.rulerFontSizeActive).toBeCloseTo(12.75, 6);
+    expect(metrics.rulerFontSize).toBeCloseTo(12.75, 6);
+    expect(metrics.rulerFontSizeActive).toBeCloseTo(14.25, 6);
   });
 
   it('keeps every line and font inside its guard rails for cellSize 90~240', () => {
@@ -119,7 +133,7 @@ describe('canvasMetrics (§3.2 要素表)', () => {
   it('scales the region label and its stroke with the cell', () => {
     const small = canvasMetrics(MIN_CELL_SIZE);
     const large = canvasMetrics(MAX_CELL_SIZE);
-    expect(scaleFontSize(REGION_LABEL_FONT_SIZE, small.scale)).toBeCloseTo(10.5, 6);
+    expect(scaleFontSize(REGION_LABEL_FONT_SIZE, small.scale)).toBeCloseTo(12.75, 6);
     expect(scaleFontSize(REGION_LABEL_FONT_SIZE, large.scale)).toBe(28);
     expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, small.scale)).toBeCloseTo(3, 6);
     expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, large.scale)).toBe(8);

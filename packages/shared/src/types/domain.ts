@@ -10,6 +10,7 @@ import type {
   CHARACTER_GENDERS,
   PARTICIPANT_TARGET_TYPES,
   EFFECT_COLORS,
+  MapStyle,
 } from '../constants';
 
 export type EffectType = (typeof EFFECT_TYPES)[number];
@@ -22,7 +23,14 @@ export type RegionShape = (typeof REGION_SHAPES)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type CharacterGender = (typeof CHARACTER_GENDERS)[number];
 export type ParticipantTargetType = (typeof PARTICIPANT_TARGET_TYPES)[number];
+/**
+ * The built-in linkage colour keys (`red` / `blue`). v0.3.8 FEAT-D04 makes the
+ * palette extensible, so a linkage may reference **any** key declared in the
+ * map's `style.linkageColors` — see {@link LinkageColorKey}.
+ */
 export type EffectColor = (typeof EFFECT_COLORS)[number];
+/** A linkage colour reference: the `key` of a `MapStyle.linkageColors` entry. */
+export type LinkageColorKey = string;
 
 /** A `(x, y)` grid coordinate. */
 export interface CellCoord {
@@ -134,8 +142,13 @@ export interface DraftRegion {
 }
 
 // ---- Participant linkage (docs/v0.3.1.md CLAR-603, updated v0.3.3 MOD-801) ----
+/**
+ * v0.3.8 FEAT-D04: `color` is a **palette key** from `MapDraft.style.linkageColors`
+ * (the built-in `red` / `blue` keys keep older drafts valid), no longer a
+ * closed `'red' | 'blue'` enum.
+ */
 export type ParticipantTarget =
-  | { type: 'character'; id: number; effect: EffectType; color: EffectColor }
+  | { type: 'character'; id: number; effect: EffectType; color: LinkageColorKey }
   | {
       type: 'item';
       id: number;
@@ -144,10 +157,15 @@ export type ParticipantTarget =
       /** Coordinates of specific instances when `scope === 'instances'`. */
       instances?: Array<[number, number]>;
       effect: EffectType;
-      color: EffectColor;
+      color: LinkageColorKey;
     }
-  | { type: 'cell'; cells: Array<[number, number]>; effect: EffectType; color: EffectColor }
-  | { type: 'region'; id: string; effect: EffectType; color: EffectColor };
+  | {
+      type: 'cell';
+      cells: Array<[number, number]>;
+      effect: EffectType;
+      color: LinkageColorKey;
+    }
+  | { type: 'region'; id: string; effect: EffectType; color: LinkageColorKey };
 
 /**
  * CLAR-603: participants never enter the map. A roster slot carries the
@@ -180,6 +198,11 @@ export interface MapDraft {
   cells: Record<string, DraftCell>;
   regions: DraftRegion[];
   characterSlots: Array<CharacterSlotEntry | null>;
+  /**
+   * v0.3.8 FEAT-D02: map-level display constants. Optional so `version = 1`
+   * drafts stay valid — a missing block resolves to `DEFAULT_MAP_STYLE`.
+   */
+  style?: MapStyle;
 }
 
 export interface MapResponse {

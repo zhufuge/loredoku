@@ -12,11 +12,13 @@ import {
   DEFAULT_CELL_SIZE,
   HIGHLIGHT_BLUE,
   MAP_LAYER_Z,
+  RULER_GAP,
   RULER_SIZE,
   type CellCoord,
   type DraftRegion,
   type EditorTool,
   type Item,
+  type MapStyle,
   type RegionShape,
 } from '@murdoku/shared';
 import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/region';
@@ -47,7 +49,8 @@ import {
   centeredPan,
   computeCellSizeForInsets,
 } from '@/lib/canvasSize';
-import { cellScale } from '@/lib/canvasScale';
+import { cellScale, objectPadding } from '@/lib/canvasScale';
+import { effectiveCellSize } from '@/lib/mapStyle';
 import { buildRulerGlyphs } from '@/lib/ruler';
 import {
   clampZoom,
@@ -60,12 +63,12 @@ import {
 import type { Selection } from '@/stores/editorStore';
 
 /**
- * OPT-A05 §1.1 layer 1 covers "current operation or selection" markers. The
- * editor affordances (marquee, region draft) live in the same top band, just
- * under the two cursor boxes so the hover indicator stays on top.
+ * The two cursor boxes are 层 1 / 层 2 of 《画布图层优先级规范》, so the editor's
+ * own affordances (marquee, region draft) live just under them and never cover
+ * the hover / operation indicators.
  */
-const EDITOR_OVERLAY_Z = MAP_LAYER_Z.cellCursor - 1;
-const DRAFT_OVERLAY_Z = MAP_LAYER_Z.cellCursor - 2;
+const EDITOR_OVERLAY_Z = MAP_LAYER_Z.cellOperationCursor - 1;
+const DRAFT_OVERLAY_Z = MAP_LAYER_Z.cellOperationCursor - 2;
 
 /** EditorCanvas no longer carries character drag state (CLAR-603). */
 export interface EditorCanvasHandle {
@@ -80,6 +83,8 @@ interface EditorCanvasProps {
   cells: CellMap;
   itemsById: Map<number, Item>;
   regions: DraftRegion[];
+  /** v0.3.8 FEAT-D02: the map's display constants. */
+  style: MapStyle;
   selectedRegionId: string | null;
   zoom: number;
   pan: { x: number; y: number };
@@ -94,6 +99,11 @@ interface EditorCanvasProps {
   highlight: HighlightState | null;
   /** MOD-802: true while the highlight is fading out (150ms). */
   highlightLeaving?: boolean;
+  /**
+   * FEAT-D03: reports the value the adaptive pass computed, so the 「地图基本
+   * 信息」drawer can show it as the default of the 方格大小 field.
+   */
+  onAutoCellSize?: (cellSize: number) => void;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
   onAnchorChange: (anchor: CellCoord | null) => void;
@@ -127,6 +137,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     cells,
     itemsById,
     regions,
+    style,
     selectedRegionId,
     zoom,
     pan,
@@ -139,6 +150,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     regionDraftSelection,
     highlight,
     highlightLeaving = false,
+    onAutoCellSize,
     onSelect,
     onSelectRegion,
     onAnchorChange,
@@ -156,8 +168,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const containerRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<Interaction>(null);
   const userPannedRef = useRef(false);
-  /** OPT-A01 §1.1: adaptive cell width in px at 100% zoom. */
-  const [cellSize, setCellSize] = useState<number>(DEFAULT_CELL_SIZE);
+  /**
+   * FEAT-D03: the adaptive pass writes `autoCellSize`; the map style may
+   * override it. The effective width is what every layer and hit test uses.
+   */
+  const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
+  const cellSize = effectiveCellSize(autoCellSize, style);
   const [hover, setHover] = useState<CellCoord | null>(null);
   const [marquee, setMarquee] = useState<{ start: CellCoord; end: CellCoord } | null>(null);
   const [regionAnchor, setRegionAnchor] = useState<CellCoord | null>(null);
@@ -165,8 +181,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   /** Set when the pointer sits directly on a region label (§2.2). */
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
 
-  const viewRef = useRef({ zoom, pan, onZoom, onPan });
-  viewRef.current = { zoom, pan, onZoom, onPan };
+  const viewRef = useRef({ zoom, pan, onZoom, onPan, onAutoCellSize });
+  viewRef.current = { zoom, pan, onZoom, onPan, onAutoCellSize };
+  /** Keeps `centerView` stable when only unrelated style fields change. */
+  const styleRef = useRef(style);
+  styleRef.current = style;
+  const styleCellSize = style.cellSize;
 
   const total = gridSize * cellSize;
 
@@ -192,10 +212,15 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       gridSize,
       insets,
     });
-    setCellSize((previous) => (previous === next ? previous : next));
+    setAutoCellSize((previous) => (previous === next ? previous : next));
+    viewRef.current.onAutoCellSize?.(next);
     viewRef.current.onZoom(1);
-    viewRef.current.onPan(centeredPan(rect, insets, gridSize, next, 1));
-  }, [gridSize, showRulers]);
+    // FEAT-D03: centre on the **effective** width, so a manual override stays
+    // centred too.
+    viewRef.current.onPan(
+      centeredPan(rect, insets, gridSize, effectiveCellSize(next, styleRef.current), 1),
+    );
+  }, [gridSize, showRulers, styleCellSize]);
 
   const toCell = useCallback(
     (clientX: number, clientY: number): CellCoord => {
@@ -670,31 +695,35 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
         />
 
-        {/* OPT-A05 §3.4 — rendered bottom-up; the z-index of each layer is
-            pinned by MAP_LAYER_Z so the stacking order matches the spec. */}
+        {/* 《画布图层优先级规范》§2 — rendered bottom-up; the z-index of each
+            layer is pinned by MAP_LAYER_Z so the stacking order matches. */}
         <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
         <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
         <MapHighlightLayer
           highlight={highlight}
           regions={regions}
           cellSize={cellSize}
+          style={style}
           leaving={highlightLeaving}
         />
-        <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} />
-        <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} />
+        <MapRegionHoverLayer region={hoveredRegion} cellSize={cellSize} style={style} />
+        <MapNoStandShadowLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
         <MapRegionEdgeLayer
           regions={regions}
           gridSize={gridSize}
           cellSize={cellSize}
+          style={style}
           selectedRegionId={selectedRegionId}
         />
         {draftOverlay}
 
-        <MapGridLayer gridSize={gridSize} cellSize={cellSize} />
+        <MapGridLayer gridSize={gridSize} cellSize={cellSize} style={style} />
         <MapObjectLayer
           cells={cells}
           itemsById={itemsById}
           cellSize={cellSize}
+          // OPT-C06: object artwork is inset inside its footprint.
+          padding={objectPadding(cellSize)}
           interactive={selectInteractive}
           hover={hover}
           onClick={(coord, event) => {
@@ -709,6 +738,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         <MapRegionLabelLayer
           regions={regions}
           cellSize={cellSize}
+          style={style}
           hoveredRegionId={hoveredRegionId}
           onHover={setLabelRegionId}
           onSelect={(id) => {
@@ -717,17 +747,20 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           }}
         />
 
-        {/* OPT-B04 §4.2 — the board frame renders above every item /
-            highlight layer so nothing can cover it. */}
-        <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} />
+        <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
 
         {selectionOverlay}
-        {/* OPT-A05 §4.1 layer 1 — 操作提示框 first, 鼠标提示框 on top of it. */}
-        <MapOperationCursorLayer cell={cursorBoxes.operation} cellSize={cellSize} />
+        {/* 层 2 操作提示框 first, 层 1 鼠标提示框 on top of it. */}
+        <MapOperationCursorLayer
+          cell={cursorBoxes.operation}
+          cellSize={cellSize}
+          style={style}
+        />
         <MapCellCursorLayer
           cell={cursorBoxes.mouse}
           blocked={cursorBoxes.mouse?.blocked ?? false}
           cellSize={cellSize}
+          style={style}
         />
       </div>
 
@@ -738,7 +771,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
             className="pointer-events-none absolute z-30 h-7"
             style={{
               left: pan.x,
-              top: pan.y - RULER_SIZE,
+              // OPT-C02: the strip is pulled out by RULER_GAP so a 6px gap
+              // opens between the ruler and the board.
+              top: pan.y - RULER_SIZE - RULER_GAP,
               width: total * zoom,
               overflow: 'hidden',
             }}
@@ -772,7 +807,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           <div
             className="pointer-events-none absolute z-30"
             style={{
-              left: pan.x - RULER_SIZE,
+              left: pan.x - RULER_SIZE - RULER_GAP,
               top: pan.y,
               width: RULER_SIZE,
               height: total * zoom,

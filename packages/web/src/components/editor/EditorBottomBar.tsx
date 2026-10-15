@@ -162,7 +162,7 @@ export function EditorBottomBar({
           variant="ghost"
           size="sm"
           className="h-9 gap-1 rounded-full px-3 text-xs tabular-nums"
-          title="画布尺寸"
+          title="画布尺寸 n（与「基本信息」中的 n 一致）"
           onClick={onOpenResize}
         >
           <Grid3x3 className="h-4 w-4" />
@@ -175,7 +175,7 @@ export function EditorBottomBar({
           variant="ghost"
           size="icon"
           className="h-9 w-9 rounded-full"
-          title="缩小"
+          title="整体缩小查看（不修改方格大小）"
           onClick={onZoomOut}
         >
           <ZoomOut className="h-4 w-4" />
@@ -183,7 +183,7 @@ export function EditorBottomBar({
         <button
           type="button"
           onClick={onZoomReset}
-          title="重置为 100%"
+          title="重置查看比例为 100%（不修改方格大小）"
           className={cn(
             'h-9 min-w-[3.5rem] rounded-full px-2 text-xs tabular-nums text-muted-foreground',
             'hover:bg-accent hover:text-foreground',
@@ -195,7 +195,7 @@ export function EditorBottomBar({
           variant="ghost"
           size="icon"
           className="h-9 w-9 rounded-full"
-          title="放大"
+          title="整体放大查看（不修改方格大小）"
           onClick={onZoomIn}
         >
           <ZoomIn className="h-4 w-4" />
@@ -204,7 +204,7 @@ export function EditorBottomBar({
           variant="ghost"
           size="icon"
           className="h-9 w-9 rounded-full"
-          title="适配画布"
+          title="适应画布（重算自适应方格大小并重置查看比例）"
           onClick={onFit}
         >
           <Maximize className="h-4 w-4" />

@@ -130,6 +130,8 @@ export async function resizeDraft(
       characterSlots: (draft.characterSlots ?? [])
         .slice(0, gridSize)
         .concat(Array.from({ length: Math.max(0, gridSize - (draft.characterSlots ?? []).length) }, () => null)),
+      // v0.3.8 FEAT-D02: resizing must not drop the map-level style block.
+      ...(draft.style ? { style: draft.style } : {}),
     };
 
     const [updated] = (await trx('map_projects')

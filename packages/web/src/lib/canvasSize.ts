@@ -2,6 +2,7 @@ import {
   BORDER_WIDTH,
   BOTTOM_BAR_RESERVE,
   CANVAS_PADDING,
+  EXTRA_MARGIN,
   MAX_CELL_SIZE,
   MIN_CELL_SIZE,
   RULER_SIZE,
@@ -80,14 +81,24 @@ export function canvasInsets(options: {
   /** The editor's floating bottom toolbar reserves space under the board. */
   showBottomBar?: boolean;
   padding?: number;
+  /** OPT-C01 extra margin; pass 0 to opt out (e.g. in tests). */
+  extraMargin?: number;
 } = {}): CanvasInsets {
-  const { showRulers = false, showBottomBar = false, padding = CANVAS_PADDING } = options;
+  const {
+    showRulers = false,
+    showBottomBar = false,
+    padding = CANVAS_PADDING,
+    extraMargin = EXTRA_MARGIN,
+  } = options;
   const ruler = showRulers ? RULER_SIZE : 0;
+  // OPT-C01 §2: `EXTRA_MARGIN` is added to every side, so the board gets more
+  // breathing room all round instead of only along the toolbar edge.
+  const base = padding + extraMargin;
   return {
-    top: ruler + padding,
-    right: padding,
-    bottom: (showBottomBar ? BOTTOM_BAR_RESERVE : 0) + padding,
-    left: ruler + padding,
+    top: ruler + base,
+    right: base,
+    bottom: (showBottomBar ? BOTTOM_BAR_RESERVE : 0) + base,
+    left: ruler + base,
   };
 }
 

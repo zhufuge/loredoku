@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   DEFAULT_THEME_COLOR,
   GRID_SIZE_DEFAULT,
+  LINKAGE_COLOR_MIN_COUNT,
   MAP_JSON_VERSION,
   MAX_HISTORY_STEPS,
   type CharacterSlotEntry,
@@ -10,10 +11,14 @@ import {
   type EditorLayer,
   type EditorTool,
   type MapDraft,
+  type MapLinkageColor,
+  type MapStyle,
+  type MapStyleLine,
   type ParticipantTarget,
 } from '@murdoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
 import { isEmptyCell, objectFootprintKeys, resolveEraseTarget } from '@/lib/erase';
+import { resolveMapStyle, retargetLinkageColors } from '@/lib/mapStyle';
 import {
   INACTIVE_ACTIVATION,
   reduceLinkageActivation,
@@ -84,6 +89,8 @@ interface Snapshot {
   cells: Map<CellKey, DraftCell>;
   regions: DraftRegion[];
   characterSlots: Array<CharacterSlotEntry | null>;
+  /** v0.3.8 FEAT-D02: style edits are undoable like any other change. */
+  style: MapStyle;
 }
 
 export interface EditorState {
@@ -92,6 +99,8 @@ export interface EditorState {
   cells: Map<CellKey, DraftCell>;
   regions: DraftRegion[];
   characterSlots: Array<CharacterSlotEntry | null>;
+  /** v0.3.8 FEAT-D02: map-level display constants (always fully resolved). */
+  style: MapStyle;
   activeTool: EditorTool;
   activeLayer: EditorLayer;
   selection: Selection | null;
@@ -164,6 +173,22 @@ export interface EditorState {
 
   setGridSize: (size: number) => void;
   applyDraft: (draft: MapDraft) => void;
+  /**
+   * v0.3.8 FEAT-D02: composes the whole 「地图基本信息」drawer. The updater
+   * receives the resolved style and returns the next one; the change lands in
+   * the undo stack as a single step.
+   */
+  setMapStyle: (updater: (style: MapStyle) => MapStyle) => void;
+  /** FEAT-D03: `null` restores the adaptive cell size. */
+  setCellSizeOverride: (value: number | null) => void;
+  /**
+   * FEAT-D02 §关键规则 4: the region outline is global — writing its width also
+   * syncs every existing region's own `borderWidth`.
+   */
+  applyRegionBorderStyle: (patch: Partial<MapStyleLine>) => void;
+  /** FEAT-D04: removes a palette entry and re-points every reference to it. */
+  removeLinkageColor: (key: string) => void;
+  setLinkageColors: (colors: MapLinkageColor[]) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
   resetView: () => void;
@@ -181,6 +206,7 @@ function snapshot(state: EditorState): Snapshot {
     cells: new Map(state.cells),
     regions: state.regions.map((region) => ({ ...region, cells: [...region.cells] })),
     characterSlots: state.characterSlots.map(ensureEntry),
+    style: state.style,
   };
 }
 
@@ -199,6 +225,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     cells: new Map(),
     regions: [],
     characterSlots: genSlotArray(GRID_SIZE_DEFAULT),
+    style: resolveMapStyle(undefined),
     activeTool: 'select',
     activeLayer: 'background',
     selection: null,
@@ -230,6 +257,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         cells,
         regions: draft.regions,
         characterSlots: slots,
+        style: resolveMapStyle(draft.style),
         activeTool: 'select',
         activeLayer: 'background',
         selection: null,
@@ -555,6 +583,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
           cells,
           regions: draft.regions,
           characterSlots: genSlotArray(draft.gridSize, draft.characterSlots).map(ensureEntry),
+          style: resolveMapStyle(draft.style),
           past,
           future: [],
           dirty: true,
@@ -566,10 +595,53 @@ export const useEditorStore = create<EditorState>((set, get) => {
         };
       }),
 
+    setMapStyle: (updater) =>
+      commit((next) => {
+        next.style = resolveMapStyle(updater(next.style));
+      }),
+
+    setCellSizeOverride: (value) =>
+      commit((next) => {
+        next.style = resolveMapStyle({ ...next.style, cellSize: value });
+      }),
+
+    applyRegionBorderStyle: (patch) =>
+      commit((next) => {
+        next.style = resolveMapStyle({
+          ...next.style,
+          regionBorder: { ...next.style.regionBorder, ...patch },
+        });
+        // The region outline is a map-level style: keep per-region widths in
+        // step so the change is visible immediately (docs/v0.3.8.md §FEAT-D02).
+        if (patch.width !== undefined) {
+          const width = next.style.regionBorder.width;
+          next.regions = next.regions.map((region) => ({ ...region, borderWidth: width }));
+        }
+      }),
+
+    setLinkageColors: (colors) =>
+      commit((next) => {
+        next.style = resolveMapStyle({ ...next.style, linkageColors: colors });
+      }),
+
+    // Guarded before `commit` so a rejected removal neither dirties the map
+    // nor pushes a no-op entry onto the undo stack.
+    removeLinkageColor: (key) => {
+      const palette = get().style.linkageColors;
+      if (palette.length <= LINKAGE_COLOR_MIN_COUNT) return;
+      const remaining = palette.filter((entry) => entry.key !== key);
+      if (remaining.length === palette.length) return;
+      commit((next) => {
+        const fallback = remaining[0]?.key;
+        if (!fallback) return;
+        next.characterSlots = retargetLinkageColors(next.characterSlots, key, fallback);
+        next.style = resolveMapStyle({ ...next.style, linkageColors: remaining });
+      });
+    },
+
     setZoom: (zoom) => set({ zoom }),
     setPan: (pan) => set({ pan }),
     resetView: () => set({ zoom: 1, pan: { x: 0, y: 0 } }),
-
     undo: () => {
       const state = get();
       const previous = state.past.at(-1);
@@ -603,6 +675,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         cells,
         regions: state.regions,
         characterSlots: state.characterSlots.map(ensureEntry),
+        style: state.style,
       };
     },
   };

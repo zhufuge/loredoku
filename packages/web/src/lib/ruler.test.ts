@@ -51,14 +51,16 @@ describe('ruler glyph styling (§5.1~§5.3)', () => {
   });
 
   it('grows only the operated glyph, at the documented sizes', () => {
-    expect(rulerFontSize('normal', 1)).toBe(RULER_FONT_SIZE); // 15
-    expect(rulerFontSize('hover', 1)).toBe(RULER_FONT_SIZE); // stays 15
-    expect(rulerFontSize('operation', 1)).toBe(RULER_FONT_SIZE_ACTIVE); // 17
+    expect(RULER_FONT_SIZE).toBe(17);
+    expect(RULER_FONT_SIZE_ACTIVE).toBe(19);
+    expect(rulerFontSize('normal', 1)).toBe(RULER_FONT_SIZE); // 17
+    expect(rulerFontSize('hover', 1)).toBe(RULER_FONT_SIZE); // stays 17
+    expect(rulerFontSize('operation', 1)).toBe(RULER_FONT_SIZE_ACTIVE); // 19
   });
 
   it('OPT-B03: multiplies both sizes by the cell scale', () => {
-    expect(rulerFontSize('normal', cellScale(MIN_CELL_SIZE))).toBeCloseTo(11.25, 6);
-    expect(rulerFontSize('operation', cellScale(MIN_CELL_SIZE))).toBeCloseTo(12.75, 6);
+    expect(rulerFontSize('normal', cellScale(MIN_CELL_SIZE))).toBeCloseTo(12.75, 6);
+    expect(rulerFontSize('operation', cellScale(MIN_CELL_SIZE))).toBeCloseTo(14.25, 6);
     expect(rulerFontSize('normal', cellScale(MAX_CELL_SIZE))).toBe(FONT_SIZE_MAX);
     expect(rulerFontSize('operation', cellScale(MAX_CELL_SIZE))).toBe(FONT_SIZE_MAX);
   });
@@ -106,7 +108,7 @@ describe('buildRulerGlyphs', () => {
       'operation',
       'normal',
     ]);
-    expect(glyphs.map((glyph) => glyph.fontSize)).toEqual([15, 15, 15, 17, 15]);
+    expect(glyphs.map((glyph) => glyph.fontSize)).toEqual([17, 17, 17, 19, 17]);
   });
 
   it('returns nothing for a degenerate grid size', () => {
@@ -154,7 +156,7 @@ describe('ruler zoom (§3.3)', () => {
       operationIndex: 1,
       scale: 1,
     });
-    expect(base.map((glyph) => glyph.fontSize)).toEqual([15, 17, 15]);
+    expect(base.map((glyph) => glyph.fontSize)).toEqual([17, 19, 17]);
 
     const zoomed = buildRulerGlyphs({
       gridSize: 3,
@@ -164,11 +166,11 @@ describe('ruler zoom (§3.3)', () => {
       scale: 1,
       zoom: 2,
     });
-    expect(zoomed.map((glyph) => glyph.fontSize)).toEqual([30, 34, 30]);
+    expect(zoomed.map((glyph) => glyph.fontSize)).toEqual([34, 38, 34]);
   });
 
   it('applies the guard rails before the zoom factor', () => {
-    // 15 × 2 (cell scale) = 30 → capped at 28, then × 3 for zoom.
+    // 17 × 2 (cell scale) = 34 → capped at 28, then × 3 for zoom.
     expect(
       buildRulerGlyphs({
         gridSize: 1,
@@ -191,6 +193,6 @@ describe('ruler zoom (§3.3)', () => {
         scale: 1,
         zoom: 0,
       })[0]!.fontSize,
-    ).toBe(15);
+    ).toBe(17);
   });
 });
