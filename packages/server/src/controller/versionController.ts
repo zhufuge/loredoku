@@ -22,6 +22,15 @@ export async function list(ctx: Context): Promise<void> {
   success(ctx, await versionService.listVersions(id));
 }
 
+/**
+ * OPT-905 (docs/v0.3.4.md §5.1): works from every map, flat. Filtering,
+ * sorting and paging happen in the web layer so the table logic stays
+ * unit-testable (the published-work set is small).
+ */
+export async function listAll(ctx: Context): Promise<void> {
+  success(ctx, await versionService.listAllWorks());
+}
+
 export async function detail(ctx: Context): Promise<void> {
   const { id, versionNo } = parseOrThrow(versionParamSchema, ctx.params);
   success(ctx, await versionService.getVersion(id, versionNo));

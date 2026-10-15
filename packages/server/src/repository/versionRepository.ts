@@ -1,5 +1,5 @@
 import { db } from '../db/knex';
-import type { MapDraft, MapVersionRow, MapVersionSummary } from '@murdoku/shared';
+import type { MapDraft, MapVersionRow, MapVersionSummary, WorkSummary } from '@murdoku/shared';
 
 /** FEAT-503: the works panel shows participant / region / item totals. */
 function summarizeData(data: MapDraft | null | undefined): {
@@ -41,6 +41,24 @@ export async function listVersions(projectId: number): Promise<MapVersionSummary
     .orderBy('version_no', 'desc')
     .select('*')) as MapVersionRow[];
   return rows.map(toSummary);
+}
+
+/**
+ * OPT-905 §5.3: every published work across all maps, newest first. The
+ * project name is joined in because the works table shows 地图名称.
+ */
+export async function listAllVersions(): Promise<WorkSummary[]> {
+  const rows = (await db('map_versions as v')
+    .join('map_projects as p', 'p.id', 'v.project_id')
+    .select('v.*', 'p.name as project_name')
+    .orderBy('v.snapshot_created_at', 'desc')) as Array<
+    MapVersionRow & { project_name: string | null }
+  >;
+  return rows.map((row) => ({
+    ...toSummary(row),
+    projectId: Number(row.project_id),
+    projectName: row.project_name ?? '',
+  }));
 }
 
 export async function getVersion(

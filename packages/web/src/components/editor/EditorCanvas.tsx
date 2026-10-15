@@ -8,19 +8,35 @@ import {
   useState,
 } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { CELL_SIZE, type CellCoord, type DraftRegion, type EditorTool, type Item, type RegionShape } from '@murdoku/shared';
+import {
+  CELL_SIZE,
+  MAP_LAYER_Z,
+  type CellCoord,
+  type DraftRegion,
+  type EditorTool,
+  type Item,
+  type RegionShape,
+} from '@murdoku/shared';
 import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/region';
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
 import {
   MapBackgroundLayer,
+  MapCellCursorLayer,
   MapGridLayer,
   MapHighlightLayer,
+  MapNoStandShadowLayer,
   MapObjectLayer,
   MapRegionEdgeLayer,
   MapRegionFillLayer,
+  MapRegionHoverLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapLayers';
+import {
+  collectNoStandCells,
+  collectObjectCells,
+  resolveHoverEffects,
+} from '@/lib/canvasLayers';
 import {
   centerPan,
   clampZoom,
@@ -35,6 +51,14 @@ import type { Selection } from '@/stores/editorStore';
 const RULER_SIZE = 28;
 const RULER_TEXT_COLOR = '#1F2937';
 const RULER_ACTIVE_COLOR = '#2563EB';
+
+/**
+ * OPT-901 §1.1 layer 1 covers "current operation or selection" markers. The
+ * editor affordances (selection ring, marquee, region draft) live in the same
+ * top band, just under the cursor box so the hover indicator stays on top.
+ */
+const SELECTION_OVERLAY_Z = MAP_LAYER_Z.cellCursor - 1;
+const DRAFT_OVERLAY_Z = MAP_LAYER_Z.cellCursor - 2;
 
 /** EditorCanvas no longer carries character drag state (CLAR-603). */
 export interface EditorCanvasHandle {
@@ -129,7 +153,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const [marquee, setMarquee] = useState<{ start: CellCoord; end: CellCoord } | null>(null);
   const [regionAnchor, setRegionAnchor] = useState<CellCoord | null>(null);
   const [brushCells, setBrushCells] = useState<Coord[]>([]);
-  const [hoveredRegionId, setHoveredRegionId] = useState<string | null>(null);
+  /** Set when the pointer sits directly on a region label (§2.2). */
+  const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
 
   const viewRef = useRef({ zoom, pan, onZoom, onPan });
   viewRef.current = { zoom, pan, onZoom, onPan };
@@ -453,12 +478,23 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       }
     : null;
 
-  const hoveredKeys = useMemo(() => {
-    const region = hoveredRegionId
-      ? regions.find((item) => item.id === hoveredRegionId)
-      : undefined;
-    return new Set(region ? region.cells.map(([x, y]) => `${x},${y}`) : []);
-  }, [hoveredRegionId, regions]);
+  // ---- OPT-901 §1.2.5: cells holding a non-standable object ----
+  const noStandCells = useMemo(
+    () => collectNoStandCells(cells, itemsById),
+    [cells, itemsById],
+  );
+  const objectCells = useMemo(() => collectObjectCells(cells), [cells]);
+
+  // ---- OPT-902 §2.1~2.4: cursor box + region emphasis + item lift ----
+  const hoverEffects = useMemo(
+    () => resolveHoverEffects({ hover, noStandCells, objectCells, regions }),
+    [hover, noStandCells, objectCells, regions],
+  );
+  /** §2.2: hovering any cell of a region emphasises that region. */
+  const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
+  const hoveredRegion = hoveredRegionId
+    ? regions.find((item) => item.id === hoveredRegionId) ?? null
+    : null;
 
   // Cell content is clickable (selection only) unless a brush item is armed or
   // the user is panning; it never carries drag handlers (BUG-405).
@@ -471,7 +507,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       : null;
 
   const draftOverlay = (
-    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 28 }}>
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: DRAFT_OVERLAY_Z }}>
       {Array.from(regionDraftSelection).map((key) => {
         const [x, y] = key.split(',').map(Number) as [number, number];
         return (
@@ -493,7 +529,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   const selectionOverlay = (
-    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: 30 }}>
+    <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: SELECTION_OVERLAY_Z }}>
       {selectionCell ? (
         <div
           className="absolute ring-2 ring-inset ring-primary"
@@ -567,25 +603,26 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       >
         <div
           className="absolute left-0 top-0 bg-background"
-          style={{ width: total, height: total }}
+          style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
         />
 
+        {/* OPT-901 §1.1 — rendered bottom-up; the z-index of each layer is
+            pinned by MAP_LAYER_Z so the stacking order matches the spec. */}
         <MapBackgroundLayer cells={cells} itemsById={itemsById} />
         <MapRegionFillLayer regions={regions} gridSize={gridSize} />
-        <MapRegionEdgeLayer
-          regions={regions}
-          gridSize={gridSize}
-          hoveredRegionId={hoveredRegionId}
-          selectedRegionId={selectedRegionId}
-        />
+        <MapHighlightLayer highlight={highlight} regions={regions} leaving={highlightLeaving} />
+        <MapRegionHoverLayer region={hoveredRegion} />
+        <MapNoStandShadowLayer noStandCells={noStandCells} />
+        <MapRegionEdgeLayer regions={regions} gridSize={gridSize} selectedRegionId={selectedRegionId} />
         {draftOverlay}
+
+        <MapGridLayer gridSize={gridSize} />
 
         <MapObjectLayer
           cells={cells}
           itemsById={itemsById}
           interactive={selectInteractive}
           hover={hover}
-          glowKeys={hoveredKeys}
           onClick={(coord, event) => {
             if (event.shiftKey && selectedRegionId) {
               onToggleRegionCell(coord);
@@ -595,19 +632,19 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           }}
         />
 
-        <MapGridLayer gridSize={gridSize} />
-
-        <MapHighlightLayer highlight={highlight} regions={regions} leaving={highlightLeaving} />
-
-        {selectionOverlay}
         <MapRegionLabelLayer
           regions={regions}
-          onHover={setHoveredRegionId}
+          hoveredRegionId={hoveredRegionId}
+          onHover={setLabelRegionId}
           onSelect={(id) => {
             onSelect({ type: 'region', regionId: id });
             onSelectRegion(id);
           }}
         />
+
+        {selectionOverlay}
+        {/* OPT-901 layer 1 — always the top-most element (§2.1). */}
+        <MapCellCursorLayer cell={hoverEffects.cell} blocked={hoverEffects.blocked} />
       </div>
 
       {showRulers ? (

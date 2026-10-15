@@ -1,4 +1,9 @@
-import type { MapDraft, MapVersionDetail, MapVersionSummary } from '@murdoku/shared';
+import type {
+  MapDraft,
+  MapVersionDetail,
+  MapVersionSummary,
+  WorkSummary,
+} from '@murdoku/shared';
 import { apiDelete, apiGet, apiPost } from './client';
 
 /**
@@ -11,6 +16,10 @@ export const versionsApi = {
   },
   list(id: number): Promise<MapVersionSummary[]> {
     return apiGet<MapVersionSummary[]>(`/projects/${id}/versions`);
+  },
+  /** OPT-905 §5.1: every work across all maps, for the flat works table. */
+  listAll(): Promise<WorkSummary[]> {
+    return apiGet<WorkSummary[]>('/versions');
   },
   detail(id: number, versionNo: number): Promise<MapVersionDetail> {
     return apiGet<MapVersionDetail>(`/projects/${id}/versions/${versionNo}`);

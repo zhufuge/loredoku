@@ -3,6 +3,8 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw } from 'lucide-react';
 import {
   CELL_SIZE,
+  MAP_LAYER_Z,
+  type CellCoord,
   type Character,
   type CharacterSlotEntry,
   type Item,
@@ -12,18 +14,33 @@ import { Button } from '@/components/ui/button';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import {
   MapBackgroundLayer,
+  MapCellCursorLayer,
   MapGridLayer,
   MapHighlightLayer,
+  MapNoStandShadowLayer,
   MapObjectLayer,
   MapRegionEdgeLayer,
   MapRegionFillLayer,
+  MapRegionHoverLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapLayers';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useWorkDetail } from '@/hooks/useVersions';
-import { centerPan, clampZoom, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
+import {
+  centerPan,
+  clampZoom,
+  clientToCell,
+  isInBounds,
+  zoomAtPoint,
+  ZOOM_STEP,
+} from '@/lib/grid';
+import {
+  collectNoStandCells,
+  collectObjectCells,
+  resolveHoverEffects,
+} from '@/lib/canvasLayers';
 import { resolveHighlight } from '@/lib/highlight';
 import {
   INACTIVE_ACTIVATION,
@@ -59,6 +76,9 @@ export function WorkViewPage(): JSX.Element {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
+  /** OPT-902: the cell under the cursor, driving the hover affordances. */
+  const [hover, setHover] = useState<CellCoord | null>(null);
+  const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const panRef = useRef<{ x: number; y: number } | null>(null);
 
@@ -96,6 +116,33 @@ export function WorkViewPage(): JSX.Element {
   const regions = useMemo(() => draft?.regions ?? [], [draft]);
   const gridSize = draft?.gridSize ?? 0;
   const total = gridSize * CELL_SIZE;
+
+  // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 ----
+  const noStandCells = useMemo(
+    () => collectNoStandCells(cells, itemsById),
+    [cells, itemsById],
+  );
+  const objectCells = useMemo(() => collectObjectCells(cells), [cells]);
+  const hoverEffects = useMemo(
+    () => resolveHoverEffects({ hover, noStandCells, objectCells, regions }),
+    [hover, noStandCells, objectCells, regions],
+  );
+  const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
+  const hoveredRegion = hoveredRegionId
+    ? regions.find((region) => region.id === hoveredRegionId) ?? null
+    : null;
+
+  /** Maps a client point to a board cell, or `null` when outside the board. */
+  const toCell = (clientX: number, clientY: number): CellCoord | null => {
+    const node = containerRef.current;
+    if (!node || gridSize === 0) return null;
+    const coord = clientToCell(clientX, clientY, {
+      rect: node.getBoundingClientRect(),
+      pan,
+      zoom,
+    });
+    return isInBounds(coord, gridSize) ? coord : null;
+  };
 
   const fit = (): void => {
     const node = containerRef.current;
@@ -163,9 +210,11 @@ export function WorkViewPage(): JSX.Element {
     );
   }, [activeSlot, gridSize, cells, slots, regions, showHighlight, clearHighlight]);
 
-  // A new snapshot must not inherit a stale activation.
+  // A new snapshot must not inherit a stale activation or hover.
   useEffect(() => {
     setActivation(INACTIVE_ACTIVATION);
+    setHover(null);
+    setLabelRegionId(null);
   }, [draft]);
 
   const handleActivation = (event: LinkageActivationEvent): void =>
@@ -328,6 +377,8 @@ export function WorkViewPage(): JSX.Element {
             }
           }}
           onPointerMove={(event) => {
+            // OPT-902: the hover affordances follow the cursor even while panning.
+            setHover(toCell(event.clientX, event.clientY));
             if (!panRef.current) return;
             setPan({
               x: event.clientX - panRef.current.x,
@@ -340,6 +391,7 @@ export function WorkViewPage(): JSX.Element {
           onPointerCancel={() => {
             panRef.current = null;
           }}
+          onPointerLeave={() => setHover(null)}
           onWheel={(event) => {
             if (!(event.ctrlKey || event.metaKey)) return;
             const node = containerRef.current;
@@ -363,20 +415,33 @@ export function WorkViewPage(): JSX.Element {
               height: total,
             }}
           >
-            <div className="absolute left-0 top-0 bg-background" style={{ width: total, height: total }} />
+            <div
+              className="absolute left-0 top-0 bg-background"
+              style={{ width: total, height: total, zIndex: MAP_LAYER_Z.emptyCell }}
+            />
 
+            {/* OPT-901 §1.1 — bottom-up, each layer pinned by MAP_LAYER_Z. */}
             <MapBackgroundLayer cells={cells} itemsById={itemsById} />
             <MapRegionFillLayer regions={regions} gridSize={gridSize} />
-            <MapRegionEdgeLayer regions={regions} gridSize={gridSize} />
-            <MapObjectLayer cells={cells} itemsById={itemsById} />
-            <MapGridLayer gridSize={gridSize} />
             <MapHighlightLayer
               highlight={highlight}
               regions={regions}
               leaving={highlightLeaving}
             />
+            <MapRegionHoverLayer region={hoveredRegion} />
+            <MapNoStandShadowLayer noStandCells={noStandCells} />
+            <MapRegionEdgeLayer regions={regions} gridSize={gridSize} />
+            <MapGridLayer gridSize={gridSize} />
+            <MapObjectLayer cells={cells} itemsById={itemsById} hover={hover} />
 
-            <MapRegionLabelLayer regions={regions} />
+            <MapRegionLabelLayer
+              regions={regions}
+              hoveredRegionId={hoveredRegionId}
+              onHover={setLabelRegionId}
+            />
+
+            {/* OPT-901 layer 1 — always the top-most element (§2.1). */}
+            <MapCellCursorLayer cell={hoverEffects.cell} blocked={hoverEffects.blocked} />
           </div>
         </main>
       </div>

@@ -204,6 +204,16 @@ export interface MapVersionDetail extends MapVersionSummary {
   data: MapDraft;
 }
 
+/**
+ * OPT-905 (docs/v0.3.4.md §5): the works table lists published versions
+ * across **all** maps in one flat table, so each row also carries the map it
+ * belongs to.
+ */
+export interface WorkSummary extends MapVersionSummary {
+  projectId: number;
+  projectName: string;
+}
+
 export interface CharacterUsage {
   projectId: number;
   projectName: string;

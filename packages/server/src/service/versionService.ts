@@ -5,6 +5,7 @@ import type {
   MapVersionDetail,
   MapVersionSummary,
   PublishViolation,
+  WorkSummary,
 } from '@murdoku/shared';
 import * as mapRepo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
@@ -65,7 +66,8 @@ function isRegionConnected(region: DraftRegion): boolean {
  *   P2 — participants without an avatar are treated as not enabled and are
  *        not counted (see P1)
  *   P3 — no overlapping region cells
- *   P4 — multi-cell items fully inside the board, no layer conflicts
+ *   P4 — multi-cell items fully inside the board (OPT-904 removed the
+ *        "non-standable items cannot sit on the object layer" rule)
  *   P5 — every trigger target reference exists
  */
 export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]> {
@@ -116,13 +118,11 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
   for (const key of Object.keys(draft.cells)) {
     const cell = draft.cells[key];
     if (!cell?.object) continue;
-    const info = meta.get(cell.object.itemId);
-    if (info && !info.canStand) {
-      violations.push({
-        rule: 'object_can_stand',
-        message: `物品 #${cell.object.itemId} 不可站立，不能放在物体层`,
-      });
-    }
+    // OPT-904 (docs/v0.3.4.md §4.1): a non-standable item IS allowed on the
+    // object layer — the v0.3.1 `object_can_stand` rule is gone. Only the
+    // background layer is restricted, and that is enforced by requiring
+    // `category === 'background'` for background placements (front-end
+    // palette + `canPlaceItemOnLayer`).
     // Multi-cell footprint must be entirely inside the board.
     const [x, y] = parseCellKey(key);
     if (x + cell.object.w > size || y + cell.object.h > size) {
@@ -234,6 +234,11 @@ export async function listVersions(projectId: number): Promise<MapVersionSummary
     throw AppError.notFound('项目不存在');
   }
   return versionRepo.listVersions(projectId);
+}
+
+/** OPT-905 (docs/v0.3.4.md §5): the works table spans every map. */
+export async function listAllWorks(): Promise<WorkSummary[]> {
+  return versionRepo.listAllVersions();
 }
 
 export async function getVersion(projectId: number, versionNo: number): Promise<MapVersionDetail> {

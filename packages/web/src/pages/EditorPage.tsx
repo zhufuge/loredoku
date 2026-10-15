@@ -55,6 +55,7 @@ import { usePublishProject } from '@/hooks/useVersions';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { useHighlight } from '@/hooks/useHighlight';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
+import { canPlaceItemOnLayer } from '@/lib/canvasLayers';
 import { resolveHighlight } from '@/lib/highlight';
 import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
@@ -757,6 +758,12 @@ export function EditorPage(): JSX.Element {
             }}
             onPlaceItem={(coord) => {
               if (!pendingItem) return;
+              // OPT-904 §4.1: the placement layer must match the item category
+              // (the background layer only accepts `category === 'background'`).
+              if (!canPlaceItemOnLayer(pendingItem, editor.activeLayer)) {
+                toast.error('该物品不能放在当前图层');
+                return;
+              }
               if (pendingItem.category === 'background') {
                 editor.placeBackground(pendingItem.id, coord.x, coord.y);
               } else {

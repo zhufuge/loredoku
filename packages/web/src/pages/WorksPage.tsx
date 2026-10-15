@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Download, Eye, Loader2, RotateCcw, Trash2 } from 'lucide-react';
-import type { MapVersionSummary } from '@murdoku/shared';
+import { ChevronDown, Download, Eye, Loader2, RotateCcw, Trash2 } from 'lucide-react';
+import type { WorkSummary } from '@murdoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -12,66 +12,162 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
-import { useProjects } from '@/hooks/useProjects';
+import { Input } from '@/components/ui/input';
+import { versionsApi } from '@/api/versions';
 import {
+  useAllWorks,
   useCreateDraftFromVersion,
   useDeleteVersion,
-  useVersions,
-  sortWorks,
 } from '@/hooks/useVersions';
-import { formatDateTime } from '@/lib/format';
+import { formatDateTimeMinute } from '@/lib/format';
+import {
+  buildWorksTable,
+  collectWorkProjects,
+  EMPTY_WORKS_FILTERS,
+  WORKS_PAGE_SIZE_OPTIONS,
+  type WorksFilters,
+} from '@/lib/worksTable';
+import { cn } from '@/lib/utils';
 
-const ALL_PROJECTS = 'all';
+const COLUMNS = [
+  '作品编号',
+  '地图名称',
+  '发布时间',
+  '尺寸',
+  '参与者数',
+  '区域数',
+  '物品数',
+  '备注',
+  '操作',
+] as const;
+
+/** §5.3 按地图筛选 — a checkbox dropdown so several maps can be picked. */
+function MapFilter({
+  projects,
+  selected,
+  onChange,
+}: {
+  projects: Array<{ id: number; name: string }>;
+  selected: number[];
+  onChange: (ids: number[]) => void;
+}): JSX.Element {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (event: PointerEvent): void => {
+      if (containerRef.current?.contains(event.target as Node)) return;
+      setOpen(false);
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => window.removeEventListener('pointerdown', onPointerDown);
+  }, [open]);
+
+  const selectedSet = new Set(selected);
+  const label =
+    selected.length === 0
+      ? '全部地图'
+      : selected.length === 1
+        ? projects.find((project) => project.id === selected[0])?.name ?? '1 个地图'
+        : `${selected.length} 个地图`;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <Button
+        variant="outline"
+        className="h-9 w-48 justify-between font-normal"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown className="ml-1 h-4 w-4 shrink-0 opacity-60" />
+      </Button>
+      {open ? (
+        <div className="absolute right-0 z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border bg-background p-1 shadow-lg">
+          <button
+            type="button"
+            className="w-full rounded px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
+            onClick={() => onChange([])}
+          >
+            清空选择（全部地图）
+          </button>
+          {projects.length === 0 ? (
+            <p className="px-2 py-2 text-xs text-muted-foreground">暂无可筛选的地图</p>
+          ) : (
+            projects.map((project) => (
+              <label
+                key={project.id}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedSet.has(project.id)}
+                  onChange={(event) =>
+                    onChange(
+                      event.target.checked
+                        ? [...selected, project.id]
+                        : selected.filter((id) => id !== project.id),
+                    )
+                  }
+                />
+                <span className="truncate">{project.name}</span>
+              </label>
+            ))
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export function WorksPage(): JSX.Element {
   const navigate = useNavigate();
-  const [projectId, setProjectId] = useState<number | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<MapVersionSummary | null>(null);
+  const worksQuery = useAllWorks();
+  const createDraft = useCreateDraftFromVersion();
+  const deleteWork = useDeleteVersion();
 
-  const projectsQuery = useProjects({ page: 1, pageSize: 100, sort: 'updatedAt' });
-  const projects = projectsQuery.data?.list ?? [];
+  const [filters, setFilters] = useState<WorksFilters>(EMPTY_WORKS_FILTERS);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<number>(WORKS_PAGE_SIZE_OPTIONS[0]);
+  const [deleteTarget, setDeleteTarget] = useState<WorkSummary | null>(null);
 
   useEffect(() => {
     document.title = '作品 · Murdoku Maker';
   }, []);
 
-  // Default to the most recently updated map.
+  // §5.3: any filter / page-size change restarts from the first page.
   useEffect(() => {
-    if (projectId !== null || projects.length === 0) return;
-    setProjectId(projects[0]!.id);
-  }, [projects, projectId]);
+    setPage(1);
+  }, [filters, pageSize]);
 
-  const worksQuery = useVersions(projectId);
-  const createDraft = useCreateDraftFromVersion();
-  const deleteWork = useDeleteVersion();
+  const works = worksQuery.data ?? [];
+  const projects = useMemo(() => collectWorkProjects(works), [works]);
+  const table = useMemo(
+    () => buildWorksTable(works, filters, page, pageSize),
+    [works, filters, page, pageSize],
+  );
 
-  const works = useMemo(() => sortWorks(worksQuery.data ?? []), [worksQuery.data]);
-
-  const exportWork = (work: MapVersionSummary): void => {
-    if (projectId === null) return;
+  const exportWork = (work: WorkSummary): void => {
     void (async () => {
-      const { versionsApi } = await import('@/api/versions');
-      const detail = await versionsApi.detail(projectId, work.versionNo);
+      const detail = await versionsApi.detail(work.projectId, work.versionNo);
       const blob = new Blob([JSON.stringify(detail.data, null, 2)], {
         type: 'application/json',
       });
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
-      const projectName = projects.find((item) => item.id === projectId)?.name ?? 'map';
       anchor.href = url;
-      anchor.download = `${projectName}-v${work.versionNo}.json`;
+      anchor.download = `${work.projectName}-v${work.versionNo}.json`;
       anchor.click();
       URL.revokeObjectURL(url);
     })();
   };
 
   const confirmDelete = (): void => {
-    if (!deleteTarget || projectId === null) return;
+    if (!deleteTarget) return;
     const target = deleteTarget;
     // OPT-210: keep the dialog open until the request settles.
     deleteWork.mutate(
-      { id: projectId, versionNo: target.versionNo },
+      { id: target.projectId, versionNo: target.versionNo },
       { onSettled: () => setDeleteTarget(null) },
     );
   };
@@ -82,118 +178,227 @@ export function WorksPage(): JSX.Element {
         <div>
           <h1 className="text-xl font-semibold">作品管理</h1>
           <p className="text-xs text-muted-foreground">
-            已发布的地图快照，可预览效果、导出或回滚为草稿。
+            {worksQuery.isLoading
+              ? '正在加载作品…'
+              : `全部地图共 ${table.total} 件已发布作品，可预览效果、导出或回滚为草稿。`}
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">地图</span>
-          <Select
-            className="h-9 w-56"
-            value={projectId === null ? ALL_PROJECTS : String(projectId)}
-            onChange={(event) =>
-              setProjectId(
-                event.target.value === ALL_PROJECTS ? null : Number(event.target.value),
-              )
-            }
-          >
-            <option value={ALL_PROJECTS}>全部（请选择地图）</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </Select>
         </div>
       </div>
 
-      <section className="space-y-2">
-        <h2 className="text-sm font-medium">作品列表</h2>
+      {/* §5.3 排序与筛选 */}
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="relative flex-1 min-w-[180px]">
+          <Input
+            value={filters.keyword}
+            onChange={(event) =>
+              setFilters((previous) => ({ ...previous, keyword: event.target.value }))
+            }
+            placeholder="搜索作品编号 / 备注 / 地图名"
+            className="h-9"
+          />
+        </div>
+        <div className="flex items-center gap-1">
+          <Input
+            type="date"
+            value={filters.from ?? ''}
+            onChange={(event) =>
+              setFilters((previous) => ({ ...previous, from: event.target.value || null }))
+            }
+            className="h-9 w-40"
+            title="发布时间起始"
+          />
+          <span className="text-xs text-muted-foreground">至</span>
+          <Input
+            type="date"
+            value={filters.to ?? ''}
+            onChange={(event) =>
+              setFilters((previous) => ({ ...previous, to: event.target.value || null }))
+            }
+            className="h-9 w-40"
+            title="发布时间结束"
+          />
+        </div>
+        <MapFilter
+          projects={projects}
+          selected={filters.projectIds}
+          onChange={(projectIds) => setFilters((previous) => ({ ...previous, projectIds }))}
+        />
+        <Button
+          variant="ghost"
+          className="h-9"
+          onClick={() => setFilters(EMPTY_WORKS_FILTERS)}
+        >
+          重置
+        </Button>
+      </div>
 
-        {projectsQuery.isLoading || worksQuery.isLoading ? (
-          <div className="flex items-center justify-center gap-2 rounded-lg border py-12 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            正在加载作品…
-          </div>
-        ) : worksQuery.isError ? (
-          <p className="rounded-lg border py-12 text-center text-sm text-muted-foreground">
-            作品加载失败
-          </p>
-        ) : works.length === 0 ? (
-          <p className="rounded-lg border py-12 text-center text-sm text-muted-foreground">
-            暂无作品，发布一个试试
-          </p>
-        ) : (
-          <ul className="divide-y rounded-lg border">
-            {works.map((work) => (
-              <li key={work.id} className="space-y-2 p-3">
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium">v{work.versionNo}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDateTime(work.publishedAt)}
-                  </span>
-                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+      {/* §5.2 表格 */}
+      <div className="overflow-x-auto rounded-lg border">
+        <table className="w-full min-w-[960px] border-collapse text-sm">
+          <thead>
+            <tr className="bg-muted/50 text-xs text-muted-foreground">
+              {COLUMNS.map((column) => (
+                <th
+                  key={column}
+                  className={cn(
+                    'whitespace-nowrap px-3 py-2 text-left font-medium',
+                    column === '操作' && 'text-right',
+                  )}
+                >
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {worksQuery.isLoading ? (
+              <tr>
+                <td colSpan={COLUMNS.length} className="py-12">
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    正在加载作品…
+                  </div>
+                </td>
+              </tr>
+            ) : worksQuery.isError ? (
+              <tr>
+                <td
+                  colSpan={COLUMNS.length}
+                  className="py-12 text-center text-sm text-muted-foreground"
+                >
+                  作品加载失败
+                </td>
+              </tr>
+            ) : works.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={COLUMNS.length}
+                  className="py-12 text-center text-sm text-muted-foreground"
+                >
+                  暂无作品，发布一个试试
+                </td>
+              </tr>
+            ) : table.rows.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={COLUMNS.length}
+                  className="py-12 text-center text-sm text-muted-foreground"
+                >
+                  没有符合条件的作品
+                </td>
+              </tr>
+            ) : (
+              table.rows.map((work) => (
+                <tr key={`${work.projectId}-${work.id}`} className="border-t align-middle">
+                  <td className="whitespace-nowrap px-3 py-2 font-medium">v{work.versionNo}</td>
+                  <td className="px-3 py-2">{work.projectName}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                    {formatDateTimeMinute(work.publishedAt)}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
                     {work.gridSize} × {work.gridSize}
-                  </span>
-                  {work.notes ? (
-                    <span className="truncate text-xs text-muted-foreground">{work.notes}</span>
-                  ) : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                  <span>参与者 {work.participantCount}</span>
-                  <span>区域 {work.regionCount}</span>
-                  <span>物品 {work.itemCount}</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8"
-                    onClick={() =>
-                      navigate(
-                        `/works/${work.id}/view?project=${projectId ?? ''}&v=${work.versionNo}`,
-                      )
-                    }
-                  >
-                    <Eye className="mr-1 h-3.5 w-3.5" />
-                    查看效果
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8"
-                    onClick={() => exportWork(work)}
-                  >
-                    <Download className="mr-1 h-3.5 w-3.5" />
-                    导出
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8"
-                    disabled={createDraft.isPending}
-                    onClick={() =>
-                      projectId !== null &&
-                      createDraft.mutate({ id: projectId, versionNo: work.versionNo })
-                    }
-                  >
-                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                    基于此作品创建草稿
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-8 text-destructive hover:text-destructive"
-                    onClick={() => setDeleteTarget(work)}
-                  >
-                    <Trash2 className="mr-1 h-3.5 w-3.5" />
-                    删除
-                  </Button>
-                </div>
-              </li>
+                  </td>
+                  <td className="px-3 py-2 tabular-nums">{work.participantCount}</td>
+                  <td className="px-3 py-2 tabular-nums">{work.regionCount}</td>
+                  <td className="px-3 py-2 tabular-nums">{work.itemCount}</td>
+                  <td className="max-w-[200px] truncate px-3 py-2 text-muted-foreground">
+                    {work.notes ?? '—'}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={() =>
+                          navigate(
+                            `/works/${work.id}/view?project=${work.projectId}&v=${work.versionNo}`,
+                          )
+                        }
+                      >
+                        <Eye className="mr-1 h-3.5 w-3.5" />
+                        查看效果
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={() => exportWork(work)}
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        导出
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        disabled={createDraft.isPending}
+                        onClick={() =>
+                          createDraft.mutate(
+                            { id: work.projectId, versionNo: work.versionNo },
+                            { onSuccess: () => navigate(`/editor/${work.projectId}`) },
+                          )
+                        }
+                      >
+                        <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                        基于此作品创建草稿
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 text-destructive hover:text-destructive"
+                        onClick={() => setDeleteTarget(work)}
+                      >
+                        <Trash2 className="mr-1 h-3.5 w-3.5" />
+                        删除
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* §5.3 分页 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+        <span>
+          共 {table.total} 条，第 {table.page} / {table.totalPages} 页
+        </span>
+        <div className="flex items-center gap-2">
+          <span>每页</span>
+          <select
+            className="h-8 rounded-md border bg-background px-2 text-xs"
+            value={pageSize}
+            onChange={(event) => setPageSize(Number(event.target.value))}
+          >
+            {WORKS_PAGE_SIZE_OPTIONS.map((size) => (
+              <option key={size} value={size}>
+                {size} 条
+              </option>
             ))}
-          </ul>
-        )}
-      </section>
+          </select>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            disabled={table.page <= 1}
+            onClick={() => setPage((value) => Math.max(1, value - 1))}
+          >
+            上一页
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-8"
+            disabled={table.page >= table.totalPages}
+            onClick={() => setPage((value) => value + 1)}
+          >
+            下一页
+          </Button>
+        </div>
+      </div>
 
       <AlertDialog
         open={deleteTarget !== null}

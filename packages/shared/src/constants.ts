@@ -141,6 +141,80 @@ export const THEME_COLOR_PALETTE = [
   '#5B7C99',
 ] as const;
 
+// ---- Canvas layer stacking (docs/v0.3.4.md OPT-901 §1.1) ----
+/**
+ * OPT-901 (docs/v0.3.4.md §1.1): the canvas layers, listed **top-most first**
+ * exactly as the spec numbers them. `MAP_LAYER_Z` turns that order into the
+ * CSS `z-index` values used by the renderer (higher = closer to the viewer).
+ */
+export const MAP_LAYER_ORDER = [
+  'cellCursor',
+  'regionLabel',
+  'object',
+  'gridBorder',
+  'regionEdge',
+  'noStandShadow',
+  'regionHighlight',
+  'cellHighlight',
+  'backgroundHighlight',
+  'background',
+  'emptyCell',
+] as const;
+
+export type MapLayerName = (typeof MAP_LAYER_ORDER)[number];
+
+export const MAP_LAYER_Z: Record<MapLayerName, number> = {
+  /** 1 当前方格辅助提示框 — always the top-most element (§1.2.1). */
+  cellCursor: 44,
+  /** 2 区域名称 */
+  regionLabel: 42,
+  /** 3 物体 — above the grid lines so items are never cut by them (§1.1). */
+  object: 40,
+  /** 4 边框（网格线 + 画布外边框） */
+  gridBorder: 38,
+  /** 5 区域边界线 — below the grid lines so the Border stays readable (§1.1). */
+  regionEdge: 36,
+  /** 6 不可站立物体阴影 */
+  noStandShadow: 34,
+  /** 7 区域高亮线 */
+  regionHighlight: 32,
+  /** 8 方块高亮 */
+  cellHighlight: 30,
+  /** 9 背景高亮 */
+  backgroundHighlight: 28,
+  /** 10 背景 */
+  background: 20,
+  /** 11 空方格（画布底色） */
+  emptyCell: 10,
+};
+
+// ---- OPT-901 §1.2.1 当前方格辅助提示框 ----
+/** Inner-line stroke when the hovered cell is free. */
+export const CELL_CURSOR_COLOR = '#FFFFFF';
+/** Inner-line stroke when the hovered cell holds a non-standable object. */
+export const CELL_CURSOR_BLOCKED_COLOR = '#E57373';
+/** Grey shadow that sits on top of the Border ring (§1.2.1). */
+export const CELL_CURSOR_SHADOW_COLOR = 'rgba(0,0,0,0.15)';
+
+// ---- OPT-901 §1.2.5 不可站立物体阴影 ----
+export const NO_STAND_SHADOW_COLOR = 'rgba(0,0,0,0.08)';
+
+// ---- OPT-901 §1.2.2 区域名称 ----
+/** v0.3.4 §1.2.2: the outline is one notch thicker than v0.3.3 (3px → 4px). */
+export const REGION_LABEL_STROKE_WIDTH = 4;
+export const REGION_LABEL_FONT_SIZE = 14;
+export const REGION_LABEL_COLOR = '#FFFFFF';
+export const REGION_LABEL_STROKE_COLOR = '#000000';
+
+// ---- OPT-902 §2.2 区域悬停 ----
+/** Hovering a region tints its label blue and enlarges it (§2.2). */
+export const REGION_LABEL_HOVER_FONT_SIZE = 16;
+
+// ---- OPT-902 §2.3 物品悬停 ----
+/** The object image stretches upward by this many pixels while hovered. */
+export const OBJECT_HOVER_LIFT_PX = 4;
+export const OBJECT_HOVER_TRANSITION_MS = 120;
+
 // ---- Editor tools ----
 export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] as const;
 export const MAX_HISTORY_STEPS = 50;

@@ -319,10 +319,21 @@ describe('versions API', () => {
 
   it('rejects publishing when validation fails', async () => {
     const projectId = await createProject({ name: `PubFail ${uniqueCode('p')}`, gridSize: 6 });
-    const itemId = await createItem({ category: 'object', canStand: false });
+    const characterId = await createCharacterWithAvatar();
 
     const draft = emptyDraft(6);
-    draft.cells['0,0'] = { object: { itemId, w: 1, h: 1 } };
+    draft.characterSlots[0] = { characterId };
+    // P3: a region must be a connected blob ((0,0) and (3,3) are not adjacent).
+    draft.regions = [
+      {
+        id: 'rg_split',
+        name: '断裂区',
+        color: '#000000',
+        borderWidth: 6,
+        fillOpacity: 0,
+        cells: [[0, 0], [3, 3]],
+      },
+    ];
     await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
 
     const res = await api.post(`/api/projects/${projectId}/versions`).send({});
@@ -330,6 +341,29 @@ describe('versions API', () => {
     expect(res.body.code).toBe(ErrorCode.PUBLISH_VALIDATION_FAILED);
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThan(0);
+    expect(
+      (res.body.data as Array<{ rule: string }>).some(
+        (violation) => violation.rule === 'region_connected',
+      ),
+    ).toBe(true);
+  });
+
+  // OPT-904 (docs/v0.3.4.md §4.1): a non-standable item IS allowed on the
+  // object layer — the v0.3.1 `object_can_stand` rule was removed.
+  it('OPT-904: publishes a non-standable item placed on the object layer', async () => {
+    const projectId = await createProject({ name: `NoStand ${uniqueCode('p')}`, gridSize: 6 });
+    const characterId = await createCharacterWithAvatar();
+    const itemId = await createItem({ category: 'object', canStand: false });
+
+    const draft = emptyDraft(6);
+    draft.cells['2,2'] = { object: { itemId, w: 2, h: 2 } };
+    draft.characterSlots[0] = { characterId };
+    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    expect(saved.status).toBe(200);
+
+    const res = await api.post(`/api/projects/${projectId}/versions`).send({});
+    expect(res.status).toBe(200);
+    expect(res.body.data.versionNo).toBe(1);
   });
 
   it('rejects publishing when the only participant has no avatar', async () => {
@@ -348,6 +382,40 @@ describe('versions API', () => {
         (violation) => violation.rule === 'participant_required',
       ),
     ).toBe(true);
+  });
+});
+
+// OPT-905 (docs/v0.3.4.md §5): the works table lists every map's works.
+describe('works API (OPT-905)', () => {
+  it('lists published works from all maps together with their map names', async () => {
+    const projectA = await createProject({ name: `WorksA ${uniqueCode('p')}`, gridSize: 6 });
+    const projectB = await createProject({ name: `WorksB ${uniqueCode('p')}`, gridSize: 6 });
+    const characterId = await createCharacterWithAvatar();
+
+    const draft = emptyDraft(6);
+    draft.characterSlots[0] = { characterId };
+    await api.put(`/api/projects/${projectA}/map`).send({ data: draft });
+    await api.put(`/api/projects/${projectB}/map`).send({ data: draft });
+
+    await api.post(`/api/projects/${projectA}/versions`).send({ notes: 'A1' });
+    await api.post(`/api/projects/${projectB}/versions`).send({ notes: 'B1' });
+
+    const res = await api.get('/api/versions');
+    expect(res.status).toBe(200);
+    const rows = res.body.data as Array<{
+      projectId: number;
+      projectName: string;
+      versionNo: number;
+      notes: string | null;
+      publishedAt: string;
+    }>;
+    const a = rows.find((row) => row.projectId === projectA);
+    const b = rows.find((row) => row.projectId === projectB);
+    expect(a?.projectName).toContain('WorksA');
+    expect(a?.versionNo).toBe(1);
+    expect(b?.projectName).toContain('WorksB');
+    // §5.3 default ordering: newest first.
+    expect(rows[0]!.publishedAt >= rows[rows.length - 1]!.publishedAt).toBe(true);
   });
 });
 

@@ -8,6 +8,7 @@ import type {
 import {
   collectLinkages,
   findAllItemAnchors,
+  findItemPlacements,
   resolveHighlight,
   type CellMap,
 } from './highlight';
@@ -35,6 +36,13 @@ const ctxCells = cells([
   ['1,0', {}],
 ]);
 
+const ctx = {
+  gridSize: 6,
+  cells: ctxCells,
+  characterSlots: [] as Array<CharacterSlotEntry | null>,
+  regions,
+};
+
 // CLAR-603: participants live in the roster. Slot index 1 holds character 7.
 const slots: Array<CharacterSlotEntry | null> = [
   { characterId: 5, themeColor: '#FFCC00', clue: '', linkages: [] },
@@ -50,11 +58,28 @@ const linkages: ParticipantTarget[] = [
   { type: 'region', id: 'rg_forest', effect: 'highlight', color: 'blue' },
 ];
 
-describe('findAllItemAnchors', () => {
-  it('locates all anchor cells of a placed item', () => {
-    expect(findAllItemAnchors(ctxCells, 12)).toEqual([
-      { x: 0, y: 0, w: 2, h: 1, color: '' },
+describe('findItemPlacements', () => {
+  it('reports the layer of every placement of an item id', () => {
+    const mixed = cells([
+      ['0,0', { object: { itemId: 12, w: 2, h: 1 } }],
+      ['3,3', { background: { itemId: 12 } }],
+      ['4,4', { background: { itemId: 99 } }],
     ]);
+    expect(findItemPlacements(mixed, 12)).toEqual([
+      { layer: 'object', x: 0, y: 0, w: 2, h: 1, anchorX: 0, anchorY: 0 },
+      { layer: 'background', x: 3, y: 3, w: 1, h: 1, anchorX: 3, anchorY: 3 },
+    ]);
+    expect(findItemPlacements(mixed, 42)).toEqual([]);
+  });
+});
+
+describe('findAllItemAnchors', () => {
+  it('locates all anchor cells of a placed object (object layer only)', () => {
+    const mixed = cells([
+      ['0,0', { object: { itemId: 12, w: 2, h: 1 } }],
+      ['3,3', { background: { itemId: 12 } }],
+    ]);
+    expect(findAllItemAnchors(mixed, 12)).toEqual([{ x: 0, y: 0, w: 2, h: 1, color: '' }]);
     expect(findAllItemAnchors(ctxCells, 99)).toEqual([]);
   });
 });
@@ -85,17 +110,17 @@ describe('collectLinkages', () => {
 
 describe('resolveHighlight', () => {
   it('resolves slot characters, items, cells and regions from one flat list', () => {
-    const state = resolveHighlight(linkages, {
-      gridSize: 6,
-      cells: ctxCells,
-      characterSlots: slots,
-      regions,
-    });
+    const state = resolveHighlight(linkages, { ...ctx, characterSlots: slots });
     expect(state).not.toBeNull();
     // Character 7 lives at slot index 1.
     expect(state!.characters).toEqual([{ slotIndex: 1, color: '#EF4444' }]);
-    expect(state!.objects).toEqual([{ x: 0, y: 0, w: 2, h: 1, color: '#3B82F6' }]);
-    expect(state!.cells).toEqual([{ x: 4, y: 4, w: 1, h: 1, color: '#EF4444' }]);
+    // OPT-903 §7.3: a 2×1 object lights up BOTH occupied cells as 方块高亮.
+    expect(state!.cellHighlights).toEqual([
+      { x: 0, y: 0, w: 1, h: 1, color: '#3B82F6' },
+      { x: 1, y: 0, w: 1, h: 1, color: '#3B82F6' },
+      { x: 4, y: 4, w: 1, h: 1, color: '#EF4444' },
+    ]);
+    expect(state!.backgroundHighlights).toEqual([]);
     // MOD-802: regions always render as the inner blue border.
     expect(state!.regionBorders).toEqual([
       { regionId: 'rg_forest', color: '#3B82F6' },
@@ -106,21 +131,22 @@ describe('resolveHighlight', () => {
     for (const color of ['red', 'blue'] as const) {
       const state = resolveHighlight(
         [{ type: 'region', id: 'rg_forest', effect: 'highlight', color }],
-        { gridSize: 6, cells: ctxCells, characterSlots: slots, regions },
+        { ...ctx, characterSlots: slots },
       );
-      expect(state!.cells).toHaveLength(0);
+      expect(state!.cellHighlights).toHaveLength(0);
+      expect(state!.backgroundHighlights).toHaveLength(0);
       expect(state!.regionBorders).toEqual([
         { regionId: 'rg_forest', color: '#3B82F6' },
       ]);
     }
   });
 
-  it('MOD-708: cell targets with multiple coords produce multiple rects', () => {
+  it('MOD-708: cell targets with multiple coords produce multiple blocks', () => {
     const state = resolveHighlight(
       [{ type: 'cell', cells: [[1, 1], [2, 2], [3, 3]], effect: 'highlight', color: 'red' }],
-      { gridSize: 6, cells: ctxCells, characterSlots: slots, regions },
+      { ...ctx, characterSlots: slots },
     );
-    expect(state!.cells).toHaveLength(3);
+    expect(state!.cellHighlights).toHaveLength(3);
   });
 
   it('skips dangling references instead of throwing', () => {
@@ -129,18 +155,18 @@ describe('resolveHighlight', () => {
         { type: 'character', id: 404, effect: 'highlight', color: 'red' },
         { type: 'cell', cells: [[4, 4]], effect: 'highlight', color: 'red' },
       ],
-      { gridSize: 6, cells: ctxCells, characterSlots: slots, regions },
+      { ...ctx, characterSlots: slots },
     );
     expect(state!.characters).toHaveLength(0);
-    expect(state!.cells).toHaveLength(1);
+    expect(state!.cellHighlights).toHaveLength(1);
   });
 
   it('skips out-of-bounds cell coords', () => {
     const state = resolveHighlight(
       [{ type: 'cell', cells: [[4, 4], [99, 0]], effect: 'highlight', color: 'red' }],
-      { gridSize: 6, cells: ctxCells, characterSlots: slots, regions },
+      { ...ctx, characterSlots: slots },
     );
-    expect(state!.cells).toHaveLength(1);
+    expect(state!.cellHighlights).toHaveLength(1);
   });
 
   it('returns null when nothing resolves or the list is empty', () => {
@@ -153,24 +179,13 @@ describe('resolveHighlight', () => {
         { gridSize: 6, cells: cells([]), characterSlots: [], regions: [] },
       ),
     ).toBeNull();
+    expect(resolveHighlight(undefined, { ...ctx, characterSlots: slots })).toBeNull();
     expect(
-      resolveHighlight(undefined, {
-        gridSize: 6,
-        cells: ctxCells,
-        characterSlots: slots,
-        regions,
-      }),
+      resolveHighlight([], { ...ctx, characterSlots: slots }),
     ).toBeNull();
-    expect(resolveHighlight([], {
-      gridSize: 6,
-      cells: ctxCells,
-      characterSlots: slots,
-      regions,
-    })).toBeNull();
   });
 
   it('MOD-708: item scope instances highlights only specified coords', () => {
-    // Place two instances of item 12
     const multiCells = cells([
       ['0,0', { object: { itemId: 12, w: 1, h: 1 } }],
       ['2,2', { object: { itemId: 12, w: 1, h: 1 } }],
@@ -188,8 +203,8 @@ describe('resolveHighlight', () => {
       ],
       { gridSize: 6, cells: multiCells, characterSlots: slots, regions },
     );
-    expect(state!.objects).toHaveLength(1);
-    expect(state!.objects[0]).toMatchObject({ x: 2, y: 2 });
+    expect(state!.cellHighlights).toHaveLength(1);
+    expect(state!.cellHighlights[0]).toMatchObject({ x: 2, y: 2 });
   });
 
   it('MOD-708: item scope all highlights every instance', () => {
@@ -201,6 +216,55 @@ describe('resolveHighlight', () => {
       [{ type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' }],
       { gridSize: 6, cells: multiCells, characterSlots: slots, regions },
     );
-    expect(state!.objects).toHaveLength(2);
+    expect(state!.cellHighlights).toHaveLength(2);
+  });
+
+  // ---- OPT-903 §3 / §7.3: 方块高亮 replaces the v0.3.3 translucent overlay ----
+  it('OPT-903 §7.3: an object linkage produces 方块高亮, never a translucent overlay', () => {
+    const state = resolveHighlight(
+      [{ type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'red' }],
+      { ...ctx, characterSlots: slots },
+    );
+    // One opaque rect per occupied cell of the 2×1 footprint.
+    expect(state!.cellHighlights).toEqual([
+      { x: 0, y: 0, w: 1, h: 1, color: '#EF4444' },
+      { x: 1, y: 0, w: 1, h: 1, color: '#EF4444' },
+    ]);
+    expect(state).not.toHaveProperty('objects');
+    expect(state!.backgroundHighlights).toEqual([]);
+  });
+
+  it('OPT-903 §1.2.8: a background linkage produces 背景高亮 only', () => {
+    const mixed = cells([
+      ['0,0', { background: { itemId: 21 } }],
+      ['2,2', { background: { itemId: 21 } }],
+      ['3,3', { object: { itemId: 21, w: 1, h: 1 } }],
+    ]);
+    const state = resolveHighlight(
+      [{ type: 'item', id: 21, scope: 'all', effect: 'highlight', color: 'blue' }],
+      { gridSize: 6, cells: mixed, characterSlots: slots, regions },
+    );
+    // Background placements → 背景高亮; the object placement → 方块高亮.
+    expect(state!.backgroundHighlights).toEqual([
+      { x: 0, y: 0, w: 1, h: 1, color: '#3B82F6' },
+      { x: 2, y: 2, w: 1, h: 1, color: '#3B82F6' },
+    ]);
+    expect(state!.cellHighlights).toEqual([
+      { x: 3, y: 3, w: 1, h: 1, color: '#3B82F6' },
+    ]);
+  });
+
+  it('OPT-903: 方块高亮 spans every cell of a 2×2 object', () => {
+    const big = cells([['1,1', { object: { itemId: 30, w: 2, h: 2 } }]]);
+    const state = resolveHighlight(
+      [{ type: 'item', id: 30, scope: 'all', effect: 'highlight', color: 'red' }],
+      { gridSize: 6, cells: big, characterSlots: slots, regions },
+    );
+    expect(state!.cellHighlights.map((rect) => `${rect.x},${rect.y}`).sort()).toEqual([
+      '1,1',
+      '1,2',
+      '2,1',
+      '2,2',
+    ]);
   });
 });
