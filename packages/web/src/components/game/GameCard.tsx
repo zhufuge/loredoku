@@ -31,8 +31,10 @@ export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
       )}
     >
-      {/* 16:10 cover; without one the map name's first character stands in. */}
-      <div className="relative aspect-[16/10] w-full overflow-hidden border-b bg-muted/50">
+      {/* SPEC-N04 (docs/v0.5.3.md §3): a **square** cover — the board is
+          `n × n`, so the exported cover is square and a 16:10 frame only cut
+          its top and bottom off. */}
+      <div className="relative aspect-square w-full overflow-hidden border-b bg-muted/50">
         {game.coverUrl ? (
           <img
             src={game.coverUrl}

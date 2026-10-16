@@ -35,7 +35,10 @@ const formSource = read('./ProjectFormDialogs.tsx');
 
 describe('ProjectGridCard (FEAT-H03 §3.2d + OPT-H04 §4.2b)', () => {
   it('leads with the cover and falls back to the name initial', () => {
-    expect(cardSource).toContain('aspect-[16/10]');
+    // v0.5.3 SPEC-N04: square — the board is `n × n`, so its cover is square
+    // and a 16:10 frame only cut the top and bottom off.
+    expect(cardSource).toContain('aspect-square');
+    expect(cardSource).not.toContain('aspect-[16/10]');
     expect(cardSource).toContain('{entry.coverUrl ? (');
     expect(cardSource).toContain('alt={entry.name}');
     // 无封面 → 取名称首字（与游戏卡片同一套占位）。

@@ -78,7 +78,9 @@ describe('GamesPage (FEAT-G01)', () => {
 
   it('cards carry the four required facts', () => {
     // Cover (with the map name initial as placeholder), name, difficulty, n×n.
-    expect(cardSource).toContain('aspect-[16/10]');
+    // v0.5.3 SPEC-N04: square, like the map card's.
+    expect(cardSource).toContain('aspect-square');
+    expect(cardSource).not.toContain('aspect-[16/10]');
     expect(cardSource).toContain('game.coverUrl ? (');
     expect(cardSource).toContain('game.name.trim().charAt(0)');
     expect(cardSource).toContain('GAME_DIFFICULTY_COLORS[game.difficulty]');

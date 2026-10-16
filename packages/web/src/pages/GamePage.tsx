@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
+import { BrandLogo } from '@/components/layout/BrandLogo';
 import {
   MapBackgroundLayer,
   MapCanvasFrameLayer,
@@ -606,7 +607,8 @@ export function GamePage(): JSX.Element {
             下 = 参与者面板（与预览页同一个组件） */}
         <aside className="flex w-[256px] shrink-0 flex-col border-r bg-background">
           <div className="shrink-0 space-y-1 border-b p-3">
-            {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。 */}
+            {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
+                v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
@@ -616,9 +618,7 @@ export function GamePage(): JSX.Element {
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <span className="text-xs font-semibold tracking-[0.18em] text-muted-foreground">
-                LOREDOKU
-              </span>
+              <BrandLogo height={16} />
             </div>
             <p className="truncate pl-1 text-sm font-semibold" title={game.name}>
               {game.name} {gridSize}x{gridSize}

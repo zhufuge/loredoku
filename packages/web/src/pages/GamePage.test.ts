@@ -164,8 +164,9 @@ describe('GamePage (FEAT-G03)', () => {
 
   describe('left column slim-down (v0.5.1 SPEC-L06 ~ SPEC-L09)', () => {
     it('shows the brand after the back arrow and the name on the next line', () => {
-      // FEAT-L07: `[←] LOREDOKU`, then `{name} {n}x{n}`.
-      expect(pageSource).toContain('LOREDOKU');
+      // FEAT-L07 + v0.5.3 FEAT-N03: `[←] [Logo]`, then `{name} {n}x{n}`.
+      expect(pageSource).toContain("from '@/components/layout/BrandLogo'");
+      expect(pageSource).toContain('<BrandLogo');
       expect(pageSource).toContain('{game.name} {gridSize}x{gridSize}');
     });
 

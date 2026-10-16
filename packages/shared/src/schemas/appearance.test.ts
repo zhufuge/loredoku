@@ -72,6 +72,29 @@ describe('createItemSchema — bgColor (FEAT-L01)', () => {
   })
 })
 
+describe('create schemas — isActive (FEAT-N06)', () => {
+  const item = { code: 'block_1', name: '色块' }
+  const character = { code: 'block_c', name: '色块人' }
+
+  it('omit it and the OPT-305 default (false) stands', () => {
+    // The repository turns `undefined` into `false`, so an old caller's
+    // behaviour is bit-for-bit unchanged.
+    expect(createItemSchema.parse(item).isActive).toBeUndefined()
+    expect(createCharacterSchema.parse(character).isActive).toBeUndefined()
+  })
+
+  it('accepts both values so a create can land enabled', () => {
+    expect(createItemSchema.parse({ ...item, isActive: true }).isActive).toBe(true)
+    expect(createItemSchema.parse({ ...item, isActive: false }).isActive).toBe(false)
+    expect(createCharacterSchema.parse({ ...character, isActive: true }).isActive).toBe(true)
+  })
+
+  it('rejects anything that is not a boolean', () => {
+    expect(createItemSchema.safeParse({ ...item, isActive: 'yes' }).success).toBe(false)
+    expect(createCharacterSchema.safeParse({ ...character, isActive: 1 }).success).toBe(false)
+  })
+})
+
 describe('updateItemSchema — bgColor (FEAT-L01)', () => {
   it('accepts null, which drops back to the image mode', () => {
     expect(updateItemSchema.parse({ bgColor: null }).bgColor).toBeNull()

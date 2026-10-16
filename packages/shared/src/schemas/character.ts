@@ -33,6 +33,11 @@ export const createCharacterSchema = z.object({
   description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH).optional().nullable(),
   /** v0.5.1 FEAT-L02: colour-block colour; `null` keeps the image mode. */
   bgColor: bgColorSchema,
+  /**
+   * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): enabled right away when the caller
+   * already supplies an appearance (avatar or colour block); omitted → `false`.
+   */
+  isActive: z.boolean().optional(),
   meta: z.record(z.unknown()).default({}),
 });
 

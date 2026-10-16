@@ -13,11 +13,13 @@ import {
   LINKAGE_COLOR_MAX_COUNT,
   LINKAGE_COLOR_MIN_COUNT,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
+  UI_Z,
   type CharacterSlotEntry,
   type MapLinkageColor,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ColorInput } from '@/components/ui/color-input';
+import { ColorPalette } from '@/components/ui/color-palette';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -251,9 +253,11 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         aria-hidden={!open}
         data-testid="puzzle-info-drawer"
         className={cn(
-          'absolute inset-y-0 right-0 z-30 flex w-80 max-w-[85vw] flex-col border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200',
+          'absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200',
           open ? 'translate-x-0' : 'pointer-events-none translate-x-full',
         )}
+        // FIX-N11 (docs/v0.5.3.md §6.4): shared layer constant.
+        style={{ zIndex: UI_Z.infoDrawer }}
       >
         <header className="flex h-11 shrink-0 items-center justify-between border-b px-4">
           <span className="text-sm font-semibold">谜题基本信息</span>
@@ -338,6 +342,14 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                       aria-label="颜色名称"
                     />
                   </div>
+                  {/* v0.5.3 FEAT-N09 (docs/v0.5.3.md §6.2): the palette — pick
+                      a colour in one click instead of typing hex. The hex input
+                      below stays for colours outside the palette. */}
+                  <ColorPalette
+                    aria-label={`联动主题色 ${entry.key || index + 1} 调色板`}
+                    value={entry.color}
+                    onSelect={(color) => patchEntry(index, { color })}
+                  />
                   <div className="flex items-center gap-1">
                     <Label className="w-8 shrink-0 text-[10px] font-normal text-muted-foreground">
                       key

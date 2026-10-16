@@ -43,6 +43,12 @@ export interface LinkageCharacterOption {
 export interface LinkageItemOption {
   itemId: number;
   name: string;
+  /**
+   * v0.5.3 FIX-N12 (docs/v0.5.3.md §6.5): the item's **业务 ID**. The list used
+   * to lead with `#${itemId}` — a database primary key the author never sees.
+   * `''` means the item carries no code, and the label degrades to the name.
+   */
+  code: string;
   /** Anchor coords of every placed instance of this item. */
   instances: Array<[number, number]>;
 }
@@ -353,8 +359,10 @@ export function LinkageDialog({
                             })
                           }
                         />
-                        <span className="truncate">
-                          #{item.itemId} {item.name} × {item.instances.length}
+                        {/* FIX-N12 §6.5: 名称（业务 ID）— no `#数字 id`. */}
+                        <span className="truncate" title={item.code || undefined}>
+                          {item.name}
+                          {item.code ? `（${item.code}）` : ''} × {item.instances.length}
                         </span>
                       </label>
                     ))

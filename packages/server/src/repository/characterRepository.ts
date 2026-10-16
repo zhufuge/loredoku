@@ -23,6 +23,11 @@ export interface CreateCharacterData {
   description: string | null;
   /** v0.5.1 FEAT-L02: colour-block colour; `null` / omitted = image mode. */
   bgColor?: string | null;
+  /**
+   * v0.5.3 FEAT-N06: create enabled when the caller already supplied an
+   * appearance; omitted keeps the OPT-305 default (`false`).
+   */
+  isActive?: boolean;
   meta: Record<string, unknown>;
 }
 
@@ -101,8 +106,9 @@ export async function create(data: CreateCharacterData): Promise<number> {
       description: data.description,
       bg_color: data.bgColor ?? null,
       meta: data.meta,
-      // OPT-305: 新建角色未上传头像，初始状态为停用；上传头像后需手动启用。
-      is_active: false,
+      // OPT-305: 新建角色未上传头像，初始状态为停用。
+      // v0.5.3 FEAT-N06: 上传了头像或选了纯色块 → 直接启用。
+      is_active: data.isActive ?? false,
     })
     .returning('id');
   return Number((row as { id: number | string }).id);

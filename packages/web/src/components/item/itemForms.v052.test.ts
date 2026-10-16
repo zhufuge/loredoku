@@ -75,25 +75,52 @@ describe('创建时即可上传图片（FEAT-M05）', () => {
     expect(itemDialog).toContain('useState<File | null>(null)');
     // Two-step: create → upload with the id the create call returned.
     expect(itemDialog).toContain('await createMutation.mutateAsync({');
-    expect(itemDialog).toContain('await uploadMutation.mutateAsync({ id: item.id, file })');
-    // A failed upload must not swallow the created item.
-    expect(itemDialog).toContain('.catch(() => undefined)');
+    expect(itemDialog).toContain('.mutateAsync({ id: item.id, file })');
+    // A failed upload must not swallow the created item — the result of the
+    // upload is captured so the auto-enable can be undone (v0.5.3 FEAT-N06).
+    expect(itemDialog).toContain('.then(() => true)');
+    expect(itemDialog).toContain('.catch(() => false)');
     expect(itemDialog).not.toContain('图片在创建后于右侧详情里上传。');
   });
 
   it('the character dialog does the same for the avatar', () => {
     expect(characterDialog).toContain('<PendingImageField');
     expect(characterDialog).toContain('await createMutation.mutateAsync({');
-    expect(characterDialog).toContain('await uploadMutation.mutateAsync({ id: character.id, file })');
+    expect(characterDialog).toContain('.mutateAsync({ id: character.id, file })');
     expect(characterDialog).not.toContain('头像在创建后于右侧详情里上传。');
   });
 
-  it('both dialogs keep the button busy across the two steps', () => {
-    expect(itemDialog).toContain('const busy = createMutation.isPending || uploadMutation.isPending;');
+  it('both dialogs keep the button busy across every step', () => {
+    // v0.5.3 FEAT-N06 added the (conditional) revert step.
+    expect(itemDialog).toContain(
+      'const busy = createMutation.isPending || uploadMutation.isPending || updateMutation.isPending;',
+    );
     expect(characterDialog).toContain(
-      'const busy = createMutation.isPending || uploadMutation.isPending;',
+      'createMutation.isPending || uploadMutation.isPending || updateMutation.isPending',
     );
     expect(itemDialog).toContain('<Button type="submit" disabled={busy}>');
+  });
+});
+
+describe('创建带外观即自动启用（FEAT-N06）', () => {
+  it('derives isActive from the same predicate the detail forms use', () => {
+    expect(itemDialog).toContain('const isActive = hasAppearance(file !== null, bgColor);');
+    expect(characterDialog).toContain('const isActive = hasAppearance(file !== null, bgColor);');
+    // `hasAppearance` is shared, not re-implemented here.
+    expect(characterDialog).toContain('hasAppearance,');
+  });
+
+  it('sends isActive with the create call', () => {
+    expect(itemDialog).toContain('isActive,');
+    expect(characterDialog).toContain('isActive,');
+  });
+
+  it('reverts an auto-enable whose image never landed', () => {
+    // §5.4: only when there is no colour block to fall back on.
+    expect(itemDialog).toContain('if (!uploaded && isActive && !bgColor) {');
+    expect(itemDialog).toContain('payload: { isActive: false }');
+    expect(characterDialog).toContain('if (!uploaded && isActive && !bgColor) {');
+    expect(characterDialog).toContain('payload: { isActive: false }');
   });
 });
 

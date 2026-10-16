@@ -16,7 +16,8 @@ import { formatRelativeTime } from '@/lib/relativeTime';
  *   编辑此版本 / 删除). It is **not** renamable and has no cover editor
  *   (SPEC-K11: a version is never edited in place).
  *
- * The cover is still the card's head at 16:10 and clicking it opens the editor
+ * The cover is still the card's head — square since v0.5.3 SPEC-N04 — and
+ * clicking it opens the editor
  * — for a version entry that button is 「编辑此版本」 instead, which forks a new
  * work entry (§7.3).
  */
@@ -58,7 +59,10 @@ export function ProjectGridCard({
       <button
         type="button"
         onClick={() => (isVersion ? onEditVersion?.(entry) : onOpen(entry))}
-        className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden border-b bg-muted/40"
+        // SPEC-N04 (docs/v0.5.3.md §3): square, like the game card's — the
+        // board is `n × n`, so a square frame is the only one that shows the
+        // whole cover.
+        className="relative block aspect-square w-full cursor-pointer overflow-hidden border-b bg-muted/40"
         title={isVersion ? '编辑此版本（将新增一个条目）' : entry.name}
       >
         {entry.coverUrl ? (

@@ -53,6 +53,12 @@ export const createItemSchema = z
     fitMode: itemFitModeSchema.default(DEFAULT_ITEM_FIT_MODE),
     /** v0.5.1 FEAT-L01: colour-block colour; `null` keeps the image mode. */
     bgColor: bgColorSchema,
+    /**
+     * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): create straight into the enabled
+     * state when the caller already handed over an appearance (image or colour
+     * block). Omitted → `false`, which is exactly OPT-305's "no artwork yet".
+     */
+    isActive: z.boolean().optional(),
   })
   .transform((value) => ({ ...value, canStand: canStandFor(value.category, value.canStand) }));
 

@@ -1,3 +1,4 @@
+import { UI_Z } from '@loredoku/shared';
 import type { DraftCell, DraftRegion, Item } from '@loredoku/shared';
 import { ItemThumbnail } from '@/components/item/ItemThumbnail';
 import { Button } from '@/components/ui/button';
@@ -247,15 +248,19 @@ export function EditorInfoDrawer({
         <button
           type="button"
           onClick={onOpen}
-          className="absolute right-0 top-1/2 z-20 flex h-16 w-2 -translate-y-1/2 items-center justify-center rounded-l-full border border-r-0 bg-background shadow hover:bg-accent"
+          className="absolute right-0 top-1/2 flex h-16 w-2 -translate-y-1/2 items-center justify-center rounded-l-full border border-r-0 bg-background shadow hover:bg-accent"
+          style={{ zIndex: UI_Z.infoDrawer }}
           title="展开信息抽屉"
         />
       ) : null}
       <aside
         className={
-          'absolute inset-y-0 right-0 z-20 w-80 max-w-[85vw] border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200 ' +
+          'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200 ' +
           (open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full')
         }
+        // FIX-N11 (docs/v0.5.3.md §6.4): above the ruler strips, below the
+        // participant drawer.
+        style={{ zIndex: UI_Z.infoDrawer }}
         aria-hidden={!open}
       >
         <div className="flex h-full flex-col">

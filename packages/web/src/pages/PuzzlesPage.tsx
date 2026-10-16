@@ -5,6 +5,7 @@ import {
   Download,
   Eye,
   Loader2,
+  Pencil,
   Plus,
   Rocket,
   Trash2,
@@ -347,6 +348,18 @@ export function PuzzlesPage(): JSX.Element {
                     </td>
                     <td className="whitespace-nowrap px-3 py-2">
                       <div className="flex flex-wrap justify-end gap-2">
+                        {/* FEAT-N05 (docs/v0.5.3.md §4): 编辑 leads the row —
+                            it is what a puzzle row is opened for. The five
+                            columns and their order are untouched (SPEC-K02). */}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          onClick={() => navigate(`/puzzles/${puzzle.id}/edit`)}
+                        >
+                          <Pencil className="mr-1 h-3.5 w-3.5" />
+                          编辑
+                        </Button>
                         <Button
                           size="sm"
                           variant="outline"

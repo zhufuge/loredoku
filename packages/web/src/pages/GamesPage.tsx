@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GameCard } from '@/components/game/GameCard';
+import { BrandLogo } from '@/components/layout/BrandLogo';
 import { useGames } from '@/hooks/useGames';
 
 /**
@@ -27,8 +28,12 @@ export function GamesPage(): JSX.Element {
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-7xl space-y-6 px-6 py-6">
-        <div>
-          <h1 className="text-xl font-semibold">游戏</h1>
+        {/* v0.5.3 FEAT-N03 (docs/v0.5.3.md §2): the mark leads the page too. */}
+        <div className="space-y-1">
+          <div className="flex items-center gap-3">
+            <BrandLogo height={22} />
+            <h1 className="text-xl font-semibold">游戏</h1>
+          </div>
           <p className="text-xs text-muted-foreground">
             {gamesQuery.isLoading
               ? '正在加载游戏…'
@@ -36,10 +41,11 @@ export function GamesPage(): JSX.Element {
           </p>
         </div>
 
+        {/* SPEC-N04: the loading skeleton mirrors the square cover. */}
         {gamesQuery.isLoading ? (
           <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="aspect-[4/3] w-full" />
+              <Skeleton key={index} className="aspect-square w-full" />
             ))}
           </div>
         ) : gamesQuery.isError ? (

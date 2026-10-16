@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { RULER_ACTIVE_FONT_DELTA } from '@loredoku/shared';
+import { RULER_ACTIVE_FONT_DELTA, UI_Z } from '@loredoku/shared';
 import type { CellCoord } from '@loredoku/shared';
 import type { MapStyle } from '@loredoku/shared';
 import { buildRulerGlyphs, rulerStripSize } from '@/lib/ruler';
@@ -80,10 +80,15 @@ export function MapRulerStrips({
   return (
     <>
       {/* Column ruler — the glyphs are anchored to the strip's bottom edge with
-          `paddingBottom: rulerGap`, so `gap` is exactly the text→board distance. */}
+          `paddingBottom: rulerGap`, so `gap` is exactly the text→board distance.
+
+          FIX-N11 (docs/v0.5.3.md §6.4): `UI_Z.ruler` — the strips used to be
+          `z-30`, above the 方格信息框's `z-20`, so dragging the canvas slid the
+          ruler glyphs over the drawer. */}
       <div
-        className="pointer-events-none absolute z-30"
+        className="pointer-events-none absolute"
         style={{
+          zIndex: UI_Z.ruler,
           left: pan.x,
           top: pan.y - rulerStrip,
           height: rulerStrip,
@@ -119,8 +124,9 @@ export function MapRulerStrips({
 
       {/* Row ruler — the glyphs sit against the strip's right edge. */}
       <div
-        className="pointer-events-none absolute z-30"
+        className="pointer-events-none absolute"
         style={{
+          zIndex: UI_Z.ruler,
           left: pan.x - rulerStrip,
           top: pan.y,
           width: rulerStrip,

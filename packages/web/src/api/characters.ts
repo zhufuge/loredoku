@@ -14,6 +14,8 @@ export interface CreateCharacterPayload {
   description?: string | null;
   /** v0.5.1 FEAT-L02: colour-block colour; `null` = image mode. */
   bgColor?: string | null;
+  /** v0.5.3 FEAT-N06: `true` creates the character already enabled. */
+  isActive?: boolean;
   meta?: Record<string, unknown>;
 }
 

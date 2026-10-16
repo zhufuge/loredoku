@@ -33,7 +33,10 @@ describe('ThemeColorDialog — 源码契约（FEAT-H08 §8.2）', () => {
   });
 
   it('offers the shared palette and a custom hex field with validation', () => {
-    expect(source).toContain('THEME_COLOR_PALETTE.map(');
+    // v0.5.3 FEAT-N09: the swatch grid moved into the shared `ColorPalette`,
+    // which is the same component the 联动主题色 rows now use.
+    expect(source).toContain("from '@/components/ui/color-palette'");
+    expect(source).toContain('<ColorPalette');
     expect(source).toContain('normalizeHexColor(hexDraft)');
     expect(source).toContain('aria-label="自定义主题色"');
     expect(source).toContain('data-testid="theme-color-preview"');
@@ -55,8 +58,9 @@ describe('ThemeColorDialog — 渲染行为（FEAT-H08）', () => {
   }
 
   // Radix portals the panel to `document.body`, so queries go through `document`.
+  // v0.5.3 FEAT-N09: the swatches come from the shared palette (「颜色 …」).
   const swatch = (color: string): HTMLButtonElement | null =>
-    document.querySelector<HTMLButtonElement>(`button[aria-label="主题色 ${color}"]`);
+    document.querySelector<HTMLButtonElement>(`button[aria-label="颜色 ${color}"]`);
 
   const buttonByText = (label: string): HTMLButtonElement | undefined =>
     Array.from(document.querySelectorAll('button')).find(
@@ -84,7 +88,7 @@ describe('ThemeColorDialog — 渲染行为（FEAT-H08）', () => {
 
   it('renders the whole palette', () => {
     render(DEFAULT_THEME_COLOR);
-    expect(document.querySelectorAll('button[aria-label^="主题色 "]').length).toBe(
+    expect(document.querySelectorAll('button[aria-label^="颜色 "]').length).toBe(
       THEME_COLOR_PALETTE.length,
     );
   });

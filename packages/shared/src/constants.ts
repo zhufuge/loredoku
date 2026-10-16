@@ -760,6 +760,34 @@ export const MAX_PAGE_SIZE = 100;
 export const API_PREFIX = '/api';
 export const FILES_ROUTE_PREFIX = `${API_PREFIX}/files`;
 
+// ---- v0.5.3 FIX-N01 提示位置 / FIX-N11 UI 层叠 ----
+/**
+ * FIX-N01 (docs/v0.5.3.md §1): the toast stack's distance from the top edge.
+ *
+ * The console's header bar is `h-14` (56px) and the editor's toolbar is the
+ * same height, so a top-right toast pinned to the edge covered 保存 / 发布 /
+ * 导入 / 导出. 64px puts the first toast **below** the bar while keeping it on
+ * the right — the side with the fewest controls.
+ */
+export const TOAST_OFFSET = 64;
+
+/**
+ * FIX-N11 (docs/v0.5.3.md §6.4): the stacking order of the editor's overlay
+ * panels, in one place.
+ *
+ * The strips used to hard-code `z-30` while the info drawer hard-coded `z-20`
+ * in a different file — so the ruler painted over the drawer. Values are
+ * deliberately sparse (10 / 20 / 30) so a future layer has room to slot in.
+ */
+export const UI_Z = {
+  /** 标尺条带 — always under every drawer. */
+  ruler: 10,
+  /** 方格信息框 / 谜题基本信息抽屉。 */
+  infoDrawer: 20,
+  /** 参与者信息框 — the top-most panel. */
+  drawer: 30,
+} as const;
+
 // ---- Error codes (see docs/feature-1.0.md §4.5, docs/feature-0.2.md §5) ----
 export const ErrorCode = {
   OK: 0,

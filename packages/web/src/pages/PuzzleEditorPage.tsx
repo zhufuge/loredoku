@@ -251,6 +251,8 @@ export function PuzzleEditorPage(): JSX.Element {
       list.push({
         itemId: cell.object.itemId,
         name: itemsById.get(cell.object.itemId)?.name ?? '',
+        // FIX-N12 §6.5: carried through to the linkage picker.
+        code: itemsById.get(cell.object.itemId)?.code ?? '',
         x,
         y,
       });
@@ -337,7 +339,17 @@ export function PuzzleEditorPage(): JSX.Element {
     },
   ): void => {
     puzzle.setParticipantConfig(slotIndex, patch);
+    /**
+     * FIX-N13 (docs/v0.5.3.md §6.6): 保存 closes the drawer and leaves no focus
+     * behind — neither the pick mode, nor the slot, nor a cell / region
+     * selection. Any one of them would let the 方格信息框 spring back up the
+     * moment the drawer is gone.
+     */
     setPositionPickSlot(null);
+    puzzle.setSelectedSlot(null);
+    puzzle.setSelection(null);
+    setPickedPosition(null);
+    setInfoOpen(false);
     toast.success('已保存参与者配置');
   };
 
@@ -763,6 +775,14 @@ export function PuzzleEditorPage(): JSX.Element {
               });
             }}
             onSelectRegion={(regionId) => {
+              /**
+               * FIX-N13 (docs/v0.5.3.md §6.6): `selectCellAt` reports the cell
+               * **and** the region it belongs to. `onSelect` already ignored the
+               * click while a position condition was being picked; this one did
+               * not — so picking a cell inside a region set a region selection
+               * and the 方格信息框 popped up as soon as the drawer closed.
+               */
+              if (positionPickSlot !== null) return;
               guardPuzzleInfo(() => {
                 puzzle.setSelection(regionId === null ? null : { type: 'region', regionId });
               });
@@ -823,30 +843,38 @@ export function PuzzleEditorPage(): JSX.Element {
             onCommit={commitPuzzleInfo}
           />
         </main>
-      </div>
 
-      <ParticipantDrawer
-        open={puzzle.selectedSlotIndex !== null}
-        onClose={() => {
-          setPositionPickSlot(null);
-          puzzle.setSelectedSlot(null);
-        }}
-        slotIndex={puzzle.selectedSlotIndex}
-        slots={puzzle.characterSlots}
-        character={selectedSlot ? charactersById.get(selectedSlot.characterId) : undefined}
-        charactersById={charactersById}
-        placedItems={placedItems}
-        regions={regions}
-        gridSize={gridSize}
-        linkageColors={puzzle.linkageColors}
-        positionPickActive={positionPickSlot !== null}
-        onTogglePositionPick={() =>
-          setPositionPickSlot((current) => (current === null ? puzzle.selectedSlotIndex : null))
-        }
-        pickedPosition={pickedPosition}
-        onPositionPicked={() => setPickedPosition(null)}
-        onSave={saveParticipant}
-      />
+        {/*
+         * FIX-N10 (docs/v0.5.3.md §6.3): the 参与者信息框 is `absolute
+         * inset-y-0`, so its containing block decides where it starts. It used
+         * to be a child of the page root — which is **not** positioned — so
+         * `inset-y-0` resolved against the viewport and the drawer ran from the
+         * very top, covering the header bar. Inside this row (a sibling of the
+         * header, and `relative`) it starts at the header's bottom edge.
+         */}
+        <ParticipantDrawer
+          open={puzzle.selectedSlotIndex !== null}
+          onClose={() => {
+            setPositionPickSlot(null);
+            puzzle.setSelectedSlot(null);
+          }}
+          slotIndex={puzzle.selectedSlotIndex}
+          slots={puzzle.characterSlots}
+          character={selectedSlot ? charactersById.get(selectedSlot.characterId) : undefined}
+          charactersById={charactersById}
+          placedItems={placedItems}
+          regions={regions}
+          gridSize={gridSize}
+          linkageColors={puzzle.linkageColors}
+          positionPickActive={positionPickSlot !== null}
+          onTogglePositionPick={() =>
+            setPositionPickSlot((current) => (current === null ? puzzle.selectedSlotIndex : null))
+          }
+          pickedPosition={pickedPosition}
+          onPositionPicked={() => setPickedPosition(null)}
+          onSave={saveParticipant}
+        />
+      </div>
 
       <AlertDialog
         open={pendingImport !== null}

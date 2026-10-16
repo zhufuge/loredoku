@@ -403,6 +403,28 @@ describe('items API', () => {
     expect(dropped.body.data.canStand).toBe(false);
   });
 
+  it('v0.5.3 FEAT-N06: a create can land enabled, and defaults to 停用', async () => {
+    const plain = await api.post('/api/items').send({
+      code: uniqueCode('inactive'),
+      name: 'Inactive Item',
+      category: 'object',
+    });
+    expect(plain.status).toBe(200);
+    createdItems.push(plain.body.data.id as number);
+    // OPT-305 stands: no appearance, no `isActive` → 停用.
+    expect(plain.body.data.isActive).toBe(false);
+
+    const enabled = await api.post('/api/items').send({
+      code: uniqueCode('active'),
+      name: 'Active Item',
+      category: 'object',
+      isActive: true,
+    });
+    expect(enabled.status).toBe(200);
+    createdItems.push(enabled.body.data.id as number);
+    expect(enabled.body.data.isActive).toBe(true);
+  });
+
   it('rejects an invalid item code', async () => {
     const res = await api.post('/api/items').send({ code: 'bad code', name: 'Bad' });
     expect(res.status).toBe(400);

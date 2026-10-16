@@ -20,6 +20,11 @@ export interface CreateItemData {
   fitMode: ItemFitMode;
   /** v0.5.1 FEAT-L01: colour-block colour; `null` / omitted = image mode. */
   bgColor?: string | null;
+  /**
+   * v0.5.3 FEAT-N06: create enabled when the caller already supplied an
+   * appearance; omitted keeps the OPT-305 default (`false`).
+   */
+  isActive?: boolean;
 }
 
 export interface UpdateItemData {
@@ -109,8 +114,9 @@ export async function create(data: CreateItemData): Promise<number> {
       can_stand: canStandFor(data.category, data.canStand),
       fit_mode: data.fitMode,
       bg_color: data.bgColor ?? null,
-      // OPT-305: 新建物品未上传图片，初始状态为停用；上传图片后需手动启用。
-      is_active: false,
+      // OPT-305: 新建物品未上传图片，初始状态为停用。
+      // v0.5.3 FEAT-N06: 上传了图片或选了纯色块 → 直接启用。
+      is_active: data.isActive ?? false,
     })
     .returning('id');
   return Number((row as { id: number | string }).id);

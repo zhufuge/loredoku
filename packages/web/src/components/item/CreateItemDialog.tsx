@@ -17,6 +17,7 @@ import {
   ITEM_SIZE_MAX,
   ITEM_SIZE_MIN,
   canStandFor,
+  hasAppearance,
   type AppearanceMode,
 } from '@loredoku/shared';
 import { AppearanceField } from '@/components/appearance/AppearanceField';
@@ -32,7 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateItem, useUploadItemImage } from '@/hooks/useItems';
+import { useCreateItem, useUpdateItem, useUploadItemImage } from '@/hooks/useItems';
 
 const schema = z.object({
   name: z.string().trim().min(1, '请输入物品名称').max(ITEM_NAME_MAX_LENGTH, '名称过长'),
@@ -95,6 +96,8 @@ export function CreateItemDialog({
 
   const createMutation = useCreateItem();
   const uploadMutation = useUploadItemImage();
+  /** FEAT-N06 §5.4: reverts an auto-enable whose image never landed. */
+  const updateMutation = useUpdateItem();
 
   useEffect(() => {
     if (!open) {
@@ -103,9 +106,18 @@ export function CreateItemDialog({
     }
   }, [open, reset]);
 
-  const busy = createMutation.isPending || uploadMutation.isPending;
+  const busy = createMutation.isPending || uploadMutation.isPending || updateMutation.isPending;
 
   const onSubmit = handleSubmit(async (values) => {
+    // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
+    const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;
+    /**
+     * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an appearance handed over at create
+     * time enables the item right away — 「建完还得再点一次启用」 was pure
+     * repetition. `hasAppearance` is the same predicate v0.5.1 uses when an
+     * image is deleted, so the two can never disagree.
+     */
+    const isActive = hasAppearance(file !== null, bgColor);
     let item: { id: number };
     try {
       item = await createMutation.mutateAsync({
@@ -115,8 +127,8 @@ export function CreateItemDialog({
         widthCells: values.widthCells,
         heightCells: values.heightCells,
         canStand: canStandFor(values.category, values.canStand),
-        // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
-        bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
+        bgColor,
+        isActive,
       });
     } catch {
       // The hook already toasted the reason (e.g. duplicate 业务 ID).
@@ -125,7 +137,18 @@ export function CreateItemDialog({
     // §5.1: an upload failure must not swallow the created item — the dialog
     // closes either way and the user retries from the detail pane.
     if (file) {
-      await uploadMutation.mutateAsync({ id: item.id, file }).catch(() => undefined);
+      const uploaded = await uploadMutation
+        .mutateAsync({ id: item.id, file })
+        .then(() => true)
+        .catch(() => false);
+      /**
+       * §5.4: the only reason this item is enabled is the image that just
+       * failed to land — put it back to 停用 so no「启用但无外观」row is left.
+       * A colour block needs no image, so it stays enabled.
+       */
+      if (!uploaded && isActive && !bgColor) {
+        await updateMutation.mutateAsync({ id: item.id, payload: { isActive: false } });
+      }
     }
     onOpenChange(false);
     onCreated(item.id);

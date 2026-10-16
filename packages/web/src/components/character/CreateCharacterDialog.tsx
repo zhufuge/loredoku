@@ -16,6 +16,7 @@ import {
   DEFAULT_BG_COLOR,
   DEFAULT_CHARACTER_GENDER,
   GENDER_SYMBOL_COLORS,
+  hasAppearance,
   type AppearanceMode,
 } from '@loredoku/shared';
 import { AppearanceField } from '@/components/appearance/AppearanceField';
@@ -32,7 +33,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateCharacter, useUploadCharacterAvatar } from '@/hooks/useCharacters';
+import {
+  useCreateCharacter,
+  useUpdateCharacter,
+  useUploadCharacterAvatar,
+} from '@/hooks/useCharacters';
 
 const schema = z.object({
   name: z.string().trim().min(1, '请输入角色名称').max(CHARACTER_NAME_MAX_LENGTH, '名称过长'),
@@ -82,6 +87,8 @@ export function CreateCharacterDialog({
 
   const createMutation = useCreateCharacter();
   const uploadMutation = useUploadCharacterAvatar();
+  /** FEAT-N06 §5.4: reverts an auto-enable whose avatar never landed. */
+  const updateMutation = useUpdateCharacter();
   // v0.5.2 FEAT-M05: the avatar can be picked before the character exists.
   const [file, setFile] = useState<File | null>(null);
 
@@ -92,9 +99,17 @@ export function CreateCharacterDialog({
     }
   }, [open, reset]);
 
-  const busy = createMutation.isPending || uploadMutation.isPending;
+  const busy =
+    createMutation.isPending || uploadMutation.isPending || updateMutation.isPending;
 
   const onSubmit = handleSubmit(async (values) => {
+    // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
+    const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;
+    /**
+     * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an avatar or a colour block handed
+     * over at create time enables the character right away.
+     */
+    const isActive = hasAppearance(file !== null, bgColor);
     let character: { id: number };
     try {
       character = await createMutation.mutateAsync({
@@ -102,15 +117,25 @@ export function CreateCharacterDialog({
         code: values.code,
         gender: values.gender,
         description: values.description || undefined,
-        // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
-        bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
+        bgColor,
+        isActive,
       });
     } catch {
       return;
     }
     // §5.1: a failed upload leaves the character in place.
     if (file) {
-      await uploadMutation.mutateAsync({ id: character.id, file }).catch(() => undefined);
+      const uploaded = await uploadMutation
+        .mutateAsync({ id: character.id, file })
+        .then(() => true)
+        .catch(() => false);
+      // §5.4: 启用 but no avatar and no colour block → back to 停用.
+      if (!uploaded && isActive && !bgColor) {
+        await updateMutation.mutateAsync({
+          id: character.id,
+          payload: { isActive: false },
+        });
+      }
     }
     onOpenChange(false);
     onCreated(character.id);

@@ -1,10 +1,7 @@
 import { useEffect, useState } from 'react';
-import {
-  DEFAULT_THEME_COLOR,
-  THEME_COLOR_PALETTE,
-  normalizeHexColor,
-} from '@loredoku/shared';
+import { DEFAULT_THEME_COLOR, normalizeHexColor } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { ColorPalette } from '@/components/ui/color-palette';
 import {
   Dialog,
   DialogContent,
@@ -66,27 +63,15 @@ export function ThemeColorDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-2">
-            {THEME_COLOR_PALETTE.map((color) => (
-              <button
-                key={color}
-                type="button"
-                title={color}
-                aria-label={`主题色 ${color}`}
-                onClick={() => {
-                  setDraft(color);
-                  setHexDraft(color);
-                }}
-                className={
-                  'h-7 w-7 rounded-full border-2 transition-transform ' +
-                  (draft.toUpperCase() === color.toUpperCase()
-                    ? 'scale-110 border-primary'
-                    : 'border-border hover:border-primary')
-                }
-                style={{ backgroundColor: color }}
-              />
-            ))}
-          </div>
+          {/* v0.5.3 FEAT-N09: the shared swatch grid (was inline here). */}
+          <ColorPalette
+            aria-label="主题色调色板"
+            value={draft}
+            onSelect={(color) => {
+              setDraft(color);
+              setHexDraft(color);
+            }}
+          />
 
           <div className="flex items-center gap-2">
             <Input

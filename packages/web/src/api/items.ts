@@ -17,6 +17,8 @@ export interface CreateItemPayload {
   fitMode?: ItemFitMode;
   /** v0.5.1 FEAT-L01: colour-block colour; `null` = image mode. */
   bgColor?: string | null;
+  /** v0.5.3 FEAT-N06: `true` creates the item already enabled. */
+  isActive?: boolean;
   // v0.5.2 FEAT-M03: `meta` and `triggers` were deleted with the columns.
 }
 

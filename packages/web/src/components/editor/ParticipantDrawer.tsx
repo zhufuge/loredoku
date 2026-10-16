@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   DEFAULT_THEME_COLOR,
+  UI_Z,
   type Character,
   type CharacterSlotEntry,
   type DraftRegion,
@@ -40,6 +41,8 @@ const DELETE_FEEDBACK_MS = 150;
 export interface PlacedItemOption {
   itemId: number;
   name: string;
+  /** v0.5.3 FIX-N12: the item's 业务 ID (the linkage picker shows it). */
+  code: string;
   x: number;
   y: number;
 }
@@ -174,6 +177,9 @@ export function ParticipantDrawer({
         byId.set(item.itemId, {
           itemId: item.itemId,
           name: item.name,
+          // FIX-N12 §6.5: the 业务 ID travels with the option so the picker can
+          // show 名称（业务 ID）instead of `#主键`.
+          code: item.code,
           instances: [[item.x, item.y]],
         });
       }
@@ -245,10 +251,20 @@ export function ParticipantDrawer({
   return (
     <aside
       className={
-        'absolute inset-y-0 right-0 z-30 w-80 max-w-[85vw] border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200 ' +
+        'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200 ' +
         (open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full')
       }
+      /**
+       * FIX-N10 (docs/v0.5.3.md §6.3): `inset-y-0` is measured against the
+       * nearest positioned ancestor — which must be the row **below** the
+       * header bar, never the page root. The page renders this drawer inside
+       * that row for exactly this reason.
+       *
+       * FIX-N11 §6.4: `UI_Z.drawer` — the top-most of the three panels.
+       */
+      style={{ zIndex: UI_Z.drawer }}
       aria-hidden={!open}
+      data-testid="participant-drawer"
     >
       <div className="flex h-full flex-col">
         <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">

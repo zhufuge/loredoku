@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Map, LayoutGrid, Package, Puzzle, Users } from 'lucide-react';
+import { Map, Package, Puzzle, Users } from 'lucide-react';
+import { BrandLogo } from '@/components/layout/BrandLogo';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -15,10 +16,8 @@ export function AppShell(): JSX.Element {
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-6 px-6">
-          <div className="flex items-center gap-2 font-semibold">
-            <LayoutGrid className="h-5 w-5 text-primary" />
-            <span>格物</span>
-          </div>
+          {/* v0.5.3 FEAT-N02 (docs/v0.5.3.md §2): 「图标 · 格物」. */}
+          <BrandLogo height={20} withWordmark />
           <nav className="flex items-center gap-1">
             {navItems.map((item) => (
               <NavLink

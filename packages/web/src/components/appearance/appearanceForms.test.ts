@@ -70,7 +70,11 @@ describe('物品外观（v0.5.1 FEAT-L01）', () => {
     expect(itemDialog).toContain('appearanceMode: z.enum(APPEARANCE_MODES),');
     expect(itemDialog).toContain('bgColor: z.string().regex(BG_COLOR_PATTERN');
     expect(itemDialog).toContain('bgColor: DEFAULT_BG_COLOR,');
-    expect(itemDialog).toContain("bgColor: values.appearanceMode === 'color' ? values.bgColor : null,");
+    // v0.5.3 FEAT-N06: the colour is hoisted into a local so both the payload
+    // and the auto-enable rule read the same value.
+    expect(itemDialog).toContain(
+      "const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;",
+    );
   });
 });
 
@@ -108,8 +112,9 @@ describe('角色外观（v0.5.1 FEAT-L02）', () => {
     expect(characterDialog).toContain('<AppearanceField');
     expect(characterDialog).toContain('appearanceMode: z.enum(APPEARANCE_MODES),');
     expect(characterDialog).toContain('bgColor: DEFAULT_BG_COLOR,');
+    // v0.5.3 FEAT-N06: hoisted, same as the item dialog.
     expect(characterDialog).toContain(
-      "bgColor: values.appearanceMode === 'color' ? values.bgColor : null,",
+      "const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;",
     );
   });
 });

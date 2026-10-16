@@ -32,6 +32,8 @@ export async function createCharacter(input: CreateCharacterInput): Promise<Char
     description: input.description ?? null,
     // v0.5.1 FEAT-L02: colour-block colour (`null` = image mode).
     bgColor: input.bgColor ?? null,
+    // v0.5.3 FEAT-N06: 带外观创建 → 直接启用。
+    isActive: input.isActive,
     meta: input.meta,
   });
   return getCharacter(id);
