@@ -3,6 +3,8 @@ import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
+  APPEARANCE_MODES,
+  BG_COLOR_PATTERN,
   CHARACTER_CODE_MAX_LENGTH,
   CHARACTER_CODE_PATTERN,
   CHARACTER_DESCRIPTION_MAX_LENGTH,
@@ -10,9 +12,13 @@ import {
   CHARACTER_GENDER_GLYPHS,
   CHARACTER_GENDER_LABELS,
   CHARACTER_NAME_MAX_LENGTH,
+  DEFAULT_APPEARANCE_MODE,
+  DEFAULT_BG_COLOR,
   DEFAULT_CHARACTER_GENDER,
   GENDER_SYMBOL_COLORS,
+  type AppearanceMode,
 } from '@loredoku/shared';
+import { AppearanceField } from '@/components/appearance/AppearanceField';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -37,6 +43,9 @@ const schema = z.object({
     .regex(CHARACTER_CODE_PATTERN, '业务 ID 仅允许字母、数字与下划线'),
   gender: z.enum(CHARACTER_GENDERS),
   description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH, '描述过长').optional(),
+  /** v0.5.1 FEAT-L02: image mode (default) or a colour block. */
+  appearanceMode: z.enum(APPEARANCE_MODES),
+  bgColor: z.string().regex(BG_COLOR_PATTERN, '颜色需为 #RRGGBB 格式'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -46,6 +55,8 @@ const DEFAULTS: FormValues = {
   code: '',
   gender: DEFAULT_CHARACTER_GENDER,
   description: '',
+  appearanceMode: DEFAULT_APPEARANCE_MODE,
+  bgColor: DEFAULT_BG_COLOR,
 };
 
 interface CreateCharacterDialogProps {
@@ -83,10 +94,13 @@ export function CreateCharacterDialog({
       code: values.code,
       gender: values.gender,
       description: values.description || undefined,
+      // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
+      bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
     });
   });
 
   const gender = watch('gender');
+  const appearanceMode = watch('appearanceMode');
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -144,6 +158,19 @@ export function CreateCharacterDialog({
             <Label htmlFor="character-desc">描述</Label>
             <Textarea id="character-desc" placeholder="选填" rows={2} {...register('description')} />
           </div>
+          <AppearanceField
+            mode={appearanceMode as AppearanceMode}
+            onModeChange={(mode) => setValue('appearanceMode', mode, { shouldDirty: true })}
+            bgColor={watch('bgColor')}
+            onBgColorChange={(value) => setValue('bgColor', value.toUpperCase(), { shouldDirty: true })}
+          >
+            <p className="text-xs text-muted-foreground">
+              头像在创建后于右侧详情里上传。
+            </p>
+          </AppearanceField>
+          {errors.bgColor ? (
+            <p className="text-xs text-destructive">{errors.bgColor.message}</p>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消

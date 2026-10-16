@@ -26,6 +26,8 @@ export interface CreateItemData {
   heightCells: number;
   canStand: boolean;
   fitMode: ItemFitMode;
+  /** v0.5.1 FEAT-L01: colour-block colour; `null` / omitted = image mode. */
+  bgColor?: string | null;
   meta: Record<string, unknown>;
   triggers: ItemTriggerInput[];
 }
@@ -37,6 +39,8 @@ export interface UpdateItemData {
   heightCells?: number;
   canStand?: boolean;
   fitMode?: ItemFitMode;
+  /** v0.5.1 FEAT-L01: `null` clears the colour block (back to image mode). */
+  bgColor?: string | null;
   meta?: Record<string, unknown>;
   isActive?: boolean;
 }
@@ -76,6 +80,7 @@ function toItem(row: ItemRow, triggers: ItemTrigger[]): Item {
     imageSize: row.image_size,
     imageWidth: row.image_width,
     imageHeight: row.image_height,
+    bgColor: row.bg_color ?? null,
     meta: row.meta ?? {},
     isActive: row.is_active,
     triggers,
@@ -143,6 +148,7 @@ export async function create(data: CreateItemData): Promise<number> {
       height_cells: data.heightCells,
       can_stand: data.canStand,
       fit_mode: data.fitMode,
+      bg_color: data.bgColor ?? null,
       meta: data.meta,
         // OPT-305: 新建物品未上传图片，初始状态为停用；上传图片后需手动启用。
         is_active: false,
@@ -172,6 +178,7 @@ export async function update(id: number, data: UpdateItemData): Promise<boolean>
   if (data.heightCells !== undefined) patch.height_cells = data.heightCells;
   if (data.canStand !== undefined) patch.can_stand = data.canStand;
   if (data.fitMode !== undefined) patch.fit_mode = data.fitMode;
+  if (data.bgColor !== undefined) patch.bg_color = data.bgColor;
   if (data.meta !== undefined) patch.meta = data.meta;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
   const affected = await db('items').where({ id }).update(patch);
@@ -197,7 +204,8 @@ export async function clearImage(id: number): Promise<void> {
     image_width: null,
     image_height: null,
     // OPT-305: 删除图片后自动停用（数据引用保留）。
-    is_active: false,
+    // v0.5.1 FEAT-L01 收窄：纯色块（有 bg_color）不依赖图片，删图只是删图。
+    is_active: db.raw('CASE WHEN bg_color IS NULL THEN false ELSE is_active END'),
     updated_at: db.fn.now(),
   });
 }

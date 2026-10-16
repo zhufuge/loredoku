@@ -19,11 +19,11 @@ export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
     <Card
       role="button"
       tabIndex={0}
-      onClick={() => navigate(`/games/${game.slug}`)}
+      onClick={() => navigate(`/play/${game.slug}`)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          navigate(`/games/${game.slug}`);
+          navigate(`/play/${game.slug}`);
         }
       }}
       className={cn(

@@ -87,6 +87,8 @@ export interface Item {
   imageSize: number | null;
   imageWidth: number | null;
   imageHeight: number | null;
+  /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  bgColor: string | null;
   meta: Record<string, unknown>;
   isActive: boolean;
   triggers: ItemTrigger[];
@@ -111,6 +113,8 @@ export interface Character {
   avatarSize: number | null;
   avatarWidth: number | null;
   avatarHeight: number | null;
+  /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  bgColor: string | null;
   meta: Record<string, unknown>;
   isActive: boolean;
   createdAt: string;

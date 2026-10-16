@@ -40,6 +40,17 @@ export function CharacterThumbnail({
   const src = failed ? character.avatarUrl : character.avatarThumbUrl ?? character.avatarUrl;
   const plain = shape === 'plain';
 
+  // v0.5.1 FEAT-L02 / SPEC-L03: a colour block wins over the avatar.
+  if (character.bgColor) {
+    return (
+      <div
+        data-color-block={character.bgColor}
+        style={{ backgroundColor: character.bgColor }}
+        className={cn(plain ? undefined : 'rounded-full', bordered ? 'border' : undefined, className)}
+      />
+    );
+  }
+
   if (!src) {
     if (plain) {
       const initial = character.name.trim().charAt(0);

@@ -60,7 +60,7 @@ describe('PuzzlesPage table（交付标准 #2：与 v0.4.3 作品页逐字一致
     expect(pageSource).toContain("onClick={() => navigate(`/puzzles/${puzzle.id}/view`)}");
     // 部署徽标可点进游戏；按钮文案按是否已部署切换。
     expect(pageSource).toContain('该谜题已部署为游戏，点击进入游戏页面');
-    expect(pageSource).toContain("onClick={() => navigate(`/games/${game.slug}`)}");
+    expect(pageSource).toContain("onClick={() => navigate(`/play/${game.slug}`)}");
     expect(pageSource).toContain("{isDeployed ? '重新部署' : '部署'}");
   });
 });

@@ -74,6 +74,7 @@ function item(overrides: Partial<Item> = {}): Item {
     imageUrl: null,
     imageThumbUrl: null,
     imageMime: null,
+    bgColor: null,
     imageSize: null,
     imageWidth: null,
     imageHeight: null,

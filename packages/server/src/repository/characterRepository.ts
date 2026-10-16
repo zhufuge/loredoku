@@ -21,6 +21,8 @@ export interface CreateCharacterData {
   /** FEAT-501 */
   gender: CharacterGender;
   description: string | null;
+  /** v0.5.1 FEAT-L02: colour-block colour; `null` / omitted = image mode. */
+  bgColor?: string | null;
   meta: Record<string, unknown>;
 }
 
@@ -28,6 +30,8 @@ export interface UpdateCharacterData {
   name?: string;
   gender?: CharacterGender;
   description?: string | null;
+  /** v0.5.1 FEAT-L02: `null` clears the colour block (back to image mode). */
+  bgColor?: string | null;
   meta?: Record<string, unknown>;
   isActive?: boolean;
 }
@@ -54,6 +58,7 @@ function toCharacter(row: CharacterRow): Character {
     avatarSize: row.avatar_size,
     avatarWidth: row.avatar_width,
     avatarHeight: row.avatar_height,
+    bgColor: row.bg_color ?? null,
     meta: row.meta ?? {},
     isActive: row.is_active,
     createdAt: new Date(row.created_at).toISOString(),
@@ -94,6 +99,7 @@ export async function create(data: CreateCharacterData): Promise<number> {
       name: data.name,
       gender: data.gender,
       description: data.description,
+      bg_color: data.bgColor ?? null,
       meta: data.meta,
       // OPT-305: 新建角色未上传头像，初始状态为停用；上传头像后需手动启用。
       is_active: false,
@@ -107,6 +113,7 @@ export async function update(id: number, data: UpdateCharacterData): Promise<boo
   if (data.name !== undefined) patch.name = data.name;
   if (data.gender !== undefined) patch.gender = data.gender;
   if (data.description !== undefined) patch.description = data.description;
+  if (data.bgColor !== undefined) patch.bg_color = data.bgColor;
   if (data.meta !== undefined) patch.meta = data.meta;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
   const affected = await db('characters').where({ id }).update(patch);
@@ -132,7 +139,8 @@ export async function clearAvatar(id: number): Promise<void> {
     avatar_width: null,
     avatar_height: null,
     // OPT-305: 删除头像后自动停用（数据引用保留）。
-    is_active: false,
+    // v0.5.1 FEAT-L02 收窄：纯色块（有 bg_color）不依赖头像，删头像只是删头像。
+    is_active: db.raw('CASE WHEN bg_color IS NULL THEN false ELSE is_active END'),
     updated_at: db.fn.now(),
   });
 }
@@ -267,23 +275,29 @@ export async function existingCharacterIds(ids: number[]): Promise<Set<number>> 
 
 export interface CharacterSlotMeta {
   hasAvatar: boolean;
+  /** v0.5.1 FEAT-L02: a colour block counts as an appearance too. */
+  hasAppearance: boolean;
 }
 
 /**
  * CLAR-603 P2 (docs/v0.3.1.md §3.3): participants without an avatar are
- * treated as not enabled and are not counted. Only ids that exist are
- * present in the returned map.
+ * treated as not enabled and are not counted. v0.5.1 FEAT-L02 widens it —
+ * a **colour block** is a valid appearance as well, so `hasAppearance` is the
+ * value to test. Only ids that exist are present in the returned map.
  */
 export async function characterSlotMetaByIds(
   ids: number[],
 ): Promise<Map<number, CharacterSlotMeta>> {
   const meta = new Map<number, CharacterSlotMeta>();
   if (ids.length === 0) return meta;
-  const rows = (await db('characters')
-    .whereIn('id', ids)
-    .select('id', 'avatar_path')) as Array<{ id: number | string; avatar_path: string | null }>;
+  const rows = (await db('characters').whereIn('id', ids).select('id', 'avatar_path', 'bg_color')) as Array<{
+    id: number | string;
+    avatar_path: string | null;
+    bg_color: string | null;
+  }>;
   for (const row of rows) {
-    meta.set(Number(row.id), { hasAvatar: row.avatar_path !== null });
+    const hasAvatar = row.avatar_path !== null;
+    meta.set(Number(row.id), { hasAvatar, hasAppearance: hasAvatar || row.bg_color !== null });
   }
   return meta;
 }

@@ -219,20 +219,31 @@ export function MapBackgroundLayer({
           if (!item) return null;
           const [x, y] = parseKey(key);
           const src = item.imageThumbUrl ?? item.imageUrl;
-          if (!src) return null;
+          // v0.5.1 FEAT-L01 / SPEC-L03: a colour block fills the cell with its
+          // colour — no image needed.
+          const block = item.bgColor ? (
+            <div
+              data-color-block={item.bgColor}
+              className="block h-full w-full"
+              style={{ backgroundColor: item.bgColor }}
+            />
+          ) : src ? (
+            <img
+              src={src}
+              alt=""
+              draggable={false}
+              className="block h-full w-full"
+              style={{ objectFit: item.fitMode === 'contain' ? 'contain' : 'cover' }}
+            />
+          ) : null;
+          if (!block) return null;
           return (
             <div
               key={`bg-${key}`}
               className="absolute overflow-hidden"
               style={{ ...cellRectStyle(x, y, cellSize), zIndex: MAP_LAYER_Z.backgroundLayer }}
             >
-              <img
-                src={src}
-                alt=""
-                draggable={false}
-                className="block h-full w-full"
-                style={{ objectFit: item.fitMode === 'contain' ? 'contain' : 'cover' }}
-              />
+              {block}
             </div>
           );
         })}
@@ -283,14 +294,37 @@ export function MapObjectLayer({
           const item = itemsById.get(anchor.itemId);
           const [x, y] = parseKey(key);
           const src = item?.imageThumbUrl ?? item?.imageUrl;
-          if (!src) return null;
           const hovered =
             hover !== null &&
             hover.x >= x &&
             hover.x < x + anchor.w &&
             hover.y >= y &&
             hover.y < y + anchor.h;
-          const lifted = hovered && liftOnHover;
+          // OPT-902: the lift is a picture affordance; a solid block has no
+          // artwork to lift, so it stays put.
+          const lifted = hovered && liftOnHover && !item?.bgColor;
+          // v0.5.1 FEAT-L01 / SPEC-L03: colour blocks render as a solid block.
+          const inner = item?.bgColor ? (
+            <div
+              data-color-block={item.bgColor}
+              className="block h-full w-full"
+              style={{ backgroundColor: item.bgColor }}
+            />
+          ) : src ? (
+            <img
+              src={src}
+              alt=""
+              draggable={false}
+              className="block h-full w-full"
+              style={{
+                // OPT-C06: the item's own fitMode is preserved, never forced.
+                objectFit: item?.fitMode === 'contain' ? 'contain' : 'cover',
+                transform: lifted ? `translateY(-${OBJECT_HOVER_LIFT_PX}px)` : undefined,
+                transition: `transform ${OBJECT_HOVER_TRANSITION_MS}ms ease-out`,
+              }}
+            />
+          ) : null;
+          if (!inner) return null;
           return (
             <div
               key={`obj-${key}`}
@@ -318,18 +352,7 @@ export function MapObjectLayer({
                 onClick?.({ x, y }, event);
               }}
             >
-              <img
-                src={src}
-                alt=""
-                draggable={false}
-                className="block h-full w-full"
-                style={{
-                  // OPT-C06: the item's own fitMode is preserved, never forced.
-                  objectFit: item?.fitMode === 'contain' ? 'contain' : 'cover',
-                  transform: lifted ? `translateY(-${OBJECT_HOVER_LIFT_PX}px)` : undefined,
-                  transition: `transform ${OBJECT_HOVER_TRANSITION_MS}ms ease-out`,
-                }}
-              />
+              {inner}
             </div>
           );
         })}
@@ -865,6 +888,22 @@ function ParticipantAvatar({
 }): JSX.Element | null {
   const character = slot ? charactersById.get(slot.characterId) : undefined;
   const src = character?.avatarThumbUrl ?? character?.avatarUrl;
+  // v0.5.1 FEAT-L02 / SPEC-L03: a colour block paints the avatar disc instead
+  // of an uploaded picture.
+  if (character?.bgColor) {
+    return (
+      <div
+        data-color-block={character.bgColor}
+        className="no-drag block h-full w-full rounded-full"
+        style={{
+          backgroundColor: character.bgColor,
+          padding,
+          boxSizing: 'border-box',
+          backgroundClip: 'content-box',
+        }}
+      />
+    );
+  }
   if (!src) return null;
   return (
     <img

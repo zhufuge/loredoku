@@ -37,7 +37,7 @@ const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
  * - OPT-W03: re-deploying prefills the difficulty and shows the current cover,
  *   with a three-way choice — keep it, replace it, or remove it;
  * - OPT-W04: the game's **access path** is a first-class field, defaulted to
- *   `puzzle-{name}-{difficulty}` and previewed as `/games/{value}`.
+ *   `puzzle-{name}-{difficulty}` and previewed as `/play/{value}`.
  *
  * v0.5.0 CONS-K16 (docs/v0.5.0.md §10.2): the deployed unit is a **puzzle**
  * now — one game per puzzle, so `puzzle_id` is what the request targets and
@@ -113,7 +113,7 @@ export function GameDeployDialog({
   /**
    * §4.4 / Q13: the line under the input. An untouched name that slugifies to
    * nothing derives no path at all, so the author is told to type one instead
-   * of being left with a bare `/games/`.
+   * of being left with a bare `/play/`.
    */
   const slugProblem =
     slug.length > 0
@@ -221,7 +221,7 @@ export function GameDeployDialog({
                 slugProblem ? 'text-destructive' : 'text-muted-foreground',
               )}
             >
-              {slugProblem ?? `/games/${slug}`}
+              {slugProblem ?? `/play/${slug}`}
             </p>
           </div>
 

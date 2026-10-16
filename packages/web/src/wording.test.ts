@@ -103,3 +103,67 @@ describe('用户可见文案：作品 → 谜题（v0.5.0 §14 标准 1）', () 
     expect(page).toContain('新建谜题');
   });
 });
+
+/**
+ * FEAT-L04（docs/v0.5.1.md §4）：游戏路由 `/games` → `/play`。
+ *
+ * `/api/games*` 是内部接口、用户不可见，本版不改 —— 所以只扫**页面路由**口径：
+ * 去掉 `api/games` 之后，任何 `` `/games… `` 模板串都必须是残留。
+ */
+describe('游戏路由：/games → /play（v0.5.1 FEAT-L04）', () => {
+  /**
+   * `src/api/**` is the **HTTP client**: its `/games…` strings are API
+   * endpoints (`/api/games` once `apiGet` prefixes them), which v0.5.1 leaves
+   * alone (docs/v0.5.1.md §4 实现期裁定 R2). Only the rest of the tree is
+   * page-route territory.
+   */
+  const pageFiles = productionFiles.filter(([path]) => !path.startsWith('./api/'));
+
+  /**
+   * Module specifiers such as `from '@/api/games'` also contain `/games`, so
+   * import lines are dropped before the scan — what must be zero is a **page**
+   * route, i.e. a `/games…` string literal somewhere else.
+   */
+  function withoutImports(source: string): string {
+    return stripComments(source)
+      .split('\n')
+      .filter((line) => !/^\s*import\b/.test(line) && !/\bfrom\s+['"]/.test(line))
+      .join('\n');
+  }
+
+  it('no production file still links to a /games page route', () => {
+    const offenders = pageFiles
+      .filter(([, source]) => withoutImports(source).includes('/games'))
+      .map(([path]) => path);
+    expect(offenders).toEqual([]);
+  });
+
+  it('the API client keeps its /games endpoints — only the page路由 moved', () => {
+    const api = sources['./api/games.ts'] ?? '';
+    expect(api).toContain("'/games'");
+    expect(api).toContain('`/games/slug/${encodeURIComponent(slug)}`');
+    expect(api).not.toContain('/play');
+  });
+
+  it('the router registers /play and /play/:slug', () => {
+    const router = sources['./router.tsx'] ?? '';
+    expect(router).toContain("path: '/play'");
+    expect(router).toContain("path: '/play/:slug'");
+    expect(router).not.toContain("path: '/games'");
+    expect(router).not.toContain("path: '/games/:slug'");
+  });
+
+  it('every entry point into a game uses the new path', () => {
+    // The card, the 已部署 badge on the puzzle table and the game page's own
+    // back buttons.
+    expect(sources['./components/game/GameCard.tsx'] ?? '').toContain('navigate(`/play/${game.slug}`)');
+    expect(sources['./pages/PuzzlesPage.tsx'] ?? '').toContain('navigate(`/play/${game.slug}`)');
+    const page = sources['./pages/GamePage.tsx'] ?? '';
+    expect(page).toContain("navigate('/play')");
+    expect(page).not.toContain("navigate('/games')");
+  });
+
+  it('the deploy dialog previews the new path', () => {
+    expect(sources['./components/game/GameDeployDialog.tsx'] ?? '').toContain('`/play/${slug}`');
+  });
+});

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { bgColorSchema } from './appearance';
 import {
   DEFAULT_ITEM_CATEGORY,
   DEFAULT_ITEM_FIT_MODE,
@@ -43,6 +44,8 @@ export const createItemSchema = z.object({
   heightCells: itemSizeSchema.default(ITEM_SIZE_DEFAULT),
   canStand: z.boolean().default(true),
   fitMode: itemFitModeSchema.default(DEFAULT_ITEM_FIT_MODE),
+  /** v0.5.1 FEAT-L01: colour-block colour; `null` keeps the image mode. */
+  bgColor: bgColorSchema,
   meta: z.record(z.unknown()).default({}),
   triggers: z.array(itemTriggerInputSchema).default([]),
 });
@@ -54,6 +57,8 @@ export const updateItemSchema = z.object({
   heightCells: itemSizeSchema.optional(),
   canStand: z.boolean().optional(),
   fitMode: itemFitModeSchema.optional(),
+  /** v0.5.1 FEAT-L01: pass `null` to drop back to the image mode. */
+  bgColor: bgColorSchema,
   meta: z.record(z.unknown()).optional(),
   isActive: z.boolean().optional(),
 });

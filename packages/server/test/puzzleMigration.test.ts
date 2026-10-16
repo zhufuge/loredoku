@@ -112,3 +112,39 @@ describe('v0.5.0 migration shape (§11.1)', () => {
     expect(cols).toContain('version_no');
   });
 });
+
+/**
+ * v0.5.1 FEAT-L01 / FEAT-L02（docs/v0.5.1.md §6.1）：迁移 18 给 `items` 与
+ * `characters` 各加一列可空的 `bg_color`。
+ *
+ * 可空是刻意的 —— 存量行 `NULL` 表示「图片类型」，渲染走原分支，行为逐像素不变
+ * （§6.3），所以没有回填、也不需要改任何已存的 JSON。
+ */
+describe('v0.5.1 colour-block migration (§6.1)', () => {
+  it('adds a nullable bg_color to items', async () => {
+    const rows = await db('information_schema.columns')
+      .where({ table_name: 'items', column_name: 'bg_color', table_schema: 'public' })
+      .select('is_nullable', 'data_type');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].is_nullable).toBe('YES');
+    expect(rows[0].data_type).toBe('text');
+  });
+
+  it('adds a nullable bg_color to characters', async () => {
+    const rows = await db('information_schema.columns')
+      .where({ table_name: 'characters', column_name: 'bg_color', table_schema: 'public' })
+      .select('is_nullable', 'data_type');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].is_nullable).toBe('YES');
+    expect(rows[0].data_type).toBe('text');
+  });
+
+  it('leaves every existing row on the image branch', async () => {
+    const itemNulls = await db('items').whereNotNull('bg_color').count('* as c');
+    const charNulls = await db('characters').whereNotNull('bg_color').count('* as c');
+    // Only rows written by this suite's colour-block tests may carry a colour,
+    // and those are cleaned up — so a bare run sees none.
+    expect(Number(itemNulls[0]?.c ?? 0)).toBe(0);
+    expect(Number(charNulls[0]?.c ?? 0)).toBe(0);
+  });
+});

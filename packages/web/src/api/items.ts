@@ -15,6 +15,8 @@ export interface CreateItemPayload {
   heightCells?: number;
   canStand?: boolean;
   fitMode?: ItemFitMode;
+  /** v0.5.1 FEAT-L01: colour-block colour; `null` = image mode. */
+  bgColor?: string | null;
   meta?: Record<string, unknown>;
   triggers?: ItemTriggerInput[];
 }
@@ -26,6 +28,8 @@ export interface UpdateItemPayload {
   heightCells?: number;
   canStand?: boolean;
   fitMode?: ItemFitMode;
+  /** v0.5.1 FEAT-L01: `null` drops back to the image mode. */
+  bgColor?: string | null;
   meta?: Record<string, unknown>;
   isActive?: boolean;
 }

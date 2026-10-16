@@ -13,8 +13,6 @@ import {
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
-  GAME_DIFFICULTY_COLORS,
-  GAME_DIFFICULTY_LABELS,
   GAME_LONG_PRESS_MS,
   MAP_LAYER_Z,
   RULER_ACTIVE_FONT_DELTA,
@@ -83,7 +81,7 @@ import {
   participantPlacementAt,
   placeForbidden,
   placeParticipant,
-  placedParticipantIds,
+  avatarPlacedParticipantIds,
   placementAt,
   placementBlockReason,
   resolveToolHint,
@@ -371,11 +369,12 @@ export function GamePage(): JSX.Element {
    * board fade out. Derived from the board, so clearing or undoing a placement
    * restores the card with no extra bookkeeping.
    *
-   * SPEC-J05: "on the board" here means **any mark**, a lone candidate 编号
-   * included — the fade is a "this one has been marked" hint, not a verdict.
+   * v0.5.1 SPEC-L05 (docs/v0.5.1.md §5.1): "on the board" now means **the
+   * avatar** — a candidate 编号 no longer dims the card, so marking a few
+   * possible cells leaves the roster fully readable.
    */
   const placedSlotIndices = useMemo(() => {
-    const placed = placedParticipantIds(placementState.board);
+    const placed = avatarPlacedParticipantIds(placementState.board);
     const indices = new Set<number>();
     for (const participantId of placed) indices.add(participantId - 1);
     return indices;
@@ -590,7 +589,8 @@ export function GamePage(): JSX.Element {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">游戏不存在或加载失败。</p>
-        <Button variant="outline" onClick={() => navigate('/games')}>
+        {/* FEAT-L04: the game list lives at /play now. */}
+        <Button variant="outline" onClick={() => navigate('/play')}>
           返回游戏列表
         </Button>
       </div>
@@ -602,61 +602,26 @@ export function GamePage(): JSX.Element {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
-        {/* 左列：上 = 游戏信息，下 = 参与者面板（与预览页同一个组件） */}
+        {/* 左列：上 = 品牌 + 游戏名（v0.5.1 SPEC-L06~L09 精简后的两行），
+            下 = 参与者面板（与预览页同一个组件） */}
         <aside className="flex w-[256px] shrink-0 flex-col border-r bg-background">
-          <div className="shrink-0 space-y-3 border-b p-3">
+          <div className="shrink-0 space-y-1 border-b p-3">
+            {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。 */}
             <div className="flex items-center gap-1">
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => navigate('/games')}
+                onClick={() => navigate('/play')}
                 title="返回游戏列表"
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
-              <span className="truncate text-sm font-semibold" title={game.name}>
-                {game.name}
+              <span className="text-xs font-semibold tracking-[0.18em] text-muted-foreground">
+                LOREDOKU
               </span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="flex h-14 w-20 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/40">
-                {game.coverUrl ? (
-                  <img
-                    src={game.coverUrl}
-                    alt={game.name}
-                    draggable={false}
-                    className="no-drag h-full w-full object-cover"
-                  />
-                ) : (
-                  <span className="text-lg font-semibold text-muted-foreground/60">
-                    {game.name.trim().charAt(0) || '游'}
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span
-                    className="rounded px-2 py-0.5 text-[11px] font-medium text-white"
-                    style={{ backgroundColor: GAME_DIFFICULTY_COLORS[game.difficulty] }}
-                  >
-                    {GAME_DIFFICULTY_LABELS[game.difficulty]}
-                  </span>
-                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
-                    {gridSize} × {gridSize}
-                  </span>
-                </div>
-                <p className="text-[11px] text-muted-foreground">
-                  来自地图 v{game.versionNo} · 参与者 {slots.filter(Boolean).length} 人
-                </p>
-              </div>
-            </div>
-            <p className="text-[11px] leading-relaxed text-muted-foreground">
-              点击参与者进入放置状态：点击格子放置的是该参与者的「编号」（再次点击同一格即移除），
-              长按格子（≥500ms）放置的是该参与者的「头像」。编号与参与者不是一个东西——编号只是
-              候选标记，同一位参与者的编号可以同时留在多个格子上，点编号不会触发行 / 列的排除项；
-              只有长按放头像时才会自动在同行同列补上 ×，并把该参与者留在其它格子的编号清除。
-              每位参与者的头像只能有一个。需要手动排除时，用工具栏的「禁止符号」。
-              已放置的参与者卡片会变淡。提交前会校验行 / 列互斥与位置条件。
+            <p className="truncate pl-1 text-sm font-semibold" title={game.name}>
+              {game.name} {gridSize}x{gridSize}
             </p>
           </div>
           <div className="flex min-h-0 flex-1">

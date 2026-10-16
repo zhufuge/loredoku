@@ -30,6 +30,8 @@ export async function createCharacter(input: CreateCharacterInput): Promise<Char
     name: input.name,
     gender: input.gender,
     description: input.description ?? null,
+    // v0.5.1 FEAT-L02: colour-block colour (`null` = image mode).
+    bgColor: input.bgColor ?? null,
     meta: input.meta,
   });
   return getCharacter(id);

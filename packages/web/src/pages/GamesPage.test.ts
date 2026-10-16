@@ -43,7 +43,7 @@ const shellSource =
 describe('GamesPage (FEAT-G01)', () => {
   it('is a top-level route outside the app shell', () => {
     expect(routerSource).toContain("import { GamesPage } from '@/pages/GamesPage'");
-    expect(routerSource).toContain("path: '/games',");
+    expect(routerSource).toContain("path: '/play',");
     expect(routerSource).toContain('element: <GamesPage />');
     // It must not live inside the AppShell children array…
     const shellChildren = routerSource.slice(
@@ -52,7 +52,10 @@ describe('GamesPage (FEAT-G01)', () => {
     );
     expect(shellChildren).not.toContain('GamesPage');
     // …and the console navigation must not offer it.
+    // FEAT-L04 (v0.5.1 §4): the whole `/games` path is gone; only `/play`.
     expect(shellSource).not.toContain('/games');
+    expect(shellSource).not.toContain('/play');
+    expect(routerSource).not.toContain("path: '/games");
     expect(shellSource).not.toContain('Gamepad2');
   });
 
@@ -85,8 +88,10 @@ describe('GamesPage (FEAT-G01)', () => {
 
   it('clicking a card opens the game page by access path', () => {
     // OPT-W04 (docs/v0.4.1.md §4.7): the URL carries the slug, not the id.
-    expect(cardSource).toContain('navigate(`/games/${game.slug}`)');
-    expect(cardSource).not.toContain('navigate(`/games/${game.id}`)');
+    // FEAT-L04 (v0.5.1 §4): the path is `/play`, not `/games`.
+    expect(cardSource).toContain('navigate(`/play/${game.slug}`)');
+    expect(cardSource).not.toContain('navigate(`/play/${game.id}`)');
+    expect(cardSource).not.toContain('`/games/');
   });
 
   it('titles the browser tab after the page', () => {

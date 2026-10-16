@@ -58,14 +58,18 @@ export const router = createBrowserRouter([
     // FEAT-G01 (v0.4.0 验收补充): the games home is a player-facing entry, NOT
     // part of the maker's console — it lives outside `AppShell` so no other
     // module's navigation is visible, and is reached only by link.
-    path: '/games',
+    //
+    // FEAT-L04 (docs/v0.5.1.md §4): the route is **`/play`**, not `/games`.
+    // The old path is not registered — this is a local tool, so no redirect is
+    // needed. `/api/games*` is an internal interface and keeps its name.
+    path: '/play',
     element: <GamesPage />,
   },
   {
     // FEAT-G03 + OPT-W04: the game page is a full-screen play surface, like the
-    // editor. Its route parameter is the game's **access path** (`/games/puzzle-…`),
+    // editor. Its route parameter is the game's **access path** (`/play/puzzle-…`),
     // not a numeric id (docs/v0.4.1.md §4.7).
-    path: '/games/:slug',
+    path: '/play/:slug',
     element: <GamePage />,
   },
 ]);

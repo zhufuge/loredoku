@@ -20,6 +20,7 @@ import {
   participantPlacementAt,
   placeForbidden,
   placeParticipant,
+  avatarPlacedParticipantIds,
   placedParticipantIds,
   placementAt,
   placementBlockReason,
@@ -916,3 +917,60 @@ describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
   });
 });
 
+
+/**
+ * v0.5.1 SPEC-L05（docs/v0.5.1.md §5.1）：参与者框的变淡只对**头像**生效。
+ *
+ * `placedParticipantIds`（「有任何标记」）语义不变，新增的
+ * `avatarPlacedParticipantIds`（「只有头像」）才是游戏页变淡用的集合 ——
+ * 所以放编号时卡片保持原样，确认头像后才淡下去。
+ */
+describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
+  it('ignores a plain 编号 — the card must not fade', () => {
+    const state = place(createGamePlacementState(), 2, 2, 1);
+    expect(placementAt(state.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
+    // The old set still sees it (it is the uniqueness rule's view)…
+    expect(placedParticipantIds(state.board)).toEqual(new Set([1]));
+    // …but the fade no longer does.
+    expect(avatarPlacedParticipantIds(state.board)).toEqual(new Set());
+  });
+
+  it('ignores several candidate 编号 for the same participant', () => {
+    let state = place(createGamePlacementState(), 0, 0, 3);
+    state = place(state, 4, 4, 3);
+    expect(placedParticipantIds(state.board)).toEqual(new Set([3]));
+    expect(avatarPlacedParticipantIds(state.board)).toEqual(new Set());
+  });
+
+  it('collects the avatar once it lands', () => {
+    const state = place(createGamePlacementState(), 1, 1, 2, {
+      gridSize: 6,
+      variant: 'image',
+    });
+    expect(placementAt(state.board, 1, 1)).toEqual({ kind: 'participant', index: 2 });
+    expect(avatarPlacedParticipantIds(state.board)).toEqual(new Set([2]));
+  });
+
+  it('restores the card when the avatar is cleared', () => {
+    const placed = place(createGamePlacementState(), 1, 1, 2, {
+      gridSize: 6,
+      variant: 'image',
+    });
+    const cleared = clearCell(placed, { x: 1, y: 1 });
+    expect(avatarPlacedParticipantIds(cleared.board)).toEqual(new Set());
+  });
+
+  it('never counts an × as a placement', () => {
+    const state = placeForbidden(createGamePlacementState(), {
+      x: 3,
+      y: 3,
+      noStandCells: EMPTY_NOSTAND,
+    });
+    expect(avatarPlacedParticipantIds(state.board)).toEqual(new Set());
+    expect(placedParticipantIds(state.board)).toEqual(new Set());
+  });
+
+  it('returns an empty set for an untouched board', () => {
+    expect(avatarPlacedParticipantIds(createGamePlacementState().board)).toEqual(new Set());
+  });
+});

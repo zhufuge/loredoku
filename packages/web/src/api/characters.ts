@@ -12,6 +12,8 @@ export interface CreateCharacterPayload {
   /** FEAT-501 */
   gender?: CharacterGender;
   description?: string | null;
+  /** v0.5.1 FEAT-L02: colour-block colour; `null` = image mode. */
+  bgColor?: string | null;
   meta?: Record<string, unknown>;
 }
 
@@ -19,6 +21,8 @@ export interface UpdateCharacterPayload {
   name?: string;
   gender?: CharacterGender;
   description?: string | null;
+  /** v0.5.1 FEAT-L02: `null` drops back to the image mode. */
+  bgColor?: string | null;
   meta?: Record<string, unknown>;
   isActive?: boolean;
 }

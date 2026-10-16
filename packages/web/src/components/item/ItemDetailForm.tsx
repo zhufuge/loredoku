@@ -1,16 +1,20 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  DEFAULT_BG_COLOR,
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
   ITEM_SIZE_MAX,
   ITEM_SIZE_MIN,
   UPLOAD_MAX_SIZE,
+  hasAppearance,
+  type AppearanceMode,
   type Item,
   type ItemCategory,
   type ItemFitMode,
   type ItemTriggerInput,
 } from '@loredoku/shared';
+import { AppearanceField } from '@/components/appearance/AppearanceField';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -68,6 +72,11 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
   const [heightCells, setHeightCells] = useState(item.heightCells);
   const [canStand, setCanStand] = useState(item.canStand);
   const [fitMode, setFitMode] = useState<ItemFitMode>(item.fitMode);
+  // v0.5.1 FEAT-L01: image mode by default; a stored colour means colour block.
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(
+    item.bgColor ? 'color' : 'image',
+  );
+  const [bgColor, setBgColor] = useState(item.bgColor ?? DEFAULT_BG_COLOR);
   const [metaRows, setMetaRows] = useState<MetaRow[]>(buildMetaRows(item));
   const [triggerRows, setTriggerRows] = useState<EditableTrigger[]>(buildTriggerRows(item));
   const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
@@ -85,11 +94,15 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
     setHeightCells(item.heightCells);
     setCanStand(item.canStand);
     setFitMode(item.fitMode);
+    setAppearanceMode(item.bgColor ? 'color' : 'image');
+    setBgColor(item.bgColor ?? DEFAULT_BG_COLOR);
     setMetaRows(buildMetaRows(item));
     setTriggerRows(buildTriggerRows(item));
   }, [item.id, item.updatedAt]);
 
   const saving = updateMutation.isPending || triggersMutation.isPending;
+  // v0.5.1 FEAT-L01: an uploaded image **or** a colour block can be activated.
+  const activatable = hasAppearance(Boolean(item.imageUrl), item.bgColor);
 
   const handleSave = async (): Promise<void> => {
     const meta: Record<string, unknown> = {};
@@ -123,6 +136,8 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           heightCells,
           canStand,
           fitMode,
+          // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
+          bgColor: appearanceMode === 'color' ? bgColor : null,
           meta,
         },
       });
@@ -156,12 +171,12 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           ) : (
             <>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {item.imageUrl ? '已停用' : '未启用'}
+                {activatable ? '已停用' : '未启用'}
               </span>
               <Button
                 variant="outline"
-                disabled={activeMutation.isPending || !item.imageUrl}
-                title={item.imageUrl ? undefined : '请先上传图片后再启用'}
+                disabled={activeMutation.isPending || !activatable}
+                title={activatable ? undefined : '请先上传图片或选择纯色块颜色后再启用'}
                 onClick={() => activeMutation.mutate({ id: item.id, active: true })}
               >
                 启用
@@ -249,8 +264,12 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           </select>
         </div>
 
-        <div className="grid gap-2">
-          <Label>图片</Label>
+        <AppearanceField
+          mode={appearanceMode}
+          onModeChange={setAppearanceMode}
+          bgColor={bgColor}
+          onBgColorChange={setBgColor}
+        >
           <ImageUploader
             imageUrl={item.imageUrl}
             thumbUrl={item.imageThumbUrl}
@@ -262,7 +281,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
             onUpload={(file) => uploadMutation.mutate({ id: item.id, file })}
             onDelete={() => setConfirmDeleteImage(true)}
           />
-        </div>
+        </AppearanceField>
 
         <div className="grid gap-2">
           <Label>扩展信息（meta）</Label>
@@ -291,7 +310,10 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           <AlertDialogHeader>
             <AlertDialogTitle>删除图片？</AlertDialogTitle>
             <AlertDialogDescription>
-              删除图片后，该物品将自动停用。
+              {/* v0.5.1 FEAT-L01: a colour block does not depend on the image. */}
+              {item.bgColor
+                ? '该物品是纯色块，删除图片后仍可继续启用。'
+                : '删除图片后，该物品将自动停用。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

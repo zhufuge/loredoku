@@ -334,7 +334,7 @@ export function PuzzlesPage(): JSX.Element {
                           type="button"
                           className="shrink-0 cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground transition-colors hover:bg-secondary/70"
                           title="该谜题已部署为游戏，点击进入游戏页面"
-                          onClick={() => navigate(`/games/${game.slug}`)}
+                          onClick={() => navigate(`/play/${game.slug}`)}
                         >
                           已部署
                         </button>

@@ -146,6 +146,23 @@ export const GENDER_SYMBOL_COLORS: Record<(typeof CHARACTER_GENDERS)[number], st
   female: '#F4A9C0',
 };
 
+// ---- Appearance (v0.5.1 FEAT-L01 / FEAT-L02 / SPEC-L03) ----
+/**
+ * An item / character can render either as an uploaded image or as a **colour
+ * block** (`bgColor`). A colour block needs no upload at all, so it can be
+ * activated straight away.
+ */
+export const APPEARANCE_MODES = ['image', 'color'] as const;
+export const DEFAULT_APPEARANCE_MODE = 'image';
+export const APPEARANCE_MODE_LABELS: Record<(typeof APPEARANCE_MODES)[number], string> = {
+  image: '图片',
+  color: '纯色块',
+};
+/** Accepted colour format: `#RRGGBB` (6 hex digits, case-insensitive). */
+export const BG_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
+/** Default colour of a freshly created colour block. */
+export const DEFAULT_BG_COLOR = '#FFFFFF';
+
 // ---- Project ----
 export const PROJECT_NAME_MAX_LENGTH = 100;
 export const PROJECT_DESCRIPTION_MAX_LENGTH = 500;

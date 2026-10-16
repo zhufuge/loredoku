@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { bgColorSchema } from './appearance';
 import {
   CHARACTER_CODE_MAX_LENGTH,
   CHARACTER_CODE_PATTERN,
@@ -30,6 +31,8 @@ export const createCharacterSchema = z.object({
   name: z.string().trim().min(1, '角色名称不能为空').max(CHARACTER_NAME_MAX_LENGTH),
   gender: characterGenderSchema,
   description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH).optional().nullable(),
+  /** v0.5.1 FEAT-L02: colour-block colour; `null` keeps the image mode. */
+  bgColor: bgColorSchema,
   meta: z.record(z.unknown()).default({}),
 });
 
@@ -38,6 +41,8 @@ export const updateCharacterSchema = z
     name: z.string().trim().min(1).max(CHARACTER_NAME_MAX_LENGTH).optional(),
     gender: z.enum(CHARACTER_GENDERS).optional(),
     description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH).optional().nullable(),
+    /** v0.5.1 FEAT-L02: pass `null` to drop back to the image mode. */
+    bgColor: bgColorSchema,
     meta: z.record(z.unknown()).optional(),
     isActive: z.boolean().optional(),
   })

@@ -25,10 +25,11 @@ const routerSource =
 
 describe('GamePage (FEAT-G03)', () => {
   it('is a top-level route outside the app shell, keyed by the access path', () => {
-    // OPT-W04 (docs/v0.4.1.md §4.7): `/games/:slug`, not `/games/:gameId`.
-    expect(routerSource).toContain("path: '/games/:slug'");
+    // FEAT-L04 (docs/v0.5.1.md §4): `/play/:slug` — `/games` is gone.
+    expect(routerSource).toContain("path: '/play/:slug'");
     expect(routerSource).toContain('element: <GamePage />');
-    expect(routerSource).not.toContain('/games/:gameId');
+    expect(routerSource).not.toContain("path: '/games");
+    expect(routerSource).not.toContain('/play/:gameId');
     // It must not live inside the AppShell children array.
     const shellChildren = routerSource.slice(
       routerSource.indexOf('element: <AppShell />'),
@@ -40,8 +41,11 @@ describe('GamePage (FEAT-G03)', () => {
   it('resolves the game by slug', () => {
     expect(pageSource).toContain('const { slug: slugParam } = useParams();');
     expect(pageSource).toContain('useGameDetail(slug)');
-    // A bare /games/:slug that matches nothing must not crash the page.
+    // A bare /play/:slug that matches nothing must not crash the page.
     expect(pageSource).toContain('游戏不存在或加载失败。');
+    // FEAT-L04: both escapes lead back to the new game list.
+    expect(pageSource).toContain("navigate('/play')");
+    expect(pageSource).not.toContain("navigate('/games')");
   });
 
   it('reuses the preview roster and the linkage state machine', () => {
@@ -150,31 +154,48 @@ describe('GamePage (FEAT-G03)', () => {
     expect(pageSource).not.toContain('编号 ${participantId} 已放置在');
   });
 
-  it('spells out 编号 vs 参与者 in the left column (CLAR-J01 §1.3)', () => {
-    // v0.4.3 §1.3：左栏提示必须讲清「点击格子放的是编号」「再点一次即移除」
-    // 「长按才是放头像」「只有长按补 ×」，并告诉玩家禁止符号可以手动补。
-    expect(pageSource).toContain('点击参与者进入放置状态：点击格子放置的是该参与者的「编号」');
-    expect(pageSource).toContain('再次点击同一格即移除');
-    expect(pageSource).toContain('长按格子（≥500ms）放置的是该参与者的「头像」');
-    expect(pageSource).toContain('编号与参与者不是一个东西');
-    expect(pageSource).toContain('点编号不会触发行 / 列的排除项');
-    expect(pageSource).toContain('只有长按放头像时才会自动在同行同列补上 ×');
-    expect(pageSource).toContain('并把该参与者留在其它格子的编号清除');
-    // SPEC-J05 §3.6：编号可以多处，只有头像唯一 —— 左栏文案必须这么说。
-    expect(pageSource).toContain('同一位参与者的编号可以同时留在多个格子上');
-    expect(pageSource).toContain('每位参与者的头像只能有一个');
-    expect(pageSource).not.toContain('编号 / 头像仍只能出现在一个格子上');
-    expect(pageSource).toContain('需要手动排除时，用工具栏的「禁止符号」');
-    expect(pageSource).toContain('已放置的参与者卡片会变淡');
-    // The v0.4.2 wording (which read as "a tap puts the participant down") is gone.
-    expect(pageSource).not.toContain('短按格子放置编号、长按放置头像');
-    expect(pageSource).not.toContain('落格后同行同列会自动补上排除项');
+  it('dims the roster cards of avatar-placed participants only (SPEC-L05)', () => {
+    // SPEC-G05 §5.3: derived from the board, so a clear/undo restores it.
+    // v0.5.1 SPEC-L05: a 编号 no longer dims the card — only the avatar does.
+    expect(pageSource).toContain('avatarPlacedParticipantIds(placementState.board)');
+    expect(pageSource).not.toContain('placedParticipantIds(placementState.board)');
+    expect(pageSource).toContain('placedSlotIndices={placedSlotIndices}');
   });
 
-  it('dims the roster cards of placed participants', () => {
-    // SPEC-G05 §5.3: derived from the board, so a clear/undo restores it.
-    expect(pageSource).toContain('placedParticipantIds(placementState.board)');
-    expect(pageSource).toContain('placedSlotIndices={placedSlotIndices}');
+  describe('left column slim-down (v0.5.1 SPEC-L06 ~ SPEC-L09)', () => {
+    it('shows the brand after the back arrow and the name on the next line', () => {
+      // FEAT-L07: `[←] LOREDOKU`, then `{name} {n}x{n}`.
+      expect(pageSource).toContain('LOREDOKU');
+      expect(pageSource).toContain('{game.name} {gridSize}x{gridSize}');
+    });
+
+    it('no longer shows a cover (SPEC-L06)', () => {
+      // The 80×56 thumbnail and its initial-letter placeholder are gone.
+      expect(pageSource).not.toContain('game.coverUrl');
+      expect(pageSource).not.toContain("|| '游'");
+    });
+
+    it('no longer shows difficulty, source map or participant count (SPEC-L08)', () => {
+      expect(pageSource).not.toContain('GAME_DIFFICULTY_COLORS');
+      expect(pageSource).not.toContain('GAME_DIFFICULTY_LABELS');
+      expect(pageSource).not.toContain('game.difficulty');
+      expect(pageSource).not.toContain('来自地图 v');
+      expect(pageSource).not.toContain('game.versionNo');
+      expect(pageSource).not.toContain('参与者 {slots.filter(Boolean).length} 人');
+    });
+
+    it('no longer shows the long instructions paragraph (SPEC-L09)', () => {
+      expect(pageSource).not.toContain('点击参与者进入放置状态：点击格子放置的是该参与者的「编号」');
+      expect(pageSource).not.toContain('编号与参与者不是一个东西');
+      expect(pageSource).not.toContain('需要手动排除时，用工具栏的「禁止符号」');
+      expect(pageSource).not.toContain('已放置的参与者卡片会变淡');
+    });
+
+    it('keeps the three-column shell and the participant panel', () => {
+      expect(pageSource).toContain('w-[256px] shrink-0 flex-col border-r');
+      expect(pageSource).toContain('<ParticipantPanel');
+      expect(pageSource).toContain('readOnly');
+    });
   });
 
   it('validates before submitting and lists every problem', () => {

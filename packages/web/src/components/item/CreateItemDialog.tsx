@@ -3,6 +3,10 @@ import { useEffect } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
+  APPEARANCE_MODES,
+  BG_COLOR_PATTERN,
+  DEFAULT_APPEARANCE_MODE,
+  DEFAULT_BG_COLOR,
   DEFAULT_ITEM_CATEGORY,
   ITEM_CATEGORIES,
   ITEM_CATEGORY_LABELS,
@@ -12,7 +16,9 @@ import {
   ITEM_SIZE_DEFAULT,
   ITEM_SIZE_MAX,
   ITEM_SIZE_MIN,
+  type AppearanceMode,
 } from '@loredoku/shared';
+import { AppearanceField } from '@/components/appearance/AppearanceField';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -38,6 +44,9 @@ const schema = z.object({
   widthCells: z.coerce.number().int().min(ITEM_SIZE_MIN).max(ITEM_SIZE_MAX),
   heightCells: z.coerce.number().int().min(ITEM_SIZE_MIN).max(ITEM_SIZE_MAX),
   canStand: z.boolean(),
+  /** v0.5.1 FEAT-L01: image mode (default) or a colour block. */
+  appearanceMode: z.enum(APPEARANCE_MODES),
+  bgColor: z.string().regex(BG_COLOR_PATTERN, '颜色需为 #RRGGBB 格式'),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -49,6 +58,8 @@ const DEFAULTS: FormValues = {
   widthCells: ITEM_SIZE_DEFAULT,
   heightCells: ITEM_SIZE_DEFAULT,
   canStand: false,
+  appearanceMode: DEFAULT_APPEARANCE_MODE,
+  bgColor: DEFAULT_BG_COLOR,
 };
 
 interface CreateItemDialogProps {
@@ -67,11 +78,14 @@ export function CreateItemDialog({
     handleSubmit,
     reset,
     control,
+    setValue,
     formState: { errors },
+    watch,
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: DEFAULTS,
   });
+  const appearanceMode = watch('appearanceMode');
 
   const createMutation = useCreateItem((item) => {
     onOpenChange(false);
@@ -90,6 +104,8 @@ export function CreateItemDialog({
       widthCells: values.widthCells,
       heightCells: values.heightCells,
       canStand: values.canStand,
+      // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
+      bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
     });
   });
 
@@ -162,6 +178,26 @@ export function CreateItemDialog({
             />
             可站立（可作为物体层放置）
           </label>
+          <Controller
+            control={control}
+            name="appearanceMode"
+            render={({ field }) => (
+              <AppearanceField
+                id="item-appearance"
+                mode={field.value as AppearanceMode}
+                onModeChange={(mode) => field.onChange(mode)}
+                bgColor={watch('bgColor')}
+                onBgColorChange={(value) => setValue('bgColor', value)}
+              >
+                <p className="text-xs text-muted-foreground">
+                  图片在创建后于右侧详情里上传。
+                </p>
+              </AppearanceField>
+            )}
+          />
+          {errors.bgColor ? (
+            <p className="text-xs text-destructive">{errors.bgColor.message}</p>
+          ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消

@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
-import type { Character, CharacterGender } from '@loredoku/shared';
+import type { AppearanceMode, Character, CharacterGender } from '@loredoku/shared';
 import {
   CHARACTER_AVATAR_MAX_DIMENSION,
   CHARACTER_GENDERS,
   CHARACTER_GENDER_GLYPHS,
   CHARACTER_GENDER_LABELS,
+  DEFAULT_BG_COLOR,
   GENDER_SYMBOL_COLORS,
+  hasAppearance,
 } from '@loredoku/shared';
+import { AppearanceField } from '@/components/appearance/AppearanceField';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -42,6 +45,11 @@ export function CharacterDetailForm({
   // CLAR-601: default is `male`; missing values normalise upstream.
   const [gender, setGender] = useState<CharacterGender>(character.gender ?? 'male');
   const [description, setDescription] = useState(character.description ?? '');
+  // v0.5.1 FEAT-L02: image mode by default; a stored colour means colour block.
+  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(
+    character.bgColor ? 'color' : 'image',
+  );
+  const [bgColor, setBgColor] = useState(character.bgColor ?? DEFAULT_BG_COLOR);
   const [confirmDeleteAvatar, setConfirmDeleteAvatar] = useState(false);
 
   const updateMutation = useUpdateCharacter();
@@ -53,7 +61,12 @@ export function CharacterDetailForm({
     setName(character.name);
     setGender(character.gender ?? 'male');
     setDescription(character.description ?? '');
+    setAppearanceMode(character.bgColor ? 'color' : 'image');
+    setBgColor(character.bgColor ?? DEFAULT_BG_COLOR);
   }, [character.id, character.updatedAt]);
+
+  // v0.5.1 FEAT-L02: an uploaded avatar **or** a colour block can be activated.
+  const activatable = hasAppearance(Boolean(character.avatarUrl), character.bgColor);
 
   const handleSave = (): void => {
     updateMutation.mutate({
@@ -62,6 +75,8 @@ export function CharacterDetailForm({
         name: name.trim(),
         gender,
         description: description.trim() || null,
+        // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
+        bgColor: appearanceMode === 'color' ? bgColor : null,
       },
     });
   };
@@ -93,12 +108,12 @@ export function CharacterDetailForm({
           ) : (
             <>
               <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                {character.avatarUrl ? '已停用' : '未启用'}
+                {activatable ? '已停用' : '未启用'}
               </span>
               <Button
                 variant="outline"
-                disabled={activeMutation.isPending || !character.avatarUrl}
-                title={character.avatarUrl ? undefined : '请先上传头像后再启用'}
+                disabled={activeMutation.isPending || !activatable}
+                title={activatable ? undefined : '请先上传头像或选择纯色块颜色后再启用'}
                 onClick={() => activeMutation.mutate({ id: character.id, active: true })}
               >
                 启用
@@ -171,8 +186,13 @@ export function CharacterDetailForm({
           />
         </div>
 
-        <div className="grid gap-2">
-          <Label>头像</Label>
+        {/* v0.5.1 FEAT-L02 / SPEC-L03: 「头像」区升级为「外观」区。 */}
+        <AppearanceField
+          mode={appearanceMode}
+          onModeChange={setAppearanceMode}
+          bgColor={bgColor}
+          onBgColorChange={setBgColor}
+        >
           <ImageUploader
             imageUrl={character.avatarUrl}
             thumbUrl={character.avatarThumbUrl}
@@ -185,7 +205,7 @@ export function CharacterDetailForm({
             onUpload={(file) => uploadMutation.mutate({ id: character.id, file })}
             onDelete={() => setConfirmDeleteAvatar(true)}
           />
-        </div>
+        </AppearanceField>
       </div>
 
       <div className="flex justify-end gap-2 border-t pt-4">
@@ -203,7 +223,12 @@ export function CharacterDetailForm({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>删除头像？</AlertDialogTitle>
-            <AlertDialogDescription>删除头像后，该角色将自动停用。</AlertDialogDescription>
+            <AlertDialogDescription>
+              {/* v0.5.1 FEAT-L02: a colour block does not depend on the avatar. */}
+              {character.bgColor
+                ? '该角色是纯色块，删除头像后仍可继续启用。'
+                : '删除头像后，该角色将自动停用。'}
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteAvatarMutation.isPending}>取消</AlertDialogCancel>

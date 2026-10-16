@@ -134,14 +134,35 @@ export function candidateCellCount(board: GamePlacementBoard, participantId: num
 }
 
 /**
- * SPEC-G05 §5.3: every participant currently on the board — the game page
- * fades their roster card and the uniqueness rule consults this set.
+ * SPEC-G05 §5.3: every participant with **any** mark on the board — a 编号
+ * counts, and so does an avatar. The uniqueness rule consults this set.
+ *
+ * v0.5.1 SPEC-L05: the roster card **no longer fades** on a 编号, so the game
+ * page fades with {@link avatarPlacedParticipantIds} instead. This function
+ * keeps its original meaning for the uniqueness rule and its tests.
  */
 export function placedParticipantIds(board: GamePlacementBoard): Set<number> {
   const placed = new Set<number>();
   for (const placement of Object.values(board)) {
     if (!placement || placement.kind === 'forbidden') continue;
     for (const entry of numbersIn(placement)) placed.add(entry);
+  }
+  return placed;
+}
+
+/**
+ * v0.5.1 SPEC-L05 (docs/v0.5.1.md §5.1): the participants whose **avatar** is
+ * on the board — a 编号 alone does **not** count.
+ *
+ * Before v0.5.1 the roster card faded for any mark, which made placing a
+ * candidate number dim the card as if it were done. Only an avatar means
+ * "placed", so this is the set the game page fades with.
+ */
+export function avatarPlacedParticipantIds(board: GamePlacementBoard): Set<number> {
+  const placed = new Set<number>();
+  for (const placement of Object.values(board)) {
+    if (placement?.kind !== 'participant') continue;
+    placed.add(placement.index);
   }
   return placed;
 }

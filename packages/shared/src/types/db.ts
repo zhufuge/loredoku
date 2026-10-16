@@ -44,6 +44,8 @@ export interface ItemRow {
   image_size: number | null;
   image_width: number | null;
   image_height: number | null;
+  /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  bg_color: string | null;
   meta: Record<string, unknown>;
   is_active: boolean;
   created_at: Date | string;
@@ -75,6 +77,8 @@ export interface CharacterRow {
   avatar_size: number | null;
   avatar_width: number | null;
   avatar_height: number | null;
+  /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  bg_color: string | null;
   meta: Record<string, unknown>;
   is_active: boolean;
   created_at: Date | string;

@@ -12,6 +12,18 @@ export function ItemThumbnail({ item, className }: ItemThumbnailProps): JSX.Elem
   const [failed, setFailed] = useState(false);
   const src = failed ? item.imageUrl : item.imageThumbUrl ?? item.imageUrl;
 
+  // v0.5.1 FEAT-L01 / SPEC-L03: a colour block wins over the image — the
+  // background simply shows the block.
+  if (item.bgColor) {
+    return (
+      <div
+        data-color-block={item.bgColor}
+        style={{ backgroundColor: item.bgColor }}
+        className={cn('rounded border', className)}
+      />
+    );
+  }
+
   if (!src) {
     return (
       <div
