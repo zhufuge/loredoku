@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   BASE_CELL,
-  FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   MAX_CELL_SIZE,
   MIN_CELL_SIZE,
@@ -67,13 +66,15 @@ describe('ruler glyph styling (§5.1~§5.3)', () => {
   it('OPT-B03: multiplies both sizes by the cell scale', () => {
     expect(rulerFontSize('normal', cellScale(MIN_CELL_SIZE))).toBeCloseTo(12.75, 6);
     expect(rulerFontSize('operation', cellScale(MIN_CELL_SIZE))).toBeCloseTo(14.25, 6);
-    expect(rulerFontSize('normal', cellScale(MAX_CELL_SIZE))).toBe(FONT_SIZE_MAX);
-    expect(rulerFontSize('operation', cellScale(MAX_CELL_SIZE))).toBe(FONT_SIZE_MAX);
+    // v0.5.2 FIX-M08: 17 × 2 = 34 / 19 × 2 = 38 — no 28px ceiling any more.
+    expect(rulerFontSize('normal', cellScale(MAX_CELL_SIZE))).toBeCloseTo(34, 6);
+    expect(rulerFontSize('operation', cellScale(MAX_CELL_SIZE))).toBeCloseTo(38, 6);
   });
 
   it('respects the font guard rails', () => {
     expect(rulerFontSize('normal', 0.1)).toBe(FONT_SIZE_MIN);
-    expect(rulerFontSize('operation', 50)).toBe(FONT_SIZE_MAX);
+    // The upper bound is gone; only the lower rail remains (v0.5.2 FIX-M08).
+    expect(rulerFontSize('operation', 50)).toBeCloseTo(950, 6);
   });
 });
 
@@ -176,7 +177,8 @@ describe('ruler zoom (§3.3)', () => {
   });
 
   it('applies the guard rails before the zoom factor', () => {
-    // 17 × 2 (cell scale) = 34 → capped at 28, then × 3 for zoom.
+    // v0.5.2 FIX-M08: 17 × 2 (cell scale) = 34 — **not** capped any more —
+    // then × 3 for zoom.
     expect(
       buildRulerGlyphs({
         gridSize: 1,
@@ -186,7 +188,7 @@ describe('ruler zoom (§3.3)', () => {
         scale: 2,
         zoom: 3,
       })[0]!.fontSize,
-    ).toBe(84);
+    ).toBe(102);
   });
 
   it('ignores a degenerate zoom', () => {
@@ -214,9 +216,9 @@ describe('ruler style config (FEAT-E02)', () => {
   });
 
   it('clamps the configured base before applying the scale', () => {
-    // 40 × 1 = 40 → capped at the 28px ceiling; the active size follows.
-    expect(rulerFontSize('normal', 1, 40)).toBe(28);
-    expect(rulerFontSize('operation', 1, 40)).toBe(28);
+    // v0.5.2 FIX-M08: 40 × 1 = 40 survives; the +2 active size follows.
+    expect(rulerFontSize('normal', 1, 40)).toBe(40);
+    expect(rulerFontSize('operation', 1, 40)).toBe(42);
     // 6 × 1 = 6 → floored at 9.
     expect(rulerFontSize('normal', 1, 6)).toBe(9);
   });

@@ -265,7 +265,8 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
 
   it('FEAT-D02: serialises the resolved map style — without the palette (Q16)', () => {
     const output = store().toDraft();
-    expect(output.style?.gridSeparator).toEqual({ width: 2, color: '#000000' });
+    // v0.5.2 SPEC-M07: the grid separator now defaults to 4px.
+    expect(output.style?.gridSeparator).toEqual({ width: 4, color: '#000000' });
     // The linkage palette moved to PuzzleDraft; MapStyle no longer carries it.
     expect(output.style && 'linkageColors' in output.style).toBe(false);
   });
@@ -275,8 +276,9 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
   it('starts from the shipped defaults and is always fully resolved', () => {
     const style = store().style;
     expect(style.cellSize).toBeNull();
-    expect(style.canvasFrame.width).toBe(6);
-    expect(style.regionLabel.fontSize).toBe(17);
+    // v0.5.2 SPEC-M07: 12px frame, 32px region label.
+    expect(style.canvasFrame.width).toBe(12);
+    expect(style.regionLabel.fontSize).toBe(32);
   });
 
   it('adopts the style block of the loaded draft', () => {
@@ -294,7 +296,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     expect(store().style.cellSize).toBe(150);
     expect(store().style.gridSeparator).toEqual({ width: 4, color: '#112233' });
     // Untouched fields keep their defaults.
-    expect(store().style.canvasFrame).toEqual({ width: 6, color: '#000000' });
+    expect(store().style.canvasFrame).toEqual({ width: 12, color: '#000000' });
   });
 
   it('setMapStyle commits one undoable step and clamps the result', () => {
@@ -306,7 +308,8 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     expect(store().dirty).toBe(true);
     expect(store().past).toHaveLength(1);
     store().undo();
-    expect(store().style.canvasFrame.width).toBe(6);
+    // v0.5.2 SPEC-M07: the pre-change default is 12px now.
+    expect(store().style.canvasFrame.width).toBe(12);
   });
 
   it('setCellSizeOverride stores an integer and null restores adaptivity', () => {
@@ -330,7 +333,8 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     // Style + regions are one undo step.
     expect(store().past).toHaveLength(3);
     store().undo();
-    expect(store().style.regionOutline.width).toBe(6);
+    // v0.5.2 SPEC-M07: the pre-change default is 12px now.
+    expect(store().style.regionOutline.width).toBe(12);
     expect(store().regions.map((region) => region.borderWidth)).toEqual([4, 4]);
   });
 
@@ -351,7 +355,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     store().setMapStyle((current) => ({ ...current, border: { ...current.gridSeparator, width: 8 } }));
     store().applyDraft({ ...draft(), style: { cellSize: 200 } } as MapDraft);
     expect(store().style.cellSize).toBe(200);
-    expect(store().style.gridSeparator.width).toBe(2);
+    expect(store().style.gridSeparator.width).toBe(4);
     expect(store().dirty).toBe(true);
   });
 });

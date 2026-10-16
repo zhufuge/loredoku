@@ -1,7 +1,6 @@
 import type {
   CardRotation,
   CharacterGender,
-  EffectType,
   GameDifficulty,
   ItemCategory,
   ItemFitMode,
@@ -46,7 +45,7 @@ export interface ItemRow {
   image_height: number | null;
   /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
-  meta: Record<string, unknown>;
+  /** v0.5.2 FEAT-M03: the free-form `meta` blob was dropped with the column. */
   is_active: boolean;
   created_at: Date | string;
   updated_at: Date | string;
@@ -54,17 +53,10 @@ export interface ItemRow {
 
 export type CardRow = ItemRow;
 
-export interface ItemTriggerRow {
-  id: string | number;
-  item_id: string | number;
-  trigger_key: string;
-  trigger_value: string;
-  effect_type: EffectType;
-  effect_config: Record<string, unknown>;
-  created_at: Date | string;
-}
-
-export type CardTriggerRow = ItemTriggerRow;
+/**
+ * v0.5.2 FEAT-M03 (docs/v0.5.2.md §3.1): `item_triggers` is dropped, so this
+ * row shape — and its `CardTriggerRow` alias — no longer exist.
+ */
 
 export interface CharacterRow {
   id: string | number;

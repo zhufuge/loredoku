@@ -119,6 +119,11 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
   const regionHighlight: Partial<MapStyleLine> = source.regionHighlight ?? {};
   const ruler: Partial<MapStyleRuler> = source.ruler ?? {};
 
+  const baseLabelFontSize =
+    typeof regionLabel.fontSize === 'number'
+      ? clampRegionLabelFont(regionLabel.fontSize)
+      : fallback.regionLabel.fontSize;
+
   return {
     cellSize:
       typeof source.cellSize === 'number' && Number.isFinite(source.cellSize)
@@ -151,20 +156,21 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
           : fallback.operationCursorBox.offset,
     },
     regionLabel: {
-      fontSize:
-        typeof regionLabel.fontSize === 'number'
-          ? clampRegionLabelFont(regionLabel.fontSize)
-          : fallback.regionLabel.fontSize,
+      fontSize: baseLabelFontSize,
       strokeWidth:
         typeof regionLabel.strokeWidth === 'number'
           ? clampRegionLabelStroke(regionLabel.strokeWidth)
           : fallback.regionLabel.strokeWidth,
       color: color(fallback.regionLabel.color, regionLabel.color),
       strokeColor: color(fallback.regionLabel.strokeColor, regionLabel.strokeColor),
-      hoverFontSize:
+      // v0.5.2 FIX-M02: the hovered label is **never smaller** than the idle
+      // one — a bad draft / import that says otherwise is lifted back up.
+      hoverFontSize: Math.max(
+        baseLabelFontSize,
         typeof regionLabel.hoverFontSize === 'number'
           ? clampRegionLabelFont(regionLabel.hoverFontSize)
           : fallback.regionLabel.hoverFontSize,
+      ),
       hoverColor: color(fallback.regionLabel.hoverColor, regionLabel.hoverColor),
       hoverStrokeColor: color(fallback.regionLabel.hoverStrokeColor, regionLabel.hoverStrokeColor),
     },

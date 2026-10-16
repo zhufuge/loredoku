@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
@@ -16,9 +16,11 @@ import {
   ITEM_SIZE_DEFAULT,
   ITEM_SIZE_MAX,
   ITEM_SIZE_MIN,
+  canStandFor,
   type AppearanceMode,
 } from '@loredoku/shared';
 import { AppearanceField } from '@/components/appearance/AppearanceField';
+import { PendingImageField } from '@/components/appearance/PendingImageField';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,7 +32,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useCreateItem } from '@/hooks/useItems';
+import { useCreateItem, useUploadItemImage } from '@/hooks/useItems';
 
 const schema = z.object({
   name: z.string().trim().min(1, '请输入物品名称').max(ITEM_NAME_MAX_LENGTH, '名称过长'),
@@ -86,27 +88,47 @@ export function CreateItemDialog({
     defaultValues: DEFAULTS,
   });
   const appearanceMode = watch('appearanceMode');
+  const category = watch('category');
+  // v0.5.2 FEAT-M05: the picked file waits for the create call to hand back an
+  // id; a colour block needs no image at all.
+  const [file, setFile] = useState<File | null>(null);
 
-  const createMutation = useCreateItem((item) => {
-    onOpenChange(false);
-    onCreated(item.id);
-  });
+  const createMutation = useCreateItem();
+  const uploadMutation = useUploadItemImage();
 
   useEffect(() => {
-    if (!open) reset(DEFAULTS);
+    if (!open) {
+      reset(DEFAULTS);
+      setFile(null);
+    }
   }, [open, reset]);
 
-  const onSubmit = handleSubmit((values) => {
-    createMutation.mutate({
-      name: values.name,
-      code: values.code,
-      category: values.category,
-      widthCells: values.widthCells,
-      heightCells: values.heightCells,
-      canStand: values.canStand,
-      // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
-      bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
-    });
+  const busy = createMutation.isPending || uploadMutation.isPending;
+
+  const onSubmit = handleSubmit(async (values) => {
+    let item: { id: number };
+    try {
+      item = await createMutation.mutateAsync({
+        name: values.name,
+        code: values.code,
+        category: values.category,
+        widthCells: values.widthCells,
+        heightCells: values.heightCells,
+        canStand: canStandFor(values.category, values.canStand),
+        // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
+        bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
+      });
+    } catch {
+      // The hook already toasted the reason (e.g. duplicate 业务 ID).
+      return;
+    }
+    // §5.1: an upload failure must not swallow the created item — the dialog
+    // closes either way and the user retries from the detail pane.
+    if (file) {
+      await uploadMutation.mutateAsync({ id: item.id, file }).catch(() => undefined);
+    }
+    onOpenChange(false);
+    onCreated(item.id);
   });
 
   return (
@@ -163,21 +185,25 @@ export function CreateItemDialog({
               />
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <Controller
-              control={control}
-              name="canStand"
-              render={({ field }) => (
-                <input
-                  type="checkbox"
-                  checked={field.value}
-                  onChange={(event) => field.onChange(event.target.checked)}
-                  className="h-4 w-4"
-                />
-              )}
-            />
-            可站立（可作为物体层放置）
-          </label>
+          {/* v0.5.2 FEAT-M04: a background item is always standable, so the
+              checkbox only exists for 物体. */}
+          {category === 'object' ? (
+            <label className="flex items-center gap-2 text-sm">
+              <Controller
+                control={control}
+                name="canStand"
+                render={({ field }) => (
+                  <input
+                    type="checkbox"
+                    checked={field.value}
+                    onChange={(event) => field.onChange(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                )}
+              />
+              可站立（可作为物体层放置）
+            </label>
+          ) : null}
           <Controller
             control={control}
             name="appearanceMode"
@@ -189,9 +215,14 @@ export function CreateItemDialog({
                 bgColor={watch('bgColor')}
                 onBgColorChange={(value) => setValue('bgColor', value)}
               >
-                <p className="text-xs text-muted-foreground">
-                  图片在创建后于右侧详情里上传。
-                </p>
+                {/* v0.5.2 FEAT-M05: upload right here, no "create first"
+                    round trip for the user. */}
+                <PendingImageField
+                  id="item-image"
+                  label="物品图片"
+                  file={file}
+                  onFileChange={setFile}
+                />
               </AppearanceField>
             )}
           />
@@ -202,8 +233,8 @@ export function CreateItemDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? '创建中…' : '创建'}
+            <Button type="submit" disabled={busy}>
+              {busy ? '创建中…' : '创建'}
             </Button>
           </DialogFooter>
         </form>

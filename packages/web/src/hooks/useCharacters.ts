@@ -44,7 +44,8 @@ export function useCreateCharacter(onSuccess?: (character: { id: number }) => vo
   return useMutation({
     mutationFn: (payload: CreateCharacterPayload) => charactersApi.create(payload),
     onSuccess: (character) => {
-      toast.success('角色创建成功，上传头像后可手动启用');
+      // v0.5.2 FEAT-M05: the avatar can now be picked inside the create dialog.
+      toast.success('角色创建成功');
       invalidate();
       onSuccess?.(character);
     },

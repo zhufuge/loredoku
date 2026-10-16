@@ -41,7 +41,12 @@ export const BASE_CELL = 120;
 export const LINE_WIDTH_MIN = 0.5;
 export const LINE_WIDTH_MAX = 12;
 export const FONT_SIZE_MIN = 9;
-export const FONT_SIZE_MAX = 28;
+/**
+ * v0.5.2 FIX-M08 (docs/v0.5.2.md §8): there is **no upper bound** any more.
+ * The old 28px ceiling silently flattened every custom font size above it —
+ * setting the region label to 32px rendered 28px, i.e. "changed but unchanged".
+ * Only the lower guard remains, so a degenerate scale can't draw 0px text.
+ */
 
 /**
  * OPT-A04 (docs/v0.3.5.md §3.2): the four line elements of a cell, named as
@@ -375,6 +380,32 @@ export const MAP_STYLE_CELL_SIZE_MAX = MAX_CELL_SIZE;
 /** `#RRGGBB` — the only colour format the style accepts. */
 export const MAP_STYLE_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
+// ---- v0.5.2 SPEC-M07: 「基本信息」默认值（docs/v0.5.2.md §7.1）----
+/**
+ * These are **defaults only**. The older `BORDER_WIDTH` / `INNER_LINE_WIDTH` /
+ * `CANVAS_OUTER_BORDER_WIDTH` / `RULER_FONT_SIZE` … constants stay as they are
+ * because `canvasMetrics` (and the tests that pin it) still read them; the
+ * shipped `DEFAULT_MAP_STYLE` now points at this dedicated set instead.
+ */
+export const STYLE_DEFAULT_RULER_FONT_SIZE = 24;
+export const STYLE_DEFAULT_RULER_GAP = 24;
+export const STYLE_DEFAULT_REGION_OUTLINE_WIDTH = 12;
+export const STYLE_DEFAULT_REGION_HIGHLIGHT_WIDTH = 12;
+/** §7: the region highlight line is the strong blue `#3b82f6`. */
+export const STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR = '#3B82F6';
+export const STYLE_DEFAULT_CANVAS_FRAME_WIDTH = 12;
+export const STYLE_DEFAULT_GRID_SEPARATOR_WIDTH = 4;
+export const STYLE_DEFAULT_MOUSE_CURSOR_WIDTH = 8;
+export const STYLE_DEFAULT_OPERATION_CURSOR_WIDTH = 8;
+export const STYLE_DEFAULT_REGION_LABEL_FONT_SIZE = 32;
+export const STYLE_DEFAULT_REGION_LABEL_STROKE_WIDTH = 10;
+/** §2: the hovered label must be **larger** than the idle one (32 → 36). */
+export const STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE = 36;
+
+// ---- v0.5.2 FEAT-M01: 虚拟列表 ----
+/** Fixed row height (px) shared by the item and character lists. */
+export const LIST_ROW_HEIGHT = 64;
+
 /** Linkage palette bounds (FEAT-D04). */
 export const LINKAGE_COLOR_MIN_COUNT = 2;
 export const LINKAGE_COLOR_MAX_COUNT = 12;
@@ -565,31 +596,39 @@ export interface MapStyle {
 export const DEFAULT_MAP_STYLE: MapStyle = {
   /** FEAT-D03: `null` means "whatever the first adaptive pass computed". */
   cellSize: null,
-  canvasFrame: { width: CANVAS_OUTER_BORDER_WIDTH, color: LINE_COLOR },
-  gridSeparator: { width: BORDER_WIDTH, color: LINE_COLOR },
+  // v0.5.2 SPEC-M07: every geometric default now comes from the dedicated
+  // `STYLE_DEFAULT_*` set (docs/v0.5.2.md §7).
+  canvasFrame: { width: STYLE_DEFAULT_CANVAS_FRAME_WIDTH, color: LINE_COLOR },
+  gridSeparator: { width: STYLE_DEFAULT_GRID_SEPARATOR_WIDTH, color: LINE_COLOR },
   mouseCursorBox: {
-    width: INNER_LINE_WIDTH,
+    width: STYLE_DEFAULT_MOUSE_CURSOR_WIDTH,
     color: CELL_CURSOR_COLOR,
     blockedColor: CELL_CURSOR_BLOCKED_COLOR,
     shadowColor: CELL_CURSOR_SHADOW_COLOR,
   },
   operationCursorBox: {
-    width: OPERATION_CURSOR_OUTLINE_WIDTH,
+    width: STYLE_DEFAULT_OPERATION_CURSOR_WIDTH,
     color: OPERATION_CURSOR_COLOR,
     offset: OPERATION_CURSOR_OUTLINE_OFFSET,
   },
   regionLabel: {
-    fontSize: REGION_LABEL_FONT_SIZE,
-    strokeWidth: REGION_LABEL_STROKE_WIDTH,
+    fontSize: STYLE_DEFAULT_REGION_LABEL_FONT_SIZE,
+    strokeWidth: STYLE_DEFAULT_REGION_LABEL_STROKE_WIDTH,
     color: REGION_LABEL_COLOR,
     strokeColor: REGION_LABEL_STROKE_COLOR,
-    hoverFontSize: REGION_LABEL_HOVER_FONT_SIZE,
+    hoverFontSize: STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE,
     hoverColor: REGION_LABEL_COLOR,
-    hoverStrokeColor: REGION_HIGHLIGHT_BORDER_COLOR,
+    hoverStrokeColor: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
   },
-  regionOutline: { width: REGION_BORDER_WIDTH_DEFAULT, color: DEFAULT_REGION_COLOR },
-  regionHighlight: { width: REGION_HIGHLIGHT_WIDTH, color: REGION_HIGHLIGHT_BORDER_COLOR },
-  ruler: { fontSize: RULER_FONT_SIZE, gap: RULER_GAP },
+  regionOutline: {
+    width: STYLE_DEFAULT_REGION_OUTLINE_WIDTH,
+    color: DEFAULT_REGION_COLOR,
+  },
+  regionHighlight: {
+    width: STYLE_DEFAULT_REGION_HIGHLIGHT_WIDTH,
+    color: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
+  },
+  ruler: { fontSize: STYLE_DEFAULT_RULER_FONT_SIZE, gap: STYLE_DEFAULT_RULER_GAP },
 };
 
 // ---- Editor tools ----

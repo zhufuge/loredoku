@@ -1,7 +1,6 @@
 import type {
   CreateItemInput,
   Item,
-  ItemTriggerInput,
   ItemUsage,
   ListItemsQuery,
   UpdateItemInput,
@@ -58,14 +57,6 @@ export async function hardDeleteItem(id: number, clearReferences: boolean): Prom
     throw AppError.notFound('物品不存在');
   }
   await repo.hardDelete(id, clearReferences);
-}
-
-export async function replaceTriggers(id: number, triggers: ItemTriggerInput[]): Promise<Item> {
-  if (!(await repo.findById(id))) {
-    throw AppError.notFound('物品不存在');
-  }
-  await repo.replaceTriggers(id, triggers);
-  return getItem(id);
 }
 
 export async function uploadImage(id: number, buffer: Buffer): Promise<Item> {

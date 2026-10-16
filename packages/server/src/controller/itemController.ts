@@ -3,7 +3,6 @@ import {
   createItemSchema,
   idParamSchema,
   listItemsQuerySchema,
-  replaceItemTriggersSchema,
   updateItemSchema,
 } from '@loredoku/shared';
 import { success } from '../utils/response';
@@ -72,8 +71,8 @@ export async function usages(ctx: Context): Promise<void> {
   success(ctx, await itemService.getUsages(id));
 }
 
-export async function replaceTriggers(ctx: Context): Promise<void> {
-  const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const triggers = parseOrThrow(replaceItemTriggersSchema, ctx.request.body ?? []);
-  success(ctx, await itemService.replaceTriggers(id, triggers), '触发信息已保存');
-}
+/**
+ * v0.5.2 FEAT-M03 (docs/v0.5.2.md §3.1): `PUT /api/items/:id/triggers` is gone
+ * together with the `item_triggers` table — the route is simply not registered
+ * any more, so a stale client gets 404 rather than a 500 from a dead schema.
+ */

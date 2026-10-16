@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { ItemTriggerInput } from '@loredoku/shared';
 import {
   itemsApi,
   type CreateItemPayload,
@@ -45,7 +44,9 @@ export function useCreateItem(onSuccess?: (item: { id: number }) => void) {
   return useMutation({
     mutationFn: (payload: CreateItemPayload) => itemsApi.create(payload),
     onSuccess: (item) => {
-      toast.success('物品创建成功，上传图片后可手动启用');
+      // v0.5.2 FEAT-M05: the image can now be picked inside the create dialog,
+      // so "go upload it afterwards" is no longer the only path.
+      toast.success('物品创建成功');
       invalidate();
       onSuccess?.(item);
     },
@@ -66,18 +67,8 @@ export function useUpdateItem() {
   });
 }
 
-export function useReplaceItemTriggers(onSuccess?: () => void) {
-  const invalidate = useInvalidateItems();
-  return useMutation({
-    mutationFn: ({ id, triggers }: { id: number; triggers: ItemTriggerInput[] }) =>
-      itemsApi.replaceTriggers(id, triggers),
-    onSuccess: () => {
-      invalidate();
-      onSuccess?.();
-    },
-    onError: (error) => toast.error(errorMessage(error, '触发信息保存失败')),
-  });
-}
+// v0.5.2 FEAT-M03: `useReplaceItemTriggers` went away with the
+// `PUT /api/items/:id/triggers` endpoint.
 
 export function useDeleteItem() {
   const invalidate = useInvalidateItems();

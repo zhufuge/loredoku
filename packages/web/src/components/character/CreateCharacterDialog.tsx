@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
@@ -19,6 +19,7 @@ import {
   type AppearanceMode,
 } from '@loredoku/shared';
 import { AppearanceField } from '@/components/appearance/AppearanceField';
+import { PendingImageField } from '@/components/appearance/PendingImageField';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -31,7 +32,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { useCreateCharacter } from '@/hooks/useCharacters';
+import { useCreateCharacter, useUploadCharacterAvatar } from '@/hooks/useCharacters';
 
 const schema = z.object({
   name: z.string().trim().min(1, '请输入角色名称').max(CHARACTER_NAME_MAX_LENGTH, '名称过长'),
@@ -79,24 +80,40 @@ export function CreateCharacterDialog({
     formState: { errors },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
 
-  const createMutation = useCreateCharacter((character) => {
-    onOpenChange(false);
-    onCreated(character.id);
-  });
+  const createMutation = useCreateCharacter();
+  const uploadMutation = useUploadCharacterAvatar();
+  // v0.5.2 FEAT-M05: the avatar can be picked before the character exists.
+  const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
-    if (!open) reset(DEFAULTS);
+    if (!open) {
+      reset(DEFAULTS);
+      setFile(null);
+    }
   }, [open, reset]);
 
-  const onSubmit = handleSubmit((values) => {
-    createMutation.mutate({
-      name: values.name,
-      code: values.code,
-      gender: values.gender,
-      description: values.description || undefined,
-      // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
-      bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
-    });
+  const busy = createMutation.isPending || uploadMutation.isPending;
+
+  const onSubmit = handleSubmit(async (values) => {
+    let character: { id: number };
+    try {
+      character = await createMutation.mutateAsync({
+        name: values.name,
+        code: values.code,
+        gender: values.gender,
+        description: values.description || undefined,
+        // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
+        bgColor: values.appearanceMode === 'color' ? values.bgColor : null,
+      });
+    } catch {
+      return;
+    }
+    // §5.1: a failed upload leaves the character in place.
+    if (file) {
+      await uploadMutation.mutateAsync({ id: character.id, file }).catch(() => undefined);
+    }
+    onOpenChange(false);
+    onCreated(character.id);
   });
 
   const gender = watch('gender');
@@ -164,9 +181,13 @@ export function CreateCharacterDialog({
             bgColor={watch('bgColor')}
             onBgColorChange={(value) => setValue('bgColor', value.toUpperCase(), { shouldDirty: true })}
           >
-            <p className="text-xs text-muted-foreground">
-              头像在创建后于右侧详情里上传。
-            </p>
+            {/* v0.5.2 FEAT-M05: upload the avatar right here. */}
+            <PendingImageField
+              id="character-avatar"
+              label="角色头像"
+              file={file}
+              onFileChange={setFile}
+            />
           </AppearanceField>
           {errors.bgColor ? (
             <p className="text-xs text-destructive">{errors.bgColor.message}</p>
@@ -175,8 +196,8 @@ export function CreateCharacterDialog({
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               取消
             </Button>
-            <Button type="submit" disabled={createMutation.isPending}>
-              {createMutation.isPending ? '创建中…' : '创建'}
+            <Button type="submit" disabled={busy}>
+              {busy ? '创建中…' : '创建'}
             </Button>
           </DialogFooter>
         </form>

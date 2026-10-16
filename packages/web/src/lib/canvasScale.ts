@@ -2,7 +2,6 @@ import {
   BASE_CELL,
   BORDER_WIDTH,
   CANVAS_OUTER_BORDER_WIDTH,
-  FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   INNER_LINE_WIDTH,
   LINE_WIDTH_MAX,
@@ -38,11 +37,19 @@ export function scaleLineWidth(width: number, scale: number): number {
   return Math.min(LINE_WIDTH_MAX, Math.max(LINE_WIDTH_MIN, scaled));
 }
 
-/** Font sizes clamp to `[FONT_SIZE_MIN, FONT_SIZE_MAX]` (§3.2 约束). */
+/**
+ * v0.5.2 FIX-M08 (docs/v0.5.2.md §8): font sizes clamp to `FONT_SIZE_MIN`
+ * only — **there is no upper bound**.
+ *
+ * The old 28px ceiling flattened everything above it, so the region label
+ * "set to 32px but still rendered 28px". Unlike line widths (which really do
+ * need a ceiling or they smear over the cell), a large label is a deliberate
+ * authoring choice and must survive the scale.
+ */
 export function scaleFontSize(size: number, scale: number): number {
   const scaled = size * scale;
   if (!Number.isFinite(scaled)) return size;
-  return Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, scaled));
+  return Math.max(FONT_SIZE_MIN, scaled);
 }
 
 /**

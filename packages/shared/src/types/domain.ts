@@ -63,13 +63,10 @@ export interface ProjectDetail extends Project {
   versionCount: number;
 }
 
-export interface ItemTrigger {
-  id: number;
-  triggerKey: string;
-  triggerValue: string;
-  effectType: EffectType;
-  effectConfig: Record<string, unknown>;
-}
+/**
+ * v0.5.2 FEAT-M03: `ItemTrigger` is gone with the `item_triggers` table.
+ * `EffectType` itself stays — participant linkages still use it.
+ */
 
 export interface Item {
   id: number;
@@ -89,16 +86,13 @@ export interface Item {
   imageHeight: number | null;
   /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bgColor: string | null;
-  meta: Record<string, unknown>;
   isActive: boolean;
-  triggers: ItemTrigger[];
   createdAt: string;
   updatedAt: string;
 }
 
 // Backward-compatible aliases (kept while the web app migrates in a later phase).
 export type Card = Item;
-export type CardTrigger = ItemTrigger;
 
 export interface Character {
   id: number;

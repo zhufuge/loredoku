@@ -25,6 +25,9 @@ import {
   REGION_BORDER_WIDTH_MIN,
   REGION_HIGHLIGHT_BORDER_COLOR,
   REGION_HIGHLIGHT_WIDTH,
+  STYLE_DEFAULT_GRID_SEPARATOR_WIDTH,
+  STYLE_DEFAULT_MOUSE_CURSOR_WIDTH,
+  STYLE_DEFAULT_OPERATION_CURSOR_WIDTH,
   RULER_COLOR,
   RULER_COLOR_HOVER,
   RULER_FONT_SIZE,
@@ -78,9 +81,7 @@ function item(overrides: Partial<Item> = {}): Item {
     imageSize: null,
     imageWidth: null,
     imageHeight: null,
-    meta: {},
     isActive: true,
-    triggers: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -307,11 +308,13 @@ describe('hover effects (OPT-902 §2.1~2.4)', () => {
 
 describe('cell cursor box (OPT-A05 §3.3.1)', () => {
   it('uses a 1px inner stroke in the state colour plus the grey Border shadow', () => {
+    // v0.5.2 SPEC-M07: both rings now default off `DEFAULT_MAP_STYLE`
+    // (mouse cursor box 8px, grid separator 4px), not the legacy constants.
     expect(cellCursorShadow(false, BASE_CELL)).toContain(
-      `inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_COLOR}`,
+      `inset 0 0 0 ${STYLE_DEFAULT_MOUSE_CURSOR_WIDTH}px ${CELL_CURSOR_COLOR}`,
     );
     expect(cellCursorShadow(true, BASE_CELL)).toContain(
-      `inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_BLOCKED_COLOR}`,
+      `inset 0 0 0 ${STYLE_DEFAULT_MOUSE_CURSOR_WIDTH}px ${CELL_CURSOR_BLOCKED_COLOR}`,
     );
     for (const blocked of [false, true]) {
       expect(cellCursorShadow(blocked, BASE_CELL)).toContain(CELL_CURSOR_SHADOW_COLOR);
@@ -377,10 +380,11 @@ describe('cursor boxes (OPT-A05 §4.1~§4.3)', () => {
   });
 
   it('§3.2.2: the operation box is an Outline outside the Border', () => {
+    // v0.5.2 SPEC-M07: the box defaults to 8px now (was 2px).
     expect(operationCursorOutline(BASE_CELL)).toBe(
-      `${OPERATION_CURSOR_OUTLINE_WIDTH}px solid ${OPERATION_CURSOR_COLOR}`,
+      `${STYLE_DEFAULT_OPERATION_CURSOR_WIDTH}px solid ${OPERATION_CURSOR_COLOR}`,
     );
-    expect(OPERATION_CURSOR_OUTLINE_WIDTH).toBe(2);
+    expect(STYLE_DEFAULT_OPERATION_CURSOR_WIDTH).toBe(8);
     expect(OPERATION_CURSOR_OUTLINE_OFFSET).toBeGreaterThanOrEqual(0);
   });
 });
@@ -493,17 +497,22 @@ describe('v0.3.6 constants (§7)', () => {
 describe('OPT-B03: scaled cursor geometry', () => {
   it('keeps the v0.3.5 look at the reference cell width', () => {
     const shadow = cellCursorShadow(false, BASE_CELL);
-    expect(shadow).toContain(`inset 0 0 0 ${INNER_LINE_WIDTH}px ${CELL_CURSOR_COLOR}`);
-    expect(shadow).toContain(`0 0 0 ${BORDER_WIDTH}px ${CELL_CURSOR_SHADOW_COLOR}`);
-    expect(operationCursorOutline(BASE_CELL)).toContain('2px solid');
+    expect(shadow).toContain(
+      `inset 0 0 0 ${STYLE_DEFAULT_MOUSE_CURSOR_WIDTH}px ${CELL_CURSOR_COLOR}`,
+    );
+    expect(shadow).toContain(
+      `0 0 0 ${STYLE_DEFAULT_GRID_SEPARATOR_WIDTH}px ${CELL_CURSOR_SHADOW_COLOR}`,
+    );
+    expect(operationCursorOutline(BASE_CELL)).toContain('8px solid');
   });
 
   it('doubles both rings at the maximum cell width', () => {
     const shadow = cellCursorShadow(true, 240);
-    // INNER_LINE_WIDTH 2 × scale 2 = 4px; the Border ring 2 × 2 = 4px.
-    expect(shadow).toContain(`inset 0 0 0 4px ${CELL_CURSOR_BLOCKED_COLOR}`);
-    expect(shadow).toContain(`0 0 0 4px ${CELL_CURSOR_SHADOW_COLOR}`);
-    expect(operationCursorOutline(240)).toBe(`4px solid ${OPERATION_CURSOR_COLOR}`);
+    // 8 × 2 = 16 → clamped to the 12px line ceiling; 4 × 2 = 8px.
+    expect(shadow).toContain(`inset 0 0 0 12px ${CELL_CURSOR_BLOCKED_COLOR}`);
+    expect(shadow).toContain(`0 0 0 8px ${CELL_CURSOR_SHADOW_COLOR}`);
+    // 8 × 2 = 16 → clamped to 12px as well.
+    expect(operationCursorOutline(240)).toBe(`12px solid ${OPERATION_CURSOR_COLOR}`);
     expect(operationCursorStyle(240).outlineOffset).toBe(
       `${OPERATION_CURSOR_OUTLINE_OFFSET}px`,
     );
@@ -511,9 +520,9 @@ describe('OPT-B03: scaled cursor geometry', () => {
 
   it('shrinks both rings at the minimum cell width', () => {
     const shadow = cellCursorShadow(false, 90);
-    // INNER_LINE_WIDTH 2 × scale 0.75 = 1.5px; the Border ring 2 × 0.75 = 1.5px.
-    expect(shadow).toContain('inset 0 0 0 1.5px');
-    expect(shadow).toContain('0 0 0 1.5px');
+    // 8 × 0.75 = 6px; 4 × 0.75 = 3px.
+    expect(shadow).toContain('inset 0 0 0 6px');
+    expect(shadow).toContain('0 0 0 3px');
     // 1.5px / 2 = 0.75, matching the scaled Border.
     expect(noStandShadowInset(90)).toBeCloseTo(0.75, 6);
     expect(NO_STAND_SHADOW_INSET).toBeCloseTo(1, 6);

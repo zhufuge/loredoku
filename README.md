@@ -5,7 +5,7 @@
 - 项目名称：`loredoku`（中文名：格物）；包名 `@loredoku/shared` / `@loredoku/server` / `@loredoku/web`
 - 技术栈：Node.js + TypeScript · Koa + PostgreSQL（Knex）· Vite + React 18 + TailwindCSS + shadcn/ui
 - 仓库形态：npm workspaces monorepo（`shared` / `server` / `web`）
-- 需求文档：见 [`docs/`](./docs)（`v0.1.0` ~ `v0.5.1` 逐版需求，最新为 v0.5.1）
+- 需求文档：见 [`docs/`](./docs)（`v0.1.0` ~ `v0.5.2` 逐版需求，最新为 v0.5.2）
 
 ---
 
@@ -146,8 +146,10 @@ npm run dev -- -s 4000 -w 5180           # 两个都自定义
 
 - **地图管理（`/projects`，v0.5.0 FEAT-K09 起为「条目并集」）**：创建 / 编辑 / 删除 / 复制地图，指定画布尺寸 `n × n`（2 ~ 24）。列表同时展示两种条目——**工作条目**（`map_projects` 行，可编辑，徽标「草稿」或「已发布 v{n}」）与**版本条目**（`map_versions` 行，徽标 `v{n}`，只读快照）；同一血缘（`root_id`）的条目可用「按地图归组」相邻显示，类型三态筛选（全部 / 只看工作条目 / 只看版本条目，默认全部）。版本条目的操作是**查看效果**（只读画布预览 `/maps/:projectId/:versionNo/view`）/ **以此版本新建谜题**（跳 `/puzzles?new={projectId}:{versionNo}`）/ **编辑此版本**（fork 出新工作条目，绝不改原版本行）/ **删除**；版本条目**不可重命名、不可改封面**。
 - **地图封面与卡片（v0.4.2 FEAT-H03 / OPT-H04，v0.5.0 FEAT-K09 扩到版本条目）**：新建 / 编辑地图时可**选填封面**（PNG / JPEG / WebP / SVG，≤ 4 MB，固定 16:10），网格卡片把封面作为卡片的头、无封面时显示名称首字，列表行同步加上 64×40 的封面缩略图；卡片与列表都**去掉了「卡片 N」「区域 N」**（接口字段保留），只留 `n × n` 与更新时间 —— 卡片用**相对时间**（「3 天前更新」，悬停显示绝对时间），列表保留绝对时间。新建走**两步串行**（先建地图拿到 id，再上传封面），封面失败时地图不会丢，弹窗提示「重试上传」。版本条目副信息补「该地图共 N 个版本 · 发布于 …」。
-- **物品管理（`/items`）**：维护图案方块（背景 / 物体两类），支持**外观**（图片 / 纯色块，v0.5.1 FEAT-L01）、尺寸、`canStand`（是否可站立）、缩略图与触发信息。
+- **物品管理（`/items`）**：维护图案方块（背景 / 物体两类），支持**外观**（图片 / 纯色块，v0.5.1 FEAT-L01）、尺寸、`canStand`（是否可站立）、图片填充方式与缩略图。
+  - **v0.5.2**：列表改为**虚拟滚动**（只渲染可视区，长列表不再一次性请求全部缩略图，`LIST_ROW_HEIGHT = 64`）；**背景类型恒定可站立**——「可站立」只在「物体」类型上出现（表单 / 列表 / 详情一致，`canStandFor()` 是唯一真源）；**新建时就能上传图片**（先建后传两步串行，上传失败不吞掉已创建的物品）；详情里的「扩展信息（meta）」与「触发信息」连同 `items.meta` 列与 `item_triggers` 表一并删除。
 - **角色管理（`/characters`）**：维护参与者角色（**外观**：头像 / 纯色块，v0.5.1 FEAT-L02；性别等）。
+  - **v0.5.2**：列表同样改为**虚拟滚动**；**新建时就能上传头像**。
 - **纯色块（v0.5.1 FEAT-L01 / FEAT-L02 / SPEC-L03）**：物品与角色都可以**不上传图片**，选一个颜色（`items.bg_color` / `characters.bg_color`，`#RRGGBB`，默认 `#FFFFFF`）就能**启用**——这就是「纯色块」类型。渲染上**色块优先于图片**：`bgColor` 非空时，画布背景层 / 物体层按占格铺满该色，角色头像圆与列表缩略图同样铺色（图片分支逐像素不变）。切回「图片」只是把 `bg_color` 置 `NULL`，**已上传的文件不删**。删除图片 / 头像时，**有背景色的条目不再被联动停用**（OPT-305 收窄，纯图片条目行为不变）。物品 / 角色本体不进入任何 JSON（草稿 / 谜题 / 快照都只存 id），因此色块对已部署游戏**实时生效、无需回填**。
 - **可视化编辑器（`/editor/:projectId`）**：拖拽放置物品、框选 / 笔刷绘制区域、区域命名与配色、橡皮擦、撤销 / 重做（上限 50 步）；画布**自适应方格宽度 90 ~ 240px**（v0.3.5 OPT-A01，v0.3.6 OPT-B02 追加底部工具条留白，v0.3.7 OPT-C01 四边各加 24px 外边距），缩放 25% ~ 400%；线条与字体随方格尺寸**等比缩放**（v0.3.6 OPT-B03）。v0.5.0 SPEC-K12 起左侧只剩「物品 / 区域」两个标签（角色与参与者整棵子树搬去谜题编辑器）。
 - **画布平移（v0.3.9 FEAT-E03）**：在地图**方格以外**的空白处按下并拖动即可平移画布；指针进入方格为 `pointer`（v0.3.9 FEAT-E04），空白处为 `grab` / 拖拽中 `grabbing`。工具栏中的「拖动」按钮已移除。
@@ -197,12 +199,12 @@ npm run dev -- -s 4000 -w 5180           # 两个都自定义
 | 内描边 Inner Line（鼠标光标框） | 2px | × `scale` |
 | 操作光标框 Outer Line | 2px | × `scale` |
 | 区域轮廓线 | 区域自身 `borderWidth`（4 ~ 12；缺省取自「基本信息」） | × `scale` |
-| 区域高亮线 | 4px，紧贴区域轮廓线**内侧**向内扩展 | × `scale` |
-| 区域标签 | 字号 17px（悬停 19px）/ 描边 4px | × `scale` |
-| 标尺字符 | 17px（操作格 19px） | × `scale` × `zoom` |
+| 区域高亮线 | **12px `#3b82f6`**（v0.5.2），紧贴区域轮廓线**内侧**向内扩展 | × `scale` |
+| 区域标签 | 字号 **32px（悬停 36px）** / 描边 **10px**（v0.5.2） | × `scale` |
+| 标尺字符 | **24px**（操作格 +2，v0.5.2 默认） | × `scale` × `zoom` |
 | 物件层物品内边距 | 4px | × `scale`，clamp `[2, 12]` |
 
-`scale = cellSize / BASE_CELL`；线条宽度统一 clamp `[0.5, 12]`、字体 clamp `[9, 28]`（全项目共用一组上下限）。缩放只在 `cellSize` 变化时重算，画布 zoom 由容器 `transform` 负责，不会二次缩放。
+`scale = cellSize / BASE_CELL`；线条宽度统一 clamp `[0.5, 12]`；**字体只 clamp 下限 9px、无上限**（v0.5.2 FIX-M08 去掉了旧的 28px 天花板，否则「区域标签设成 32px 还画 28px」）。缩放只在 `cellSize` 变化时重算，画布 zoom 由容器 `transform` 负责，不会二次缩放。
 
 ### 画布图层堆叠（v0.3.9 SPEC-E01，v0.4.0 SPEC-G01/G02 扩为 15 层）
 
@@ -244,7 +246,7 @@ v0.3.9 / v0.4.0 的旧名 → 新名对照见规范文档 §6 命名迁移记录
 
 ### 标尺字符（v0.3.6 OPT-B05 §5 + v0.3.7 OPT-C02 + v0.3.9 FEAT-E02 + v0.3.10 FEAT-F01）
 
-默认淡灰 `#9CA3AF` / **17px**；鼠标所在行列变深灰 `#374151`（字号不变，**不使用蓝色或下划线**）；操作光标框所在行列深灰 + **19px**（叠加时操作格优先）。字号与到地图的间距均可在「基本信息 → 标尺」中配置（v0.3.9 FEAT-E02）：文本大小 9 ~ 32（默认 17，操作格恒为 +2）、间距 0 ~ 32（默认 6）。标尺条厚度由 `rulerStripSize({maxFontSize, gap})` 动态求得（不小于 `RULER_SIZE = 28`），因此加大字号不会让文字溢出。字号仍随 `scale × zoom` 缩放。
+默认淡灰 `#9CA3AF` / **17px**；鼠标所在行列变深灰 `#374151`（字号不变，**不使用蓝色或下划线**）；操作光标框所在行列深灰 + **19px**（叠加时操作格优先）。字号与到地图的间距均可在「基本信息 → 标尺」中配置（v0.3.9 FEAT-E02）：文本大小 9 ~ 32（**v0.5.2 起默认 24**，操作格恒为 +2）、间距 0 ~ 32（**v0.5.2 起默认 24**）。标尺条厚度由 `rulerStripSize({maxFontSize, gap})` 动态求得（不小于 `RULER_SIZE = 28`），因此加大字号不会让文字溢出。字号仍随 `scale × zoom` 缩放。
 
 标尺本体抽成了共享组件 `packages/web/src/components/map/MapRulerStrips.tsx`（v0.3.10 FEAT-F01），编辑器与谜题预览页渲染**同一份**几何：预览页无「操作光标框」，因此 `operationCell` 恒为 `null`，只有「悬停行列变深灰」一档；预览页顶栏提供「标尺」开关，默认显示，选择持久化在 `localStorage` 键 `loredoku.puzzleview.ruler`（`visible` / `hidden`）。
 
@@ -255,17 +257,22 @@ v0.3.9 / v0.4.0 的旧名 → 新名对照见规范文档 §6 命名迁移记录
 | 分组 | 字段 | 缺省值 | 范围 |
 |---|---|---|---|
 | 画布 | `cellSize` | `null`（自适应） | 90 ~ 240 整数 |
-| 线条 | `canvasFrame` 线宽 / 颜色 | 6px / `#000000` | 1 ~ 12 / `#RRGGBB` |
-| 线条 | `gridSeparator` 线宽 / 颜色（原 `border`） | 2px / `#000000` | 1 ~ 12 / `#RRGGBB` |
-| 线条 | `mouseCursorBox` 线宽 / 颜色 / 阻挡色 / 阴影环（原 `mouseCursor`） | 2px / `#FFFFFF` / `#EF9A9A` / `rgba(0,0,0,0.15)` | 1 ~ 12 / `#RRGGBB` |
-| 线条 | `operationCursorBox` 线宽 / 颜色 / 外扩（原 `operationCursor`） | 2px / `#90CAF9` / 1px | 1 ~ 12 / 0 ~ 8 |
-| 线条 | `regionOutline` 线宽 / 颜色（原 `regionBorder`） | 6px / `#000000` | 4 ~ 12（改宽同步所有区域） |
-| 线条 | `regionHighlight` 线宽 / 颜色 | 4px / `#90CAF9` | 1 ~ 12 / `#RRGGBB` |
-| 区域标签 | `regionLabel.fontSize` / `strokeWidth` / `color` / `strokeColor` | 17 / 4 / `#FFFFFF` / `#000000` | 9 ~ 48 / 0 ~ 12 / `#RRGGBB` |
-| 区域标签 | `regionLabel.hoverFontSize` / `hoverColor` / `hoverStrokeColor` | 19 / `#FFFFFF` / `#90CAF9` | 9 ~ 48 / `#RRGGBB` |
-| 标尺 | `ruler.fontSize` / `ruler.gap` | 17 / 6 | 9 ~ 32 / 0 ~ 32 |
+| 线条 | `canvasFrame` 线宽 / 颜色 | **12px** / `#000000` | 1 ~ 12 / `#RRGGBB` |
+| 线条 | `gridSeparator` 线宽 / 颜色（原 `border`） | **4px** / `#000000` | 1 ~ 12 / `#RRGGBB` |
+| 线条 | `mouseCursorBox` 线宽 / 颜色 / 阻挡色 / 阴影环（原 `mouseCursor`） | **8px** / `#FFFFFF` / `#EF9A9A` / `rgba(0,0,0,0.15)` | 1 ~ 12 / `#RRGGBB` |
+| 线条 | `operationCursorBox` 线宽 / 颜色 / 外扩（原 `operationCursor`） | **8px** / `#90CAF9` / 1px | 1 ~ 12 / 0 ~ 8 |
+| 线条 | `regionOutline` 线宽 / 颜色（原 `regionBorder`） | **12px** / `#000000` | 4 ~ 12（改宽同步所有区域） |
+| 线条 | `regionHighlight` 线宽 / 颜色 | **12px / `#3b82f6`** | 1 ~ 12 / `#RRGGBB` |
+| 区域标签 | `regionLabel.fontSize` / `strokeWidth` / `color` / `strokeColor` | **32 / 10** / `#FFFFFF` / `#000000` | 9 ~ 48 / 0 ~ 12 / `#RRGGBB` |
+| 区域标签 | `regionLabel.hoverFontSize` / `hoverColor` / `hoverStrokeColor` | **36** / `#FFFFFF` / `#3b82f6` | 9 ~ 48 / `#RRGGBB` |
+| 标尺 | `ruler.fontSize` / `ruler.gap` | **24 / 24** | 9 ~ 32 / 0 ~ 32 |
 
-线宽与字号都是**基准值**，仍按 `cellSize / BASE_CELL` 等比缩放。解析与 clamp 集中在 `packages/web/src/lib/mapStyle.ts` 的 `resolveMapStyle`。草稿 JSON 版本相应提升为 `MAP_JSON_VERSION = 3`（v0.5.0：`characterSlots` 与 `style.linkageColors` 移除，旧版 JSON 由 `server/src/service/mapDraftCompat.ts` 吸收，参与者搬进谜题）。联动主题色调色板改由谜题持有，见「谜题」。
+> **v0.5.2 SPEC-M07**：上表的缺省值整体调粗调大（详见 `docs/v0.5.2.md` §7），取值来自 shared 的
+> `STYLE_DEFAULT_*` 常量组；老渲染常量（`BORDER_WIDTH` / `INNER_LINE_WIDTH` / `RULER_FONT_SIZE` …）
+> 保持不变，仅不再作为默认值来源。**v0.5.2 FIX-M08 去掉了字号的 28px 上限**——设 32px 就是 32px。
+> 区域标签的高亮字号恒不小于基准字号（`resolveMapStyle` 收敛），高亮时**变大**而不是变小。
+
+线宽与字号都是**基准值**，仍按 `cellSize / BASE_CELL` 等比缩放；线宽 clamp `[0.5, 12]`，字号**只保下限 9px、无上限**。解析与 clamp 集中在 `packages/web/src/lib/mapStyle.ts` 的 `resolveMapStyle`。草稿 JSON 版本相应提升为 `MAP_JSON_VERSION = 3`（v0.5.0：`characterSlots` 与 `style.linkageColors` 移除，旧版 JSON 由 `server/src/service/mapDraftCompat.ts` 吸收，参与者搬进谜题）。联动主题色调色板改由谜题持有，见「谜题」。
 v0.3.9 SPEC-E01 把四个样式字段改名为规范名（见上表括号内旧名），`docs/layer-priority.md` §6 有完整迁移记录。
 
 ### 编辑器焦点互斥（v0.3.7 OPT-C07）
@@ -307,7 +314,7 @@ v0.3.9 SPEC-E01 把四个样式字段改名为规范名（见上表括号内旧�
 ## 测试说明
 
 - 使用 **Vitest**（web 侧 `environment: 'jsdom'`）。组件行为尽量以**无依赖纯函数**覆盖（`lib/linkageActivation`、`lib/cellSelection`、`lib/highlight`、`lib/editorInit`、`lib/gamePlacement`、`lib/relativeTime`、`scripts/dev.mjs` 等）。
-- `EditorCanvas.noDrag.test.ts`、`MapInfoDrawer.test.tsx`、`PuzzleViewPage.preview.test.ts`、`PuzzleEditorPage.test.ts`、`PuzzleEditorPage.infoDrawer.test.ts`、`EditorPage.autoSave.test.ts`、`EditorPage.infoDrawer.test.ts`、`EditorPage.publish.test.ts`、`EditorBottomBar.test.ts`、`ProjectCards.test.ts`、`ProjectsPage.entries.test.ts`、`PuzzlesPage.deploy.test.ts`、`wording.test.ts` 通过 `import.meta.glob(..., { query: '?raw' })` 读取源码，断言画布内「点击可选中、绝不注册拖动」、颜色控件统一走 `ColorInput`、预览页复用 `ParticipantPanel` / `MapRulerStrips`、基本信息一次提交、发布走确认弹窗且文案为「新增条目」、底栏不含「放置角色」、**谜题底栏不含任何写工具且尺寸是纯展示 `span`**、**地图列表条目并集与三态筛选**、**谜题列表 5 列与操作**、**生产代码里不出现「项目」/「作品」**、**「外观」二选一与启用条件放宽**（`appearanceForms.test.ts`）、**页面路由里不再有 `/games`**等**结构性规则**。渲染级用例直接 `createRoot` 挂载组件（Radix 弹窗会 portal 到 `document.body`，故查询走 `document`）：`AppearanceField.test.tsx`、`ItemThumbnail.test.tsx`、`CharacterThumbnail.test.tsx`、`MapLayers.colorBlock.test.tsx` 断言纯色块真的铺满对应区域。
+- `EditorCanvas.noDrag.test.ts`、`MapInfoDrawer.test.tsx`、`PuzzleViewPage.preview.test.ts`、`PuzzleEditorPage.test.ts`、`PuzzleEditorPage.infoDrawer.test.ts`、`EditorPage.autoSave.test.ts`、`EditorPage.infoDrawer.test.ts`、`EditorPage.publish.test.ts`、`EditorBottomBar.test.ts`、`ProjectCards.test.ts`、`ProjectsPage.entries.test.ts`、`PuzzlesPage.deploy.test.ts`、`wording.test.ts` 通过 `import.meta.glob(..., { query: '?raw' })` 读取源码，断言画布内「点击可选中、绝不注册拖动」、颜色控件统一走 `ColorInput`、预览页复用 `ParticipantPanel` / `MapRulerStrips`、基本信息一次提交、发布走确认弹窗且文案为「新增条目」、底栏不含「放置角色」、**谜题底栏不含任何写工具且尺寸是纯展示 `span`**、**地图列表条目并集与三态筛选**、**谜题列表 5 列与操作**、**生产代码里不出现「项目」/「作品」**、**「外观」二选一与启用条件放宽**（`appearanceForms.test.ts`）、**页面路由里不再有 `/games`**等**结构性规则**。渲染级用例直接 `createRoot` 挂载组件（Radix 弹窗会 portal 到 `document.body`，故查询走 `document`）：`AppearanceField.test.tsx`、`ItemThumbnail.test.tsx`、`CharacterThumbnail.test.tsx`、`MapLayers.colorBlock.test.tsx` 断言纯色块真的铺满对应区域；`virtual-list.test.tsx` 断言 1000 条数据只渲染可视区那几行（v0.5.2 FEAT-M01）。另有 `itemForms.v052.test.ts` 钉住「详情无 meta / 触发信息、可站立只对物体、创建即传图、两个列表都走 `VirtualList`」，`MapInfoDrawer.defaults.test.ts` 逐项钉住基本信息的新默认值。
 - 少量组件级用例（如 `MapInfoDrawer.test.tsx`、`ThemeColorDialog.test.tsx`、`ParticipantPanel.placedDim.test.tsx`）在 jsdom 下直接渲染并断言交互；本环境未安装 testing-library，断言只用原生 DOM API（Radix 弹窗会 `portal` 到 `document.body`，查询要走 `document`）。
 - `scripts/dev.test.mjs` 覆盖 `npm run dev` 的参数解析与环境变量映射，由根目录的 `vitest run scripts` 运行。
 
@@ -329,7 +336,7 @@ bash scripts/run-tests.sh packages/web            # 逐文件跑（规避聚合�
 - **基本信息是完整表单（v0.3.10 FIX-F01/FIX-F02）**：画布尺寸与样式同属一份草稿，`onCommit(style, gridSize)` 一次提交；数值控件每次 `change` 即写草稿（失焦 / 回车只负责回退非法输入），因此**不需要**先按回车才能点「保存」。空字段不等于 0，失焦会还原为已保存值。
 - **组件复用**：预览页的参与者区（`ParticipantPanel readOnly`）与标尺（`MapRulerStrips`）与编辑器共用同一份实现，改动任一处必须同时验证两端。
 - **命名一致性**：前端文案与路由统一使用「地图 / 谜题」（`/puzzles`、`/puzzles/:id/view`、`/maps/:projectId/:versionNo/view`）；后端沿用 `map_projects` / `map_versions` / `version_no` / `/versions`，不做改动。`wording.test.ts` 断言**用户可见文案里不出现「项目」「作品」**（`/works` 已删），并断言**页面路由里不再出现 `/games`**（v0.5.1 起为 `/play`；`/api/games*` 是内部接口、保持不变）。
-- **数据模型**：物品 / 角色都有可选的**纯色块**颜色 `bgColor`（v0.5.1，可空 `#RRGGBB`，非空即按色块渲染并优先于图片；无图有色即可启用）。参与者不进入地图；v0.5.0 起地图 `MapDraft` 是**纯画布**（`version = 3`，无 `characterSlots`、`style` 无 `linkageColors`），`CharacterSlotEntry`（携带 `themeColor` + `clue` + 扁平 `linkages` + 可选 `positionConditions`）搬到谜题的 `PuzzleDraft`（`version = 1`）。`characterSlotEntrySchema` 使用 `.strict()` 拒绝遗留的 `triggers` 字段；存量 v2 地图 JSON 由 `server/src/service/mapDraftCompat.ts` 吸收（旧草稿里的参与者回填成谜题种子，`puzzleBackfill.ts`），存量游戏快照由 `gameSnapshotCompat.ts` 读取 `legacyCharacterSlots` / `legacyLinkageColors`。
+- **数据模型**：物品 / 角色都有可选的**纯色块**颜色 `bgColor`（v0.5.1，可空 `#RRGGBB`，非空即按色块渲染并优先于图片；无图有色即可启用）。**v0.5.2 起物品不再有 `meta` 与 `triggers`**（`items.meta` 列与 `item_triggers` 表已删除，迁移 `20260101000019_v052_item_fields`）；**`category = 'background'` 的物品 `canStand` 恒为 `true`**（`canStandFor()`，schema / repository / 表单三处同一真源）。`fitMode`（图片填充方式）经核查**在渲染中使用**（`object-fit`），保留。参与者不进入地图；v0.5.0 起地图 `MapDraft` 是**纯画布**（`version = 3`，无 `characterSlots`、`style` 无 `linkageColors`），`CharacterSlotEntry`（携带 `themeColor` + `clue` + 扁平 `linkages` + 可选 `positionConditions`）搬到谜题的 `PuzzleDraft`（`version = 1`）。`characterSlotEntrySchema` 使用 `.strict()` 拒绝遗留的 `triggers` 字段；存量 v2 地图 JSON 由 `server/src/service/mapDraftCompat.ts` 吸收（旧草稿里的参与者回填成谜题种子，`puzzleBackfill.ts`），存量游戏快照由 `gameSnapshotCompat.ts` 读取 `legacyCharacterSlots` / `legacyLinkageColors`。
 - **迁移**：`db/migrations/` 目录下的每个文件都会被 Knex 当作迁移加载，辅助模块不要放在该目录（参与者迁移的纯变换函数位于 `server/src/service/draftLinkageMigration.ts`，v0.4.1 的 `map_games.slug` 回填位于 `server/src/service/gameSlugBackfill.ts`，v0.5.0 的谜题回填位于 `server/src/service/puzzleBackfill.ts`）。**索引即约束**：`table.unique(cols, { indexName })` 建的是 UNIQUE **约束**，回滚必须用 `table.dropUnique(cols, name)`，`DROP INDEX` 会以 `2BP01` 失败。v0.5.0 两个迁移（`20260101000016_v050_puzzles` / `20260101000017_v050_games_puzzle`）已实测 `db:rollback` → `db:migrate` 往返。
 - **访问路径常量**：转写 / 校验一律走 `@loredoku/shared` 的 `slugify` / `buildDefaultSlug` / `slugError` / `normalizeSlugInput`，前端只做预览与净化，**判定以服务端为准**；难度转写用 `GAME_DIFFICULTY_SLUGS` 固定表，避免 `veryEasy` 这类驼峰泄漏到 URL。
 - **主题色**：调色板共 15 色（见 `THEME_COLOR_PALETTE`），默认 `#FFFFFF`。修改主题色的入口是**受控弹窗** `ThemeColorDialog`（不直接写 store），抽屉自身的「保存」才是唯一的写库路径（v0.4.2 FEAT-H08）。
@@ -359,4 +366,5 @@ bash scripts/run-tests.sh packages/web            # 逐文件跑（规避聚合�
 | `docs/v0.4.3.md` | 放置参与者与编号说明（**点击格子放的是编号、长按才是参与者**）、放编号**不再自动补排除项**、放编号改为**切换**（有则删、无则加）、**编号可多次放置**（唯一性只约束头像，去掉「编号 N 已放置在 …」提示）、编辑页参与者**位置条件丢失**修复 |
 | `docs/v0.5.0.md` | **功能范围重划分**：新增**谜题**模块（角色 / 参与者 / 联动主题色 + 绑定已发布地图版本 + 描述）、**删除作品模块**、地图改为**条目 + 版本**（发布新增条目、版本条目不可原地修改）、地图 JSON v3 / 谜题 JSON v1 |
 | `docs/v0.5.1.md` | **纯色块**（物品 / 角色可不传图、选色即启用，色块优先于图片）、**游戏路由 `/games` → `/play`**、游戏页精简（只留 `LOREDOKU` + `{名} {n}x{n}`）、放置编号不再淡化参与者框 |
+| `docs/v0.5.2.md` | **列表虚拟化**（物品 / 角色只渲染可视区）、**区域标签高亮放大且字号上限取消**、**物品字段瘦身**（删 `items.meta` 与 `item_triggers`）、**背景类型恒可站立**、**创建即传图**、**基本信息 11 项默认值上调** |
 | `docs/layer-priority.md` | 《画布图层优先级规范》—— 15 层的中文名 / 英文名 / 次序的唯一权威 |

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR } from '@loredoku/shared';
 import type {
   CharacterSlotEntry,
   DraftCell,
@@ -121,9 +122,10 @@ describe('resolveHighlight', () => {
       { x: 4, y: 4, w: 1, h: 1, color: '#EF9A9A' },
     ]);
     expect(state!.backgroundHighlights).toEqual([]);
-    // MOD-802: regions always render as the inner blue border.
+    // MOD-802: regions always render as the inner border — v0.5.2 SPEC-M07
+    // recoloured it to the strong blue #3b82f6.
     expect(state!.regionBorders).toEqual([
-      { regionId: 'rg_forest', color: '#90CAF9' },
+      { regionId: 'rg_forest', color: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR },
     ]);
   });
 
@@ -136,7 +138,7 @@ describe('resolveHighlight', () => {
       expect(state!.cellHighlights).toHaveLength(0);
       expect(state!.backgroundHighlights).toHaveLength(0);
       expect(state!.regionBorders).toEqual([
-        { regionId: 'rg_forest', color: '#90CAF9' },
+        { regionId: 'rg_forest', color: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR },
       ]);
     }
   });

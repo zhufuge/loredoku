@@ -7,12 +7,12 @@ import {
   ITEM_SIZE_MAX,
   ITEM_SIZE_MIN,
   UPLOAD_MAX_SIZE,
+  canStandFor,
   hasAppearance,
   type AppearanceMode,
   type Item,
   type ItemCategory,
   type ItemFitMode,
-  type ItemTriggerInput,
 } from '@loredoku/shared';
 import { AppearanceField } from '@/components/appearance/AppearanceField';
 import {
@@ -28,16 +28,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ImageUploader } from '@/components/item/ImageUploader';
-import { MetaEditor, type MetaRow } from '@/components/item/MetaEditor';
-import { TriggerEditor, type EditableTrigger } from '@/components/item/TriggerEditor';
 import {
   useDeleteItemImage,
-  useReplaceItemTriggers,
   useSetItemActive,
   useUpdateItem,
   useUploadItemImage,
 } from '@/hooks/useItems';
-import { parseJsonObject } from '@/lib/json';
 
 const FIT_MODE_LABELS: Record<ItemFitMode, string> = {
   cover: '裁切填满（cover）',
@@ -47,22 +43,6 @@ const FIT_MODE_LABELS: Record<ItemFitMode, string> = {
 interface ItemDetailFormProps {
   item: Item;
   onRequestDelete: (item: Item) => void;
-}
-
-function buildMetaRows(item: Item): MetaRow[] {
-  return Object.entries(item.meta).map(([key, value]) => ({
-    key,
-    value: typeof value === 'string' ? value : JSON.stringify(value),
-  }));
-}
-
-function buildTriggerRows(item: Item): EditableTrigger[] {
-  return item.triggers.map((trigger) => ({
-    triggerKey: trigger.triggerKey,
-    triggerValue: trigger.triggerValue,
-    effectType: trigger.effectType,
-    effectConfigText: JSON.stringify(trigger.effectConfig),
-  }));
 }
 
 export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): JSX.Element {
@@ -77,12 +57,9 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
     item.bgColor ? 'color' : 'image',
   );
   const [bgColor, setBgColor] = useState(item.bgColor ?? DEFAULT_BG_COLOR);
-  const [metaRows, setMetaRows] = useState<MetaRow[]>(buildMetaRows(item));
-  const [triggerRows, setTriggerRows] = useState<EditableTrigger[]>(buildTriggerRows(item));
   const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
 
   const updateMutation = useUpdateItem();
-  const triggersMutation = useReplaceItemTriggers();
   const uploadMutation = useUploadItemImage();
   const deleteImageMutation = useDeleteItemImage();
   const activeMutation = useSetItemActive();
@@ -96,36 +73,15 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
     setFitMode(item.fitMode);
     setAppearanceMode(item.bgColor ? 'color' : 'image');
     setBgColor(item.bgColor ?? DEFAULT_BG_COLOR);
-    setMetaRows(buildMetaRows(item));
-    setTriggerRows(buildTriggerRows(item));
   }, [item.id, item.updatedAt]);
 
-  const saving = updateMutation.isPending || triggersMutation.isPending;
+  const saving = updateMutation.isPending;
   // v0.5.1 FEAT-L01: an uploaded image **or** a colour block can be activated.
   const activatable = hasAppearance(Boolean(item.imageUrl), item.bgColor);
+  // v0.5.2 FEAT-M04: 「可站立」 is meaningless for a background item.
+  const standable = category === 'object';
 
   const handleSave = async (): Promise<void> => {
-    const meta: Record<string, unknown> = {};
-    for (const row of metaRows) {
-      const key = row.key.trim();
-      if (key) meta[key] = row.value;
-    }
-
-    const triggers = [];
-    for (const row of triggerRows) {
-      if (!row.triggerKey.trim() || !row.triggerValue.trim()) continue;
-      const config = parseJsonObject(row.effectConfigText);
-      if (!config.ok) {
-        return;
-      }
-      triggers.push({
-        triggerKey: row.triggerKey.trim(),
-        triggerValue: row.triggerValue.trim(),
-        effectType: row.effectType,
-        effectConfig: config.value,
-      });
-    }
-
     try {
       await updateMutation.mutateAsync({
         id: item.id,
@@ -134,14 +90,12 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           category,
           widthCells,
           heightCells,
-          canStand,
+          canStand: canStandFor(category, canStand),
           fitMode,
           // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
           bgColor: appearanceMode === 'color' ? bgColor : null,
-          meta,
         },
       });
-      await triggersMutation.mutateAsync({ id: item.id, triggers });
     } catch {
       return;
     }
@@ -238,15 +192,23 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
               onChange={(event) => setHeightCells(Number(event.target.value))}
             />
           </div>
-          <label className="mt-6 flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={canStand}
-              onChange={(event) => setCanStand(event.target.checked)}
-              className="h-4 w-4"
-            />
-            可站立
-          </label>
+          {/* v0.5.2 FEAT-M04: a background item is always standable, so the
+              checkbox would be a lie — it is only offered for 物体. */}
+          {standable ? (
+            <label className="mt-6 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={canStand}
+                onChange={(event) => setCanStand(event.target.checked)}
+                className="h-4 w-4"
+              />
+              可站立
+            </label>
+          ) : (
+            <p className="mt-6 self-center text-xs text-muted-foreground">
+              背景类型恒定可站立
+            </p>
+          )}
         </div>
 
         <div className="grid gap-2">
@@ -282,16 +244,8 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
             onDelete={() => setConfirmDeleteImage(true)}
           />
         </AppearanceField>
-
-        <div className="grid gap-2">
-          <Label>扩展信息（meta）</Label>
-          <MetaEditor rows={metaRows} onChange={setMetaRows} />
-        </div>
-
-        <div className="grid gap-2">
-          <Label>触发信息</Label>
-          <TriggerEditor rows={triggerRows} onChange={setTriggerRows} />
-        </div>
+        {/* v0.5.2 FEAT-M03: 「扩展信息（meta）」与「触发信息」两节连同背后的
+            `items.meta` 列与 `item_triggers` 表一并删除。 */}
       </div>
 
       <div className="flex justify-end gap-2 border-t pt-4">

@@ -29,12 +29,22 @@ describe('v0.5.0 migration shape (§11.1)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].is_nullable).toBe('NO');
 
-    // 存量行（含测试留下的）必须满足 root_id = id —— 普通地图自为血缘根。
-    const drifted = await db('map_projects').whereRaw('root_id <> id').count('* as c');
-    expect(Number(drifted[0]?.c ?? 0)).toBe(0);
-
+    // 回填的契约是「每行都有血缘根」：root_id 不为空，且要么自为根
+    // （root_id = id，普通地图），要么指向**另一张已存在的地图**
+    // （fork 出来的工作条目，SPEC-K11 Q3 = B）。
+    //
+    // 早期这里断言「漂移行数为 0」，但那把「用户真的 fork 过一张图」也算成了
+    // 失败——库里有手工数据就会误报。改成校验引用完整性。
     const nulls = await db('map_projects').whereNull('root_id').count('* as c');
     expect(Number(nulls[0]?.c ?? 0)).toBe(0);
+
+    const drifted = (await db('map_projects')
+      .whereRaw('root_id <> id')
+      .select('id', 'root_id')) as Array<{ id: number | string; root_id: number | string }>;
+    for (const row of drifted) {
+      const root = await db('map_projects').where({ id: row.root_id }).first('id');
+      expect(root).toBeDefined();
+    }
 
     // 归组查询走 root_id 索引。
     const index = await db('pg_indexes')
@@ -139,12 +149,49 @@ describe('v0.5.1 colour-block migration (§6.1)', () => {
     expect(rows[0].data_type).toBe('text');
   });
 
-  it('leaves every existing row on the image branch', async () => {
-    const itemNulls = await db('items').whereNotNull('bg_color').count('* as c');
-    const charNulls = await db('characters').whereNotNull('bg_color').count('* as c');
-    // Only rows written by this suite's colour-block tests may carry a colour,
-    // and those are cleaned up — so a bare run sees none.
-    expect(Number(itemNulls[0]?.c ?? 0)).toBe(0);
-    expect(Number(charNulls[0]?.c ?? 0)).toBe(0);
+  it('backfills nothing — the column default is NULL', async () => {
+    // The point of "nullable, no backfill" is that pre-v0.5.1 rows stay on the
+    // image branch. Asserting a row count would be flaky (other suites — and
+    // real usage — legitimately write colours), so check the schema instead.
+    for (const table of ['items', 'characters']) {
+      const rows = await db('information_schema.columns')
+        .where({ table_name: table, column_name: 'bg_color', table_schema: 'public' })
+        .select('column_default');
+      expect(rows[0]?.column_default).toBeNull();
+    }
+  });
+});
+
+/**
+ * v0.5.2 FEAT-M03 / FEAT-M04（docs/v0.5.2.md §3.1 / §4 / §9.1）：
+ * 迁移 19 删掉 `items.meta` 与 `item_triggers` 表，并把背景物品抬成可站立。
+ */
+describe('v0.5.2 item slimming migration (§9.1)', () => {
+  it('drops items.meta', async () => {
+    const rows = await db('information_schema.columns')
+      .where({ table_name: 'items', column_name: 'meta', table_schema: 'public' })
+      .select('column_name');
+    expect(rows).toHaveLength(0);
+  });
+
+  it('drops the item_triggers table', async () => {
+    const rows = await db('information_schema.tables')
+      .where({ table_name: 'item_triggers', table_schema: 'public' })
+      .select('table_name');
+    expect(rows).toHaveLength(0);
+  });
+
+  it('keeps characters.meta — only the item side was slimmed', async () => {
+    const rows = await db('information_schema.columns')
+      .where({ table_name: 'characters', column_name: 'meta', table_schema: 'public' })
+      .select('column_name');
+    expect(rows).toHaveLength(1);
+  });
+
+  it('leaves no background item that cannot stand', async () => {
+    const rows = await db('items')
+      .where({ category: 'background', can_stand: false })
+      .count('* as c');
+    expect(Number(rows[0]?.c ?? 0)).toBe(0);
   });
 });

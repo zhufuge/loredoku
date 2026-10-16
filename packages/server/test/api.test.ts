@@ -330,7 +330,7 @@ describe('projects API', () => {
 });
 
 describe('items API', () => {
-  it('creates an item with triggers and manages its lifecycle', async () => {
+  it('creates an item and manages its lifecycle (v0.5.2 FEAT-M03: no triggers)', async () => {
     const res = await api.post('/api/items').send({
       code: uniqueCode('candlestick'),
       name: 'Candlestick',
@@ -338,26 +338,17 @@ describe('items API', () => {
       widthCells: 2,
       heightCells: 1,
       canStand: true,
-      triggers: [
-        { triggerKey: 'material', triggerValue: 'brass', effectType: 'highlight', effectConfig: {} },
-      ],
     });
     expect(res.status).toBe(200);
     const id = res.body.data.id as number;
     createdItems.push(id);
-    expect(res.body.data.triggers).toHaveLength(1);
+    // The trigger array — and the free-form meta blob — are gone.
+    expect(res.body.data).not.toHaveProperty('triggers');
+    expect(res.body.data).not.toHaveProperty('meta');
     expect(res.body.data.widthCells).toBe(2);
 
     const patched = await api.patch(`/api/items/${id}`).send({ name: 'Candlestick Holder' });
     expect(patched.body.data.name).toBe('Candlestick Holder');
-
-    const replaced = await api
-      .put(`/api/items/${id}/triggers`)
-      .send([
-        { triggerKey: 'color', triggerValue: 'gold', effectType: 'glow', effectConfig: {} },
-        { triggerKey: 'state', triggerValue: 'lit', effectType: 'blink', effectConfig: {} },
-      ]);
-    expect(replaced.body.data.triggers).toHaveLength(2);
 
     const usages = await api.get(`/api/items/${id}/usages`);
     expect(usages.status).toBe(200);
@@ -365,6 +356,51 @@ describe('items API', () => {
 
     const removed = await api.delete(`/api/items/${id}`);
     expect(removed.status).toBe(200);
+  });
+
+  it('v0.5.2 FEAT-M03: the triggers endpoint is gone', async () => {
+    const res = await api.post('/api/items').send({
+      code: uniqueCode('notriggers'),
+      name: 'No Triggers',
+      category: 'object',
+    });
+    const id = res.body.data.id as number;
+    createdItems.push(id);
+    const replaced = await api.put(`/api/items/${id}/triggers`).send([]);
+    expect(replaced.status).toBe(404);
+  });
+
+  it('v0.5.2 FEAT-M04: a background item is always standable', async () => {
+    const created = await api.post('/api/items').send({
+      code: uniqueCode('wallpaper'),
+      name: 'Wallpaper',
+      category: 'background',
+      canStand: false,
+    });
+    expect(created.status).toBe(200);
+    const id = created.body.data.id as number;
+    createdItems.push(id);
+    expect(created.body.data.canStand).toBe(true);
+
+    // Flipping an object item to 背景 makes it standable too.
+    const object = await api.post('/api/items').send({
+      code: uniqueCode('lamp'),
+      name: 'Lamp',
+      category: 'object',
+      canStand: false,
+    });
+    const objectId = object.body.data.id as number;
+    createdItems.push(objectId);
+    expect(object.body.data.canStand).toBe(false);
+
+    const patched = await api.patch(`/api/items/${objectId}`).send({ category: 'background' });
+    expect(patched.body.data.canStand).toBe(true);
+
+    // …and an object keeps whatever the caller asked for.
+    const kept = await api.patch(`/api/items/${objectId}`).send({ category: 'object', canStand: true });
+    expect(kept.body.data.canStand).toBe(true);
+    const dropped = await api.patch(`/api/items/${objectId}`).send({ canStand: false });
+    expect(dropped.body.data.canStand).toBe(false);
   });
 
   it('rejects an invalid item code', async () => {

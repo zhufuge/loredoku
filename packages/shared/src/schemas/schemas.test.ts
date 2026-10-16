@@ -35,11 +35,18 @@ describe('createProjectSchema', () => {
 })
 
 describe('createCardSchema', () => {
-  it('enforces the code pattern and defaults triggers', () => {
+  it('enforces the code pattern and defaults the size', () => {
     const parsed = createCardSchema.parse({ code: 'card_1', name: 'Suspect' })
-    expect(parsed.triggers).toEqual([])
+    // v0.5.2 FEAT-M03: the `triggers` default is gone with the table.
+    expect(parsed).not.toHaveProperty('triggers')
+    expect(parsed.canStand).toBe(true)
     expect(createCardSchema.safeParse({ code: 'bad code', name: 'x' }).success).toBe(false)
     expect(createCardSchema.safeParse({ code: 'ok', name: 'x' }).success).toBe(true)
+  })
+
+  it('v0.5.2 FEAT-M04: a background card is always standable', () => {
+    expect(createCardSchema.parse({ code: 'bg_1', name: 'Wall', category: 'background', canStand: false }).canStand).toBe(true)
+    expect(createCardSchema.parse({ code: 'ob_1', name: 'Lamp', category: 'object', canStand: false }).canStand).toBe(false)
   })
 })
 

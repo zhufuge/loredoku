@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_JSON_VERSION } from '../constants';
+import {
+  MAP_JSON_VERSION,
+  STYLE_DEFAULT_GRID_SEPARATOR_WIDTH,
+  STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
+} from '../constants';
 import { mapDraftSchema, mapStyleSchema } from './mapDraft';
 
 function draft(extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -18,8 +22,13 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.regionHighlight.width).toBe(6);
-    expect(result.data.regionHighlight.color).toBe('#90CAF9');
-    expect(result.data.gridSeparator).toEqual({ width: 2, color: '#000000' });
+    // v0.5.2 SPEC-M07: the highlight line is the strong blue, and the grid
+    // separator is 4px (was the pale blue / 2px).
+    expect(result.data.regionHighlight.color).toBe(STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR);
+    expect(result.data.gridSeparator).toEqual({
+      width: STYLE_DEFAULT_GRID_SEPARATOR_WIDTH,
+      color: '#000000',
+    });
     expect(result.data.cellSize).toBeNull();
   });
 

@@ -13,6 +13,7 @@ import {
   MAP_STYLE_LINE_WIDTH_MIN,
   MAX_CELL_SIZE,
   MIN_CELL_SIZE,
+  STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
   type CharacterSlotEntry,
   type MapLinkageColor,
   type MapStyle,
@@ -53,20 +54,44 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(resolveMapStyle(null)).toEqual(DEFAULT_MAP_STYLE);
   });
 
-  it('keeps the v0.3.7 look by default', () => {
+  it('v0.5.2 SPEC-M07: ships the new 基本信息 defaults', () => {
     const style = resolveMapStyle(undefined);
     expect(style.cellSize).toBeNull();
-    expect(style.canvasFrame).toEqual({ width: 6, color: '#000000' });
-    expect(style.gridSeparator).toEqual({ width: 2, color: '#000000' });
+    // §7 新默认值逐项钉住。
+    expect(style.canvasFrame).toEqual({ width: 12, color: '#000000' });
+    expect(style.gridSeparator).toEqual({ width: 4, color: '#000000' });
+    expect(style.mouseCursorBox.width).toBe(8);
     expect(style.mouseCursorBox.color).toBe('#FFFFFF');
     expect(style.mouseCursorBox.blockedColor).toBe(HIGHLIGHT_RED);
+    expect(style.operationCursorBox.width).toBe(8);
     expect(style.operationCursorBox.color).toBe(HIGHLIGHT_BLUE);
-    expect(style.regionLabel.fontSize).toBe(17);
-    expect(style.regionLabel.hoverFontSize).toBe(19);
-    expect(style.regionLabel.hoverStrokeColor).toBe(HIGHLIGHT_BLUE);
-    expect(style.regionHighlight).toEqual({ width: 4, color: HIGHLIGHT_BLUE });
+    expect(style.regionOutline).toEqual({ width: 12, color: DEFAULT_MAP_STYLE.regionOutline.color });
+    expect(style.regionHighlight).toEqual({
+      width: 12,
+      color: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
+    });
+    expect(style.regionLabel.fontSize).toBe(32);
+    expect(style.regionLabel.strokeWidth).toBe(10);
+    // §2: the hovered label is the **larger** one.
+    expect(style.regionLabel.hoverFontSize).toBe(36);
+    expect(style.regionLabel.hoverFontSize).toBeGreaterThan(style.regionLabel.fontSize);
+    expect(style.regionLabel.hoverStrokeColor).toBe(STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR);
+    expect(style.ruler).toEqual({ fontSize: 24, gap: 24 });
     // v0.5.0 FEAT-K14: the palette left `MapStyle` — see the puzzle section.
     expect(style).not.toHaveProperty('linkageColors');
+  });
+
+  it('FIX-M02: never lets the hovered label be smaller than the idle one', () => {
+    const style = resolveMapStyle({
+      regionLabel: { fontSize: 30, hoverFontSize: 12 },
+    } as Partial<MapStyle>);
+    expect(style.regionLabel.fontSize).toBe(30);
+    expect(style.regionLabel.hoverFontSize).toBe(30);
+    // A sensible hover size is left alone.
+    const bigger = resolveMapStyle({
+      regionLabel: { fontSize: 10, hoverFontSize: 20 },
+    } as Partial<MapStyle>);
+    expect(bigger.regionLabel.hoverFontSize).toBe(20);
   });
 
   it('clamps every numeric field into its documented range', () => {
@@ -255,12 +280,16 @@ describe('styleLineWidth (FEAT-D02 §关键规则 1)', () => {
 describe('layer naming (SPEC-E01)', () => {
   it('exposes the规范 field names', () => {
     const style = resolveMapStyle(undefined);
-    expect(style.canvasFrame).toEqual({ width: 6, color: '#000000' });
-    expect(style.gridSeparator).toEqual({ width: 2, color: '#000000' });
-    expect(style.mouseCursorBox.width).toBe(2);
+    // v0.5.2 SPEC-M07 defaults.
+    expect(style.canvasFrame).toEqual({ width: 12, color: '#000000' });
+    expect(style.gridSeparator).toEqual({ width: 4, color: '#000000' });
+    expect(style.mouseCursorBox.width).toBe(8);
     expect(style.operationCursorBox.offset).toBe(1);
-    expect(style.regionOutline).toEqual({ width: 6, color: '#000000' });
-    expect(style.regionHighlight).toEqual({ width: 4, color: '#90CAF9' });
+    expect(style.regionOutline).toEqual({ width: 12, color: '#000000' });
+    expect(style.regionHighlight).toEqual({
+      width: 12,
+      color: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
+    });
   });
 
   it('ignores the pre-v0.3.9 field names', () => {
@@ -279,8 +308,8 @@ describe('layer naming (SPEC-E01)', () => {
 
 // ---- v0.3.9 FEAT-E02: 标尺文本大小与间距 ----
 describe('ruler style (FEAT-E02)', () => {
-  it('defaults to the v0.3.6 values', () => {
-    expect(resolveMapStyle(undefined).ruler).toEqual({ fontSize: 17, gap: 6 });
+  it('v0.5.2 SPEC-M07: defaults to 24px / 24px', () => {
+    expect(resolveMapStyle(undefined).ruler).toEqual({ fontSize: 24, gap: 24 });
   });
 
   it('clamps the text size and the gap', () => {

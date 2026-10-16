@@ -1,16 +1,8 @@
 import type { Knex } from 'knex';
+import { canStandFor } from '@loredoku/shared';
 import { db } from '../db/knex';
 import { buildFileUrl, buildThumbUrl } from '../utils/paths';
-import type {
-  Item,
-  ItemFitMode,
-  ItemTrigger,
-  ItemTriggerInput,
-  ItemTriggerRow,
-  ItemRow,
-  ItemUsage,
-  MapDraft,
-} from '@loredoku/shared';
+import type { Item, ItemCategory, ItemFitMode, ItemRow, ItemUsage, MapDraft } from '@loredoku/shared';
 
 export interface ListItemsParams {
   keyword?: string;
@@ -21,27 +13,24 @@ export interface ListItemsParams {
 export interface CreateItemData {
   code: string;
   name: string;
-  category: string;
+  category: ItemCategory;
   widthCells: number;
   heightCells: number;
   canStand: boolean;
   fitMode: ItemFitMode;
   /** v0.5.1 FEAT-L01: colour-block colour; `null` / omitted = image mode. */
   bgColor?: string | null;
-  meta: Record<string, unknown>;
-  triggers: ItemTriggerInput[];
 }
 
 export interface UpdateItemData {
   name?: string;
-  category?: string;
+  category?: ItemCategory;
   widthCells?: number;
   heightCells?: number;
   canStand?: boolean;
   fitMode?: ItemFitMode;
   /** v0.5.1 FEAT-L01: `null` clears the colour block (back to image mode). */
   bgColor?: string | null;
-  meta?: Record<string, unknown>;
   isActive?: boolean;
 }
 
@@ -53,17 +42,7 @@ export interface ItemImageData {
   height: number | null;
 }
 
-function toTrigger(row: ItemTriggerRow): ItemTrigger {
-  return {
-    id: Number(row.id),
-    triggerKey: row.trigger_key,
-    triggerValue: row.trigger_value,
-    effectType: row.effect_type,
-    effectConfig: row.effect_config ?? {},
-  };
-}
-
-function toItem(row: ItemRow, triggers: ItemTrigger[]): Item {
+function toItem(row: ItemRow): Item {
   return {
     id: Number(row.id),
     code: row.code,
@@ -81,17 +60,10 @@ function toItem(row: ItemRow, triggers: ItemTrigger[]): Item {
     imageWidth: row.image_width,
     imageHeight: row.image_height,
     bgColor: row.bg_color ?? null,
-    meta: row.meta ?? {},
     isActive: row.is_active,
-    triggers,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
-}
-
-async function findTriggers(itemId: number): Promise<ItemTrigger[]> {
-  const rows = await db<ItemTriggerRow>('item_triggers').where({ item_id: itemId }).orderBy('id');
-  return rows.map(toTrigger);
 }
 
 export async function listItems(params: ListItemsParams): Promise<Item[]> {
@@ -105,22 +77,10 @@ export async function listItems(params: ListItemsParams): Promise<Item[]> {
     });
   }
 
+  // v0.5.2 FEAT-M03: triggers lived in their own table and needed a second
+  // round trip per list — one row set is now all there is.
   const rows = await query.orderBy('updated_at', 'desc').select('*');
-  if (rows.length === 0) return [];
-
-  const ids = rows.map((row) => Number(row.id));
-  const triggerRows = await db<ItemTriggerRow>('item_triggers')
-    .whereIn('item_id', ids)
-    .orderBy('id');
-  const byItem = new Map<number, ItemTrigger[]>();
-  for (const trigger of triggerRows) {
-    const itemId = Number(trigger.item_id);
-    const list = byItem.get(itemId);
-    if (list) list.push(toTrigger(trigger));
-    else byItem.set(itemId, [toTrigger(trigger)]);
-  }
-
-  return rows.map((row) => toItem(row, byItem.get(Number(row.id)) ?? []));
+  return rows.map(toItem);
 }
 
 export async function findById(id: number): Promise<ItemRow | undefined> {
@@ -134,40 +94,26 @@ export async function findByCode(code: string): Promise<ItemRow | undefined> {
 export async function getItem(id: number): Promise<Item | null> {
   const row = await findById(id);
   if (!row) return null;
-  return toItem(row, await findTriggers(id));
+  return toItem(row);
 }
 
 export async function create(data: CreateItemData): Promise<number> {
-  return db.transaction(async (trx) => {
-    const [row] = await trx('items')
-      .insert({
-        code: data.code,
-        name: data.name,
-        category: data.category,
+  const [row] = await db('items')
+    .insert({
+      code: data.code,
+      name: data.name,
+      category: data.category,
       width_cells: data.widthCells,
       height_cells: data.heightCells,
-      can_stand: data.canStand,
+      // v0.5.2 FEAT-M04: a background item is always standable.
+      can_stand: canStandFor(data.category, data.canStand),
       fit_mode: data.fitMode,
       bg_color: data.bgColor ?? null,
-      meta: data.meta,
-        // OPT-305: 新建物品未上传图片，初始状态为停用；上传图片后需手动启用。
-        is_active: false,
-      })
-      .returning('id');
-    const id = Number((row as { id: number | string }).id);
-    if (data.triggers.length > 0) {
-      await trx('item_triggers').insert(
-        data.triggers.map((trigger) => ({
-          item_id: id,
-          trigger_key: trigger.triggerKey,
-          trigger_value: trigger.triggerValue,
-          effect_type: trigger.effectType,
-          effect_config: trigger.effectConfig,
-        })),
-      );
-    }
-    return id;
-  });
+      // OPT-305: 新建物品未上传图片，初始状态为停用；上传图片后需手动启用。
+      is_active: false,
+    })
+    .returning('id');
+  return Number((row as { id: number | string }).id);
 }
 
 export async function update(id: number, data: UpdateItemData): Promise<boolean> {
@@ -179,8 +125,10 @@ export async function update(id: number, data: UpdateItemData): Promise<boolean>
   if (data.canStand !== undefined) patch.can_stand = data.canStand;
   if (data.fitMode !== undefined) patch.fit_mode = data.fitMode;
   if (data.bgColor !== undefined) patch.bg_color = data.bgColor;
-  if (data.meta !== undefined) patch.meta = data.meta;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
+  // v0.5.2 FEAT-M04: switching an item to 「背景」 makes it standable; leaving
+  // the category alone keeps whatever `canStand` the caller sent.
+  if (data.category === 'background') patch.can_stand = true;
   const affected = await db('items').where({ id }).update(patch);
   return affected > 0;
 }
@@ -207,23 +155,6 @@ export async function clearImage(id: number): Promise<void> {
     // v0.5.1 FEAT-L01 收窄：纯色块（有 bg_color）不依赖图片，删图只是删图。
     is_active: db.raw('CASE WHEN bg_color IS NULL THEN false ELSE is_active END'),
     updated_at: db.fn.now(),
-  });
-}
-
-export async function replaceTriggers(itemId: number, triggers: ItemTriggerInput[]): Promise<void> {
-  await db.transaction(async (trx) => {
-    await trx('item_triggers').where({ item_id: itemId }).del();
-    if (triggers.length > 0) {
-      await trx('item_triggers').insert(
-        triggers.map((trigger) => ({
-          item_id: itemId,
-          trigger_key: trigger.triggerKey,
-          trigger_value: trigger.triggerValue,
-          effect_type: trigger.effectType,
-          effect_config: trigger.effectConfig,
-        })),
-      );
-    }
   });
 }
 
@@ -287,7 +218,6 @@ export async function hardDelete(id: number, clearReferences: boolean): Promise<
     if (clearReferences) {
       await clearItemFromDrafts(trx, id);
     }
-    await trx('item_triggers').where({ item_id: id }).del();
     const affected = await trx('items').where({ id }).del();
     return affected > 0;
   });

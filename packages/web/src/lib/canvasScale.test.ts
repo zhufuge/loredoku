@@ -3,7 +3,6 @@ import {
   BASE_CELL,
   BORDER_WIDTH,
   CANVAS_OUTER_BORDER_WIDTH,
-  FONT_SIZE_MAX,
   FONT_SIZE_MIN,
   INNER_LINE_WIDTH,
   LINE_WIDTH_MAX,
@@ -13,6 +12,8 @@ import {
   REGION_HIGHLIGHT_WIDTH,
   REGION_LABEL_FONT_SIZE,
   REGION_LABEL_STROKE_WIDTH,
+  STYLE_DEFAULT_REGION_LABEL_FONT_SIZE,
+  STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE,
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
   OBJECT_PADDING_BASE,
@@ -58,12 +59,23 @@ describe('scaleLineWidth / scaleFontSize (§3.2 约束)', () => {
     expect(objectPadding(Number.NaN)).toBe(OBJECT_PADDING_BASE);
   });
 
-  it('clamps fonts to [9, 28]', () => {
+  // v0.5.2 FIX-M08 (docs/v0.5.2.md §8): the 28px ceiling is gone — only the
+  // lower guard rail remains.
+  it('clamps fonts to [9, ∞)', () => {
     expect(FONT_SIZE_MIN).toBe(9);
-    expect(FONT_SIZE_MAX).toBe(28);
     expect(scaleFontSize(RULER_FONT_SIZE, 0.01)).toBe(FONT_SIZE_MIN);
-    expect(scaleFontSize(RULER_FONT_SIZE_ACTIVE, 10)).toBe(FONT_SIZE_MAX);
+    // 19 × 10 = 190 used to be flattened to 28.
+    expect(scaleFontSize(RULER_FONT_SIZE_ACTIVE, 10)).toBe(190);
     expect(scaleFontSize(RULER_FONT_SIZE, 1)).toBe(17);
+  });
+
+  it('renders a 32px region label as 32px', () => {
+    expect(scaleFontSize(STYLE_DEFAULT_REGION_LABEL_FONT_SIZE, 1)).toBe(32);
+    expect(scaleFontSize(STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE, 1)).toBe(36);
+    // §2: the hovered size stays the larger of the two at every scale.
+    expect(scaleFontSize(STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE, 2)).toBeGreaterThan(
+      scaleFontSize(STYLE_DEFAULT_REGION_LABEL_FONT_SIZE, 2),
+    );
   });
 
   it('returns the base value for degenerate scales', () => {
@@ -93,9 +105,9 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     // INNER_LINE_WIDTH is 2 since OPT-C05 → 2 × 2 = 4.
     expect(metrics.innerLineWidth).toBe(4);
     expect(metrics.regionHighlightWidth).toBe(8);
-    // 17 × 2 = 34 → clamped to the 28px cap.
-    expect(metrics.rulerFontSize).toBe(FONT_SIZE_MAX);
-    expect(metrics.rulerFontSizeActive).toBe(FONT_SIZE_MAX);
+    // 17 × 2 = 34 — no longer flattened to 28 (v0.5.2 FIX-M08).
+    expect(metrics.rulerFontSize).toBe(34);
+    expect(metrics.rulerFontSizeActive).toBe(38);
   });
 
   it('shrinks at the minimum cell size (90 → scale 0.75)', () => {
@@ -123,7 +135,6 @@ describe('canvasMetrics (§3.2 要素表)', () => {
       }
       for (const font of [metrics.rulerFontSize, metrics.rulerFontSizeActive]) {
         expect(font).toBeGreaterThanOrEqual(FONT_SIZE_MIN);
-        expect(font).toBeLessThanOrEqual(FONT_SIZE_MAX);
       }
       // The outer frame always stays noticeably heavier than the separators.
       expect(metrics.outerBorderWidth).toBeGreaterThan(metrics.borderWidth);
@@ -134,7 +145,8 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     const small = canvasMetrics(MIN_CELL_SIZE);
     const large = canvasMetrics(MAX_CELL_SIZE);
     expect(scaleFontSize(REGION_LABEL_FONT_SIZE, small.scale)).toBeCloseTo(12.75, 6);
-    expect(scaleFontSize(REGION_LABEL_FONT_SIZE, large.scale)).toBe(28);
+    // 17 × 2 = 34, no cap (v0.5.2 FIX-M08).
+    expect(scaleFontSize(REGION_LABEL_FONT_SIZE, large.scale)).toBe(34);
     expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, small.scale)).toBeCloseTo(3, 6);
     expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, large.scale)).toBe(8);
   });

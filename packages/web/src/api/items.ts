@@ -1,4 +1,4 @@
-import type { Item, ItemCategory, ItemFitMode, ItemTriggerInput, ItemUsage } from '@loredoku/shared';
+import type { Item, ItemCategory, ItemFitMode, ItemUsage } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client';
 
 export interface ListItemsParams {
@@ -17,8 +17,7 @@ export interface CreateItemPayload {
   fitMode?: ItemFitMode;
   /** v0.5.1 FEAT-L01: colour-block colour; `null` = image mode. */
   bgColor?: string | null;
-  meta?: Record<string, unknown>;
-  triggers?: ItemTriggerInput[];
+  // v0.5.2 FEAT-M03: `meta` and `triggers` were deleted with the columns.
 }
 
 export interface UpdateItemPayload {
@@ -30,7 +29,6 @@ export interface UpdateItemPayload {
   fitMode?: ItemFitMode;
   /** v0.5.1 FEAT-L01: `null` drops back to the image mode. */
   bgColor?: string | null;
-  meta?: Record<string, unknown>;
   isActive?: boolean;
 }
 
@@ -60,9 +58,6 @@ export const itemsApi = {
   },
   usages(id: number): Promise<ItemUsage[]> {
     return apiGet<ItemUsage[]>(`/items/${id}/usages`);
-  },
-  replaceTriggers(id: number, triggers: ItemTriggerInput[]): Promise<Item> {
-    return apiPut<Item>(`/items/${id}/triggers`, triggers);
   },
   uploadImage(id: number, file: File): Promise<Item> {
     const form = new FormData();
