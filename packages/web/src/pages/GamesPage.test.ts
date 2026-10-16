@@ -86,6 +86,6 @@ describe('GamesPage (FEAT-G01)', () => {
   });
 
   it('titles the browser tab after the page', () => {
-    expect(pageSource).toContain("document.title = '游戏 · Murdoku Maker'");
+    expect(pageSource).toContain("document.title = '游戏 · 格物'");
   });
 });

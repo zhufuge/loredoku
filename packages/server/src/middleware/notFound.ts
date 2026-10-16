@@ -1,5 +1,5 @@
 import type { Context, Next } from 'koa';
-import { ErrorCode } from '@murdoku/shared';
+import { ErrorCode } from '@loredoku/shared';
 import { failure } from '../utils/response';
 
 export async function notFoundHandler(ctx: Context, next: Next): Promise<void> {

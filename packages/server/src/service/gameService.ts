@@ -1,6 +1,6 @@
-import { gameDeploySchema } from '@murdoku/shared';
-import type { MapDraft, MapGameDetail, MapGameSummary } from '@murdoku/shared';
-import { ErrorCode } from '@murdoku/shared';
+import { gameDeploySchema } from '@loredoku/shared';
+import type { MapDraft, MapGameDetail, MapGameSummary } from '@loredoku/shared';
+import { ErrorCode } from '@loredoku/shared';
 import * as mapRepo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
 import * as gameRepo from '../repository/gameRepository';

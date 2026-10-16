@@ -6,7 +6,7 @@ import {
   MAX_CELL_SIZE,
   MIN_CELL_SIZE,
   RULER_SIZE,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 /**
  * OPT-A01 (docs/v0.3.5.md §1.1): the board fills the editor's available area.

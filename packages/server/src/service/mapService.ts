@@ -1,11 +1,11 @@
-import { ErrorCode } from '@murdoku/shared';
+import { ErrorCode } from '@loredoku/shared';
 import type {
   DraftRegion,
   MapDraft,
   MapResponse,
   ResizeResult,
   SaveMapDraftInput,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import * as mapRepo from '../repository/mapRepository';
 import { toProject } from '../repository/projectRepository';
 import * as itemRepo from '../repository/itemRepository';

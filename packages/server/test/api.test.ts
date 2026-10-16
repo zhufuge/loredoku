@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
-import { ErrorCode } from '@murdoku/shared';
-import type { MapDraft } from '@murdoku/shared';
+import { ErrorCode } from '@loredoku/shared';
+import type { MapDraft } from '@loredoku/shared';
 import { api } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
 

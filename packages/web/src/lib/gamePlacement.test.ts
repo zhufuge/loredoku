@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { CellPlacement, GamePlacementBoard } from '@murdoku/shared';
+import type { CellPlacement, GamePlacementBoard } from '@loredoku/shared';
 import {
   canPlaceForbidden,
   canPlaceParticipant,

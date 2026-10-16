@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_THEME_COLOR } from '@murdoku/shared';
-import type { MapDraft, ParticipantTarget } from '@murdoku/shared';
+import { DEFAULT_THEME_COLOR } from '@loredoku/shared';
+import type { MapDraft, ParticipantTarget } from '@loredoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();

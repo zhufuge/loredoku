@@ -1,4 +1,4 @@
-import type { ProjectStatus } from '@murdoku/shared';
+import type { ProjectStatus } from '@loredoku/shared';
 
 /**
  * FIX-E01 (docs/v0.3.9.md §1).

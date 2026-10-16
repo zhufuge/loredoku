@@ -1,4 +1,4 @@
-import type { DraftRegion } from '@murdoku/shared';
+import type { DraftRegion } from '@loredoku/shared';
 
 export type Coord = [number, number];
 

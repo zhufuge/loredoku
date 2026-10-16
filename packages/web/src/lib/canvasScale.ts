@@ -13,7 +13,7 @@ import {
   REGION_HIGHLIGHT_WIDTH,
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 /**
  * OPT-B03 (docs/v0.3.6.md §3): the adaptive cell width varies between 90 and

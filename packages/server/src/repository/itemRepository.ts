@@ -10,7 +10,7 @@ import type {
   ItemRow,
   ItemUsage,
   MapDraft,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 export interface ListItemsParams {
   keyword?: string;

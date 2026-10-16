@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { CHARACTER_GENDERS, DEFAULT_CHARACTER_GENDER } from '@murdoku/shared';
+import { CHARACTER_GENDERS, DEFAULT_CHARACTER_GENDER } from '@loredoku/shared';
 
 /**
  * FEAT-501: characters gain a `gender` column

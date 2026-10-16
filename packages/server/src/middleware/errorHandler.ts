@@ -1,6 +1,6 @@
 import type { Context, Next } from 'koa';
 import { ZodError } from 'zod';
-import { ErrorCode } from '@murdoku/shared';
+import { ErrorCode } from '@loredoku/shared';
 import { AppError } from '../utils/AppError';
 import { failure } from '../utils/response';
 import { logger } from '../utils/logger';

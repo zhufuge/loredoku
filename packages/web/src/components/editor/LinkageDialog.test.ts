@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { ParticipantTarget } from '@murdoku/shared';
+import type { ParticipantTarget } from '@loredoku/shared';
 import {
   buildLinkages,
   draftFromLinkage,

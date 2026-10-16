@@ -16,7 +16,7 @@ import {
   type CharacterSlotEntry,
   type MapLinkageColor,
   type MapStyle,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import {
   clampCellSize,
   clampLineWidth,

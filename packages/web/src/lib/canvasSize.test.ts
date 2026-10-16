@@ -8,7 +8,7 @@ import {
   MAX_CELL_SIZE,
   MIN_CELL_SIZE,
   RULER_SIZE,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import {
   availableBox,
   canvasInsets,

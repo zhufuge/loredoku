@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Download, Eye, Loader2, Rocket, RotateCcw, Trash2 } from 'lucide-react';
-import type { WorkSummary } from '@murdoku/shared';
+import type { WorkSummary } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -136,7 +136,7 @@ export function WorksPage(): JSX.Element {
   const [deployTarget, setDeployTarget] = useState<WorkSummary | null>(null);
 
   useEffect(() => {
-    document.title = '作品 · Murdoku Maker';
+    document.title = '作品 · 格物';
   }, []);
 
   // §5.3: any filter / page-size change restarts from the first page.

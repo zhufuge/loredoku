@@ -1,7 +1,8 @@
-# murdoku-maker
+# loredoku · 格物
 
 地图编辑器（Map Editor）—— 一个可视化工具，把带图案的「物品方块」拖拽放置到 `n × n` 的方格画布上，并对连续方格框选、命名、标记为区域，最终发布为可查看的「作品」。
 
+- 项目名称：`loredoku`（中文名：格物）；包名 `@loredoku/shared` / `@loredoku/server` / `@loredoku/web`
 - 技术栈：Node.js + TypeScript · Koa + PostgreSQL（Knex）· Vite + React 18 + TailwindCSS + shadcn/ui
 - 仓库形态：npm workspaces monorepo（`shared` / `server` / `web`）
 - 需求文档：见 [`docs/`](./docs)（`v0.1.0` ~ `v0.4.0` 逐版需求，最新为 v0.4.0）
@@ -11,7 +12,7 @@
 ## 目录结构
 
 ```
-murdoku-maker/
+loredoku/
 ├── packages/
 │   ├── shared/                 # 跨端共享：TS 类型、常量、zod schema
 │   │   └── src/
@@ -40,7 +41,7 @@ murdoku-maker/
 │           └── lib/            # 网格、命中检测、高亮、联动、线索解析、游戏放置等纯函数
 ├── docs/                       # 各版本需求文档
 ├── package.json                # workspace 脚本入口
-└── tsconfig.base.json          # 共享 TS 配置（含 @murdoku/shared 路径别名）
+└── tsconfig.base.json          # 共享 TS 配置（含 @loredoku/shared 路径别名）
 ```
 
 ---
@@ -77,11 +78,11 @@ cp .env.example .env
 |---|---|---|
 | `PORT` / `HOST` | 后端监听端口与地址 | `3000` / `0.0.0.0` |
 | `PUBLIC_BASE_URL` | 拼接文件访问 URL 的公开前缀 | `http://localhost:3000` |
-| `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` | PostgreSQL 连接 | `localhost:5432` / `postgres` / `murdoku` |
+| `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` | PostgreSQL 连接 | `localhost:5432` / `postgres` / `loredoku` |
 | `UPLOAD_ROOT` | 上传目录（默认 `packages/server/storage/uploads`） | `./storage/uploads` |
 | `VITE_API_BASE_URL` | 前端 API 基址 | `http://localhost:3000/api` |
 
-> 请先在 PostgreSQL 中创建数据库（默认名 `murdoku`）。
+> 请先在 PostgreSQL 中创建数据库（默认名 `loredoku`）。
 
 ### 3. 初始化数据库
 
@@ -118,7 +119,7 @@ npm run dev
 | `npm test` | 运行全部测试（Vitest） |
 | `npm run db:migrate` / `db:rollback` | 数据库迁移 / 回滚 |
 
-单个 workspace 可用 `--workspace`，例如 `npm run test --workspace @murdoku/server`。
+单个 workspace 可用 `--workspace`，例如 `npm run test --workspace @loredoku/server`。
 
 > **提示**：server 端测试覆盖 projects / items / regions / versions 全流程，**依赖本地 PostgreSQL**，建议每次改动后都跑一遍：
 > `cd packages/server && npx vitest run --no-cache`
@@ -143,8 +144,8 @@ npm run dev
 - **参与者区**：标题栏 40px（与物品栏头部对齐）、单元格 110×104px、每框左上角 1 起序号（v0.3.6 OPT-B06）。
 - **参与者联动**：悬停 / 点击参与者框，高亮其关联的角色、物品、区域、格子（红 / 蓝效果，无时长概念，结束时淡出）。
 - **作品（`/works`）**：发布快照生成作品，表格化平铺展示，支持查看效果（`/works/:workId/view`）、导出 JSON、基于作品创建草稿、删除。
-- **预览页与编辑页一致（v0.3.10 FIX-F07 / FEAT-F01 / FEAT-F02）**：预览页的参与者区直接复用编辑器的 `ParticipantPanel`（`readOnly` 模式：同一套矩阵卡片、序号、主题色圆头像、线索区与单框高亮，但不可拖动、无「×」按钮）；顶栏新增「标尺」开关（`Ruler` 图标，默认显示，选择存 `localStorage` 键 `murdoku.workview.ruler`）；预览页的方格大小、四周留白与标尺厚度一律按作品快照里的 `style` 计算（自适应时传入 `canvasInsets({ showRulers, rulerSize })`，与编辑器同一套预留）。
-- **预览页标题（v0.4.0 OPT-G01）**：标题改为**地图名称**，版本号以 `v{N}` 徽标与标题同行展示，发布备注降级为次要文本；浏览器标签页同步为 `{地图名称} · Murdoku Maker`。
+- **预览页与编辑页一致（v0.3.10 FIX-F07 / FEAT-F01 / FEAT-F02）**：预览页的参与者区直接复用编辑器的 `ParticipantPanel`（`readOnly` 模式：同一套矩阵卡片、序号、主题色圆头像、线索区与单框高亮，但不可拖动、无「×」按钮）；顶栏新增「标尺」开关（`Ruler` 图标，默认显示，选择存 `localStorage` 键 `loredoku.workview.ruler`）；预览页的方格大小、四周留白与标尺厚度一律按作品快照里的 `style` 计算（自适应时传入 `canvasInsets({ showRulers, rulerSize })`，与编辑器同一套预留）。
+- **预览页标题（v0.4.0 OPT-G01）**：标题改为**地图名称**，版本号以 `v{N}` 徽标与标题同行展示，发布备注降级为次要文本；浏览器标签页同步为 `{地图名称} · 格物`。
 - **作品部署（v0.4.0 FEAT-G02，`/works` 每行「部署」）**：把已发布作品部署为可玩的游戏。弹窗可改**游戏名称**（默认取作品名称）、上传**封面**（可留空，部署成功后上传）、选择**难度**五档（Very Easy / Easy / Medium / Hard / Expert，绿 → 黄绿 → 黄 → 橙 → 红）。**同一张地图只能部署一个版本**（`map_games.project_id` 唯一索引，再次部署覆盖旧行并重新分配 id），部署时把作品快照冗余拷贝进 `map_games.snapshot`，因此游戏渲染的是**部署那一刻的固定副本**，作品后续重新发布不影响已部署游戏。已部署行显示「已部署」徽标，点击直接进入该游戏的游戏页面。
 - **游戏首页（v0.4.0 FEAT-G01，`/games`）**：面向玩家的独立入口——**顶层路由，不用 `AppShell`**，玩家从这里看不到地图 / 物品 / 角色 / 作品等制作端模块，只能通过链接进入（作品页「已部署」徽标、游戏页「返回」按钮）。简约卡片网格（2 / 3 / 4 列响应式，间距 20px）。每张卡片展示**封面**（16:10，无封面时显示地图名称首字）、**名称**、**难度徽标**（五色）、**`n×n` 规格**；点击卡片进入游戏页面。空态给出前往作品管理页的链接。
 - **游戏页面（v0.4.0 FEAT-G03，`/games/:gameId`）**：左中右三栏的全屏游玩页（不用 `AppShell`，与编辑器同级的顶层路由）。
@@ -214,7 +215,7 @@ v0.3.9 / v0.4.0 的旧名 → 新名对照见规范文档 §6 命名迁移记录
 
 默认淡灰 `#9CA3AF` / **17px**；鼠标所在行列变深灰 `#374151`（字号不变，**不使用蓝色或下划线**）；操作光标框所在行列深灰 + **19px**（叠加时操作格优先）。字号与到地图的间距均可在「基本信息 → 标尺」中配置（v0.3.9 FEAT-E02）：文本大小 9 ~ 32（默认 17，操作格恒为 +2）、间距 0 ~ 32（默认 6）。标尺条厚度由 `rulerStripSize({maxFontSize, gap})` 动态求得（不小于 `RULER_SIZE = 28`），因此加大字号不会让文字溢出。字号仍随 `scale × zoom` 缩放。
 
-标尺本体抽成了共享组件 `packages/web/src/components/map/MapRulerStrips.tsx`（v0.3.10 FEAT-F01），编辑器与作品预览页渲染**同一份**几何：预览页无「操作光标框」，因此 `operationCell` 恒为 `null`，只有「悬停行列变深灰」一档；预览页顶栏提供「标尺」开关，默认显示，选择持久化在 `localStorage` 键 `murdoku.workview.ruler`（`visible` / `hidden`）。
+标尺本体抽成了共享组件 `packages/web/src/components/map/MapRulerStrips.tsx`（v0.3.10 FEAT-F01），编辑器与作品预览页渲染**同一份**几何：预览页无「操作光标框」，因此 `operationCell` 恒为 `null`，只有「悬停行列变深灰」一档；预览页顶栏提供「标尺」开关，默认显示，选择持久化在 `localStorage` 键 `loredoku.workview.ruler`（`visible` / `hidden`）。
 
 ### 地图样式常量与缺省值（v0.3.8 FEAT-D02 + v0.3.9 SPEC-E01 / FEAT-E02）
 

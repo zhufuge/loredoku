@@ -17,7 +17,7 @@ import {
   type ParticipantTarget,
   type PublishViolation,
   type RegionShape,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -144,7 +144,7 @@ export function EditorPage(): JSX.Element {
   const [pendingImport, setPendingImport] = useState<MapDraft | null>(null);
   const [rulerVisible, setRulerVisible] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
-    return window.localStorage.getItem('murdoku.editor.ruler') !== 'hidden';
+    return window.localStorage.getItem('loredoku.editor.ruler') !== 'hidden';
   });
   const [removeParticipantTarget, setRemoveParticipantTarget] = useState<number | null>(null);
 
@@ -155,7 +155,7 @@ export function EditorPage(): JSX.Element {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('murdoku.editor.ruler', rulerVisible ? 'visible' : 'hidden');
+      window.localStorage.setItem('loredoku.editor.ruler', rulerVisible ? 'visible' : 'hidden');
     }
   }, [rulerVisible]);
 

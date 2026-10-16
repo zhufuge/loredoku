@@ -5,8 +5,8 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@murdoku/shared": ["../shared/src/index.ts"],
-      "@murdoku/shared/*": ["../shared/src/*"]
+      "@loredoku/shared": ["../shared/src/index.ts"],
+      "@loredoku/shared/*": ["../shared/src/*"]
     }
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts", "knexfile.ts"]

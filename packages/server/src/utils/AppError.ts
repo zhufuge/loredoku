@@ -1,4 +1,4 @@
-import { ErrorCode, HTTP_STATUS_BY_ERROR_CODE, type ErrorCodeValue } from '@murdoku/shared';
+import { ErrorCode, HTTP_STATUS_BY_ERROR_CODE, type ErrorCodeValue } from '@loredoku/shared';
 
 export class AppError extends Error {
   readonly code: ErrorCodeValue;

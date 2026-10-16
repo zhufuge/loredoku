@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
-import { GAME_DIFFICULTY_COLORS, GAME_DIFFICULTY_LABELS } from '@murdoku/shared';
-import type { MapGameSummary } from '@murdoku/shared';
+import { GAME_DIFFICULTY_COLORS, GAME_DIFFICULTY_LABELS } from '@loredoku/shared';
+import type { MapGameSummary } from '@loredoku/shared';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 

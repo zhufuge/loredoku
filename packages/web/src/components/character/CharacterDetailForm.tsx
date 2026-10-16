@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { Character, CharacterGender } from '@murdoku/shared';
+import type { Character, CharacterGender } from '@loredoku/shared';
 import {
   CHARACTER_AVATAR_MAX_DIMENSION,
   CHARACTER_GENDERS,
   CHARACTER_GENDER_GLYPHS,
   CHARACTER_GENDER_LABELS,
   GENDER_SYMBOL_COLORS,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,

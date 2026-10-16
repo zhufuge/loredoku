@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2, Plus, Search } from 'lucide-react';
-import { ITEM_CATEGORIES, ITEM_CATEGORY_LABELS, type Item, type ItemCategory } from '@murdoku/shared';
+import { ITEM_CATEGORIES, ITEM_CATEGORY_LABELS, type Item, type ItemCategory } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -54,7 +54,7 @@ export function ItemsPage(): JSX.Element {
   const deleting = deleteMutation.isPending;
 
   useEffect(() => {
-    document.title = '物品 · Murdoku Maker';
+    document.title = '物品 · 格物';
   }, []);
 
   useEffect(() => {

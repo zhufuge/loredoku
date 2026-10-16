@@ -7,7 +7,7 @@ import type {
   CharacterRow,
   CharacterUsage,
   MapDraft,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 export interface ListCharactersParams {
   keyword?: string;

@@ -3,7 +3,7 @@ import type {
   MapVersionDetail,
   MapVersionSummary,
   WorkSummary,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { apiDelete, apiGet, apiPost } from './client';
 
 /**

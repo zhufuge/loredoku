@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DraftCell } from '@murdoku/shared';
+import type { DraftCell } from '@loredoku/shared';
 import {
   isEmptyCell,
   objectFootprintKeys,

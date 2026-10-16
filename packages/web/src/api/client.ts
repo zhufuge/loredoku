@@ -1,5 +1,5 @@
 import axios, { AxiosError, type AxiosRequestConfig } from 'axios';
-import type { ApiResponse } from '@murdoku/shared';
+import type { ApiResponse } from '@loredoku/shared';
 
 export class ApiError extends Error {
   readonly code: number;

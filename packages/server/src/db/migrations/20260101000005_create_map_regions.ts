@@ -3,7 +3,7 @@ import {
   DEFAULT_REGION_COLOR,
   REGION_BORDER_WIDTH_DEFAULT,
   REGION_FILL_OPACITY_DEFAULT,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('map_regions', (table) => {

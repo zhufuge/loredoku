@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { GameDifficulty } from '@murdoku/shared';
+import type { GameDifficulty } from '@loredoku/shared';
 import { gamesApi, type DeployGamePayload } from '@/api/games';
 import { ApiError } from '@/api/client';
 import { versionKeys } from './useVersions';

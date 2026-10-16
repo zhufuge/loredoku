@@ -17,7 +17,7 @@ export function AppShell(): JSX.Element {
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-6 px-6">
           <div className="flex items-center gap-2 font-semibold">
             <LayoutGrid className="h-5 w-5 text-primary" />
-            <span>Murdoku Maker</span>
+            <span>格物</span>
           </div>
           <nav className="flex items-center gap-1">
             {navItems.map((item) => (

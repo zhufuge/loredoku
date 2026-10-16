@@ -37,7 +37,7 @@ import {
   type DraftCell,
   type DraftRegion,
   type Item,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import {
   canPlaceItemOnLayer,
   cellCursorShadow,

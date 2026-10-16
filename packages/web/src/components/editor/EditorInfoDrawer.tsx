@@ -1,4 +1,4 @@
-import type { Character, DraftCell, DraftRegion, Item } from '@murdoku/shared';
+import type { Character, DraftCell, DraftRegion, Item } from '@loredoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { ItemThumbnail } from '@/components/item/ItemThumbnail';
 import { Button } from '@/components/ui/button';

@@ -1,5 +1,5 @@
 {
-  "name": "@murdoku/web",
+  "name": "@loredoku/web",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -13,7 +13,7 @@
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
-    "@murdoku/shared": "*",
+    "@loredoku/shared": "*",
     "@radix-ui/react-alert-dialog": "^1.1.1",
     "@radix-ui/react-dialog": "^1.1.1",
     "@radix-ui/react-label": "^2.1.0",

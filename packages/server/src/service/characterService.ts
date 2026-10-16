@@ -4,7 +4,7 @@ import type {
   CreateCharacterInput,
   ListCharactersQuery,
   UpdateCharacterInput,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import * as repo from '../repository/characterRepository';
 import { AppError } from '../utils/AppError';
 import { processAvatarImage } from '../utils/image';

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_CELL_SIZE } from '@murdoku/shared'
+import { DEFAULT_CELL_SIZE } from '@loredoku/shared'
 import {
   boardSize,
   clampZoom,

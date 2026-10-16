@@ -10,7 +10,7 @@ import {
   type ItemCategory,
   type ItemFitMode,
   type ItemTriggerInput,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,

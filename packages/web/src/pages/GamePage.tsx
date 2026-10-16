@@ -23,7 +23,7 @@ import {
   type CharacterSlotEntry,
   type Item,
   type MapDraft,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
@@ -92,7 +92,7 @@ import {
  */
 
 /** FEAT-G03 §6.3: the ruler toggle, persisted per reader like the preview's. */
-const RULER_STORAGE_KEY = 'murdoku.gameview.ruler';
+const RULER_STORAGE_KEY = 'loredoku.gameview.ruler';
 
 function readStoredRulerVisible(): boolean {
   if (typeof window === 'undefined') return true;
@@ -141,7 +141,7 @@ export function GamePage(): JSX.Element {
   const draft = gameQuery.data?.data;
 
   useEffect(() => {
-    document.title = gameQuery.data ? `${gameQuery.data.name} · Murdoku Maker` : '游戏 · Murdoku Maker';
+    document.title = gameQuery.data ? `${gameQuery.data.name} · 格物` : '游戏 · 格物';
   }, [gameQuery.data]);
 
   const itemsById = useMemo(() => {

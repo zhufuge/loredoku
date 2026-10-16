@@ -10,8 +10,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@murdoku/shared": ["../shared/src/index.ts"],
-      "@murdoku/shared/*": ["../shared/src/*"]
+      "@loredoku/shared": ["../shared/src/index.ts"],
+      "@loredoku/shared/*": ["../shared/src/*"]
     }
   },
   "include": ["src", "vite.config.ts", "tailwind.config.ts"]

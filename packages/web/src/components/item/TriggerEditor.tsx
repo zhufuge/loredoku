@@ -1,5 +1,5 @@
 import { Plus, Trash2 } from 'lucide-react';
-import { EFFECT_TYPES, type EffectType } from '@murdoku/shared';
+import { EFFECT_TYPES, type EffectType } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 

@@ -14,7 +14,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import type { EditorTool, RegionShape } from '@murdoku/shared';
+import type { EditorTool, RegionShape } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 

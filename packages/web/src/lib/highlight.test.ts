@@ -4,7 +4,7 @@ import type {
   DraftCell,
   DraftRegion,
   ParticipantTarget,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import {
   collectLinkages,
   findAllItemAnchors,

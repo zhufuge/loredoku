@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { MAP_JSON_VERSION } from '@murdoku/shared';
+import { MAP_JSON_VERSION } from '@loredoku/shared';
 import { db } from '../db/knex';
-import type { DraftRegion, MapDraft, ProjectRow, ResizeRemoved } from '@murdoku/shared';
+import type { DraftRegion, MapDraft, ProjectRow, ResizeRemoved } from '@loredoku/shared';
 
 export interface DraftRecord {
   draft: MapDraft;

@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { ErrorCode } from '@murdoku/shared';
-import type { PublishViolation } from '@murdoku/shared';
+import { ErrorCode } from '@loredoku/shared';
+import type { PublishViolation } from '@loredoku/shared';
 import { ApiError } from '@/api/client';
 import { versionsApi } from '@/api/versions';
-import type { WorkSummary } from '@murdoku/shared';
+import type { WorkSummary } from '@loredoku/shared';
 import { mapKeys } from './useMap';
 import { projectKeys } from './useProjects';
 

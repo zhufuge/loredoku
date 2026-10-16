@@ -6,7 +6,7 @@ import type {
   MapGameDetail,
   MapGameRow,
   MapGameSummary,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 /** FEAT-G02: the games home page lists every deployed game, newest first. */
 export async function listGames(): Promise<MapGameSummary[]> {

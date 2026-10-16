@@ -10,8 +10,8 @@ import {
   REGION_ID_MAX_LENGTH,
   REGION_ID_PATTERN,
   REGION_NAME_MAX_LENGTH,
-} from '@murdoku/shared';
-import type { DraftRegion } from '@murdoku/shared';
+} from '@loredoku/shared';
+import type { DraftRegion } from '@loredoku/shared';
 import {
   Dialog,
   DialogContent,

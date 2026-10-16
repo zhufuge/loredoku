@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2, Plus, Search } from 'lucide-react';
-import type { Character } from '@murdoku/shared';
+import type { Character } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -51,7 +51,7 @@ export function CharactersPage(): JSX.Element {
   const deleting = deleteMutation.isPending;
 
   useEffect(() => {
-    document.title = '角色 · Murdoku Maker';
+    document.title = '角色 · 格物';
   }, []);
 
   useEffect(() => {

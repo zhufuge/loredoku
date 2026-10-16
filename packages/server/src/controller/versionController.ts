@@ -1,5 +1,5 @@
 import type { Context } from 'koa';
-import { idParamSchema, publishSchema } from '@murdoku/shared';
+import { idParamSchema, publishSchema } from '@loredoku/shared';
 import { z } from 'zod';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';

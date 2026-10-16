@@ -5,7 +5,7 @@ import type {
   ItemUsage,
   ListItemsQuery,
   UpdateItemInput,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import * as repo from '../repository/itemRepository';
 import { AppError } from '../utils/AppError';
 import { processCardImage } from '../utils/image';

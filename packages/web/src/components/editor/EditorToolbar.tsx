@@ -1,5 +1,5 @@
 import { ArrowLeft, Download, History, Loader2, Save, Send, Settings2, Upload } from 'lucide-react';
-import type { ProjectStatus } from '@murdoku/shared';
+import type { ProjectStatus } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 
 interface EditorToolbarProps {

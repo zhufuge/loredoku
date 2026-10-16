@@ -4,7 +4,7 @@ import {
   type DraftRegion,
   type MapStyle,
   type ParticipantTarget,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { linkageColorFor, resolveMapStyle } from '@/lib/mapStyle';
 
 export type CellMap = Map<string, DraftCell>;

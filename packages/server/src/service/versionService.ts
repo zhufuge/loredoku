@@ -1,4 +1,4 @@
-import { ErrorCode } from '@murdoku/shared';
+import { ErrorCode } from '@loredoku/shared';
 import type {
   DraftRegion,
   MapDraft,
@@ -6,7 +6,7 @@ import type {
   MapVersionSummary,
   PublishViolation,
   WorkSummary,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import * as mapRepo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
 import * as itemRepo from '../repository/itemRepository';

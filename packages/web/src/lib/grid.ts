@@ -1,4 +1,4 @@
-import type { CellCoord } from '@murdoku/shared';
+import type { CellCoord } from '@loredoku/shared';
 
 export const ZOOM_MIN = 0.25;
 /** docs/v0.3.5.md §1.3: the zoom range stays 25% ~ 400%. */

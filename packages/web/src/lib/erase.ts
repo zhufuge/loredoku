@@ -1,4 +1,4 @@
-import type { DraftCell } from '@murdoku/shared';
+import type { DraftCell } from '@loredoku/shared';
 import { cellKey, type CellMap } from './hitTest';
 
 export type EraseLayer = 'object' | 'background';

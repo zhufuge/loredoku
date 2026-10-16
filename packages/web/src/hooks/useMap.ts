@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { MapDraft } from '@murdoku/shared';
+import type { MapDraft } from '@loredoku/shared';
 import { mapApi, type SaveMapPayload } from '@/api/map';
 import { projectKeys } from './useProjects';
 

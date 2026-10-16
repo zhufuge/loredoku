@@ -1,4 +1,4 @@
-import type { Character } from '@murdoku/shared';
+import type { Character } from '@loredoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { cn } from '@/lib/utils';

@@ -1,5 +1,5 @@
 import { db } from '../db/knex';
-import type { MapDraft, MapVersionRow, MapVersionSummary, WorkSummary } from '@murdoku/shared';
+import type { MapDraft, MapVersionRow, MapVersionSummary, WorkSummary } from '@loredoku/shared';
 
 /** FEAT-G02: the maps that already have a deployed game (one game per map). */
 async function deployedProjectIds(): Promise<Set<number>> {

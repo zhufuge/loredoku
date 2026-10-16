@@ -15,7 +15,7 @@ import {
   PARTICIPANT_SEQ_INSET,
   type Character,
   type CharacterSlotEntry,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { DRAG_THRESHOLD } from '@/lib/grid';
 import {
   computeParticipantLayout,

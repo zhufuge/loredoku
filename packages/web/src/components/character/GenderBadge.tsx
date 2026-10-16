@@ -3,7 +3,7 @@ import {
   CHARACTER_GENDER_LABELS,
   GENDER_SYMBOL_COLORS,
   type CharacterGender,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 interface GenderBadgeProps {
   gender: CharacterGender | undefined;

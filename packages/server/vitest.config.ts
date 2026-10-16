@@ -9,7 +9,7 @@ export default defineConfig({
     globals: true,
     environment: 'node',
     alias: {
-      '@murdoku/shared': path.resolve(__dirname, '../shared/src'),
+      '@loredoku/shared': path.resolve(__dirname, '../shared/src'),
     },
   },
 })

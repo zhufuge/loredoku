@@ -1,5 +1,5 @@
 import Router from '@koa/router';
-import { API_PREFIX } from '@murdoku/shared';
+import { API_PREFIX } from '@loredoku/shared';
 import { healthRouter } from './health';
 import { projectsRouter } from './projects';
 import { itemsRouter } from './items';

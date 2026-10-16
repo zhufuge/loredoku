@@ -5,7 +5,7 @@ import {
   listProjectsQuerySchema,
   paginationQuerySchema,
   updateProjectSchema,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
 import * as projectService from '../service/projectService';

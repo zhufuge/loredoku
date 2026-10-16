@@ -1,4 +1,4 @@
-import type { Character, CharacterGender, CharacterUsage } from '@murdoku/shared';
+import type { Character, CharacterGender, CharacterUsage } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 export interface ListCharactersParams {

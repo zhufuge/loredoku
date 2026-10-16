@@ -1,4 +1,4 @@
-import type { WorkSummary } from '@murdoku/shared';
+import type { WorkSummary } from '@loredoku/shared';
 
 /**
  * OPT-905 (docs/v0.3.4.md §5.3): the works table filter / sort / page model.

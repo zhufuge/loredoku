@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { RULER_ACTIVE_FONT_DELTA } from '@murdoku/shared';
-import type { CellCoord } from '@murdoku/shared';
-import type { MapStyle } from '@murdoku/shared';
+import { RULER_ACTIVE_FONT_DELTA } from '@loredoku/shared';
+import type { CellCoord } from '@loredoku/shared';
+import type { MapStyle } from '@loredoku/shared';
 import { buildRulerGlyphs, rulerStripSize } from '@/lib/ruler';
 import { cellScale, scaleFontSize } from '@/lib/canvasScale';
 

@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { DEFAULT_ITEM_FIT_MODE, GRID_SIZE_MAX, GRID_SIZE_MIN } from '@murdoku/shared';
+import { DEFAULT_ITEM_FIT_MODE, GRID_SIZE_MAX, GRID_SIZE_MIN } from '@loredoku/shared';
 
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable('items', (table) => {

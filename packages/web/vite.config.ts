@@ -7,7 +7,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
-      '@murdoku/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
+      '@loredoku/shared': fileURLToPath(new URL('../shared/src/index.ts', import.meta.url)),
     },
   },
   server: {

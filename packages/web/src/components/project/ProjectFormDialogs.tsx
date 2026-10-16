@@ -2,8 +2,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
-import type { Project } from '@murdoku/shared';
-import { GRID_SIZE_DEFAULT, GRID_SIZE_MAX, GRID_SIZE_MIN } from '@murdoku/shared';
+import type { Project } from '@loredoku/shared';
+import { GRID_SIZE_DEFAULT, GRID_SIZE_MAX, GRID_SIZE_MIN } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

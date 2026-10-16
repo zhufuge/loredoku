@@ -9,7 +9,7 @@ import {
   RULER_COLOR_HOVER,
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { cellScale } from './canvasScale';
 import {
   buildRulerGlyphs,

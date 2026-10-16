@@ -10,7 +10,7 @@ import {
   type CharacterSlotEntry,
   type Item,
   type MapDraft,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
@@ -53,7 +53,7 @@ import {
  * FEAT-F01: the work preview's ruler toggle. The editor owns its own switch;
  * this key only persists the reader's preference across reloads.
  */
-const RULER_STORAGE_KEY = 'murdoku.workview.ruler';
+const RULER_STORAGE_KEY = 'loredoku.workview.ruler';
 
 /** Reads the persisted toggle, defaulting to visible (the editor's default). */
 function readStoredRulerVisible(): boolean {
@@ -99,7 +99,7 @@ export function WorkViewPage(): JSX.Element {
   useEffect(() => {
     // OPT-G01: the tab is titled with the map name once the detail lands.
     const name = detailQuery.data?.projectName;
-    document.title = name ? `${name} · Murdoku Maker` : `作品预览 · Murdoku Maker`;
+    document.title = name ? `${name} · 格物` : `作品预览 · 格物`;
   }, [detailQuery.data?.projectName]);
 
   const itemsById = useMemo(() => {

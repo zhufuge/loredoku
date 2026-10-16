@@ -1,5 +1,5 @@
 import multer from '@koa/multer';
-import { UPLOAD_MAX_SIZE } from '@murdoku/shared';
+import { UPLOAD_MAX_SIZE } from '@loredoku/shared';
 
 const imageUpload = multer({
   storage: multer.memoryStorage(),

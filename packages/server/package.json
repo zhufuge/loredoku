@@ -1,5 +1,5 @@
 {
-  "name": "@murdoku/server",
+  "name": "@loredoku/server",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -17,7 +17,7 @@
   "dependencies": {
     "@koa/multer": "^3.0.2",
     "@koa/router": "^12.0.1",
-    "@murdoku/shared": "*",
+    "@loredoku/shared": "*",
     "dotenv": "^16.4.5",
     "knex": "^3.1.0",
     "koa": "^2.15.3",

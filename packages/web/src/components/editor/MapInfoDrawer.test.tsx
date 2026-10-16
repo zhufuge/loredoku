@@ -1,8 +1,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_MAP_STYLE } from '@murdoku/shared';
-import type { MapStyle } from '@murdoku/shared';
+import { DEFAULT_MAP_STYLE } from '@loredoku/shared';
+import type { MapStyle } from '@loredoku/shared';
 import { MapInfoDrawer, type MapInfoDrawerHandle } from './MapInfoDrawer';
 import { resolveMapStyle } from '@/lib/mapStyle';
 

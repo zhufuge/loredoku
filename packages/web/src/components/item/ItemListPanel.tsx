@@ -1,4 +1,4 @@
-import { ITEM_CATEGORY_LABELS, type Item } from '@murdoku/shared';
+import { ITEM_CATEGORY_LABELS, type Item } from '@loredoku/shared';
 import { ItemThumbnail } from '@/components/item/ItemThumbnail';
 import { cn } from '@/lib/utils';
 

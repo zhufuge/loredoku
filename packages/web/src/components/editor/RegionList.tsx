@@ -1,5 +1,5 @@
 import { Pencil, Trash2 } from 'lucide-react';
-import type { DraftRegion } from '@murdoku/shared';
+import type { DraftRegion } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 

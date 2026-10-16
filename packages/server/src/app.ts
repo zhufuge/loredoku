@@ -4,7 +4,7 @@ import logger from 'koa-logger';
 import { koaBody } from 'koa-body';
 import mount from 'koa-mount';
 import serve from 'koa-static';
-import { FILES_ROUTE_PREFIX } from '@murdoku/shared';
+import { FILES_ROUTE_PREFIX } from '@loredoku/shared';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFound';
 import { apiRouter } from './router';

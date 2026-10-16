@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { ImageIcon } from 'lucide-react';
-import type { Item } from '@murdoku/shared';
+import type { Item } from '@loredoku/shared';
 import { cn } from '@/lib/utils';
 
 interface ItemThumbnailProps {

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { User } from 'lucide-react';
-import type { Character } from '@murdoku/shared';
+import type { Character } from '@loredoku/shared';
 import { cn } from '@/lib/utils';
 
 interface CharacterThumbnailProps {

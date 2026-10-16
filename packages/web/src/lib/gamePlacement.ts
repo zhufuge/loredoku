@@ -2,8 +2,8 @@ import {
   GAME_NUMBER_GRID,
   GAME_NUMBER_GRID_CELLS,
   GAME_PLACEMENT_HISTORY_MAX,
-} from '@murdoku/shared';
-import type { CellPlacement, GamePlacementBoard } from '@murdoku/shared';
+} from '@loredoku/shared';
+import type { CellPlacement, GamePlacementBoard } from '@loredoku/shared';
 
 /**
  * SPEC-G01 / SPEC-G03 / SPEC-G04 (docs/v0.4.0.md §7 ~ §10): the game board's

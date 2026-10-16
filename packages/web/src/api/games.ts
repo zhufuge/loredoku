@@ -1,4 +1,4 @@
-import type { GameDifficulty, MapGameDetail, MapGameSummary } from '@murdoku/shared';
+import type { GameDifficulty, MapGameDetail, MapGameSummary } from '@loredoku/shared';
 import { apiGet, apiPost } from './client';
 
 /**

@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { DEFAULT_ITEM_CATEGORY, DEFAULT_PROJECT_STATUS, MAP_JSON_VERSION } from '@murdoku/shared';
+import { DEFAULT_ITEM_CATEGORY, DEFAULT_PROJECT_STATUS, MAP_JSON_VERSION } from '@loredoku/shared';
 
 interface ProjectRow {
   id: string | number;

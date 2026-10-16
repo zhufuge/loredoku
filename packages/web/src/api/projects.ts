@@ -1,4 +1,4 @@
-import type { PaginatedData, Project, ProjectDetail } from '@murdoku/shared';
+import type { PaginatedData, Project, ProjectDetail } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 export type ProjectSort = 'updatedAt' | 'name' | 'createdAt';

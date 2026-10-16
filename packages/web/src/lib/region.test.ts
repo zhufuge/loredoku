@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_CELL_SIZE } from '@murdoku/shared';
-import type { DraftRegion } from '@murdoku/shared';
+import { DEFAULT_CELL_SIZE } from '@loredoku/shared';
+import type { DraftRegion } from '@loredoku/shared';
 import { buildRegionEdges, buildRegionHighlightPaths, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, rectCells, regionAt, regionCellSet, resolveRegionPointerUp } from './region';
 
 function region(id: string, cells: Array<[number, number]>): DraftRegion {

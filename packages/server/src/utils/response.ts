@@ -1,5 +1,5 @@
 import type { Context } from 'koa';
-import { ErrorCode, type ApiFailure, type ApiSuccess } from '@murdoku/shared';
+import { ErrorCode, type ApiFailure, type ApiSuccess } from '@loredoku/shared';
 
 export function success<T>(ctx: Context, data: T, message = 'ok'): void {
   const body: ApiSuccess<T> = { code: 0, message, data };

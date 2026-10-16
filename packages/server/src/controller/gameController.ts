@@ -1,5 +1,5 @@
 import type { Context } from 'koa';
-import { idParamSchema } from '@murdoku/shared';
+import { idParamSchema } from '@loredoku/shared';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
 import * as gameService from '../service/gameService';

@@ -8,8 +8,8 @@ import {
   type DraftRegion,
   type MapStyle,
   type ParticipantTarget,
-} from '@murdoku/shared';
-import { normalizeHexColor } from '@murdoku/shared';
+} from '@loredoku/shared';
+import { normalizeHexColor } from '@loredoku/shared';
 import { parseClue } from '@/lib/clue';
 import { linkageColorFor, linkageLabelFor } from '@/lib/mapStyle';
 import { GenderBadge } from '@/components/character/GenderBadge';

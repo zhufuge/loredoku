@@ -7,8 +7,8 @@ import {
   GAME_DIFFICULTY_LABELS,
   GAME_DIFFICULTY_LEVELS,
   GAME_NAME_MAX_LENGTH,
-} from '@murdoku/shared';
-import type { GameDifficulty, WorkSummary } from '@murdoku/shared';
+} from '@loredoku/shared';
+import type { GameDifficulty, WorkSummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

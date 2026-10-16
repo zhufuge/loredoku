@@ -1,4 +1,4 @@
-import type { DraftCell } from '@murdoku/shared';
+import type { DraftCell } from '@loredoku/shared';
 import type { Selection } from '@/stores/editorStore';
 
 export type CellMap = Map<string, DraftCell>;

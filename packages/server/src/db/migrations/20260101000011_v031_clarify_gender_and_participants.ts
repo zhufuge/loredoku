@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { DEFAULT_CHARACTER_GENDER } from '@murdoku/shared';
+import { DEFAULT_CHARACTER_GENDER } from '@loredoku/shared';
 
 /**
  * CLAR-601 / CLAR-603 (docs/v0.3.1.md)

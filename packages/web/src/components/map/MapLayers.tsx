@@ -16,8 +16,8 @@ import {
   type DraftRegion,
   type Item,
   type MapStyle,
-} from '@murdoku/shared';
-import type { CellPlacement, GamePlacementBoard } from '@murdoku/shared';
+} from '@loredoku/shared';
+import type { CellPlacement, GamePlacementBoard } from '@loredoku/shared';
 import { buildRegionEdges, buildRegionHighlightPaths, computeLabelCell } from '@/lib/region';
 import { HIGHLIGHT_FADEOUT_MS, type CellMap, type HighlightState } from '@/lib/highlight';
 import { styleLineWidth } from '@/lib/mapStyle';

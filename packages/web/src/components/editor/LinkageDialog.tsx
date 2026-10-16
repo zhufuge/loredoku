@@ -6,7 +6,7 @@ import {
   type MapLinkageColor,
   type ParticipantTarget,
   type ParticipantTargetType,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

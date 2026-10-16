@@ -8,7 +8,7 @@ import {
   GAME_COVER_MAX_DIMENSION,
   THUMBNAIL_MAX_DIMENSION,
   UPLOAD_ALLOWED_MIME,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { AppError } from './AppError';
 import { uploadRoot } from './paths';
 

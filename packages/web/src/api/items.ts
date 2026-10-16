@@ -1,4 +1,4 @@
-import type { Item, ItemCategory, ItemFitMode, ItemTriggerInput, ItemUsage } from '@murdoku/shared';
+import type { Item, ItemCategory, ItemFitMode, ItemTriggerInput, ItemUsage } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client';
 
 export interface ListItemsParams {

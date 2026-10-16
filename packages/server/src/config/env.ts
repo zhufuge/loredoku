@@ -10,7 +10,7 @@ const envSchema = z.object({
   PGPORT: z.coerce.number().int().positive().default(5432),
   PGUSER: z.string().min(1).default('postgres'),
   PGPASSWORD: z.string().default('123456'),
-  PGDATABASE: z.string().min(1).default('murdoku'),
+  PGDATABASE: z.string().min(1).default('loredoku'),
   UPLOAD_ROOT: z.string().min(1).default('./storage/uploads'),
 });
 

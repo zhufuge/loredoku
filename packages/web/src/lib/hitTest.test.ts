@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { DraftCell } from '@murdoku/shared';
+import type { DraftCell } from '@loredoku/shared';
 import { hitTestCell, resolveObjectAnchor, type CellMap } from './hitTest';
 
 function map(entries: Record<string, DraftCell>): CellMap {

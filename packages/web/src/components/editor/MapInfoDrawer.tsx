@@ -32,7 +32,7 @@ import {
   REGION_BORDER_WIDTH_MIN,
   type CharacterSlotEntry,
   type MapStyle,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ColorInput } from '@/components/ui/color-input';
 import { Input } from '@/components/ui/input';

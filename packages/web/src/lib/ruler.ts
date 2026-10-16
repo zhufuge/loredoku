@@ -4,7 +4,7 @@ import {
   RULER_COLOR_HOVER,
   RULER_FONT_SIZE,
   RULER_SIZE,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { scaleFontSize } from '@/lib/canvasScale';
 
 /**

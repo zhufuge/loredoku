@@ -4,7 +4,7 @@ import {
   GAME_NAME_MAX_LENGTH,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 
 /**
  * v0.4.0 FEAT-G02 (docs/v0.4.0.md §5.1) — deployed games.

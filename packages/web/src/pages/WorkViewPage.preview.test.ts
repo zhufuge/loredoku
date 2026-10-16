@@ -62,8 +62,8 @@ describe('WorkViewPage (FIX-F07 / FEAT-F01 / FEAT-F02)', () => {
     expect(rulerSource).toContain('rulerStripSize');
   });
 
-  it('FEAT-F01: the toggle is persisted under murdoku.workview.ruler', () => {
-    expect(pageSource).toContain("const RULER_STORAGE_KEY = 'murdoku.workview.ruler'");
+  it('FEAT-F01: the toggle is persisted under loredoku.workview.ruler', () => {
+    expect(pageSource).toContain("const RULER_STORAGE_KEY = 'loredoku.workview.ruler'");
     expect(pageSource).toContain("title=\"显示 / 隐藏标尺\"");
     expect(pageSource).toContain("!== 'hidden'");
   });
@@ -101,7 +101,7 @@ describe('WorkViewPage (OPT-G01)', () => {
   });
 
   it('the browser tab is titled with the map name', () => {
-    expect(pageSource).toContain('document.title = name ? `${name} · Murdoku Maker`');
+    expect(pageSource).toContain('document.title = name ? `${name} · 格物`');
   });
 });
 

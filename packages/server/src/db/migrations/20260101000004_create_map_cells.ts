@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { CARD_ROTATIONS } from '@murdoku/shared';
+import { CARD_ROTATIONS } from '@loredoku/shared';
 
 export async function up(knex: Knex): Promise<void> {
   const rotations = CARD_ROTATIONS.join(', ');

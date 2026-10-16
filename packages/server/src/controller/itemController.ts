@@ -5,7 +5,7 @@ import {
   listItemsQuerySchema,
   replaceItemTriggersSchema,
   updateItemSchema,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
 import * as itemService from '../service/itemService';

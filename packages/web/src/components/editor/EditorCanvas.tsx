@@ -19,7 +19,7 @@ import {
   type Item,
   type MapStyle,
   type RegionShape,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/region';
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';

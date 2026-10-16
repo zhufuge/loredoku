@@ -12,7 +12,7 @@ import {
   ITEM_SIZE_DEFAULT,
   ITEM_SIZE_MAX,
   ITEM_SIZE_MIN,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

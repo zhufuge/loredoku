@@ -4,7 +4,7 @@ import type {
   Project,
   ProjectDetail,
   UpdateProjectInput,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import * as repo from '../repository/projectRepository';
 import { AppError } from '../utils/AppError';
 

@@ -6,8 +6,8 @@ import type {
   EditorLayer,
   EditorTool,
   Item,
-} from '@murdoku/shared';
-import { EDITOR_LAYERS, PARTICIPANT_HEADER_HEIGHT } from '@murdoku/shared';
+} from '@loredoku/shared';
+import { EDITOR_LAYERS, PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { ItemPalette } from '@/components/editor/ItemPalette';
 import { RegionList } from '@/components/editor/RegionList';

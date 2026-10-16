@@ -12,7 +12,7 @@ import {
   CHARACTER_NAME_MAX_LENGTH,
   DEFAULT_CHARACTER_GENDER,
   GENDER_SYMBOL_COLORS,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

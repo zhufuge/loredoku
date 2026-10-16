@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { ItemTriggerInput } from '@murdoku/shared';
+import type { ItemTriggerInput } from '@loredoku/shared';
 import {
   itemsApi,
   type CreateItemPayload,

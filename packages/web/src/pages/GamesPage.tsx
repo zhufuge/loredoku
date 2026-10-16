@@ -21,7 +21,7 @@ export function GamesPage(): JSX.Element {
   const games = gamesQuery.data ?? [];
 
   useEffect(() => {
-    document.title = '游戏 · Murdoku Maker';
+    document.title = '游戏 · 格物';
   }, []);
 
   return (

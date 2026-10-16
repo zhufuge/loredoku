@@ -14,7 +14,7 @@ import {
   type MapLinkageColor,
   type MapStyle,
   type ParticipantTarget,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
 import { isEmptyCell, objectFootprintKeys, resolveEraseTarget } from '@/lib/erase';
 import { resolveMapStyle, retargetLinkageColors } from '@/lib/mapStyle';

@@ -12,7 +12,7 @@ export default defineConfig({
     environment: 'jsdom',
     alias: {
       '@': path.resolve(__dirname, './src'),
-      '@murdoku/shared': path.resolve(__dirname, '../shared/src'),
+      '@loredoku/shared': path.resolve(__dirname, '../shared/src'),
     },
   },
 })

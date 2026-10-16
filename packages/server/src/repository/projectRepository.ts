@@ -1,6 +1,6 @@
 import { db } from '../db/knex';
 import { buildFileUrl } from '../utils/paths';
-import type { MapDraft, Project, ProjectDetail, ProjectRow } from '@murdoku/shared';
+import type { MapDraft, Project, ProjectDetail, ProjectRow } from '@loredoku/shared';
 
 export interface ListProjectsParams {
   page: number;

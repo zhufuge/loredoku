@@ -10,7 +10,7 @@ import {
   type MapLayerName,
   type MapStyleMouseCursorBox,
   type MapStyleOperationCursorBox,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { cellScale, scaleLineWidth } from '@/lib/canvasScale';
 import { regionAt } from '@/lib/region';
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Loader2, Plus, Search } from 'lucide-react';
-import type { ProjectDetail } from '@murdoku/shared';
+import type { ProjectDetail } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -40,7 +40,7 @@ export function ProjectsPage(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<ProjectDetail | null>(null);
 
   useEffect(() => {
-    document.title = '地图 · Murdoku Maker';
+    document.title = '地图 · 格物';
   }, []);
 
   useEffect(() => {

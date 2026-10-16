@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { WorkSummary } from '@murdoku/shared';
+import type { WorkSummary } from '@loredoku/shared';
 import {
   buildWorksTable,
   collectWorkProjects,

@@ -1,4 +1,4 @@
-import type { MapDraft, MapResponse, ResizeResult } from '@murdoku/shared';
+import type { MapDraft, MapResponse, ResizeResult } from '@loredoku/shared';
 import { apiGet, apiPatch, apiPost, apiPut } from './client';
 
 export interface SaveMapPayload {

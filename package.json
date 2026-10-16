@@ -1,9 +1,9 @@
 {
-  "name": "murdoku-maker",
+  "name": "loredoku",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Murdoku map editor - monorepo (shared / server / web)",
+  "description": "格物（loredoku）地图编辑器 — monorepo（shared / server / web）",
   "workspaces": [
     "packages/*"
   ],
@@ -12,15 +12,15 @@
   },
   "scripts": {
     "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "npm run dev --workspace @murdoku/server",
-    "dev:web": "npm run dev --workspace @murdoku/web",
+    "dev:server": "npm run dev --workspace @loredoku/server",
+    "dev:web": "npm run dev --workspace @loredoku/web",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "db:migrate": "npm run db:migrate --workspace @murdoku/server",
-    "db:rollback": "npm run db:rollback --workspace @murdoku/server",
-    "db:migrate:make": "npm run db:migrate:make --workspace @murdoku/server"
+    "db:migrate": "npm run db:migrate --workspace @loredoku/server",
+    "db:rollback": "npm run db:rollback --workspace @loredoku/server",
+    "db:migrate:make": "npm run db:migrate:make --workspace @loredoku/server"
   },
   "devDependencies": {
     "@types/supertest": "^7.2.1",

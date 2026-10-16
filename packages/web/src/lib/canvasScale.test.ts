@@ -18,7 +18,7 @@ import {
   OBJECT_PADDING_BASE,
   OBJECT_PADDING_MAX,
   OBJECT_PADDING_MIN,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { canvasMetrics, cellScale, objectPadding, scaleFontSize, scaleLineWidth } from './canvasScale';
 
 describe('cellScale (OPT-B03 §3.2)', () => {

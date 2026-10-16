@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import type { EditorLayer, Item } from '@murdoku/shared';
+import type { EditorLayer, Item } from '@loredoku/shared';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ItemThumbnail } from '@/components/item/ItemThumbnail';

@@ -1,5 +1,5 @@
 import { Copy, Pencil, Trash2 } from 'lucide-react';
-import type { ProjectDetail } from '@murdoku/shared';
+import type { ProjectDetail } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
 

@@ -32,7 +32,7 @@ import {
   type MapStyleRuler,
   type MapStyle,
   type ParticipantTarget,
-} from '@murdoku/shared';
+} from '@loredoku/shared';
 import { cellScale, scaleFontSize, scaleLineWidth } from '@/lib/canvasScale';
 
 /**
