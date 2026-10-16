@@ -41,8 +41,10 @@ export const router = createBrowserRouter([
     element: <GamesPage />,
   },
   {
-    // FEAT-G03: the game page is a full-screen play surface, like the editor.
-    path: '/games/:gameId',
+    // FEAT-G03 + OPT-W04: the game page is a full-screen play surface, like the
+    // editor. Its route parameter is the game's **access path** (`/games/puzzle-…`),
+    // not a numeric id (docs/v0.4.1.md §4.7).
+    path: '/games/:slug',
     element: <GamePage />,
   },
 ]);

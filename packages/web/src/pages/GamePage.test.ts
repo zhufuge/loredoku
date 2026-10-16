@@ -24,15 +24,24 @@ const routerSource =
   }) as Record<string, string>)['../router.tsx'] ?? '';
 
 describe('GamePage (FEAT-G03)', () => {
-  it('is a top-level route outside the app shell', () => {
-    expect(routerSource).toContain("path: '/games/:gameId'");
+  it('is a top-level route outside the app shell, keyed by the access path', () => {
+    // OPT-W04 (docs/v0.4.1.md §4.7): `/games/:slug`, not `/games/:gameId`.
+    expect(routerSource).toContain("path: '/games/:slug'");
     expect(routerSource).toContain('element: <GamePage />');
+    expect(routerSource).not.toContain('/games/:gameId');
     // It must not live inside the AppShell children array.
     const shellChildren = routerSource.slice(
       routerSource.indexOf('element: <AppShell />'),
       routerSource.indexOf("path: '/editor/:projectId'"),
     );
     expect(shellChildren).not.toContain('GamePage');
+  });
+
+  it('resolves the game by slug', () => {
+    expect(pageSource).toContain('const { slug: slugParam } = useParams();');
+    expect(pageSource).toContain('useGameDetail(slug)');
+    // A bare /games/:slug that matches nothing must not crash the page.
+    expect(pageSource).toContain('游戏不存在或加载失败。');
   });
 
   it('reuses the preview roster and the linkage state machine', () => {
@@ -108,6 +117,10 @@ describe('GamePage (FEAT-G03)', () => {
     expect(hover).toContain("mode.kind === 'placing'");
     expect(hover).toContain('participantId: mode.participantId - 1,');
     expect(hover).toContain("{ type: 'leave', participantId: index }");
+    // BUG-G02 (docs/v0.4.1.md §9): the restore must be the idempotent event —
+    // `click` toggles, so leaving the armed card itself would switch it off.
+    expect(hover).toContain("type: 'restore',");
+    expect(hover).not.toContain("type: 'click'");
   });
 
   it('dispatches a cell interaction by the active mode', () => {
@@ -120,6 +133,33 @@ describe('GamePage (FEAT-G03)', () => {
     expect(dispatch).toContain('clearCell(state, { x, y })');
     // 放置态下 variant 区分短按（编号）与长按（头像）。
     expect(dispatch).toContain('variant,');
+    // SPEC-G06: the row/column sweep needs the board size.
+    expect(dispatch).toContain('gridSize,');
+  });
+
+  it('explains a refused placement instead of failing silently', () => {
+    // SPEC-G05 §5.2: the toast names the cell the participant already owns.
+    expect(pageSource).toContain('const block = placementBlockReason({');
+    expect(pageSource).toContain('toast.error(describeBlock(block, mode.participantId, placementState.board))');
+    expect(pageSource).toContain('已放置在 ${formatCellLabel(at)}');
+  });
+
+  it('dims the roster cards of placed participants', () => {
+    // SPEC-G05 §5.3: derived from the board, so a clear/undo restores it.
+    expect(pageSource).toContain('placedParticipantIds(placementState.board)');
+    expect(pageSource).toContain('placedSlotIndices={placedSlotIndices}');
+  });
+
+  it('validates before submitting and lists every problem', () => {
+    // FEAT-V01 §8.
+    expect(pageSource).toContain('const result = validatePlacement({');
+    expect(pageSource).toContain('if (!result.passed) {');
+    expect(pageSource).toContain('setValidationIssues(result.issues);');
+    expect(pageSource).toContain('submitPlacement(state)');
+    expect(pageSource).toContain('校验通过，已提交');
+    // The dialog shows the issues and a close button only.
+    expect(pageSource).toContain('提交未通过');
+    expect(pageSource).toContain('validationIssues?.map((issue, index) => (');
   });
 
   it('places a number on a tap and the avatar on a long-press', () => {

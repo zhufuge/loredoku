@@ -8,7 +8,8 @@ import { projectKeys } from './useProjects';
 
 export const gameKeys = {
   all: ['games', 'all'] as const,
-  detail: (id: number) => ['games', 'detail', id] as const,
+  /** OPT-W04: the game page is keyed by its access path, not its id. */
+  detail: (slug: string) => ['games', 'detail', slug] as const,
 };
 
 /** FEAT-G01: the games home page lists every deployed game, newest first. */
@@ -20,12 +21,12 @@ export function useGames() {
   });
 }
 
-/** FEAT-G03: the game page renders the snapshot captured at deploy time. */
-export function useGameDetail(id: number | null) {
+/** FEAT-G03 + OPT-W04: the game page renders the snapshot captured at deploy. */
+export function useGameDetail(slug: string | null) {
   return useQuery({
-    queryKey: gameKeys.detail(id ?? 0),
-    queryFn: () => gamesApi.detail(id as number),
-    enabled: id !== null && Number.isFinite(id),
+    queryKey: gameKeys.detail(slug ?? ''),
+    queryFn: () => gamesApi.detailBySlug(slug as string),
+    enabled: slug !== null && slug.length > 0,
   });
 }
 
@@ -37,6 +38,10 @@ function errorMessage(error: unknown, fallback: string): string {
  * FEAT-G02: deploy a published work as a game. The cover (when one was picked)
  * is uploaded right after the row exists, so both steps share one pending state
  * and a single success toast.
+ *
+ * OPT-W03 §3: `clearCover` rides along with the deploy (`true` only when the
+ * author explicitly removed the existing cover) — omitting the cover entirely
+ * keeps whatever the game already had.
  */
 export function useDeployGame() {
   const queryClient = useQueryClient();
@@ -45,10 +50,18 @@ export function useDeployGame() {
       projectId,
       versionNo,
       name,
+      slug,
       difficulty,
+      clearCover,
       cover,
     }: DeployGamePayload & { projectId: number; cover?: File | null }) => {
-      const game = await gamesApi.deploy(projectId, { versionNo, name, difficulty });
+      const game = await gamesApi.deploy(projectId, {
+        versionNo,
+        name,
+        slug,
+        difficulty,
+        clearCover,
+      });
       if (cover) {
         await gamesApi.uploadCover(game.id, cover);
       }

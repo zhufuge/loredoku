@@ -81,8 +81,10 @@ describe('GamesPage (FEAT-G01)', () => {
     expect(cardSource).toContain('{game.gridSize} × {game.gridSize}');
   });
 
-  it('clicking a card opens the game page', () => {
-    expect(cardSource).toContain('navigate(`/games/${game.id}`)');
+  it('clicking a card opens the game page by access path', () => {
+    // OPT-W04 (docs/v0.4.1.md §4.7): the URL carries the slug, not the id.
+    expect(cardSource).toContain('navigate(`/games/${game.slug}`)');
+    expect(cardSource).not.toContain('navigate(`/games/${game.id}`)');
   });
 
   it('titles the browser tab after the page', () => {

@@ -9,5 +9,10 @@ import { gameCoverUpload } from '../middleware/upload';
 export const gamesRouter = new Router();
 
 gamesRouter.get('/', controller.list);
+/**
+ * OPT-W04 §4.6: `/slug/:slug` is registered **before** `/:id` — otherwise the
+ * `slug` segment would be matched by `/:id` and rejected as a non-numeric id.
+ */
+gamesRouter.get('/slug/:slug', controller.detailBySlug);
 gamesRouter.get('/:id', controller.detail);
 gamesRouter.post('/:id/cover', gameCoverUpload.single('file'), controller.uploadCover);

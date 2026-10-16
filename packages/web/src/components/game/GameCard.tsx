@@ -8,6 +8,8 @@ import { cn } from '@/lib/utils';
  * FEAT-G01 (docs/v0.4.0.md §4): one deployed game as a card — cover, name,
  * difficulty badge and the `n×n` spec. The whole card is one button so a
  * mis-click anywhere on it starts the game.
+ *
+ * OPT-W04 (docs/v0.4.1.md §4.7): the card links to the game's access path.
  */
 export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
   const navigate = useNavigate();
@@ -17,11 +19,11 @@ export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
     <Card
       role="button"
       tabIndex={0}
-      onClick={() => navigate(`/games/${game.id}`)}
+      onClick={() => navigate(`/games/${game.slug}`)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          navigate(`/games/${game.id}`);
+          navigate(`/games/${game.slug}`);
         }
       }}
       className={cn(

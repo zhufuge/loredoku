@@ -20,6 +20,13 @@ export type LinkageActivationEvent =
   | { type: 'enter'; participantId: number }
   | { type: 'leave'; participantId: number }
   | { type: 'click'; participantId: number }
+  /**
+   * BUG-G02 (docs/v0.4.1.md §9): idempotent "make this participant the
+   * click-activated one". The game page uses it when the pointer leaves a
+   * placement-armed participant's card — a plain `click` would *toggle* it off
+   * when the pointer left the armed card itself.
+   */
+  | { type: 'restore'; participantId: number }
   | { type: 'escape' };
 
 export const INACTIVE_ACTIVATION: LinkageActivationState = {
@@ -35,6 +42,9 @@ export const INACTIVE_ACTIVATION: LinkageActivationState = {
  * - `click` toggles: clicking the click-activated participant clears it,
  *   clicking anyone else (including a hover-active one) switches to
  *   click-active without a gap.
+ * - `restore` (BUG-G02) pins the participant as click-active **without**
+ *   toggling — repeating it is a no-op, so a caller can re-assert the armed
+ *   participant as often as it likes.
  * - `escape` force-clears.
  */
 export function reduceLinkageActivation(
@@ -60,6 +70,14 @@ export function reduceLinkageActivation(
       // Second click on the click-activated participant switches it off.
       if (state.activeParticipantId === participantId && state.activationMode === 'click') {
         return INACTIVE_ACTIVATION;
+      }
+      return { activeParticipantId: participantId, activationMode: 'click' };
+    }
+    case 'restore': {
+      const { participantId } = event;
+      // Already exactly this click activation → nothing to do (idempotent).
+      if (state.activeParticipantId === participantId && state.activationMode === 'click') {
+        return state;
       }
       return { activeParticipantId: participantId, activationMode: 'click' };
     }

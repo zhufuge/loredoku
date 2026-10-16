@@ -94,6 +94,8 @@ export interface MapGameRow {
   project_id: string | number;
   version_no: number;
   name: string;
+  /** OPT-W04: the unique access path (`/games/{slug}`). */
+  slug: string;
   cover_path: string | null;
   cover_mime: string | null;
   cover_size: number | null;

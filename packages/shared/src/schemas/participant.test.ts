@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_THEME_COLOR, EFFECT_COLORS, THEME_COLOR_PALETTE } from '../constants';
-import { mapDraftSchema } from './mapDraft';
+import { mapDraftSchema, characterSlotEntrySchema } from './mapDraft';
 import { participantLinkagesSchema, participantTargetSchema, themeColorSchema } from './participant';
 
 const baseDraft = {
@@ -268,6 +268,106 @@ describe('mapDraftSchema participant references (CLAR-603 + MOD-801)', () => {
       ],
     };
     const result = mapDraftSchema.safeParse(draft);
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('FEAT-E01: positionConditions on a roster slot', () => {
+  it('parses the optional OR-ed list of cells', () => {
+    const result = characterSlotEntrySchema.safeParse({
+      characterId: 5,
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: [
+        { x: 1, y: 2 },
+        { x: 3, y: 0 },
+      ],
+    });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.positionConditions).toEqual([
+      { x: 1, y: 2 },
+      { x: 3, y: 0 },
+    ]);
+  });
+
+  it('keeps an old draft without the field valid (absent means "no constraint")', () => {
+    const result = characterSlotEntrySchema.safeParse({
+      characterId: 5,
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+    });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data.positionConditions).toBeUndefined();
+  });
+
+  it('accepts an explicit empty list', () => {
+    const result = characterSlotEntrySchema.safeParse({
+      characterId: 5,
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: [],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a negative or non-integer coordinate', () => {
+    expect(
+      characterSlotEntrySchema.safeParse({
+        characterId: 5,
+        themeColor: '#FFCC00',
+        clue: '',
+        linkages: [],
+        positionConditions: [{ x: -1, y: 0 }],
+      }).success,
+    ).toBe(false);
+    expect(
+      characterSlotEntrySchema.safeParse({
+        characterId: 5,
+        themeColor: '#FFCC00',
+        clue: '',
+        linkages: [],
+        positionConditions: [{ x: 1.5, y: 0 }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a condition outside the canvas at the draft level', () => {
+    const result = mapDraftSchema.safeParse({
+      ...baseDraft,
+      characterSlots: [
+        {
+          characterId: 5,
+          themeColor: '#FFCC00',
+          clue: '',
+          linkages: [],
+          positionConditions: [{ x: baseDraft.gridSize, y: 0 }],
+        },
+        null, null, null, null, null,
+      ],
+    });
+    expect(result.success).toBe(false);
+    expect(
+      result.success ? '' : result.error.issues.some((issue) => issue.message.includes('超出画布范围')),
+    ).toBe(true);
+  });
+
+  it('accepts an in-bounds condition at the draft level', () => {
+    const result = mapDraftSchema.safeParse({
+      ...baseDraft,
+      characterSlots: [
+        {
+          characterId: 5,
+          themeColor: '#FFCC00',
+          clue: '',
+          linkages: [],
+          positionConditions: [{ x: baseDraft.gridSize - 1, y: 0 }],
+        },
+        null, null, null, null, null,
+      ],
+    });
     expect(result.success).toBe(true);
   });
 });

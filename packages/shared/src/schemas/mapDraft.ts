@@ -215,10 +215,14 @@ export const characterSlotSchema = z.object({
 });
 
 /**
- * CLAR-603 + MOD-702/801: a roster slot carries participant linkage directly.
- * The roster length equals `gridSize`; null entries represent empty slots.
- * `clue` is an optional one-line clue text (0-200 chars, supports `**bold**`).
- * `linkages` is the flat MOD-801 list (no click/touch grouping).
+ * CLAR-603 + MOD-702/801 + FEAT-E01: a roster slot carries participant linkage
+ * directly. The roster length equals `gridSize`; null entries represent empty
+ * slots. `clue` is an optional one-line clue text (0-200 chars, supports
+ * `**bold**`). `linkages` is the flat MOD-801 list (no click/touch grouping).
+ *
+ * FEAT-E01 (docs/v0.4.1.md §7.4): `positionConditions` is the optional set of
+ * cells this participant may occupy (OR-ed). Old drafts without the field stay
+ * valid — an absent list means "no positional constraint".
  */
 export const characterSlotEntrySchema = z
   .object({
@@ -226,6 +230,9 @@ export const characterSlotEntrySchema = z
     themeColor: themeColorSchema,
     clue: z.string().trim().max(200).default(''),
     linkages: participantLinkagesSchema,
+    positionConditions: z
+      .array(z.object({ x: coordSchema, y: coordSchema }).strict())
+      .optional(),
   })
   // MOD-801: legacy `triggers` payloads are rejected, not silently stripped.
   .strict();
@@ -306,6 +313,21 @@ function validateParticipantReferences(
             break;
           }
         }
+      }
+    });
+
+    /**
+     * FEAT-E01 §7.4: position conditions must sit inside the board. `gridSize`
+     * is known here but not inside the slot schema, so the bound is checked at
+     * the draft level.
+     */
+    slot.positionConditions?.forEach((condition, conditionIndex) => {
+      if (condition.x >= draft.gridSize || condition.y >= draft.gridSize) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['characterSlots', slotIndex, 'positionConditions', conditionIndex],
+          message: `位置条件 (${condition.x}, ${condition.y}) 超出画布范围`,
+        });
       }
     });
   });

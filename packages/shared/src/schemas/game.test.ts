@@ -3,10 +3,11 @@ import {
   GAME_DIFFICULTY_DEFAULT,
   GAME_DIFFICULTY_LEVELS,
   GAME_NAME_MAX_LENGTH,
+  GAME_SLUG_MAX_LENGTH,
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
 } from '../constants';
-import { cellPlacementSchema, gameDeploySchema } from './game';
+import { cellPlacementSchema, gameDeploySchema, gameSlugParamSchema } from './game';
 
 describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
   it('lists fifteen layers, the two game-only ones between 区域标签 and 物件图层', () => {
@@ -87,6 +88,48 @@ describe('gameDeploySchema (FEAT-G02 §5.2)', () => {
     for (const difficulty of GAME_DIFFICULTY_LEVELS) {
       expect(gameDeploySchema.parse({ versionNo: 1, difficulty }).difficulty).toBe(difficulty);
     }
+  });
+});
+
+describe('gameDeploySchema slug & clearCover (OPT-W04 / OPT-W03)', () => {
+  it('trims an author-supplied slug', () => {
+    const parsed = gameDeploySchema.parse({ versionNo: 1, slug: '  puzzle-castle-hard  ' });
+    expect(parsed.slug).toBe('puzzle-castle-hard');
+  });
+
+  it('leaves the slug undefined so the service can derive the default', () => {
+    expect(gameDeploySchema.parse({ versionNo: 1 }).slug).toBeUndefined();
+    expect(gameDeploySchema.parse({ versionNo: 1, clearCover: false }).clearCover).toBe(false);
+  });
+
+  it('rejects an over-long slug but still accepts an empty one for the service to judge', () => {
+    expect(
+      gameDeploySchema.safeParse({ versionNo: 1, slug: 'x'.repeat(GAME_SLUG_MAX_LENGTH + 1) })
+        .success,
+    ).toBe(false);
+    expect(gameDeploySchema.parse({ versionNo: 1, slug: '' }).slug).toBe('');
+  });
+
+  it('flag the "remove the stored cover" request separately from the cover bytes', () => {
+    const parsed = gameDeploySchema.parse({ versionNo: 2, clearCover: true });
+    expect(parsed.clearCover).toBe(true);
+    expect(parsed.coverPath).toBeUndefined();
+  });
+});
+
+describe('gameSlugParamSchema (OPT-W04 §4.6)', () => {
+  it('accepts a well-formed path segment', () => {
+    expect(gameSlugParamSchema.parse({ slug: '  puzzle-flower-garden-very-easy  ' }).slug).toBe(
+      'puzzle-flower-garden-very-easy',
+    );
+  });
+
+  it('rejects uppercase, spaces and over-long segments before they reach the database', () => {
+    expect(gameSlugParamSchema.safeParse({ slug: 'Puzzle' }).success).toBe(false);
+    expect(gameSlugParamSchema.safeParse({ slug: 'puzzle flower' }).success).toBe(false);
+    expect(gameSlugParamSchema.safeParse({ slug: 'x'.repeat(GAME_SLUG_MAX_LENGTH + 1) }).success).toBe(
+      false,
+    );
   });
 });
 

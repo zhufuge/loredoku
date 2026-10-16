@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, Rocket, Trash2, Upload } from 'lucide-react';
+import { ImagePlus, RefreshCw, Rocket, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   GAME_DIFFICULTY_COLORS,
@@ -7,8 +7,12 @@ import {
   GAME_DIFFICULTY_LABELS,
   GAME_DIFFICULTY_LEVELS,
   GAME_NAME_MAX_LENGTH,
+  GAME_SLUG_MAX_LENGTH,
+  buildDefaultSlug,
+  normalizeSlugInput,
+  slugError,
 } from '@loredoku/shared';
-import type { GameDifficulty, WorkSummary } from '@loredoku/shared';
+import type { GameDifficulty, MapGameSummary, WorkSummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -25,32 +29,69 @@ import { cn } from '@/lib/utils';
 const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5.2): the deploy dialog. The cover is staged in the
- * dialog and uploaded right after the game row is created, because the upload
- * endpoint targets the new game's id.
+ * FEAT-G02 (docs/v0.4.0.md §5.2) + v0.4.1 (docs/v0.4.1.md §3 / §4): the deploy
+ * dialog. The cover is staged here and uploaded right after the game row is
+ * created, because the upload endpoint targets the new game's id.
+ *
+ * v0.4.1 additions:
+ * - OPT-W03: re-deploying prefills the difficulty and shows the current cover,
+ *   with a three-way choice — keep it, replace it, or remove it;
+ * - OPT-W04: the game's **access path** is a first-class field, defaulted to
+ *   `puzzle-{name}-{difficulty}` and previewed as `/games/{value}`.
  */
 export function GameDeployDialog({
   work,
+  existingGame,
   open,
   onOpenChange,
 }: {
   work: WorkSummary | null;
+  /** OPT-W03: the map's current game, used to prefill the re-deploy. */
+  existingGame?: MapGameSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const deploy = useDeployGame();
   const [name, setName] = useState('');
+  const [slug, setSlug] = useState('');
   const [difficulty, setDifficulty] = useState<GameDifficulty>(GAME_DIFFICULTY_DEFAULT);
   const [cover, setCover] = useState<File | null>(null);
+  /**
+   * OPT-W03 §3: the cover has three states — keep the stored one (default),
+   * replace it with `cover`, or drop it (`coverRemoved`).
+   */
+  const [coverRemoved, setCoverRemoved] = useState(false);
+  const [slugTouched, setSlugTouched] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Every open starts from the work's own defaults.
+  // Every open starts from the work's own defaults, or from the game's stored
+  // values when this map was deployed before (OPT-W03).
   useEffect(() => {
     if (!open || !work) return;
-    setName(work.projectName);
-    setDifficulty(GAME_DIFFICULTY_DEFAULT);
+    const startName = work.projectName;
+    const startDifficulty = existingGame?.difficulty ?? GAME_DIFFICULTY_DEFAULT;
+    setName(startName);
+    setDifficulty(startDifficulty);
     setCover(null);
-  }, [open, work]);
+    setCoverRemoved(false);
+    if (existingGame) {
+      // An already-published path is a promise to whoever holds the link, so it
+      // is prefilled and treated as "done editing" — changing the name or the
+      // difficulty will not silently rewrite it (docs/v0.4.1.md §4.2).
+      setSlug(existingGame.slug);
+      setSlugTouched(true);
+    } else {
+      setSlug(buildDefaultSlug({ name: startName, difficulty: startDifficulty }));
+      setSlugTouched(false);
+    }
+  }, [open, work, existingGame]);
+
+  // OPT-W04 §4.2: while the author has not edited the path themselves, it
+  // follows the name and the difficulty.
+  useEffect(() => {
+    if (!open || slugTouched) return;
+    setSlug(buildDefaultSlug({ name, difficulty }));
+  }, [open, slugTouched, name, difficulty]);
 
   const coverPreview = useMemo(
     () => (cover ? URL.createObjectURL(cover) : null),
@@ -61,6 +102,22 @@ export function GameDeployDialog({
     return () => URL.revokeObjectURL(coverPreview);
   }, [coverPreview]);
 
+  /** OPT-W03: what the cover area shows right now — new file, stored, or none. */
+  const storedCover = coverRemoved ? null : existingGame?.coverUrl ?? null;
+  const showStoredCover = !cover && storedCover !== null;
+
+  /**
+   * §4.4 / Q13: the line under the input. An untouched name that slugifies to
+   * nothing derives no path at all, so the author is told to type one instead
+   * of being left with a bare `/games/`.
+   */
+  const slugProblem =
+    slug.length > 0
+      ? slugError(slug)
+      : slugTouched
+        ? '请填写访问路径'
+        : '无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）';
+
   const submit = (): void => {
     if (!work) return;
     const trimmed = name.trim();
@@ -68,12 +125,25 @@ export function GameDeployDialog({
       toast.error('请填写游戏名称');
       return;
     }
+    const trimmedSlug = slug.trim();
+    if (trimmedSlug.length === 0) {
+      toast.error('请填写访问路径');
+      return;
+    }
+    const problem = slugError(trimmedSlug);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
     deploy.mutate(
       {
         projectId: work.projectId,
         versionNo: work.versionNo,
         name: trimmed,
+        slug: trimmedSlug,
         difficulty,
+        // Only an explicit removal clears the stored cover (OPT-W03 §3).
+        clearCover: coverRemoved && !cover,
         cover,
       },
       { onSuccess: () => onOpenChange(false) },
@@ -107,6 +177,50 @@ export function GameDeployDialog({
             />
           </div>
 
+          {/* OPT-W04 §4.2: the access path is the game's public URL. */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="game-deploy-slug">
+              访问路径
+            </label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="game-deploy-slug"
+                value={slug}
+                maxLength={GAME_SLUG_MAX_LENGTH}
+                placeholder="puzzle-my-map-medium"
+                className={cn('font-mono text-xs', slugProblem ? 'border-destructive' : '')}
+                onChange={(event) => {
+                  setSlugTouched(true);
+                  setSlug(normalizeSlugInput(event.target.value));
+                }}
+                disabled={deploy.isPending}
+              />
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-9 shrink-0"
+                title="按当前名称与难度重新生成"
+                disabled={deploy.isPending}
+                onClick={() => {
+                  setSlug(buildDefaultSlug({ name, difficulty }));
+                  setSlugTouched(true);
+                }}
+              >
+                <RefreshCw className="mr-1 h-3.5 w-3.5" />
+                重新生成
+              </Button>
+            </div>
+            <p
+              className={cn(
+                'text-xs',
+                slugProblem ? 'text-destructive' : 'text-muted-foreground',
+              )}
+            >
+              {slugProblem ?? `/games/${slug}`}
+            </p>
+          </div>
+
           <div className="space-y-1.5">
             <span className="text-sm font-medium">封面图片</span>
             <div className="flex gap-3">
@@ -124,6 +238,13 @@ export function GameDeployDialog({
                     draggable={false}
                     className="no-drag h-full w-full object-cover"
                   />
+                ) : showStoredCover ? (
+                  <img
+                    src={storedCover}
+                    alt="当前封面"
+                    draggable={false}
+                    className="no-drag h-full w-full object-cover"
+                  />
                 ) : (
                   <span className="flex flex-col items-center gap-1 text-xs">
                     <ImagePlus className="h-5 w-5" />
@@ -134,7 +255,11 @@ export function GameDeployDialog({
               <div className="flex flex-1 flex-col justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
                   支持 PNG / JPEG / WebP / SVG，≤ 2 MB。封面可留空。
-                  {cover ? `已选择：${cover.name}` : ''}
+                  {cover
+                    ? `已选择：${cover.name}`
+                    : showStoredCover
+                      ? '当前为该游戏已上传的封面。'
+                      : ''}
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -145,7 +270,7 @@ export function GameDeployDialog({
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="mr-1 h-3.5 w-3.5" />
-                    {cover ? '替换' : '上传'}
+                    {cover || showStoredCover ? '替换' : '上传'}
                   </Button>
                   {cover ? (
                     <Button
@@ -154,7 +279,23 @@ export function GameDeployDialog({
                       variant="outline"
                       className="text-destructive hover:text-destructive"
                       disabled={deploy.isPending}
-                      onClick={() => setCover(null)}
+                      onClick={() => {
+                        // Dropping a freshly picked file falls back to the
+                        // stored cover; it only counts as "remove" afterwards.
+                        setCover(null);
+                      }}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      取消选择
+                    </Button>
+                  ) : showStoredCover ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                      disabled={deploy.isPending}
+                      onClick={() => setCoverRemoved(true)}
                     >
                       <Trash2 className="mr-1 h-3.5 w-3.5" />
                       移除
@@ -171,6 +312,7 @@ export function GameDeployDialog({
               onChange={(event) => {
                 const file = event.target.files?.[0] ?? null;
                 setCover(file);
+                if (file) setCoverRemoved(false);
                 event.target.value = '';
               }}
             />

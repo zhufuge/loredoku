@@ -15,6 +15,14 @@ function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
+/**
+ * OPT-W04: a game access path must match `^[a-z0-9-]+$`, so `uniqueCode` (which
+ * contains `_`) cannot be used for one. Hex keeps it unique and slug-safe.
+ */
+function uniqueSlug(prefix = 'game'): string {
+  return `${prefix}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
 function emptyDraft(gridSize: number): MapDraft {
   return {
     version: 1,
@@ -504,15 +512,18 @@ describe('games API (FEAT-G02)', () => {
 
   it('deploys a published work and lists it on the games home page', async () => {
     const { projectId } = await publishableProject(`Game ${uniqueCode('p')}`);
+    const slug = uniqueSlug('mystery-castle');
 
     const deploy = await api
       .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '神秘古堡', difficulty: 'hard' });
+      .send({ versionNo: 1, name: '神秘古堡', slug, difficulty: 'hard' });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.name).toBe('神秘古堡');
     expect(deploy.body.data.difficulty).toBe('hard');
     expect(deploy.body.data.gridSize).toBe(6);
     expect(deploy.body.data.coverUrl).toBeNull();
+    // OPT-W04: an all-Chinese name derives no path, so the author typed one.
+    expect(deploy.body.data.slug).toBe(slug);
 
     const list = await api.get('/api/games');
     expect(list.status).toBe(200);
@@ -547,14 +558,14 @@ describe('games API (FEAT-G02)', () => {
 
     const first = await api
       .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '第一版', difficulty: 'easy' });
+      .send({ versionNo: 1, name: '第一版', slug: uniqueSlug('first'), difficulty: 'easy' });
     expect(first.status).toBe(200);
 
     // Publish a second version of the same map, then deploy that one.
     await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v2' });
     const second = await api
       .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 2, name: '第二版', difficulty: 'expert' });
+      .send({ versionNo: 2, name: '第二版', slug: uniqueSlug('second'), difficulty: 'expert' });
     expect(second.status).toBe(200);
     expect(second.body.data.id).not.toBe(first.body.data.id);
     expect(second.body.data.versionNo).toBe(2);
@@ -599,7 +610,7 @@ describe('games API (FEAT-G02)', () => {
     const { projectId } = await publishableProject(`Cover ${uniqueCode('p')}`);
     const deploy = await api
       .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '带封面' });
+      .send({ versionNo: 1, name: '带封面', slug: uniqueSlug('with-cover') });
     const gameId = deploy.body.data.id as number;
 
     const uploaded = await api
@@ -611,6 +622,183 @@ describe('games API (FEAT-G02)', () => {
 
     const detail = await api.get(`/api/games/${gameId}`);
     expect(detail.body.data.coverUrl).toBeTruthy();
+  });
+});
+
+// ---- v0.4.1 OPT-W04: the access path (docs/v0.4.1.md §4) ----
+describe('games API slug (OPT-W04)', () => {
+  /** Short lowercase hex token — survives slugify untouched. */
+  function token(): string {
+    return Math.random().toString(16).slice(2, 10);
+  }
+
+  /** A publishable draft: one participant with an avatar, nothing else. */
+  async function publishableProject(name: string): Promise<number> {
+    const projectId = await createProject({ name, gridSize: 6 });
+    const characterId = await createCharacterWithAvatar();
+    const draft = emptyDraft(6);
+    draft.characterSlots[0] = { characterId };
+    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v1' });
+    return projectId;
+  }
+
+  it('derives puzzle-{name}-{difficulty} when the path is left untouched', async () => {
+    const hex = token();
+    const projectId = await publishableProject(`Flower Garden ${hex}`);
+
+    const deploy = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, name: `Flower Garden ${hex}`, difficulty: 'veryEasy' });
+    expect(deploy.status).toBe(200);
+    expect(deploy.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
+
+    // The list carries the slug so the card can link straight to it.
+    const list = await api.get('/api/games');
+    const row = (
+      list.body.data as Array<{ projectId: number; slug: string }>
+    ).find((entry) => entry.projectId === projectId);
+    expect(row?.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
+
+    // OPT-W04 §4.6: the game page resolves its game by path.
+    const detail = await api.get(`/api/games/slug/puzzle-flower-garden-${hex}-very-easy`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.id).toBe(deploy.body.data.id);
+    expect(detail.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
+    expect(detail.body.data.data.characterSlots[0]).not.toBeNull();
+
+    // The by-id route still works (cover upload and internal callers).
+    const byId = await api.get(`/api/games/${deploy.body.data.id}`);
+    expect(byId.body.data.slug).toBe(detail.body.data.slug);
+  });
+
+  it('honours an explicitly typed path (Q15: no puzzle- prefix required)', async () => {
+    const projectName = `Custom ${token()}`;
+    const projectId = await publishableProject(projectName);
+    const slug = `my-map-${token()}`;
+
+    const deploy = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, slug, difficulty: 'hard' });
+    expect(deploy.status).toBe(200);
+    expect(deploy.body.data.slug).toBe(slug);
+    expect(deploy.body.data.name).toBe(projectName);
+
+    const detail = await api.get(`/api/games/slug/${slug}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.id).toBe(deploy.body.data.id);
+  });
+
+  it('rejects a path owned by another map and stores nothing (Q12)', async () => {
+    const slug = `shared-path-${token()}`;
+    const first = await publishableProject(`Owner ${token()}`);
+    const ok = await api
+      .post(`/api/projects/${first}/games`)
+      .send({ versionNo: 1, slug, difficulty: 'easy' });
+    expect(ok.status).toBe(200);
+
+    const second = await publishableProject(`Thief ${token()}`);
+    const clash = await api
+      .post(`/api/projects/${second}/games`)
+      .send({ versionNo: 1, slug, difficulty: 'easy' });
+    expect(clash.status).toBe(400);
+    expect(clash.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(clash.body.message).toBe(`访问路径「${slug}」已被占用，请更换`);
+
+    // Nothing was written for the second map.
+    const list = await api.get('/api/games');
+    const rows = (list.body.data as Array<{ projectId: number }>).filter(
+      (entry) => entry.projectId === second,
+    );
+    expect(rows).toHaveLength(0);
+  });
+
+  it('lets the same map re-deploy its own path — an overwrite is not a conflict', async () => {
+    const slug = `mine-${token()}`;
+    const projectId = await publishableProject(`Mine ${token()}`);
+    const first = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, slug, difficulty: 'easy' });
+    expect(first.status).toBe(200);
+
+    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v2' });
+    const second = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 2, slug, difficulty: 'hard' });
+    expect(second.status).toBe(200);
+    expect(second.body.data.slug).toBe(slug);
+    expect(second.body.data.versionNo).toBe(2);
+
+    const list = await api.get('/api/games');
+    const rows = (list.body.data as Array<{ projectId: number }>).filter(
+      (entry) => entry.projectId === projectId,
+    );
+    expect(rows).toHaveLength(1);
+  });
+
+  it('rejects an explicitly blank path instead of silently deriving one', async () => {
+    const projectId = await publishableProject(`Blank ${token()}`);
+    const res = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, slug: '   ' });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('访问路径必填');
+  });
+
+  it('rejects a malformed or over-long path before it reaches the database', async () => {
+    const projectId = await publishableProject(`Bad ${token()}`);
+    const rejected = [
+      'with space',
+      'under_score',
+      '-leading',
+      'trailing-',
+      'ab',
+      '汉字',
+      'x'.repeat(81),
+    ];
+    for (const slug of rejected) {
+      const res = await api.post(`/api/projects/${projectId}/games`).send({ versionNo: 1, slug });
+      expect(res.status, slug).toBe(400);
+      expect(res.body.code, slug).toBe(ErrorCode.VALIDATION_FAILED);
+    }
+  });
+
+  it('folds an uppercase path to lowercase rather than rejecting it', async () => {
+    // The dialog normalises while typing; the server is forgiving the same way.
+    const projectId = await publishableProject(`Fold ${token()}`);
+    const hex = token();
+    const res = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, slug: `Puzzle-${hex.toUpperCase()}` });
+    expect(res.status).toBe(200);
+    expect(res.body.data.slug).toBe(`puzzle-${hex}`);
+  });
+
+  it('asks for a manual path when the name derives nothing (Q13)', async () => {
+    const projectId = await publishableProject(`汉字项目 ${token()}`);
+    const res = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, name: '神秘古堡', difficulty: 'medium' });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toBe('无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）');
+
+    // …and taking the hint works.
+    const typed = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, name: '神秘古堡', slug: `mystery-castle-${token()}`, difficulty: 'medium' });
+    expect(typed.status).toBe(200);
+  });
+
+  it('404s for a path that does not exist', async () => {
+    const res = await api.get(`/api/games/slug/no-such-game-${token()}`);
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  it('404s for a malformed path segment rather than querying the database', async () => {
+    const res = await api.get('/api/games/slug/Not%20A%20Slug');
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 });
 

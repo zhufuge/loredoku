@@ -630,6 +630,34 @@ export const GAME_PLACEMENT_HISTORY_MAX = 200;
 /** SPEC-G03: the toolbar / participant-placement modes are mutually exclusive. */
 export const GAME_TOOL_MODES = ['forbidden', 'clearing'] as const;
 
+// ---- v0.4.1 games (docs/v0.4.1.md §4 / §5) ----
+/**
+ * OPT-W04: a deployed game owns a human-readable access path, built as
+ * `puzzle-` + slugified name + `-` + slugified difficulty.
+ */
+export const GAME_SLUG_PREFIX = 'puzzle';
+export const GAME_SLUG_MIN_LENGTH = 3;
+/** Doubles as the DB column width of `map_games.slug`. */
+export const GAME_SLUG_MAX_LENGTH = 80;
+/** Only lower-case letters, digits and single dashes — no unicode, no spaces. */
+export const GAME_SLUG_PATTERN = /^[a-z0-9-]+$/;
+
+/** OPT-W04 §4.3: difficulty → URL segment (never leak `veryEasy` camelCase). */
+export const GAME_DIFFICULTY_SLUGS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
+  veryEasy: 'very-easy',
+  easy: 'easy',
+  medium: 'medium',
+  hard: 'hard',
+  expert: 'expert',
+};
+
+/**
+ * SPEC-G05 §5.3: a participant that is already on the board fades out in the
+ * game page's read-only roster — the theme ring and avatar dim, the sequence
+ * badge and clue stay legible.
+ */
+export const GAME_PLACED_OPACITY = 0.45;
+
 // ---- Uploads ----
 export const UPLOAD_MAX_SIZE = 2 * 1024 * 1024; // 2 MB
 export const UPLOAD_ALLOWED_MIME = [

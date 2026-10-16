@@ -147,6 +147,12 @@ export function EditorPage(): JSX.Element {
     return window.localStorage.getItem('loredoku.editor.ruler') !== 'hidden';
   });
   const [removeParticipantTarget, setRemoveParticipantTarget] = useState<number | null>(null);
+  /**
+   * FEAT-E01 (docs/v0.4.1.md §7.3a): while the participant drawer is picking a
+   * position condition, the next canvas click sets it instead of moving focus.
+   */
+  const [positionPickSlot, setPositionPickSlot] = useState<number | null>(null);
+  const [pickedPosition, setPickedPosition] = useState<{ x: number; y: number } | null>(null);
 
   // Slot drag state for roster reordering (CLAR-603 — no longer drops onto the map).
   const [slotDrag, setSlotDrag] = useState<SlotDragPreview | null>(null);
@@ -450,9 +456,15 @@ export function EditorPage(): JSX.Element {
 
   const saveParticipant = (
     slotIndex: number,
-    patch: { themeColor: string; clue: string; linkages: ParticipantTarget[] },
+    patch: {
+      themeColor: string;
+      clue: string;
+      linkages: ParticipantTarget[];
+      positionConditions: Array<{ x: number; y: number }>;
+    },
   ): void => {
     editor.setParticipantConfig(slotIndex, patch);
+    setPositionPickSlot(null);
     toast.success('已保存参与者配置');
   };
 
@@ -528,6 +540,19 @@ export function EditorPage(): JSX.Element {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [slotDrag]);
+
+  /**
+   * FEAT-E01 §7.3(a): `Esc` leaves the position-selection mode. The drawer
+   * follows along through `positionPickActive`.
+   */
+  useEffect(() => {
+    if (positionPickSlot === null) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setPositionPickSlot(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [positionPickSlot]);
 
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
     if (regionDialog.mode === 'create') {
@@ -958,6 +983,15 @@ export function EditorPage(): JSX.Element {
             highlight={highlight}
             highlightLeaving={highlightLeaving}
             onSelect={(selection) => {
+              // FEAT-E01 §7.3(a): while a position condition is being picked, the
+              // click *is* the answer — it must not move the focus or open the
+              // cell info box.
+              if (positionPickSlot !== null) {
+                if (selection?.type === 'cell') {
+                  setPickedPosition({ x: selection.x, y: selection.y });
+                }
+                return;
+              }
               // OPT-C07: clicking the board clears the participant activation
               // (hover- or click-pinned) and hands the focus to the cell.
               // FEAT-E01: switching away from the info drawer is confirmed first.
@@ -1093,6 +1127,7 @@ export function EditorPage(): JSX.Element {
             open={participantDrawerOpen}
             onClose={() => {
               setParticipantDrawerOpen(false);
+              setPositionPickSlot(null);
               editor.setSelectedSlot(null);
             }}
             slotIndex={editor.selectedSlotIndex}
@@ -1105,6 +1140,14 @@ export function EditorPage(): JSX.Element {
             regions={editor.regions}
             gridSize={editor.gridSize}
             style={editor.style}
+            positionPickActive={positionPickSlot !== null}
+            onTogglePositionPick={() =>
+              setPositionPickSlot((current) =>
+                current === null ? editor.selectedSlotIndex : null,
+              )
+            }
+            pickedPosition={pickedPosition}
+            onPositionPicked={() => setPickedPosition(null)}
             onSave={saveParticipant}
           />
 

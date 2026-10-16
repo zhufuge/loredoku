@@ -15,6 +15,10 @@ function run(state: LinkageActivationState, events: LinkageActivationEvent[]): L
 const enter = (participantId: number): LinkageActivationEvent => ({ type: 'enter', participantId });
 const leave = (participantId: number): LinkageActivationEvent => ({ type: 'leave', participantId });
 const click = (participantId: number): LinkageActivationEvent => ({ type: 'click', participantId });
+const restore = (participantId: number): LinkageActivationEvent => ({
+  type: 'restore',
+  participantId,
+});
 const escape: LinkageActivationEvent = { type: 'escape' };
 
 describe('reduceLinkageActivation (MOD-802 §1.2.4)', () => {
@@ -99,5 +103,54 @@ describe('reduceLinkageActivation (MOD-802 §1.2.4)', () => {
     expect(isParticipantActive(active, 3)).toBe(true);
     expect(isParticipantActive(active, 1)).toBe(false);
     expect(isParticipantActive(INACTIVE_ACTIVATION, 3)).toBe(false);
+  });
+});
+
+describe('restore (BUG-G02 §9)', () => {
+  it('pins the participant as click-active', () => {
+    expect(reduceLinkageActivation(INACTIVE_ACTIVATION, restore(1))).toEqual({
+      activeParticipantId: 1,
+      activationMode: 'click',
+    });
+  });
+
+  it('is idempotent — re-asserting the same participant is a no-op', () => {
+    const active = run(INACTIVE_ACTIVATION, [restore(1)]);
+    expect(reduceLinkageActivation(active, restore(1))).toBe(active);
+    expect(run(INACTIVE_ACTIVATION, [restore(1), restore(1), restore(1)])).toEqual({
+      activeParticipantId: 1,
+      activationMode: 'click',
+    });
+  });
+
+  it('upgrades a hover activation to click without a gap', () => {
+    const hover = reduceLinkageActivation(INACTIVE_ACTIVATION, enter(1));
+    expect(reduceLinkageActivation(hover, restore(1))).toEqual({
+      activeParticipantId: 1,
+      activationMode: 'click',
+    });
+  });
+
+  it('switches the active participant when re-asserted on another one', () => {
+    const clickB = reduceLinkageActivation(INACTIVE_ACTIVATION, click(2));
+    expect(reduceLinkageActivation(clickB, restore(1))).toEqual({
+      activeParticipantId: 1,
+      activationMode: 'click',
+    });
+  });
+
+  it('BUG-G02: the armed card stays highlighted after the pointer leaves it', () => {
+    // Placement-armed participant 4 → pointer leaves its card, then drifts off
+    // it. A plain `click` would toggle it off; `restore` keeps it active.
+    const armed = run(INACTIVE_ACTIVATION, [restore(4)]);
+    expect(reduceLinkageActivation(armed, leave(4))).toEqual(armed);
+    expect(reduceLinkageActivation(armed, restore(4))).toEqual(armed);
+    const hover5 = reduceLinkageActivation(armed, enter(5));
+    expect(hover5).toEqual({ activeParticipantId: 5, activationMode: 'hover' });
+    // …leaving the other card re-asserts the armed participant.
+    expect(reduceLinkageActivation(hover5, restore(4))).toEqual({
+      activeParticipantId: 4,
+      activationMode: 'click',
+    });
   });
 });

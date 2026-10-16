@@ -1,12 +1,17 @@
 import { db } from '../db/knex';
 import type { MapDraft, MapVersionRow, MapVersionSummary, WorkSummary } from '@loredoku/shared';
 
-/** FEAT-G02: the maps that already have a deployed game (one game per map). */
-async function deployedProjectIds(): Promise<Set<number>> {
-  const rows = (await db('map_games').select('project_id')) as Array<{
+/**
+ * OPT-W02 (docs/v0.4.1.md §2): a deployed game pins one map **and one version
+ * number**, so the works table flags only that version's row — as
+ * `"projectId:versionNo"` keys.
+ */
+async function deployedVersionKeys(): Promise<Set<string>> {
+  const rows = (await db('map_games').select('project_id', 'version_no')) as Array<{
     project_id: number | string;
+    version_no: number;
   }>;
-  return new Set(rows.map((row) => Number(row.project_id)));
+  return new Set(rows.map((row) => `${Number(row.project_id)}:${row.version_no}`));
 }
 
 /** FEAT-503: the works panel shows participant / region / item totals. */
@@ -55,8 +60,9 @@ export async function listVersions(projectId: number): Promise<MapVersionSummary
  * OPT-905 §5.3: every published work across all maps, newest first. The
  * project name is joined in because the works table shows 地图名称.
  *
- * FEAT-G02 (docs/v0.4.0.md §5.1): `deployed` marks the rows whose map already
- * has a game, so the table can badge them without a second request.
+ * FEAT-G02 (docs/v0.4.0.md §5.1) + OPT-W02 (docs/v0.4.1.md §2): `deployed`
+ * marks the row whose **map + version** was deployed, so the table can badge it
+ * without a second request and a stale version never keeps the badge.
  */
 export async function listAllVersions(): Promise<WorkSummary[]> {
   const rows = (await db('map_versions as v')
@@ -65,12 +71,12 @@ export async function listAllVersions(): Promise<WorkSummary[]> {
     .orderBy('v.snapshot_created_at', 'desc')) as Array<
     MapVersionRow & { project_name: string | null }
   >;
-  const deployed = await deployedProjectIds();
+  const deployed = await deployedVersionKeys();
   return rows.map((row) => ({
     ...toSummary(row),
     projectId: Number(row.project_id),
     projectName: row.project_name ?? '',
-    deployed: deployed.has(Number(row.project_id)),
+    deployed: deployed.has(`${Number(row.project_id)}:${row.version_no}`),
   }));
 }
 

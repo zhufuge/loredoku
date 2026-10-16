@@ -2,6 +2,8 @@ import {
   GAME_NUMBER_GRID,
   GAME_NUMBER_GRID_CELLS,
   GAME_PLACEMENT_HISTORY_MAX,
+  type CellCoord,
+  type CharacterSlotEntry,
 } from '@loredoku/shared';
 import type { CellPlacement, GamePlacementBoard } from '@loredoku/shared';
 
@@ -86,13 +88,87 @@ export function showsAvatar(placement: CellPlacement | null): boolean {
 }
 
 /**
- * SPEC-G01 §7.2 + SPEC-G03 §9.2: a participant may be placed when the cell is
- * standable, carries no `×`, does not already hold this participant's number,
- * and still has a free slot in the 3×3 number grid.
- *
- * v0.4.0 验收补充：`variant: 'image'`（长按）走「确认」语义——整格替换为头像，
- * 因此 9 宫格已满不构成阻碍，但「已是该参与者头像」仍是无效果。
+ * SPEC-G05 §5.2 (docs/v0.4.1.md §5): where this participant already sits, or
+ * `null` when they are not on the board. A participant occupies **at most one**
+ * cell, so the first hit is the only hit.
  */
+export function participantPlacementAt(
+  board: GamePlacementBoard,
+  participantId: number,
+): CellCoord | null {
+  for (const [key, placement] of Object.entries(board)) {
+    if (!placement || placement.kind === 'forbidden') continue;
+    if (!hasParticipant(placement, participantId)) continue;
+    const [x, y] = key.split(',').map(Number);
+    return { x: x as number, y: y as number };
+  }
+  return null;
+}
+
+/**
+ * SPEC-G05 §5.3: every participant currently on the board — the game page
+ * fades their roster card and the uniqueness rule consults this set.
+ */
+export function placedParticipantIds(board: GamePlacementBoard): Set<number> {
+  const placed = new Set<number>();
+  for (const placement of Object.values(board)) {
+    if (!placement || placement.kind === 'forbidden') continue;
+    for (const entry of numbersIn(placement)) placed.add(entry);
+  }
+  return placed;
+}
+
+/** SPEC-G05 §5.2 / §8.1: 1-based `R{row} C{col}` label used in toasts. */
+export function formatCellLabel(coord: CellCoord): string {
+  return `R${coord.y + 1} C${coord.x + 1}`;
+}
+
+/** SPEC-G05 §5.2: why a participant placement was refused, for the toast. */
+export type PlacementBlock =
+  | 'non-standable'
+  | 'forbidden'
+  | 'avatar'
+  | 'duplicate'
+  | 'grid-full'
+  | 'elsewhere';
+
+/**
+ * SPEC-G01 §7.2 + SPEC-G03 §9.2 + SPEC-G05 §5.2: the single source of truth for
+ * "may this participant land here?". `canPlaceParticipant` is a thin reading of
+ * it, and the page turns the code into a toast — so the rule and its explanation
+ * can never drift apart.
+ */
+export function placementBlockReason(input: {
+  board: GamePlacementBoard;
+  x: number;
+  y: number;
+  participantId: number;
+  noStandCells: Set<string>;
+  variant?: ParticipantPlacementVariant;
+}): PlacementBlock | null {
+  const { board, x, y, participantId, noStandCells, variant = 'number' } = input;
+  if (noStandCells.has(cellKey(x, y))) return 'non-standable';
+
+  // SPEC-G05: one participant, one cell. The participant's own cell is the only
+  // exception — a long-press there is a "promote to avatar", not a second place.
+  const elsewhere = participantPlacementAt(board, participantId);
+  if (elsewhere && (elsewhere.x !== x || elsewhere.y !== y)) return 'elsewhere';
+
+  const placement = placementAt(board, x, y);
+  if (!placement) return null;
+  if (placement.kind === 'forbidden') return 'forbidden';
+  if (hasParticipant(placement, participantId)) {
+    // A tap has nothing left to add; a long-press promotes a carried number to
+    // the avatar — unless the cell already *is* that avatar.
+    if (variant !== 'image') return 'duplicate';
+    return placement.kind === 'participant' ? 'avatar' : null;
+  }
+  // A long-press replaces the cell wholesale, so a full grid is no obstacle.
+  if (variant === 'image') return null;
+  return numbersIn(placement).length < GAME_NUMBER_GRID_CELLS ? null : 'grid-full';
+}
+
+/** SPEC-G01 / SPEC-G03 / SPEC-G05: `true` when nothing blocks the placement. */
 export function canPlaceParticipant(input: {
   board: GamePlacementBoard;
   x: number;
@@ -101,19 +177,7 @@ export function canPlaceParticipant(input: {
   noStandCells: Set<string>;
   variant?: ParticipantPlacementVariant;
 }): boolean {
-  const { board, x, y, participantId, noStandCells, variant = 'number' } = input;
-  if (noStandCells.has(cellKey(x, y))) return false;
-  const placement = placementAt(board, x, y);
-  if (!placement) return true;
-  if (placement.kind === 'forbidden') return false;
-  if (hasParticipant(placement, participantId)) {
-    // A tap has nothing left to add; a long-press promotes a carried number
-    // to the avatar — unless the cell already *is* that avatar.
-    return variant === 'image' && placement.kind !== 'participant';
-  }
-  // A long-press replaces the cell wholesale, so a full grid is no obstacle.
-  if (variant === 'image') return true;
-  return numbersIn(placement).length < GAME_NUMBER_GRID_CELLS;
+  return placementBlockReason(input) === null;
 }
 
 /**
@@ -149,12 +213,46 @@ function commit(
 }
 
 /**
- * SPEC-G03 §9.2（v0.4.0 验收补充后）：
+ * SPEC-G06 §6.1 (docs/v0.4.1.md §6): after a participant lands on (x, y), the
+ * rest of that **row** and **column** is closed off with `×` — a standable cell
+ * with no `×` and no avatar. A cell that only carries other participants'
+ * numbers is overwritten (§6.2 方案 A): the `×` wins and those participants lose
+ * their only marker, so they become placeable again.
+ *
+ * Returns the cells that should carry a `×` (the caller merges them in), so the
+ * placement + the sweep stay **one** undo step.
+ */
+export function autoForbiddenCells(input: {
+  board: GamePlacementBoard;
+  x: number;
+  y: number;
+  gridSize: number;
+  noStandCells: Set<string>;
+}): string[] {
+  const { board, x, y, gridSize, noStandCells } = input;
+  const keys: string[] = [];
+  const consider = (cx: number, cy: number): void => {
+    if (cx === x && cy === y) return;
+    const key = cellKey(cx, cy);
+    if (noStandCells.has(key)) return;
+    const placement = placementAt(board, cx, cy);
+    if (placement?.kind === 'forbidden') return;
+    if (showsAvatar(placement)) return;
+    keys.push(key);
+  };
+  for (let column = 0; column < gridSize; column += 1) consider(column, y);
+  for (let row = 0; row < gridSize; row += 1) consider(x, row);
+  return keys;
+}
+
+/**
+ * SPEC-G03 §9.2（v0.4.0 验收补充后）+ SPEC-G06（v0.4.1）：
  *
  * - `variant: 'number'`（短按，默认）：往该格追加一个标号——空格得到 9 宫格
  *   第 1 格的标号，已有其他参与者标号则续接；该参与者标号已存在则无效果。
  * - `variant: 'image'`（长按）：整格替换为该参与者的头像，即「确认这格就是
  *   这位参与者」；该格已是同一头像时无效果（`commit` 的结构比较会拦住）。
+ * - 落格之后**同行同列自动补 `×`**（SPEC-G06），与本次放置合并为一个历史步。
  */
 export function placeParticipant(
   state: GamePlacementState,
@@ -163,21 +261,40 @@ export function placeParticipant(
     y: number;
     participantId: number;
     noStandCells: Set<string>;
+    /** SPEC-G06: the row/column sweep needs to know how far the board extends. */
+    gridSize: number;
     variant?: ParticipantPlacementVariant;
   },
 ): GamePlacementState {
   const variant = input.variant ?? 'number';
   if (!canPlaceParticipant({ ...input, board: state.board, variant })) return state;
   const key = cellKey(input.x, input.y);
+  let board: GamePlacementBoard;
   if (variant === 'image') {
-    return commit(state, {
+    board = {
       ...state.board,
       [key]: { kind: 'participant', index: input.participantId },
-    });
+    };
+  } else {
+    const previous = placementAt(state.board, input.x, input.y);
+    const numbers = previous
+      ? [...numbersIn(previous), input.participantId]
+      : [input.participantId];
+    board = { ...state.board, [key]: { kind: 'numbers', entries: numbers } };
   }
-  const previous = placementAt(state.board, input.x, input.y);
-  const numbers = previous ? [...numbersIn(previous), input.participantId] : [input.participantId];
-  return commit(state, { ...state.board, [key]: { kind: 'numbers', entries: numbers } });
+
+  // SPEC-G06: one gesture → one history step, sweep included.
+  for (const swept of autoForbiddenCells({
+    board,
+    x: input.x,
+    y: input.y,
+    gridSize: input.gridSize,
+    noStandCells: input.noStandCells,
+  })) {
+    board[swept] = { kind: 'forbidden' };
+  }
+
+  return commit(state, board);
 }
 
 /** SPEC-G04 §10.1: `×` replaces any numbers-only cell and blocks a new one. */
@@ -326,4 +443,129 @@ function placementEquals(a: CellPlacement | null, b: CellPlacement | null): bool
     return a.entries.every((entry, index) => entry === b.entries[index]);
   }
   return true;
+}
+
+// ---------------------------------------------------------------------------
+// FEAT-V01 (docs/v0.4.1.md §8): the submit check
+// ---------------------------------------------------------------------------
+
+export type PlacementIssueCode = 'unplaced' | 'row' | 'column' | 'condition';
+
+export interface PlacementIssue {
+  /** 1-based participant number, matching the roster badge and the numbers. */
+  participantId: number;
+  code: PlacementIssueCode;
+  message: string;
+}
+
+export interface PlacementValidation {
+  passed: boolean;
+  issues: PlacementIssue[];
+}
+
+export interface ValidatePlacementInput {
+  board: GamePlacementBoard;
+  /**
+   * The roster, in display order. Index + 1 is the participant number; `null`
+   * entries are empty frames and are not validated. Position conditions are
+   * read straight off each slot (§7.4), so there is exactly one source of truth.
+   */
+  slots: Array<CharacterSlotEntry | null>;
+  /** Optional name lookup so a message can read `编号 3（张三）尚未放置`. */
+  nameOf?: (participantId: number) => string | undefined;
+}
+
+/**
+ * SPEC-FEAT-V01 §8.1: walk the participants in number order and collect **every**
+ * problem (the dialog lists them all, so no early exit):
+ *
+ * 1. the participant must be on the board;
+ * 2. nobody else may share its row;
+ * 3. nobody else may share its column;
+ * 4. if the participant carries position conditions, its cell must be one of
+ *    them — an empty list means "no positional constraint" (§14 Q11).
+ *
+ * Rows/columns are reported from both sides of a clash (each participant gets
+ * its own issue), which keeps the list a straight projection of the roster.
+ */
+export function validatePlacement(input: ValidatePlacementInput): PlacementValidation {
+  const { board, slots } = input;
+  const issues: PlacementIssue[] = [];
+
+  const label = (participantId: number): string => {
+    const name = input.nameOf?.(participantId);
+    return name && name.length > 0 ? `编号 ${participantId}（${name}）` : `编号 ${participantId}`;
+  };
+
+  /** occupant map: cellKey → participant numbers, restricted to the roster. */
+  const occupants = new Map<string, number[]>();
+  slots.forEach((slot, index) => {
+    if (!slot) return;
+    const participantId = index + 1;
+    const coord = participantPlacementAt(board, participantId);
+    if (!coord) return;
+    const key = cellKey(coord.x, coord.y);
+    occupants.set(key, [...(occupants.get(key) ?? []), participantId]);
+  });
+
+  slots.forEach((slot, index) => {
+    if (!slot) return;
+    const participantId = index + 1;
+    const coord = participantPlacementAt(board, participantId);
+
+    if (!coord) {
+      issues.push({
+        participantId,
+        code: 'unplaced',
+        message: `${label(participantId)} 尚未放置`,
+      });
+      return;
+    }
+
+    // Row / column exclusivity — everyone else on this row or column clashes.
+    const sameRow: number[] = [];
+    const sameColumn: number[] = [];
+    for (const [key, ids] of occupants) {
+      const [x, y] = key.split(',').map(Number) as [number, number];
+      for (const other of ids) {
+        if (other === participantId) continue;
+        if (y === coord.y) sameRow.push(other);
+        if (x === coord.x) sameColumn.push(other);
+      }
+    }
+    for (const other of dedupeSorted(sameRow)) {
+      issues.push({
+        participantId,
+        code: 'row',
+        message: `${label(participantId)} 与${label(other)} 同在第 ${coord.y + 1} 行`,
+      });
+    }
+    for (const other of dedupeSorted(sameColumn)) {
+      issues.push({
+        participantId,
+        code: 'column',
+        message: `${label(participantId)} 与${label(other)} 同在第 ${coord.x + 1} 列`,
+      });
+    }
+
+    const conditions = slot.positionConditions ?? [];
+    if (conditions.length > 0) {
+      const allowed = conditions.some((entry) => entry.x === coord.x && entry.y === coord.y);
+      if (!allowed) {
+        const options = conditions.map((entry) => formatCellLabel({ x: entry.x, y: entry.y }));
+        issues.push({
+          participantId,
+          code: 'condition',
+          message: `${label(participantId)} 位于 ${formatCellLabel(coord)}，不在其位置条件内（可选 ${options.join(' / ')}）`,
+        });
+      }
+    }
+  });
+
+  issues.sort((a, b) => a.participantId - b.participantId);
+  return { passed: issues.length === 0, issues };
+}
+
+function dedupeSorted(values: number[]): number[] {
+  return [...new Set(values)].sort((a, b) => a - b);
 }

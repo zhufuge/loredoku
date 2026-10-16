@@ -155,10 +155,15 @@ export interface EditorState {
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
   clearObjectAt: (x: number, y: number) => void;
-  /** CLAR-603 + MOD-801: persists theme + clue + flat linkages on the slot. */
+  /** CLAR-603 + MOD-801 + FEAT-E01: persists theme + clue + linkages + conditions. */
   setParticipantConfig: (
     slotIndex: number,
-    patch: { themeColor?: string; clue?: string; linkages?: ParticipantTarget[] },
+    patch: {
+      themeColor?: string;
+      clue?: string;
+      linkages?: ParticipantTarget[];
+      positionConditions?: Array<{ x: number; y: number }>;
+    },
   ) => void;
 
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
@@ -427,6 +432,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 linkages: (patch.linkages ?? entry.linkages ?? []).map((linkage) => ({
                   ...linkage,
                 })),
+                // FEAT-E01 §7.4: an empty list is stored as "no conditions", so
+                // a cleared module leaves no dead array behind in the draft.
+                ...(() => {
+                  const conditions = patch.positionConditions ?? entry.positionConditions ?? [];
+                  return conditions.length > 0
+                    ? { positionConditions: conditions.map((c) => ({ ...c })) }
+                    : {};
+                })(),
               }
             : slot,
         );

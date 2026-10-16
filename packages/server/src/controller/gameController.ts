@@ -1,5 +1,5 @@
 import type { Context } from 'koa';
-import { idParamSchema } from '@loredoku/shared';
+import { gameSlugParamSchema, idParamSchema } from '@loredoku/shared';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
 import * as gameService from '../service/gameService';
@@ -27,6 +27,12 @@ export async function list(ctx: Context): Promise<void> {
 export async function detail(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   success(ctx, await gameService.getGame(id));
+}
+
+/** OPT-W04 §4.6: the game page's data source — resolve by access path. */
+export async function detailBySlug(ctx: Context): Promise<void> {
+  const { slug } = parseOrThrow(gameSlugParamSchema, ctx.params);
+  success(ctx, await gameService.getGameBySlug(slug));
 }
 
 export async function uploadCover(ctx: Context): Promise<void> {

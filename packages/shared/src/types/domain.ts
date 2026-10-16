@@ -186,6 +186,13 @@ export interface CharacterSlotEntry {
    * list (docs/v0.3.3.md MOD-802).
    */
   linkages?: ParticipantTarget[];
+  /**
+   * FEAT-E01 (docs/v0.4.1.md §7): the cells this participant is allowed to
+   * occupy. Several entries are OR-ed; an empty / missing list means "no
+   * positional constraint". Stored inside the draft JSON, so it rides along
+   * into the published snapshot with no extra table.
+   */
+  positionConditions?: Array<{ x: number; y: number }>;
 }
 
 /**
@@ -257,6 +264,11 @@ export interface MapGameSummary {
   projectId: number;
   versionNo: number;
   name: string;
+  /**
+   * OPT-W04 (docs/v0.4.1.md §4): the game's access path — the page lives at
+   * `/games/{slug}`. Unique across every deployed game.
+   */
+  slug: string;
   coverUrl: string | null;
   difficulty: GameDifficulty;
   gridSize: number;

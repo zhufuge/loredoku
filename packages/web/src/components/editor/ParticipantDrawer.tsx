@@ -57,9 +57,24 @@ interface ParticipantDrawerProps {
   gridSize: number;
   /** FEAT-D04: the map style carries the linkage palette. */
   style: MapStyle;
+  /**
+   * FEAT-E01 (docs/v0.4.1.md §7.3): picking a position happens on the canvas,
+   * so the drawer only owns the intent — the page owns the pointer.
+   */
+  positionPickActive?: boolean;
+  onTogglePositionPick?: () => void;
+  /** The cell the page just reported from the canvas; consumed via the callback. */
+  pickedPosition?: { x: number; y: number } | null;
+  onPositionPicked?: () => void;
   onSave: (
     slotIndex: number,
-    patch: { themeColor: string; clue: string; linkages: ParticipantTarget[] },
+    patch: {
+      themeColor: string;
+      clue: string;
+      linkages: ParticipantTarget[];
+      /** FEAT-E01 §7.4: `[]` means "no positional constraint". */
+      positionConditions: Array<{ x: number; y: number }>;
+    },
   ) => void;
 }
 
@@ -83,12 +98,20 @@ export function ParticipantDrawer({
   regions,
   gridSize,
   style,
+  positionPickActive = false,
+  onTogglePositionPick,
+  pickedPosition,
+  onPositionPicked,
   onSave,
 }: ParticipantDrawerProps): JSX.Element | null {
   const [themeColor, setThemeColor] = useState<string>(DEFAULT_THEME_COLOR);
   const [hexDraft, setHexDraft] = useState<string>(DEFAULT_THEME_COLOR);
   const [clue, setClue] = useState<string>('');
   const [linkages, setLinkages] = useState<ParticipantTarget[]>([]);
+  /** FEAT-E01: the cells this participant may occupy (OR-ed, §14 Q11). */
+  const [positionConditions, setPositionConditions] = useState<Array<{ x: number; y: number }>>(
+    [],
+  );
   const [linkageDialog, setLinkageDialog] = useState<{
     open: boolean;
     /** Index into `linkages` when editing; `null` when adding. */
@@ -105,10 +128,25 @@ export function ParticipantDrawer({
     setHexDraft(slot.themeColor ?? DEFAULT_THEME_COLOR);
     setClue(slot.clue ?? '');
     setLinkages((slot.linkages ?? []).map((linkage) => ({ ...linkage })));
+    setPositionConditions((slot.positionConditions ?? []).map((entry) => ({ ...entry })));
     setLinkageDialog({ open: false, editIndex: null });
     setDeleteIndex(null);
     setDeleting(false);
   }, [open, slot]);
+
+  /**
+   * FEAT-E01 §7.3(a): the page reports the picked cell. Duplicates are ignored
+   * (§7.2 去重) and the page is told the pick was consumed either way, so the
+   * selection mode can end.
+   */
+  useEffect(() => {
+    if (!pickedPosition) return;
+    const { x, y } = pickedPosition;
+    setPositionConditions((previous) =>
+      previous.some((entry) => entry.x === x && entry.y === y) ? previous : [...previous, { x, y }],
+    );
+    onPositionPicked?.();
+  }, [pickedPosition, onPositionPicked]);
 
   // ---- Linkage dialog option sources ----
   const characterOptions = useMemo<LinkageCharacterOption[]>(() => {
@@ -397,6 +435,78 @@ export function ParticipantDrawer({
                 </ul>
               </div>
 
+              {/* FEAT-E01 (docs/v0.4.1.md §7): 位置条件 — a list of allowed cells */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-medium">位置条件</h3>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={positionPickActive ? 'default' : 'outline'}
+                    className="ml-auto h-7 text-xs"
+                    onClick={onTogglePositionPick}
+                  >
+                    {positionPickActive ? (
+                      '取消选择'
+                    ) : (
+                      <>
+                        <Plus className="mr-1 h-3.5 w-3.5" />
+                        添加位置
+                      </>
+                    )}
+                  </Button>
+                </div>
+                {positionPickActive ? (
+                  <p className="rounded-md border border-dashed bg-muted/40 px-2 py-1.5 text-xs text-muted-foreground">
+                    请在画布上点击要允许的位置（`Esc` 取消）。
+                  </p>
+                ) : null}
+
+                <ul className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
+                  {positionConditions.length === 0 ? (
+                    <li className="py-2 text-center text-xs text-muted-foreground">
+                      暂无位置条件，点击「添加位置」
+                    </li>
+                  ) : (
+                    [...positionConditions]
+                      .map((entry, index) => ({ entry, index }))
+                      .sort(
+                        (a, b) =>
+                          a.entry.y - b.entry.y ||
+                          a.entry.x - b.entry.x ||
+                          a.index - b.index,
+                      )
+                      .map(({ entry, index }) => (
+                        <li
+                          key={`${entry.x},${entry.y}`}
+                          className="flex items-center gap-2 rounded border px-2 py-1 text-xs"
+                        >
+                          <span className="font-mono">
+                            R{entry.y + 1} C{entry.x + 1}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="ml-auto h-6 w-6 text-muted-foreground hover:text-destructive"
+                            title="删除该位置"
+                            onClick={() =>
+                              setPositionConditions((previous) =>
+                                previous.filter((_, i) => i !== index),
+                              )
+                            }
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </li>
+                      ))
+                  )}
+                </ul>
+                <p className="text-xs text-muted-foreground">
+                  多个位置之间为「或」关系；留空表示不限制位置。
+                </p>
+              </div>
+
               {/* MOD-802: save only — no preview buttons in the drawer */}
               <div className="space-y-2 border-t pt-3">
                 <Button
@@ -405,7 +515,7 @@ export function ParticipantDrawer({
                   disabled={!slot || clueOverLimit}
                   onClick={() => {
                     if (slotIndex === null) return;
-                    onSave(slotIndex, { themeColor, clue, linkages });
+                    onSave(slotIndex, { themeColor, clue, linkages, positionConditions });
                   }}
                 >
                   保存

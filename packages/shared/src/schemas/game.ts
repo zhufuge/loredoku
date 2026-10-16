@@ -3,16 +3,21 @@ import {
   GAME_DIFFICULTY_DEFAULT,
   GAME_DIFFICULTY_LEVELS,
   GAME_NAME_MAX_LENGTH,
+  GAME_SLUG_MAX_LENGTH,
+  GAME_SLUG_PATTERN,
 } from '../constants';
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5.2): the deploy dialog body. The version being
- * deployed is explicit (the works table row), the name defaults to the map
- * name but is editable, the cover is optional, and the difficulty is one of
- * five tiers.
+ * FEAT-G02 (docs/v0.4.0.md §5.2) + OPT-W04 (docs/v0.4.1.md §4): the deploy
+ * dialog body. The version being deployed is explicit (the works table row),
+ * the name defaults to the map name but is editable, the access path defaults
+ * to `puzzle-{name}-{difficulty}` but is editable, the cover is optional, and
+ * the difficulty is one of five tiers.
  *
- * `name` is optional here so the dialog can submit an untouched field; the
- * service falls back to the map name and rejects an explicitly blank one.
+ * `name` and `slug` are optional here so the dialog can submit untouched
+ * fields; the service falls back to the map name / a generated path, and
+ * rejects explicitly blank ones. `clearCover` is the only way to drop an
+ * existing cover — omitting the cover fields keeps whatever is stored.
  */
 export const gameDeploySchema = z.object({
   versionNo: z.number().int().positive('版本号必须为正整数'),
@@ -21,6 +26,13 @@ export const gameDeploySchema = z.object({
     .trim()
     .max(GAME_NAME_MAX_LENGTH, `游戏名称最多 ${GAME_NAME_MAX_LENGTH} 个字符`)
     .optional(),
+  slug: z
+    .string()
+    .trim()
+    .max(GAME_SLUG_MAX_LENGTH, `访问路径最多 ${GAME_SLUG_MAX_LENGTH} 个字符`)
+    .optional(),
+  /** OPT-W03 §3: explicit "remove the cover" — no cover bytes are involved. */
+  clearCover: z.boolean().optional(),
   coverPath: z.string().trim().min(1).nullish(),
   coverMime: z.string().trim().min(1).nullish(),
   coverSize: z.number().int().nonnegative().nullish(),
@@ -71,3 +83,16 @@ export const gamePlacementBoardSchema = z.record(
 export type GamePlacementBoard = Record<string, CellPlacement | null>;
 
 export type GameDeployInput = z.infer<typeof gameDeploySchema>;
+
+/**
+ * OPT-W04 §4.6: `GET /api/games/slug/:slug`. The path segment is validated
+ * with the same character set the deploy enforces, so a malformed URL 404s
+ * instead of reaching the database.
+ */
+export const gameSlugParamSchema = z.object({
+  slug: z
+    .string()
+    .trim()
+    .max(GAME_SLUG_MAX_LENGTH)
+    .regex(GAME_SLUG_PATTERN, '访问路径不合法'),
+});

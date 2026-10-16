@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { X } from 'lucide-react';
 import {
+  GAME_PLACED_OPACITY,
   HIGHLIGHT_BLUE,
   PARTICIPANT_AVATAR_MIN,
   PARTICIPANT_CELL_GAP,
@@ -62,6 +63,13 @@ interface ParticipantPanelProps {
    * layout, the metrics and the highlight frame identical.
    */
   readOnly?: boolean;
+  /**
+   * SPEC-G05 §5.3 (docs/v0.4.1.md §5.3): slot indices whose participant has
+   * already been placed on the game board. Their theme ring and avatar dim out;
+   * the sequence badge, the clue and the frame stay untouched. Only the game
+   * page passes this — the editor and the work preview are unaffected.
+   */
+  placedSlotIndices?: Set<number>;
   onSelect?: (slotIndex: number | null) => void;
   /** MOD-802: pointer entered a slot → hover-activate its linkages. */
   onActivateHover?: (slotIndex: number) => void;
@@ -107,6 +115,7 @@ export function ParticipantPanel({
   highlightedSlots,
   highlightColors,
   readOnly = false,
+  placedSlotIndices,
   onSelect,
   onActivateHover,
   onDeactivateHover,
@@ -226,6 +235,8 @@ export function ParticipantPanel({
               const isActive = activeSlotIndex === index;
               const isHighlighted = highlightedSlots?.has(index) ?? false;
               const highlightColor = highlightColors?.get(index);
+              /** SPEC-G05 §5.3: already on the game board → dim the avatar. */
+              const isPlaced = placedSlotIndices?.has(index) ?? false;
               /**
                * FIX-E04: the slot draws **one** outline. A referenced slot uses
                * its linkage colour; the previewed slot falls back to the primary
@@ -373,6 +384,7 @@ export function ParticipantPanel({
                   >
                     {slot ? (
                       <span
+                        data-testid={`slot-avatar-${index}`}
                         className="flex items-center justify-center rounded-full"
                         style={{
                           width: avatarSize,
@@ -383,6 +395,8 @@ export function ParticipantPanel({
                           // the avatar no longer draws a second ring.
                           transform: isHighlighted ? 'scale(1.08)' : undefined,
                           transition: 'transform 150ms linear',
+                          // SPEC-G05 §5.3: placed → the ring and the avatar fade.
+                          opacity: isPlaced ? GAME_PLACED_OPACITY : undefined,
                           // MOD-703: white theme → 1px light grey border
                           border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
                         }}

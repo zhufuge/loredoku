@@ -25,6 +25,14 @@ import {
   type MapDraft,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
   MapBackgroundLayer,
@@ -71,15 +79,21 @@ import {
   countPlacements,
   createGamePlacementState,
   forbiddenCells,
+  formatCellLabel,
+  participantPlacementAt,
   placeForbidden,
   placeParticipant,
+  placedParticipantIds,
   placementAt,
+  placementBlockReason,
   resolveToolHint,
   submitPlacement,
   undo,
+  validatePlacement,
   type GameOperationMode,
   type GamePlacementState,
   type ParticipantPlacementVariant,
+  type PlacementIssue,
 } from '@/lib/gamePlacement';
 
 /**
@@ -99,13 +113,43 @@ function readStoredRulerVisible(): boolean {
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
 }
 
-export function GamePage(): JSX.Element {
-  const { gameId: gameIdParam } = useParams();
-  const navigate = useNavigate();
-  const gameId = Number(gameIdParam ?? '');
-  const validGameId = Number.isFinite(gameId) && gameId > 0;
+/**
+ * SPEC-G05 §5.2 (docs/v0.4.1.md §5.2): the reason a placement was refused, as a
+ * toast. The uniqueness case names the cell the participant already occupies —
+ * "参与者 2 已放置在 R3 C4" — because that is the one a player cannot infer.
+ */
+function describeBlock(
+  block: NonNullable<ReturnType<typeof placementBlockReason>>,
+  participantId: number,
+  board: ReturnType<typeof createGamePlacementState>['board'],
+): string {
+  switch (block) {
+    case 'elsewhere': {
+      const at = participantPlacementAt(board, participantId);
+      return at
+        ? `参与者 ${participantId} 已放置在 ${formatCellLabel(at)}`
+        : `参与者 ${participantId} 已放置`;
+    }
+    case 'non-standable':
+      return '该格有不可站立的物品，不能放置';
+    case 'forbidden':
+      return '该格已标记为排除项，请先清除';
+    case 'avatar':
+      return '该格已放置该参与者的头像';
+    case 'duplicate':
+      return `该格已有参与者 ${participantId} 的编号`;
+    case 'grid-full':
+      return '该格编号已满（最多 9 个）';
+  }
+}
 
-  const gameQuery = useGameDetail(validGameId ? gameId : null);
+export function GamePage(): JSX.Element {
+  // OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
+  const { slug: slugParam } = useParams();
+  const slug = slugParam && slugParam.length > 0 ? slugParam : null;
+  const navigate = useNavigate();
+
+  const gameQuery = useGameDetail(slug);
   // A deployed snapshot may reference items/characters that are now inactive.
   const itemsQuery = useItems({});
   const charactersQuery = useCharacters({});
@@ -124,6 +168,8 @@ export function GamePage(): JSX.Element {
     createGamePlacementState,
   );
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  /** FEAT-V01 §8.2: non-null while the "submission rejected" dialog is open. */
+  const [validationIssues, setValidationIssues] = useState<PlacementIssue[] | null>(null);
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hover, setHover] = useState<CellCoord | null>(null);
@@ -294,7 +340,20 @@ export function GamePage(): JSX.Element {
     setMode({ kind: 'idle' });
     setPlacementState(createGamePlacementState());
     setHasSubmitted(false);
+    setValidationIssues(null);
   }, [draft]);
+
+  /**
+   * SPEC-G05 §5.3: the roster cards of participants that are already on the
+   * board fade out. Derived from the board, so clearing or undoing a placement
+   * restores the card with no extra bookkeeping.
+   */
+  const placedSlotIndices = useMemo(() => {
+    const placed = placedParticipantIds(placementState.board);
+    const indices = new Set<number>();
+    for (const participantId of placed) indices.add(participantId - 1);
+    return indices;
+  }, [placementState.board]);
 
   const activeSlot =
     activation.activeParticipantId === null
@@ -366,17 +425,56 @@ export function GamePage(): JSX.Element {
   };
 
   /**
-   * SPEC-G01 / SPEC-G03 / SPEC-G04: one cell interaction, dispatched by mode.
-   * 放置态下 `variant` 区分短按（编号）与长按（头像）；其余工具态忽略它。
+   * FEAT-V01 §8: the submit button validates before it submits. Passing opens a
+   * "校验通过" dialog and only then sets the undo barrier; failing lists every
+   * problem and leaves the barrier alone, so the player can keep working.
+   */
+  const submit = (): void => {
+    const result = validatePlacement({
+      board: placementState.board,
+      slots,
+      nameOf: (participantId) => {
+        const slot = slots[participantId - 1];
+        return slot ? charactersById.get(slot.characterId)?.name : undefined;
+      },
+    });
+    if (!result.passed) {
+      setValidationIssues(result.issues);
+      return;
+    }
+    setPlacementState((state) => submitPlacement(state));
+    setHasSubmitted(true);
+    toast.success('校验通过，已提交');
+  };
+
+  /**
+   * SPEC-G01 / SPEC-G03 / SPEC-G04 / SPEC-G05: one cell interaction, dispatched
+   * by mode. 放置态下 `variant` 区分短按（编号）与长按（头像）；其余工具态忽略它。
+   *
+   * 被规则拒绝时给出说明——最重要的一条是 SPEC-G05 的唯一性：该参与者已经在
+   * 别的格子上时，toast 指出它在哪里，而不是静默无反应。
    */
   const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): void => {
     if (mode.kind === 'placing') {
+      const block = placementBlockReason({
+        board: placementState.board,
+        x,
+        y,
+        participantId: mode.participantId,
+        noStandCells,
+        variant,
+      });
+      if (block) {
+        toast.error(describeBlock(block, mode.participantId, placementState.board));
+        return;
+      }
       setPlacementState((state) =>
         placeParticipant(state, {
           x,
           y,
           participantId: mode.participantId,
           noStandCells,
+          gridSize,
           variant,
         }),
       );
@@ -519,7 +617,8 @@ export function GamePage(): JSX.Element {
               </div>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              点击参与者后，点击格子放置编号，长按格子放置头像；用右侧工具标记排除项或清除放置。
+              点击参与者后，短按格子放置编号、长按放置头像；每位参与者只能占一个格子，
+              落格后同行同列会自动补上排除项。提交前会校验行 / 列互斥与位置条件。
             </p>
           </div>
           <div className="flex min-h-0 flex-1">
@@ -532,15 +631,17 @@ export function GamePage(): JSX.Element {
               highlightedSlots={highlightedSlots}
               highlightColors={highlightColors}
               readOnly
+              placedSlotIndices={placedSlotIndices}
               onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
               onDeactivateHover={(index) => {
-                // SPEC-G03（v0.4.0 验收补充）：放置态下移开另一张卡片时，恢复
-                // 已武装参与者的激活——放置状态不随悬停结束而退出，只有再次点击
-                // 参与者或工具按钮才退出（`handleCardClick` / `applyMode`）。
+                // SPEC-G03（v0.4.0 验收补充）+ BUG-G02（v0.4.1 §9）：放置态下移开
+                // 任意卡片都恢复已武装参与者的激活。必须走幂等的 `restore`——
+                // 用 `click` 时，离开的恰是武装者自己的卡片就等同于「再点一次」，
+                // 激活会被 toggle 关掉。
                 if (mode.kind === 'placing') {
                   setActivation((state) =>
                     reduceLinkageActivation(state, {
-                      type: 'click',
+                      type: 'restore',
                       participantId: mode.participantId - 1,
                     }),
                   );
@@ -719,12 +820,8 @@ export function GamePage(): JSX.Element {
           <Button
             variant="ghost"
             className={`h-12 w-full ${hasSubmitted ? 'bg-accent text-accent-foreground' : ''}`}
-            title={hasSubmitted ? '已提交，可继续摆放后再次提交' : '提交当前摆放'}
-            onClick={() => {
-              setPlacementState((state) => submitPlacement(state));
-              setHasSubmitted(true);
-              toast.success('已提交');
-            }}
+            title={hasSubmitted ? '已提交，可继续摆放后再次提交' : '提交当前摆放（先校验）'}
+            onClick={submit}
           >
             {hasSubmitted ? <Check className="h-5 w-5" /> : <Send className="h-5 w-5" />}
           </Button>
@@ -752,6 +849,44 @@ export function GamePage(): JSX.Element {
           </div>
         </aside>
       </div>
+
+      {/* FEAT-V01 §8.2: 校验未通过 → 列出全部问题（按编号排序），关闭后继续摆放 */}
+      <Dialog
+        open={validationIssues !== null}
+        onOpenChange={(open) => {
+          if (!open) setValidationIssues(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>提交未通过</DialogTitle>
+            <DialogDescription>
+              共 {validationIssues?.length ?? 0} 项问题，修正后可以再次提交。
+            </DialogDescription>
+          </DialogHeader>
+          <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
+            {validationIssues?.map((issue, index) => (
+              <li key={`${issue.participantId}-${issue.code}-${index}`} className="flex gap-2">
+                <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground">
+                  {issue.code === 'unplaced'
+                    ? '未放置'
+                    : issue.code === 'row'
+                      ? '同行'
+                      : issue.code === 'column'
+                        ? '同列'
+                        : '位置条件'}
+                </span>
+                <span>{issue.message}</span>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setValidationIssues(null)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

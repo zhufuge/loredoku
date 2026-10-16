@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Download, Eye, Loader2, Rocket, RotateCcw, Trash2 } from 'lucide-react';
-import type { WorkSummary } from '@loredoku/shared';
+import type { MapGameSummary, WorkSummary } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -31,17 +31,12 @@ import {
 } from '@/lib/worksTable';
 import { cn } from '@/lib/utils';
 
-const COLUMNS = [
-  '作品编号',
-  '地图名称',
-  '发布时间',
-  '尺寸',
-  '参与者数',
-  '区域数',
-  '物品数',
-  '备注',
-  '操作',
-] as const;
+/**
+ * OPT-W01 (docs/v0.4.1.md §1): five columns, fixed order. The 「已部署」 badge
+ * left the name cell and got its own column, and the old counts (size /
+ * participants / regions / items / notes) are gone.
+ */
+const COLUMNS = ['名称', '版本', '部署状态', '发布时间', '操作'] as const;
 
 /** §5.3 按地图筛选 — a checkbox dropdown so several maps can be picked. */
 function MapFilter({
@@ -150,12 +145,13 @@ export function WorksPage(): JSX.Element {
     () => buildWorksTable(works, filters, page, pageSize),
     [works, filters, page, pageSize],
   );
-  // FEAT-G02 §5.1: one game per map, so projectId → gameId is enough to jump
-  // from the "已部署" badge straight to the game page.
-  const gameIdByProject = useMemo(() => {
-    const map = new Map<number, number>();
+  // FEAT-G02 §5.1 + OPT-W03/W04: one game per map, so projectId → game is
+  // enough both to link the 「已部署」 badge (by access path) and to prefill the
+  // re-deploy dialog with the values that were used last time.
+  const gameByProject = useMemo(() => {
+    const map = new Map<number, MapGameSummary>();
     for (const game of gamesQuery.data ?? []) {
-      map.set(game.projectId, game.id);
+      map.set(game.projectId, game);
     }
     return map;
   }, [gamesQuery.data]);
@@ -206,7 +202,7 @@ export function WorksPage(): JSX.Element {
             onChange={(event) =>
               setFilters((previous) => ({ ...previous, keyword: event.target.value }))
             }
-            placeholder="搜索作品编号 / 备注 / 地图名"
+            placeholder="搜索名称 / 版本号 / 备注"
             className="h-9"
           />
         </div>
@@ -301,42 +297,29 @@ export function WorksPage(): JSX.Element {
                 </td>
               </tr>
             ) : (
-              table.rows.map((work) => (
+              table.rows.map((work) => {
+                const game = gameByProject.get(work.projectId) ?? null;
+                const isDeployed = game !== null && work.deployed;
+                return (
                 <tr key={`${work.projectId}-${work.id}`} className="border-t align-middle">
-                  <td className="whitespace-nowrap px-3 py-2 font-medium">v{work.versionNo}</td>
-                  <td className="px-3 py-2">
-                    <span className="flex items-center gap-2">
-                      {work.projectName}
-                      {work.deployed ? (
-                        <button
-                          type="button"
-                          className="shrink-0 cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground transition-colors hover:bg-secondary/70"
-                          title="该地图已部署为游戏，点击进入游戏页面"
-                          onClick={() => {
-                            const gameId = gameIdByProject.get(work.projectId);
-                            if (gameId === undefined) {
-                              navigate('/games');
-                              return;
-                            }
-                            navigate(`/games/${gameId}`);
-                          }}
-                        >
-                          已部署
-                        </button>
-                      ) : null}
-                    </span>
+                  <td className="px-3 py-2 font-medium">{work.projectName}</td>
+                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">v{work.versionNo}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    {isDeployed ? (
+                      <button
+                        type="button"
+                        className="shrink-0 cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground transition-colors hover:bg-secondary/70"
+                        title="该版本已部署为游戏，点击进入游戏页面"
+                        onClick={() => navigate(`/games/${game.slug}`)}
+                      >
+                        已部署
+                      </button>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                     {formatDateTimeMinute(work.publishedAt)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                    {work.gridSize} × {work.gridSize}
-                  </td>
-                  <td className="px-3 py-2 tabular-nums">{work.participantCount}</td>
-                  <td className="px-3 py-2 tabular-nums">{work.regionCount}</td>
-                  <td className="px-3 py-2 tabular-nums">{work.itemCount}</td>
-                  <td className="max-w-[200px] truncate px-3 py-2 text-muted-foreground">
-                    {work.notes ?? '—'}
                   </td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <div className="flex flex-wrap justify-end gap-2">
@@ -360,7 +343,7 @@ export function WorksPage(): JSX.Element {
                         onClick={() => setDeployTarget(work)}
                       >
                         <Rocket className="mr-1 h-3.5 w-3.5" />
-                        {work.deployed ? '重新部署' : '部署'}
+                        {isDeployed ? '重新部署' : '部署'}
                       </Button>
                       <Button
                         size="sm"
@@ -398,7 +381,8 @@ export function WorksPage(): JSX.Element {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -471,6 +455,7 @@ export function WorksPage(): JSX.Element {
 
       <GameDeployDialog
         work={deployTarget}
+        existingGame={deployTarget ? gameByProject.get(deployTarget.projectId) ?? null : null}
         open={deployTarget !== null}
         onOpenChange={(open) => {
           if (!open) setDeployTarget(null);
