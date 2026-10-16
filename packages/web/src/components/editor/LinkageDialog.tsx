@@ -538,33 +538,30 @@ export function LinkageDialog({
             ) : null}
           </div>
 
-          {/* Effect + colour */}
+          {/* Colour — OPT-H07 §7.2 (docs/v0.4.2.md §7): the effect is always
+              「高亮」 and carried no information, so only the colour is left. */}
           <div className="space-y-2">
-            <span className="text-xs font-medium text-muted-foreground">效果与颜色</span>
-            <div className="flex items-center gap-4 text-xs">
-              <span className="text-muted-foreground">效果：高亮（固定）</span>
-              <span className="flex items-center gap-2">
-                颜色：
-                {linkageColors.map((entry) => (
-                  <label key={entry.key} className="flex cursor-pointer items-center gap-1">
-                    <input
-                      type="radio"
-                      name="linkage-color"
-                      value={entry.key}
-                      checked={draft.color === entry.key}
-                      onChange={() => patch({ color: entry.key })}
-                    />
-                    <span
-                      className="h-3 w-3 rounded-full border"
-                      style={{
-                        // FEAT-D04: the swatch mirrors the rendered colour.
-                        backgroundColor: entry.color,
-                      }}
-                    />
-                    {entry.label}
-                  </label>
-                ))}
-              </span>
+            <span className="text-xs font-medium text-muted-foreground">颜色</span>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {linkageColors.map((entry) => (
+                <label key={entry.key} className="flex cursor-pointer items-center gap-1">
+                  <input
+                    type="radio"
+                    name="linkage-color"
+                    value={entry.key}
+                    checked={draft.color === entry.key}
+                    onChange={() => patch({ color: entry.key })}
+                  />
+                  <span
+                    className="h-3 w-3 rounded-full border"
+                    style={{
+                      // FEAT-D04: the swatch mirrors the rendered colour.
+                      backgroundColor: entry.color,
+                    }}
+                  />
+                  {entry.label}
+                </label>
+              ))}
             </div>
           </div>
         </div>

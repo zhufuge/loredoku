@@ -11,13 +11,13 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
-    "dev:server": "npm run dev --workspace @loredoku/server",
-    "dev:web": "npm run dev --workspace @loredoku/web",
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "npm run dev --workspace @loredoku/server --",
+    "dev:web": "npm run dev --workspace @loredoku/web --",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && vitest run scripts",
     "db:migrate": "npm run db:migrate --workspace @loredoku/server",
     "db:rollback": "npm run db:rollback --workspace @loredoku/server",
     "db:migrate:make": "npm run db:migrate:make --workspace @loredoku/server"

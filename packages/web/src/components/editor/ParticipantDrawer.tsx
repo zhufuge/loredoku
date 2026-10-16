@@ -2,19 +2,17 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   DEFAULT_THEME_COLOR,
-  THEME_COLOR_PALETTE,
   type Character,
   type CharacterSlotEntry,
   type DraftRegion,
   type MapStyle,
   type ParticipantTarget,
 } from '@loredoku/shared';
-import { normalizeHexColor } from '@loredoku/shared';
 import { parseClue } from '@/lib/clue';
 import { linkageColorFor, linkageLabelFor } from '@/lib/mapStyle';
+import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -32,6 +30,7 @@ import {
   type LinkageCharacterOption,
   type LinkageItemOption,
 } from './LinkageDialog';
+import { ThemeColorDialog } from './ThemeColorDialog';
 
 /** MOD-702: max clue length. */
 const CLUE_MAX = 200;
@@ -105,7 +104,8 @@ export function ParticipantDrawer({
   onSave,
 }: ParticipantDrawerProps): JSX.Element | null {
   const [themeColor, setThemeColor] = useState<string>(DEFAULT_THEME_COLOR);
-  const [hexDraft, setHexDraft] = useState<string>(DEFAULT_THEME_COLOR);
+  /** FEAT-H08 §8.2(a): the palette lives one layer down now. */
+  const [themeDialogOpen, setThemeDialogOpen] = useState(false);
   const [clue, setClue] = useState<string>('');
   const [linkages, setLinkages] = useState<ParticipantTarget[]>([]);
   /** FEAT-E01: the cells this participant may occupy (OR-ed, §14 Q11). */
@@ -125,11 +125,11 @@ export function ParticipantDrawer({
   useEffect(() => {
     if (!open || !slot) return;
     setThemeColor(slot.themeColor ?? DEFAULT_THEME_COLOR);
-    setHexDraft(slot.themeColor ?? DEFAULT_THEME_COLOR);
     setClue(slot.clue ?? '');
     setLinkages((slot.linkages ?? []).map((linkage) => ({ ...linkage })));
     setPositionConditions((slot.positionConditions ?? []).map((entry) => ({ ...entry })));
     setLinkageDialog({ open: false, editIndex: null });
+    setThemeDialogOpen(false);
     setDeleteIndex(null);
     setDeleting(false);
   }, [open, slot]);
@@ -178,15 +178,23 @@ export function ParticipantDrawer({
     return [...byId.values()];
   }, [placedItems]);
 
-  const applyHex = (): void => {
-    const normalized = normalizeHexColor(hexDraft);
-    if (!normalized) {
-      setHexDraft(themeColor);
-      return;
+  /**
+   * FEAT-H09 §9.2(3~4) (docs/v0.4.2.md §9): 「取消」, the × button and `Esc` all
+   * mean the same thing — drop this drawer's local edits and close. The store is
+   * never touched, so no undo step appears. (The page closes the drawer on `Esc`
+   * by clearing the selection, and the seeding effect above guarantees a fresh
+   * open reads the stored slot again.)
+   */
+  const cancel = (): void => {
+    if (slot) {
+      setThemeColor(slot.themeColor ?? DEFAULT_THEME_COLOR);
+      setClue(slot.clue ?? '');
+      setLinkages((slot.linkages ?? []).map((linkage) => ({ ...linkage })));
+      setPositionConditions((slot.positionConditions ?? []).map((entry) => ({ ...entry })));
     }
-    // MOD-801: any valid hex is accepted — no hints, no blocking.
-    setThemeColor(normalized);
-    setHexDraft(normalized);
+    setLinkageDialog({ open: false, editIndex: null });
+    setThemeDialogOpen(false);
+    onClose();
   };
 
   // MOD-702: clue char count (no bold-syntax hint any more).
@@ -226,7 +234,6 @@ export function ParticipantDrawer({
     }, DELETE_FEEDBACK_MS);
   };
 
-  const avatar = character?.avatarThumbUrl ?? character?.avatarUrl;
   const name = character?.name ?? (slot ? `#${slot.characterId}` : '');
   const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
 
@@ -245,9 +252,9 @@ export function ParticipantDrawer({
           <h2 className="text-sm font-semibold">参与者：{name}</h2>
           <button
             type="button"
-            onClick={onClose}
+            onClick={cancel}
             className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-            title="关闭"
+            title="关闭（等同取消）"
           >
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
@@ -262,21 +269,23 @@ export function ParticipantDrawer({
             </p>
           ) : (
             <>
-              {/* Avatar + name — MOD-703: theme color background layer */}
+              {/* Avatar + name — MOD-703: theme color background layer.
+                  OPT-H06 §6.2: exactly one circle — this disc clips, the
+                  thumbnail fills it and draws no ring of its own. */}
               <div className="flex items-start gap-4">
                 <div
-                  className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full"
+                  className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-full"
                   style={{
                     backgroundColor: themeColor,
                     border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
                   }}
                 >
-                  {avatar ? (
-                    <img
-                      src={avatar}
-                      alt={name}
-                      draggable={false}
-                      className="h-[82%] w-[82%] rounded-full object-cover"
+                  {character ? (
+                    <CharacterThumbnail
+                      character={character}
+                      shape="plain"
+                      bordered={false}
+                      className="h-full w-full text-2xl"
                     />
                   ) : (
                     <span className="text-2xl font-semibold text-muted-foreground">
@@ -295,51 +304,27 @@ export function ParticipantDrawer({
                 </div>
               </div>
 
-              {/* Theme colour picker — MOD-801: darkened 15-colour palette */}
+              {/*
+               * Theme colour — FEAT-H08 §8.2(a) (docs/v0.4.2.md §8): one row with
+               * the current selection. The 15-colour palette and the hex box moved
+               * one layer down into `ThemeColorDialog`, which the row opens.
+               */}
               <div className="space-y-2">
                 <Label>主题色</Label>
-                <div className="flex flex-wrap items-center gap-2">
-                  {THEME_COLOR_PALETTE.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      title={color}
-                      aria-label={`主题色 ${color}`}
-                      onClick={() => {
-                        setThemeColor(color);
-                        setHexDraft(color);
-                      }}
-                      className={
-                        'h-7 w-7 rounded-full border-2 transition-transform ' +
-                        (themeColor.toUpperCase() === color.toUpperCase()
-                          ? 'scale-110 border-primary'
-                          : 'border-border hover:border-primary')
-                      }
-                      style={{ backgroundColor: color }}
-                    />
-                  ))}
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs text-muted-foreground">当前</span>
-                    <span
-                      className="h-6 w-6 rounded border"
-                      style={{ backgroundColor: themeColor }}
-                    />
-                    <span className="font-mono text-xs">{themeColor}</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={hexDraft}
-                    onChange={(event) => setHexDraft(event.target.value)}
-                    onBlur={applyHex}
-                    placeholder="#RRGGBB"
-                    className="h-8 w-32 font-mono text-xs"
-                    aria-label="自定义主题色"
+                <button
+                  type="button"
+                  aria-label="修改主题色"
+                  onClick={() => setThemeDialogOpen(true)}
+                  className="flex w-full cursor-pointer items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors hover:border-primary"
+                >
+                  <span
+                    className="h-6 w-6 shrink-0 rounded-full border"
+                    style={{ backgroundColor: themeColor }}
+                    data-testid="theme-color-chip"
                   />
-                  <Button variant="outline" size="sm" className="h-8" onClick={applyHex}>
-                    应用
-                  </Button>
-                </div>
+                  <span className="font-mono text-xs">{themeColor}</span>
+                  <span className="ml-auto text-xs text-muted-foreground">修改</span>
+                </button>
               </div>
 
               {/* MOD-702: clue editor (no bold hint, char count kept) */}
@@ -398,9 +383,8 @@ export function ParticipantDrawer({
                         key={`${linkage.type}-${index}`}
                         className="flex items-center gap-2 rounded border px-2 py-1 text-xs"
                       >
-                        <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground">
-                          高亮
-                        </span>
+                        {/* OPT-H07 §7.2: no 「高亮」 badge — the effect is fixed
+                            and the badge carried no information. */}
                         <span className="truncate">
                           {describeLinkage(linkage, charactersById, itemOptions, regions)}
                         </span>
@@ -507,24 +491,45 @@ export function ParticipantDrawer({
                 </p>
               </div>
 
-              {/* MOD-802: save only — no preview buttons in the drawer */}
-              <div className="space-y-2 border-t pt-3">
-                <Button
-                  type="button"
-                  className="w-full"
-                  disabled={!slot || clueOverLimit}
-                  onClick={() => {
-                    if (slotIndex === null) return;
-                    onSave(slotIndex, { themeColor, clue, linkages, positionConditions });
-                  }}
-                >
-                  保存
-                </Button>
-              </div>
             </>
           )}
         </div>
+
+        {/*
+         * FEAT-H09 §9.2(1~2) (docs/v0.4.2.md §9): the buttons live in a fixed
+         * footer, outside the scroll area, so they are always reachable. 取消 and
+         * the × / `Esc` all discard the same local edits; 保存 is the only path
+         * into the store. No footer in the empty state (§9.2.7).
+         */}
+        {slot ? (
+          <div className="flex shrink-0 gap-2 border-t px-4 py-3">
+            <Button type="button" variant="outline" className="flex-1" onClick={cancel}>
+              取消
+            </Button>
+            <Button
+              type="button"
+              className="flex-1"
+              disabled={clueOverLimit}
+              onClick={() => {
+                if (slotIndex === null) return;
+                onSave(slotIndex, { themeColor, clue, linkages, positionConditions });
+              }}
+            >
+              保存
+            </Button>
+          </div>
+        ) : null}
       </div>
+
+      <ThemeColorDialog
+        open={themeDialogOpen}
+        value={themeColor}
+        onOpenChange={setThemeDialogOpen}
+        onConfirm={(color) => {
+          setThemeColor(color);
+          setThemeDialogOpen(false);
+        }}
+      />
 
       <LinkageDialog
         open={linkageDialog.open}

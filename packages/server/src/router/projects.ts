@@ -3,6 +3,7 @@ import * as controller from '../controller/projectController';
 import * as mapController from '../controller/mapController';
 import * as versionController from '../controller/versionController';
 import * as gameController from '../controller/gameController';
+import { projectCoverUpload } from '../middleware/upload';
 
 export const projectsRouter = new Router();
 
@@ -21,6 +22,11 @@ projectsRouter.put('/:id/map', mapController.saveMap);
 projectsRouter.patch('/:id/grid-size', mapController.updateGridSize);
 projectsRouter.get('/:id/map/export', mapController.exportMap);
 projectsRouter.post('/:id/map/import', mapController.importMap);
+
+// FEAT-H03 (docs/v0.4.2.md §3.2c): the map cover has its own write path —
+// create / update stay JSON, the artwork travels as multipart.
+projectsRouter.post('/:id/cover', projectCoverUpload.single('file'), controller.uploadCover);
+projectsRouter.delete('/:id/cover', controller.removeCover);
 
 projectsRouter.get('/:id/regions', mapController.listRegions);
 projectsRouter.post('/:id/regions', mapController.createRegion);

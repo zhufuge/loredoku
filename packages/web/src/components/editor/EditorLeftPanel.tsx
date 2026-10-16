@@ -133,7 +133,7 @@ export function EditorLeftPanel({
         ) : tab === 'characters' ? (
           <div className="flex h-full flex-col gap-3 overflow-y-auto">
             <p className="text-xs text-muted-foreground">
-              点击角色可选中；点击「加入」放入右侧队伍槽位后，从槽位拖拽到画布即可放置。
+              点击角色可选中；点击「加入」放入右侧参与者区，再从参与者区拖拽到画布完成放置。
             </p>
             {charactersLoading ? (
               <Skeleton className="h-24 w-full" />

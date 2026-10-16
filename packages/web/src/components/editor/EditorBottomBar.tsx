@@ -10,7 +10,6 @@ import {
   Ruler,
   Square,
   Undo2,
-  User,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
@@ -28,19 +27,17 @@ const TOOLS: Array<{
   { id: 'select', label: '选择 / 放置', hint: 'V', icon: MousePointer2 },
   { id: 'region', label: '区域选择', hint: 'R', icon: BoxSelect },
   {
-    id: 'character',
-    label: '放置角色',
-    hint: 'C',
-    tip: '从左侧队伍槽位拖拽角色到画布即可落位',
-    icon: User,
-  },
-  {
     id: 'eraser',
     label: '橡皮擦',
     hint: 'E',
     tip: '按 物件 → 背景 顺序逐层清除',
     icon: Eraser,
   },
+  // OPT-H11: the character-placement button (C) is gone — since CLAR-603
+  // characters never enter the map, so the entry point was a dead end.
+  // Participants reach the board through the left 「角色」 tab → 加入 → drag from
+  // the participant area. `EditorTool` keeps the `'character'` member on purpose
+  // (§17 Q8).
   // v0.3.9 FEAT-E03: the pan tool button is gone — dragging the empty area
   // outside the board pans the canvas directly, and Space/中键 still work.
 ];

@@ -6,6 +6,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# vitest 用 ts 配置时生成的临时产物
+*.timestamp-*.mjs
+
 # env
 .env
 .env.local

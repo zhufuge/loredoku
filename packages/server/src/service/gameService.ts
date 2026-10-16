@@ -47,7 +47,7 @@ export async function deployGame(projectId: number, input: DeployGameInput): Pro
 
   const project = await mapRepo.getProjectRow(projectId);
   if (!project) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
 
   const version = await versionRepo.getVersion(projectId, body.versionNo);

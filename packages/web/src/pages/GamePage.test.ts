@@ -141,7 +141,19 @@ describe('GamePage (FEAT-G03)', () => {
     // SPEC-G05 §5.2: the toast names the cell the participant already owns.
     expect(pageSource).toContain('const block = placementBlockReason({');
     expect(pageSource).toContain('toast.error(describeBlock(block, mode.participantId, placementState.board))');
-    expect(pageSource).toContain('已放置在 ${formatCellLabel(at)}');
+    // CLAR-H13（docs/v0.4.2.md §1.1）: the toast says 编号 — a participant is not
+    // the same thing as the participant's number.
+    expect(pageSource).toContain('编号 ${participantId} 已放置在 ${formatCellLabel(at)}');
+    expect(pageSource).toContain('该格已有编号 ${participantId}');
+  });
+
+  it('spells out 编号 vs 参与者 in the left column (CLAR-H13 §1.1)', () => {
+    // v0.4.2 §1.1 口径 3：左栏提示必须区分「参与者」与「参与者编号」，
+    // 并说明落格后会清理其它格子的编号、已放置的卡片会变淡。
+    expect(pageSource).toContain('点击参与者后，短按格子放置编号、长按放置头像');
+    expect(pageSource).toContain('每位参与者的编号 / 头像只能出现在');
+    expect(pageSource).toContain('该参与者在其它格子的编号会被清除');
+    expect(pageSource).toContain('已放置的参与者卡片会变淡');
   });
 
   it('dims the roster cards of placed participants', () => {

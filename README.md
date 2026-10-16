@@ -77,10 +77,10 @@ cp .env.example .env
 | 变量 | 说明 | 默认值 |
 |---|---|---|
 | `PORT` / `HOST` | 后端监听端口与地址 | `3000` / `0.0.0.0` |
-| `PUBLIC_BASE_URL` | 拼接文件访问 URL 的公开前缀 | `http://localhost:3000` |
+| `PUBLIC_BASE_URL` | 拼接文件访问 URL 的公开前缀（**换端口时必须同步**） | `http://localhost:3000` |
 | `PGHOST` / `PGPORT` / `PGUSER` / `PGPASSWORD` / `PGDATABASE` | PostgreSQL 连接 | `localhost:5432` / `postgres` / `loredoku` |
 | `UPLOAD_ROOT` | 上传目录（默认 `packages/server/storage/uploads`） | `./storage/uploads` |
-| `VITE_API_BASE_URL` | 前端 API 基址 | `http://localhost:3000/api` |
+| `VITE_API_BASE_URL` | 前端 API 基址；**留空即走同源 `/api`**，由 Vite 代理转发 | 注释掉（走代理） |
 
 > 请先在 PostgreSQL 中创建数据库（默认名 `loredoku`）。
 
@@ -94,15 +94,29 @@ npm run db:rollback     # 回滚最近一批迁移
 ### 4. 启动开发环境
 
 ```bash
-npm run dev
+npm run dev                              # 后端 3000 + 前端 5173（默认）
+npm run dev -- --server-port 4000        # 后端 4000，前端 5173
+npm run dev -- -w 5180                   # 前端 5180，后端 3000
+npm run dev -- -s 4000 -w 5180           # 两个都自定义
 ```
 
 会并行启动：
 
-- 后端：`http://localhost:3000`（tsx watch 热重载）
-- 前端：`http://localhost:5173`（Vite，已配置 `/api` 反向代理到 3000）
+- 后端：`http://localhost:{server-port}`（tsx watch 热重载）
+- 前端：`http://localhost:{web-port}`（Vite；`/api` 由 `VITE_PROXY_TARGET` 代理到同一个后端端口）
+- 启动时会打印一行汇总，便于直接复制
 
-浏览器访问 **http://localhost:5173** 即可。
+参数规则（`scripts/dev.mjs`）：
+
+| 参数 | 缩写 | 默认 | 作用 |
+|---|---|---|---|
+| `--server-port <n>` | `-s` | `3000` | 后端监听端口 |
+| `--web-port <n>` | `-w` | `5173` | 前端 Vite 端口 |
+
+- 参数可选；**命令行 > `.env`**，且 `PUBLIC_BASE_URL` 会跟着后端端口一起改（不改就会让头像 / 物品图 / 封面全部 404）；
+- 必须是 `1~65535` 的整数，两个端口不能相同；非法值会打印一行中文错误并以非 0 退出码结束（不启动任何进程）。
+
+浏览器访问 **http://localhost:{web-port}** 即可。
 
 ---
 
@@ -112,23 +126,26 @@ npm run dev
 
 | 命令 | 说明 |
 |---|---|
-| `npm run dev` | 同时启动 server + web |
-| `npm run dev:server` / `npm run dev:web` | 单独启动后端 / 前端 |
+| `npm run dev` | 同时启动 server + web（支持 `-s` / `-w` 指定端口，见上） |
+| `npm run dev:server` / `npm run dev:web` | 单独启动后端 / 前端（`npm run dev:web -- --port 5180` 亦可） |
 | `npm run build` | 构建全部 workspace |
 | `npm run typecheck` | 全量 TypeScript 类型检查 |
-| `npm test` | 运行全部测试（Vitest） |
+| `npm test` | 运行全部测试（各 workspace 的 Vitest + 根目录 `scripts/` 单测） |
 | `npm run db:migrate` / `db:rollback` | 数据库迁移 / 回滚 |
 
 单个 workspace 可用 `--workspace`，例如 `npm run test --workspace @loredoku/server`。
 
 > **提示**：server 端测试覆盖 projects / items / regions / versions 全流程，**依赖本地 PostgreSQL**，建议每次改动后都跑一遍：
 > `cd packages/server && npx vitest run --no-cache`
+>
+> 本机若出现「多文件聚合运行时漏收测试文件」，用 `bash scripts/run-tests.sh packages/web` 逐文件运行（同样适用于 `packages/shared` / `packages/server`）。
 
 ---
 
 ## 功能概览
 
-- **地图项目（`/projects`）**：创建 / 编辑 / 删除 / 复制地图，指定画布尺寸 `n × n`（2 ~ 24）。
+- **地图管理（`/projects`）**：创建 / 编辑 / 删除 / 复制地图，指定画布尺寸 `n × n`（2 ~ 24）。
+- **地图封面与卡片（v0.4.2 FEAT-H03 / OPT-H04）**：新建 / 编辑地图时可**选填封面**（PNG / JPEG / WebP / SVG，≤ 4 MB，固定 16:10），网格卡片把封面作为卡片的头、无封面时显示名称首字，列表行同步加上 64×40 的封面缩略图；卡片与列表都**去掉了「卡片 N」「区域 N」**（接口字段保留），只留 `n × n` 与更新时间 —— 卡片用**相对时间**（「3 天前更新」，悬停显示绝对时间），列表保留绝对时间。新建走**两步串行**（先建地图拿到 id，再上传封面），封面失败时地图不会丢，弹窗提示「重试上传」。
 - **物品管理（`/items`）**：维护图案方块（背景 / 物体两类），支持图片上传、尺寸、`canStand`（是否可站立）、缩略图与触发信息。
 - **角色管理（`/characters`）**：维护参与者角色（头像、性别等）。
 - **可视化编辑器（`/editor/:projectId`）**：拖拽放置物品、框选 / 笔刷绘制区域、区域命名与配色、橡皮擦、撤销 / 重做（上限 50 步）；画布**自适应方格宽度 90 ~ 240px**（v0.3.5 OPT-A01，v0.3.6 OPT-B02 追加底部工具条留白，v0.3.7 OPT-C01 四边各加 24px 外边距），缩放 25% ~ 400%；线条与字体随方格尺寸**等比缩放**（v0.3.6 OPT-B03）。
@@ -141,8 +158,12 @@ npm run dev
 - **无边框取色器（v0.3.10 FIX-F04）**：`input type="color" 统一走共享组件 `ui/color-input`（无黑边框，仅一圈细 `ring` 保证浅色可见）。
 - **性别符号加粗（v0.3.10 FIX-F06）**：♂ / ♀ 符号 `fontWeight: 700`，颜色不变。
 - **画布缩放与方格大小相互独立（v0.3.8 FEAT-D05）**：底栏的放大 / 缩小 / 百分比只改变查看比例，**不修改任何数值**；只有「基本信息」里的方格大小会改变实际渲染尺寸。
-- **参与者区**：标题栏 40px（与物品栏头部对齐）、单元格 110×104px、每框左上角 1 起序号（v0.3.6 OPT-B06）。
-- **参与者联动**：悬停 / 点击参与者框，高亮其关联的角色、物品、区域、格子（红 / 蓝效果，无时长概念，结束时淡出）。
+- **保存 / 发布是两个按钮，保存为主（v0.4.2 FEAT-H05 §5.4）**：顶栏「保存」是 primary、「发布」是 outline，二者**不合并**；「发布」**不再因有未保存修改而置灰**——点它会先弹出**发布确认**（标题「发布当前地图？」，说明将要生成的版本号 `v{N}`，可选填**发布备注**，有未保存修改时额外提示「将先保存再发布」，主按钮相应变为**「保存并发布」**），确认后**先 `save()` 再 `publish()`** 串行执行、保存失败即中止发布。发布成功后弹出**成功弹窗**（「已发布 v{N}」）并给出「预览」与「前往作品页」两个去处，预览直达 `/works/:id/view?project=…&v=…`；校验不通过仍走既有的「无法发布」清单，没有第二套 UI。顶栏的「未保存」徽标同时是**快捷保存按钮**（点击即保存）。
+- **方格信息与底栏（v0.4.2 OPT-H10 / OPT-H11）**：方格信息里的「区域信息」重排成一张**只读卡片**（色点 + 名称 + 「包含 N 格」徽标 + 一行「边界线宽 / 填充 %」），**不再显示完整 region id**（退到 `title` 提示），也**不再渲染「编辑 / 定位 / 删除」**——那三个按钮在方格上下文里冗余（编辑 / 删除在左侧「区域」标签里已有），选中区域本身时仍然可用。底栏工具条**删掉「放置角色（C）」**（CLAR-603 之后角色不进入地图，该入口是死路），工具组只剩选择 / 放置、区域选择、橡皮擦；左侧「角色」标签的提示也改成真实流程「加入 → 参与者区 → 拖到画布」。
+- **文案统一：项目 → 地图（v0.4.2 OPT-H02）**：地图管理页、编辑器、物品 / 角色页的占用提示等**用户可见文案**一律改称「地图」（代码标识符、API 路径 `/api/projects`、表名 `map_projects` 均不变）。
+- **参与者区**：标题栏 40px（与物品栏头部对齐）、单元格 110×104px、每框左上角 1 起序号（v0.3.6 OPT-B06）。头像区只有**一层圆**（v0.4.2 OPT-H06）：主题色圆盘负责裁剪，缩略图不再自带圆环，无图角色直接显示首字而不是一个白色内圆。
+- **参与者联动**：悬停 / 点击参与者框，高亮其关联的角色、物品、区域、格子（红 / 蓝效果，无时长概念，结束时淡出）。列表项**不再显示「高亮」徽标**（v0.4.2 OPT-H07：效果固定，徽标不携带信息），联动弹窗的区块标题也由「效果与颜色」简化为**「颜色」**。
+- **参与者抽屉改版（v0.4.2 FEAT-H08 / FEAT-H09）**：主题色只显示**当前选中**（一行：色块 + hex + 「修改」），点开 `ThemeColorDialog` 再从 15 色板或自定义 hex 里选，弹窗内实时预览、确定后才交回抽屉；「保存 / 取消」固定在抽屉**底部页脚**（位于滚动区之外，永远可达），右上「×」与 `Esc` 与「取消」**语义一致**——都是丢弃本次编辑并关闭，绝不写库。
 - **参与者位置条件（v0.4.1 FEAT-E01）**：参与者信息抽屉在「联动」与「保存」之间新增**位置条件**模块——点「添加位置」后进入**画布点选**模式（左侧提示「请在画布上点击要允许的位置（`Esc` 取消）」，`Esc` 或再点一次按钮退出），点选的可站立格以 `R{行} C{列}` 列出、可逐项删除。**多个位置之间是「或」关系，留空表示不限制位置**；结果随保存写入 `characterSlots[i].positionConditions`（`[{ x, y }]`，可缺省），草稿校验会拒绝越界坐标。
 - **作品（`/works`）**：发布快照生成作品，表格化平铺展示，支持查看效果（`/works/:workId/view`）、导出 JSON、基于作品创建草稿、删除。
 - **预览页与编辑页一致（v0.3.10 FIX-F07 / FEAT-F01 / FEAT-F02）**：预览页的参与者区直接复用编辑器的 `ParticipantPanel`（`readOnly` 模式：同一套矩阵卡片、序号、主题色圆头像、线索区与单框高亮，但不可拖动、无「×」按钮）；顶栏新增「标尺」开关（`Ruler` 图标，默认显示，选择存 `localStorage` 键 `loredoku.workview.ruler`）；预览页的方格大小、四周留白与标尺厚度一律按作品快照里的 `style` 计算（自适应时传入 `canvasInsets({ showRulers, rulerSize })`，与编辑器同一套预留）。
@@ -154,11 +175,12 @@ npm run dev
 - **游戏首页（v0.4.0 FEAT-G01，`/games`）**：面向玩家的独立入口——**顶层路由，不用 `AppShell`**，玩家从这里看不到地图 / 物品 / 角色 / 作品等制作端模块，只能通过链接进入（作品页「已部署」徽标、游戏页「返回」按钮）。简约卡片网格（2 / 3 / 4 列响应式，间距 20px）。每张卡片展示**封面**（16:10，无封面时显示地图名称首字）、**名称**、**难度徽标**（五色）、**`n×n` 规格**；点击卡片进入游戏页面。空态给出前往作品管理页的链接。
 - **游戏页面（v0.4.0 FEAT-G03，v0.4.1 起为 `/games/:slug`）**：左中右三栏的全屏游玩页（不用 `AppShell`，与编辑器同级的顶层路由）。
   - **左上**：返回按钮 + 游戏名称、封面缩略图、难度徽标、`n×n` 与来源版本；只读，不提供编辑。
-  - **左下**：与预览页**同一个** `ParticipantPanel`（`readOnly`），联动效果完全一致；新增「点击参与者 → 进入放置状态」。放置态下悬停另一张卡片只临时切换联动预览，移开后**恢复已武装参与者的联动并保持高亮**——放置状态不随悬停退出，只有再次点击参与者或工具按钮才退出（v0.4.1 BUG-G02：恢复用幂等的 `restore` 事件，不是会反向关闭的 `click`）。**已放置的参与者在名单里变淡**（头像 `opacity: 0.45`，v0.4.1 SPEC-G05）。
+  - **左下**：与预览页**同一个** `ParticipantPanel`（`readOnly`），联动效果完全一致；新增「点击参与者 → 进入放置状态」。放置态下悬停另一张卡片只临时切换联动预览，移开后**恢复已武装参与者的联动并保持高亮**——放置状态不随悬停退出，只有再次点击参与者或工具按钮才退出（v0.4.1 BUG-G02：恢复用幂等的 `restore` 事件，不是会反向关闭的 `click`）。**已放置参与者的整张卡片变淡**（v0.4.2 SPEC-H14：外框 + 头像 + 序号 + 名称 + 线索 + 提示词全部淡化，`opacity: 0.45` 落在卡片根节点、只此一处；淡化是常驻状态，激活时只叠加描边、不恢复不透明）。
   - **中间**：与预览页一致的地图（含标尺），新增**游戏放置层**与**工具提示层**两个游戏专属图层，**不渲染操作光标框**；画布**固定自适应**（无平移、无缩放），格内光标为 `pointer`。放置态下**短按格子放参与者编号**（九宫格候选），**长按格子（≥500ms）放参与者头像**（确认该格就是这位参与者，整格替换）；不满足条件的落点会 `toast` 说明原因（不可站立 / 已有禁止符号 / 已有头像 / 该参与者已在别处 / 九宫格已满）而不是静默失败。
   - **右侧工具栏**：禁止符号（`X` 图标，红色）/ 清除工具 / 回退 / 提交四个等宽按钮，激活态 `bg-accent` 且**互斥**；清除按钮**长按 500ms 清空全图**（记一步可回退）；除四个工具按钮外只有一个**标尺开关**；底部显示「已放置 N 个 / 可回退 M 步」。参与者编号**从 1 开始**（与参与者面板左上角序号一致）。
 - **放置规则（v0.4.0 SPEC-G01 ~ SPEC-G04 + v0.4.1 SPEC-G05 / SPEC-G06 / FEAT-V01）**：每格放置内容是「参与者图片 / 参与者标号列表 / 禁止符号」三者互斥的形态之一。标号按 **3×3 九宫格**从左到右、从上到下排列（最多 9 个，字号约 `cellSize/4`，颜色取参与者主题色 + 黑色描边）；短按逐位追加标号，**长按整格替换为头像**（九宫格已满只挡短按，不挡长按确认）。**有不可站立物品的格子不能放置**；禁止符号会**激活该格的不可站立遮罩**，并清除该格原有标号。回退栈上限 200 步，清空全图只记一步；**提交后不能回退到提交点之前**。规则全部集中在纯函数库 `packages/web/src/lib/gamePlacement.ts`。
   - **唯一性（SPEC-G05）**：每位参与者**只能占一个格子**——已在别处的参与者再次放到其它格会被拒绝（同格重放只是把「标号」提升为「头像」）；清除 / 回退后恢复可放置。
+  - **编号清理（v0.4.2 SPEC-H01）**：落位时把该参与者的**编号**从其它格子清除（只清编号，不动头像、不动不可站立遮罩）；某格因此失去最后一个编号时该格变回**空格**而不是 `×`。清理与放置**合并为一个历史步**，回退一次全部还原。
   - **自动 ×（SPEC-G06）**：放置成功后，**同行同列**中「可站立、原本没有 ×、也没有头像」的格子会自动补上禁止符号；不可站立格、已有头像格、已有 × 格一律跳过。自动 × 与放置**合并为一步**，回退一次即全部撤销。
   - **提交校验（FEAT-V01）**：提交前校验**编号 1→n 是否全部放置**、**行互斥**、**列互斥**、**位置条件（OR 语义，留空即不限制）**；不通过时弹出「提交未通过」对话框，**一次列出全部问题**（按编号排序，每条带「未放置 / 同行 / 同列 / 位置条件」徽标），修正后可再次提交。
 
@@ -258,7 +280,7 @@ v0.3.9 SPEC-E01 把四个样式字段改名为规范名（见上表括号内旧�
 | 资源 | 主要端点 |
 |---|---|
 | 健康检查 | `GET /api/health` |
-| 项目 | `GET/POST /api/projects`、`GET/PATCH/DELETE /api/projects/:id`、`POST /api/projects/:id/duplicate` |
+| 项目 | `GET/POST /api/projects`、`GET/PATCH/DELETE /api/projects/:id`、`POST /api/projects/:id/duplicate`、`POST /api/projects/:id/cover`（**v0.4.2 新增**：封面上传，`multipart/form-data` 字段名 `file`）、`DELETE /api/projects/:id/cover`（**v0.4.2 新增**：清空封面） |
 | 地图数据 | `GET/PUT /api/projects/:id/map`、`PATCH /api/projects/:id/grid-size`、`GET /api/projects/:id/map/export`、`POST /api/projects/:id/map/import` |
 | 区域 | `GET/POST /api/projects/:id/regions`、`PATCH/DELETE /api/projects/:id/regions/:regionId` |
 | 作品 / 版本 | `POST/GET /api/projects/:id/versions`、`GET /api/projects/:id/versions/:versionNo`、`POST .../versions/:versionNo/draft`、`DELETE .../versions/:versionNo`、`GET /api/versions`（跨地图作品列表） |
@@ -282,21 +304,23 @@ v0.3.9 SPEC-E01 把四个样式字段改名为规范名（见上表括号内旧�
 
 ## 测试说明
 
-- 使用 **Vitest**（web 侧 `environment: 'jsdom'`）。组件行为尽量以**无依赖纯函数**覆盖（`lib/linkageActivation`、`lib/cellSelection`、`lib/highlight`、`lib/editorInit`、`editorStore` 等）。
-- `EditorCanvas.noDrag.test.ts`、`MapInfoDrawer.test.tsx`、`WorkViewPage.preview.test.ts`、`EditorPage.autoSave.test.ts` 通过 `import.meta.glob(..., { query: '?raw' })` 读取源码，断言画布内「点击可选中、绝不注册拖动」、颜色控件统一走 `ColorInput`、预览页复用 `ParticipantPanel` / `MapRulerStrips`、基本信息一次提交等**结构性规则**。
-- 少量组件级用例（如 `MapInfoDrawer.test.tsx`）在 jsdom 下直接渲染并断言交互；本环境未安装 testing-library，断言只用原生 DOM API。
+- 使用 **Vitest**（web 侧 `environment: 'jsdom'`）。组件行为尽量以**无依赖纯函数**覆盖（`lib/linkageActivation`、`lib/cellSelection`、`lib/highlight`、`lib/editorInit`、`lib/gamePlacement`、`lib/relativeTime`、`scripts/dev.mjs` 等）。
+- `EditorCanvas.noDrag.test.ts`、`MapInfoDrawer.test.tsx`、`WorkViewPage.preview.test.ts`、`EditorPage.autoSave.test.ts`、`EditorPage.infoDrawer.test.ts`、`EditorPage.publish.test.ts`、`EditorBottomBar.test.ts`、`ProjectCards.test.ts`、`wording.test.ts` 通过 `import.meta.glob(..., { query: '?raw' })` 读取源码，断言画布内「点击可选中、绝不注册拖动」、颜色控件统一走 `ColorInput`、预览页复用 `ParticipantPanel` / `MapRulerStrips`、基本信息一次提交、发布走确认弹窗、底栏不含「放置角色」、卡片不再渲染计数、**生产代码里不出现「项目」**等**结构性规则**。
+- 少量组件级用例（如 `MapInfoDrawer.test.tsx`、`ThemeColorDialog.test.tsx`、`ParticipantPanel.placedDim.test.tsx`）在 jsdom 下直接渲染并断言交互；本环境未安装 testing-library，断言只用原生 DOM API（Radix 弹窗会 `portal` 到 `document.body`，查询要走 `document`）。
+- `scripts/dev.test.mjs` 覆盖 `npm run dev` 的参数解析与环境变量映射，由根目录的 `vitest run scripts` 运行。
 
 ```bash
 npm run typecheck          # 类型检查
-npm test                   # 全量测试
+npm test                   # 全量测试（含根目录 scripts/）
 cd packages/server && npx vitest run --no-cache   # 后端接口测试（需 PostgreSQL）
+bash scripts/run-tests.sh packages/web            # 逐文件跑（规避聚合运行的 EPERM 漏收）
 ```
 
 ---
 
 ## 约定与注意事项
 
-- **拖拽**：全局仅两类拖拽（队伍槽位 → 画布、物品抽屉 → 画布），统一用 **Pointer Events**（`setPointerCapture`）实现，不使用 HTML5 原生 `draggable`。
+- **拖拽**：全局仅两类拖拽（角色列表 → 参与者区、物品抽屉 → 画布），统一用 **Pointer Events**（`setPointerCapture`）实现，不使用 HTML5 原生 `draggable`。
 - **画布内行为**：画布内的物品 / 角色仅支持单击选中与删除，**不允许拖动移动**；所有 `<img>` 一律 `draggable={false}`。
 - **平移画布**：在地图方格**以外**的空白处按住拖动即可平移（v0.3.9 FEAT-E03），工具栏不再提供「拖动」按钮；指针在方格内为 `pointer`，空白处为 `grab`。
 - **弹窗关闭方式**：所有 Dialog 统一禁止「点击遮罩关闭」（v0.3.9 FIX-E03），只能通过关闭按钮 / 取消 / `Esc`，避免误触丢失已填内容。
@@ -306,7 +330,10 @@ cd packages/server && npx vitest run --no-cache   # 后端接口测试（需 Pos
 - **数据模型**：参与者不进入地图；`CharacterSlotEntry` 携带 `themeColor` + `clue` + 扁平 `linkages` + 可选 `positionConditions`（v0.4.1 FEAT-E01，`[{ x, y }]`，`.strict()` 下必须显式声明新字段，否则旧 payload 被拒）。`characterSlotEntrySchema` 使用 `.strict()` 拒绝遗留的 `triggers` 字段。
 - **迁移**：`db/migrations/` 目录下的每个文件都会被 Knex 当作迁移加载，辅助模块不要放在该目录（参与者迁移的纯变换函数位于 `server/src/service/draftLinkageMigration.ts`，v0.4.1 的 `map_games.slug` 回填位于 `server/src/service/gameSlugBackfill.ts`）。**索引即约束**：`table.unique(cols, { indexName })` 建的是 UNIQUE **约束**，回滚必须用 `table.dropUnique(cols, name)`，`DROP INDEX` 会以 `2BP01` 失败。
 - **访问路径常量**：转写 / 校验一律走 `@loredoku/shared` 的 `slugify` / `buildDefaultSlug` / `slugError` / `normalizeSlugInput`，前端只做预览与净化，**判定以服务端为准**；难度转写用 `GAME_DIFFICULTY_SLUGS` 固定表，避免 `veryEasy` 这类驼峰泄漏到 URL。
-- **主题色**：调色板共 15 色（见 `THEME_COLOR_PALETTE`），默认 `#FFFFFF`。
+- **主题色**：调色板共 15 色（见 `THEME_COLOR_PALETTE`），默认 `#FFFFFF`。修改主题色的入口是**受控弹窗** `ThemeColorDialog`（不直接写 store），抽屉自身的「保存」才是唯一的写库路径（v0.4.2 FEAT-H08）。
+- **参与者 ≠ 参与者编号（v0.4.2 CLAR-H13）**：文档、UI 文案与测试名里，「参与者（participant）」指名单柜里的那个人，「参与者编号 / 编号」指格子里那个 1 起的数字。凡涉及落点、清理、淡化的描述一律写到「编号」这一层，避免「把参与者放进格子」这类把两者混为一谈的说法；代码标识符不随之改名（§17 Q15）。
+- **地图封面（v0.4.2 FEAT-H03）**：`map_projects.cover_path` 是唯一真相，`coverUrl` 由 `PUBLIC_BASE_URL` 拼出 —— 换后端端口时**必须**同步它，否则头像 / 物品图 / 封面会全部 404（`npm run dev -s 4000` 已自动同步）。复制地图**沿用同一 `cover_path`**（`duplicate` 直接拷贝字段，不复制二进制）。封面不写 mime / size 元数据。
+- **开发端口参数（v0.4.2 DEV-H12）**：`npm run dev` 的可选参数由 `scripts/dev.mjs` 解析，纯函数 `parseDevArgs` / `buildDevEnv` 可单测；`web` 侧固定带 `--strictPort`，端口被占时直接失败而不是静默换端口。根 `dev:server` / `dev:web` 脚本末尾带 `--`，保证 `npm run dev:web -- --port 5180` 能把参数透传给 `vite`。
 
 ---
 
@@ -325,5 +352,6 @@ cd packages/server && npx vitest run --no-cache   # 后端接口测试（需 Pos
 | `docs/v0.3.9.md` | 发布后保持视口、区域高亮线闭合、基本信息草稿化与保存 / 取消、标尺配置、画布外空白拖拽平移、图层命名规范化 |
 | `docs/v0.3.10.md` | 基本信息完整草稿化（含画布尺寸）、实时写入、首次进入即保存、无边框取色器、问号图标提示、性别符号加粗、预览页复用参与者面板与标尺 |
 | `docs/v0.4.0.md` | 信息框残留修复、预览页标题、游戏首页 / 作品部署 / 游戏页面、游戏放置层与工具提示层 |
-| `docs/v0.4.1.md` | 作品页表头 5 列与按版本判定「已部署」、部署回填、**访问路径（`/games/:slug`）**、放置唯一性与自动 ×、参与者位置条件、提交校验、点击参与者高亮保持（当前版本） |
+| `docs/v0.4.1.md` | 作品页表头 5 列与按版本判定「已部署」、部署回填、**访问路径（`/games/:slug`）**、放置唯一性与自动 ×、参与者位置条件、提交校验、点击参与者高亮保持 |
+| `docs/v0.4.2.md` | 参与者 / 编号术语澄清、落位后清除其余格子编号、**已放置参与者整框淡化**、地图管理页文案统一与**封面**、卡片信息精简、发布确认与成功入口（**保存 / 发布两按钮、保存为主**）、参与者框圆形精简、联动标签精简、主题色弹窗、抽屉底部保存 / 取消、方格信息区域信息重排、底栏删「放置角色」、`npm run dev` 端口参数（**当前版本**） |
 | `docs/layer-priority.md` | 《画布图层优先级规范》—— 15 层的中文名 / 英文名 / 次序的唯一权威 |

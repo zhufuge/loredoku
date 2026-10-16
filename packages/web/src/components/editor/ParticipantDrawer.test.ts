@@ -93,3 +93,64 @@ describe('EditorPage position-pick mode (FEAT-E01 §7.3)', () => {
   });
 });
 
+/**
+ * OPT-H07 / OPT-H08 / OPT-H09（docs/v0.4.2.md §7 ~ §9）。
+ *
+ * - OPT-H07：联动列表不再渲染「高亮」徽标（效果固定，徽标不携带信息）；
+ * - OPT-H08：主题色只显示当前选中（一行色块 + hex + 修改），调色板下沉到
+ *   `ThemeColorDialog`；
+ * - OPT-H09：保存 / 取消固定在抽屉底部，位于滚动区之外；× 与 Esc 等同取消。
+ */
+describe('ParticipantDrawer — v0.4.2 抽屉改版（OPT-H07 / H08 / H09）', () => {
+  it('OPT-H09: the footer sits outside the scroll area', () => {
+    // 滚动区：`min-h-0 flex-1 ... overflow-y-auto`
+    expect(source).toContain('min-h-0 flex-1 space-y-4 overflow-y-auto');
+    // 页脚：`shrink-0` + 上边框，且出现在滚动区之后
+    const scrollAt = source.indexOf('min-h-0 flex-1 space-y-4 overflow-y-auto');
+    const footerAt = source.indexOf('flex shrink-0 gap-2 border-t px-4 py-3');
+    expect(footerAt).toBeGreaterThan(scrollAt);
+    expect(source).toContain('取消');
+    // 保存仍然是唯一的写回路径。
+    expect(source).toContain('onSave(slotIndex, { themeColor, clue, linkages, positionConditions });');
+  });
+
+  it('OPT-H09: 取消 / × / Esc 三处同源，且都不写 store', () => {
+    // 三处入口共用同一个 `cancel`。
+    expect(source).toContain('const cancel = (): void => {');
+    expect(source.split('onClick={cancel}').length - 1).toBe(2); // × 按钮 + 页脚取消
+    expect(source).toContain('title="关闭（等同取消）"');
+    // cancel 内部只重置本地草稿 + 关弹窗 + 通知父级，绝不调用 onSave。
+    const cancelBody = source.slice(
+      source.indexOf('const cancel = (): void => {'),
+      source.indexOf('// MOD-702: clue char count'),
+    );
+    expect(cancelBody).not.toContain('onSave');
+    expect(cancelBody).toContain('onClose();');
+  });
+
+  it('OPT-H08: theme colour is one row — chip + hex + 修改 — opening the dialog', () => {
+    expect(source).toContain('aria-label="修改主题色"');
+    expect(source).toContain('data-testid="theme-color-chip"');
+    expect(source).toContain('onClick={() => setThemeDialogOpen(true)}');
+    expect(source).toContain('>修改<');
+    // The palette / hex input moved into the dialog.
+    expect(source).not.toContain('THEME_COLOR_PALETTE');
+    expect(source).not.toContain('hexDraft');
+    expect(source).toContain('<ThemeColorDialog');
+    expect(source).toContain('open={themeDialogOpen}');
+    expect(source).toContain('value={themeColor}');
+  });
+
+  it('OPT-H07: the linkage rows no longer render a 「高亮」 badge', () => {
+    const rows = source.slice(
+      source.indexOf('linkages.map((linkage, index) => ('),
+      source.indexOf('</ul>', source.indexOf('linkages.map(')),
+    );
+    expect(rows.length).toBeGreaterThan(0);
+    // Only the colour dot is left next to the description.
+    expect(rows).toContain('linkageColorFor(style, linkage.color)');
+    expect(rows).not.toContain('>高亮');
+    expect(rows).not.toContain('高亮<');
+  });
+});
+

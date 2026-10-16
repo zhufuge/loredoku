@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ErrorCode } from '@loredoku/shared';
-import type { PublishViolation } from '@loredoku/shared';
+import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import { ApiError } from '@/api/client';
 import { versionsApi } from '@/api/versions';
 import type { WorkSummary } from '@loredoku/shared';
@@ -46,6 +46,12 @@ export function useWorkDetail(projectId: number | null, versionNo: number | null
 export interface PublishResult {
   ok: boolean;
   violations?: PublishViolation[];
+  /**
+   * FEAT-H05 §5.3 (docs/v0.4.2.md §5.3): the newly published version, so the
+   * success dialog can link straight to the preview. `versionsApi.publish`
+   * already answers with `MapVersionSummary` — this just stops dropping it.
+   */
+  version?: MapVersionSummary;
 }
 
 export function usePublishProject(id: number) {
@@ -53,8 +59,8 @@ export function usePublishProject(id: number) {
   return useMutation<PublishResult, unknown, { notes?: string }>({
     mutationFn: async ({ notes }) => {
       try {
-        await versionsApi.publish(id, notes);
-        return { ok: true };
+        const version = await versionsApi.publish(id, notes);
+        return { ok: true, version };
       } catch (error) {
         if (error instanceof ApiError && error.code === ErrorCode.PUBLISH_VALIDATION_FAILED) {
           const violations = Array.isArray(error.details)
@@ -67,7 +73,10 @@ export function usePublishProject(id: number) {
     },
     onSuccess: (result) => {
       if (result.ok) {
-        toast.success('发布成功，已生成新作品');
+        /*
+         * FEAT-H05 §5.3: no toast any more — the editor raises a success dialog
+         * instead, because it carries the two next steps (preview / works page).
+         */
         void queryClient.invalidateQueries({ queryKey: mapKeys.detail(id) });
         void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
         void queryClient.invalidateQueries({ queryKey: versionKeys.all });

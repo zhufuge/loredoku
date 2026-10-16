@@ -246,13 +246,48 @@ export function autoForbiddenCells(input: {
 }
 
 /**
- * SPEC-G03 §9.2（v0.4.0 验收补充后）+ SPEC-G06（v0.4.1）：
+ * SPEC-H01 (docs/v0.4.2.md §1.2): after a participant lands, their **number**
+ * must survive in exactly one cell. Live play cannot reach a second copy — the
+ * uniqueness rule refuses it — but legacy snapshots (deployed before v0.4.1),
+ * imported drafts and hand-edited JSON can carry several. So every successful
+ * placement sweeps the participant's number out of every other cell.
+ *
+ * A cell that loses its only entry is **deleted** (it becomes empty, not `×`).
+ * Cells that still hold other participants' numbers keep their form.
+ *
+ * Returns the board unchanged (same reference) when there is nothing to sweep,
+ * so the caller's single `commit` stays a no-op.
+ */
+export function sweepParticipantNumbers(
+  board: GamePlacementBoard,
+  input: { participantId: number; except: CellCoord },
+): GamePlacementBoard {
+  const next: GamePlacementBoard = {};
+  let changed = false;
+  for (const [key, placement] of Object.entries(board)) {
+    if (!placement) continue;
+    const [x, y] = key.split(',').map(Number) as [number, number];
+    const isAnchor = x === input.except.x && y === input.except.y;
+    if (isAnchor || placement.kind !== 'numbers' || !placement.entries.includes(input.participantId)) {
+      next[key] = placement;
+      continue;
+    }
+    const entries = placement.entries.filter((entry) => entry !== input.participantId);
+    changed = true;
+    if (entries.length > 0) next[key] = { kind: 'numbers', entries };
+  }
+  return changed ? next : board;
+}
+
+/**
+ * SPEC-G03 §9.2（v0.4.0 验收补充后）+ SPEC-G06（v0.4.1）+ SPEC-H01（v0.4.2）：
  *
  * - `variant: 'number'`（短按，默认）：往该格追加一个标号——空格得到 9 宫格
  *   第 1 格的标号，已有其他参与者标号则续接；该参与者标号已存在则无效果。
  * - `variant: 'image'`（长按）：整格替换为该参与者的头像，即「确认这格就是
  *   这位参与者」；该格已是同一头像时无效果（`commit` 的结构比较会拦住）。
- * - 落格之后**同行同列自动补 `×`**（SPEC-G06），与本次放置合并为一个历史步。
+ * - 落格之后**同行同列自动补 `×`**（SPEC-G06），并**把该参与者的编号从其它
+ *   格子清除**（SPEC-H01）；两者都与本次放置合并为**一个**历史步。
  */
 export function placeParticipant(
   state: GamePlacementState,
@@ -293,6 +328,12 @@ export function placeParticipant(
   })) {
     board[swept] = { kind: 'forbidden' };
   }
+
+  // SPEC-H01: the participant keeps exactly one number — the one just placed.
+  board = sweepParticipantNumbers(board, {
+    participantId: input.participantId,
+    except: { x: input.x, y: input.y },
+  });
 
   return commit(state, board);
 }

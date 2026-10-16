@@ -114,9 +114,11 @@ function readStoredRulerVisible(): boolean {
 }
 
 /**
- * SPEC-G05 §5.2 (docs/v0.4.1.md §5.2): the reason a placement was refused, as a
- * toast. The uniqueness case names the cell the participant already occupies —
- * "参与者 2 已放置在 R3 C4" — because that is the one a player cannot infer.
+ * SPEC-G05 §5.2 (docs/v0.4.1.md §5.2) + CLAR-H13 (docs/v0.4.2.md §1.1): the
+ * reason a placement was refused, as a toast. Wording says **编号** wherever the
+ * cell's content is meant — the participant themselves never enters the map.
+ * The uniqueness case names the cell the participant already occupies —
+ * "编号 2 已放置在 R3 C4" — because that is the one a player cannot infer.
  */
 function describeBlock(
   block: NonNullable<ReturnType<typeof placementBlockReason>>,
@@ -127,8 +129,8 @@ function describeBlock(
     case 'elsewhere': {
       const at = participantPlacementAt(board, participantId);
       return at
-        ? `参与者 ${participantId} 已放置在 ${formatCellLabel(at)}`
-        : `参与者 ${participantId} 已放置`;
+        ? `编号 ${participantId} 已放置在 ${formatCellLabel(at)}`
+        : `编号 ${participantId} 已放置`;
     }
     case 'non-standable':
       return '该格有不可站立的物品，不能放置';
@@ -137,7 +139,7 @@ function describeBlock(
     case 'avatar':
       return '该格已放置该参与者的头像';
     case 'duplicate':
-      return `该格已有参与者 ${participantId} 的编号`;
+      return `该格已有编号 ${participantId}`;
     case 'grid-full':
       return '该格编号已满（最多 9 个）';
   }
@@ -617,8 +619,9 @@ export function GamePage(): JSX.Element {
               </div>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              点击参与者后，短按格子放置编号、长按放置头像；每位参与者只能占一个格子，
-              落格后同行同列会自动补上排除项。提交前会校验行 / 列互斥与位置条件。
+              点击参与者后，短按格子放置编号、长按放置头像；每位参与者的编号 / 头像只能出现在
+              一个格子上，落格后同行同列会自动补上排除项，该参与者在其它格子的编号会被清除。
+              已放置的参与者卡片会变淡。提交前会校验行 / 列互斥与位置条件。
             </p>
           </div>
           <div className="flex min-h-0 flex-1">

@@ -25,6 +25,7 @@ import {
   redo,
   resolveToolHint,
   submitPlacement,
+  sweepParticipantNumbers,
   undo,
   validatePlacement,
   type GamePlacementState,
@@ -571,3 +572,96 @@ describe('helpers', () => {
     expect(numberSlotAnchor(8)).toEqual({ x: 5 / 6, y: 5 / 6 });
   });
 });
+
+/**
+ * SPEC-H01（docs/v0.4.2.md §1.2）+ CLAR-H13 §1.1：一位参与者的**编号**只能留在
+ * 一个格子上。落位时把该编号从其它格子清除，并与放置合并成同一个历史步。
+ */
+describe('number cleanup on placement (SPEC-H01 §1.2)', () => {
+  it('keeps the number on the cell just placed and clears it elsewhere', () => {
+    const board: GamePlacementBoard = {
+      '1,1': { kind: 'numbers', entries: [1] },
+      '4,4': { kind: 'numbers', entries: [1] },
+    };
+    const swept = sweepParticipantNumbers(board, { participantId: 1, except: { x: 1, y: 1 } });
+    expect(swept['1,1']).toEqual({ kind: 'numbers', entries: [1] });
+    expect(swept['4,4']).toBeUndefined();
+  });
+
+  it('drops only the target entry from a shared cell', () => {
+    const board: GamePlacementBoard = { '4,4': { kind: 'numbers', entries: [1, 2, 3] } };
+    const swept = sweepParticipantNumbers(board, { participantId: 2, except: { x: 0, y: 0 } });
+    expect(swept['4,4']).toEqual({ kind: 'numbers', entries: [1, 3] });
+  });
+
+  it('leaves an empty cell behind — never a × — when the last entry goes', () => {
+    const board: GamePlacementBoard = { '4,4': { kind: 'numbers', entries: [2] } };
+    const swept = sweepParticipantNumbers(board, { participantId: 2, except: { x: 0, y: 0 } });
+    expect(swept['4,4']).toBeUndefined();
+    expect(Object.keys(swept)).toHaveLength(0);
+  });
+
+  it('sweeps 编号 only: the anchor cell and a same-participant avatar stay put', () => {
+    const board: GamePlacementBoard = {
+      '0,0': { kind: 'forbidden' },
+      '1,1': { kind: 'numbers', entries: [1] },
+      '5,5': { kind: 'participant', index: 1 },
+      '7,7': { kind: 'numbers', entries: [9] },
+    };
+    expect(sweepParticipantNumbers(board, { participantId: 1, except: { x: 1, y: 1 } })).toBe(board);
+  });
+
+  it('returns the same board reference when there is nothing to clean', () => {
+    const board: GamePlacementBoard = { '1,1': { kind: 'numbers', entries: [1] } };
+    expect(sweepParticipantNumbers(board, { participantId: 1, except: { x: 1, y: 1 } })).toBe(board);
+    expect(sweepParticipantNumbers(board, { participantId: 2, except: { x: 0, y: 0 } })).toBe(board);
+  });
+
+  it('collapses a legacy duplicate board inside the same gesture', () => {
+    // A board saved before SPEC-G05 could carry the same 编号 in two cells.
+    // Placing the participant on the cell it already occupies is a promote
+    // (long-press), and the cleanup folds the stray 编号 into that one step.
+    const legacy: GamePlacementBoard = {
+      '1,1': { kind: 'numbers', entries: [1] },
+      '4,4': { kind: 'numbers', entries: [1] },
+    };
+    const state = place(withPlacements(legacy), 1, 1, 1, { variant: 'image' });
+    expect(placementAt(state.board, 1, 1)).toEqual({ kind: 'participant', index: 1 });
+    expect(placementAt(state.board, 4, 4)).toBeNull();
+    expect(participantPlacementAt(state.board, 1)).toEqual({ x: 1, y: 1 });
+    expect(state.past).toHaveLength(1);
+    // One gesture → one undo step, and that step restores the board it started from.
+    expect(undo(state).board).toEqual(legacy);
+  });
+
+  it('still spends exactly one history step on the normal path (v0.4.1 equivalent)', () => {
+    const first = place(createGamePlacementState(), 2, 2, 1);
+    expect(first.past).toHaveLength(1);
+    // A refused duplicate must not eat a history step.
+    expect(place(first, 6, 6, 1)).toBe(first);
+    expect(first.past).toHaveLength(1);
+    expect(placementAt(first.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
+  });
+
+  it('runs the cleanup inside placeParticipant, after the × sweep and before the commit', () => {
+    const source =
+      ((
+        import.meta.glob('./gamePlacement.ts', {
+          query: '?raw',
+          import: 'default',
+          eager: true,
+        }) as Record<string, string>
+      )['./gamePlacement.ts'] ?? '').replace(/\r\n/g, '\n');
+    const body = source.slice(
+      source.indexOf('export function placeParticipant('),
+      source.indexOf('export function placeForbidden('),
+    );
+    const autoAt = body.indexOf('autoForbiddenCells({');
+    const sweepAt = body.indexOf('sweepParticipantNumbers(board, {');
+    const commitAt = body.indexOf('return commit(state, board);');
+    expect(autoAt).toBeGreaterThan(-1);
+    expect(sweepAt).toBeGreaterThan(autoAt);
+    expect(commitAt).toBeGreaterThan(sweepAt);
+  });
+});
+

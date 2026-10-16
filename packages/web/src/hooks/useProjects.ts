@@ -34,7 +34,7 @@ export function useCreateProject(onSuccess?: () => void) {
   return useMutation({
     mutationFn: (payload: CreateProjectPayload) => projectsApi.create(payload),
     onSuccess: () => {
-      toast.success('项目创建成功');
+      toast.success('地图创建成功');
       void queryClient.invalidateQueries({ queryKey: projectKeys.all });
       onSuccess?.();
     },
@@ -48,7 +48,7 @@ export function useUpdateProject(onSuccess?: () => void) {
     mutationFn: ({ id, payload }: { id: number; payload: UpdateProjectPayload }) =>
       projectsApi.update(id, payload),
     onSuccess: () => {
-      toast.success('项目已更新');
+      toast.success('地图已更新');
       void queryClient.invalidateQueries({ queryKey: projectKeys.all });
       onSuccess?.();
     },
@@ -61,7 +61,7 @@ export function useDeleteProject() {
   return useMutation({
     mutationFn: (id: number) => projectsApi.remove(id),
     onSuccess: () => {
-      toast.success('项目已删除');
+      toast.success('地图已删除');
       void queryClient.invalidateQueries({ queryKey: projectKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '删除失败')),
@@ -73,9 +73,39 @@ export function useDuplicateProject() {
   return useMutation({
     mutationFn: (id: number) => projectsApi.duplicate(id),
     onSuccess: () => {
-      toast.success('项目已复制');
+      toast.success('地图已复制');
       void queryClient.invalidateQueries({ queryKey: projectKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '复制失败')),
+  });
+}
+
+/**
+ * FEAT-H03 §3.2(b) (docs/v0.4.2.md §3): the cover follows the **two-step** rule —
+ * the map row is created / updated first, then the artwork is uploaded against
+ * its id. These two mutations are the second step, and both write the refreshed
+ * detail straight into the cache so the card repaints without a refetch.
+ */
+export function useUploadProjectCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) => projectsApi.uploadCover(id, file),
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectKeys.detail(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '封面未上传成功')),
+  });
+}
+
+export function useRemoveProjectCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => projectsApi.removeCover(id),
+    onSuccess: (project) => {
+      queryClient.setQueryData(projectKeys.detail(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '封面移除失败')),
   });
 }

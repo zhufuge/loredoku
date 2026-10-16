@@ -64,10 +64,12 @@ interface ParticipantPanelProps {
    */
   readOnly?: boolean;
   /**
-   * SPEC-G05 §5.3 (docs/v0.4.1.md §5.3): slot indices whose participant has
-   * already been placed on the game board. Their theme ring and avatar dim out;
-   * the sequence badge, the clue and the frame stay untouched. Only the game
-   * page passes this — the editor and the work preview are unaffected.
+   * SPEC-H14 (docs/v0.4.2.md §1.3): slot indices whose participant has already
+   * been placed on the game board. The **whole card** dims — frame, avatar,
+   * sequence badge, clue, everything — so the roster reads as "these are off
+   * the table". One `opacity` on the card root; no child carries its own.
+   * Only the game page passes this — the editor and the work preview are
+   * unaffected (and the editor has no board to derive it from).
    */
   placedSlotIndices?: Set<number>;
   onSelect?: (slotIndex: number | null) => void;
@@ -235,7 +237,7 @@ export function ParticipantPanel({
               const isActive = activeSlotIndex === index;
               const isHighlighted = highlightedSlots?.has(index) ?? false;
               const highlightColor = highlightColors?.get(index);
-              /** SPEC-G05 §5.3: already on the game board → dim the avatar. */
+              /** SPEC-H14 §1.3: already on the game board → the whole card dims. */
               const isPlaced = placedSlotIndices?.has(index) ?? false;
               /**
                * FIX-E04: the slot draws **one** outline. A referenced slot uses
@@ -261,6 +263,10 @@ export function ParticipantPanel({
                     height: PANEL_CELL_HEIGHT + CLUE_AREA_HEIGHT,
                     // FIX-E04: the slot's single highlight frame.
                     ...focusRingStyle,
+                    // SPEC-H14 §1.3: placed → the **whole** card dims (frame +
+                    // badge + avatar + clue). One opacity, on the root only, so
+                    // nothing multiplies down to 0.45 × 0.45.
+                    opacity: isPlaced ? GAME_PLACED_OPACITY : undefined,
                   }}
                   onPointerDown={(event) => {
                     if (readOnly) return;
@@ -383,9 +389,17 @@ export function ParticipantPanel({
                     style={{ height: PANEL_CELL_HEIGHT, padding: AVATAR_PADDING }}
                   >
                     {slot ? (
+                      /*
+                       * OPT-H06 §6.2 (docs/v0.4.2.md §6): exactly **one** circle.
+                       * This span is the theme-colour disc and the only clip
+                       * (`overflow-hidden rounded-full`); the thumbnail fills it
+                       * and draws neither a ring nor its own round frame, so a
+                       * character without artwork shows its first character
+                       * instead of a white inner disc.
+                       */
                       <span
                         data-testid={`slot-avatar-${index}`}
-                        className="flex items-center justify-center rounded-full"
+                        className="flex items-center justify-center overflow-hidden rounded-full"
                         style={{
                           width: avatarSize,
                           height: avatarSize,
@@ -395,16 +409,17 @@ export function ParticipantPanel({
                           // the avatar no longer draws a second ring.
                           transform: isHighlighted ? 'scale(1.08)' : undefined,
                           transition: 'transform 150ms linear',
-                          // SPEC-G05 §5.3: placed → the ring and the avatar fade.
-                          opacity: isPlaced ? GAME_PLACED_OPACITY : undefined,
-                          // MOD-703: white theme → 1px light grey border
+                          // MOD-703: a white theme needs its 1 px grey edge, the
+                          // only stroke the spec allows, on this disc alone.
                           border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',
                         }}
                       >
                         {character ? (
                           <CharacterThumbnail
                             character={character}
-                            className="h-[80%] w-[80%] rounded-full"
+                            shape="plain"
+                            bordered={false}
+                            className="h-full w-full text-2xl"
                           />
                         ) : (
                           <span className="text-[10px] text-muted-foreground">

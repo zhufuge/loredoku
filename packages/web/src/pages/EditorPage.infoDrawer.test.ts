@@ -76,3 +76,71 @@ describe('EditorPage (BUG-G01)', () => {
     expect(pageSource).not.toContain('open={infoOpen && editor.selectedSlotIndex === null}');
   });
 });
+
+/**
+ * OPT-H10（docs/v0.4.2.md §10）：方格信息里的区域信息改成**只读卡片**。
+ *
+ * 三个按钮（编辑 / 定位 / 删除）在方格上下文里是冗余的 —— 「编辑」「删除」在左侧
+ * 「区域」标签的列表里已有，「定位」在「我点的是格子」这个语境下语义不明。
+ * 选中区域本身（区域分支）时它们仍然可用。
+ */
+const drawerSource =
+  ((import.meta.glob('../components/editor/EditorInfoDrawer.tsx', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>)['../components/editor/EditorInfoDrawer.tsx'] ?? '').replace(
+    /\r\n/g,
+    '\n',
+  );
+
+describe('EditorInfoDrawer 方格分支的区域信息（OPT-H10 §10.2）', () => {
+  it('makes the region actions an optional argument of the shared section', () => {
+    expect(drawerSource).toContain('actions?: RegionActionHandlers;');
+    expect(drawerSource).toContain('{actions ? <RegionActions region={region} actions={actions} /> : null}');
+    expect(drawerSource).toContain('interface RegionActionHandlers {');
+  });
+
+  it('the cell branch renders the region as read-only context', () => {
+    const cellBranch = drawerSource.slice(
+      drawerSource.indexOf('function CellBranch({'),
+      drawerSource.indexOf('function CharacterProfile('),
+    );
+    expect(cellBranch).toContain('<RegionSection region={region} />');
+    expect(cellBranch).not.toContain('actions=');
+    expect(cellBranch).not.toContain('RegionActions');
+    // 清空本格 / 清空物件层 不变的既有快捷操作。
+    expect(cellBranch).toContain('清空本格');
+    expect(cellBranch).toContain('清空物件层');
+  });
+
+  it('the region branch keeps 编辑 / 定位 / 删除', () => {
+    const regionBranch = drawerSource.slice(
+      drawerSource.indexOf(') : selection.type === \'cell\' ? ('),
+      drawerSource.indexOf('</div>\n        </div>\n      </aside>'),
+    );
+    expect(regionBranch).toContain('onEdit: onEditRegion,');
+    expect(regionBranch).toContain('onDelete: onDeleteRegion,');
+    expect(regionBranch).toContain('onLocate: onLocateRegion,');
+    // 三个按钮本体仍然存在（只是方格分支不渲染它们）。
+    expect(drawerSource).toContain('onClick={() => actions.onEdit(region)}');
+    expect(drawerSource).toContain('onClick={() => actions.onLocate(region)}');
+    expect(drawerSource).toContain('onClick={() => actions.onDelete(region)}');
+  });
+
+  it('re-lays the block: bordered card, 包含 N 格 badge, one-line attributes', () => {
+    const info = drawerSource.slice(
+      drawerSource.indexOf('function RegionInfo('),
+      drawerSource.indexOf('interface RegionActionHandlers'),
+    );
+    expect(info).toContain('rounded-md border bg-muted/30 px-3 py-2');
+    expect(info).toContain('包含 {region.cells.length} 格');
+    expect(info).toContain('<dt>边界线宽</dt>');
+    expect(info).toContain('<dt>填充</dt>');
+    // 填充按百分比渲染，而不是裸的 0~1 小数。
+    expect(info).toContain('Math.round(region.fillOpacity * 100)');
+    // 完整 region id 退到 title，不再挤占区域名称。
+    expect(info).toContain('title={`区域 ID：${regionId}`}');
+    expect(info).not.toMatch(/font-mono[^`]*\{region\.id\}/);
+  });
+});

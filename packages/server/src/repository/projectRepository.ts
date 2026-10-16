@@ -176,6 +176,23 @@ export async function deleteProject(id: number): Promise<boolean> {
   return affected > 0;
 }
 
+/**
+ * FEAT-H03 §3.2(c) (docs/v0.4.2.md §3): the only writer of `cover_path`. `null`
+ * clears the cover (the `DELETE` route); a path stores the freshly processed
+ * image. Map covers keep no mime/size metadata — the column was created before
+ * that idea existed, and the card only needs the URL.
+ */
+export async function updateCoverPath(
+  id: number,
+  path: string | null,
+): Promise<ProjectRow | undefined> {
+  const [row] = (await db<ProjectRow>('map_projects')
+    .where({ id })
+    .update({ cover_path: path, updated_at: db.fn.now() })
+    .returning('*')) as ProjectRow[];
+  return row;
+}
+
 export async function duplicateProject(
   sourceId: number,
   newName: string,

@@ -6,6 +6,8 @@ interface EditorToolbarProps {
   projectName: string;
   dirty: boolean;
   saving: boolean;
+  /** FEAT-H05(c) (docs/v0.4.2.md §5.4): the publish request is in flight. */
+  publishing: boolean;
   status: ProjectStatus;
   currentVersionNo: number | null;
   /** v0.3.8 FEAT-D01: toggles the 「地图基本信息」drawer. */
@@ -23,6 +25,7 @@ export function EditorToolbar({
   projectName,
   dirty,
   saving,
+  publishing,
   status,
   currentVersionNo,
   mapInfoOpen,
@@ -42,7 +45,7 @@ export function EditorToolbar({
           size="icon"
           onClick={onBack}
           disabled={saving}
-          title="返回项目列表"
+          title="返回地图列表"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -54,9 +57,20 @@ export function EditorToolbar({
             {status === 'published' ? `已发布 v${currentVersionNo ?? ''}` : '草稿'}
           </span>
           {dirty ? (
-            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700">
+            /*
+             * FEAT-H05(c) §5.4: the amber badge is both the standing indicator
+             * and a shortcut — clicking it saves, which is the one action the
+             * badge implies.
+             */
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={saving}
+              title="有未保存的修改，点击立即保存"
+              className="cursor-pointer rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 disabled:cursor-not-allowed"
+            >
               未保存
-            </span>
+            </button>
           ) : null}
         </div>
       </div>
@@ -91,7 +105,12 @@ export function EditorToolbar({
 
         <div className="mx-1 h-5 w-px bg-border" />
 
-        <Button variant="outline" size="sm" onClick={onSave} disabled={saving || !dirty}>
+        {/*
+         * FEAT-H05(c) §5.4（用户裁定）：保存与发布**不合并**。保存是这一屏的主
+         * 动作（实心 primary），发布退为描边次按钮 —— 它不再承担「能不能发」的
+         * 判断（那由确认弹窗按 dirty 分形态处理），所以**不再因 dirty 置灰**。
+         */}
+        <Button size="sm" onClick={onSave} disabled={saving || !dirty}>
           {saving ? (
             <Loader2 className="mr-1 h-4 w-4 animate-spin" />
           ) : (
@@ -99,9 +118,13 @@ export function EditorToolbar({
           )}
           {saving ? '保存中…' : '保存'}
         </Button>
-        <Button size="sm" onClick={onPublish} disabled={saving || dirty}>
-          <Send className="mr-1 h-4 w-4" />
-          发布
+        <Button variant="outline" size="sm" onClick={onPublish} disabled={saving || publishing}>
+          {publishing ? (
+            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+          ) : (
+            <Send className="mr-1 h-4 w-4" />
+          )}
+          {publishing ? '发布中…' : '发布'}
         </Button>
       </div>
     </header>

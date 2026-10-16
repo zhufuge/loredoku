@@ -603,6 +603,15 @@ export const GAME_NAME_MAX_LENGTH = 100;
 export const GAME_COVER_MAX_DIMENSION = 960;
 
 /**
+ * FEAT-H03 / OPT-H04 (docs/v0.4.2.md §3 / §4): a map's cover artwork uses the
+ * same 16:10 frame as a game cover, so the grid card, the list thumbnail and
+ * the dialog preview all agree on one ratio.
+ */
+export const MAP_COVER_ASPECT = 16 / 10;
+/** FEAT-H03: stored map covers are capped like game covers. */
+export const MAP_COVER_MAX_DIMENSION = 960;
+
+/**
  * SPEC-G01: a cell is divided into a 3×3 grid for participant numbers, so at
  * most nine of them fit. The number font is `cellSize / 4`.
  */

@@ -109,11 +109,11 @@ export function ProjectsPage(): JSX.Element {
       return (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {keyword ? '没有匹配的项目' : '还没有项目，创建一个开始吧'}
+            {keyword ? '没有匹配的地图' : '还没有地图，创建一个开始吧'}
           </p>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
-            新建项目
+            新建地图
           </Button>
         </Card>
       );
@@ -161,7 +161,7 @@ export function ProjectsPage(): JSX.Element {
         </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 h-4 w-4" />
-          新建项目
+          新建地图
         </Button>
       </div>
 
@@ -171,7 +171,7 @@ export function ProjectsPage(): JSX.Element {
           <Input
             value={keywordInput}
             onChange={(event) => setKeywordInput(event.target.value)}
-            placeholder="搜索项目名称"
+            placeholder="搜索地图名称"
             className="pl-9"
           />
         </div>
@@ -249,7 +249,7 @@ export function ProjectsPage(): JSX.Element {
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>删除项目「{deleteTarget?.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>删除地图「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
               将同时删除画布上的所有卡片与区域，不可恢复。
             </AlertDialogDescription>

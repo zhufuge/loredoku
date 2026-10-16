@@ -23,59 +23,71 @@ interface EditorInfoDrawerProps {
   onLocateRegion: (region: DraftRegion) => void;
 }
 
+// OPT-H10: a single compact bordered block replaces the two-column `dl` —
+// the region id moves into the `title` attribute so a uuid can no longer
+// squeeze the region name out of the row.
 function RegionInfo({ region }: { region: DraftRegion }): JSX.Element {
+  const regionId = String(region.id);
   return (
-    <>
+    <div className="rounded-md border bg-muted/30 px-3 py-2" title={`区域 ID：${regionId}`}>
       <div className="flex items-center gap-2">
         <span
-          className="h-3 w-3 rounded-full border"
+          className="h-3 w-3 shrink-0 rounded-full border"
           style={{ backgroundColor: region.color, borderColor: region.color }}
         />
-        <span className="truncate text-sm">{region.name}</span>
-        <span className="ml-auto font-mono text-[10px] text-muted-foreground">{region.id}</span>
+        <span className="truncate text-sm" title={region.name}>
+          {region.name}
+        </span>
+        <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+          包含 {region.cells.length} 格
+        </span>
       </div>
-      <dl className="grid grid-cols-2 gap-x-2 gap-y-1 text-[11px] text-muted-foreground">
-        <div className="flex justify-between">
+      <dl className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-1">
           <dt>边界线宽</dt>
           <dd className="text-foreground">{region.borderWidth}</dd>
         </div>
-        <div className="flex justify-between">
-          <dt>填充透明度</dt>
-          <dd className="text-foreground">{region.fillOpacity}</dd>
-        </div>
-        <div className="flex justify-between">
-          <dt>包含格子数</dt>
-          <dd className="text-foreground">{region.cells.length}</dd>
+        <span aria-hidden="true">·</span>
+        <div className="flex items-center gap-1">
+          <dt>填充</dt>
+          <dd className="text-foreground">{Math.round(region.fillOpacity * 100)}%</dd>
         </div>
       </dl>
-    </>
+    </div>
   );
+}
+
+/**
+ * OPT-H10: the region's secondary actions travel as one optional object. The
+ * cell branch omits it entirely (the region is read-only context there), the
+ * region branch passes it, so the two branches share a single layout.
+ */
+interface RegionActionHandlers {
+  onEdit: (region: DraftRegion) => void;
+  onDelete: (region: DraftRegion) => void;
+  onLocate: (region: DraftRegion) => void;
 }
 
 function RegionActions({
   region,
-  onEditRegion,
-  onDeleteRegion,
-  onLocateRegion,
+  actions,
 }: {
   region: DraftRegion;
-  onEditRegion: (region: DraftRegion) => void;
-  onDeleteRegion: (region: DraftRegion) => void;
-  onLocateRegion: (region: DraftRegion) => void;
+  actions: RegionActionHandlers;
 }): JSX.Element {
   return (
     <div className="flex gap-1">
-      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => onEditRegion(region)}>
+      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => actions.onEdit(region)}>
         编辑
       </Button>
-      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => onLocateRegion(region)}>
+      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => actions.onLocate(region)}>
         定位
       </Button>
       <Button
         size="sm"
         variant="outline"
         className="h-7 flex-1 text-[11px] text-destructive hover:text-destructive"
-        onClick={() => onDeleteRegion(region)}
+        onClick={() => actions.onDelete(region)}
       >
         删除
       </Button>
@@ -85,14 +97,11 @@ function RegionActions({
 
 function RegionSection({
   region,
-  onEditRegion,
-  onDeleteRegion,
-  onLocateRegion,
+  actions,
 }: {
   region: DraftRegion | undefined;
-  onEditRegion: (region: DraftRegion) => void;
-  onDeleteRegion: (region: DraftRegion) => void;
-  onLocateRegion: (region: DraftRegion) => void;
+  /** Omitted by the cell branch → no 编辑 / 定位 / 删除 buttons. */
+  actions?: RegionActionHandlers;
 }): JSX.Element {
   return (
     <section className="space-y-2">
@@ -100,12 +109,7 @@ function RegionSection({
       {region ? (
         <>
           <RegionInfo region={region} />
-          <RegionActions
-            region={region}
-            onEditRegion={onEditRegion}
-            onDeleteRegion={onDeleteRegion}
-            onLocateRegion={onLocateRegion}
-          />
+          {actions ? <RegionActions region={region} actions={actions} /> : null}
         </>
       ) : (
         <p className="text-sm text-muted-foreground">无</p>
@@ -121,9 +125,6 @@ function CellBranch({
   itemsById,
   onClearCell,
   onClearObject,
-  onEditRegion,
-  onDeleteRegion,
-  onLocateRegion,
 }: {
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
@@ -131,9 +132,6 @@ function CellBranch({
   itemsById: Map<number, Item>;
   onClearCell: (x: number, y: number) => void;
   onClearObject: (x: number, y: number) => void;
-  onEditRegion: (region: DraftRegion) => void;
-  onDeleteRegion: (region: DraftRegion) => void;
-  onLocateRegion: (region: DraftRegion) => void;
 }): JSX.Element {
   const backgroundItem =
     cell?.background?.itemId !== undefined ? itemsById.get(cell.background.itemId) : undefined;
@@ -178,12 +176,7 @@ function CellBranch({
         )}
       </section>
 
-      <RegionSection
-        region={region}
-        onEditRegion={onEditRegion}
-        onDeleteRegion={onDeleteRegion}
-        onLocateRegion={onLocateRegion}
-      />
+      <RegionSection region={region} />
 
       <section className="space-y-2">
         <h3 className="text-xs font-medium text-muted-foreground">快捷操作</h3>
@@ -320,16 +313,15 @@ export function EditorInfoDrawer({
                 itemsById={itemsById}
                 onClearCell={onClearCell}
                 onClearObject={onClearObject}
-                onEditRegion={onEditRegion}
-                onDeleteRegion={onDeleteRegion}
-                onLocateRegion={onLocateRegion}
               />
             ) : (
               <RegionSection
                 region={region}
-                onEditRegion={onEditRegion}
-                onDeleteRegion={onDeleteRegion}
-                onLocateRegion={onLocateRegion}
+                actions={{
+                  onEdit: onEditRegion,
+                  onDelete: onDeleteRegion,
+                  onLocate: onLocateRegion,
+                }}
               />
             )}
           </div>

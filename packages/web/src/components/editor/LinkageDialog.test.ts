@@ -146,3 +146,28 @@ describe('buildLinkages (MOD-801 multi-object expansion)', () => {
     expect(linkage).toMatchObject({ type: 'cell', cells: [[1, 1]] });
   });
 });
+
+/**
+ * OPT-H07（docs/v0.4.2.md §7.2）：效果固定为「高亮」，所以「效果与颜色」这一区块
+ * 只保留颜色 → 标题改成「颜色」，且不再出现「效果」字样（徽标 / 说明都删掉）。
+ */
+describe('LinkageDialog — colour-only block (OPT-H07 §7.2)', () => {
+  const source =
+    ((
+      import.meta.glob('./LinkageDialog.tsx', {
+        query: '?raw',
+        import: 'default',
+        eager: true,
+      }) as Record<string, string>
+    )['./LinkageDialog.tsx'] ?? '').replace(/\r\n/g, '\n');
+
+  it('titles the block 颜色 and drops every 「效果」 mention', () => {
+    expect(source).toContain('>颜色</span>');
+    expect(source).not.toContain('效果');
+    expect(source).not.toContain('效果与颜色');
+  });
+
+  it('keeps the colour dots rendered from the map palette', () => {
+    expect(source).toContain('linkageColors');
+  });
+});

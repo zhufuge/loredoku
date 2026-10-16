@@ -73,11 +73,11 @@ function assertNoRegionOverlap(regions: DraftRegion[]): void {
 export async function getMap(projectId: number): Promise<MapResponse> {
   const row = await mapRepo.getProjectRow(projectId);
   if (!row) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   const record = await mapRepo.getDraft(projectId);
   if (!record) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return { project: toProject(row), draft: record.draft, updatedAt: record.updatedAt };
 }
@@ -85,7 +85,7 @@ export async function getMap(projectId: number): Promise<MapResponse> {
 export async function saveMap(projectId: number, input: SaveMapDraftInput): Promise<MapResponse> {
   const row = await mapRepo.getProjectRow(projectId);
   if (!row) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
 
   const draft: MapDraft = { ...input.data, gridSize: row.grid_size };
@@ -94,7 +94,7 @@ export async function saveMap(projectId: number, input: SaveMapDraftInput): Prom
 
   const saved = await mapRepo.saveDraft(projectId, input.updatedAt ?? null, draft);
   if (saved === undefined) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   if (saved === null) {
     throw new AppError(ErrorCode.DRAFT_CONFLICT, '草稿已被其他会话修改，请刷新后重试');
@@ -106,7 +106,7 @@ export async function saveMap(projectId: number, input: SaveMapDraftInput): Prom
 export async function updateGridSize(projectId: number, gridSize: number): Promise<ResizeResult> {
   const outcome = await mapRepo.resizeDraft(projectId, gridSize);
   if (!outcome) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return { gridSize: outcome.record.draft.gridSize, removed: outcome.removed };
 }
@@ -114,7 +114,7 @@ export async function updateGridSize(projectId: number, gridSize: number): Promi
 export async function exportMap(projectId: number): Promise<MapDraft> {
   const record = await mapRepo.getDraft(projectId);
   if (!record) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return record.draft;
 }
@@ -122,13 +122,13 @@ export async function exportMap(projectId: number): Promise<MapDraft> {
 export async function importMap(projectId: number, data: MapDraft): Promise<MapResponse> {
   const row = await mapRepo.getProjectRow(projectId);
   if (!row) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   await assertValidReferences(data, data.gridSize);
   assertNoRegionOverlap(data.regions);
   const saved = await mapRepo.overwriteDraft(projectId, data);
   if (!saved) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return { project: toProject(row), draft: saved.draft, updatedAt: saved.updatedAt };
 }
@@ -136,7 +136,7 @@ export async function importMap(projectId: number, data: MapDraft): Promise<MapR
 export async function listRegions(projectId: number): Promise<DraftRegion[]> {
   const row = await mapRepo.getProjectRow(projectId);
   if (!row) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return mapRepo.listRegions(projectId);
 }
@@ -147,7 +147,7 @@ export async function createRegion(
 ): Promise<DraftRegion> {
   const row = await mapRepo.getProjectRow(projectId);
   if (!row) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   for (const [x, y] of input.cells) {
     if (x < 0 || y < 0 || x >= row.grid_size || y >= row.grid_size) {
@@ -158,7 +158,7 @@ export async function createRegion(
   assertNoRegionOverlap([...existing, { ...input, id: input.id ?? '__new__' }]);
   const created = await mapRepo.createRegion(projectId, input);
   if (!created) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return created;
 }
@@ -170,7 +170,7 @@ export async function updateRegion(
 ): Promise<DraftRegion> {
   const row = await mapRepo.getProjectRow(projectId);
   if (!row) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   const region = await mapRepo.findRegion(projectId, regionId);
   if (!region) {

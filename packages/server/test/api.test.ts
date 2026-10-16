@@ -10,6 +10,7 @@ const createdItems: number[] = [];
 const createdCharacters: number[] = [];
 const uploadedAvatarDirs: string[] = [];
 const uploadedGameCoverDirs: string[] = [];
+const uploadedProjectCoverDirs: string[] = [];
 
 function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
@@ -122,6 +123,77 @@ describe('projects API', () => {
     const missing = await api.get(`/api/projects/${id}`);
     expect(missing.status).toBe(404);
     expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  /**
+   * FEAT-H03（docs/v0.4.2.md §3.2c）：封面是二进制，走自己的 `POST` / `DELETE`。
+   * `cover_path` 是唯一真相，`coverUrl` 由它拼出来（`buildFileUrl`），所以换端口
+   * 时必须同步 `PUBLIC_BASE_URL` —— 这里顺带验证 URL 真的能取到文件。
+   */
+  it('uploads a cover, serves it, then clears it (FEAT-H03)', async () => {
+    const id = await createProject({ name: `Cover ${uniqueCode('p')}` });
+    uploadedProjectCoverDirs.push(resolveUploadPath(`projects/${id}`));
+
+    const before = await api.get(`/api/projects/${id}`);
+    expect(before.body.data.coverPath).toBeNull();
+    expect(before.body.data.coverUrl).toBeNull();
+
+    const uploaded = await api
+      .post(`/api/projects/${id}/cover`)
+      .attach('file', TINY_PNG, 'cover.png');
+    expect(uploaded.status).toBe(200);
+    expect(uploaded.body.code).toBe(ErrorCode.OK);
+    expect(typeof uploaded.body.data.coverPath).toBe('string');
+    expect(uploaded.body.data.coverPath).toContain(`projects/${id}/`);
+    expect(typeof uploaded.body.data.coverUrl).toBe('string');
+
+    // The URL the client gets is actually fetchable.
+    const url = new URL(uploaded.body.data.coverUrl as string);
+    const served = await api.get(`${url.pathname}${url.search}`);
+    expect(served.status).toBe(200);
+
+    const cleared = await api.delete(`/api/projects/${id}/cover`);
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.data.coverPath).toBeNull();
+    expect(cleared.body.data.coverUrl).toBeNull();
+  });
+
+  it('copies the cover reference when a map is duplicated (FEAT-H03 §3.2)', async () => {
+    const id = await createProject({ name: `Cover dup ${uniqueCode('p')}` });
+    uploadedProjectCoverDirs.push(resolveUploadPath(`projects/${id}`));
+    const uploaded = await api
+      .post(`/api/projects/${id}/cover`)
+      .attach('file', TINY_PNG, 'cover.png');
+    expect(uploaded.status).toBe(200);
+
+    const dup = await api.post(`/api/projects/${id}/duplicate`);
+    expect(dup.status).toBe(200);
+    createdProjects.push(dup.body.data.id as number);
+    expect(dup.body.data.coverPath).toBe(uploaded.body.data.coverPath);
+    expect(dup.body.data.coverUrl).toBe(uploaded.body.data.coverUrl);
+  });
+
+  it('rejects a non-image cover and leaves cover_path untouched (FEAT-H03 §3.2c)', async () => {
+    const id = await createProject({ name: `Cover bad ${uniqueCode('p')}` });
+    const res = await api
+      .post(`/api/projects/${id}/cover`)
+      .attach('file', Buffer.from('definitely not an image'), 'notes.txt');
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.body.code).toBe(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+
+    const detail = await api.get(`/api/projects/${id}`);
+    expect(detail.body.data.coverPath).toBeNull();
+    expect(detail.body.data.coverUrl).toBeNull();
+  });
+
+  it('asks for a file when the cover request has none (FEAT-H03)', async () => {
+    const id = await createProject({ name: `Cover none ${uniqueCode('p')}` });
+    const res = await api.post(`/api/projects/${id}/cover`);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+
+    const detail = await api.get(`/api/projects/${id}`);
+    expect(detail.body.data.coverPath).toBeNull();
   });
 });
 
@@ -812,6 +884,9 @@ afterAll(async () => {
     await rm(dir, { recursive: true, force: true });
   }
   for (const dir of uploadedGameCoverDirs) {
+    await rm(dir, { recursive: true, force: true });
+  }
+  for (const dir of uploadedProjectCoverDirs) {
     await rm(dir, { recursive: true, force: true });
   }
 });

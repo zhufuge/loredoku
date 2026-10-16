@@ -13,11 +13,16 @@ export const gridSizeSchema = z
   .min(GRID_SIZE_MIN, `画布尺寸不能小于 ${GRID_SIZE_MIN}`)
   .max(GRID_SIZE_MAX, `画布尺寸不能大于 ${GRID_SIZE_MAX}`);
 
+/**
+ * OPT-H02 (docs/v0.4.2.md §2): identifiers stay `project*` (table, routes, types)
+ * but every **user-visible** string says 「地图」 — these messages surface in the
+ * web toast, so they are part of the rename.
+ */
 export const projectNameSchema = z
   .string()
   .trim()
-  .min(1, '项目名称必填')
-  .max(PROJECT_NAME_MAX_LENGTH, `项目名称不能超过 ${PROJECT_NAME_MAX_LENGTH} 字`);
+  .min(1, '地图名称必填')
+  .max(PROJECT_NAME_MAX_LENGTH, `地图名称不能超过 ${PROJECT_NAME_MAX_LENGTH} 字`);
 
 export const projectDescriptionSchema = z
   .string()

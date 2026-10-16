@@ -47,3 +47,19 @@ export async function duplicate(ctx: Context): Promise<void> {
   const project = await projectService.duplicateProject(id);
   success(ctx, project, '复制成功');
 }
+
+/** FEAT-H03 §3.2(c): multipart cover write for a map (`POST /:id/cover`). */
+export async function uploadCover(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw projectService.coverRequired();
+  }
+  success(ctx, await projectService.uploadCover(id, file.buffer), '封面上传成功');
+}
+
+/** FEAT-H03 §3.2(c): explicit cover removal (`DELETE /:id/cover`). */
+export async function removeCover(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  success(ctx, await projectService.removeCover(id), '封面已移除');
+}

@@ -206,7 +206,7 @@ export function CharactersPage(): JSX.Element {
             <AlertDialogTitle>彻底删除角色「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
               {usages && usages.length > 0
-                ? `该角色正被 ${usages.length} 个项目使用（${usages
+                ? `该角色正被 ${usages.length} 张地图使用（${usages
                     .map((usage) => usage.projectName)
                     .join('、')}）。删除将从数据库移除该角色，并从草稿中移除其放置与槽位。`
                 : '删除后记录将从数据库中移除，且无法恢复。'}

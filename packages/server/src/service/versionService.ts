@@ -210,7 +210,7 @@ export async function publishProject(
 ): Promise<MapVersionSummary> {
   const record = await mapRepo.getDraft(projectId);
   if (!record) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
 
   const violations = await validateDraft(record.draft);
@@ -231,7 +231,7 @@ export async function publishProject(
 export async function listVersions(projectId: number): Promise<MapVersionSummary[]> {
   const project = await mapRepo.getProjectRow(projectId);
   if (!project) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return versionRepo.listVersions(projectId);
 }
@@ -284,7 +284,7 @@ export async function createDraftFromVersion(
   }
   const saved = await mapRepo.overwriteDraft(projectId, row.data);
   if (!saved) {
-    throw AppError.notFound('项目不存在');
+    throw AppError.notFound('地图不存在');
   }
   return saved;
 }

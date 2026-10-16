@@ -14,7 +14,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        // DEV-H12: `npm run dev -s 4000` 会注入 VITE_PROXY_TARGET，
+        // 让前端把 /api 打到同一个后端端口；不设时行为与 v0.4.1 一致。
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:3000',
         changeOrigin: true,
       },
     },

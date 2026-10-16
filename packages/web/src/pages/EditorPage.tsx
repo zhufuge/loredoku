@@ -14,6 +14,7 @@ import {
   type Item,
   type MapDraft,
   type MapStyle,
+  type MapVersionSummary,
   type ParticipantTarget,
   type PublishViolation,
   type RegionShape,
@@ -31,6 +32,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -627,16 +629,50 @@ export function EditorPage(): JSX.Element {
     return { items, regions };
   }, [resizeOpen, resizeValue, editor.cells, editor.regions, itemsById]);
 
-  const publish = (): void => {
-    if (editor.dirty || publishMutation.isPending) return;
-    publishMutation.mutate(
-      {},
-      {
-        onSuccess: (result) => {
-          if (!result.ok) setViolations(result.violations ?? []);
+  /**
+   * FEAT-H05 (docs/v0.4.2.md §5): publishing is a **two-dialog** flow now — a
+   * confirm step (which also owns "should we save first?") and a success step
+   * (which owns "what next?"). The toolbar button only opens the first one.
+   */
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [publishNotes, setPublishNotes] = useState('');
+  const [publishedVersion, setPublishedVersion] = useState<MapVersionSummary | null>(null);
+
+  /** §5.2: the version about to be created, for the dialog's own wording. */
+  const nextVersionNo = (editor.currentVersionNo ?? 0) + 1;
+
+  const openPublishConfirm = (): void => {
+    if (publishMutation.isPending || saveMutation.isPending) return;
+    setPublishNotes('');
+    setPublishOpen(true);
+  };
+
+  /**
+   * §5.2 / §5.4: `确认发布`, or `保存并发布` when the canvas is dirty — serial, and
+   * a failed save aborts the publish. The dialog stays open while the request
+   * flies (the button reads 「发布中…」), and closes on the outcome: success →
+   * the success dialog, a validation failure → the existing 「无法发布」 list.
+   */
+  const confirmPublish = (): void => {
+    if (publishMutation.isPending) return;
+    void (async () => {
+      if (editor.dirty && !(await persist())) return;
+      const notes = publishNotes.trim();
+      publishMutation.mutate(
+        { notes: notes.length > 0 ? notes : undefined },
+        {
+          onSuccess: (result) => {
+            setPublishOpen(false);
+            if (!result.ok) {
+              setViolations(result.violations ?? []);
+              return;
+            }
+            setPublishedVersion(result.version ?? null);
+          },
+          onError: () => setPublishOpen(false),
         },
-      },
-    );
+      );
+    })();
   };
 
   const previewCellSize = Math.max(3, Math.floor(180 / editor.gridSize));
@@ -790,9 +826,9 @@ export function EditorPage(): JSX.Element {
   if (!Number.isFinite(id) || mapQuery.isError) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-sm text-muted-foreground">项目不存在或加载失败。</p>
+        <p className="text-sm text-muted-foreground">地图不存在或加载失败。</p>
         <Button variant="outline" onClick={() => navigate('/projects')}>
-          返回项目列表
+          返回地图列表
         </Button>
       </div>
     );
@@ -831,11 +867,12 @@ export function EditorPage(): JSX.Element {
         projectName={project.name}
         dirty={editor.dirty}
         saving={saveMutation.isPending}
+        publishing={publishMutation.isPending}
         status={editor.status}
         currentVersionNo={editor.currentVersionNo}
         onBack={() => navigate('/projects')}
         onSave={save}
-        onPublish={publish}
+        onPublish={openPublishConfirm}
         onOpenVersions={() => setVersionsOpen(true)}
         mapInfoOpen={mapInfoOpen}
         onOpenMapInfo={() => {
@@ -1328,6 +1365,96 @@ export function EditorPage(): JSX.Element {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* FEAT-H05 §5.2: 发布前确认（含备注；dirty 时分形态为「保存并发布」） */}
+      <AlertDialog
+        open={publishOpen}
+        onOpenChange={(open) => {
+          if (!open && !publishMutation.isPending) setPublishOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>发布当前地图？</AlertDialogTitle>
+            <AlertDialogDescription>
+              发布会把当前画布内容存为一个新的作品版本（v{nextVersionNo}），
+              之后玩家可在作品页查看与预览。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="grid gap-2">
+            <label className="text-sm" htmlFor="publish-notes">
+              发布备注（可选）
+            </label>
+            <Input
+              id="publish-notes"
+              value={publishNotes}
+              placeholder="例如：修正了区域边界"
+              disabled={publishMutation.isPending}
+              onChange={(event) => setPublishNotes(event.target.value)}
+            />
+          </div>
+          {editor.dirty ? (
+            <p className="text-xs text-muted-foreground">有未保存的修改，将先保存再发布。</p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={publishMutation.isPending}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={publishMutation.isPending}
+              onClick={(event) => {
+                // Keep the dialog up while the request is in flight.
+                event.preventDefault();
+                confirmPublish();
+              }}
+            >
+              {publishMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  发布中…
+                </>
+              ) : editor.dirty ? (
+                '保存并发布'
+              ) : (
+                '确认发布'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* FEAT-H05 §5.3: 发布成功 → 立刻给出「预览」与「前往作品页」两个去处 */}
+      <Dialog
+        open={publishedVersion !== null}
+        onOpenChange={(open) => !open && setPublishedVersion(null)}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>已发布 v{publishedVersion?.versionNo ?? ''}</DialogTitle>
+            <DialogDescription>作品已生成，可直接预览或前往作品页管理。</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setPublishedVersion(null);
+                navigate('/works');
+              }}
+            >
+              前往作品页
+            </Button>
+            <Button
+              onClick={() => {
+                const version = publishedVersion;
+                setPublishedVersion(null);
+                if (version) {
+                  navigate(`/works/${version.id}/view?project=${id}&v=${version.versionNo}`);
+                }
+              }}
+            >
+              预览
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={violations !== null} onOpenChange={(open) => !open && setViolations(null)}>
         <AlertDialogContent>

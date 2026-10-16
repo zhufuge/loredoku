@@ -214,7 +214,7 @@ export function ItemsPage(): JSX.Element {
             <AlertDialogTitle>彻底删除物品「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
               {usages && usages.length > 0
-                ? `该物品正被 ${usages.length} 个项目使用（${usages
+                ? `该物品正被 ${usages.length} 张地图使用（${usages
                     .map((usage) => usage.projectName)
                     .join('、')}）。删除将从数据库移除该物品，并清除草稿中的引用。`
                 : '删除后记录将从数据库中移除，且无法恢复。'}

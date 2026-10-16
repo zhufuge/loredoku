@@ -1,9 +1,22 @@
-import { Copy, ImageIcon, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Pencil, Trash2 } from 'lucide-react';
 import type { ProjectDetail } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/format';
+import { formatRelativeTime } from '@/lib/relativeTime';
 
+/**
+ * FEAT-H03 + OPT-H04 (docs/v0.4.2.md §3.2d / §4.2b): the map card, rebuilt.
+ *
+ * - the cover is the card's **head**, fixed at 16:10, and clicking it opens the
+ *   editor; without artwork the name's first character stands in (the same
+ *   placeholder the game card uses)
+ * - 「卡片 N」/「区域 N」 are gone — the spec and the update time are all a
+ *   browsing author needs
+ * - an empty description collapses the line instead of printing 「暂无描述」
+ * - the update time is **relative** on the card (absolute on hover, and in the
+ *   list view), so "how fresh is this" is readable at a glance
+ */
 interface ProjectGridCardProps {
   project: ProjectDetail;
   onOpen: (project: ProjectDetail) => void;
@@ -19,41 +32,56 @@ export function ProjectGridCard({
   onDuplicate,
   onDelete,
 }: ProjectGridCardProps): JSX.Element {
+  const initial = project.name.trim().charAt(0) || '图';
+  const updatedAt = project.updatedAt;
+
   return (
-    <Card className="flex flex-col overflow-hidden">
+    <Card className="flex flex-col overflow-hidden transition-colors hover:border-primary">
       <button
         type="button"
         onClick={() => onOpen(project)}
-        className="flex h-36 items-center justify-center overflow-hidden border-b bg-muted/40 transition-colors hover:bg-muted"
+        className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden border-b bg-muted/40"
       >
         {project.coverUrl ? (
-          <img src={project.coverUrl} alt={project.name} className="h-full w-full object-cover" />
+          <img
+            src={project.coverUrl}
+            alt={project.name}
+            draggable={false}
+            className="h-full w-full object-cover"
+          />
         ) : (
-          <ImageIcon className="h-8 w-8 text-muted-foreground" />
+          <span className="flex h-full w-full items-center justify-center bg-secondary/40 text-4xl font-semibold text-muted-foreground/60">
+            {initial}
+          </span>
         )}
       </button>
       <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex-1">
+        <div className="flex-1 space-y-1">
           <h3 className="truncate font-medium" title={project.name}>
             {project.name}
           </h3>
-          <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-xs text-muted-foreground">
-            {project.description || '暂无描述'}
-          </p>
+          {project.description ? (
+            <p className="line-clamp-2 text-xs text-muted-foreground">{project.description}</p>
+          ) : null}
         </div>
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-          <span>
+        <p className="text-xs text-muted-foreground">
+          <span className="tabular-nums">
             {project.gridSize} × {project.gridSize}
           </span>
-          <span>卡片 {project.cardCount}</span>
-          <span>区域 {project.regionCount}</span>
-        </div>
-        <p className="text-xs text-muted-foreground">更新于 {formatDateTime(project.updatedAt)}</p>
+          <span className="px-1">·</span>
+          <span title={formatDateTime(updatedAt)}>{formatRelativeTime(updatedAt)}更新</span>
+        </p>
         <div className="flex items-center gap-1">
           <Button size="sm" variant="secondary" onClick={() => onOpen(project)}>
             编辑
           </Button>
-          <Button size="icon" variant="ghost" title="重命名" onClick={() => onRename(project)}>
+          <Button
+            size="icon"
+            variant="ghost"
+            title="编辑信息"
+            className="ml-auto"
+            onClick={() => onRename(project)}
+          >
             <Pencil className="h-4 w-4" />
           </Button>
           <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(project)}>
