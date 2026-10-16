@@ -6,6 +6,7 @@ import {
   GAME_DIFFICULTY_DEFAULT,
   GAME_DIFFICULTY_LABELS,
   GAME_DIFFICULTY_LEVELS,
+  GAME_DIFFICULTY_TEXT_COLORS,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
   buildDefaultSlug,
@@ -332,13 +333,15 @@ export function GameDeployDialog({
                   aria-pressed={difficulty === level}
                   onClick={() => setDifficulty(level)}
                   className={cn(
-                    'rounded-full px-3 py-1 text-xs font-medium text-white transition-opacity',
+                    // FEAT-O01: tint + dark label (was `text-white`).
+                    'rounded-full px-3 py-1 text-xs font-medium transition-opacity',
                     difficulty === level
                       ? 'ring-2 ring-offset-2 ring-offset-background'
                       : 'opacity-60 hover:opacity-90',
                   )}
                   style={{
                     backgroundColor: GAME_DIFFICULTY_COLORS[level],
+                    color: GAME_DIFFICULTY_TEXT_COLORS[level],
                     ...(difficulty === level
                       ? { boxShadow: `0 0 0 2px ${GAME_DIFFICULTY_COLORS[level]}` }
                       : {}),

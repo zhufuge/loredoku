@@ -52,8 +52,10 @@ describe('背景类型恒定可站立（FEAT-M04）', () => {
   it('the detail form only offers the checkbox for 物体', () => {
     expect(itemForm).toContain("const standable = category === 'object';");
     expect(itemForm).toContain('{standable ? (');
-    expect(itemForm).toContain('背景类型恒定可站立');
     expect(itemForm).toContain('canStand: canStandFor(category, canStand),');
+    // FIX-O08 (docs/v0.5.4.md §5.1): the caption is gone — the rule is still
+    // enforced by `canStandFor`, it just no longer explains itself.
+    expect(itemForm).not.toContain('背景类型恒定可站立');
   });
 
   it('the create dialog hides the checkbox for 背景 too', () => {

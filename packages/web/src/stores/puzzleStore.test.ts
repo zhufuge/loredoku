@@ -116,6 +116,26 @@ describe('init / read-only map context', () => {
     expect(genSlotArray(6)).toHaveLength(6);
     expect(genSlotArray(4, [null, { characterId: 1, themeColor: '#FFFFFF', clue: '', linkages: [] }])).toHaveLength(4);
   });
+
+  it('keeps the canvas view when the same puzzle is re-seeded (FIX-O18)', () => {
+    // docs/v0.5.4.md §7.5: a save writes the detail back through React Query,
+    // which used to re-run `init()` and throw the board to the top-left.
+    store().setPan({ x: 120, y: 80 });
+    store().setZoom(1.75);
+    store().init(detail({ description: '服务器上的新草稿' }), mapContext());
+    expect(store().zoom).toBe(1.75);
+    expect(store().pan).toEqual({ x: 120, y: 80 });
+    // …but the re-seed still happened: the foreign draft is in.
+    expect(store().description).toBe('服务器上的新草稿');
+  });
+
+  it('still starts centred when switching to another puzzle', () => {
+    store().setPan({ x: 120, y: 80 });
+    store().setZoom(1.75);
+    store().init({ ...detail(), id: 99 }, mapContext());
+    expect(store().zoom).toBe(1);
+    expect(store().pan).toEqual({ x: 0, y: 0 });
+  });
 });
 
 describe('mapContext helpers (Q16)', () => {

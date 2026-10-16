@@ -9,12 +9,21 @@ import { ThemeColorDialog } from './ThemeColorDialog';
  * 选色（15 色板 / 自定义 hex）在这里完成，且只把结果交回抽屉，自己绝不写 store。
  */
 
-const source =
+const raw =
   ((import.meta.glob('./ThemeColorDialog.tsx', {
     query: '?raw',
     import: 'default',
     eager: true,
   }) as Record<string, string>)['./ThemeColorDialog.tsx'] ?? '').replace(/\r\n/g, '\n');
+
+const source = raw;
+
+/** FIX-O15 asserts the **absence** of things, so comments must not count. */
+const code = raw
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('\n')
+  .filter((line) => !/^\s*\/\//.test(line))
+  .join('\n');
 
 describe('ThemeColorDialog — 源码契约（FEAT-H08 §8.2）', () => {
   it('is controlled: value in, onConfirm out, no store access', () => {
@@ -33,13 +42,21 @@ describe('ThemeColorDialog — 源码契约（FEAT-H08 §8.2）', () => {
   });
 
   it('offers the shared palette and a custom hex field with validation', () => {
-    // v0.5.3 FEAT-N09: the swatch grid moved into the shared `ColorPalette`,
-    // which is the same component the 联动主题色 rows now use.
+    // v0.5.3 FEAT-N09: the swatch grid moved into the shared `ColorPalette`.
     expect(source).toContain("from '@/components/ui/color-palette'");
     expect(source).toContain('<ColorPalette');
     expect(source).toContain('normalizeHexColor(hexDraft)');
     expect(source).toContain('aria-label="自定义主题色"');
-    expect(source).toContain('data-testid="theme-color-preview"');
+  });
+
+  it('puts the colour picker **before** the hex field, with no 应用 button', () => {
+    // FIX-O15 (docs/v0.5.4.md §7.2).
+    expect(code).toContain("from '@/components/ui/color-input'");
+    expect(code).toContain('<ColorInput');
+    // The picker replaces both the 应用 button and the trailing preview row.
+    expect(code.indexOf('<ColorInput')).toBeLessThan(code.indexOf('aria-label="自定义主题色"'));
+    expect(code).not.toContain('应用');
+    expect(code).not.toContain('theme-color-preview');
   });
 });
 
@@ -80,10 +97,13 @@ describe('ThemeColorDialog — 渲染行为（FEAT-H08）', () => {
     container.remove();
   });
 
-  it('shows the current colour as the live preview', () => {
+  it('shows the current colour in the picker and in the hex field', () => {
+    // FIX-O15: the picker *is* the preview now.
     render('#123456');
-    const preview = document.querySelector<HTMLElement>('[data-testid="theme-color-preview"]');
-    expect(preview?.style.backgroundColor).toBe('rgb(18, 52, 86)');
+    const picker = document.querySelector<HTMLInputElement>('input[type="color"]');
+    expect(picker?.value).toBe('#123456');
+    const hex = document.querySelector<HTMLInputElement>('input[aria-label="自定义主题色"]');
+    expect(hex?.value).toBe('#123456');
   });
 
   it('renders the whole palette', () => {

@@ -153,11 +153,22 @@ export function PuzzleEditorPage(): JSX.Element {
    * — and again only if the puzzle was re-fetched with a newer `updatedAt`.
    */
   const initKeyRef = useRef<string | null>(null);
+  /**
+   * FIX-O18 (docs/v0.5.4.md §7.5): the `updatedAt` this session's own 保存
+   * wrote back. `useSavePuzzle` seeds the detail query with the server's answer,
+   * so `detailQuery.data.updatedAt` changes on **every** save — which used to
+   * re-run `init()` and throw the board back to the top-left (and wipe the undo
+   * stack). A save is not a reason to re-seed; only a foreign write is.
+   */
+  const lastSavedAtRef = useRef<string | null>(null);
   useEffect(() => {
     if (!detailQuery.data || !mapQuery.data) return;
     const key = `${detailQuery.data.id}:${detailQuery.data.updatedAt ?? ''}`;
     if (initKeyRef.current === key) return;
     initKeyRef.current = key;
+    if (lastSavedAtRef.current !== null && detailQuery.data.updatedAt === lastSavedAtRef.current) {
+      return;
+    }
     puzzle.init(detailQuery.data, mapQuery.data);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [detailQuery.data, mapQuery.data]);
@@ -179,7 +190,11 @@ export function PuzzleEditorPage(): JSX.Element {
         id,
         payload: { data: puzzle.toDraft(), updatedAt: puzzle.updatedAt },
       });
-      puzzle.markSaved(data.updatedAt ?? new Date().toISOString());
+      const savedAt = data.updatedAt ?? new Date().toISOString();
+      // FIX-O18: remember it, so the detail this very save wrote back is not
+      // mistaken for somebody else's newer draft.
+      lastSavedAtRef.current = savedAt;
+      puzzle.markSaved(savedAt);
       return true;
     } catch {
       /* errors surfaced via mutation toasts */

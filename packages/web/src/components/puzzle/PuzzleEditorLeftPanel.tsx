@@ -127,9 +127,8 @@ export function PuzzleEditorLeftPanel({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">
         <div className="flex h-full flex-col gap-3 overflow-y-auto">
-          <p className="text-xs text-muted-foreground">
-            点击角色可选中；点击「加入」放入右侧参与者区，再从参与者区拖拽完成放置。
-          </p>
+          {/* FIX-O14 (docs/v0.5.4.md §7.1): the 「点击角色可选中…」 caption is
+              gone — the 「加入」 button and the drag handle explain themselves. */}
           {charactersLoading ? (
             <Skeleton className="h-24 w-full" />
           ) : charactersError ? (

@@ -5,6 +5,12 @@ interface BrandLogoProps {
   height?: number;
   /** v0.5.3 FEAT-N02: append 「· 格物」 (the console header only). */
   withWordmark?: boolean;
+  /**
+   * v0.5.4 FEAT-O05 (docs/v0.5.4.md §4): a third segment — 「· 琢玉台」 —
+   * appended on the module's own page, so the header reads
+   * 「图标 · 格物 · 琢玉台」. Ignored unless `withWordmark` is set.
+   */
+  suffix?: string;
   className?: string;
 }
 
@@ -20,6 +26,7 @@ interface BrandLogoProps {
 export function BrandLogo({
   height = 20,
   withWordmark = false,
+  suffix,
   className,
 }: BrandLogoProps): JSX.Element {
   return (
@@ -32,7 +39,11 @@ export function BrandLogo({
         className="w-auto select-none"
         data-testid="brand-logo"
       />
-      {withWordmark ? <span className="font-semibold">· 格物</span> : null}
+      {withWordmark ? (
+        <span className="font-semibold">
+          · 格物{suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
+        </span>
+      ) : null}
     </span>
   );
 }

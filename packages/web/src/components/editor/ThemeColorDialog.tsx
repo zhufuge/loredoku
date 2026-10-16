@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { DEFAULT_THEME_COLOR, normalizeHexColor } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { ColorInput } from '@/components/ui/color-input';
 import { ColorPalette } from '@/components/ui/color-palette';
 import {
   Dialog,
@@ -73,7 +74,20 @@ export function ThemeColorDialog({
             }}
           />
 
+          {/*
+            FIX-O15 (docs/v0.5.4.md §7.2): the swatch moved **in front of** the
+            hex field — it is both the preview and a native picker, which makes
+            the 「应用」 button (and the separate preview row below) redundant.
+          */}
           <div className="flex items-center gap-2">
+            <ColorInput
+              aria-label="主题色"
+              value={draft || DEFAULT_THEME_COLOR}
+              onChange={(value) => {
+                setDraft(value);
+                setHexDraft(value);
+              }}
+            />
             <Input
               value={hexDraft}
               onChange={(event) => setHexDraft(event.target.value)}
@@ -82,19 +96,6 @@ export function ThemeColorDialog({
               className="h-8 w-32 font-mono text-xs"
               aria-label="自定义主题色"
             />
-            <Button type="button" variant="outline" size="sm" className="h-8" onClick={applyHex}>
-              应用
-            </Button>
-          </div>
-
-          {/* §8.2(b) 内容 3: a live preview of the draft. */}
-          <div className="flex items-center gap-3 rounded-md border bg-muted/30 px-3 py-2">
-            <span
-              className="h-8 w-8 shrink-0 rounded-full border"
-              style={{ backgroundColor: draft }}
-              data-testid="theme-color-preview"
-            />
-            <span className="font-mono text-xs">{draft || DEFAULT_THEME_COLOR}</span>
           </div>
         </div>
 

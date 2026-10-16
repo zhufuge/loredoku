@@ -47,15 +47,17 @@ describe('用户可见文案：项目 → 地图（OPT-H02 §2）', () => {
   });
 
   it('the code identifiers are deliberately left alone', () => {
-    const page = sources['./pages/ProjectsPage.tsx'] ?? '';
+    // v0.5.4 FEAT-O06 (docs/v0.5.4.md §4): `/projects` → `/maps` and the data
+    // layer was renamed with it — the **entity** identifiers (`Project`,
+    // `ProjectGridCard`, the `/api/projects*` endpoints) still stay put.
+    const page = sources['./pages/MapsPage.tsx'] ?? '';
     expect(page).toContain('ProjectGridCard');
-    expect(page).toContain('useProjects');
-    // The route stays /projects — only the label changed.
+    expect(page).toContain('useMaps');
     expect(page).not.toContain('项目');
   });
 
   it('the main surfaces speak 地图', () => {
-    const page = sources['./pages/ProjectsPage.tsx'] ?? '';
+    const page = sources['./pages/MapsPage.tsx'] ?? '';
     expect(page).toContain('地图 · 格物');
     expect(page).toContain('创建、管理并编辑你的地图。');
     expect(page).toContain('新建地图');
@@ -72,6 +74,14 @@ describe('用户可见文案：项目 → 地图（OPT-H02 §2）', () => {
     const toolbar = sources['./components/editor/EditorToolbar.tsx'] ?? '';
     expect(toolbar).toContain('返回地图列表');
   });
+
+  it('the module’s other name never lands on the page itself', () => {
+    // SPEC-O19: 琢玉台 rides the header wordmark only — the map page renders
+    // 地图 everywhere. Comments may explain that, so strip them first.
+    const page = stripComments(sources['./pages/MapsPage.tsx'] ?? '');
+    expect(page).not.toContain('琢玉台');
+    expect(page).toContain('>地图</h1>');
+  });
 });
 
 describe('用户可见文案：作品 → 谜题（v0.5.0 §14 标准 1）', () => {
@@ -86,7 +96,13 @@ describe('用户可见文案：作品 → 谜题（v0.5.0 §14 标准 1）', () 
     const shell = sources['./components/layout/AppShell.tsx'] ?? '';
     expect(shell).toContain("label: '谜题'");
     expect(shell).toContain("to: '/puzzles'");
+    // v0.5.4 FEAT-O06 / SPEC-O19: the 地图 module moved to `/maps` but its
+    // label is still 地图 — 琢玉台 only rides the header wordmark.
+    expect(shell).toContain("label: '地图'");
+    expect(shell).toContain("to: '/maps'");
     expect(shell).not.toContain("to: '/works'");
+    // …and the suffix is what carries 琢玉台.
+    expect(shell).toContain("const ZHUYUTAI_SUFFIX = ' · 琢玉台'");
   });
 
   it('/works is gone from the router', () => {
@@ -94,6 +110,14 @@ describe('用户可见文案：作品 → 谜题（v0.5.0 §14 标准 1）', () 
     expect(router).toContain("path: 'puzzles'");
     expect(router).not.toContain("path: 'works'");
     expect(router).not.toContain('/works/:workId/view');
+  });
+
+  it('the map list lives at /maps and /play is the default entry', () => {
+    // FEAT-O04 / FEAT-O06 (docs/v0.5.4.md §3, §4).
+    const router = sources['./router.tsx'] ?? '';
+    expect(router).toContain("path: 'maps'");
+    expect(router).toContain("path: 'projects'");
+    expect(router).toContain("<Navigate to=\"/play\" replace />");
   });
 
   it('the puzzle table keeps the v0.4.3 works table wording', () => {

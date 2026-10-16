@@ -7,34 +7,34 @@ import type {
 } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 
-export type ProjectSort = 'updatedAt' | 'name' | 'createdAt';
+export type MapSort = 'updatedAt' | 'name' | 'createdAt';
 
-export interface ProjectListParams {
+export interface MapListParams {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  sort?: ProjectSort;
+  sort?: MapSort;
   order?: 'asc' | 'desc';
 }
 
-export interface CreateProjectPayload {
+export interface CreateMapPayload {
   name: string;
   description?: string;
   gridSize: number;
 }
 
-export interface UpdateProjectPayload {
+export interface UpdateMapPayload {
   name?: string;
   description?: string | null;
 }
 
-export const projectsApi = {
+export const mapsApi = {
   /**
    * FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work entries
    * and version entries** grouped by blood-lineage root, not a flat list of
    * `map_projects` rows.
    */
-  list(params: ProjectListParams): Promise<PaginatedData<MapEntrySummary>> {
+  list(params: MapListParams): Promise<PaginatedData<MapEntrySummary>> {
     return apiGet<PaginatedData<MapEntrySummary>>('/projects', { params });
   },
   /** FEAT-K03 §2.4: every published version, for the puzzle picker. */
@@ -44,10 +44,10 @@ export const projectsApi = {
   detail(id: number): Promise<ProjectDetail> {
     return apiGet<ProjectDetail>(`/projects/${id}`);
   },
-  create(payload: CreateProjectPayload): Promise<Project> {
+  create(payload: CreateMapPayload): Promise<Project> {
     return apiPost<Project>('/projects', payload);
   },
-  update(id: number, payload: UpdateProjectPayload): Promise<Project> {
+  update(id: number, payload: UpdateMapPayload): Promise<Project> {
     return apiPatch<Project>(`/projects/${id}`, payload);
   },
   remove(id: number): Promise<null> {

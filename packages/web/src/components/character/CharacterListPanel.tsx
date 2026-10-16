@@ -19,9 +19,11 @@ export function CharacterListPanel({
   characters,
   selectedId,
   onSelect,
-}: CharacterListPanelProps): JSX.Element {
+  }: CharacterListPanelProps): JSX.Element {
   return (
-    <div className="rounded-lg border">
+    // FIX-O09 (docs/v0.5.4.md §5.2): same corner fix as the item list — the
+    // square scroller is clipped to the rounded frame.
+    <div className="overflow-hidden rounded-lg border">
       <VirtualList
         count={characters.length}
         rowHeight={LIST_ROW_HEIGHT}

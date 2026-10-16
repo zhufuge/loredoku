@@ -18,10 +18,17 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ItemDetailForm } from '@/components/item/ItemDetailForm';
 import { ItemListPanel } from '@/components/item/ItemListPanel';
 import { CreateItemDialog } from '@/components/item/CreateItemDialog';
+import { SegmentedRadio } from '@/components/ui/segmented-radio';
 import { useDeleteItem, useItemUsages, useItems } from '@/hooks/useItems';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 type CategoryFilter = 'all' | ItemCategory;
+
+/** FEAT-O11: 全部分类 / 背景 / 物体 as one radio row. */
+const CATEGORY_FILTER_OPTIONS: ReadonlyArray<{ value: CategoryFilter; label: string }> = [
+  { value: 'all', label: '全部分类' },
+  ...ITEM_CATEGORIES.map((value) => ({ value, label: ITEM_CATEGORY_LABELS[value] })),
+];
 
 export function ItemsPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
@@ -152,19 +159,14 @@ export function ItemsPage(): JSX.Element {
               <Plus className="h-4 w-4" />
             </Button>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <select
+          <div className="flex flex-wrap items-center gap-2">
+            {/* FEAT-O11 (docs/v0.5.4.md §5.4): 分类 is three buttons now. */}
+            <SegmentedRadio
+              ariaLabel="分类筛选"
               value={category}
-              onChange={(event) => setCategory(event.target.value as CategoryFilter)}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <option value="all">全部分类</option>
-              {ITEM_CATEGORIES.map((value) => (
-                <option key={value} value={value}>
-                  {ITEM_CATEGORY_LABELS[value]}
-                </option>
-              ))}
-            </select>
+              options={CATEGORY_FILTER_OPTIONS}
+              onChange={(next) => setCategory(next)}
+            />
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value as StatusFilter)}

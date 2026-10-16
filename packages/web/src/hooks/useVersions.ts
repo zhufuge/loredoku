@@ -6,7 +6,7 @@ import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import { ApiError } from '@/api/client';
 import { versionsApi } from '@/api/versions';
 import { mapKeys } from './useMap';
-import { projectKeys } from './useProjects';
+import { mapEntryKeys } from './useMaps';
 
 export const versionKeys = {
   list: (id: number) => ['versions', id, 'list'] as const,
@@ -70,7 +70,7 @@ export function usePublishProject(id: number) {
          */
         void queryClient.invalidateQueries({ queryKey: mapKeys.detail(id) });
         void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
-        void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+        void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
       }
     },
     onError: (error) => {
@@ -92,7 +92,7 @@ export function useForkVersion() {
       versionsApi.fork(id, versionNo),
     onSuccess: (project, { versionNo }) => {
       toast.success(`已从 v${versionNo} 新增一个条目`);
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
       void queryClient.invalidateQueries({ queryKey: versionKeys.list(project.id) });
       navigate(`/editor/${project.id}`);
     },
@@ -110,7 +110,7 @@ export function useDeleteVersion() {
     onSuccess: (_data, { id }) => {
       toast.success('版本已删除');
       void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : '删除失败');

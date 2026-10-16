@@ -28,12 +28,19 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { ImageUploader } from '@/components/item/ImageUploader';
+import { SegmentedRadio } from '@/components/ui/segmented-radio';
 import {
   useDeleteItemImage,
   useSetItemActive,
   useUpdateItem,
   useUploadItemImage,
 } from '@/hooks/useItems';
+
+/** FEAT-O11: the category as radio buttons (背景 / 物体). */
+const ITEM_CATEGORY_OPTIONS = ITEM_CATEGORIES.map((value) => ({
+  value,
+  label: ITEM_CATEGORY_LABELS[value],
+}));
 
 const FIT_MODE_LABELS: Record<ItemFitMode, string> = {
   cover: '裁切填满（cover）',
@@ -160,17 +167,13 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="grid gap-2">
             <Label>分类</Label>
-            <select
+            {/* FEAT-O11 (docs/v0.5.4.md §5.4): buttons instead of a dropdown. */}
+            <SegmentedRadio
+              ariaLabel="分类"
               value={category}
-              onChange={(event) => setCategory(event.target.value as Item['category'])}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {(['background', 'object'] as const).map((value) => (
-                <option key={value} value={value}>
-                  {value === 'background' ? '背景' : '物体'}
-                </option>
-              ))}
-            </select>
+              options={ITEM_CATEGORY_OPTIONS}
+              onChange={(next) => setCategory(next as Item['category'])}
+            />
           </div>
           <div className="grid gap-2">
             <Label>占格宽</Label>
@@ -193,7 +196,9 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
             />
           </div>
           {/* v0.5.2 FEAT-M04: a background item is always standable, so the
-              checkbox would be a lie — it is only offered for 物体. */}
+              checkbox would be a lie — it is only offered for 物体.
+              FIX-O08 (docs/v0.5.4.md §5.1): the 「背景类型恒定可站立」 caption
+              is gone — the rule still holds, it just no longer explains itself. */}
           {standable ? (
             <label className="mt-6 flex items-center gap-2 text-sm">
               <input
@@ -204,11 +209,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
               />
               可站立
             </label>
-          ) : (
-            <p className="mt-6 self-center text-xs text-muted-foreground">
-              背景类型恒定可站立
-            </p>
-          )}
+          ) : null}
         </div>
 
         <div className="grid gap-2">

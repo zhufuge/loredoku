@@ -12,13 +12,13 @@ import { describe, expect, it } from 'vitest';
  */
 
 const pageSource =
-  ((import.meta.glob('./ProjectsPage.tsx', {
+  ((import.meta.glob('./MapsPage.tsx', {
     query: '?raw',
     import: 'default',
     eager: true,
-  }) as Record<string, string>)['./ProjectsPage.tsx'] ?? '').replace(/\r\n/g, '\n');
+  }) as Record<string, string>)['./MapsPage.tsx'] ?? '').replace(/\r\n/g, '\n');
 
-describe('ProjectsPage 条目并集（FEAT-K09 §7.1）', () => {
+describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
   it('consumes the union type instead of a plain project list', () => {
     expect(pageSource).toContain("import type { MapEntrySummary } from '@loredoku/shared';");
     expect(pageSource).toContain('const [editProject, setEditProject] = useState<MapEntrySummary | null>(null);');

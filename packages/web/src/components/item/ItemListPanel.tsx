@@ -19,7 +19,10 @@ interface ItemListPanelProps {
  */
 export function ItemListPanel({ items, selectedId, onSelect }: ItemListPanelProps): JSX.Element {
   return (
-    <div className="rounded-lg border">
+    // FIX-O09 (docs/v0.5.4.md §5.2): `overflow-hidden` clips the scrollbar and
+    // the row highlights to the frame's rounded corners — the viewport itself
+    // is a plain square scroller and used to poke past them.
+    <div className="overflow-hidden rounded-lg border">
       <VirtualList
         count={items.length}
         rowHeight={LIST_ROW_HEIGHT}

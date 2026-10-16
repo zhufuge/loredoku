@@ -9,11 +9,14 @@ import {
   PARTICIPANT_HEADER_HEIGHT,
   PARTICIPANT_MIN_HEIGHT,
   PARTICIPANT_MIN_WIDTH,
+  PARTICIPANT_NAME_HEIGHT,
   PARTICIPANT_SEQ_BACKGROUND,
   PARTICIPANT_SEQ_BORDER,
+  PARTICIPANT_SEQ_BORDER_RADIUS,
   PARTICIPANT_SEQ_COLOR,
   PARTICIPANT_SEQ_FONT_SIZE,
   PARTICIPANT_SEQ_INSET,
+  PARTICIPANT_SEQ_SIZE,
   type Character,
   type CharacterSlotEntry,
 } from '@loredoku/shared';
@@ -99,6 +102,8 @@ const PANEL_CELL_HEIGHT = PARTICIPANT_MIN_HEIGHT;
 const CELL_GAP = PARTICIPANT_CELL_GAP;
 /** OPT-A02: clue display area fixed height (3 lines × 20px). */
 const CLUE_AREA_HEIGHT = PARTICIPANT_CLUE_HEIGHT;
+/** FEAT-O12 §6.1: the name row between the avatar and the clue. */
+const NAME_AREA_HEIGHT = PARTICIPANT_NAME_HEIGHT;
 /** OPT-A02: clue line height. */
 const CLUE_LINE_HEIGHT = 20;
 /** Padding between the cell edge and the theme-color circle. */
@@ -260,7 +265,8 @@ export function ParticipantPanel({
                   style={{
                     touchAction: 'none',
                     width: PANEL_CELL_WIDTH,
-                    height: PANEL_CELL_HEIGHT + CLUE_AREA_HEIGHT,
+                    // FEAT-O12: the name row is added to the card's height.
+                    height: PANEL_CELL_HEIGHT + NAME_AREA_HEIGHT + CLUE_AREA_HEIGHT,
                     // FIX-E04: the slot's single highlight frame.
                     ...focusRingStyle,
                     // SPEC-H14 §1.3: placed → the **whole** card dims (frame +
@@ -361,23 +367,29 @@ export function ParticipantPanel({
                     isDragging ? 'opacity-40' : undefined,
                   )}
                 >
-                  {/* OPT-B06 §6.3: 1-based sequence, top-left corner */}
+                  {/* OPT-B06 §6.3: 1-based sequence, top-left corner.
+                      FEAT-O13 (docs/v0.5.4.md §6.2): bigger, and pushed into
+                      the corner — its top / left edges are dropped so the
+                      **card's frame** is those two lines, and only the
+                      bottom-right corner is rounded. */}
                   <span
                     data-testid={`slot-seq-${index}`}
                     className="absolute flex items-center justify-center"
                     style={{
                       top: PARTICIPANT_SEQ_INSET,
                       left: PARTICIPANT_SEQ_INSET,
-                      minWidth: 16,
-                      height: 16,
-                      padding: '0 4px',
-                      borderRadius: 4,
+                      minWidth: PARTICIPANT_SEQ_SIZE,
+                      height: PARTICIPANT_SEQ_SIZE,
+                      padding: '0 5px',
+                      borderRadius: PARTICIPANT_SEQ_BORDER_RADIUS,
                       fontSize: PARTICIPANT_SEQ_FONT_SIZE,
-                      fontWeight: 600,
-                      lineHeight: '16px',
+                      fontWeight: 700,
+                      lineHeight: `${PARTICIPANT_SEQ_SIZE - 1}px`,
                       color: PARTICIPANT_SEQ_COLOR,
                       background: PARTICIPANT_SEQ_BACKGROUND,
                       border: PARTICIPANT_SEQ_BORDER,
+                      borderTopWidth: 0,
+                      borderLeftWidth: 0,
                     }}
                   >
                     {participantSequence(index)}
@@ -430,6 +442,23 @@ export function ParticipantPanel({
                     ) : (
                       <span className="text-[10px] text-muted-foreground">空</span>
                     )}
+                  </div>
+
+                  {/* FEAT-O12 §6.1: the character's name, between the avatar
+                      and the clue. Empty slots render nothing. */}
+                  <div
+                    className="flex w-full items-center justify-center px-1"
+                    style={{ height: NAME_AREA_HEIGHT }}
+                  >
+                    {character ? (
+                      <span
+                        data-testid={`slot-name-${index}`}
+                        className="max-w-full truncate text-center text-xs font-medium"
+                        title={character.name}
+                      >
+                        {character.name}
+                      </span>
+                    ) : null}
                   </div>
 
                   {/* OPT-A02: clue area 72px, 3 lines @ 11px/20px, ellipsis + title tooltip */}

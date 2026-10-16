@@ -33,7 +33,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SegmentedRadio } from '@/components/ui/segmented-radio';
 import { useCreateItem, useUpdateItem, useUploadItemImage } from '@/hooks/useItems';
+
+/** FEAT-O11: the category as radio buttons (背景 / 物体). */
+const ITEM_CATEGORY_OPTIONS = ITEM_CATEGORIES.map((value) => ({
+  value,
+  label: ITEM_CATEGORY_LABELS[value],
+}));
 
 const schema = z.object({
   name: z.string().trim().min(1, '请输入物品名称').max(ITEM_NAME_MAX_LENGTH, '名称过长'),
@@ -174,17 +181,20 @@ export function CreateItemDialog({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="item-category">分类</Label>
-            <select
-              id="item-category"
-              {...register('category')}
-              className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {ITEM_CATEGORIES.map((category) => (
-                <option key={category} value={category}>
-                  {ITEM_CATEGORY_LABELS[category]}
-                </option>
-              ))}
-            </select>
+            {/* FEAT-O11 (docs/v0.5.4.md §5.4): buttons instead of a dropdown. */}
+            <Controller
+              control={control}
+              name="category"
+              render={({ field }) => (
+                <SegmentedRadio
+                  id="item-category"
+                  ariaLabel="分类"
+                  value={field.value}
+                  options={ITEM_CATEGORY_OPTIONS}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">

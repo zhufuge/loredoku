@@ -21,7 +21,7 @@ import {
 } from '@/components/project/ProjectFormDialogs';
 import { ProjectGridCard } from '@/components/project/ProjectGridCard';
 import { ProjectListRow } from '@/components/project/ProjectListRow';
-import { useDeleteProject, useDuplicateProject, useProjects } from '@/hooks/useProjects';
+import { useDeleteMap, useDuplicateMap, useMaps } from '@/hooks/useMaps';
 import { useDeleteVersion, useForkVersion } from '@/hooks/useVersions';
 
 const PAGE_SIZE = 12;
@@ -33,7 +33,7 @@ type KindFilter = 'all' | 'draft' | 'version';
 
 /**
  * v0.5.0 FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work
- * entries and version entries**, so `useProjects` answers with
+ * entries and version entries**, so `useMaps` answers with
  * `PaginatedData<MapEntrySummary>` instead of `ProjectDetail[]`.
  *
  * Two view-only controls were added on top of the unchanged keyword / sort /
@@ -41,7 +41,7 @@ type KindFilter = 'all' | 'draft' | 'version';
  * (default off) — both applied to the current page, so the default view is
  * pixel-identical to v0.4.3.
  */
-export function ProjectsPage(): JSX.Element {
+export function MapsPage(): JSX.Element {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [keywordInput, setKeywordInput] = useState('');
@@ -56,6 +56,8 @@ export function ProjectsPage(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<MapEntrySummary | null>(null);
 
   useEffect(() => {
+    // SPEC-O19 (docs/v0.5.4.md §4): 琢玉台 is the **header suffix** only — the
+    // page itself keeps speaking 地图.
     document.title = '地图 · 格物';
   }, []);
 
@@ -78,10 +80,10 @@ export function ProjectsPage(): JSX.Element {
     [page, keyword, sort],
   );
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useProjects(params);
-  const deleteMutation = useDeleteProject();
+  const { data, isLoading, isError, error, refetch, isFetching } = useMaps(params);
+  const deleteMutation = useDeleteMap();
   const deleteVersionMutation = useDeleteVersion();
-  const duplicateMutation = useDuplicateProject();
+  const duplicateMutation = useDuplicateMap();
   const forkMutation = useForkVersion();
 
   const total = data?.total ?? 0;
@@ -226,6 +228,7 @@ export function ProjectsPage(): JSX.Element {
     <section className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
+          {/* SPEC-O19: 琢玉台 lives in the header wordmark, not here. */}
           <h1 className="text-2xl font-semibold">地图</h1>
           <p className="text-sm text-muted-foreground">创建、管理并编辑你的地图。</p>
         </div>

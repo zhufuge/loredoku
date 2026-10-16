@@ -215,8 +215,17 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     past: [],
     future: [],
 
+    /**
+     * FIX-O18 (docs/v0.5.4.md §7.5): `init` used to reset `zoom` / `pan`
+     * unconditionally, so any re-seed — including the one a successful save
+     * triggers through React Query — threw the board back to the top-left
+     * corner. Re-initialising the **same** puzzle keeps the view; switching to
+     * another puzzle still starts centred at 1×.
+     */
     init: (detail, mapContext) =>
-      set({
+      set((state) => {
+        const samePuzzle = state.puzzleId === detail.id;
+        return {
         puzzleId: detail.id,
         mapContext,
         name: detail.data.name,
@@ -229,13 +238,14 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         selection: null,
         selectedSlotIndex: null,
         ...INACTIVE_ACTIVATION,
-        zoom: 1,
-        pan: { x: 0, y: 0 },
+        zoom: samePuzzle ? state.zoom : 1,
+        pan: samePuzzle ? state.pan : { x: 0, y: 0 },
         dirty: false,
         updatedAt: detail.updatedAt,
         status: detail.status,
         past: [],
         future: [],
+        };
       }),
 
     setDescription: (text) =>

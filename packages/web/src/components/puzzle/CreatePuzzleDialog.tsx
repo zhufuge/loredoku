@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useCreatePuzzle } from '@/hooks/usePuzzles';
-import { usePublishedVersions } from '@/hooks/useProjects';
+import { usePublishedVersions } from '@/hooks/useMaps';
 import { formatDateTimeMinute } from '@/lib/format';
 import { cn } from '@/lib/utils';
 

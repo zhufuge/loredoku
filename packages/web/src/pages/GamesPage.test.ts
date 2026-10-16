@@ -51,12 +51,14 @@ describe('GamesPage (FEAT-G01)', () => {
       routerSource.indexOf("path: '/editor/:projectId'"),
     );
     expect(shellChildren).not.toContain('GamesPage');
-    // …and the console navigation must not offer it.
     // FEAT-L04 (v0.5.1 §4): the whole `/games` path is gone; only `/play`.
     expect(shellSource).not.toContain('/games');
-    expect(shellSource).not.toContain('/play');
     expect(routerSource).not.toContain("path: '/games");
     expect(shellSource).not.toContain('Gamepad2');
+    // v0.5.4 FEAT-O07 §4.2: the console now reaches the games home through an
+    // explicit 「入局」 button, not through the module navigation.
+    expect(shellSource).toContain('入局');
+    expect(shellSource).toContain("navigate('/play')");
   });
 
   it('carries its own full-page layout', () => {
@@ -96,7 +98,17 @@ describe('GamesPage (FEAT-G01)', () => {
     expect(cardSource).not.toContain('`/games/');
   });
 
-  it('titles the browser tab after the page', () => {
-    expect(pageSource).toContain("document.title = '游戏 · 格物'");
+  it('leads with the brand, not with 「游戏」 (FEAT-O02)', () => {
+    // docs/v0.5.4.md §3: the module title is gone; the mark + 格物 say it.
+    expect(pageSource).toContain('<BrandLogo height={22} withWordmark />');
+    expect(pageSource).not.toContain('>游戏</h1>');
+    expect(pageSource).toContain("document.title = '格物'");
+    // 裁定 R1: 「游戏」 survives only as a **data** noun in the count line.
+    expect(pageSource).toContain('已部署 ${games.length} 个游戏');
+  });
+
+  it('offers 「进入琢玉台」 back into the maker (FEAT-O03)', () => {
+    expect(pageSource).toContain('进入琢玉台');
+    expect(pageSource).toContain("navigate('/maps')");
   });
 });

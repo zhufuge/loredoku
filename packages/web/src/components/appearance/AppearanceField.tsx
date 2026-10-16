@@ -84,15 +84,17 @@ export function AppearanceField({
 
       {mode === 'color' ? (
         <div className="flex items-center gap-3">
+          {/* FIX-O10 (docs/v0.5.4.md §5.3): a grey translucent edge, so a
+              white block still has a visible boundary. */}
           <ColorInput
             aria-label="纯色块颜色"
+            className="border border-black/20"
             value={color}
             onChange={(value) => onBgColorChange(value.toUpperCase())}
           />
           <span className="font-mono text-xs text-muted-foreground">{color}</span>
-          <span className="text-xs text-muted-foreground">
-            不上传图片也能启用，画布上以该色块展示
-          </span>
+          {/* FIX-O08: 「不上传图片也能启用，画布上以该色块展示」 dropped — the
+              colour block is self-explanatory by now. */}
         </div>
       ) : (
         children

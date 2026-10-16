@@ -26,11 +26,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  useCreateProject,
-  useRemoveProjectCover,
-  useUpdateProject,
-  useUploadProjectCover,
-} from '@/hooks/useProjects';
+  useCreateMap,
+  useRemoveMapCover,
+  useUpdateMap,
+  useUploadMapCover,
+} from '@/hooks/useMaps';
 import { cn } from '@/lib/utils';
 
 /**
@@ -217,8 +217,8 @@ export function CreateProjectDialog({
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [coverFailed, setCoverFailed] = useState(false);
 
-  const createMutation = useCreateProject();
-  const uploadMutation = useUploadProjectCover();
+  const createMutation = useCreateMap();
+  const uploadMutation = useUploadMapCover();
   const busy = createMutation.isPending || uploadMutation.isPending;
 
   useEffect(() => {
@@ -385,9 +385,9 @@ export function EditProjectDialog({ project, onOpenChange }: EditProjectDialogPr
   /** §3.2(a): "keep" (default) / "replace" (`cover`) / "remove" (`coverRemoved`). */
   const [coverRemoved, setCoverRemoved] = useState(false);
 
-  const updateMutation = useUpdateProject();
-  const uploadMutation = useUploadProjectCover();
-  const removeCoverMutation = useRemoveProjectCover();
+  const updateMutation = useUpdateMap();
+  const uploadMutation = useUploadMapCover();
+  const removeCoverMutation = useRemoveMapCover();
   const busy =
     updateMutation.isPending || uploadMutation.isPending || removeCoverMutation.isPending;
 

@@ -23,7 +23,7 @@ const versionsRef: { data: PublishedMapVersion[]; isLoading: boolean } = {
 };
 const createMutate = vi.fn();
 
-vi.mock('@/hooks/useProjects', () => ({
+vi.mock('@/hooks/useMaps', () => ({
   usePublishedVersions: () => versionsRef,
 }));
 

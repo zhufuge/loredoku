@@ -1,5 +1,9 @@
 import { useNavigate } from 'react-router-dom';
-import { GAME_DIFFICULTY_COLORS, GAME_DIFFICULTY_LABELS } from '@loredoku/shared';
+import {
+  GAME_DIFFICULTY_COLORS,
+  GAME_DIFFICULTY_LABELS,
+  GAME_DIFFICULTY_TEXT_COLORS,
+} from '@loredoku/shared';
 import type { MapGameSummary } from '@loredoku/shared';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -53,9 +57,14 @@ export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
           {game.name}
         </h3>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          {/* FEAT-O01 (docs/v0.5.4.md §2): a tint background with a dark
+              label — the badge no longer shouts over the cover. */}
           <span
-            className="rounded px-2 py-0.5 font-medium text-white"
-            style={{ backgroundColor: GAME_DIFFICULTY_COLORS[game.difficulty] }}
+            className="rounded px-2 py-0.5 font-medium"
+            style={{
+              backgroundColor: GAME_DIFFICULTY_COLORS[game.difficulty],
+              color: GAME_DIFFICULTY_TEXT_COLORS[game.difficulty],
+            }}
           >
             {GAME_DIFFICULTY_LABELS[game.difficulty]}
           </span>

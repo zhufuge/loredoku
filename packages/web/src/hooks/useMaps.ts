@@ -1,32 +1,32 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { projectsApi, type ProjectListParams } from '@/api/projects';
-import type { CreateProjectPayload, UpdateProjectPayload } from '@/api/projects';
+import { mapsApi, type MapListParams } from '@/api/maps';
+import type { CreateMapPayload, UpdateMapPayload } from '@/api/maps';
 
-export const projectKeys = {
+export const mapEntryKeys = {
   all: ['projects'] as const,
-  list: (params: ProjectListParams) => [...projectKeys.all, 'list', params] as const,
-  detail: (id: number) => [...projectKeys.all, 'detail', id] as const,
+  list: (params: MapListParams) => [...mapEntryKeys.all, 'list', params] as const,
+  detail: (id: number) => [...mapEntryKeys.all, 'detail', id] as const,
   /** FEAT-K03 §2.4: the published-version picker's own key. */
-  publishedVersions: () => [...projectKeys.all, 'published-versions'] as const,
+  publishedVersions: () => [...mapEntryKeys.all, 'published-versions'] as const,
 };
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-export function useProjects(params: ProjectListParams) {
+export function useMaps(params: MapListParams) {
   return useQuery({
-    queryKey: projectKeys.list(params),
-    queryFn: () => projectsApi.list(params),
+    queryKey: mapEntryKeys.list(params),
+    queryFn: () => mapsApi.list(params),
     placeholderData: (previous) => previous,
   });
 }
 
-export function useProject(id: number | null) {
+export function useMapEntry(id: number | null) {
   return useQuery({
-    queryKey: projectKeys.detail(id ?? 0),
-    queryFn: () => projectsApi.detail(id as number),
+    queryKey: mapEntryKeys.detail(id ?? 0),
+    queryFn: () => mapsApi.detail(id as number),
     enabled: id !== null && Number.isFinite(id),
   });
 }
@@ -37,58 +37,58 @@ export function useProject(id: number | null) {
  */
 export function usePublishedVersions() {
   return useQuery({
-    queryKey: projectKeys.publishedVersions(),
-    queryFn: () => projectsApi.listPublishedVersions(),
+    queryKey: mapEntryKeys.publishedVersions(),
+    queryFn: () => mapsApi.listPublishedVersions(),
     placeholderData: (previous) => previous,
   });
 }
 
-export function useCreateProject(onSuccess?: () => void) {
+export function useCreateMap(onSuccess?: () => void) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreateProjectPayload) => projectsApi.create(payload),
+    mutationFn: (payload: CreateMapPayload) => mapsApi.create(payload),
     onSuccess: () => {
       toast.success('地图创建成功');
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
       onSuccess?.();
     },
     onError: (error) => toast.error(errorMessage(error, '创建失败')),
   });
 }
 
-export function useUpdateProject(onSuccess?: () => void) {
+export function useUpdateMap(onSuccess?: () => void) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: UpdateProjectPayload }) =>
-      projectsApi.update(id, payload),
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateMapPayload }) =>
+      mapsApi.update(id, payload),
     onSuccess: () => {
       toast.success('地图已更新');
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
       onSuccess?.();
     },
     onError: (error) => toast.error(errorMessage(error, '更新失败')),
   });
 }
 
-export function useDeleteProject() {
+export function useDeleteMap() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => projectsApi.remove(id),
+    mutationFn: (id: number) => mapsApi.remove(id),
     onSuccess: () => {
       toast.success('地图已删除');
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '删除失败')),
   });
 }
 
-export function useDuplicateProject() {
+export function useDuplicateMap() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => projectsApi.duplicate(id),
+    mutationFn: (id: number) => mapsApi.duplicate(id),
     onSuccess: () => {
       toast.success('地图已复制');
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '复制失败')),
   });
@@ -100,25 +100,25 @@ export function useDuplicateProject() {
  * its id. These two mutations are the second step, and both write the refreshed
  * detail straight into the cache so the card repaints without a refetch.
  */
-export function useUploadProjectCover() {
+export function useUploadMapCover() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, file }: { id: number; file: File }) => projectsApi.uploadCover(id, file),
+    mutationFn: ({ id, file }: { id: number; file: File }) => mapsApi.uploadCover(id, file),
     onSuccess: (project) => {
-      queryClient.setQueryData(projectKeys.detail(project.id), project);
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      queryClient.setQueryData(mapEntryKeys.detail(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '封面未上传成功')),
   });
 }
 
-export function useRemoveProjectCover() {
+export function useRemoveMapCover() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) => projectsApi.removeCover(id),
+    mutationFn: (id: number) => mapsApi.removeCover(id),
     onSuccess: (project) => {
-      queryClient.setQueryData(projectKeys.detail(project.id), project);
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      queryClient.setQueryData(mapEntryKeys.detail(project.id), project);
+      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '封面移除失败')),
   });

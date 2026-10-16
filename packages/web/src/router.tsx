@@ -7,7 +7,7 @@ import { GamesPage } from '@/pages/GamesPage';
 import { ItemsPage } from '@/pages/ItemsPage';
 import { MapVersionViewPage } from '@/pages/MapVersionViewPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
-import { ProjectsPage } from '@/pages/ProjectsPage';
+import { MapsPage } from '@/pages/MapsPage';
 import { PuzzleEditorPage } from '@/pages/PuzzleEditorPage';
 import { PuzzlesPage } from '@/pages/PuzzlesPage';
 import { PuzzleViewPage } from '@/pages/PuzzleViewPage';
@@ -25,8 +25,13 @@ export const router = createBrowserRouter([
     path: '/',
     element: <AppShell />,
     children: [
-      { index: true, element: <Navigate to="/projects" replace /> },
-      { path: 'projects', element: <ProjectsPage /> },
+      // v0.5.4 FEAT-O04 (docs/v0.5.4.md §3): the games home is the default
+      // entry — the maker's console is now reached from its 「进入琢玉台」.
+      { index: true, element: <Navigate to="/play" replace /> },
+      // FEAT-O06 §4.2: `/projects` → `/maps`, data names renamed with it.
+      { path: 'maps', element: <MapsPage /> },
+      // R3: old links / bookmarks keep working.
+      { path: 'projects', element: <Navigate to="/maps" replace /> },
       { path: 'items', element: <ItemsPage /> },
       { path: 'characters', element: <CharactersPage /> },
       // FEAT-K01: 谜题（原「作品」，数据源换成谜题）

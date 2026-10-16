@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { Gamepad2, Loader2 } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Gamepad2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -18,27 +18,43 @@ import { useGames } from '@/hooks/useGames';
  * 游戏页「返回」按钮）进来，所以页面自带整版布局。
  */
 export function GamesPage(): JSX.Element {
+  const navigate = useNavigate();
   const gamesQuery = useGames();
   const games = gamesQuery.data ?? [];
 
   useEffect(() => {
-    document.title = '游戏 · 格物';
+    // FEAT-O02 (docs/v0.5.4.md §3): no 「游戏」 in the module title — the mark
+    // and 「格物」 say it.
+    document.title = '格物';
   }, []);
 
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-7xl space-y-6 px-6 py-6">
         {/* v0.5.3 FEAT-N03 (docs/v0.5.3.md §2): the mark leads the page too. */}
-        <div className="space-y-1">
-          <div className="flex items-center gap-3">
-            <BrandLogo height={22} />
-            <h1 className="text-xl font-semibold">游戏</h1>
+        <div className="flex items-end justify-between gap-4">
+          <div className="space-y-1">
+            <BrandLogo height={22} withWordmark />
+            {/* FEAT-O02 裁定 R1: 「游戏」 survives here as a **data** noun
+                (how many games are deployed), not as the module's title. */}
+            <p className="text-xs text-muted-foreground">
+              {gamesQuery.isLoading
+                ? '正在加载…'
+                : `已部署 ${games.length} 个游戏，选择一张地图开始推理。`}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {gamesQuery.isLoading
-              ? '正在加载游戏…'
-              : `已部署 ${games.length} 个游戏，选择一张地图开始推理。`}
-          </p>
+          {/* v0.5.4 FEAT-O03 (docs/v0.5.4.md §3): the way back to the maker. */}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => navigate('/maps')}
+            title="进入琢玉台（制作端）"
+          >
+            进入琢玉台
+            <ArrowRight className="h-4 w-4" />
+          </Button>
         </div>
 
         {/* SPEC-N04: the loading skeleton mirrors the square cover. */}

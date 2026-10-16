@@ -95,14 +95,15 @@ describe('角色框可收起展开 + 筛选（FEAT-N08）', () => {
 });
 
 describe('主题色调色板（FEAT-N09）', () => {
-  it('one shared swatch grid drives both colour surfaces', () => {
+  it('one shared swatch grid — the participant theme colour is its only home', () => {
     expect(colorPalette).toContain('THEME_COLOR_PALETTE.map(');
     expect(colorPalette).toContain('data-testid="color-palette"');
-    // 参与者主题色
+    // 参与者主题色（v0.5.3 FEAT-N09）
     expect(read(editorDir, '../editor/ThemeColorDialog.tsx')).toContain('<ColorPalette');
-    // 联动主题色（谜题基本信息）
-    expect(puzzleInfo).toContain('<ColorPalette');
-    expect(puzzleInfo).toContain('onSelect={(color) => patchEntry(index, { color })}');
+    // FIX-O16 (docs/v0.5.4.md §7.3): the 基本信息 palette was removed again —
+    // a colour is picked with the `ColorInput` + hex field, not a swatch grid.
+    expect(puzzleInfo).not.toContain('<ColorPalette');
+    expect(puzzleInfo).toContain('<ColorInput');
   });
 });
 

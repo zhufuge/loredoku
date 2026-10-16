@@ -510,17 +510,35 @@ export const PARTICIPANT_HEADER_HEIGHT = 40;
 export const PARTICIPANT_MIN_HEIGHT = 104;
 /** Clue display area under the avatar (3 lines). */
 export const PARTICIPANT_CLUE_HEIGHT = 72;
+/**
+ * FEAT-O12 (docs/v0.5.4.md §6.1): the character's **name** sits between the
+ * avatar and the clue, so the card grew by this much.
+ */
+export const PARTICIPANT_NAME_HEIGHT = 20;
 /** Gap between participant cells. */
 export const PARTICIPANT_CELL_GAP = 14;
 /** Minimum avatar diameter (v0.3.5 OPT-A02). */
 export const PARTICIPANT_AVATAR_MIN = 56;
-/** OPT-B06 §6.3: the sequence badge tucked into the cell's top-left corner. */
-export const PARTICIPANT_SEQ_INSET = 4;
-export const PARTICIPANT_SEQ_FONT_SIZE = 12;
+/**
+ * OPT-B06 §6.3: the sequence badge tucked into the cell's top-left corner.
+ *
+ * FEAT-O13 (docs/v0.5.4.md §6.2): the badge is **bigger** and sits on the
+ * corner — `SIZE` is its height (was 16) and the font grew with it (12 → 14).
+ */
+export const PARTICIPANT_SEQ_SIZE = 20;
+export const PARTICIPANT_SEQ_FONT_SIZE = 14;
 export const PARTICIPANT_SEQ_COLOR = '#374151';
 /** Translucent white so the badge stays readable on any theme colour. */
 export const PARTICIPANT_SEQ_BACKGROUND = 'rgba(255,255,255,0.85)';
 export const PARTICIPANT_SEQ_BORDER = '1px solid rgba(0,0,0,0.1)';
+/**
+ * FEAT-O13: the badge no longer draws its own top / left edge — it is pushed
+ * out by the card's border width so the **card's** frame becomes those two
+ * lines, and only the bottom-right corner is rounded.
+ */
+export const PARTICIPANT_SEQ_BORDER_RADIUS = '0 0 6px 0';
+/** Kept for the callers that still inset the badge (0 = corner, see §6.2). */
+export const PARTICIPANT_SEQ_INSET = 0;
 
 // ---- v0.3.8 FEAT-D02 地图基本信息（地图级缺省值） ----
 /**
@@ -659,12 +677,32 @@ export const GAME_DIFFICULTY_LABELS_ZH: Record<(typeof GAME_DIFFICULTY_LEVELS)[n
   expert: '专家',
 };
 
+/**
+ * FEAT-G02 → **FEAT-O01 (docs/v0.5.4.md §2)**: the badge is a **tint**, not a
+ * saturated block — the card's cover and name should stay the loudest thing on
+ * it. These are the 100/200 steps of the same five hues.
+ */
 export const GAME_DIFFICULTY_COLORS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
-  veryEasy: '#22C55E',
-  easy: '#84CC16',
-  medium: '#EAB308',
-  hard: '#F97316',
-  expert: '#EF4444',
+  veryEasy: '#DCFCE7',
+  easy: '#ECFCCB',
+  medium: '#FEF9C3',
+  hard: '#FFEDD5',
+  expert: '#FEE2E2',
+};
+
+/**
+ * FEAT-O01 §2.2: a tint needs a **dark** label — white on `#FEF9C3` was
+ * unreadable. Same five hues, 700/800 step.
+ */
+export const GAME_DIFFICULTY_TEXT_COLORS: Record<
+  (typeof GAME_DIFFICULTY_LEVELS)[number],
+  string
+> = {
+  veryEasy: '#166534',
+  easy: '#3F6212',
+  medium: '#854D0E',
+  hard: '#9A3412',
+  expert: '#991B1B',
 };
 
 /** FEAT-G02: the default tier pre-selected in the deploy dialog. */

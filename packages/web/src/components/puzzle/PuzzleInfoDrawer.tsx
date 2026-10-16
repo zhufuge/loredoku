@@ -19,7 +19,6 @@ import {
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ColorInput } from '@/components/ui/color-input';
-import { ColorPalette } from '@/components/ui/color-palette';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -295,8 +294,13 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             hint="Linkage Colors — 参与者联动高亮所用的调色板，最少 2 项、最多 12 项。改动 key 会同步所有引用它的联动。"
           >
             <ul className="space-y-2">
+              {/*
+                FIX-O17 (docs/v0.5.4.md §7.4): the row's `key` must NOT contain
+                the entry's own `key` — every edit to it remounted the row and
+                stole focus from the input. The row's identity is its index.
+              */}
               {draftPalette.map((entry, index) => (
-                <li key={`${entry.key}-${index}`} className="space-y-1 rounded-md border p-2">
+                <li key={index} className="space-y-1 rounded-md border p-2">
                   <div className="flex items-center gap-1">
                     <ColorInput
                       value={isValidStyleColor(entry.color) ? entry.color : '#888888'}
@@ -342,14 +346,9 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                       aria-label="颜色名称"
                     />
                   </div>
-                  {/* v0.5.3 FEAT-N09 (docs/v0.5.3.md §6.2): the palette — pick
-                      a colour in one click instead of typing hex. The hex input
-                      below stays for colours outside the palette. */}
-                  <ColorPalette
-                    aria-label={`联动主题色 ${entry.key || index + 1} 调色板`}
-                    value={entry.color}
-                    onSelect={(color) => patchEntry(index, { color })}
-                  />
+                  {/* FIX-O16 (docs/v0.5.4.md §7.3): no swatch grid here — the
+                      palette belongs to the participant's theme colour only.
+                      The `ColorInput` above plus the hex field stay. */}
                   <div className="flex items-center gap-1">
                     <Label className="w-8 shrink-0 text-[10px] font-normal text-muted-foreground">
                       key
