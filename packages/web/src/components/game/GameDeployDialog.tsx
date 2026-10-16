@@ -12,7 +12,7 @@ import {
   normalizeSlugInput,
   slugError,
 } from '@loredoku/shared';
-import type { GameDifficulty, MapGameSummary, WorkSummary } from '@loredoku/shared';
+import type { GameDifficulty, MapGameSummary, PuzzleSummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -38,15 +38,19 @@ const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
  *   with a three-way choice — keep it, replace it, or remove it;
  * - OPT-W04: the game's **access path** is a first-class field, defaulted to
  *   `puzzle-{name}-{difficulty}` and previewed as `/games/{value}`.
+ *
+ * v0.5.0 CONS-K16 (docs/v0.5.0.md §10.2): the deployed unit is a **puzzle**
+ * now — one game per puzzle, so `puzzle_id` is what the request targets and
+ * the default access path is built from the puzzle's name.
  */
 export function GameDeployDialog({
-  work,
+  puzzle,
   existingGame,
   open,
   onOpenChange,
 }: {
-  work: WorkSummary | null;
-  /** OPT-W03: the map's current game, used to prefill the re-deploy. */
+  puzzle: PuzzleSummary | null;
+  /** OPT-W03: the puzzle's current game, used to prefill the re-deploy. */
   existingGame?: MapGameSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -64,11 +68,11 @@ export function GameDeployDialog({
   const [slugTouched, setSlugTouched] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Every open starts from the work's own defaults, or from the game's stored
-  // values when this map was deployed before (OPT-W03).
+  // Every open starts from the puzzle's own defaults, or from the game's stored
+  // values when this puzzle was deployed before (OPT-W03).
   useEffect(() => {
-    if (!open || !work) return;
-    const startName = work.projectName;
+    if (!open || !puzzle) return;
+    const startName = puzzle.name;
     const startDifficulty = existingGame?.difficulty ?? GAME_DIFFICULTY_DEFAULT;
     setName(startName);
     setDifficulty(startDifficulty);
@@ -84,7 +88,7 @@ export function GameDeployDialog({
       setSlug(buildDefaultSlug({ name: startName, difficulty: startDifficulty }));
       setSlugTouched(false);
     }
-  }, [open, work, existingGame]);
+  }, [open, puzzle, existingGame]);
 
   // OPT-W04 §4.2: while the author has not edited the path themselves, it
   // follows the name and the difficulty.
@@ -119,7 +123,7 @@ export function GameDeployDialog({
         : '无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）';
 
   const submit = (): void => {
-    if (!work) return;
+    if (!puzzle) return;
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       toast.error('请填写游戏名称');
@@ -137,8 +141,8 @@ export function GameDeployDialog({
     }
     deploy.mutate(
       {
-        projectId: work.projectId,
-        versionNo: work.versionNo,
+        // CONS-K16: the game belongs to the puzzle, not to the map version.
+        puzzleId: puzzle.id,
         name: trimmed,
         slug: trimmedSlug,
         difficulty,
@@ -156,9 +160,9 @@ export function GameDeployDialog({
         <DialogHeader>
           <DialogTitle>部署为游戏</DialogTitle>
           <DialogDescription>
-            {work
-              ? `把作品「${work.projectName} v${work.versionNo}」部署为可玩的游戏。相同地图只能部署一个版本，再次部署将覆盖此前的游戏。`
-              : '把已发布的作品部署为可玩的游戏。'}
+            {puzzle
+              ? `把谜题「${puzzle.name} v${puzzle.mapVersionNo}」部署为可玩的游戏。相同谜题只能部署一个游戏，再次部署将覆盖此前的游戏。`
+              : '把谜题部署为可玩的游戏。'}
           </DialogDescription>
         </DialogHeader>
 
@@ -171,7 +175,7 @@ export function GameDeployDialog({
               id="game-deploy-name"
               value={name}
               maxLength={GAME_NAME_MAX_LENGTH}
-              placeholder="默认为作品名称"
+              placeholder="默认为谜题名称"
               onChange={(event) => setName(event.target.value)}
               disabled={deploy.isPending}
             />

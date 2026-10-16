@@ -2,15 +2,14 @@ import type { GameDifficulty, MapGameDetail, MapGameSummary } from '@loredoku/sh
 import { apiGet, apiPost } from './client';
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5.4) + OPT-W04 (docs/v0.4.1.md §4.6): deployed
- * games. `POST /api/projects/:id/games` lives next to the versions router
- * because a game is always deployed from a published work; `/api/games` is the
- * flat, cross-map listing the games home page reads, and the game page resolves
- * its game through `/api/games/slug/:slug` (the id route stays for internal use).
+ * CONS-K16 (docs/v0.5.0.md §10.2): the unit of deployment is a **puzzle** now —
+ * a puzzle owns the participants a game plays with, while the map version only
+ * provides the canvas. `POST /api/puzzles/:id/games` therefore carries no
+ * `versionNo` (the puzzle pins the version it draws on), and `/api/games` is
+ * still the flat, cross-map listing the games home page reads.
  */
 export interface DeployGamePayload {
-  versionNo: number;
-  /** Omitted or empty → the backend falls back to the map name. */
+  /** Omitted or empty → the backend falls back to the puzzle name. */
   name?: string;
   /** OPT-W04: omitted or empty → `puzzle-{name}-{difficulty}`. */
   slug?: string;
@@ -34,8 +33,8 @@ export const gamesApi = {
   detailBySlug(slug: string): Promise<MapGameDetail> {
     return apiGet<MapGameDetail>(`/games/slug/${encodeURIComponent(slug)}`);
   },
-  deploy(projectId: number, payload: DeployGamePayload): Promise<MapGameSummary> {
-    return apiPost<MapGameSummary>(`/projects/${projectId}/games`, payload);
+  deploy(puzzleId: number, payload: DeployGamePayload): Promise<MapGameSummary> {
+    return apiPost<MapGameSummary>(`/puzzles/${puzzleId}/games`, payload);
   },
   /**
    * The cover is uploaded after the deploy, because the row (and therefore the

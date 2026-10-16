@@ -13,7 +13,7 @@ import { useGames } from '@/hooks/useGames';
  * needs (cover / name / difficulty / n×n) before clicking in.
  *
  * v0.4.0 验收补充：它是**独立顶层路由**，不用 `AppShell`——玩家从这里看不到
- * 地图 / 物品 / 角色 / 作品等制作端模块，只能通过链接（作品页「已部署」徽标、
+ * 地图 / 物品 / 角色 / 谜题等制作端模块，只能通过链接（谜题页「已部署」徽标、
  * 游戏页「返回」按钮）进来，所以页面自带整版布局。
  */
 export function GamesPage(): JSX.Element {
@@ -55,13 +55,13 @@ export function GamesPage(): JSX.Element {
           <Card className="mx-auto flex max-w-md flex-col items-center gap-4 p-12 text-center">
             <Gamepad2 className="h-10 w-10 text-muted-foreground/60" />
             <CardContent className="space-y-1 p-0">
-              <p className="font-medium">还没有部署任何作品</p>
+              <p className="font-medium">还没有部署任何游戏</p>
               <p className="text-sm text-muted-foreground">
-                去作品管理页把已发布的作品部署为游戏，就能在这里开始游玩。
+                去谜题列表把谜题部署为游戏，就能在这里开始游玩。
               </p>
             </CardContent>
             <Button asChild variant="outline">
-              <Link to="/works">前往作品管理</Link>
+              <Link to="/puzzles">前往谜题列表</Link>
             </Button>
           </Card>
         ) : (

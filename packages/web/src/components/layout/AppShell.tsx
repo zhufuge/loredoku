@@ -1,13 +1,13 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { Map, LayoutGrid, Package, Users, Archive } from 'lucide-react';
+import { Map, LayoutGrid, Package, Puzzle, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { to: '/projects', label: '地图', icon: Map },
   { to: '/items', label: '物品', icon: Package },
   { to: '/characters', label: '角色', icon: Users },
-  // FEAT-503: 作品（原「版本」）
-  { to: '/works', label: '作品', icon: Archive },
+  // v0.5.0 FEAT-K01: 谜题（原「作品」，模块整体换成谜题）
+  { to: '/puzzles', label: '谜题', icon: Puzzle },
 ];
 
 export function AppShell(): JSX.Element {

@@ -11,6 +11,7 @@ import type {
   PARTICIPANT_TARGET_TYPES,
   EFFECT_COLORS,
   GAME_DIFFICULTY_LEVELS,
+  MapLinkageColor,
   MapStyle,
 } from '../constants';
 
@@ -206,12 +207,33 @@ export interface MapDraft {
   gridSize: number;
   cells: Record<string, DraftCell>;
   regions: DraftRegion[];
-  characterSlots: Array<CharacterSlotEntry | null>;
   /**
    * v0.3.8 FEAT-D02: map-level display constants. Optional so `version = 1`
    * drafts stay valid — a missing block resolves to `DEFAULT_MAP_STYLE`.
+   *
+   * v0.5.0 FEAT-K14: the roster (`characterSlots`) and the linkage palette
+   * (`style.linkageColors`) are **gone** — they moved to {@link PuzzleDraft}.
    */
   style?: MapStyle;
+}
+
+// ---- Puzzle draft JSON (v0.5.0 FEAT-K08) ----
+/**
+ * v0.5.0 FEAT-K01: a puzzle is the "出题" half of the product. It owns the
+ * roster + palette and **references** one published map version for its
+ * canvas (read-only) instead of copying it — see docs/v0.5.0.md §5.1.
+ */
+export interface PuzzleDraft {
+  /** `PUZZLE_JSON_VERSION` — import / export and migration. */
+  version: number;
+  /** The referenced published map version. `gridSize` is denormalised for offline checks. */
+  map: { projectId: number; versionNo: number; gridSize: number };
+  name: string;
+  description: string;
+  /** Linked theme-colour palette (was `MapDraft.style.linkageColors`). */
+  linkageColors: MapLinkageColor[];
+  /** Roster; length = `map.gridSize` (same convention as the old map editor). */
+  characterSlots: Array<CharacterSlotEntry | null>;
 }
 
 export interface MapResponse {
@@ -226,7 +248,11 @@ export interface MapVersionSummary {
   gridSize: number;
   notes: string | null;
   publishedAt: string;
-  /** Snapshot totals shown on the works panel (docs/v0.3.0.md FEAT-503). */
+  /**
+   * Snapshot totals shown on the version-history panel (docs/v0.3.0.md
+   * FEAT-503). v0.5.0: participants moved to puzzles, so this is > 0 only for
+   * legacy snapshots that still carry a roster.
+   */
   participantCount: number;
   regionCount: number;
   itemCount: number;
@@ -243,24 +269,115 @@ export interface MapVersionDetail extends MapVersionSummary {
 }
 
 /**
- * OPT-905 (docs/v0.3.4.md §5): the works table lists published versions
- * across **all** maps in one flat table, so each row also carries the map it
- * belongs to.
+ * SPEC-K13 §7.4 (docs/v0.5.0.md): one row of the editor's 版本历史 panel. With
+ * Q3 = B a lineage spans several `map_projects` rows, so each version carries
+ * the row that owns it — that is what 「编辑此版本」 forks from.
  */
-export interface WorkSummary extends MapVersionSummary {
+export interface MapVersionEntry extends MapVersionSummary {
+  /** The `map_projects.id` this version belongs to. */
   projectId: number;
-  projectName: string;
-  /** FEAT-G02: this map already has a deployed game (one game per map). */
-  deployed: boolean;
 }
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5): a deployed game. One map can only ever hold
- * one deployed game — deploying another version of the same map overwrites
- * the row — so `projectId` is unique in `map_games`.
+ * FEAT-K03 (docs/v0.5.0.md §2.4): one option of the 「地图版本」 picker in the
+ * create-puzzle dialog — a **published** map version and nothing else.
+ */
+export interface PublishedMapVersion {
+  projectId: number;
+  rootId: number;
+  versionNo: number;
+  mapName: string;
+  gridSize: number;
+  publishedAt: string;
+  notes: string | null;
+}
+
+/**
+ * FEAT-K09 (docs/v0.5.0.md §7.1): the map list shows a **union of entries** —
+ * the work entry (`map_projects`) plus every version entry (`map_versions`) of
+ * the same blood lineage. Q3 = B: lineage is keyed by `map_projects.root_id`.
+ */
+export interface MapEntrySummary {
+  /** The entry's own id: work entry = `map_projects.id`; version entry = `map_versions.id`. */
+  id: number;
+  /** `'draft'` work entry | `'version'` version entry. */
+  kind: 'draft' | 'version';
+  /** Blood-lineage root (`map_projects.root_id`); the list groups by it. */
+  rootId: number;
+  /** The owning `map_projects.id` (the work entry itself, or the version's owner). */
+  projectId: number;
+  /** Version number for version entries; `null` for work entries. */
+  versionNo: number | null;
+  name: string;
+  description: string | null;
+  gridSize: number;
+  coverPath: string | null;
+  coverUrl: string | null;
+  status: ProjectStatus;
+  /** Highest published version of the whole lineage (work entries show it too). */
+  currentVersionNo: number | null;
+  /** How many version entries the lineage has. */
+  versionCount: number;
+  publishedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * FEAT-K01 + SPEC-K02 (docs/v0.5.0.md §2.3): one row of the puzzle table. The
+ * table keeps the old 5 columns and their wording; only the values are the
+ * puzzle's now.
+ */
+export interface PuzzleSummary {
+  id: number;
+  name: string;
+  description: string | null;
+  /** The referenced published map version — the 版本 column shows `v{n}`. */
+  mapVersionNo: number;
+  /** The `map_projects.id` that owns that version. */
+  mapProjectId: number;
+  /** That map's blood-lineage root. */
+  mapRootId: number;
+  mapName: string;
+  gridSize: number;
+  status: ProjectStatus;
+  /** Q5: the 发布时间 column reads this (the header wording is unchanged). */
+  createdAt: string;
+  updatedAt: string;
+  /** FEAT-G02: this puzzle already has a deployed game. */
+  deployed: boolean;
+}
+
+export interface PuzzleDetail extends PuzzleSummary {
+  data: PuzzleDraft;
+}
+
+/**
+ * FEAT-K01 (docs/v0.5.0.md §5): `GET /api/puzzles/:id/map` — the **read-only**
+ * canvas a puzzle draws on, lifted from the referenced map version. The puzzle
+ * editor renders this and never writes it back.
+ */
+export interface PuzzleMapContext {
+  projectId: number;
+  versionNo: number;
+  mapName: string;
+  gridSize: number;
+  cells: Record<string, DraftCell>;
+  regions: DraftRegion[];
+  /** Resolved style (a missing block becomes `DEFAULT_MAP_STYLE`); no `linkageColors`. */
+  style: MapStyle;
+}
+
+/**
+ * FEAT-G02 (docs/v0.4.0.md §5): a deployed game. v0.5.0 CONS-K16 narrows the
+ * unit from "one map" to **one puzzle** — `puzzle_id` is unique, so deploying
+ * another version of the same puzzle overwrites the row.
  */
 export interface MapGameSummary {
   id: number;
+  /** CONS-K16: the puzzle this game was deployed from (`null` for legacy rows). */
+  puzzleId: number | null;
+  /** The referenced map version's owner row + version number (badges / keys). */
   projectId: number;
   versionNo: number;
   name: string;
@@ -276,14 +393,40 @@ export interface MapGameSummary {
   createdAt: string;
 }
 
-/** The game page renders the snapshot the work carried when it was deployed. */
-export interface MapGameDetail extends MapGameSummary {
-  data: MapDraft;
+/**
+ * CONS-K16 (docs/v0.5.0.md §10.1): the frozen payload a game renders.
+ *
+ * - `map` — the canvas (v3 shape: no roster);
+ * - `puzzle` — the puzzle data at deploy time (roster / palette / description);
+ * - `legacyCharacterSlots` / `legacyLinkageColors` — v0.4.x snapshots kept the
+ *   roster and palette inside the map, so the server lifts them out on read and
+ *   legacy games stay playable with **zero** repair.
+ */
+export interface MapGameSnapshot {
+  map: MapDraft;
+  puzzle: PuzzleDraft | null;
+  legacyCharacterSlots?: Array<CharacterSlotEntry | null>;
+  legacyLinkageColors?: MapLinkageColor[];
 }
 
+/** The game page renders the snapshot the puzzle carried when it was deployed. */
+export interface MapGameDetail extends MapGameSummary {
+  snapshot: MapGameSnapshot;
+}
+
+/**
+ * v0.5.0: a character is used by **puzzles** now (the roster's home). A v0.4.x
+ * map draft that still carries a roster is reported with `legacy: true`, so a
+ * hard delete can still clean it up.
+ */
 export interface CharacterUsage {
+  /** The puzzle that uses it; omitted for a legacy map draft. */
+  puzzleId?: number;
+  puzzleName?: string;
   projectId: number;
   projectName: string;
+  /** `true` = found in a stored v0.4.x map draft rather than a puzzle. */
+  legacy?: boolean;
   cells: Array<{ x: number; y: number }>;
 }
 

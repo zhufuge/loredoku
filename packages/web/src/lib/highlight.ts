@@ -2,10 +2,11 @@ import {
   type CharacterSlotEntry,
   type DraftCell,
   type DraftRegion,
+  type MapLinkageColor,
   type MapStyle,
   type ParticipantTarget,
 } from '@loredoku/shared';
-import { linkageColorFor, resolveMapStyle } from '@/lib/mapStyle';
+import { linkageColorFor, resolveLinkageColors, resolveMapStyle } from '@/lib/mapStyle';
 
 export type CellMap = Map<string, DraftCell>;
 
@@ -67,8 +68,11 @@ export interface HighlightContext {
   regions: DraftRegion[];
   /**
    * FEAT-D04: linkage colours are palette keys, so the resolved hex depends on
-   * the map's own palette. Missing → the shipped red / blue defaults.
+   * the palette. v0.5.0 FEAT-K14 (docs/v0.5.0.md §2.6 / Q16) moved the palette
+   * out of `MapStyle` and onto the puzzle, so it is passed separately. Missing →
+   * the shipped red / blue defaults.
    */
+  linkageColors?: MapLinkageColor[];
   style?: MapStyle;
 }
 
@@ -83,9 +87,9 @@ export function cellKey(x: number, y: number): string {
   return `${x},${y}`;
 }
 
-/** FEAT-D04: resolves a palette key to a `#RRGGBB` through the map style. */
-export function effectColorHex(style: MapStyle, key: string): string {
-  return linkageColorFor(style, key);
+/** FEAT-D04: resolves a palette key to a `#RRGGBB` through the palette. */
+export function effectColorHex(palette: MapLinkageColor[], key: string): string {
+  return linkageColorFor(palette, key);
 }
 
 /** Stable identity of a target so duplicates can be collapsed. */
@@ -196,13 +200,16 @@ export function resolveHighlight(
   if (targets.length === 0) return null;
 
   const style = resolveMapStyle(ctx.style);
+  // Q16: the palette rides on the context (puzzle-owned); fall back to the
+  // shipped defaults when the caller is a legacy map preview.
+  const palette = ctx.linkageColors ?? resolveLinkageColors(undefined);
   const characters = new Map<string, HighlightCharacter>();
   const cellHighlights = new Map<string, HighlightRect>();
   const backgroundHighlights = new Map<string, HighlightRect>();
   const regionBorders: Array<{ regionId: string; color: string }> = [];
 
   for (const { target } of targets) {
-    const color = effectColorHex(style, target.color);
+    const color = effectColorHex(palette, target.color);
 
     if (target.type === 'character') {
       const slotIndex = ctx.characterSlots.findIndex(

@@ -2,11 +2,12 @@ import { db } from '../db/knex';
 import { buildFileUrl } from '../utils/paths';
 import type {
   GameDifficulty,
-  MapDraft,
   MapGameDetail,
   MapGameRow,
+  MapGameSnapshot,
   MapGameSummary,
 } from '@loredoku/shared';
+import { toGameSnapshot } from '../service/gameSnapshotCompat';
 
 /** FEAT-G02: the games home page lists every deployed game, newest first. */
 export async function listGames(): Promise<MapGameSummary[]> {
@@ -23,28 +24,20 @@ export async function getGameRowBySlug(slug: string): Promise<MapGameRow | undef
   return db<MapGameRow>('map_games').where({ slug }).first();
 }
 
-/**
- * OPT-W02 (docs/v0.4.1.md §2): the works table marks a row as deployed only
- * when **that version** was deployed, so the key is map + version number.
- */
-export async function listDeployedVersionKeys(): Promise<Set<string>> {
-  const rows = (await db('map_games').select('project_id', 'version_no')) as Array<{
-    project_id: number | string;
-    version_no: number;
-  }>;
-  return new Set(rows.map((row) => `${Number(row.project_id)}:${row.version_no}`));
-}
-
-/** OPT-W04 §4.4: who owns a path — anyone but this map is a clash. */
+/** OPT-W04 §4.4: who owns a path — another puzzle is a clash. */
 export async function findGameBySlug(slug: string): Promise<MapGameRow | undefined> {
   return db<MapGameRow>('map_games').where({ slug }).first();
 }
 
-export async function getGameByProject(projectId: number): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('map_games').where({ project_id: projectId }).first();
+/** CONS-K16: one game per puzzle, so the lookup is by `puzzle_id`. */
+export async function getGameByPuzzle(puzzleId: number): Promise<MapGameRow | undefined> {
+  return db<MapGameRow>('map_games').where({ puzzle_id: puzzleId }).first();
 }
 
 export interface UpsertGameData {
+  /** CONS-K16: the unit of deployment. */
+  puzzleId: number;
+  /** The referenced map version — kept denormalised for badges / keys. */
   projectId: number;
   versionNo: number;
   name: string;
@@ -64,13 +57,13 @@ export interface UpsertGameData {
   clearCover: boolean;
   difficulty: GameDifficulty;
   gridSize: number;
-  snapshot: MapDraft;
+  snapshot: MapGameSnapshot;
 }
 
 /**
- * FEAT-G02 §5.1: one deployed game per map. Deploying another version of the
- * same map **overwrites** the previous row, so the insert and the delete share
- * a transaction and the row gets a fresh id.
+ * CONS-K16 (docs/v0.5.0.md §10.1): one deployed game per **puzzle**. Deploying
+ * again overwrites the previous row, so the insert and the delete share a
+ * transaction and the row gets a fresh id.
  *
  * OPT-W03 §3: the cover follows a three-way rule — `clearCover` drops it, a
  * supplied `coverPath` replaces it, and neither keeps whatever was stored.
@@ -78,14 +71,15 @@ export interface UpsertGameData {
 export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> {
   return db.transaction(async (trx) => {
     const previous = (await trx<MapGameRow>('map_games')
-      .where({ project_id: data.projectId })
+      .where({ puzzle_id: data.puzzleId })
       .first()) as MapGameRow | undefined;
 
     const cover = resolveCover(previous, data);
 
-    await trx('map_games').where({ project_id: data.projectId }).del();
+    await trx('map_games').where({ puzzle_id: data.puzzleId }).del();
     const [row] = (await trx('map_games')
       .insert({
+        puzzle_id: data.puzzleId,
         project_id: data.projectId,
         version_no: data.versionNo,
         name: data.name,
@@ -157,10 +151,17 @@ export async function updateGameCover(
   return row;
 }
 
+/** CONS-K16: the roster comes from the puzzle, or from a legacy map snapshot. */
+export function snapshotParticipants(snapshot: MapGameSnapshot): number {
+  const slots = snapshot.puzzle?.characterSlots ?? snapshot.legacyCharacterSlots ?? [];
+  return slots.filter((slot) => slot !== null).length;
+}
+
 export function toSummary(row: MapGameRow): MapGameSummary {
-  const snapshot = row.snapshot;
+  const snapshot = toGameSnapshot(row.snapshot);
   return {
     id: Number(row.id),
+    puzzleId: row.puzzle_id === null || row.puzzle_id === undefined ? null : Number(row.puzzle_id),
     projectId: Number(row.project_id),
     versionNo: row.version_no,
     name: row.name,
@@ -168,7 +169,7 @@ export function toSummary(row: MapGameRow): MapGameSummary {
     coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
     difficulty: row.difficulty,
     gridSize: row.grid_size,
-    participantCount: (snapshot?.characterSlots ?? []).filter((slot) => slot !== null).length,
+    participantCount: snapshotParticipants(snapshot),
     createdAt: new Date(row.created_at).toISOString(),
   };
 }
@@ -176,7 +177,8 @@ export function toSummary(row: MapGameRow): MapGameSummary {
 export function toDetail(row: MapGameRow): MapGameDetail {
   return {
     ...toSummary(row),
-    // The game page renders the snapshot exactly as it was deployed.
-    data: row.snapshot,
+    // The game page renders the snapshot exactly as it was deployed, upgraded
+    // to the current shape (legacy rosters become `legacyCharacterSlots`).
+    snapshot: toGameSnapshot(row.snapshot),
   };
 }

@@ -56,6 +56,17 @@ describe('EditorBottomBar tools (OPT-H11 §11.2)', () => {
     expect(barSource).toContain('撤销 (Ctrl+Z)');
     expect(barSource).toContain('重做 (Ctrl+Shift+Z)');
   });
+
+  it('keeps 选择 / 区域 / 物品 / 尺寸可点 on the map side (SPEC-K12 回归)', () => {
+    // v0.5.0 只把参与者从地图编辑器删掉；地图侧的写工具一样不少 ——
+    // 「尺寸可点」（onOpenResize → 「调整画布尺寸」弹窗）是谜题侧唯一被
+    // 降级成纯展示的东西，这里钉住地图侧没有跟着降级。
+    const sizeAt = barSource.indexOf('onClick={onOpenResize}');
+    expect(sizeAt).toBeGreaterThan(-1);
+    const sizeButton = barSource.slice(barSource.lastIndexOf('<Button', sizeAt), sizeAt);
+    expect(sizeButton).toContain('title="画布尺寸 n（与「基本信息」中的 n 一致）"');
+    expect(barSource).toContain('onOpenResize: () => void;');
+  });
 });
 
 describe('EditorPage keyboard shortcuts (OPT-H11 §11.3)', () => {
@@ -73,11 +84,18 @@ describe('EditorPage keyboard shortcuts (OPT-H11 §11.3)', () => {
   });
 });
 
-describe('EditorLeftPanel character tab copy (OPT-H11 §11.2)', () => {
-  it('describes the real flow: 加入 → 参与者区 → 拖到画布', () => {
-    expect(leftPanelSource).toContain(
-      '点击角色可选中；点击「加入」放入右侧参与者区，再从参与者区拖拽到画布完成放置。',
+describe('EditorLeftPanel (v0.5.0 SPEC-K12 §9.1: the 角色 tab is gone)', () => {
+  it('keeps only 物品 / 区域 — the roster moved to the puzzle editor', () => {
+    const tabs = leftPanelSource.slice(
+      leftPanelSource.indexOf('const TABS'),
+      leftPanelSource.indexOf('const LAYER_LABELS'),
     );
-    expect(leftPanelSource).not.toContain('队伍槽位');
+    const labels = Array.from(tabs.matchAll(/label: '([^']+)'/g)).map((match) => match[1]);
+    expect(labels).toEqual(['物品', '区域']);
+    // SPEC-K04: the roster's whole branch (and its props) left with it.
+    expect(leftPanelSource).not.toContain('characterSlots');
+    expect(leftPanelSource).not.toContain('selectedCharacterId');
+    expect(leftPanelSource).not.toContain('onAssignSlot');
+    expect(leftPanelSource).not.toContain('onSelectCharacter');
   });
 });

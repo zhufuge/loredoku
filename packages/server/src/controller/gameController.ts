@@ -5,12 +5,14 @@ import { parseOrThrow } from '../utils/validate';
 import * as gameService from '../service/gameService';
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5.4): deploy a published work as a game.
+ * CONS-K16 (docs/v0.5.0.md §10.2): deploy a **puzzle** as a game
+ * (`POST /api/puzzles/:id/games`). v0.5.0 moved deployment off the map version
+ * because the puzzle is what owns the participants a game plays with.
  *
  * The full body (name / cover / difficulty) is validated by the shared
  * `gameDeploySchema` inside the service — that is where the difficulty default
- * and the "name falls back to the map name" rule live, so the controller only
- * forwards the parsed object.
+ * and the "name falls back to the puzzle name" rule live, so the controller
+ * only forwards the parsed object.
  */
 export async function deploy(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);

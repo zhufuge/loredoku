@@ -1,24 +1,19 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
   MAP_LAYER_Z,
   RULER_ACTIVE_FONT_DELTA,
   type CellCoord,
-  type Character,
-  type CharacterSlotEntry,
   type Item,
-  type MapDraft,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
-import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import {
   MapBackgroundLayer,
   MapCanvasFrameLayer,
   MapMouseCursorBoxLayer,
   MapGridSeparatorLayer,
-  MapHighlightLayer,
   MapNonStandableMaskLayer,
   MapObjectLayer,
   MapRegionOutlineLayer,
@@ -27,10 +22,8 @@ import {
   MapRegionLabelLayer,
 } from '@/components/map/MapLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
-import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
-import { useHighlight } from '@/hooks/useHighlight';
-import { useWorkDetail } from '@/hooks/useVersions';
+import { useVersionDetail } from '@/hooks/useVersions';
 import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import {
   collectNoStandCells,
@@ -40,20 +33,13 @@ import {
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
 import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
-import { resolveHighlight } from '@/lib/highlight';
 import { rulerStripSize } from '@/lib/ruler';
-import {
-  INACTIVE_ACTIVATION,
-  reduceLinkageActivation,
-  type LinkageActivationEvent,
-  type LinkageActivationState,
-} from '@/lib/linkageActivation';
 
 /**
- * FEAT-F01: the work preview's ruler toggle. The editor owns its own switch;
- * this key only persists the reader's preference across reloads.
+ * FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this
+ * key only persists the reader's preference across reloads.
  */
-const RULER_STORAGE_KEY = 'loredoku.workview.ruler';
+const RULER_STORAGE_KEY = 'loredoku.mapview.ruler';
 
 /** Reads the persisted toggle, defaulting to visible (the editor's default). */
 function readStoredRulerVisible(): boolean {
@@ -61,27 +47,33 @@ function readStoredRulerVisible(): boolean {
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
 }
 
-export function WorkViewPage(): JSX.Element {
-  const [searchParams] = useSearchParams();
+/**
+ * v0.5.0 FEAT-K09 (docs/v0.5.0.md §7.1): the read-only canvas preview of one
+ * **version entry**, reached from the map list (and from the editor's 版本历史
+ * panel) at `/maps/:projectId/:versionNo/view`.
+ *
+ * It is the old work preview page with the participant half removed: a map
+ * version is a frozen canvas, and participants moved to puzzles in v0.5.0
+ * (SPEC-K12 / §5.1), so there is no roster to show here — the canvas is the
+ * whole entry. Everything else (layout, rulers, hover affordances, the OPT-A01
+ * adaptive fit) is unchanged from the page this replaced.
+ */
+export function MapVersionViewPage(): JSX.Element {
+  const { projectId: projectIdParam, versionNo: versionNoParam } = useParams<{
+    projectId: string;
+    versionNo: string;
+  }>();
   const navigate = useNavigate();
 
-  const projectId = Number(searchParams.get('project') ?? '');
-  const versionNo = Number(searchParams.get('v') ?? '');
-  const valid = Number.isFinite(projectId) && Number.isFinite(versionNo);
+  const projectId = Number(projectIdParam);
+  const versionNo = Number(versionNoParam);
+  const valid =
+    Number.isFinite(projectId) && projectId > 0 && Number.isFinite(versionNo) && versionNo > 0;
 
-  const detailQuery = useWorkDetail(valid ? projectId : null, valid ? versionNo : null);
-  // A published snapshot may reference items/characters that are now inactive.
+  const detailQuery = useVersionDetail(valid ? projectId : null, valid ? versionNo : null);
+  // A published snapshot may reference items that are now inactive.
   const itemsQuery = useItems({});
-  const charactersQuery = useCharacters({});
 
-  const {
-    highlight,
-    show: showHighlight,
-    clear: clearHighlight,
-    leaving: highlightLeaving,
-  } = useHighlight();
-  // MOD-802: single-active linkage preview — hover activates, click toggles.
-  const [activation, setActivation] = useState<LinkageActivationState>(INACTIVE_ACTIVATION);
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -94,12 +86,12 @@ export function WorkViewPage(): JSX.Element {
   /** OPT-A01 §1.2: stops the automatic re-fit after a manual zoom / pan. */
   const userAdjustedRef = useRef(false);
 
-  const draft = detailQuery.data?.data as MapDraft | undefined;
+  const draft = detailQuery.data?.data;
 
   useEffect(() => {
     // OPT-G01: the tab is titled with the map name once the detail lands.
     const name = detailQuery.data?.projectName;
-    document.title = name ? `${name} · 格物` : `作品预览 · 格物`;
+    document.title = name ? `${name} · 格物` : '地图预览 · 格物';
   }, [detailQuery.data?.projectName]);
 
   const itemsById = useMemo(() => {
@@ -108,14 +100,8 @@ export function WorkViewPage(): JSX.Element {
     return map;
   }, [itemsQuery.data]);
 
-  const charactersById = useMemo(() => {
-    const map = new Map<number, Character>();
-    for (const character of charactersQuery.data ?? []) map.set(character.id, character);
-    return map;
-  }, [charactersQuery.data]);
-
   const cells = useMemo(() => {
-    const map = new Map<string, MapDraft['cells'][string]>();
+    const map = new Map<string, NonNullable<typeof draft>['cells'][string]>();
     for (const key of Object.keys(draft?.cells ?? {})) {
       const cell = draft?.cells[key];
       if (cell) map.set(key, cell);
@@ -123,15 +109,11 @@ export function WorkViewPage(): JSX.Element {
     return map;
   }, [draft]);
 
-  const slots = useMemo<Array<CharacterSlotEntry | null>>(
-    () => draft?.characterSlots ?? [],
-    [draft],
-  );
   const regions = useMemo(() => draft?.regions ?? [], [draft]);
   const gridSize = draft?.gridSize ?? 0;
   /**
    * v0.3.8 FEAT-D02: the snapshot carries the map's display constants, so a
-   * published work renders exactly like the editor it came from.
+   * published version renders exactly like the editor it came from.
    */
   const style = useMemo(() => resolveMapStyle(draft?.style), [draft]);
   /** OPT-A01 §1.1: adaptive cell width at 100% zoom (shared with the editor). */
@@ -259,75 +241,21 @@ export function WorkViewPage(): JSX.Element {
     setZoom(next);
   };
 
-  /**
-   * MOD-802: the highlight is a projection of the single-active state
-   * machine, so it stays up until the activation ends and then fades out
-   * over 150ms.
-   */
-  const activeSlot =
-    activation.activeParticipantId === null
-      ? null
-      : slots[activation.activeParticipantId] ?? null;
-
-  useEffect(() => {
-    if (!activeSlot) {
-      clearHighlight();
-      return;
-    }
-    showHighlight(
-      resolveHighlight(activeSlot.linkages, {
-        gridSize,
-        cells,
-        characterSlots: slots,
-        regions,
-        style,
-      }),
-    );
-  }, [activeSlot, gridSize, cells, slots, regions, style, showHighlight, clearHighlight]);
-
-  /**
-   * MOD-802 §1.2.5: characters referenced by the active linkage get a
-   * param-colour outline (a single `boxShadow` ring, FIX-E04) in the roster.
-   */
-  const highlightedSlots = useMemo(() => {
-    const set = new Set<number>();
-    for (const character of highlight?.characters ?? []) set.add(character.slotIndex);
-    return set;
-  }, [highlight]);
-
-  const highlightColors = useMemo(() => {
-    const map = new Map<number, string>();
-    for (const character of highlight?.characters ?? []) {
-      map.set(character.slotIndex, character.color);
-    }
-    return map;
-  }, [highlight]);
-
-  // A new snapshot must not inherit a stale activation or hover.
-  useEffect(() => {
-    setActivation(INACTIVE_ACTIVATION);
-    setHover(null);
-    setLabelRegionId(null);
-  }, [draft]);
-
-  const handleActivation = (event: LinkageActivationEvent): void =>
-    setActivation((state) => reduceLinkageActivation(state, event));
-
   if (detailQuery.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载作品…
+        正在加载地图…
       </div>
     );
   }
 
-  if (!draft || detailQuery.isError) {
+  if (!valid || !draft || detailQuery.isError) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-sm text-muted-foreground">作品不存在或加载失败。</p>
-        <Button variant="outline" onClick={() => navigate('/works')}>
-          返回作品列表
+        <p className="text-sm text-muted-foreground">地图版本不存在或加载失败。</p>
+        <Button variant="outline" onClick={() => navigate('/projects')}>
+          返回地图列表
         </Button>
       </div>
     );
@@ -337,12 +265,17 @@ export function WorkViewPage(): JSX.Element {
     <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/works')} title="返回作品列表">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/projects')}
+            title="返回地图列表"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold">
-              {detailQuery.data?.projectName ?? '作品'}
+              {detailQuery.data?.projectName ?? '地图'}
             </span>
             {/* OPT-G01: the version is a badge now, not part of the title. */}
             <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
@@ -384,145 +317,120 @@ export function WorkViewPage(): JSX.Element {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        {/* FIX-F07: the very same matrix panel the editor uses — read-only, so
-            there is nothing to drag or remove. */}
-        <ParticipantPanel
-          slots={slots}
-          charactersById={charactersById}
-          selectedSlotIndex={null}
-          draggingIndex={null}
-          activeSlotIndex={activation.activeParticipantId}
-          highlightedSlots={highlightedSlots}
-          highlightColors={highlightColors}
-          readOnly
-          onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
-          onDeactivateHover={(index) => handleActivation({ type: 'leave', participantId: index })}
-          onActivateClick={(index) => handleActivation({ type: 'click', participantId: index })}
-        />
-
-        <main
-          ref={containerRef}
-          className="relative min-h-0 flex-1 overflow-hidden bg-muted/30"
-          style={{
-            cursor: spaceHeld ? 'grab' : 'default',
-            touchAction: 'none',
-          }}
-          onPointerDown={(event) => {
-            if (event.button === 1 || spaceHeld) {
-              event.currentTarget.setPointerCapture(event.pointerId);
-              userAdjustedRef.current = true;
-              panRef.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
-            }
-          }}
-          onPointerMove={(event) => {
-            // OPT-902: the hover affordances follow the cursor even while panning.
-            setHover(toCell(event.clientX, event.clientY));
-            if (!panRef.current) return;
-            setPan({
-              x: event.clientX - panRef.current.x,
-              y: event.clientY - panRef.current.y,
-            });
-          }}
-          onPointerUp={() => {
-            panRef.current = null;
-          }}
-          onPointerCancel={() => {
-            panRef.current = null;
-          }}
-          onPointerLeave={() => setHover(null)}
-          onWheel={(event) => {
-            if (!(event.ctrlKey || event.metaKey)) return;
-            const node = containerRef.current;
-            if (!node) return;
-            event.preventDefault();
-            const next = clampZoom(zoom + (event.deltaY > 0 ? -1 : 1) * ZOOM_STEP);
-            if (next === zoom) return;
+      <main
+        ref={containerRef}
+        className="relative min-h-0 flex-1 overflow-hidden bg-muted/30"
+        style={{
+          cursor: spaceHeld ? 'grab' : 'default',
+          touchAction: 'none',
+        }}
+        onPointerDown={(event) => {
+          if (event.button === 1 || spaceHeld) {
+            event.currentTarget.setPointerCapture(event.pointerId);
             userAdjustedRef.current = true;
-            const rect = node.getBoundingClientRect();
-            setPan(
-              zoomAtPoint({ x: event.clientX, y: event.clientY }, rect, pan, next, zoom),
-            );
-            setZoom(next);
+            panRef.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
+          }
+        }}
+        onPointerMove={(event) => {
+          // OPT-902: the hover affordances follow the cursor even while panning.
+          setHover(toCell(event.clientX, event.clientY));
+          if (!panRef.current) return;
+          setPan({
+            x: event.clientX - panRef.current.x,
+            y: event.clientY - panRef.current.y,
+          });
+        }}
+        onPointerUp={() => {
+          panRef.current = null;
+        }}
+        onPointerCancel={() => {
+          panRef.current = null;
+        }}
+        onPointerLeave={() => setHover(null)}
+        onWheel={(event) => {
+          if (!(event.ctrlKey || event.metaKey)) return;
+          const node = containerRef.current;
+          if (!node) return;
+          event.preventDefault();
+          const next = clampZoom(zoom + (event.deltaY > 0 ? -1 : 1) * ZOOM_STEP);
+          if (next === zoom) return;
+          userAdjustedRef.current = true;
+          const rect = node.getBoundingClientRect();
+          setPan(
+            zoomAtPoint({ x: event.clientX, y: event.clientY }, rect, pan, next, zoom),
+          );
+          setZoom(next);
+        }}
+      >
+        <div
+          className="absolute left-0 top-0"
+          style={{
+            transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+            transformOrigin: '0 0',
+            width: total,
+            height: total,
           }}
         >
           <div
-            className="absolute left-0 top-0"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: '0 0',
-              width: total,
-              height: total,
-            }}
-          >
-            <div
-              className="absolute left-0 top-0 bg-background"
-              style={{ width: total, height: total, zIndex: MAP_LAYER_Z.canvasBase }}
-            />
+            className="absolute left-0 top-0 bg-background"
+            style={{ width: total, height: total, zIndex: MAP_LAYER_Z.canvasBase }}
+          />
 
-            {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
-            <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
-            <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
-            <MapHighlightLayer
-              highlight={highlight}
-              regions={regions}
-              cellSize={cellSize}
-              style={style}
-              leaving={highlightLeaving}
-            />
-            <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-            <MapNonStandableMaskLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
-            <MapRegionOutlineLayer
-              regions={regions}
-              gridSize={gridSize}
-              cellSize={cellSize}
-              style={style}
-            />
-            <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
-            <MapObjectLayer
-              cells={cells}
-              itemsById={itemsById}
-              cellSize={cellSize}
-              // OPT-C06: object artwork is inset inside its footprint.
-              padding={objectPadding(cellSize)}
-              hover={hover}
-            />
+          {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
+          <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
+          <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
+          <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
+          <MapNonStandableMaskLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
+          <MapRegionOutlineLayer
+            regions={regions}
+            gridSize={gridSize}
+            cellSize={cellSize}
+            style={style}
+          />
+          <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
+          <MapObjectLayer
+            cells={cells}
+            itemsById={itemsById}
+            cellSize={cellSize}
+            // OPT-C06: object artwork is inset inside its footprint.
+            padding={objectPadding(cellSize)}
+            hover={hover}
+          />
 
-            <MapRegionLabelLayer
-              regions={regions}
-              cellSize={cellSize}
-              style={style}
-              hoveredRegionId={hoveredRegionId}
-              onHover={setLabelRegionId}
-            />
+          <MapRegionLabelLayer
+            regions={regions}
+            cellSize={cellSize}
+            style={style}
+            hoveredRegionId={hoveredRegionId}
+            onHover={setLabelRegionId}
+          />
 
-            <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
+          <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
 
-            {/* 层 1 — 鼠标提示框（预览页无操作提示框）. */}
-            <MapMouseCursorBoxLayer
-              cell={hoverEffects.cell}
-              blocked={hoverEffects.blocked}
-              cellSize={cellSize}
-              style={style}
-            />
-          </div>
+          {/* 层 1 — 鼠标提示框（预览页无操作提示框）. */}
+          <MapMouseCursorBoxLayer
+            cell={hoverEffects.cell}
+            blocked={hoverEffects.blocked}
+            cellSize={cellSize}
+            style={style}
+          />
+        </div>
 
-          {/* FEAT-F01: the shared ruler strips. The preview has no operation
-              cursor box, so `operationCell` stays `null` — only the hovered
-              row / column turns dark grey. */}
-          {showRulers ? (
-            <MapRulerStrips
-              gridSize={gridSize}
-              cellSize={cellSize}
-              zoom={zoom}
-              pan={pan}
-              total={total}
-              style={style}
-              hover={hover}
-            />
-          ) : null}
-        </main>
-      </div>
+        {/* FEAT-F01: the shared ruler strips. The preview has no operation
+            cursor box, so `operationCell` stays `null` — only the hovered
+            row / column turns dark grey. */}
+        {showRulers ? (
+          <MapRulerStrips
+            gridSize={gridSize}
+            cellSize={cellSize}
+            zoom={zoom}
+            pan={pan}
+            total={total}
+            style={style}
+            hover={hover}
+          />
+        ) : null}
+      </main>
     </div>
   );
 }

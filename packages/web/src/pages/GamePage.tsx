@@ -194,7 +194,24 @@ export function GamePage(): JSX.Element {
    */
   const cellPressRef = useRef<{ timer: number; fired: boolean } | null>(null);
 
-  const draft = gameQuery.data?.data;
+  /**
+   * CONS-K16 (docs/v0.5.0.md §10.1): the game renders the **snapshot** captured
+   * at deploy time — `{ map, puzzle, legacy* }`. The canvas comes from
+   * `snapshot.map` (a v3 `MapDraft`, no roster), while the roster and the
+   * linkage palette come from `snapshot.puzzle`; v0.4.x snapshots kept them
+   * inside the map, so the `legacy*` fields are the fallback and old games stay
+   * playable with zero repair.
+   */
+  const snapshot = gameQuery.data?.snapshot;
+  const draft = snapshot?.map;
+  const slots = useMemo<Array<CharacterSlotEntry | null>>(
+    () => snapshot?.puzzle?.characterSlots ?? snapshot?.legacyCharacterSlots ?? [],
+    [snapshot],
+  );
+  const linkageColors = useMemo(
+    () => snapshot?.puzzle?.linkageColors ?? snapshot?.legacyLinkageColors ?? [],
+    [snapshot],
+  );
 
   useEffect(() => {
     document.title = gameQuery.data ? `${gameQuery.data.name} · 格物` : '游戏 · 格物';
@@ -221,10 +238,6 @@ export function GamePage(): JSX.Element {
     return map;
   }, [draft]);
 
-  const slots = useMemo<Array<CharacterSlotEntry | null>>(
-    () => draft?.characterSlots ?? [],
-    [draft],
-  );
   const regions = useMemo(() => draft?.regions ?? [], [draft]);
   const gridSize = draft?.gridSize ?? 0;
   const style = useMemo(() => resolveMapStyle(draft?.style), [draft]);
@@ -385,9 +398,12 @@ export function GamePage(): JSX.Element {
         characterSlots: slots,
         regions,
         style,
+        // Q16: the palette is the puzzle's; the legacy fallback keeps v0.4.x
+        // snapshots (which carried it inside `map.style`) rendering the same.
+        linkageColors,
       }),
     );
-  }, [activeSlot, gridSize, cells, slots, regions, style, showHighlight, clearHighlight]);
+  }, [activeSlot, gridSize, cells, slots, regions, style, linkageColors, showHighlight, clearHighlight]);
 
   const highlightedSlots = useMemo(() => {
     const set = new Set<number>();
@@ -630,7 +646,7 @@ export function GamePage(): JSX.Element {
                   </span>
                 </div>
                 <p className="text-[11px] text-muted-foreground">
-                  来自作品 v{game.versionNo} · 参与者 {slots.filter(Boolean).length} 人
+                  来自地图 v{game.versionNo} · 参与者 {slots.filter(Boolean).length} 人
                 </p>
               </div>
             </div>

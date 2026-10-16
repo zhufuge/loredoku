@@ -213,7 +213,7 @@ export function ParticipantPanel({
       <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
         {slots.length === 0 ? (
           <p className="px-2 py-6 text-center text-[10px] text-muted-foreground">
-            {readOnly ? '该作品暂无参与者' : '从角色列表拖拽到参与者区'}
+            {readOnly ? '该谜题暂无参与者' : '从角色列表拖拽到参与者区'}
           </p>
         ) : (
           <div

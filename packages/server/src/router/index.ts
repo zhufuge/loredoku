@@ -4,7 +4,7 @@ import { healthRouter } from './health';
 import { projectsRouter } from './projects';
 import { itemsRouter } from './items';
 import { charactersRouter } from './characters';
-import { versionsRouter } from './versions';
+import { puzzlesRouter } from './puzzles';
 import { gamesRouter } from './games';
 
 export const apiRouter = new Router({ prefix: API_PREFIX });
@@ -13,8 +13,9 @@ apiRouter.use(healthRouter.routes(), healthRouter.allowedMethods());
 apiRouter.use('/projects', projectsRouter.routes(), projectsRouter.allowedMethods());
 apiRouter.use('/items', itemsRouter.routes(), itemsRouter.allowedMethods());
 apiRouter.use('/characters', charactersRouter.routes(), charactersRouter.allowedMethods());
-// OPT-905: cross-map works listing for the works table.
-apiRouter.use('/versions', versionsRouter.routes(), versionsRouter.allowedMethods());
+// v0.5.0 FEAT-K01: the puzzle module. It replaced the flat `/api/versions`
+// listing (the old works table) — the table's data source is `/api/puzzles`.
+apiRouter.use('/puzzles', puzzlesRouter.routes(), puzzlesRouter.allowedMethods());
 // FEAT-G02: cross-map deployed games listing for the games home page.
 apiRouter.use('/games', gamesRouter.routes(), gamesRouter.allowedMethods());
 

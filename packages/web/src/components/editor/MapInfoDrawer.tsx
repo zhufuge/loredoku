@@ -2,18 +2,14 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
-  useMemo,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
-import { HelpCircle, Plus, RotateCcw, Trash2, X } from 'lucide-react';
+import { HelpCircle, RotateCcw, X } from 'lucide-react';
 import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
-  LINKAGE_COLOR_LABEL_MAX_LENGTH,
-  LINKAGE_COLOR_MAX_COUNT,
-  LINKAGE_COLOR_MIN_COUNT,
   MAP_STYLE_CELL_SIZE_MAX,
   MAP_STYLE_CELL_SIZE_MIN,
   MAP_STYLE_LINE_WIDTH_MAX,
@@ -30,23 +26,12 @@ import {
   MAP_STYLE_RULER_GAP_MIN,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
-  type CharacterSlotEntry,
   type MapStyle,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ColorInput } from '@/components/ui/color-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
 import { cn } from '@/lib/utils';
 import {
   clampCellSize,
@@ -57,15 +42,10 @@ import {
   clampRegionLabelStroke,
   clampRulerFontSize,
   clampRulerGap,
-  countLinkageColorUsage,
   isValidShadowColor,
   isValidStyleColor,
   mapStyleEquals,
-  nextLinkageKey,
 } from '@/lib/mapStyle';
-
-/** Suggested colours for newly added palette entries (FEAT-D04). */
-const NEW_COLOR_SUGGESTIONS = ['#FFD166', '#A5D6A7', '#F48FB1', '#B0BEC5', '#CE93D8', '#80DEEA'];
 
 /** Imperative surface used by `EditorPage` to gate drawer switches. */
 export interface MapInfoDrawerHandle {
@@ -84,7 +64,6 @@ interface MapInfoDrawerProps {
   autoCellSize: number;
   /** The committed style — the drawer edits a copy of it. */
   style: MapStyle;
-  characterSlots: Array<CharacterSlotEntry | null>;
   /**
    * FEAT-E01: the drawer never closes itself. Both × and 取消 call this, and
    * `EditorPage` decides whether to prompt for unsaved edits first.
@@ -199,47 +178,6 @@ function NumberField({
       />
       {suffix ? <span className="text-[10px] text-muted-foreground">{suffix}</span> : null}
     </div>
-  );
-}
-
-function TextField({
-  value,
-  maxLength,
-  ariaLabel,
-  commit,
-}: {
-  value: string;
-  maxLength?: number;
-  ariaLabel?: string;
-  commit: (value: string) => void;
-}): JSX.Element {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  const flush = (): void => {
-    const next = draft.trim();
-    if (next.length === 0 || next === value) {
-      setDraft(value);
-      return;
-    }
-    commit(next);
-  };
-
-  return (
-    <Input
-      value={draft}
-      maxLength={maxLength}
-      aria-label={ariaLabel}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={flush}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter') {
-          event.preventDefault();
-          flush();
-        }
-      }}
-      className="h-7 w-16 text-xs"
-    />
   );
 }
 
@@ -367,7 +305,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       gridSize,
       autoCellSize,
       style,
-      characterSlots,
       onRequestClose,
       onCommit,
       onDirtyChange,
@@ -376,7 +313,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
   ): JSX.Element {
     const [draft, setDraft] = useDraft<MapStyle>(style, open);
     const [draftGridSize, setDraftGridSize] = useDraft<number>(gridSize, open);
-    const [deleteColorKey, setDeleteColorKey] = useState<string | null>(null);
     /**
      * Set while committing / discarding. `style` only reaches this component on
      * the next render, so without this the (stale) dirty flag would still read
@@ -419,58 +355,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       setDraft((current) => updater(current));
 
     const cellSizeValue = draft.cellSize ?? autoCellSize;
-    const linkageColors = draft.linkageColors;
-    const usage = useMemo(
-      () =>
-        new Map(
-          linkageColors.map((entry) => [
-            entry.key,
-            countLinkageColorUsage(characterSlots, entry.key),
-          ]),
-        ),
-      [linkageColors, characterSlots],
-    );
-    const deleteUsage = deleteColorKey ? (usage.get(deleteColorKey) ?? 0) : 0;
-
-    const addColor = (): void => {
-      if (linkageColors.length >= LINKAGE_COLOR_MAX_COUNT) return;
-      const suggestion = NEW_COLOR_SUGGESTIONS[linkageColors.length % NEW_COLOR_SUGGESTIONS.length]!;
-      patch((current) => ({
-        ...current,
-        linkageColors: [
-          ...current.linkageColors,
-          {
-            key: nextLinkageKey(current.linkageColors),
-            label: `色 ${current.linkageColors.length + 1}`,
-            color: suggestion,
-          },
-        ],
-      }));
-    };
-
-    const renameColor = (key: string, label: string): void =>
-      patch((current) => ({
-        ...current,
-        linkageColors: current.linkageColors.map((entry) =>
-          entry.key === key
-            ? { ...entry, label: label.slice(0, LINKAGE_COLOR_LABEL_MAX_LENGTH) || entry.key }
-            : entry,
-        ),
-      }));
-
-    const recolor = (key: string, color: string): void =>
-      patch((current) => ({
-        ...current,
-        linkageColors: current.linkageColors.map((entry) =>
-          entry.key === key ? { ...entry, color } : entry,
-        ),
-      }));
-
-    const removeColor = (key: string): void =>
-      patch((current) => ({
-        ...current,
-        linkageColors: current.linkageColors.filter((entry) => entry.key !== key),
-      }));
 
     const cellSizeHint = `方格边长（px），可指定 ${MAP_STYLE_CELL_SIZE_MIN} ~ ${MAP_STYLE_CELL_SIZE_MAX}，未指定时按窗口自适应。${
       draft.cellSize === null
@@ -966,68 +850,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
               />
             </Row>
           </Section>
-
-          {/* ---- 联动主题色 ---- */}
-          <Section
-            title="联动主题色"
-            hint="Linkage Colors — 参与者联动的主题色调色板，以 key 指向具体颜色，驱动方块高亮、背景高亮与区域高亮线。"
-          >
-            <ul className="space-y-1.5">
-              {linkageColors.map((entry) => (
-                <li key={entry.key} className="flex items-center gap-1">
-                  <ColorField
-                    id={`map-info-linkage-${entry.key}`}
-                    value={entry.color}
-                    commit={(value) => recolor(entry.key, value)}
-                  />
-                  <TextField
-                    value={entry.label}
-                    maxLength={LINKAGE_COLOR_LABEL_MAX_LENGTH}
-                    ariaLabel={`${entry.key} 名称`}
-                    commit={(next) => renameColor(entry.key, next)}
-                  />
-                  <span className="w-14 shrink-0 font-mono text-[10px] text-muted-foreground">
-                    {entry.key}
-                  </span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                    title={
-                      linkageColors.length <= LINKAGE_COLOR_MIN_COUNT
-                        ? `至少保留 ${LINKAGE_COLOR_MIN_COUNT} 项`
-                        : '删除该颜色'
-                    }
-                    disabled={linkageColors.length <= LINKAGE_COLOR_MIN_COUNT}
-                    onClick={() => {
-                      if (countLinkageColorUsage(characterSlots, entry.key) > 0) {
-                        setDeleteColorKey(entry.key);
-                        return;
-                      }
-                      removeColor(entry.key);
-                    }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 w-full text-[11px]"
-              disabled={linkageColors.length >= LINKAGE_COLOR_MAX_COUNT}
-              onClick={addColor}
-            >
-              <Plus className="mr-1 h-3.5 w-3.5" />
-              新增颜色（{linkageColors.length}/{LINKAGE_COLOR_MAX_COUNT}）
-            </Button>
-            <p className="text-[10px] leading-relaxed text-muted-foreground">
-              默认至少包含红、蓝两项。删除被联动引用的颜色前会先确认。
-            </p>
-          </Section>
         </div>
 
         {/* ---- FEAT-E01: 取消 / 保存 并列固定在底部 ---- */}
@@ -1044,33 +866,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
             保存
           </Button>
         </footer>
-
-        <AlertDialog
-          open={deleteColorKey !== null}
-          onOpenChange={(next) => !next && setDeleteColorKey(null)}
-        >
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>删除该联动主题色？</AlertDialogTitle>
-              <AlertDialogDescription>
-                已有 {deleteUsage} 处联动使用「
-                {linkageColors.find((entry) => entry.key === deleteColorKey)?.label ?? deleteColorKey}
-                」。删除后这些联动会失去颜色，请在保存前为它们重新指定。
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>取消</AlertDialogCancel>
-              <AlertDialogAction
-                onClick={() => {
-                  if (deleteColorKey) removeColor(deleteColorKey);
-                  setDeleteColorKey(null);
-                }}
-              >
-                删除
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
       </aside>
     );
   },

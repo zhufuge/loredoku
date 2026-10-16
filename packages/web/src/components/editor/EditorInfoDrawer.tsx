@@ -1,5 +1,4 @@
-import type { Character, DraftCell, DraftRegion, Item } from '@loredoku/shared';
-import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
+import type { DraftCell, DraftRegion, Item } from '@loredoku/shared';
 import { ItemThumbnail } from '@/components/item/ItemThumbnail';
 import { Button } from '@/components/ui/button';
 import { regionAt } from '@/lib/region';
@@ -12,15 +11,19 @@ interface EditorInfoDrawerProps {
   selection: Selection | null;
   cells: Map<string, DraftCell>;
   regions: DraftRegion[];
-  charactersById: Map<number, Character>;
   itemsById: Map<number, Item>;
-  unplacedCharacterId: number | null;
-  onClearUnplacedCharacter: () => void;
   onClearCell: (x: number, y: number) => void;
   onClearObject: (x: number, y: number) => void;
   onEditRegion: (region: DraftRegion) => void;
   onDeleteRegion: (region: DraftRegion) => void;
   onLocateRegion: (region: DraftRegion) => void;
+  /**
+   * v0.5.0 SPEC-K06 (docs/v0.5.0.md §4.3): the puzzle editor renders this same
+   * drawer against its **read-only** canvas, so every action button
+   * (清空本格 / 清空物件层 / 编辑 / 定位 / 删除) must disappear. Default `false`
+   * keeps the map editor's behaviour untouched.
+   */
+  readOnly?: boolean;
 }
 
 // OPT-H10: a single compact bordered block replaces the two-column `dl` —
@@ -125,6 +128,7 @@ function CellBranch({
   itemsById,
   onClearCell,
   onClearObject,
+  readOnly = false,
 }: {
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
@@ -132,6 +136,7 @@ function CellBranch({
   itemsById: Map<number, Item>;
   onClearCell: (x: number, y: number) => void;
   onClearObject: (x: number, y: number) => void;
+  readOnly?: boolean;
 }): JSX.Element {
   const backgroundItem =
     cell?.background?.itemId !== undefined ? itemsById.get(cell.background.itemId) : undefined;
@@ -178,63 +183,40 @@ function CellBranch({
 
       <RegionSection region={region} />
 
-      <section className="space-y-2">
-        <h3 className="text-xs font-medium text-muted-foreground">快捷操作</h3>
-        <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 flex-1 text-[11px]"
-            onClick={() => onClearCell(selection.x, selection.y)}
-          >
-            清空本格
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 flex-1 text-[11px]"
-            onClick={() => onClearObject(selection.x, selection.y)}
-          >
-            清空物件层
-          </Button>
-        </div>
-      </section>
+      {/* SPEC-K06: a read-only canvas has nothing to clear. */}
+      {readOnly ? null : (
+        <section className="space-y-2">
+          <h3 className="text-xs font-medium text-muted-foreground">快捷操作</h3>
+          <div className="flex gap-1">
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 flex-1 text-[11px]"
+              onClick={() => onClearCell(selection.x, selection.y)}
+            >
+              清空本格
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-7 flex-1 text-[11px]"
+              onClick={() => onClearObject(selection.x, selection.y)}
+            >
+              清空物件层
+            </Button>
+          </div>
+        </section>
+      )}
     </>
   );
 }
 
-function CharacterProfile({
-  character,
-  onClose,
-}: {
-  character: Character;
-  onClose?: () => void;
-}): JSX.Element {
-  // CLAR-603: characters no longer occupy cells, so the empty-state message
-  // points the user at the participant panel rather than a drag-to-canvas
-  // instruction.
-  return (
-    <>
-      <section className="flex flex-col items-center gap-2 border-b pb-4">
-        <CharacterThumbnail character={character} className="h-24 w-24" />
-        <p className="text-base font-semibold">{character.name}</p>
-        <p className="text-xs text-muted-foreground">ID: {character.code}</p>
-        {character.description ? (
-          <p className="text-center text-xs text-muted-foreground">{character.description}</p>
-        ) : null}
-      </section>
-      <p className="rounded-md border border-dashed bg-muted/40 px-3 py-2 text-center text-xs text-muted-foreground">
-        该角色尚未加入参与者区。打开左侧「角色」标签，点击「加入」即可放入参与者框。
-      </p>
-      {onClose ? (
-        <Button type="button" variant="outline" className="w-full" onClick={onClose}>
-          关闭
-        </Button>
-      ) : null}
-    </>
-  );
-}
-
+/**
+ * SPEC-K06 (docs/v0.5.0.md §4.3): the drawer shows cell / region detail only.
+ * v0.5.0 removed the roster from the map (and from this drawer with it), so the
+ * old 「未落地角色」prompt and its clear button are gone — the empty state is a
+ * single line of guidance.
+ */
 export function EditorInfoDrawer({
   open,
   onClose,
@@ -242,15 +224,13 @@ export function EditorInfoDrawer({
   selection,
   cells,
   regions,
-  charactersById,
   itemsById,
-  unplacedCharacterId,
-  onClearUnplacedCharacter,
   onClearCell,
   onClearObject,
   onEditRegion,
   onDeleteRegion,
   onLocateRegion,
+  readOnly = false,
 }: EditorInfoDrawerProps): JSX.Element {
   const cell =
     selection?.type === 'cell' ? cells.get(`${selection.x},${selection.y}`) : undefined;
@@ -295,16 +275,9 @@ export function EditorInfoDrawer({
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3 text-sm">
             {!selection ? (
-              unplacedCharacterId !== null && charactersById.has(unplacedCharacterId) ? (
-                <CharacterProfile
-                  character={charactersById.get(unplacedCharacterId)!}
-                  onClose={onClearUnplacedCharacter}
-                />
-              ) : (
-                <p className="py-6 text-center text-xs text-muted-foreground">
-                  在画布上点击格位、区域标签或左侧参与者框查看详情
-                </p>
-              )
+              <p className="py-6 text-center text-xs text-muted-foreground">
+                在画布上点击格位或区域标签查看详情
+              </p>
             ) : selection.type === 'cell' ? (
               <CellBranch
                 selection={selection}
@@ -313,15 +286,20 @@ export function EditorInfoDrawer({
                 itemsById={itemsById}
                 onClearCell={onClearCell}
                 onClearObject={onClearObject}
+                readOnly={readOnly}
               />
             ) : (
               <RegionSection
                 region={region}
-                actions={{
-                  onEdit: onEditRegion,
-                  onDelete: onDeleteRegion,
-                  onLocate: onLocateRegion,
-                }}
+                actions={
+                  readOnly
+                    ? undefined
+                    : {
+                        onEdit: onEditRegion,
+                        onDelete: onDeleteRegion,
+                        onLocate: onLocateRegion,
+                      }
+                }
               />
             )}
           </div>

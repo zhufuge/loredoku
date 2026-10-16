@@ -9,7 +9,6 @@ import type {
 import * as mapRepo from '../repository/mapRepository';
 import { toProject } from '../repository/projectRepository';
 import * as itemRepo from '../repository/itemRepository';
-import * as characterRepo from '../repository/characterRepository';
 import { AppError } from '../utils/AppError';
 
 async function assertValidReferences(draft: MapDraft, size: number): Promise<void> {
@@ -40,17 +39,8 @@ async function assertValidReferences(draft: MapDraft, size: number): Promise<voi
   if (missingItems.length > 0) {
     throw AppError.validation('存在无效的物品引用', missingItems);
   }
-
-  // CLAR-603: participants live in the roster; no placedCharacters check.
-  const characterIds = new Set<number>();
-  for (const slot of draft.characterSlots) {
-    if (slot) characterIds.add(slot.characterId);
-  }
-  const existingCharacters = await characterRepo.existingCharacterIds([...characterIds]);
-  const missingCharacters = [...characterIds].filter((id) => !existingCharacters.has(id));
-  if (missingCharacters.length > 0) {
-    throw AppError.validation('存在无效的角色引用', missingCharacters);
-  }
+  // v0.5.0: the roster left the map (it belongs to the puzzle), so there is
+  // nothing character-shaped to validate here any more.
 }
 
 function assertNoRegionOverlap(regions: DraftRegion[]): void {

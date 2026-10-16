@@ -1,51 +1,70 @@
-import { Copy, Pencil, Trash2 } from 'lucide-react';
-import type { ProjectDetail } from '@loredoku/shared';
+import { Copy, Eye, Pencil, Puzzle, RotateCcw, Trash2 } from 'lucide-react';
+import type { MapEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/format';
 import { formatRelativeTime } from '@/lib/relativeTime';
 
 /**
- * FEAT-H03 + OPT-H04 (docs/v0.4.2.md §3.2d / §4.2b): the map card, rebuilt.
+ * FEAT-K09 (docs/v0.5.0.md §7.1): the map list shows the **union of entries**,
+ * so one card renders either kind:
  *
- * - the cover is the card's **head**, fixed at 16:10, and clicking it opens the
- *   editor; without artwork the name's first character stands in (the same
- *   placeholder the game card uses)
- * - 「卡片 N」/「区域 N」 are gone — the spec and the update time are all a
- *   browsing author needs
- * - an empty description collapses the line instead of printing 「暂无描述」
- * - the update time is **relative** on the card (absolute on hover, and in the
- *   list view), so "how fresh is this" is readable at a glance
+ * - a **work entry** (`kind: 'draft'`) — the editable row, badge 「草稿」 (or
+ *   `已发布 v{n}` once the lineage has a version), with the editing actions;
+ * - a **version entry** (`kind: 'version'`) — an immutable published snapshot,
+ *   badge `v{n}`, with the read-only actions only (查看效果 / 新建谜题 /
+ *   编辑此版本 / 删除). It is **not** renamable and has no cover editor
+ *   (SPEC-K11: a version is never edited in place).
+ *
+ * The cover is still the card's head at 16:10 and clicking it opens the editor
+ * — for a version entry that button is 「编辑此版本」 instead, which forks a new
+ * work entry (§7.3).
  */
 interface ProjectGridCardProps {
-  project: ProjectDetail;
-  onOpen: (project: ProjectDetail) => void;
-  onRename: (project: ProjectDetail) => void;
-  onDuplicate: (project: ProjectDetail) => void;
-  onDelete: (project: ProjectDetail) => void;
+  entry: MapEntrySummary;
+  onOpen: (entry: MapEntrySummary) => void;
+  onRename: (entry: MapEntrySummary) => void;
+  onDuplicate: (entry: MapEntrySummary) => void;
+  onDelete: (entry: MapEntrySummary) => void;
+  /** Version entries only: read-only canvas preview. */
+  onPreview?: (entry: MapEntrySummary) => void;
+  /** Version entries only: create a puzzle on this version (§2.4). */
+  onNewPuzzle?: (entry: MapEntrySummary) => void;
+  /** Version entries only: fork a new work entry from this version (§7.3). */
+  onEditVersion?: (entry: MapEntrySummary) => void;
 }
 
 export function ProjectGridCard({
-  project,
+  entry,
   onOpen,
   onRename,
   onDuplicate,
   onDelete,
+  onPreview,
+  onNewPuzzle,
+  onEditVersion,
 }: ProjectGridCardProps): JSX.Element {
-  const initial = project.name.trim().charAt(0) || '图';
-  const updatedAt = project.updatedAt;
+  const initial = entry.name.trim().charAt(0) || '图';
+  const isVersion = entry.kind === 'version';
+
+  const badge = isVersion
+    ? `v${entry.versionNo ?? ''}`
+    : entry.currentVersionNo !== null
+      ? `已发布 v${entry.currentVersionNo}`
+      : '草稿';
 
   return (
     <Card className="flex flex-col overflow-hidden transition-colors hover:border-primary">
       <button
         type="button"
-        onClick={() => onOpen(project)}
+        onClick={() => (isVersion ? onEditVersion?.(entry) : onOpen(entry))}
         className="relative block aspect-[16/10] w-full cursor-pointer overflow-hidden border-b bg-muted/40"
+        title={isVersion ? '编辑此版本（将新增一个条目）' : entry.name}
       >
-        {project.coverUrl ? (
+        {entry.coverUrl ? (
           <img
-            src={project.coverUrl}
-            alt={project.name}
+            src={entry.coverUrl}
+            alt={entry.name}
             draggable={false}
             className="h-full w-full object-cover"
           />
@@ -57,45 +76,102 @@ export function ProjectGridCard({
       </button>
       <div className="flex flex-1 flex-col gap-3 p-4">
         <div className="flex-1 space-y-1">
-          <h3 className="truncate font-medium" title={project.name}>
-            {project.name}
+          <h3 className="flex items-center gap-1.5 truncate font-medium" title={entry.name}>
+            <span className="truncate">{entry.name}</span>
+            <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+              {badge}
+            </span>
           </h3>
-          {project.description ? (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{project.description}</p>
+          {entry.description ? (
+            <p className="line-clamp-2 text-xs text-muted-foreground">{entry.description}</p>
           ) : null}
         </div>
         <p className="text-xs text-muted-foreground">
           <span className="tabular-nums">
-            {project.gridSize} × {project.gridSize}
+            {entry.gridSize} × {entry.gridSize}
           </span>
           <span className="px-1">·</span>
-          <span title={formatDateTime(updatedAt)}>{formatRelativeTime(updatedAt)}更新</span>
+          {isVersion ? (
+            <>
+              {/* §7.1 第 2 条：版本条目副信息补血缘版本总数。 */}
+              该地图共 {entry.versionCount} 个版本
+              <span className="px-1">·</span>
+              <span title={formatDateTime(entry.publishedAt ?? entry.updatedAt)}>
+                发布于 {formatDateTime(entry.publishedAt ?? entry.updatedAt)}
+              </span>
+            </>
+          ) : (
+            <>
+              {entry.currentVersionNo !== null ? (
+                <>
+                  <span className="tabular-nums">地图 v{entry.currentVersionNo}</span>
+                  <span className="px-1">·</span>
+                </>
+              ) : null}
+              <span title={formatDateTime(entry.updatedAt)}>
+                {formatRelativeTime(entry.updatedAt)}更新
+              </span>
+            </>
+          )}
         </p>
-        <div className="flex items-center gap-1">
-          <Button size="sm" variant="secondary" onClick={() => onOpen(project)}>
-            编辑
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            title="编辑信息"
-            className="ml-auto"
-            onClick={() => onRename(project)}
-          >
-            <Pencil className="h-4 w-4" />
-          </Button>
-          <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(project)}>
-            <Copy className="h-4 w-4" />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            title="删除"
-            className="text-destructive hover:text-destructive"
-            onClick={() => onDelete(project)}
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+        <div className="flex flex-wrap items-center gap-1">
+          {isVersion ? (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => onPreview?.(entry)}>
+                <Eye className="mr-1 h-3.5 w-3.5" />
+                查看效果
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => onNewPuzzle?.(entry)}>
+                <Puzzle className="mr-1 h-3.5 w-3.5" />
+                新建谜题
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                title="编辑此版本（将新增一个条目）"
+                className="ml-auto"
+                onClick={() => onEditVersion?.(entry)}
+              >
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                title="删除该版本"
+                className="text-destructive hover:text-destructive"
+                onClick={() => onDelete(entry)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button size="sm" variant="secondary" onClick={() => onOpen(entry)}>
+                编辑
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                title="编辑信息"
+                className="ml-auto"
+                onClick={() => onRename(entry)}
+              >
+                <Pencil className="h-4 w-4" />
+              </Button>
+              <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(entry)}>
+                <Copy className="h-4 w-4" />
+              </Button>
+              <Button
+                size="icon"
+                variant="ghost"
+                title="删除"
+                className="text-destructive hover:text-destructive"
+                onClick={() => onDelete(entry)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </div>
     </Card>

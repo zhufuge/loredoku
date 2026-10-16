@@ -6,4 +6,5 @@ export * from './character';
 export * from './map';
 export * from './mapDraft';
 export * from './participant';
+export * from './puzzle';
 export * from './game';

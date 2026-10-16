@@ -15,7 +15,6 @@ import {
   type MapDraft,
   type MapStyle,
   type MapVersionSummary,
-  type ParticipantTarget,
   type PublishViolation,
   type RegionShape,
 } from '@loredoku/shared';
@@ -48,30 +47,17 @@ import {
   MapInfoDrawer,
   type MapInfoDrawerHandle,
 } from '@/components/editor/MapInfoDrawer';
-import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
-import {
-  ParticipantDrawer,
-  type PlacedItemOption,
-} from '@/components/editor/ParticipantDrawer';
 import { RegionDialog } from '@/components/editor/RegionDialog';
 import { RegionSelectionBar } from '@/components/editor/RegionSelectionBar';
-import { WorkHistoryDialog } from '@/components/editor/WorkHistoryDialog';
-import { useCharacters } from '@/hooks/useCharacters';
+import { VersionHistoryDialog } from '@/components/editor/VersionHistoryDialog';
 import { useItems } from '@/hooks/useItems';
 import { useProjectMap, useSaveMap, useUpdateGridSize } from '@/hooks/useMap';
-import { usePublishProject } from '@/hooks/useVersions';
+import { usePublishProject, useVersions } from '@/hooks/useVersions';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
-import { useHighlight } from '@/hooks/useHighlight';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { canPlaceItemOnLayer } from '@/lib/canvasLayers';
-import {
-  infoDrawerOpen,
-  reduceEditorFocus,
-  type EditorFocus,
-  type FocusEvent,
-} from '@/lib/editorFocus';
+import { infoDrawerOpen, reduceEditorFocus } from '@/lib/editorFocus';
 import { resolveEditorInit } from '@/lib/editorInit';
-import { resolveHighlight } from '@/lib/highlight';
 import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
 import { cn } from '@/lib/utils';
@@ -84,11 +70,14 @@ interface RegionDialogState {
   region: DraftRegion | null;
 }
 
-interface SlotDragPreview {
-  slotIndex: number;
-  pointer: { x: number; y: number };
-}
-
+/**
+ * v0.5.0 SPEC-K12 (docs/v0.5.0.md §9.1): the map editor is 只编辑地图 again.
+ *
+ * The roster, the participant panel, the participant drawer and the whole
+ * linkage-highlight chain moved to the puzzle editor — the map no longer owns a
+ * participant. `editorStore` follows suit (§9.2), so everything below reads
+ * canvas state only.
+ */
 export function EditorPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
@@ -98,7 +87,7 @@ export function EditorPage(): JSX.Element {
 
   const mapQuery = useProjectMap(id);
   const itemsQuery = useItems({ isActive: true });
-  const charactersQuery = useCharacters({ isActive: true });
+  const versionsQuery = useVersions(Number.isFinite(id) ? id : null);
   const saveMutation = useSaveMap();
   const resizeMutation = useUpdateGridSize();
   const publishMutation = usePublishProject(id);
@@ -127,8 +116,6 @@ export function EditorPage(): JSX.Element {
   const [mapInfoOpen, setMapInfoOpen] = useState(false);
   /** FEAT-D03: the adaptive value the canvas last computed. */
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
-  const [unplacedCharacterId, setUnplacedCharacterId] = useState<number | null>(null);
-  const [participantDrawerOpen, setParticipantDrawerOpen] = useState(false);
   const [regionAnchorActive, setRegionAnchorActive] = useState(false);
   const [saveMaskVisible, setSaveMaskVisible] = useState(false);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
@@ -148,18 +135,6 @@ export function EditorPage(): JSX.Element {
     if (typeof window === 'undefined') return true;
     return window.localStorage.getItem('loredoku.editor.ruler') !== 'hidden';
   });
-  const [removeParticipantTarget, setRemoveParticipantTarget] = useState<number | null>(null);
-  /**
-   * FEAT-E01 (docs/v0.4.1.md §7.3a): while the participant drawer is picking a
-   * position condition, the next canvas click sets it instead of moving focus.
-   */
-  const [positionPickSlot, setPositionPickSlot] = useState<number | null>(null);
-  const [pickedPosition, setPickedPosition] = useState<{ x: number; y: number } | null>(null);
-
-  // Slot drag state for roster reordering (CLAR-603 — no longer drops onto the map).
-  const [slotDrag, setSlotDrag] = useState<SlotDragPreview | null>(null);
-  const slotDragRef = useRef<SlotDragPreview | null>(null);
-  slotDragRef.current = slotDrag;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -176,12 +151,6 @@ export function EditorPage(): JSX.Element {
     for (const item of itemsQuery.data ?? []) map.set(item.id, item);
     return map;
   }, [itemsQuery.data]);
-
-  const charactersById = useMemo(() => {
-    const map = new Map<number, NonNullable<typeof charactersQuery.data>[number]>();
-    for (const character of charactersQuery.data ?? []) map.set(character.id, character);
-    return map;
-  }, [charactersQuery.data]);
 
   const pendingItem = useMemo(
     () => (editor.selectedItemId === null ? null : itemsById.get(editor.selectedItemId) ?? null),
@@ -200,26 +169,12 @@ export function EditorPage(): JSX.Element {
       setInfoOpen(false);
       return;
     }
-    if (editor.selection || editor.selectedRegionId !== null || editor.selectedSlotIndex !== null) {
+    if (editor.selection || editor.selectedRegionId !== null) {
       setInfoOpen(true);
-    } else if (unplacedCharacterId === null) {
+    } else {
       setInfoOpen(false);
     }
-  }, [
-    editor.selection,
-    editor.selectedRegionId,
-    editor.selectedSlotIndex,
-    unplacedCharacterId,
-    mapInfoOpen,
-  ]);
-
-  useEffect(() => {
-    if (editor.selectedSlotIndex !== null) {
-      setParticipantDrawerOpen(true);
-    } else {
-      setParticipantDrawerOpen(false);
-    }
-  }, [editor.selectedSlotIndex]);
+  }, [editor.selection, editor.selectedRegionId, mapInfoOpen]);
 
   useEffect(() => {
     const data = mapQuery.data;
@@ -304,100 +259,14 @@ export function EditorPage(): JSX.Element {
     void persist();
   };
 
-  // ---- CLAR-603 + MOD-802: participant linkage lives entirely in the roster ----
-  const {
-    highlight,
-    show: showHighlight,
-    clear: clearHighlight,
-    leaving: highlightLeaving,
-  } = useHighlight();
-
-  const selectedSlot =
-    editor.selectedSlotIndex === null
-      ? null
-      : editor.characterSlots[editor.selectedSlotIndex] ?? null;
-
-  const activeSlot =
-    editor.activeParticipantId === null
-      ? null
-      : editor.characterSlots[editor.activeParticipantId] ?? null;
-
-  /**
-   * MOD-802 §1.2.4: the highlight is a pure projection of the single-active
-   * state machine — persistent while active, faded out (150ms) afterwards.
-   */
-  useEffect(() => {
-    if (!activeSlot) {
-      clearHighlight();
-      return;
-    }
-    showHighlight(
-      resolveHighlight(activeSlot.linkages, {
-        gridSize: editor.gridSize,
-        cells: editor.cells,
-        characterSlots: editor.characterSlots,
-        regions: editor.regions,
-      }),
-    );
-  }, [
-    activeSlot,
-    editor.gridSize,
-    editor.cells,
-    editor.characterSlots,
-    editor.regions,
-    showHighlight,
-    clearHighlight,
-  ]);
-
-  const placedItems = useMemo<PlacedItemOption[]>(() => {
-    const list: PlacedItemOption[] = [];
-    for (const [key, cell] of editor.cells.entries()) {
-      if (!cell.object) continue;
-      const [x, y] = key.split(',').map(Number) as [number, number];
-      list.push({
-        itemId: cell.object.itemId,
-        name: itemsById.get(cell.object.itemId)?.name ?? '',
-        x,
-        y,
-      });
-    }
-    return list;
-  }, [editor.cells, itemsById]);
-
-  /**
-   * OPT-C07 (docs/v0.3.7.md §OPT-C07): the participant activation and the cell
-   * selection are mutually exclusive. The rule lives in `lib/editorFocus.ts`
-   * so it can be unit-tested without a DOM.
-   */
-  const applyFocus = (event: FocusEvent): void => {
-    const current: EditorFocus = {
-      activation: {
-        activeParticipantId: editor.activeParticipantId,
-        activationMode: editor.activationMode,
-      },
-      selection: editor.selection,
-    };
-    const next = reduceEditorFocus(current, event);
-    if (next.activation.activeParticipantId === null) {
-      if (current.activation.activeParticipantId !== null) editor.clearActivation();
-    } else if (
-      next.activation.activeParticipantId !== current.activation.activeParticipantId ||
-      next.activation.activationMode !== current.activation.activationMode
-    ) {
-      editor.activateParticipantClick(next.activation.activeParticipantId);
-    }
-    if (next.selection !== current.selection) editor.setSelection(next.selection);
-  };
-
   /**
    * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a form, so
    * leaving it with unsaved edits has to be confirmed. Every path that closes
    * the drawer or hands focus to another panel goes through this guard.
    *
-   * BUG-G01 (v0.4.0 验收补充): leaving for a cell / participant / region label
-   * must **close** the drawer, not just run the action — otherwise the drawer
-   * stays on top and keeps the info drawer suppressed (the cell info box only
-   * appeared after a manual close).
+   * BUG-G01 (v0.4.0 验收补充): leaving for a cell / region label must **close**
+   * the drawer, not just run the action — otherwise the drawer stays on top and
+   * keeps the info drawer suppressed.
    */
   const guardMapInfo = (proceed: () => void): void => {
     if (!mapInfoOpen) {
@@ -456,105 +325,12 @@ export function EditorPage(): JSX.Element {
     action?.();
   };
 
-  const saveParticipant = (
-    slotIndex: number,
-    patch: {
-      themeColor: string;
-      clue: string;
-      linkages: ParticipantTarget[];
-      positionConditions: Array<{ x: number; y: number }>;
-    },
-  ): void => {
-    editor.setParticipantConfig(slotIndex, patch);
-    setPositionPickSlot(null);
-    toast.success('已保存参与者配置');
-  };
-
-  const confirmRemoveParticipant = (): void => {
-    if (removeParticipantTarget === null) return;
-    const slotIndex = removeParticipantTarget;
-    editor.clearCharacterSlot(slotIndex);
-    // MOD-802: the removed participant can no longer own the active linkage.
-    if (editor.activeParticipantId === slotIndex) editor.clearActivation();
-    if (editor.selectedSlotIndex === slotIndex) {
-      editor.setSelectedSlot(null);
-      setParticipantDrawerOpen(false);
-    }
-    setRemoveParticipantTarget(null);
-    toast.success('已移除参与者');
-  };
-
   const setTool = (tool: EditorTool): void => {
     editor.setTool(tool);
     if (tool !== 'select') {
       editor.setSelectedItem(null);
     }
   };
-
-  const assignSlot = (characterId: number): void => {
-    const index = editor.characterSlots.findIndex((slot) => slot === null);
-    if (index === -1) {
-      toast.error('参与者者区已满，请先移出角色');
-      return;
-    }
-    editor.setSlot(index, characterId);
-  };
-
-  const clearSlot = (index: number): void => {
-    const slot = editor.characterSlots[index];
-    if (!slot) return;
-    setRemoveParticipantTarget(index);
-  };
-
-  // ---- Slot → slot reorder (no longer drops onto the map) ----
-  const beginSlotDrag = (payload: { slotIndex: number; pointer: { x: number; y: number } }): void => {
-    setSlotDrag({ slotIndex: payload.slotIndex, pointer: payload.pointer });
-  };
-
-  const moveSlotDrag = (pointer: { x: number; y: number }): void => {
-    const drag = slotDragRef.current;
-    if (!drag) return;
-    setSlotDrag({ ...drag, pointer });
-  };
-
-  const cancelSlotDrag = (): void => setSlotDrag(null);
-
-  const endSlotDrag = (pointer: { x: number; y: number }): void => {
-    const drag = slotDragRef.current;
-    if (!drag) return;
-    setSlotDrag(null);
-    const slotNode = document
-      .elementFromPoint(pointer.x, pointer.y)
-      ?.closest('[data-slot-index]');
-    if (slotNode) {
-      const targetIndex = Number(slotNode.getAttribute('data-slot-index'));
-      if (Number.isInteger(targetIndex) && targetIndex !== drag.slotIndex) {
-        editor.swapSlots(drag.slotIndex, targetIndex);
-      }
-    }
-  };
-
-  useEffect(() => {
-    if (!slotDrag) return;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') cancelSlotDrag();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [slotDrag]);
-
-  /**
-   * FEAT-E01 §7.3(a): `Esc` leaves the position-selection mode. The drawer
-   * follows along through `positionPickActive`.
-   */
-  useEffect(() => {
-    if (positionPickSlot === null) return;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setPositionPickSlot(null);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [positionPickSlot]);
 
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
     if (regionDialog.mode === 'create') {
@@ -630,16 +406,23 @@ export function EditorPage(): JSX.Element {
   }, [resizeOpen, resizeValue, editor.cells, editor.regions, itemsById]);
 
   /**
-   * FEAT-H05 (docs/v0.4.2.md §5): publishing is a **two-dialog** flow now — a
-   * confirm step (which also owns "should we save first?") and a success step
-   * (which owns "what next?"). The toolbar button only opens the first one.
+   * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing still lives in the map editor,
+   * but its wording now describes **版本管理** — it adds an entry to the map
+   * list instead of producing a 「作品」. With Q3 = B the next version number
+   * spans the whole blood lineage, so it is read from the version list rather
+   * than from this row's own `current_version_no`.
    */
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishNotes, setPublishNotes] = useState('');
   const [publishedVersion, setPublishedVersion] = useState<MapVersionSummary | null>(null);
 
-  /** §5.2: the version about to be created, for the dialog's own wording. */
-  const nextVersionNo = (editor.currentVersionNo ?? 0) + 1;
+  const nextVersionNo = useMemo(() => {
+    const versions = versionsQuery.data;
+    if (versions && versions.length > 0) {
+      return Math.max(...versions.map((version) => version.versionNo)) + 1;
+    }
+    return (editor.currentVersionNo ?? 0) + 1;
+  }, [versionsQuery.data, editor.currentVersionNo]);
 
   const openPublishConfirm = (): void => {
     if (publishMutation.isPending || saveMutation.isPending) return;
@@ -648,10 +431,10 @@ export function EditorPage(): JSX.Element {
   };
 
   /**
-   * §5.2 / §5.4: `确认发布`, or `保存并发布` when the canvas is dirty — serial, and
-   * a failed save aborts the publish. The dialog stays open while the request
-   * flies (the button reads 「发布中…」), and closes on the outcome: success →
-   * the success dialog, a validation failure → the existing 「无法发布」 list.
+   * `确认发布`, or `保存并发布` when the canvas is dirty — serial, and a failed
+   * save aborts the publish. The dialog stays open while the request flies (the
+   * button reads 「发布中…」), and closes on the outcome: success → the success
+   * dialog, a validation failure → the existing 「无法发布」 list.
    */
   const confirmPublish = (): void => {
     if (publishMutation.isPending) return;
@@ -715,6 +498,25 @@ export function EditorPage(): JSX.Element {
     void (async () => {
       try {
         const parsed: unknown = JSON.parse(await file.text());
+        /**
+         * SPEC-K14 §8.4 (Q12): a v2 file still carries `characterSlots` /
+         * `style.linkageColors`. `mapDraftSchema` is `.strict()`, so it is
+         * rejected — and the author is told **why** instead of being left with
+         * a bare 「JSON 格式不正确」 (a silent strip would look like the
+         * participants had been imported).
+         */
+        const raw =
+          typeof parsed === 'object' && parsed !== null
+            ? (parsed as Record<string, unknown>)
+            : null;
+        const styleBlock =
+          raw && typeof raw.style === 'object' && raw.style !== null
+            ? (raw.style as Record<string, unknown>)
+            : null;
+        if (raw && ('characterSlots' in raw || (styleBlock && 'linkageColors' in styleBlock))) {
+          toast.error('该 JSON 是旧版（含参与者 / 联动主题色），请先移除这两部分，或改用导入到谜题');
+          return;
+        }
         const result = mapDraftSchema.safeParse(parsed);
         if (!result.success) {
           toast.error('JSON 格式不正确');
@@ -780,15 +582,12 @@ export function EditorPage(): JSX.Element {
       if (event.key === 'Escape') {
         if (mapInfoOpen) {
           // FEAT-E01: Esc leaves the info drawer first — and asks when there
-          // are unsaved edits. It does not touch the cell / participant focus.
+          // are unsaved edits. It does not touch the cell focus.
           closeMapInfo();
           return;
         }
-        editor.clearActivation();
         editor.setSelection(null);
         editor.setSelectedItem(null);
-        editor.setSelectedSlot(null);
-        setUnplacedCharacterId(null);
         if (editor.activeTool !== 'region') editor.clearDraftSelection();
         return;
       }
@@ -845,14 +644,6 @@ export function EditorPage(): JSX.Element {
     );
   }
 
-  // Resolve highlight character → slot index mapping for the roster panel.
-  const highlightedSlots = new Set<number>();
-  const highlightColors = new Map<number, string>();
-  for (const character of highlight?.characters ?? []) {
-    highlightedSlots.add(character.slotIndex);
-    highlightColors.set(character.slotIndex, character.color);
-  }
-
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <input
@@ -880,7 +671,7 @@ export function EditorPage(): JSX.Element {
             closeMapInfo();
             return;
           }
-          // FEAT-D01: opening it drops any cell / participant focus.
+          // FEAT-D01: opening it drops any cell / region focus.
           // BUG-G01: `selectedRegionId` belongs to the same set of focus axes —
           // a click on a cell inside a region sets it too (EditorCanvas
           // .selectCellAt), so leaving it behind re-opened the info drawer
@@ -888,8 +679,6 @@ export function EditorPage(): JSX.Element {
           setMapInfoOpen(true);
           editor.setSelection(null);
           editor.setSelectedRegion(null);
-          editor.setSelectedSlot(null);
-          setUnplacedCharacterId(null);
           setInfoOpen(false);
         }}
         onExport={exportToFile}
@@ -923,13 +712,8 @@ export function EditorPage(): JSX.Element {
               items={itemsQuery.data}
               itemsLoading={itemsQuery.isLoading}
               itemsError={itemsQuery.isError}
-              characters={charactersQuery.data}
-              charactersLoading={charactersQuery.isLoading}
-              charactersError={charactersQuery.isError}
               activeLayer={editor.activeLayer}
               selectedItemId={editor.selectedItemId}
-              characterSlots={editor.characterSlots}
-              selectedCharacterId={unplacedCharacterId}
               regions={editor.regions}
               selectedRegionId={editor.selectedRegionId}
               onSetTool={setTool}
@@ -938,15 +722,6 @@ export function EditorPage(): JSX.Element {
                 editor.setSelectedItem(null);
               }}
               onSelectItem={(item) => editor.setSelectedItem(item ? item.id : null)}
-              onSelectCharacter={(id) => {
-                if (id === null) {
-                  setUnplacedCharacterId(null);
-                  return;
-                }
-                setUnplacedCharacterId(id);
-                editor.setSelectedSlot(null);
-              }}
-              onAssignSlot={assignSlot}
               onSelectRegion={editor.setSelectedRegion}
               onEditRegion={(region) => {
                 editor.setSelectedRegion(region.id);
@@ -956,47 +731,6 @@ export function EditorPage(): JSX.Element {
             />
           </div>
         ) : null}
-
-        <div
-          className={cn(
-            'flex min-h-0 transition-opacity',
-            panelsLocked ? 'pointer-events-none opacity-60' : undefined,
-            panelsDisabled ? 'pointer-events-none opacity-50' : undefined,
-          )}
-        >
-          <ParticipantPanel
-            slots={editor.characterSlots}
-            charactersById={charactersById}
-            selectedSlotIndex={editor.selectedSlotIndex}
-            draggingIndex={slotDrag?.slotIndex ?? null}
-            activeSlotIndex={editor.activeParticipantId}
-            highlightedSlots={highlightedSlots}
-            highlightColors={highlightColors}
-            onSelect={(index) => {
-              guardMapInfo(() => {
-                editor.setSelectedSlot(index);
-                if (index === null) {
-                  setUnplacedCharacterId(null);
-                }
-              });
-            }}
-            onActivateHover={editor.activateParticipantHover}
-            onDeactivateHover={editor.deactivateParticipantHover}
-            onActivateClick={(index) => {
-              // OPT-C07: pinning a participant drops the cell selection so the
-              // drawer stays exclusive. FEAT-E01: confirmed when the info
-              // drawer has unsaved edits.
-              guardMapInfo(() => {
-                applyFocus({ type: 'participant', participantId: index });
-              });
-            }}
-            onClearRequest={clearSlot}
-            onDragBegin={beginSlotDrag}
-            onDragMove={moveSlotDrag}
-            onDragEnd={endSlotDrag}
-            onDragCancel={cancelSlotDrag}
-          />
-        </div>
 
         <main className="relative min-h-0 flex-1">
           <EditorCanvas
@@ -1017,28 +751,13 @@ export function EditorPage(): JSX.Element {
             showRulers={rulerVisible}
             pendingItem={pendingItem}
             regionDraftSelection={editor.regionDraftSelection}
-            highlight={highlight}
-            highlightLeaving={highlightLeaving}
+            // SPEC-K12 §9.1: the map editor has no participants, so there is
+            // no linkage highlight to show — the layer stays empty.
+            highlight={null}
             onSelect={(selection) => {
-              // FEAT-E01 §7.3(a): while a position condition is being picked, the
-              // click *is* the answer — it must not move the focus or open the
-              // cell info box.
-              if (positionPickSlot !== null) {
-                if (selection?.type === 'cell') {
-                  setPickedPosition({ x: selection.x, y: selection.y });
-                }
-                return;
-              }
-              // OPT-C07: clicking the board clears the participant activation
-              // (hover- or click-pinned) and hands the focus to the cell.
+              // OPT-C07: clicking the board hands the focus to the cell.
               // FEAT-E01: switching away from the info drawer is confirmed first.
-              guardMapInfo(() => {
-                applyFocus({ type: 'cell', selection });
-                if (selection) {
-                  editor.setSelectedSlot(null);
-                  setUnplacedCharacterId(null);
-                }
-              });
+              guardMapInfo(() => editor.setSelection(selection));
             }}
             onSelectRegion={(regionId) => {
               // OPT-C07 / BUG-G01: a region label click is a focus switch too,
@@ -1133,23 +852,13 @@ export function EditorPage(): JSX.Element {
           />
 
           <EditorInfoDrawer
-            open={infoDrawerOpen({
-              infoOpen,
-              mapInfoOpen,
-              selectedSlotIndex: editor.selectedSlotIndex,
-            })}
-            onClose={() => {
-              setInfoOpen(false);
-              setUnplacedCharacterId(null);
-            }}
+            open={infoDrawerOpen({ infoOpen, mapInfoOpen, selectedSlotIndex: null })}
+            onClose={() => setInfoOpen(false)}
             onOpen={() => setInfoOpen(true)}
             selection={editor.selection}
             cells={editor.cells}
             regions={editor.regions}
-            charactersById={charactersById}
             itemsById={itemsById}
-            unplacedCharacterId={unplacedCharacterId}
-            onClearUnplacedCharacter={() => setUnplacedCharacterId(null)}
             onClearCell={(x, y) => editor.clearCell(x, y)}
             onClearObject={(x, y) => editor.clearObjectAt(x, y)}
             onEditRegion={(region) => {
@@ -1160,41 +869,12 @@ export function EditorPage(): JSX.Element {
             onLocateRegion={() => canvasRef.current?.centerView()}
           />
 
-          <ParticipantDrawer
-            open={participantDrawerOpen}
-            onClose={() => {
-              setParticipantDrawerOpen(false);
-              setPositionPickSlot(null);
-              editor.setSelectedSlot(null);
-            }}
-            slotIndex={editor.selectedSlotIndex}
-            slots={editor.characterSlots}
-            character={
-              selectedSlot ? charactersById.get(selectedSlot.characterId) : undefined
-            }
-            charactersById={charactersById}
-            placedItems={placedItems}
-            regions={editor.regions}
-            gridSize={editor.gridSize}
-            style={editor.style}
-            positionPickActive={positionPickSlot !== null}
-            onTogglePositionPick={() =>
-              setPositionPickSlot((current) =>
-                current === null ? editor.selectedSlotIndex : null,
-              )
-            }
-            pickedPosition={pickedPosition}
-            onPositionPicked={() => setPickedPosition(null)}
-            onSave={saveParticipant}
-          />
-
           <MapInfoDrawer
             ref={mapInfoRef}
             open={mapInfoOpen}
             gridSize={editor.gridSize}
             autoCellSize={autoCellSize}
             style={editor.style}
-            characterSlots={editor.characterSlots}
             onRequestClose={closeMapInfo}
             onCommit={commitMapInfo}
           />
@@ -1212,11 +892,14 @@ export function EditorPage(): JSX.Element {
         onSubmit={submitRegion}
       />
 
-      <WorkHistoryDialog
+      <VersionHistoryDialog
         projectId={id}
         open={versionsOpen}
         onOpenChange={setVersionsOpen}
         currentVersionNo={editor.currentVersionNo}
+        onPreview={({ projectId: ownerId, versionNo }) =>
+          navigate(`/maps/${ownerId}/${versionNo}/view`)
+        }
       />
 
       <AlertDialog
@@ -1366,7 +1049,7 @@ export function EditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* FEAT-H05 §5.2: 发布前确认（含备注；dirty 时分形态为「保存并发布」） */}
+      {/* SPEC-K13 §7.4: 发布前确认（含备注；dirty 时分形态为「保存并发布」） */}
       <AlertDialog
         open={publishOpen}
         onOpenChange={(open) => {
@@ -1375,10 +1058,10 @@ export function EditorPage(): JSX.Element {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>发布当前地图？</AlertDialogTitle>
+            <AlertDialogTitle>发布为 v{nextVersionNo}？</AlertDialogTitle>
             <AlertDialogDescription>
-              发布会把当前画布内容存为一个新的作品版本（v{nextVersionNo}），
-              之后玩家可在作品页查看与预览。
+              将新增一个带 v{nextVersionNo} 标记的地图条目，出现在地图列表中；当前工作条目不会被覆盖，
+              你可以继续编辑并发布下一版。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="grid gap-2">
@@ -1421,7 +1104,7 @@ export function EditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* FEAT-H05 §5.3: 发布成功 → 立刻给出「预览」与「前往作品页」两个去处 */}
+      {/* SPEC-K10 §7.2: 发布成功 → 「查看该条目」与「预览」两个去处 */}
       <Dialog
         open={publishedVersion !== null}
         onOpenChange={(open) => !open && setPublishedVersion(null)}
@@ -1429,24 +1112,24 @@ export function EditorPage(): JSX.Element {
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle>已发布 v{publishedVersion?.versionNo ?? ''}</DialogTitle>
-            <DialogDescription>作品已生成，可直接预览或前往作品页管理。</DialogDescription>
+            <DialogDescription>已在地图列表新增条目，可直接预览或前往地图列表管理。</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button
               variant="outline"
               onClick={() => {
                 setPublishedVersion(null);
-                navigate('/works');
+                navigate('/projects');
               }}
             >
-              前往作品页
+              查看该条目
             </Button>
             <Button
               onClick={() => {
                 const version = publishedVersion;
                 setPublishedVersion(null);
                 if (version) {
-                  navigate(`/works/${version.id}/view?project=${id}&v=${version.versionNo}`);
+                  navigate(`/maps/${id}/${version.versionNo}/view`);
                 }
               }}
             >
@@ -1481,33 +1164,6 @@ export function EditorPage(): JSX.Element {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setRegionError(null)}>我知道了</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* MOD-705: participant removal confirmation */}
-      <AlertDialog
-        open={removeParticipantTarget !== null}
-        onOpenChange={(open) => !open && setRemoveParticipantTarget(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              确定移除参与者「
-              {removeParticipantTarget !== null
-                ? charactersById.get(editor.characterSlots[removeParticipantTarget]?.characterId ?? 0)?.name ?? ''
-                : ''}
-              」吗？
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              该参与者及其线索与联动配置将一并移除。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRemoveParticipant}>
-              移除
-            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

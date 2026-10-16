@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { MAP_JSON_VERSION } from '@loredoku/shared';
 import { db } from '../db/knex';
 import type { DraftRegion, MapDraft, ProjectRow, ResizeRemoved } from '@loredoku/shared';
+import { absorbLegacyMapDraft } from '../service/mapDraftCompat';
 
 export interface DraftRecord {
   draft: MapDraft;
@@ -19,12 +20,16 @@ export function emptyDraft(gridSize: number): MapDraft {
     gridSize,
     cells: {},
     regions: [],
-    characterSlots: Array.from({ length: gridSize }, () => null),
   };
 }
 
+/**
+ * v0.5.0 §8.3: stored drafts may still be the v2 shape (roster + palette). They
+ * are absorbed on every read rather than migrated in the database, so the
+ * migration stays reversible and no bytes are rewritten.
+ */
 function parseDraft(project: ProjectRow): DraftRecord {
-  const draft = (project.draft_data as MapDraft | null) ?? emptyDraft(project.grid_size);
+  const draft = (absorbLegacyMapDraft(project.draft_data) as MapDraft | null) ?? emptyDraft(project.grid_size);
   return {
     draft,
     updatedAt: project.draft_updated_at ? new Date(project.draft_updated_at).toISOString() : null,
@@ -125,11 +130,6 @@ export async function resizeDraft(
       gridSize,
       cells: nextCells,
       regions: nextRegions,
-      // CLAR-603: roster length tracks grid size; participants never enter
-      // the map, so nothing returns to a slot on resize.
-      characterSlots: (draft.characterSlots ?? [])
-        .slice(0, gridSize)
-        .concat(Array.from({ length: Math.max(0, gridSize - (draft.characterSlots ?? []).length) }, () => null)),
       // v0.3.8 FEAT-D02: resizing must not drop the map-level style block.
       ...(draft.style ? { style: draft.style } : {}),
     };

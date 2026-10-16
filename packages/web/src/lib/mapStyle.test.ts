@@ -65,7 +65,8 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(style.regionLabel.hoverFontSize).toBe(19);
     expect(style.regionLabel.hoverStrokeColor).toBe(HIGHLIGHT_BLUE);
     expect(style.regionHighlight).toEqual({ width: 4, color: HIGHLIGHT_BLUE });
-    expect(style.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    // v0.5.0 FEAT-K14: the palette left `MapStyle` — see the puzzle section.
+    expect(style).not.toHaveProperty('linkageColors');
   });
 
   it('clamps every numeric field into its documented range', () => {
@@ -175,17 +176,18 @@ describe('linkage palette (FEAT-D04)', () => {
   });
 
   it('resolves a key to its hex, falling back to the first entry', () => {
-    const style = resolveMapStyle({
-      linkageColors: [
-        { key: 'red', label: '红', color: '#FF0000' },
-        { key: 'blue', label: '蓝', color: '#0000FF' },
-        { key: 'green', label: '绿', color: '#00FF00' },
-      ],
-    } as Partial<MapStyle>);
-    expect(linkageColorFor(style, 'green')).toBe('#00FF00');
-    expect(linkageLabelFor(style, 'green')).toBe('绿');
-    expect(linkageColorFor(style, 'missing')).toBe('#FF0000');
-    expect(linkageLabelFor(style, 'missing')).toBe('红');
+    // v0.5.0 FEAT-K14: the lookups take the palette itself (the puzzle owns it).
+    const palette = resolveLinkageColors([
+      { key: 'red', label: '红', color: '#FF0000' },
+      { key: 'blue', label: '蓝', color: '#0000FF' },
+      { key: 'green', label: '绿', color: '#00FF00' },
+    ] as MapLinkageColor[]);
+    expect(linkageColorFor(palette, 'green')).toBe('#00FF00');
+    expect(linkageLabelFor(palette, 'green')).toBe('绿');
+    expect(linkageColorFor(palette, 'missing')).toBe('#FF0000');
+    expect(linkageLabelFor(palette, 'missing')).toBe('红');
+    // An empty palette still answers with the shipped first colour.
+    expect(linkageColorFor([], 'missing')).toBe(DEFAULT_LINKAGE_COLORS[0]!.color);
   });
 
   it('hands out an unused, well-formed key for a new entry', () => {
@@ -307,7 +309,7 @@ describe('mapStyleEquals (FEAT-E01)', () => {
     expect(mapStyleEquals(resolveMapStyle(undefined), resolveMapStyle(undefined))).toBe(true);
   });
 
-  it('detects any difference, including inside the palette', () => {
+  it('detects any difference between two resolved styles', () => {
     const base = resolveMapStyle(undefined);
     expect(
       mapStyleEquals(base, resolveMapStyle({ gridSeparator: { width: 3 } } as Partial<MapStyle>)),
@@ -315,14 +317,9 @@ describe('mapStyleEquals (FEAT-E01)', () => {
     expect(
       mapStyleEquals(base, resolveMapStyle({ ruler: { gap: 7 } } as Partial<MapStyle>)),
     ).toBe(false);
-    const paletteChanged = {
-      ...base,
-      linkageColors: [
-        { key: 'red', label: '红', color: '#EF9A9A' },
-        { key: 'blue', label: '蓝', color: '#0000FF' },
-      ],
-    };
-    expect(mapStyleEquals(base, paletteChanged)).toBe(false);
+    // v0.5.0 FEAT-K14: the palette left `MapStyle`, so a resolved style carries
+    // no `linkageColors` field for the comparison to trip over.
+    expect(base).not.toHaveProperty('linkageColors');
   });
 
   it('is a cheap identity check for the same object', () => {

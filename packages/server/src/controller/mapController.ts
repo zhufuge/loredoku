@@ -3,6 +3,7 @@ import {
   createRegionInputSchema,
   idParamSchema,
   importMapSchema,
+  legacyMapDraftBlocks,
   regionStringIdParamSchema,
   saveMapDraftSchema,
   updateGridSizeSchema,
@@ -10,6 +11,7 @@ import {
 } from '@loredoku/shared';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
+import { AppError } from '../utils/AppError';
 import * as mapService from '../service/mapService';
 
 export async function getMap(ctx: Context): Promise<void> {
@@ -36,7 +38,20 @@ export async function exportMap(ctx: Context): Promise<void> {
 
 export async function importMap(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const body = parseOrThrow(importMapSchema, ctx.request.body ?? {});
+  const raw = ctx.request.body ?? {};
+  /**
+   * v0.5.0 §8.4: a v2 file (roster / palette inside it) is **rejected, not
+   * silently stripped** — otherwise the author would believe their participants
+   * came along. The check runs before the schema, which would only produce a
+   * generic "参数校验失败".
+   */
+  const blocks = legacyMapDraftBlocks((raw as { data?: unknown }).data);
+  if (blocks.length > 0) {
+    throw AppError.validation(
+      `该 JSON 是旧版，含${blocks.join('、')}；这些内容已移到「谜题」，请改用谜题导入`,
+    );
+  }
+  const body = parseOrThrow(importMapSchema, raw);
   success(ctx, await mapService.importMap(id, body.data), '导入成功');
 }
 

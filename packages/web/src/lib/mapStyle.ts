@@ -187,7 +187,6 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
           : fallback.ruler.fontSize,
       gap: typeof ruler.gap === 'number' ? clampRulerGap(ruler.gap) : fallback.ruler.gap,
     },
-    linkageColors: resolveLinkageColors(source.linkageColors),
   };
 }
 
@@ -223,21 +222,22 @@ export function resolveLinkageColors(
   return list.slice(0, LINKAGE_COLOR_MAX_COUNT);
 }
 
-/** FEAT-D04: colour lookup by palette key, falling back to the first entry. */
-export function linkageColorFor(style: MapStyle, key: string): string {
+/**
+ * v0.5.0 FEAT-K14 (docs/v0.5.0.md §2.6 / Q16): the palette left `MapStyle` —
+ * a puzzle owns it now. The editor merges the puzzle's `linkageColors` back in
+ * at render time, which is why both lookups below take the palette directly
+ * instead of a whole `MapStyle`.
+ */
+export function linkageColorFor(palette: MapLinkageColor[], key: string): string {
   return (
-    style.linkageColors.find((entry) => entry.key === key)?.color ??
-    style.linkageColors[0]?.color ??
-    DEFAULT_MAP_STYLE.linkageColors[0]!.color
+    palette.find((entry) => entry.key === key)?.color ??
+    palette[0]?.color ??
+    DEFAULT_LINKAGE_COLORS[0]!.color
   );
 }
 
-export function linkageLabelFor(style: MapStyle, key: string): string {
-  return (
-    style.linkageColors.find((entry) => entry.key === key)?.label ??
-    style.linkageColors[0]?.label ??
-    key
-  );
+export function linkageLabelFor(palette: MapLinkageColor[], key: string): string {
+  return palette.find((entry) => entry.key === key)?.label ?? palette[0]?.label ?? key;
 }
 
 /** Assigns a stable, unused palette key (`c3`, `c4`, …). */
@@ -303,8 +303,9 @@ export function styleLineWidth(base: number, cellSize: number): number {
 /**
  * v0.3.9 FEAT-E01: the 「地图基本信息」drawer keeps a draft and only commits on
  * save, so it needs to know whether anything actually changed. Comparing the
- * two resolved styles field by field (palette included) is enough — both sides
- * have already been normalised by {@link resolveMapStyle}.
+ * two resolved styles field by field is enough — both sides have already been
+ * normalised by {@link resolveMapStyle}. (v0.5.0 FEAT-K14: the palette is no
+ * longer part of `MapStyle`, so it is out of scope here.)
  */
 export function mapStyleEquals(a: MapStyle, b: MapStyle): boolean {
   if (a === b) return true;

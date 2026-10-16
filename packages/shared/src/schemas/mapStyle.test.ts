@@ -8,17 +8,9 @@ function draft(extra: Record<string, unknown> = {}): Record<string, unknown> {
     gridSize: 4,
     cells: {},
     regions: [],
-    characterSlots: Array.from({ length: 4 }, () => null),
     ...extra,
   };
 }
-
-const slot = (color: string) => ({
-  characterId: 1,
-  themeColor: '#FFFFFF',
-  clue: '',
-  linkages: [{ type: 'cell', cells: [[0, 0]], effect: 'highlight', color }],
-});
 
 describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
   it('fills a partial style from the shipped defaults', () => {
@@ -29,7 +21,6 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
     expect(result.data.regionHighlight.color).toBe('#90CAF9');
     expect(result.data.gridSeparator).toEqual({ width: 2, color: '#000000' });
     expect(result.data.cellSize).toBeNull();
-    expect(result.data.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
   });
 
   it('rejects out-of-range numbers instead of silently clamping', () => {
@@ -62,39 +53,14 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
     expect(mapStyleSchema.safeParse({ mouseCursorBox: { shadowColor: 'nope' } }).success).toBe(false);
   });
 
-  it('enforces the 2 ~ 12 palette size (FEAT-D04)', () => {
+  it('no longer carries the linkage palette (v0.5.0 FEAT-K14)', () => {
+    const parsed = mapStyleSchema.parse({});
+    expect('linkageColors' in parsed).toBe(false);
+    // The palette block itself is rejected, not silently dropped (strict).
     expect(
       mapStyleSchema.safeParse({ linkageColors: [{ key: 'red', label: '红', color: '#EF9A9A' }] })
         .success,
     ).toBe(false);
-    const twelve = Array.from({ length: 12 }, (_, index) => ({
-      key: `k${index}`,
-      label: `k${index}`,
-      color: '#123456',
-    }));
-    expect(mapStyleSchema.safeParse({ linkageColors: twelve }).success).toBe(true);
-    expect(
-      mapStyleSchema.safeParse({ linkageColors: [...twelve, { key: 'k13', label: 'x', color: '#123456' }] })
-        .success,
-    ).toBe(false);
-  });
-
-  it('validates palette keys, labels and colours', () => {
-    const withColor = (entry: Record<string, unknown>) => ({
-      linkageColors: [
-        { key: 'red', label: '红', color: '#EF9A9A' },
-        entry,
-      ],
-    });
-    expect(mapStyleSchema.safeParse(withColor({ key: 'Bad', label: 'x', color: '#123456' })).success).toBe(
-      false,
-    );
-    expect(mapStyleSchema.safeParse(withColor({ key: 'x', label: '', color: '#123456' })).success).toBe(
-      false,
-    );
-    expect(mapStyleSchema.safeParse(withColor({ key: 'x', label: 'x', color: 'blue' })).success).toBe(
-      false,
-    );
   });
 });
 
@@ -113,43 +79,41 @@ describe('mapDraftSchema + style (v0.3.8)', () => {
     expect(result.data.style?.cellSize).toBe(150);
   });
 
-  it('accepts a linkage colour that exists in the custom palette', () => {
+  it('rejects unknown top-level keys (schema stays strict)', () => {
+    expect(mapDraftSchema.safeParse(draft({ theme: {} })).success).toBe(false);
+  });
+});
+
+describe('mapDraftSchema 的 v3 形状 (v0.5.0 FEAT-K14)', () => {
+  it('rejects a v2 payload that still carries the roster', () => {
+    const result = mapDraftSchema.safeParse(
+      draft({ version: 2, characterSlots: [{ characterId: 1 }, null] }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects a v2 payload that still carries style.linkageColors', () => {
     const result = mapDraftSchema.safeParse(
       draft({
-        characterSlots: [
-          slot('teal'),
-          null,
-          null,
-          null,
-        ],
-        style: {
-          linkageColors: [
-            { key: 'red', label: '红', color: '#EF9A9A' },
-            { key: 'teal', label: '青', color: '#0B7E74' },
-          ],
-        },
+        version: 2,
+        style: { linkageColors: [{ key: 'red', label: '红', color: '#EF9A9A' }] },
+      }),
+    );
+    expect(result.success).toBe(false);
+  });
+
+  it('accepts the v3 shape: canvas + style, no roster', () => {
+    const result = mapDraftSchema.safeParse(
+      draft({
+        version: MAP_JSON_VERSION,
+        cells: { '0,0': { object: { itemId: 7, w: 1, h: 1 } } },
+        regions: [{ id: 'rg_1', name: '门厅', cells: [[0, 0]] }],
+        style: { cellSize: null },
       }),
     );
     expect(result.success).toBe(true);
-  });
-
-  it('rejects a linkage colour missing from the palette (FEAT-D04 §保存时校验)', () => {
-    const result = mapDraftSchema.safeParse(draft({ characterSlots: [slot('green'), null, null, null] }));
-    expect(result.success).toBe(false);
-    if (result.success) return;
-    expect(result.error.issues.some((issue) => issue.message.includes('green'))).toBe(true);
-  });
-
-  it('accepts the built-in red / blue keys without any style block', () => {
-    expect(mapDraftSchema.safeParse(draft({ characterSlots: [slot('red'), null, null, null] })).success).toBe(
-      true,
-    );
-    expect(
-      mapDraftSchema.safeParse(draft({ characterSlots: [slot('blue'), null, null, null] })).success,
-    ).toBe(true);
-  });
-
-  it('rejects unknown top-level keys (schema stays strict)', () => {
-    expect(mapDraftSchema.safeParse(draft({ theme: {} })).success).toBe(false);
+    if (!result.success) return;
+    expect(result.data.version).toBe(MAP_JSON_VERSION);
+    expect('characterSlots' in result.data).toBe(false);
   });
 });

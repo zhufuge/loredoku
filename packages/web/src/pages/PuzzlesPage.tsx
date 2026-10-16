@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Download, Eye, Loader2, Rocket, RotateCcw, Trash2 } from 'lucide-react';
-import type { MapGameSummary, WorkSummary } from '@loredoku/shared';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import {
+  ChevronDown,
+  Download,
+  Eye,
+  Loader2,
+  Plus,
+  Rocket,
+  Trash2,
+} from 'lucide-react';
+import type { MapGameSummary, PuzzleSummary } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -13,28 +21,27 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { versionsApi } from '@/api/versions';
-import {
-  useAllWorks,
-  useCreateDraftFromVersion,
-  useDeleteVersion,
-} from '@/hooks/useVersions';
-import { useGames } from '@/hooks/useGames';
+import { CreatePuzzleDialog } from '@/components/puzzle/CreatePuzzleDialog';
 import { GameDeployDialog } from '@/components/game/GameDeployDialog';
+import { puzzlesApi } from '@/api/puzzles';
+import { useDeletePuzzle, useDuplicatePuzzle, usePuzzles } from '@/hooks/usePuzzles';
+import { useGames } from '@/hooks/useGames';
 import { formatDateTimeMinute } from '@/lib/format';
 import {
-  buildWorksTable,
-  collectWorkProjects,
-  EMPTY_WORKS_FILTERS,
-  WORKS_PAGE_SIZE_OPTIONS,
-  type WorksFilters,
-} from '@/lib/worksTable';
+  buildPuzzlesTable,
+  collectPuzzleMaps,
+  EMPTY_PUZZLE_FILTERS,
+  PUZZLES_PAGE_SIZE_OPTIONS,
+  type PuzzleFilters,
+} from '@/lib/puzzlesTable';
 import { cn } from '@/lib/utils';
 
 /**
- * OPT-W01 (docs/v0.4.1.md §1): five columns, fixed order. The 「已部署」 badge
- * left the name cell and got its own column, and the old counts (size /
- * participants / regions / items / notes) are gone.
+ * SPEC-K02 (docs/v0.5.0.md §2.3): the puzzle table is the old works table
+ * **verbatim** — five columns in the same order with the same wording, the same
+ * filter bar, the same paging bar and the same row buttons. Only the values are
+ * the puzzle's now (see the mapping table in §2.3), and the page gains one
+ * thing: a 「新建谜题」 primary button (§2.4).
  */
 const COLUMNS = ['名称', '版本', '部署状态', '发布时间', '操作'] as const;
 
@@ -117,21 +124,27 @@ function MapFilter({
   );
 }
 
-export function WorksPage(): JSX.Element {
+export function PuzzlesPage(): JSX.Element {
   const navigate = useNavigate();
-  const worksQuery = useAllWorks();
+  const [searchParams] = useSearchParams();
+  const puzzlesQuery = usePuzzles();
   const gamesQuery = useGames();
-  const createDraft = useCreateDraftFromVersion();
-  const deleteWork = useDeleteVersion();
+  const deletePuzzle = useDeletePuzzle();
+  const duplicatePuzzle = useDuplicatePuzzle();
 
-  const [filters, setFilters] = useState<WorksFilters>(EMPTY_WORKS_FILTERS);
+  const [filters, setFilters] = useState<PuzzleFilters>(EMPTY_PUZZLE_FILTERS);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(WORKS_PAGE_SIZE_OPTIONS[0]);
-  const [deleteTarget, setDeleteTarget] = useState<WorkSummary | null>(null);
-  const [deployTarget, setDeployTarget] = useState<WorkSummary | null>(null);
+  const [pageSize, setPageSize] = useState<number>(PUZZLES_PAGE_SIZE_OPTIONS[0]);
+  const [deleteTarget, setDeleteTarget] = useState<PuzzleSummary | null>(null);
+  const [deployTarget, setDeployTarget] = useState<PuzzleSummary | null>(null);
+  /**
+   * §2.4: `?new={projectId}:{versionNo}` — a version entry in the map list
+   * sends the author here with the map version already picked.
+   */
+  const [createOpen, setCreateOpen] = useState(() => searchParams.get('new') !== null);
 
   useEffect(() => {
-    document.title = '作品 · 格物';
+    document.title = '谜题 · 格物';
   }, []);
 
   // §5.3: any filter / page-size change restarts from the first page.
@@ -139,35 +152,42 @@ export function WorksPage(): JSX.Element {
     setPage(1);
   }, [filters, pageSize]);
 
-  const works = worksQuery.data ?? [];
-  const projects = useMemo(() => collectWorkProjects(works), [works]);
+  const puzzles = puzzlesQuery.data ?? [];
+  const projects = useMemo(() => collectPuzzleMaps(puzzles), [puzzles]);
   const table = useMemo(
-    () => buildWorksTable(works, filters, page, pageSize),
-    [works, filters, page, pageSize],
+    () => buildPuzzlesTable(puzzles, filters, page, pageSize),
+    [puzzles, filters, page, pageSize],
   );
-  // FEAT-G02 §5.1 + OPT-W03/W04: one game per map, so projectId → game is
-  // enough both to link the 「已部署」 badge (by access path) and to prefill the
-  // re-deploy dialog with the values that were used last time.
-  const gameByProject = useMemo(() => {
+  /**
+   * CONS-K16 (docs/v0.5.0.md §10.2): one game per **puzzle** now, so the map
+   * is `puzzleId → game` — it links the 「已部署」 badge and prefills the
+   * re-deploy dialog with the values used last time.
+   */
+  const gameByPuzzle = useMemo(() => {
     const map = new Map<number, MapGameSummary>();
     for (const game of gamesQuery.data ?? []) {
-      map.set(game.projectId, game);
+      if (game.puzzleId !== null) map.set(game.puzzleId, game);
     }
     return map;
   }, [gamesQuery.data]);
 
-  const exportWork = (work: WorkSummary): void => {
+  /** FEAT-K08: export the puzzle's own draft (`PuzzleDraft` v1). */
+  const exportPuzzle = (puzzle: PuzzleSummary): void => {
     void (async () => {
-      const detail = await versionsApi.detail(work.projectId, work.versionNo);
-      const blob = new Blob([JSON.stringify(detail.data, null, 2)], {
-        type: 'application/json',
-      });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = `${work.projectName}-v${work.versionNo}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      try {
+        const detail = await puzzlesApi.detail(puzzle.id);
+        const blob = new Blob([JSON.stringify(detail.data, null, 2)], {
+          type: 'application/json',
+        });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${puzzle.name}-puzzle.json`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+      } catch {
+        /* errors surfaced via mutation toasts */
+      }
     })();
   };
 
@@ -175,23 +195,25 @@ export function WorksPage(): JSX.Element {
     if (!deleteTarget) return;
     const target = deleteTarget;
     // OPT-210: keep the dialog open until the request settles.
-    deleteWork.mutate(
-      { id: target.projectId, versionNo: target.versionNo },
-      { onSettled: () => setDeleteTarget(null) },
-    );
+    deletePuzzle.mutate(target.id, { onSettled: () => setDeleteTarget(null) });
   };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">作品管理</h1>
+          <h1 className="text-xl font-semibold">谜题</h1>
           <p className="text-xs text-muted-foreground">
-            {worksQuery.isLoading
-              ? '正在加载作品…'
-              : `全部地图共 ${table.total} 件已发布作品，可预览效果、导出或回滚为草稿。`}
+            {puzzlesQuery.isLoading
+              ? '正在加载谜题…'
+              : `全部地图共 ${table.total} 件谜题，可预览效果、导出或部署为游戏。`}
           </p>
         </div>
+        {/* SPEC-K03 §2.4: the only addition to the table itself. */}
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="mr-1 h-4 w-4" />
+          新建谜题
+        </Button>
       </div>
 
       {/* §5.3 排序与筛选 */}
@@ -202,7 +224,7 @@ export function WorksPage(): JSX.Element {
             onChange={(event) =>
               setFilters((previous) => ({ ...previous, keyword: event.target.value }))
             }
-            placeholder="搜索名称 / 版本号 / 备注"
+            placeholder="搜索名称 / 版本号 / 描述"
             className="h-9"
           />
         </div>
@@ -229,14 +251,12 @@ export function WorksPage(): JSX.Element {
         </div>
         <MapFilter
           projects={projects}
-          selected={filters.projectIds}
-          onChange={(projectIds) => setFilters((previous) => ({ ...previous, projectIds }))}
+          selected={filters.mapProjectIds}
+          onChange={(mapProjectIds) =>
+            setFilters((previous) => ({ ...previous, mapProjectIds }))
+          }
         />
-        <Button
-          variant="ghost"
-          className="h-9"
-          onClick={() => setFilters(EMPTY_WORKS_FILTERS)}
-        >
+        <Button variant="ghost" className="h-9" onClick={() => setFilters(EMPTY_PUZZLE_FILTERS)}>
           重置
         </Button>
       </div>
@@ -260,31 +280,31 @@ export function WorksPage(): JSX.Element {
             </tr>
           </thead>
           <tbody>
-            {worksQuery.isLoading ? (
+            {puzzlesQuery.isLoading ? (
               <tr>
                 <td colSpan={COLUMNS.length} className="py-12">
                   <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    正在加载作品…
+                    正在加载谜题…
                   </div>
                 </td>
               </tr>
-            ) : worksQuery.isError ? (
+            ) : puzzlesQuery.isError ? (
               <tr>
                 <td
                   colSpan={COLUMNS.length}
                   className="py-12 text-center text-sm text-muted-foreground"
                 >
-                  作品加载失败
+                  谜题加载失败
                 </td>
               </tr>
-            ) : works.length === 0 ? (
+            ) : puzzles.length === 0 ? (
               <tr>
                 <td
                   colSpan={COLUMNS.length}
                   className="py-12 text-center text-sm text-muted-foreground"
                 >
-                  暂无作品，发布一个试试
+                  暂无谜题，新建一个试试
                 </td>
               </tr>
             ) : table.rows.length === 0 ? (
@@ -293,94 +313,92 @@ export function WorksPage(): JSX.Element {
                   colSpan={COLUMNS.length}
                   className="py-12 text-center text-sm text-muted-foreground"
                 >
-                  没有符合条件的作品
+                  没有符合条件的谜题
                 </td>
               </tr>
             ) : (
-              table.rows.map((work) => {
-                const game = gameByProject.get(work.projectId) ?? null;
-                const isDeployed = game !== null && work.deployed;
+              table.rows.map((puzzle) => {
+                const game = gameByPuzzle.get(puzzle.id) ?? null;
+                const isDeployed = game !== null && puzzle.deployed;
                 return (
-                <tr key={`${work.projectId}-${work.id}`} className="border-t align-middle">
-                  <td className="px-3 py-2 font-medium">{work.projectName}</td>
-                  <td className="whitespace-nowrap px-3 py-2 tabular-nums">v{work.versionNo}</td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    {isDeployed ? (
-                      <button
-                        type="button"
-                        className="shrink-0 cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground transition-colors hover:bg-secondary/70"
-                        title="该版本已部署为游戏，点击进入游戏页面"
-                        onClick={() => navigate(`/games/${game.slug}`)}
-                      >
-                        已部署
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                    {formatDateTimeMinute(work.publishedAt)}
-                  </td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        onClick={() =>
-                          navigate(
-                            `/works/${work.id}/view?project=${work.projectId}&v=${work.versionNo}`,
-                          )
-                        }
-                      >
-                        <Eye className="mr-1 h-3.5 w-3.5" />
-                        查看效果
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        onClick={() => setDeployTarget(work)}
-                      >
-                        <Rocket className="mr-1 h-3.5 w-3.5" />
-                        {isDeployed ? '重新部署' : '部署'}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        onClick={() => exportWork(work)}
-                      >
-                        <Download className="mr-1 h-3.5 w-3.5" />
-                        导出
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8"
-                        disabled={createDraft.isPending}
-                        onClick={() =>
-                          createDraft.mutate(
-                            { id: work.projectId, versionNo: work.versionNo },
-                            { onSuccess: () => navigate(`/editor/${work.projectId}`) },
-                          )
-                        }
-                      >
-                        <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                        基于此作品创建草稿
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteTarget(work)}
-                      >
-                        <Trash2 className="mr-1 h-3.5 w-3.5" />
-                        删除
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
+                  <tr key={puzzle.id} className="border-t align-middle">
+                    <td className="px-3 py-2 font-medium" title={`地图：${puzzle.mapName}`}>
+                      {puzzle.name}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
+                      v{puzzle.mapVersionNo}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {isDeployed ? (
+                        <button
+                          type="button"
+                          className="shrink-0 cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground transition-colors hover:bg-secondary/70"
+                          title="该谜题已部署为游戏，点击进入游戏页面"
+                          onClick={() => navigate(`/games/${game.slug}`)}
+                        >
+                          已部署
+                        </button>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
+                      {formatDateTimeMinute(puzzle.createdAt)}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          onClick={() => navigate(`/puzzles/${puzzle.id}/view`)}
+                        >
+                          <Eye className="mr-1 h-3.5 w-3.5" />
+                          查看效果
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          onClick={() => setDeployTarget(puzzle)}
+                        >
+                          <Rocket className="mr-1 h-3.5 w-3.5" />
+                          {isDeployed ? '重新部署' : '部署'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          onClick={() => exportPuzzle(puzzle)}
+                        >
+                          <Download className="mr-1 h-3.5 w-3.5" />
+                          导出
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8"
+                          disabled={duplicatePuzzle.isPending}
+                          onClick={() =>
+                            duplicatePuzzle.mutate(puzzle.id, {
+                              onSuccess: (created) => navigate(`/puzzles/${created.id}/edit`),
+                            })
+                          }
+                        >
+                          复制
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteTarget(puzzle)}
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          删除
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
                 );
               })
             )}
@@ -400,7 +418,7 @@ export function WorksPage(): JSX.Element {
             value={pageSize}
             onChange={(event) => setPageSize(Number(event.target.value))}
           >
-            {WORKS_PAGE_SIZE_OPTIONS.map((size) => (
+            {PUZZLES_PAGE_SIZE_OPTIONS.map((size) => (
               <option key={size} value={size}>
                 {size} 条
               </option>
@@ -430,37 +448,39 @@ export function WorksPage(): JSX.Element {
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open && !deleteWork.isPending) setDeleteTarget(null);
+          if (!open && !deletePuzzle.isPending) setDeleteTarget(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除作品 v{deleteTarget?.versionNo}？</AlertDialogTitle>
+            <AlertDialogTitle>删除谜题「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
-              该作品快照将被永久删除，草稿不受影响。
+              该谜题及其参与者配置将被永久删除，所引用的地图版本不受影响。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteWork.isPending}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deletePuzzle.isPending}>取消</AlertDialogCancel>
             <Button
               variant="destructive"
-              disabled={deleteWork.isPending}
+              disabled={deletePuzzle.isPending}
               onClick={confirmDelete}
             >
-              {deleteWork.isPending ? '删除中…' : '删除'}
+              {deletePuzzle.isPending ? '删除中…' : '删除'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <GameDeployDialog
-        work={deployTarget}
-        existingGame={deployTarget ? gameByProject.get(deployTarget.projectId) ?? null : null}
+        puzzle={deployTarget}
+        existingGame={deployTarget ? gameByPuzzle.get(deployTarget.id) ?? null : null}
         open={deployTarget !== null}
         onOpenChange={(open) => {
           if (!open) setDeployTarget(null);
         }}
       />
+
+      <CreatePuzzleDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
   );
 }

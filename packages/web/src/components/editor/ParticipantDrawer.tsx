@@ -5,7 +5,7 @@ import {
   type Character,
   type CharacterSlotEntry,
   type DraftRegion,
-  type MapStyle,
+  type MapLinkageColor,
   type ParticipantTarget,
 } from '@loredoku/shared';
 import { parseClue } from '@/lib/clue';
@@ -54,8 +54,11 @@ interface ParticipantDrawerProps {
   placedItems: PlacedItemOption[];
   regions: DraftRegion[];
   gridSize: number;
-  /** FEAT-D04: the map style carries the linkage palette. */
-  style: MapStyle;
+  /**
+   * FEAT-D04 + v0.5.0 FEAT-K14 (Q16): the linkage palette. It used to hang off
+   * `MapStyle`; the puzzle owns it now, so it is passed directly.
+   */
+  linkageColors: MapLinkageColor[];
   /**
    * FEAT-E01 (docs/v0.4.1.md §7.3): picking a position happens on the canvas,
    * so the drawer only owns the intent — the page owns the pointer.
@@ -96,7 +99,7 @@ export function ParticipantDrawer({
   placedItems,
   regions,
   gridSize,
-  style,
+  linkageColors,
   positionPickActive = false,
   onTogglePositionPick,
   pickedPosition,
@@ -390,8 +393,8 @@ export function ParticipantDrawer({
                         </span>
                         <span
                           className="ml-auto h-4 w-4 shrink-0 rounded-full border"
-                          style={{ backgroundColor: linkageColorFor(style, linkage.color) }}
-                          title={linkageLabelFor(style, linkage.color)}
+                          style={{ backgroundColor: linkageColorFor(linkageColors, linkage.color) }}
+                          title={linkageLabelFor(linkageColors, linkage.color)}
                         />
                         <Button
                           type="button"
@@ -545,7 +548,7 @@ export function ParticipantDrawer({
         items={itemOptions}
         regions={regions}
         gridSize={gridSize}
-        linkageColors={style.linkageColors}
+        linkageColors={linkageColors}
         onSubmit={submitLinkages}
       />
 

@@ -153,13 +153,30 @@ export const PROJECT_STATUSES = ['draft', 'published'] as const;
 export const DEFAULT_PROJECT_STATUS = 'draft';
 export const PROJECT_NOTE_MAX_LENGTH = 200;
 
+// ---- Puzzle (v0.5.0 FEAT-K01 / FEAT-K08) ----
+/**
+ * v0.5.0 FEAT-K08: the puzzle draft payload. A puzzle owns what used to live
+ * on the map's draft — participants (clue / linkages / position conditions)
+ * and the linkage-colour palette — and only **references** a published map
+ * version for its canvas (`PuzzleDraft.map`), so the canvas data itself is
+ * not part of this payload.
+ */
+export const PUZZLE_JSON_VERSION = 1;
+export const PUZZLE_NAME_MAX_LENGTH = 100;
+export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
+
 // ---- Map draft JSON ----
 /**
- * v0.3.8 FEAT-D02: bumped to 2 because the draft may now carry a `style`
- * block (map-level display constants). `version = 1` payloads stay valid —
- * a missing `style` resolves to `DEFAULT_MAP_STYLE`.
+ * v0.5.0 FEAT-K14: bumped to 3 because the map draft no longer carries the
+ * roster (`characterSlots` moved to `PuzzleDraft`) and `style` no longer
+ * carries `linkageColors` (the palette moved to the puzzle too). Both schemas
+ * are `.strict()`, so v2 payloads are **rejected** — the server absorbs them
+ * on read (`service/mapDraftCompat.ts`) instead of re-writing the database.
+ *
+ * v0.3.8 FEAT-D02 bumped it to 2 for the `style` block; `version = 1`
+ * payloads stay valid because a missing `style` resolves to `DEFAULT_MAP_STYLE`.
  */
-export const MAP_JSON_VERSION = 2;
+export const MAP_JSON_VERSION = 3;
 
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
@@ -351,6 +368,9 @@ export const LINKAGE_COLOR_LABEL_MAX_LENGTH = 16;
  * FEAT-D04 §「默认至少有红蓝」: the shipped palette. `red` / `blue` are the
  * historical `EFFECT_COLORS` keys, so v0.3.3-and-earlier drafts keep working
  * without a migration.
+ *
+ * v0.5.0: the palette lives on the **puzzle** (`PuzzleDraft.linkageColors`)
+ * instead of `MapStyle.linkageColors`; this constant is its default.
  */
 export const DEFAULT_LINKAGE_COLORS = [
   { key: 'red', label: '红', color: HIGHLIGHT_RED },
@@ -519,7 +539,6 @@ export interface MapStyle {
   regionOutline: MapStyleLine;
   regionHighlight: MapStyleLine;
   ruler: MapStyleRuler;
-  linkageColors: MapLinkageColor[];
 }
 
 /**
@@ -554,7 +573,6 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
   regionOutline: { width: REGION_BORDER_WIDTH_DEFAULT, color: DEFAULT_REGION_COLOR },
   regionHighlight: { width: REGION_HIGHLIGHT_WIDTH, color: REGION_HIGHLIGHT_BORDER_COLOR },
   ruler: { fontSize: RULER_FONT_SIZE, gap: RULER_GAP },
-  linkageColors: DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry })),
 };
 
 // ---- Editor tools ----

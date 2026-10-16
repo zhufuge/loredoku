@@ -1,19 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ErrorCode } from '@loredoku/shared';
 import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import { ApiError } from '@/api/client';
 import { versionsApi } from '@/api/versions';
-import type { WorkSummary } from '@loredoku/shared';
 import { mapKeys } from './useMap';
 import { projectKeys } from './useProjects';
 
 export const versionKeys = {
-  all: ['versions', 'all'] as const,
   list: (id: number) => ['versions', id, 'list'] as const,
   detail: (id: number, versionNo: number) => ['versions', id, 'detail', versionNo] as const,
 };
 
+/** SPEC-K13 §7.4: the version-history panel lists the whole blood lineage. */
 export function useVersions(id: number | null) {
   return useQuery({
     queryKey: versionKeys.list(id ?? 0),
@@ -22,20 +22,8 @@ export function useVersions(id: number | null) {
   });
 }
 
-/**
- * OPT-905 (docs/v0.3.4.md §5.1): the works table lists published versions
- * from every map at once.
- */
-export function useAllWorks() {
-  return useQuery({
-    queryKey: versionKeys.all,
-    queryFn: () => versionsApi.listAll(),
-    placeholderData: (previous) => previous,
-  });
-}
-
-/** One published work with its full snapshot (preview page). */
-export function useWorkDetail(projectId: number | null, versionNo: number | null) {
+/** One published version with its full snapshot (entry preview page). */
+export function useVersionDetail(projectId: number | null, versionNo: number | null) {
   return useQuery({
     queryKey: versionKeys.detail(projectId ?? 0, versionNo ?? 0),
     queryFn: () => versionsApi.detail(projectId as number, versionNo as number),
@@ -75,11 +63,13 @@ export function usePublishProject(id: number) {
       if (result.ok) {
         /*
          * FEAT-H05 §5.3: no toast any more — the editor raises a success dialog
-         * instead, because it carries the two next steps (preview / works page).
+         * instead, because it carries the two next steps (preview / map list).
+         *
+         * v0.5.0 FEAT-K10: publishing now **adds an entry to the map list**, so
+         * the project list has to be invalidated too.
          */
         void queryClient.invalidateQueries({ queryKey: mapKeys.detail(id) });
         void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
-        void queryClient.invalidateQueries({ queryKey: versionKeys.all });
         void queryClient.invalidateQueries({ queryKey: projectKeys.all });
       }
     },
@@ -89,14 +79,22 @@ export function usePublishProject(id: number) {
   });
 }
 
-export function useCreateDraftFromVersion() {
+/**
+ * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): 「编辑此版本」 opens a new **work
+ * entry** in the same lineage — `map_versions` is never written. The editor is
+ * entered on the freshly created row.
+ */
+export function useForkVersion() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   return useMutation({
     mutationFn: ({ id, versionNo }: { id: number; versionNo: number }) =>
-      versionsApi.createDraftFromVersion(id, versionNo),
-    onSuccess: (_data, { id }) => {
-      toast.success('已基于此作品创建草稿');
-      void queryClient.invalidateQueries({ queryKey: mapKeys.detail(id) });
+      versionsApi.fork(id, versionNo),
+    onSuccess: (project, { versionNo }) => {
+      toast.success(`已从 v${versionNo} 新增一个条目`);
+      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: versionKeys.list(project.id) });
+      navigate(`/editor/${project.id}`);
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : '操作失败');
@@ -110,9 +108,8 @@ export function useDeleteVersion() {
     mutationFn: ({ id, versionNo }: { id: number; versionNo: number }) =>
       versionsApi.remove(id, versionNo),
     onSuccess: (_data, { id }) => {
-      toast.success('作品已删除');
+      toast.success('版本已删除');
       void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
-      void queryClient.invalidateQueries({ queryKey: versionKeys.all });
       void queryClient.invalidateQueries({ queryKey: projectKeys.all });
     },
     onError: (error) => {

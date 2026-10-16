@@ -12,10 +12,21 @@ interface EditorToolbarProps {
   currentVersionNo: number | null;
   /** v0.3.8 FEAT-D01: toggles the 「地图基本信息」drawer. */
   mapInfoOpen: boolean;
+  /**
+   * v0.5.0: the same button opens the **puzzle**'s 基本信息 on the puzzle
+   * editor, so its tooltip has to say what that drawer actually holds.
+   */
+  infoTitle?: string;
   onBack: () => void;
   onSave: () => void;
-  onPublish: () => void;
-  onOpenVersions: () => void;
+  /**
+   * v0.5.0 SPEC-K12 / Q17 (docs/v0.5.0.md §2.5): 发布 belongs to the map
+   * module. A puzzle has no versions, so the puzzle editor omits `onPublish`
+   * and the button is not rendered at all (a hidden-but-present button would
+   * still be a dead control in the DOM).
+   */
+  onPublish?: () => void;
+  onOpenVersions?: () => void;
   onOpenMapInfo: () => void;
   onExport: () => void;
   onImport: () => void;
@@ -29,6 +40,7 @@ export function EditorToolbar({
   status,
   currentVersionNo,
   mapInfoOpen,
+  infoTitle = '地图基本信息（方格大小、线宽颜色、区域名称）',
   onBack,
   onSave,
   onPublish,
@@ -88,7 +100,7 @@ export function EditorToolbar({
           className="h-9 gap-1 px-2 text-xs"
           onClick={onOpenMapInfo}
           disabled={saving}
-          title="地图基本信息（方格大小、线宽颜色、区域名称、联动主题色）"
+          title={infoTitle}
         >
           <Settings2 className="h-4 w-4" />
           基本信息
@@ -97,8 +109,9 @@ export function EditorToolbar({
           variant="ghost"
           size="icon"
           onClick={onOpenVersions}
-          disabled={saving}
-          title="作品历史"
+          disabled={saving || !onOpenVersions}
+          title="版本历史"
+          style={onOpenVersions ? undefined : { display: 'none' }}
         >
           <History className="h-4 w-4" />
         </Button>
@@ -109,6 +122,9 @@ export function EditorToolbar({
          * FEAT-H05(c) §5.4（用户裁定）：保存与发布**不合并**。保存是这一屏的主
          * 动作（实心 primary），发布退为描边次按钮 —— 它不再承担「能不能发」的
          * 判断（那由确认弹窗按 dirty 分形态处理），所以**不再因 dirty 置灰**。
+         *
+         * v0.5.0 Q17: the puzzle editor passes no `onPublish`, so the whole
+         * button (not a disabled one) is left out.
          */}
         <Button size="sm" onClick={onSave} disabled={saving || !dirty}>
           {saving ? (
@@ -118,14 +134,16 @@ export function EditorToolbar({
           )}
           {saving ? '保存中…' : '保存'}
         </Button>
-        <Button variant="outline" size="sm" onClick={onPublish} disabled={saving || publishing}>
-          {publishing ? (
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-          ) : (
-            <Send className="mr-1 h-4 w-4" />
-          )}
-          {publishing ? '发布中…' : '发布'}
-        </Button>
+        {onPublish ? (
+          <Button variant="outline" size="sm" onClick={onPublish} disabled={saving || publishing}>
+            {publishing ? (
+              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="mr-1 h-4 w-4" />
+            )}
+            {publishing ? '发布中…' : '发布'}
+          </Button>
+        ) : null}
       </div>
     </header>
   );

@@ -17,6 +17,12 @@ export interface ProjectRow {
   cover_path: string | null;
   status: (typeof PROJECT_STATUSES)[number];
   current_version_no: number | null;
+  /**
+   * v0.5.0 SPEC-K11 / Q3 = B: the blood-lineage root. A plain map points at
+   * itself; a map forked from a published version keeps the original's root,
+   * so both stay in one group and share one version numbering.
+   */
+  root_id: string | number;
   draft_data: MapDraft | null;
   draft_updated_at: Date | string | null;
   created_at: Date | string;
@@ -86,11 +92,14 @@ export interface MapVersionRow {
 }
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5.1): a deployed game. `project_id` is unique —
- * one deployed game per map, later deploys overwrite the row.
+ * v0.5.0 CONS-K16: a deployed game. `puzzle_id` is unique — one deployed game
+ * per puzzle, later deploys overwrite the row. `project_id` / `version_no`
+ * survive as the referenced map version, and legacy rows have `puzzle_id = NULL`
+ * with a v0.4.x snapshot shape.
  */
 export interface MapGameRow {
   id: string | number;
+  puzzle_id: string | number | null;
   project_id: string | number;
   version_no: number;
   name: string;
@@ -103,7 +112,27 @@ export interface MapGameRow {
   cover_height: number | null;
   difficulty: GameDifficulty;
   grid_size: number;
-  snapshot: MapDraft;
+  /**
+   * Typed loosely on purpose: rows written before v0.5.0 hold the v0.4.x shape
+   * (roster inside the map), and the server lifts those into a
+   * {@link MapGameSnapshot} while reading.
+   */
+  snapshot: unknown;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+/** v0.5.0 FEAT-K01: one row of `puzzles`. */
+export interface PuzzleRow {
+  id: string | number;
+  name: string;
+  description: string | null;
+  map_project_id: string | number;
+  map_version_no: number;
+  grid_size: number;
+  /** `PuzzleDraft`; read through `absorbLegacyPuzzleDraft` before parsing. */
+  data: unknown;
+  status: (typeof PROJECT_STATUSES)[number];
   created_at: Date | string;
   updated_at: Date | string;
 }

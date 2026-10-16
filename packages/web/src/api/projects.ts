@@ -1,4 +1,10 @@
-import type { PaginatedData, Project, ProjectDetail } from '@loredoku/shared';
+import type {
+  MapEntrySummary,
+  PaginatedData,
+  Project,
+  ProjectDetail,
+  PublishedMapVersion,
+} from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 export type ProjectSort = 'updatedAt' | 'name' | 'createdAt';
@@ -23,8 +29,17 @@ export interface UpdateProjectPayload {
 }
 
 export const projectsApi = {
-  list(params: ProjectListParams): Promise<PaginatedData<ProjectDetail>> {
-    return apiGet<PaginatedData<ProjectDetail>>('/projects', { params });
+  /**
+   * FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work entries
+   * and version entries** grouped by blood-lineage root, not a flat list of
+   * `map_projects` rows.
+   */
+  list(params: ProjectListParams): Promise<PaginatedData<MapEntrySummary>> {
+    return apiGet<PaginatedData<MapEntrySummary>>('/projects', { params });
+  },
+  /** FEAT-K03 §2.4: every published version, for the puzzle picker. */
+  listPublishedVersions(): Promise<PublishedMapVersion[]> {
+    return apiGet<PublishedMapVersion[]>('/projects/versions');
   },
   detail(id: number): Promise<ProjectDetail> {
     return apiGet<ProjectDetail>(`/projects/${id}`);

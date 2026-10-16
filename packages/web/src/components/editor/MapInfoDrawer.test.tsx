@@ -64,7 +64,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
           gridSize={6}
           autoCellSize={120}
           style={style}
-          characterSlots={[]}
           onRequestClose={onRequestClose}
           onCommit={onCommit}
         />,
@@ -293,7 +292,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
       '区域高亮线',
       '区域标签',
       '标尺',
-      '联动主题色',
     ]) {
       expect(text, label).toContain(label);
     }
@@ -303,16 +301,15 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     expect(text).not.toContain('2~24');
   });
 
-  it('FEAT-E04/SPEC-E01: the linkage palette edits stay in the draft', () => {
-    const before = container.querySelectorAll('[aria-label$="名称"]').length;
-    const addButton = Array.from(container.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('新增颜色'),
-    );
-    act(() => addButton?.click());
-    expect(container.querySelectorAll('[aria-label$="名称"]').length).toBe(before + 1);
-    act(() => {
-      container.querySelector<HTMLButtonElement>('footer button:last-child')?.click();
-    });
-    expect((onCommit.mock.calls[0]![0] as MapStyle).linkageColors).toHaveLength(3);
+  /**
+   * v0.5.0 SPEC-K12 (§9.1): 联动主题色 moved to the puzzle's 「基本信息」, so the
+   * map drawer must not carry the palette any more — neither the section nor the
+   * `characterSlots` prop it used for the delete confirm.
+   */
+  it('v0.5.0 SPEC-K12: the map drawer no longer carries 联动主题色', () => {
+    expect(container.textContent ?? '').not.toContain('联动主题色');
+    expect(container.textContent ?? '').not.toContain('新增颜色');
+    expect(drawerSource).not.toContain('linkageColors');
+    expect(drawerSource).not.toContain('characterSlots');
   });
 });

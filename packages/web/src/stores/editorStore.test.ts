@@ -1,17 +1,21 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_THEME_COLOR } from '@loredoku/shared';
-import type { MapDraft, ParticipantTarget } from '@loredoku/shared';
+import type { MapDraft } from '@loredoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();
 
+/**
+ * v0.5.0 SPEC-K12 §9.2: the map editor's store lost the whole participant half
+ * (`characterSlots`, `setParticipantConfig`, `assignSlot`, the activation
+ * machine and the linkage palette). Those tests moved to `puzzleStore.test.ts`
+ * together with the code — what is left here is the canvas / style / undo stack.
+ */
 function draft(gridSize = 6): MapDraft {
   return {
-    version: 1,
+    version: 3,
     gridSize,
     cells: {},
     regions: [],
-    characterSlots: Array.from({ length: gridSize }, () => null),
   };
 }
 
@@ -99,47 +103,6 @@ describe('eraseAt', () => {
     expect(store().cells.get('0,0')).toEqual({
       background: { itemId: 1 },
       object: { itemId: 2, w: 1, h: 1 },
-    });
-  });
-});
-
-describe('clearCharacterSlot', () => {
-  it('frees a roster slot without touching map data', () => {
-    store().setSlot(1, 12);
-    const baseline = store().past.length;
-    store().clearCharacterSlot(1);
-    expect(store().characterSlots[1]).toBeNull();
-    expect(store().dirty).toBe(true);
-    expect(store().past).toHaveLength(baseline + 1);
-  });
-
-  it('restores the character to the same slot on undo', () => {
-    store().setSlot(0, 5);
-    store().setSlot(1, 12);
-    store().clearCharacterSlot(1);
-    store().undo();
-    expect(store().characterSlots[1]).toMatchObject({ characterId: 12 });
-    expect(store().characterSlots[0]).toMatchObject({ characterId: 5 });
-  });
-
-  it('is idempotent for rapid repeated clicks', () => {
-    store().setSlot(2, 8);
-    store().clearCharacterSlot(2);
-    const history = store().past.length;
-    store().clearCharacterSlot(2);
-    expect(store().past).toHaveLength(history);
-  });
-});
-
-describe('setSlot preserves participant config', () => {
-  it('keeps existing themeColor / linkages when reassigning a slot', () => {
-    store().setSlot(0, 4);
-    store().setParticipantConfig(0, { themeColor: '#FFCC00', linkages: [] });
-    // Reassigning via setSlot(0, 4) (no-op) preserves the participant config.
-    store().setSlot(0, 4);
-    expect(store().characterSlots[0]).toMatchObject({
-      characterId: 4,
-      themeColor: '#FFCC00',
     });
   });
 });
@@ -258,130 +221,6 @@ describe('cell clearing', () => {
   });
 });
 
-describe('setParticipantConfig (CLAR-603 + MOD-801)', () => {
-  it('persists theme + flat linkages on the roster slot as one atomic step', () => {
-    store().setSlot(2, 9);
-    store().setParticipantConfig(2, {
-      themeColor: '#FFCC00',
-      linkages: [
-        { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'red' },
-        { type: 'region', id: 'rg_a', effect: 'highlight', color: 'blue' },
-      ],
-    });
-    const slot = store().characterSlots[2];
-    expect(slot?.themeColor).toBe('#FFCC00');
-    expect(slot?.linkages).toHaveLength(2);
-    expect(slot?.linkages?.[0]).toMatchObject({ type: 'cell', color: 'red' });
-    // MOD-801: the legacy grouped `triggers` field is gone.
-    expect(slot && 'triggers' in slot).toBe(false);
-    expect(store().dirty).toBe(true);
-
-    store().undo();
-    const restored = store().characterSlots[2];
-    expect(restored?.themeColor).toBe(DEFAULT_THEME_COLOR);
-    expect(restored?.linkages).toEqual([]);
-  });
-
-  it('defensively copies the linkages array and its entries', () => {
-    store().setSlot(1, 3);
-    const linkages: ParticipantTarget[] = [
-      { type: 'cell', cells: [[0, 1]], effect: 'highlight', color: 'red' },
-    ];
-    store().setParticipantConfig(1, { linkages });
-    const stored = store().characterSlots[1]?.linkages?.[0];
-    expect(stored).not.toBe(linkages[0]);
-    expect(stored).toMatchObject({ type: 'cell', cells: [[0, 1]] });
-  });
-});
-
-describe('MOD-802 linkage activation (single-active state machine)', () => {
-  it('starts inactive and hover-activates on enter', () => {
-    expect(store().activeParticipantId).toBeNull();
-    expect(store().activationMode).toBeNull();
-    store().activateParticipantHover(2);
-    expect(store().activeParticipantId).toBe(2);
-    expect(store().activationMode).toBe('hover');
-  });
-
-  it('ends a hover activation when the pointer leaves the same slot', () => {
-    store().activateParticipantHover(2);
-    store().deactivateParticipantHover(2);
-    expect(store().activeParticipantId).toBeNull();
-    expect(store().activationMode).toBeNull();
-  });
-
-  it('switches hover activation directly to the newly entered slot', () => {
-    store().activateParticipantHover(2);
-    store().activateParticipantHover(5);
-    expect(store().activeParticipantId).toBe(5);
-  });
-
-  it('click toggles a pinned activation and ignores hover on the same slot', () => {
-    store().activateParticipantClick(1);
-    expect(store().activationMode).toBe('click');
-    // §1.2.4: hovering the pinned participant must not change anything.
-    store().activateParticipantHover(1);
-    expect(store().activeParticipantId).toBe(1);
-    expect(store().activationMode).toBe('click');
-    store().deactivateParticipantHover(1);
-    expect(store().activeParticipantId).toBe(1);
-    store().activateParticipantClick(1);
-    expect(store().activeParticipantId).toBeNull();
-  });
-
-  it('entering another slot auto-ends the previous activation', () => {
-    store().activateParticipantClick(1);
-    store().activateParticipantHover(4);
-    expect(store().activeParticipantId).toBe(4);
-    expect(store().activationMode).toBe('hover');
-  });
-
-  it('clearActivation force-clears (Esc)', () => {
-    store().activateParticipantClick(3);
-    store().clearActivation();
-    expect(store().activeParticipantId).toBeNull();
-    expect(store().activationMode).toBeNull();
-  });
-
-  it('resets the activation on init and applyDraft', () => {
-    store().activateParticipantClick(2);
-    store().init(9, draft(4), {
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      currentVersionNo: 1,
-      status: 'draft',
-    });
-    expect(store().activeParticipantId).toBeNull();
-
-    store().activateParticipantHover(1);
-    store().applyDraft(draft(4));
-    expect(store().activeParticipantId).toBeNull();
-    expect(store().activationMode).toBeNull();
-  });
-});
-
-describe('character roster', () => {
-  it('assigns and clears a slot', () => {
-    store().setSlot(0, 9);
-    expect(store().characterSlots[0]).toMatchObject({ characterId: 9 });
-    store().setSlot(0, null);
-    expect(store().characterSlots[0]).toBeNull();
-  });
-
-  it('swaps two slots for drag reordering', () => {
-    store().setSlot(0, 9);
-    store().setSlot(1, 4);
-    store().swapSlots(0, 1);
-    expect(store().characterSlots[0]).toMatchObject({ characterId: 4 });
-    expect(store().characterSlots[1]).toMatchObject({ characterId: 9 });
-  });
-
-  it('sizes the roster to the grid size', () => {
-    expect(store().characterSlots).toHaveLength(6);
-    store().setGridSize(4);
-    expect(store().characterSlots).toHaveLength(4);
-  });
-});
-
 describe('grid resize', () => {
   it('crops out-of-bounds cells and regions', () => {
     store().placeBackground(1, 5, 5);
@@ -400,19 +239,12 @@ describe('init', () => {
     loaded.regions = [
       { id: 'rg_x', name: 'Loaded', color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
-    loaded.characterSlots = [
-      { characterId: 8, themeColor: '#FFCC00', linkages: [] },
-      null,
-      null,
-      null,
-    ];
     store().init(9, loaded, { updatedAt: '2026-01-01T00:00:00.000Z', currentVersionNo: 2, status: 'published' });
 
     expect(store().projectId).toBe(9);
     expect(store().gridSize).toBe(4);
     expect(store().cells.get('0,0')?.object?.itemId).toBe(3);
     expect(store().regions).toHaveLength(1);
-    expect(store().characterSlots[0]).toMatchObject({ characterId: 8, themeColor: '#FFCC00' });
     expect(store().currentVersionNo).toBe(2);
     expect(store().status).toBe('published');
     expect(store().past).toHaveLength(0);
@@ -420,203 +252,26 @@ describe('init', () => {
   });
 });
 
-describe('toDraft', () => {
-  it('serialises cells, regions, slots with theme + linkages', () => {
+describe('toDraft (FEAT-K14: MapDraft v3)', () => {
+  it('serialises cells and regions — and carries no roster (SPEC-K12)', () => {
     store().placeObject({ id: 5, widthCells: 1, heightCells: 1 }, 1, 1);
-    store().setSlot(0, 4);
     const output = store().toDraft();
-    // v0.3.8: the draft may carry a `style` block, so the JSON version is 2.
-    expect(output.version).toBe(2);
+    // v0.5.0: the map JSON is v3 — participants live in the puzzle now.
+    expect(output.version).toBe(3);
     expect(output.cells['1,1']?.object).toEqual({ itemId: 5, w: 1, h: 1 });
-    expect(output.characterSlots[0]).toMatchObject({ characterId: 4, linkages: [] });
-    // CLAR-603: there is no placedCharacters field any more.
+    expect('characterSlots' in output).toBe(false);
     expect('placedCharacters' in output).toBe(false);
-    // MOD-801: every serialised slot carries `linkages`, never `triggers`.
-    for (const slot of output.characterSlots) {
-      if (!slot) continue;
-      expect('triggers' in slot).toBe(false);
-      expect(Array.isArray(slot.linkages)).toBe(true);
-    }
   });
 
-  it('FEAT-D02: serialises the resolved map style', () => {
+  it('FEAT-D02: serialises the resolved map style — without the palette (Q16)', () => {
     const output = store().toDraft();
     expect(output.style?.gridSeparator).toEqual({ width: 2, color: '#000000' });
-    expect(output.style?.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    // The linkage palette moved to PuzzleDraft; MapStyle no longer carries it.
+    expect(output.style && 'linkageColors' in output.style).toBe(false);
   });
 });
 
-describe('positionConditions survives (BUG-J04 §4)', () => {
-  const CONDITIONS = [
-    { x: 1, y: 2 },
-    { x: 3, y: 0 },
-  ];
-
-  /** A 4×4 draft whose first two slots are filled and configurable. */
-  function withRoster(): MapDraft {
-    const loaded = draft(4);
-    loaded.characterSlots = [
-      { characterId: 8, themeColor: '#FFCC00', clue: '', linkages: [] },
-      { characterId: 9, themeColor: '#00FFCC', clue: '', linkages: [] },
-      null,
-      null,
-    ];
-    return loaded;
-  }
-
-  function load(draftToLoad: MapDraft): void {
-    store().init(11, draftToLoad, {
-      updatedAt: null,
-      currentVersionNo: null,
-      status: 'draft',
-    });
-  }
-
-  it('ensureEntry carries every CharacterSlotEntry field (source guard)', () => {
-    const source =
-      ((
-        import.meta.glob('./editorStore.ts', {
-          query: '?raw',
-          import: 'default',
-          eager: true,
-        }) as Record<string, string>
-      )['./editorStore.ts'] ?? '').replace(/\r\n/g, '\n');
-    const body = source.slice(
-      source.indexOf('function ensureEntry('),
-      source.indexOf('export interface EditorMeta'),
-    );
-    // The 5th field is the one that went missing — pin all of them.
-    for (const field of ['characterId', 'themeColor', 'clue', 'linkages', 'positionConditions']) {
-      expect(body).toContain(field);
-    }
-  });
-
-  it('survives init — a page reload no longer drops the list', () => {
-    const loaded = withRoster();
-    loaded.characterSlots[0] = {
-      characterId: 8,
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    };
-    load(loaded);
-    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
-  });
-
-  it('survives the next save — filling participant 2 keeps participant 1 intact', () => {
-    load(withRoster());
-    store().setParticipantConfig(0, {
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    });
-    store().setParticipantConfig(1, {
-      themeColor: '#00FFCC',
-      clue: '',
-      linkages: [],
-      positionConditions: [{ x: 0, y: 0 }],
-    });
-    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
-    expect(store().characterSlots[1]?.positionConditions).toEqual([{ x: 0, y: 0 }]);
-  });
-
-  it('survives an unrelated commit', () => {
-    load(withRoster());
-    store().setParticipantConfig(0, {
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    });
-    store().placeBackground(3, 0, 0);
-    store().setMapStyle((current) => ({ ...current, canvasFrame: { ...current.canvasFrame, width: 8 } }));
-    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
-  });
-
-  it('reaches toDraft — what the server stores now carries it', () => {
-    load(withRoster());
-    store().setParticipantConfig(0, {
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    });
-    expect(store().toDraft().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
-  });
-
-  it('survives a grid resize and an applyDraft', () => {
-    const loaded = withRoster();
-    loaded.characterSlots[0] = {
-      characterId: 8,
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    };
-    load(loaded);
-    store().setGridSize(3);
-    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
-    store().applyDraft(loaded);
-    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
-  });
-
-  it('defensively copies the list on the way in', () => {
-    load(withRoster());
-    const conditions = [{ x: 1, y: 1 }];
-    store().setParticipantConfig(0, {
-      themeColor: '#FFFFFF',
-      clue: '',
-      linkages: [],
-      positionConditions: conditions,
-    });
-    const stored = store().characterSlots[0]?.positionConditions;
-    expect(stored).not.toBe(conditions);
-    expect(stored?.[0]).not.toBe(conditions[0]);
-    conditions[0]!.x = 9;
-    expect(store().characterSlots[0]?.positionConditions).toEqual([{ x: 1, y: 1 }]);
-  });
-
-  it('stores an empty list as an absent field, never a dead array', () => {
-    load(withRoster());
-    store().setParticipantConfig(0, {
-      themeColor: '#FFFFFF',
-      clue: '',
-      linkages: [],
-      positionConditions: [],
-    });
-    const entry = store().characterSlots[0];
-    expect(entry).not.toBeNull();
-    expect(entry && 'positionConditions' in entry).toBe(false);
-  });
-
-  it('keeps a normalised entry’s identity across commits (§9 Q7)', () => {
-    load(withRoster());
-    store().setParticipantConfig(0, {
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    });
-    const entry = store().characterSlots[0];
-    // An unrelated edit must not swap the entry object out — that is what made
-    // `ParticipantDrawer`'s `[open, slot]` effect re-seed (and drop unsaved
-    // local edits) on every commit.
-    store().placeBackground(3, 0, 0);
-    expect(store().characterSlots[0]).toBe(entry);
-    // A real change to that slot still produces a new object.
-    store().setParticipantConfig(0, {
-      themeColor: '#123456',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    });
-    expect(store().characterSlots[0]).not.toBe(entry);
-  });
-});
-
-describe('map style (v0.3.8 FEAT-D02/D03/D04)', () => {
+describe('map style (v0.3.8 FEAT-D02/D03)', () => {
   it('starts from the shipped defaults and is always fully resolved', () => {
     const style = store().style;
     expect(style.cellSize).toBeNull();
@@ -690,47 +345,6 @@ describe('map style (v0.3.8 FEAT-D02/D03/D04)', () => {
     expect(store().regions[0]?.color).toBe('#3B82F6');
     // ...and its width is untouched when only the colour changed.
     expect(store().regions[0]?.borderWidth).toBe(4);
-  });
-
-  it('FEAT-D04: removing a palette entry re-points the linkages that used it', () => {
-    store().setLinkageColors([
-      { key: 'red', label: '红', color: '#EF9A9A' },
-      { key: 'blue', label: '蓝', color: '#90CAF9' },
-      { key: 'teal', label: '青', color: '#0B7E74' },
-    ]);
-    store().setSlot(0, 4);
-    store().setParticipantConfig(0, {
-      linkages: [
-        { type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'blue' },
-        { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'teal' },
-      ],
-    });
-    store().removeLinkageColor('blue');
-    // The removed key is gone and its references point at the first entry.
-    expect(store().style.linkageColors.map((entry) => entry.key)).toEqual(['red', 'teal']);
-    expect(store().characterSlots[0]?.linkages?.map((entry) => entry.color)).toEqual([
-      'red',
-      'teal',
-    ]);
-  });
-
-  it('FEAT-D04 §下限: refuses to drop below the 2-entry minimum', () => {
-    store().removeLinkageColor('blue');
-    expect(store().style.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
-    // Nothing was committed either — a rejected removal must not dirty the map.
-    expect(store().past).toHaveLength(0);
-  });
-
-  it('FEAT-D04: setLinkageColors adds an entry through the schema guard', () => {
-    store().setLinkageColors([
-      { key: 'red', label: '红', color: '#EF9A9A' },
-      { key: 'teal', label: '青', color: '#0B7E74' },
-    ]);
-    expect(store().style.linkageColors[1]).toEqual({
-      key: 'teal',
-      label: '青',
-      color: '#0B7E74',
-    });
   });
 
   it('applyDraft adopts the imported style and resets the history', () => {

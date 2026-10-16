@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
-import { ErrorCode } from '@loredoku/shared';
+import { ErrorCode, MAP_JSON_VERSION } from '@loredoku/shared';
 import type { MapDraft } from '@loredoku/shared';
 import { api } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
@@ -8,6 +8,8 @@ import { resolveUploadPath } from '../src/utils/paths';
 const createdProjects: number[] = [];
 const createdItems: number[] = [];
 const createdCharacters: number[] = [];
+/** Deleted before `map_projects` — `puzzles.map_project_id` is ON DELETE RESTRICT. */
+const createdPuzzles: number[] = [];
 const uploadedAvatarDirs: string[] = [];
 const uploadedGameCoverDirs: string[] = [];
 const uploadedProjectCoverDirs: string[] = [];
@@ -24,13 +26,17 @@ function uniqueSlug(prefix = 'game'): string {
   return `${prefix}-${Math.random().toString(16).slice(2, 10)}`;
 }
 
+/**
+ * v0.5.0 FEAT-K14: the map draft is pure canvas — the roster and the palette
+ * moved to the puzzle, so `characterSlots` is gone and `version` is the v3
+ * stamp (`MAP_JSON_VERSION`).
+ */
 function emptyDraft(gridSize: number): MapDraft {
   return {
-    version: 1,
+    version: MAP_JSON_VERSION,
     gridSize,
     cells: {},
     regions: [],
-    characterSlots: Array.from({ length: gridSize }, () => null),
   };
 }
 
@@ -69,10 +75,6 @@ const TINY_PNG = Buffer.from(
   'base64',
 );
 
-/**
- * v0.3.1 P2: only characters with an avatar count as participants, so a
- * publishable draft needs a character whose avatar has been uploaded.
- */
 async function createCharacterWithAvatar(body: Record<string, unknown> = {}): Promise<number> {
   const id = await createCharacter(body);
   const uploaded = await api
@@ -82,6 +84,64 @@ async function createCharacterWithAvatar(body: Record<string, unknown> = {}): Pr
   expect(uploaded.body.data.avatarThumbUrl).toBeTruthy();
   uploadedAvatarDirs.push(resolveUploadPath(`characters/${id}`));
   return id;
+}
+
+/** Publishes the map's working draft and returns the freshly minted version. */
+async function publish(projectId: number, notes?: string): Promise<number> {
+  const res = await api.post(`/api/projects/${projectId}/versions`).send({ notes });
+  expect(res.status).toBe(200);
+  return res.body.data.versionNo as number;
+}
+
+/** FEAT-K01: a puzzle bound to a published map version. */
+async function createPuzzle(body: Record<string, unknown>): Promise<number> {
+  const res = await api.post('/api/puzzles').send(body);
+  expect(res.status).toBe(200);
+  expect(res.body.code).toBe(ErrorCode.OK);
+  const id = res.body.data.id as number;
+  createdPuzzles.push(id);
+  return id;
+}
+
+/** A map whose canvas holds one object item, published as `v1`. */
+async function publishedMapWithItem(
+  name: string,
+): Promise<{ projectId: number; itemId: number; versionNo: number }> {
+  const projectId = await createProject({ name, gridSize: 6 });
+  const itemId = await createItem({ category: 'object', canStand: true });
+  const draft = emptyDraft(6);
+  draft.cells['0,0'] = { object: { itemId, w: 1, h: 1 } };
+  const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+  expect(saved.status).toBe(200);
+  const versionNo = await publish(projectId, 'v1');
+  return { projectId, itemId, versionNo };
+}
+
+/** A puzzle bound to a published version — enough for a deploy. */
+async function puzzleWithVersion(
+  name: string,
+): Promise<{ projectId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
+  const projectId = await createProject({ name, gridSize: 6 });
+  const versionNo = await publish(projectId, 'v1');
+  const puzzleName = `${name} 谜题`;
+  const puzzleId = await createPuzzle({ name: puzzleName, mapProjectId: projectId, mapVersionNo: versionNo });
+  return { projectId, puzzleId, versionNo, puzzleName };
+}
+
+/** The same, plus one participant with an avatar on the roster. */
+async function deployablePuzzle(
+  name: string,
+): Promise<{ projectId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
+  const context = await puzzleWithVersion(name);
+  const characterId = await createCharacterWithAvatar();
+  const initial = await api.get(`/api/puzzles/${context.puzzleId}`);
+  const draft = initial.body.data.data;
+  draft.characterSlots[0] = { characterId };
+  const saved = await api
+    .put(`/api/puzzles/${context.puzzleId}`)
+    .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+  expect(saved.status).toBe(200);
+  return context;
 }
 
 describe('projects API', () => {
@@ -105,7 +165,7 @@ describe('projects API', () => {
     const list = await api.get('/api/projects');
     expect(list.status).toBe(200);
     expect(Array.isArray(list.body.data.list)).toBe(true);
-    expect(list.body.data.list.some((p: { id: number }) => p.id === id)).toBe(true);
+    expect(list.body.data.list.some((p: { projectId: number }) => p.projectId === id)).toBe(true);
 
     const detail = await api.get(`/api/projects/${id}`);
     expect(detail.body.data.gridSize).toBe(8);
@@ -123,6 +183,78 @@ describe('projects API', () => {
     const missing = await api.get(`/api/projects/${id}`);
     expect(missing.status).toBe(404);
     expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  /**
+   * FEAT-K09 (docs/v0.5.0.md §7.1) — with Q3 = B the list is a **union** of the
+   * work entry and every version entry of the same blood lineage, keyed by
+   * `map_projects.root_id`. The keyword filter matches both kinds, which is how
+   * this test isolates a single lineage in a shared dev database.
+   */
+  it('groups a work entry with its version entries in one list (FEAT-K09)', async () => {
+    const name = `Union ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    await publish(projectId, 'v1');
+    await publish(projectId, 'v2');
+
+    const res = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    expect(res.status).toBe(200);
+    const rows = res.body.data.list as Array<{
+      kind: 'draft' | 'version';
+      rootId: number;
+      projectId: number;
+      versionNo: number | null;
+      currentVersionNo: number | null;
+      versionCount: number;
+      name: string;
+    }>;
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.every((row) => row.name === name)).toBe(true);
+
+    const work = rows.find((row) => row.kind === 'draft');
+    expect(work?.projectId).toBe(projectId);
+    expect(work?.versionNo).toBeNull();
+    expect(work?.currentVersionNo).toBe(2);
+    expect(work?.versionCount).toBe(2);
+
+    const versions = rows
+      .filter((row) => row.kind === 'version')
+      .map((row) => row.versionNo)
+      .sort();
+    expect(versions).toEqual([1, 2]);
+    // One lineage → one root, and the work entry leads its own versions.
+    expect(new Set(rows.map((row) => row.rootId)).size).toBe(1);
+    expect(rows[0]!.kind).toBe('draft');
+  });
+
+  /** FEAT-K03 §2.4: the 「地图版本」 picker of the create-puzzle dialog. */
+  it('lists every published version for the puzzle picker (FEAT-K03)', async () => {
+    const name = `Picker ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    const versionNo = await publish(projectId, 'picker');
+
+    const res = await api.get('/api/projects/versions');
+    expect(res.status).toBe(200);
+    const row = (
+      res.body.data as Array<{
+        projectId: number;
+        rootId: number;
+        versionNo: number;
+        mapName: string;
+        gridSize: number;
+        notes: string | null;
+      }>
+    ).find((entry) => entry.projectId === projectId && entry.versionNo === versionNo);
+    expect(row?.mapName).toBe(name);
+    expect(row?.gridSize).toBe(6);
+    expect(row?.notes).toBe('picker');
+    expect(typeof row?.rootId).toBe('number');
+  });
+
+  /** v0.5.0 §1: the works module is gone — the route went with it. */
+  it('no longer exposes the works module (v0.5.0)', async () => {
+    const res = await api.get('/api/versions');
+    expect(res.status).toBe(404);
   });
 
   /**
@@ -369,6 +501,8 @@ describe('map draft API', () => {
   });
 
   // v0.3.8 FEAT-D02: the map style block round-trips through the draft JSON.
+  // v0.5.0 FEAT-K14: it no longer carries `linkageColors` — the palette moved to
+  // the puzzle, and the strict schema rejects the old key outright.
   it('persists and reloads the map style, and still accepts a style-less draft', async () => {
     const projectId = await createProject({ name: `Style ${uniqueCode('p')}`, gridSize: 6 });
 
@@ -377,15 +511,10 @@ describe('map draft API', () => {
 
     const draft = {
       ...emptyDraft(6),
-      version: 2,
       style: {
         cellSize: 150,
         canvasFrame: { width: 8, color: '#112233' },
         regionHighlight: { width: 6, color: '#0B7E74' },
-        linkageColors: [
-          { key: 'red', label: '红', color: '#EF9A9A' },
-          { key: 'teal', label: '青', color: '#0B7E74' },
-        ],
       },
     };
     const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft, updatedAt });
@@ -395,9 +524,6 @@ describe('map draft API', () => {
 
     const reloaded = await api.get(`/api/projects/${projectId}/map`);
     expect(reloaded.body.data.draft.style.regionHighlight.width).toBe(6);
-    expect(reloaded.body.data.draft.style.linkageColors.map((entry: { key: string }) => entry.key)).toEqual(
-      ['red', 'teal'],
-    );
 
     // A v0.3.7-era payload (no style block) is still accepted.
     const legacy = await api
@@ -407,17 +533,17 @@ describe('map draft API', () => {
     expect(legacy.body.data.draft.style).toBeUndefined();
   });
 
-  it('rejects a style whose linkage colour is not in the palette', async () => {
-    const projectId = await createProject({ name: `StyleBad ${uniqueCode('p')}`, gridSize: 6 });
-    const characterId = await createCharacterWithAvatar();
-    const draft = emptyDraft(6);
-    draft.characterSlots[0] = {
-      characterId,
-      themeColor: '#FFFFFF',
-      clue: '',
-      linkages: [{ type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'teal' }],
-    };
-    const res = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+  it('rejects a v2 style palette rather than stripping it (FEAT-K14)', async () => {
+    const projectId = await createProject({ name: `StylePalette ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api.put(`/api/projects/${projectId}/map`).send({
+      data: {
+        ...emptyDraft(6),
+        style: {
+          cellSize: 150,
+          linkageColors: [{ key: 'red', label: '红', color: '#EF9A9A' }],
+        },
+      },
+    });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
@@ -430,43 +556,64 @@ describe('map draft API', () => {
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
+
+  /**
+   * docs/v0.5.0.md §8.4: a v2 file must be **rejected with a pointer**, not
+   * silently stripped — otherwise the author would believe their participants
+   * came along with the canvas.
+   */
+  it('rejects a v2 map JSON on import and points at the puzzle module (§8.4)', async () => {
+    const projectId = await createProject({ name: `Import ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api.post(`/api/projects/${projectId}/map/import`).send({
+      data: {
+        version: 2,
+        gridSize: 6,
+        cells: {},
+        regions: [],
+        characterSlots: [null, null, null, null, null, null],
+      },
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.message).toContain('characterSlots');
+    expect(res.body.message).toContain('谜题');
+  });
 });
 
 describe('versions API', () => {
-  it('publishes, lists, reads and restores a draft from a version', async () => {
+  it('publishes, lists, reads and deletes a version', async () => {
     const projectId = await createProject({ name: `Versions ${uniqueCode('p')}`, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
-    // v0.3.1 P1/P2: publishing needs at least one participant whose character has an avatar.
-    const characterId = await createCharacterWithAvatar();
 
     const draft = emptyDraft(6);
     draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
-    draft.characterSlots[0] = { characterId };
     await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
 
     const published = await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'first' });
     expect(published.status).toBe(200);
     expect(published.body.data.versionNo).toBe(1);
-    expect(published.body.data.participantCount).toBe(1);
+    expect(published.body.data.itemCount).toBe(1);
 
     const list = await api.get(`/api/projects/${projectId}/versions`);
     expect(list.body.data).toHaveLength(1);
+    // The lineage panel needs to know which work entry owns each version.
+    expect(list.body.data[0].projectId).toBe(projectId);
 
     const detail = await api.get(`/api/projects/${projectId}/versions/1`);
     expect(detail.body.data.data.cells['1,1'].object.itemId).toBe(itemId);
+    // The snapshot is a pure canvas — the roster never rides along (v0.5.0).
+    expect(detail.body.data.data.characterSlots).toBeUndefined();
 
-    await api.put(`/api/projects/${projectId}/map`).send({ data: emptyDraft(6) });
-    const restored = await api.post(`/api/projects/${projectId}/versions/1/draft`);
-    expect(restored.status).toBe(200);
-    expect(restored.body.data.draft.cells['1,1'].object.itemId).toBe(itemId);
+    const removed = await api.delete(`/api/projects/${projectId}/versions/1`);
+    expect(removed.status).toBe(200);
+    const gone = await api.get(`/api/projects/${projectId}/versions/1`);
+    expect(gone.status).toBe(404);
   });
 
   it('rejects publishing when validation fails', async () => {
     const projectId = await createProject({ name: `PubFail ${uniqueCode('p')}`, gridSize: 6 });
-    const characterId = await createCharacterWithAvatar();
 
     const draft = emptyDraft(6);
-    draft.characterSlots[0] = { characterId };
     // P3: a region must be a connected blob ((0,0) and (3,3) are not adjacent).
     draft.regions = [
       {
@@ -475,7 +622,10 @@ describe('versions API', () => {
         color: '#000000',
         borderWidth: 6,
         fillOpacity: 0,
-        cells: [[0, 0], [3, 3]],
+        cells: [
+          [0, 0],
+          [3, 3],
+        ],
       },
     ];
     await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
@@ -496,12 +646,10 @@ describe('versions API', () => {
   // object layer — the v0.3.1 `object_can_stand` rule was removed.
   it('OPT-904: publishes a non-standable item placed on the object layer', async () => {
     const projectId = await createProject({ name: `NoStand ${uniqueCode('p')}`, gridSize: 6 });
-    const characterId = await createCharacterWithAvatar();
     const itemId = await createItem({ category: 'object', canStand: false });
 
     const draft = emptyDraft(6);
     draft.cells['2,2'] = { object: { itemId, w: 2, h: 2 } };
-    draft.characterSlots[0] = { characterId };
     const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
     expect(saved.status).toBe(200);
 
@@ -510,165 +658,418 @@ describe('versions API', () => {
     expect(res.body.data.versionNo).toBe(1);
   });
 
-  it('rejects publishing when the only participant has no avatar', async () => {
-    const projectId = await createProject({ name: `NoAvatar ${uniqueCode('p')}`, gridSize: 6 });
+  /**
+   * @deprecated v0.5.0 §15 Q9 — superseded by `/fork`. No UI reaches it, but a
+   * historical caller still restores a version into the working draft.
+   */
+  it('restores a version into the working draft via the deprecated route (Q9)', async () => {
+    const projectId = await createProject({ name: `Restore ${uniqueCode('p')}`, gridSize: 6 });
+    const itemId = await createItem({ category: 'object', canStand: true });
+
+    const draft = emptyDraft(6);
+    draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
+    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    await publish(projectId, 'first');
+
+    await api.put(`/api/projects/${projectId}/map`).send({ data: emptyDraft(6) });
+    const restored = await api.post(`/api/projects/${projectId}/versions/1/draft`);
+    expect(restored.status).toBe(200);
+    expect(restored.body.data.draft.cells['1,1'].object.itemId).toBe(itemId);
+  });
+});
+
+/**
+ * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3) — 「编辑此版本」 opens a version for
+ * editing as a **new work entry in the same blood lineage**. `map_versions` is
+ * never written, and the lineage keeps counting so the next publish is `v3`,
+ * not a restarted `v1`.
+ */
+describe('version fork (SPEC-K11 / Q3 = B)', () => {
+  it('adds a work entry in the same lineage without touching map_versions', async () => {
+    const name = `Fork ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    const itemId = await createItem({ category: 'object', canStand: true });
+    const draft = emptyDraft(6);
+    draft.cells['2,2'] = { object: { itemId, w: 1, h: 1 } };
+    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    await publish(projectId, 'v1');
+    await publish(projectId, 'v2');
+
+    const before = await api.get(`/api/projects/${projectId}/versions/2`);
+    const forked = await api.post(`/api/projects/${projectId}/versions/2/fork`);
+    expect(forked.status).toBe(200);
+    const forkedId = forked.body.data.id as number;
+    createdProjects.push(forkedId);
+
+    // The published snapshot is untouched: same timestamp, same payload.
+    const after = await api.get(`/api/projects/${projectId}/versions/2`);
+    expect(after.body.data.publishedAt).toBe(before.body.data.publishedAt);
+    expect(after.body.data.data.cells['2,2'].object.itemId).toBe(itemId);
+
+    // The fork is a *draft* entry seeded from v2, sharing the original's root.
+    const list = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    const rows = list.body.data.list as Array<{
+      kind: 'draft' | 'version';
+      rootId: number;
+      projectId: number;
+      versionNo: number | null;
+      currentVersionNo: number | null;
+      versionCount: number;
+    }>;
+    const original = rows.find((row) => row.projectId === projectId && row.kind === 'draft');
+    const forkEntry = rows.find((row) => row.projectId === forkedId && row.kind === 'draft');
+    expect(forkEntry).toBeDefined();
+    expect(forkEntry?.rootId).toBe(original?.rootId);
+    expect(forkEntry?.currentVersionNo).toBe(2);
+    expect(forkEntry?.versionCount).toBe(2);
+
+    const forkedDraft = await api.get(`/api/projects/${forkedId}/map`);
+    expect(forkedDraft.body.data.draft.cells['2,2'].object.itemId).toBe(itemId);
+  });
+
+  it('continues the lineage numbering after a fork (v3, not v1)', async () => {
+    const name = `Lineage ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    await publish(projectId, 'v1');
+    await publish(projectId, 'v2');
+
+    const forked = await api.post(`/api/projects/${projectId}/versions/2/fork`);
+    const forkedId = forked.body.data.id as number;
+    createdProjects.push(forkedId);
+
+    const next = await api.post(`/api/projects/${forkedId}/versions`).send({ notes: 'v3' });
+    expect(next.status).toBe(200);
+    expect(next.body.data.versionNo).toBe(3);
+
+    // The lineage panel spans both rows and reports who owns each version.
+    const lineage = await api.get(`/api/projects/${forkedId}/versions`);
+    expect(lineage.status).toBe(200);
+    expect(lineage.body.data.map((entry: { versionNo: number }) => entry.versionNo)).toEqual([3, 2, 1]);
+    expect(lineage.body.data[0].projectId).toBe(forkedId);
+    expect(lineage.body.data[1].projectId).toBe(projectId);
+  });
+
+  it('404s when the version to fork does not exist', async () => {
+    const projectId = await createProject({ name: `NoFork ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api.post(`/api/projects/${projectId}/versions/99/fork`);
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+});
+
+/**
+ * FEAT-K01 (docs/v0.5.0.md §2) — the puzzle module. It replaces the old works
+ * table (the list keeps the same 5 columns) and owns the roster + palette and
+ * the reference to one **published** map version.
+ */
+describe('puzzles API (FEAT-K01)', () => {
+  it('creates a puzzle bound to a published version and reads it back', async () => {
+    const { projectId, versionNo, itemId } = await publishedMapWithItem(`Pz ${uniqueCode('p')}`);
+    const id = await createPuzzle({
+      name: '谜题一',
+      description: '第一题',
+      mapProjectId: projectId,
+      mapVersionNo: versionNo,
+    });
+
+    const list = await api.get('/api/puzzles');
+    expect(list.status).toBe(200);
+    const row = (
+      list.body.data as Array<{
+        id: number;
+        mapVersionNo: number;
+        mapProjectId: number;
+        mapName: string;
+        deployed: boolean;
+      }>
+    ).find((entry) => entry.id === id);
+    expect(row?.mapVersionNo).toBe(versionNo);
+    expect(row?.mapProjectId).toBe(projectId);
+    expect(row?.mapName).toContain('Pz');
+    expect(row?.deployed).toBe(false);
+
+    const detail = await api.get(`/api/puzzles/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.name).toBe('谜题一');
+    expect(detail.body.data.description).toBe('第一题');
+    expect(detail.body.data.gridSize).toBe(6);
+    // The reference is recorded, but the canvas is not copied (§5.1).
+    expect(detail.body.data.data.map).toEqual({ projectId, versionNo, gridSize: 6 });
+    expect(detail.body.data.data.characterSlots).toHaveLength(6);
+    expect(
+      detail.body.data.data.characterSlots.every((slot: unknown) => slot === null),
+    ).toBe(true);
+    // The palette is seeded from the version (here: the shipped red / blue pair).
+    expect(detail.body.data.data.linkageColors.length).toBeGreaterThanOrEqual(2);
+
+    // The canvas lives on the version, not in the puzzle payload.
+    expect(detail.body.data.data.cells).toBeUndefined();
+    expect(itemId).toBeGreaterThan(0);
+  });
+
+  it('rejects a puzzle whose map version was never published', async () => {
+    const projectId = await createProject({ name: `NoVer ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api
+      .post('/api/puzzles')
+      .send({ name: '无版本', mapProjectId: projectId, mapVersionNo: 1 });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.message).toContain('地图版本');
+  });
+
+  it('rejects a puzzle with a blank name', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`BadName ${uniqueCode('p')}`);
+    const res = await api
+      .post('/api/puzzles')
+      .send({ name: '   ', mapProjectId: projectId, mapVersionNo: versionNo });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+  });
+
+  /** §5.1 + Q16: the canvas is read-only and its style has no palette. */
+  it('serves the referenced canvas read-only and strips the palette (Q16)', async () => {
+    const { projectId, itemId, versionNo } = await publishedMapWithItem(`Ctx ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '只读画布', mapProjectId: projectId, mapVersionNo: versionNo });
+
+    const res = await api.get(`/api/puzzles/${id}/map`);
+    expect(res.status).toBe(200);
+    expect(res.body.data.projectId).toBe(projectId);
+    expect(res.body.data.versionNo).toBe(versionNo);
+    expect(res.body.data.gridSize).toBe(6);
+    expect(res.body.data.cells['0,0'].object.itemId).toBe(itemId);
+    expect(res.body.data.style.linkageColors).toBeUndefined();
+  });
+
+  it('saves the draft with optimistic concurrency and rejects a stale write', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`Save ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '保存', mapProjectId: projectId, mapVersionNo: versionNo });
+
+    const initial = await api.get(`/api/puzzles/${id}`);
+    const updatedAt = initial.body.data.updatedAt as string;
+    const draft = initial.body.data.data;
+    draft.description = '改一下';
+
+    const saved = await api.put(`/api/puzzles/${id}`).send({ data: draft, updatedAt });
+    expect(saved.status).toBe(200);
+    expect(saved.body.data.data.description).toBe('改一下');
+
+    const stale = await api.put(`/api/puzzles/${id}`).send({ data: draft, updatedAt });
+    expect(stale.status).toBe(409);
+    expect(stale.body.code).toBe(ErrorCode.DRAFT_CONFLICT);
+  });
+
+  it('reads metadata back through the list after a save', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`Mirror ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '旧名', mapProjectId: projectId, mapVersionNo: versionNo });
+
+    const initial = await api.get(`/api/puzzles/${id}`);
+    const draft = initial.body.data.data;
+    draft.name = '改名后';
+    draft.description = '描述也改了';
+    const saved = await api.put(`/api/puzzles/${id}`).send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(saved.status).toBe(200);
+
+    // The row mirrors the JSON, so the list and the export never drift apart.
+    const list = await api.get('/api/puzzles');
+    const row = (list.body.data as Array<{ id: number; name: string; description: string | null }>).find(
+      (entry) => entry.id === id,
+    );
+    expect(row?.name).toBe('改名后');
+    expect(row?.description).toBe('描述也改了');
+  });
+
+  /** The reference is the server's — a payload can never repoint a puzzle. */
+  it('forces the stored map reference back on save', async () => {
+    const a = await publishedMapWithItem(`RefA ${uniqueCode('p')}`);
+    const b = await publishedMapWithItem(`RefB ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '引用', mapProjectId: a.projectId, mapVersionNo: a.versionNo });
+
+    const initial = await api.get(`/api/puzzles/${id}`);
+    const draft = initial.body.data.data;
+    draft.map = { projectId: b.projectId, versionNo: b.versionNo, gridSize: 6 };
+    const saved = await api
+      .put(`/api/puzzles/${id}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(saved.status).toBe(200);
+    expect(saved.body.data.data.map.projectId).toBe(a.projectId);
+    expect(saved.body.data.data.map.versionNo).toBe(a.versionNo);
+  });
+
+  /** §5.2: `item` / `region` targets are checked against the referenced canvas. */
+  it('rejects an item linkage whose target is not on the referenced canvas', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`BadRef ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '坏引用', mapProjectId: projectId, mapVersionNo: versionNo });
     const characterId = await createCharacter();
 
-    const draft = emptyDraft(6);
-    draft.characterSlots[0] = { characterId };
-    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
-
-    const res = await api.post(`/api/projects/${projectId}/versions`).send({});
-    expect(res.status).toBe(422);
-    expect(res.body.code).toBe(ErrorCode.PUBLISH_VALIDATION_FAILED);
-    expect(
-      (res.body.data as Array<{ rule: string }>).some(
-        (violation) => violation.rule === 'participant_required',
-      ),
-    ).toBe(true);
+    const initial = await api.get(`/api/puzzles/${id}`);
+    const draft = initial.body.data.data;
+    draft.characterSlots[0] = {
+      characterId,
+      linkages: [{ type: 'item', id: 99999999, scope: 'all', effect: 'highlight', color: 'red' }],
+    };
+    const res = await api
+      .put(`/api/puzzles/${id}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect((res.body.data as string[]).some((message) => message.includes('不在地图中'))).toBe(true);
   });
-});
 
-// OPT-905 (docs/v0.3.4.md §5): the works table lists every map's works.
-describe('works API (OPT-905)', () => {
-  it('lists published works from all maps together with their map names', async () => {
-    const projectA = await createProject({ name: `WorksA ${uniqueCode('p')}`, gridSize: 6 });
-    const projectB = await createProject({ name: `WorksB ${uniqueCode('p')}`, gridSize: 6 });
-    const characterId = await createCharacterWithAvatar();
+  /** §5.2: the self-consistent half — a `cell` target must be inside the board. */
+  it('rejects a linkage target outside the canvas', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`CellRef ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '越界', mapProjectId: projectId, mapVersionNo: versionNo });
+    const characterId = await createCharacter();
 
-    const draft = emptyDraft(6);
-    draft.characterSlots[0] = { characterId };
-    await api.put(`/api/projects/${projectA}/map`).send({ data: draft });
-    await api.put(`/api/projects/${projectB}/map`).send({ data: draft });
+    const initial = await api.get(`/api/puzzles/${id}`);
+    const draft = initial.body.data.data;
+    draft.characterSlots[0] = {
+      characterId,
+      linkages: [{ type: 'cell', cells: [[9, 9]], effect: 'glow', color: 'blue' }],
+    };
+    const res = await api
+      .put(`/api/puzzles/${id}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+  });
 
-    await api.post(`/api/projects/${projectA}/versions`).send({ notes: 'A1' });
-    await api.post(`/api/projects/${projectB}/versions`).send({ notes: 'B1' });
+  it('renames and re-describes, mirroring into the exported JSON', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`Rename ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '旧名', mapProjectId: projectId, mapVersionNo: versionNo });
 
-    const res = await api.get('/api/versions');
+    const res = await api.patch(`/api/puzzles/${id}`).send({ name: '新名', description: '新描述' });
     expect(res.status).toBe(200);
-    const rows = res.body.data as Array<{
-      projectId: number;
-      projectName: string;
-      versionNo: number;
-      notes: string | null;
-      publishedAt: string;
-      deployed: boolean;
-    }>;
-    const a = rows.find((row) => row.projectId === projectA);
-    const b = rows.find((row) => row.projectId === projectB);
-    expect(a?.projectName).toContain('WorksA');
-    expect(a?.versionNo).toBe(1);
-    expect(b?.projectName).toContain('WorksB');
-    // FEAT-G02: a freshly published work carries no badge. Scoped to the two
-    // rows this test created — the assertion must not depend on what else
-    // lives in the (shared, manually seeded) dev database.
-    expect(a?.deployed).toBe(false);
-    expect(b?.deployed).toBe(false);
-    // §5.3 default ordering: newest first.
-    expect(rows[0]!.publishedAt >= rows[rows.length - 1]!.publishedAt).toBe(true);
+    expect(res.body.data.name).toBe('新名');
+    expect(res.body.data.description).toBe('新描述');
+    expect(res.body.data.data.name).toBe('新名');
+    expect(res.body.data.data.description).toBe('新描述');
+  });
+
+  it('duplicates a puzzle under a unique copy name', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`Dup ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '原件', mapProjectId: projectId, mapVersionNo: versionNo });
+
+    const first = await api.post(`/api/puzzles/${id}/duplicate`);
+    expect(first.status).toBe(200);
+    createdPuzzles.push(first.body.data.id);
+    expect(first.body.data.name).toBe('原件 副本');
+
+    const second = await api.post(`/api/puzzles/${id}/duplicate`);
+    createdPuzzles.push(second.body.data.id);
+    expect(second.body.data.name).toBe('原件 副本 2');
+  });
+
+  it('deletes a puzzle', async () => {
+    const { projectId, versionNo } = await publishedMapWithItem(`Del ${uniqueCode('p')}`);
+    const created = await api
+      .post('/api/puzzles')
+      .send({ name: '待删', mapProjectId: projectId, mapVersionNo: versionNo });
+    const id = created.body.data.id as number;
+
+    const removed = await api.delete(`/api/puzzles/${id}`);
+    expect(removed.status).toBe(200);
+    const missing = await api.get(`/api/puzzles/${id}`);
+    expect(missing.status).toBe(404);
+    expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  it('404s for an unknown puzzle canvas', async () => {
+    const res = await api.get('/api/puzzles/99999999/map');
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 });
 
-// ---- v0.4.0 FEAT-G02: deployed games (docs/v0.4.0.md §5) ----
-describe('games API (FEAT-G02)', () => {
-  /** A publishable draft: one participant with an avatar, nothing else. */
-  async function publishableProject(name: string): Promise<{ projectId: number; draft: MapDraft }> {
-    const projectId = await createProject({ name, gridSize: 6 });
-    const characterId = await createCharacterWithAvatar();
-    const draft = emptyDraft(6);
-    draft.characterSlots[0] = { characterId };
-    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
-    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v1' });
-    return { projectId, draft };
-  }
-
-  it('deploys a published work and lists it on the games home page', async () => {
-    const { projectId } = await publishableProject(`Game ${uniqueCode('p')}`);
+// ---- v0.4.0 FEAT-G02 + v0.5.0 CONS-K16: the unit of deployment is a puzzle ----
+describe('games API (FEAT-G02 + CONS-K16)', () => {
+  it('deploys a puzzle and lists it on the games home page', async () => {
+    const { puzzleId } = await deployablePuzzle(`Game ${uniqueCode('p')}`);
     const slug = uniqueSlug('mystery-castle');
 
     const deploy = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '神秘古堡', slug, difficulty: 'hard' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ name: '神秘古堡', slug, difficulty: 'hard' });
     expect(deploy.status).toBe(200);
+    expect(deploy.body.data.puzzleId).toBe(puzzleId);
     expect(deploy.body.data.name).toBe('神秘古堡');
     expect(deploy.body.data.difficulty).toBe('hard');
     expect(deploy.body.data.gridSize).toBe(6);
     expect(deploy.body.data.coverUrl).toBeNull();
+    expect(deploy.body.data.participantCount).toBe(1);
     // OPT-W04: an all-Chinese name derives no path, so the author typed one.
     expect(deploy.body.data.slug).toBe(slug);
 
     const list = await api.get('/api/games');
     expect(list.status).toBe(200);
-    const rows = list.body.data as Array<{ id: number; projectId: number; name: string }>;
-    const row = rows.find((entry) => entry.projectId === projectId);
+    const row = (list.body.data as Array<{ puzzleId: number | null; name: string }>).find(
+      (entry) => entry.puzzleId === puzzleId,
+    );
     expect(row?.name).toBe('神秘古堡');
 
-    // FEAT-G02 §5.1: the works table now badges the map as deployed.
-    const works = await api.get('/api/versions');
-    const work = (works.body.data as Array<{ projectId: number; deployed: boolean }>).find(
-      (entry) => entry.projectId === projectId,
-    );
-    expect(work?.deployed).toBe(true);
+    // FEAT-G02 §5.1: the puzzle table now badges the row as deployed.
+    const puzzles = await api.get('/api/puzzles');
+    expect(
+      (puzzles.body.data as Array<{ id: number; deployed: boolean }>).find(
+        (entry) => entry.id === puzzleId,
+      )?.deployed,
+    ).toBe(true);
 
     const detail = await api.get(`/api/games/${deploy.body.data.id}`);
     expect(detail.status).toBe(200);
-    expect(detail.body.data.data.characterSlots[0]).not.toBeNull();
+    // CONS-K16: the frozen snapshot carries both halves — canvas + puzzle.
+    expect(detail.body.data.snapshot.map.gridSize).toBe(6);
+    expect(detail.body.data.snapshot.puzzle.characterSlots[0]).not.toBeNull();
   });
 
-  it('defaults the game name to the map name and the difficulty to medium', async () => {
-    const name = `Defaulted ${uniqueCode('p')}`;
-    const { projectId } = await publishableProject(name);
+  it('defaults the game name to the puzzle name and the difficulty to medium', async () => {
+    const { puzzleId, puzzleName } = await deployablePuzzle(`Defaulted ${uniqueCode('p')}`);
 
-    const deploy = await api.post(`/api/projects/${projectId}/games`).send({ versionNo: 1 });
+    const deploy = await api.post(`/api/puzzles/${puzzleId}/games`).send({});
     expect(deploy.status).toBe(200);
-    expect(deploy.body.data.name).toBe(name);
+    expect(deploy.body.data.name).toBe(puzzleName);
     expect(deploy.body.data.difficulty).toBe('medium');
   });
 
-  it('keeps one game per map — a later deploy overwrites the earlier one', async () => {
-    const { projectId } = await publishableProject(`Overwrite ${uniqueCode('p')}`);
+  it('keeps one game per puzzle — a later deploy overwrites the earlier one', async () => {
+    const { puzzleId } = await deployablePuzzle(`Overwrite ${uniqueCode('p')}`);
 
     const first = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '第一版', slug: uniqueSlug('first'), difficulty: 'easy' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ name: '第一版', slug: uniqueSlug('first'), difficulty: 'easy' });
     expect(first.status).toBe(200);
 
-    // Publish a second version of the same map, then deploy that one.
-    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v2' });
     const second = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 2, name: '第二版', slug: uniqueSlug('second'), difficulty: 'expert' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ name: '第二版', slug: uniqueSlug('second'), difficulty: 'expert' });
     expect(second.status).toBe(200);
     expect(second.body.data.id).not.toBe(first.body.data.id);
-    expect(second.body.data.versionNo).toBe(2);
+    // The puzzle pins its version, so a re-deploy never moves it.
+    expect(second.body.data.versionNo).toBe(1);
 
     const list = await api.get('/api/games');
-    const rows = (list.body.data as Array<{ id: number; projectId: number }>).filter(
-      (entry) => entry.projectId === projectId,
+    const rows = (list.body.data as Array<{ id: number; puzzleId: number | null }>).filter(
+      (entry) => entry.puzzleId === puzzleId,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).toBe(second.body.data.id);
   });
 
-  it('rejects a deploy of a version that does not exist', async () => {
-    const { projectId } = await publishableProject(`Missing ${uniqueCode('p')}`);
-    const res = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 99, name: 'X' });
+  it('rejects a deploy of a puzzle that does not exist', async () => {
+    const res = await api.post('/api/puzzles/99999999/games').send({ name: 'X' });
     expect(res.status).toBe(404);
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
   it('rejects an unknown difficulty and an empty name', async () => {
-    const { projectId } = await publishableProject(`Invalid ${uniqueCode('p')}`);
+    const { puzzleId } = await deployablePuzzle(`Invalid ${uniqueCode('p')}`);
+
     const badDifficulty = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, difficulty: 'nightmare' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ difficulty: 'nightmare' });
     expect(badDifficulty.status).toBe(400);
 
-    const emptyName = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '   ' });
+    const emptyName = await api.post(`/api/puzzles/${puzzleId}/games`).send({ name: '   ' });
     expect(emptyName.status).toBe(400);
   });
 
@@ -679,10 +1080,10 @@ describe('games API (FEAT-G02)', () => {
   });
 
   it('uploads a cover for a deployed game', async () => {
-    const { projectId } = await publishableProject(`Cover ${uniqueCode('p')}`);
+    const { puzzleId } = await deployablePuzzle(`Cover ${uniqueCode('p')}`);
     const deploy = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '带封面', slug: uniqueSlug('with-cover') });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ name: '带封面', slug: uniqueSlug('with-cover') });
     const gameId = deploy.body.data.id as number;
 
     const uploaded = await api
@@ -704,32 +1105,21 @@ describe('games API slug (OPT-W04)', () => {
     return Math.random().toString(16).slice(2, 10);
   }
 
-  /** A publishable draft: one participant with an avatar, nothing else. */
-  async function publishableProject(name: string): Promise<number> {
-    const projectId = await createProject({ name, gridSize: 6 });
-    const characterId = await createCharacterWithAvatar();
-    const draft = emptyDraft(6);
-    draft.characterSlots[0] = { characterId };
-    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
-    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v1' });
-    return projectId;
-  }
-
   it('derives puzzle-{name}-{difficulty} when the path is left untouched', async () => {
     const hex = token();
-    const projectId = await publishableProject(`Flower Garden ${hex}`);
+    const { puzzleId } = await deployablePuzzle(`Flower Garden ${hex}`);
 
     const deploy = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: `Flower Garden ${hex}`, difficulty: 'veryEasy' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ name: `Flower Garden ${hex}`, difficulty: 'veryEasy' });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
 
     // The list carries the slug so the card can link straight to it.
     const list = await api.get('/api/games');
-    const row = (
-      list.body.data as Array<{ projectId: number; slug: string }>
-    ).find((entry) => entry.projectId === projectId);
+    const row = (list.body.data as Array<{ puzzleId: number | null; slug: string }>).find(
+      (entry) => entry.puzzleId === puzzleId,
+    );
     expect(row?.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
 
     // OPT-W04 §4.6: the game page resolves its game by path.
@@ -737,7 +1127,7 @@ describe('games API slug (OPT-W04)', () => {
     expect(detail.status).toBe(200);
     expect(detail.body.data.id).toBe(deploy.body.data.id);
     expect(detail.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
-    expect(detail.body.data.data.characterSlots[0]).not.toBeNull();
+    expect(detail.body.data.snapshot.puzzle.characterSlots[0]).not.toBeNull();
 
     // The by-id route still works (cover upload and internal callers).
     const byId = await api.get(`/api/games/${deploy.body.data.id}`);
@@ -745,80 +1135,77 @@ describe('games API slug (OPT-W04)', () => {
   });
 
   it('honours an explicitly typed path (Q15: no puzzle- prefix required)', async () => {
-    const projectName = `Custom ${token()}`;
-    const projectId = await publishableProject(projectName);
+    const { puzzleId, puzzleName } = await deployablePuzzle(`Custom ${token()}`);
     const slug = `my-map-${token()}`;
 
     const deploy = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, slug, difficulty: 'hard' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ slug, difficulty: 'hard' });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.slug).toBe(slug);
-    expect(deploy.body.data.name).toBe(projectName);
+    // No name in the body → the puzzle's own name is used.
+    expect(deploy.body.data.name).toBe(puzzleName);
 
     const detail = await api.get(`/api/games/slug/${slug}`);
     expect(detail.status).toBe(200);
     expect(detail.body.data.id).toBe(deploy.body.data.id);
   });
 
-  it('rejects a path owned by another map and stores nothing (Q12)', async () => {
+  it('rejects a path owned by another puzzle and stores nothing (Q12)', async () => {
     const slug = `shared-path-${token()}`;
-    const first = await publishableProject(`Owner ${token()}`);
+    const first = await puzzleWithVersion(`Owner ${token()}`);
     const ok = await api
-      .post(`/api/projects/${first}/games`)
-      .send({ versionNo: 1, slug, difficulty: 'easy' });
+      .post(`/api/puzzles/${first.puzzleId}/games`)
+      .send({ slug, difficulty: 'easy' });
     expect(ok.status).toBe(200);
 
-    const second = await publishableProject(`Thief ${token()}`);
+    const second = await puzzleWithVersion(`Thief ${token()}`);
     const clash = await api
-      .post(`/api/projects/${second}/games`)
-      .send({ versionNo: 1, slug, difficulty: 'easy' });
+      .post(`/api/puzzles/${second.puzzleId}/games`)
+      .send({ slug, difficulty: 'easy' });
     expect(clash.status).toBe(400);
     expect(clash.body.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(clash.body.message).toBe(`访问路径「${slug}」已被占用，请更换`);
 
-    // Nothing was written for the second map.
+    // Nothing was written for the second puzzle.
     const list = await api.get('/api/games');
-    const rows = (list.body.data as Array<{ projectId: number }>).filter(
-      (entry) => entry.projectId === second,
+    const rows = (list.body.data as Array<{ puzzleId: number | null }>).filter(
+      (entry) => entry.puzzleId === second.puzzleId,
     );
     expect(rows).toHaveLength(0);
   });
 
-  it('lets the same map re-deploy its own path — an overwrite is not a conflict', async () => {
+  it('lets the same puzzle re-deploy its own path — an overwrite is not a conflict', async () => {
     const slug = `mine-${token()}`;
-    const projectId = await publishableProject(`Mine ${token()}`);
+    const { puzzleId } = await puzzleWithVersion(`Mine ${token()}`);
+
     const first = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, slug, difficulty: 'easy' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ slug, difficulty: 'easy' });
     expect(first.status).toBe(200);
 
-    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v2' });
     const second = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 2, slug, difficulty: 'hard' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ slug, difficulty: 'hard' });
     expect(second.status).toBe(200);
     expect(second.body.data.slug).toBe(slug);
-    expect(second.body.data.versionNo).toBe(2);
 
     const list = await api.get('/api/games');
-    const rows = (list.body.data as Array<{ projectId: number }>).filter(
-      (entry) => entry.projectId === projectId,
+    const rows = (list.body.data as Array<{ puzzleId: number | null }>).filter(
+      (entry) => entry.puzzleId === puzzleId,
     );
     expect(rows).toHaveLength(1);
   });
 
   it('rejects an explicitly blank path instead of silently deriving one', async () => {
-    const projectId = await publishableProject(`Blank ${token()}`);
-    const res = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, slug: '   ' });
+    const { puzzleId } = await puzzleWithVersion(`Blank ${token()}`);
+    const res = await api.post(`/api/puzzles/${puzzleId}/games`).send({ slug: '   ' });
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('访问路径必填');
   });
 
   it('rejects a malformed or over-long path before it reaches the database', async () => {
-    const projectId = await publishableProject(`Bad ${token()}`);
+    const { puzzleId } = await puzzleWithVersion(`Bad ${token()}`);
     const rejected = [
       'with space',
       'under_score',
@@ -829,7 +1216,7 @@ describe('games API slug (OPT-W04)', () => {
       'x'.repeat(81),
     ];
     for (const slug of rejected) {
-      const res = await api.post(`/api/projects/${projectId}/games`).send({ versionNo: 1, slug });
+      const res = await api.post(`/api/puzzles/${puzzleId}/games`).send({ slug });
       expect(res.status, slug).toBe(400);
       expect(res.body.code, slug).toBe(ErrorCode.VALIDATION_FAILED);
     }
@@ -837,27 +1224,27 @@ describe('games API slug (OPT-W04)', () => {
 
   it('folds an uppercase path to lowercase rather than rejecting it', async () => {
     // The dialog normalises while typing; the server is forgiving the same way.
-    const projectId = await publishableProject(`Fold ${token()}`);
+    const { puzzleId } = await puzzleWithVersion(`Fold ${token()}`);
     const hex = token();
     const res = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, slug: `Puzzle-${hex.toUpperCase()}` });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ slug: `Puzzle-${hex.toUpperCase()}` });
     expect(res.status).toBe(200);
     expect(res.body.data.slug).toBe(`puzzle-${hex}`);
   });
 
   it('asks for a manual path when the name derives nothing (Q13)', async () => {
-    const projectId = await publishableProject(`汉字项目 ${token()}`);
+    const { puzzleId } = await puzzleWithVersion(`汉字项目 ${token()}`);
     const res = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '神秘古堡', difficulty: 'medium' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ name: '神秘古堡', difficulty: 'medium' });
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）');
 
     // …and taking the hint works.
     const typed = await api
-      .post(`/api/projects/${projectId}/games`)
-      .send({ versionNo: 1, name: '神秘古堡', slug: `mystery-castle-${token()}`, difficulty: 'medium' });
+      .post(`/api/puzzles/${puzzleId}/games`)
+      .send({ name: '神秘古堡', slug: `mystery-castle-${token()}`, difficulty: 'medium' });
     expect(typed.status).toBe(200);
   });
 
@@ -876,6 +1263,10 @@ describe('games API slug (OPT-W04)', () => {
 
 afterAll(async () => {
   const { db } = await import('../src/db/knex');
+  // Puzzles first: `puzzles.map_project_id` is ON DELETE RESTRICT, so a project
+  // that still has a puzzle cannot be deleted. Deleting a puzzle demotes its
+  // game (`map_games.puzzle_id` → NULL), which the project cascade then removes.
+  if (createdPuzzles.length) await db('puzzles').whereIn('id', createdPuzzles).del();
   if (createdProjects.length) await db('map_projects').whereIn('id', createdProjects).del();
   if (createdItems.length) await db('items').whereIn('id', createdItems).del();
   if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();

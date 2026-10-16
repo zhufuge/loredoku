@@ -1,14 +1,11 @@
 import { z } from 'zod';
 import {
-  DEFAULT_LINKAGE_COLORS,
   DEFAULT_MAP_STYLE,
   DEFAULT_REGION_COLOR,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   LINKAGE_COLOR_KEY_PATTERN,
   LINKAGE_COLOR_LABEL_MAX_LENGTH,
-  LINKAGE_COLOR_MAX_COUNT,
-  LINKAGE_COLOR_MIN_COUNT,
   MAP_STYLE_CELL_SIZE_MAX,
   MAP_STYLE_CELL_SIZE_MIN,
   MAP_STYLE_COLOR_PATTERN,
@@ -164,12 +161,13 @@ export const mapStyleSchema = z.object({
         .default(DEFAULT_MAP_STYLE.ruler.gap),
     })
     .default(() => ({ ...DEFAULT_MAP_STYLE.ruler })),
-  linkageColors: z
-    .array(mapLinkageColorSchema)
-    .min(LINKAGE_COLOR_MIN_COUNT, '联动主题色至少保留 2 项')
-    .max(LINKAGE_COLOR_MAX_COUNT, '联动主题色最多 12 项')
-    .default(DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry }))),
-});
+})
+  /**
+   * v0.5.0 FEAT-K14: `.strict()` so a v2 `style.linkageColors` block is
+   * **rejected** instead of silently stripped — the web import path relies on
+   * that to tell the author "this JSON is the old shape" (docs/v0.5.0.md §8.4).
+   */
+  .strict();
 
 export const draftItemRefSchema = z.object({
   itemId: z.number().int().positive(),
@@ -238,108 +236,21 @@ export const characterSlotEntrySchema = z
   .strict();
 
 /**
- * CLAR-603: validates that every participant linkage references an object
- * that exists in the same map. Linkages reference:
- *   - characters → another roster slot's `characterId`
- *   - items      → an object anchor in `cells`
- *   - cells      → within the `gridSize` square
- *   - regions    → a `regions[i].id`
+ * v0.5.0 FEAT-K14: the map draft is pure canvas — `characterSlots` and
+ * `style.linkageColors` moved to {@link PuzzleDraft}, so the old
+ * `superRefine` that cross-checked participant linkages is gone with them.
+ * Every remaining reference (regions / cells) is inside this payload, which is
+ * why the schema is now a plain `.strict()` object.
+ *
+ * `.strict()` also means a **v2 payload is rejected**; the server absorbs those
+ * on read (`service/mapDraftCompat.ts`) rather than rewriting stored data.
  */
-function validateParticipantReferences(
-  draft: z.output<typeof mapDraftBaseSchema>,
-  ctx: z.RefinementCtx,
-): void {
-  const participantIds = new Set<number>();
-  for (const slot of draft.characterSlots) {
-    if (slot) participantIds.add(slot.characterId);
-  }
-  const objectItemIds = new Set<number>();
-  for (const cell of Object.values(draft.cells)) {
-    if (cell.object) objectItemIds.add(cell.object.itemId);
-  }
-  const regionIds = new Set(draft.regions.map((region) => region.id));
-  /**
-   * FEAT-D04 §「保存时校验」: every linkage colour must be a key of **this
-   * map's** palette. A draft without a `style` block falls back to the
-   * built-in `red` / `blue` defaults.
-   */
-  const palette = new Set(
-    (draft.style?.linkageColors ?? DEFAULT_LINKAGE_COLORS).map((entry) => entry.key),
-  );
-
-  draft.characterSlots.forEach((slot, slotIndex) => {
-    if (!slot) return;
-    // MOD-801: flat linkages list (was: triggers[].targets).
-    slot.linkages.forEach((target, targetIndex) => {
-      const path = ['characterSlots', slotIndex, 'linkages'];
-      void targetIndex;
-      if (!palette.has(target.color)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: [...path, targetIndex, 'color'],
-          message: `联动主题色 ${target.color} 未在调色板中定义`,
-        });
-      }
-      if (target.type === 'character' && !participantIds.has(target.id)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path,
-          message: `联动目标角色 #${target.id} 不在参与者中`,
-        });
-      }
-      if (target.type === 'item' && !objectItemIds.has(target.id)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path,
-          message: `联动目标物品 #${target.id} 不在地图中`,
-        });
-      }
-      if (target.type === 'region' && !regionIds.has(target.id)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path,
-          message: `联动目标区域 ${target.id} 不在地图中`,
-        });
-      }
-      // MOD-708: cell targets have a `cells` array — validate each coord.
-      if (target.type === 'cell') {
-        for (const [cx, cy] of target.cells) {
-          if (cx >= draft.gridSize || cy >= draft.gridSize) {
-            ctx.addIssue({
-              code: z.ZodIssueCode.custom,
-              path,
-              message: `联动目标方格 (${cx}, ${cy}) 超出画布范围`,
-            });
-            break;
-          }
-        }
-      }
-    });
-
-    /**
-     * FEAT-E01 §7.4: position conditions must sit inside the board. `gridSize`
-     * is known here but not inside the slot schema, so the bound is checked at
-     * the draft level.
-     */
-    slot.positionConditions?.forEach((condition, conditionIndex) => {
-      if (condition.x >= draft.gridSize || condition.y >= draft.gridSize) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ['characterSlots', slotIndex, 'positionConditions', conditionIndex],
-          message: `位置条件 (${condition.x}, ${condition.y}) 超出画布范围`,
-        });
-      }
-    });
-  });
-}
-
-const mapDraftBaseSchema = z
+export const mapDraftSchema = z
   .object({
     version: z.number().int().positive(),
     gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
     cells: z.record(cellKeySchema, draftCellSchema),
     regions: z.array(draftRegionSchema),
-    characterSlots: z.array(characterSlotEntrySchema.nullable()),
     /**
      * v0.3.8 FEAT-D02: optional so `version = 1` drafts keep validating; a
      * missing block resolves to `DEFAULT_MAP_STYLE` at render time.
@@ -347,10 +258,6 @@ const mapDraftBaseSchema = z
     style: mapStyleSchema.optional(),
   })
   .strict();
-
-export const mapDraftSchema = mapDraftBaseSchema.superRefine((draft, ctx) =>
-  validateParticipantReferences(draft, ctx),
-);
 
 export const createRegionInputSchema = draftRegionSchema.omit({ id: true });
 export const updateRegionInputSchema = draftRegionSchema.omit({ id: true }).partial();
@@ -367,6 +274,24 @@ export const importMapSchema = z.object({
 export const updateGridSizeSchema = z.object({
   gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
 });
+
+/**
+ * v0.5.0 §8.4: the parts of a v2 map payload that now belong to a puzzle. A
+ * `.strict()` parse would reject such a file with a generic message, so both
+ * the web (before sending) and the server (before parsing) call this to say
+ * **what** is wrong and where to import it instead.
+ */
+export function legacyMapDraftBlocks(data: unknown): string[] {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) return [];
+  const record = data as Record<string, unknown>;
+  const blocks: string[] = [];
+  if ('characterSlots' in record) blocks.push('参与者（characterSlots）');
+  const style = record['style'];
+  if (typeof style === 'object' && style !== null && 'linkageColors' in style) {
+    blocks.push('联动主题色（style.linkageColors）');
+  }
+  return blocks;
+}
 
 export const publishSchema = z.object({
   notes: z.string().trim().max(PROJECT_NOTE_MAX_LENGTH).optional().nullable(),

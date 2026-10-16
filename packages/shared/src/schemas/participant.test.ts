@@ -1,25 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_THEME_COLOR, EFFECT_COLORS, THEME_COLOR_PALETTE } from '../constants';
-import { mapDraftSchema, characterSlotEntrySchema } from './mapDraft';
+import { characterSlotEntrySchema } from './mapDraft';
 import { participantLinkagesSchema, participantTargetSchema, themeColorSchema } from './participant';
 
-const baseDraft = {
-  version: 1,
-  gridSize: 6,
-  cells: {
-    '0,0': { object: { itemId: 12, w: 1, h: 1 } },
-    '1,1': { background: { itemId: 5 } },
-  },
-  regions: [{ id: 'rg_a1b2c3', name: '森林区', cells: [[2, 2]] }],
-  characterSlots: [
-    { characterId: 5, themeColor: '#FFCC00', clue: '', linkages: [] },
-    { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
-    null,
-    null,
-    null,
-    null,
-  ],
-};
+const slot = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
+  characterId: 5,
+  themeColor: '#FFCC00',
+  clue: '',
+  linkages: [],
+  ...extra,
+});
 
 describe('themeColorSchema', () => {
   it('defaults to white and accepts #RRGGBB', () => {
@@ -98,7 +88,8 @@ describe('participantTargetSchema', () => {
       ).toBe(true);
     }
     // v0.3.8: the palette is extensible, so any well-formed lowercase key is
-    // accepted here; "does this map define it?" is checked by mapDraftSchema.
+    // accepted here; "does this puzzle define it?" is checked by
+    // puzzleDraftSchema.
     expect(
       participantTargetSchema.safeParse({ type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'green' })
         .success,
@@ -169,121 +160,40 @@ describe('participantLinkagesSchema (MOD-801)', () => {
   });
 });
 
-describe('mapDraftSchema participant references (CLAR-603 + MOD-801)', () => {
-  it('accepts references that exist in the roster / map', () => {
-    const draft = {
-      ...baseDraft,
-      characterSlots: [
-        {
-          characterId: 5,
-          themeColor: '#FFCC00',
-          clue: '他**喜欢**在黄昏。',
-          linkages: [
-            { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-            { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
-            { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
-            { type: 'cell', cells: [[3, 4]], effect: 'highlight', color: 'red' },
-          ],
-        },
-        { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
-        null,
-        null,
-        null,
-        null,
-      ],
-    };
-    const result = mapDraftSchema.safeParse(draft);
-    expect(result.success).toBe(true);
-  });
-
-  it('rejects dangling character / item / region / cell references', () => {
-    const failing = [
-      { type: 'character', id: 999, effect: 'highlight', color: 'red' },
-      { type: 'item', id: 999, scope: 'all', effect: 'highlight', color: 'red' },
-      { type: 'region', id: 'nope', effect: 'highlight', color: 'blue' },
-      { type: 'cell', cells: [[99, 0]], effect: 'highlight', color: 'red' },
-    ];
-    for (const target of failing) {
-      const result = mapDraftSchema.safeParse({
-        ...baseDraft,
-        characterSlots: [
-          { characterId: 5, themeColor: '#FFCC00', clue: '', linkages: [target] },
-          { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
-          null,
-          null,
-          null,
-          null,
-        ],
-      });
-      expect(result.success, JSON.stringify(target)).toBe(false);
-    }
-  });
-
-  it('rejects drafts that still carry legacy placedCharacters', () => {
-    const result = mapDraftSchema.safeParse({
-      ...baseDraft,
-      placedCharacters: [{ characterId: 5, x: 0, y: 1, themeColor: '#FFCC00', linkages: [] }],
+describe('characterSlotEntrySchema (v0.5.0: the roster lives on the puzzle)', () => {
+  it('MOD-702: accepts a clue and defaults an absent linkages list', () => {
+    const result = characterSlotEntrySchema.safeParse({
+      characterId: 5,
+      themeColor: '#FFCC00',
+      clue: '他**喜欢**在湖边。',
     });
-    expect(result.success).toBe(false);
-  });
-
-  it('rejects drafts that still carry legacy triggers on slots', () => {
-    const result = mapDraftSchema.safeParse({
-      ...baseDraft,
-      characterSlots: [
-        {
-          characterId: 5,
-          themeColor: '#FFCC00',
-          clue: '',
-          triggers: [{ trigger: 'click', targets: [] }],
-        },
-        null,
-        null,
-        null,
-        null,
-        null,
-      ],
-    });
-    expect(result.success).toBe(false);
-  });
-
-  it('MOD-702: accepts clue field on characterSlots', () => {
-    const draft = {
-      ...baseDraft,
-      characterSlots: [
-        { characterId: 5, themeColor: '#FFCC00', clue: '他**喜欢**在湖边。', linkages: [] },
-        null, null, null, null, null,
-      ],
-    };
-    const result = mapDraftSchema.safeParse(draft);
     expect(result.success).toBe(true);
+    expect(result.success && result.data.linkages).toEqual([]);
+  });
+
+  it('rejects slots that still carry legacy triggers', () => {
+    expect(
+      characterSlotEntrySchema.safeParse(
+        slot({ triggers: [{ trigger: 'click', targets: [] }] }),
+      ).success,
+    ).toBe(false);
   });
 
   it('MOD-801: accepts deep blue as theme colour (#1A3695)', () => {
-    const draft = {
-      ...baseDraft,
-      characterSlots: [
-        { characterId: 5, themeColor: '#1A3695', clue: '', linkages: [] },
-        null, null, null, null, null,
-      ],
-    };
-    const result = mapDraftSchema.safeParse(draft);
-    expect(result.success).toBe(true);
+    expect(characterSlotEntrySchema.safeParse(slot({ themeColor: '#1A3695' })).success).toBe(true);
   });
 });
 
 describe('FEAT-E01: positionConditions on a roster slot', () => {
   it('parses the optional OR-ed list of cells', () => {
-    const result = characterSlotEntrySchema.safeParse({
-      characterId: 5,
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: [
-        { x: 1, y: 2 },
-        { x: 3, y: 0 },
-      ],
-    });
+    const result = characterSlotEntrySchema.safeParse(
+      slot({
+        positionConditions: [
+          { x: 1, y: 2 },
+          { x: 3, y: 0 },
+        ],
+      }),
+    );
     expect(result.success).toBe(true);
     expect(result.success && result.data.positionConditions).toEqual([
       { x: 1, y: 2 },
@@ -291,84 +201,24 @@ describe('FEAT-E01: positionConditions on a roster slot', () => {
     ]);
   });
 
-  it('keeps an old draft without the field valid (absent means "no constraint")', () => {
-    const result = characterSlotEntrySchema.safeParse({
-      characterId: 5,
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-    });
+  it('keeps an old slot without the field valid (absent means "no constraint")', () => {
+    const result = characterSlotEntrySchema.safeParse(slot());
     expect(result.success).toBe(true);
     expect(result.success && result.data.positionConditions).toBeUndefined();
   });
 
   it('accepts an explicit empty list', () => {
-    const result = characterSlotEntrySchema.safeParse({
-      characterId: 5,
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: [],
-    });
+    const result = characterSlotEntrySchema.safeParse(slot({ positionConditions: [] }));
     expect(result.success).toBe(true);
   });
 
   it('rejects a negative or non-integer coordinate', () => {
     expect(
-      characterSlotEntrySchema.safeParse({
-        characterId: 5,
-        themeColor: '#FFCC00',
-        clue: '',
-        linkages: [],
-        positionConditions: [{ x: -1, y: 0 }],
-      }).success,
+      characterSlotEntrySchema.safeParse(slot({ positionConditions: [{ x: -1, y: 0 }] })).success,
     ).toBe(false);
     expect(
-      characterSlotEntrySchema.safeParse({
-        characterId: 5,
-        themeColor: '#FFCC00',
-        clue: '',
-        linkages: [],
-        positionConditions: [{ x: 1.5, y: 0 }],
-      }).success,
+      characterSlotEntrySchema.safeParse(slot({ positionConditions: [{ x: 1.5, y: 0 }] })).success,
     ).toBe(false);
-  });
-
-  it('rejects a condition outside the canvas at the draft level', () => {
-    const result = mapDraftSchema.safeParse({
-      ...baseDraft,
-      characterSlots: [
-        {
-          characterId: 5,
-          themeColor: '#FFCC00',
-          clue: '',
-          linkages: [],
-          positionConditions: [{ x: baseDraft.gridSize, y: 0 }],
-        },
-        null, null, null, null, null,
-      ],
-    });
-    expect(result.success).toBe(false);
-    expect(
-      result.success ? '' : result.error.issues.some((issue) => issue.message.includes('超出画布范围')),
-    ).toBe(true);
-  });
-
-  it('accepts an in-bounds condition at the draft level', () => {
-    const result = mapDraftSchema.safeParse({
-      ...baseDraft,
-      characterSlots: [
-        {
-          characterId: 5,
-          themeColor: '#FFCC00',
-          clue: '',
-          linkages: [],
-          positionConditions: [{ x: baseDraft.gridSize - 1, y: 0 }],
-        },
-        null, null, null, null, null,
-      ],
-    });
-    expect(result.success).toBe(true);
   });
 });
 

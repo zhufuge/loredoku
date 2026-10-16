@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 /**
- * FEAT-H05（docs/v0.4.2.md §5）：「发布」不再是一按就发请求。
+ * FEAT-H05（docs/v0.4.2.md §5）＋ v0.5.0 SPEC-K13（docs/v0.5.0.md §7.4）：
+ * 地图编辑器里的「发布」依然是「确认弹窗 → 保存 → 发请求」，但语义换成
+ * **新增带版本标记的地图条目**（地图模块的版本管理），发布成功的去处也从
+ * 作品页改成地图列表 / 地图版本预览页。
  *
  * - §5.2 发布前确认弹窗（标题 / 版本号预告 / 可选备注 / dirty 提示）；
- * - §5.3 发布成功弹窗（「预览」+「前往作品页」，预览链接带 `v`）；
+ * - §7.4 成功后「查看该条目」回地图列表、「预览」去 `/maps/:id/:v/view`；
  * - §5.4 保存是 primary、发布是 outline，两个按钮**不合并**，且发布不再因 dirty 置灰。
  *
  * 与 `EditorPage.autoSave.test.ts` / `EditorPage.infoDrawer.test.ts` 同一手法：
@@ -44,8 +47,13 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
   });
 
   it('announces the version it is about to create', () => {
-    expect(pageSource).toContain('const nextVersionNo = (editor.currentVersionNo ?? 0) + 1;');
-    expect(pageSource).toContain('发布会把当前画布内容存为一个新的作品版本（v{nextVersionNo}）');
+    // SPEC-K13：版本号从版本列表推导（fork 后取 MAX+1），兜底 currentVersionNo+1。
+    expect(pageSource).toContain('const nextVersionNo = useMemo(() => {');
+    expect(pageSource).toContain('Math.max(...versions.map((version) => version.versionNo)) + 1;');
+    expect(pageSource).toContain('return (editor.currentVersionNo ?? 0) + 1;');
+    // 文案从「作品版本」改成「带版本标记的地图条目」。
+    expect(pageSource).toContain('将新增一个带 v{nextVersionNo} 标记的地图条目，出现在地图列表中');
+    expect(pageSource).toContain('当前工作条目不会被覆盖');
   });
 
   it('collects an optional note and passes it through trimmed', () => {
@@ -78,7 +86,7 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
   });
 });
 
-describe('EditorPage publish success dialog (FEAT-H05 §5.3)', () => {
+describe('EditorPage publish success dialog (SPEC-K13 §7.4)', () => {
   it('opens from the publish result and closes back to null', () => {
     expect(pageSource).toContain(
       'const [publishedVersion, setPublishedVersion] = useState<MapVersionSummary | null>(null);',
@@ -87,13 +95,14 @@ describe('EditorPage publish success dialog (FEAT-H05 §5.3)', () => {
     expect(pageSource).toContain('open={publishedVersion !== null}');
   });
 
-  it('offers 预览 and 前往作品页, and the preview link carries the version number', () => {
+  it('offers 查看该条目 and 预览, and the preview link carries the version number', () => {
     expect(pageSource).toContain('已发布 v{publishedVersion?.versionNo ?? \'\'}');
-    expect(pageSource).toContain('前往作品页');
-    expect(pageSource).toContain('navigate(\'/works\');');
-    expect(pageSource).toContain(
-      'navigate(`/works/${version.id}/view?project=${id}&v=${version.versionNo}`);',
-    );
+    expect(pageSource).toContain('已在地图列表新增条目');
+    expect(pageSource).toContain('查看该条目');
+    expect(pageSource).toContain('navigate(\'/projects\');');
+    // 预览去地图版本只读页（作品页已删）。
+    expect(pageSource).toContain('navigate(`/maps/${id}/${version.versionNo}/view`);');
+    expect(pageSource).not.toContain('/works');
   });
 
   it('routes a validation failure into the existing 无法发布 dialog, with no second UI', () => {

@@ -1,6 +1,14 @@
 import { db } from '../db/knex';
 import { buildFileUrl } from '../utils/paths';
-import type { MapDraft, Project, ProjectDetail, ProjectRow } from '@loredoku/shared';
+import type {
+  MapDraft,
+  MapEntrySummary,
+  Project,
+  ProjectDetail,
+  ProjectRow,
+  PublishedMapVersion,
+} from '@loredoku/shared';
+import { absorbLegacyMapDraft, readLegacyCharacterSlots } from '../service/mapDraftCompat';
 
 export interface ListProjectsParams {
   page: number;
@@ -56,10 +64,8 @@ function draftCounts(draft: MapDraft | null): {
   for (const key of Object.keys(draft.cells)) {
     if (draft.cells[key]?.object) itemCount += 1;
   }
-  // CLAR-603: participants live in the roster; non-null slots are participants.
-  const characterCount = (draft.characterSlots ?? []).filter(
-    (slot) => slot !== null,
-  ).length;
+  // v0.5.0: participants left the map; this counts only legacy drafts.
+  const characterCount = readLegacyCharacterSlots(draft).filter((slot) => slot !== null).length;
   return {
     itemCount,
     regionCount: draft.regions?.length ?? 0,
@@ -81,44 +87,185 @@ async function versionCounts(ids: number[]): Promise<Map<number, number>> {
   return result;
 }
 
-export async function listProjects(
+/**
+ * FEAT-K09 (docs/v0.5.0.md §7.1) — the map list is a union of **work entries**
+ * (`map_projects`) and **version entries** (`map_versions`), grouped by the
+ * blood-lineage root (Q3 = B).
+ *
+ * The set is small (a personal authoring tool), and building the union in SQL
+ * would need a `UNION ALL` plus a window function for the per-lineage counts,
+ * so it is assembled in memory and paged here. That also keeps the keyword
+ * filter — which has to match both kinds — in one place.
+ */
+export async function listMapEntries(
   params: ListProjectsParams,
-): Promise<{ list: ProjectDetail[]; total: number }> {
-  const query = db<ProjectRow>('map_projects');
-  if (params.keyword) {
-    query.where('name', 'ilike', `%${params.keyword}%`);
+): Promise<{ list: MapEntrySummary[]; total: number }> {
+  const [projectRows, versionRows] = await Promise.all([
+    db<ProjectRow>('map_projects').select('*') as Promise<ProjectRow[]>,
+    db('map_versions as v')
+      .join('map_projects as p', 'p.id', 'v.project_id')
+      .select(
+        'v.id as id',
+        'v.version_no as version_no',
+        'v.grid_size as grid_size',
+        'v.snapshot_created_at as snapshot_created_at',
+        'v.project_id as project_id',
+        'p.name as name',
+        'p.description as description',
+        'p.cover_path as cover_path',
+        'p.status as status',
+        'p.root_id as root_id',
+      ) as Promise<VersionEntryRow[]>,
+  ]);
+
+  // Per-lineage aggregates: highest version + version count of the whole root.
+  const versionCountByRoot = new Map<number, number>();
+  const maxVersionByRoot = new Map<number, number>();
+  for (const row of versionRows) {
+    const root = Number(row.root_id);
+    versionCountByRoot.set(root, (versionCountByRoot.get(root) ?? 0) + 1);
+    maxVersionByRoot.set(root, Math.max(maxVersionByRoot.get(root) ?? 0, row.version_no));
   }
 
-  const countRow = (await query.clone().count('id as count').first()) as CountRow;
-  const total = Number(countRow?.count ?? 0);
+  const entries: MapEntrySummary[] = [];
 
-  const rows = (await query
-    .clone()
-    .orderBy(SORT_COLUMNS[params.sort], params.order)
-    .limit(params.pageSize)
-    .offset((params.page - 1) * params.pageSize)
-    .select('*')) as ProjectRow[];
+  for (const row of projectRows) {
+    const root = Number(row.root_id ?? row.id);
+    entries.push({
+      id: Number(row.id),
+      kind: 'draft',
+      rootId: root,
+      projectId: Number(row.id),
+      versionNo: null,
+      name: row.name,
+      description: row.description,
+      gridSize: row.grid_size,
+      coverPath: row.cover_path,
+      coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
+      status: row.status,
+      currentVersionNo: maxVersionByRoot.get(root) ?? null,
+      versionCount: versionCountByRoot.get(root) ?? 0,
+      publishedAt: null,
+      createdAt: new Date(row.created_at).toISOString(),
+      updatedAt: new Date(row.updated_at).toISOString(),
+    });
+  }
 
-  const ids = rows.map((row) => Number(row.id));
-  const versions = await versionCounts(ids);
+  for (const row of versionRows) {
+    const root = Number(row.root_id);
+    const publishedAt = new Date(row.snapshot_created_at).toISOString();
+    entries.push({
+      id: Number(row.id),
+      kind: 'version',
+      rootId: root,
+      projectId: Number(row.project_id),
+      versionNo: row.version_no,
+      name: row.name,
+      description: row.description,
+      gridSize: row.grid_size,
+      coverPath: row.cover_path,
+      coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
+      status: row.status,
+      currentVersionNo: maxVersionByRoot.get(root) ?? null,
+      versionCount: versionCountByRoot.get(root) ?? 0,
+      publishedAt,
+      createdAt: publishedAt,
+      updatedAt: publishedAt,
+    });
+  }
 
-  const list = rows.map((row) => {
-    const counts = draftCounts(row.draft_data as MapDraft | null);
-    return {
-      ...toProject(row),
-      cardCount: counts.itemCount,
-      itemCount: counts.itemCount,
-      regionCount: counts.regionCount,
-      characterCount: counts.characterCount,
-      versionCount: versions.get(Number(row.id)) ?? 0,
-    };
-  });
+  const keyword = params.keyword?.trim().toLowerCase();
+  const filtered = keyword
+    ? entries.filter(
+        (entry) =>
+          entry.name.toLowerCase().includes(keyword) ||
+          (entry.description ?? '').toLowerCase().includes(keyword) ||
+          (entry.versionNo !== null && `v${entry.versionNo}`.includes(keyword)),
+      )
+    : entries;
 
-  return { list, total };
+  const sorted = [...filtered].sort((a, b) => compareEntries(a, b, params.sort, params.order));
+  const start = (params.page - 1) * params.pageSize;
+  return { list: sorted.slice(start, start + params.pageSize), total: sorted.length };
+}
+
+interface VersionEntryRow {
+  id: string | number;
+  version_no: number;
+  grid_size: number;
+  snapshot_created_at: Date | string;
+  project_id: string | number;
+  name: string;
+  description: string | null;
+  cover_path: string | null;
+  status: ProjectRow['status'];
+  root_id: string | number;
+}
+
+/** The timestamp a "latest first" sort should use for each entry kind. */
+function sortKey(entry: MapEntrySummary, sort: ListProjectsParams['sort']): string | number {
+  if (sort === 'name') return entry.name;
+  if (sort === 'createdAt') return entry.createdAt;
+  return entry.updatedAt;
+}
+
+function compareEntries(
+  a: MapEntrySummary,
+  b: MapEntrySummary,
+  sort: ListProjectsParams['sort'],
+  order: 'asc' | 'desc',
+): number {
+  const left = sortKey(a, sort);
+  const right = sortKey(b, sort);
+  let result = left < right ? -1 : left > right ? 1 : 0;
+  if (result === 0) {
+    // A work entry leads its own versions, newest version first.
+    if (a.kind !== b.kind) return a.kind === 'draft' ? -1 : 1;
+    result = (b.versionNo ?? 0) - (a.versionNo ?? 0);
+  }
+  return order === 'asc' ? result : -result;
 }
 
 export async function findById(id: number): Promise<ProjectRow | undefined> {
   return db<ProjectRow>('map_projects').where({ id }).first();
+}
+
+/**
+ * FEAT-K03 §2.4: the 「地图版本」 picker's data source — **every published
+ * version across every map**, newest first. Only published rows qualify: a
+ * puzzle's canvas has to be an immutable snapshot.
+ */
+export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
+  const rows = (await db('map_versions as v')
+    .join('map_projects as p', 'p.id', 'v.project_id')
+    .select(
+      'v.project_id as project_id',
+      'v.version_no as version_no',
+      'v.grid_size as grid_size',
+      'v.notes as notes',
+      'v.snapshot_created_at as snapshot_created_at',
+      'p.name as map_name',
+      'p.root_id as root_id',
+    )
+    .orderBy('v.snapshot_created_at', 'desc')) as Array<{
+    project_id: string | number;
+    version_no: number;
+    grid_size: number;
+    notes: string | null;
+    snapshot_created_at: Date | string;
+    map_name: string | null;
+    root_id: string | number;
+  }>;
+
+  return rows.map((row) => ({
+    projectId: Number(row.project_id),
+    rootId: Number(row.root_id),
+    versionNo: row.version_no,
+    mapName: row.map_name ?? '未命名地图',
+    gridSize: row.grid_size,
+    publishedAt: new Date(row.snapshot_created_at).toISOString(),
+    notes: row.notes,
+  }));
 }
 
 export async function existsByName(name: string, excludeId?: number): Promise<boolean> {
@@ -145,15 +292,27 @@ export async function getProjectCounts(
   };
 }
 
+/**
+ * A brand-new map is its own blood-lineage root (`root_id = id`). The column is
+ * NOT NULL, and `id` only exists after the insert, so the two statements share
+ * a transaction.
+ */
 export async function createProject(data: CreateProjectData): Promise<Project> {
-  const [row] = (await db<ProjectRow>('map_projects')
-    .insert({
-      name: data.name,
-      description: data.description,
-      grid_size: data.gridSize,
-    })
-    .returning('*')) as ProjectRow[];
-  return toProject(row!);
+  return db.transaction(async (trx) => {
+    const [row] = (await trx<ProjectRow>('map_projects')
+      .insert({
+        name: data.name,
+        description: data.description,
+        grid_size: data.gridSize,
+        root_id: 0,
+      })
+      .returning('*')) as ProjectRow[];
+    const [fixed] = (await trx<ProjectRow>('map_projects')
+      .where({ id: row!.id })
+      .update({ root_id: row!.id })
+      .returning('*')) as ProjectRow[];
+    return toProject(fixed!);
+  });
 }
 
 export async function updateProject(
@@ -193,6 +352,12 @@ export async function updateCoverPath(
   return row;
 }
 
+/**
+ * 「复制」creates an **independent map**: the copy is its own lineage root
+ * (unlike `forkFromVersion`, which deliberately stays in the original's
+ * lineage). The draft is copied wholesale — its roster / palette, if any, are
+ * simply no longer read.
+ */
 export async function duplicateProject(
   sourceId: number,
   newName: string,
@@ -210,11 +375,64 @@ export async function duplicateProject(
         grid_size: source.grid_size,
         cover_path: source.cover_path,
         status: 'draft',
+        root_id: source.id,
         draft_data: source.draft_data,
         draft_updated_at: source.draft_data ? trx.fn.now() : null,
       })
       .returning('*')) as ProjectRow[];
 
-    return toProject(created!);
+    // `root_id` must point at the copy itself, not at the source.
+    const [fixed] = (await trx<ProjectRow>('map_projects')
+      .where({ id: created!.id })
+      .update({ root_id: created!.id })
+      .returning('*')) as ProjectRow[];
+
+    return toProject(fixed!);
   });
+}
+
+/**
+ * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): opens a published version for
+ * editing **without touching `map_versions`**. A new work entry is created in
+ * the same lineage, seeded with the version's snapshot (absorbed into the v3
+ * shape) and inheriting the map's cover (same convention as `duplicate`).
+ *
+ * Returns the created row's `ProjectDetail`, or `undefined` when the version
+ * does not exist.
+ */
+export async function forkFromVersion(
+  projectId: number,
+  versionNo: number,
+): Promise<ProjectDetail | undefined> {
+  const createdId = await db.transaction(async (trx) => {
+    const owner = (await trx<ProjectRow>('map_projects').where({ id: projectId }).first()) as
+      | ProjectRow
+      | undefined;
+    if (!owner) return undefined;
+
+    const version = (await trx('map_versions')
+      .where({ project_id: projectId, version_no: versionNo })
+      .first()) as { grid_size: number; data: unknown } | undefined;
+    if (!version) return undefined;
+
+    const [row] = (await trx<ProjectRow>('map_projects')
+      .insert({
+        name: owner.name,
+        description: owner.description,
+        grid_size: version.grid_size,
+        cover_path: owner.cover_path,
+        status: 'draft',
+        current_version_no: null,
+        root_id: owner.root_id,
+        draft_data: absorbLegacyMapDraft(version.data) as ProjectRow['draft_data'],
+        draft_updated_at: trx.fn.now(),
+      })
+      .returning('*')) as ProjectRow[];
+    return Number(row!.id);
+  });
+
+  if (createdId === undefined) return undefined;
+  const row = await findById(createdId);
+  if (!row) return undefined;
+  return { ...toProject(row), ...(await getProjectCounts(createdId)) };
 }

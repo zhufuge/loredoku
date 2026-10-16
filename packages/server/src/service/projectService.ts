@@ -1,8 +1,10 @@
 import type {
   CreateProjectInput,
   ListProjectsQuery,
+  MapEntrySummary,
   Project,
   ProjectDetail,
+  PublishedMapVersion,
   UpdateProjectInput,
 } from '@loredoku/shared';
 import * as repo from '../repository/projectRepository';
@@ -14,10 +16,19 @@ export function coverRequired(): AppError {
   return AppError.validation('请选择封面图片');
 }
 
-export async function listProjects(
+/**
+ * FEAT-K09 (docs/v0.5.0.md §7.1): the list is the **union of work entries and
+ * version entries**, so a `ProjectDetail[]` is no longer the right shape.
+ */
+export async function listMapEntries(
   query: ListProjectsQuery & { page: number; pageSize: number },
-): Promise<{ list: ProjectDetail[]; total: number }> {
-  return repo.listProjects(query);
+): Promise<{ list: MapEntrySummary[]; total: number }> {
+  return repo.listMapEntries(query);
+}
+
+/** FEAT-K03 §2.4: every published map version, for the puzzle picker. */
+export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
+  return repo.listPublishedVersions();
 }
 
 export async function getProjectDetail(id: number): Promise<ProjectDetail> {

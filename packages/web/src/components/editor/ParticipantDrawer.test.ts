@@ -63,17 +63,17 @@ describe('ParticipantDrawer position conditions (FEAT-E01 §7.5)', () => {
 });
 
 const pageSource =
-  ((import.meta.glob('../../pages/EditorPage.tsx', {
+  ((import.meta.glob('../../pages/PuzzleEditorPage.tsx', {
     query: '?raw',
     import: 'default',
     eager: true,
-  }) as Record<string, string>)['../../pages/EditorPage.tsx'] ?? '').replace(/\r\n/g, '\n');
+  }) as Record<string, string>)['../../pages/PuzzleEditorPage.tsx'] ?? '').replace(/\r\n/g, '\n');
 
-describe('EditorPage position-pick mode (FEAT-E01 §7.3)', () => {
+describe('PuzzleEditorPage position-pick mode (FEAT-E01 §7.3, v0.5.0 搬家)', () => {
   it('enters the mode from the drawer toggle and exits on a second press', () => {
     expect(pageSource).toContain('const [positionPickSlot, setPositionPickSlot] = useState<number | null>(null);');
     expect(pageSource).toContain('setPositionPickSlot((current) =>');
-    expect(pageSource).toContain('current === null ? editor.selectedSlotIndex : null,');
+    expect(pageSource).toContain('current === null ? puzzle.selectedSlotIndex : null)');
     expect(pageSource).toContain('positionPickActive={positionPickSlot !== null}');
   });
 
@@ -148,7 +148,8 @@ describe('ParticipantDrawer — v0.4.2 抽屉改版（OPT-H07 / H08 / H09）', (
     );
     expect(rows.length).toBeGreaterThan(0);
     // Only the colour dot is left next to the description.
-    expect(rows).toContain('linkageColorFor(style, linkage.color)');
+    // v0.5.0 FEAT-K14 (Q16): the palette is a prop of its own now.
+    expect(rows).toContain('linkageColorFor(linkageColors, linkage.color)');
     expect(rows).not.toContain('>高亮');
     expect(rows).not.toContain('高亮<');
   });

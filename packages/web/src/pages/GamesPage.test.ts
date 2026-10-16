@@ -66,9 +66,11 @@ describe('GamesPage (FEAT-G01)', () => {
     expect(pageSource).toContain("grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4");
   });
 
-  it('shows an empty state that points back at the works page', () => {
-    expect(pageSource).toContain('还没有部署任何作品');
-    expect(pageSource).toContain('<Link to="/works">前往作品管理</Link>');
+  it('shows an empty state that points back at the puzzles page', () => {
+    // v0.5.0 SPEC-K11：作品模块已删，部署的源头变成谜题列表。
+    expect(pageSource).toContain('还没有部署任何游戏');
+    expect(pageSource).toContain('<Link to="/puzzles">前往谜题列表</Link>');
+    expect(pageSource).not.toContain('/works');
   });
 
   it('cards carry the four required facts', () => {

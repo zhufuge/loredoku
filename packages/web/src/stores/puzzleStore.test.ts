@@ -1,0 +1,654 @@
+import { beforeEach, describe, expect, it } from 'vitest';
+import {
+  DEFAULT_MAP_STYLE,
+  DEFAULT_THEME_COLOR,
+  PUZZLE_JSON_VERSION,
+  type CharacterSlotEntry,
+  type ParticipantTarget,
+  type PuzzleDetail,
+  type PuzzleDraft,
+  type PuzzleMapContext,
+} from '@loredoku/shared';
+import {
+  ensureEntry,
+  genSlotArray,
+  mapContextCells,
+  mapContextRegions,
+  resolveMapContextStyle,
+  usePuzzleStore,
+} from './puzzleStore';
+
+const store = () => usePuzzleStore.getState();
+
+/**
+ * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.6): the puzzle editor's store. Everything
+ * the map editor used to own about participants (`characterSlots`,
+ * `setParticipantConfig`, `assignSlot`, the activation machine, the linkage
+ * palette) moved here **verbatim** — the tests moved with it, so a regression
+ * in the搬来的 logic is still caught.
+ */
+const CONDITIONS = [
+  { x: 1, y: 2 },
+  { x: 3, y: 0 },
+];
+
+function mapContext(gridSize = 6): PuzzleMapContext {
+  return {
+    projectId: 217,
+    versionNo: 3,
+    mapName: '古堡之谜',
+    gridSize,
+    cells: {
+      '0,0': { object: { itemId: 12, w: 1, h: 1 } },
+      '2,3': { background: { itemId: 7 } },
+    },
+    regions: [
+      {
+        id: 'rg_1',
+        name: '花园',
+        color: '#3B82F6',
+        borderWidth: 4,
+        fillOpacity: 1,
+        cells: [
+          [0, 0],
+          [1, 0],
+        ],
+      },
+    ],
+    // Q16: the read-only canvas never carries the palette.
+    style: {
+      ...DEFAULT_MAP_STYLE,
+      gridSeparator: { width: 2, color: '#000000' },
+    },
+  };
+}
+
+function detail(overrides: Partial<PuzzleDraft> = {}): PuzzleDetail {
+  const draft: PuzzleDraft = {
+    version: PUZZLE_JSON_VERSION,
+    map: { projectId: 217, versionNo: 3, gridSize: 6 },
+    name: '午夜花园',
+    description: '六人六格，注意花丛的位置条件。',
+    linkageColors: [
+      { key: 'red', label: '红', color: '#E5484D' },
+      { key: 'blue', label: '蓝', color: '#3E63DD' },
+    ],
+    characterSlots: Array.from({ length: 6 }, () => null),
+    ...overrides,
+  };
+  return {
+    id: 42,
+    name: draft.name,
+    description: draft.description,
+    mapVersionNo: 3,
+    mapProjectId: 217,
+    mapRootId: 217,
+    mapName: '古堡之谜',
+    gridSize: 6,
+    status: 'draft',
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-02T00:00:00.000Z',
+    deployed: false,
+    data: draft,
+  };
+}
+
+beforeEach(() => {
+  store().init(detail(), mapContext());
+});
+
+describe('init / read-only map context', () => {
+  it('seeds the puzzle-owned fields and keeps the canvas out of the undo stack', () => {
+    const state = store();
+    expect(state.puzzleId).toBe(42);
+    expect(state.name).toBe('午夜花园');
+    expect(state.description).toBe('六人六格，注意花丛的位置条件。');
+    expect(state.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    expect(state.characterSlots).toHaveLength(6);
+    expect(state.dirty).toBe(false);
+    expect(state.past).toHaveLength(0);
+    // §2.6: the canvas is a reference, never a copy — and never undoable.
+    expect(state.mapContext?.gridSize).toBe(6);
+    expect(state.mapContext?.versionNo).toBe(3);
+  });
+
+  it('sizes the roster to the referenced grid size', () => {
+    expect(genSlotArray(6)).toHaveLength(6);
+    expect(genSlotArray(4, [null, { characterId: 1, themeColor: '#FFFFFF', clue: '', linkages: [] }])).toHaveLength(4);
+  });
+});
+
+describe('mapContext helpers (Q16)', () => {
+  it('resolves the style with no linkage palette', () => {
+    const style = resolveMapContextStyle(mapContext());
+    expect(style && 'linkageColors' in style).toBe(false);
+    expect(style.gridSeparator).toEqual({ width: 2, color: '#000000' });
+  });
+
+  it('flattens cells and regions for the renderer', () => {
+    const cells = mapContextCells(mapContext());
+    expect(cells.get('0,0')?.object).toEqual({ itemId: 12, w: 1, h: 1 });
+    expect(cells.size).toBe(2);
+    expect(mapContextRegions(mapContext()).map((region) => region.id)).toEqual(['rg_1']);
+    // A missing context must not throw — the page renders nothing.
+    expect(mapContextCells(null).size).toBe(0);
+    expect(mapContextRegions(null)).toEqual([]);
+  });
+});
+
+describe('clearCharacterSlot', () => {
+  it('frees a roster slot without touching the canvas', () => {
+    store().assignSlot(12);
+    const baseline = store().past.length;
+    store().clearCharacterSlot(0);
+    expect(store().characterSlots[0]).toBeNull();
+    expect(store().dirty).toBe(true);
+    expect(store().past).toHaveLength(baseline + 1);
+  });
+
+  it('restores the character to the same slot on undo', () => {
+    store().assignSlot(5);
+    store().assignSlot(12);
+    store().clearCharacterSlot(1);
+    store().undo();
+    expect(store().characterSlots[1]).toMatchObject({ characterId: 12 });
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 5 });
+  });
+
+  it('is idempotent for rapid repeated clicks', () => {
+    store().assignSlot(8);
+    store().clearCharacterSlot(0);
+    const history = store().past.length;
+    store().clearCharacterSlot(0);
+    expect(store().past).toHaveLength(history);
+  });
+});
+
+describe('setParticipantConfig (CLAR-603 + MOD-801)', () => {
+  it('persists theme + flat linkages on the roster slot as one atomic step', () => {
+    store().assignSlot(9);
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      linkages: [
+        { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'red' },
+        { type: 'region', id: 'rg_1', effect: 'highlight', color: 'blue' },
+      ],
+    });
+    const slot = store().characterSlots[0];
+    expect(slot?.themeColor).toBe('#FFCC00');
+    expect(slot?.linkages).toHaveLength(2);
+    expect(slot?.linkages?.[0]).toMatchObject({ type: 'cell', color: 'red' });
+    // MOD-801: the legacy grouped `triggers` field is gone.
+    expect(slot && 'triggers' in slot).toBe(false);
+    expect(store().dirty).toBe(true);
+
+    store().undo();
+    const restored = store().characterSlots[0];
+    expect(restored?.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(restored?.linkages).toEqual([]);
+  });
+
+  it('defensively copies the linkages array and its entries', () => {
+    store().assignSlot(3);
+    const linkages: ParticipantTarget[] = [
+      { type: 'cell', cells: [[0, 1]], effect: 'highlight', color: 'red' },
+    ];
+    store().setParticipantConfig(0, { linkages });
+    const stored = store().characterSlots[0]?.linkages?.[0];
+    expect(stored).not.toBe(linkages[0]);
+    expect(stored).toMatchObject({ type: 'cell', cells: [[0, 1]] });
+  });
+});
+
+describe('MOD-802 linkage activation (single-active state machine)', () => {
+  it('starts inactive and hover-activates on enter', () => {
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
+    store().activateParticipantHover(2);
+    expect(store().activeParticipantId).toBe(2);
+    expect(store().activationMode).toBe('hover');
+  });
+
+  it('ends a hover activation when the pointer leaves the same slot', () => {
+    store().activateParticipantHover(2);
+    store().deactivateParticipantHover(2);
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
+  });
+
+  it('switches hover activation directly to the newly entered slot', () => {
+    store().activateParticipantHover(2);
+    store().activateParticipantHover(5);
+    expect(store().activeParticipantId).toBe(5);
+  });
+
+  it('click toggles a pinned activation and ignores hover on the same slot', () => {
+    store().activateParticipantClick(1);
+    expect(store().activationMode).toBe('click');
+    // §1.2.4: hovering the pinned participant must not change anything.
+    store().activateParticipantHover(1);
+    expect(store().activeParticipantId).toBe(1);
+    expect(store().activationMode).toBe('click');
+    store().deactivateParticipantHover(1);
+    expect(store().activeParticipantId).toBe(1);
+    store().activateParticipantClick(1);
+    expect(store().activeParticipantId).toBeNull();
+  });
+
+  it('entering another slot auto-ends the previous activation', () => {
+    store().activateParticipantClick(1);
+    store().activateParticipantHover(4);
+    expect(store().activeParticipantId).toBe(4);
+    expect(store().activationMode).toBe('hover');
+  });
+
+  it('clearActivation force-clears (Esc)', () => {
+    store().activateParticipantClick(3);
+    store().clearActivation();
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
+  });
+
+  it('resets the activation on init and applyDraft', () => {
+    store().activateParticipantClick(2);
+    store().init(detail({ name: '另一个' }), mapContext(4));
+    expect(store().activeParticipantId).toBeNull();
+
+    store().activateParticipantHover(1);
+    store().applyDraft(detail().data);
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().activationMode).toBeNull();
+  });
+
+  it('never enters the undo stack — activation is view state', () => {
+    const baseline = store().past.length;
+    store().activateParticipantHover(1);
+    store().activateParticipantClick(2);
+    store().clearActivation();
+    expect(store().past).toHaveLength(baseline);
+  });
+});
+
+describe('character roster', () => {
+  it('assigns the first free slot and reports the index', () => {
+    expect(store().assignSlot(9)).toBe(0);
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 9 });
+    expect(store().assignSlot(4)).toBe(1);
+  });
+
+  it('returns null when the roster is full', () => {
+    for (let index = 0; index < 6; index += 1) store().assignSlot(index + 1);
+    expect(store().assignSlot(99)).toBeNull();
+  });
+
+  it('swaps two slots for drag reordering', () => {
+    store().assignSlot(9);
+    store().assignSlot(4);
+    store().swapSlots(0, 1);
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 4 });
+    expect(store().characterSlots[1]).toMatchObject({ characterId: 9 });
+  });
+});
+
+describe('linkage palette (Q16: the puzzle owns it now)', () => {
+  it('setLinkageColors replaces the palette in one undoable step', () => {
+    const baseline = store().past.length;
+    store().setLinkageColors([
+      { key: 'red', label: '红', color: '#EF9A9A' },
+      { key: 'teal', label: '青', color: '#0B7E74' },
+    ]);
+    expect(store().linkageColors[1]).toEqual({ key: 'teal', label: '青', color: '#0B7E74' });
+    expect(store().past).toHaveLength(baseline + 1);
+    store().undo();
+    expect(store().linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+  });
+
+  it('removing an entry re-points the linkages that used it', () => {
+    store().setLinkageColors([
+      { key: 'red', label: '红', color: '#EF9A9A' },
+      { key: 'blue', label: '蓝', color: '#90CAF9' },
+      { key: 'teal', label: '青', color: '#0B7E74' },
+    ]);
+    store().assignSlot(4);
+    store().setParticipantConfig(0, {
+      linkages: [
+        { type: 'cell', cells: [[0, 0]], effect: 'highlight', color: 'blue' },
+        { type: 'cell', cells: [[1, 1]], effect: 'highlight', color: 'teal' },
+      ],
+    });
+    store().removeLinkageColor('blue');
+    // The removed key is gone and its references point at the first entry.
+    expect(store().linkageColors.map((entry) => entry.key)).toEqual(['red', 'teal']);
+    expect(store().characterSlots[0]?.linkages?.map((entry) => entry.color)).toEqual([
+      'red',
+      'teal',
+    ]);
+  });
+
+  it('refuses to drop below the 2-entry minimum, without committing anything', () => {
+    store().removeLinkageColor('blue');
+    expect(store().linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    expect(store().past).toHaveLength(0);
+    expect(store().dirty).toBe(false);
+  });
+});
+
+describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
+  it('commits description + palette + re-pointed roster together', () => {
+    store().setLinkageColors([
+      { key: 'red', label: '红', color: '#EF9A9A' },
+      { key: 'blue', label: '蓝', color: '#90CAF9' },
+      { key: 'teal', label: '青', color: '#0B7E74' },
+    ]);
+    store().assignSlot(4);
+    store().setParticipantConfig(0, {
+      linkages: [{ type: 'region', id: 'rg_1', effect: 'highlight', color: 'teal' }],
+    });
+    const baseline = store().past.length;
+
+    store().setBasicInfo({
+      description: '改过的描述',
+      linkageColors: [
+        { key: 'red', label: '红', color: '#EF9A9A' },
+        { key: 'blue', label: '蓝', color: '#90CAF9' },
+      ],
+      // The drawer re-points the roster before handing it over.
+      characterSlots: [
+        {
+          characterId: 4,
+          themeColor: '#FFFFFF',
+          clue: '',
+          linkages: [{ type: 'region', id: 'rg_1', effect: 'highlight', color: 'blue' }],
+        },
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    });
+
+    expect(store().description).toBe('改过的描述');
+    expect(store().linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    expect(store().characterSlots[0]?.linkages?.[0]?.color).toBe('blue');
+    // Exactly one step for the whole form.
+    expect(store().past).toHaveLength(baseline + 1);
+    store().undo();
+    expect(store().description).toBe('六人六格，注意花丛的位置条件。');
+    expect(store().linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue', 'teal']);
+    expect(store().characterSlots[0]?.linkages?.[0]?.color).toBe('teal');
+  });
+});
+
+describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
+  /** A draft whose first slot is filled and configurable. */
+  function withRoster(): PuzzleDraft {
+    return {
+      ...detail().data,
+      characterSlots: [
+        { characterId: 8, themeColor: '#FFCC00', clue: '', linkages: [] },
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    };
+  }
+
+  function load(draftToLoad: PuzzleDraft): void {
+    store().init(detail(draftToLoad), mapContext(draftToLoad.map.gridSize));
+  }
+
+  it('ensureEntry carries every CharacterSlotEntry field (source guard)', () => {
+    const source =
+      ((
+        import.meta.glob('./puzzleStore.ts', {
+          query: '?raw',
+          import: 'default',
+          eager: true,
+        }) as Record<string, string>
+      )['./puzzleStore.ts'] ?? '').replace(/\r\n/g, '\n');
+    const body = source.slice(
+      source.indexOf('export function ensureEntry('),
+      source.indexOf('/** The undoable half of the state. */'),
+    );
+    // The 5th field is the one that went missing — pin all of them.
+    for (const field of ['characterId', 'themeColor', 'clue', 'linkages', 'positionConditions']) {
+      expect(body).toContain(field);
+    }
+  });
+
+  it('survives init — a page reload no longer drops the list', () => {
+    const loaded = withRoster();
+    loaded.characterSlots[0] = {
+      characterId: 8,
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    };
+    load(loaded);
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+  });
+
+  it('survives the next save — filling participant 2 keeps participant 1 intact', () => {
+    load(withRoster());
+    store().assignSlot(9);
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    store().setParticipantConfig(1, {
+      themeColor: '#00FFCC',
+      clue: '',
+      linkages: [],
+      positionConditions: [{ x: 0, y: 0 }],
+    });
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+    expect(store().characterSlots[1]?.positionConditions).toEqual([{ x: 0, y: 0 }]);
+  });
+
+  it('survives an unrelated commit', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    store().setDescription('无关的编辑');
+    store().setLinkageColors([
+      { key: 'red', label: '红', color: '#EF9A9A' },
+      { key: 'teal', label: '青', color: '#0B7E74' },
+    ]);
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+  });
+
+  it('reaches toDraft — what the server stores now carries it', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    expect(store().toDraft().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+  });
+
+  it('defensively copies the list on the way in', () => {
+    load(withRoster());
+    const conditions = [{ x: 1, y: 1 }];
+    store().setParticipantConfig(0, {
+      themeColor: '#FFFFFF',
+      clue: '',
+      linkages: [],
+      positionConditions: conditions,
+    });
+    const stored = store().characterSlots[0]?.positionConditions;
+    expect(stored).not.toBe(conditions);
+    expect(stored?.[0]).not.toBe(conditions[0]);
+    conditions[0]!.x = 9;
+    expect(store().characterSlots[0]?.positionConditions).toEqual([{ x: 1, y: 1 }]);
+  });
+
+  it('stores an empty list as an absent field, never a dead array', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFFFFF',
+      clue: '',
+      linkages: [],
+      positionConditions: [],
+    });
+    const entry = store().characterSlots[0];
+    expect(entry).not.toBeNull();
+    expect(entry && 'positionConditions' in entry).toBe(false);
+  });
+
+  it('keeps a normalised entry’s identity across commits (§9 Q7)', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    const entry = store().characterSlots[0];
+    // An unrelated edit must not swap the entry object out — that is what made
+    // `ParticipantDrawer`'s `[open, slot]` effect re-seed (and drop unsaved
+    // local edits) on every commit.
+    store().setDescription('无关的编辑');
+    expect(store().characterSlots[0]).toBe(entry);
+    // A real change to that slot still produces a new object.
+    store().setParticipantConfig(0, {
+      themeColor: '#123456',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    expect(store().characterSlots[0]).not.toBe(entry);
+  });
+});
+
+describe('toDraft / applyDraft (FEAT-K08)', () => {
+  it('serialises the map reference, never a copy of the canvas', () => {
+    store().assignSlot(4);
+    const output = store().toDraft();
+    expect(output.version).toBe(PUZZLE_JSON_VERSION);
+    expect(output.map).toEqual({ projectId: 217, versionNo: 3, gridSize: 6 });
+    expect(output.name).toBe('午夜花园');
+    expect(output.description).toBe('六人六格，注意花丛的位置条件。');
+    expect(output.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
+    expect(output.characterSlots[0]).toMatchObject({ characterId: 4, linkages: [] });
+    // §5.1: the canvas is **referenced**, not duplicated.
+    expect('cells' in output).toBe(false);
+    expect('regions' in output).toBe(false);
+    expect('style' in output).toBe(false);
+  });
+
+  it('round-trips through applyDraft', () => {
+    const imported: PuzzleDraft = {
+      version: PUZZLE_JSON_VERSION,
+      map: { projectId: 217, versionNo: 3, gridSize: 6 },
+      name: '导入的谜题',
+      description: '导入来的',
+      linkageColors: [
+        { key: 'red', label: '红', color: '#EF9A9A' },
+        { key: 'teal', label: '青', color: '#0B7E74' },
+      ],
+      characterSlots: [
+        { characterId: 8, themeColor: '#FFCC00', clue: '线索', linkages: [] },
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    };
+    store().applyDraft(imported);
+    const state = store();
+    expect(state.name).toBe('导入的谜题');
+    expect(state.description).toBe('导入来的');
+    expect(state.linkageColors.map((entry) => entry.key)).toEqual(['red', 'teal']);
+    expect(state.characterSlots[0]).toMatchObject({ characterId: 8, clue: '线索' });
+    // §6: import is undoable, and it never re-points the map reference.
+    expect(state.dirty).toBe(true);
+    expect(state.mapContext?.versionNo).toBe(3);
+    store().undo();
+    expect(store().name).toBe('午夜花园');
+  });
+
+  it('applyDraft resizes the roster to the referenced grid size', () => {
+    store().applyDraft({
+      ...detail().data,
+      map: { projectId: 217, versionNo: 3, gridSize: 4 },
+      characterSlots: [null, null],
+    });
+    expect(store().characterSlots).toHaveLength(6);
+  });
+});
+
+describe('history limits', () => {
+  it('caps the undo stack at MAX_HISTORY_STEPS', () => {
+    for (let index = 0; index < 60; index += 1) {
+      store().setDescription(`描述 ${index}`);
+    }
+    expect(store().past.length).toBeLessThanOrEqual(50);
+    expect(store().future).toHaveLength(0);
+  });
+
+  it('undo / redo walk the description back and forth', () => {
+    store().setDescription('第一版');
+    store().setDescription('第二版');
+    store().undo();
+    expect(store().description).toBe('第一版');
+    store().redo();
+    expect(store().description).toBe('第二版');
+  });
+});
+
+describe('markSaved', () => {
+  it('clears the dirty flag and records the server timestamp', () => {
+    store().setDescription('改过');
+    expect(store().dirty).toBe(true);
+    store().markSaved('2026-02-02T00:00:00.000Z');
+    expect(store().dirty).toBe(false);
+    expect(store().updatedAt).toBe('2026-02-02T00:00:00.000Z');
+  });
+});
+
+describe('ensureEntry / genSlotArray (pure helpers)', () => {
+  it('ensureEntry returns null for an empty slot', () => {
+    expect(ensureEntry(null)).toBeNull();
+  });
+
+  it('ensureEntry returns an already-normalised entry by identity', () => {
+    const entry: CharacterSlotEntry = {
+      characterId: 1,
+      themeColor: '#FFFFFF',
+      clue: '',
+      linkages: [],
+    };
+    expect(ensureEntry(entry)).toBe(entry);
+  });
+
+  it('ensureEntry fills the missing fields with defaults', () => {
+    const entry = ensureEntry({ characterId: 1 });
+    expect(entry).toEqual({
+      characterId: 1,
+      themeColor: DEFAULT_THEME_COLOR,
+      clue: '',
+      linkages: [],
+    });
+  });
+
+  it('genSlotArray preserves what fits and pads with null', () => {
+    const slots = genSlotArray(3, [{ characterId: 1 } as CharacterSlotEntry]);
+    expect(slots).toHaveLength(3);
+    expect(slots[0]).toMatchObject({ characterId: 1 });
+    expect(slots[1]).toBeNull();
+    expect(slots[2]).toBeNull();
+  });
+});

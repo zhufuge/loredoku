@@ -6,8 +6,9 @@ import type {
   CharacterGender,
   CharacterRow,
   CharacterUsage,
-  MapDraft,
 } from '@loredoku/shared';
+import { readLegacyCharacterSlots } from '../service/mapDraftCompat';
+import * as puzzleRepo from './puzzleRepository';
 
 export interface ListCharactersParams {
   keyword?: string;
@@ -150,29 +151,51 @@ export async function setActive(id: number, isActive: boolean): Promise<boolean>
   return affected > 0;
 }
 
+function asRecord(raw: unknown): Record<string, unknown> | null {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
+  return raw as Record<string, unknown>;
+}
+
+/**
+ * v0.5.0: the roster moved from the map draft to the puzzle, so a character can
+ * be referenced in **two** places while stored data ages:
+ *
+ * - `puzzles.data.characterSlots` — where it lives now;
+ * - `map_projects.draft_data.characterSlots` — v0.4.x drafts, still in the
+ *   database (the reader ignores them, but they must not keep a dangling
+ *   character id after a hard delete).
+ */
 export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number): Promise<void> {
+  const puzzles = (await trx('puzzles')
+    .whereNotNull('data')
+    .select('id', 'data')) as Array<{ id: string | number; data: unknown }>;
+  for (const puzzle of puzzles) {
+    const record = asRecord(puzzle.data);
+    const slots = Array.isArray(record?.['characterSlots'])
+      ? (record['characterSlots'] as Array<{ characterId: number } | null>)
+      : null;
+    if (!record || !slots) continue;
+    const next = slots.map((slot) => (slot && slot.characterId === id ? null : slot));
+    if (JSON.stringify(next) === JSON.stringify(slots)) continue;
+    await trx('puzzles')
+      .where({ id: puzzle.id })
+      .update({ data: { ...record, characterSlots: next }, updated_at: trx.fn.now() });
+  }
+
   const projects = (await trx('map_projects')
     .whereNotNull('draft_data')
-    .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: MapDraft | null }>;
+    .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: unknown }>;
   for (const project of projects) {
-    const draft = project.draft_data;
-    if (!draft) continue;
-    let changed = false;
-    // CLAR-603: participants live in the roster; remove any slot referencing
-    // the deleted character. Legacy `placedCharacters` is migrated away, so
-    // we only touch `characterSlots`.
-    const characterSlots = (draft.characterSlots ?? []).map((slot) =>
-      slot && slot.characterId === id ? null : slot,
-    );
-    if (JSON.stringify(characterSlots) !== JSON.stringify(draft.characterSlots ?? [])) {
-      draft.characterSlots = characterSlots;
-      changed = true;
-    }
-    if (changed) {
-      await trx('map_projects')
-        .where({ id: project.id })
-        .update({ draft_data: draft, draft_updated_at: trx.fn.now() });
-    }
+    const record = asRecord(project.draft_data);
+    if (!record) continue;
+    const slots = readLegacyCharacterSlots(record);
+    if (slots.length === 0) continue;
+    const next = slots.map((slot) => (slot && slot.characterId === id ? null : slot));
+    if (JSON.stringify(next) === JSON.stringify(slots)) continue;
+    await trx('map_projects').where({ id: project.id }).update({
+      draft_data: { ...record, characterSlots: next },
+      draft_updated_at: trx.fn.now(),
+    });
   }
 }
 
@@ -186,27 +209,52 @@ export async function hardDelete(id: number, clearReferences: boolean): Promise<
   });
 }
 
+/**
+ * FEAT-K01: where a character is used. v0.5.0 reads **puzzles** first (the
+ * roster's new home) and reports any v0.4.x map draft that still holds one, so
+ * a hard delete never leaves a dangling reference behind.
+ */
 export async function getUsages(characterId: number): Promise<CharacterUsage[]> {
+  const puzzleRows = (await db('puzzles as pz')
+    .join('map_projects as mp', 'mp.id', 'pz.map_project_id')
+    .select('pz.id', 'pz.name', 'pz.data', 'mp.id as project_id', 'mp.name as project_name')) as Array<{
+    id: string | number;
+    name: string;
+    data: unknown;
+    project_id: string | number;
+    project_name: string | null;
+  }>;
+
+  const usages: CharacterUsage[] = [];
+  for (const row of puzzleRows) {
+    if (!puzzleRepo.isPuzzleDraft(row.data)) continue;
+    if (!row.data.characterSlots.some((slot) => slot?.characterId === characterId)) continue;
+    usages.push({
+      puzzleId: Number(row.id),
+      puzzleName: row.name,
+      projectId: Number(row.project_id),
+      projectName: row.project_name ?? '未命名地图',
+      // CLAR-603: participants no longer occupy cells.
+      cells: [],
+    });
+  }
+
   const projects = (await db('map_projects')
     .whereNotNull('draft_data')
     .select('id', 'name', 'draft_data')) as Array<{
     id: string | number;
     name: string;
-    draft_data: MapDraft | null;
+    draft_data: unknown;
   }>;
-
-  const usages: CharacterUsage[] = [];
   for (const project of projects) {
-    const slots = project.draft_data?.characterSlots ?? [];
-    if (slots.some((slot) => slot?.characterId === characterId)) {
-      usages.push({
-        projectId: Number(project.id),
-        projectName: project.name,
-        // CLAR-603: participants no longer occupy cells; coordinates are
-        // historical metadata only.
-        cells: [],
-      });
-    }
+    const slots = readLegacyCharacterSlots(project.draft_data);
+    if (!slots.some((slot) => slot?.characterId === characterId)) continue;
+    usages.push({
+      legacy: true,
+      projectId: Number(project.id),
+      projectName: project.name,
+      cells: [],
+    });
   }
   return usages;
 }

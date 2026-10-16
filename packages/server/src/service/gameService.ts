@@ -1,12 +1,13 @@
 import { buildDefaultSlug, gameDeploySchema, slugError } from '@loredoku/shared';
-import type { MapDraft, MapGameDetail, MapGameSummary } from '@loredoku/shared';
+import type { MapDraft, MapGameDetail, MapGameSnapshot, MapGameSummary } from '@loredoku/shared';
 import { ErrorCode } from '@loredoku/shared';
-import * as mapRepo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
+import * as puzzleRepo from '../repository/puzzleRepository';
 import * as gameRepo from '../repository/gameRepository';
 import { AppError } from '../utils/AppError';
 import { parseOrThrow } from '../utils/validate';
 import { processGameCover } from '../utils/image';
+import { absorbLegacyMapDraft } from './mapDraftCompat';
 
 /** Raised when `POST /api/games/:id/cover` arrives without a file part. */
 export function coverRequired(): AppError {
@@ -14,8 +15,7 @@ export function coverRequired(): AppError {
 }
 
 export interface DeployGameInput {
-  versionNo: number;
-  name: string;
+  name?: string;
   /** OPT-W04: blank / missing → derived from the name + difficulty. */
   slug?: string;
   /** OPT-W03 §3: explicit "remove the stored cover". */
@@ -29,44 +29,48 @@ export interface DeployGameInput {
 }
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5): deploy a published work as a game.
+ * CONS-K16 (docs/v0.5.0.md §10.1): deploy a **puzzle** as a game.
  *
- * The snapshot is copied at deploy time, so a game keeps rendering the version
- * the player was given even after the map is re-published. Deploying another
- * version of the same map overwrites the previous game (see
- * `gameRepository.upsert`).
+ * v0.5.0 moved the unit of deployment from "one published version" to "one
+ * puzzle": the puzzle owns the participants, the version only owns the canvas.
+ * The snapshot therefore records both — `{ map, puzzle }` — and stays frozen, so
+ * a later publish never changes a game that is already playable. Deploying
+ * again overwrites the same puzzle's game (see `gameRepository.upsertGame`).
  *
- * OPT-W04: the deploy also (re)assigns the game's access path. A blank `slug`
- * is derived from the name + difficulty; an explicitly blank one is rejected
- * instead of silently derived, so the author never loses a typed value. A path
- * already owned by **another** map is a hard error — no silent `-2` suffix
- * (docs/v0.4.1.md §4.4, §14 Q12).
+ * No `versionNo` travels in the body: the puzzle pins the version it draws on.
  */
-export async function deployGame(projectId: number, input: DeployGameInput): Promise<MapGameSummary> {
-  const body = parseOrThrow(gameDeploySchema, { ...input, versionNo: input.versionNo });
+export async function deployGame(puzzleId: number, input: DeployGameInput): Promise<MapGameSummary> {
+  const body = parseOrThrow(gameDeploySchema, input);
 
-  const project = await mapRepo.getProjectRow(projectId);
-  if (!project) {
-    throw AppError.notFound('地图不存在');
+  const puzzle = await puzzleRepo.getPuzzleRow(puzzleId);
+  if (!puzzle) {
+    throw AppError.notFound('谜题不存在');
   }
 
-  const version = await versionRepo.getVersion(projectId, body.versionNo);
+  const projectId = Number(puzzle.map_project_id);
+  const version = await versionRepo.getVersion(projectId, puzzle.map_version_no);
   if (!version) {
-    throw AppError.notFound('作品不存在，无法部署');
+    throw AppError.notFound('谜题引用的地图版本不存在，无法部署');
   }
 
-  // The name defaults to the map name; an explicitly blank string is rejected,
-  // so an untouched field still deploys with the map's own name.
+  // The name defaults to the puzzle name; an explicitly blank string is
+  // rejected, so an untouched field still deploys with the puzzle's own name.
   const trimmed = (body.name ?? '').trim();
   if (body.name !== undefined && trimmed.length === 0) {
     throw AppError.validation('游戏名称必填');
   }
-  const name = trimmed.length > 0 ? trimmed : project.name;
-  const slug = await resolveSlug(projectId, body.slug, name, body.difficulty);
+  const name = trimmed.length > 0 ? trimmed : puzzle.name;
+  const slug = await resolveSlug(puzzleId, body.slug, name, body.difficulty);
+
+  const snapshot: MapGameSnapshot = {
+    map: absorbLegacyMapDraft(version.data) as MapDraft,
+    puzzle: puzzleRepo.isPuzzleDraft(puzzle.data) ? puzzle.data : null,
+  };
 
   return gameRepo.upsertGame({
+    puzzleId,
     projectId,
-    versionNo: body.versionNo,
+    versionNo: puzzle.map_version_no,
     name,
     slug,
     coverPath: body.coverPath ?? null,
@@ -76,18 +80,18 @@ export async function deployGame(projectId: number, input: DeployGameInput): Pro
     coverHeight: body.coverHeight ?? null,
     clearCover: body.clearCover === true,
     difficulty: body.difficulty,
-    gridSize: version.grid_size,
-    snapshot: version.data as MapDraft,
+    gridSize: puzzle.grid_size,
+    snapshot,
   });
 }
 
 /**
  * OPT-W04 §4.3 / §4.4: derive when blank, otherwise validate what was typed,
- * then make sure no other map owns the path. Q13: a name that slugifies to
+ * then make sure no other puzzle owns the path. Q13: a name that slugifies to
  * nothing does **not** get an invented path — the author has to type one.
  */
 async function resolveSlug(
-  projectId: number,
+  puzzleId: number,
   rawSlug: string | undefined,
   name: string,
   difficulty: MapGameSummary['difficulty'],
@@ -109,7 +113,7 @@ async function resolveSlug(
   }
 
   const owner = await gameRepo.findGameBySlug(slug);
-  if (owner && Number(owner.project_id) !== projectId) {
+  if (owner && Number(owner.puzzle_id) !== puzzleId) {
     throw AppError.validation(`访问路径「${slug}」已被占用，请更换`);
   }
   return slug;
@@ -134,11 +138,6 @@ export async function getGameBySlug(slug: string): Promise<MapGameDetail> {
     throw AppError.notFound('游戏不存在');
   }
   return gameRepo.toDetail(row);
-}
-
-/** OPT-W02 §2: the works table flags the exact version that was deployed. */
-export async function deployedVersionKeys(): Promise<Set<string>> {
-  return gameRepo.listDeployedVersionKeys();
 }
 
 export async function uploadGameCover(id: number, buffer: Buffer): Promise<MapGameSummary> {

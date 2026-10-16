@@ -7,6 +7,8 @@ export const projectKeys = {
   all: ['projects'] as const,
   list: (params: ProjectListParams) => [...projectKeys.all, 'list', params] as const,
   detail: (id: number) => [...projectKeys.all, 'detail', id] as const,
+  /** FEAT-K03 §2.4: the published-version picker's own key. */
+  publishedVersions: () => [...projectKeys.all, 'published-versions'] as const,
 };
 
 function errorMessage(error: unknown, fallback: string): string {
@@ -26,6 +28,18 @@ export function useProject(id: number | null) {
     queryKey: projectKeys.detail(id ?? 0),
     queryFn: () => projectsApi.detail(id as number),
     enabled: id !== null && Number.isFinite(id),
+  });
+}
+
+/**
+ * FEAT-K03 (docs/v0.5.0.md §2.4): every **published** map version, for the
+ * 「地图版本」 picker of the create-puzzle dialog.
+ */
+export function usePublishedVersions() {
+  return useQuery({
+    queryKey: projectKeys.publishedVersions(),
+    queryFn: () => projectsApi.listPublishedVersions(),
+    placeholderData: (previous) => previous,
   });
 }
 

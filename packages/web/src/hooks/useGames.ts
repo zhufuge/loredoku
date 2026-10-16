@@ -1,10 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { GameDifficulty } from '@loredoku/shared';
 import { gamesApi, type DeployGamePayload } from '@/api/games';
 import { ApiError } from '@/api/client';
-import { versionKeys } from './useVersions';
-import { projectKeys } from './useProjects';
+import { puzzleKeys } from './usePuzzles';
 
 export const gameKeys = {
   all: ['games', 'all'] as const,
@@ -35,9 +33,9 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 /**
- * FEAT-G02: deploy a published work as a game. The cover (when one was picked)
- * is uploaded right after the row exists, so both steps share one pending state
- * and a single success toast.
+ * CONS-K16 (docs/v0.5.0.md §10.2): deploy a **puzzle** as a game. The cover
+ * (when one was picked) is uploaded right after the row exists, so both steps
+ * share one pending state and a single success toast.
  *
  * OPT-W03 §3: `clearCover` rides along with the deploy (`true` only when the
  * author explicitly removed the existing cover) — omitting the cover entirely
@@ -47,16 +45,14 @@ export function useDeployGame() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async ({
-      projectId,
-      versionNo,
+      puzzleId,
       name,
       slug,
       difficulty,
       clearCover,
       cover,
-    }: DeployGamePayload & { projectId: number; cover?: File | null }) => {
-      const game = await gamesApi.deploy(projectId, {
-        versionNo,
+    }: DeployGamePayload & { puzzleId: number; cover?: File | null }) => {
+      const game = await gamesApi.deploy(puzzleId, {
         name,
         slug,
         difficulty,
@@ -67,12 +63,10 @@ export function useDeployGame() {
       }
       return game;
     },
-    onSuccess: (_game, { projectId }) => {
-      toast.success('部署成功，作品已生成为游戏');
+    onSuccess: () => {
+      toast.success('部署成功，谜题已生成为游戏');
       void queryClient.invalidateQueries({ queryKey: gameKeys.all });
-      void queryClient.invalidateQueries({ queryKey: versionKeys.all });
-      void queryClient.invalidateQueries({ queryKey: versionKeys.list(projectId) });
-      void queryClient.invalidateQueries({ queryKey: projectKeys.all });
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
     },
     onError: (error) => {
       if (error instanceof ApiError) {

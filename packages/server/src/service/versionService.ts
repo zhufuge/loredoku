@@ -3,15 +3,17 @@ import type {
   DraftRegion,
   MapDraft,
   MapVersionDetail,
+  MapVersionEntry,
   MapVersionSummary,
+  ProjectDetail,
   PublishViolation,
-  WorkSummary,
 } from '@loredoku/shared';
 import * as mapRepo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
+import * as projectRepo from '../repository/projectRepository';
 import * as itemRepo from '../repository/itemRepository';
-import * as characterRepo from '../repository/characterRepository';
 import { AppError } from '../utils/AppError';
+import { absorbLegacyMapDraft } from './mapDraftCompat';
 
 function parseCellKey(key: string): [number, number] {
   const [x, y] = key.split(',').map(Number) as [number, number];
@@ -59,16 +61,14 @@ function isRegionConnected(region: DraftRegion): boolean {
 }
 
 /**
- * CLAR-603 (docs/v0.3.1.md §3.3) — the sudoku-style P1~P6 rules from v0.3.0
- * are gone. The new publish rules are:
- *   P1 — at least one usable participant (a slot whose character exists and
- *        has an avatar)
- *   P2 — participants without an avatar are treated as not enabled and are
- *        not counted (see P1)
+ * CLAR-603 (docs/v0.3.1.md §3.3) — the sudoku-style P1~P6 rules from v0.3.0 are
+ * gone. The publish rules are:
  *   P3 — no overlapping region cells
  *   P4 — multi-cell items fully inside the board (OPT-904 removed the
  *        "non-standable items cannot sit on the object layer" rule)
- *   P5 — every trigger target reference exists
+ *
+ * v0.5.0: the participant rules (P1 / P2 / P5) went with the roster — a map is
+ * pure canvas now, and the puzzle is what carries participants.
  */
 export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]> {
   const violations: PublishViolation[] = [];
@@ -79,26 +79,6 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     if (x < 0 || y < 0 || x >= size || y >= size) {
       violations.push({ rule: 'bounds', message: `${label} 超出边界` });
     }
-  }
-
-  // ---- P1 / P2 — at least one usable participant ----
-  // P2 (docs/v0.3.1.md §3.3): a participant whose character has no avatar is
-  // treated as not enabled and is not counted towards the P1 minimum.
-  const slotCharacterIds = new Set<number>();
-  for (const slot of draft.characterSlots) {
-    if (slot) slotCharacterIds.add(slot.characterId);
-  }
-  const characterMeta = await characterRepo.characterSlotMetaByIds([...slotCharacterIds]);
-  for (const id of slotCharacterIds) {
-    if (!characterMeta.has(id)) {
-      violations.push({ rule: 'character_reference', message: `角色 #${id} 不存在` });
-    }
-  }
-  const usableParticipants = draft.characterSlots.filter(
-    (slot) => slot !== null && characterMeta.get(slot.characterId)?.hasAvatar === true,
-  );
-  if (usableParticipants.length === 0) {
-    violations.push({ rule: 'participant_required', message: '至少需要 1 名参与者' });
   }
 
   // ---- Item references + multi-cell coverage (P4) ----
@@ -119,11 +99,9 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     const cell = draft.cells[key];
     if (!cell?.object) continue;
     // OPT-904 (docs/v0.3.4.md §4.1): a non-standable item IS allowed on the
-    // object layer — the v0.3.1 `object_can_stand` rule is gone. Only the
-    // background layer is restricted, and that is enforced by requiring
-    // `category === 'background'` for background placements (front-end
-    // palette + `canPlaceItemOnLayer`).
-    // Multi-cell footprint must be entirely inside the board.
+    // object layer. Only the background layer is restricted, and that is
+    // enforced by requiring `category === 'background'` for background
+    // placements (front-end palette + `canPlaceItemOnLayer`).
     const [x, y] = parseCellKey(key);
     if (x + cell.object.w > size || y + cell.object.h > size) {
       violations.push({
@@ -156,58 +134,24 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     }
   }
 
-  // ---- P5 — every linkage target must resolve ----
-  const objectItemIds = new Set<number>();
-  for (const key of Object.keys(draft.cells)) {
-    const cell = draft.cells[key];
-    if (!cell) continue;
-    if (cell.object) objectItemIds.add(cell.object.itemId);
-  }
-  const regionIds = new Set(draft.regions.map((region) => region.id));
-  draft.characterSlots.forEach((slot, slotIndex) => {
-    if (!slot) return;
-    // MOD-801: flat linkages list (was: triggers[].targets).
-    for (const target of slot.linkages ?? []) {
-      if (target.type === 'character' && !slotCharacterIds.has(target.id)) {
-        violations.push({
-          rule: 'participant_target',
-          message: `参与者框 ${slotIndex + 1} 的联动目标角色 #${target.id} 不在参与者中`,
-        });
-      }
-      if (target.type === 'item' && !objectItemIds.has(target.id)) {
-        violations.push({
-          rule: 'participant_target',
-          message: `参与者框 ${slotIndex + 1} 的联动目标物品 #${target.id} 不在地图中`,
-        });
-      }
-      if (target.type === 'region' && !regionIds.has(target.id)) {
-        violations.push({
-          rule: 'participant_target',
-          message: `参与者框 ${slotIndex + 1} 的联动目标区域 ${target.id} 不在地图中`,
-        });
-      }
-      // MOD-708: cell targets carry a `cells` array
-      if (target.type === 'cell') {
-        for (const [cx, cy] of target.cells) {
-          if (cx < 0 || cy < 0 || cx >= size || cy >= size) {
-            violations.push({
-              rule: 'participant_target',
-              message: `参与者框 ${slotIndex + 1} 的联动目标方格 (${cx}, ${cy}) 超出画布范围`,
-            });
-            break;
-          }
-        }
-      }
-    }
-  });
-
   return violations;
 }
 
+/**
+ * FEAT-K10 (docs/v0.5.0.md §7.2): publishing still inserts one `map_versions`
+ * row, which the map list now shows as a **version entry**.
+ *
+ * Q3 = B: the number comes from the whole lineage's maximum, so a map forked
+ * from `v3` publishes its next revision as `v4`.
+ */
 export async function publishProject(
   projectId: number,
   notes: string | null,
 ): Promise<MapVersionSummary> {
+  const project = await mapRepo.getProjectRow(projectId);
+  if (!project) {
+    throw AppError.notFound('地图不存在');
+  }
   const record = await mapRepo.getDraft(projectId);
   if (!record) {
     throw AppError.notFound('地图不存在');
@@ -218,12 +162,14 @@ export async function publishProject(
     throw new AppError(ErrorCode.PUBLISH_VALIDATION_FAILED, '发布校验未通过', violations);
   }
 
-  const versionNo = await versionRepo.nextVersionNo(projectId);
+  const versionNo = await versionRepo.nextVersionNo(Number(project.root_id));
   return versionRepo.createVersion({
     projectId,
     versionNo,
     gridSize: record.draft.gridSize,
-    data: record.draft,
+    // The snapshot is written in the v3 shape: a new version never carries the
+    // roster or the palette, even when the working draft was seeded from v2.
+    data: absorbLegacyMapDraft(record.draft) as MapDraft,
     notes: notes ?? null,
   });
 }
@@ -236,9 +182,17 @@ export async function listVersions(projectId: number): Promise<MapVersionSummary
   return versionRepo.listVersions(projectId);
 }
 
-/** OPT-905 (docs/v0.3.4.md §5): the works table spans every map. */
-export async function listAllWorks(): Promise<WorkSummary[]> {
-  return versionRepo.listAllVersions();
+/** SPEC-K13 §7.4: the version-history panel lists the whole blood lineage. */
+export async function listVersionsForProject(projectId: number): Promise<MapVersionEntry[]> {
+  const project = await mapRepo.getProjectRow(projectId);
+  if (!project) {
+    throw AppError.notFound('地图不存在');
+  }
+  const rows = await versionRepo.listVersionsForRoot(Number(project.root_id));
+  return rows.map((row) => ({
+    ...versionRepo.toVersionSummary(row),
+    projectId: Number(row.project_id),
+  }));
 }
 
 export async function getVersion(projectId: number, versionNo: number): Promise<MapVersionDetail> {
@@ -246,8 +200,9 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
   if (!row) {
     throw AppError.notFound('版本不存在');
   }
+  const draft = absorbLegacyMapDraft(row.data) as MapDraft;
   const itemIds = new Set<number>();
-  for (const cell of Object.values(row.data?.cells ?? {})) {
+  for (const cell of Object.values(draft?.cells ?? {})) {
     if (cell?.object) itemIds.add(cell.object.itemId);
     if (cell?.background) itemIds.add(cell.background.itemId);
   }
@@ -257,9 +212,9 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
     gridSize: row.grid_size,
     notes: row.notes,
     publishedAt: new Date(row.snapshot_created_at).toISOString(),
-    data: row.data,
-    participantCount: (row.data?.characterSlots ?? []).filter((slot) => slot !== null).length,
-    regionCount: row.data?.regions?.length ?? 0,
+    data: draft,
+    participantCount: 0,
+    regionCount: draft?.regions?.length ?? 0,
     itemCount: itemIds.size,
     // OPT-G01: fall back for legacy rows whose project name is missing.
     projectName: row.project_name ?? '未命名地图',
@@ -269,11 +224,31 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
 export async function deleteVersion(projectId: number, versionNo: number): Promise<void> {
   const row = await versionRepo.getVersion(projectId, versionNo);
   if (!row) {
-    throw AppError.notFound('作品不存在');
+    throw AppError.notFound('版本不存在');
   }
   await versionRepo.deleteVersion(projectId, versionNo);
 }
 
+/**
+ * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): "edit this version" never writes to
+ * `map_versions`. It creates a **new work entry** — a fresh `map_projects` row
+ * seeded with the version's snapshot — that stays in the same blood lineage, so
+ * the next publish continues the version numbering instead of restarting at v1.
+ */
+export async function forkVersion(projectId: number, versionNo: number): Promise<ProjectDetail> {
+  const created = await projectRepo.forkFromVersion(projectId, versionNo);
+  if (!created) {
+    throw AppError.notFound('版本不存在');
+  }
+  return created;
+}
+
+/**
+ * @deprecated v0.5.0 §15 Q9: superseded by {@link forkVersion}. It wrote the
+ * snapshot **back into** the map's working draft, which is exactly the
+ * in-place mutation SPEC-K11 now forbids. Kept for historical callers with no
+ * UI entry point.
+ */
 export async function createDraftFromVersion(
   projectId: number,
   versionNo: number,
@@ -282,7 +257,7 @@ export async function createDraftFromVersion(
   if (!row) {
     throw AppError.notFound('版本不存在');
   }
-  const saved = await mapRepo.overwriteDraft(projectId, row.data);
+  const saved = await mapRepo.overwriteDraft(projectId, absorbLegacyMapDraft(row.data) as MapDraft);
   if (!saved) {
     throw AppError.notFound('地图不存在');
   }

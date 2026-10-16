@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LayoutGrid, List, Loader2, Plus, Search } from 'lucide-react';
-import type { ProjectDetail } from '@loredoku/shared';
+import type { MapEntrySummary } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -22,12 +22,25 @@ import {
 import { ProjectGridCard } from '@/components/project/ProjectGridCard';
 import { ProjectListRow } from '@/components/project/ProjectListRow';
 import { useDeleteProject, useDuplicateProject, useProjects } from '@/hooks/useProjects';
+import { useDeleteVersion, useForkVersion } from '@/hooks/useVersions';
 
 const PAGE_SIZE = 12;
 
 type ViewMode = 'grid' | 'list';
 type SortOption = 'updatedAt' | 'name';
+/** §7.1 第 3 条: 三态筛选，默认「全部」。 */
+type KindFilter = 'all' | 'draft' | 'version';
 
+/**
+ * v0.5.0 FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work
+ * entries and version entries**, so `useProjects` answers with
+ * `PaginatedData<MapEntrySummary>` instead of `ProjectDetail[]`.
+ *
+ * Two view-only controls were added on top of the unchanged keyword / sort /
+ * view switches: a 三态 kind filter (default 「全部」) and a 按地图归组 toggle
+ * (default off) — both applied to the current page, so the default view is
+ * pixel-identical to v0.4.3.
+ */
 export function ProjectsPage(): JSX.Element {
   const navigate = useNavigate();
   const [page, setPage] = useState(1);
@@ -35,9 +48,12 @@ export function ProjectsPage(): JSX.Element {
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState<SortOption>('updatedAt');
   const [view, setView] = useState<ViewMode>('grid');
+  const [kindFilter, setKindFilter] = useState<KindFilter>('all');
+  const [groupByMap, setGroupByMap] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
-  const [editProject, setEditProject] = useState<ProjectDetail | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<ProjectDetail | null>(null);
+  /** A work entry being renamed / re-covered (`EditProjectDialog` needs a `Project`). */
+  const [editProject, setEditProject] = useState<MapEntrySummary | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<MapEntrySummary | null>(null);
 
   useEffect(() => {
     document.title = '地图 · 格物';
@@ -64,22 +80,54 @@ export function ProjectsPage(): JSX.Element {
 
   const { data, isLoading, isError, error, refetch, isFetching } = useProjects(params);
   const deleteMutation = useDeleteProject();
+  const deleteVersionMutation = useDeleteVersion();
   const duplicateMutation = useDuplicateProject();
+  const forkMutation = useForkVersion();
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const projects = data?.list ?? [];
 
-  const handleOpen = (project: ProjectDetail): void => {
-    navigate(`/editor/${project.id}`);
+  /**
+   * The two view-only controls run on the fetched page: filtering by kind
+   * narrows what this page shows (the footer still reports the whole list), and
+   * grouping re-orders it by blood lineage with the work entry first.
+   */
+  const entries = useMemo(() => {
+    const list = data?.list ?? [];
+    const filtered =
+      kindFilter === 'all' ? list : list.filter((entry) => entry.kind === kindFilter);
+    if (!groupByMap) return filtered;
+    const rank = (entry: MapEntrySummary): number =>
+      entry.kind === 'draft' ? 0 : 1;
+    return [...filtered].sort(
+      (a, b) =>
+        a.rootId - b.rootId ||
+        rank(a) - rank(b) ||
+        (b.versionNo ?? 0) - (a.versionNo ?? 0),
+    );
+  }, [data?.list, kindFilter, groupByMap]);
+
+  const isVersionEntry = (entry: MapEntrySummary): boolean => entry.kind === 'version';
+
+  const handleOpen = (entry: MapEntrySummary): void => {
+    navigate(`/editor/${entry.projectId}`);
   };
 
   const confirmDelete = (): void => {
     if (!deleteTarget) return;
-    deleteMutation.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
+    const target = deleteTarget;
+    if (isVersionEntry(target)) {
+      // §7.1 第 4 条: deleting a version entry removes that `map_versions` row.
+      deleteVersionMutation.mutate(
+        { id: target.projectId, versionNo: target.versionNo ?? 0 },
+        { onSuccess: () => setDeleteTarget(null) },
+      );
+      return;
+    }
+    deleteMutation.mutate(target.projectId, { onSuccess: () => setDeleteTarget(null) });
   };
 
-  const deleting = deleteMutation.isPending;
+  const deleting = deleteMutation.isPending || deleteVersionMutation.isPending;
 
   function renderContent(): JSX.Element {
     if (isLoading) {
@@ -105,16 +153,22 @@ export function ProjectsPage(): JSX.Element {
       );
     }
 
-    if (projects.length === 0) {
+    if (entries.length === 0) {
       return (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <p className="text-sm text-muted-foreground">
-            {keyword ? '没有匹配的地图' : '还没有地图，创建一个开始吧'}
+            {keyword
+              ? '没有匹配的地图'
+              : kindFilter === 'version'
+                ? '还没有已发布的版本，在地图编辑器里发布一个试试'
+                : '还没有地图，创建一个开始吧'}
           </p>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            新建地图
-          </Button>
+          {kindFilter === 'version' ? null : (
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" />
+              新建地图
+            </Button>
+          )}
         </Card>
       );
     }
@@ -122,14 +176,23 @@ export function ProjectsPage(): JSX.Element {
     if (view === 'list') {
       return (
         <Card className="overflow-hidden">
-          {projects.map((project) => (
+          {entries.map((entry) => (
             <ProjectListRow
-              key={project.id}
-              project={project}
+              key={`${entry.kind}-${entry.id}`}
+              entry={entry}
               onOpen={handleOpen}
               onRename={setEditProject}
-              onDuplicate={(item) => duplicateMutation.mutate(item.id)}
+              onDuplicate={(item) => duplicateMutation.mutate(item.projectId)}
               onDelete={setDeleteTarget}
+              onPreview={(item) =>
+                navigate(`/maps/${item.projectId}/${item.versionNo}/view`)
+              }
+              onNewPuzzle={(item) =>
+                navigate(`/puzzles?new=${item.projectId}:${item.versionNo}`)
+              }
+              onEditVersion={(item) =>
+                forkMutation.mutate({ id: item.projectId, versionNo: item.versionNo ?? 0 })
+              }
             />
           ))}
         </Card>
@@ -138,14 +201,21 @@ export function ProjectsPage(): JSX.Element {
 
     return (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {projects.map((project) => (
+        {entries.map((entry) => (
           <ProjectGridCard
-            key={project.id}
-            project={project}
+            key={`${entry.kind}-${entry.id}`}
+            entry={entry}
             onOpen={handleOpen}
             onRename={setEditProject}
-            onDuplicate={(item) => duplicateMutation.mutate(item.id)}
+            onDuplicate={(item) => duplicateMutation.mutate(item.projectId)}
             onDelete={setDeleteTarget}
+            onPreview={(item) => navigate(`/maps/${item.projectId}/${item.versionNo}/view`)}
+            onNewPuzzle={(item) =>
+              navigate(`/puzzles?new=${item.projectId}:${item.versionNo}`)
+            }
+            onEditVersion={(item) =>
+              forkMutation.mutate({ id: item.projectId, versionNo: item.versionNo ?? 0 })
+            }
           />
         ))}
       </div>
@@ -186,6 +256,26 @@ export function ProjectsPage(): JSX.Element {
           <option value="updatedAt">按更新时间</option>
           <option value="name">按名称</option>
         </select>
+        {/* §7.1 第 3 条：三态筛选（默认「全部」）*/}
+        <select
+          value={kindFilter}
+          onChange={(event) => setKindFilter(event.target.value as KindFilter)}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title="条目类型"
+        >
+          <option value="all">全部条目</option>
+          <option value="draft">只看工作条目</option>
+          <option value="version">只看版本条目</option>
+        </select>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            checked={groupByMap}
+            onChange={(event) => setGroupByMap(event.target.checked)}
+            className="h-4 w-4 accent-primary"
+          />
+          按地图归组
+        </label>
         <div className="ml-auto flex items-center gap-1 rounded-md border p-1">
           <Button
             size="icon"
@@ -249,9 +339,15 @@ export function ProjectsPage(): JSX.Element {
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>删除地图「{deleteTarget?.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deleteTarget && isVersionEntry(deleteTarget)
+                ? `删除地图版本 v${deleteTarget.versionNo ?? ''}？`
+                : `删除地图「${deleteTarget?.name}」？`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              将同时删除画布上的所有卡片与区域，不可恢复。
+              {deleteTarget && isVersionEntry(deleteTarget)
+                ? '该版本条目将被永久删除，引用它的谜题会失去这个画布版本。'
+                : '将同时删除画布上的所有卡片与区域，不可恢复。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
