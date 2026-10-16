@@ -88,21 +88,49 @@ export function showsAvatar(placement: CellPlacement | null): boolean {
 }
 
 /**
- * SPEC-G05 §5.2 (docs/v0.4.1.md §5): where this participant already sits, or
- * `null` when they are not on the board. A participant occupies **at most one**
- * cell, so the first hit is the only hit.
+ * SPEC-G05 §5.2 (docs/v0.4.1.md §5) + SPEC-J05 (docs/v0.4.3.md §3.6): where this
+ * participant "is" — the confirmed cell, or `null` when nothing counts.
+ *
+ * SPEC-J05: a 编号 is a **candidate** mark and may sit on several cells at once,
+ * so "where is this participant" is decided in three steps:
+ *
+ * 1. an **avatar** wins outright — that is the confirmed cell (there is at most
+ *    one, which `placementBlockReason` enforces);
+ * 2. with no avatar, the participant's 编号 must sit on **exactly one** cell —
+ *    the v0.4.1 leniency: a lone mark still answers the question;
+ * 3. several candidate marks and no avatar → `null`: nothing is confirmed, so
+ *    `validatePlacement` says "unplaced" instead of picking a candidate at random.
  */
 export function participantPlacementAt(
   board: GamePlacementBoard,
   participantId: number,
 ): CellCoord | null {
+  let candidate: CellCoord | null = null;
+  let candidates = 0;
   for (const [key, placement] of Object.entries(board)) {
     if (!placement || placement.kind === 'forbidden') continue;
     if (!hasParticipant(placement, participantId)) continue;
     const [x, y] = key.split(',').map(Number);
-    return { x: x as number, y: y as number };
+    const coord = { x: x as number, y: y as number };
+    if (placement.kind === 'participant') return coord;
+    candidate = coord;
+    candidates += 1;
   }
-  return null;
+  return candidates === 1 ? candidate : null;
+}
+
+/**
+ * SPEC-J05: how many cells carry this participant as a **candidate 编号** (an
+ * avatar cell is not counted). The submit check uses it to tell "never touched"
+ * apart from "marked candidates but never confirmed".
+ */
+export function candidateCellCount(board: GamePlacementBoard, participantId: number): number {
+  let count = 0;
+  for (const placement of Object.values(board)) {
+    if (placement?.kind !== 'numbers') continue;
+    if (placement.entries.includes(participantId)) count += 1;
+  }
+  return count;
 }
 
 /**
@@ -123,7 +151,18 @@ export function formatCellLabel(coord: CellCoord): string {
   return `R${coord.y + 1} C${coord.x + 1}`;
 }
 
-/** SPEC-G05 §5.2: why a participant placement was refused, for the toast. */
+/**
+ * SPEC-G05 §5.2: why a participant placement was refused, for the toast.
+ *
+ * SPEC-J05 §3.6: `'elsewhere'` now means **"this participant's avatar is already
+ * confirmed on another cell"** — a mere candidate 编号 elsewhere is not a reason
+ * to refuse any more, so the old 「编号 N 已放置在 R{r} C{c}」 toast is gone.
+ *
+ * SPEC-J03 §9 Q6 (docs/v0.4.3.md): `'duplicate'` stays in the union even though
+ * no path returns it any more — tapping a cell that already carries this number
+ * is the **toggle-off** case now (allowed), not a refusal. Keeping the member
+ * avoids churning the union / the page's `switch` for a purely cosmetic win.
+ */
 export type PlacementBlock =
   | 'non-standable'
   | 'forbidden'
@@ -133,10 +172,10 @@ export type PlacementBlock =
   | 'elsewhere';
 
 /**
- * SPEC-G01 §7.2 + SPEC-G03 §9.2 + SPEC-G05 §5.2: the single source of truth for
- * "may this participant land here?". `canPlaceParticipant` is a thin reading of
- * it, and the page turns the code into a toast — so the rule and its explanation
- * can never drift apart.
+ * SPEC-G01 §7.2 + SPEC-G03 §9.2 + SPEC-G05 §5.2 + SPEC-J03 §3.2 + SPEC-J05 §3.6:
+ * the single source of truth for "may this participant land here?".
+ * `canPlaceParticipant` is a thin reading of it, and the page turns the code into
+ * a toast — so the rule and its explanation can never drift apart.
  */
 export function placementBlockReason(input: {
   board: GamePlacementBoard;
@@ -149,18 +188,30 @@ export function placementBlockReason(input: {
   const { board, x, y, participantId, noStandCells, variant = 'number' } = input;
   if (noStandCells.has(cellKey(x, y))) return 'non-standable';
 
-  // SPEC-G05: one participant, one cell. The participant's own cell is the only
-  // exception — a long-press there is a "promote to avatar", not a second place.
-  const elsewhere = participantPlacementAt(board, participantId);
-  if (elsewhere && (elsewhere.x !== x || elsewhere.y !== y)) return 'elsewhere';
+  // SPEC-J05 §3.6 (docs/v0.4.3.md): a 编号 is a **candidate** mark and one
+  // participant may carry it on many cells at once — so a short press is never
+  // blocked by uniqueness, and never reports "already elsewhere".
+  //
+  // The **avatar** is the unique thing. A long press confirms a cell, so it is
+  // refused only when the participant has already confirmed *another* cell —
+  // `participantPlacementAt` prefers the avatar cell, and returns a lone
+  // candidate otherwise (or `null` when there are several). A long press on a
+  // cell while the participant's other marks are mere candidates is exactly the
+  // confirmation step: it is allowed, and SPEC-H01 then clears those candidates.
+  const confirmed = participantPlacementAt(board, participantId);
+  if (variant === 'image' && confirmed && (confirmed.x !== x || confirmed.y !== y)) {
+    return 'elsewhere';
+  }
 
   const placement = placementAt(board, x, y);
   if (!placement) return null;
   if (placement.kind === 'forbidden') return 'forbidden';
   if (hasParticipant(placement, participantId)) {
-    // A tap has nothing left to add; a long-press promotes a carried number to
-    // the avatar — unless the cell already *is* that avatar.
-    if (variant !== 'image') return 'duplicate';
+    // The cell already belongs to this participant:
+    // - `participant` (avatar): a long-press there changes nothing and a tap is
+    //   not a number to remove (v0.4.3 §9 Q5) — refused either way;
+    // - `numbers`: a long-press promotes it to the avatar, a tap removes the
+    //   number (SPEC-J03 §3.2 toggle). Both are allowed.
     return placement.kind === 'participant' ? 'avatar' : null;
   }
   // A long-press replaces the cell wholesale, so a full grid is no obstacle.
@@ -246,11 +297,12 @@ export function autoForbiddenCells(input: {
 }
 
 /**
- * SPEC-H01 (docs/v0.4.2.md §1.2): after a participant lands, their **number**
- * must survive in exactly one cell. Live play cannot reach a second copy — the
- * uniqueness rule refuses it — but legacy snapshots (deployed before v0.4.1),
- * imported drafts and hand-edited JSON can carry several. So every successful
- * placement sweeps the participant's number out of every other cell.
+ * SPEC-H01 (docs/v0.4.2.md §1.2) + SPEC-J05 §3.6 (docs/v0.4.3.md): once a
+ * participant is **confirmed** (long-press → avatar), their number must survive
+ * in exactly one cell — the confirmed one. Candidate marks elsewhere are stale.
+ *
+ * SPEC-J05 narrowed the caller: only `placeParticipant`'s **image** branch runs
+ * this. Short presses are free to leave the same number on many cells.
  *
  * A cell that loses its only entry is **deleted** (it becomes empty, not `×`).
  * Cells that still hold other participants' numbers keep their form.
@@ -280,14 +332,22 @@ export function sweepParticipantNumbers(
 }
 
 /**
- * SPEC-G03 §9.2（v0.4.0 验收补充后）+ SPEC-G06（v0.4.1）+ SPEC-H01（v0.4.2）：
+ * SPEC-G03 §9.2（v0.4.0 验收补充后）+ SPEC-G06（v0.4.1）+ SPEC-H01（v0.4.2）
+ * + SPEC-J02 / SPEC-J03 / SPEC-J05（v0.4.3）：
  *
- * - `variant: 'number'`（短按，默认）：往该格追加一个标号——空格得到 9 宫格
- *   第 1 格的标号，已有其他参与者标号则续接；该参与者标号已存在则无效果。
- * - `variant: 'image'`（长按）：整格替换为该参与者的头像，即「确认这格就是
- *   这位参与者」；该格已是同一头像时无效果（`commit` 的结构比较会拦住）。
- * - 落格之后**同行同列自动补 `×`**（SPEC-G06），并**把该参与者的编号从其它
- *   格子清除**（SPEC-H01）；两者都与本次放置合并为**一个**历史步。
+ * - `variant: 'number'`（**短按**，默认）—— 放的是这位参与者的**编号**，而且是一次
+ *   **切换**（SPEC-J03 §3.2）：
+ *   - 该格**已有**该编号 → **删除**这一个 entry；删到空则**整格删除**（回到空格，
+ *     **不是** `×`）；
+ *   - 该格**没有**该编号 → 追加为九宫格的下一格（空格得到第 1 格）。
+ *   - SPEC-J02：**不**补同行同列的 `×`。
+ *   - SPEC-J05：**不看唯一性** —— 同一位参与者的编号可以同时留在多个格子上（都是
+ *     候选标记），所以加入路径**也不做** SPEC-H01 的清理。
+ * - `variant: 'image'`（**长按**）—— 这才是「把参与者放到格子上」：整格替换为该
+ *   参与者的头像；该格已是同一头像时无效果（`commit` 的结构比较会拦住）。
+ *   - SPEC-G06：落格之后**同行同列自动补 `×`**。
+ *   - SPEC-H01：把该参与者留在**其它格子的候选编号**清除（头像只有一个），
+ *     与本次放置合并为**一个**历史步。
  */
 export function placeParticipant(
   state: GamePlacementState,
@@ -304,6 +364,23 @@ export function placeParticipant(
   const variant = input.variant ?? 'number';
   if (!canPlaceParticipant({ ...input, board: state.board, variant })) return state;
   const key = cellKey(input.x, input.y);
+  const previous = placementAt(state.board, input.x, input.y);
+
+  // SPEC-J03 §3.2: a tap on the cell that already carries this number toggles it
+  // off. Nothing else happens — no `×` sweep, no number cleanup, just one undo
+  // step.
+  if (
+    variant !== 'image' &&
+    previous?.kind === 'numbers' &&
+    previous.entries.includes(input.participantId)
+  ) {
+    const board = { ...state.board };
+    const entries = previous.entries.filter((entry) => entry !== input.participantId);
+    if (entries.length > 0) board[key] = { kind: 'numbers', entries };
+    else delete board[key];
+    return commit(state, board);
+  }
+
   let board: GamePlacementBoard;
   if (variant === 'image') {
     board = {
@@ -311,29 +388,35 @@ export function placeParticipant(
       [key]: { kind: 'participant', index: input.participantId },
     };
   } else {
-    const previous = placementAt(state.board, input.x, input.y);
+    // SPEC-J05 §3.6: the number is a candidate mark — it stacks onto whatever the
+    // cell already carries and stays on every cell it was tapped on.
     const numbers = previous
       ? [...numbersIn(previous), input.participantId]
       : [input.participantId];
     board = { ...state.board, [key]: { kind: 'numbers', entries: numbers } };
   }
 
-  // SPEC-G06: one gesture → one history step, sweep included.
-  for (const swept of autoForbiddenCells({
-    board,
-    x: input.x,
-    y: input.y,
-    gridSize: input.gridSize,
-    noStandCells: input.noStandCells,
-  })) {
-    board[swept] = { kind: 'forbidden' };
-  }
+  // SPEC-J02 §2.2 + SPEC-J05 §3.6: both follow-ups are **long-press**
+  // consequences only — a candidate 编号 stays free of row/column exclusions and
+  // keeps its copies on the other cells, so only the confirmation step pays them.
+  if (variant === 'image') {
+    for (const swept of autoForbiddenCells({
+      board,
+      x: input.x,
+      y: input.y,
+      gridSize: input.gridSize,
+      noStandCells: input.noStandCells,
+    })) {
+      board[swept] = { kind: 'forbidden' };
+    }
 
-  // SPEC-H01: the participant keeps exactly one number — the one just placed.
-  board = sweepParticipantNumbers(board, {
-    participantId: input.participantId,
-    except: { x: input.x, y: input.y },
-  });
+    // SPEC-H01: the confirmed avatar is now the participant's only cell — the
+    // candidate numbers it left behind elsewhere are stale.
+    board = sweepParticipantNumbers(board, {
+      participantId: input.participantId,
+      except: { x: input.x, y: input.y },
+    });
+  }
 
   return commit(state, board);
 }
@@ -520,7 +603,8 @@ export interface ValidatePlacementInput {
  * SPEC-FEAT-V01 §8.1: walk the participants in number order and collect **every**
  * problem (the dialog lists them all, so no early exit):
  *
- * 1. the participant must be on the board;
+ * 1. the participant must be on the board — `participantPlacementAt` decides what
+ *    that means (SPEC-J05 §3.6: a confirmed avatar, or a lone candidate 编号);
  * 2. nobody else may share its row;
  * 3. nobody else may share its column;
  * 4. if the participant carries position conditions, its cell must be one of
@@ -555,10 +639,17 @@ export function validatePlacement(input: ValidatePlacementInput): PlacementValid
     const coord = participantPlacementAt(board, participantId);
 
     if (!coord) {
+      // SPEC-J05 §3.6: a participant with several candidate 编号 and no avatar has
+      // *touched* the board without *confirming* anything — say so, instead of
+      // the bare 「尚未放置」 the player would read as "my taps did nothing".
+      const candidates = candidateCellCount(board, participantId);
       issues.push({
         participantId,
         code: 'unplaced',
-        message: `${label(participantId)} 尚未放置`,
+        message:
+          candidates > 0
+            ? `${label(participantId)} 尚未确认（${candidates} 格只有候选编号，长按格子放置头像才算放置）`
+            : `${label(participantId)} 尚未放置`,
       });
       return;
     }

@@ -6,6 +6,7 @@ import {
   canPlaceParticipant,
   canRedo,
   canUndo,
+  candidateCellCount,
   cellKey,
   clearAll,
   clearCell,
@@ -87,6 +88,22 @@ function slot(characterId: number, positionConditions?: Array<{ x: number; y: nu
   return positionConditions ? { characterId, positionConditions } : { characterId };
 }
 
+/** The raw `placeParticipant` body — for the structural assertions of §2.2 / §3.2. */
+function placeParticipantBody(): string {
+  const source =
+    ((
+      import.meta.glob('./gamePlacement.ts', {
+        query: '?raw',
+        import: 'default',
+        eager: true,
+      }) as Record<string, string>
+    )['./gamePlacement.ts'] ?? '').replace(/\r\n/g, '\n');
+  return source.slice(
+    source.indexOf('export function placeParticipant('),
+    source.indexOf('export function placeForbidden('),
+  );
+}
+
 describe('placing a participant (SPEC-G03 §9.2)', () => {
   it('puts number 1 in the 3×3 grid on an empty cell with a tap', () => {
     const next = place(createGamePlacementState(), 2, 3, 1);
@@ -112,12 +129,14 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
     expect(placementAt(state.board, 0, 0)).toEqual({ kind: 'participant', index: 2 });
   });
 
-  it('ignores a repeat of the same participant on the same cell', () => {
+  it('toggles the number off when the same cell is tapped again (SPEC-J03)', () => {
     const first = place(createGamePlacementState(), 0, 0, 3);
     const second = place(first, 0, 0, 3);
-    // No new history step either — a rejected click must not eat an undo.
-    expect(second).toBe(first);
-    expect(placementAt(second.board, 0, 0)).toEqual({ kind: 'numbers', entries: [3] });
+    // v0.4.3 §3.2: a tap on the cell that already carries this 编号 removes it —
+    // the cell goes back to being empty, never a `×`.
+    expect(placementAt(second.board, 0, 0)).toBeNull();
+    expect(forbiddenCells(second.board).size).toBe(0);
+    expect(second.past).toHaveLength(2);
   });
 
   it('ignores a long-press on the cell already showing that avatar', () => {
@@ -161,26 +180,54 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
   });
 });
 
-describe('placement uniqueness (SPEC-G05 §5.2)', () => {
-  it('refuses a second cell for the same participant', () => {
+/**
+ * SPEC-J05 §3.6（docs/v0.4.3.md）：唯一性从「编号 / 头像」**收窄到只有头像**。
+ * 编号是候选标记，同一位参与者可以同时留在多个格子上；短按既不看唯一性，
+ * 也不会再报「编号 N 已放置在 R{r} C{c}」。
+ */
+describe('uniqueness is about the avatar only (SPEC-J05 §3.6)', () => {
+  it('lets the same 编号 sit on several cells at once', () => {
     const first = place(createGamePlacementState(), 1, 1, 1);
     const second = place(first, 4, 4, 1);
-    expect(second).toBe(first);
-    expect(placementAt(second.board, 4, 4)).toBeNull();
+    expect(second).not.toBe(first);
+    expect(placementAt(second.board, 1, 1)).toEqual({ kind: 'numbers', entries: [1] });
+    expect(placementAt(second.board, 4, 4)).toEqual({ kind: 'numbers', entries: [1] });
+    // 候选编号不是「已在别处」——短按永远拿不到这个拒绝码。
     expect(
       placementBlockReason({
-        board: first.board,
-        x: 4,
-        y: 4,
+        board: second.board,
+        x: 6,
+        y: 6,
         participantId: 1,
         noStandCells: EMPTY_NOSTAND,
+      }),
+    ).toBeNull();
+  });
+
+  it('still refuses a second avatar — the long-press confirmation is unique', () => {
+    const confirmed = place(createGamePlacementState(), 1, 1, 2, { variant: 'image' });
+    expect(placementAt(confirmed.board, 1, 1)).toEqual({ kind: 'participant', index: 2 });
+    expect(place(confirmed, 5, 5, 2, { variant: 'image' })).toBe(confirmed);
+    expect(
+      placementBlockReason({
+        board: confirmed.board,
+        x: 5,
+        y: 5,
+        participantId: 2,
+        noStandCells: EMPTY_NOSTAND,
+        variant: 'image',
       }),
     ).toBe('elsewhere');
   });
 
-  it('refuses a second cell even when the new one is a long-press', () => {
-    const first = place(createGamePlacementState(), 1, 1, 2);
-    expect(place(first, 5, 5, 2, { variant: 'image' })).toBe(first);
+  it('confirms a long-press while candidate 编号 wait on other cells', () => {
+    // 候选不是答案：长按其中任一格就是「确认」，随后 SPEC-H01 把候选清掉。
+    let state = place(createGamePlacementState(), 0, 0, 3, { gridSize: 5 });
+    state = place(state, 1, 1, 3, { gridSize: 5 });
+    expect(placementAt(state.board, 0, 0)).toEqual({ kind: 'numbers', entries: [3] });
+    state = place(state, 1, 1, 3, { gridSize: 5, variant: 'image' });
+    expect(placementAt(state.board, 1, 1)).toEqual({ kind: 'participant', index: 3 });
+    expect(placementAt(state.board, 0, 0)).toBeNull();
   });
 
   it('allows promoting the participant on its own cell', () => {
@@ -205,9 +252,130 @@ describe('placement uniqueness (SPEC-G05 §5.2)', () => {
   });
 });
 
+describe('placing a number toggles (SPEC-J03 §3)', () => {
+  it('adds the number on the first tap and removes it on the second', () => {
+    const first = place(createGamePlacementState(), 2, 2, 1);
+    expect(placementAt(first.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
+    const second = place(first, 2, 2, 1);
+    expect(placementAt(second.board, 2, 2)).toBeNull();
+    expect(forbiddenCells(second.board).size).toBe(0);
+  });
+
+  it('drops only its own entry from a shared cell', () => {
+    let state = place(createGamePlacementState(), 3, 3, 1);
+    state = place(state, 3, 3, 2);
+    expect(placementAt(state.board, 3, 3)).toEqual({ kind: 'numbers', entries: [1, 2] });
+    const removed = place(state, 3, 3, 1);
+    expect(placementAt(removed.board, 3, 3)).toEqual({ kind: 'numbers', entries: [2] });
+  });
+
+  it('spends one history step per tap — adding and removing alike', () => {
+    const first = place(createGamePlacementState(), 0, 0, 5);
+    expect(first.past).toHaveLength(1);
+    const off = place(first, 0, 0, 5);
+    expect(off.past).toHaveLength(2);
+    // Undo walks back through the removal first, then the insertion.
+    expect(undo(off).board[cellKey(0, 0)]).toEqual({ kind: 'numbers', entries: [5] });
+    expect(undo(undo(off)).board).toEqual({});
+  });
+
+  it('never toggles an avatar away — a tap there is refused (Q5)', () => {
+    const avatar = place(createGamePlacementState(), 1, 1, 4, { variant: 'image' });
+    expect(place(avatar, 1, 1, 4)).toBe(avatar);
+    expect(
+      placementBlockReason({
+        board: avatar.board,
+        x: 1,
+        y: 1,
+        participantId: 4,
+        noStandCells: EMPTY_NOSTAND,
+      }),
+    ).toBe('avatar');
+    expect(placementAt(avatar.board, 1, 1)).toEqual({ kind: 'participant', index: 4 });
+  });
+
+  it('stops refusing a repeat — `duplicate` is not a block reason any more', () => {
+    const state = place(createGamePlacementState(), 6, 6, 7);
+    expect(
+      placementBlockReason({
+        board: state.board,
+        x: 6,
+        y: 6,
+        participantId: 7,
+        noStandCells: EMPTY_NOSTAND,
+      }),
+    ).toBeNull();
+    expect(
+      canPlaceParticipant({
+        board: state.board,
+        x: 6,
+        y: 6,
+        participantId: 7,
+        noStandCells: EMPTY_NOSTAND,
+      }),
+    ).toBe(true);
+  });
+
+  it('keeps the 9-cell cap on the add direction only', () => {
+    const full: GamePlacementBoard = {
+      '0,0': { kind: 'numbers', entries: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
+    };
+    const state = withPlacements(full);
+    expect(place(state, 0, 0, 10)).toBe(state);
+    // …but toggling one of the nine off is still allowed.
+    const off = place(state, 0, 0, 4);
+    expect(placementAt(off.board, 0, 0)).toEqual({
+      kind: 'numbers',
+      entries: [1, 2, 3, 5, 6, 7, 8, 9],
+    });
+  });
+
+  it('still refuses a tap on a cell carrying a ×', () => {
+    const state = forbid(createGamePlacementState(), 4, 4);
+    expect(place(state, 4, 4, 1)).toBe(state);
+  });
+
+  it('no longer refuses a tap on another cell — the 编号 may repeat (§3.6)', () => {
+    const first = place(createGamePlacementState(), 1, 1, 1);
+    const second = place(first, 4, 4, 1);
+    expect(second).not.toBe(first);
+    expect(placementAt(second.board, 1, 1)).toEqual({ kind: 'numbers', entries: [1] });
+    expect(placementAt(second.board, 4, 4)).toEqual({ kind: 'numbers', entries: [1] });
+  });
+});
+
+describe('the automatic × is a long-press consequence only (SPEC-J02 §2)', () => {
+  it('leaves the row and the column alone when a 编号 lands', () => {
+    const next = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6 });
+    expect(forbiddenCells(next.board).size).toBe(0);
+    expect(Object.keys(next.board)).toEqual([cellKey(2, 3)]);
+  });
+
+  it('lets several 编号 share a row — exclusions are the player’s own business', () => {
+    let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
+    state = place(state, 1, 0, 2, { gridSize: 5 });
+    state = place(state, 2, 0, 3, { gridSize: 5 });
+    expect(forbiddenCells(state.board).size).toBe(0);
+    expect(countPlacements(state.board)).toBe(3);
+    // The row clash is the validator's job, not the sweep's (v0.4.3 §2.4).
+    const result = validatePlacement({
+      board: state.board,
+      slots: [slot(101), slot(102), slot(103)],
+    });
+    expect(result.passed).toBe(false);
+    expect(result.issues.filter((issue) => issue.code === 'row')).toHaveLength(6);
+  });
+
+  it('still fills the row and the column on a long-press', () => {
+    const next = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6, variant: 'image' });
+    expect(placementAt(next.board, 2, 3)).toEqual({ kind: 'participant', index: 1 });
+    expect(forbiddenCells(next.board).size).toBeGreaterThan(0);
+  });
+});
+
 describe('the automatic × on the row and column (SPEC-G06)', () => {
   it('covers exactly the rest of the row and the column', () => {
-    const next = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6 });
+    const next = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6, variant: 'image' });
     const swept = sweepOf(2, 3, 6);
     // 5 others on the row + 5 others on the column.
     expect(swept).toHaveLength(10);
@@ -217,13 +385,17 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
       });
     }
     // The cell that received the participant is untouched.
-    expect(placementAt(next.board, 2, 3)).toEqual({ kind: 'numbers', entries: [1] });
+    expect(placementAt(next.board, 2, 3)).toEqual({ kind: 'participant', index: 1 });
   });
 
   it('skips non-standable cells, avatars and existing ×', () => {
     // A pre-existing avatar at (3,0): the sweep must leave it alone.
     const state = withPlacements({ '3,0': { kind: 'participant', index: 8 } });
-    const next = place(state, 1, 0, 1, { noStandCells: nostand('4,0'), gridSize: 5 });
+    const next = place(state, 1, 0, 1, {
+      noStandCells: nostand('4,0'),
+      gridSize: 5,
+      variant: 'image',
+    });
     // Row 0: 0 → ×, 1 = placed, 2 → ×, 3 = avatar, 4 = non-standable.
     expect(placementAt(next.board, 0, 0)).toEqual({ kind: 'forbidden' });
     expect(placementAt(next.board, 2, 0)).toEqual({ kind: 'forbidden' });
@@ -234,7 +406,7 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
   });
 
   it('is idempotent — a repeated sweep records no extra step', () => {
-    const first = place(createGamePlacementState(), 2, 2, 1, { gridSize: 4 });
+    const first = place(createGamePlacementState(), 2, 2, 1, { gridSize: 4, variant: 'image' });
     const again = autoForbiddenCells({
       board: first.board,
       x: 2,
@@ -250,18 +422,16 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
   });
 
   it('merges the placement and the sweep into one undo step', () => {
-    const placed = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6 });
+    const placed = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6, variant: 'image' });
     const undone = undo(placed);
     expect(countPlacements(undone.board)).toBe(0);
   });
 
   it('overwrites a numbers-only cell in the row (方案 A §6.2)', () => {
-    // Participant 8 sits at (4, 0); placing 1 in the same row clears it out.
-    // The × the first placement left on (1,0) is cleared by hand first — that
-    // is exactly the path a player takes to reach a row clash at all.
+    // Participant 8 carries a 编号 at (4, 0); confirming 1 at (1, 0) with a
+    // long-press sweeps the same row, and the × wins over a 编号-only cell.
     let state = place(createGamePlacementState(), 4, 0, 8, { gridSize: 6 });
-    state = clearCell(state, { x: 1, y: 0 });
-    state = place(state, 1, 0, 1, { gridSize: 6 });
+    state = place(state, 1, 0, 1, { gridSize: 6, variant: 'image' });
     expect(placementAt(state.board, 4, 0)).toEqual({ kind: 'forbidden' });
     expect(placedParticipantIds(state.board).has(8)).toBe(false);
   });
@@ -269,7 +439,7 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
   it('leaves an avatar in the row alone, so the clash reaches the validator', () => {
     let state = place(createGamePlacementState(), 4, 0, 8, { gridSize: 6, variant: 'image' });
     state = clearCell(state, { x: 1, y: 0 });
-    state = place(state, 1, 0, 1, { gridSize: 6 });
+    state = place(state, 1, 0, 1, { gridSize: 6, variant: 'image' });
     expect(placementAt(state.board, 4, 0)).toEqual({ kind: 'participant', index: 8 });
     const result = validatePlacement({
       board: state.board,
@@ -280,8 +450,8 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
   });
 
   it('does not sweep when the placement itself was refused', () => {
-    const first = place(createGamePlacementState(), 1, 1, 1, { gridSize: 5 });
-    const refused = place(first, 2, 2, 1, { gridSize: 5 });
+    const first = place(createGamePlacementState(), 1, 1, 1, { gridSize: 5, variant: 'image' });
+    const refused = place(first, 2, 2, 1, { gridSize: 5, variant: 'image' });
     expect(refused).toBe(first);
   });
 });
@@ -634,34 +804,115 @@ describe('number cleanup on placement (SPEC-H01 §1.2)', () => {
     expect(undo(state).board).toEqual(legacy);
   });
 
-  it('still spends exactly one history step on the normal path (v0.4.1 equivalent)', () => {
+  it('still spends exactly one history step per gesture (v0.4.1 equivalent)', () => {
     const first = place(createGamePlacementState(), 2, 2, 1);
     expect(first.past).toHaveLength(1);
-    // A refused duplicate must not eat a history step.
-    expect(place(first, 6, 6, 1)).toBe(first);
-    expect(first.past).toHaveLength(1);
-    expect(placementAt(first.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
+    // SPEC-J05: a second cell is a second candidate 编号 — that costs a step…
+    const second = place(first, 6, 6, 1);
+    expect(second.past).toHaveLength(2);
+    // …but a refused tap must not eat one.
+    const blocked = place(forbid(second, 3, 3), 3, 3, 1);
+    expect(blocked.past).toHaveLength(second.past.length + 1);
+    const refused = place(blocked, 3, 3, 1);
+    expect(refused).toBe(blocked);
+    expect(placementAt(second.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
   });
 
-  it('runs the cleanup inside placeParticipant, after the × sweep and before the commit', () => {
-    const source =
-      ((
-        import.meta.glob('./gamePlacement.ts', {
-          query: '?raw',
-          import: 'default',
-          eager: true,
-        }) as Record<string, string>
-      )['./gamePlacement.ts'] ?? '').replace(/\r\n/g, '\n');
-    const body = source.slice(
-      source.indexOf('export function placeParticipant('),
-      source.indexOf('export function placeForbidden('),
+  it('runs the × sweep only under the long-press guard (SPEC-J02 §2.2)', () => {
+    const body = placeParticipantBody();
+    const assignmentAt = body.indexOf("if (variant === 'image') {");
+    expect(assignmentAt).toBeGreaterThan(-1);
+    // The number path — toggle-off return and add branch included — reaches
+    // neither sweep.
+    const numberPath = body.slice(0, assignmentAt);
+    expect(numberPath).not.toContain('autoForbiddenCells');
+    expect(numberPath).not.toContain('sweepParticipantNumbers');
+    // Both live inside the guard that the `image` variant opens (the last one).
+    const guard = body.slice(body.lastIndexOf("if (variant === 'image') {"));
+    expect(guard).toContain('autoForbiddenCells({');
+    expect(guard).toContain('for (const swept of');
+    // SPEC-H01 cleanup runs after the × sweep, inside the same gesture.
+    expect(guard.indexOf('sweepParticipantNumbers(board, {')).toBeGreaterThan(
+      guard.indexOf('for (const swept of'),
     );
-    const autoAt = body.indexOf('autoForbiddenCells({');
-    const sweepAt = body.indexOf('sweepParticipantNumbers(board, {');
-    const commitAt = body.indexOf('return commit(state, board);');
-    expect(autoAt).toBeGreaterThan(-1);
-    expect(sweepAt).toBeGreaterThan(autoAt);
-    expect(commitAt).toBeGreaterThan(sweepAt);
+    expect(guard).toContain('return commit(state, board);');
+  });
+
+  it('returns from the toggle-off branch before touching the sweep (SPEC-J03 §3.2)', () => {
+    const body = placeParticipantBody();
+    const toggleAt = body.indexOf('previous.entries.includes(input.participantId)');
+    const returnAt = body.indexOf('return commit(state, board);');
+    expect(toggleAt).toBeGreaterThan(-1);
+    expect(returnAt).toBeGreaterThan(toggleAt);
+    const toggleBlock = body.slice(toggleAt, returnAt);
+    expect(toggleBlock).toContain('delete board[key];');
+    expect(toggleBlock).toContain('filter((entry) => entry !== input.participantId)');
+    expect(toggleBlock).not.toContain('autoForbiddenCells');
+    expect(toggleBlock).not.toContain('sweepParticipantNumbers');
+  });
+});
+
+/**
+ * SPEC-J05 §3.6（docs/v0.4.3.md）：编号 = 候选标记，**可以重复落在多个格子上**；
+ * 唯一的是头像。连带两处口径：`participantPlacementAt` 先看头像（没有头像时只有
+ * 「恰好一个候选」才算数），提交校验把「只有候选、没确认」与「完全没动」分开讲。
+ */
+describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
+  it('keeps a copy on every cell the 编号 was tapped on', () => {
+    let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
+    state = place(state, 3, 1, 1, { gridSize: 5 });
+    state = place(state, 4, 4, 1, { gridSize: 5 });
+    expect(countPlacements(state.board)).toBe(3);
+    for (const [x, y] of [[0, 0], [3, 1], [4, 4]] as const) {
+      expect(placementAt(state.board, x, y)).toEqual({ kind: 'numbers', entries: [1] });
+    }
+    expect(candidateCellCount(state.board, 1)).toBe(3);
+    // 候选编号不产生任何排除项，也不互相清理。
+    expect(forbiddenCells(state.board).size).toBe(0);
+    expect(placedParticipantIds(state.board).has(1)).toBe(true);
+  });
+
+  it('takes one copy away without touching the others', () => {
+    let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
+    state = place(state, 2, 2, 1, { gridSize: 5 });
+    const off = place(state, 2, 2, 1, { gridSize: 5 });
+    expect(placementAt(off.board, 2, 2)).toBeNull();
+    expect(placementAt(off.board, 0, 0)).toEqual({ kind: 'numbers', entries: [1] });
+    expect(candidateCellCount(off.board, 1)).toBe(1);
+  });
+
+  it('answers 「where is this participant」 with the avatar, else the lone candidate', () => {
+    const single = place(createGamePlacementState(), 2, 2, 5).board;
+    expect(participantPlacementAt(single, 5)).toEqual({ x: 2, y: 2 });
+    // 两个候选、没有头像 → 谁也确认不了 → null（不再随机挑一个）。
+    const many = place(withPlacements(single), 4, 4, 5, { gridSize: 5 });
+    expect(participantPlacementAt(many.board, 5)).toBeNull();
+    // 头像压过候选编号。
+    const confirmed = place(many, 4, 4, 5, { gridSize: 5, variant: 'image' });
+    expect(participantPlacementAt(confirmed.board, 5)).toEqual({ x: 4, y: 4 });
+  });
+
+  it('tells 「尚未确认」 apart from 「尚未放置」 at submit time', () => {
+    let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
+    state = place(state, 2, 2, 1, { gridSize: 5 });
+    const result = validatePlacement({ board: state.board, slots: [slot(101), slot(102)] });
+    expect(result.passed).toBe(false);
+    expect(result.issues).toEqual([
+      {
+        participantId: 1,
+        code: 'unplaced',
+        message: '编号 1 尚未确认（2 格只有候选编号，长按格子放置头像才算放置）',
+      },
+      { participantId: 2, code: 'unplaced', message: '编号 2 尚未放置' },
+    ]);
+  });
+
+  it('passes a participant who confirmed the avatar on one of its candidate cells', () => {
+    let state = place(createGamePlacementState(), 1, 1, 1, { gridSize: 5 });
+    state = place(state, 1, 1, 1, { gridSize: 5, variant: 'image' });
+    const result = validatePlacement({ board: state.board, slots: [slot(101)] });
+    expect(result.issues).toEqual([]);
+    expect(result.passed).toBe(true);
   });
 });
 

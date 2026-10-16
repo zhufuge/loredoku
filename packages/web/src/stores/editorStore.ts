@@ -46,14 +46,36 @@ export function genSlotArray(
   return Array.from({ length: size }, (_, index) => existing[index] ?? null);
 }
 
-/** Normalises a roster entry so it always carries theme + clue + linkages. */
+/**
+ * Normalises a roster entry so it always carries theme + clue + linkages.
+ *
+ * BUG-J04 (docs/v0.4.3.md §4.2): this used to copy exactly **four** fields and
+ * silently dropped `positionConditions`. The list then survived neither a
+ * `commit` (`snapshot()` runs on every edit), nor `init()` (a page reload), nor
+ * `toDraft()` (what actually reaches the server — so the game page's position
+ * check never saw it either). Every field of `CharacterSlotEntry` must ride
+ * through here.
+ *
+ * §9 Q7: an entry that is already normalised is returned **by identity**, so the
+ * `ParticipantDrawer`'s seeding effect (`[open, slot]`) stops firing — and
+ * discarding unsaved local edits — on every unrelated commit. Callers only ever
+ * *replace* slot objects, never mutate them in place, so sharing the reference
+ * stays safe.
+ */
 function ensureEntry(entry: CharacterSlotEntry | null): CharacterSlotEntry | null {
   if (!entry) return null;
+  if (entry.themeColor != null && entry.clue != null && entry.linkages != null) return entry;
+  const conditions = entry.positionConditions ?? [];
   return {
     characterId: entry.characterId,
     themeColor: entry.themeColor ?? DEFAULT_THEME_COLOR,
     clue: entry.clue ?? '',
     linkages: (entry.linkages ?? []).map((linkage) => ({ ...linkage })),
+    // FEAT-E01 §7.4: an empty list means "no positional constraint", so it is
+    // stored as an absent field — the same rule `setParticipantConfig` uses.
+    ...(conditions.length > 0
+      ? { positionConditions: conditions.map((condition) => ({ ...condition })) }
+      : {}),
   };
 }
 
@@ -534,6 +556,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
                   themeColor: slot?.themeColor ?? DEFAULT_THEME_COLOR,
                   clue: slot?.clue ?? '',
                   linkages: (slot?.linkages ?? []).map((linkage) => ({ ...linkage })),
+                  // v0.4.3 §9 Q8: position conditions belong to the *character*
+                  // that was there before, so assigning a new one starts clean.
                 }
               : null
             : slot,

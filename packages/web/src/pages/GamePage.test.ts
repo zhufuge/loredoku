@@ -143,17 +143,32 @@ describe('GamePage (FEAT-G03)', () => {
     expect(pageSource).toContain('toast.error(describeBlock(block, mode.participantId, placementState.board))');
     // CLAR-H13（docs/v0.4.2.md §1.1）: the toast says 编号 — a participant is not
     // the same thing as the participant's number.
-    expect(pageSource).toContain('编号 ${participantId} 已放置在 ${formatCellLabel(at)}');
     expect(pageSource).toContain('该格已有编号 ${participantId}');
+    // SPEC-J05 §3.6（docs/v0.4.3.md）：编号可以落在多个格子上，所以「已在别处」
+    // 这条拒绝只剩头像一种情况，文案也跟着改成头像，不再报「编号 N 已放置在 …」。
+    expect(pageSource).toContain('该参与者的头像已放置在 ${formatCellLabel(at)}');
+    expect(pageSource).not.toContain('编号 ${participantId} 已放置在');
   });
 
-  it('spells out 编号 vs 参与者 in the left column (CLAR-H13 §1.1)', () => {
-    // v0.4.2 §1.1 口径 3：左栏提示必须区分「参与者」与「参与者编号」，
-    // 并说明落格后会清理其它格子的编号、已放置的卡片会变淡。
-    expect(pageSource).toContain('点击参与者后，短按格子放置编号、长按放置头像');
-    expect(pageSource).toContain('每位参与者的编号 / 头像只能出现在');
-    expect(pageSource).toContain('该参与者在其它格子的编号会被清除');
+  it('spells out 编号 vs 参与者 in the left column (CLAR-J01 §1.3)', () => {
+    // v0.4.3 §1.3：左栏提示必须讲清「点击格子放的是编号」「再点一次即移除」
+    // 「长按才是放头像」「只有长按补 ×」，并告诉玩家禁止符号可以手动补。
+    expect(pageSource).toContain('点击参与者进入放置状态：点击格子放置的是该参与者的「编号」');
+    expect(pageSource).toContain('再次点击同一格即移除');
+    expect(pageSource).toContain('长按格子（≥500ms）放置的是该参与者的「头像」');
+    expect(pageSource).toContain('编号与参与者不是一个东西');
+    expect(pageSource).toContain('点编号不会触发行 / 列的排除项');
+    expect(pageSource).toContain('只有长按放头像时才会自动在同行同列补上 ×');
+    expect(pageSource).toContain('并把该参与者留在其它格子的编号清除');
+    // SPEC-J05 §3.6：编号可以多处，只有头像唯一 —— 左栏文案必须这么说。
+    expect(pageSource).toContain('同一位参与者的编号可以同时留在多个格子上');
+    expect(pageSource).toContain('每位参与者的头像只能有一个');
+    expect(pageSource).not.toContain('编号 / 头像仍只能出现在一个格子上');
+    expect(pageSource).toContain('需要手动排除时，用工具栏的「禁止符号」');
     expect(pageSource).toContain('已放置的参与者卡片会变淡');
+    // The v0.4.2 wording (which read as "a tap puts the participant down") is gone.
+    expect(pageSource).not.toContain('短按格子放置编号、长按放置头像');
+    expect(pageSource).not.toContain('落格后同行同列会自动补上排除项');
   });
 
   it('dims the roster cards of placed participants', () => {
@@ -175,7 +190,7 @@ describe('GamePage (FEAT-G03)', () => {
   });
 
   it('places a number on a tap and the avatar on a long-press', () => {
-    // v0.4.0 验收补充：点击格子放参与者编号，长按格子放参与者头像。
+    // v0.4.0 验收补充 + v0.4.3 SPEC-J03：点击格子切换参与者编号，长按格子放头像。
     expect(pageSource).toContain("dispatchCell(cell.x, cell.y, 'number')");
     expect(pageSource).toContain("dispatchCell(x, y, 'image')");
     // 长按定时器与工具栏清除按钮同源（GAME_LONG_PRESS_MS）。
@@ -187,6 +202,15 @@ describe('GamePage (FEAT-G03)', () => {
     // 长按生效后，同一手势末尾的 click 必须被吞掉。
     expect(pageSource).toContain('press?.fired');
     expect(pageSource).toContain('startCellPress(cell.x, cell.y)');
+  });
+
+  it('never sweeps the row/column itself — that lives in placeParticipant (SPEC-J02)', () => {
+    // SPEC-J02 §2.2：页面只负责把「短按 / 长按」报上去，是否补 × 由纯函数决定
+    // （现在是「只有长按补」）。页面层不得自己碰 autoForbiddenCells。
+    expect(pageSource).not.toContain('autoForbiddenCells');
+    // 短按与长按走同一条派发路径，只有 variant 不同。
+    expect(pageSource).toContain("dispatchCell(cell.x, cell.y, 'number')");
+    expect(pageSource).toContain("dispatchCell(x, y, 'image')");
   });
 
   it('long-pressing the clear button wipes the whole board', () => {

@@ -446,6 +446,176 @@ describe('toDraft', () => {
   });
 });
 
+describe('positionConditions survives (BUG-J04 §4)', () => {
+  const CONDITIONS = [
+    { x: 1, y: 2 },
+    { x: 3, y: 0 },
+  ];
+
+  /** A 4×4 draft whose first two slots are filled and configurable. */
+  function withRoster(): MapDraft {
+    const loaded = draft(4);
+    loaded.characterSlots = [
+      { characterId: 8, themeColor: '#FFCC00', clue: '', linkages: [] },
+      { characterId: 9, themeColor: '#00FFCC', clue: '', linkages: [] },
+      null,
+      null,
+    ];
+    return loaded;
+  }
+
+  function load(draftToLoad: MapDraft): void {
+    store().init(11, draftToLoad, {
+      updatedAt: null,
+      currentVersionNo: null,
+      status: 'draft',
+    });
+  }
+
+  it('ensureEntry carries every CharacterSlotEntry field (source guard)', () => {
+    const source =
+      ((
+        import.meta.glob('./editorStore.ts', {
+          query: '?raw',
+          import: 'default',
+          eager: true,
+        }) as Record<string, string>
+      )['./editorStore.ts'] ?? '').replace(/\r\n/g, '\n');
+    const body = source.slice(
+      source.indexOf('function ensureEntry('),
+      source.indexOf('export interface EditorMeta'),
+    );
+    // The 5th field is the one that went missing — pin all of them.
+    for (const field of ['characterId', 'themeColor', 'clue', 'linkages', 'positionConditions']) {
+      expect(body).toContain(field);
+    }
+  });
+
+  it('survives init — a page reload no longer drops the list', () => {
+    const loaded = withRoster();
+    loaded.characterSlots[0] = {
+      characterId: 8,
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    };
+    load(loaded);
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+  });
+
+  it('survives the next save — filling participant 2 keeps participant 1 intact', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    store().setParticipantConfig(1, {
+      themeColor: '#00FFCC',
+      clue: '',
+      linkages: [],
+      positionConditions: [{ x: 0, y: 0 }],
+    });
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+    expect(store().characterSlots[1]?.positionConditions).toEqual([{ x: 0, y: 0 }]);
+  });
+
+  it('survives an unrelated commit', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    store().placeBackground(3, 0, 0);
+    store().setMapStyle((current) => ({ ...current, canvasFrame: { ...current.canvasFrame, width: 8 } }));
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+  });
+
+  it('reaches toDraft — what the server stores now carries it', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    expect(store().toDraft().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+  });
+
+  it('survives a grid resize and an applyDraft', () => {
+    const loaded = withRoster();
+    loaded.characterSlots[0] = {
+      characterId: 8,
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    };
+    load(loaded);
+    store().setGridSize(3);
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+    store().applyDraft(loaded);
+    expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
+  });
+
+  it('defensively copies the list on the way in', () => {
+    load(withRoster());
+    const conditions = [{ x: 1, y: 1 }];
+    store().setParticipantConfig(0, {
+      themeColor: '#FFFFFF',
+      clue: '',
+      linkages: [],
+      positionConditions: conditions,
+    });
+    const stored = store().characterSlots[0]?.positionConditions;
+    expect(stored).not.toBe(conditions);
+    expect(stored?.[0]).not.toBe(conditions[0]);
+    conditions[0]!.x = 9;
+    expect(store().characterSlots[0]?.positionConditions).toEqual([{ x: 1, y: 1 }]);
+  });
+
+  it('stores an empty list as an absent field, never a dead array', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFFFFF',
+      clue: '',
+      linkages: [],
+      positionConditions: [],
+    });
+    const entry = store().characterSlots[0];
+    expect(entry).not.toBeNull();
+    expect(entry && 'positionConditions' in entry).toBe(false);
+  });
+
+  it('keeps a normalised entry’s identity across commits (§9 Q7)', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, {
+      themeColor: '#FFCC00',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    const entry = store().characterSlots[0];
+    // An unrelated edit must not swap the entry object out — that is what made
+    // `ParticipantDrawer`'s `[open, slot]` effect re-seed (and drop unsaved
+    // local edits) on every commit.
+    store().placeBackground(3, 0, 0);
+    expect(store().characterSlots[0]).toBe(entry);
+    // A real change to that slot still produces a new object.
+    store().setParticipantConfig(0, {
+      themeColor: '#123456',
+      clue: '',
+      linkages: [],
+      positionConditions: CONDITIONS,
+    });
+    expect(store().characterSlots[0]).not.toBe(entry);
+  });
+});
+
 describe('map style (v0.3.8 FEAT-D02/D03/D04)', () => {
   it('starts from the shipped defaults and is always fully resolved', () => {
     const style = store().style;

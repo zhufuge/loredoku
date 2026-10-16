@@ -114,11 +114,14 @@ function readStoredRulerVisible(): boolean {
 }
 
 /**
- * SPEC-G05 §5.2 (docs/v0.4.1.md §5.2) + CLAR-H13 (docs/v0.4.2.md §1.1): the
- * reason a placement was refused, as a toast. Wording says **编号** wherever the
- * cell's content is meant — the participant themselves never enters the map.
- * The uniqueness case names the cell the participant already occupies —
- * "编号 2 已放置在 R3 C4" — because that is the one a player cannot infer.
+ * SPEC-G05 §5.2 (docs/v0.4.1.md §5.2) + CLAR-H13 (docs/v0.4.2.md §1.1) + SPEC-J05
+ * (docs/v0.4.3.md §3.6): the reason a placement was refused, as a toast. Wording
+ * says **编号** wherever the cell's content is meant — the participant themselves
+ * never enters the map.
+ *
+ * The `'elsewhere'` case is about the **avatar** only: candidate 编号 may sit on
+ * several cells, so "you already put this one somewhere" is only worth saying
+ * when a cell was *confirmed* — and then the player needs to be told which.
  */
 function describeBlock(
   block: NonNullable<ReturnType<typeof placementBlockReason>>,
@@ -127,10 +130,12 @@ function describeBlock(
 ): string {
   switch (block) {
     case 'elsewhere': {
+      // SPEC-J05 §3.6：编号可以多处，唯一的是头像 —— 这条拒绝只在「该参与者的头像
+      // 已经确认在别的格子」时出现，所以文案讲头像，不再报「编号 N 已放置在 …」。
       const at = participantPlacementAt(board, participantId);
       return at
-        ? `编号 ${participantId} 已放置在 ${formatCellLabel(at)}`
-        : `编号 ${participantId} 已放置`;
+        ? `该参与者的头像已放置在 ${formatCellLabel(at)}，请先清除那一格`
+        : '该参与者的头像已放置';
     }
     case 'non-standable':
       return '该格有不可站立的物品，不能放置';
@@ -138,6 +143,8 @@ function describeBlock(
       return '该格已标记为排除项，请先清除';
     case 'avatar':
       return '该格已放置该参与者的头像';
+    // SPEC-J03 §9 Q6：短按点「该格已有该编号」现在是 **toggle 删除**，不再走
+    // 拒绝路径。这个 case 保留只为 `PlacementBlock` 的成员完整性（不再被返回）。
     case 'duplicate':
       return `该格已有编号 ${participantId}`;
     case 'grid-full':
@@ -180,9 +187,10 @@ export function GamePage(): JSX.Element {
   /** Long-press on the clear button wipes the whole board (SPEC-G04 §10.2). */
   const clearPressRef = useRef<{ timer: number; fired: boolean } | null>(null);
   /**
-   * v0.4.0 验收补充：放置态下在格子上长按 → 放置参与者头像（短按放编号）。
-   * 与工具栏清除按钮同一模式：定时器触发即生效，随后到来的 click 必须被
-   * 吞掉，否则同一手势会既放头像又放编号。
+   * v0.4.0 验收补充 + v0.4.3 CLAR-J01 / SPEC-J02：放置态下在格子上长按 → 放置
+   * **参与者头像**（这才是「把参与者放到格子上」，也只有它补同行同列的 ×）；
+   * 短按放的是**编号**。与工具栏清除按钮同一模式：定时器触发即生效，随后到来的
+   * click 必须被吞掉，否则同一手势会既放头像又放编号。
    */
   const cellPressRef = useRef<{ timer: number; fired: boolean } | null>(null);
 
@@ -349,6 +357,9 @@ export function GamePage(): JSX.Element {
    * SPEC-G05 §5.3: the roster cards of participants that are already on the
    * board fade out. Derived from the board, so clearing or undoing a placement
    * restores the card with no extra bookkeeping.
+   *
+   * SPEC-J05: "on the board" here means **any mark**, a lone candidate 编号
+   * included — the fade is a "this one has been marked" hint, not a verdict.
    */
   const placedSlotIndices = useMemo(() => {
     const placed = placedParticipantIds(placementState.board);
@@ -450,11 +461,13 @@ export function GamePage(): JSX.Element {
   };
 
   /**
-   * SPEC-G01 / SPEC-G03 / SPEC-G04 / SPEC-G05: one cell interaction, dispatched
-   * by mode. 放置态下 `variant` 区分短按（编号）与长按（头像）；其余工具态忽略它。
+   * SPEC-G01 / SPEC-G03 / SPEC-G04 / SPEC-G05 + v0.4.3 SPEC-J02 / SPEC-J03 /
+   * SPEC-J05: one cell interaction, dispatched by mode. 放置态下 `variant` 区分
+   * **短按（切换编号）**与**长按（放头像）**；其余工具态忽略它。
    *
-   * 被规则拒绝时给出说明——最重要的一条是 SPEC-G05 的唯一性：该参与者已经在
-   * 别的格子上时，toast 指出它在哪里，而不是静默无反应。
+   * 被规则拒绝时给出说明——长按的那条唯一性是「该参与者的头像已经在别的格子
+   * 上」（编号可以多处，所以短按不会再被唯一性挡住），toast 指出头像在哪里，
+   * 而不是静默无反应。
    */
   const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): void => {
     if (mode.kind === 'placing') {
@@ -491,7 +504,10 @@ export function GamePage(): JSX.Element {
     }
   };
 
-  /** 放置态下在格子上按下：启动长按定时器（到点放头像）。 */
+  /**
+   * 放置态下在格子上按下：启动长按定时器（到点放**头像**）。没到点就抬手的
+   * 短按由随后到来的 `click` 收尾 —— 那一路走 SPEC-J03 的**编号切换**。
+   */
   const startCellPress = (x: number, y: number): void => {
     const stale = cellPressRef.current;
     if (stale) window.clearTimeout(stale.timer);
@@ -619,8 +635,11 @@ export function GamePage(): JSX.Element {
               </div>
             </div>
             <p className="text-[11px] leading-relaxed text-muted-foreground">
-              点击参与者后，短按格子放置编号、长按放置头像；每位参与者的编号 / 头像只能出现在
-              一个格子上，落格后同行同列会自动补上排除项，该参与者在其它格子的编号会被清除。
+              点击参与者进入放置状态：点击格子放置的是该参与者的「编号」（再次点击同一格即移除），
+              长按格子（≥500ms）放置的是该参与者的「头像」。编号与参与者不是一个东西——编号只是
+              候选标记，同一位参与者的编号可以同时留在多个格子上，点编号不会触发行 / 列的排除项；
+              只有长按放头像时才会自动在同行同列补上 ×，并把该参与者留在其它格子的编号清除。
+              每位参与者的头像只能有一个。需要手动排除时，用工具栏的「禁止符号」。
               已放置的参与者卡片会变淡。提交前会校验行 / 列互斥与位置条件。
             </p>
           </div>
