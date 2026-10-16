@@ -1,6 +1,14 @@
 import { db } from '../db/knex';
 import type { MapDraft, MapVersionRow, MapVersionSummary, WorkSummary } from '@murdoku/shared';
 
+/** FEAT-G02: the maps that already have a deployed game (one game per map). */
+async function deployedProjectIds(): Promise<Set<number>> {
+  const rows = (await db('map_games').select('project_id')) as Array<{
+    project_id: number | string;
+  }>;
+  return new Set(rows.map((row) => Number(row.project_id)));
+}
+
 /** FEAT-503: the works panel shows participant / region / item totals. */
 function summarizeData(data: MapDraft | null | undefined): {
   participantCount: number;
@@ -46,6 +54,9 @@ export async function listVersions(projectId: number): Promise<MapVersionSummary
 /**
  * OPT-905 §5.3: every published work across all maps, newest first. The
  * project name is joined in because the works table shows 地图名称.
+ *
+ * FEAT-G02 (docs/v0.4.0.md §5.1): `deployed` marks the rows whose map already
+ * has a game, so the table can badge them without a second request.
  */
 export async function listAllVersions(): Promise<WorkSummary[]> {
   const rows = (await db('map_versions as v')
@@ -54,18 +65,29 @@ export async function listAllVersions(): Promise<WorkSummary[]> {
     .orderBy('v.snapshot_created_at', 'desc')) as Array<
     MapVersionRow & { project_name: string | null }
   >;
+  const deployed = await deployedProjectIds();
   return rows.map((row) => ({
     ...toSummary(row),
     projectId: Number(row.project_id),
     projectName: row.project_name ?? '',
+    deployed: deployed.has(Number(row.project_id)),
   }));
 }
 
+/**
+ * OPT-G01 (docs/v0.4.0.md §2): the version detail carries the map name too,
+ * so the preview page can title itself with it (version as a badge).
+ */
 export async function getVersion(
   projectId: number,
   versionNo: number,
-): Promise<MapVersionRow | undefined> {
-  return db<MapVersionRow>('map_versions').where({ project_id: projectId, version_no: versionNo }).first();
+): Promise<(MapVersionRow & { project_name: string | null }) | undefined> {
+  const row = await db('map_versions as v')
+    .join('map_projects as p', 'p.id', 'v.project_id')
+    .where({ 'v.project_id': projectId, 'v.version_no': versionNo })
+    .select('v.*', 'p.name as project_name')
+    .first();
+  return row as (MapVersionRow & { project_name: string | null }) | undefined;
 }
 
 export async function countVersions(projectId: number): Promise<number> {

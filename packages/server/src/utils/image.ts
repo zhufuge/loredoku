@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import {
   CHARACTER_AVATAR_MAX_DIMENSION,
   ErrorCode,
+  GAME_COVER_MAX_DIMENSION,
   THUMBNAIL_MAX_DIMENSION,
   UPLOAD_ALLOWED_MIME,
 } from '@murdoku/shared';
@@ -67,6 +68,11 @@ export async function processCardImage(cardId: number, buffer: Buffer): Promise<
 
 export async function processAvatarImage(characterId: number, buffer: Buffer): Promise<ProcessedImage> {
   return processImage('characters', characterId, buffer, CHARACTER_AVATAR_MAX_DIMENSION);
+}
+
+/** FEAT-G02: a deployed game's cover art, stored under `games/<gameId>/`. */
+export async function processGameCover(gameId: number, buffer: Buffer): Promise<ProcessedImage> {
+  return processImage('games', gameId, buffer, GAME_COVER_MAX_DIMENSION);
 }
 
 async function processImage(

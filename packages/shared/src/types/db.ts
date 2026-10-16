@@ -2,6 +2,7 @@ import type {
   CardRotation,
   CharacterGender,
   EffectType,
+  GameDifficulty,
   ItemCategory,
   ItemFitMode,
   MapDraft,
@@ -82,6 +83,27 @@ export interface MapVersionRow {
   data: MapDraft;
   notes: string | null;
   snapshot_created_at: Date | string;
+}
+
+/**
+ * FEAT-G02 (docs/v0.4.0.md §5.1): a deployed game. `project_id` is unique —
+ * one deployed game per map, later deploys overwrite the row.
+ */
+export interface MapGameRow {
+  id: string | number;
+  project_id: string | number;
+  version_no: number;
+  name: string;
+  cover_path: string | null;
+  cover_mime: string | null;
+  cover_size: number | null;
+  cover_width: number | null;
+  cover_height: number | null;
+  difficulty: GameDifficulty;
+  grid_size: number;
+  snapshot: MapDraft;
+  created_at: Date | string;
+  updated_at: Date | string;
 }
 
 export interface MapCellRow {

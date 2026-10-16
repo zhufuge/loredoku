@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronDown, Download, Eye, Loader2, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronDown, Download, Eye, Loader2, Rocket, RotateCcw, Trash2 } from 'lucide-react';
 import type { WorkSummary } from '@murdoku/shared';
 import {
   AlertDialog,
@@ -19,6 +19,8 @@ import {
   useCreateDraftFromVersion,
   useDeleteVersion,
 } from '@/hooks/useVersions';
+import { useGames } from '@/hooks/useGames';
+import { GameDeployDialog } from '@/components/game/GameDeployDialog';
 import { formatDateTimeMinute } from '@/lib/format';
 import {
   buildWorksTable,
@@ -123,6 +125,7 @@ function MapFilter({
 export function WorksPage(): JSX.Element {
   const navigate = useNavigate();
   const worksQuery = useAllWorks();
+  const gamesQuery = useGames();
   const createDraft = useCreateDraftFromVersion();
   const deleteWork = useDeleteVersion();
 
@@ -130,6 +133,7 @@ export function WorksPage(): JSX.Element {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(WORKS_PAGE_SIZE_OPTIONS[0]);
   const [deleteTarget, setDeleteTarget] = useState<WorkSummary | null>(null);
+  const [deployTarget, setDeployTarget] = useState<WorkSummary | null>(null);
 
   useEffect(() => {
     document.title = '作品 · Murdoku Maker';
@@ -146,6 +150,15 @@ export function WorksPage(): JSX.Element {
     () => buildWorksTable(works, filters, page, pageSize),
     [works, filters, page, pageSize],
   );
+  // FEAT-G02 §5.1: one game per map, so projectId → gameId is enough to jump
+  // from the "已部署" badge straight to the game page.
+  const gameIdByProject = useMemo(() => {
+    const map = new Map<number, number>();
+    for (const game of gamesQuery.data ?? []) {
+      map.set(game.projectId, game.id);
+    }
+    return map;
+  }, [gamesQuery.data]);
 
   const exportWork = (work: WorkSummary): void => {
     void (async () => {
@@ -291,7 +304,28 @@ export function WorksPage(): JSX.Element {
               table.rows.map((work) => (
                 <tr key={`${work.projectId}-${work.id}`} className="border-t align-middle">
                   <td className="whitespace-nowrap px-3 py-2 font-medium">v{work.versionNo}</td>
-                  <td className="px-3 py-2">{work.projectName}</td>
+                  <td className="px-3 py-2">
+                    <span className="flex items-center gap-2">
+                      {work.projectName}
+                      {work.deployed ? (
+                        <button
+                          type="button"
+                          className="shrink-0 cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground transition-colors hover:bg-secondary/70"
+                          title="该地图已部署为游戏，点击进入游戏页面"
+                          onClick={() => {
+                            const gameId = gameIdByProject.get(work.projectId);
+                            if (gameId === undefined) {
+                              navigate('/games');
+                              return;
+                            }
+                            navigate(`/games/${gameId}`);
+                          }}
+                        >
+                          已部署
+                        </button>
+                      ) : null}
+                    </span>
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                     {formatDateTimeMinute(work.publishedAt)}
                   </td>
@@ -318,6 +352,15 @@ export function WorksPage(): JSX.Element {
                       >
                         <Eye className="mr-1 h-3.5 w-3.5" />
                         查看效果
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8"
+                        onClick={() => setDeployTarget(work)}
+                      >
+                        <Rocket className="mr-1 h-3.5 w-3.5" />
+                        {work.deployed ? '重新部署' : '部署'}
                       </Button>
                       <Button
                         size="sm"
@@ -425,6 +468,14 @@ export function WorksPage(): JSX.Element {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <GameDeployDialog
+        work={deployTarget}
+        open={deployTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeployTarget(null);
+        }}
+      />
     </div>
   );
 }

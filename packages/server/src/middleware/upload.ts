@@ -9,3 +9,4 @@ const imageUpload = multer({
 export const cardImageUpload = imageUpload;
 export const itemImageUpload = imageUpload;
 export const characterAvatarUpload = imageUpload;
+export const gameCoverUpload = imageUpload;

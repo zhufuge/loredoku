@@ -2,6 +2,8 @@ import { Navigate, createBrowserRouter } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { CharactersPage } from '@/pages/CharactersPage';
 import { EditorPage } from '@/pages/EditorPage';
+import { GamePage } from '@/pages/GamePage';
+import { GamesPage } from '@/pages/GamesPage';
 import { ItemsPage } from '@/pages/ItemsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 import { ProjectsPage } from '@/pages/ProjectsPage';
@@ -30,5 +32,17 @@ export const router = createBrowserRouter([
   {
     path: '/works/:workId/view',
     element: <WorkViewPage />,
+  },
+  {
+    // FEAT-G01 (v0.4.0 验收补充): the games home is a player-facing entry, NOT
+    // part of the maker's console — it lives outside `AppShell` so no other
+    // module's navigation is visible, and is reached only by link.
+    path: '/games',
+    element: <GamesPage />,
+  },
+  {
+    // FEAT-G03: the game page is a full-screen play surface, like the editor.
+    path: '/games/:gameId',
+    element: <GamePage />,
   },
 ]);

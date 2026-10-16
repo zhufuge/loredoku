@@ -9,6 +9,7 @@ const createdProjects: number[] = [];
 const createdItems: number[] = [];
 const createdCharacters: number[] = [];
 const uploadedAvatarDirs: string[] = [];
+const uploadedGameCoverDirs: string[] = [];
 
 function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
@@ -471,14 +472,145 @@ describe('works API (OPT-905)', () => {
       versionNo: number;
       notes: string | null;
       publishedAt: string;
+      deployed: boolean;
     }>;
     const a = rows.find((row) => row.projectId === projectA);
     const b = rows.find((row) => row.projectId === projectB);
     expect(a?.projectName).toContain('WorksA');
     expect(a?.versionNo).toBe(1);
     expect(b?.projectName).toContain('WorksB');
+    // FEAT-G02: a freshly published work carries no badge. Scoped to the two
+    // rows this test created — the assertion must not depend on what else
+    // lives in the (shared, manually seeded) dev database.
+    expect(a?.deployed).toBe(false);
+    expect(b?.deployed).toBe(false);
     // §5.3 default ordering: newest first.
     expect(rows[0]!.publishedAt >= rows[rows.length - 1]!.publishedAt).toBe(true);
+  });
+});
+
+// ---- v0.4.0 FEAT-G02: deployed games (docs/v0.4.0.md §5) ----
+describe('games API (FEAT-G02)', () => {
+  /** A publishable draft: one participant with an avatar, nothing else. */
+  async function publishableProject(name: string): Promise<{ projectId: number; draft: MapDraft }> {
+    const projectId = await createProject({ name, gridSize: 6 });
+    const characterId = await createCharacterWithAvatar();
+    const draft = emptyDraft(6);
+    draft.characterSlots[0] = { characterId };
+    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v1' });
+    return { projectId, draft };
+  }
+
+  it('deploys a published work and lists it on the games home page', async () => {
+    const { projectId } = await publishableProject(`Game ${uniqueCode('p')}`);
+
+    const deploy = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, name: '神秘古堡', difficulty: 'hard' });
+    expect(deploy.status).toBe(200);
+    expect(deploy.body.data.name).toBe('神秘古堡');
+    expect(deploy.body.data.difficulty).toBe('hard');
+    expect(deploy.body.data.gridSize).toBe(6);
+    expect(deploy.body.data.coverUrl).toBeNull();
+
+    const list = await api.get('/api/games');
+    expect(list.status).toBe(200);
+    const rows = list.body.data as Array<{ id: number; projectId: number; name: string }>;
+    const row = rows.find((entry) => entry.projectId === projectId);
+    expect(row?.name).toBe('神秘古堡');
+
+    // FEAT-G02 §5.1: the works table now badges the map as deployed.
+    const works = await api.get('/api/versions');
+    const work = (works.body.data as Array<{ projectId: number; deployed: boolean }>).find(
+      (entry) => entry.projectId === projectId,
+    );
+    expect(work?.deployed).toBe(true);
+
+    const detail = await api.get(`/api/games/${deploy.body.data.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.data.characterSlots[0]).not.toBeNull();
+  });
+
+  it('defaults the game name to the map name and the difficulty to medium', async () => {
+    const name = `Defaulted ${uniqueCode('p')}`;
+    const { projectId } = await publishableProject(name);
+
+    const deploy = await api.post(`/api/projects/${projectId}/games`).send({ versionNo: 1 });
+    expect(deploy.status).toBe(200);
+    expect(deploy.body.data.name).toBe(name);
+    expect(deploy.body.data.difficulty).toBe('medium');
+  });
+
+  it('keeps one game per map — a later deploy overwrites the earlier one', async () => {
+    const { projectId } = await publishableProject(`Overwrite ${uniqueCode('p')}`);
+
+    const first = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, name: '第一版', difficulty: 'easy' });
+    expect(first.status).toBe(200);
+
+    // Publish a second version of the same map, then deploy that one.
+    await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'v2' });
+    const second = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 2, name: '第二版', difficulty: 'expert' });
+    expect(second.status).toBe(200);
+    expect(second.body.data.id).not.toBe(first.body.data.id);
+    expect(second.body.data.versionNo).toBe(2);
+
+    const list = await api.get('/api/games');
+    const rows = (list.body.data as Array<{ id: number; projectId: number }>).filter(
+      (entry) => entry.projectId === projectId,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.id).toBe(second.body.data.id);
+  });
+
+  it('rejects a deploy of a version that does not exist', async () => {
+    const { projectId } = await publishableProject(`Missing ${uniqueCode('p')}`);
+    const res = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 99, name: 'X' });
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  it('rejects an unknown difficulty and an empty name', async () => {
+    const { projectId } = await publishableProject(`Invalid ${uniqueCode('p')}`);
+    const badDifficulty = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, difficulty: 'nightmare' });
+    expect(badDifficulty.status).toBe(400);
+
+    const emptyName = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, name: '   ' });
+    expect(emptyName.status).toBe(400);
+  });
+
+  it('404s for an unknown game id', async () => {
+    const res = await api.get('/api/games/999999999');
+    expect(res.status).toBe(404);
+    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  it('uploads a cover for a deployed game', async () => {
+    const { projectId } = await publishableProject(`Cover ${uniqueCode('p')}`);
+    const deploy = await api
+      .post(`/api/projects/${projectId}/games`)
+      .send({ versionNo: 1, name: '带封面' });
+    const gameId = deploy.body.data.id as number;
+
+    const uploaded = await api
+      .post(`/api/games/${gameId}/cover`)
+      .attach('file', TINY_PNG, 'cover.png');
+    expect(uploaded.status).toBe(200);
+    expect(uploaded.body.data.coverUrl).toBeTruthy();
+    uploadedGameCoverDirs.push(resolveUploadPath(`games/${gameId}`));
+
+    const detail = await api.get(`/api/games/${gameId}`);
+    expect(detail.body.data.coverUrl).toBeTruthy();
   });
 });
 
@@ -489,6 +621,9 @@ afterAll(async () => {
   if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
   await db.destroy();
   for (const dir of uploadedAvatarDirs) {
+    await rm(dir, { recursive: true, force: true });
+  }
+  for (const dir of uploadedGameCoverDirs) {
     await rm(dir, { recursive: true, force: true });
   }
 });

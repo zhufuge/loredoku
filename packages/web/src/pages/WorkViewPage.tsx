@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
@@ -62,7 +62,6 @@ function readStoredRulerVisible(): boolean {
 }
 
 export function WorkViewPage(): JSX.Element {
-  const { workId } = useParams<{ workId: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
@@ -98,8 +97,10 @@ export function WorkViewPage(): JSX.Element {
   const draft = detailQuery.data?.data as MapDraft | undefined;
 
   useEffect(() => {
-    document.title = `作品 #${workId ?? '—'} 预览 · Murdoku Maker`;
-  }, [workId]);
+    // OPT-G01: the tab is titled with the map name once the detail lands.
+    const name = detailQuery.data?.projectName;
+    document.title = name ? `${name} · Murdoku Maker` : `作品预览 · Murdoku Maker`;
+  }, [detailQuery.data?.projectName]);
 
   const itemsById = useMemo(() => {
     const map = new Map<number, Item>();
@@ -341,13 +342,20 @@ export function WorkViewPage(): JSX.Element {
           </Button>
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold">
-              {detailQuery.data?.notes ?? '作品'} v{versionNo}
+              {detailQuery.data?.projectName ?? '作品'}
+            </span>
+            {/* OPT-G01: the version is a badge now, not part of the title. */}
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+              v{versionNo}
             </span>
             <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
               {gridSize} × {gridSize}
             </span>
             <span className="text-xs text-muted-foreground">只读预览</span>
           </div>
+          {detailQuery.data?.notes ? (
+            <p className="truncate text-xs text-muted-foreground">{detailQuery.data.notes}</p>
+          ) : null}
         </div>
         <div className="flex items-center gap-1">
           {/* FEAT-F01: the reader can hide the strips; the choice is persisted. */}

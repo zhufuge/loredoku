@@ -63,6 +63,7 @@ import { useHighlight } from '@/hooks/useHighlight';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { canPlaceItemOnLayer } from '@/lib/canvasLayers';
 import {
+  infoDrawerOpen,
   reduceEditorFocus,
   type EditorFocus,
   type FocusEvent,
@@ -179,13 +180,30 @@ export function EditorPage(): JSX.Element {
     [editor.selectedItemId, itemsById],
   );
 
+  /**
+   * BUG-G01 (docs/v0.4.0.md §1): a click on a cell writes **both** `selection`
+   * and `selectedRegionId` (see `EditorCanvas.selectCellAt`), so this effect
+   * must not blindly re-open the info drawer — otherwise closing the
+   * 「地图基本信息」drawer (which clears those axes) makes the empty-state info
+   * drawer pop back up underneath it.
+   */
   useEffect(() => {
+    if (mapInfoOpen) {
+      setInfoOpen(false);
+      return;
+    }
     if (editor.selection || editor.selectedRegionId !== null || editor.selectedSlotIndex !== null) {
       setInfoOpen(true);
     } else if (unplacedCharacterId === null) {
       setInfoOpen(false);
     }
-  }, [editor.selection, editor.selectedRegionId, editor.selectedSlotIndex, unplacedCharacterId]);
+  }, [
+    editor.selection,
+    editor.selectedRegionId,
+    editor.selectedSlotIndex,
+    unplacedCharacterId,
+    mapInfoOpen,
+  ]);
 
   useEffect(() => {
     if (editor.selectedSlotIndex !== null) {
@@ -367,9 +385,19 @@ export function EditorPage(): JSX.Element {
    * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a form, so
    * leaving it with unsaved edits has to be confirmed. Every path that closes
    * the drawer or hands focus to another panel goes through this guard.
+   *
+   * BUG-G01 (v0.4.0 验收补充): leaving for a cell / participant / region label
+   * must **close** the drawer, not just run the action — otherwise the drawer
+   * stays on top and keeps the info drawer suppressed (the cell info box only
+   * appeared after a manual close).
    */
   const guardMapInfo = (proceed: () => void): void => {
-    if (!mapInfoOpen || !mapInfoRef.current?.isDirty()) {
+    if (!mapInfoOpen) {
+      proceed();
+      return;
+    }
+    if (!mapInfoRef.current?.isDirty()) {
+      setMapInfoOpen(false);
       proceed();
       return;
     }
@@ -791,8 +819,13 @@ export function EditorPage(): JSX.Element {
             return;
           }
           // FEAT-D01: opening it drops any cell / participant focus.
+          // BUG-G01: `selectedRegionId` belongs to the same set of focus axes —
+          // a click on a cell inside a region sets it too (EditorCanvas
+          // .selectCellAt), so leaving it behind re-opened the info drawer
+          // through the effect below and left an empty panel on screen.
           setMapInfoOpen(true);
           editor.setSelection(null);
+          editor.setSelectedRegion(null);
           editor.setSelectedSlot(null);
           setUnplacedCharacterId(null);
           setInfoOpen(false);
@@ -936,7 +969,11 @@ export function EditorPage(): JSX.Element {
                 }
               });
             }}
-            onSelectRegion={editor.setSelectedRegion}
+            onSelectRegion={(regionId) => {
+              // OPT-C07 / BUG-G01: a region label click is a focus switch too,
+              // so it leaves the basic-info drawer the same way a cell does.
+              guardMapInfo(() => editor.setSelectedRegion(regionId));
+            }}
             onAnchorChange={(anchor) => setRegionAnchorActive(anchor !== null)}
             onDraftAdd={editor.addDraftCells}
             onDraftRemove={editor.removeDraftCells}
@@ -1025,7 +1062,11 @@ export function EditorPage(): JSX.Element {
           />
 
           <EditorInfoDrawer
-            open={infoOpen && editor.selectedSlotIndex === null}
+            open={infoDrawerOpen({
+              infoOpen,
+              mapInfoOpen,
+              selectedSlotIndex: editor.selectedSlotIndex,
+            })}
             onClose={() => {
               setInfoOpen(false);
               setUnplacedCharacterId(null);

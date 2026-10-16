@@ -22,6 +22,7 @@ function work(overrides: Partial<WorkSummary> = {}): WorkSummary {
     itemCount: 0,
     projectId: 1,
     projectName: '地图一',
+    deployed: false,
     ...overrides,
   };
 }

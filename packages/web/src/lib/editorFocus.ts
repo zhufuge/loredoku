@@ -76,3 +76,28 @@ export function focusOwner(focus: EditorFocus): 'participant' | 'cell' | 'region
   if (activation.activeParticipantId !== null) return 'participant';
   return 'none';
 }
+
+/**
+ * BUG-G01 (docs/v0.4.0.md §1): whether the cell / region / participant info
+ * drawer is open.
+ *
+ * The three focus axes live in the store (`selection`, `selectedRegionId`,
+ * `selectedSlotIndex`) while `infoOpen` is page state — and a click on a cell
+ * sets **both** `selection` and `selectedRegionId`, so an effect that merely
+ * mirrors "any axis is non-null" re-opens the drawer after the page handler
+ * already closed it. The 「地图基本信息」drawer and the info drawer are two
+ * different panels stacked at z-30 / z-20; closing the top one must not let
+ * the bottom one pop back up.
+ *
+ * Rule: while `mapInfoOpen` is true the info drawer is **always closed**;
+ * otherwise it follows the three focus axes.
+ */
+export function infoDrawerOpen(input: {
+  infoOpen: boolean;
+  mapInfoOpen: boolean;
+  selectedSlotIndex: number | null;
+}): boolean {
+  if (input.mapInfoOpen) return false;
+  if (!input.infoOpen) return false;
+  return input.selectedSlotIndex === null;
+}

@@ -100,11 +100,13 @@ const region: DraftRegion = {
 
 // ---- OPT-901 §1.1: layer priority ----
 describe('canvas layer priority (OPT-901 §1.1)', () => {
-  it('lists the thirteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
+  it('lists the fifteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
     expect(MAP_LAYER_ORDER).toEqual([
       'mouseCursorBox',
       'operationCursorBox',
       'regionLabel',
+      'gameToolHint',
+      'gamePlacement',
       'objectLayer',
       'canvasFrame',
       'gridSeparator',
@@ -149,6 +151,13 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
 
   it('v0.3.8 SPEC-D01: the two cursor boxes are adjacent layers', () => {
     expect(layerZ('mouseCursorBox') - layerZ('operationCursorBox')).toBe(1);
+  });
+
+  // ---- v0.4.0 SPEC-G01 / SPEC-G02: the two game-only layers ----
+  it('SPEC-G01/G02: 区域标签 > 工具提示层 > 游戏放置层 > 物件图层', () => {
+    expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('gameToolHint'));
+    expect(layerZ('gameToolHint')).toBeGreaterThan(layerZ('gamePlacement'));
+    expect(layerZ('gamePlacement')).toBeGreaterThan(layerZ('objectLayer'));
   });
 });
 

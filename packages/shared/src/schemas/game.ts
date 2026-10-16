@@ -1,0 +1,73 @@
+import { z } from 'zod';
+import {
+  GAME_DIFFICULTY_DEFAULT,
+  GAME_DIFFICULTY_LEVELS,
+  GAME_NAME_MAX_LENGTH,
+} from '../constants';
+
+/**
+ * FEAT-G02 (docs/v0.4.0.md §5.2): the deploy dialog body. The version being
+ * deployed is explicit (the works table row), the name defaults to the map
+ * name but is editable, the cover is optional, and the difficulty is one of
+ * five tiers.
+ *
+ * `name` is optional here so the dialog can submit an untouched field; the
+ * service falls back to the map name and rejects an explicitly blank one.
+ */
+export const gameDeploySchema = z.object({
+  versionNo: z.number().int().positive('版本号必须为正整数'),
+  name: z
+    .string()
+    .trim()
+    .max(GAME_NAME_MAX_LENGTH, `游戏名称最多 ${GAME_NAME_MAX_LENGTH} 个字符`)
+    .optional(),
+  coverPath: z.string().trim().min(1).nullish(),
+  coverMime: z.string().trim().min(1).nullish(),
+  coverSize: z.number().int().nonnegative().nullish(),
+  coverWidth: z.number().int().nonnegative().nullish(),
+  coverHeight: z.number().int().nonnegative().nullish(),
+  difficulty: z
+    .enum(GAME_DIFFICULTY_LEVELS)
+    .default(GAME_DIFFICULTY_DEFAULT),
+});
+
+/**
+ * SPEC-G01 (docs/v0.4.0.md §7.1): what one cell of the 游戏放置层 holds.
+ * The three forms are mutually exclusive; `null` is an empty cell.
+ *
+ * - `participant` — the participant's picture (`index` is the 1-based slot
+ *   number shown on the roster card);
+ * - `numbers` — an ordered list of participant numbers laid out in a 3×3
+ *   sub-grid (at most nine, left-to-right / top-to-bottom);
+ * - `forbidden` — the black `×`, which also activates the non-standable mask.
+ */
+export const cellPlacementSchema = z.union([
+  z.object({
+    kind: z.literal('participant'),
+    index: z.number().int().min(1),
+  }),
+  z.object({
+    kind: z.literal('numbers'),
+    entries: z.array(z.number().int().min(1)),
+  }),
+  z.object({
+    kind: z.literal('forbidden'),
+  }),
+]);
+
+export type CellPlacement = z.infer<typeof cellPlacementSchema>;
+
+/** A full board of placements, keyed `"x,y"` — only non-empty cells are kept. */
+export const gamePlacementBoardSchema = z.record(
+  z.string(),
+  cellPlacementSchema.nullable(),
+);
+
+/**
+ * Written explicitly rather than inferred from `gamePlacementBoardSchema`:
+ * zod's record inference widens values to `… | undefined` under
+ * `noUncheckedIndexedAccess`, which every caller then has to re-narrow.
+ */
+export type GamePlacementBoard = Record<string, CellPlacement | null>;
+
+export type GameDeployInput = z.infer<typeof gameDeploySchema>;

@@ -5,6 +5,7 @@ import { projectsRouter } from './projects';
 import { itemsRouter } from './items';
 import { charactersRouter } from './characters';
 import { versionsRouter } from './versions';
+import { gamesRouter } from './games';
 
 export const apiRouter = new Router({ prefix: API_PREFIX });
 
@@ -14,6 +15,8 @@ apiRouter.use('/items', itemsRouter.routes(), itemsRouter.allowedMethods());
 apiRouter.use('/characters', charactersRouter.routes(), charactersRouter.allowedMethods());
 // OPT-905: cross-map works listing for the works table.
 apiRouter.use('/versions', versionsRouter.routes(), versionsRouter.allowedMethods());
+// FEAT-G02: cross-map deployed games listing for the games home page.
+apiRouter.use('/games', gamesRouter.routes(), gamesRouter.allowedMethods());
 
 // Legacy v0.1 route: /api/cards -> /api/items (permanent redirect).
 apiRouter.redirect('/cards', `${API_PREFIX}/items`, 308);

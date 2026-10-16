@@ -1,0 +1,157 @@
+import { describe, expect, it } from 'vitest';
+
+/**
+ * FEAT-G03 (docs/v0.4.0.md §6) + SPEC-G03 / SPEC-G04 — source-level guards for
+ * the game page, the same technique as `EditorPage.infoDrawer.test.ts`.
+ *
+ * What must not regress: the roster and the map are the **preview's** (same
+ * component, same state machine), the operation cursor box is gone, and the two
+ * game layers plus the toolbar state machine are wired to `lib/gamePlacement`.
+ */
+
+const pageSource =
+  (import.meta.glob('./GamePage.tsx', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>)['./GamePage.tsx'] ?? '';
+
+const routerSource =
+  (import.meta.glob('../router.tsx', {
+    query: '?raw',
+    import: 'default',
+    eager: true,
+  }) as Record<string, string>)['../router.tsx'] ?? '';
+
+describe('GamePage (FEAT-G03)', () => {
+  it('is a top-level route outside the app shell', () => {
+    expect(routerSource).toContain("path: '/games/:gameId'");
+    expect(routerSource).toContain('element: <GamePage />');
+    // It must not live inside the AppShell children array.
+    const shellChildren = routerSource.slice(
+      routerSource.indexOf('element: <AppShell />'),
+      routerSource.indexOf("path: '/editor/:projectId'"),
+    );
+    expect(shellChildren).not.toContain('GamePage');
+  });
+
+  it('reuses the preview roster and the linkage state machine', () => {
+    expect(pageSource).toContain('<ParticipantPanel');
+    expect(pageSource).toContain('readOnly');
+    expect(pageSource).toContain('reduceLinkageActivation');
+    expect(pageSource).toContain('onActivateClick={handleCardClick}');
+  });
+
+  it('renders the preview map plus the two game layers', () => {
+    expect(pageSource).toContain('<MapGamePlacementLayer');
+    expect(pageSource).toContain('<MapGameToolHintLayer');
+    // Every preview layer the spec lists is still mounted.
+    for (const layer of [
+      'MapBackgroundLayer',
+      'MapRegionFillLayer',
+      'MapHighlightLayer',
+      'MapRegionHighlightLayer',
+      'MapNonStandableMaskLayer',
+      'MapRegionOutlineLayer',
+      'MapGridSeparatorLayer',
+      'MapObjectLayer',
+      'MapRegionLabelLayer',
+      'MapCanvasFrameLayer',
+      'MapMouseCursorBoxLayer',
+      'MapRulerStrips',
+    ]) {
+      expect(pageSource).toContain(`<${layer}`);
+    }
+  });
+
+  it('does not render the operation cursor box', () => {
+    expect(pageSource).not.toContain('MapOperationCursorBoxLayer');
+  });
+
+  it('marks exclusions with an × button and no view cluster', () => {
+    // 验收补充：禁止按钮用 X 图标；画布固定自适应，没有平移 / 缩放 / 重置。
+    expect(pageSource).toContain('<X className="h-5 w-5 text-red-500" />');
+    expect(pageSource).not.toContain('<Ban');
+    for (const gone of ['zoomBy', 'clampZoom', 'zoomAtPoint', 'setPanning', 'panRef', 'panMovedRef']) {
+      expect(pageSource).not.toContain(gone);
+    }
+    expect(pageSource).not.toContain('RotateCcw');
+    expect(pageSource).not.toContain('重置视图');
+    // The ruler toggle stays — it is a display preference, not a view transform.
+    expect(pageSource).toContain('显示 / 隐藏标尺');
+  });
+
+  it('lays out three columns', () => {
+    expect(pageSource).toContain('flex h-screen flex-col overflow-hidden');
+    expect(pageSource).toContain('flex min-h-0 flex-1');
+    // Left info column, centre canvas, right toolbar.
+    expect(pageSource).toContain('w-[256px] shrink-0 flex-col border-r');
+    expect(pageSource).toContain('relative min-h-0 flex-1 select-none overflow-hidden');
+    expect(pageSource).toContain('w-[84px] shrink-0 flex-col items-center');
+  });
+
+  it('arms a participant for placement on card click, numbered from 1', () => {
+    // The panel speaks 0-based slot indices; the placement layer numbers
+    // participants from 1 (SPEC-G01 §7.1).
+    expect(pageSource).toContain("setMode({ kind: 'placing', participantId })");
+    expect(pageSource).toContain('const participantId = index + 1;');
+    expect(pageSource).toContain("{ type: 'click', participantId: index }");
+  });
+
+  it('keeps the placing state while another card is hovered', () => {
+    // v0.4.0 验收补充：悬停另一张卡片只切换联动预览，移开后恢复已武装参与者
+    // 的激活；退出放置态只能靠再次点击参与者或工具按钮。
+    const hover = pageSource.slice(
+      pageSource.indexOf('onDeactivateHover={(index) => {'),
+      pageSource.indexOf('onActivateClick={handleCardClick}'),
+    );
+    expect(hover).toContain("mode.kind === 'placing'");
+    expect(hover).toContain('participantId: mode.participantId - 1,');
+    expect(hover).toContain("{ type: 'leave', participantId: index }");
+  });
+
+  it('dispatches a cell interaction by the active mode', () => {
+    const dispatch = pageSource.slice(
+      pageSource.indexOf('const dispatchCell ='),
+      pageSource.indexOf('const startClearPress ='),
+    );
+    expect(dispatch).toContain('placeParticipant(state, {');
+    expect(dispatch).toContain('placeForbidden(state, { x, y, noStandCells })');
+    expect(dispatch).toContain('clearCell(state, { x, y })');
+    // 放置态下 variant 区分短按（编号）与长按（头像）。
+    expect(dispatch).toContain('variant,');
+  });
+
+  it('places a number on a tap and the avatar on a long-press', () => {
+    // v0.4.0 验收补充：点击格子放参与者编号，长按格子放参与者头像。
+    expect(pageSource).toContain("dispatchCell(cell.x, cell.y, 'number')");
+    expect(pageSource).toContain("dispatchCell(x, y, 'image')");
+    // 长按定时器与工具栏清除按钮同源（GAME_LONG_PRESS_MS）。
+    const press = pageSource.slice(
+      pageSource.indexOf('const startCellPress ='),
+      pageSource.indexOf('const endCellPress ='),
+    );
+    expect(press).toContain('GAME_LONG_PRESS_MS');
+    // 长按生效后，同一手势末尾的 click 必须被吞掉。
+    expect(pageSource).toContain('press?.fired');
+    expect(pageSource).toContain('startCellPress(cell.x, cell.y)');
+  });
+
+  it('long-pressing the clear button wipes the whole board', () => {
+    expect(pageSource).toContain('GAME_LONG_PRESS_MS');
+    expect(pageSource).toContain('setPlacementState((state) => clearAll(state))');
+    expect(pageSource).toContain('onPointerDown={startClearPress}');
+    expect(pageSource).toContain('onPointerUp={endClearPress}');
+  });
+
+  it('blocks undo past the submission point', () => {
+    expect(pageSource).toContain('submitPlacement(state)');
+    expect(pageSource).toContain('canUndo(placementState)');
+    expect(pageSource).toContain('placementState.submittedPastLength');
+  });
+
+  it('merges placed × into the non-standable mask', () => {
+    expect(pageSource).toContain('forbiddenCells(placementState.board)');
+    expect(pageSource).toContain('noStandCells={maskCells}');
+  });
+});

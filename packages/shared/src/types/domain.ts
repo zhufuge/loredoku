@@ -10,6 +10,7 @@ import type {
   CHARACTER_GENDERS,
   PARTICIPANT_TARGET_TYPES,
   EFFECT_COLORS,
+  GAME_DIFFICULTY_LEVELS,
   MapStyle,
 } from '../constants';
 
@@ -23,6 +24,7 @@ export type RegionShape = (typeof REGION_SHAPES)[number];
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 export type CharacterGender = (typeof CHARACTER_GENDERS)[number];
 export type ParticipantTargetType = (typeof PARTICIPANT_TARGET_TYPES)[number];
+export type GameDifficulty = (typeof GAME_DIFFICULTY_LEVELS)[number];
 /**
  * The built-in linkage colour keys (`red` / `blue`). v0.3.8 FEAT-D04 makes the
  * palette extensible, so a linkage may reference **any** key declared in the
@@ -225,6 +227,12 @@ export interface MapVersionSummary {
 
 export interface MapVersionDetail extends MapVersionSummary {
   data: MapDraft;
+  /**
+   * OPT-G01 (docs/v0.4.0.md §2): the name of the map this version was
+   * published from, so the preview page can title itself with the map name
+   * and show the version as a badge. Joined from `map_projects`.
+   */
+  projectName: string;
 }
 
 /**
@@ -235,6 +243,30 @@ export interface MapVersionDetail extends MapVersionSummary {
 export interface WorkSummary extends MapVersionSummary {
   projectId: number;
   projectName: string;
+  /** FEAT-G02: this map already has a deployed game (one game per map). */
+  deployed: boolean;
+}
+
+/**
+ * FEAT-G02 (docs/v0.4.0.md §5): a deployed game. One map can only ever hold
+ * one deployed game — deploying another version of the same map overwrites
+ * the row — so `projectId` is unique in `map_games`.
+ */
+export interface MapGameSummary {
+  id: number;
+  projectId: number;
+  versionNo: number;
+  name: string;
+  coverUrl: string | null;
+  difficulty: GameDifficulty;
+  gridSize: number;
+  participantCount: number;
+  createdAt: string;
+}
+
+/** The game page renders the snapshot the work carried when it was deployed. */
+export interface MapGameDetail extends MapGameSummary {
+  data: MapDraft;
 }
 
 export interface CharacterUsage {

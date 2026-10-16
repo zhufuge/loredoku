@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { INACTIVE_ACTIVATION } from './linkageActivation';
 import {
   focusOwner,
+  infoDrawerOpen,
   INITIAL_FOCUS,
   reduceEditorFocus,
   type EditorFocus,
@@ -126,5 +127,36 @@ describe('focusOwner (OPT-C07 §5)', () => {
     expect(
       focusOwner(withSelection(null, null, { type: 'region', regionId: 'rg_a' })),
     ).toBe('region');
+  });
+});
+
+// ---- BUG-G01 (docs/v0.4.0.md §1): the info drawer must not pop back up ----
+describe('infoDrawerOpen (BUG-G01)', () => {
+  it('is always closed while the 「地图基本信息」drawer is open', () => {
+    // The bug: `EditorCanvas.selectCellAt` writes `selectedRegionId` as well as
+    // `selection`, so the page effect that mirrors "any axis is non-null"
+    // re-opened the info drawer after the page handler had closed it.
+    expect(
+      infoDrawerOpen({ infoOpen: true, mapInfoOpen: true, selectedSlotIndex: null }),
+    ).toBe(false);
+    expect(
+      infoDrawerOpen({ infoOpen: true, mapInfoOpen: true, selectedSlotIndex: 2 }),
+    ).toBe(false);
+  });
+
+  it('stays closed when the page never opened it', () => {
+    expect(
+      infoDrawerOpen({ infoOpen: false, mapInfoOpen: false, selectedSlotIndex: null }),
+    ).toBe(false);
+  });
+
+  it('follows the focus axes once the basic-info drawer is closed', () => {
+    expect(
+      infoDrawerOpen({ infoOpen: true, mapInfoOpen: false, selectedSlotIndex: null }),
+    ).toBe(true);
+    // A selected slot hands the panel to `ParticipantDrawer` instead.
+    expect(
+      infoDrawerOpen({ infoOpen: true, mapInfoOpen: false, selectedSlotIndex: 0 }),
+    ).toBe(false);
   });
 });

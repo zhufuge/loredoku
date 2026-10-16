@@ -239,21 +239,29 @@ export const THEME_COLOR_PALETTE = [
  * | 1 | 鼠标光标框 | Mouse Cursor Box | `mouseCursorBox` |
  * | 2 | 操作光标框 | Operation Cursor Box | `operationCursorBox` |
  * | 3 | 区域标签 | Region Label | `regionLabel` |
- * | 4 | 物件图层 | Object Layer | `objectLayer` |
- * | 5 | 画布外框 | Canvas Frame | `canvasFrame` |
- * | 6 | 网格分隔线 | Grid Separator | `gridSeparator` |
- * | 7 | 区域轮廓线 | Region Outline | `regionOutline` |
- * | 8 | 不可站立遮罩 | Non-standable Mask | `nonStandableMask` |
- * | 9 | 区域高亮线 | Region Highlight | `regionHighlight` |
- * | 10 | 方块高亮 | Cell Highlight | `cellHighlight` |
- * | 11 | 背景高亮 | Background Highlight | `backgroundHighlight` |
- * | 12 | 背景图层 | Background Layer | `backgroundLayer` |
- * | 13 | 画布底色 | Canvas Base | `canvasBase` |
+ * | 4 | 工具提示层 | Game Tool Hint Layer | `gameToolHint` |
+ * | 5 | 游戏放置层 | Game Placement Layer | `gamePlacement` |
+ * | 6 | 物件图层 | Object Layer | `objectLayer` |
+ * | 7 | 画布外框 | Canvas Frame | `canvasFrame` |
+ * | 8 | 网格分隔线 | Grid Separator | `gridSeparator` |
+ * | 9 | 区域轮廓线 | Region Outline | `regionOutline` |
+ * | 10 | 不可站立遮罩 | Non-standable Mask | `nonStandableMask` |
+ * | 11 | 区域高亮线 | Region Highlight | `regionHighlight` |
+ * | 12 | 方块高亮 | Cell Highlight | `cellHighlight` |
+ * | 13 | 背景高亮 | Background Highlight | `backgroundHighlight` |
+ * | 14 | 背景图层 | Background Layer | `backgroundLayer` |
+ * | 15 | 画布底色 | Canvas Base | `canvasBase` |
+ *
+ * v0.4.0 SPEC-G01 / SPEC-G02 insert the two game-only layers between
+ * 区域标签 and 物件图层 (工具提示层 above 游戏放置层), so the existing
+ * z-index values are renumbered to keep the stack strictly descending.
  */
 export const MAP_LAYER_ORDER = [
   'mouseCursorBox',
   'operationCursorBox',
   'regionLabel',
+  'gameToolHint',
+  'gamePlacement',
   'objectLayer',
   'canvasFrame',
   'gridSeparator',
@@ -275,25 +283,29 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   operationCursorBox: 45,
   /** 3 区域标签 */
   regionLabel: 42,
-  /** 4 物件图层 — above the grid lines so items are never cut by them. */
-  objectLayer: 40,
-  /** 5 画布外框 — drawn outside the board rectangle. */
-  canvasFrame: 39,
-  /** 6 网格分隔线（内部分隔线） */
-  gridSeparator: 38,
-  /** 7 区域轮廓线 — below the grid lines so the separators stay readable. */
-  regionOutline: 36,
-  /** 8 不可站立遮罩 — below 区域轮廓线, above 区域高亮线. */
-  nonStandableMask: 35,
-  /** 9 区域高亮线 */
-  regionHighlight: 32,
-  /** 10 方块高亮 */
-  cellHighlight: 30,
-  /** 11 背景高亮 */
-  backgroundHighlight: 28,
-  /** 12 背景图层 */
+  /** 4 工具提示层 — v0.4.0 SPEC-G02, game-only hover preview. */
+  gameToolHint: 41,
+  /** 5 游戏放置层 — v0.4.0 SPEC-G01, game-only placements. */
+  gamePlacement: 40,
+  /** 6 物件图层 — above the grid lines so items are never cut by them. */
+  objectLayer: 38,
+  /** 7 画布外框 — drawn outside the board rectangle. */
+  canvasFrame: 36,
+  /** 8 网格分隔线（内部分隔线） */
+  gridSeparator: 34,
+  /** 9 区域轮廓线 — below the grid lines so the separators stay readable. */
+  regionOutline: 32,
+  /** 10 不可站立遮罩 — below 区域轮廓线, above 区域高亮线. */
+  nonStandableMask: 30,
+  /** 11 区域高亮线 */
+  regionHighlight: 28,
+  /** 12 方块高亮 */
+  cellHighlight: 26,
+  /** 13 背景高亮 */
+  backgroundHighlight: 24,
+  /** 14 背景图层 */
   backgroundLayer: 20,
-  /** 13 画布底色 */
+  /** 15 画布底色 */
   canvasBase: 10,
 };
 
@@ -548,6 +560,75 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
 // ---- Editor tools ----
 export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] as const;
 export const MAX_HISTORY_STEPS = 50;
+
+// ---- v0.4.0 games (docs/v0.4.0.md §5 / §7 / §10) ----
+/**
+ * FEAT-G02: the five difficulty tiers a deployed game can carry. The colours
+ * form a green → lime → amber → orange → red ramp, deliberately outside the
+ * linkage palette so a difficulty badge never reads as a linkage theme.
+ */
+export const GAME_DIFFICULTY_LEVELS = ['veryEasy', 'easy', 'medium', 'hard', 'expert'] as const;
+
+export const GAME_DIFFICULTY_LABELS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
+  veryEasy: 'Very Easy',
+  easy: 'Easy',
+  medium: 'Medium',
+  hard: 'Hard',
+  expert: 'Expert',
+};
+
+export const GAME_DIFFICULTY_LABELS_ZH: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
+  veryEasy: '极简',
+  easy: '简单',
+  medium: '中等',
+  hard: '困难',
+  expert: '专家',
+};
+
+export const GAME_DIFFICULTY_COLORS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
+  veryEasy: '#22C55E',
+  easy: '#84CC16',
+  medium: '#EAB308',
+  hard: '#F97316',
+  expert: '#EF4444',
+};
+
+/** FEAT-G02: the default tier pre-selected in the deploy dialog. */
+export const GAME_DIFFICULTY_DEFAULT: (typeof GAME_DIFFICULTY_LEVELS)[number] = 'medium';
+
+/** FEAT-G02: game name bounds (same width as a map project name). */
+export const GAME_NAME_MAX_LENGTH = 100;
+
+/** FEAT-G02: covers are the widest artwork in the app, so they get their own cap. */
+export const GAME_COVER_MAX_DIMENSION = 960;
+
+/**
+ * SPEC-G01: a cell is divided into a 3×3 grid for participant numbers, so at
+ * most nine of them fit. The number font is `cellSize / 4`.
+ */
+export const GAME_NUMBER_GRID = 3;
+export const GAME_NUMBER_GRID_CELLS = GAME_NUMBER_GRID * GAME_NUMBER_GRID;
+export const GAME_NUMBER_FONT_RATIO = 0.25;
+export const GAME_NUMBER_STROKE_RATIO = 0.08;
+
+/**
+ * SPEC-G01 §7.1: the forbidden `×` is drawn as bold text at this fraction of
+ * the cell size — large enough to read as a marker, small enough that it never
+ * spills outside the cell.
+ */
+export const GAME_FORBIDDEN_FONT_RATIO = 0.62;
+
+/** SPEC-G02: the tool-hint `×` glyph — deep green with a black stroke. */
+export const GAME_TOOL_HINT_FORBIDDEN_COLOR = '#15803D';
+export const GAME_TOOL_HINT_ERASER_COLOR = '#374151';
+
+/** SPEC-G04: long-pressing the clear button wipes the whole board. */
+export const GAME_LONG_PRESS_MS = 500;
+/** SPEC-G04: the undo stack keeps at most this many placement steps. */
+export const GAME_PLACEMENT_HISTORY_MAX = 200;
+
+/** SPEC-G03: the toolbar / participant-placement modes are mutually exclusive. */
+export const GAME_TOOL_MODES = ['forbidden', 'clearing'] as const;
 
 // ---- Uploads ----
 export const UPLOAD_MAX_SIZE = 2 * 1024 * 1024; // 2 MB

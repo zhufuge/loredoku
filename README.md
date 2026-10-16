@@ -4,7 +4,7 @@
 
 - 技术栈：Node.js + TypeScript · Koa + PostgreSQL（Knex）· Vite + React 18 + TailwindCSS + shadcn/ui
 - 仓库形态：npm workspaces monorepo（`shared` / `server` / `web`）
-- 需求文档：见 [`docs/`](./docs)（`v0.1.0` ~ `v0.3.10` 逐版需求，最新为 v0.3.10）
+- 需求文档：见 [`docs/`](./docs)（`v0.1.0` ~ `v0.4.0` 逐版需求，最新为 v0.4.0）
 
 ---
 
@@ -30,14 +30,14 @@ murdoku-maker/
 │   │       ├── middleware/     # 错误处理、404、上传
 │   │       ├── db/             # knex 连接与 migrations
 │   │       └── utils/          # 日志、图片、响应封装、校验
-│   └── web/                    # Vite + React 前端
+│       └── web/                    # Vite + React 前端
 │       └── src/
-│           ├── pages/          # ProjectsPage / ItemsPage / CharactersPage / WorksPage / Editor / WorkView
-│           ├── components/     # editor / item / character / project / map / ui
+│           ├── pages/          # ProjectsPage / ItemsPage / CharactersPage / WorksPage / GamesPage / GamePage / Editor / WorkView
+│           ├── components/     # editor / item / character / project / game / map / ui
 │           ├── stores/         # editorStore（编辑器状态 + 撤销栈）
 │           ├── hooks/          # TanStack Query 数据 hooks
 │           ├── api/            # Axios 接口封装
-│           └── lib/            # 网格、命中检测、高亮、联动、线索解析等纯函数
+│           └── lib/            # 网格、命中检测、高亮、联动、线索解析、游戏放置等纯函数
 ├── docs/                       # 各版本需求文档
 ├── package.json                # workspace 脚本入口
 └── tsconfig.base.json          # 共享 TS 配置（含 @murdoku/shared 路径别名）
@@ -144,6 +144,15 @@ npm run dev
 - **参与者联动**：悬停 / 点击参与者框，高亮其关联的角色、物品、区域、格子（红 / 蓝效果，无时长概念，结束时淡出）。
 - **作品（`/works`）**：发布快照生成作品，表格化平铺展示，支持查看效果（`/works/:workId/view`）、导出 JSON、基于作品创建草稿、删除。
 - **预览页与编辑页一致（v0.3.10 FIX-F07 / FEAT-F01 / FEAT-F02）**：预览页的参与者区直接复用编辑器的 `ParticipantPanel`（`readOnly` 模式：同一套矩阵卡片、序号、主题色圆头像、线索区与单框高亮，但不可拖动、无「×」按钮）；顶栏新增「标尺」开关（`Ruler` 图标，默认显示，选择存 `localStorage` 键 `murdoku.workview.ruler`）；预览页的方格大小、四周留白与标尺厚度一律按作品快照里的 `style` 计算（自适应时传入 `canvasInsets({ showRulers, rulerSize })`，与编辑器同一套预留）。
+- **预览页标题（v0.4.0 OPT-G01）**：标题改为**地图名称**，版本号以 `v{N}` 徽标与标题同行展示，发布备注降级为次要文本；浏览器标签页同步为 `{地图名称} · Murdoku Maker`。
+- **作品部署（v0.4.0 FEAT-G02，`/works` 每行「部署」）**：把已发布作品部署为可玩的游戏。弹窗可改**游戏名称**（默认取作品名称）、上传**封面**（可留空，部署成功后上传）、选择**难度**五档（Very Easy / Easy / Medium / Hard / Expert，绿 → 黄绿 → 黄 → 橙 → 红）。**同一张地图只能部署一个版本**（`map_games.project_id` 唯一索引，再次部署覆盖旧行并重新分配 id），部署时把作品快照冗余拷贝进 `map_games.snapshot`，因此游戏渲染的是**部署那一刻的固定副本**，作品后续重新发布不影响已部署游戏。已部署行显示「已部署」徽标，点击直接进入该游戏的游戏页面。
+- **游戏首页（v0.4.0 FEAT-G01，`/games`）**：面向玩家的独立入口——**顶层路由，不用 `AppShell`**，玩家从这里看不到地图 / 物品 / 角色 / 作品等制作端模块，只能通过链接进入（作品页「已部署」徽标、游戏页「返回」按钮）。简约卡片网格（2 / 3 / 4 列响应式，间距 20px）。每张卡片展示**封面**（16:10，无封面时显示地图名称首字）、**名称**、**难度徽标**（五色）、**`n×n` 规格**；点击卡片进入游戏页面。空态给出前往作品管理页的链接。
+- **游戏页面（v0.4.0 FEAT-G03，`/games/:gameId`）**：左中右三栏的全屏游玩页（不用 `AppShell`，与编辑器同级的顶层路由）。
+  - **左上**：返回按钮 + 游戏名称、封面缩略图、难度徽标、`n×n` 与来源版本；只读，不提供编辑。
+  - **左下**：与预览页**同一个** `ParticipantPanel`（`readOnly`），联动效果完全一致；新增「点击参与者 → 进入放置状态」。放置态下悬停另一张卡片只临时切换联动预览，移开后恢复已武装参与者的联动——**放置状态不随悬停退出**，只有再次点击参与者或工具按钮才退出。
+  - **中间**：与预览页一致的地图（含标尺），新增**游戏放置层**与**工具提示层**两个游戏专属图层，**不渲染操作光标框**；画布**固定自适应**（无平移、无缩放），格内光标为 `pointer`。放置态下**短按格子放参与者编号**（九宫格候选），**长按格子（≥500ms）放参与者头像**（确认该格就是这位参与者，整格替换）。
+  - **右侧工具栏**：禁止符号（`X` 图标，红色）/ 清除工具 / 回退 / 提交四个等宽按钮，激活态 `bg-accent` 且**互斥**；清除按钮**长按 500ms 清空全图**（记一步可回退）；除四个工具按钮外只有一个**标尺开关**；底部显示「已放置 N 个 / 可回退 M 步」。参与者编号**从 1 开始**（与参与者面板左上角序号一致）。
+- **放置规则（v0.4.0 SPEC-G01 ~ SPEC-G04）**：每格放置内容是「参与者图片 / 参与者标号列表 / 禁止符号」三者互斥的形态之一。标号按 **3×3 九宫格**从左到右、从上到下排列（最多 9 个，字号约 `cellSize/4`，颜色取参与者主题色 + 黑色描边）；短按逐位追加标号，**长按整格替换为头像**（九宫格已满只挡短按，不挡长按确认）。**有不可站立物品的格子不能放置**；禁止符号会**激活该格的不可站立遮罩**，并清除该格原有标号。回退栈上限 200 步，清空全图只记一步；**提交后不能回退到提交点之前**（提交校验预留到后续版本）。规则全部集中在纯函数库 `packages/web/src/lib/gamePlacement.ts`。
 
 ### 方格要素（v0.3.5 OPT-A04 §3.2 + v0.3.6 OPT-B03/B04 + v0.3.7 OPT-C05）
 
@@ -163,7 +172,7 @@ npm run dev
 
 `scale = cellSize / BASE_CELL`；线条宽度统一 clamp `[0.5, 12]`、字体 clamp `[9, 28]`（全项目共用一组上下限）。缩放只在 `cellSize` 变化时重算，画布 zoom 由容器 `transform` 负责，不会二次缩放。
 
-### 画布图层堆叠（v0.3.9 SPEC-E01）
+### 画布图层堆叠（v0.3.9 SPEC-E01，v0.4.0 SPEC-G01/G02 扩为 15 层）
 
 完整规范见 [`docs/layer-priority.md`](./docs/layer-priority.md)，该文档是图层**命名与次序的唯一权威**。
 每层都有中文名 / 英文名 / 代码常量名三个标识，文档、代码与界面文案必须一致：
@@ -175,20 +184,23 @@ npm run dev
 | 1 | 鼠标光标框 | Mouse Cursor Box | `mouseCursorBox` | 46 |
 | 2 | 操作光标框 | Operation Cursor Box | `operationCursorBox` | 45 |
 | 3 | 区域标签 | Region Label | `regionLabel` | 42 |
-| 4 | 物件图层 | Object Layer | `objectLayer` | 40 |
-| 5 | 画布外框 | Canvas Frame | `canvasFrame` | 39 |
-| 6 | 网格分隔线 | Grid Separator | `gridSeparator` | 38 |
-| 7 | 区域轮廓线 | Region Outline | `regionOutline` | 36 |
-| 8 | 不可站立遮罩 | Non-standable Mask | `nonStandableMask` | 35 |
-| 9 | 区域高亮线 | Region Highlight | `regionHighlight` | 32 |
-| 10 | 方块高亮 | Cell Highlight | `cellHighlight` | 30 |
-| 11 | 背景高亮 | Background Highlight | `backgroundHighlight` | 28 |
-| 12 | 背景图层 | Background Layer | `backgroundLayer` | 20 |
-| 13 | 画布底色 | Canvas Base | `canvasBase` | 10 |
+| 4 | 工具提示层 | Game Tool Hint Layer | `gameToolHint` | 41 |
+| 5 | 游戏放置层 | Game Placement Layer | `gamePlacement` | 40 |
+| 6 | 物件图层 | Object Layer | `objectLayer` | 38 |
+| 7 | 画布外框 | Canvas Frame | `canvasFrame` | 36 |
+| 8 | 网格分隔线 | Grid Separator | `gridSeparator` | 34 |
+| 9 | 区域轮廓线 | Region Outline | `regionOutline` | 32 |
+| 10 | 不可站立遮罩 | Non-standable Mask | `nonStandableMask` | 30 |
+| 11 | 区域高亮线 | Region Highlight | `regionHighlight` | 28 |
+| 12 | 方块高亮 | Cell Highlight | `cellHighlight` | 26 |
+| 13 | 背景高亮 | Background Highlight | `backgroundHighlight` | 24 |
+| 14 | 背景图层 | Background Layer | `backgroundLayer` | 20 |
+| 15 | 画布底色 | Canvas Base | `canvasBase` | 10 |
 
-表内 13 层与 `MAP_LAYER_ORDER` 一一对应；区域填充（z = 22）是 v0.2.5 遗留层，不在表内。
-不可站立遮罩位于区域轮廓线**之下**、区域高亮线**之上**（v0.3.8 起，取代 v0.3.5 的「覆盖物品图」约定）。
-v0.3.9 的旧名 → 新名对照见规范文档 §6 命名迁移记录。
+表内 15 层与 `MAP_LAYER_ORDER` 一一对应；区域填充（z = 22）是 v0.2.5 遗留层，不在表内。
+**工具提示层**与**游戏放置层**是 v0.4.0 新增的**游戏页面专属**图层（编辑器与预览页不渲染）：前者画跟随指针的待放置预览（标号 / `×` / 橡皮），后者画玩家已放置的内容；二者夹在区域标签与物件图层之间，页面按需裁剪层集合（游戏页不渲染操作光标框）。
+不可站立遮罩位于区域轮廓线**之下**、区域高亮线**之上**（v0.3.8 起，取代 v0.3.5 的「覆盖物品图」约定）；游戏中的禁止符号同样点亮该遮罩。
+v0.3.9 / v0.4.0 的旧名 → 新名对照见规范文档 §6 命名迁移记录。
 
 **区域高亮线（v0.3.9 FIX-E02）**：由纯函数 `buildRegionHighlightPaths`（`packages/web/src/lib/region.ts`）
 先追踪区域闭合轮廓、再把每条边的支撑线沿法向向内偏移、最后用相邻偏移直线的**交点**重建顶点，
@@ -242,6 +254,7 @@ v0.3.9 SPEC-E01 把四个样式字段改名为规范名（见上表括号内旧�
 | 地图数据 | `GET/PUT /api/projects/:id/map`、`PATCH /api/projects/:id/grid-size`、`GET /api/projects/:id/map/export`、`POST /api/projects/:id/map/import` |
 | 区域 | `GET/POST /api/projects/:id/regions`、`PATCH/DELETE /api/projects/:id/regions/:regionId` |
 | 作品 / 版本 | `POST/GET /api/projects/:id/versions`、`GET /api/projects/:id/versions/:versionNo`、`POST .../versions/:versionNo/draft`、`DELETE .../versions/:versionNo`、`GET /api/versions`（跨地图作品列表） |
+| 游戏 | `POST /api/projects/:id/games`（部署，同地图覆盖）、`GET /api/games`（游戏首页列表）、`GET /api/games/:id`（含部署时快照）、`POST /api/games/:id/cover`（封面上传） |
 | 物品 | `GET/POST /api/items`、`GET/PATCH/DELETE /api/items/:id`、`POST /api/items/:id/enable|disable`、`GET /api/items/:id/usages`、`PUT /api/items/:id/triggers`、`POST/DELETE /api/items/:id/image` |
 | 角色 | `GET/POST /api/characters`、`GET/PATCH/DELETE /api/characters/:id`、`POST /api/characters/:id/enable|disable`、`GET /api/characters/:id/usages`、`POST/DELETE /api/characters/:id/avatar` |
 
@@ -301,5 +314,6 @@ cd packages/server && npx vitest run --no-cache   # 后端接口测试（需 Pos
 | `docs/v0.3.7.md` | 区域高亮线斜线修复、外边距、标尺字号、外框分层、区域名称/线宽基准、物体内缩、点击方格清除联动 |
 | `docs/v0.3.8.md` | 区域高亮线接线修复、地图基本信息（样式常量）、方格大小覆盖、联动调色板、缩放语义 |
 | `docs/v0.3.9.md` | 发布后保持视口、区域高亮线闭合、基本信息草稿化与保存 / 取消、标尺配置、画布外空白拖拽平移、图层命名规范化 |
-| `docs/v0.3.10.md` | 基本信息完整草稿化（含画布尺寸）、实时写入、首次进入即保存、无边框取色器、问号图标提示、性别符号加粗、预览页复用参与者面板与标尺（当前版本） |
-| `docs/layer-priority.md` | 《画布图层优先级规范》—— 13 层的中文名 / 英文名 / 次序的唯一权威 |
+| `docs/v0.3.10.md` | 基本信息完整草稿化（含画布尺寸）、实时写入、首次进入即保存、无边框取色器、问号图标提示、性别符号加粗、预览页复用参与者面板与标尺 |
+| `docs/v0.4.0.md` | 信息框残留修复、预览页标题、游戏首页 / 作品部署 / 游戏页面、游戏放置层与工具提示层（当前版本，含 v0.4.0 验收修订） |
+| `docs/layer-priority.md` | 《画布图层优先级规范》—— 15 层的中文名 / 英文名 / 次序的唯一权威 |

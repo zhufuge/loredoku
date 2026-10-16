@@ -261,6 +261,8 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
     participantCount: (row.data?.characterSlots ?? []).filter((slot) => slot !== null).length,
     regionCount: row.data?.regions?.length ?? 0,
     itemCount: itemIds.size,
+    // OPT-G01: fall back for legacy rows whose project name is missing.
+    projectName: row.project_name ?? '未命名地图',
   };
 }
 

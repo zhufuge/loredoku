@@ -84,6 +84,27 @@ describe('WorkViewPage (FIX-F07 / FEAT-F01 / FEAT-F02)', () => {
   });
 });
 
+// ---- OPT-G01 (docs/v0.4.0.md §2): the title is the map name ----
+describe('WorkViewPage (OPT-G01)', () => {
+  it('titles the page with the map name and badges the version', () => {
+    // The publish notes no longer occupy the title slot.
+    expect(pageSource).toContain('detailQuery.data?.projectName');
+    expect(pageSource).not.toContain("detailQuery.data?.notes ?? '作品'");
+    // The version is rendered as a badge next to the title.
+    const header = segment(pageSource, '<header className=', '</header>');
+    expect(header).toContain('v{versionNo}');
+  });
+
+  it('shows the notes as secondary text instead of the title', () => {
+    expect(pageSource).toContain('detailQuery.data?.notes ? (');
+    expect(pageSource).toContain('<p className="truncate text-xs text-muted-foreground">');
+  });
+
+  it('the browser tab is titled with the map name', () => {
+    expect(pageSource).toContain('document.title = name ? `${name} · Murdoku Maker`');
+  });
+});
+
 /** Text between two markers (both must exist). */
 function segment(haystack: string, startMarker: string, endMarker: string): string {
   const start = haystack.indexOf(startMarker);
