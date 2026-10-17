@@ -9,6 +9,7 @@ import {
   type Item,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
 import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
 import {
@@ -314,6 +315,9 @@ export function MapVersionViewPage(): JSX.Element {
           <Button variant="ghost" size="icon" title="重置视图" onClick={fit}>
             <RotateCcw className="h-4 w-4" />
           </Button>
+          {/* v0.5.7: 视图控件与主题分开，别让主题混进缩放组。 */}
+          <span className="mx-1 h-5 w-px bg-border" />
+          <ThemeToggle />
         </div>
       </header>
 

@@ -11,7 +11,8 @@
 - `packages/shared`：跨端共享的 TS 类型、常量、zod schema。**不依赖任何运行时**。
 - `packages/server`：Koa + Knex + PostgreSQL。
 - `packages/web`：Vite + React 18 + Zustand + TanStack Query + shadcn/ui。
-- `docs/`：逐版需求文档（`v0.1.0` ~ `v0.5.5`），**每版文档最后一节是落点表 / 实现期裁定 / 验证证据 / 交付标准对照** —— 动手前先读对应版本的文档。
+- `docs/`：逐版需求文档（`v0.1.0` ~ `v0.5.7`），**每版文档最后一节是落点表 / 实现期裁定 / 验证证据 / 交付标准对照** —— 动手前先读对应版本的文档。
+- `docs/map-management-and-editor.md`：地图管理页与地图编辑器的**功能说明**（当前状态，不是需求）。要确认某个控件 / 规则的现状看它，别从旧版需求文档里推断。
 - `docs/layer-priority.md`：画布图层命名与次序的**唯一权威**。
 
 ---
@@ -47,8 +48,10 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 
 ### 3.2 UI
 
-- 浮层 `z-index` 只用 shared 的 `UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30 }`，**不要在组件里写 `z-*` 类**。
+- 浮层 `z-index` 只用 shared 的 `UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }`，**不要在组件里写 `z-*` 类**。
 - 弹窗一律**禁止点遮罩关闭**。
+- 配色只用语义 token（`bg-background` / `text-muted-foreground` / `border-border` …），**不要写 `bg-white` 之类的定色**，那在深色下会变成白疤。地图背景、物品/角色色块、区域色属于**作品内容**，不随主题变（画布范围的界定见 `docs/map-management-and-editor.md` §6）。
+- 主题（浅色 / 深色 / 跟随系统）的唯一状态源是 `lib/theme.ts`，React 侧只通过 `useTheme()` 读；不要另建 store，也不要在组件里直接改 `document` 的 class。
 
 ### 3.3 数据库迁移
 
@@ -61,9 +64,10 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 - 工作区文件统一 **LF**；代码 / 配置文件里只用 ASCII 直引号。
 - 改了图层次序 / 命名 → 同步 `docs/layer-priority.md` 与 `MAP_LAYER_ORDER`。
 
-### 3.5 文档
+### 3.5 文档/规范
 
 - 禁止修改历史需求文档，只能修改当前版本的文档。
+- 规范信息不要写到README.md中。
 
 ### 3.6 临时文件
 

@@ -17,7 +17,7 @@ export function RegionSelectionBar({
 }: RegionSelectionBarProps): JSX.Element {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-3 z-30 flex justify-center px-4">
-      <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-white px-4 py-2 shadow-lg">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full border bg-background px-4 py-2 shadow-lg">
         <span className="text-xs font-medium text-muted-foreground">
           {anchored ? (
             <span>已选起点，请点击对角格或拖拽框选</span>

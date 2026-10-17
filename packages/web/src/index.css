@@ -34,7 +34,9 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    /* 主按钮（蓝底）一律浅色字，深色下也用浅色：深色底字 #0f172a 只有 4.85:1 的
+       对比，但在深色壳里看着像「按钮缺了文字」；蓝底白字是读得出来的惯例做法。 */
+    --primary-foreground: 210 40% 98%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
     --muted: 217.2 32.6% 17.5%;

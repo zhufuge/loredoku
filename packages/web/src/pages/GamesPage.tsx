@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useGames } from '@/hooks/useGames';
 
 /**
@@ -44,17 +45,21 @@ export function GamesPage(): JSX.Element {
             </p>
           </div>
           {/* v0.5.4 FEAT-O03 (docs/v0.5.4.md §3): the way back to the maker. */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => navigate('/maps')}
-            title="进入工坊（制作端）"
-          >
-            进入工坊
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-2">
+            {/* v0.5.7: the player side has no AppShell header, so the toggle lives here. */}
+            <ThemeToggle className="h-9 w-9" />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => navigate('/maps')}
+              title="进入工坊（制作端）"
+            >
+              进入工坊
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* SPEC-N04: the loading skeleton mirrors the square cover. */}

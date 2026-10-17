@@ -21,6 +21,13 @@ describe('Toaster（FIX-N01）', () => {
 
   it('keeps the stack on the right and keeps the close button', () => {
     expect(source).toContain('position="top-right"');
-    expect(source).toContain('richColors closeButton');
+    expect(source).toContain('richColors');
+    expect(source).toContain('closeButton');
+  });
+
+  it('follows the app theme instead of sonner\'s own system default', () => {
+    // v0.5.7：手动选了深色而系统仍是浅色时，白底 toast 会刺眼。
+    expect(source).toContain("from '@/hooks/useTheme'");
+    expect(source).toContain('theme={resolved}');
   });
 });

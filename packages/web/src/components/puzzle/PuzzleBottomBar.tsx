@@ -46,7 +46,7 @@ export function PuzzleBottomBar({
 }: PuzzleBottomBarProps): JSX.Element {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
-      <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-full border bg-white px-4 py-2 shadow-lg">
+      <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-full border bg-background px-4 py-2 shadow-lg">
         <Button
           variant={rulerVisible ? 'secondary' : 'ghost'}
           size="icon"

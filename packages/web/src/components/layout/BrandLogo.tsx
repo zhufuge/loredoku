@@ -36,7 +36,10 @@ export function BrandLogo({
         alt="LOREDOKU"
         draggable={false}
         style={{ height }}
-        className="w-auto select-none"
+        // v0.5.7: 资产是黑 + 深红双色墨迹，在深色页面上几乎看不见。
+        // `invert` 把黑色翻成白色；`hue-rotate(180deg)` 再把色相转回来，
+        // 于是深红变成亮红而不是青色 —— 只反亮度，不毁品牌色。
+        className="w-auto select-none dark:invert dark:hue-rotate-180"
         data-testid="brand-logo"
       />
       {withWordmark ? (

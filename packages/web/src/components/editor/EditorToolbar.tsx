@@ -1,5 +1,6 @@
 import { ArrowLeft, Download, History, Loader2, Save, Send, Settings2, Upload } from 'lucide-react';
 import type { ProjectStatus } from '@loredoku/shared';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
 
 interface EditorToolbarProps {
@@ -88,6 +89,10 @@ export function EditorToolbar({
       </div>
 
       <div className="flex items-center gap-1">
+        {/* v0.5.7: 编辑器是独立全屏路由，没有 AppShell 的头部，主题开关挂这里。
+            三组用分隔线断开：环境设置 | 文档操作 | 保存/发布。 */}
+        <ThemeToggle />
+        <div className="mx-1 h-5 w-px bg-border" />
         <Button variant="ghost" size="icon" onClick={onImport} disabled={saving} title="导入 JSON">
           <Upload className="h-4 w-4" />
         </Button>

@@ -3,7 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- v0.5.7: tells the browser both schemes are supported, so native UI
+         (scrollbars, form controls) is themed from the very first frame. -->
+    <meta name="color-scheme" content="light dark" />
     <title>格物</title>
+    <script>
+      // v0.5.7: paint the theme before React mounts, otherwise a dark-mode user
+      // sees a white flash for as long as the bundle takes to load.
+      // The storage key must match THEME_STORAGE_KEY in src/lib/theme.ts
+      // (theme.test.ts asserts it), and the fallback rule must match
+      // resolveTheme(): anything that is not 'light' follows the OS.
+      (function () {
+        try {
+          var mode = window.localStorage.getItem('loredoku.theme');
+          var dark =
+            mode === 'dark' ||
+            (mode !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var root = document.documentElement;
+          if (dark) root.classList.add('dark');
+          root.style.colorScheme = dark ? 'dark' : 'light';
+        } catch (error) {
+          // localStorage blocked (private mode): stay on the light default.
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

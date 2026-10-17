@@ -35,7 +35,7 @@ loredoku/
 │           ├── stores/         # editorStore（地图画布）/ puzzleStore（谜题），均带撤销栈
 │           ├── hooks/          # TanStack Query 数据 hooks 与编辑器流程 hooks（useEditorSave 等）
 │           ├── api/            # Axios 接口封装
-│           ├── lib/            # 网格、命中检测、高亮、联动、线索解析、游戏放置等纯函数
+│           ├── lib/            # 网格、命中检测、高亮、联动、线索解析、游戏放置、主题状态等纯函数
 │           └── testing/        # 源码级测试的共享读取入口（见「测试说明」）
 ├── docs/                       # 各版本需求文档
 └── tsconfig.base.json          # 共享 TS 配置
@@ -80,6 +80,8 @@ npm run build && npm start # 生产模式：后端 3000 直接托管前端构建
 
 ## 相关文档
 
-逐版需求文档在 [`docs/`](./docs)。另有 [`docs/layer-priority.md`](./docs/layer-priority.md) 为图层规范唯一权威。
+- [`docs/`](./docs) —— 逐版需求文档
+- [`docs/map-management-and-editor.md`](./docs/map-management-and-editor.md) —— 地图管理页与地图编辑器的功能说明（页面结构、每个控件的含义与取值范围、发布校验、快捷键）。
+- [`docs/layer-priority.md`](./docs/layer-priority.md) —— 画布图层命名与 z-index 次序的唯一权威。
+- [`AGENTS.md`](./AGENTS.md) —— 给本仓库写代码（人或 AI Agent）的操作手册：常用命令、测试手法、代码约定与踩过的坑。
 
-要给这个仓库写代码（人或 AI Agent），先读 **[`AGENTS.md`](./AGENTS.md)** —— 常用命令、测试手法、代码约定与踩过的坑都在那里。

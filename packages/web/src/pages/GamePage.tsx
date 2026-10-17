@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/dialog';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import { BrandLogo } from '@/components/layout/BrandLogo';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
 import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
 import { MapGamePlacementLayer, MapGameToolHintLayer } from '@/components/map/MapGameLayers';
@@ -618,6 +619,8 @@ export function GamePage(): JSX.Element {
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <BrandLogo height={16} />
+              {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
+              <ThemeToggle className="ml-auto" />
             </div>
             <p className="truncate pl-1 text-sm font-semibold" title={game.name}>
               {game.name} {gridSize}x{gridSize}

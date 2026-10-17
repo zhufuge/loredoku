@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowRight, Map, Package, Puzzle, Users } from 'lucide-react';
 import { BrandLogo } from '@/components/layout/BrandLogo';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -52,18 +53,22 @@ export function AppShell(): JSX.Element {
               </NavLink>
             ))}
           </nav>
-          {/* v0.5.4 FEAT-O07 (docs/v0.5.4.md §4): the way into the player side. */}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="ml-auto gap-1.5"
-            onClick={() => navigate('/play')}
-            title="进入游戏首页"
-          >
-            游戏
-            <ArrowRight className="h-4 w-4" />
-          </Button>
+          <div className="ml-auto flex items-center gap-2">
+            {/* v0.5.7: theme switch — every console page rides this header. */}
+            <ThemeToggle className="h-9 w-9" />
+            {/* v0.5.4 FEAT-O07 (docs/v0.5.4.md §4): the way into the player side. */}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => navigate('/play')}
+              title="进入游戏首页"
+            >
+              游戏
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
       <main className="mx-auto w-full max-w-7xl flex-1 px-6 py-6">

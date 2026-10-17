@@ -18,6 +18,18 @@ const files = import.meta.glob('/src/**/*.{ts,tsx}', {
   eager: true,
 }) as Record<string, string>;
 
+/**
+ * v0.5.7: the only file **outside** `src/` the tests read — `index.html` carries
+ * the pre-React theme script, so its storage key and fallback rule must be
+ * asserted against `lib/theme.ts`. Kept here for the same reason as the map
+ * above: one place decides how source text is loaded.
+ */
+const htmlFiles = import.meta.glob('/index.html', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+}) as Record<string, string>;
+
 /** Every source path under `src/`, test files included. */
 export function sourceKeys(): string[] {
   return Object.keys(files).map((key) => key.replace(/^\/src\//, ''));
@@ -34,6 +46,14 @@ export function productionKeys(): string[] {
  */
 export function readSource(path: string): string {
   return (files[`/src/${path}`] ?? '').replace(/\r\n/g, '\n');
+}
+
+/**
+ * `packages/web/index.html`, newline-normalised. Returns `''` when the glob
+ * misses, so a broken pattern fails an assertion instead of passing silently.
+ */
+export function readIndexHtml(): string {
+  return (htmlFiles['/index.html'] ?? '').replace(/\r\n/g, '\n');
 }
 
 /**
