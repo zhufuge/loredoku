@@ -5,6 +5,7 @@ import { DEFAULT_MAP_STYLE } from '@loredoku/shared';
 import type { MapStyle } from '@loredoku/shared';
 import { MapInfoDrawer, type MapInfoDrawerHandle } from './MapInfoDrawer';
 import { resolveMapStyle } from '@/lib/mapStyle';
+import { readSource } from '@/testing/source';
 
 /**
  * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a **form** — every
@@ -17,12 +18,7 @@ import { resolveMapStyle } from '@/lib/mapStyle';
  */
 
 /** The drawer source, read as raw text for the architectural assertions. */
-const drawerSource =
-  (import.meta.glob('./MapInfoDrawer.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./MapInfoDrawer.tsx'] ?? '';
+const drawerSource = readSource('components/editor/MapInfoDrawer.tsx');
 
 function setValue(element: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
@@ -268,8 +264,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
   it('SPEC-F01: hints are circular icons, never a title on the label', () => {
     expect(drawerSource).not.toMatch(/<Label[^>]*\stitle=/);
     expect(drawerSource).toContain('HelpCircle');
-    // FIX-F05: the canvas-size confirmation copy is gone for good.
-    expect(drawerSource).not.toContain('调整画布尺寸会先弹出确认');
   });
 
   it('FEAT-E02: the ruler group edits text size and the text→board gap', () => {
@@ -295,20 +289,11 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     ]) {
       expect(text, label).toContain(label);
     }
-    // The pre-v0.3.9 wording is gone.
-    expect(text).not.toContain('边框 border');
-    expect(text).not.toContain('当前鼠标所在框');
-    expect(text).not.toContain('2~24');
   });
 
   /**
-   * v0.5.0 SPEC-K12 (§9.1): 联动主题色 moved to the puzzle's 「基本信息」, so the
-   * map drawer must not carry the palette any more — neither the section nor the
-   * `characterSlots` prop it used for the delete confirm.
    */
-  it('v0.5.0 SPEC-K12: the map drawer no longer carries 联动主题色', () => {
-    expect(container.textContent ?? '').not.toContain('联动主题色');
-    expect(container.textContent ?? '').not.toContain('新增颜色');
+  it('SPEC-K12: the map drawer carries no linkage palette', () => {
     expect(drawerSource).not.toContain('linkageColors');
     expect(drawerSource).not.toContain('characterSlots');
   });

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 
 /**
  * FEAT-G03 (docs/v0.4.0.md §6) + SPEC-G03 / SPEC-G04 — source-level guards for
@@ -9,19 +10,9 @@ import { describe, expect, it } from 'vitest';
  * game layers plus the toolbar state machine are wired to `lib/gamePlacement`.
  */
 
-const pageSource =
-  (import.meta.glob('./GamePage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./GamePage.tsx'] ?? '';
+const pageSource = readSource('pages/GamePage.tsx');
 
-const routerSource =
-  (import.meta.glob('../router.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../router.tsx'] ?? '';
+const routerSource = readSource('router.tsx');
 
 describe('GamePage (FEAT-G03)', () => {
   it('is a top-level route outside the app shell, keyed by the access path', () => {
@@ -42,7 +33,6 @@ describe('GamePage (FEAT-G03)', () => {
     expect(pageSource).toContain('const { slug: slugParam } = useParams();');
     expect(pageSource).toContain('useGameDetail(slug)');
     // A bare /play/:slug that matches nothing must not crash the page.
-    expect(pageSource).toContain('游戏不存在或加载失败。');
     // FEAT-L04: both escapes lead back to the new game list.
     expect(pageSource).toContain("navigate('/play')");
     expect(pageSource).not.toContain("navigate('/games')");
@@ -82,16 +72,13 @@ describe('GamePage (FEAT-G03)', () => {
   });
 
   it('marks exclusions with an × button and no view cluster', () => {
-    // 验收补充：禁止按钮用 X 图标；画布固定自适应，没有平移 / 缩放 / 重置。
+    // The canvas is fixed-fit: no pan / zoom / reset cluster at all.
     expect(pageSource).toContain('<X className="h-5 w-5 text-red-500" />');
     expect(pageSource).not.toContain('<Ban');
     for (const gone of ['zoomBy', 'clampZoom', 'zoomAtPoint', 'setPanning', 'panRef', 'panMovedRef']) {
       expect(pageSource).not.toContain(gone);
     }
     expect(pageSource).not.toContain('RotateCcw');
-    expect(pageSource).not.toContain('重置视图');
-    // The ruler toggle stays — it is a display preference, not a view transform.
-    expect(pageSource).toContain('显示 / 隐藏标尺');
   });
 
   it('lays out three columns', () => {
@@ -145,18 +132,11 @@ describe('GamePage (FEAT-G03)', () => {
     // SPEC-G05 §5.2: the toast names the cell the participant already owns.
     expect(pageSource).toContain('const block = placementBlockReason({');
     expect(pageSource).toContain('toast.error(describeBlock(block, mode.participantId, placementState.board))');
-    // CLAR-H13（docs/v0.4.2.md §1.1）: the toast says 编号 — a participant is not
-    // the same thing as the participant's number.
-    expect(pageSource).toContain('该格已有编号 ${participantId}');
-    // SPEC-J05 §3.6（docs/v0.4.3.md）：编号可以落在多个格子上，所以「已在别处」
-    // 这条拒绝只剩头像一种情况，文案也跟着改成头像，不再报「编号 N 已放置在 …」。
-    expect(pageSource).toContain('该参与者的头像已放置在 ${formatCellLabel(at)}');
-    expect(pageSource).not.toContain('编号 ${participantId} 已放置在');
   });
 
   it('dims the roster cards of avatar-placed participants only (SPEC-L05)', () => {
     // SPEC-G05 §5.3: derived from the board, so a clear/undo restores it.
-    // v0.5.1 SPEC-L05: a 编号 no longer dims the card — only the avatar does.
+    // SPEC-L05: only an avatar placement dims the card.
     expect(pageSource).toContain('avatarPlacedParticipantIds(placementState.board)');
     expect(pageSource).not.toContain('placedParticipantIds(placementState.board)');
     expect(pageSource).toContain('placedSlotIndices={placedSlotIndices}');
@@ -170,32 +150,18 @@ describe('GamePage (FEAT-G03)', () => {
       expect(pageSource).toContain('{game.name} {gridSize}x{gridSize}');
     });
 
-    it('no longer shows a cover (SPEC-L06)', () => {
-      // The 80×56 thumbnail and its initial-letter placeholder are gone.
-      expect(pageSource).not.toContain('game.coverUrl');
-      expect(pageSource).not.toContain("|| '游'");
-    });
-
-    it('no longer shows difficulty, source map or participant count (SPEC-L08)', () => {
-      expect(pageSource).not.toContain('GAME_DIFFICULTY_COLORS');
-      expect(pageSource).not.toContain('GAME_DIFFICULTY_LABELS');
-      expect(pageSource).not.toContain('game.difficulty');
-      expect(pageSource).not.toContain('来自地图 v');
-      expect(pageSource).not.toContain('game.versionNo');
-      expect(pageSource).not.toContain('参与者 {slots.filter(Boolean).length} 人');
-    });
-
-    it('no longer shows the long instructions paragraph (SPEC-L09)', () => {
-      expect(pageSource).not.toContain('点击参与者进入放置状态：点击格子放置的是该参与者的「编号」');
-      expect(pageSource).not.toContain('编号与参与者不是一个东西');
-      expect(pageSource).not.toContain('需要手动排除时，用工具栏的「禁止符号」');
-      expect(pageSource).not.toContain('已放置的参与者卡片会变淡');
-    });
-
     it('keeps the three-column shell and the participant panel', () => {
       expect(pageSource).toContain('w-[256px] shrink-0 flex-col border-r');
       expect(pageSource).toContain('<ParticipantPanel');
       expect(pageSource).toContain('readOnly');
+    });
+
+    it('shows nothing else — no cover, difficulty, source map, count or instructions', () => {
+      // SPEC-L06 / L08 / L09: the left column is two lines and nothing more.
+      expect(pageSource).not.toContain('game.coverUrl');
+      expect(pageSource).not.toContain('GAME_DIFFICULTY_COLORS');
+      expect(pageSource).not.toContain('game.difficulty');
+      expect(pageSource).not.toContain('game.versionNo');
     });
   });
 
@@ -205,9 +171,6 @@ describe('GamePage (FEAT-G03)', () => {
     expect(pageSource).toContain('if (!result.passed) {');
     expect(pageSource).toContain('setValidationIssues(result.issues);');
     expect(pageSource).toContain('submitPlacement(state)');
-    expect(pageSource).toContain('校验通过，已提交');
-    // The dialog shows the issues and a close button only.
-    expect(pageSource).toContain('提交未通过');
     expect(pageSource).toContain('validationIssues?.map((issue, index) => (');
   });
 

@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GAME_PLACED_OPACITY } from '@loredoku/shared';
 import { ParticipantPanel } from './ParticipantPanel';
+import { readSource } from '@/testing/source';
 
 /**
  * SPEC-H14（docs/v0.4.2.md §1.3）+ OPT-H06（§6）。
@@ -15,12 +16,7 @@ import { ParticipantPanel } from './ParticipantPanel';
  * 无图角色直接显示首字而不是一个白色内圆。
  */
 
-const source =
-  ((import.meta.glob('./ParticipantPanel.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./ParticipantPanel.tsx'] ?? '').replace(/\r\n/g, '\n');
+const source = readSource('components/editor/ParticipantPanel.tsx');
 
 describe('ParticipantPanel — 整框淡化（SPEC-H14 §1.3）', () => {
   it('accepts the placed slot indices as an optional prop', () => {

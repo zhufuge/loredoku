@@ -8,6 +8,7 @@ import {
   type CharacterSlotEntry,
 } from '@loredoku/shared';
 import { ParticipantPanel } from './ParticipantPanel';
+import { readSource } from '@/testing/source';
 
 /**
  * FEAT-O12 / FEAT-O13 (docs/v0.5.4.md §6): every participant card — editor,
@@ -16,12 +17,7 @@ import { ParticipantPanel } from './ParticipantPanel';
  * sequence badge is bigger and flush with the card's own frame.
  */
 
-const source =
-  ((import.meta.glob('./ParticipantPanel.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./ParticipantPanel.tsx'] ?? '').replace(/\r\n/g, '\n');
+const source = readSource('components/editor/ParticipantPanel.tsx');
 
 const CHARACTER: Character = {
   id: 1,

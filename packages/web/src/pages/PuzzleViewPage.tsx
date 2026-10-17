@@ -62,14 +62,12 @@ function readStoredRulerVisible(): boolean {
 
 /**
  * v0.5.0 FEAT-K01 / §15 Q18 (docs/v0.5.0.md): the puzzle's read-only preview,
- * at `/puzzles/:puzzleId/view` — the old work preview page with its two data
- * sources swapped:
+ * at `/puzzles/:puzzleId/view`.
  *
  * - the **canvas** comes from `GET /api/puzzles/:id/map` (the referenced map
- *   version, §5.1) instead of a `map_versions` snapshot;
+ *   version, §5.1);
  * - the **roster** and the **palette** come from the puzzle's own draft
- *   (§5.1 / Q16) instead of from the map's `characterSlots` /
- *   `style.linkageColors`.
+ *   (§5.1 / Q16).
  *
  * Everything else — layout, rulers, hover affordances, the read-only
  * `ParticipantPanel` (FIX-F07) and the MOD-802 linkage preview — is unchanged,

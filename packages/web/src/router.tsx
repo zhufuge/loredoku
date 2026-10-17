@@ -13,28 +13,21 @@ import { PuzzlesPage } from '@/pages/PuzzlesPage';
 import { PuzzleViewPage } from '@/pages/PuzzleViewPage';
 
 /**
- * v0.5.0 (docs/v0.5.0.md §2 / §7): the 作品 module is gone. What used to be
- * `/works` (a flat list of published map versions) is now two things:
- *
- * - `/puzzles` — the puzzle table (the roster / palette's new home);
- * - `/maps/:projectId/:versionNo/view` — one **version entry** of the map list,
- *   read-only canvas only (participants moved to puzzles, SPEC-K12).
+ * `/maps/:projectId/:versionNo/view` is a read-only version entry (SPEC-K12).
  */
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <AppShell />,
     children: [
-      // v0.5.4 FEAT-O04 (docs/v0.5.4.md §3): the games home is the default
-      // entry — the maker's console is now reached from its 「进入琢玉台」.
+      // v0.5.4 FEAT-O04: the games home is the default entry; the console is
+      // reached from 「进入琢玉台」.
       { index: true, element: <Navigate to="/play" replace /> },
-      // FEAT-O06 §4.2: `/projects` → `/maps`, data names renamed with it.
       { path: 'maps', element: <MapsPage /> },
       // R3: old links / bookmarks keep working.
       { path: 'projects', element: <Navigate to="/maps" replace /> },
       { path: 'items', element: <ItemsPage /> },
       { path: 'characters', element: <CharactersPage /> },
-      // FEAT-K01: 谜题（原「作品」，数据源换成谜题）
       { path: 'puzzles', element: <PuzzlesPage /> },
       { path: 'cards', element: <Navigate to="/items" replace /> },
       { path: '*', element: <NotFoundPage /> },

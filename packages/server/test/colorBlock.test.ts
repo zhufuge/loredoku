@@ -9,12 +9,13 @@ import { resolveUploadPath } from '../src/utils/paths';
  *
  * The two rules that matter:
  * - `bgColor` round-trips through create / patch and is rejected when malformed;
- * - deleting the image no longer deactivates an entry that is a colour block
+ * - deleting the media no longer deactivates an entry that is a colour block
  *   (the v0.3.5 OPT-305 rule is narrowed, not removed).
+ *
+ * 物品 and 角色 are the same contract twice, so they share one table.
  */
 
-const createdItems: number[] = [];
-const createdCharacters: number[] = [];
+const created: Array<{ table: 'items' | 'characters'; id: number }> = [];
 const uploadedDirs: string[] = [];
 
 /** 1×1 PNG — the smallest thing the image pipeline accepts. */
@@ -27,99 +28,100 @@ function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
-async function createItem(body: Record<string, unknown> = {}): Promise<number> {
-  const res = await api
-    .post('/api/items')
-    .send({ code: uniqueCode('item'), name: 'Item', ...body });
-  expect(res.status).toBe(200);
-  const id = res.body.data.id as number;
-  createdItems.push(id);
-  return id;
-}
+const subjects = [
+  {
+    kind: 'items',
+    table: 'items' as const,
+    media: 'image',
+    url: 'imageUrl',
+    uploadPath: 'items',
+    colour: '#FF8800',
+    create: (body: Record<string, unknown> = {}) =>
+      api.post('/api/items').send({ code: uniqueCode('item'), name: 'Item', ...body }),
+  },
+  {
+    kind: 'characters',
+    table: 'characters' as const,
+    media: 'avatar',
+    url: 'avatarUrl',
+    uploadPath: 'characters',
+    colour: '#123456',
+    create: (body: Record<string, unknown> = {}) =>
+      api.post('/api/characters').send({ code: uniqueCode('char'), name: 'Character', ...body }),
+  },
+];
 
-async function createCharacter(body: Record<string, unknown> = {}): Promise<number> {
-  const res = await api
-    .post('/api/characters')
-    .send({ code: uniqueCode('char'), name: 'Character', ...body });
-  expect(res.status).toBe(200);
-  const id = res.body.data.id as number;
-  createdCharacters.push(id);
-  return id;
-}
-
-async function uploadItemImage(id: number): Promise<void> {
-  const res = await api.post(`/api/items/${id}/image`).attach('file', TINY_PNG, 'i.png');
-  expect(res.status).toBe(200);
-  uploadedDirs.push(resolveUploadPath(`items/${id}`));
-}
-
-async function uploadCharacterAvatar(id: number): Promise<void> {
-  const res = await api.post(`/api/characters/${id}/avatar`).attach('file', TINY_PNG, 'a.png');
-  expect(res.status).toBe(200);
-  uploadedDirs.push(resolveUploadPath(`characters/${id}`));
-}
-
-describe('items 纯色块（v0.5.1 FEAT-L01）', () => {
-  it('creates an item with a colour and reads it back', async () => {
-    const res = await api
-      .post('/api/items')
-      .send({ code: uniqueCode('block'), name: '色块', bgColor: '#FF8800' });
+describe.each(subjects)('$kind 纯色块（v0.5.1 FEAT-L01 / FEAT-L02）', (s) => {
+  async function create(body: Record<string, unknown> = {}): Promise<number> {
+    const res = await s.create(body);
     expect(res.status).toBe(200);
     const id = res.body.data.id as number;
-    createdItems.push(id);
-    expect(res.body.data.bgColor).toBe('#FF8800');
+    created.push({ table: s.table, id });
+    return id;
+  }
 
-    const detail = await api.get(`/api/items/${id}`);
-    expect(detail.body.data.bgColor).toBe('#FF8800');
+  async function upload(id: number): Promise<void> {
+    const res = await api.post(`/api/${s.kind}/${id}/${s.media}`).attach('file', TINY_PNG, 'x.png');
+    expect(res.status).toBe(200);
+    uploadedDirs.push(resolveUploadPath(`${s.uploadPath}/${id}`));
+  }
+
+  it('creates with a colour and reads it back', async () => {
+    const res = await s.create({ name: '色块', bgColor: s.colour });
+    expect(res.status).toBe(200);
+    const id = res.body.data.id as number;
+    created.push({ table: s.table, id });
+    expect(res.body.data.bgColor).toBe(s.colour);
+
+    const detail = await api.get(`/api/${s.kind}/${id}`);
+    expect(detail.body.data.bgColor).toBe(s.colour);
   });
 
   it('omits bgColor when it is not given', async () => {
-    const id = await createItem();
-    const detail = await api.get(`/api/items/${id}`);
+    const id = await create();
+    const detail = await api.get(`/api/${s.kind}/${id}`);
     expect(detail.body.data.bgColor).toBeNull();
   });
 
   it('sets and clears the colour on patch', async () => {
-    const id = await createItem();
-    const set = await api.patch(`/api/items/${id}`).send({ bgColor: '#00AABB' });
+    const id = await create();
+    const set = await api.patch(`/api/${s.kind}/${id}`).send({ bgColor: '#00AABB' });
     expect(set.body.data.bgColor).toBe('#00AABB');
-    const cleared = await api.patch(`/api/items/${id}`).send({ bgColor: null });
+    const cleared = await api.patch(`/api/${s.kind}/${id}`).send({ bgColor: null });
     expect(cleared.body.data.bgColor).toBeNull();
   });
 
   it('rejects a malformed colour', async () => {
-    const res = await api
-      .post('/api/items')
-      .send({ code: uniqueCode('bad'), name: 'Bad', bgColor: '#GGG' });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    const posted = await s.create({ name: 'Bad', bgColor: '#GGG' });
+    expect(posted.status).toBe(400);
+    expect(posted.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
-    const id = await createItem();
-    const patched = await api.patch(`/api/items/${id}`).send({ bgColor: 'white' });
+    const id = await create();
+    const patched = await api.patch(`/api/${s.kind}/${id}`).send({ bgColor: 'white' });
     expect(patched.status).toBe(400);
   });
 
-  it('keeps a colour block active after the image is deleted', async () => {
-    const id = await createItem({ bgColor: '#FFFFFF' });
-    await uploadItemImage(id);
-    const activated = await api.patch(`/api/items/${id}`).send({ isActive: true });
+  it('keeps a colour block active after the media is deleted', async () => {
+    const id = await create({ bgColor: '#FFFFFF' });
+    await upload(id);
+    const activated = await api.patch(`/api/${s.kind}/${id}`).send({ isActive: true });
     expect(activated.body.data.isActive).toBe(true);
 
-    const removed = await api.delete(`/api/items/${id}/image`);
+    const removed = await api.delete(`/api/${s.kind}/${id}/${s.media}`);
     expect(removed.status).toBe(200);
-    expect(removed.body.data.imageUrl).toBeNull();
-    // FEAT-L01 §1.2: a colour block does not depend on the image.
+    expect(removed.body.data[s.url]).toBeNull();
+    // A colour block does not depend on the media.
     expect(removed.body.data.bgColor).toBe('#FFFFFF');
     expect(removed.body.data.isActive).toBe(true);
   });
 
-  it('still deactivates an image-only item when the image is deleted', async () => {
-    const id = await createItem();
-    await uploadItemImage(id);
-    const activated = await api.patch(`/api/items/${id}`).send({ isActive: true });
+  it('still deactivates a media-only entry when the media is deleted', async () => {
+    const id = await create();
+    await upload(id);
+    const activated = await api.patch(`/api/${s.kind}/${id}`).send({ isActive: true });
     expect(activated.body.data.isActive).toBe(true);
 
-    const removed = await api.delete(`/api/items/${id}/image`);
+    const removed = await api.delete(`/api/${s.kind}/${id}/${s.media}`);
     expect(removed.status).toBe(200);
     // OPT-305 unchanged for entries that are not colour blocks.
     expect(removed.body.data.bgColor).toBeNull();
@@ -127,77 +129,11 @@ describe('items 纯色块（v0.5.1 FEAT-L01）', () => {
   });
 });
 
-describe('characters 纯色块（v0.5.1 FEAT-L02）', () => {
-  it('creates a character with a colour and reads it back', async () => {
-    const res = await api
-      .post('/api/characters')
-      .send({ code: uniqueCode('blockc'), name: '色块人', bgColor: '#123456' });
-    expect(res.status).toBe(200);
-    const id = res.body.data.id as number;
-    createdCharacters.push(id);
-    expect(res.body.data.bgColor).toBe('#123456');
-
-    const detail = await api.get(`/api/characters/${id}`);
-    expect(detail.body.data.bgColor).toBe('#123456');
-  });
-
-  it('omits bgColor when it is not given', async () => {
-    const id = await createCharacter();
-    const detail = await api.get(`/api/characters/${id}`);
-    expect(detail.body.data.bgColor).toBeNull();
-  });
-
-  it('sets and clears the colour on patch', async () => {
-    const id = await createCharacter();
-    const set = await api.patch(`/api/characters/${id}`).send({ bgColor: '#ABCDEF' });
-    expect(set.body.data.bgColor).toBe('#ABCDEF');
-    const cleared = await api.patch(`/api/characters/${id}`).send({ bgColor: null });
-    expect(cleared.body.data.bgColor).toBeNull();
-  });
-
-  it('rejects a malformed colour', async () => {
-    const res = await api
-      .post('/api/characters')
-      .send({ code: uniqueCode('badc'), name: 'Bad', bgColor: '#GGG' });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
-
-    const id = await createCharacter();
-    const patched = await api.patch(`/api/characters/${id}`).send({ bgColor: 'red' });
-    expect(patched.status).toBe(400);
-  });
-
-  it('keeps a colour block active after the avatar is deleted', async () => {
-    const id = await createCharacter({ bgColor: '#FFFFFF' });
-    await uploadCharacterAvatar(id);
-    const activated = await api.patch(`/api/characters/${id}`).send({ isActive: true });
-    expect(activated.body.data.isActive).toBe(true);
-
-    const removed = await api.delete(`/api/characters/${id}/avatar`);
-    expect(removed.status).toBe(200);
-    expect(removed.body.data.avatarUrl).toBeNull();
-    // FEAT-L02: a colour block does not depend on the avatar.
-    expect(removed.body.data.bgColor).toBe('#FFFFFF');
-    expect(removed.body.data.isActive).toBe(true);
-  });
-
-  it('still deactivates an avatar-only character when the avatar is deleted', async () => {
-    const id = await createCharacter();
-    await uploadCharacterAvatar(id);
-    const activated = await api.patch(`/api/characters/${id}`).send({ isActive: true });
-    expect(activated.body.data.isActive).toBe(true);
-
-    const removed = await api.delete(`/api/characters/${id}/avatar`);
-    expect(removed.status).toBe(200);
-    expect(removed.body.data.bgColor).toBeNull();
-    expect(removed.body.data.isActive).toBe(false);
-  });
-});
-
 afterAll(async () => {
   const { db } = await import('../src/db/knex');
-  if (createdItems.length) await db('items').whereIn('id', createdItems).del();
-  if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
+  for (const { table, id } of created) {
+    await db(table).where('id', id).del();
+  }
   await db.destroy();
   for (const dir of uploadedDirs) {
     await rm(dir, { recursive: true, force: true });

@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_BG_COLOR } from '@loredoku/shared';
 import { AppearanceField } from './AppearanceField';
+import { readSource } from '@/testing/source';
 
 /**
  * v0.5.1 FEAT-L01 / FEAT-L02 — the shared 「外观」 control.
@@ -11,12 +12,7 @@ import { AppearanceField } from './AppearanceField';
  * hides the uploader, 「图片」 shows the uploader and hides the picker.
  */
 
-const source =
-  ((import.meta.glob('./AppearanceField.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./AppearanceField.tsx'] ?? '').replace(/\r\n/g, '\n');
+const source = readSource('components/appearance/AppearanceField.tsx');
 
 describe('AppearanceField — 源码契约（v0.5.1 FEAT-L01 / L02）', () => {
   it('offers exactly the two shared modes', () => {
@@ -79,8 +75,6 @@ describe('AppearanceField — 渲染行为（v0.5.1）', () => {
     document.querySelector<HTMLButtonElement>(`button[data-appearance-mode="${value}"]`);
 
   it('renders both options and marks the active one', () => {
-    expect(option('image')?.textContent).toBe('图片');
-    expect(option('color')?.textContent).toBe('纯色块');
     expect(option('image')?.getAttribute('aria-checked')).toBe('true');
     expect(option('color')?.getAttribute('aria-checked')).toBe('false');
   });

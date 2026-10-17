@@ -406,11 +406,10 @@ export function EditorPage(): JSX.Element {
   }, [resizeOpen, resizeValue, editor.cells, editor.regions, itemsById]);
 
   /**
-   * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing still lives in the map editor,
-   * but its wording now describes **版本管理** — it adds an entry to the map
-   * list instead of producing a 「作品」. With Q3 = B the next version number
-   * spans the whole blood lineage, so it is read from the version list rather
-   * than from this row's own `current_version_no`.
+   * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing adds an entry to the map list
+   * (版本管理). With Q3 = B the next version number spans the whole blood
+   * lineage, so it is read from the version list rather than from this row's
+   * own `current_version_no`.
    */
   const [publishOpen, setPublishOpen] = useState(false);
   const [publishNotes, setPublishNotes] = useState('');

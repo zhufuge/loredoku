@@ -3,19 +3,13 @@ import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
 
 /**
  * v0.5.0 FEAT-K14 (docs/v0.5.0.md §8.3) — the absorption layer for stored map
- * drafts.
- *
- * Until v0.4.3 a map draft owned the roster (`characterSlots`) and the linkage
- * palette (`style.linkageColors`). Both moved to the puzzle, and the v3 schemas
- * are `.strict()`, so a v2 payload read back from `map_projects.draft_data` /
- * `map_versions.data` would fail to parse. Rather than rewriting the database
- * (which would make the v0.5.0 migration irreversible), every read path passes
- * the raw JSON through `absorbLegacyMapDraft` first.
- *
- * The old fields are **not deleted from the database** — they are simply no
- * longer read. `readLegacyCharacterSlots` / `readLegacyLinkageColors` are the
- * two accessors that still look at them, for the backfill migration and the
- * game snapshot upgrade.
+ * drafts. Until v0.4.3 a draft owned the roster (`characterSlots`) and the palette
+ * (`style.linkageColors`); both moved to the puzzle and the v3 schemas are
+ * `.strict()`, so a v2 payload would fail to parse. Instead of rewriting the
+ * database (which would make v0.5.0 irreversible), every read path passes the raw
+ * JSON through `absorbLegacyMapDraft` first. The old fields stay in the database,
+ * simply no longer read — `readLegacyCharacterSlots` / `readLegacyLinkageColors`
+ * are the two accessors that still look, for backfill and snapshot upgrade.
  */
 
 function asRecord(raw: unknown): Record<string, unknown> | null {
@@ -23,11 +17,7 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>;
 }
 
-/**
- * The v2 roster, or `[]` for a v3 / missing payload. Slots keep whatever shape
- * they had — they were already valid `CharacterSlotEntry` objects, and the
- * migration copies them verbatim into the puzzle seed.
- */
+/** The v2 roster, or `[]` for v3 / missing. Slots were already valid `CharacterSlotEntry`s. */
 export function readLegacyCharacterSlots(raw: unknown): Array<CharacterSlotEntry | null> {
   const record = asRecord(raw);
   const slots = record?.['characterSlots'];

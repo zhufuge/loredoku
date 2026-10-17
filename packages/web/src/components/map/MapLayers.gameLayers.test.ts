@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource, segment } from '@/testing/source';
 
 /**
  * SPEC-G01 / SPEC-G02 (docs/v0.4.0.md §7 / §8) — a source-level guard for the
@@ -9,23 +10,7 @@ import { describe, expect, it } from 'vitest';
  * events, and the number glyph really is the shared 3×3 layout.
  */
 
-const raw = import.meta.glob('./MapLayers.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-
-/** Normalise CRLF so the multi-line markers below match on any platform. */
-const source = (raw['./MapLayers.tsx'] ?? '').replace(/\r\n/g, '\n');
-
-function segment(haystack: string, startMarker: string, endMarker: string): string {
-  const start = haystack.indexOf(startMarker);
-  const end = haystack.indexOf(endMarker, start);
-  if (start === -1 || end === -1) {
-    throw new Error(`segment not found (start="${startMarker}")`);
-  }
-  return haystack.slice(start, end);
-}
+const source = readSource('components/map/MapLayers.tsx');
 
 const HINT_START = 'export function MapGameToolHintLayer(';
 const PLACEMENT_START = 'export function MapGamePlacementLayer(';
@@ -35,12 +20,6 @@ const hint = segment(source, HINT_START, PLACEMENT_START);
 const placement = segment(source, PLACEMENT_START, PLACEMENT_END);
 
 describe('游戏放置层 / 工具提示层 (SPEC-G01 / SPEC-G02)', () => {
-  it('finds the component source', () => {
-    expect(source.length).toBeGreaterThan(0);
-    expect(hint.length).toBeGreaterThan(0);
-    expect(placement.length).toBeGreaterThan(0);
-  });
-
   it('takes both z-indexes from MAP_LAYER_Z', () => {
     expect(hint).toContain('zIndex: MAP_LAYER_Z.gameToolHint');
     expect(placement).toContain('zIndex: MAP_LAYER_Z.gamePlacement');

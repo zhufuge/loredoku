@@ -67,8 +67,6 @@ export function useUpdateItem() {
   });
 }
 
-// v0.5.2 FEAT-M03: `useReplaceItemTriggers` went away with the
-// `PUT /api/items/:id/triggers` endpoint.
 
 export function useDeleteItem() {
   const invalidate = useInvalidateItems();

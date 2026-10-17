@@ -15,15 +15,11 @@ import {
 } from '@loredoku/shared';
 
 /**
- * OPT-B03 (docs/v0.3.6.md §3): the adaptive cell width varies between 90 and
- * 240px, so fixed line widths and font sizes look wrong at both ends — a 2px
- * grid line is heavy on a 90px cell and hairline on a 240px one. Everything
- * geometric is therefore authored against `BASE_CELL` and multiplied by
- * `scale = cellSize / BASE_CELL`.
- *
- * §3.3: this only runs when `cellSize` changes (resize / reset view / new
- * map). Canvas zoom is a container `transform: scale()`, so lines and fonts
- * must NOT be re-scaled for zoom — otherwise they'd be scaled twice.
+ * OPT-B03 (docs/v0.3.6.md §3): the cell width spans 90 ~ 240px, so a fixed 2px
+ * grid line is heavy at one end and hairline at the other. Everything geometric is
+ * authored against `BASE_CELL` and multiplied by `scale = cellSize / BASE_CELL`.
+ * §3.3: only `cellSize` re-scales — canvas zoom is a container `transform`, so
+ * re-scaling here would double it.
  */
 export function cellScale(cellSize: number): number {
   if (!Number.isFinite(cellSize) || cellSize <= 0) return 1;
@@ -38,13 +34,10 @@ export function scaleLineWidth(width: number, scale: number): number {
 }
 
 /**
- * v0.5.2 FIX-M08 (docs/v0.5.2.md §8): font sizes clamp to `FONT_SIZE_MIN`
- * only — **there is no upper bound**.
- *
- * The old 28px ceiling flattened everything above it, so the region label
- * "set to 32px but still rendered 28px". Unlike line widths (which really do
- * need a ceiling or they smear over the cell), a large label is a deliberate
- * authoring choice and must survive the scale.
+ * v0.5.2 FIX-M08 (docs/v0.5.2.md §8): fonts clamp to `FONT_SIZE_MIN` only — **no
+ * upper bound**. The old 28px ceiling flattened everything above it ("set 32px,
+ * rendered 28px"). Line widths need a ceiling or they smear; a large label is a
+ * deliberate authoring choice and must survive.
  */
 export function scaleFontSize(size: number, scale: number): number {
   const scaled = size * scale;

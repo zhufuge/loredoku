@@ -54,8 +54,6 @@ export interface ItemRow {
 export type CardRow = ItemRow;
 
 /**
- * v0.5.2 FEAT-M03 (docs/v0.5.2.md §3.1): `item_triggers` is dropped, so this
- * row shape — and its `CardTriggerRow` alias — no longer exist.
  */
 
 export interface CharacterRow {

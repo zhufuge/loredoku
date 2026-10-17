@@ -20,17 +20,15 @@ interface VersionHistoryDialogProps {
 }
 
 /**
- * SPEC-K13 (docs/v0.5.0.md §7.4): 「作品历史」 became 「版本历史」.
+ * SPEC-K13 (docs/v0.5.0.md §7.4): the version rows of the **whole blood lineage**
+ * (Q3 = B), each naming the `map_projects` row that owns it — that is what
+ * 「编辑此版本」 forks from.
  *
- * What changed beyond the wording:
+ * 「回滚」 does not exist (§15 Q10): forking *is* "start from an old version", so
+ * a rollback would be a second way to say the same thing — and the destructive
+ * one, since it would overwrite the work-in-progress entry.
  *
- * - the rows are the versions of the **whole blood lineage** (Q3 = B), each
- *   naming the `map_projects` row that owns it — that is what 「编辑此版本」
- *   forks from;
- * - 「回滚」 is **gone** (§15 Q10): forking *is* "start from an old version", so
- *   a rollback would be a second way to say the same thing — and the destructive
- *   one, since it would overwrite the work-in-progress entry;
- * - deleting a version row is now possible from here (it was on the works page).
+ * A version row can be deleted from here.
  */
 export function VersionHistoryDialog({
   projectId,

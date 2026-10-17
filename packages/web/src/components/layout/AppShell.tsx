@@ -11,7 +11,6 @@ const navItems = [
   { to: '/maps', label: '地图', icon: Map },
   { to: '/items', label: '物品', icon: Package },
   { to: '/characters', label: '角色', icon: Users },
-  // v0.5.0 FEAT-K01: 谜题（原「作品」，模块整体换成谜题）
   { to: '/puzzles', label: '谜题', icon: Puzzle },
 ];
 

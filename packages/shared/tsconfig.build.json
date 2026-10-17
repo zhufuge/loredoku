@@ -4,5 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src"
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts"],
+  // v0.5.5 CLEAN-01: consumers import ./src/*.ts via `exports`, so emitting
+  // compiled **tests** into dist/ was pure clutter.
+  "exclude": ["src/**/*.test.ts"]
 }

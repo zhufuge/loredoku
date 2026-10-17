@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 
 /**
  * v0.3.10 FIX-F01 / FIX-F03 (docs/v0.3.10.md §1 / §3).
@@ -12,12 +13,7 @@ import { describe, expect, it } from 'vitest';
  * assertions on the wiring itself.
  */
 
-const pageSource =
-  (import.meta.glob('./EditorPage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./EditorPage.tsx'] ?? '';
+const pageSource = readSource('pages/EditorPage.tsx');
 
 describe('EditorPage (FIX-F01 / FIX-F03)', () => {
   it('FIX-F01: the drawer commits the style and the canvas size together', () => {

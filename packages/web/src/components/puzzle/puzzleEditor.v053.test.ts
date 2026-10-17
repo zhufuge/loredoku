@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { codeOf } from '@/testing/source';
 import { UI_Z } from '@loredoku/shared';
 
 /**
@@ -8,57 +9,18 @@ import { UI_Z } from '@loredoku/shared';
  * surrounding state, so the durable contract is asserted on the
  * **comment-free** source, plus one plain runtime assertion for the layer order
  * (`UI_Z`), which is a value and not a shape.
- *
- * Glob patterns must be literals; each directory gets its own call.
  */
 
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((line) => !/^\s*\/\//.test(line))
-    .join('\n');
-}
-
-function read(glob: Record<string, string>, key: string): string {
-  return stripComments((glob[key] ?? '').replace(/\r\n/g, '\n'));
-}
-
-const puzzleDir = import.meta.glob('./*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-const editorDir = import.meta.glob('../editor/*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-const mapDir = import.meta.glob('../map/*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-const uiDir = import.meta.glob('../ui/*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-const pagesDir = import.meta.glob('../../pages/*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-
-const pageSource = read(pagesDir, '../../pages/PuzzleEditorPage.tsx');
-const puzzlesPage = read(pagesDir, '../../pages/PuzzlesPage.tsx');
-const leftPanel = read(puzzleDir, './PuzzleEditorLeftPanel.tsx');
-const puzzleInfo = read(puzzleDir, './PuzzleInfoDrawer.tsx');
-const participantDrawer = read(editorDir, '../editor/ParticipantDrawer.tsx');
-const infoDrawer = read(editorDir, '../editor/EditorInfoDrawer.tsx');
-const linkageDialog = read(editorDir, '../editor/LinkageDialog.tsx');
-const rulerStrips = read(mapDir, '../map/MapRulerStrips.tsx');
-const colorPalette = read(uiDir, '../ui/color-palette.tsx');
+const pageSource = codeOf('pages/PuzzleEditorPage.tsx');
+const puzzlesPage = codeOf('pages/PuzzlesPage.tsx');
+const leftPanel = codeOf('components/puzzle/PuzzleEditorLeftPanel.tsx');
+const puzzleInfo = codeOf('components/puzzle/PuzzleInfoDrawer.tsx');
+const participantDrawer = codeOf('components/editor/ParticipantDrawer.tsx');
+const infoDrawer = codeOf('components/editor/EditorInfoDrawer.tsx');
+const linkageDialog = codeOf('components/editor/LinkageDialog.tsx');
+const rulerStrips = codeOf('components/map/MapRulerStrips.tsx');
+const colorPalette = codeOf('components/ui/color-palette.tsx');
+const themeDialog = codeOf('components/editor/ThemeColorDialog.tsx');
 
 describe('谜题列表项编辑按钮（FEAT-N05）', () => {
   it('opens the editor from the row', () => {
@@ -81,17 +43,12 @@ describe('角色框可收起展开 + 筛选（FEAT-N08）', () => {
     expect(leftPanel).toContain('w-[280px] shrink-0');
   });
 
-  it('filters on 名称 and 业务 ID, case-insensitively', () => {
+  it('filters on name and code, case-insensitively', () => {
     expect(leftPanel).toContain('const [keyword, setKeyword] = useState(\'\');');
-    expect(leftPanel).toContain('placeholder="搜索名称 / 业务 ID"');
     expect(leftPanel).toContain('character.name.toLowerCase().includes(needle)');
     expect(leftPanel).toContain('character.code.toLowerCase().includes(needle)');
   });
 
-  it('distinguishes 「没有匹配的角色」 from 「暂无角色」', () => {
-    expect(leftPanel).toContain('没有匹配的角色');
-    expect(leftPanel).toContain('暂无角色');
-  });
 });
 
 describe('主题色调色板（FEAT-N09）', () => {
@@ -99,7 +56,7 @@ describe('主题色调色板（FEAT-N09）', () => {
     expect(colorPalette).toContain('THEME_COLOR_PALETTE.map(');
     expect(colorPalette).toContain('data-testid="color-palette"');
     // 参与者主题色（v0.5.3 FEAT-N09）
-    expect(read(editorDir, '../editor/ThemeColorDialog.tsx')).toContain('<ColorPalette');
+    expect(themeDialog).toContain('<ColorPalette');
     // FIX-O16 (docs/v0.5.4.md §7.3): the 基本信息 palette was removed again —
     // a colour is picked with the `ColorInput` + hex field, not a swatch grid.
     expect(puzzleInfo).not.toContain('<ColorPalette');

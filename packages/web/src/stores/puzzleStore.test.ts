@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 import {
   DEFAULT_MAP_STYLE,
   DEFAULT_THEME_COLOR,
@@ -421,14 +422,7 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
   }
 
   it('ensureEntry carries every CharacterSlotEntry field (source guard)', () => {
-    const source =
-      ((
-        import.meta.glob('./puzzleStore.ts', {
-          query: '?raw',
-          import: 'default',
-          eager: true,
-        }) as Record<string, string>
-      )['./puzzleStore.ts'] ?? '').replace(/\r\n/g, '\n');
+const source = readSource('stores/puzzleStore.ts');
     const body = source.slice(
       source.indexOf('export function ensureEntry('),
       source.indexOf('/** The undoable half of the state. */'),

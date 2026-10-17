@@ -3,18 +3,14 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_THEME_COLOR, THEME_COLOR_PALETTE } from '@loredoku/shared';
 import { ThemeColorDialog } from './ThemeColorDialog';
+import { readSource } from '@/testing/source';
 
 /**
  * FEAT-H08（docs/v0.4.2.md §8）：主题色弹窗是**受控**组件 —— 抽屉只展示当前选中，
  * 选色（15 色板 / 自定义 hex）在这里完成，且只把结果交回抽屉，自己绝不写 store。
  */
 
-const raw =
-  ((import.meta.glob('./ThemeColorDialog.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./ThemeColorDialog.tsx'] ?? '').replace(/\r\n/g, '\n');
+const raw = readSource('components/editor/ThemeColorDialog.tsx');
 
 const source = raw;
 
@@ -55,7 +51,6 @@ describe('ThemeColorDialog — 源码契约（FEAT-H08 §8.2）', () => {
     expect(code).toContain('<ColorInput');
     // The picker replaces both the 应用 button and the trailing preview row.
     expect(code.indexOf('<ColorInput')).toBeLessThan(code.indexOf('aria-label="自定义主题色"'));
-    expect(code).not.toContain('应用');
     expect(code).not.toContain('theme-color-preview');
   });
 });

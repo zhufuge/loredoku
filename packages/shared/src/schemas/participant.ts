@@ -30,10 +30,9 @@ export const themeColorSchema = z
   .default(DEFAULT_THEME_COLOR);
 
 /**
- * v0.3.8 FEAT-D04: a linkage colour is the **key** of an entry in the map's
- * `style.linkageColors` palette. The key format is validated here; the
- * "key must exist in this map's palette" cross-check lives in
- * `mapDraftSchema`'s `superRefine` (it needs the draft).
+ * v0.3.8 FEAT-D04: a linkage colour is the **key** of an entry in the puzzle's
+ * linkage palette. The key format is validated here; the "key must exist"
+ * cross-check lives in `puzzleRefs` (it needs the whole draft).
  */
 export const effectColorSchema = z
   .string()

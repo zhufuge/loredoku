@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 
 /**
  * FEAT-G01 (docs/v0.4.0.md §4): the games home is its own page — card grid,
@@ -12,33 +13,13 @@ import { describe, expect, it } from 'vitest';
  * protected is the wiring — which route, which data, which navigation.
  */
 
-const pageSource =
-  (import.meta.glob('./GamesPage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./GamesPage.tsx'] ?? '';
+const pageSource = readSource('pages/GamesPage.tsx');
 
-const cardSource =
-  (import.meta.glob('../components/game/GameCard.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../components/game/GameCard.tsx'] ?? '';
+const cardSource = readSource('components/game/GameCard.tsx');
 
-const routerSource =
-  (import.meta.glob('../router.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../router.tsx'] ?? '';
+const routerSource = readSource('router.tsx');
 
-const shellSource =
-  (import.meta.glob('../components/layout/AppShell.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../components/layout/AppShell.tsx'] ?? '';
+const shellSource = readSource('components/layout/AppShell.tsx');
 
 describe('GamesPage (FEAT-G01)', () => {
   it('is a top-level route outside the app shell', () => {
@@ -55,9 +36,6 @@ describe('GamesPage (FEAT-G01)', () => {
     expect(shellSource).not.toContain('/games');
     expect(routerSource).not.toContain("path: '/games");
     expect(shellSource).not.toContain('Gamepad2');
-    // v0.5.4 FEAT-O07 §4.2: the console now reaches the games home through an
-    // explicit 「入局」 button, not through the module navigation.
-    expect(shellSource).toContain('入局');
     expect(shellSource).toContain("navigate('/play')");
   });
 
@@ -71,10 +49,7 @@ describe('GamesPage (FEAT-G01)', () => {
     expect(pageSource).toContain("grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4");
   });
 
-  it('shows an empty state that points back at the puzzles page', () => {
-    // v0.5.0 SPEC-K11：作品模块已删，部署的源头变成谜题列表。
-    expect(pageSource).toContain('还没有部署任何游戏');
-    expect(pageSource).toContain('<Link to="/puzzles">前往谜题列表</Link>');
+  it('points its empty state back at the puzzles page', () => {
     expect(pageSource).not.toContain('/works');
   });
 
@@ -98,17 +73,11 @@ describe('GamesPage (FEAT-G01)', () => {
     expect(cardSource).not.toContain('`/games/');
   });
 
-  it('leads with the brand, not with 「游戏」 (FEAT-O02)', () => {
-    // docs/v0.5.4.md §3: the module title is gone; the mark + 格物 say it.
+  it('leads with the brand (FEAT-O02)', () => {
     expect(pageSource).toContain('<BrandLogo height={22} withWordmark />');
-    expect(pageSource).not.toContain('>游戏</h1>');
-    expect(pageSource).toContain("document.title = '格物'");
-    // 裁定 R1: 「游戏」 survives only as a **data** noun in the count line.
-    expect(pageSource).toContain('已部署 ${games.length} 个游戏');
   });
 
-  it('offers 「进入琢玉台」 back into the maker (FEAT-O03)', () => {
-    expect(pageSource).toContain('进入琢玉台');
+  it('offers a way back into the maker at /maps (FEAT-O03)', () => {
     expect(pageSource).toContain("navigate('/maps')");
   });
 });

@@ -1,10 +1,8 @@
 /**
- * MOD-802 (docs/v0.3.3.md §1.2.4): the single-active linkage activation
- * state machine. Exactly one participant's linkages may be active at any
- * moment; `hover` activation ends on pointer-leave, `click` activation is
- * a toggle that survives pointer movement.
- *
- * The reducer is pure so every transition can be unit tested without a DOM.
+ * MOD-802 (docs/v0.3.3.md §1.2.4): the single-active linkage activation state
+ * machine — exactly one participant's linkages active at a time. `hover` ends on
+ * pointer-leave, `click` is a toggle that survives movement. Pure, so every
+ * transition is testable without a DOM.
  */
 
 export type ActivationMode = 'hover' | 'click';
@@ -22,9 +20,8 @@ export type LinkageActivationEvent =
   | { type: 'click'; participantId: number }
   /**
    * BUG-G02 (docs/v0.4.1.md §9): idempotent "make this participant the
-   * click-activated one". The game page uses it when the pointer leaves a
-   * placement-armed participant's card — a plain `click` would *toggle* it off
-   * when the pointer left the armed card itself.
+   * click-activated one" — a plain `click` would *toggle* it off when the pointer
+   * leaves the placement-armed card.
    */
   | { type: 'restore'; participantId: number }
   | { type: 'escape' };

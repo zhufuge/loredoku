@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LINKAGE_COLORS } from '@loredoku/shared';
 import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
 import { PuzzleInfoDrawer, type PuzzleInfoDrawerHandle } from './PuzzleInfoDrawer';
+import { readSource } from '@/testing/source';
 
 /**
  * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 is exactly two
@@ -14,12 +15,7 @@ import { PuzzleInfoDrawer, type PuzzleInfoDrawerHandle } from './PuzzleInfoDrawe
  * are reverse assertions against the map drawer's field names.
  */
 
-const drawerSource =
-  (import.meta.glob('./PuzzleInfoDrawer.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./PuzzleInfoDrawer.tsx'] ?? '';
+const drawerSource = readSource('components/puzzle/PuzzleInfoDrawer.tsx');
 
 /** Strips `/* … *\/` doc comments so prose may name the fields it excludes. */
 function stripBlockComments(source: string): string {

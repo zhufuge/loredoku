@@ -1,19 +1,11 @@
 import type { Knex } from 'knex';
 
 /**
- * v0.5.1 FEAT-L01 / FEAT-L02 (docs/v0.5.1.md §6.1) — items and characters gain
- * an optional **colour block** appearance.
- *
- * `bg_color` holds a `#RRGGBB` string:
- * - `NULL` → the entry renders as its uploaded image (the pre-v0.5.1 path, and
- *   what every existing row already is);
- * - a colour → the entry renders as a solid block of that colour and can be
- *   activated **without any upload at all**.
- *
- * The column is nullable on purpose: no backfill is needed, and the down
- * migration is a plain `DROP COLUMN`. Nothing in the map / puzzle JSON or in a
- * game snapshot stores an item / character body, so no stored document needs
- * rewriting either (§6.3).
+ * v0.5.1 FEAT-L01 / FEAT-L02 (docs/v0.5.1.md §6.1) — optional **colour block**
+ * appearance. `bg_color` is `#RRGGBB`: `NULL` = the pre-v0.5.1 image path (what
+ * every existing row already is), a colour = a solid block activatable without an
+ * upload. Nullable on purpose: no backfill, and `down` is a plain `DROP COLUMN`.
+ * No map / puzzle JSON or game snapshot stores an item body, so nothing to rewrite.
  */
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable('items', (table) => {

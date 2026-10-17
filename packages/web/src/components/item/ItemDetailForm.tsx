@@ -245,8 +245,6 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
             onDelete={() => setConfirmDeleteImage(true)}
           />
         </AppearanceField>
-        {/* v0.5.2 FEAT-M03: 「扩展信息（meta）」与「触发信息」两节连同背后的
-            `items.meta` 列与 `item_triggers` 表一并删除。 */}
       </div>
 
       <div className="flex justify-end gap-2 border-t pt-4">

@@ -2,27 +2,14 @@ import type { Knex } from 'knex';
 import { emptyStats, migrateDraftLinkages } from '../../service/draftLinkageMigration';
 
 /**
- * MOD-801 (docs/v0.3.3.md §2) — flat `linkages`.
- *
- * For every `map_projects.draft_data` and `map_versions.data`:
- *   1. Merge each non-null `characterSlots[i].triggers` (click/touch groups)
- *      into a single flat `linkages` array:
- *      - all `targets` are collected;
- *      - same object (type + id / cells) + same colour counts as one entry
- *        (later wins);
- *      - the legacy `triggers` field is deleted.
- *   2. `characterSlots[i].clue` → `''` if missing.
- *   3. `linkages[].type === 'item'` → add `scope: 'all'` if missing.
- *   4. `linkages[].type === 'cell'` with legacy `{ x, y }` → `{ cells: [[x, y]] }`.
- *
- * The transform itself lives in `service/draftLinkageMigration.ts` so it can
- * be unit tested without a database.
- *
- * Idempotent: `triggers` is deleted after folding, and any `linkages` already
- * present are kept as the starting point (union, deduped), so a re-run never
- * drops data.
- *
- * Runs in a transaction. `MIGRATION_DRY_RUN=true` prints summary + rolls back.
+ * MOD-801 (docs/v0.3.3.md §2) — flat `linkages`. For every `map_projects.draft_data`
+ * and `map_versions.data`: fold `characterSlots[i].triggers` into one flat
+ * `linkages` array (same object + colour = one entry, later wins), delete the legacy
+ * `triggers`; default `clue` to `''`; default item `scope: 'all'`; legacy cell
+ * `{ x, y }` → `{ cells: [[x, y]] }`. The transform lives in
+ * `service/draftLinkageMigration.ts` so it unit-tests without a database.
+ * Idempotent (union, deduped, `triggers` deleted after folding). Transactional;
+ * `MIGRATION_DRY_RUN=true` prints a summary and rolls back.
  */
 export async function up(knex: Knex): Promise<void> {
   const dryRun = process.env.MIGRATION_DRY_RUN === 'true';

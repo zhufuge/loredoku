@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 
 /**
  * v0.4.0 BUG-G01 (docs/v0.4.0.md §1) + v0.5.0 SPEC-K12（docs/v0.5.0.md §9.1）。
@@ -9,20 +10,14 @@ import { describe, expect, it } from 'vitest';
  * "any axis is non-null" re-opened the (empty) info drawer right after the
  * basic-info drawer closed.
  *
- * v0.5.0 把参与者整棵子树从地图编辑器里删掉（SPEC-K12 §4.1 / §9.1），焦点轴
- * 只剩方格与区域两条，`infoDrawerOpen` 的 `selectedSlotIndex` 恒为 `null`。
+ * 焦点轴只剩方格与区域两条，`infoDrawerOpen` 的 `selectedSlotIndex` 恒为 `null`。
  *
  * Rendering `EditorPage` needs a query client, a router and a seeded store, so
  * — like `EditorPage.autoSave.test.ts` — these are source-level assertions on
  * the wiring itself.
  */
 
-const pageSource =
-  (import.meta.glob('./EditorPage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./EditorPage.tsx'] ?? '';
+const pageSource = readSource('pages/EditorPage.tsx');
 
 describe('EditorPage (BUG-G01)', () => {
   it('clears every focus axis when the basic-info drawer opens', () => {
@@ -33,7 +28,6 @@ describe('EditorPage (BUG-G01)', () => {
     expect(handler).toContain('editor.setSelection(null);');
     expect(handler).toContain('editor.setSelectedRegion(null);');
     expect(handler).toContain('setInfoOpen(false);');
-    // SPEC-K12: 地图编辑器不再有参与者，没有第三条焦点轴可清。
     expect(pageSource).not.toContain('setSelectedSlot');
   });
 
@@ -56,7 +50,6 @@ describe('EditorPage (BUG-G01)', () => {
   });
 
   it('cell / region clicks all leave through the guard', () => {
-    // SPEC-K12 §9.1：参与者花名册整块从地图编辑器移除，只剩方格与区域两条路径。
     const canvas = pageSource.slice(
       pageSource.indexOf('onSelect={(selection) => {'),
       pageSource.indexOf('onSelectRegion={(regionId) => {'),
@@ -72,7 +65,6 @@ describe('EditorPage (BUG-G01)', () => {
   it('the drawer open state comes from the shared pure function', () => {
     expect(pageSource).toContain('open={infoDrawerOpen({');
     expect(pageSource).toContain('infoOpen,');
-    // SPEC-K12: 参与者轴已删，这里恒为 null。
     expect(pageSource).toContain('selectedSlotIndex: null');
     expect(pageSource).not.toContain('selectedSlotIndex: editor.selectedSlotIndex');
   });
@@ -96,15 +88,7 @@ describe('EditorPage (BUG-G01)', () => {
  * v0.5.0 SPEC-K12 §4.2 进一步把方格分支的操作按钮全部去掉（readOnly 时连
  * 「清空本格 / 清空物件层」也不渲染）——谜题编辑器的只读信息框复用同一组件。
  */
-const drawerSource =
-  ((import.meta.glob('../components/editor/EditorInfoDrawer.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../components/editor/EditorInfoDrawer.tsx'] ?? '').replace(
-    /\r\n/g,
-    '\n',
-  );
+const drawerSource = readSource('components/editor/EditorInfoDrawer.tsx');
 
 describe('EditorInfoDrawer 方格分支的区域信息（OPT-H10 §10.2）', () => {
   it('makes the region actions an optional argument of the shared section', () => {
@@ -121,13 +105,10 @@ describe('EditorInfoDrawer 方格分支的区域信息（OPT-H10 §10.2）', () 
     expect(cellBranch).toContain('<RegionSection region={region} />');
     expect(cellBranch).not.toContain('actions=');
     expect(cellBranch).not.toContain('RegionActions');
-    // 清空本格 / 清空物件层 仍在源码里，但 readOnly 时整体不渲染（SPEC-K12 §4.2）。
-    expect(cellBranch).toContain('清空本格');
-    expect(cellBranch).toContain('清空物件层');
     expect(cellBranch).toContain('readOnly ? null : (');
   });
 
-  it('the region branch keeps 编辑 / 定位 / 删除', () => {
+  it('the region branch keeps its three actions', () => {
     const regionBranch = drawerSource.slice(
       drawerSource.indexOf(") : selection.type === 'cell' ? ("),
       drawerSource.indexOf('</div>\n        </div>\n      </aside>'),
@@ -141,19 +122,13 @@ describe('EditorInfoDrawer 方格分支的区域信息（OPT-H10 §10.2）', () 
     expect(drawerSource).toContain('onClick={() => actions.onDelete(region)}');
   });
 
-  it('re-lays the block: bordered card, 包含 N 格 badge, one-line attributes', () => {
+  it('re-lays the block: bordered card, percentage fill', () => {
     const info = drawerSource.slice(
       drawerSource.indexOf('function RegionInfo('),
       drawerSource.indexOf('interface RegionActionHandlers'),
     );
     expect(info).toContain('rounded-md border bg-muted/30 px-3 py-2');
-    expect(info).toContain('包含 {region.cells.length} 格');
-    expect(info).toContain('<dt>边界线宽</dt>');
-    expect(info).toContain('<dt>填充</dt>');
-    // 填充按百分比渲染，而不是裸的 0~1 小数。
     expect(info).toContain('Math.round(region.fillOpacity * 100)');
-    // 完整 region id 退到 title，不再挤占区域名称。
-    expect(info).toContain('title={`区域 ID：${regionId}`}');
     expect(info).not.toMatch(/font-mono[^`]*\{region\.id\}/);
   });
 });

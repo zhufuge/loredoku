@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "格物（loredoku）地图编辑器 — monorepo（shared / server / web）",
+  "description": "格物（loredoku）一款推理数独类游戏，包含游戏编辑工坊 — monorepo（shared / server / web）",
   "workspaces": [
     "packages/*"
   ],

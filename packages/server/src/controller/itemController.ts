@@ -72,7 +72,6 @@ export async function usages(ctx: Context): Promise<void> {
 }
 
 /**
- * v0.5.2 FEAT-M03 (docs/v0.5.2.md §3.1): `PUT /api/items/:id/triggers` is gone
- * together with the `item_triggers` table — the route is simply not registered
- * any more, so a stale client gets 404 rather than a 500 from a dead schema.
+ * v0.5.2 FEAT-M03 (docs/v0.5.2.md §3.1): no triggers route is registered — a
+ * stale client gets 404 rather than a 500 from a dead schema.
  */

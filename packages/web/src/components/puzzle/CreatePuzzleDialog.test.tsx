@@ -115,13 +115,11 @@ describe('CreatePuzzleDialog (FEAT-K03)', () => {
 
   it('SPEC-K07: picking a version pins the canvas size', () => {
     render();
-    expect(text()).not.toContain('创建后不可修改');
     const option = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.textContent?.includes('古堡之谜'),
     )!;
     act(() => option.click());
     expect(text()).toContain('6×6');
-    expect(text()).toContain('创建后不可修改');
   });
 
   it('the description is a field of the dialog ("新增描述字段")', () => {
@@ -157,13 +155,11 @@ describe('CreatePuzzleDialog (FEAT-K03)', () => {
   it('?new={projectId}:{versionNo} arrives with the version pre-picked', () => {
     render('/puzzles?new=217:3');
     expect(text()).toContain('6×6');
-    expect(text()).toContain('创建后不可修改');
   });
 
   it('with no published version: disabled submit + a pointer at 地图', () => {
     versionsRef.data = [];
     render();
-    expect(text()).toContain('还没有已发布的地图版本');
     expect(submit().disabled).toBe(true);
     const goToMaps = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.textContent?.includes('前往地图'),

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CellPlacement, CharacterSlotEntry, GamePlacementBoard } from '@loredoku/shared';
+import { readSource } from '@/testing/source';
 import {
   autoForbiddenCells,
   canPlaceForbidden,
@@ -91,14 +92,7 @@ function slot(characterId: number, positionConditions?: Array<{ x: number; y: nu
 
 /** The raw `placeParticipant` body — for the structural assertions of §2.2 / §3.2. */
 function placeParticipantBody(): string {
-  const source =
-    ((
-      import.meta.glob('./gamePlacement.ts', {
-        query: '?raw',
-        import: 'default',
-        eager: true,
-      }) as Record<string, string>
-    )['./gamePlacement.ts'] ?? '').replace(/\r\n/g, '\n');
+const source = readSource('lib/gamePlacement.ts');
   return source.slice(
     source.indexOf('export function placeParticipant('),
     source.indexOf('export function placeForbidden('),
@@ -916,7 +910,6 @@ describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
     expect(result.passed).toBe(true);
   });
 });
-
 
 /**
  * v0.5.1 SPEC-L05（docs/v0.5.1.md §5.1）：参与者框的变淡只对**头像**生效。

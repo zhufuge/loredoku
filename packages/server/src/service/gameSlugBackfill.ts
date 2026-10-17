@@ -3,12 +3,9 @@ import type { GameDifficulty } from '@loredoku/shared';
 
 /**
  * v0.4.1 OPT-W04 (docs/v0.4.1.md §4.5): the data half of the `map_games.slug`
- * migration, kept pure so it can be unit tested without a database.
- *
- * A deploy refuses a path another map already owns (Q12), but the migration has
- * no author to ask — it must leave **every** existing row with a non-empty,
- * unique path. So a derived collision is resolved by appending `-2`, `-3`, …
- * (the behaviour §4.5 documents for存量行 only).
+ * migration, pure so it unit-tests without a database. A deploy refuses a path
+ * another map owns (Q12), but the migration has no author to ask — every row must
+ * end up non-empty and unique, so collisions take `-2`, `-3`, …
  */
 
 export interface SlugBackfillRow {
@@ -18,11 +15,9 @@ export interface SlugBackfillRow {
 }
 
 /**
- * Reserves `root`, or the first `root-{n}` (`n >= 2`) that is still free.
- *
- * The suffix is carved **out of** the 80-character budget rather than appended
- * past it: appending alone would be truncated straight back to `root` for a
- * long name, and the caller would loop forever on an already-taken value.
+ * Reserves `root`, or the first free `root-{n}` (`n >= 2`). The suffix is carved
+ * **out of** the 80-char budget — appending past it would truncate straight back
+ * to `root` and loop forever.
  */
 export function uniqueSlugFor(root: string, taken: ReadonlySet<string>): string {
   if (!taken.has(root)) return root;
@@ -37,9 +32,8 @@ export function uniqueSlugFor(root: string, taken: ReadonlySet<string>): string 
 }
 
 /**
- * Walks the rows in the order the migration read them (id ascending) and
- * returns the path each one should get. Deterministic: the first row keeps the
- * plain derived path, later ones take the suffixes.
+ * Walks rows in migration order (id ascending) and returns each one's path.
+ * Deterministic: the first row keeps the plain derived path, later ones suffix.
  */
 export function backfillGameSlugs(rows: SlugBackfillRow[]): Map<string | number, string> {
   const taken = new Set<string>();

@@ -77,7 +77,7 @@ export interface LinkageDraft {
   itemInstances: Array<[number, number]>;
   regionIds: string[];
   cells: Array<[number, number]>;
-  /** FEAT-D04: a key of the map's `style.linkageColors` palette. */
+  /** FEAT-D04: a key of the linkage palette. */
   color: LinkageColorKey;
 }
 

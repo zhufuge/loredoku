@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource, segment } from '@/testing/source';
 
 /**
  * FIX-D01 (docs/v0.3.8.md §1) + FIX-E02 (docs/v0.3.9.md §2) — a **source-level**
@@ -13,29 +14,9 @@ import { describe, expect, it } from 'vitest';
  * These assertions read the component source so neither regression can come
  * back unnoticed.
  */
-const raw = import.meta.glob('./MapLayers.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-
-/** Normalise CRLF so the multi-line markers below match on any platform. */
-const source = (raw['./MapLayers.tsx'] ?? '').replace(/\r\n/g, '\n');
-
-function segment(haystack: string, startMarker: string, endMarker: string): string {
-  const start = haystack.indexOf(startMarker);
-  const end = haystack.indexOf(endMarker, start);
-  if (start === -1 || end === -1) {
-    throw new Error(`segment not found (start="${startMarker}", end="${endMarker}")`);
-  }
-  return haystack.slice(start, end);
-}
+const source = readSource('components/map/MapLayers.tsx');
 
 describe('region highlight wiring (FIX-D01 + FIX-E02)', () => {
-  it('finds the component source', () => {
-    expect(source.length).toBeGreaterThan(0);
-  });
-
   it('imports and calls the pure geometry helper', () => {
     expect(source).toContain('buildRegionHighlightPaths');
     expect(source).toContain('buildRegionHighlightPaths(cells, cellSize, inset)');

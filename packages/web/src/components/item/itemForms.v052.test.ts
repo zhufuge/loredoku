@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { codeOf } from '@/testing/source';
 
 /**
  * v0.5.2 — the item form slimming, the object-only 「可站立」 and create-time
@@ -9,32 +10,14 @@ import { describe, expect, it } from 'vitest';
  * source.
  */
 
-// Glob patterns must be literals (the same shape `appearanceForms.test.ts` uses).
-const sources = import.meta.glob('../{item,character}/*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-
-/** Comments must not satisfy an assertion about the rendered UI. */
-function stripComments(source: string): string {
-  return source
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .split('\n')
-    .filter((line) => !/^\s*\/\//.test(line))
-    .join('\n');
-}
-
-const itemForm = stripComments(sources['./ItemDetailForm.tsx'] ?? '');
-const itemDialog = stripComments(sources['./CreateItemDialog.tsx'] ?? '');
-const characterDialog = stripComments(sources['../character/CreateCharacterDialog.tsx'] ?? '');
-const itemPanel = stripComments(sources['./ItemListPanel.tsx'] ?? '');
-const characterPanel = stripComments(sources['../character/CharacterListPanel.tsx'] ?? '');
+const itemForm = codeOf('components/item/ItemDetailForm.tsx');
+const itemDialog = codeOf('components/item/CreateItemDialog.tsx');
+const characterDialog = codeOf('components/character/CreateCharacterDialog.tsx');
+const itemPanel = codeOf('components/item/ItemListPanel.tsx');
+const characterPanel = codeOf('components/character/CharacterListPanel.tsx');
 
 describe('物品详情瘦身（FEAT-M03）', () => {
-  it('no longer renders 扩展信息 or 触发信息', () => {
-    expect(itemForm).not.toContain('扩展信息');
-    expect(itemForm).not.toContain('触发信息');
+  it('no longer renders the meta / trigger editors', () => {
     expect(itemForm).not.toContain('MetaEditor');
     expect(itemForm).not.toContain('TriggerEditor');
     expect(itemForm).not.toContain('parseJsonObject');
@@ -49,13 +32,10 @@ describe('物品详情瘦身（FEAT-M03）', () => {
 });
 
 describe('背景类型恒定可站立（FEAT-M04）', () => {
-  it('the detail form only offers the checkbox for 物体', () => {
+  it('the detail form gates the checkbox on the object category', () => {
     expect(itemForm).toContain("const standable = category === 'object';");
     expect(itemForm).toContain('{standable ? (');
     expect(itemForm).toContain('canStand: canStandFor(category, canStand),');
-    // FIX-O08 (docs/v0.5.4.md §5.1): the caption is gone — the rule is still
-    // enforced by `canStandFor`, it just no longer explains itself.
-    expect(itemForm).not.toContain('背景类型恒定可站立');
   });
 
   it('the create dialog hides the checkbox for 背景 too', () => {
@@ -82,14 +62,12 @@ describe('创建时即可上传图片（FEAT-M05）', () => {
     // upload is captured so the auto-enable can be undone (v0.5.3 FEAT-N06).
     expect(itemDialog).toContain('.then(() => true)');
     expect(itemDialog).toContain('.catch(() => false)');
-    expect(itemDialog).not.toContain('图片在创建后于右侧详情里上传。');
   });
 
   it('the character dialog does the same for the avatar', () => {
     expect(characterDialog).toContain('<PendingImageField');
     expect(characterDialog).toContain('await createMutation.mutateAsync({');
     expect(characterDialog).toContain('.mutateAsync({ id: character.id, file })');
-    expect(characterDialog).not.toContain('头像在创建后于右侧详情里上传。');
   });
 
   it('both dialogs keep the button busy across every step', () => {

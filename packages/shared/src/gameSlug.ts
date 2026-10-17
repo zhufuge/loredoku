@@ -8,24 +8,16 @@ import {
 import type { GameDifficulty } from './types/domain';
 
 /**
- * OPT-W04 (docs/v0.4.1.md §4): the game's access path.
- *
- * A game is reachable at `/games/{slug}` instead of `/games/{id}`, so the URL
- * reads like the map it belongs to. The default slug is derived from the game
- * name plus the difficulty tier; the author may overwrite it, in which case the
- * server stores whatever they typed (after validation).
- *
- * Pure functions only — the server validates and stores, the web dialog
- * previews, and both share these rules verbatim.
+ * OPT-W04 (docs/v0.4.1.md §4): a game is reachable at `/play/{slug}` instead of
+ * `/play/{id}`. The default is derived from name + difficulty; the author may
+ * overwrite it and the server stores what they typed (after validation). Pure
+ * functions only — the server validates, the dialog previews, both share these.
  */
 
 /**
- * §4.3: lowercase → separators become `-` → drop everything outside
- * `[a-z0-9-]` → collapse runs of `-` → trim leading / trailing `-`.
- *
- * A name with no ASCII alphanumerics at all (all Chinese, all symbols) yields
- * an empty string; callers **must** treat that as "the author has to type one"
- * (see `slugError`, and docs/v0.4.1.md §14 Q13).
+ * §4.3: lowercase → separators to `-` → drop outside `[a-z0-9-]` → collapse runs
+ * → trim edges. A name with no ASCII alphanumerics yields `''`, which callers
+ * **must** treat as "the author has to type one" (Q13).
  */
 export function slugify(input: string): string {
   return input
@@ -37,12 +29,8 @@ export function slugify(input: string): string {
 }
 
 /**
- * §4.3: `puzzle-` + slugified name + `-` + slugified difficulty.
- *
- * Q13: when the name slugifies to nothing there is no path to derive — the
- * function returns `''` rather than inventing `puzzle-medium`, and the callers
- * turn that into "please type one" (the dialog blocks submit, the server
- * rejects the deploy).
+ * §4.3: `puzzle-` + slugified name + `-` + slugified difficulty. Q13: a name that
+ * slugifies to nothing returns `''` rather than inventing `puzzle-medium`.
  */
 export function buildDefaultSlug(input: { name: string; difficulty: GameDifficulty }): string {
   const name = slugify(input.name);
@@ -52,11 +40,7 @@ export function buildDefaultSlug(input: { name: string; difficulty: GameDifficul
   return truncateSlug(parts.join('-'));
 }
 
-/**
- * §4.4: the author-visible reason a slug cannot be used, or `null` when it is
- * fine. The message is user-facing — the deploy dialog and the server both
- * surface it as-is.
- */
+/** §4.4: the author-visible reason a slug is unusable, or `null`. User-facing verbatim. */
 export function slugError(slug: string): string | null {
   if (slug.length === 0) return '请填写访问路径';
   if (!GAME_SLUG_PATTERN.test(slug)) {
@@ -75,10 +59,8 @@ export function slugError(slug: string): string | null {
 }
 
 /**
- * §4.4: strips the characters a URL can never carry, so typing while the field
- * is being edited never leaves it in an unsubmittable state. Uppercase is
- * folded, spaces and underscores become `-`, and runs collapse — but a trailing
- * `-` is kept while typing so `puzzle-`-style input stays possible.
+ * §4.4: strips what a URL can never carry, so typing never leaves the field
+ * unsubmittable. A trailing `-` is kept while typing so `puzzle-` stays possible.
  */
 export function normalizeSlugInput(input: string): string {
   return input

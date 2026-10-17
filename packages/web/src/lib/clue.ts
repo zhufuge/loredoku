@@ -1,8 +1,4 @@
-/**
- * MOD-702 (docs/v0.3.2.md): parses `**bold**` segments from a clue string.
- * Each `**...**` pair turns into a `{ text, bold: true }` segment.
- * Unclosed `**` is treated as literal text.
- */
+/** MOD-702 (docs/v0.3.2.md): `**bold**` → `{ text, bold: true }` segments; unclosed `**` stays literal. */
 
 export interface ClueSegment {
   text: string;
@@ -10,15 +6,8 @@ export interface ClueSegment {
 }
 
 /**
- * Splits a clue string into bold / normal segments.
- *
- * Examples:
- *   '' → []
- *   'hello' → [{ text: 'hello', bold: false }]
- *   'a**b**c' → [{ text: 'a', bold: false }, { text: 'b', bold: true }, { text: 'c', bold: false }]
- *   '**whole**' → [{ text: 'whole', bold: true }]
- *   'un**closed' → [{ text: 'un**closed', bold: false }]  (unclosed → literal)
- *   '**a**b**c**' → [{ text: 'a', bold: true }, { text: 'b', bold: false }, { text: 'c', bold: true }]
+ * Splits a clue into bold / normal segments: `'a**b**c'` → a, b(bold), c;
+ * `'un**closed'` → one literal segment; `'**a**b**c**'` → a(bold), b, c(bold).
  */
 export function parseClue(clue: string): ClueSegment[] {
   if (!clue) return [];

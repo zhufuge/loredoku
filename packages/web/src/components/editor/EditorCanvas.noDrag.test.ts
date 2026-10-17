@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource, segment, tsxIn } from '@/testing/source';
 
 // Vite/vitest exposes the component sources as raw strings, so this test can
 // assert the architectural rule directly: cell content is clickable, never
@@ -8,28 +9,8 @@ import { describe, expect, it } from 'vitest';
 //
 // The cell layers are shared with the work preview page, so they live in
 // `components/map/MapLayers.tsx`.
-const raw = import.meta.glob('./*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-const mapRaw = import.meta.glob('../map/*.tsx', {
-  query: '?raw',
-  import: 'default',
-  eager: true,
-}) as Record<string, string>;
-
-const source = raw['./EditorCanvas.tsx'] ?? '';
-const layerSource = mapRaw['../map/MapLayers.tsx'] ?? '';
-
-function segment(haystack: string, startMarker: string, endMarker: string): string {
-  const start = haystack.indexOf(startMarker);
-  const end = haystack.indexOf(endMarker, start);
-  if (start === -1 || end === -1) {
-    throw new Error(`segment not found: ${startMarker}`);
-  }
-  return haystack.slice(start, end);
-}
+const source = readSource('components/editor/EditorCanvas.tsx');
+const layerSource = readSource('components/map/MapLayers.tsx');
 
 // CLAR-603: MapCharacterLayer is gone; only the object layer remains
 // interactive on the canvas. The roster (ParticipantPanel) handles its own
@@ -42,7 +23,6 @@ const objectNodes = segment(
 
 describe('cell content layers', () => {
   it('are present in the shared map module', () => {
-    expect(layerSource.length).toBeGreaterThan(0);
     expect(source).toContain('MapObjectLayer');
   });
 
@@ -73,25 +53,30 @@ describe('cell content layers', () => {
 });
 
 describe('drag sources across the editor', () => {
+  const entries = [...tsxIn('components/editor'), ...tsxIn('components/map')];
+
   it('leaves the participant panel as the only pointer-drag source', () => {
-    const dragSources = Object.entries(raw).filter(([, content]) =>
-      content.includes('setPointerCapture'),
-    );
-    const names = dragSources.map(([name]) => name).sort();
+    const names = tsxIn('components/editor')
+      .filter(([, content]) => content.includes('setPointerCapture'))
+      .map(([name]) => name)
+      .sort();
     // The canvas uses capture for pan/brush tools; the participant panel uses
     // it for roster reordering (CLAR-603 — no longer drops onto the map).
-    expect(names).toEqual(['./EditorCanvas.tsx', './ParticipantPanel.tsx']);
+    expect(names).toEqual([
+      'components/editor/EditorCanvas.tsx',
+      'components/editor/ParticipantPanel.tsx',
+    ]);
   });
 
   it('removes the legacy HTML5 character drag entirely', () => {
-    for (const [name, content] of Object.entries({ ...raw, ...mapRaw })) {
+    for (const [name, content] of entries) {
       expect(content.includes('onDragStart'), name).toBe(false);
       expect(content.includes('CHARACTER_DND_TYPE'), name).toBe(false);
     }
   });
 
   it('removes any reference to the legacy placedCharacters / PlacedCharacter', () => {
-    for (const [name, content] of Object.entries({ ...raw, ...mapRaw })) {
+    for (const [name, content] of entries) {
       // The data migration script and zod schema may still mention the legacy
       // field name; this test only scans the editor/map components.
       if (name.includes('EditorCanvas') || name.includes('MapLayers')) {

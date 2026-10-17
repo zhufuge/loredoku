@@ -102,24 +102,11 @@ const region: DraftRegion = {
 
 // ---- OPT-901 §1.1: layer priority ----
 describe('canvas layer priority (OPT-901 §1.1)', () => {
-  it('lists the fifteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
-    expect(MAP_LAYER_ORDER).toEqual([
-      'mouseCursorBox',
-      'operationCursorBox',
-      'regionLabel',
-      'gameToolHint',
-      'gamePlacement',
-      'objectLayer',
-      'canvasFrame',
-      'gridSeparator',
-      'regionOutline',
-      'nonStandableMask',
-      'regionHighlight',
-      'cellHighlight',
-      'backgroundHighlight',
-      'backgroundLayer',
-      'canvasBase',
-    ]);
+  // The literal fifteen-layer list lives in shared (`schemas/game.test.ts`), which
+  // owns MAP_LAYER_ORDER; here we only pin the order `layerStack()` reports.
+  it('stacks the fifteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
+    expect(layerStack().map((layer) => layer.name)).toEqual([...MAP_LAYER_ORDER]);
+    expect(layerStack()).toHaveLength(15);
   });
 
   it('assigns a strictly descending z-index along that order', () => {

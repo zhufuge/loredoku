@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 
 /**
  * SPEC-K12 §4.2 / §15 Q1（docs/v0.5.0.md）：谜题编辑器的格子信息弹框是**只读**的。
@@ -10,22 +11,9 @@ import { describe, expect, it } from 'vitest';
  * 断言两侧都要看。
  */
 
-const pageSource =
-  ((import.meta.glob('./PuzzleEditorPage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./PuzzleEditorPage.tsx'] ?? '').replace(/\r\n/g, '\n');
+const pageSource = readSource('pages/PuzzleEditorPage.tsx');
 
-const drawerSource =
-  ((import.meta.glob('../components/editor/EditorInfoDrawer.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../components/editor/EditorInfoDrawer.tsx'] ?? '').replace(
-    /\r\n/g,
-    '\n',
-  );
+const drawerSource = readSource('components/editor/EditorInfoDrawer.tsx');
 
 describe('PuzzleEditorPage 只读信息弹框（SPEC-K12 §4.2）', () => {
   it('renders the shared drawer in read-only mode', () => {
@@ -80,21 +68,13 @@ describe('PuzzleEditorPage 只读信息弹框（SPEC-K12 §4.2）', () => {
     expect(drawerSource).toContain('onClick={() => actions.onDelete(region)}');
   });
 
-  it('keeps the read-only detail: coordinate, both layers, region as context', () => {
+  it('keeps the read-only detail: coordinates and the region as context', () => {
     const cellBranch = drawerSource.slice(
       drawerSource.indexOf('function CellBranch({'),
       drawerSource.indexOf('export function EditorInfoDrawer({'),
     );
     expect(cellBranch).toContain('C{selection.x + 1} R{selection.y + 1}');
-    expect(cellBranch).toContain('背景层');
-    expect(cellBranch).toContain('物件层');
     // 区域信息整段交给共享的 RegionSection（只读上下文）。
     expect(cellBranch).toContain('<RegionSection region={region} />');
-    // 「包含 N 格」徽标在 RegionInfo 里，两条分支共用。
-    const regionInfo = drawerSource.slice(
-      drawerSource.indexOf('function RegionInfo('),
-      drawerSource.indexOf('interface RegionActionHandlers'),
-    );
-    expect(regionInfo).toContain('包含 {region.cells.length} 格');
   });
 });

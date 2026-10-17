@@ -1,33 +1,18 @@
 import { describe, expect, it } from 'vitest';
+import { codeOf, readSource } from '@/testing/source';
 
 /**
- * v0.5.0 SPEC-K05（docs/v0.5.0.md §3）：谜题预览页承接原作品预览页。
+ * v0.5.0 SPEC-K05（docs/v0.5.0.md §3）：谜题预览页。
  *
- * 数据源从「作品」换成「谜题 + 它引用的地图版本上下文」：格子 / 区域 / 样式来自
- * `usePuzzleMapContext`，参与者与联动主题色来自谜题自己的 `PuzzleDraft`（Q16：
- * 调色板归谜题持有，`resolveMapStyle` 不再产出 `linkageColors`）。画布是只读的
- * —— 没有任何写回调，布局 / 标尺 / hover  affordance / 只读参与者面板保持原样。
+ * 数据源：格子 / 区域 / 样式来自 `usePuzzleMapContext`，参与者与联动主题色来自
+ * 谜题自己的 `PuzzleDraft`（Q16：调色板归谜题持有，`resolveMapStyle` 不再产出
+ * `linkageColors`）。画布是只读的 —— 没有任何写回调，布局 / 标尺 / hover
+ * affordance / 只读参与者面板保持原样。
  */
 
-const pageSource =
-  ((import.meta.glob('./PuzzleViewPage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./PuzzleViewPage.tsx'] ?? '').replace(/\r\n/g, '\n');
+const pageSource = readSource('pages/PuzzleViewPage.tsx');
 
-/** 路由文件的文档注释里为了说明「/works 去哪了」反而写着 `/works」，断言前剥掉。 */
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-}
-
-const routerSource = stripComments(
-  ((import.meta.glob('../router.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../router.tsx'] ?? '').replace(/\r\n/g, '\n'),
-);
+const routerSource = codeOf('router.tsx');
 
 describe('PuzzleViewPage data sources（SPEC-K05 §3）', () => {
   it('loads the puzzle and its referenced map version context', () => {
@@ -46,7 +31,6 @@ describe('PuzzleViewPage data sources（SPEC-K05 §3）', () => {
     expect(pageSource).toContain('draft?.characterSlots ?? [],');
     expect(pageSource).toContain('const linkageColors = useMemo(() => draft?.linkageColors ?? [], [draft]);');
     expect(pageSource).toContain('linkageColors,');
-    // 高亮解析把调色板显式传进去 —— style 里已经没有 linkageColors 了。
     const highlightCall = pageSource.slice(
       pageSource.indexOf('resolveHighlight(activeSlot.linkages, {'),
       pageSource.indexOf('}, [activeSlot, gridSize, cells, slots, regions, style, linkageColors'),

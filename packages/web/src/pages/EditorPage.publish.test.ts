@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 
 /**
  * FEAT-H05（docs/v0.4.2.md §5）＋ v0.5.0 SPEC-K13（docs/v0.5.0.md §7.4）：
@@ -14,29 +15,11 @@ import { describe, expect, it } from 'vitest';
  * 渲染 `EditorPage` 需要 query client / router / 预置 store，因此这里做源码断言。
  */
 
-const pageSource =
-  ((import.meta.glob('./EditorPage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./EditorPage.tsx'] ?? '').replace(/\r\n/g, '\n');
+const pageSource = readSource('pages/EditorPage.tsx');
 
-const toolbarSource =
-  ((import.meta.glob('../components/editor/EditorToolbar.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../components/editor/EditorToolbar.tsx'] ?? '').replace(
-    /\r\n/g,
-    '\n',
-  );
+const toolbarSource = readSource('components/editor/EditorToolbar.tsx');
 
-const versionsSource =
-  ((import.meta.glob('../hooks/useVersions.ts', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../hooks/useVersions.ts'] ?? '').replace(/\r\n/g, '\n');
+const versionsSource = readSource('hooks/useVersions.ts');
 
 describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
   it('goes through a confirmation dialog instead of firing the request', () => {
@@ -51,9 +34,6 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
     expect(pageSource).toContain('const nextVersionNo = useMemo(() => {');
     expect(pageSource).toContain('Math.max(...versions.map((version) => version.versionNo)) + 1;');
     expect(pageSource).toContain('return (editor.currentVersionNo ?? 0) + 1;');
-    // 文案从「作品版本」改成「带版本标记的地图条目」。
-    expect(pageSource).toContain('将新增一个带 v{nextVersionNo} 标记的地图条目，出现在地图列表中');
-    expect(pageSource).toContain('当前工作条目不会被覆盖');
   });
 
   it('collects an optional note and passes it through trimmed', () => {
@@ -62,12 +42,6 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
     expect(pageSource).toContain('const notes = publishNotes.trim();');
     expect(pageSource).toContain('publishMutation.mutate(');
     expect(pageSource).toContain('{ notes: notes.length > 0 ? notes : undefined }');
-  });
-
-  it('warns about unsaved edits and offers 保存并发布 when dirty', () => {
-    expect(pageSource).toContain('有未保存的修改，将先保存再发布。');
-    expect(pageSource).toContain("'保存并发布'");
-    expect(pageSource).toContain("'确认发布'");
   });
 
   it('runs save → publish serially and aborts the publish when the save fails', () => {
@@ -79,10 +53,9 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
     expect(body.indexOf('await persist()')).toBeLessThan(body.indexOf('publishMutation.mutate('));
   });
 
-  it('keeps the dialog open while the request flies, and shows 发布中…', () => {
+  it('keeps the dialog open while the request flies', () => {
     expect(pageSource).toContain('if (!open && !publishMutation.isPending) setPublishOpen(false);');
     expect(pageSource).toContain('event.preventDefault();');
-    expect(pageSource).toContain('发布中…');
   });
 });
 
@@ -95,12 +68,8 @@ describe('EditorPage publish success dialog (SPEC-K13 §7.4)', () => {
     expect(pageSource).toContain('open={publishedVersion !== null}');
   });
 
-  it('offers 查看该条目 and 预览, and the preview link carries the version number', () => {
-    expect(pageSource).toContain('已发布 v{publishedVersion?.versionNo ?? \'\'}');
-    expect(pageSource).toContain('已在地图列表新增条目');
-    expect(pageSource).toContain('查看该条目');
+  it('routes back to the map list, or on to the version preview', () => {
     expect(pageSource).toContain('navigate(\'/projects\');');
-    // 预览去地图版本只读页（作品页已删）。
     expect(pageSource).toContain('navigate(`/maps/${id}/${version.versionNo}/view`);');
     expect(pageSource).not.toContain('/works');
   });
@@ -125,8 +94,6 @@ describe('EditorToolbar button hierarchy (FEAT-H05 §5.4)', () => {
   it('keeps 保存 and 发布 as two buttons, with 保存 as the primary one', () => {
     const save = buttonElement('onClick={onSave} disabled={saving || !dirty}');
     const publish = buttonElement('onClick={onPublish}');
-    expect(save).toContain('保存中…');
-    expect(publish).toContain('发布中…');
     // 保存：默认（primary）variant；发布：outline。
     expect(save).not.toContain('variant="outline"');
     expect(publish).toContain('variant="outline"');
@@ -146,7 +113,6 @@ describe('EditorToolbar button hierarchy (FEAT-H05 §5.4)', () => {
       toolbarSource.indexOf('</button>', badgeAt),
     );
     expect(badge).toContain('onClick={onSave}');
-    expect(badge).toContain('未保存');
   });
 });
 

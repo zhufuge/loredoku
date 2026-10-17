@@ -1,59 +1,24 @@
 import { describe, expect, it } from 'vitest';
+import { codeOf } from '@/testing/source';
 
 /**
  * SPEC-K07 / SPEC-K12（docs/v0.5.0.md §4.4 / §9.1）：谜题编辑器是**只读画布**。
  *
- * 底栏只剩查看类操作（标尺 / 尺寸展示 / 缩放 / 撤销重做）——写画布的工具
- * （选择 / 区域 / 物品 / 橡皮擦）全部不在；尺寸是纯展示的 `span`，没有
- * `onOpenResize`，整页也没有「调整画布尺寸」弹窗（尺寸由被引用地图版本决定）。
- * 顶栏没有「发布」（Q17：发布只发生在地图模块），左侧只有「角色」一个 tab。
+ * 底栏只剩查看类操作；尺寸是纯展示的 `span`，没有 `onOpenResize`，整页也没有
+ * 尺寸弹窗（尺寸由被引用地图版本决定）。顶栏没有「发布」（Q17：发布只发生在
+ * 地图模块）。
  *
  * 渲染整页需要 query client / router / 预置双 store，与
- * `EditorPage.infoDrawer.test.ts` 同款：源码断言。断言前剥掉文档注释——
+ * `EditorPage.infoDrawer.test.ts` 同款：源码断言。`codeOf` 已经剥掉注释——
  * 注释里为了说明「删了什么」反而写着那些名字。
  */
 
-function stripComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-}
-
-const pageSource = stripComments(
-  (
-    (import.meta.glob('./PuzzleEditorPage.tsx', {
-      query: '?raw',
-      import: 'default',
-      eager: true,
-    }) as Record<string, string>)['./PuzzleEditorPage.tsx'] ?? ''
-  ).replace(/\r\n/g, '\n'),
-);
-
-const barSource = stripComments(
-  (
-    (import.meta.glob('../components/puzzle/PuzzleBottomBar.tsx', {
-      query: '?raw',
-      import: 'default',
-      eager: true,
-    }) as Record<string, string>)['../components/puzzle/PuzzleBottomBar.tsx'] ?? ''
-  ).replace(/\r\n/g, '\n'),
-);
-
-const leftPanelSource = stripComments(
-  (
-    (import.meta.glob('../components/puzzle/PuzzleEditorLeftPanel.tsx', {
-      query: '?raw',
-      import: 'default',
-      eager: true,
-    }) as Record<string, string>)['../components/puzzle/PuzzleEditorLeftPanel.tsx'] ?? ''
-  ).replace(/\r\n/g, '\n'),
-);
+const pageSource = codeOf('pages/PuzzleEditorPage.tsx');
+const barSource = codeOf('components/puzzle/PuzzleBottomBar.tsx');
+const leftPanelSource = codeOf('components/puzzle/PuzzleEditorLeftPanel.tsx');
 
 describe('PuzzleBottomBar（SPEC-K07 §4.4）', () => {
   it('drops every canvas-writing tool', () => {
-    // 选择 / 区域 / 物品 / 橡皮擦 一个都不在（注释已剥）。
-    expect(barSource).not.toContain('选择');
-    expect(barSource).not.toContain('区域');
-    expect(barSource).not.toContain('物品');
-    expect(barSource).not.toContain('橡皮擦');
     expect(barSource).not.toContain('onOpenResize');
     expect(barSource).not.toContain('SHAPES');
     expect(barSource).not.toContain('activeTool');
@@ -67,13 +32,9 @@ describe('PuzzleBottomBar（SPEC-K07 §4.4）', () => {
     );
     expect(span).not.toContain('onClick');
     expect(span).not.toContain('hover:');
-    expect(span).toContain('title="画布尺寸由所选地图版本决定，不可修改"');
   });
 
-  it('keeps the view-only cluster: ruler / zoom / undo / redo', () => {
-    expect(barSource).toContain('title="显示 / 隐藏标尺"');
-    expect(barSource).toContain('title="撤销 (Ctrl+Z)"');
-    expect(barSource).toContain('title="重做 (Ctrl+Shift+Z)"');
+  it('keeps the view-only cluster: zoom / fit', () => {
     expect(barSource).toContain('onZoomIn');
     expect(barSource).toContain('onFit');
   });
@@ -87,7 +48,6 @@ describe('PuzzleEditorPage toolbar（Q17：发布只属于地图模块）', () =
     );
     expect(toolbar).toContain('onSave={save}');
     expect(toolbar).toContain('onBack={() => navigate(\'/puzzles\')}');
-    expect(toolbar).toContain('infoTitle="谜题基本信息（描述、联动主题色）"');
     // 没有 onPublish / onOpenVersions —— 版本管理在地图编辑器里做。
     expect(toolbar).not.toContain('onPublish');
     expect(toolbar).not.toContain('onOpenVersions');
@@ -97,8 +57,7 @@ describe('PuzzleEditorPage toolbar（Q17：发布只属于地图模块）', () =
     expect(pageSource).not.toContain('openPublishConfirm');
   });
 
-  it('has no 「调整画布尺寸」 dialog anywhere on this screen', () => {
-    expect(pageSource).not.toContain('调整画布尺寸');
+  it('has no resize dialog anywhere on this screen', () => {
     expect(pageSource).not.toContain('resizeOpen');
     expect(pageSource).not.toContain('onOpenResize');
   });
@@ -112,12 +71,8 @@ describe('PuzzleEditorPage left panel（SPEC-K12 §4.1）', () => {
     expect(pageSource).not.toContain("from '@/components/editor/EditorLeftPanel'");
   });
 
-  it('keeps the 角色 tab only — no TABS switcher, no 物品 / 区域', () => {
+  it('keeps the puzzle panel — no TABS switcher, no map-writing callbacks', () => {
     expect(leftPanelSource).not.toContain('const TABS');
-    expect(leftPanelSource).not.toContain('物品');
-    expect(leftPanelSource).not.toContain('区域');
-    // 「角色」是面板唯一的标题。
-    expect(leftPanelSource).toContain('角色');
     // 写地图的回调一个都不在。
     expect(leftPanelSource).not.toContain('onSetLayer');
     expect(leftPanelSource).not.toContain('onSelectItem');

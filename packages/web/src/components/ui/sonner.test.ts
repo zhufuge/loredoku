@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TOAST_OFFSET } from '@loredoku/shared';
+import { readSource } from '@/testing/source';
 
 /**
  * v0.5.3 FIX-N01 (docs/v0.5.3.md §1): the toast stack used to sit flush with
@@ -7,11 +8,7 @@ import { TOAST_OFFSET } from '@loredoku/shared';
  * 发布 / 导入 / 导出 buttons.
  */
 
-const source =
-  ((import.meta.glob('./sonner.tsx', { query: '?raw', import: 'default', eager: true }) as Record<
-    string,
-    string
-  >)['./sonner.tsx'] ?? '').replace(/\r\n/g, '\n');
+const source = readSource('components/ui/sonner.tsx');
 
 describe('Toaster（FIX-N01）', () => {
   it('pushes the stack below the header bar', () => {

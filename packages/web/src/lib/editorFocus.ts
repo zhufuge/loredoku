@@ -6,19 +6,11 @@ import {
 import type { Selection } from '@/stores/editorStore';
 
 /**
- * OPT-C07 (docs/v0.3.7.md §OPT-C07): clicking the board must take the focus
- * away from an active participant, so the two highlight sources never fight
- * for attention.
- *
- * The editor has two independent focus axes:
- *
- * - `activation` — the participant linkage preview (`activeParticipantId` +
- *   `activationMode`, v0.3.3 MOD-802);
- * - `selection` — the operation box + info drawer (v0.3.5 OPT-A05).
- *
- * The state-machine shape of `activation` is *unchanged* — this module only
- * encodes the mutual-exclusion rule between the two axes, so the rule lives in
- * exactly one testable place instead of being spread over the page handlers.
+ * OPT-C07 (docs/v0.3.7.md §OPT-C07): clicking the board drops the participant
+ * focus, so the two highlight sources never fight. Two independent axes —
+ * `activation` (linkage preview, MOD-802) and `selection` (operation box + info
+ * drawer, OPT-A05). `activation`'s own state machine is unchanged; this module
+ * only encodes the mutual-exclusion rule, in one testable place.
  */
 export interface EditorFocus {
   activation: LinkageActivationState;
@@ -41,14 +33,13 @@ export const INITIAL_FOCUS: EditorFocus = {
 export function reduceEditorFocus(focus: EditorFocus, event: FocusEvent): EditorFocus {
   switch (event.type) {
     case 'cell':
-      // §2: clearing the participant happens for **both** activation modes.
-      // A click on a region label counts too — otherwise a click-pinned
-      // participant would stay highlighted next to the region drawer.
+      // §2: cleared for **both** activation modes; a region label counts too,
+      // otherwise a click-pinned participant stays lit next to the drawer.
       return { activation: { ...INACTIVE_ACTIVATION }, selection: event.selection };
 
     case 'participant':
-      // Toggle semantics stay in `reduceLinkageActivation`; the cell selection
-      // is dropped because the drawer switches to the participant (§5).
+      // Toggle semantics stay in `reduceLinkageActivation`; the cell selection is
+      // dropped because the drawer switches to the participant (§5).
       return {
         activation: reduceLinkageActivation(focus.activation, {
           type: 'click',
@@ -63,9 +54,8 @@ export function reduceEditorFocus(focus: EditorFocus, event: FocusEvent): Editor
 }
 
 /**
- * Who currently owns the drawer. A hover-activated participant does **not**
- * take the drawer away from a selected cell (v0.3.3 MOD-802: hover never
- * changes the drawer), only a click-pinned participant does.
+ * Who currently owns the drawer. Hover never changes it (MOD-802) — only a
+ * click-pinned participant takes the drawer away from a selected cell.
  */
 export function focusOwner(focus: EditorFocus): 'participant' | 'cell' | 'region' | 'none' {
   const { activation, selection } = focus;
@@ -79,18 +69,11 @@ export function focusOwner(focus: EditorFocus): 'participant' | 'cell' | 'region
 
 /**
  * BUG-G01 (docs/v0.4.0.md §1): whether the cell / region / participant info
- * drawer is open.
- *
- * The three focus axes live in the store (`selection`, `selectedRegionId`,
- * `selectedSlotIndex`) while `infoOpen` is page state — and a click on a cell
- * sets **both** `selection` and `selectedRegionId`, so an effect that merely
- * mirrors "any axis is non-null" re-opens the drawer after the page handler
- * already closed it. The 「地图基本信息」drawer and the info drawer are two
- * different panels stacked at z-30 / z-20; closing the top one must not let
- * the bottom one pop back up.
- *
- * Rule: while `mapInfoOpen` is true the info drawer is **always closed**;
- * otherwise it follows the three focus axes.
+ * drawer is open. The focus axes live in the store while `infoOpen` is page
+ * state, and a cell click sets **both** `selection` and `selectedRegionId`, so
+ * an effect mirroring "any axis is non-null" re-opens the drawer after the page
+ * handler closed it. Rule: while `mapInfoOpen` is true the info drawer is
+ * **always closed**.
  */
 export function infoDrawerOpen(input: {
   infoOpen: boolean;

@@ -63,10 +63,7 @@ export interface ProjectDetail extends Project {
   versionCount: number;
 }
 
-/**
- * v0.5.2 FEAT-M03: `ItemTrigger` is gone with the `item_triggers` table.
- * `EffectType` itself stays — participant linkages still use it.
- */
+/** `EffectType` stays — participant linkages still use it. */
 
 export interface Item {
   id: number;

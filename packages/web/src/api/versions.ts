@@ -7,9 +7,8 @@ import type {
 import { apiDelete, apiGet, apiPost } from './client';
 
 /**
- * v0.5.0 (docs/v0.5.0.md §7): `map_versions` is a **map version** again — one
- * row per publish, shown as a version entry in the map list. The old flat
- * 「作品」 listing is gone (the puzzle table replaced it).
+ * v0.5.0 (docs/v0.5.0.md §7): `map_versions` — one row per publish, shown as a
+ * version entry in the map list.
  */
 export const versionsApi = {
   publish(id: number, notes?: string): Promise<MapVersionSummary> {

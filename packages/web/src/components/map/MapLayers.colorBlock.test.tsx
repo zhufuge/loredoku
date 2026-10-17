@@ -48,15 +48,28 @@ const itemsById = new Map<number, Item>([
   [3, bare],
 ]);
 
-describe('层 12 · 背景层 — 纯色块（v0.5.1 SPEC-L03 §3.1）', () => {
+/**
+ * Both item layers answer the same three questions about an item, so they share
+ * one harness — only the cell key that carries the item differs.
+ */
+const layers = [
+  {
+    name: '层 12 · 背景层',
+    layer: (cells: CellMap) => (
+      <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={100} />
+    ),
+    cells: (itemId: number) => new Map([['0,0', { background: { itemId } }]]),
+  },
+  {
+    name: '层 4 · 物体层',
+    layer: (cells: CellMap) => <MapObjectLayer cells={cells} itemsById={itemsById} cellSize={100} />,
+    cells: (itemId: number) => new Map([['0,0', { object: { itemId, w: 1, h: 1 } }]]),
+  },
+] as const;
+
+describe.each(layers)('$name — 纯色块（v0.5.1 SPEC-L03 §3.1）', ({ layer, cells }) => {
   let container: HTMLDivElement;
   let root: Root;
-
-  function render(cells: CellMap): void {
-    act(() => {
-      root.render(<MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={100} />);
-    });
-  }
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -69,8 +82,14 @@ describe('层 12 · 背景层 — 纯色块（v0.5.1 SPEC-L03 §3.1）', () => {
     container.remove();
   });
 
+  function paint(map: CellMap): void {
+    act(() => {
+      root.render(layer(map));
+    });
+  }
+
   it('fills the cell with the colour instead of an image', () => {
-    render(new Map([['0,0', { background: { itemId: 1 } }]]));
+    paint(cells(1));
     const painted = container.querySelector<HTMLDivElement>('[data-color-block]');
     expect(painted?.dataset.colorBlock).toBe('#FF8800');
     expect(painted?.style.backgroundColor).toBe('rgb(255, 136, 0)');
@@ -78,27 +97,21 @@ describe('层 12 · 背景层 — 纯色块（v0.5.1 SPEC-L03 §3.1）', () => {
   });
 
   it('still renders an <img> for an image item', () => {
-    render(new Map([['1,1', { background: { itemId: 2 } }]]));
+    paint(cells(2));
     expect(container.querySelector('img')?.getAttribute('src')).toBe('/uploads/p.png');
     expect(container.querySelector('[data-color-block]')).toBeNull();
   });
 
   it('renders nothing for an item with neither image nor colour', () => {
-    render(new Map([['2,2', { background: { itemId: 3 } }]]));
+    paint(cells(3));
     expect(container.querySelector('img')).toBeNull();
     expect(container.querySelector('[data-color-block]')).toBeNull();
   });
 });
 
-describe('层 4 · 物体层 — 纯色块（v0.5.1 SPEC-L03 §3.1）', () => {
+describe('层 4 · 物体层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () => {
   let container: HTMLDivElement;
   let root: Root;
-
-  function render(cells: CellMap): void {
-    act(() => {
-      root.render(<MapObjectLayer cells={cells} itemsById={itemsById} cellSize={100} />);
-    });
-  }
 
   beforeEach(() => {
     container = document.createElement('div');
@@ -111,25 +124,20 @@ describe('层 4 · 物体层 — 纯色块（v0.5.1 SPEC-L03 §3.1）', () => {
     container.remove();
   });
 
-  it('fills the whole footprint for a multi-cell block', () => {
-    render(new Map([['0,0', { object: { itemId: 1, w: 2, h: 2 } }]]));
+  it('fills the whole footprint, not one cell', () => {
+    act(() => {
+      root.render(
+        <MapObjectLayer
+          cells={new Map([['0,0', { object: { itemId: 1, w: 2, h: 2 } }]])}
+          itemsById={itemsById}
+          cellSize={100}
+        />,
+      );
+    });
     const painted = container.querySelector<HTMLDivElement>('[data-color-block]');
     expect(painted?.dataset.colorBlock).toBe('#FF8800');
     expect(painted?.style.backgroundColor).toBe('rgb(255, 136, 0)');
-    // The footprint is the whole 2×2 area, not one cell.
     expect(painted?.parentElement?.getAttribute('style')).toContain('width: 200px');
     expect(container.querySelector('img')).toBeNull();
-  });
-
-  it('still renders an <img> for an image item', () => {
-    render(new Map([['1,1', { object: { itemId: 2, w: 1, h: 1 } }]]));
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('/uploads/p.png');
-    expect(container.querySelector('[data-color-block]')).toBeNull();
-  });
-
-  it('renders nothing for an item with neither image nor colour', () => {
-    render(new Map([['2,2', { object: { itemId: 3, w: 1, h: 1 } }]]));
-    expect(container.querySelector('img')).toBeNull();
-    expect(container.querySelector('[data-color-block]')).toBeNull();
   });
 });

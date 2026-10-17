@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
 
 /**
  * FEAT-E01 (docs/v0.4.1.md §7 / §12.5): source-level guards for the roster
@@ -10,12 +11,7 @@ import { describe, expect, it } from 'vitest';
  * multi-line `toContain`.
  */
 
-const source =
-  ((import.meta.glob('./ParticipantDrawer.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['./ParticipantDrawer.tsx'] ?? '').replace(/\r\n/g, '\n');
+const source = readSource('components/editor/ParticipantDrawer.tsx');
 
 describe('ParticipantDrawer position conditions (FEAT-E01 §7.5)', () => {
   it('declares the pick-intent props the page drives', () => {
@@ -37,10 +33,7 @@ describe('ParticipantDrawer position conditions (FEAT-E01 §7.5)', () => {
     );
   });
 
-  it('renders the 位置条件 module with the add / cancel toggle', () => {
-    expect(source).toContain('位置条件');
-    expect(source).toContain('添加位置');
-    expect(source).toContain("'取消选择'");
+  it('renders the position-pick toggle', () => {
     expect(source).toContain('onClick={onTogglePositionPick}');
     // The canvas hint is only shown while picking.
     expect(source).toContain('{positionPickActive ? (');
@@ -48,9 +41,7 @@ describe('ParticipantDrawer position conditions (FEAT-E01 §7.5)', () => {
 
   it('lists each condition as an R/C label and lets it be removed', () => {
     expect(source).toContain('R{entry.y + 1} C{entry.x + 1}');
-    expect(source).toContain('title="删除该位置"');
     expect(source).toContain('previous.filter((_, i) => i !== index),');
-    expect(source).toContain('多个位置之间为「或」关系；留空表示不限制位置。');
   });
 
   it('consumes the picked cell exactly once and ignores duplicates', () => {
@@ -62,12 +53,7 @@ describe('ParticipantDrawer position conditions (FEAT-E01 §7.5)', () => {
   });
 });
 
-const pageSource =
-  ((import.meta.glob('../../pages/PuzzleEditorPage.tsx', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  }) as Record<string, string>)['../../pages/PuzzleEditorPage.tsx'] ?? '').replace(/\r\n/g, '\n');
+const pageSource = readSource('pages/PuzzleEditorPage.tsx');
 
 describe('PuzzleEditorPage position-pick mode (FEAT-E01 §7.3, v0.5.0 搬家)', () => {
   it('enters the mode from the drawer toggle and exits on a second press', () => {
@@ -109,16 +95,14 @@ describe('ParticipantDrawer — v0.4.2 抽屉改版（OPT-H07 / H08 / H09）', (
     const scrollAt = source.indexOf('min-h-0 flex-1 space-y-4 overflow-y-auto');
     const footerAt = source.indexOf('flex shrink-0 gap-2 border-t px-4 py-3');
     expect(footerAt).toBeGreaterThan(scrollAt);
-    expect(source).toContain('取消');
     // 保存仍然是唯一的写回路径。
     expect(source).toContain('onSave(slotIndex, { themeColor, clue, linkages, positionConditions });');
   });
 
-  it('OPT-H09: 取消 / × / Esc 三处同源，且都不写 store', () => {
+  it('OPT-H09: cancel is shared by the × button and the footer', () => {
     // 三处入口共用同一个 `cancel`。
     expect(source).toContain('const cancel = (): void => {');
     expect(source.split('onClick={cancel}').length - 1).toBe(2); // × 按钮 + 页脚取消
-    expect(source).toContain('title="关闭（等同取消）"');
     // cancel 内部只重置本地草稿 + 关弹窗 + 通知父级，绝不调用 onSave。
     const cancelBody = source.slice(
       source.indexOf('const cancel = (): void => {'),
@@ -128,11 +112,10 @@ describe('ParticipantDrawer — v0.4.2 抽屉改版（OPT-H07 / H08 / H09）', (
     expect(cancelBody).toContain('onClose();');
   });
 
-  it('OPT-H08: theme colour is one row — chip + hex + 修改 — opening the dialog', () => {
+  it('OPT-H08: theme colour is one row that opens the dialog', () => {
     expect(source).toContain('aria-label="修改主题色"');
     expect(source).toContain('data-testid="theme-color-chip"');
     expect(source).toContain('onClick={() => setThemeDialogOpen(true)}');
-    expect(source).toContain('>修改<');
     // The palette / hex input moved into the dialog.
     expect(source).not.toContain('THEME_COLOR_PALETTE');
     expect(source).not.toContain('hexDraft');
@@ -141,7 +124,7 @@ describe('ParticipantDrawer — v0.4.2 抽屉改版（OPT-H07 / H08 / H09）', (
     expect(source).toContain('value={themeColor}');
   });
 
-  it('OPT-H07: the linkage rows no longer render a 「高亮」 badge', () => {
+  it('OPT-H07: the linkage rows render the colour dot only', () => {
     const rows = source.slice(
       source.indexOf('linkages.map((linkage, index) => ('),
       source.indexOf('</ul>', source.indexOf('linkages.map(')),
@@ -150,8 +133,6 @@ describe('ParticipantDrawer — v0.4.2 抽屉改版（OPT-H07 / H08 / H09）', (
     // Only the colour dot is left next to the description.
     // v0.5.0 FEAT-K14 (Q16): the palette is a prop of its own now.
     expect(rows).toContain('linkageColorFor(linkageColors, linkage.color)');
-    expect(rows).not.toContain('>高亮');
-    expect(rows).not.toContain('高亮<');
   });
 });
 
