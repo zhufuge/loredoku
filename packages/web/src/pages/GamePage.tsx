@@ -33,21 +33,20 @@ import {
 } from '@/components/ui/dialog';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
 import { BrandLogo } from '@/components/layout/BrandLogo';
+import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
+import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
+import { MapGamePlacementLayer, MapGameToolHintLayer } from '@/components/map/MapGameLayers';
 import {
-  MapBackgroundLayer,
-  MapCanvasFrameLayer,
-  MapGamePlacementLayer,
-  MapGameToolHintLayer,
-  MapGridSeparatorLayer,
+  MapRegionFillLayer,
+  MapRegionHighlightLayer,
+  MapRegionOutlineLayer,
+} from '@/components/map/MapRegionLayers';
+import {
   MapHighlightLayer,
   MapMouseCursorBoxLayer,
   MapNonStandableMaskLayer,
-  MapObjectLayer,
-  MapRegionFillLayer,
-  MapRegionHighlightLayer,
   MapRegionLabelLayer,
-  MapRegionOutlineLayer,
-} from '@/components/map/MapLayers';
+} from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';

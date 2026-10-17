@@ -23,7 +23,9 @@ const shellSource = readSource('components/layout/AppShell.tsx');
 
 describe('GamesPage (FEAT-G01)', () => {
   it('is a top-level route outside the app shell', () => {
-    expect(routerSource).toContain("import { GamesPage } from '@/pages/GamesPage'");
+    // v0.5.6: the page is code-split (`lazyPage`), so the import is dynamic —
+    // the route still renders this module, it just arrives on demand.
+    expect(routerSource).toContain("import('@/pages/GamesPage')");
     expect(routerSource).toContain("path: '/play',");
     expect(routerSource).toContain('element: <GamesPage />');
     // It must not live inside the AppShell children array…

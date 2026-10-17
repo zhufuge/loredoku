@@ -6,9 +6,9 @@ interface BrandLogoProps {
   /** v0.5.3 FEAT-N02: append 「· 格物」 (the console header only). */
   withWordmark?: boolean;
   /**
-   * v0.5.4 FEAT-O05 (docs/v0.5.4.md §4): a third segment — 「· 琢玉台」 —
+   * v0.5.4 FEAT-O05 (docs/v0.5.4.md §4): a third segment — 「· 工坊」 —
    * appended on the module's own page, so the header reads
-   * 「图标 · 格物 · 琢玉台」. Ignored unless `withWordmark` is set.
+   * 「图标 · 格物 · 工坊」. Ignored unless `withWordmark` is set.
    */
   suffix?: string;
   className?: string;
@@ -40,7 +40,15 @@ export function BrandLogo({
         data-testid="brand-logo"
       />
       {withWordmark ? (
-        <span className="font-semibold">
+        // v0.5.6: 字号与行高都跟着 mark 走。实测 logo 资产在 box 内上下各留约
+        // 13%（22px 框里墨迹 16.2px），而 CJK 墨迹约等于 1em —— 取 0.82×height
+        // 让「格物」的上下沿与 logo 墨迹齐平（22→18px / 20→16px）。lineHeight:1
+        // 是必须的：默认 1.5 会把墨迹挤出 box 中线，看起来比 logo 低半格。
+        // 字重 normal —— 品牌行靠 logo 立骨架，不加粗。
+        <span
+          style={{ fontSize: Math.round(height * 0.82), lineHeight: 1 }}
+          data-testid="brand-wordmark"
+        >
           · 格物{suffix ? <span className="text-muted-foreground">{suffix}</span> : null}
         </span>
       ) : null}

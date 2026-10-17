@@ -4,6 +4,7 @@ import { env } from '../config/env';
 
 export const serverRoot = fileURLToPath(new URL('../..', import.meta.url));
 export const uploadRoot = resolve(serverRoot, env.UPLOAD_ROOT);
+export const webDistRoot = resolve(serverRoot, '../web/dist');
 export const publicBaseUrl = env.PUBLIC_BASE_URL.replace(/\/+$/, '');
 
 export function buildFileUrl(relativePath: string): string {

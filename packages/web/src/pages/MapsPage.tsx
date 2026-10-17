@@ -56,7 +56,7 @@ export function MapsPage(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<MapEntrySummary | null>(null);
 
   useEffect(() => {
-    // SPEC-O19 (docs/v0.5.4.md §4): 琢玉台 is the **header suffix** only — the
+    // SPEC-O19 (docs/v0.5.4.md §4): 工坊 is the **header suffix** only — the
     // page itself keeps speaking 地图.
     document.title = '地图 · 格物';
   }, []);
@@ -228,7 +228,7 @@ export function MapsPage(): JSX.Element {
     <section className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          {/* SPEC-O19: 琢玉台 lives in the header wordmark, not here. */}
+          {/* SPEC-O19: 工坊 lives in the header wordmark, not here. */}
           <h1 className="text-2xl font-semibold">地图</h1>
           <p className="text-sm text-muted-foreground">创建、管理并编辑你的地图。</p>
         </div>

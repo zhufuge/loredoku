@@ -8,14 +8,11 @@ import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   mapDraftSchema,
-  type CellCoord,
   type DraftRegion,
   type EditorTool,
   type Item,
   type MapDraft,
   type MapStyle,
-  type MapVersionSummary,
-  type PublishViolation,
   type RegionShape,
 } from '@loredoku/shared';
 import {
@@ -44,6 +41,14 @@ import { EditorToolbar } from '@/components/editor/EditorToolbar';
 import { EditorBottomBar } from '@/components/editor/EditorBottomBar';
 import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
 import {
+  EditorErrorState,
+  EditorImportInput,
+  EditorLoadingState,
+  EditorPendingInfoActionDialog,
+  EditorSaveMask,
+  EditorUnsavedLeaveDialog,
+} from '@/components/editor/EditorShell';
+import {
   MapInfoDrawer,
   type MapInfoDrawerHandle,
 } from '@/components/editor/MapInfoDrawer';
@@ -53,6 +58,10 @@ import { VersionHistoryDialog } from '@/components/editor/VersionHistoryDialog';
 import { useItems } from '@/hooks/useItems';
 import { useProjectMap, useSaveMap, useUpdateGridSize } from '@/hooks/useMap';
 import { usePublishProject, useVersions } from '@/hooks/useVersions';
+import { useEditorPublish } from '@/hooks/useEditorPublish';
+import { useEditorResize } from '@/hooks/useEditorResize';
+import { useEditorSave } from '@/hooks/useEditorSave';
+import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { canPlaceItemOnLayer } from '@/lib/canvasLayers';
@@ -117,7 +126,6 @@ export function EditorPage(): JSX.Element {
   /** FEAT-D03: the adaptive value the canvas last computed. */
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const [regionAnchorActive, setRegionAnchorActive] = useState(false);
-  const [saveMaskVisible, setSaveMaskVisible] = useState(false);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
     open: false,
     mode: 'create',
@@ -127,9 +135,6 @@ export function EditorPage(): JSX.Element {
   const [deleteRegionTarget, setDeleteRegionTarget] = useState<DraftRegion | null>(null);
   const [regionError, setRegionError] = useState<string | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
-  const [violations, setViolations] = useState<PublishViolation[] | null>(null);
-  const [resizeOpen, setResizeOpen] = useState(false);
-  const [resizeValue, setResizeValue] = useState(editor.gridSize);
   const [pendingImport, setPendingImport] = useState<MapDraft | null>(null);
   const [rulerVisible, setRulerVisible] = useState<boolean>(() => {
     if (typeof window === 'undefined') return true;
@@ -142,10 +147,6 @@ export function EditorPage(): JSX.Element {
     }
   }, [rulerVisible]);
 
-  useEffect(() => {
-    if (resizeOpen) setResizeValue(editor.gridSize);
-  }, [resizeOpen, editor.gridSize]);
-
   const itemsById = useMemo(() => {
     const map = new Map<number, Item>();
     for (const item of itemsQuery.data ?? []) map.set(item.id, item);
@@ -156,6 +157,65 @@ export function EditorPage(): JSX.Element {
     () => (editor.selectedItemId === null ? null : itemsById.get(editor.selectedItemId) ?? null),
     [editor.selectedItemId, itemsById],
   );
+
+  /**
+   * v0.5.6: the save / publish / resize flows are hooks now. The page keeps
+   * only what is specific to the map editor: the 基本信息 form, the FIX-F03
+   * first-entry save, the canvas callbacks and the dialogs' JSX.
+   */
+  const { persist, save, saving, saveMaskVisible } = useEditorSave({
+    id,
+    mutation: saveMutation,
+    buildPayload: () => ({ data: editor.toDraft(), updatedAt: editor.updatedAt }),
+    onSaved: (data) => {
+      editor.markSaved(data.updatedAt ?? new Date().toISOString());
+      editor.setVersionInfo({
+        currentVersionNo: data.project.currentVersionNo,
+        status: data.project.status,
+      });
+    },
+  });
+
+  const {
+    resizeOpen,
+    setResizeOpen,
+    resizeValue,
+    setResizeValue,
+    resizePending,
+    resizeImpact,
+    confirmResize,
+  } = useEditorResize({
+    id,
+    gridSize: editor.gridSize,
+    cells: editor.cells,
+    regions: editor.regions,
+    itemsById,
+    dirty: editor.dirty,
+    saving,
+    persist,
+    resizeMutation,
+  });
+
+  const {
+    publishOpen,
+    setPublishOpen,
+    publishNotes,
+    setPublishNotes,
+    publishedVersion,
+    setPublishedVersion,
+    violations,
+    setViolations,
+    nextVersionNo,
+    openPublishConfirm,
+    confirmPublish,
+  } = useEditorPublish({
+    versions: versionsQuery.data,
+    currentVersionNo: editor.currentVersionNo,
+    dirty: editor.dirty,
+    saving,
+    persist,
+    publishMutation,
+  });
 
   /**
    * BUG-G01 (docs/v0.4.0.md §1): a click on a cell writes **both** `selection`
@@ -230,34 +290,6 @@ export function EditorPage(): JSX.Element {
       }
     }
   }, [mapQuery.data, id, editor]);
-
-  /**
-   * FIX-F01: one code path persists the **whole** draft (style, canvas size and
-   * every other map datum), so the toolbar's 保存 and the 基本信息 drawer's
-   * 保存 can never disagree about what "saved" means.
-   */
-  const persist = async (): Promise<boolean> => {
-    if (saveMutation.isPending) return false;
-    try {
-      const data = await saveMutation.mutateAsync({
-        id,
-        payload: { data: editor.toDraft(), updatedAt: editor.updatedAt },
-      });
-      editor.markSaved(data.updatedAt ?? new Date().toISOString());
-      editor.setVersionInfo({
-        currentVersionNo: data.project.currentVersionNo,
-        status: data.project.status,
-      });
-      return true;
-    } catch {
-      /* errors surfaced via mutation toasts */
-      return false;
-    }
-  };
-
-  const save = (): void => {
-    void persist();
-  };
 
   /**
    * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a form, so
@@ -343,133 +375,9 @@ export function EditorPage(): JSX.Element {
     setRegionDialog((state) => ({ ...state, open: false }));
   };
 
-  const confirmResize = (): void => {
-    const size = resizeValue;
-    if (size === editor.gridSize) {
-      setResizeOpen(false);
-      return;
-    }
-    void (async () => {
-      try {
-        if (editor.dirty) await persist();
-        const result = await resizeMutation.mutateAsync({ id, gridSize: size });
-        const { background, object, regions } = result.removed;
-        if (background + object + regions > 0) {
-          toast.message('画布已调整', {
-            description: `已移除越界内容：背景 ${background}、物体 ${object}、区域 ${regions}`,
-          });
-        } else {
-          toast.success('画布已调整');
-        }
-        setResizeOpen(false);
-      } catch {
-        /* errors surfaced via mutation toasts; keep dialog open */
-      }
-    })();
-  };
-
-  const resizePending = saveMutation.isPending || resizeMutation.isPending;
-
-  const resizeImpact = useMemo(() => {
-    if (!resizeOpen) {
-      return { items: [] as string[], regions: [] as string[] };
-    }
-    const size = resizeValue;
-    const inBounds = (x: number, y: number): boolean => x >= 0 && y >= 0 && x < size && y < size;
-    const items: string[] = [];
-    const seenObjects = new Set<string>();
-    for (const [key, cell] of editor.cells.entries()) {
-      const [x, y] = key.split(',').map(Number) as [number, number];
-      if (cell.background && !inBounds(x, y)) {
-        const item = itemsById.get(cell.background.itemId);
-        items.push(`物品「${item?.name ?? `#${cell.background.itemId}`}」位于 C${x + 1},R${y + 1}`);
-      }
-      if (
-        cell.object &&
-        !(inBounds(x, y) && x + cell.object.w <= size && y + cell.object.h <= size)
-      ) {
-        if (!seenObjects.has(key)) {
-          seenObjects.add(key);
-          const item = itemsById.get(cell.object.itemId);
-          items.push(
-            `物品「${item?.name ?? `#${cell.object.itemId}`}」(${cell.object.w}×${cell.object.h}) 位于 C${x + 1},R${y + 1}`,
-          );
-        }
-      }
-    }
-    const regions: string[] = [];
-    for (const region of editor.regions) {
-      const count = region.cells.filter(([x, y]) => !inBounds(x, y)).length;
-      if (count > 0) regions.push(`区域「${region.name}」部分格子越界（${count} 格）`);
-    }
-    return { items, regions };
-  }, [resizeOpen, resizeValue, editor.cells, editor.regions, itemsById]);
-
-  /**
-   * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing adds an entry to the map list
-   * (版本管理). With Q3 = B the next version number spans the whole blood
-   * lineage, so it is read from the version list rather than from this row's
-   * own `current_version_no`.
-   */
-  const [publishOpen, setPublishOpen] = useState(false);
-  const [publishNotes, setPublishNotes] = useState('');
-  const [publishedVersion, setPublishedVersion] = useState<MapVersionSummary | null>(null);
-
-  const nextVersionNo = useMemo(() => {
-    const versions = versionsQuery.data;
-    if (versions && versions.length > 0) {
-      return Math.max(...versions.map((version) => version.versionNo)) + 1;
-    }
-    return (editor.currentVersionNo ?? 0) + 1;
-  }, [versionsQuery.data, editor.currentVersionNo]);
-
-  const openPublishConfirm = (): void => {
-    if (publishMutation.isPending || saveMutation.isPending) return;
-    setPublishNotes('');
-    setPublishOpen(true);
-  };
-
-  /**
-   * `确认发布`, or `保存并发布` when the canvas is dirty — serial, and a failed
-   * save aborts the publish. The dialog stays open while the request flies (the
-   * button reads 「发布中…」), and closes on the outcome: success → the success
-   * dialog, a validation failure → the existing 「无法发布」 list.
-   */
-  const confirmPublish = (): void => {
-    if (publishMutation.isPending) return;
-    void (async () => {
-      if (editor.dirty && !(await persist())) return;
-      const notes = publishNotes.trim();
-      publishMutation.mutate(
-        { notes: notes.length > 0 ? notes : undefined },
-        {
-          onSuccess: (result) => {
-            setPublishOpen(false);
-            if (!result.ok) {
-              setViolations(result.violations ?? []);
-              return;
-            }
-            setPublishedVersion(result.version ?? null);
-          },
-          onError: () => setPublishOpen(false),
-        },
-      );
-    })();
-  };
-
   const previewCellSize = Math.max(3, Math.floor(180 / editor.gridSize));
   const panelsLocked = editor.activeTool === 'region';
   const panelsDisabled = editor.activeTool === 'eraser';
-
-  const saving = saveMutation.isPending;
-  useEffect(() => {
-    if (saving) {
-      setSaveMaskVisible(true);
-      return;
-    }
-    const timer = setTimeout(() => setSaveMaskVisible(false), 150);
-    return () => clearTimeout(timer);
-  }, [saving]);
 
   const exportToFile = (): void => {
     const blob = new Blob([JSON.stringify(editor.toDraft(), null, 2)], {
@@ -539,124 +447,85 @@ export function EditorPage(): JSX.Element {
     editor.setZoom(next);
   }
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-      ) {
-        return;
-      }
-      const mod = event.ctrlKey || event.metaKey;
-      if (mod && event.key.toLowerCase() === 's') {
+  /**
+   * v0.5.6: the keys both canvases share live in `useEditorShortcuts`
+   * (Ctrl+S / Space / Ctrl+Z / Ctrl+0 / arrows); what stays here is the part
+   * that is specific to the writable map canvas.
+   */
+  const handleEditorEscape = (): void => {
+    if (mapInfoOpen) {
+      // FEAT-E01: Esc leaves the info drawer first — and asks when there
+      // are unsaved edits. It does not touch the cell focus.
+      closeMapInfo();
+      return;
+    }
+    editor.setSelection(null);
+    editor.setSelectedItem(null);
+    if (editor.activeTool !== 'region') editor.clearDraftSelection();
+  };
+
+  /** Map-only keys — erase and the tool switches. `true` = handled. */
+  const handleEditorKey = (event: KeyboardEvent): boolean => {
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      const selection = editor.selection;
+      if (selection && selection.type === 'cell') {
         event.preventDefault();
-        save();
-        return;
+        editor.eraseAt(selection.x, selection.y);
       }
-      if (event.code === 'Space') {
-        event.preventDefault();
-        setSpaceHeld(true);
-        return;
-      }
-      if (mod && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) editor.redo();
-        else editor.undo();
-        return;
-      }
-      if (mod && event.key === '0') {
-        event.preventDefault();
-        canvasRef.current?.centerView();
-        return;
-      }
-      if (event.key === 'Delete' || event.key === 'Backspace') {
-        const selection = editor.selection;
-        if (selection && selection.type === 'cell') {
-          event.preventDefault();
-          editor.eraseAt(selection.x, selection.y);
-        }
-        return;
-      }
-      if (event.key === 'Escape') {
-        if (mapInfoOpen) {
-          // FEAT-E01: Esc leaves the info drawer first — and asks when there
-          // are unsaved edits. It does not touch the cell focus.
-          closeMapInfo();
-          return;
-        }
-        editor.setSelection(null);
-        editor.setSelectedItem(null);
-        if (editor.activeTool !== 'region') editor.clearDraftSelection();
-        return;
-      }
-      if (mod) return;
-      if (event.key === 'v' || event.key === 'V') setTool('select');
-      else if (event.key === 'r' || event.key === 'R') setTool('region');
-      else if (event.key === 'e' || event.key === 'E') setTool('eraser');
-      // FEAT-E03: no pan-tool shortcut any more — drag the empty area outside
-      // the board (or hold Space) to pan.
-      else if (event.key.startsWith('Arrow') && editor.selection && editor.selection.type === 'cell') {
-        const step: Record<string, CellCoord> = {
-          ArrowUp: { x: 0, y: -1 },
-          ArrowDown: { x: 0, y: 1 },
-          ArrowLeft: { x: -1, y: 0 },
-          ArrowRight: { x: 1, y: 0 },
-        };
-        const delta = step[event.key] ?? { x: 0, y: 0 };
-        const next = { x: editor.selection.x + delta.x, y: editor.selection.y + delta.y };
-        if (isInBounds(next, editor.gridSize)) {
-          editor.setSelection({ type: 'cell', x: next.x, y: next.y });
-        }
-      }
-    };
-    const onKeyUp = (event: KeyboardEvent): void => {
-      if (event.code === 'Space') setSpaceHeld(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
+      return true;
+    }
+    if (event.key === 'v' || event.key === 'V') setTool('select');
+    else if (event.key === 'r' || event.key === 'R') setTool('region');
+    else if (event.key === 'e' || event.key === 'E') setTool('eraser');
+    // FEAT-E03: no pan-tool shortcut any more — drag the empty area outside
+    // the board (or hold Space) to pan.
+    return false;
+  };
+
+  const moveSelection = (dx: number, dy: number): void => {
+    const selection = editor.selection;
+    if (!selection || selection.type !== 'cell') return;
+    const next = { x: selection.x + dx, y: selection.y + dy };
+    if (isInBounds(next, editor.gridSize)) {
+      editor.setSelection({ type: 'cell', x: next.x, y: next.y });
+    }
+  };
+
+  useEditorShortcuts({
+    save,
+    undo: editor.undo,
+    redo: editor.redo,
+    centerView: () => canvasRef.current?.centerView(),
+    moveSelection,
+    onSpaceHeldChange: setSpaceHeld,
+    onEscape: handleEditorEscape,
+    onKey: handleEditorKey,
   });
 
   if (!Number.isFinite(id) || mapQuery.isError) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-sm text-muted-foreground">地图不存在或加载失败。</p>
-        <Button variant="outline" onClick={() => navigate('/projects')}>
-          返回地图列表
-        </Button>
-      </div>
+      <EditorErrorState
+        message="地图不存在或加载失败。"
+        backLabel="返回地图列表"
+        onBack={() => navigate('/projects')}
+      />
     );
   }
 
   const project = mapQuery.data?.project;
 
   if (mapQuery.isLoading || !project) {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载画布…
-      </div>
-    );
+    return <EditorLoadingState />;
   }
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <input
-        ref={importInputRef}
-        type="file"
-        accept="application/json,.json"
-        className="hidden"
-        onChange={handleImportFile}
-      />
+      <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
       <EditorToolbar
         projectName={project.name}
         dirty={editor.dirty}
-        saving={saveMutation.isPending}
+        saving={saving}
         publishing={publishMutation.isPending}
         status={editor.status}
         currentVersionNo={editor.currentVersionNo}
@@ -685,19 +554,7 @@ export function EditorPage(): JSX.Element {
       />
 
       <div className="relative flex min-h-0 flex-1">
-        {saveMaskVisible ? (
-          <div
-            className={cn(
-              'absolute inset-0 z-50 flex items-center justify-center gap-2 text-sm text-muted-foreground transition-opacity duration-150',
-              saving ? 'opacity-100' : 'opacity-0',
-            )}
-            style={{ background: 'rgba(255,255,255,0.6)', pointerEvents: 'auto' }}
-            aria-hidden={!saving}
-          >
-            <Loader2 className="h-5 w-5 animate-spin" />
-            保存中…
-          </div>
-        ) : null}
+        <EditorSaveMask saving={saving} visible={saveMaskVisible} />
 
         {itemsOpen ? (
           <div
@@ -1168,52 +1025,13 @@ export function EditorPage(): JSX.Element {
       </AlertDialog>
 
       {/* FEAT-E01: leaving the 「地图基本信息」form with unsaved edits */}
-      <AlertDialog
+      <EditorPendingInfoActionDialog
         open={pendingMapInfoAction !== null}
         onOpenChange={(open) => !open && setPendingMapInfoAction(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>基本信息有未保存的修改</AlertDialogTitle>
-            <AlertDialogDescription>
-              继续切换会丢失这些修改，是否先保存？
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setPendingMapInfoAction(null)}>
-              继续编辑
-            </Button>
-            <Button variant="destructive" onClick={() => resolvePendingMapInfo('discard')}>
-              放弃修改
-            </Button>
-            <Button onClick={() => resolvePendingMapInfo('save')}>保存并继续</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onResolve={resolvePendingMapInfo}
+      />
 
-      <AlertDialog open={leaveGuard.open}>
-        <AlertDialogContent
-          onEscapeKeyDown={(event) => {
-            event.preventDefault();
-            leaveGuard.cancelLeave();
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>有未保存的修改</AlertDialogTitle>
-            <AlertDialogDescription>
-              离开将丢失当前修改，确定离开吗？
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={leaveGuard.cancelLeave}>
-              取消
-            </Button>
-            <Button variant="destructive" onClick={leaveGuard.confirmLeave}>
-              离开
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <EditorUnsavedLeaveDialog guard={leaveGuard} />
     </div>
   );
 }

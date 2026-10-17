@@ -663,6 +663,8 @@ export const UI_Z = {
   infoDrawer: 20,
   /** 参与者信息框 — the top-most panel. */
   drawer: 30,
+  /** 保存中蒙版 — covers every panel while the save request flies. */
+  saveMask: 40,
 } as const;
 
 // ---- Error codes (see docs/feature-1.0.md §4.5, docs/feature-0.2.md §5) ----

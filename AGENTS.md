@@ -24,6 +24,7 @@ npm run dev                 # 后端 3000 + 前端 5173（-s / -w 改端口，PU
 npm run dev:server          # 只起后端
 npm run dev:web             # 只起前端
 npm run build               # 构建全部 workspace
+npm start                   # 先 build：后端 3000 直接托管 packages/web/dist（v0.5.6）
 npm run typecheck           # 全量 tsc --noEmit
 npm test                    # 各 workspace Vitest + 根目录 scripts/ 单测
 npm run db:migrate          # 迁移
@@ -42,7 +43,7 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 
 ### 3.1 用户可见文案
 
-文案修改不写注释
+- 文案修改不写注释，也不需要进行测试。
 
 ### 3.2 UI
 
@@ -63,6 +64,10 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 ### 3.5 文档
 
 - 禁止修改历史需求文档，只能修改当前版本的文档。
+
+### 3.6 临时文件
+
+- 如果测试有**临时产物必须删除**。
 
 ---
 

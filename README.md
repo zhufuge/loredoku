@@ -33,7 +33,7 @@ loredoku/
 │           ├── pages/          # MapsPage / ItemsPage / CharactersPage / PuzzlesPage / …
 │           ├── components/     # editor / puzzle / item / character / project / game / map / ui
 │           ├── stores/         # editorStore（地图画布）/ puzzleStore（谜题），均带撤销栈
-│           ├── hooks/          # TanStack Query 数据 hooks
+│           ├── hooks/          # TanStack Query 数据 hooks 与编辑器流程 hooks（useEditorSave 等）
 │           ├── api/            # Axios 接口封装
 │           ├── lib/            # 网格、命中检测、高亮、联动、线索解析、游戏放置等纯函数
 │           └── testing/        # 源码级测试的共享读取入口（见「测试说明」）
@@ -55,6 +55,7 @@ npm install
 cp .env.example .env      # 按本地情况修改
 npm run db:migrate        # 执行全部迁移
 npm run dev               # 后端 3000 + 前端 5173
+npm run build && npm start # 生产模式：后端 3000 直接托管前端构建产物（单端口访问）
 ```
 
 `npm run dev` 支持 `-s <port>` / `-w <port>` 自定义端口（命令行 > `.env`，且 `PUBLIC_BASE_URL` 会跟着后端端口一起改，否则头像 / 物品图 / 封面会全部 404）。

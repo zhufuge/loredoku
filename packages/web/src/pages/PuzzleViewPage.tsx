@@ -12,19 +12,19 @@ import {
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
+import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
+import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
 import {
-  MapBackgroundLayer,
-  MapCanvasFrameLayer,
-  MapMouseCursorBoxLayer,
-  MapGridSeparatorLayer,
-  MapHighlightLayer,
-  MapNonStandableMaskLayer,
-  MapObjectLayer,
-  MapRegionOutlineLayer,
   MapRegionFillLayer,
   MapRegionHighlightLayer,
+  MapRegionOutlineLayer,
+} from '@/components/map/MapRegionLayers';
+import {
+  MapHighlightLayer,
+  MapMouseCursorBoxLayer,
+  MapNonStandableMaskLayer,
   MapRegionLabelLayer,
-} from '@/components/map/MapLayers';
+} from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';

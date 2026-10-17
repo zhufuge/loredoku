@@ -23,20 +23,20 @@ import {
 import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/region';
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
+import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
+import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
 import {
-  MapBackgroundLayer,
-  MapCanvasFrameLayer,
-  MapMouseCursorBoxLayer,
-  MapGridSeparatorLayer,
-  MapHighlightLayer,
-  MapNonStandableMaskLayer,
-  MapObjectLayer,
-  MapOperationCursorBoxLayer,
-  MapRegionOutlineLayer,
   MapRegionFillLayer,
   MapRegionHighlightLayer,
+  MapRegionOutlineLayer,
+} from '@/components/map/MapRegionLayers';
+import {
+  MapHighlightLayer,
+  MapMouseCursorBoxLayer,
+  MapNonStandableMaskLayer,
+  MapOperationCursorBoxLayer,
   MapRegionLabelLayer,
-} from '@/components/map/MapLayers';
+} from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import {
   collectNoStandCells,

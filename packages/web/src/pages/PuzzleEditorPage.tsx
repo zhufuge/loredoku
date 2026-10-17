@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
@@ -23,10 +22,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
 import { EditorCanvas, type EditorCanvasHandle } from '@/components/editor/EditorCanvas';
 import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
 import { EditorToolbar } from '@/components/editor/EditorToolbar';
+import {
+  EditorErrorState,
+  EditorImportInput,
+  EditorLoadingState,
+  EditorPendingInfoActionDialog,
+  EditorSaveMask,
+  EditorUnsavedLeaveDialog,
+} from '@/components/editor/EditorShell';
 import {
   ParticipantDrawer,
   type PlacedItemOption,
@@ -42,11 +48,12 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { useItems } from '@/hooks/useItems';
 import { useHighlight } from '@/hooks/useHighlight';
 import { usePuzzle, usePuzzleMapContext, useSavePuzzle } from '@/hooks/usePuzzles';
+import { useEditorSave } from '@/hooks/useEditorSave';
+import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { clampZoom, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
-import { cn } from '@/lib/utils';
 import {
   mapContextCells,
   mapContextRegions,
@@ -161,6 +168,22 @@ export function PuzzleEditorPage(): JSX.Element {
    * stack). A save is not a reason to re-seed; only a foreign write is.
    */
   const lastSavedAtRef = useRef<string | null>(null);
+  /**
+   * v0.5.6: FIX-F01's single writer is shared with the map editor now. The
+   * puzzle side keeps its FIX-O18 bookkeeping (remember the `updatedAt` this
+   * very save wrote back, so the detail query's answer is not mistaken for a
+   * foreign write).
+   */
+  const { persist, save, saving, saveMaskVisible } = useEditorSave({
+    id,
+    mutation: saveMutation,
+    buildPayload: () => ({ data: puzzle.toDraft(), updatedAt: puzzle.updatedAt }),
+    onSaved: (data) => {
+      const savedAt = data.updatedAt ?? new Date().toISOString();
+      lastSavedAtRef.current = savedAt;
+      puzzle.markSaved(savedAt);
+    },
+  });
   useEffect(() => {
     if (!detailQuery.data || !mapQuery.data) return;
     const key = `${detailQuery.data.id}:${detailQuery.data.updatedAt ?? ''}`;
@@ -178,33 +201,6 @@ export function PuzzleEditorPage(): JSX.Element {
     const name = detailQuery.data?.name;
     document.title = name ? `${name} · 格物` : '谜题编辑 · 格物';
   }, [detailQuery.data?.name]);
-
-  /**
-   * FIX-F01: one code path persists the **whole** draft, so the toolbar's 保存
-   * and any other caller can never disagree about what "saved" means.
-   */
-  const persist = async (): Promise<boolean> => {
-    if (saveMutation.isPending) return false;
-    try {
-      const data = await saveMutation.mutateAsync({
-        id,
-        payload: { data: puzzle.toDraft(), updatedAt: puzzle.updatedAt },
-      });
-      const savedAt = data.updatedAt ?? new Date().toISOString();
-      // FIX-O18: remember it, so the detail this very save wrote back is not
-      // mistaken for somebody else's newer draft.
-      lastSavedAtRef.current = savedAt;
-      puzzle.markSaved(savedAt);
-      return true;
-    } catch {
-      /* errors surfaced via mutation toasts */
-      return false;
-    }
-  };
-
-  const save = (): void => {
-    void persist();
-  };
 
   // ---- CLAR-603 + MOD-802: participant linkage lives entirely in the roster ----
   const {
@@ -419,27 +415,12 @@ export function PuzzleEditorPage(): JSX.Element {
     }
   };
 
-  useEffect(() => {
-    if (slotDrag === null) return;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') cancelSlotDrag();
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [slotDrag]);
-
   /**
-   * FEAT-E01 §7.3(a): `Esc` leaves the position-selection mode. The drawer
-   * follows along through `positionPickActive`.
+   * FEAT-E01 §7.3(a): `Esc` leaves the position-selection mode (and the slot
+   * drag, and the info drawer first). v0.5.6: these used to be two extra window
+   * listeners next to the main shortcut handler; the shared hook's Escape now
+   * walks the same cascade — see `handlePuzzleEscape` below.
    */
-  useEffect(() => {
-    if (positionPickSlot === null) return;
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setPositionPickSlot(null);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [positionPickSlot]);
 
   // ---- SPEC-K06 / BUG-G01: the info drawer follows the focus axes ----
   useEffect(() => {
@@ -530,106 +511,63 @@ export function PuzzleEditorPage(): JSX.Element {
     puzzle.setZoom(next);
   }
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      const target = event.target as HTMLElement | null;
-      if (
-        target &&
-        (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
-      ) {
-        return;
-      }
-      const mod = event.ctrlKey || event.metaKey;
-      if (mod && event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        save();
-        return;
-      }
-      if (event.code === 'Space') {
-        event.preventDefault();
-        setSpaceHeld(true);
-        return;
-      }
-      if (mod && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) puzzle.redo();
-        else puzzle.undo();
-        return;
-      }
-      if (mod && event.key === '0') {
-        event.preventDefault();
-        canvasRef.current?.centerView();
-        return;
-      }
-      if (event.key === 'Escape') {
-        if (puzzleInfoOpen) {
-          // SPEC-K05: Esc leaves the info drawer first — and asks when there
-          // are unsaved edits. It does not touch the cell focus.
-          closePuzzleInfo();
-          return;
-        }
-        if (slotDrag !== null) {
-          cancelSlotDrag();
-          return;
-        }
-        if (positionPickSlot !== null) {
-          setPositionPickSlot(null);
-          return;
-        }
-        puzzle.setSelection(null);
-        puzzle.setSelectedSlot(null);
-        setUnplacedCharacterId(null);
-        return;
-      }
-      if (mod) return;
-      // SPEC-K07 §4.4: no V / R / E tool shortcuts — the canvas is read-only,
-      // and `Delete` / `Backspace` no longer erase a selected cell.
-      if (event.key.startsWith('Arrow') && puzzle.selection && puzzle.selection.type === 'cell') {
-        const step: Record<string, { x: number; y: number }> = {
-          ArrowUp: { x: 0, y: -1 },
-          ArrowDown: { x: 0, y: 1 },
-          ArrowLeft: { x: -1, y: 0 },
-          ArrowRight: { x: 1, y: 0 },
-        };
-        const delta = step[event.key] ?? { x: 0, y: 0 };
-        const next = { x: puzzle.selection.x + delta.x, y: puzzle.selection.y + delta.y };
-        if (next.x >= 0 && next.y >= 0 && next.x < gridSize && next.y < gridSize) {
-          puzzle.setSelection({ type: 'cell', x: next.x, y: next.y });
-        }
-      }
-    };
-    const onKeyUp = (event: KeyboardEvent): void => {
-      if (event.code === 'Space') setSpaceHeld(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  });
+  /**
+   * v0.5.6: the shared keys live in `useEditorShortcuts`. The puzzle canvas is
+   * read-only (SPEC-K07 §4.4), so there is no `onKey` — no V / R / E tool
+   * switches, and `Delete` / `Backspace` no longer erase a selected cell — and
+   * Escape walks the page's own cascade.
+   */
+  const handlePuzzleEscape = (): void => {
+    if (puzzleInfoOpen) {
+      // SPEC-K05: Esc leaves the info drawer first — and asks when there
+      // are unsaved edits. It does not touch the cell focus.
+      closePuzzleInfo();
+      return;
+    }
+    if (slotDrag !== null) {
+      cancelSlotDrag();
+      return;
+    }
+    if (positionPickSlot !== null) {
+      setPositionPickSlot(null);
+      return;
+    }
+    puzzle.setSelection(null);
+    puzzle.setSelectedSlot(null);
+    setUnplacedCharacterId(null);
+  };
 
-  const saving = saveMutation.isPending;
-  const saveMaskVisible = saving;
+  const moveSelection = (dx: number, dy: number): void => {
+    const selection = puzzle.selection;
+    if (!selection || selection.type !== 'cell') return;
+    const next = { x: selection.x + dx, y: selection.y + dy };
+    if (next.x >= 0 && next.y >= 0 && next.x < gridSize && next.y < gridSize) {
+      puzzle.setSelection({ type: 'cell', x: next.x, y: next.y });
+    }
+  };
+
+  useEditorShortcuts({
+    save,
+    undo: puzzle.undo,
+    redo: puzzle.redo,
+    centerView: () => canvasRef.current?.centerView(),
+    moveSelection,
+    onSpaceHeldChange: setSpaceHeld,
+    onEscape: handlePuzzleEscape,
+  });
 
   if (!valid || detailQuery.isError || mapQuery.isError) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-sm text-muted-foreground">谜题不存在或加载失败。</p>
-        <Button variant="outline" onClick={() => navigate('/puzzles')}>
-          返回谜题列表
-        </Button>
-      </div>
+      <EditorErrorState
+        message="谜题不存在或加载失败。"
+        backLabel="返回谜题列表"
+        onBack={() => navigate('/puzzles')}
+      />
     );
   }
 
   if (detailQuery.isLoading || mapQuery.isLoading || !mapContext) {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载画布…
-      </div>
-    );
+    return <EditorLoadingState />;
   }
 
   const detail = detailQuery.data;
@@ -644,13 +582,7 @@ export function PuzzleEditorPage(): JSX.Element {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <input
-        ref={importInputRef}
-        type="file"
-        accept="application/json,.json"
-        className="hidden"
-        onChange={handleImportFile}
-      />
+      <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
       <EditorToolbar
         projectName={puzzle.name || detail?.name || ''}
@@ -679,19 +611,7 @@ export function PuzzleEditorPage(): JSX.Element {
       />
 
       <div className="relative flex min-h-0 flex-1">
-        {saveMaskVisible ? (
-          <div
-            className={cn(
-              'absolute inset-0 z-50 flex items-center justify-center gap-2 text-sm text-muted-foreground transition-opacity duration-150',
-              saving ? 'opacity-100' : 'opacity-0',
-            )}
-            style={{ background: 'rgba(255,255,255,0.6)', pointerEvents: 'auto' }}
-            aria-hidden={!saving}
-          >
-            <Loader2 className="h-5 w-5 animate-spin" />
-            保存中…
-          </div>
-        ) : null}
+        <EditorSaveMask saving={saving} visible={saveMaskVisible} />
 
         {/* SPEC-K04: only the 角色 tab survives on this side. */}
         <PuzzleEditorLeftPanel
@@ -941,48 +861,13 @@ export function PuzzleEditorPage(): JSX.Element {
       </AlertDialog>
 
       {/* SPEC-K05: leaving the 基本信息 form with unsaved edits */}
-      <AlertDialog
+      <EditorPendingInfoActionDialog
         open={pendingPuzzleInfoAction !== null}
         onOpenChange={(open) => !open && setPendingPuzzleInfoAction(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>基本信息有未保存的修改</AlertDialogTitle>
-            <AlertDialogDescription>继续切换会丢失这些修改，是否先保存？</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setPendingPuzzleInfoAction(null)}>
-              继续编辑
-            </Button>
-            <Button variant="destructive" onClick={() => resolvePendingPuzzleInfo('discard')}>
-              放弃修改
-            </Button>
-            <Button onClick={() => resolvePendingPuzzleInfo('save')}>保存并继续</Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        onResolve={resolvePendingPuzzleInfo}
+      />
 
-      <AlertDialog open={leaveGuard.open}>
-        <AlertDialogContent
-          onEscapeKeyDown={(event) => {
-            event.preventDefault();
-            leaveGuard.cancelLeave();
-          }}
-        >
-          <AlertDialogHeader>
-            <AlertDialogTitle>有未保存的修改</AlertDialogTitle>
-            <AlertDialogDescription>离开将丢失当前修改，确定离开吗？</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <Button variant="outline" onClick={leaveGuard.cancelLeave}>
-              取消
-            </Button>
-            <Button variant="destructive" onClick={leaveGuard.confirmLeave}>
-              离开
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <EditorUnsavedLeaveDialog guard={leaveGuard} />
     </div>
   );
 }

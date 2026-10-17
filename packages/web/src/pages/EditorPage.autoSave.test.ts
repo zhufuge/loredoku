@@ -8,12 +8,19 @@ import { readSource } from '@/testing/source';
  * form: the drawer commits the style **and** the canvas size, and a project
  * whose basics were never persisted gets one implicit save on first entry.
  *
+ * v0.5.6: the single writer moved into `useEditorSave` (both editors share
+ * it); the page supplies the payload builder and the post-save bookkeeping.
+ *
  * Rendering the page needs a query client, a router and a store seeded with a
  * project, so — like `EditorCanvas.noDrag.test.ts` — these are source-level
  * assertions on the wiring itself.
  */
 
 const pageSource = readSource('pages/EditorPage.tsx');
+
+const saveHookSource = readSource('hooks/useEditorSave.ts');
+
+const resizeHookSource = readSource('hooks/useEditorResize.ts');
 
 describe('EditorPage (FIX-F01 / FIX-F03)', () => {
   it('FIX-F01: the drawer commits the style and the canvas size together', () => {
@@ -26,9 +33,11 @@ describe('EditorPage (FIX-F01 / FIX-F03)', () => {
 
   it('FIX-F01: one code path persists the whole draft', () => {
     // `persist` is the single writer; both the toolbar and the drawer use it.
-    expect(pageSource).toContain('const persist = async (): Promise<boolean> =>');
-    expect(pageSource).toContain('payload: { data: editor.toDraft(), updatedAt: editor.updatedAt }');
-    expect(pageSource).toContain('if (editor.dirty) await persist();');
+    expect(saveHookSource).toContain('const persist = async (): Promise<boolean> => {');
+    // The page builds the payload from the live store, not from a snapshot.
+    expect(pageSource).toContain('buildPayload: () => ({ data: editor.toDraft(), updatedAt: editor.updatedAt })');
+    // A dirty canvas is saved before the server-side resize re-seeds it.
+    expect(resizeHookSource).toContain('if (dirty) await persist();');
   });
 
   it('FIX-F03: a never-persisted draft is saved once on first entry', () => {

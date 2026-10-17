@@ -50,9 +50,9 @@ export function GamesPage(): JSX.Element {
             size="sm"
             className="gap-1.5"
             onClick={() => navigate('/maps')}
-            title="进入琢玉台（制作端）"
+            title="进入工坊（制作端）"
           >
-            进入琢玉台
+            进入工坊
             <ArrowRight className="h-4 w-4" />
           </Button>
         </div>

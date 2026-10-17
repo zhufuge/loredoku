@@ -70,7 +70,14 @@ describe('PuzzleEditorPage position-pick mode (FEAT-E01 §7.3, v0.5.0 搬家)', 
   });
 
   it('cancels the mode with Esc', () => {
-    expect(pageSource).toContain("if (event.key === 'Escape') setPositionPickSlot(null);");
+    // v0.5.6: the two standalone Escape listeners merged into the shared
+    // shortcut hook's cascade (`handlePuzzleEscape`).
+    const escape = pageSource.slice(
+      pageSource.indexOf('const handlePuzzleEscape'),
+      pageSource.indexOf('const moveSelection'),
+    );
+    expect(escape).toContain('if (positionPickSlot !== null) {');
+    expect(escape).toContain('setPositionPickSlot(null);');
   });
 
   it('clears the pick mode when the drawer saves or closes', () => {

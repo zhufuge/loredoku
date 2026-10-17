@@ -15,6 +15,7 @@
     "dev:server": "npm run dev --workspace @loredoku/server --",
     "dev:web": "npm run dev --workspace @loredoku/web --",
     "build": "npm run build --workspaces --if-present",
+    "start": "npm run start --workspace @loredoku/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present && vitest run scripts",

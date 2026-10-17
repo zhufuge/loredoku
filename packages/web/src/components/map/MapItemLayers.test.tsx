@@ -3,7 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Item } from '@loredoku/shared';
 import type { CellMap } from '@/lib/canvasLayers';
-import { MapBackgroundLayer, MapObjectLayer } from './MapLayers';
+import { MapBackgroundLayer, MapObjectLayer } from './MapItemLayers';
 
 /**
  * v0.5.1 FEAT-L01 / SPEC-L03 — 「在背景展示该色块」.

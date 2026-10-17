@@ -11,11 +11,16 @@ import { readSource } from '@/testing/source';
  * - §7.4 成功后「查看该条目」回地图列表、「预览」去 `/maps/:id/:v/view`；
  * - §5.4 保存是 primary、发布是 outline，两个按钮**不合并**，且发布不再因 dirty 置灰。
  *
+ * v0.5.6: the flow moved into `useEditorPublish`; the page keeps the dialogs'
+ * JSX, so the two files are asserted side by side.
+ *
  * 与 `EditorPage.autoSave.test.ts` / `EditorPage.infoDrawer.test.ts` 同一手法：
  * 渲染 `EditorPage` 需要 query client / router / 预置 store，因此这里做源码断言。
  */
 
 const pageSource = readSource('pages/EditorPage.tsx');
+
+const publishHookSource = readSource('hooks/useEditorPublish.ts');
 
 const toolbarSource = readSource('components/editor/EditorToolbar.tsx');
 
@@ -23,32 +28,32 @@ const versionsSource = readSource('hooks/useVersions.ts');
 
 describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
   it('goes through a confirmation dialog instead of firing the request', () => {
-    expect(pageSource).toContain('const [publishOpen, setPublishOpen] = useState(false);');
-    expect(pageSource).toContain('const openPublishConfirm = (): void => {');
+    expect(publishHookSource).toContain('const [publishOpen, setPublishOpen] = useState(false);');
+    expect(publishHookSource).toContain('const openPublishConfirm = (): void => {');
     expect(pageSource).toContain('onPublish={openPublishConfirm}');
     expect(pageSource).toContain('open={publishOpen}');
   });
 
   it('announces the version it is about to create', () => {
     // SPEC-K13：版本号从版本列表推导（fork 后取 MAX+1），兜底 currentVersionNo+1。
-    expect(pageSource).toContain('const nextVersionNo = useMemo(() => {');
-    expect(pageSource).toContain('Math.max(...versions.map((version) => version.versionNo)) + 1;');
-    expect(pageSource).toContain('return (editor.currentVersionNo ?? 0) + 1;');
+    expect(publishHookSource).toContain('const nextVersionNo = useMemo(() => {');
+    expect(publishHookSource).toContain('Math.max(...versions.map((version) => version.versionNo)) + 1;');
+    expect(publishHookSource).toContain('return (currentVersionNo ?? 0) + 1;');
   });
 
   it('collects an optional note and passes it through trimmed', () => {
-    expect(pageSource).toContain('const [publishNotes, setPublishNotes] = useState(\'\');');
+    expect(publishHookSource).toContain('const [publishNotes, setPublishNotes] = useState(\'\');');
     expect(pageSource).toContain('id="publish-notes"');
-    expect(pageSource).toContain('const notes = publishNotes.trim();');
-    expect(pageSource).toContain('publishMutation.mutate(');
-    expect(pageSource).toContain('{ notes: notes.length > 0 ? notes : undefined }');
+    expect(publishHookSource).toContain('const notes = publishNotes.trim();');
+    expect(publishHookSource).toContain('publishMutation.mutate(');
+    expect(publishHookSource).toContain('{ notes: notes.length > 0 ? notes : undefined }');
   });
 
   it('runs save → publish serially and aborts the publish when the save fails', () => {
-    expect(pageSource).toContain('if (editor.dirty && !(await persist())) return;');
-    const body = pageSource.slice(
-      pageSource.indexOf('const confirmPublish = (): void => {'),
-      pageSource.indexOf('const previewCellSize'),
+    expect(publishHookSource).toContain('if (dirty && !(await persist())) return;');
+    const body = publishHookSource.slice(
+      publishHookSource.indexOf('const confirmPublish = (): void => {'),
+      publishHookSource.indexOf('return {'),
     );
     expect(body.indexOf('await persist()')).toBeLessThan(body.indexOf('publishMutation.mutate('));
   });
@@ -61,10 +66,10 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
 
 describe('EditorPage publish success dialog (SPEC-K13 §7.4)', () => {
   it('opens from the publish result and closes back to null', () => {
-    expect(pageSource).toContain(
+    expect(publishHookSource).toContain(
       'const [publishedVersion, setPublishedVersion] = useState<MapVersionSummary | null>(null);',
     );
-    expect(pageSource).toContain('setPublishedVersion(result.version ?? null);');
+    expect(publishHookSource).toContain('setPublishedVersion(result.version ?? null);');
     expect(pageSource).toContain('open={publishedVersion !== null}');
   });
 
@@ -75,8 +80,8 @@ describe('EditorPage publish success dialog (SPEC-K13 §7.4)', () => {
   });
 
   it('routes a validation failure into the existing 无法发布 dialog, with no second UI', () => {
-    expect(pageSource).toContain('setPublishOpen(false);');
-    expect(pageSource).toContain('setViolations(result.violations ?? []);');
+    expect(publishHookSource).toContain('setPublishOpen(false);');
+    expect(publishHookSource).toContain('setViolations(result.violations ?? []);');
     // Exactly one such dialog: the publish path reuses it instead of adding one.
     expect(pageSource.split('<AlertDialogTitle>无法发布</AlertDialogTitle>').length - 1).toBe(1);
   });

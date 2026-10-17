@@ -9,18 +9,18 @@ import {
   type Item,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
+import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
 import {
-  MapBackgroundLayer,
-  MapCanvasFrameLayer,
-  MapMouseCursorBoxLayer,
-  MapGridSeparatorLayer,
-  MapNonStandableMaskLayer,
-  MapObjectLayer,
-  MapRegionOutlineLayer,
   MapRegionFillLayer,
   MapRegionHighlightLayer,
+  MapRegionOutlineLayer,
+} from '@/components/map/MapRegionLayers';
+import {
+  MapMouseCursorBoxLayer,
+  MapNonStandableMaskLayer,
   MapRegionLabelLayer,
-} from '@/components/map/MapLayers';
+} from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useItems } from '@/hooks/useItems';
 import { useVersionDetail } from '@/hooks/useVersions';

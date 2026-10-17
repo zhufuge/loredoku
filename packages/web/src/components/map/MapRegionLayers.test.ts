@@ -13,8 +13,24 @@ import { readSource, segment } from '@/testing/source';
  *
  * These assertions read the component source so neither regression can come
  * back unnoticed.
+ *
+ * v0.5.6: the layers moved out of the old `MapLayers.tsx` into per-group
+ * modules; the geometry assertions read `MapRegionLayers.tsx`, the ones about
+ * the layer set as a whole read the union of all five.
  */
-const source = readSource('components/map/MapLayers.tsx');
+const source = readSource('components/map/MapRegionLayers.tsx');
+
+const REGION_END = '\n/** Region colour fill';
+
+const LAYER_UNION = [
+  'components/map/MapGridLayers.tsx',
+  'components/map/MapItemLayers.tsx',
+  'components/map/MapRegionLayers.tsx',
+  'components/map/MapOverlayLayers.tsx',
+  'components/map/MapGameLayers.tsx',
+]
+  .map(readSource)
+  .join('\n');
 
 describe('region highlight wiring (FIX-D01 + FIX-E02)', () => {
   it('imports and calls the pure geometry helper', () => {
@@ -23,7 +39,7 @@ describe('region highlight wiring (FIX-D01 + FIX-E02)', () => {
   });
 
   it('FIX-E02: renders one closed path per loop, not one line per cell edge', () => {
-    const body = segment(source, 'function RegionHighlightOutline(', '\n/**\n * 层 6 · 网格分隔线');
+    const body = segment(source, 'function RegionHighlightOutline(', REGION_END);
     expect(body).toContain('<path');
     expect(body).toContain('d={path.d}');
     // The per-cell-edge approach is what produced the gaps.
@@ -31,7 +47,7 @@ describe('region highlight wiring (FIX-D01 + FIX-E02)', () => {
   });
 
   it('FIX-D01: no hand-written endpoint arithmetic inside the component', () => {
-    const body = segment(source, 'function RegionHighlightOutline(', '\n/**\n * 层 6 · 网格分隔线');
+    const body = segment(source, 'function RegionHighlightOutline(', REGION_END);
     expect(body).not.toContain('edge.x1 + inset');
     expect(body).not.toContain('edge.y1 + inset');
     expect(body).not.toMatch(/x2=\{edge\.x2 - /);
@@ -39,14 +55,14 @@ describe('region highlight wiring (FIX-D01 + FIX-E02)', () => {
   });
 
   it('joins corners with miters and keeps butt caps', () => {
-    const body = segment(source, 'function RegionHighlightOutline(', '\n/**\n * 层 6 · 网格分隔线');
+    const body = segment(source, 'function RegionHighlightOutline(', REGION_END);
     expect(body).toContain('strokeLinejoin="miter"');
     expect(body).toContain('strokeLinecap="butt"');
-    expect(source).not.toContain('strokeLinecap="round"');
+    expect(LAYER_UNION).not.toContain('strokeLinecap="round"');
   });
 
   it('FEAT-D02: the highlight colour and width come from the map style', () => {
-    const body = segment(source, 'function RegionHighlightOutline(', '\n/**\n * 层 6 · 网格分隔线');
+    const body = segment(source, 'function RegionHighlightOutline(', REGION_END);
     expect(body).toContain('style.regionHighlight.color');
     expect(body).toContain('style.regionHighlight.width');
   });
@@ -64,7 +80,7 @@ describe('layer z-index keys (SPEC-E01)', () => {
       'nonStandableMask',
       'backgroundLayer',
     ]) {
-      expect(source, key).toContain(`MAP_LAYER_Z.${key}`);
+      expect(LAYER_UNION, key).toContain(`MAP_LAYER_Z.${key}`);
     }
   });
 
@@ -77,7 +93,7 @@ describe('layer z-index keys (SPEC-E01)', () => {
       'MAP_LAYER_Z.noStandShadow',
       'MAP_LAYER_Z.emptyCell',
     ]) {
-      expect(source, key).not.toContain(key);
+      expect(LAYER_UNION, key).not.toContain(key);
     }
   });
 });

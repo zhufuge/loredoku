@@ -3,18 +3,18 @@ import { readSource, segment } from '@/testing/source';
 
 /**
  * SPEC-G01 / SPEC-G02 (docs/v0.4.0.md §7 / §8) — a source-level guard for the
- * two game-only layers, the same technique as `MapLayers.regionHighlight.test.ts`.
+ * two game-only layers, the same technique as `MapRegionLayers.test.ts`.
  *
  * The rules worth pinning down: both layers take their z-index from
  * `MAP_LAYER_Z` (never a hand-written number), neither receives pointer
  * events, and the number glyph really is the shared 3×3 layout.
  */
 
-const source = readSource('components/map/MapLayers.tsx');
+const source = readSource('components/map/MapGameLayers.tsx');
 
 const HINT_START = 'export function MapGameToolHintLayer(';
 const PLACEMENT_START = 'export function MapGamePlacementLayer(';
-const PLACEMENT_END = '\n/**\n * Highlight layer (OPT-903';
+const PLACEMENT_END = '\n/** SPEC-G01 §7.1';
 
 const hint = segment(source, HINT_START, PLACEMENT_START);
 const placement = segment(source, PLACEMENT_START, PLACEMENT_END);
@@ -45,7 +45,9 @@ describe('游戏放置层 / 工具提示层 (SPEC-G01 / SPEC-G02)', () => {
   });
 
   it('keeps avatars undraggable', () => {
-    expect(placement).toContain('draggable={false}');
+    // The avatar picture lives in `ParticipantAvatar`, past the placement
+    // segment's end — and it is the only image in this file.
+    expect(source).toContain('draggable={false}');
   });
 
   it('sizes the number glyph at cellSize / 4 with a scaled black stroke', () => {

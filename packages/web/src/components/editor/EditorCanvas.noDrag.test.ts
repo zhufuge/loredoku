@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readSource, segment, tsxIn } from '@/testing/source';
+import { readSource, tsxIn } from '@/testing/source';
 
 // Vite/vitest exposes the component sources as raw strings, so this test can
 // assert the architectural rule directly: cell content is clickable, never
@@ -8,18 +8,14 @@ import { readSource, segment, tsxIn } from '@/testing/source';
 // the roster).
 //
 // The cell layers are shared with the work preview page, so they live in
-// `components/map/MapLayers.tsx`.
+// `components/map/MapItemLayers.tsx` (v0.5.6: split out of `MapLayers.tsx`).
 const source = readSource('components/editor/EditorCanvas.tsx');
-const layerSource = readSource('components/map/MapLayers.tsx');
+const layerSource = readSource('components/map/MapItemLayers.tsx');
 
 // CLAR-603: MapCharacterLayer is gone; only the object layer remains
 // interactive on the canvas. The roster (ParticipantPanel) handles its own
 // pointer-drag reordering.
-const objectNodes = segment(
-  layerSource,
-  'export function MapObjectLayer',
-  'export function MapRegionFillLayer',
-);
+const objectNodes = layerSource.slice(layerSource.indexOf('export function MapObjectLayer'));
 
 describe('cell content layers', () => {
   it('are present in the shared map module', () => {
