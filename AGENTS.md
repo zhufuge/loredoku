@@ -60,6 +60,10 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 - 工作区文件统一 **LF**；代码 / 配置文件里只用 ASCII 直引号。
 - 改了图层次序 / 命名 → 同步 `docs/layer-priority.md` 与 `MAP_LAYER_ORDER`。
 
+### 3.5 文档
+
+- 禁止修改历史需求文档，只能修改当前版本的文档。
+
 ---
 
 ## 4. 提交前检查清单
