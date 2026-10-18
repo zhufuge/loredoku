@@ -48,7 +48,7 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
   }
 
   const projectId = Number(puzzle.map_project_id);
-  const version = await versionRepo.getVersion(projectId, puzzle.map_version_no);
+  const version = await versionRepo.findVersionRow(projectId, puzzle.map_version_no);
   if (!version) {
     throw AppError.notFound('谜题引用的地图版本不存在，无法部署');
   }

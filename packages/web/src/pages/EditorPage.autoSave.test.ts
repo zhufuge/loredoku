@@ -46,8 +46,9 @@ describe('EditorPage (FIX-F01 / FIX-F03)', () => {
     expect(pageSource).not.toContain('basicInfoPersistedRef');
     expect(pageSource).not.toContain('已保存默认地图基本信息');
     expect(pageSource).not.toContain('useEditorStore.getState()');
-    // 未初始化的地图走初始化弹窗，那两条出路都是用户显式动作。
-    expect(pageSource).toContain('if (mapQuery.data?.draft == null) {');
+    // 未初始化的地图走初始化弹窗，那两条出路都是用户显式动作。v0.5.8 §13:
+    // fork 态（`?v=`）跳过这条 —— 画布来自版本快照，与草稿初始化与否无关。
+    expect(pageSource).toContain('if (forkFrom === null && mapQuery.data?.draft == null) {');
     expect(pageSource).toContain('<MapInitDialog');
     expect(pageSource).toContain('onInitSize={handleInitSize}');
     expect(pageSource).toContain('onImport={handleInitImport}');

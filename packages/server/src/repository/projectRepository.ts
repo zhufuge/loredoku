@@ -9,6 +9,7 @@ import type {
   PublishedMapVersion,
 } from '@loredoku/shared';
 import { absorbLegacyMapDraft, readLegacyCharacterSlots } from '../service/mapDraftCompat';
+import { findVersionRow, versionToNo } from './versionRepository';
 
 export interface ListProjectsParams {
   page: number;
@@ -28,11 +29,23 @@ export interface UpdateProjectData {
   description?: string | null;
 }
 
-const SORT_COLUMNS = {
-  updatedAt: 'updated_at',
-  createdAt: 'created_at',
-  name: 'name',
-} as const;
+export type ProjectRowWithLineage = ProjectRow & {
+  /** 血统最高版本号（子查询，含软删行）；`null` = 血统还没发布过。 */
+  current_version_no?: number | string | null;
+  /** 血统内可见版本数（子查询，不含软删行）。 */
+  version_count?: number | string;
+};
+
+/**
+ * v0.5.8 第三阶段：`status` / `current_version_no` 两列已删，改由血统推导 ——
+ * 每个读单行的查询都带上这两个子查询，比在 service 里补查询少一趟往返。
+ */
+const LINEAGE_MAX_VERSION = db.raw(
+  "(SELECT MAX(CAST(v.version AS integer)) FROM maps v WHERE v.root_id = m.root_id AND v.version <> 'draft') AS current_version_no",
+);
+const LINEAGE_VERSION_COUNT = db.raw(
+  "(SELECT COUNT(*) FROM maps v WHERE v.root_id = m.root_id AND v.version <> 'draft' AND v.deleted_at IS NULL) AS version_count",
+);
 
 type CountRow = { count?: string | number } | undefined;
 
@@ -45,16 +58,26 @@ export function draftGridSize(draft: MapDraft | null): number | null {
   return typeof size === 'number' && Number.isFinite(size) ? size : null;
 }
 
-export function toProject(row: ProjectRow): Project {
+/**
+ * `status` / `currentVersionNo` 在合并后都是**推导值**（设计 §3）：血统里有版本
+ * 行就是 `published` + 最高号，否则 `draft` + `null`。字段名保留，前端零改动。
+ */
+export function toProject(row: ProjectRowWithLineage): Project {
+  const versionNo = versionToNo(row);
+  const lineageMax =
+    row.current_version_no === undefined || row.current_version_no === null
+      ? versionNo
+      : Number(row.current_version_no);
   return {
     id: Number(row.id),
     name: row.name,
     description: row.description,
-    gridSize: draftGridSize(row.draft_data as MapDraft | null),
+    gridSize: draftGridSize(row.data as MapDraft | null),
     coverPath: row.cover_path,
     coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
-    status: row.status,
-    currentVersionNo: row.current_version_no,
+    status: lineageMax !== null ? 'published' : 'draft',
+    currentVersionNo: lineageMax,
+    versionNo,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -81,106 +104,49 @@ function draftCounts(draft: MapDraft | null): {
   };
 }
 
-async function versionCounts(ids: number[]): Promise<Map<number, number>> {
-  const result = new Map<number, number>();
-  if (ids.length === 0) return result;
-  const rows = (await db('map_versions')
-    .whereIn('project_id', ids)
-    .groupBy('project_id')
-    .select('project_id')
-    .count('id as count')) as Array<{ project_id: number | string; count: string | number }>;
-  for (const row of rows) {
-    result.set(Number(row.project_id), Number(row.count));
-  }
-  return result;
-}
-
 /**
  * FEAT-K09 (docs/v0.5.0.md §7.1) — the map list is a union of **work entries**
- * (`maps`) and **version entries** (`map_versions`), grouped by the
- * blood-lineage root (Q3 = B).
+ * and **version entries**. 合并后两者是同一张表的行，所以并集查询塌成
+ * **一条单表查询**（`kind` 由 `version` 列判定），血统聚合用两个子查询。
  *
- * The set is small (a personal authoring tool), and building the union in SQL
- * would need a `UNION ALL` plus a window function for the per-lineage counts,
- * so it is assembled in memory and paged here. That also keeps the keyword
- * filter — which has to match both kinds — in one place.
+ * 软删的版本行不出现（设计 §5 四个过滤面之一）：漏掉这个条件，删掉的版本会
+ * 「又冒出来」。
  */
 export async function listMapEntries(
   params: ListProjectsParams,
 ): Promise<{ list: MapEntrySummary[]; total: number }> {
-  const [projectRows, versionRows] = await Promise.all([
-    db<ProjectRow>('maps').select('*') as Promise<ProjectRow[]>,
-    db('map_versions as v')
-      .join('maps as p', 'p.id', 'v.project_id')
-      .select(
-        'v.id as id',
-        'v.version_no as version_no',
-        'v.data as data',
-        'v.snapshot_created_at as snapshot_created_at',
-        'v.project_id as project_id',
-        'p.name as name',
-        'p.description as description',
-        'p.cover_path as cover_path',
-        'p.status as status',
-        'p.root_id as root_id',
-      ) as Promise<VersionEntryRow[]>,
-  ]);
+  const rows = (await db('maps as m')
+    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT)
+    .whereNull('m.deleted_at')) as ProjectRowWithLineage[];
 
-  // Per-lineage aggregates: highest version + version count of the whole root.
-  const versionCountByRoot = new Map<number, number>();
-  const maxVersionByRoot = new Map<number, number>();
-  for (const row of versionRows) {
-    const root = Number(row.root_id);
-    versionCountByRoot.set(root, (versionCountByRoot.get(root) ?? 0) + 1);
-    maxVersionByRoot.set(root, Math.max(maxVersionByRoot.get(root) ?? 0, row.version_no));
-  }
-
-  const entries: MapEntrySummary[] = [];
-
-  for (const row of projectRows) {
-    const root = Number(row.root_id ?? row.id);
-    entries.push({
+  const entries: MapEntrySummary[] = rows.map((row) => {
+    const versionNo = versionToNo(row);
+    const currentVersionNo =
+      row.current_version_no === undefined || row.current_version_no === null
+        ? versionNo
+        : Number(row.current_version_no);
+    const isVersion = versionNo !== null;
+    const publishedAt = isVersion ? new Date(row.created_at).toISOString() : null;
+    return {
       id: Number(row.id),
-      kind: 'draft',
-      rootId: root,
+      kind: isVersion ? 'version' : 'draft',
+      rootId: Number(row.root_id),
+      // v0.5.8 第三阶段：版本行自己就是 maps 行，两个 id 相同。
       projectId: Number(row.id),
-      versionNo: null,
+      versionNo,
       name: row.name,
       description: row.description,
-      gridSize: draftGridSize(row.draft_data as MapDraft | null),
+      gridSize: draftGridSize(row.data as MapDraft | null),
       coverPath: row.cover_path,
       coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
-      status: row.status,
-      currentVersionNo: maxVersionByRoot.get(root) ?? null,
-      versionCount: versionCountByRoot.get(root) ?? 0,
-      publishedAt: null,
+      status: currentVersionNo !== null ? 'published' : 'draft',
+      currentVersionNo,
+      versionCount: Number(row.version_count ?? 0),
+      publishedAt,
       createdAt: new Date(row.created_at).toISOString(),
       updatedAt: new Date(row.updated_at).toISOString(),
-    });
-  }
-
-  for (const row of versionRows) {
-    const root = Number(row.root_id);
-    const publishedAt = new Date(row.snapshot_created_at).toISOString();
-    entries.push({
-      id: Number(row.id),
-      kind: 'version',
-      rootId: root,
-      projectId: Number(row.project_id),
-      versionNo: row.version_no,
-      name: row.name,
-      description: row.description,
-      gridSize: draftGridSize(row.data),
-      coverPath: row.cover_path,
-      coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
-      status: row.status,
-      currentVersionNo: maxVersionByRoot.get(root) ?? null,
-      versionCount: versionCountByRoot.get(root) ?? 0,
-      publishedAt,
-      createdAt: publishedAt,
-      updatedAt: publishedAt,
-    });
-  }
+    };
+  });
 
   const keyword = params.keyword?.trim().toLowerCase();
   const filtered = keyword
@@ -195,19 +161,6 @@ export async function listMapEntries(
   const sorted = [...filtered].sort((a, b) => compareEntries(a, b, params.sort, params.order));
   const start = (params.page - 1) * params.pageSize;
   return { list: sorted.slice(start, start + params.pageSize), total: sorted.length };
-}
-
-interface VersionEntryRow {
-  id: string | number;
-  version_no: number;
-  data: MapDraft | null;
-  snapshot_created_at: Date | string;
-  project_id: string | number;
-  name: string;
-  description: string | null;
-  cover_path: string | null;
-  status: ProjectRow['status'];
-  root_id: string | number;
 }
 
 /** The timestamp a "latest first" sort should use for each entry kind. */
@@ -234,48 +187,59 @@ function compareEntries(
   return order === 'asc' ? result : -result;
 }
 
-export async function findById(id: number): Promise<ProjectRow | undefined> {
-  return db<ProjectRow>('maps').where({ id }).first();
+/**
+ * 软删的行（只可能是版本行）在这里一律不可见 —— 详情、改名、封面、画布写入
+ * 全部走这条路，语义统一成「不存在」。
+ */
+export async function findById(id: number): Promise<ProjectRowWithLineage | undefined> {
+  return db('maps as m')
+    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT)
+    .where('m.id', id)
+    .whereNull('m.deleted_at')
+    .first() as Promise<ProjectRowWithLineage | undefined>;
+}
+
+/**
+ * 不过滤软删的按 id 读取 —— 只有 fork 用得上：设计 §5.1 明确「fork 源读取不过滤
+ * `deleted_at`」（过滤管可见性，不管直达读取）。
+ */
+export async function findByIdIncludingDeleted(
+  id: number,
+): Promise<ProjectRowWithLineage | undefined> {
+  return db('maps as m')
+    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT)
+    .where('m.id', id)
+    .first() as Promise<ProjectRowWithLineage | undefined>;
 }
 
 /**
  * FEAT-K03 §2.4: the 「地图版本」 picker's data source — **every published
- * version across every map**, newest first. Only published rows qualify: a
- * puzzle's canvas has to be an immutable snapshot.
+ * version across every map**, newest first. 合并后版本行就是 maps 行，一次
+ * 单表查询即可；软删行过滤掉，名字用发布时的快照（§15 P0-3）。
  */
 export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
-  const rows = (await db('map_versions as v')
-    .join('maps as p', 'p.id', 'v.project_id')
-    .select(
-      'v.project_id as project_id',
-      'v.version_no as version_no',
-      'v.data as data',
-      'v.snapshot_created_at as snapshot_created_at',
-      'p.name as map_name',
-      'p.root_id as root_id',
-    )
-    .orderBy('v.snapshot_created_at', 'desc')) as Array<{
-    project_id: string | number;
-    version_no: number;
-    data: unknown;
-    snapshot_created_at: Date | string;
-    map_name: string | null;
-    root_id: string | number;
-  }>;
+  const rows = (await db('maps')
+    .whereNot('version', 'draft')
+    .whereNull('deleted_at')
+    .orderBy('created_at', 'desc')) as ProjectRow[];
 
   return rows.map((row) => ({
-    projectId: Number(row.project_id),
+    projectId: Number(row.id),
     rootId: Number(row.root_id),
-    versionNo: row.version_no,
-    mapName: row.map_name ?? '未命名地图',
-    // v0.5.8: `grid_size` 列删了，尺寸从快照自身读。
+    versionNo: Number(row.version),
+    mapName: row.name || '未命名地图',
     gridSize: draftGridSize(absorbLegacyMapDraft(row.data) as MapDraft | null) ?? 0,
-    publishedAt: new Date(row.snapshot_created_at).toISOString(),
+    publishedAt: new Date(row.created_at).toISOString(),
   }));
 }
 
+/**
+ * v0.5.8 第三阶段（设计 §5.2）：查重**只查草稿行**。版本名是发布时的快照，
+ * 不改名连发十个就都叫一个名字 —— 不限定的话，新建地图会撞上某个历史版本名，
+ * fork 草稿沿用 owner 名也会挡住之后所有的创建 / 改名。
+ */
 export async function existsByName(name: string, excludeId?: number): Promise<boolean> {
-  const query = db('maps').where({ name });
+  const query = db('maps').where({ name, version: 'draft' });
   if (excludeId !== undefined) {
     query.whereNot('id', excludeId);
   }
@@ -287,8 +251,15 @@ export async function getProjectCounts(
   id: number,
 ): Promise<Omit<ProjectDetail, keyof Project>> {
   const row = await findById(id);
-  const counts = draftCounts((row?.draft_data as MapDraft | null) ?? null);
-  const versionRow = await db('map_versions').where({ project_id: id }).count('id as count').first();
+  const counts = draftCounts((row?.data as MapDraft | null) ?? null);
+  const versionRow = row
+    ? await db('maps')
+        .where({ root_id: row.root_id })
+        .whereNot('version', 'draft')
+        .whereNull('deleted_at')
+        .count('id as count')
+        .first()
+    : undefined;
   return {
     cardCount: counts.itemCount,
     itemCount: counts.itemCount,
@@ -301,7 +272,7 @@ export async function getProjectCounts(
 /**
  * v0.5.8: a new map has **no** draft and no canvas size — the first editor
  * entry initialises both (尺寸弹窗 / 导入). `root_id = id` still needs the
- * two-statement transaction.
+ * two-statement transaction. `version` 由 DB 默认值 `'draft'` 兜住。
  */
 export async function createProject(data: CreateProjectData): Promise<Project> {
   return db.transaction(async (trx) => {
@@ -328,15 +299,18 @@ export async function updateProject(
   if (data.name !== undefined) patch.name = data.name;
   if (data.description !== undefined) patch.description = data.description;
 
-  const [row] = (await db<ProjectRow>('maps')
-    .where({ id })
-    .update(patch)
-    .returning('*')) as ProjectRow[];
+  const affected = await db('maps').where({ id }).whereNull('deleted_at').update(patch);
+  if (affected === 0) return undefined;
+  const row = await findById(id);
   return row ? toProject(row) : undefined;
 }
 
+/**
+ * 删工作条目 = **硬删草稿行**。版本行不牵连（软删是另一条路）——
+ * 所以「删地图」不再级联删掉历史版本（设计 §2）。
+ */
 export async function deleteProject(id: number): Promise<boolean> {
-  const affected = await db('maps').where({ id }).del();
+  const affected = await db('maps').where({ id, version: 'draft' }).del();
   return affected > 0;
 }
 
@@ -349,12 +323,13 @@ export async function deleteProject(id: number): Promise<boolean> {
 export async function updateCoverPath(
   id: number,
   path: string | null,
-): Promise<ProjectRow | undefined> {
-  const [row] = (await db<ProjectRow>('maps')
+): Promise<ProjectRowWithLineage | undefined> {
+  const affected = await db('maps')
     .where({ id })
-    .update({ cover_path: path, updated_at: db.fn.now() })
-    .returning('*')) as ProjectRow[];
-  return row;
+    .whereNull('deleted_at')
+    .update({ cover_path: path, updated_at: db.fn.now() });
+  if (affected === 0) return undefined;
+  return findById(id);
 }
 
 /**
@@ -368,7 +343,9 @@ export async function duplicateProject(
   newName: string,
 ): Promise<Project | undefined> {
   return db.transaction(async (trx) => {
-    const source = await trx<ProjectRow>('maps').where({ id: sourceId }).first();
+    const source = (await trx<ProjectRow>('maps').where({ id: sourceId }).first()) as
+      | ProjectRow
+      | undefined;
     if (!source) {
       return undefined;
     }
@@ -378,10 +355,9 @@ export async function duplicateProject(
         name: newName,
         description: source.description,
         cover_path: source.cover_path,
-        status: 'draft',
         root_id: source.id,
-        draft_data: source.draft_data,
-        draft_updated_at: source.draft_data ? trx.fn.now() : null,
+        data: source.data,
+        draft_updated_at: source.data ? trx.fn.now() : null,
       })
       .returning('*')) as ProjectRow[];
 
@@ -397,37 +373,42 @@ export async function duplicateProject(
 
 /**
  * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): opens a published version for
- * editing **without touching `map_versions`**. A new work entry is created in
- * the same lineage, seeded with the version's snapshot (absorbed into the v3
- * shape) and inheriting the map's cover (same convention as `duplicate`).
+ * editing **without touching the version row**. A new work entry (`version =
+ * 'draft'`) is created in the same lineage, seeded with the version's snapshot
+ * and inheriting the map's cover (same convention as `duplicate`).
+ *
+ * v0.5.8 §13: `name` 由 service 传入（「{owner.name} (自 v{versionNo})」+
+ * 查重兜底，血统内可能有多条草稿，命名必须带来源）；`data` 可传编辑器当前
+ * 画布（「保存时才生成草稿」那条路），不传则用快照 data。
+ *
+ * fork 源**不过滤软删**（设计 §5.1）：过滤管可见性，不管直达读取。
  *
  * Returns the created row's `ProjectDetail`, or `undefined` when the version
  * does not exist.
  */
 export async function forkFromVersion(
-  projectId: number,
+  id: number,
   versionNo: number,
+  name: string,
+  data?: MapDraft,
 ): Promise<ProjectDetail | undefined> {
   const createdId = await db.transaction(async (trx) => {
-    const owner = (await trx<ProjectRow>('maps').where({ id: projectId }).first()) as
-      | ProjectRow
-      | undefined;
+    const owner = (await trx<ProjectRow>('maps').where({ id }).first()) as ProjectRow | undefined;
     if (!owner) return undefined;
 
-    const version = (await trx('map_versions')
-      .where({ project_id: projectId, version_no: versionNo })
-      .first()) as { data: unknown } | undefined;
+    const version = (await trx<ProjectRow>('maps')
+      .where({ root_id: owner.root_id, version: String(versionNo) })
+      .first()) as ProjectRow | undefined;
     if (!version) return undefined;
 
+    const draft = (data ?? version.data) as MapDraft;
     const [row] = (await trx<ProjectRow>('maps')
       .insert({
-        name: owner.name,
+        name,
         description: owner.description,
         cover_path: owner.cover_path,
-        status: 'draft',
-        current_version_no: null,
         root_id: owner.root_id,
-        draft_data: absorbLegacyMapDraft(version.data) as ProjectRow['draft_data'],
+        data: absorbLegacyMapDraft(draft) as ProjectRow['data'],
         draft_updated_at: trx.fn.now(),
       })
       .returning('*')) as ProjectRow[];
@@ -439,3 +420,6 @@ export async function forkFromVersion(
   if (!row) return undefined;
   return { ...toProject(row), ...(await getProjectCounts(createdId)) };
 }
+
+/** 供 service 做「这行是版本行吗」的护栏判断，避免把 cast 散到各处。 */
+export { findVersionRow };

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { toast } from 'sonner';
 import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import type { PublishResult, usePublishProject } from '@/hooks/useVersions';
 
@@ -12,8 +13,12 @@ import type { PublishResult, usePublishProject } from '@/hooks/useVersions';
  *
  * `确认发布`, or `保存并发布` when the canvas is dirty — serial, and a failed
  * save aborts the publish. The dialog stays open while the request flies, and
- * closes on the outcome: success → the success dialog, a validation failure →
- * the 「无法发布」 list.
+ * closes on the outcome: success → a toast naming the new version, a
+ * validation failure → the 「无法发布」 list.
+ *
+ * v0.6.0: the success **dialog** is gone (user feedback — 提示即可，不需要按钮
+ * 跳转). The new version number rides the toast, which also means the flow no
+ * longer needs to carry `MapVersionSummary` state back to the page.
  */
 export interface EditorPublishSpec {
   /** The whole blood lineage (version history), for the next version number. */
@@ -30,12 +35,18 @@ export interface EditorPublishSpec {
 export interface EditorPublishFlow {
   publishOpen: boolean;
   setPublishOpen: (open: boolean) => void;
-  publishedVersion: MapVersionSummary | null;
-  setPublishedVersion: (version: MapVersionSummary | null) => void;
   /** The shared 「无法发布」 dialog's payload (`null` = closed). */
   violations: PublishViolation[] | null;
   setViolations: (violations: PublishViolation[] | null) => void;
   nextVersionNo: number;
+  /** 发布弹窗里那个版本号输入框（默认 `nextVersionNo`，可改）。 */
+  versionInput: string;
+  setVersionInput: (value: string) => void;
+  /** 输入框的行内错误（正整数校验 / 血统内重号）。 */
+  versionError: string | null;
+  setVersionError: (error: string | null) => void;
+  /** 失焦时查重，也供 `confirmPublish` 复用。 */
+  validateVersion: (value: string) => string | null;
   openPublishConfirm: () => void;
   confirmPublish: () => void;
 }
@@ -43,8 +54,9 @@ export interface EditorPublishFlow {
 export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
   const { versions, currentVersionNo, dirty, saving, persist, publishMutation } = spec;
   const [publishOpen, setPublishOpen] = useState(false);
-  const [publishedVersion, setPublishedVersion] = useState<MapVersionSummary | null>(null);
   const [violations, setViolations] = useState<PublishViolation[] | null>(null);
+  const [versionInput, setVersionInput] = useState('');
+  const [versionError, setVersionError] = useState<string | null>(null);
 
   const nextVersionNo = useMemo(() => {
     if (versions && versions.length > 0) {
@@ -53,23 +65,52 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
     return (currentVersionNo ?? 0) + 1;
   }, [versions, currentVersionNo]);
 
+  /**
+   * v0.5.8 第三阶段（设计 §4.2）：正整数 + 血统内不重号。前端只查得到**可见**
+   * 版本（软删的行不在列表里），所以「软删行仍占号」这种情况由服务端 400 兜底。
+   */
+  const validateVersion = (value: string): string | null => {
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    if (!/^\d+$/.test(trimmed)) return '版本号需为正整数';
+    const parsed = Number(trimmed);
+    if (parsed < 1) return '版本号需为正整数';
+    if (versions?.some((version) => version.versionNo === parsed)) {
+      return `版本号 v${parsed} 已存在于该地图血统中，请换一个`;
+    }
+    return null;
+  };
+
   const openPublishConfirm = (): void => {
     if (publishMutation.isPending || saving) return;
+    setVersionInput(String(nextVersionNo));
+    setVersionError(null);
     setPublishOpen(true);
   };
 
   const confirmPublish = (): void => {
     if (publishMutation.isPending) return;
+    const error = validateVersion(versionInput);
+    if (error) {
+      setVersionError(error);
+      return;
+    }
+    const trimmed = versionInput.trim();
+    // 没改（或改回默认值）就交给服务端续号，避免拿过期默认值撞号。
+    const explicit =
+      trimmed === '' || Number(trimmed) === nextVersionNo ? undefined : Number(trimmed);
     void (async () => {
       if (dirty && !(await persist())) return;
-      publishMutation.mutate(undefined, {
+      publishMutation.mutate(explicit, {
         onSuccess: (result: PublishResult) => {
           setPublishOpen(false);
           if (!result.ok) {
             setViolations(result.violations ?? []);
             return;
           }
-          setPublishedVersion(result.version ?? null);
+          toast.success(`已发布 v${result.version?.versionNo ?? ''}`, {
+            description: '已在地图列表新增条目。',
+          });
         },
         onError: () => setPublishOpen(false),
       });
@@ -79,11 +120,14 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
   return {
     publishOpen,
     setPublishOpen,
-    publishedVersion,
-    setPublishedVersion,
     violations,
     setViolations,
     nextVersionNo,
+    versionInput,
+    setVersionInput,
+    versionError,
+    setVersionError,
+    validateVersion,
     openPublishConfirm,
     confirmPublish,
   };

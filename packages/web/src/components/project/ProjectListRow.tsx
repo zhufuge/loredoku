@@ -5,11 +5,14 @@ import { formatDateTime } from '@/lib/format';
 import { previewVersionNo } from './EntryActionsMenu';
 
 /**
- * v0.5.8 §2: 列表视图的列结构重排 —— 封面 → 名称 → 版本/草稿 → 描述 →
- * 时间 → 操作，其中**版本列、时间列、操作列各自对齐**（固定宽度 + 同一
- * text-align），不再让 n × n 单独占一列（创建时不再有尺寸，列会经常是空的）。
+ * v0.5.9 §2: 徽标只看 `versionNo` —— 版本条目显示 `v{n}`，工作条目一律
+ * 「草稿」（v0.5.8 的 `versionNo ?? currentVersionNo` 会让发布过的工作条目
+ * 也顶个版本号，与「草稿」语义相反）。
  *
- * 操作列四个图标，两类条目完全相同：编辑信息 / 预览 / 复制 / 删除。
+ * 操作列：编辑信息 / 预览 / 复制 / 删除四个图标。**「复制」只属于工作条目**
+ * （v0.5.8 §13 裁定：版本是冻结快照，复制它既不能改也产不出有用的新图，
+ * 想基于某版本继续做事走编辑器内版本历史面板的 fork）。**「编辑信息」同样只
+ * 属于工作条目**（v0.5.8 第三阶段：合并后版本行有快照列，但冻结不可改）。
  * 预览对「从没发布过的工作条目」禁用。
  */
 interface ProjectListRowProps {
@@ -30,16 +33,20 @@ export function ProjectListRow({
   onPreview,
 }: ProjectListRowProps): JSX.Element {
   const initial = entry.name.trim().charAt(0) || '图';
-  const versionNo = entry.versionNo ?? entry.currentVersionNo;
-  const badge = versionNo !== null ? `v${versionNo}` : '草稿';
+  const badge = entry.versionNo !== null ? `v${entry.versionNo}` : '草稿';
   const previewable = previewVersionNo(entry) !== null;
+  /**
+   * v0.5.8 §13: 版本条目的主点击是「以此为底稿新建」—— 带 `?v={n}` 进编辑器，
+   * 保存时才生成草稿；只读预览留给眼睛图标。
+   */
+  const openTitle = entry.kind === 'version' ? '以此为底稿新建' : '进入编辑';
 
   return (
     <div className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
       <button
         type="button"
         onClick={() => onOpen(entry)}
-        title={`进入编辑：${entry.name}`}
+        title={`${openTitle}：${entry.name}`}
         className="h-10 w-16 shrink-0 cursor-pointer overflow-hidden rounded border bg-muted/40"
       >
         {entry.coverUrl ? (
@@ -73,9 +80,13 @@ export function ProjectListRow({
         {formatDateTime(entry.publishedAt ?? entry.updatedAt)}
       </span>
       <div className="flex w-32 shrink-0 items-center justify-end gap-1">
-        <Button size="icon" variant="ghost" title="编辑信息" onClick={() => onRename(entry)}>
-          <Pencil className="h-4 w-4" />
-        </Button>
+        {/* v0.5.8 第三阶段（设计 §11 第 9 条）：版本条目的快照列不可改 ——
+            改名 / 改描述会破坏「版本不可变」，所以这块只给工作条目。 */}
+        {entry.kind !== 'version' ? (
+          <Button size="icon" variant="ghost" title="编辑信息" onClick={() => onRename(entry)}>
+            <Pencil className="h-4 w-4" />
+          </Button>
+        ) : null}
         <Button
           size="icon"
           variant="ghost"
@@ -85,9 +96,11 @@ export function ProjectListRow({
         >
           <Eye className="h-4 w-4" />
         </Button>
-        <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(entry)}>
-          <Copy className="h-4 w-4" />
-        </Button>
+        {entry.kind !== 'version' ? (
+          <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(entry)}>
+            <Copy className="h-4 w-4" />
+          </Button>
+        ) : null}
         <Button
           size="icon"
           variant="ghost"

@@ -100,7 +100,7 @@ export async function getPuzzle(id: number): Promise<PuzzleDetail> {
  */
 export async function getPuzzleMapContext(id: number): Promise<PuzzleMapContext> {
   const row = await requireRow(id);
-  const version = await versionRepo.getVersion(Number(row.map_project_id), row.map_version_no);
+  const version = await versionRepo.findVersionRow(Number(row.map_project_id), row.map_version_no);
   if (!version) {
     throw AppError.notFound('谜题引用的地图版本不存在');
   }
@@ -125,6 +125,7 @@ export async function getPuzzleMapContext(id: number): Promise<PuzzleMapContext>
  * the shipped red / blue pair for versions published before the palette existed.
  */
 export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDetail> {
+  // 创建时选版本要**过滤软删**：已删版本不能作为新谜题的底图（可见性）。
   const version = await versionRepo.getVersion(input.mapProjectId, input.mapVersionNo);
   if (!version) {
     throw AppError.validation('所选地图版本不存在，请选择一个已发布的地图版本');
@@ -165,7 +166,7 @@ export async function savePuzzle(
   input: SavePuzzleDraftInput,
 ): Promise<PuzzleDetail> {
   const row = await requireRow(id);
-  const version = await versionRepo.getVersion(Number(row.map_project_id), row.map_version_no);
+  const version = await versionRepo.findVersionRow(Number(row.map_project_id), row.map_version_no);
   if (!version) {
     throw AppError.notFound('谜题引用的地图版本不存在');
   }

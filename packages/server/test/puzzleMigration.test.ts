@@ -39,7 +39,7 @@ describe('v0.5.0 migration shape (§11.1)', () => {
     expect(Number(nulls[0]?.c ?? 0)).toBe(0);
 
     const drifted = (await db('maps')
-      .whereRaw('root_id <> id')
+      .whereRaw("root_id <> id AND version = 'draft'")
       .select('id', 'root_id')) as Array<{ id: number | string; root_id: number | string }>;
     for (const row of drifted) {
       const root = await db('maps').where({ id: row.root_id }).first('id');

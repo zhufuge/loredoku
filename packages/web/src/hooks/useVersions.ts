@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ErrorCode } from '@loredoku/shared';
-import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
+import type { MapDraft, MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import { ApiError } from '@/api/client';
 import { versionsApi } from '@/api/versions';
 import { mapKeys } from './useMap';
@@ -44,12 +44,13 @@ export interface PublishResult {
 
 export function usePublishProject(id: number) {
   const queryClient = useQueryClient();
-  // v0.5.8: 发布弹窗去掉备注，mutation 变量类型跟着收敛成 void。
-  return useMutation<PublishResult, unknown, void>({
-    mutationFn: async () => {
+  // v0.5.8 第三阶段：变量是「用户填的版本号」，`undefined` = 用服务端默认
+  // （血统 MAX+1）。没改输入框就发 undefined，避免拿着过期的默认值撞 400。
+  return useMutation<PublishResult, unknown, number | undefined>({
+    mutationFn: async (version) => {
       try {
-        const version = await versionsApi.publish(id);
-        return { ok: true, version };
+        const published = await versionsApi.publish(id, version);
+        return { ok: true, version: published };
       } catch (error) {
         if (error instanceof ApiError && error.code === ErrorCode.PUBLISH_VALIDATION_FAILED) {
           const violations = Array.isArray(error.details)
@@ -84,18 +85,24 @@ export function usePublishProject(id: number) {
  * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): 「编辑此版本」 opens a new **work
  * entry** in the same lineage — `map_versions` is never written. The editor is
  * entered on the freshly created row.
+ *
+ * v0.5.8 §13: `data` 可选（编辑器里「保存时才生成草稿」带当前画布）；
+ * `navigate: false` 供编辑器自己接管落盘后的跳转（它要 replace 而不是
+ * push，且跳之前还得先把 store 标记成已保存）。
  */
-export function useForkVersion() {
+export function useForkVersion(options: { navigate?: boolean } = {}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   return useMutation({
-    mutationFn: ({ id, versionNo }: { id: number; versionNo: number }) =>
-      versionsApi.fork(id, versionNo),
+    mutationFn: ({ id, versionNo, data }: { id: number; versionNo: number; data?: MapDraft }) =>
+      versionsApi.fork(id, versionNo, data),
     onSuccess: (project, { versionNo }) => {
       toast.success(`已从 v${versionNo} 新增一个条目`);
       void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
       void queryClient.invalidateQueries({ queryKey: versionKeys.list(project.id) });
-      navigate(`/editor/${project.id}`);
+      if (options.navigate !== false) {
+        navigate(`/maps/${project.id}/edit`);
+      }
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : '操作失败');

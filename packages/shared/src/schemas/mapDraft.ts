@@ -294,10 +294,29 @@ export function legacyMapDraftBlocks(data: unknown): string[] {
 }
 
 /**
- * v0.5.8: 发布弹窗去掉备注输入框，请求体只剩一个可选的空对象 —— 保留 schema
- * 而不是删掉路由的 body 解析，是为了让旧客户端发 `{}` 也照常通过。
+ * v0.5.8 §13 修订（docs/map-table-merge-design.md §4.2）：发布弹窗里的版本号
+ * 默认 `MAX+1`、允许用户改成任意正整数（可填空洞号），所以 `version` 是可选
+ * 入参 —— 不传就是默认值，行为与「全自动续号」完全一致。上限 9999 只是为了让
+ * `CAST(version AS integer)` 永远安全（`version` 是 text 列）。
+ *
+ * `.strict()` 保留：旧客户端多传的 `notes` 仍被明确拒绝。
  */
-export const publishSchema = z.object({}).strict();
+export const publishSchema = z
+  .object({
+    version: z.number().int().min(1).max(9999).optional(),
+  })
+  .strict();
+
+/**
+ * v0.5.8 §13: 「以此为底稿新建」把 fork 的触发时机从「点击即生成」延后到
+ * **编辑器里点保存**。版本条目进编辑器（`/maps/:id/edit?v={n}`）只把快照
+ * 装进本地 store，保存时才调 fork，并把**编辑器当前画布**写进新行 ——
+ * body 的 `data` 就是那一刻的 `editor.toDraft()`。不传（版本历史面板的
+ * 「编辑此版本」）时仍用版本快照的 data。
+ */
+export const forkVersionBodySchema = z.object({
+  data: mapDraftSchema.optional(),
+});
 
 export const listVersionsQuerySchema = z.object({
   page: z.number().int().min(1).optional(),
@@ -319,3 +338,4 @@ export type SaveMapDraftInput = z.infer<typeof saveMapDraftSchema>;
 export type ImportMapInput = z.infer<typeof importMapSchema>;
 export type UpdateGridSizeInput = z.infer<typeof updateGridSizeSchema>;
 export type PublishInput = z.infer<typeof publishSchema>;
+export type ForkVersionInput = z.infer<typeof forkVersionBodySchema>;

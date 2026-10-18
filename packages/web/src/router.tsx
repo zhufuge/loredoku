@@ -54,7 +54,10 @@ const PuzzleViewPage = lazyPage(() =>
 );
 
 /**
- * `/maps/:projectId/:versionNo/view` is a read-only version entry (SPEC-K12).
+ * v0.5.9 §7: the editor lives at `/maps/:projectId/edit` (was `/editor/:projectId`),
+ * and a published version is read at `/maps/:projectId/views` with the version
+ * number in the `?v=` query (was `/maps/:projectId/:versionNo/view`). Both old
+ * paths are unregistered — this is a local tool, so no redirect is needed.
  */
 export const router = createBrowserRouter([
   {
@@ -75,7 +78,9 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    path: '/editor/:projectId',
+    // v0.5.9 §7: the map editor — `/editor/:projectId` renamed so the whole
+    // console speaks the same `/maps/...` noun.
+    path: '/maps/:projectId/edit',
     element: <EditorPage />,
   },
   {
@@ -89,8 +94,10 @@ export const router = createBrowserRouter([
     element: <PuzzleViewPage />,
   },
   {
-    // FEAT-K09 §7.1: one published map version, canvas only.
-    path: '/maps/:projectId/:versionNo/view',
+    // FEAT-K09 §7.1: one published map version, canvas only. The version is a
+    // `?v=` query (v0.5.9 §7); absent, the page shows the map's latest
+    // published version.
+    path: '/maps/:projectId/views',
     element: <MapVersionViewPage />,
   },
   {

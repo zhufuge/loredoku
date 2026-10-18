@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
@@ -24,6 +24,7 @@ import {
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useItems } from '@/hooks/useItems';
+import { useProjectMap } from '@/hooks/useMap';
 import { useVersionDetail } from '@/hooks/useVersions';
 import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import {
@@ -51,7 +52,22 @@ function readStoredRulerVisible(): boolean {
 /**
  * v0.5.0 FEAT-K09 (docs/v0.5.0.md §7.1): the read-only canvas preview of one
  * **version entry**, reached from the map list (and from the editor's 版本历史
- * panel) at `/maps/:projectId/:versionNo/view`.
+ * panel).
+ *
+ * v0.5.9 §7: the route is `/maps/:projectId/views` and the version number moved
+ * from the path into the `?v=` query — the page is about *a map's published
+ * versions*, not one addressable snapshot.
+ *
+ * v0.5.8 第三阶段（设计 §15 P0-1）：`:id` 一律指 `maps.id`，草稿行与版本行都
+ * 可能命中，解析规则是 ——
+ *
+ * | `:id` 命中 | 无 `?v=` | 有 `?v=` |
+ * |---|---|---|
+ * | 版本行 | 直接展示**这一行**（它自带 `data`） | 以 `?v=` 为准 |
+ * | 草稿行 | 取该血统的 `MAX(version)`（裸链接永远有效） | 以 `?v=` 为准 |
+ *
+ * 于是 `/maps/:id/views` 不再依赖「草稿行还没被删」这个偶然条件，而旧链接里的
+ * `?v=` 也照旧被尊重。
  *
  * It is the old work preview page with the participant half removed: a map
  * version is a frozen canvas, and participants moved to puzzles in v0.5.0
@@ -60,18 +76,27 @@ function readStoredRulerVisible(): boolean {
  * adaptive fit) is unchanged from the page this replaced.
  */
 export function MapVersionViewPage(): JSX.Element {
-  const { projectId: projectIdParam, versionNo: versionNoParam } = useParams<{
-    projectId: string;
-    versionNo: string;
-  }>();
+  const { projectId: projectIdParam } = useParams<{ projectId: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const projectId = Number(projectIdParam);
-  const versionNo = Number(versionNoParam);
-  const valid =
-    Number.isFinite(projectId) && projectId > 0 && Number.isFinite(versionNo) && versionNo > 0;
+  const valid = Number.isFinite(projectId) && projectId > 0;
 
-  const detailQuery = useVersionDetail(valid ? projectId : null, valid ? versionNo : null);
+  const mapQuery = useProjectMap(valid ? projectId : Number.NaN);
+  /**
+   * 缺省版本号：`:id` 命中版本行时用它自己的号（`project.versionNo`），命中草稿
+   * 行时用血统最高号（`project.currentVersionNo`）。两者都可能为 `null`（一张
+   * 从没发布过的图）。
+   */
+  const requestedNo = Number(searchParams.get('v'));
+  const fallbackVersionNo = mapQuery.data
+    ? mapQuery.data.project.versionNo ?? mapQuery.data.project.currentVersionNo
+    : null;
+  const versionNo =
+    Number.isFinite(requestedNo) && requestedNo > 0 ? requestedNo : fallbackVersionNo;
+
+  const detailQuery = useVersionDetail(valid ? projectId : null, versionNo);
   // A published snapshot may reference items that are now inactive.
   const itemsQuery = useItems({});
 
@@ -242,7 +267,7 @@ export function MapVersionViewPage(): JSX.Element {
     setZoom(next);
   };
 
-  if (detailQuery.isLoading) {
+  if (detailQuery.isLoading || (versionNo === null && mapQuery.isLoading)) {
     return (
       <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -255,7 +280,7 @@ export function MapVersionViewPage(): JSX.Element {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">地图版本不存在或加载失败。</p>
-        <Button variant="outline" onClick={() => navigate('/projects')}>
+        <Button variant="outline" onClick={() => navigate('/maps')}>
           返回地图列表
         </Button>
       </div>
@@ -269,7 +294,7 @@ export function MapVersionViewPage(): JSX.Element {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/projects')}
+            onClick={() => navigate('/maps')}
             title="返回地图列表"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -280,7 +305,7 @@ export function MapVersionViewPage(): JSX.Element {
             </span>
             {/* OPT-G01: the version is a badge now, not part of the title. */}
             <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
-              v{versionNo}
+              v{versionNo ?? ''}
             </span>
             <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
               {gridSize} × {gridSize}

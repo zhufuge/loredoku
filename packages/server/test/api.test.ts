@@ -126,6 +126,21 @@ async function publish(projectId: number): Promise<number> {
   return res.body.data.versionNo as number;
 }
 
+/**
+ * v0.5.8 第三阶段：发布 = INSERT 一条 `maps` 行，所以版本行的 id 也要单独记账
+ * —— 这些用例会软删 / 硬删工作条目，`root_id` 扫不到它们。
+ */
+const createdVersionRows: number[] = [];
+
+async function publishVersion(projectId: number, version?: number): Promise<ApiResponse> {
+  const res = await api
+    .post(`/api/projects/${projectId}/versions`)
+    .send(version === undefined ? {} : { version });
+  expect(res.status).toBe(200);
+  createdVersionRows.push(res.body.data.id as number);
+  return res;
+}
+
 /** FEAT-K01: a puzzle bound to a published map version. */
 async function createPuzzle(body: Record<string, unknown>): Promise<number> {
   const res = await api.post('/api/puzzles').send(body);
@@ -258,9 +273,11 @@ describe('projects API', () => {
       .map((row) => row.versionNo)
       .sort();
     expect(versions).toEqual([1, 2]);
-    // One lineage → one root, and the work entry leads its own versions.
+    // One lineage → one root, and exactly one work entry.
     expect(new Set(rows.map((row) => row.rootId)).size).toBe(1);
-    expect(rows[0]!.kind).toBe('draft');
+    // v0.5.8 第三阶段：发布不再触碰工作条目行（设计 §5「工作条目行不动」），所以
+    // 按 updated_at 排序时版本行可能排在草稿行前面 —— 只断言草稿行唯一存在。
+    expect(rows.filter((row) => row.kind === 'draft')).toHaveLength(1);
   });
 
   /** FEAT-K03 §2.4: the 「地图版本」 picker of the create-puzzle dialog. */
@@ -279,7 +296,7 @@ describe('projects API', () => {
         mapName: string;
         gridSize: number;
       }>
-    ).find((entry) => entry.projectId === projectId && entry.versionNo === versionNo);
+    ).find((entry) => entry.mapName === name && entry.versionNo === versionNo);
     expect(row?.mapName).toBe(name);
     // v0.5.8: `grid_size` 列删了，这里是从快照自身派生的同一个值。
     expect(row?.gridSize).toBe(6);
@@ -693,8 +710,9 @@ describe('versions API', () => {
 
     const list = await api.get(`/api/projects/${projectId}/versions`);
     expect(list.body.data).toHaveLength(1);
-    // The lineage panel needs to know which work entry owns each version.
-    expect(list.body.data[0].projectId).toBe(projectId);
+    // v0.5.8 第三阶段：版本行自己就是 maps 行，面板拿 projectId 拼 URL，所以
+    // 它等于版本行 id（合并前是「拥有它的工作条目 id」）。
+    expect(list.body.data[0].projectId).toBe(published.body.data.id);
 
     const detail = await api.get(`/api/projects/${projectId}/versions/1`);
     expect(detail.body.data.data.cells['1,1'].object.itemId).toBe(itemId);
@@ -838,12 +856,15 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
     expect(next.status).toBe(200);
     expect(next.body.data.versionNo).toBe(3);
 
-    // The lineage panel spans both rows and reports who owns each version.
+    // The lineage panel spans both rows; 合并后每条的 projectId 就是它自己那行。
     const lineage = await api.get(`/api/projects/${forkedId}/versions`);
     expect(lineage.status).toBe(200);
     expect(lineage.body.data.map((entry: { versionNo: number }) => entry.versionNo)).toEqual([3, 2, 1]);
-    expect(lineage.body.data[0].projectId).toBe(forkedId);
-    expect(lineage.body.data[1].projectId).toBe(projectId);
+    expect(
+      lineage.body.data.every(
+        (entry: { projectId: number; id: number }) => entry.projectId === entry.id,
+      ),
+    ).toBe(true);
   });
 
   it('404s when the version to fork does not exist', async () => {
@@ -851,6 +872,52 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
     const res = await api.post(`/api/projects/${projectId}/versions/99/fork`);
     expect(res.status).toBe(404);
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
+  });
+
+  it('v0.5.8 §13: names the forked draft after its source version', async () => {
+    const name = `ForkName ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    await publish(projectId);
+
+    const forked = await api.post(`/api/projects/${projectId}/versions/1/fork`);
+    expect(forked.status).toBe(200);
+    const forkedId = forked.body.data.id as number;
+    createdProjects.push(forkedId);
+    expect(forked.body.data.name).toBe(`${name} (自 v1)`);
+
+    // 再 fork 同一版本 → uniqueCopyName 兜底（血统内可能有多条草稿，不能撞名）。
+    const again = await api.post(`/api/projects/${projectId}/versions/1/fork`);
+    expect(again.status).toBe(200);
+    createdProjects.push(again.body.data.id as number);
+    expect(again.body.data.name).toBe(`${name} (自 v1) 副本`);
+  });
+
+  it('v0.5.8 §13: fork carries the editor canvas (save-time fork)', async () => {
+    const name = `ForkData ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    const itemId = await createItem({ category: 'object', canStand: true });
+    const draft = emptyDraft(6);
+    draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
+    await saveCanvas(projectId, draft);
+    await publish(projectId);
+
+    // 「以此为底稿新建」进编辑器后又改了一格（还没保存）—— 保存时这一帧
+    // 画布随 fork 一起落库；不传 data 则仍是快照 data（上面的老用例）。
+    const edited = emptyDraft(6);
+    edited.cells['3,3'] = { object: { itemId, w: 1, h: 1 } };
+    const forked = await api.post(`/api/projects/${projectId}/versions/1/fork`).send({ data: edited });
+    expect(forked.status).toBe(200);
+    const forkedId = forked.body.data.id as number;
+    createdProjects.push(forkedId);
+
+    const forkedDraft = await api.get(`/api/projects/${forkedId}/map`);
+    expect(forkedDraft.body.data.draft.cells['3,3'].object.itemId).toBe(itemId);
+    // 旧草稿的 1,1 不在新行里 —— 带的就是发送那一刻的画布，不是合并。
+    expect(forkedDraft.body.data.draft.cells['1,1']).toBeUndefined();
+
+    // 版本快照本身不动（不可变）。
+    const snapshot = await api.get(`/api/projects/${projectId}/versions/1`);
+    expect(snapshot.body.data.data.cells['1,1'].object.itemId).toBe(itemId);
   });
 });
 
@@ -1358,13 +1425,183 @@ describe('games API slug (OPT-W04)', () => {
   });
 });
 
+/**
+ * v0.5.8 第三阶段（docs/map-table-merge-design.md）：`map_versions` 并入
+ * `maps` 之后，版本行就是合法的 `maps` 行 —— 于是有两条新契约要钉住：
+ * 号可自定义但不可复用（软删行仍占号），以及版本行虽然能被 id 直达，但写
+ * 入口一律 400。
+ */
+describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
+  it('自定义版本号：能填空洞号，活行与软删行重号都 400', async () => {
+    const name = `MergeNo ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+
+    const v1 = await publishVersion(projectId);
+    expect(v1.body.data.versionNo).toBe(1);
+    const v2 = await publishVersion(projectId);
+    expect(v2.body.data.versionNo).toBe(2);
+
+    // 跳过 3~6，直接给 7 —— 版本号不必连续。
+    const custom = await publishVersion(projectId, 7);
+    expect(custom.body.data.versionNo).toBe(7);
+
+    // 活行重号
+    const dupe = await api.post(`/api/projects/${projectId}/versions`).send({ version: 7 });
+    expect(dupe.status).toBe(400);
+    expect(dupe.body.message).toContain('已存在');
+
+    // 软删之后号仍被占用（软删行参与 MAX、占唯一位）
+    const removed = await api.delete(`/api/projects/${projectId}/versions/7`);
+    expect(removed.status).toBe(200);
+    const reuse = await api.post(`/api/projects/${projectId}/versions`).send({ version: 7 });
+    expect(reuse.status).toBe(400);
+    expect(reuse.body.message).toContain('已存在');
+
+    // 默认号 = 血统 MAX（含软删行）+ 1
+    const next = await publishVersion(projectId);
+    expect(next.body.data.versionNo).toBe(8);
+
+    // 入参校验：0 / 非整数一律 400（schema 是 .strict() + 正整数）
+    const invalid = await api.post(`/api/projects/${projectId}/versions`).send({ version: 0 });
+    expect(invalid.status).toBe(400);
+  });
+
+  it('软删的版本在四个可见面消失，但直达读取与 fork 源仍可用', async () => {
+    const name = `SoftDel ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    await publish(projectId);
+    const v2 = await publishVersion(projectId);
+    const v2RowId = v2.body.data.id as number;
+
+    const removed = await api.delete(`/api/projects/${projectId}/versions/2`);
+    expect(removed.status).toBe(200);
+
+    // ① /maps 列表
+    const list = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    const rows = list.body.data.list as Array<{ kind: string; versionNo: number | null }>;
+    expect(rows.filter((row) => row.kind === 'version').map((row) => row.versionNo)).toEqual([1]);
+
+    // ② 创建谜题的可选地图列表（按发布时的名字快照查）
+    const picker = await api.get('/api/projects/versions');
+    expect(
+      (picker.body.data as Array<{ mapName: string; versionNo: number }>).some(
+        (entry) => entry.mapName === name && entry.versionNo === 2,
+      ),
+    ).toBe(false);
+
+    // ③ 版本历史面板
+    const lineage = await api.get(`/api/projects/${projectId}/versions`);
+    expect(lineage.body.data.map((entry: { versionNo: number }) => entry.versionNo)).toEqual([1]);
+
+    // ④ 版本详情直达 → 404（「不可见」包含直达入口）
+    const gone = await api.get(`/api/projects/${projectId}/versions/2`);
+    expect(gone.status).toBe(404);
+
+    // 号不回收：默认号仍是 3
+    const next = await publishVersion(projectId);
+    expect(next.body.data.versionNo).toBe(3);
+
+    // fork 源不过滤软删（过滤管可见性，不管直达读取）→ 版本行 id 也能当 :id
+    const forked = await api.post(`/api/projects/${v2RowId}/versions/2/fork`);
+    expect(forked.status).toBe(200);
+    createdProjects.push(forked.body.data.id as number);
+  });
+
+  it('版本行是只读行：条目级与画布级写入口一律 400', async () => {
+    const name = `ReadOnly ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    const versionRowId = (await publishVersion(projectId)).body.data.id as number;
+
+    // 详情与画布读取仍然允许（只读渲染要能用）
+    const detail = await api.get(`/api/projects/${versionRowId}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data.versionNo).toBe(1);
+    const canvas = await api.get(`/api/projects/${versionRowId}/map`);
+    expect(canvas.status).toBe(200);
+
+    const patched = await api.patch(`/api/projects/${versionRowId}`).send({ name: '改名' });
+    expect(patched.status).toBe(400);
+
+    const saved = await api
+      .put(`/api/projects/${versionRowId}/map`)
+      .send({ data: emptyDraft(6), updatedAt: null });
+    expect(saved.status).toBe(400);
+
+    const resized = await api.patch(`/api/projects/${versionRowId}/grid-size`).send({ gridSize: 8 });
+    expect(resized.status).toBe(400);
+
+    const cover = await api.delete(`/api/projects/${versionRowId}/cover`);
+    expect(cover.status).toBe(400);
+
+    const republish = await api.post(`/api/projects/${versionRowId}/versions`).send({});
+    expect(republish.status).toBe(400);
+    expect(republish.body.message).toContain('草稿');
+
+    const duplicated = await api.post(`/api/projects/${versionRowId}/duplicate`);
+    expect(duplicated.status).toBe(400);
+
+    const region = await api.post(`/api/projects/${versionRowId}/regions`).send({
+      name: 'Lounge',
+      cells: [[0, 0]],
+    });
+    expect(region.status).toBe(400);
+
+    // 通用 DELETE 对版本行分流成软删：行还在（详情 404），但号不回收。
+    const deleted = await api.delete(`/api/projects/${versionRowId}`);
+    expect(deleted.status).toBe(200);
+    expect((await api.get(`/api/projects/${versionRowId}`)).status).toBe(404);
+    const revived = await api.post(`/api/projects/${projectId}/versions`).send({ version: 1 });
+    expect(revived.status).toBe(400);
+  });
+
+  it('删工作条目保留它的版本行（不再级联）', async () => {
+    const name = `KeepVersions ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+    await publishVersion(projectId);
+    await publishVersion(projectId);
+
+    const removed = await api.delete(`/api/projects/${projectId}`);
+    expect(removed.status).toBe(200);
+
+    // 列表里草稿行没了，版本行还在。
+    const list = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    const rows = list.body.data.list as Array<{ kind: string; versionNo: number | null }>;
+    expect(rows.filter((row) => row.kind === 'draft')).toHaveLength(0);
+    expect(rows.map((row) => row.versionNo).sort()).toEqual([1, 2]);
+  });
+
+  it('草稿行的 versionNo 短路成 null，status 由血统推导（设计 §15 P0-2）', async () => {
+    const name = `DraftNo ${uniqueCode('p')}`;
+    const projectId = await createProject({ name, gridSize: 6 });
+
+    const fresh = await api.get(`/api/projects/${projectId}`);
+    expect(fresh.body.data.versionNo).toBeNull();
+    expect(fresh.body.data.status).toBe('draft');
+    expect(fresh.body.data.currentVersionNo).toBeNull();
+
+    await publishVersion(projectId);
+    const after = await api.get(`/api/projects/${projectId}`);
+    // 草稿行仍然没有自己的版本号，但血统已经发布了 v1。
+    expect(after.body.data.versionNo).toBeNull();
+    expect(after.body.data.status).toBe('published');
+    expect(after.body.data.currentVersionNo).toBe(1);
+  });
+});
+
 afterAll(async () => {
   const { db } = await import('../src/db/knex');
   // Puzzles first: `puzzles.map_project_id` is ON DELETE RESTRICT, so a project
   // that still has a puzzle cannot be deleted. Deleting a puzzle demotes its
   // game (`map_games.puzzle_id` → NULL), which the project cascade then removes.
   if (createdPuzzles.length) await db('puzzles').whereIn('id', createdPuzzles).del();
-  if (createdProjects.length) await db('maps').whereIn('id', createdProjects).del();
+  // v0.5.8 第三阶段：先删这批用例自己记账的版本行（有些工作条目已被删，按
+  // root_id 扫不到），再按血统兜一遍，最后删草稿行。
+  if (createdVersionRows.length) await db('maps').whereIn('id', createdVersionRows).del();
+  if (createdProjects.length) {
+    const roots = db('maps').whereIn('id', createdProjects).select('root_id');
+    await db('maps').whereNot('version', 'draft').whereIn('root_id', roots).del();
+    await db('maps').whereIn('id', createdProjects).del();
+  }
   if (createdItems.length) await db('items').whereIn('id', createdItems).del();
   if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
   await db.destroy();

@@ -1,13 +1,30 @@
 import { db } from '../db/knex';
-import type { MapDraft, MapVersionRow, MapVersionSummary } from '@loredoku/shared';
+import type { MapDraft, MapVersionSummary, ProjectRow } from '@loredoku/shared';
 import { absorbLegacyMapDraft, readLegacyCharacterSlots } from '../service/mapDraftCompat';
 
 /**
- * v0.5.0 (docs/v0.5.0.md §7 / §8.3): `map_versions` keeps its meaning — one row
- * per publish — and its old "works" semantics are gone. Every read goes through
- * `absorbLegacyMapDraft`, because rows published before v0.5.0 still carry the
- * roster and the palette inside their JSON.
+ * v0.5.8 第三阶段：`map_versions` 已并入 `maps`
+ * （docs/map-table-merge-design.md）。本模块的每个函数都改查 `maps`，
+ * 「版本行」= `version <> 'draft'` 的行。
+ *
+ * 三条铁律：
+ *
+ * 1. **`version` 是 text**，`Number('draft')` 是 `NaN`、`CAST('draft' AS int)` 直接
+ *    抛错 —— 所有 cast 前必须前置 `version <> 'draft'`，转换只走
+ *    {@link versionToNo} / {@link nextVersionNo} 两个入口（设计 §15 P0-2）。
+ * 2. **默认查询带 `deleted_at IS NULL`**（列表可见性），只有 fork 源与 `MAX` 不过滤
+ *    （设计 §5：过滤管可见性，不管直达读取 / 号不回收）。
+ * 3. **URL 的 `:id` 一律指 `maps.id`**，可以是草稿行也可以是版本行 —— 所以版本
+ *    查询先用它解析血统根，再在血统内按版本号定位（设计 §15 P0-1）。
  */
+
+/** `'draft'` → `null`，`'3'` → `3`。禁止在别处直接 `Number()`。 */
+export function versionToNo(row: { version: string }): number | null {
+  return row.version === 'draft' ? null : Number(row.version);
+}
+
+/** 版本行 + 快照名（`project_name` 即该行自己的 `name`，发布时的快照）。 */
+export type VersionRow = ProjectRow & { project_name: string | null };
 
 /** FEAT-503: the version panel shows participant / region / item totals. */
 function summarizeData(raw: unknown): {
@@ -28,16 +45,16 @@ function summarizeData(raw: unknown): {
     participantCount,
     regionCount: draft?.regions?.length ?? 0,
     itemCount: itemIds.size,
-    // v0.5.8: `grid_size` 列没了，尺寸从快照自身读。
     gridSize: draft?.gridSize ?? 0,
   };
 }
 
-function toSummary(row: MapVersionRow): MapVersionSummary {
+function toSummary(row: ProjectRow): MapVersionSummary {
   return {
     id: Number(row.id),
-    versionNo: row.version_no,
-    publishedAt: new Date(row.snapshot_created_at).toISOString(),
+    versionNo: Number(row.version),
+    // v0.5.8: 版本行的 created_at 就是发布时间（插入即冻结）。
+    publishedAt: new Date(row.created_at).toISOString(),
     ...summarizeData(row.data),
   };
 }
@@ -45,12 +62,24 @@ function toSummary(row: MapVersionRow): MapVersionSummary {
 /** Exported so the service can map lineage rows without duplicating the counts. */
 export const toVersionSummary = toSummary;
 
-export async function listVersions(projectId: number): Promise<MapVersionSummary[]> {
-  const rows = (await db<MapVersionRow>('map_versions')
-    .where({ project_id: projectId })
-    .orderBy('version_no', 'desc')
-    .select('*')) as MapVersionRow[];
-  return rows.map(toSummary);
+/**
+ * `:id` → 血统根。**不过滤 `deleted_at`**：软删行仍可按 id 解析（设计 §15 P0-1）。
+ * 返回 `undefined` = 这个 id 根本不存在。
+ */
+async function resolveRootId(id: number): Promise<number | undefined> {
+  const row = (await db('maps').where({ id }).select('root_id').first()) as
+    | { root_id: string | number }
+    | undefined;
+  return row ? Number(row.root_id) : undefined;
+}
+
+/** 血统内的版本行（活行），版本号倒序。`CAST` 前已排除 `'draft'`。 */
+async function versionRowsOfRoot(rootId: number): Promise<ProjectRow[]> {
+  return (await db<ProjectRow>('maps')
+    .where({ root_id: rootId })
+    .whereNot('version', 'draft')
+    .whereNull('deleted_at')
+    .orderByRaw('CAST(version AS integer) DESC')) as ProjectRow[];
 }
 
 /**
@@ -59,117 +88,105 @@ export async function listVersions(projectId: number): Promise<MapVersionSummary
  * version shares the original's `root_id`, and its own publishes belong to the
  * same list.
  */
-export async function listVersionsForRoot(
-  rootId: number,
-): Promise<Array<MapVersionRow & { project_name: string | null }>> {
-  return (await db('map_versions as v')
-    .join('maps as p', 'p.id', 'v.project_id')
-    .where('p.root_id', rootId)
-    .select('v.*', 'p.name as project_name')
-    .orderBy('v.version_no', 'desc')) as Array<MapVersionRow & { project_name: string | null }>;
+export async function listVersionsForRoot(rootId: number): Promise<VersionRow[]> {
+  const rows = await versionRowsOfRoot(rootId);
+  return rows.map((row) => ({ ...row, project_name: row.name }));
+}
+
+/** `:id` → 该血统的版本行（活行）。 */
+export async function listVersions(id: number): Promise<MapVersionSummary[]> {
+  const rootId = await resolveRootId(id);
+  if (rootId === undefined) return [];
+  return (await versionRowsOfRoot(rootId)).map(toSummary);
 }
 
 /**
  * OPT-G01 (docs/v0.4.0.md §2): the version detail carries the map name too, so
- * the preview page can title itself with it (version as a badge).
+ * the preview page can title itself with it. v0.5.8: 名字就是这一行自己的
+ * 快照名。
+ *
+ * 两个口径必须分开（设计 §5 与 §5.1）：
+ *
+ * - {@link getVersion} **过滤** `deleted_at`，供版本详情 API 用 —— 软删行的
+ *   直达入口也要 404（「不可见」包含直达链接）。
+ * - {@link findVersionRow} **不过滤**，供 fork 源、谜题 / 游戏的快照提升用 ——
+ *   过滤只管可见性，不管「这行数据还在不在」。
  */
 export async function getVersion(
-  projectId: number,
+  id: number,
   versionNo: number,
-): Promise<(MapVersionRow & { project_name: string | null }) | undefined> {
-  const row = await db('map_versions as v')
-    .join('maps as p', 'p.id', 'v.project_id')
-    .where({ 'v.project_id': projectId, 'v.version_no': versionNo })
-    .select('v.*', 'p.name as project_name')
-    .first();
-  return row as (MapVersionRow & { project_name: string | null }) | undefined;
+): Promise<VersionRow | undefined> {
+  return findVersionRow(id, versionNo, { includeDeleted: false });
 }
 
-export async function countVersions(projectId: number): Promise<number> {
-  const row = await db('map_versions').where({ project_id: projectId }).count('id as count').first();
-  return Number((row as { count?: string | number } | undefined)?.count ?? 0);
-}
-
-/** Every version row belonging to one lineage, keyed by its owner project id. */
-export async function listLineageVersions(
-  rootId: number,
-): Promise<Array<{ project_id: number; version_no: number; snapshot_created_at: Date | string }>> {
-  const rows = (await db('map_versions as v')
-    .join('maps as p', 'p.id', 'v.project_id')
-    .where('p.root_id', rootId)
-    .select('v.project_id', 'v.version_no', 'v.snapshot_created_at')
-    .orderBy('v.version_no', 'desc')) as Array<{
-    project_id: string | number;
-    version_no: number;
-    snapshot_created_at: Date | string;
-  }>;
-  return rows.map((row) => ({
-    project_id: Number(row.project_id),
-    version_no: row.version_no,
-    snapshot_created_at: row.snapshot_created_at,
-  }));
+/** 不过滤软删：fork 源 / 谜题 / 游戏引用读取用（§5.1）。 */
+export async function findVersionRow(
+  id: number,
+  versionNo: number,
+  options: { includeDeleted: boolean } = { includeDeleted: true },
+): Promise<VersionRow | undefined> {
+  const rootId = await resolveRootId(id);
+  if (rootId === undefined) return undefined;
+  const query = db<ProjectRow>('maps').where({ root_id: rootId, version: String(versionNo) });
+  if (!options.includeDeleted) query.whereNull('deleted_at');
+  const row = (await query.first()) as ProjectRow | undefined;
+  return row ? { ...row, project_name: row.name } : undefined;
 }
 
 /**
- * SPEC-K11 + Q3 = B: the next version number of the **whole lineage**. Without
- * this, a map forked from `v3` would publish its first revision as `v1`.
+ * SPEC-K11 + Q3 = B: the next version number of the **whole lineage**. 软删行
+ * 也算 —— 号不回收（否则删掉 v3 再发布会重新产出 v3，与谜题快照对不上）。
  */
 export async function nextVersionNo(rootId: number): Promise<number> {
-  const row = await db('map_versions as v')
-    .join('maps as p', 'p.id', 'v.project_id')
-    .where('p.root_id', rootId)
-    .max('v.version_no as max')
-    .first();
-  const max = Number((row as { max?: string | number | null } | undefined)?.max ?? 0);
-  return max + 1;
+  const result = await db.raw(
+    "SELECT COALESCE(MAX(CAST(version AS integer)), 0) AS max FROM maps WHERE root_id = ? AND version <> 'draft'",
+    [rootId],
+  );
+  const row = (result.rows[0] ?? {}) as { max?: string | number | null };
+  return Number(row.max ?? 0) + 1;
+}
+
+/** 血统内该版本号是否已被占用（含软删行）。 */
+export async function versionNoTaken(rootId: number, versionNo: number): Promise<boolean> {
+  const row = await db('maps')
+    .where({ root_id: rootId, version: String(versionNo) })
+    .first('id');
+  return Boolean(row);
 }
 
 export interface CreateVersionData {
-  projectId: number;
+  /** 发布源 —— 必须是草稿行。 */
+  owner: ProjectRow;
   versionNo: number;
   data: MapDraft;
 }
 
 export async function createVersion(data: CreateVersionData): Promise<MapVersionSummary> {
-  return db.transaction(async (trx) => {
-    const [row] = (await trx('map_versions')
-      .insert({
-        project_id: data.projectId,
-        version_no: data.versionNo,
-        data: data.data,
-      })
-      .returning('*')) as MapVersionRow[];
-
-    await trx('maps')
-      .where({ id: data.projectId })
-      .update({
-        current_version_no: data.versionNo,
-        status: 'published',
-        updated_at: trx.fn.now(),
-      });
-
-    return toSummary(row!);
-  });
+  // 发布 = INSERT 一条新 `maps` 行：name / description / cover 从此刻起是
+  // **真实快照**（合并前版本条目只能借用工作条目的当前值，§5）。
+  const [row] = (await db<ProjectRow>('maps')
+    .insert({
+      root_id: data.owner.root_id,
+      name: data.owner.name,
+      description: data.owner.description,
+      cover_path: data.owner.cover_path,
+      data: data.data,
+      version: String(data.versionNo),
+    })
+    .returning('*')) as ProjectRow[];
+  return toSummary(row!);
 }
 
-/** FEAT-503: delete one published version and keep the owner's pointer in sync. */
-export async function deleteVersion(projectId: number, versionNo: number): Promise<boolean> {
-  return db.transaction(async (trx) => {
-    const affected = await trx('map_versions')
-      .where({ project_id: projectId, version_no: versionNo })
-      .del();
-    if (affected === 0) return false;
-
-    const remaining = await trx('map_versions')
-      .where({ project_id: projectId })
-      .max('version_no as max')
-      .first();
-    const max = Number((remaining as { max?: string | number | null } | undefined)?.max ?? 0);
-    await trx('maps').where({ id: projectId }).update({
-      current_version_no: max > 0 ? max : null,
-      status: max > 0 ? 'published' : 'draft',
-      updated_at: trx.fn.now(),
-    });
-    return true;
-  });
+/**
+ * FEAT-503: 删版本 = **软删**（`deleted_at`），界面不再展示，但行还在、号仍占
+ * MAX、谜题引用仍可解析（设计 §2）。
+ */
+export async function deleteVersion(id: number, versionNo: number): Promise<boolean> {
+  const rootId = await resolveRootId(id);
+  if (rootId === undefined) return false;
+  const affected = await db('maps')
+    .where({ root_id: rootId, version: String(versionNo) })
+    .whereNull('deleted_at')
+    .update({ deleted_at: db.fn.now() });
+  return affected > 0;
 }

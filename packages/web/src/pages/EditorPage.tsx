@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -58,7 +58,7 @@ import { RegionSelectionBar } from '@/components/editor/RegionSelectionBar';
 import { VersionHistoryDialog } from '@/components/editor/VersionHistoryDialog';
 import { useItems } from '@/hooks/useItems';
 import { useProjectMap, useSaveMap, useUpdateGridSize, useImportMap } from '@/hooks/useMap';
-import { usePublishProject, useVersions } from '@/hooks/useVersions';
+import { usePublishProject, useForkVersion, useVersionDetail, useVersions } from '@/hooks/useVersions';
 import { useEditorPublish } from '@/hooks/useEditorPublish';
 import { useEditorResize } from '@/hooks/useEditorResize';
 import { useEditorSave } from '@/hooks/useEditorSave';
@@ -91,17 +91,36 @@ interface RegionDialogState {
 export function EditorPage(): JSX.Element {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const id = Number(projectId);
+
+  /**
+   * v0.5.8 §13: `?v={n}` = 「以此为底稿新建」的 fork 态 —— 版本条目从列表
+   * 直达这里，快照装进本地 store，**保存时才生成草稿**。没有 `?v=` 就是
+   * 普通的工作条目编辑。
+   */
+  const forkFrom = useMemo(() => {
+    const raw = searchParams.get('v');
+    const parsed = raw === null ? Number.NaN : Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
 
   const editor = useEditorStore();
 
   const mapQuery = useProjectMap(id);
   const itemsQuery = useItems({ isActive: true });
   const versionsQuery = useVersions(Number.isFinite(id) ? id : null);
+  /**
+   * v0.5.8 §13: fork 态的数据源是**版本快照**，不是工作条目草稿 —— 草稿可能
+   * 还没初始化（`null`），而能发布出去的版本必然带完整 data。
+   */
+  const versionQuery = useVersionDetail(forkFrom !== null && Number.isFinite(id) ? id : null, forkFrom);
   const saveMutation = useSaveMap();
   const resizeMutation = useUpdateGridSize();
   const importMutation = useImportMap();
   const publishMutation = usePublishProject(id);
+  /** fork 态的保存 mutation：不自己跳转，由 {@link persist} 收尾。 */
+  const forkSaveMutation = useForkVersion({ navigate: false });
   const leaveGuard = useUnsavedChangesGuard(editor.dirty);
 
   const canvasRef = useRef<EditorCanvasHandle | null>(null);
@@ -167,18 +186,62 @@ export function EditorPage(): JSX.Element {
    * only what is specific to the map editor: the 基本信息 form, the FIX-F03
    * first-entry save, the canvas callbacks and the dialogs' JSX.
    */
-  const { persist, save, saving, saveMaskVisible } = useEditorSave({
-    id,
-    mutation: saveMutation,
-    buildPayload: () => ({ data: editor.toDraft(), updatedAt: editor.updatedAt }),
-    onSaved: (data) => {
-      editor.markSaved(data.updatedAt ?? new Date().toISOString());
-      editor.setVersionInfo({
-        currentVersionNo: data.project.currentVersionNo,
-        status: data.project.status,
+  const { persist: persistDraft, save: saveDraft, saving: savePending, saveMaskVisible } =
+    useEditorSave({
+      id,
+      mutation: saveMutation,
+      buildPayload: () => ({ data: editor.toDraft(), updatedAt: editor.updatedAt }),
+      onSaved: (data) => {
+        editor.markSaved(data.updatedAt ?? new Date().toISOString());
+        editor.setVersionInfo({
+          currentVersionNo: data.project.currentVersionNo,
+          status: data.project.status,
+        });
+      },
+    });
+
+  /**
+   * v0.5.8 §13: fork 态的保存 = 「fork 一行新草稿（带上编辑器当前画布）→ 把
+   * store 标记成已保存 → replace 到新行的编辑器 URL」。换 URL 而不是留在原地
+   * 是因为此后所有操作（再保存 / 发布 / 调整尺寸）都必须落在新行 id 上；
+   * replace 不留历史，用户按返回不会回到这个中间态。
+   *
+   * 没保存就离开 → 什么都没发生（这正是「保存时才生成草稿」的意义）。
+   */
+  const forkAndSave = async (): Promise<boolean> => {
+    if (forkFrom === null || forkSaveMutation.isPending) return false;
+    try {
+      const project = await forkSaveMutation.mutateAsync({
+        id,
+        versionNo: forkFrom,
+        data: editor.toDraft(),
       });
-    },
-  });
+      editor.markSaved(project.updatedAt);
+      editor.setVersionInfo({
+        currentVersionNo: project.currentVersionNo,
+        status: project.status,
+      });
+      // 换 URL 必须等 React 把 dirty=false flush 掉：`useBlocker` 的判定读的是
+      // 渲染闭包里的 dirty，同一 continuation 里 navigate 会拿旧值把自己拦下
+      // （弹「有未保存更改」）。setTimeout(0) 落在 flush 之后。
+      window.setTimeout(() => navigate(`/maps/${project.id}/edit`, { replace: true }), 0);
+      return true;
+    } catch {
+      /* errors surfaced via mutation toasts */
+      return false;
+    }
+  };
+
+  const persist = async (): Promise<boolean> =>
+    forkFrom !== null ? forkAndSave() : persistDraft();
+
+  const save = (): void => {
+    void persist();
+  };
+
+  /** fork 期间也亮保存中（mask + 按钮禁用），两次写入用户眼里是一次保存。 */
+  const saving = savePending || forkSaveMutation.isPending;
+  const maskVisible = saveMaskVisible || forkSaveMutation.isPending;
 
   const {
     resizeOpen,
@@ -203,11 +266,14 @@ export function EditorPage(): JSX.Element {
   const {
     publishOpen,
     setPublishOpen,
-    publishedVersion,
-    setPublishedVersion,
     violations,
     setViolations,
     nextVersionNo,
+    versionInput,
+    setVersionInput,
+    versionError,
+    setVersionError,
+    validateVersion,
     openPublishConfirm,
     confirmPublish,
   } = useEditorPublish({
@@ -218,6 +284,25 @@ export function EditorPage(): JSX.Element {
     persist,
     publishMutation,
   });
+
+  /**
+   * v0.5.8 §13: fork 态点「发布」= 先落盘成草稿，再请用户点一次发布。发布
+   * 必须发生在**新行**上，而 `publishMutation` 在 hook 创建时就绑定了旧 id
+   * （工作条目），fork 后它的上下文已经过期 —— 与其把发布链路整个挪进
+   * continuation（闭包里的 id / versions 全是旧的），不如让用户在新编辑器里
+   * 再点一次，状态全部是新的。
+   */
+  const handlePublishClick = (): void => {
+    if (forkFrom === null) {
+      openPublishConfirm();
+      return;
+    }
+    void (async () => {
+      if (await persist()) {
+        toast.success('已生成草稿', { description: '请再次点击「发布」' });
+      }
+    })();
+  };
 
   /**
    * BUG-G01 (docs/v0.4.0.md §1): a click on a cell writes **both** `selection`
@@ -238,7 +323,39 @@ export function EditorPage(): JSX.Element {
     }
   }, [editor.selection, editor.selectedRegionId, mapInfoOpen]);
 
+  /**
+   * v0.5.8 §13: fork 态（`?v={n}`）整段让位给版本快照 —— 快照是已发布版本
+   * 的完整 data，装进本地 store 即可开改，**不写任何库表**。草稿删除 /
+   * 未初始化都不影响这条路：数据源是 `map_versions` 行，不是工作条目。
+   */
   useEffect(() => {
+    if (forkFrom !== null) {
+      const snapshot = versionQuery.data;
+      if (!snapshot) return;
+      const action = resolveEditorInit({
+        loadedProjectId: initKeyRef.current,
+        projectId: id,
+        storedUpdatedAt: editor.updatedAt,
+        fetchedUpdatedAt: snapshot.publishedAt,
+        storedVersionNo: editor.currentVersionNo,
+        fetchedVersionNo: snapshot.versionNo,
+        storedStatus: editor.status,
+        fetchedStatus: 'draft',
+      });
+      if (action === 'none') return;
+      if (action === 'sync-version') {
+        editor.setVersionInfo({ currentVersionNo: snapshot.versionNo, status: 'draft' });
+        return;
+      }
+      initKeyRef.current = id;
+      editor.init(id, snapshot.data, {
+        updatedAt: snapshot.publishedAt,
+        currentVersionNo: snapshot.versionNo,
+        status: 'draft',
+      });
+      return;
+    }
+
     const data = mapQuery.data;
     if (!data) return;
     /**
@@ -277,7 +394,7 @@ export function EditorPage(): JSX.Element {
       currentVersionNo: data.project.currentVersionNo,
       status: data.project.status,
     });
-  }, [mapQuery.data, id, editor]);
+  }, [forkFrom, versionQuery.data, mapQuery.data, id, editor]);
 
   /**
    * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a form, so
@@ -512,10 +629,12 @@ export function EditorPage(): JSX.Element {
     onKey: handleEditorKey,
   });
 
-  if (!Number.isFinite(id) || mapQuery.isError) {
+  // v0.5.8 §13: fork 态的 `?v=` 指向一个不存在的版本时也要走错误态 ——
+  // 否则 versionQuery 永远不 resolve，页面转圈到天荒地老。
+  if (!Number.isFinite(id) || mapQuery.isError || (forkFrom !== null && versionQuery.isError)) {
     return (
       <EditorErrorState
-        message="地图不存在或加载失败。"
+        message={forkFrom !== null ? '地图版本不存在或加载失败。' : '地图不存在或加载失败。'}
         backLabel="返回地图列表"
         onBack={() => navigate('/projects')}
       />
@@ -524,15 +643,19 @@ export function EditorPage(): JSX.Element {
 
   const project = mapQuery.data?.project;
 
-  if (mapQuery.isLoading || !project) {
+  // v0.5.8 §13: fork 态还要多等一个版本快照（数据源换成 map_versions 行）。
+  if (mapQuery.isLoading || !project || (forkFrom !== null && versionQuery.isLoading)) {
     return <EditorLoadingState />;
   }
 
   /**
    * v0.5.8 §3: 没初始化过的地图没有画布可渲染 —— 整个页面主体让位给初始化
    * 弹窗（所有 hooks 都已在上面跑完，这里的提前返回不违反 hooks 规则）。
+   *
+   * v0.5.8 §13: fork 态跳过这条 —— 画布来自版本快照（必然带 data），与工作
+   * 条目草稿初始化与否无关。
    */
-  if (mapQuery.data?.draft == null) {
+  if (forkFrom === null && mapQuery.data?.draft == null) {
     return (
       <MapInitDialog
         mapName={project.name}
@@ -547,6 +670,17 @@ export function EditorPage(): JSX.Element {
     <div className="flex h-screen flex-col overflow-hidden">
       <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
+      {/* v0.5.8 §13: fork 态横幅 —— 用户必须随时知道「我现在改的是旧版本的
+          副本，没保存就不落库，保存后会另存一条草稿」。 */}
+      {forkFrom !== null ? (
+        <div className="flex items-center gap-2 border-b bg-secondary/50 px-4 py-1.5 text-xs text-muted-foreground">
+          <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
+            基于 v{forkFrom}
+          </span>
+          正在基于已发布版本编辑 · 保存后将生成新草稿（不会改动原版本）
+        </div>
+      ) : null}
+
       <EditorToolbar
         projectName={project.name}
         dirty={editor.dirty}
@@ -556,7 +690,7 @@ export function EditorPage(): JSX.Element {
         currentVersionNo={editor.currentVersionNo}
         onBack={() => navigate('/projects')}
         onSave={save}
-        onPublish={openPublishConfirm}
+        onPublish={handlePublishClick}
         onOpenVersions={() => setVersionsOpen(true)}
         mapInfoOpen={mapInfoOpen}
         onOpenMapInfo={() => {
@@ -779,7 +913,7 @@ export function EditorPage(): JSX.Element {
         onOpenChange={setVersionsOpen}
         currentVersionNo={editor.currentVersionNo}
         onPreview={({ projectId: ownerId, versionNo }) =>
-          navigate(`/maps/${ownerId}/${versionNo}/view`)
+          navigate(`/maps/${ownerId}/views?v=${versionNo}`)
         }
       />
 
@@ -930,8 +1064,8 @@ export function EditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* SPEC-K13 §7.4: 发布前确认（v0.5.8 去掉备注输入框，改为二次确认文本；
-          dirty 时分形态为「保存并发布」） */}
+      {/* SPEC-K13 §7.4: 发布前确认（v0.5.8 去掉备注输入框；v0.5.8 第三阶段把
+          版本号变成可填的输入框，默认血统 MAX+1；dirty 时分形态为「保存并发布」） */}
       <AlertDialog
         open={publishOpen}
         onOpenChange={(open) => {
@@ -940,12 +1074,34 @@ export function EditorPage(): JSX.Element {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>发布为 v{nextVersionNo}？</AlertDialogTitle>
+            <AlertDialogTitle>
+              发布为 v{versionInput.trim() === '' ? nextVersionNo : versionInput.trim()}？
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              将新增一个带 v{nextVersionNo} 标记的地图条目，出现在地图列表中；当前工作条目不会被覆盖，
-              你可以继续编辑并发布下一版。发布后该版本不可修改。
+              将新增一个带 v{versionInput.trim() === '' ? nextVersionNo : versionInput.trim()}{' '}
+              标记的地图条目，出现在地图列表中；当前工作条目不会被覆盖，你可以继续编辑并发布下一版。
+              发布后该版本不可修改。
             </AlertDialogDescription>
           </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <label htmlFor="publish-version" className="text-sm font-medium">
+              版本号
+            </label>
+            <Input
+              id="publish-version"
+              inputMode="numeric"
+              value={versionInput}
+              disabled={publishMutation.isPending}
+              onChange={(event) => {
+                setVersionInput(event.target.value);
+                setVersionError(null);
+              }}
+              onBlur={() => setVersionError(validateVersion(versionInput))}
+            />
+            <p className={versionError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
+              {versionError ?? `默认 v${nextVersionNo}，可改成任意正整数（不必连续）。`}
+            </p>
+          </div>
           {editor.dirty ? (
             <p className="text-xs text-muted-foreground">有未保存的修改，将先保存再发布。</p>
           ) : null}
@@ -973,41 +1129,6 @@ export function EditorPage(): JSX.Element {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* SPEC-K10 §7.2: 发布成功 → 「查看该条目」与「预览」两个去处 */}
-      <Dialog
-        open={publishedVersion !== null}
-        onOpenChange={(open) => !open && setPublishedVersion(null)}
-      >
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>已发布 v{publishedVersion?.versionNo ?? ''}</DialogTitle>
-            <DialogDescription>已在地图列表新增条目，可直接预览或前往地图列表管理。</DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setPublishedVersion(null);
-                navigate('/projects');
-              }}
-            >
-              查看该条目
-            </Button>
-            <Button
-              onClick={() => {
-                const version = publishedVersion;
-                setPublishedVersion(null);
-                if (version) {
-                  navigate(`/maps/${id}/${version.versionNo}/view`);
-                }
-              }}
-            >
-              预览
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <AlertDialog open={violations !== null} onOpenChange={(open) => !open && setViolations(null)}>
         <AlertDialogContent>

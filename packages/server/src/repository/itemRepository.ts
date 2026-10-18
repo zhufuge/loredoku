@@ -174,10 +174,11 @@ export interface ProcessedImageAlias {
 
 export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Promise<void> {
   const projects = (await trx('maps')
-    .whereNotNull('draft_data')
-    .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: unknown }>;
+    .where('version', 'draft')
+    .whereNotNull('data')
+    .select('id', 'data')) as Array<{ id: string | number; data: unknown }>;
   for (const project of projects) {
-    const draft = project.draft_data as MapDraft | null;
+    const draft = project.data as MapDraft | null;
     if (!draft?.cells) continue;
     let changed = false;
     for (const key of Object.keys(draft.cells)) {
@@ -195,7 +196,7 @@ export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Pr
     if (changed) {
       await trx('maps')
         .where({ id: project.id })
-        .update({ draft_data: draft, draft_updated_at: trx.fn.now() });
+        .update({ data: draft, draft_updated_at: trx.fn.now() });
     }
   }
 }
@@ -236,16 +237,17 @@ export async function isReferenced(id: number): Promise<boolean> {
 
 export async function getUsages(itemId: number): Promise<ItemUsage[]> {
   const projects = (await db('maps')
-    .whereNotNull('draft_data')
-    .select('id', 'name', 'draft_data')) as Array<{
+    .where('version', 'draft')
+    .whereNotNull('data')
+    .select('id', 'name', 'data')) as Array<{
     id: string | number;
     name: string;
-    draft_data: MapDraft | null;
+    data: MapDraft | null;
   }>;
 
   const usages: ItemUsage[] = [];
   for (const project of projects) {
-    const draft = project.draft_data;
+    const draft = project.data;
     if (!draft?.cells) continue;
     const cells: Array<{ x: number; y: number }> = [];
     for (const key of Object.keys(draft.cells)) {

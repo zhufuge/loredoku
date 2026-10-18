@@ -24,7 +24,7 @@ describe('GamePage (FEAT-G03)', () => {
     // It must not live inside the AppShell children array.
     const shellChildren = routerSource.slice(
       routerSource.indexOf('element: <AppShell />'),
-      routerSource.indexOf("path: '/editor/:projectId'"),
+      routerSource.indexOf("path: '/maps/:projectId/edit'"),
     );
     expect(shellChildren).not.toContain('GamePage');
   });

@@ -47,7 +47,7 @@ export function useUnsavedChangesGuard(dirty: boolean): UnsavedChangesGuard {
         const current = blockerRef.current;
         if (current.state === 'blocked') return;
         if (!dirtyRef.current) return;
-        if (window.location.pathname.startsWith('/editor')) {
+        if (window.location.pathname.startsWith('/maps/')) {
           console.warn('[useUnsavedChangesGuard] popstate fallback: forcing navigation back');
           navigate(-1);
         }

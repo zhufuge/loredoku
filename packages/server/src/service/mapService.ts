@@ -3,6 +3,7 @@ import type {
   DraftRegion,
   MapDraft,
   MapResponse,
+  ProjectRow,
   ResizeResult,
   SaveMapDraftInput,
 } from '@loredoku/shared';
@@ -10,6 +11,21 @@ import * as mapRepo from '../repository/mapRepository';
 import { toProject } from '../repository/projectRepository';
 import * as itemRepo from '../repository/itemRepository';
 import { AppError } from '../utils/AppError';
+
+/**
+ * v0.5.8 第三阶段（设计 §5.1）：合并后版本行也是合法的 `maps` 行，`/api/projects/:id`
+ * 的每个写入口都能直达它 —— 合并前它在另一张表，天然免疫。画布 / 尺寸 / 区域
+ * 一律只允许写草稿行。
+ */
+function assertWritable(row: ProjectRow | undefined): ProjectRow {
+  if (!row) {
+    throw AppError.notFound('地图不存在');
+  }
+  if (row.version !== 'draft') {
+    throw AppError.validation('已发布的版本不可修改');
+  }
+  return row;
+}
 
 async function assertValidReferences(draft: MapDraft, size: number): Promise<void> {
   for (const key of Object.keys(draft.cells)) {
@@ -73,10 +89,7 @@ export async function getMap(projectId: number): Promise<MapResponse> {
 }
 
 export async function saveMap(projectId: number, input: SaveMapDraftInput): Promise<MapResponse> {
-  const row = await mapRepo.getProjectRow(projectId);
-  if (!row) {
-    throw AppError.notFound('地图不存在');
-  }
+  assertWritable(await mapRepo.getProjectRow(projectId));
 
   // v0.5.8: 尺寸只信草稿自己带的（DB 列已删），越界由 assertValidReferences 按
   // 同一个值检查，两者不可能再不一致。
@@ -92,10 +105,14 @@ export async function saveMap(projectId: number, input: SaveMapDraftInput): Prom
     throw new AppError(ErrorCode.DRAFT_CONFLICT, '草稿已被其他会话修改，请刷新后重试');
   }
   const fresh = await mapRepo.getProjectRow(projectId);
-  return { project: toProject(fresh ?? row), draft: saved.draft, updatedAt: saved.updatedAt };
+  if (!fresh) {
+    throw AppError.notFound('地图不存在');
+  }
+  return { project: toProject(fresh), draft: saved.draft, updatedAt: saved.updatedAt };
 }
 
 export async function updateGridSize(projectId: number, gridSize: number): Promise<ResizeResult> {
+  assertWritable(await mapRepo.getProjectRow(projectId));
   const outcome = await mapRepo.resizeDraft(projectId, gridSize);
   if (!outcome || outcome.record.draft === null) {
     throw AppError.notFound('地图不存在');
@@ -114,10 +131,7 @@ export async function exportMap(projectId: number): Promise<MapDraft> {
 }
 
 export async function importMap(projectId: number, data: MapDraft): Promise<MapResponse> {
-  const row = await mapRepo.getProjectRow(projectId);
-  if (!row) {
-    throw AppError.notFound('地图不存在');
-  }
+  const row = assertWritable(await mapRepo.getProjectRow(projectId));
   await assertValidReferences(data, data.gridSize);
   assertNoRegionOverlap(data.regions);
   const saved = await mapRepo.overwriteDraft(projectId, data);
@@ -138,6 +152,7 @@ export async function createRegion(
   projectId: number,
   input: Omit<DraftRegion, 'id'> & { id?: string },
 ): Promise<DraftRegion> {
+  assertWritable(await mapRepo.getProjectRow(projectId));
   const record = await mapRepo.getDraft(projectId);
   if (!record) {
     throw AppError.notFound('地图不存在');
@@ -162,6 +177,7 @@ export async function updateRegion(
   regionId: string,
   patch: Partial<Omit<DraftRegion, 'id'>>,
 ): Promise<DraftRegion> {
+  assertWritable(await mapRepo.getProjectRow(projectId));
   const record = await mapRepo.getDraft(projectId);
   if (!record) {
     throw AppError.notFound('地图不存在');
@@ -188,6 +204,7 @@ export async function updateRegion(
 }
 
 export async function deleteRegion(projectId: number, regionId: string): Promise<void> {
+  assertWritable(await mapRepo.getProjectRow(projectId));
   const removed = await mapRepo.deleteRegion(projectId, regionId);
   if (!removed) {
     throw AppError.notFound('区域不存在');

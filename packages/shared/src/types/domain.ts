@@ -48,14 +48,21 @@ export interface Project {
   description: string | null;
   /**
    * v0.5.8: no longer a column — the canvas size lives in the draft
-   * (`draft_data.gridSize`). `null` = 尚未初始化（创建时不再填尺寸，第一次
+   * (`data.gridSize`). `null` = 尚未初始化（创建时不再填尺寸，第一次
    * 进编辑器时由初始化弹窗写入）。
    */
   gridSize: number | null;
   coverPath: string | null;
   coverUrl: string | null;
+  /**
+   * v0.5.8 第三阶段：`status` / `currentVersionNo` 都不再是列，由 `version`
+   * 推导（字段名保留，前端零改动）。血统里没有版本行时 `status = 'draft'`。
+   */
   status: ProjectStatus;
+  /** 血统内最高版本号（含软删行）；没有版本行时为 `null`。 */
   currentVersionNo: number | null;
+  /** 该行自己的版本号：版本行 = `Number(version)`，草稿行 = `null`。 */
+  versionNo: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -278,7 +285,10 @@ export interface MapVersionDetail extends MapVersionSummary {
  * the row that owns it — that is what 「编辑此版本」 forks from.
  */
 export interface MapVersionEntry extends MapVersionSummary {
-  /** The `maps.id` this version belongs to. */
+  /**
+   * v0.5.8 第三阶段：版本行自己就是 `maps` 行，所以这里就是**版本行 id**
+   * （合并前是「拥有它的工作条目 id」）。
+   */
   projectId: number;
 }
 
@@ -302,13 +312,16 @@ export interface PublishedMapVersion {
  * the same blood lineage. Q3 = B: lineage is keyed by `maps.root_id`.
  */
 export interface MapEntrySummary {
-  /** The entry's own id: work entry = `maps.id`; version entry = `map_versions.id`. */
+  /** 条目自己的 `maps.id`（草稿行与版本行都是 `maps` 行）。 */
   id: number;
-  /** `'draft'` work entry | `'version'` version entry. */
+  /** `'draft'` 工作条目 | `'version'` 版本条目（由 `version` 列判定）。 */
   kind: 'draft' | 'version';
   /** Blood-lineage root (`maps.root_id`); the list groups by it. */
   rootId: number;
-  /** The owning `maps.id` (the work entry itself, or the version's owner). */
+  /**
+   * v0.5.8 第三阶段：版本行与草稿行同表，所以这里与 `id` 相同。保留字段是
+   * 为了 URL 拼装（`/maps/{projectId}/edit`）在合并前后一字不改。
+   */
   projectId: number;
   /** Version number for version entries; `null` for work entries. */
   versionNo: number | null;

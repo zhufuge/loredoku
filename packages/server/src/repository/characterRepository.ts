@@ -175,7 +175,7 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
  * be referenced in **two** places while stored data ages:
  *
  * - `puzzles.data.characterSlots` — where it lives now;
- * - `maps.draft_data.characterSlots` — v0.4.x drafts, still in the
+ * - `maps.data.characterSlots` — v0.4.x drafts, still in the
  *   database (the reader ignores them, but they must not keep a dangling
  *   character id after a hard delete).
  */
@@ -197,17 +197,18 @@ export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number
   }
 
   const projects = (await trx('maps')
-    .whereNotNull('draft_data')
-    .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: unknown }>;
+    .where('version', 'draft')
+    .whereNotNull('data')
+    .select('id', 'data')) as Array<{ id: string | number; data: unknown }>;
   for (const project of projects) {
-    const record = asRecord(project.draft_data);
+    const record = asRecord(project.data);
     if (!record) continue;
     const slots = readLegacyCharacterSlots(record);
     if (slots.length === 0) continue;
     const next = slots.map((slot) => (slot && slot.characterId === id ? null : slot));
     if (JSON.stringify(next) === JSON.stringify(slots)) continue;
     await trx('maps').where({ id: project.id }).update({
-      draft_data: { ...record, characterSlots: next },
+      data: { ...record, characterSlots: next },
       draft_updated_at: trx.fn.now(),
     });
   }
@@ -254,14 +255,15 @@ export async function getUsages(characterId: number): Promise<CharacterUsage[]> 
   }
 
   const projects = (await db('maps')
-    .whereNotNull('draft_data')
-    .select('id', 'name', 'draft_data')) as Array<{
+    .where('version', 'draft')
+    .whereNotNull('data')
+    .select('id', 'name', 'data')) as Array<{
     id: string | number;
     name: string;
-    draft_data: unknown;
+    data: unknown;
   }>;
   for (const project of projects) {
-    const slots = readLegacyCharacterSlots(project.draft_data);
+    const slots = readLegacyCharacterSlots(project.data);
     if (!slots.some((slot) => slot?.characterId === characterId)) continue;
     usages.push({
       legacy: true,

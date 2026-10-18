@@ -31,7 +31,7 @@ describe('GamesPage (FEAT-G01)', () => {
     // It must not live inside the AppShell children array…
     const shellChildren = routerSource.slice(
       routerSource.indexOf('element: <AppShell />'),
-      routerSource.indexOf("path: '/editor/:projectId'"),
+      routerSource.indexOf("path: '/maps/:projectId/edit'"),
     );
     expect(shellChildren).not.toContain('GamesPage');
     // FEAT-L04 (v0.5.1 §4): the whole `/games` path is gone; only `/play`.
