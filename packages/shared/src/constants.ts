@@ -607,7 +607,7 @@ export const GAME_TOOL_MODES = ['forbidden', 'clearing'] as const;
 /** OPT-W04: the access path is `puzzle-` + slugified name + `-` + slugified difficulty. */
 export const GAME_SLUG_PREFIX = 'puzzle';
 export const GAME_SLUG_MIN_LENGTH = 3;
-/** Doubles as the DB column width of `map_games.slug`. */
+/** Doubles as the DB column width of `games.slug`. */
 export const GAME_SLUG_MAX_LENGTH = 80;
 /** Only lower-case letters, digits and single dashes — no unicode, no spaces. */
 export const GAME_SLUG_PATTERN = /^[a-z0-9-]+$/;

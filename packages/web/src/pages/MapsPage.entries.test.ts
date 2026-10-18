@@ -41,11 +41,14 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
     expect(grouping).toContain('(b.versionNo ?? 0) - (a.versionNo ?? 0),');
   });
 
-  it('routes version entries to preview / new-puzzle / fork', () => {
-    expect(pageSource).toContain('onPreview={(item) => navigate(`/maps/${item.projectId}/${item.versionNo}/view`)}');
-    expect(pageSource).toContain('navigate(`/puzzles?new=${item.projectId}:${item.versionNo}`)');
-    expect(pageSource).toContain('forkMutation.mutate({ id: item.projectId, versionNo: item.versionNo ?? 0 })');
-    expect(pageSource).toContain('import { useDeleteVersion, useForkVersion } from \'@/hooks/useVersions\';');
+  it('v0.5.8 §2: 两类条目共用同一组路由', () => {
+    // 预览对两类都存在：版本条目看自己，工作条目看血统最高版本。
+    expect(pageSource).toContain('const versionNo = entry.versionNo ?? entry.currentVersionNo;');
+    expect(pageSource).toContain('navigate(`/maps/${entry.projectId}/${versionNo}/view`);');
+    // 「新建谜题 / 编辑此版本」两个按 kind 分叉的入口已从列表页移除。
+    expect(pageSource).not.toContain('/puzzles?new=');
+    expect(pageSource).not.toContain('forkMutation');
+    expect(pageSource).toContain("import { useDeleteVersion } from '@/hooks/useVersions';");
   });
 
   it('deletes through two different endpoints by entry kind', () => {

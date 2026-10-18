@@ -22,7 +22,7 @@ import {
 import { ProjectGridCard } from '@/components/project/ProjectGridCard';
 import { ProjectListRow } from '@/components/project/ProjectListRow';
 import { useDeleteMap, useDuplicateMap, useMaps } from '@/hooks/useMaps';
-import { useDeleteVersion, useForkVersion } from '@/hooks/useVersions';
+import { useDeleteVersion } from '@/hooks/useVersions';
 
 const PAGE_SIZE = 12;
 
@@ -84,7 +84,6 @@ export function MapsPage(): JSX.Element {
   const deleteMutation = useDeleteMap();
   const deleteVersionMutation = useDeleteVersion();
   const duplicateMutation = useDuplicateMap();
-  const forkMutation = useForkVersion();
 
   const total = data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -113,6 +112,16 @@ export function MapsPage(): JSX.Element {
 
   const handleOpen = (entry: MapEntrySummary): void => {
     navigate(`/editor/${entry.projectId}`);
+  };
+
+  /**
+   * v0.5.8 §2: 两类条目共用「预览」—— 版本条目预览自己，工作条目预览血统里
+   * 最新的已发布版本；从没发布过的工作条目在 UI 上就是禁用的。
+   */
+  const handlePreview = (entry: MapEntrySummary): void => {
+    const versionNo = entry.versionNo ?? entry.currentVersionNo;
+    if (versionNo === null) return;
+    navigate(`/maps/${entry.projectId}/${versionNo}/view`);
   };
 
   const confirmDelete = (): void => {
@@ -186,15 +195,7 @@ export function MapsPage(): JSX.Element {
               onRename={setEditProject}
               onDuplicate={(item) => duplicateMutation.mutate(item.projectId)}
               onDelete={setDeleteTarget}
-              onPreview={(item) =>
-                navigate(`/maps/${item.projectId}/${item.versionNo}/view`)
-              }
-              onNewPuzzle={(item) =>
-                navigate(`/puzzles?new=${item.projectId}:${item.versionNo}`)
-              }
-              onEditVersion={(item) =>
-                forkMutation.mutate({ id: item.projectId, versionNo: item.versionNo ?? 0 })
-              }
+              onPreview={handlePreview}
             />
           ))}
         </Card>
@@ -211,13 +212,7 @@ export function MapsPage(): JSX.Element {
             onRename={setEditProject}
             onDuplicate={(item) => duplicateMutation.mutate(item.projectId)}
             onDelete={setDeleteTarget}
-            onPreview={(item) => navigate(`/maps/${item.projectId}/${item.versionNo}/view`)}
-            onNewPuzzle={(item) =>
-              navigate(`/puzzles?new=${item.projectId}:${item.versionNo}`)
-            }
-            onEditVersion={(item) =>
-              forkMutation.mutate({ id: item.projectId, versionNo: item.versionNo ?? 0 })
-            }
+            onPreview={handlePreview}
           />
         ))}
       </div>
@@ -350,7 +345,7 @@ export function MapsPage(): JSX.Element {
             <AlertDialogDescription>
               {deleteTarget && isVersionEntry(deleteTarget)
                 ? '该版本条目将被永久删除，引用它的谜题会失去这个画布版本。'
-                : '将同时删除画布上的所有卡片与区域，不可恢复。'}
+                : '将同时删除画布上的所有物品与区域，不可恢复。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

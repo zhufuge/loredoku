@@ -46,7 +46,12 @@ export interface Project {
   id: number;
   name: string;
   description: string | null;
-  gridSize: number;
+  /**
+   * v0.5.8: no longer a column — the canvas size lives in the draft
+   * (`draft_data.gridSize`). `null` = 尚未初始化（创建时不再填尺寸，第一次
+   * 进编辑器时由初始化弹窗写入）。
+   */
+  gridSize: number | null;
   coverPath: string | null;
   coverUrl: string | null;
   status: ProjectStatus;
@@ -233,15 +238,19 @@ export interface PuzzleDraft {
 
 export interface MapResponse {
   project: Project;
-  draft: MapDraft;
+  /**
+   * v0.5.8: `null` = 这张地图还没初始化（创建时不再写草稿）。编辑器据此弹
+   * 「初始化地图」弹窗：填尺寸，或导入一份地图。
+   */
+  draft: MapDraft | null;
   updatedAt: string | null;
 }
 
 export interface MapVersionSummary {
   id: number;
   versionNo: number;
+  /** v0.5.8: 列删了，从快照 `data.gridSize` 派生。 */
   gridSize: number;
-  notes: string | null;
   publishedAt: string;
   /**
    * Snapshot totals shown on the version-history panel (docs/v0.3.0.md
@@ -258,18 +267,18 @@ export interface MapVersionDetail extends MapVersionSummary {
   /**
    * OPT-G01 (docs/v0.4.0.md §2): the name of the map this version was
    * published from, so the preview page can title itself with the map name
-   * and show the version as a badge. Joined from `map_projects`.
+   * and show the version as a badge. Joined from `maps`.
    */
   projectName: string;
 }
 
 /**
  * SPEC-K13 §7.4 (docs/v0.5.0.md): one row of the editor's 版本历史 panel. With
- * Q3 = B a lineage spans several `map_projects` rows, so each version carries
+ * Q3 = B a lineage spans several `maps` rows, so each version carries
  * the row that owns it — that is what 「编辑此版本」 forks from.
  */
 export interface MapVersionEntry extends MapVersionSummary {
-  /** The `map_projects.id` this version belongs to. */
+  /** The `maps.id` this version belongs to. */
   projectId: number;
 }
 
@@ -282,30 +291,31 @@ export interface PublishedMapVersion {
   rootId: number;
   versionNo: number;
   mapName: string;
+  /** v0.5.8: 列删了，从快照 `data.gridSize` 派生。 */
   gridSize: number;
   publishedAt: string;
-  notes: string | null;
 }
 
 /**
  * FEAT-K09 (docs/v0.5.0.md §7.1): the map list shows a **union of entries** —
- * the work entry (`map_projects`) plus every version entry (`map_versions`) of
- * the same blood lineage. Q3 = B: lineage is keyed by `map_projects.root_id`.
+ * the work entry (`maps`) plus every version entry (`map_versions`) of
+ * the same blood lineage. Q3 = B: lineage is keyed by `maps.root_id`.
  */
 export interface MapEntrySummary {
-  /** The entry's own id: work entry = `map_projects.id`; version entry = `map_versions.id`. */
+  /** The entry's own id: work entry = `maps.id`; version entry = `map_versions.id`. */
   id: number;
   /** `'draft'` work entry | `'version'` version entry. */
   kind: 'draft' | 'version';
-  /** Blood-lineage root (`map_projects.root_id`); the list groups by it. */
+  /** Blood-lineage root (`maps.root_id`); the list groups by it. */
   rootId: number;
-  /** The owning `map_projects.id` (the work entry itself, or the version's owner). */
+  /** The owning `maps.id` (the work entry itself, or the version's owner). */
   projectId: number;
   /** Version number for version entries; `null` for work entries. */
   versionNo: number | null;
   name: string;
   description: string | null;
-  gridSize: number;
+  /** v0.5.8: 取自草稿 `gridSize`；未初始化的地图为 `null`。 */
+  gridSize: number | null;
   coverPath: string | null;
   coverUrl: string | null;
   status: ProjectStatus;
@@ -329,7 +339,7 @@ export interface PuzzleSummary {
   description: string | null;
   /** The referenced published map version — the 版本 column shows `v{n}`. */
   mapVersionNo: number;
-  /** The `map_projects.id` that owns that version. */
+  /** The `maps.id` that owns that version. */
   mapProjectId: number;
   /** That map's blood-lineage root. */
   mapRootId: number;

@@ -1,11 +1,15 @@
 import { randomUUID } from 'node:crypto';
-import { MAP_JSON_VERSION } from '@loredoku/shared';
+import { GRID_SIZE_DEFAULT, MAP_JSON_VERSION } from '@loredoku/shared';
 import { db } from '../db/knex';
 import type { DraftRegion, MapDraft, ProjectRow, ResizeRemoved } from '@loredoku/shared';
 import { absorbLegacyMapDraft } from '../service/mapDraftCompat';
 
 export interface DraftRecord {
-  draft: MapDraft;
+  /**
+   * v0.5.8: `null` = 这张地图还没初始化。`maps.grid_size` 删除后，创建地图
+   * 不再写任何草稿，第一次进编辑器时才由初始化弹窗（填尺寸 / 导入）写入。
+   */
+  draft: MapDraft | null;
   updatedAt: string | null;
 }
 
@@ -28,8 +32,13 @@ export function emptyDraft(gridSize: number): MapDraft {
  * are absorbed on every read rather than migrated in the database, so the
  * migration stays reversible and no bytes are rewritten.
  */
+/**
+ * v0.5.8: `maps.grid_size` 没了，一个从没初始化过的地图 `draft_data` 就是
+ * `null` —— 这个状态要一路透到前端，让编辑器弹初始化弹窗，所以这里不再用
+ * `emptyDraft()` 兜底（兜底会把「未初始化」伪装成「已有一个默认画布」）。
+ */
 function parseDraft(project: ProjectRow): DraftRecord {
-  const draft = (absorbLegacyMapDraft(project.draft_data) as MapDraft | null) ?? emptyDraft(project.grid_size);
+  const draft = absorbLegacyMapDraft(project.draft_data) as MapDraft | null;
   return {
     draft,
     updatedAt: project.draft_updated_at ? new Date(project.draft_updated_at).toISOString() : null,
@@ -37,7 +46,7 @@ function parseDraft(project: ProjectRow): DraftRecord {
 }
 
 export async function getProjectRow(projectId: number): Promise<ProjectRow | undefined> {
-  return db<ProjectRow>('map_projects').where({ id: projectId }).first();
+  return db<ProjectRow>('maps').where({ id: projectId }).first();
 }
 
 export async function getDraft(projectId: number): Promise<DraftRecord | undefined> {
@@ -57,7 +66,7 @@ export async function saveDraft(
   draft: MapDraft,
 ): Promise<DraftRecord | null | undefined> {
   return db.transaction(async (trx) => {
-    const row = (await trx('map_projects').where({ id: projectId }).forUpdate().first()) as
+    const row = (await trx('maps').where({ id: projectId }).forUpdate().first()) as
       | ProjectRow
       | undefined;
     if (!row) return undefined;
@@ -65,7 +74,7 @@ export async function saveDraft(
     const current = row.draft_updated_at ? new Date(row.draft_updated_at).toISOString() : null;
     if ((expectedUpdatedAt ?? null) !== current) return null;
 
-    const [updated] = (await trx('map_projects')
+    const [updated] = (await trx('maps')
       .where({ id: projectId })
       .update({
         draft_data: draft,
@@ -82,12 +91,12 @@ export async function resizeDraft(
   gridSize: number,
 ): Promise<ResizeOutcome | undefined> {
   return db.transaction(async (trx) => {
-    const row = (await trx('map_projects').where({ id: projectId }).forUpdate().first()) as
+    const row = (await trx('maps').where({ id: projectId }).forUpdate().first()) as
       | ProjectRow
       | undefined;
     if (!row) return undefined;
 
-    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(row.grid_size);
+    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(GRID_SIZE_DEFAULT);
     const removed: ResizeRemoved = {
       background: 0,
       object: 0,
@@ -134,10 +143,9 @@ export async function resizeDraft(
       ...(draft.style ? { style: draft.style } : {}),
     };
 
-    const [updated] = (await trx('map_projects')
+    const [updated] = (await trx('maps')
       .where({ id: projectId })
       .update({
-        grid_size: gridSize,
         draft_data: next,
         draft_updated_at: trx.fn.now(),
         updated_at: trx.fn.now(),
@@ -152,7 +160,7 @@ export async function resizeDraft(
 
 export async function listRegions(projectId: number): Promise<DraftRegion[]> {
   const record = await getDraft(projectId);
-  return record?.draft.regions ?? [];
+  return record?.draft?.regions ?? [];
 }
 
 export async function findRegion(
@@ -160,7 +168,7 @@ export async function findRegion(
   regionId: string,
 ): Promise<DraftRegion | undefined> {
   const record = await getDraft(projectId);
-  return record?.draft.regions.find((region) => region.id === regionId);
+  return record?.draft?.regions.find((region) => region.id === regionId);
 }
 
 export async function createRegion(
@@ -168,14 +176,14 @@ export async function createRegion(
   region: Omit<DraftRegion, 'id'> & { id?: string },
 ): Promise<DraftRegion | undefined> {
   return db.transaction(async (trx) => {
-    const row = (await trx('map_projects').where({ id: projectId }).forUpdate().first()) as
+    const row = (await trx('maps').where({ id: projectId }).forUpdate().first()) as
       | ProjectRow
       | undefined;
     if (!row) return undefined;
-    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(row.grid_size);
+    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(GRID_SIZE_DEFAULT);
     const created: DraftRegion = { ...region, id: region.id ?? `rg_${randomUUID().slice(0, 8)}` };
     draft.regions.push(created);
-    await trx('map_projects').where({ id: projectId }).update({
+    await trx('maps').where({ id: projectId }).update({
       draft_data: draft,
       draft_updated_at: trx.fn.now(),
       updated_at: trx.fn.now(),
@@ -190,15 +198,15 @@ export async function updateRegion(
   patch: Partial<Omit<DraftRegion, 'id'>>,
 ): Promise<DraftRegion | undefined> {
   return db.transaction(async (trx) => {
-    const row = (await trx('map_projects').where({ id: projectId }).forUpdate().first()) as
+    const row = (await trx('maps').where({ id: projectId }).forUpdate().first()) as
       | ProjectRow
       | undefined;
     if (!row) return undefined;
-    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(row.grid_size);
+    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(GRID_SIZE_DEFAULT);
     const region = draft.regions.find((item) => item.id === regionId);
     if (!region) return undefined;
     Object.assign(region, patch);
-    await trx('map_projects').where({ id: projectId }).update({
+    await trx('maps').where({ id: projectId }).update({
       draft_data: draft,
       draft_updated_at: trx.fn.now(),
       updated_at: trx.fn.now(),
@@ -209,15 +217,15 @@ export async function updateRegion(
 
 export async function deleteRegion(projectId: number, regionId: string): Promise<boolean> {
   return db.transaction(async (trx) => {
-    const row = (await trx('map_projects').where({ id: projectId }).first()) as
+    const row = (await trx('maps').where({ id: projectId }).first()) as
       | ProjectRow
       | undefined;
     if (!row) return false;
-    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(row.grid_size);
+    const draft = (row.draft_data as MapDraft | null) ?? emptyDraft(GRID_SIZE_DEFAULT);
     const before = draft.regions.length;
     draft.regions = draft.regions.filter((region) => region.id !== regionId);
     if (draft.regions.length === before) return false;
-    await trx('map_projects').where({ id: projectId }).update({
+    await trx('maps').where({ id: projectId }).update({
       draft_data: draft,
       draft_updated_at: trx.fn.now(),
       updated_at: trx.fn.now(),
@@ -231,14 +239,13 @@ export async function overwriteDraft(
   draft: MapDraft,
 ): Promise<DraftRecord | undefined> {
   return db.transaction(async (trx) => {
-    const row = (await trx('map_projects').where({ id: projectId }).first()) as
+    const row = (await trx('maps').where({ id: projectId }).first()) as
       | ProjectRow
       | undefined;
     if (!row) return undefined;
-    const [updated] = (await trx('map_projects')
+    const [updated] = (await trx('maps')
       .where({ id: projectId })
       .update({
-        grid_size: draft.gridSize,
         draft_data: draft,
         status: 'draft',
         draft_updated_at: trx.fn.now(),

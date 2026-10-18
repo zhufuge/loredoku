@@ -52,11 +52,12 @@ import {
   MapInfoDrawer,
   type MapInfoDrawerHandle,
 } from '@/components/editor/MapInfoDrawer';
+import { MapInitDialog } from '@/components/editor/MapInitDialog';
 import { RegionDialog } from '@/components/editor/RegionDialog';
 import { RegionSelectionBar } from '@/components/editor/RegionSelectionBar';
 import { VersionHistoryDialog } from '@/components/editor/VersionHistoryDialog';
 import { useItems } from '@/hooks/useItems';
-import { useProjectMap, useSaveMap, useUpdateGridSize } from '@/hooks/useMap';
+import { useProjectMap, useSaveMap, useUpdateGridSize, useImportMap } from '@/hooks/useMap';
 import { usePublishProject, useVersions } from '@/hooks/useVersions';
 import { useEditorPublish } from '@/hooks/useEditorPublish';
 import { useEditorResize } from '@/hooks/useEditorResize';
@@ -99,6 +100,7 @@ export function EditorPage(): JSX.Element {
   const versionsQuery = useVersions(Number.isFinite(id) ? id : null);
   const saveMutation = useSaveMap();
   const resizeMutation = useUpdateGridSize();
+  const importMutation = useImportMap();
   const publishMutation = usePublishProject(id);
   const leaveGuard = useUnsavedChangesGuard(editor.dirty);
 
@@ -107,10 +109,12 @@ export function EditorPage(): JSX.Element {
   const initKeyRef = useRef<number | null>(null);
   const mapInfoRef = useRef<MapInfoDrawerHandle | null>(null);
   /**
-   * FIX-F03: the project id whose 「地图基本信息」 has been auto-persisted on
-   * first entry. `null` = not done yet for the current project.
+   * v0.5.8: 「初始化地图」弹窗的两件事 —— 写尺寸进行中，以及「这次文件选择
+   * 来自初始化弹窗」（那条路直接调导入接口，不走「覆盖当前画布」的二次确认，
+   * 因为此时画布还是空的）。
    */
-  const basicInfoPersistedRef = useRef<number | null>(null);
+  const [initPending, setInitPending] = useState(false);
+  const initImportRef = useRef(false);
   /**
    * FEAT-E01: a drawer switch (or a close) that is waiting for the user to
    * decide what happens to unsaved 基本信息 edits.
@@ -199,8 +203,6 @@ export function EditorPage(): JSX.Element {
   const {
     publishOpen,
     setPublishOpen,
-    publishNotes,
-    setPublishNotes,
     publishedVersion,
     setPublishedVersion,
     violations,
@@ -240,6 +242,11 @@ export function EditorPage(): JSX.Element {
     const data = mapQuery.data;
     if (!data) return;
     /**
+     * v0.5.8: `draft === null` = 这张地图还没初始化。此时不 init、不保存 ——
+     * 页面主体让位给 {@link MapInitDialog}，由用户决定填尺寸还是导入。
+     */
+    if (data.draft === null) return;
+    /**
      * FIX-E01 (docs/v0.3.9.md §1): publishing bumps `currentVersionNo` /
      * `status` on the project row and invalidates this query, but it does **not**
      * touch the draft. Only a changed draft triggers a real re-init (which
@@ -270,25 +277,6 @@ export function EditorPage(): JSX.Element {
       currentVersionNo: data.project.currentVersionNo,
       status: data.project.status,
     });
-    /**
-     * FIX-F03 (docs/v0.3.10.md §3): a project whose 「地图基本信息」 has never
-     * been persisted has `draft.style === null` — the editor shows the resolved
-     * defaults but nothing is stored. Write the whole draft (defaults + canvas
-     * size) once, on first entry, so what the editor renders and what the draft
-     * holds are the same thing from now on.
-     *
-     * Guarded by a ref (once per project) and by the dirty flag, so a user who
-     * is already editing never gets an implicit save of their work-in-progress.
-     */
-    if (data.draft.style == null && basicInfoPersistedRef.current !== id) {
-      basicInfoPersistedRef.current = id;
-      const store = useEditorStore.getState();
-      if (!store.dirty) {
-        void (async () => {
-          if (await persist()) toast.success('已保存默认地图基本信息');
-        })();
-      }
-    }
   }, [mapQuery.data, id, editor]);
 
   /**
@@ -398,6 +386,22 @@ export function EditorPage(): JSX.Element {
     toast.success('已导入地图，可撤销');
   };
 
+  /**
+   * v0.5.8 §3: 初始化弹窗的「填尺寸」。复用改尺寸那条路 —— 服务端在草稿为
+   * 空时新建一份只带 `gridSize` 的草稿，成功后 query 失效重拉，`draft` 不再
+   * 是 `null`，页面主体随即渲染。
+   */
+  const handleInitSize = (gridSize: number): void => {
+    setInitPending(true);
+    resizeMutation.mutateAsync({ id, gridSize }).finally(() => setInitPending(false));
+  };
+
+  /** v0.5.8 §3: 初始化弹窗的「导入地图」—— 打开隐藏的文件选择框。 */
+  const handleInitImport = (): void => {
+    initImportRef.current = true;
+    importInputRef.current?.click();
+  };
+
   const handleImportFile = (event: ChangeEvent<HTMLInputElement>): void => {
     const file = event.target.files?.[0];
     event.target.value = '';
@@ -427,6 +431,12 @@ export function EditorPage(): JSX.Element {
         const result = mapDraftSchema.safeParse(parsed);
         if (!result.success) {
           toast.error('JSON 格式不正确');
+          return;
+        }
+        // 初始化流程：画布还是空的，没有「覆盖」可言，直接写入草稿。
+        if (initImportRef.current) {
+          initImportRef.current = false;
+          importMutation.mutate({ id, data: result.data as MapDraft });
           return;
         }
         setPendingImport(result.data as MapDraft);
@@ -516,6 +526,21 @@ export function EditorPage(): JSX.Element {
 
   if (mapQuery.isLoading || !project) {
     return <EditorLoadingState />;
+  }
+
+  /**
+   * v0.5.8 §3: 没初始化过的地图没有画布可渲染 —— 整个页面主体让位给初始化
+   * 弹窗（所有 hooks 都已在上面跑完，这里的提前返回不违反 hooks 规则）。
+   */
+  if (mapQuery.data?.draft == null) {
+    return (
+      <MapInitDialog
+        mapName={project.name}
+        pending={initPending || importMutation.isPending}
+        onInitSize={handleInitSize}
+        onImport={handleInitImport}
+      />
+    );
   }
 
   return (
@@ -905,7 +930,8 @@ export function EditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* SPEC-K13 §7.4: 发布前确认（含备注；dirty 时分形态为「保存并发布」） */}
+      {/* SPEC-K13 §7.4: 发布前确认（v0.5.8 去掉备注输入框，改为二次确认文本；
+          dirty 时分形态为「保存并发布」） */}
       <AlertDialog
         open={publishOpen}
         onOpenChange={(open) => {
@@ -917,21 +943,9 @@ export function EditorPage(): JSX.Element {
             <AlertDialogTitle>发布为 v{nextVersionNo}？</AlertDialogTitle>
             <AlertDialogDescription>
               将新增一个带 v{nextVersionNo} 标记的地图条目，出现在地图列表中；当前工作条目不会被覆盖，
-              你可以继续编辑并发布下一版。
+              你可以继续编辑并发布下一版。发布后该版本不可修改。
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="grid gap-2">
-            <label className="text-sm" htmlFor="publish-notes">
-              发布备注（可选）
-            </label>
-            <Input
-              id="publish-notes"
-              value={publishNotes}
-              placeholder="例如：修正了区域边界"
-              disabled={publishMutation.isPending}
-              onChange={(event) => setPublishNotes(event.target.value)}
-            />
-          </div>
           {editor.dirty ? (
             <p className="text-xs text-muted-foreground">有未保存的修改，将先保存再发布。</p>
           ) : null}

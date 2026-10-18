@@ -14,6 +14,7 @@ function summarizeData(raw: unknown): {
   participantCount: number;
   regionCount: number;
   itemCount: number;
+  gridSize: number;
 } {
   const draft = (absorbLegacyMapDraft(raw) ?? null) as MapDraft | null;
   const itemIds = new Set<number>();
@@ -27,6 +28,8 @@ function summarizeData(raw: unknown): {
     participantCount,
     regionCount: draft?.regions?.length ?? 0,
     itemCount: itemIds.size,
+    // v0.5.8: `grid_size` 列没了，尺寸从快照自身读。
+    gridSize: draft?.gridSize ?? 0,
   };
 }
 
@@ -34,8 +37,6 @@ function toSummary(row: MapVersionRow): MapVersionSummary {
   return {
     id: Number(row.id),
     versionNo: row.version_no,
-    gridSize: row.grid_size,
-    notes: row.notes,
     publishedAt: new Date(row.snapshot_created_at).toISOString(),
     ...summarizeData(row.data),
   };
@@ -54,7 +55,7 @@ export async function listVersions(projectId: number): Promise<MapVersionSummary
 
 /**
  * Q3 = B (docs/v0.5.0.md §7.1): the version history lists the **whole blood
- * lineage**, not just one `map_projects` row — a map forked from a published
+ * lineage**, not just one `maps` row — a map forked from a published
  * version shares the original's `root_id`, and its own publishes belong to the
  * same list.
  */
@@ -62,7 +63,7 @@ export async function listVersionsForRoot(
   rootId: number,
 ): Promise<Array<MapVersionRow & { project_name: string | null }>> {
   return (await db('map_versions as v')
-    .join('map_projects as p', 'p.id', 'v.project_id')
+    .join('maps as p', 'p.id', 'v.project_id')
     .where('p.root_id', rootId)
     .select('v.*', 'p.name as project_name')
     .orderBy('v.version_no', 'desc')) as Array<MapVersionRow & { project_name: string | null }>;
@@ -77,7 +78,7 @@ export async function getVersion(
   versionNo: number,
 ): Promise<(MapVersionRow & { project_name: string | null }) | undefined> {
   const row = await db('map_versions as v')
-    .join('map_projects as p', 'p.id', 'v.project_id')
+    .join('maps as p', 'p.id', 'v.project_id')
     .where({ 'v.project_id': projectId, 'v.version_no': versionNo })
     .select('v.*', 'p.name as project_name')
     .first();
@@ -94,7 +95,7 @@ export async function listLineageVersions(
   rootId: number,
 ): Promise<Array<{ project_id: number; version_no: number; snapshot_created_at: Date | string }>> {
   const rows = (await db('map_versions as v')
-    .join('map_projects as p', 'p.id', 'v.project_id')
+    .join('maps as p', 'p.id', 'v.project_id')
     .where('p.root_id', rootId)
     .select('v.project_id', 'v.version_no', 'v.snapshot_created_at')
     .orderBy('v.version_no', 'desc')) as Array<{
@@ -115,7 +116,7 @@ export async function listLineageVersions(
  */
 export async function nextVersionNo(rootId: number): Promise<number> {
   const row = await db('map_versions as v')
-    .join('map_projects as p', 'p.id', 'v.project_id')
+    .join('maps as p', 'p.id', 'v.project_id')
     .where('p.root_id', rootId)
     .max('v.version_no as max')
     .first();
@@ -126,9 +127,7 @@ export async function nextVersionNo(rootId: number): Promise<number> {
 export interface CreateVersionData {
   projectId: number;
   versionNo: number;
-  gridSize: number;
   data: MapDraft;
-  notes: string | null;
 }
 
 export async function createVersion(data: CreateVersionData): Promise<MapVersionSummary> {
@@ -137,13 +136,11 @@ export async function createVersion(data: CreateVersionData): Promise<MapVersion
       .insert({
         project_id: data.projectId,
         version_no: data.versionNo,
-        grid_size: data.gridSize,
         data: data.data,
-        notes: data.notes,
       })
       .returning('*')) as MapVersionRow[];
 
-    await trx('map_projects')
+    await trx('maps')
       .where({ id: data.projectId })
       .update({
         current_version_no: data.versionNo,
@@ -168,7 +165,7 @@ export async function deleteVersion(projectId: number, versionNo: number): Promi
       .max('version_no as max')
       .first();
     const max = Number((remaining as { max?: string | number | null } | undefined)?.max ?? 0);
-    await trx('map_projects').where({ id: projectId }).update({
+    await trx('maps').where({ id: projectId }).update({
       current_version_no: max > 0 ? max : null,
       status: max > 0 ? 'published' : 'draft',
       updated_at: trx.fn.now(),

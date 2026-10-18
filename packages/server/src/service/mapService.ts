@@ -1,4 +1,4 @@
-import { ErrorCode } from '@loredoku/shared';
+import { ErrorCode, GRID_SIZE_DEFAULT } from '@loredoku/shared';
 import type {
   DraftRegion,
   MapDraft,
@@ -78,8 +78,10 @@ export async function saveMap(projectId: number, input: SaveMapDraftInput): Prom
     throw AppError.notFound('地图不存在');
   }
 
-  const draft: MapDraft = { ...input.data, gridSize: row.grid_size };
-  await assertValidReferences(draft, row.grid_size);
+  // v0.5.8: 尺寸只信草稿自己带的（DB 列已删），越界由 assertValidReferences 按
+  // 同一个值检查，两者不可能再不一致。
+  const draft: MapDraft = { ...input.data };
+  await assertValidReferences(draft, draft.gridSize);
   assertNoRegionOverlap(draft.regions);
 
   const saved = await mapRepo.saveDraft(projectId, input.updatedAt ?? null, draft);
@@ -95,9 +97,10 @@ export async function saveMap(projectId: number, input: SaveMapDraftInput): Prom
 
 export async function updateGridSize(projectId: number, gridSize: number): Promise<ResizeResult> {
   const outcome = await mapRepo.resizeDraft(projectId, gridSize);
-  if (!outcome) {
+  if (!outcome || outcome.record.draft === null) {
     throw AppError.notFound('地图不存在');
   }
+  // resizeDraft 一定会写回一个带 gridSize 的草稿，所以这里非空。
   return { gridSize: outcome.record.draft.gridSize, removed: outcome.removed };
 }
 
@@ -106,7 +109,8 @@ export async function exportMap(projectId: number): Promise<MapDraft> {
   if (!record) {
     throw AppError.notFound('地图不存在');
   }
-  return record.draft;
+  // v0.5.8: 未初始化的地图导出一份空草稿，比报错更符合「导出」的语义。
+  return record.draft ?? mapRepo.emptyDraft(GRID_SIZE_DEFAULT);
 }
 
 export async function importMap(projectId: number, data: MapDraft): Promise<MapResponse> {
@@ -130,17 +134,17 @@ export async function listRegions(projectId: number): Promise<DraftRegion[]> {
   }
   return mapRepo.listRegions(projectId);
 }
-
 export async function createRegion(
   projectId: number,
   input: Omit<DraftRegion, 'id'> & { id?: string },
 ): Promise<DraftRegion> {
-  const row = await mapRepo.getProjectRow(projectId);
-  if (!row) {
+  const record = await mapRepo.getDraft(projectId);
+  if (!record) {
     throw AppError.notFound('地图不存在');
   }
+  const size = record.draft?.gridSize ?? GRID_SIZE_DEFAULT;
   for (const [x, y] of input.cells) {
-    if (x < 0 || y < 0 || x >= row.grid_size || y >= row.grid_size) {
+    if (x < 0 || y < 0 || x >= size || y >= size) {
       throw AppError.validation(`区域单元格 (${x}, ${y}) 超出边界`);
     }
   }
@@ -158,17 +162,18 @@ export async function updateRegion(
   regionId: string,
   patch: Partial<Omit<DraftRegion, 'id'>>,
 ): Promise<DraftRegion> {
-  const row = await mapRepo.getProjectRow(projectId);
-  if (!row) {
+  const record = await mapRepo.getDraft(projectId);
+  if (!record) {
     throw AppError.notFound('地图不存在');
   }
+  const size = record.draft?.gridSize ?? GRID_SIZE_DEFAULT;
   const region = await mapRepo.findRegion(projectId, regionId);
   if (!region) {
     throw AppError.notFound('区域不存在');
   }
   if (patch.cells) {
     for (const [x, y] of patch.cells) {
-      if (x < 0 || y < 0 || x >= row.grid_size || y >= row.grid_size) {
+      if (x < 0 || y < 0 || x >= size || y >= size) {
         throw AppError.validation(`区域单元格 (${x}, ${y}) 超出边界`);
       }
     }

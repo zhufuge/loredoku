@@ -11,8 +11,9 @@ import { apiDelete, apiGet, apiPost } from './client';
  * version entry in the map list.
  */
 export const versionsApi = {
-  publish(id: number, notes?: string): Promise<MapVersionSummary> {
-    return apiPost<MapVersionSummary>(`/projects/${id}/versions`, { notes });
+  /** v0.5.8: 弹窗去备注，请求体为空。 */
+  publish(id: number): Promise<MapVersionSummary> {
+    return apiPost<MapVersionSummary>(`/projects/${id}/versions`, {});
   },
   /** SPEC-K13 §7.4: the whole blood lineage, each entry naming its owner row. */
   list(id: number): Promise<MapVersionEntry[]> {

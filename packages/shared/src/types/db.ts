@@ -12,7 +12,6 @@ export interface ProjectRow {
   id: string | number;
   name: string;
   description: string | null;
-  grid_size: number;
   cover_path: string | null;
   status: (typeof PROJECT_STATUSES)[number];
   current_version_no: number | null;
@@ -79,9 +78,7 @@ export interface MapVersionRow {
   id: string | number;
   project_id: string | number;
   version_no: number;
-  grid_size: number;
   data: MapDraft;
-  notes: string | null;
   snapshot_created_at: Date | string;
 }
 

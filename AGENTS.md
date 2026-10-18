@@ -11,7 +11,7 @@
 - `packages/shared`：跨端共享的 TS 类型、常量、zod schema。**不依赖任何运行时**。
 - `packages/server`：Koa + Knex + PostgreSQL。
 - `packages/web`：Vite + React 18 + Zustand + TanStack Query + shadcn/ui。
-- `docs/`：逐版需求文档（`v0.1.0` ~ `v0.5.7`），**每版文档最后一节是落点表 / 实现期裁定 / 验证证据 / 交付标准对照** —— 动手前先读对应版本的文档。
+- `docs/`：逐版需求文档（`v0.1.0` ~ `v0.5.8`），**每版文档最后一节是落点表 / 实现期裁定 / 验证证据 / 交付标准对照** —— 动手前先读对应版本的文档。
 - `docs/map-management-and-editor.md`：地图管理页与地图编辑器的**功能说明**（当前状态，不是需求）。要确认某个控件 / 规则的现状看它，别从旧版需求文档里推断。
 - `docs/layer-priority.md`：画布图层命名与次序的**唯一权威**。
 
@@ -68,10 +68,15 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 
 - 禁止修改历史需求文档，只能修改当前版本的文档。
 - 规范信息不要写到README.md中。
+- 需求内容规范细节不要写到AGENTS.md中。
 
-### 3.6 临时文件
+---
 
-- 如果测试有**临时产物必须删除**。
+## 4. 测试
+
+### 4.1 临时文件
+
+- **必须及时删除测试临时产物**, 比如 vitest.config.ts.timestamp-....mjs 和产生的数据库数据。
 
 ---
 

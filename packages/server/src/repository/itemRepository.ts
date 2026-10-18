@@ -173,7 +173,7 @@ export interface ProcessedImageAlias {
 }
 
 export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Promise<void> {
-  const projects = (await trx('map_projects')
+  const projects = (await trx('maps')
     .whereNotNull('draft_data')
     .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: unknown }>;
   for (const project of projects) {
@@ -193,7 +193,7 @@ export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Pr
       }
     }
     if (changed) {
-      await trx('map_projects')
+      await trx('maps')
         .where({ id: project.id })
         .update({ draft_data: draft, draft_updated_at: trx.fn.now() });
     }
@@ -235,7 +235,7 @@ export async function isReferenced(id: number): Promise<boolean> {
 }
 
 export async function getUsages(itemId: number): Promise<ItemUsage[]> {
-  const projects = (await db('map_projects')
+  const projects = (await db('maps')
     .whereNotNull('draft_data')
     .select('id', 'name', 'draft_data')) as Array<{
     id: string | number;

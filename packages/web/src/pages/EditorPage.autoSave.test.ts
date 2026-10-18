@@ -40,13 +40,20 @@ describe('EditorPage (FIX-F01 / FIX-F03)', () => {
     expect(resizeHookSource).toContain('if (dirty) await persist();');
   });
 
-  it('FIX-F03: a never-persisted draft is saved once on first entry', () => {
-    expect(pageSource).toContain('basicInfoPersistedRef');
-    expect(pageSource).toContain('if (data.draft.style == null && basicInfoPersistedRef.current !== id)');
-    // Guarded by the dirty flag — never clobbers work in progress.
-    expect(pageSource).toContain('if (!store.dirty) {');
-    expect(pageSource).toContain("toast.success('已保存默认地图基本信息')");
-    // The store is read through `getState()` so the flag is never stale.
-    expect(pageSource).toContain('useEditorStore.getState()');
+  it('v0.5.8 §3: entering the editor never triggers a save by itself', () => {
+    // FIX-F03 的「首次进入自动保存」整条移除：它在快速点击同一条目时会跟着
+    // query 失效反复触发，写出一连串草稿修订。现在进编辑器只 init，不写。
+    expect(pageSource).not.toContain('basicInfoPersistedRef');
+    expect(pageSource).not.toContain('已保存默认地图基本信息');
+    expect(pageSource).not.toContain('useEditorStore.getState()');
+    // 未初始化的地图走初始化弹窗，那两条出路都是用户显式动作。
+    expect(pageSource).toContain('if (mapQuery.data?.draft == null) {');
+    expect(pageSource).toContain('<MapInitDialog');
+    expect(pageSource).toContain('onInitSize={handleInitSize}');
+    expect(pageSource).toContain('onImport={handleInitImport}');
+  });
+
+  it('v0.5.8 §3: an uninitialised draft is never fed to editor.init', () => {
+    expect(pageSource).toContain('if (data.draft === null) return;');
   });
 });

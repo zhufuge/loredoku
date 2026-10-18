@@ -143,18 +143,18 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
  *
  * Q3 = B: the number comes from the whole lineage's maximum, so a map forked
  * from `v3` publishes its next revision as `v4`.
+ *
+ * v0.5.8: 发布弹窗去掉备注，入参只剩 projectId。
  */
-export async function publishProject(
-  projectId: number,
-  notes: string | null,
-): Promise<MapVersionSummary> {
+export async function publishProject(projectId: number): Promise<MapVersionSummary> {
   const project = await mapRepo.getProjectRow(projectId);
   if (!project) {
     throw AppError.notFound('地图不存在');
   }
   const record = await mapRepo.getDraft(projectId);
-  if (!record) {
-    throw AppError.notFound('地图不存在');
+  if (!record || record.draft === null) {
+    // v0.5.8: 创建地图不再写草稿，没初始化的地图没有可发布的画布。
+    throw AppError.validation('请先在编辑器里初始化画布尺寸');
   }
 
   const violations = await validateDraft(record.draft);
@@ -166,11 +166,9 @@ export async function publishProject(
   return versionRepo.createVersion({
     projectId,
     versionNo,
-    gridSize: record.draft.gridSize,
     // The snapshot is written in the v3 shape: a new version never carries the
     // roster or the palette, even when the working draft was seeded from v2.
     data: absorbLegacyMapDraft(record.draft) as MapDraft,
-    notes: notes ?? null,
   });
 }
 
@@ -209,8 +207,8 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
   return {
     id: Number(row.id),
     versionNo: row.version_no,
-    gridSize: row.grid_size,
-    notes: row.notes,
+    // v0.5.8: 列删了，尺寸从快照自身读（详情页本来就要 data）。
+    gridSize: draft.gridSize ?? 0,
     publishedAt: new Date(row.snapshot_created_at).toISOString(),
     data: draft,
     participantCount: 0,
@@ -231,7 +229,7 @@ export async function deleteVersion(projectId: number, versionNo: number): Promi
 
 /**
  * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): "edit this version" never writes to
- * `map_versions`. It creates a **new work entry** — a fresh `map_projects` row
+ * `map_versions`. It creates a **new work entry** — a fresh `maps` row
  * seeded with the version's snapshot — that stays in the same blood lineage, so
  * the next publish continues the version numbering instead of restarting at v1.
  */
@@ -258,8 +256,8 @@ export async function createDraftFromVersion(
     throw AppError.notFound('版本不存在');
   }
   const saved = await mapRepo.overwriteDraft(projectId, absorbLegacyMapDraft(row.data) as MapDraft);
-  if (!saved) {
+  if (!saved || saved.draft === null) {
     throw AppError.notFound('地图不存在');
   }
-  return saved;
+  return { draft: saved.draft, updatedAt: saved.updatedAt };
 }

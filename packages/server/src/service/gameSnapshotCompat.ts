@@ -8,7 +8,7 @@ import {
 
 /**
  * v0.5.0 CONS-K16 (docs/v0.5.0.md §10.1 / §11.3) — normalises a stored
- * `map_games.snapshot` into the current `MapGameSnapshot` shape.
+ * `games.snapshot` into the current `MapGameSnapshot` shape.
  *
  * Two shapes exist in the wild:
  *

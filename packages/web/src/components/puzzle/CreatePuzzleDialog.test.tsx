@@ -45,7 +45,6 @@ const published: PublishedMapVersion[] = [
     mapName: '古堡之谜',
     gridSize: 6,
     publishedAt: '2026-10-01T09:30:00.000Z',
-    notes: null,
   },
   {
     projectId: 219,
@@ -54,7 +53,6 @@ const published: PublishedMapVersion[] = [
     mapName: '午夜花园',
     gridSize: 8,
     publishedAt: '2026-10-02T09:30:00.000Z',
-    notes: '首发',
   },
 ];
 

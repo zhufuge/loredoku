@@ -11,27 +11,27 @@ import { toGameSnapshot } from '../service/gameSnapshotCompat';
 
 /** FEAT-G02: the games home page lists every deployed game, newest first. */
 export async function listGames(): Promise<MapGameSummary[]> {
-  const rows = (await db<MapGameRow>('map_games').orderBy('created_at', 'desc')) as MapGameRow[];
+  const rows = (await db<MapGameRow>('games').orderBy('created_at', 'desc')) as MapGameRow[];
   return rows.map(toSummary);
 }
 
 export async function getGameRow(id: number): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('map_games').where({ id }).first();
+  return db<MapGameRow>('games').where({ id }).first();
 }
 
 /** OPT-W04: the game page is addressed by its access path, not its id. */
 export async function getGameRowBySlug(slug: string): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('map_games').where({ slug }).first();
+  return db<MapGameRow>('games').where({ slug }).first();
 }
 
 /** OPT-W04 §4.4: who owns a path — another puzzle is a clash. */
 export async function findGameBySlug(slug: string): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('map_games').where({ slug }).first();
+  return db<MapGameRow>('games').where({ slug }).first();
 }
 
 /** CONS-K16: one game per puzzle, so the lookup is by `puzzle_id`. */
 export async function getGameByPuzzle(puzzleId: number): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('map_games').where({ puzzle_id: puzzleId }).first();
+  return db<MapGameRow>('games').where({ puzzle_id: puzzleId }).first();
 }
 
 export interface UpsertGameData {
@@ -70,14 +70,14 @@ export interface UpsertGameData {
  */
 export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> {
   return db.transaction(async (trx) => {
-    const previous = (await trx<MapGameRow>('map_games')
+    const previous = (await trx<MapGameRow>('games')
       .where({ puzzle_id: data.puzzleId })
       .first()) as MapGameRow | undefined;
 
     const cover = resolveCover(previous, data);
 
-    await trx('map_games').where({ puzzle_id: data.puzzleId }).del();
-    const [row] = (await trx('map_games')
+    await trx('games').where({ puzzle_id: data.puzzleId }).del();
+    const [row] = (await trx('games')
       .insert({
         puzzle_id: data.puzzleId,
         project_id: data.projectId,
@@ -137,7 +137,7 @@ export async function updateGameCover(
   id: number,
   cover: { path: string; mime: string; size: number; width: number | null; height: number | null },
 ): Promise<MapGameRow | undefined> {
-  const [row] = (await db<MapGameRow>('map_games')
+  const [row] = (await db<MapGameRow>('games')
     .where({ id })
     .update({
       cover_path: cover.path,

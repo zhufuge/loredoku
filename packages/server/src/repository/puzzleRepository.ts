@@ -30,8 +30,8 @@ const PUZZLE_SELECT = [
 
 function baseQuery() {
   return db('puzzles as pz')
-    .join('map_projects as mp', 'mp.id', 'pz.map_project_id')
-    .leftJoin('map_games as g', 'g.puzzle_id', 'pz.id');
+    .join('maps as mp', 'mp.id', 'pz.map_project_id')
+    .leftJoin('games as g', 'g.puzzle_id', 'pz.id');
 }
 
 export async function listPuzzles(): Promise<PuzzleJoinedRow[]> {

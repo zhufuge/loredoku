@@ -17,10 +17,10 @@ export interface MapListParams {
   order?: 'asc' | 'desc';
 }
 
+/** v0.5.8: 创建时不再要画布尺寸 —— 尺寸在编辑器首次进入时写入草稿。 */
 export interface CreateMapPayload {
   name: string;
   description?: string;
-  gridSize: number;
 }
 
 export interface UpdateMapPayload {
@@ -32,7 +32,7 @@ export const mapsApi = {
   /**
    * FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work entries
    * and version entries** grouped by blood-lineage root, not a flat list of
-   * `map_projects` rows.
+   * `maps` rows.
    */
   list(params: MapListParams): Promise<PaginatedData<MapEntrySummary>> {
     return apiGet<PaginatedData<MapEntrySummary>>('/projects', { params });

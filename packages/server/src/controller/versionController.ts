@@ -12,14 +12,15 @@ const versionParamSchema = z.object({
 
 export async function publish(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const body = parseOrThrow(publishSchema, ctx.request.body ?? {});
-  const version = await versionService.publishProject(id, body.notes ?? null);
+  // v0.5.8: 弹窗去备注，body 只用于挡旧客户端多传的 notes。
+  parseOrThrow(publishSchema, ctx.request.body ?? {});
+  const version = await versionService.publishProject(id);
   success(ctx, version, '发布成功');
 }
 
 /**
  * SPEC-K13 §7.4 (docs/v0.5.0.md): the editor's 版本历史 panel. With Q3 = B this
- * is the **whole blood lineage**, not just this `map_projects` row, so each
+ * is the **whole blood lineage**, not just this `maps` row, so each
  * entry carries the row that owns it.
  */
 export async function list(ctx: Context): Promise<void> {

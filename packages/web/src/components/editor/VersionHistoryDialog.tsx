@@ -21,7 +21,7 @@ interface VersionHistoryDialogProps {
 
 /**
  * SPEC-K13 (docs/v0.5.0.md §7.4): the version rows of the **whole blood lineage**
- * (Q3 = B), each naming the `map_projects` row that owns it — that is what
+ * (Q3 = B), each naming the `maps` row that owns it — that is what
  * 「编辑此版本」 forks from.
  *
  * 「回滚」 does not exist (§15 Q10): forking *is* "start from an old version", so
@@ -53,7 +53,8 @@ export function VersionHistoryDialog({
             版本历史
           </DialogTitle>
           <DialogDescription>
-            当前工作条目：草稿（未发布）。「编辑此版本」会新增一个条目，不会改动这条版本。
+            本图历史上发布过的所有版本（含从别条条目继承来的）。「编辑此版本」会新增一个条目，
+            不会改动这条版本。
           </DialogDescription>
         </DialogHeader>
 
@@ -86,7 +87,6 @@ export function VersionHistoryDialog({
                   </div>
                   <div className="truncate text-xs text-muted-foreground">
                     {formatDateTime(version.publishedAt)}
-                    {version.notes ? ` · ${version.notes}` : ''}
                   </div>
                   <div className="text-[11px] text-muted-foreground">
                     {version.gridSize} × {version.gridSize} · 参与者 {version.participantCount} · 区域{' '}

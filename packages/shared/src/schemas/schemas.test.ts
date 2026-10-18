@@ -23,10 +23,10 @@ describe('gridSizeSchema', () => {
 })
 
 describe('createProjectSchema', () => {
-  it('applies the default grid size', () => {
+  it('v0.5.8: no longer carries a canvas size', () => {
     const parsed = createProjectSchema.parse({ name: '  My Map  ' })
     expect(parsed.name).toBe('My Map')
-    expect(parsed.gridSize).toBe(6)
+    expect(parsed).not.toHaveProperty('gridSize')
   })
 
   it('requires a non-empty name', () => {

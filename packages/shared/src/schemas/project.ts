@@ -29,10 +29,13 @@ export const projectDescriptionSchema = z
   .trim()
   .max(PROJECT_DESCRIPTION_MAX_LENGTH, `描述不能超过 ${PROJECT_DESCRIPTION_MAX_LENGTH} 字`);
 
+/**
+ * v0.5.8: 创建地图不再需要画布尺寸 —— 该字段整体移除，尺寸在编辑器首次进入时
+ * 由初始化弹窗写入草稿（`draft_data.gridSize`）。
+ */
 export const createProjectSchema = z.object({
   name: projectNameSchema,
   description: projectDescriptionSchema.optional().nullable(),
-  gridSize: gridSizeSchema.default(GRID_SIZE_DEFAULT),
 });
 
 export const updateProjectSchema = z.object({

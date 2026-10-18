@@ -175,7 +175,7 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
  * be referenced in **two** places while stored data ages:
  *
  * - `puzzles.data.characterSlots` — where it lives now;
- * - `map_projects.draft_data.characterSlots` — v0.4.x drafts, still in the
+ * - `maps.draft_data.characterSlots` — v0.4.x drafts, still in the
  *   database (the reader ignores them, but they must not keep a dangling
  *   character id after a hard delete).
  */
@@ -196,7 +196,7 @@ export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number
       .update({ data: { ...record, characterSlots: next }, updated_at: trx.fn.now() });
   }
 
-  const projects = (await trx('map_projects')
+  const projects = (await trx('maps')
     .whereNotNull('draft_data')
     .select('id', 'draft_data')) as Array<{ id: string | number; draft_data: unknown }>;
   for (const project of projects) {
@@ -206,7 +206,7 @@ export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number
     if (slots.length === 0) continue;
     const next = slots.map((slot) => (slot && slot.characterId === id ? null : slot));
     if (JSON.stringify(next) === JSON.stringify(slots)) continue;
-    await trx('map_projects').where({ id: project.id }).update({
+    await trx('maps').where({ id: project.id }).update({
       draft_data: { ...record, characterSlots: next },
       draft_updated_at: trx.fn.now(),
     });
@@ -230,7 +230,7 @@ export async function hardDelete(id: number, clearReferences: boolean): Promise<
  */
 export async function getUsages(characterId: number): Promise<CharacterUsage[]> {
   const puzzleRows = (await db('puzzles as pz')
-    .join('map_projects as mp', 'mp.id', 'pz.map_project_id')
+    .join('maps as mp', 'mp.id', 'pz.map_project_id')
     .select('pz.id', 'pz.name', 'pz.data', 'mp.id as project_id', 'mp.name as project_name')) as Array<{
     id: string | number;
     name: string;
@@ -253,7 +253,7 @@ export async function getUsages(characterId: number): Promise<CharacterUsage[]> 
     });
   }
 
-  const projects = (await db('map_projects')
+  const projects = (await db('maps')
     .whereNotNull('draft_data')
     .select('id', 'name', 'draft_data')) as Array<{
     id: string | number;

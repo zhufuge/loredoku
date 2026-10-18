@@ -2,10 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { readSource } from '@/testing/source';
 
 /**
- * FEAT-H03（docs/v0.4.2.md §3）+ OPT-H04（§4）+ v0.5.0 FEAT-K09（§7.1）。
+ * v0.5.8 §2: 工作条目与版本条目**展示相同**、**操作相同**。
  *
- * 一条目要么是**工作条目**要么是**版本条目**，徽标与操作随 `entry.kind` 分叉
- * （版本条目只读）。表单侧的新建走「先建后传」两步串行，失败时可重试。
+ * 卡片与行都从「按 kind 分叉的一套 UI」收敛成同一套：名称后一个徽标
+ * （`v{n}`，没有版本号的显示「草稿」），操作四个图标（编辑信息 / 预览 /
+ * 复制 / 删除），卡片上后三个收在三点菜单里。
  *
  * 渲染 `ProjectGridCard` 需要 TanStack Query 的 provider 与 router，因此沿用本仓
  * 惯用的源码断言语境（同 `EditorPage.infoDrawer.test.ts`）。
@@ -23,90 +24,129 @@ function stripBlockComments(source: string): string {
 const cardSource = read('./ProjectGridCard.tsx');
 const rowSource = read('./ProjectListRow.tsx');
 const formSource = read('./ProjectFormDialogs.tsx');
+const menuSource = read('./EntryActionsMenu.tsx');
 
-describe('ProjectGridCard (FEAT-H03 §3.2d + OPT-H04 §4.2b)', () => {
+describe('ProjectGridCard (v0.5.8 §2)', () => {
   it('leads with the cover and falls back to the name initial', () => {
-    // v0.5.3 SPEC-N04: square — the board is `n × n`, so its cover is square
-    // and a 16:10 frame only cut the top and bottom off.
-    expect(cardSource).toContain('aspect-square');
-    expect(cardSource).not.toContain('aspect-[16/10]');
     expect(cardSource).toContain('{entry.coverUrl ? (');
     expect(cardSource).toContain('alt={entry.name}');
     // 无封面 → 取名称首字（与游戏卡片同一套占位）。
-    expect(cardSource).toContain('const initial = entry.name.trim().charAt(0)');
+    expect(cardSource).toContain("const initial = entry.name.trim().charAt(0)");
     expect(cardSource).toContain('{initial}');
   });
 
-  it('shows n × n plus a relative update time (absolute on hover)', () => {
-    expect(cardSource).toContain('{entry.gridSize} × {entry.gridSize}');
-    expect(cardSource).toContain('title={formatDateTime(entry.updatedAt)}');
-    expect(cardSource).toContain('formatRelativeTime(entry.updatedAt)');
+  it('shrinks the cover to 4:3 and scales it inward on card hover', () => {
+    // v0.5.8: 正方形封面在四列网格里太高，压住文字区；4:3 足够辨认。
+    expect(cardSource).toContain('aspect-[4/3]');
+    expect(cardSource).not.toContain('aspect-square');
+    // 动效挂在 img 上，且是「向内缩小」（scale < 1）。
+    expect(cardSource).toContain('group-hover:scale-95');
+    expect(cardSource).toContain('transition-transform duration-200 ease-out');
+    // 卡片本体带 group，否则 group-hover 没有作用域。
+    expect(cardSource).toContain('group flex flex-col');
   });
 
-  it('collapses the description line when there is none', () => {
-    expect(cardSource).toContain('{entry.description ? (');
+  it('puts one badge after the name: v{n}, or 草稿 when there is none', () => {
+    expect(cardSource).toContain('const versionNo = entry.versionNo ?? entry.currentVersionNo;');
+    expect(cardSource).toContain("const badge = versionNo !== null ? `v${versionNo}` : '草稿';");
+    // 旧的两种写法都不该再出现。
+    expect(cardSource).not.toContain('已发布 v');
+    expect(cardSource).not.toContain('地图 v');
+    expect(cardSource).not.toContain("entry.kind === 'version'");
+  });
+
+  it('hides the size line until the canvas is initialised', () => {
+    expect(cardSource).toContain('const size = entry.gridSize;');
+    expect(cardSource).toContain('{size !== null ? (');
+    expect(cardSource).not.toContain('{entry.gridSize} × {entry.gridSize}');
   });
 
   it('wires the primary action to onOpen', () => {
     const firstButton = cardSource.slice(cardSource.indexOf('<Button size="sm"'));
     expect(firstButton).toContain('onClick={() => onOpen(entry)}');
+    expect(cardSource).toContain('进入编辑');
+  });
+
+  it('keeps exactly one delete button, outside the menu', () => {
+    // 删除是破坏性操作，不进菜单；菜单里只有三项。
+    expect(cardSource.match(/title="删除"/g)?.length ?? 0).toBe(1);
+    expect(cardSource).toContain('<EntryActionsMenu');
   });
 });
 
-describe('ProjectGridCard 条目并集 (FEAT-K09 §7.1)', () => {
-  it('carries a version badge per entry kind', () => {
-    expect(cardSource).toContain("const isVersion = entry.kind === 'version';");
-    expect(cardSource).toContain("`v${entry.versionNo ?? ''}`");
-    expect(cardSource).toContain("`已发布 v${entry.currentVersionNo}`");
+describe('EntryActionsMenu (v0.5.8 §2)', () => {
+  it('holds the three non-destructive actions', () => {
+    expect(menuSource).toContain('编辑信息');
+    expect(menuSource).toContain('预览');
+    expect(menuSource).toContain('复制');
   });
 
-  it('gives version entries the read-only actions only', () => {
-    expect(cardSource).toContain('onPreview?.(entry)');
-    expect(cardSource).toContain('onNewPuzzle?.(entry)');
-    expect(cardSource).toContain('onEditVersion?.(entry)');
+  it('previews the version entry, or the lineage latest for a work entry', () => {
+    expect(menuSource).toContain('return entry.versionNo ?? entry.currentVersionNo;');
   });
 
-  it('never offers rename / cover on a version entry (SPEC-K11)', () => {
-    const versionBranch = cardSource.slice(
-      cardSource.indexOf('isVersion ? ('),
-      cardSource.indexOf(') : ('),
-    );
-    expect(versionBranch).not.toContain('onRename');
-    expect(versionBranch).not.toContain('onDuplicate');
-    // 编辑信息（铅笔）只属于工作条目分支。
-    const workBranch = cardSource.slice(cardSource.lastIndexOf(') : ('));
-    expect(workBranch).toContain('onRename(entry)');
-    expect(workBranch).toContain('onDuplicate(entry)');
+  it('disables preview when the lineage has never been published', () => {
+    expect(menuSource).toContain('const previewable = previewVersionNo(entry) !== null;');
+    expect(menuSource).toContain('disabled={!previewable}');
+  });
+
+  it('closes on an outside pointerdown', () => {
+    expect(menuSource).toContain("document.addEventListener('pointerdown', onPointerDown)");
+    expect(menuSource).toContain("document.removeEventListener('pointerdown', onPointerDown)");
+    // 菜单浮层用 UI_Z.drawer，不写裸 z-index。
+    expect(menuSource).toContain('UI_Z.drawer');
+    expect(menuSource).not.toMatch(/z-\[?\d/);
   });
 });
 
-describe('ProjectListRow (OPT-H04 §4.2c + FEAT-K09 §7.1)', () => {
+describe('ProjectListRow (v0.5.8 §2)', () => {
   it('gains the same cover thumbnail', () => {
     expect(rowSource).toContain('h-10 w-16');
     expect(rowSource).toContain('{entry.coverUrl ? (');
     expect(rowSource).toContain("const initial = entry.name.trim().charAt(0) || '图';");
   });
 
-  it('loses both count columns but keeps the absolute time', () => {
-    expect(rowSource).not.toContain('cardCount');
-    expect(rowSource).not.toContain('regionCount');
-    expect(rowSource).toContain('formatDateTime(entry.updatedAt)');
-    // The list deliberately keeps the exact value — no relative form here.
+  it('gives the version / time / action columns their own aligned slots', () => {
+    // 版本列：等宽数字，v9 / v10 不错位。
+    expect(rowSource).toContain('w-14 shrink-0 tabular-nums');
+    // 时间列：右对齐 + 固定宽度。
+    expect(rowSource).toContain('w-52 shrink-0 truncate text-right');
+    // 操作列：固定宽度 + 右对齐。
+    expect(rowSource).toContain('w-32 shrink-0 items-center justify-end');
+    // n × n 不再是独立一列（创建时不再有尺寸，列会经常是空的）。
+    expect(rowSource).not.toContain('{entry.gridSize} × {entry.gridSize}');
+  });
+
+  it('keeps the absolute time, not the relative form', () => {
+    expect(rowSource).toContain('formatDateTime(entry.publishedAt ?? entry.updatedAt)');
     expect(rowSource).not.toContain('formatRelativeTime');
   });
 
-  it('mirrors the card entry-kind split', () => {
-    expect(rowSource).toContain("const isVersion = entry.kind === 'version';");
-    expect(rowSource).toContain('onEditVersion?.(entry)');
-    expect(rowSource).toContain('formatDateTime(entry.publishedAt ?? entry.updatedAt)');
+  it('offers the same four icon actions for both entry kinds', () => {
+    expect(rowSource).toContain('title="编辑信息"');
+    expect(rowSource).toContain('title="复制"');
+    expect(rowSource).toContain('title="删除"');
+    // 预览按可用性禁用，而不是按 kind 整块消失。
+    expect(rowSource).toContain('title={previewable ? \'预览已发布版本\' : \'还没有已发布的版本可预览\'}');
+    expect(rowSource).toContain('disabled={!previewable}');
+    // 两类条目共用一套 DOM —— 没有任何 kind 分叉。
+    expect(rowSource).not.toContain("entry.kind === 'version'");
   });
 });
 
-describe('ProjectFormDialogs cover picker (FEAT-H03 §3.2b/c)', () => {
+describe('ProjectFormDialogs (v0.5.8 §1)', () => {
   it('offers the cover slot at the shared aspect ratio', () => {
     // 卡片与选择器共用同一个比例常量（shared 层的 `MAP_COVER_ASPECT`）。
     expect(formSource).toContain('style={{ aspectRatio: String(MAP_COVER_ASPECT) }}');
     expect(formSource).toContain('w-40 shrink-0');
+  });
+
+  it('no longer asks for the canvas size on create', () => {
+    expect(formSource).not.toContain('gridSize');
+    expect(formSource).not.toContain('GRID_SIZE_DEFAULT');
+    expect(formSource).toContain('创建后进入编辑器，先设置画布尺寸。');
+    // 编辑对话框的旧文案「画布尺寸不可修改」也走了。
+    expect(formSource).not.toContain('画布尺寸不可修改');
   });
 
   it('pre-validates the file before spending a request', () => {

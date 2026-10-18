@@ -30,8 +30,6 @@ export interface EditorPublishSpec {
 export interface EditorPublishFlow {
   publishOpen: boolean;
   setPublishOpen: (open: boolean) => void;
-  publishNotes: string;
-  setPublishNotes: (notes: string) => void;
   publishedVersion: MapVersionSummary | null;
   setPublishedVersion: (version: MapVersionSummary | null) => void;
   /** The shared 「无法发布」 dialog's payload (`null` = closed). */
@@ -45,7 +43,6 @@ export interface EditorPublishFlow {
 export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
   const { versions, currentVersionNo, dirty, saving, persist, publishMutation } = spec;
   const [publishOpen, setPublishOpen] = useState(false);
-  const [publishNotes, setPublishNotes] = useState('');
   const [publishedVersion, setPublishedVersion] = useState<MapVersionSummary | null>(null);
   const [violations, setViolations] = useState<PublishViolation[] | null>(null);
 
@@ -58,7 +55,6 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
 
   const openPublishConfirm = (): void => {
     if (publishMutation.isPending || saving) return;
-    setPublishNotes('');
     setPublishOpen(true);
   };
 
@@ -66,29 +62,23 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
     if (publishMutation.isPending) return;
     void (async () => {
       if (dirty && !(await persist())) return;
-      const notes = publishNotes.trim();
-      publishMutation.mutate(
-        { notes: notes.length > 0 ? notes : undefined },
-        {
-          onSuccess: (result: PublishResult) => {
-            setPublishOpen(false);
-            if (!result.ok) {
-              setViolations(result.violations ?? []);
-              return;
-            }
-            setPublishedVersion(result.version ?? null);
-          },
-          onError: () => setPublishOpen(false),
+      publishMutation.mutate(undefined, {
+        onSuccess: (result: PublishResult) => {
+          setPublishOpen(false);
+          if (!result.ok) {
+            setViolations(result.violations ?? []);
+            return;
+          }
+          setPublishedVersion(result.version ?? null);
         },
-      );
+        onError: () => setPublishOpen(false),
+      });
     })();
   };
 
   return {
     publishOpen,
     setPublishOpen,
-    publishNotes,
-    setPublishNotes,
     publishedVersion,
     setPublishedVersion,
     violations,

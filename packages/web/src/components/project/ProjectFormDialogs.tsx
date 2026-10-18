@@ -6,9 +6,6 @@ import { ImagePlus, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import type { Project } from '@loredoku/shared';
 import {
-  GRID_SIZE_DEFAULT,
-  GRID_SIZE_MAX,
-  GRID_SIZE_MIN,
   MAP_COVER_ASPECT,
   UPLOAD_ALLOWED_MIME,
   UPLOAD_MAX_SIZE,
@@ -180,11 +177,6 @@ function CoverPicker({
 const createSchema = z.object({
   name: z.string().trim().min(1, '请输入地图名称').max(100, '名称不能超过 100 字'),
   description: z.string().trim().max(500, '描述不能超过 500 字').optional(),
-  gridSize: z
-    .number({ invalid_type_error: '请输入画布尺寸' })
-    .int('画布尺寸必须为整数')
-    .min(GRID_SIZE_MIN, `画布尺寸不能小于 ${GRID_SIZE_MIN}`)
-    .max(GRID_SIZE_MAX, `画布尺寸不能大于 ${GRID_SIZE_MAX}`),
 });
 
 type CreateFormValues = z.infer<typeof createSchema>;
@@ -205,7 +197,7 @@ export function CreateProjectDialog({
     formState: { errors },
   } = useForm<CreateFormValues>({
     resolver: zodResolver(createSchema),
-    defaultValues: { name: '', description: '', gridSize: GRID_SIZE_DEFAULT },
+    defaultValues: { name: '', description: '' },
   });
 
   const [cover, setCover] = useState<File | null>(null);
@@ -223,7 +215,7 @@ export function CreateProjectDialog({
 
   useEffect(() => {
     if (!open) {
-      reset({ name: '', description: '', gridSize: GRID_SIZE_DEFAULT });
+      reset({ name: '', description: '' });
       setCover(null);
       setCreatedId(null);
       setCoverFailed(false);
@@ -251,7 +243,6 @@ export function CreateProjectDialog({
       project = await createMutation.mutateAsync({
         name: values.name,
         description: values.description?.trim() ? values.description.trim() : undefined,
-        gridSize: values.gridSize,
       });
     } catch {
       return;
@@ -274,7 +265,7 @@ export function CreateProjectDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新建地图</DialogTitle>
-          <DialogDescription>创建后画布尺寸（n × n）不可修改。</DialogDescription>
+          <DialogDescription>创建后进入编辑器，先设置画布尺寸。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={onSubmit}>
           <div className="grid gap-2">
@@ -297,20 +288,6 @@ export function CreateProjectDialog({
             />
             {errors.description ? (
               <p className="text-xs text-destructive">{errors.description.message}</p>
-            ) : null}
-          </div>
-          <div className="grid gap-2">
-            <Label htmlFor="project-grid-size">画布尺寸 n（{GRID_SIZE_MIN}~{GRID_SIZE_MAX}）</Label>
-            <Input
-              id="project-grid-size"
-              type="number"
-              min={GRID_SIZE_MIN}
-              max={GRID_SIZE_MAX}
-              disabled={createdId !== null}
-              {...register('gridSize', { valueAsNumber: true })}
-            />
-            {errors.gridSize ? (
-              <p className="text-xs text-destructive">{errors.gridSize.message}</p>
             ) : null}
           </div>
 
@@ -431,7 +408,7 @@ export function EditProjectDialog({ project, onOpenChange }: EditProjectDialogPr
       <DialogContent>
         <DialogHeader>
           <DialogTitle>编辑地图</DialogTitle>
-          <DialogDescription>画布尺寸不可修改。</DialogDescription>
+          <DialogDescription>画布尺寸在编辑器里调整。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={onSubmit}>
           <div className="grid gap-2">

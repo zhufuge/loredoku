@@ -40,12 +40,44 @@ function emptyDraft(gridSize: number): MapDraft {
   };
 }
 
+/**
+ * v0.5.8: 创建地图不再带画布尺寸（`maps.grid_size` 已删）。测试里的
+ * `createProject({ name, gridSize: n })` 语义不变 —— helper 把 gridSize 转成
+ * 建后的一次初始化调用，这样所有既有用例一行不用改。
+ */
+async function initMap(projectId: number, gridSize: number): Promise<void> {
+  const res = await api.patch(`/api/projects/${projectId}/grid-size`).send({ gridSize });
+  expect(res.status).toBe(200);
+  expect(res.body.code).toBe(ErrorCode.OK);
+}
+
+/**
+ * v0.5.8: 建图后会先初始化一次草稿（`draft_updated_at` 不再是 null），所以
+ * 「保存画布」必须带上当前 revision，否则撞乐观锁。这个 helper 把读 revision
+ * 和写草稿合成一步，测试只关心写成功。
+ */
+/** supertest 的 Response（不是 DOM 那个）—— 用推断类型，避免撞名。 */
+type ApiResponse = Awaited<ReturnType<typeof api.get>>;
+
+async function saveCanvas(projectId: number, draft: MapDraft): Promise<ApiResponse> {
+  const current = await api.get(`/api/projects/${projectId}/map`);
+  expect(current.status).toBe(200);
+  const res = await api
+    .put(`/api/projects/${projectId}/map`)
+    .send({ data: draft, updatedAt: current.body.data.updatedAt });
+  expect(res.status).toBe(200);
+  return res;
+}
+
 async function createProject(body: Record<string, unknown> = {}): Promise<number> {
   const res = await api.post('/api/projects').send(body);
   expect(res.status).toBe(200);
   expect(res.body.code).toBe(ErrorCode.OK);
   const id = res.body.data.id as number;
   createdProjects.push(id);
+  if (typeof body.gridSize === 'number') {
+    await initMap(id, body.gridSize);
+  }
   return id;
 }
 
@@ -87,8 +119,9 @@ async function createCharacterWithAvatar(body: Record<string, unknown> = {}): Pr
 }
 
 /** Publishes the map's working draft and returns the freshly minted version. */
-async function publish(projectId: number, notes?: string): Promise<number> {
-  const res = await api.post(`/api/projects/${projectId}/versions`).send({ notes });
+async function publish(projectId: number): Promise<number> {
+  // v0.5.8: 发布弹窗去掉备注，请求体为空对象。
+  const res = await api.post(`/api/projects/${projectId}/versions`).send({});
   expect(res.status).toBe(200);
   return res.body.data.versionNo as number;
 }
@@ -111,9 +144,9 @@ async function publishedMapWithItem(
   const itemId = await createItem({ category: 'object', canStand: true });
   const draft = emptyDraft(6);
   draft.cells['0,0'] = { object: { itemId, w: 1, h: 1 } };
-  const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+  const saved = await saveCanvas(projectId, draft);
   expect(saved.status).toBe(200);
-  const versionNo = await publish(projectId, 'v1');
+  const versionNo = await publish(projectId);
   return { projectId, itemId, versionNo };
 }
 
@@ -122,7 +155,7 @@ async function puzzleWithVersion(
   name: string,
 ): Promise<{ projectId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
   const projectId = await createProject({ name, gridSize: 6 });
-  const versionNo = await publish(projectId, 'v1');
+  const versionNo = await publish(projectId);
   const puzzleName = `${name} 谜题`;
   const puzzleId = await createPuzzle({ name: puzzleName, mapProjectId: projectId, mapVersionNo: versionNo });
   return { projectId, puzzleId, versionNo, puzzleName };
@@ -145,17 +178,20 @@ async function deployablePuzzle(
 }
 
 describe('projects API', () => {
-  it('creates a project with the default grid size', async () => {
+  it('v0.5.8 §1: creates a project with no canvas size at all', async () => {
     const res = await api.post('/api/projects').send({ name: `Smoke ${uniqueCode('p')}` });
     expect(res.status).toBe(200);
-    expect(res.body.data.gridSize).toBe(6);
+    // 创建时不再写尺寸 —— 第一次进编辑器时才由初始化弹窗写入草稿。
+    expect(res.body.data.gridSize).toBeNull();
     createdProjects.push(res.body.data.id);
   });
 
-  it('rejects an out-of-range grid size', async () => {
+  it('v0.5.8 §1: ignores a legacy gridSize field instead of validating it', async () => {
     const res = await api.post('/api/projects').send({ name: `Bad ${uniqueCode('p')}`, gridSize: 1 });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    // schema 不再认识这个字段（非 strict，直接忽略），尺寸仍为空。
+    expect(res.status).toBe(200);
+    expect(res.body.data.gridSize).toBeNull();
+    createdProjects.push(res.body.data.id);
   });
 
   it('lists, reads, updates, duplicates and deletes a project', async () => {
@@ -194,8 +230,8 @@ describe('projects API', () => {
   it('groups a work entry with its version entries in one list (FEAT-K09)', async () => {
     const name = `Union ${uniqueCode('p')}`;
     const projectId = await createProject({ name, gridSize: 6 });
-    await publish(projectId, 'v1');
-    await publish(projectId, 'v2');
+    await publish(projectId);
+    await publish(projectId);
 
     const res = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
     expect(res.status).toBe(200);
@@ -231,7 +267,7 @@ describe('projects API', () => {
   it('lists every published version for the puzzle picker (FEAT-K03)', async () => {
     const name = `Picker ${uniqueCode('p')}`;
     const projectId = await createProject({ name, gridSize: 6 });
-    const versionNo = await publish(projectId, 'picker');
+    const versionNo = await publish(projectId);
 
     const res = await api.get('/api/projects/versions');
     expect(res.status).toBe(200);
@@ -242,12 +278,11 @@ describe('projects API', () => {
         versionNo: number;
         mapName: string;
         gridSize: number;
-        notes: string | null;
       }>
     ).find((entry) => entry.projectId === projectId && entry.versionNo === versionNo);
     expect(row?.mapName).toBe(name);
+    // v0.5.8: `grid_size` 列删了，这里是从快照自身派生的同一个值。
     expect(row?.gridSize).toBe(6);
-    expect(row?.notes).toBe('picker');
     expect(typeof row?.rootId).toBe('number');
   });
 
@@ -510,7 +545,11 @@ describe('map draft API', () => {
       { id: 'rg_a', name: 'A', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
       { id: 'rg_b', name: 'B', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
-    const res = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    // 预期失败：不用 saveCanvas（它内部断言 200）。
+    const current = await api.get(`/api/projects/${projectId}/map`);
+    const res = await api
+      .put(`/api/projects/${projectId}/map`)
+      .send({ data: draft, updatedAt: current.body.data.updatedAt });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe(ErrorCode.REGION_OVERLAP);
   });
@@ -645,9 +684,9 @@ describe('versions API', () => {
 
     const draft = emptyDraft(6);
     draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
-    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    await saveCanvas(projectId, draft);
 
-    const published = await api.post(`/api/projects/${projectId}/versions`).send({ notes: 'first' });
+    const published = await api.post(`/api/projects/${projectId}/versions`).send({});
     expect(published.status).toBe(200);
     expect(published.body.data.versionNo).toBe(1);
     expect(published.body.data.itemCount).toBe(1);
@@ -686,7 +725,7 @@ describe('versions API', () => {
         ],
       },
     ];
-    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    await saveCanvas(projectId, draft);
 
     const res = await api.post(`/api/projects/${projectId}/versions`).send({});
     expect(res.status).toBe(422);
@@ -708,7 +747,7 @@ describe('versions API', () => {
 
     const draft = emptyDraft(6);
     draft.cells['2,2'] = { object: { itemId, w: 2, h: 2 } };
-    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    const saved = await saveCanvas(projectId, draft);
     expect(saved.status).toBe(200);
 
     const res = await api.post(`/api/projects/${projectId}/versions`).send({});
@@ -726,10 +765,10 @@ describe('versions API', () => {
 
     const draft = emptyDraft(6);
     draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
-    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
-    await publish(projectId, 'first');
+    await saveCanvas(projectId, draft);
+    await publish(projectId);
 
-    await api.put(`/api/projects/${projectId}/map`).send({ data: emptyDraft(6) });
+    await saveCanvas(projectId, emptyDraft(6));
     const restored = await api.post(`/api/projects/${projectId}/versions/1/draft`);
     expect(restored.status).toBe(200);
     expect(restored.body.data.draft.cells['1,1'].object.itemId).toBe(itemId);
@@ -749,9 +788,9 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
     const itemId = await createItem({ category: 'object', canStand: true });
     const draft = emptyDraft(6);
     draft.cells['2,2'] = { object: { itemId, w: 1, h: 1 } };
-    await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
-    await publish(projectId, 'v1');
-    await publish(projectId, 'v2');
+    await saveCanvas(projectId, draft);
+    await publish(projectId);
+    await publish(projectId);
 
     const before = await api.get(`/api/projects/${projectId}/versions/2`);
     const forked = await api.post(`/api/projects/${projectId}/versions/2/fork`);
@@ -788,14 +827,14 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
   it('continues the lineage numbering after a fork (v3, not v1)', async () => {
     const name = `Lineage ${uniqueCode('p')}`;
     const projectId = await createProject({ name, gridSize: 6 });
-    await publish(projectId, 'v1');
-    await publish(projectId, 'v2');
+    await publish(projectId);
+    await publish(projectId);
 
     const forked = await api.post(`/api/projects/${projectId}/versions/2/fork`);
     const forkedId = forked.body.data.id as number;
     createdProjects.push(forkedId);
 
-    const next = await api.post(`/api/projects/${forkedId}/versions`).send({ notes: 'v3' });
+    const next = await api.post(`/api/projects/${forkedId}/versions`).send({});
     expect(next.status).toBe(200);
     expect(next.body.data.versionNo).toBe(3);
 
@@ -1325,7 +1364,7 @@ afterAll(async () => {
   // that still has a puzzle cannot be deleted. Deleting a puzzle demotes its
   // game (`map_games.puzzle_id` → NULL), which the project cascade then removes.
   if (createdPuzzles.length) await db('puzzles').whereIn('id', createdPuzzles).del();
-  if (createdProjects.length) await db('map_projects').whereIn('id', createdProjects).del();
+  if (createdProjects.length) await db('maps').whereIn('id', createdProjects).del();
   if (createdItems.length) await db('items').whereIn('id', createdItems).del();
   if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
   await db.destroy();

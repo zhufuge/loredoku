@@ -287,9 +287,6 @@ export function MapVersionViewPage(): JSX.Element {
             </span>
             <span className="text-xs text-muted-foreground">只读预览</span>
           </div>
-          {detailQuery.data?.notes ? (
-            <p className="truncate text-xs text-muted-foreground">{detailQuery.data.notes}</p>
-          ) : null}
         </div>
         <div className="flex items-center gap-1">
           {/* FEAT-F01: the reader can hide the strips; the choice is persisted. */}

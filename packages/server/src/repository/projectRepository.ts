@@ -21,7 +21,6 @@ export interface ListProjectsParams {
 export interface CreateProjectData {
   name: string;
   description: string | null;
-  gridSize: number;
 }
 
 export interface UpdateProjectData {
@@ -37,12 +36,21 @@ const SORT_COLUMNS = {
 
 type CountRow = { count?: string | number } | undefined;
 
+/**
+ * v0.5.8: 画布尺寸不再是列，读草稿即可。`null` = 这张地图还没初始化（创建时
+ * 不再问尺寸，第一次进编辑器时才写）。
+ */
+export function draftGridSize(draft: MapDraft | null): number | null {
+  const size = draft?.gridSize;
+  return typeof size === 'number' && Number.isFinite(size) ? size : null;
+}
+
 export function toProject(row: ProjectRow): Project {
   return {
     id: Number(row.id),
     name: row.name,
     description: row.description,
-    gridSize: row.grid_size,
+    gridSize: draftGridSize(row.draft_data as MapDraft | null),
     coverPath: row.cover_path,
     coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
     status: row.status,
@@ -89,7 +97,7 @@ async function versionCounts(ids: number[]): Promise<Map<number, number>> {
 
 /**
  * FEAT-K09 (docs/v0.5.0.md §7.1) — the map list is a union of **work entries**
- * (`map_projects`) and **version entries** (`map_versions`), grouped by the
+ * (`maps`) and **version entries** (`map_versions`), grouped by the
  * blood-lineage root (Q3 = B).
  *
  * The set is small (a personal authoring tool), and building the union in SQL
@@ -101,13 +109,13 @@ export async function listMapEntries(
   params: ListProjectsParams,
 ): Promise<{ list: MapEntrySummary[]; total: number }> {
   const [projectRows, versionRows] = await Promise.all([
-    db<ProjectRow>('map_projects').select('*') as Promise<ProjectRow[]>,
+    db<ProjectRow>('maps').select('*') as Promise<ProjectRow[]>,
     db('map_versions as v')
-      .join('map_projects as p', 'p.id', 'v.project_id')
+      .join('maps as p', 'p.id', 'v.project_id')
       .select(
         'v.id as id',
         'v.version_no as version_no',
-        'v.grid_size as grid_size',
+        'v.data as data',
         'v.snapshot_created_at as snapshot_created_at',
         'v.project_id as project_id',
         'p.name as name',
@@ -139,7 +147,7 @@ export async function listMapEntries(
       versionNo: null,
       name: row.name,
       description: row.description,
-      gridSize: row.grid_size,
+      gridSize: draftGridSize(row.draft_data as MapDraft | null),
       coverPath: row.cover_path,
       coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
       status: row.status,
@@ -162,7 +170,7 @@ export async function listMapEntries(
       versionNo: row.version_no,
       name: row.name,
       description: row.description,
-      gridSize: row.grid_size,
+      gridSize: draftGridSize(row.data),
       coverPath: row.cover_path,
       coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
       status: row.status,
@@ -192,7 +200,7 @@ export async function listMapEntries(
 interface VersionEntryRow {
   id: string | number;
   version_no: number;
-  grid_size: number;
+  data: MapDraft | null;
   snapshot_created_at: Date | string;
   project_id: string | number;
   name: string;
@@ -227,7 +235,7 @@ function compareEntries(
 }
 
 export async function findById(id: number): Promise<ProjectRow | undefined> {
-  return db<ProjectRow>('map_projects').where({ id }).first();
+  return db<ProjectRow>('maps').where({ id }).first();
 }
 
 /**
@@ -237,12 +245,11 @@ export async function findById(id: number): Promise<ProjectRow | undefined> {
  */
 export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
   const rows = (await db('map_versions as v')
-    .join('map_projects as p', 'p.id', 'v.project_id')
+    .join('maps as p', 'p.id', 'v.project_id')
     .select(
       'v.project_id as project_id',
       'v.version_no as version_no',
-      'v.grid_size as grid_size',
-      'v.notes as notes',
+      'v.data as data',
       'v.snapshot_created_at as snapshot_created_at',
       'p.name as map_name',
       'p.root_id as root_id',
@@ -250,8 +257,7 @@ export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
     .orderBy('v.snapshot_created_at', 'desc')) as Array<{
     project_id: string | number;
     version_no: number;
-    grid_size: number;
-    notes: string | null;
+    data: unknown;
     snapshot_created_at: Date | string;
     map_name: string | null;
     root_id: string | number;
@@ -262,14 +268,14 @@ export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
     rootId: Number(row.root_id),
     versionNo: row.version_no,
     mapName: row.map_name ?? '未命名地图',
-    gridSize: row.grid_size,
+    // v0.5.8: `grid_size` 列删了，尺寸从快照自身读。
+    gridSize: draftGridSize(absorbLegacyMapDraft(row.data) as MapDraft | null) ?? 0,
     publishedAt: new Date(row.snapshot_created_at).toISOString(),
-    notes: row.notes,
   }));
 }
 
 export async function existsByName(name: string, excludeId?: number): Promise<boolean> {
-  const query = db('map_projects').where({ name });
+  const query = db('maps').where({ name });
   if (excludeId !== undefined) {
     query.whereNot('id', excludeId);
   }
@@ -293,21 +299,20 @@ export async function getProjectCounts(
 }
 
 /**
- * A brand-new map is its own blood-lineage root (`root_id = id`). The column is
- * NOT NULL, and `id` only exists after the insert, so the two statements share
- * a transaction.
+ * v0.5.8: a new map has **no** draft and no canvas size — the first editor
+ * entry initialises both (尺寸弹窗 / 导入). `root_id = id` still needs the
+ * two-statement transaction.
  */
 export async function createProject(data: CreateProjectData): Promise<Project> {
   return db.transaction(async (trx) => {
-    const [row] = (await trx<ProjectRow>('map_projects')
+    const [row] = (await trx<ProjectRow>('maps')
       .insert({
         name: data.name,
         description: data.description,
-        grid_size: data.gridSize,
         root_id: 0,
       })
       .returning('*')) as ProjectRow[];
-    const [fixed] = (await trx<ProjectRow>('map_projects')
+    const [fixed] = (await trx<ProjectRow>('maps')
       .where({ id: row!.id })
       .update({ root_id: row!.id })
       .returning('*')) as ProjectRow[];
@@ -323,7 +328,7 @@ export async function updateProject(
   if (data.name !== undefined) patch.name = data.name;
   if (data.description !== undefined) patch.description = data.description;
 
-  const [row] = (await db<ProjectRow>('map_projects')
+  const [row] = (await db<ProjectRow>('maps')
     .where({ id })
     .update(patch)
     .returning('*')) as ProjectRow[];
@@ -331,7 +336,7 @@ export async function updateProject(
 }
 
 export async function deleteProject(id: number): Promise<boolean> {
-  const affected = await db('map_projects').where({ id }).del();
+  const affected = await db('maps').where({ id }).del();
   return affected > 0;
 }
 
@@ -345,7 +350,7 @@ export async function updateCoverPath(
   id: number,
   path: string | null,
 ): Promise<ProjectRow | undefined> {
-  const [row] = (await db<ProjectRow>('map_projects')
+  const [row] = (await db<ProjectRow>('maps')
     .where({ id })
     .update({ cover_path: path, updated_at: db.fn.now() })
     .returning('*')) as ProjectRow[];
@@ -363,16 +368,15 @@ export async function duplicateProject(
   newName: string,
 ): Promise<Project | undefined> {
   return db.transaction(async (trx) => {
-    const source = await trx<ProjectRow>('map_projects').where({ id: sourceId }).first();
+    const source = await trx<ProjectRow>('maps').where({ id: sourceId }).first();
     if (!source) {
       return undefined;
     }
 
-    const [created] = (await trx<ProjectRow>('map_projects')
+    const [created] = (await trx<ProjectRow>('maps')
       .insert({
         name: newName,
         description: source.description,
-        grid_size: source.grid_size,
         cover_path: source.cover_path,
         status: 'draft',
         root_id: source.id,
@@ -382,7 +386,7 @@ export async function duplicateProject(
       .returning('*')) as ProjectRow[];
 
     // `root_id` must point at the copy itself, not at the source.
-    const [fixed] = (await trx<ProjectRow>('map_projects')
+    const [fixed] = (await trx<ProjectRow>('maps')
       .where({ id: created!.id })
       .update({ root_id: created!.id })
       .returning('*')) as ProjectRow[];
@@ -405,21 +409,20 @@ export async function forkFromVersion(
   versionNo: number,
 ): Promise<ProjectDetail | undefined> {
   const createdId = await db.transaction(async (trx) => {
-    const owner = (await trx<ProjectRow>('map_projects').where({ id: projectId }).first()) as
+    const owner = (await trx<ProjectRow>('maps').where({ id: projectId }).first()) as
       | ProjectRow
       | undefined;
     if (!owner) return undefined;
 
     const version = (await trx('map_versions')
       .where({ project_id: projectId, version_no: versionNo })
-      .first()) as { grid_size: number; data: unknown } | undefined;
+      .first()) as { data: unknown } | undefined;
     if (!version) return undefined;
 
-    const [row] = (await trx<ProjectRow>('map_projects')
+    const [row] = (await trx<ProjectRow>('maps')
       .insert({
         name: owner.name,
         description: owner.description,
-        grid_size: version.grid_size,
         cover_path: owner.cover_path,
         status: 'draft',
         current_version_no: null,

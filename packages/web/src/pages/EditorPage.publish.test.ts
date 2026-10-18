@@ -41,12 +41,12 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
     expect(publishHookSource).toContain('return (currentVersionNo ?? 0) + 1;');
   });
 
-  it('collects an optional note and passes it through trimmed', () => {
-    expect(publishHookSource).toContain('const [publishNotes, setPublishNotes] = useState(\'\');');
-    expect(pageSource).toContain('id="publish-notes"');
-    expect(publishHookSource).toContain('const notes = publishNotes.trim();');
-    expect(publishHookSource).toContain('publishMutation.mutate(');
-    expect(publishHookSource).toContain('{ notes: notes.length > 0 ? notes : undefined }');
+  it('v0.5.8 §4: the note field is gone — a second confirmation is the ask', () => {
+    expect(publishHookSource).not.toContain('publishNotes');
+    expect(pageSource).not.toContain('publish-notes');
+    // 二次确认文本留在 AlertDialogDescription 里。
+    expect(pageSource).toContain('发布后该版本不可修改。');
+    expect(pageSource).toContain('确认发布');
   });
 
   it('runs save → publish serially and aborts the publish when the save fails', () => {
@@ -124,7 +124,9 @@ describe('EditorToolbar button hierarchy (FEAT-H05 §5.4)', () => {
 describe('usePublishProject carries the version back (FEAT-H05 §5.3)', () => {
   it('stops dropping the version the API already returns', () => {
     expect(versionsSource).toContain('version?: MapVersionSummary;');
-    expect(versionsSource).toContain('const version = await versionsApi.publish(id, notes);');
+    // v0.5.8: 发布弹窗去备注，接口调用不再带第二个参数。
+    expect(versionsSource).toContain('const version = await versionsApi.publish(id);');
+    expect(versionsSource).toContain('useMutation<PublishResult, unknown, void>');
     expect(versionsSource).toContain('return { ok: true, version };');
   });
 

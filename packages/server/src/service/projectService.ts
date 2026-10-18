@@ -47,7 +47,6 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
   return repo.createProject({
     name: input.name,
     description: input.description ?? null,
-    gridSize: input.gridSize,
   });
 }
 

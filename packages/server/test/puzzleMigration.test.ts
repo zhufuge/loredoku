@@ -24,7 +24,7 @@ async function columns(table: string): Promise<string[]> {
 describe('v0.5.0 migration shape (§11.1)', () => {
   it('adds map_projects.root_id, NOT NULL, backfilled to the row id', async () => {
     const rows = await db('information_schema.columns')
-      .where({ table_name: 'map_projects', column_name: 'root_id', table_schema: 'public' })
+      .where({ table_name: 'maps', column_name: 'root_id', table_schema: 'public' })
       .select('is_nullable');
     expect(rows).toHaveLength(1);
     expect(rows[0].is_nullable).toBe('NO');
@@ -35,20 +35,20 @@ describe('v0.5.0 migration shape (§11.1)', () => {
     //
     // 早期这里断言「漂移行数为 0」，但那把「用户真的 fork 过一张图」也算成了
     // 失败——库里有手工数据就会误报。改成校验引用完整性。
-    const nulls = await db('map_projects').whereNull('root_id').count('* as c');
+    const nulls = await db('maps').whereNull('root_id').count('* as c');
     expect(Number(nulls[0]?.c ?? 0)).toBe(0);
 
-    const drifted = (await db('map_projects')
+    const drifted = (await db('maps')
       .whereRaw('root_id <> id')
       .select('id', 'root_id')) as Array<{ id: number | string; root_id: number | string }>;
     for (const row of drifted) {
-      const root = await db('map_projects').where({ id: row.root_id }).first('id');
+      const root = await db('maps').where({ id: row.root_id }).first('id');
       expect(root).toBeDefined();
     }
 
     // 归组查询走 root_id 索引。
     const index = await db('pg_indexes')
-      .where({ tablename: 'map_projects', indexname: 'map_projects_root_id_index' })
+      .where({ tablename: 'maps', indexname: 'map_projects_root_id_index' })
       .first();
     expect(index).toBeDefined();
   });
@@ -84,11 +84,11 @@ describe('v0.5.0 migration shape (§11.1)', () => {
   });
 
   it('adds map_games.puzzle_id with a partial unique index (CONS-K16)', async () => {
-    const cols = await columns('map_games');
+    const cols = await columns('games');
     expect(cols).toContain('puzzle_id');
 
     const index = await db('pg_indexes')
-      .where({ tablename: 'map_games', indexname: 'map_games_puzzle_id_unique' })
+      .where({ tablename: 'games', indexname: 'map_games_puzzle_id_unique' })
       .first();
     expect(index).toBeDefined();
     // 部分索引：只约束 puzzle_id IS NOT NULL 的行。
@@ -97,7 +97,7 @@ describe('v0.5.0 migration shape (§11.1)', () => {
 
     // 删除规则是 SET NULL：删谜题只把游戏降级成存量游戏。
     const fk = await db('information_schema.key_column_usage')
-      .where({ table_name: 'map_games', column_name: 'puzzle_id', table_schema: 'public' })
+      .where({ table_name: 'games', column_name: 'puzzle_id', table_schema: 'public' })
       .select('constraint_name');
     expect(fk).toHaveLength(1);
     const rules = await db('information_schema.referential_constraints')
@@ -109,7 +109,7 @@ describe('v0.5.0 migration shape (§11.1)', () => {
   it('drops the old map_games.project_id UNIQUE constraint', async () => {
     const unique = await db('information_schema.table_constraints')
       .where({
-        table_name: 'map_games',
+        table_name: 'games',
         constraint_type: 'UNIQUE',
         table_schema: 'public',
       })
@@ -117,7 +117,7 @@ describe('v0.5.0 migration shape (§11.1)', () => {
     expect(unique.map((row) => row.constraint_name)).not.toContain('map_games_project_id_unique');
 
     // 但 project_id 列本身还在（它仍然表示被引用的地图版本）。
-    const cols = await columns('map_games');
+    const cols = await columns('games');
     expect(cols).toContain('project_id');
     expect(cols).toContain('version_no');
   });

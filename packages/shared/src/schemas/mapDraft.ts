@@ -293,9 +293,11 @@ export function legacyMapDraftBlocks(data: unknown): string[] {
   return blocks;
 }
 
-export const publishSchema = z.object({
-  notes: z.string().trim().max(PROJECT_NOTE_MAX_LENGTH).optional().nullable(),
-});
+/**
+ * v0.5.8: 发布弹窗去掉备注输入框，请求体只剩一个可选的空对象 —— 保留 schema
+ * 而不是删掉路由的 body 解析，是为了让旧客户端发 `{}` 也照常通过。
+ */
+export const publishSchema = z.object({}).strict();
 
 export const listVersionsQuerySchema = z.object({
   page: z.number().int().min(1).optional(),

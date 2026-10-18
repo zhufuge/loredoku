@@ -2,7 +2,7 @@ import { GAME_SLUG_MAX_LENGTH, GAME_SLUG_PREFIX, buildDefaultSlug } from '@lored
 import type { GameDifficulty } from '@loredoku/shared';
 
 /**
- * v0.4.1 OPT-W04 (docs/v0.4.1.md §4.5): the data half of the `map_games.slug`
+ * v0.4.1 OPT-W04 (docs/v0.4.1.md §4.5): the data half of the `games.slug`
  * migration, pure so it unit-tests without a database. A deploy refuses a path
  * another map owns (Q12), but the migration has no author to ask — every row must
  * end up non-empty and unique, so collisions take `-2`, `-3`, …

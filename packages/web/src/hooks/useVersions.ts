@@ -44,10 +44,11 @@ export interface PublishResult {
 
 export function usePublishProject(id: number) {
   const queryClient = useQueryClient();
-  return useMutation<PublishResult, unknown, { notes?: string }>({
-    mutationFn: async ({ notes }) => {
+  // v0.5.8: 发布弹窗去掉备注，mutation 变量类型跟着收敛成 void。
+  return useMutation<PublishResult, unknown, void>({
+    mutationFn: async () => {
       try {
-        const version = await versionsApi.publish(id, notes);
+        const version = await versionsApi.publish(id);
         return { ok: true, version };
       } catch (error) {
         if (error instanceof ApiError && error.code === ErrorCode.PUBLISH_VALIDATION_FAILED) {
