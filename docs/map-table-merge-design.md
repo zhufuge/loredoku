@@ -90,7 +90,7 @@ maps
   data             jsonb   NULL                -- draft_data 改名；草稿行可空，版本行非空
   version          text    NOT NULL DEFAULT 'draft'   -- 'draft' | '1' | '2' | …
   deleted_at       timestamptz NULL            -- 软删标记，只有版本行会被设置
-  draft_updated_at timestamptz NULL            -- data 的乐观锁时间戳
+  draft_updated_at timestamptz NULL            -- 【v0.5.8 第八阶段已删】草稿乐观锁时间戳
   created_at / updated_at timestamptz NOT NULL
 
   CHECK (version = 'draft' OR version ~ '^\d+$')
@@ -103,8 +103,10 @@ maps
 意义）；`version` 采纳字符串（草稿与版本同类型，免 NULL）；**删** `status`（`version`
 已表达同一信息）与 `current_version_no`（改推导：`MAX(CAST(version AS int)) WHERE
 root_id=? AND version<>'draft'`，含软删行；API 字段名 `currentVersionNo` 保留，前端零
-改动）；保留 `root_id`（血统 / 续号 / 版本历史范围）与 `draft_updated_at`（乐观锁
-revision）；**不加** `owner_id`。
+改动）；保留 `root_id`（血统 / 续号 / 版本历史范围）；**不加** `owner_id`。
+
+`draft_updated_at`（草稿乐观锁 revision）当时一并保留，**其后在 v0.5.8 第八阶段整列删除**：
+用户定下「先不做锁」，保存改成后写覆盖，修订号失去消费者（详见 v0.5.8 §15.5）。
 
 ## 4. `version` 值域与自定义版本号
 
@@ -176,12 +178,18 @@ revision）；**不加** `owner_id`。
 | `POST …/versions/:versionNo/fork` | 读取**不过滤** `deleted_at`（过滤管可见性，不管直达读取） |
 | `duplicate` | 仅草稿行可达（版本条目已无复制动作），版本行 id → 400 |
 
-### 5.2 查重必须限定草稿行
+### 5.2 查重：先限定草稿行，后整体放开（v0.5.8 第六阶段）
 
-`existsByName`（create / update / `uniqueCopyName`）现在查全表。合并后版本行进 `maps`，
+设计时 `existsByName`（create / update / `uniqueCopyName`）查全表。合并后版本行进 `maps`，
 而版本名是发布时的快照，**同名是常态**（不改名连发十个都同名）。不限定 `version='draft'`
 的后果：新建图撞上某个历史版本名 → 「地图名称已存在」；fork 草稿沿用 owner 名 → 挡住
-之后所有创建 / 改名。修正：所有查重加 `AND version = 'draft'`。
+之后所有创建 / 改名。因此实施时先按「所有查重加 `AND version = 'draft'`」落地。
+
+**其后的裁定（第六阶段）**：用户要求彻底放开——地图可以重名。于是 create / update 的
+查重**整段删除**，`existsByName` 只剩 `uniqueCopyName` / `uniqueName` 在用（复制与 fork
+的自动取名避重，「副本」「副本 2」），并保留 `version='draft'` 条件：拿版本快照名占位
+会让副本序列莫名跳号。DB 侧本来就没有 `name` 唯一约束（`maps` 上只有 pkey、
+`root_id` 索引与 `uq_maps_root_version`），故无需迁移。
 
 ## 6. 数据迁移
 
@@ -468,32 +476,47 @@ AND deleted_at IS NULL`、`(deleted_at, created_at)`（列表默认排序）；�
   - **草稿块**：`kind === 'draft'`，沿用后端序（`updated_at` 倒序）。**网格 / 列表视图
     切换只作用于这一块**。
   - **版本块**：`kind === 'version'`，**恒为列表行**（`ProjectListRow`），**不生成卡片**；
-    排序 `rootId asc, versionNo desc`（即现有「按地图归组」的顺序，同血统相邻、新号在上）。
+    ~~排序 `rootId asc, versionNo desc`（即现有「按地图归组」的顺序，同血统相邻、新号在上）~~
+    —— v0.5.8 第九阶段改：**默认按时间倒序**（最新发布在上），并跟随顶部排序控件，
+    「按地图归组」那层便利随之取消。
 - **空块整块隐藏**（标题与容器都不渲染）；两块都空才出空状态文案（现有 `kindFilter`
   三分支合并成一句 + 新建按钮）。
 - **删除「三态 `kind` 筛选」与「按地图归组」两个控件**：分块天然实现「只看草稿 / 只看
   版本」，归组被版本块的排序吸收。工具栏只剩关键词 / 排序 / 视图切换。
 - **`localStorage['loredoku.maps.view']` 语义收窄**为「草稿块的视图」，版本块不受影响。
-- **徽标不动**：版本块内仍显示 `v{n}`（同块内认版本号），草稿块仍显示「草稿」。
+- ~~**徽标不动**：版本块内仍显示 `v{n}`（同块内认版本号），草稿块仍显示「草稿」~~
+  —— v0.5.8 第五阶段改：**草稿块整格去掉**（卡片无徽标、列表无版本列），`v{n}` 只留版本块。
 
-**分页口径（不改后端）**：仍是并集分页，两块共享同一页（一页 N 条，前端只对当前页
-分组）。副作用是版本密集时某页可能只出现版本块——可接受；要「每块各自分页」得拆成两个
-查询 + 两个 total，成本远大于收益，记备不做。
+**分页口径（v0.5.8 第四阶段已改，原记「不做」被用户否掉）**：原方案是并集分页 —— 两块共享
+同一页，前端只对当前页分组，副作用是版本密集时某页可能只出现版本块。用户 2026-10-18 21:13
+直接否掉：「分页不要合在一起用，分成 2 部分」。
+
+改成同端点带 `kind` 发两个请求：
+
+- `GET /api/projects?kind=draft|version`：先按 `kind` 过滤再算 `total`，不传仍是并集口径
+  （`listProjectsQuerySchema` 里新增可选枚举）。
+- ~~**`kind='version'` 忽略 `sort` / `order`**，固定 `rootId` 升序 + 版本号降序~~
+  —— v0.5.8 第九阶段改：版本块与草稿块一样跟随 `sort` / `order`（默认 `updatedAt` 倒序）。
+  **排序仍必须在服务端**这一点没变：客户端只能重排当前页，跨页会乱。
+- 前端两个页号 `draftPage` / `versionPage`，每块一条翻页条；块标题的数字是**总数**，块的
+  出现与否也看 `total > 0`（原来用当前页条数，翻到越界页会整块消失）；单页时整条隐藏。
 
 **落点**
 
-- `pages/MapsPage.tsx`：`entries` memo 改为 `{ drafts, versions }` 分组；渲染拆两块；
-  删 `kindFilter` / `groupByMap` 状态与对应两个控件；空态分支简化。`handleOpen` /
-  `handlePreview` / 删除分叉逻辑不变。
-- `ProjectGridCard` 只服务草稿块；`ProjectListRow` 两种条目共用（版本块专用渲染路径）。
-- 测试：`pages/MapsPage.entries.test.ts` 重锚（分块断言、版本不走卡片、两个控件已删）；
-  `components/project/ProjectCards.test.ts` 的 `kind !== 'version'` 条件渲染断言保留。
+- `shared/schemas/project.ts`：`listMapEntriesKindSchema` + `listProjectsQuerySchema.kind`。
+- `server/repository/projectRepository.ts`：`ListProjectsParams.kind`；先按 kind 过滤，版本块
+  走固定比较器。
+- `web/pages/MapsPage.tsx`：两个 `useMaps`、两个页号、`renderPager()` 各块一条；删掉页脚的
+  共用翻页条与 `params` 里那个 `page`。
+- 测试：`server/test/api.test.ts` 新增 2 例（kind 过滤与 total / 跨页顺序）；`web` 的
+  `MapsPage.entries.test.ts` 新增分页断言、版本排序断言移交服务端。
 
 **实施记录**：已按本节形态落地（`pages/MapsPage.tsx` + `MapsPage.entries.test.ts` 重锚）。
-`MapEntrySummary.kind` 未改动，`useMaps` 仍返回并集——本节纯前端，合并时这里零改动。
+`MapEntrySummary.kind` 未改动。
 
 **与合并的关系**：两条**都不依赖表结构**——合并只是把 `kind` 的来源从「两表并集」换成
 `version = 'draft'` 的判断，分组条件 `kind === 'draft'` 不变。所以 §10 七步**不含本节**。
+（第四阶段的分页改动动了 `shared` schema 与 `projectRepository`，但仍与表结构无关。）
 
 ## 18. 实施记录与两处设计外补充（2026-10-18）
 

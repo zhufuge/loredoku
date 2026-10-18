@@ -47,16 +47,15 @@ export interface Project {
   name: string;
   description: string | null;
   /**
-   * v0.5.8: no longer a column — the canvas size lives in the draft
-   * (`data.gridSize`). `null` = 尚未初始化（创建时不再填尺寸，第一次
-   * 进编辑器时由初始化弹窗写入）。
+   * 画布尺寸不是列，真源是草稿里的 `data.gridSize`。`null` = 尚未初始化
+   * （创建时不填尺寸，第一次进编辑器时由初始化弹窗写入）。
    */
   gridSize: number | null;
   coverPath: string | null;
   coverUrl: string | null;
   /**
-   * v0.5.8 第三阶段：`status` / `currentVersionNo` 都不再是列，由 `version`
-   * 推导（字段名保留，前端零改动）。血统里没有版本行时 `status = 'draft'`。
+   * 这两个字段由 `version` 推导（字段名保留，前端按旧形状读取）。血统里
+   * 没有版本行时 `status = 'draft'`。
    */
   status: ProjectStatus;
   /** 血统内最高版本号（含软删行）；没有版本行时为 `null`。 */
@@ -224,7 +223,7 @@ export interface MapDraft {
   style?: MapStyle;
 }
 
-// ---- Puzzle draft JSON (v0.5.0 FEAT-K08) ----
+// ---- Puzzle draft JSON ----
 /**
  * v0.5.0 FEAT-K01: a puzzle is the "出题" half of the product. It owns the
  * roster + palette and **references** one published map version for its
@@ -246,11 +245,10 @@ export interface PuzzleDraft {
 export interface MapResponse {
   project: Project;
   /**
-   * v0.5.8: `null` = 这张地图还没初始化（创建时不再写草稿）。编辑器据此弹
+   * `null` = 这张地图还没初始化（创建地图时不写草稿）。编辑器据此弹
    * 「初始化地图」弹窗：填尺寸，或导入一份地图。
    */
   draft: MapDraft | null;
-  updatedAt: string | null;
 }
 
 export interface MapVersionSummary {
@@ -286,7 +284,7 @@ export interface MapVersionDetail extends MapVersionSummary {
  */
 export interface MapVersionEntry extends MapVersionSummary {
   /**
-   * v0.5.8 第三阶段：版本行自己就是 `maps` 行，所以这里就是**版本行 id**
+   * 版本行自己就是 `maps` 行，所以这里就是**版本行 id**
    * （合并前是「拥有它的工作条目 id」）。
    */
   projectId: number;
@@ -319,7 +317,7 @@ export interface MapEntrySummary {
   /** Blood-lineage root (`maps.root_id`); the list groups by it. */
   rootId: number;
   /**
-   * v0.5.8 第三阶段：版本行与草稿行同表，所以这里与 `id` 相同。保留字段是
+   * 版本行与草稿行同表，所以这里与 `id` 相同。保留字段是
    * 为了 URL 拼装（`/maps/{projectId}/edit`）在合并前后一字不改。
    */
   projectId: number;
@@ -433,7 +431,7 @@ export interface MapGameDetail extends MapGameSummary {
 }
 
 /**
- * v0.5.0: a character is used by **puzzles** now (the roster's home). A v0.4.x
+ * a character is used by **puzzles** now (the roster's home). A v0.4.x
  * map draft that still carries a roster is reported with `legacy: true`, so a
  * hard delete can still clean it up.
  */

@@ -194,9 +194,7 @@ export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Pr
       }
     }
     if (changed) {
-      await trx('maps')
-        .where({ id: project.id })
-        .update({ data: draft, draft_updated_at: trx.fn.now() });
+      await trx('maps').where({ id: project.id }).update({ data: draft });
     }
   }
 }

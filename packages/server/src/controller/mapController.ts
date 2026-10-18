@@ -40,7 +40,7 @@ export async function importMap(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   const raw = ctx.request.body ?? {};
   /**
-   * v0.5.0 §8.4: a v2 file (roster / palette inside it) is **rejected, not
+   * a v2 file (roster / palette inside it) is **rejected, not
    * silently stripped** — otherwise the author would believe their participants
    * came along. The check runs before the schema, which would only produce a
    * generic "参数校验失败".

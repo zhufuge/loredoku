@@ -36,14 +36,14 @@ export function BrandLogo({
         alt="LOREDOKU"
         draggable={false}
         style={{ height }}
-        // v0.5.7: 资产是黑 + 深红双色墨迹，在深色页面上几乎看不见。
+        // 资产是黑 + 深红双色墨迹，在深色页面上几乎看不见。
         // `invert` 把黑色翻成白色；`hue-rotate(180deg)` 再把色相转回来，
         // 于是深红变成亮红而不是青色 —— 只反亮度，不毁品牌色。
         className="w-auto select-none dark:invert dark:hue-rotate-180"
         data-testid="brand-logo"
       />
       {withWordmark ? (
-        // v0.5.6: 字号与行高都跟着 mark 走。实测 logo 资产在 box 内上下各留约
+        // 字号与行高都跟着 mark 走。实测 logo 资产在 box 内上下各留约
         // 13%（22px 框里墨迹 16.2px），而 CJK 墨迹约等于 1em —— 取 0.82×height
         // 让「格物」的上下沿与 logo 墨迹齐平（22→18px / 20→16px）。lineHeight:1
         // 是必须的：默认 1.5 会把墨迹挤出 box 中线，看起来比 logo 低半格。

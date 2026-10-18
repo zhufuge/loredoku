@@ -13,6 +13,11 @@ export interface MapListParams {
   page?: number;
   pageSize?: number;
   keyword?: string;
+  /**
+   * `/maps` 的「草稿」「版本」两块各自分页，各发一个请求并各带
+   * 自己的页号与 `total`。不传则是并集口径。
+   */
+  kind?: 'draft' | 'version';
   sort?: MapSort;
   order?: 'asc' | 'desc';
 }

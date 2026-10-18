@@ -54,11 +54,11 @@ function readStoredRulerVisible(): boolean {
  * **version entry**, reached from the map list (and from the editor's 版本历史
  * panel).
  *
- * v0.5.9 §7: the route is `/maps/:projectId/views` and the version number moved
+ * the route is `/maps/:projectId/views` and the version number moved
  * from the path into the `?v=` query — the page is about *a map's published
  * versions*, not one addressable snapshot.
  *
- * v0.5.8 第三阶段（设计 §15 P0-1）：`:id` 一律指 `maps.id`，草稿行与版本行都
+ * `:id` 一律指 `maps.id`，草稿行与版本行都
  * 可能命中，解析规则是 ——
  *
  * | `:id` 命中 | 无 `?v=` | 有 `?v=` |
@@ -66,7 +66,7 @@ function readStoredRulerVisible(): boolean {
  * | 版本行 | 直接展示**这一行**（它自带 `data`） | 以 `?v=` 为准 |
  * | 草稿行 | 取该血统的 `MAX(version)`（裸链接永远有效） | 以 `?v=` 为准 |
  *
- * 于是 `/maps/:id/views` 不再依赖「草稿行还没被删」这个偶然条件，而旧链接里的
+ * 于是 `/maps/:id/views` 不依赖「草稿行还没被删」这个偶然条件，旧链接里的
  * `?v=` 也照旧被尊重。
  *
  * It is the old work preview page with the participant half removed: a map

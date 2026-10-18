@@ -34,8 +34,6 @@
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
     --primary: 217.2 91.2% 59.8%;
-    /* 主按钮（蓝底）一律浅色字，深色下也用浅色：深色底字 #0f172a 只有 4.85:1 的
-       对比，但在深色壳里看着像「按钮缺了文字」；蓝底白字是读得出来的惯例做法。 */
     --primary-foreground: 210 40% 98%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -61,8 +59,6 @@
   }
 }
 
-/* OPT-501: never let the browser start its own image drag from the canvas,
-   the item drawer or the roster slots — all dragging is pointer-based. */
 @layer components {
   .cell img,
   .cell [draggable],
@@ -73,7 +69,6 @@
   }
 }
 
-/* FEAT-502: highlights stay solid for 1s then fade out. */
 @layer utilities {
   .highlight-fade {
     animation: highlight-fade 1s linear forwards;

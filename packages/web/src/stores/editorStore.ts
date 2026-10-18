@@ -25,7 +25,6 @@ export function genRegionId(): string {
 }
 
 export interface EditorMeta {
-  updatedAt: string | null;
   currentVersionNo: number | null;
   status: 'draft' | 'published';
 }
@@ -54,7 +53,6 @@ interface Snapshot {
   gridSize: number;
   cells: Map<CellKey, DraftCell>;
   regions: DraftRegion[];
-  /** v0.3.8 FEAT-D02: style edits are undoable like any other change. */
   style: MapStyle;
 }
 
@@ -63,7 +61,6 @@ export interface EditorState {
   gridSize: number;
   cells: Map<CellKey, DraftCell>;
   regions: DraftRegion[];
-  /** v0.3.8 FEAT-D02: map-level display constants (always fully resolved). */
   style: MapStyle;
   activeTool: EditorTool;
   activeLayer: EditorLayer;
@@ -74,7 +71,6 @@ export interface EditorState {
   zoom: number;
   pan: { x: number; y: number };
   dirty: boolean;
-  updatedAt: string | null;
   currentVersionNo: number | null;
   status: 'draft' | 'published';
   past: Snapshot[];
@@ -123,7 +119,7 @@ export interface EditorState {
 
   undo: () => void;
   redo: () => void;
-  markSaved: (updatedAt: string) => void;
+  markSaved: () => void;
   setVersionInfo: (info: { currentVersionNo: number | null; status: 'draft' | 'published' }) => void;
   toDraft: () => MapDraft;
 }
@@ -161,7 +157,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
     zoom: 1,
     pan: { x: 0, y: 0 },
     dirty: false,
-    updatedAt: null,
     currentVersionNo: null,
     status: 'draft',
     past: [],
@@ -188,7 +183,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
         zoom: 1,
         pan: { x: 0, y: 0 },
         dirty: false,
-        updatedAt: meta.updatedAt,
         currentVersionNo: meta.currentVersionNo,
         status: meta.status,
         past: [],
@@ -459,7 +453,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       set({ ...next, past, future, dirty: true });
     },
 
-    markSaved: (updatedAt) => set({ dirty: false, updatedAt }),
+    markSaved: () => set({ dirty: false }),
     setVersionInfo: ({ currentVersionNo, status }) => set({ currentVersionNo, status }),
 
     toDraft: () => {

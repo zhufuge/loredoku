@@ -43,7 +43,7 @@ export function createApp(): Koa {
   app.use(apiRouter.routes());
   app.use(apiRouter.allowedMethods());
 
-  // v0.5.6: serve the web build so `npm start` alone can host the whole app.
+  // serve the web build so `npm start` alone can host the whole app.
   // Order matters — /api/* is already handled above; /assets misses must 404
   // instead of falling back to HTML (see spaFallback).
   app.use(

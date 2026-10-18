@@ -130,7 +130,7 @@ function describeBlock(
   switch (block) {
     case 'elsewhere': {
       // SPEC-J05 §3.6：编号可以多处，唯一的是头像 —— 这条拒绝只在「该参与者的头像
-      // 已经确认在别的格子」时出现，所以文案讲头像，不再报「编号 N 已放置在 …」。
+      // 已经确认在别的格子」时出现，所以文案讲头像。
       const at = participantPlacementAt(board, participantId);
       return at
         ? `该参与者的头像已放置在 ${formatCellLabel(at)}，请先清除那一格`
@@ -142,8 +142,8 @@ function describeBlock(
       return '该格已标记为排除项，请先清除';
     case 'avatar':
       return '该格已放置该参与者的头像';
-    // SPEC-J03 §9 Q6：短按点「该格已有该编号」现在是 **toggle 删除**，不再走
-    // 拒绝路径。这个 case 保留只为 `PlacementBlock` 的成员完整性（不再被返回）。
+    // SPEC-J03 §9 Q6：短按点「该格已有该编号」是 **toggle 删除**，不走拒绝
+    // 路径。这个 case 保留只为 `PlacementBlock` 的成员完整性（它不会被返回）。
     case 'duplicate':
       return `该格已有编号 ${participantId}`;
     case 'grid-full':
@@ -306,8 +306,8 @@ export function GamePage(): JSX.Element {
    * OPT-A01 §1.2: measure the viewport and re-fit the board. The game page has
    * no floating bottom toolbar, hence `showBottomBar: false`.
    *
-   * v0.4.0 验收补充：画布固定自适应——没有手动平移 / 缩放，也就不存在
-   * 「用户调整过就不再重算」的豁免，容器变化一律重新适应。
+   * v0.4.0 验收补充：画布固定自适应——没有手动平移 / 缩放，也就没有
+   * 「用户调整过就跳过重算」的豁免，容器变化一律重新适应。
    */
   const fit = useCallback((): void => {
     const node = containerRef.current;
@@ -639,7 +639,7 @@ export function GamePage(): JSX.Element {
               placedSlotIndices={placedSlotIndices}
               onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
               onDeactivateHover={(index) => {
-                // SPEC-G03（v0.4.0 验收补充）+ BUG-G02（v0.4.1 §9）：放置态下移开
+                // SPEC-G03+ BUG-G02：放置态下移开
                 // 任意卡片都恢复已武装参与者的激活。必须走幂等的 `restore`——
                 // 用 `click` 时，离开的恰是武装者自己的卡片就等同于「再点一次」，
                 // 激活会被 toggle 关掉。

@@ -11,6 +11,16 @@ export const mapEntryKeys = {
   publishedVersions: () => [...mapEntryKeys.all, 'published-versions'] as const,
 };
 
+/**
+ * The editor's own query (`GET /projects/:id/map`) — a **different** key from
+ * `mapEntryKeys.detail`: it carries the canvas draft on top of the project row.
+ * It is cached with `staleTime: Infinity`, so nothing refreshes it by accident;
+ * whoever writes the project row has to invalidate it explicitly.
+ */
+export const mapKeys = {
+  detail: (id: number) => ['map', id] as const,
+};
+
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
@@ -61,8 +71,11 @@ export function useUpdateMap(onSuccess?: () => void) {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateMapPayload }) =>
       mapsApi.update(id, payload),
-    onSuccess: () => {
+    onSuccess: (project) => {
       toast.success('地图已更新');
+      // 改名 / 改简介落的是 `maps` 行，而编辑器的标题读的是 `GET /map` 的
+      // `project` 快照 —— 那份缓存 `staleTime: Infinity`，不失效就一直是旧名。
+      void queryClient.invalidateQueries({ queryKey: mapKeys.detail(project.id) });
       void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
       onSuccess?.();
     },

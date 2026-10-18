@@ -7,7 +7,7 @@ export function NotFoundPage(): JSX.Element {
       <h1 className="text-3xl font-semibold">404</h1>
       <p className="text-sm text-muted-foreground">页面不存在。</p>
       <Button asChild>
-        <Link to="/projects">返回地图列表</Link>
+        <Link to="/maps">返回地图列表</Link>
       </Button>
     </section>
   );

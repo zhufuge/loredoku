@@ -171,7 +171,7 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
 }
 
 /**
- * v0.5.0: the roster moved from the map draft to the puzzle, so a character can
+ * the roster moved from the map draft to the puzzle, so a character can
  * be referenced in **two** places while stored data ages:
  *
  * - `puzzles.data.characterSlots` — where it lives now;
@@ -209,7 +209,6 @@ export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number
     if (JSON.stringify(next) === JSON.stringify(slots)) continue;
     await trx('maps').where({ id: project.id }).update({
       data: { ...record, characterSlots: next },
-      draft_updated_at: trx.fn.now(),
     });
   }
 }

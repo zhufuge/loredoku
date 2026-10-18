@@ -127,7 +127,7 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
   it('toggles the number off when the same cell is tapped again (SPEC-J03)', () => {
     const first = place(createGamePlacementState(), 0, 0, 3);
     const second = place(first, 0, 0, 3);
-    // v0.4.3 §3.2: a tap on the cell that already carries this 编号 removes it —
+    // a tap on the cell that already carries this 编号 removes it —
     // the cell goes back to being empty, never a `×`.
     expect(placementAt(second.board, 0, 0)).toBeNull();
     expect(forbiddenCells(second.board).size).toBe(0);
@@ -352,7 +352,7 @@ describe('the automatic × is a long-press consequence only (SPEC-J02 §2)', () 
     state = place(state, 2, 0, 3, { gridSize: 5 });
     expect(forbiddenCells(state.board).size).toBe(0);
     expect(countPlacements(state.board)).toBe(3);
-    // The row clash is the validator's job, not the sweep's (v0.4.3 §2.4).
+    // The row clash is the validator's job, not the sweep's.
     const result = validatePlacement({
       board: state.board,
       slots: [slot(101), slot(102), slot(103)],
@@ -879,7 +879,7 @@ describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
   it('answers 「where is this participant」 with the avatar, else the lone candidate', () => {
     const single = place(createGamePlacementState(), 2, 2, 5).board;
     expect(participantPlacementAt(single, 5)).toEqual({ x: 2, y: 2 });
-    // 两个候选、没有头像 → 谁也确认不了 → null（不再随机挑一个）。
+    // 两个候选、没有头像 → 谁也确认不了 → null（不随机挑一个）。
     const many = place(withPlacements(single), 4, 4, 5, { gridSize: 5 });
     expect(participantPlacementAt(many.board, 5)).toBeNull();
     // 头像压过候选编号。

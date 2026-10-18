@@ -8,7 +8,7 @@ import { buildRegionEdges, buildRegionHighlightPaths } from '@/lib/region';
 import { styleLineWidth } from '@/lib/mapStyle';
 
 /**
- * v0.5.6: the region layers, split out of the old `MapLayers.tsx`.
+ * the region layers, split out of the old `MapLayers.tsx`.
  */
 
 /**

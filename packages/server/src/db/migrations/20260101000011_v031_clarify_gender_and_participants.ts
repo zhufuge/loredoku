@@ -35,7 +35,7 @@ export async function up(knex: Knex): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(`[v0.3.1] normalised ${normalised} character gender rows to 'male'`);
 
-    // Drop any CHECK constraint referencing gender (v0.3.0 added one).
+    // Drop any CHECK constraint referencing gender.
     await trx.raw(`
       DO $$
       DECLARE c record;

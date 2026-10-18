@@ -19,7 +19,7 @@ const files = import.meta.glob('/src/**/*.{ts,tsx}', {
 }) as Record<string, string>;
 
 /**
- * v0.5.7: the only file **outside** `src/` the tests read — `index.html` carries
+ * the only file **outside** `src/` the tests read — `index.html` carries
  * the pre-React theme script, so its storage key and fallback rule must be
  * asserted against `lib/theme.ts`. Kept here for the same reason as the map
  * above: one place decides how source text is loaded.

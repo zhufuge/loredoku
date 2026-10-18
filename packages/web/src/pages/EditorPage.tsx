@@ -95,7 +95,7 @@ export function EditorPage(): JSX.Element {
   const id = Number(projectId);
 
   /**
-   * v0.5.8 §13: `?v={n}` = 「以此为底稿新建」的 fork 态 —— 版本条目从列表
+   * `?v={n}` = 「以此为底稿新建」的 fork 态 —— 版本条目从列表
    * 直达这里，快照装进本地 store，**保存时才生成草稿**。没有 `?v=` 就是
    * 普通的工作条目编辑。
    */
@@ -111,7 +111,7 @@ export function EditorPage(): JSX.Element {
   const itemsQuery = useItems({ isActive: true });
   const versionsQuery = useVersions(Number.isFinite(id) ? id : null);
   /**
-   * v0.5.8 §13: fork 态的数据源是**版本快照**，不是工作条目草稿 —— 草稿可能
+   * fork 态的数据源是**版本快照**，不是工作条目草稿 —— 草稿可能
    * 还没初始化（`null`），而能发布出去的版本必然带完整 data。
    */
   const versionQuery = useVersionDetail(forkFrom !== null && Number.isFinite(id) ? id : null, forkFrom);
@@ -128,7 +128,7 @@ export function EditorPage(): JSX.Element {
   const initKeyRef = useRef<number | null>(null);
   const mapInfoRef = useRef<MapInfoDrawerHandle | null>(null);
   /**
-   * v0.5.8: 「初始化地图」弹窗的两件事 —— 写尺寸进行中，以及「这次文件选择
+   * 「初始化地图」弹窗的两件事 —— 写尺寸进行中，以及「这次文件选择
    * 来自初始化弹窗」（那条路直接调导入接口，不走「覆盖当前画布」的二次确认，
    * 因为此时画布还是空的）。
    */
@@ -182,7 +182,7 @@ export function EditorPage(): JSX.Element {
   );
 
   /**
-   * v0.5.6: the save / publish / resize flows are hooks now. The page keeps
+   * the save / publish / resize flows are hooks now. The page keeps
    * only what is specific to the map editor: the 基本信息 form, the FIX-F03
    * first-entry save, the canvas callbacks and the dialogs' JSX.
    */
@@ -190,9 +190,9 @@ export function EditorPage(): JSX.Element {
     useEditorSave({
       id,
       mutation: saveMutation,
-      buildPayload: () => ({ data: editor.toDraft(), updatedAt: editor.updatedAt }),
+      buildPayload: () => ({ data: editor.toDraft() }),
       onSaved: (data) => {
-        editor.markSaved(data.updatedAt ?? new Date().toISOString());
+        editor.markSaved();
         editor.setVersionInfo({
           currentVersionNo: data.project.currentVersionNo,
           status: data.project.status,
@@ -201,7 +201,7 @@ export function EditorPage(): JSX.Element {
     });
 
   /**
-   * v0.5.8 §13: fork 态的保存 = 「fork 一行新草稿（带上编辑器当前画布）→ 把
+   * fork 态的保存 = 「fork 一行新草稿（带上编辑器当前画布）→ 把
    * store 标记成已保存 → replace 到新行的编辑器 URL」。换 URL 而不是留在原地
    * 是因为此后所有操作（再保存 / 发布 / 调整尺寸）都必须落在新行 id 上；
    * replace 不留历史，用户按返回不会回到这个中间态。
@@ -216,11 +216,18 @@ export function EditorPage(): JSX.Element {
         versionNo: forkFrom,
         data: editor.toDraft(),
       });
-      editor.markSaved(project.updatedAt);
+      editor.markSaved();
       editor.setVersionInfo({
         currentVersionNo: project.currentVersionNo,
         status: project.status,
       });
+      // fork 的提示放在这里而不是页面顶部：保存之前什么都没发生，说「会生成
+      // 新草稿」只是噪音。落库之后一条提示说清「基于谁、生成了什么」—— 原版本
+      // 未改动是这个动作的题中之义，不再单挂一行说明。
+      toast.success(`已基于 v${forkFrom} 生成新地图`);
+      // 画布内容此刻已在新行里，落掉 `initKeyRef` 让随后的 effect 判定成
+      // 「同一张图」—— 否则它会整份重载，视口跟着跳回 1:1。
+      initKeyRef.current = project.id;
       // 换 URL 必须等 React 把 dirty=false flush 掉：`useBlocker` 的判定读的是
       // 渲染闭包里的 dirty，同一 continuation 里 navigate 会拿旧值把自己拦下
       // （弹「有未保存更改」）。setTimeout(0) 落在 flush 之后。
@@ -286,25 +293,6 @@ export function EditorPage(): JSX.Element {
   });
 
   /**
-   * v0.5.8 §13: fork 态点「发布」= 先落盘成草稿，再请用户点一次发布。发布
-   * 必须发生在**新行**上，而 `publishMutation` 在 hook 创建时就绑定了旧 id
-   * （工作条目），fork 后它的上下文已经过期 —— 与其把发布链路整个挪进
-   * continuation（闭包里的 id / versions 全是旧的），不如让用户在新编辑器里
-   * 再点一次，状态全部是新的。
-   */
-  const handlePublishClick = (): void => {
-    if (forkFrom === null) {
-      openPublishConfirm();
-      return;
-    }
-    void (async () => {
-      if (await persist()) {
-        toast.success('已生成草稿', { description: '请再次点击「发布」' });
-      }
-    })();
-  };
-
-  /**
    * BUG-G01 (docs/v0.4.0.md §1): a click on a cell writes **both** `selection`
    * and `selectedRegionId` (see `EditorCanvas.selectCellAt`), so this effect
    * must not blindly re-open the info drawer — otherwise closing the
@@ -324,7 +312,7 @@ export function EditorPage(): JSX.Element {
   }, [editor.selection, editor.selectedRegionId, mapInfoOpen]);
 
   /**
-   * v0.5.8 §13: fork 态（`?v={n}`）整段让位给版本快照 —— 快照是已发布版本
+   * fork 态（`?v={n}`）整段让位给版本快照 —— 快照是已发布版本
    * 的完整 data，装进本地 store 即可开改，**不写任何库表**。草稿删除 /
    * 未初始化都不影响这条路：数据源是 `map_versions` 行，不是工作条目。
    */
@@ -335,8 +323,6 @@ export function EditorPage(): JSX.Element {
       const action = resolveEditorInit({
         loadedProjectId: initKeyRef.current,
         projectId: id,
-        storedUpdatedAt: editor.updatedAt,
-        fetchedUpdatedAt: snapshot.publishedAt,
         storedVersionNo: editor.currentVersionNo,
         fetchedVersionNo: snapshot.versionNo,
         storedStatus: editor.status,
@@ -349,7 +335,6 @@ export function EditorPage(): JSX.Element {
       }
       initKeyRef.current = id;
       editor.init(id, snapshot.data, {
-        updatedAt: snapshot.publishedAt,
         currentVersionNo: snapshot.versionNo,
         status: 'draft',
       });
@@ -359,7 +344,7 @@ export function EditorPage(): JSX.Element {
     const data = mapQuery.data;
     if (!data) return;
     /**
-     * v0.5.8: `draft === null` = 这张地图还没初始化。此时不 init、不保存 ——
+     * `draft === null` = 这张地图还没初始化。此时不 init、不保存 ——
      * 页面主体让位给 {@link MapInitDialog}，由用户决定填尺寸还是导入。
      */
     if (data.draft === null) return;
@@ -373,8 +358,6 @@ export function EditorPage(): JSX.Element {
     const action = resolveEditorInit({
       loadedProjectId: initKeyRef.current,
       projectId: id,
-      storedUpdatedAt: editor.updatedAt,
-      fetchedUpdatedAt: data.updatedAt,
       storedVersionNo: editor.currentVersionNo,
       fetchedVersionNo: data.project.currentVersionNo,
       storedStatus: editor.status,
@@ -390,7 +373,6 @@ export function EditorPage(): JSX.Element {
     }
     initKeyRef.current = id;
     editor.init(id, data.draft, {
-      updatedAt: data.updatedAt,
       currentVersionNo: data.project.currentVersionNo,
       status: data.project.status,
     });
@@ -401,7 +383,7 @@ export function EditorPage(): JSX.Element {
    * leaving it with unsaved edits has to be confirmed. Every path that closes
    * the drawer or hands focus to another panel goes through this guard.
    *
-   * BUG-G01 (v0.4.0 验收补充): leaving for a cell / region label must **close**
+   * BUG-G01: leaving for a cell / region label must **close**
    * the drawer, not just run the action — otherwise the drawer stays on top and
    * keeps the info drawer suppressed.
    */
@@ -504,9 +486,9 @@ export function EditorPage(): JSX.Element {
   };
 
   /**
-   * v0.5.8 §3: 初始化弹窗的「填尺寸」。复用改尺寸那条路 —— 服务端在草稿为
-   * 空时新建一份只带 `gridSize` 的草稿，成功后 query 失效重拉，`draft` 不再
-   * 是 `null`，页面主体随即渲染。
+   * 初始化弹窗的「填尺寸」。复用改尺寸那条路 —— 服务端在草稿为空时新建一份
+   * 只带 `gridSize` 的草稿，成功后 query 失效重拉，`draft` 不再是 `null`，
+   * 页面主体随即渲染。
    */
   const handleInitSize = (gridSize: number): void => {
     setInitPending(true);
@@ -575,7 +557,7 @@ export function EditorPage(): JSX.Element {
   }
 
   /**
-   * v0.5.6: the keys both canvases share live in `useEditorShortcuts`
+   * the keys both canvases share live in `useEditorShortcuts`
    * (Ctrl+S / Space / Ctrl+Z / Ctrl+0 / arrows); what stays here is the part
    * that is specific to the writable map canvas.
    */
@@ -629,30 +611,30 @@ export function EditorPage(): JSX.Element {
     onKey: handleEditorKey,
   });
 
-  // v0.5.8 §13: fork 态的 `?v=` 指向一个不存在的版本时也要走错误态 ——
+  // fork 态的 `?v=` 指向一个不存在的版本时也要走错误态 ——
   // 否则 versionQuery 永远不 resolve，页面转圈到天荒地老。
   if (!Number.isFinite(id) || mapQuery.isError || (forkFrom !== null && versionQuery.isError)) {
     return (
       <EditorErrorState
         message={forkFrom !== null ? '地图版本不存在或加载失败。' : '地图不存在或加载失败。'}
         backLabel="返回地图列表"
-        onBack={() => navigate('/projects')}
+        onBack={() => navigate('/maps')}
       />
     );
   }
 
   const project = mapQuery.data?.project;
 
-  // v0.5.8 §13: fork 态还要多等一个版本快照（数据源换成 map_versions 行）。
+  // fork 态还要多等一个版本快照（数据源换成 map_versions 行）。
   if (mapQuery.isLoading || !project || (forkFrom !== null && versionQuery.isLoading)) {
     return <EditorLoadingState />;
   }
 
   /**
-   * v0.5.8 §3: 没初始化过的地图没有画布可渲染 —— 整个页面主体让位给初始化
+   * 没初始化过的地图没有画布可渲染 —— 整个页面主体让位给初始化
    * 弹窗（所有 hooks 都已在上面跑完，这里的提前返回不违反 hooks 规则）。
    *
-   * v0.5.8 §13: fork 态跳过这条 —— 画布来自版本快照（必然带 data），与工作
+   * fork 态跳过这条 —— 画布来自版本快照（必然带 data），与工作
    * 条目草稿初始化与否无关。
    */
   if (forkFrom === null && mapQuery.data?.draft == null) {
@@ -670,27 +652,21 @@ export function EditorPage(): JSX.Element {
     <div className="flex h-screen flex-col overflow-hidden">
       <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
-      {/* v0.5.8 §13: fork 态横幅 —— 用户必须随时知道「我现在改的是旧版本的
-          副本，没保存就不落库，保存后会另存一条草稿」。 */}
-      {forkFrom !== null ? (
-        <div className="flex items-center gap-2 border-b bg-secondary/50 px-4 py-1.5 text-xs text-muted-foreground">
-          <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] font-medium text-secondary-foreground">
-            基于 v{forkFrom}
-          </span>
-          正在基于已发布版本编辑 · 保存后将生成新草稿（不会改动原版本）
-        </div>
-      ) : null}
-
       <EditorToolbar
         projectName={project.name}
         dirty={editor.dirty}
         saving={saving}
         publishing={publishMutation.isPending}
-        status={editor.status}
+        /**
+         * fork 态（`?v={n}`，还没保存）这一屏是「以 v{n} 为底稿」，不是草稿：
+         * 徽标与发布按钮都不出现。保存成功 → replace 到新草稿行的 URL →
+         * `forkFrom` 变 null，二者一起回来。
+         */
+        status={forkFrom !== null ? null : editor.status}
         currentVersionNo={editor.currentVersionNo}
-        onBack={() => navigate('/projects')}
+        onBack={() => navigate('/maps')}
         onSave={save}
-        onPublish={handlePublishClick}
+        onPublish={forkFrom === null ? openPublishConfirm : undefined}
         onOpenVersions={() => setVersionsOpen(true)}
         mapInfoOpen={mapInfoOpen}
         onOpenMapInfo={() => {

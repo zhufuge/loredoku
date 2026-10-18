@@ -23,7 +23,7 @@ describe('gridSizeSchema', () => {
 })
 
 describe('createProjectSchema', () => {
-  it('v0.5.8: no longer carries a canvas size', () => {
+  it('no longer carries a canvas size', () => {
     const parsed = createProjectSchema.parse({ name: '  My Map  ' })
     expect(parsed.name).toBe('My Map')
     expect(parsed).not.toHaveProperty('gridSize')
@@ -44,7 +44,7 @@ describe('createCardSchema', () => {
     expect(createCardSchema.safeParse({ code: 'ok', name: 'x' }).success).toBe(true)
   })
 
-  it('v0.5.2 FEAT-M04: a background card is always standable', () => {
+  it('FEAT-M04: a background card is always standable', () => {
     expect(createCardSchema.parse({ code: 'bg_1', name: 'Wall', category: 'background', canStand: false }).canStand).toBe(true)
     expect(createCardSchema.parse({ code: 'ob_1', name: 'Lamp', category: 'object', canStand: false }).canStand).toBe(false)
   })

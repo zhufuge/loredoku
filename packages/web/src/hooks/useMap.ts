@@ -2,11 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { MapDraft } from '@loredoku/shared';
 import { mapApi, type SaveMapPayload } from '@/api/map';
-import { mapEntryKeys } from './useMaps';
-
-export const mapKeys = {
-  detail: (id: number) => ['map', id] as const,
-};
+import { mapEntryKeys, mapKeys } from './useMaps';
 
 export function useProjectMap(id: number) {
   return useQuery({

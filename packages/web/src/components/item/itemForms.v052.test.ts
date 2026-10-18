@@ -59,7 +59,7 @@ describe('创建时即可上传图片（FEAT-M05）', () => {
     expect(itemDialog).toContain('await createMutation.mutateAsync({');
     expect(itemDialog).toContain('.mutateAsync({ id: item.id, file })');
     // A failed upload must not swallow the created item — the result of the
-    // upload is captured so the auto-enable can be undone (v0.5.3 FEAT-N06).
+    // upload is captured so the auto-enable can be undone.
     expect(itemDialog).toContain('.then(() => true)');
     expect(itemDialog).toContain('.catch(() => false)');
   });

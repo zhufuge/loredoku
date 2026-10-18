@@ -5,7 +5,7 @@ import { codeOf, readSource } from '@/testing/source';
  * v0.5.0 SPEC-K05（docs/v0.5.0.md §3）：谜题预览页。
  *
  * 数据源：格子 / 区域 / 样式来自 `usePuzzleMapContext`，参与者与联动主题色来自
- * 谜题自己的 `PuzzleDraft`（Q16：调色板归谜题持有，`resolveMapStyle` 不再产出
+ * 谜题自己的 `PuzzleDraft`（Q16：调色板归谜题持有，`resolveMapStyle` 不产出
  * `linkageColors`）。画布是只读的 —— 没有任何写回调，布局 / 标尺 / hover
  * affordance / 只读参与者面板保持原样。
  */

@@ -9,7 +9,7 @@ import { readSource } from '@/testing/source';
 /**
  * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 is exactly two
  * blocks — 描述 and 联动主题色 — and it is a **form** (draft → 保存), the same
- * contract `MapInfoDrawer` follows (v0.3.9 FEAT-E01).
+ * contract `MapInfoDrawer` follows.
  *
  * The whole point of the spec is what is **not** here, so the first two cases
  * are reverse assertions against the map drawer's field names.

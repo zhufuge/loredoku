@@ -4,7 +4,7 @@ import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import type { PublishResult, usePublishProject } from '@/hooks/useVersions';
 
 /**
- * v0.5.6: the map editor's publish flow, lifted out of `EditorPage`.
+ * the map editor's publish flow, lifted out of `EditorPage`.
  *
  * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing adds an entry to the map list
  * (版本管理). With Q3 = B the next version number spans the whole blood
@@ -16,7 +16,7 @@ import type { PublishResult, usePublishProject } from '@/hooks/useVersions';
  * closes on the outcome: success → a toast naming the new version, a
  * validation failure → the 「无法发布」 list.
  *
- * v0.6.0: the success **dialog** is gone (user feedback — 提示即可，不需要按钮
+ * the success **dialog** is gone (user feedback — 提示即可，不需要按钮
  * 跳转). The new version number rides the toast, which also means the flow no
  * longer needs to carry `MapVersionSummary` state back to the page.
  */
@@ -66,7 +66,7 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
   }, [versions, currentVersionNo]);
 
   /**
-   * v0.5.8 第三阶段（设计 §4.2）：正整数 + 血统内不重号。前端只查得到**可见**
+   * 正整数 + 血统内不重号。前端只查得到**可见**
    * 版本（软删的行不在列表里），所以「软删行仍占号」这种情况由服务端 400 兜底。
    */
   const validateVersion = (value: string): string | null => {
@@ -96,7 +96,7 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
       return;
     }
     const trimmed = versionInput.trim();
-    // 没改（或改回默认值）就交给服务端续号，避免拿过期默认值撞号。
+    // 留空或等于默认号就交给服务端续号，避免拿过期默认值撞号。
     const explicit =
       trimmed === '' || Number(trimmed) === nextVersionNo ? undefined : Number(trimmed);
     void (async () => {

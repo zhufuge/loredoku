@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { resolveEditorInit, type EditorInitInput } from './editorInit';
 
+/**
+ * 判定只有三种结果：「换图 → init」「同图但版本元数据变了 → sync-version」
+ * 「什么都没变 → none」。草稿内容不参与判定。
+ */
 const base: EditorInitInput = {
   loadedProjectId: 7,
   projectId: 7,
-  storedUpdatedAt: '2026-10-15T10:00:00.000Z',
-  fetchedUpdatedAt: '2026-10-15T10:00:00.000Z',
   storedVersionNo: null,
   fetchedVersionNo: null,
   storedStatus: 'draft',
@@ -13,7 +15,7 @@ const base: EditorInitInput = {
 };
 
 describe('resolveEditorInit (FIX-E01)', () => {
-  it('does nothing when the draft and the metadata are unchanged', () => {
+  it('does nothing when the map and the metadata are unchanged', () => {
     expect(resolveEditorInit(base)).toBe('none');
   });
 
@@ -24,18 +26,18 @@ describe('resolveEditorInit (FIX-E01)', () => {
   });
 
   it('treats a restored / deleted version the same way', () => {
+    expect(resolveEditorInit({ ...base, storedVersionNo: 2, fetchedVersionNo: 1 })).toBe(
+      'sync-version',
+    );
     expect(
-      resolveEditorInit({ ...base, storedVersionNo: 2, fetchedVersionNo: 1 }),
+      resolveEditorInit({
+        ...base,
+        storedVersionNo: 1,
+        storedStatus: 'published',
+        fetchedVersionNo: null,
+        fetchedStatus: 'draft',
+      }),
     ).toBe('sync-version');
-    expect(
-      resolveEditorInit({ ...base, storedVersionNo: 1, storedStatus: 'published', fetchedVersionNo: null, fetchedStatus: 'draft' }),
-    ).toBe('sync-version');
-  });
-
-  it('re-initialises when the draft revision actually changed', () => {
-    expect(
-      resolveEditorInit({ ...base, fetchedUpdatedAt: '2026-10-15T11:00:00.000Z' }),
-    ).toBe('init');
   });
 
   it('re-initialises when a different map is loaded', () => {
@@ -43,24 +45,15 @@ describe('resolveEditorInit (FIX-E01)', () => {
     expect(resolveEditorInit({ ...base, loadedProjectId: null })).toBe('init');
   });
 
-  it('handles a never-saved draft (both `updatedAt` null)', () => {
-    expect(
-      resolveEditorInit({ ...base, storedUpdatedAt: null, fetchedUpdatedAt: null }),
-    ).toBe('none');
-    // The editor was initialised from a draft that has since been saved.
-    expect(
-      resolveEditorInit({ ...base, storedUpdatedAt: null, fetchedUpdatedAt: '2026-10-15T12:00:00.000Z' }),
-    ).toBe('init');
-  });
-
-  it('prefers a full re-init when both the draft and the version moved', () => {
-    expect(
-      resolveEditorInit({
-        ...base,
-        fetchedUpdatedAt: '2026-10-15T13:00:00.000Z',
-        fetchedVersionNo: 4,
-        fetchedStatus: 'published',
-      }),
-    ).toBe('init');
+  it('改名 / 换封面不会再重建画布（判定里已无修订号）', () => {
+    // 输入形状就是契约：没有 updatedAt，也就没有「草稿修订号变了」这条分支。
+    expect(Object.keys(base).sort()).toEqual([
+      'fetchedStatus',
+      'fetchedVersionNo',
+      'loadedProjectId',
+      'projectId',
+      'storedStatus',
+      'storedVersionNo',
+    ]);
   });
 });

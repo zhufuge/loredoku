@@ -115,7 +115,7 @@ export const GENDER_SYMBOL_COLORS: Record<(typeof CHARACTER_GENDERS)[number], st
   female: '#F4A9C0',
 };
 
-// ---- Appearance (v0.5.1 FEAT-L01 / FEAT-L02 / SPEC-L03) ----
+// ---- Appearance ----
 // An item / character renders as an uploaded image or a colour block (`bgColor`),
 // which needs no upload and can be activated straight away.
 export const APPEARANCE_MODES = ['image', 'color'] as const;
@@ -136,7 +136,7 @@ export const PROJECT_STATUSES = ['draft', 'published'] as const;
 export const DEFAULT_PROJECT_STATUS = 'draft';
 export const PROJECT_NOTE_MAX_LENGTH = 200;
 
-// ---- Puzzle (v0.5.0 FEAT-K01 / FEAT-K08) ----
+// ---- Puzzle ----
 // v0.5.0 FEAT-K08: the puzzle owns participants + the linkage-colour palette and
 // only **references** a published map version (`PuzzleDraft.map`).
 export const PUZZLE_JSON_VERSION = 1;
@@ -208,7 +208,7 @@ export const THEME_COLOR_PALETTE = [
 /**
  * The canvas layers, **top-most first**, numbered exactly as
  * 《画布图层优先级规范》 (`docs/layer-priority.md` §2) — the single authority.
- * Keys are that document's 代码常量 names (v0.3.9 SPEC-E01), so code, docs and
+ * Keys are that document's 代码常量 names, so code, docs and
  * UI share one vocabulary. v0.4.0 SPEC-G01/G02 inserted the two game-only
  * layers between 区域标签 and 物件图层, renumbering the stack.
  */
@@ -268,7 +268,7 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
 /** 区域填充 — a v0.2.5 leftover parked between 背景图层 and 背景高亮 (`layer-priority.md` §1). */
 export const REGION_FILL_Z = MAP_LAYER_Z.backgroundLayer + 2;
 
-// ---- Map style (v0.3.8 FEAT-D02) ----
+// ---- Map style ----
 /**
  * Map-level defaults edited by the 「地图基本信息」 drawer. Sizes are authored at
  * `BASE_CELL` and scaled by `cellSize / BASE_CELL` (OPT-B03), so one config reads
@@ -364,7 +364,7 @@ export const REGION_LABEL_COLOR = '#FFFFFF';
 export const REGION_LABEL_STROKE_COLOR = '#000000';
 
 // ---- 区域悬停 ----
-/** Hover tints the label blue and enlarges it (v0.3.5 §2.2); OPT-C04 keeps it above the 17px base. */
+/** Hover tints the label blue and enlarges it; OPT-C04 keeps it above the 17px base. */
 export const REGION_LABEL_HOVER_FONT_SIZE = 19;
 
 // ---- OPT-C06 物件层内边距 ----
@@ -402,7 +402,7 @@ export const RULER_SIZE = 28;
 export const PARTICIPANT_MIN_WIDTH = 110;
 /** Participant title bar height, kept in sync with the item panel header. */
 export const PARTICIPANT_HEADER_HEIGHT = 40;
-/** Participant cell minimum height (v0.3.5 OPT-A02). */
+/** Participant cell minimum height. */
 export const PARTICIPANT_MIN_HEIGHT = 104;
 /** Clue display area under the avatar (3 lines). */
 export const PARTICIPANT_CLUE_HEIGHT = 72;
@@ -410,7 +410,7 @@ export const PARTICIPANT_CLUE_HEIGHT = 72;
 export const PARTICIPANT_NAME_HEIGHT = 20;
 /** Gap between participant cells. */
 export const PARTICIPANT_CELL_GAP = 14;
-/** Minimum avatar diameter (v0.3.5 OPT-A02). */
+/** Minimum avatar diameter. */
 export const PARTICIPANT_AVATAR_MIN = 56;
 /** OPT-B06 §6.3 + FEAT-O13 (docs/v0.5.4.md §6.2): sequence badge in the top-left corner, enlarged. */
 export const PARTICIPANT_SEQ_SIZE = 20;
@@ -577,7 +577,7 @@ export const GAME_NAME_MAX_LENGTH = 100;
 /** FEAT-G02: covers are the widest artwork in the app, so they get their own cap. */
 export const GAME_COVER_MAX_DIMENSION = 960;
 
-/** FEAT-H03 / OPT-H04: map covers share the 16:10 frame with game covers (v0.5.3 SPEC-N04 shows it square). */
+/** FEAT-H03 / OPT-H04: map covers share the 16:10 frame with game covers. */
 export const MAP_COVER_ASPECT = 16 / 10;
 /** FEAT-H03: stored map covers are capped like game covers. */
 export const MAP_COVER_MAX_DIMENSION = 960;

@@ -5,14 +5,13 @@ import { formatDateTime } from '@/lib/format';
 import { previewVersionNo } from './EntryActionsMenu';
 
 /**
- * v0.5.9 §2: 徽标只看 `versionNo` —— 版本条目显示 `v{n}`，工作条目一律
- * 「草稿」（v0.5.8 的 `versionNo ?? currentVersionNo` 会让发布过的工作条目
- * 也顶个版本号，与「草稿」语义相反）。
+ * 列表行：缩略图 + 名称 +（版本号）+ 尺寸 + 描述 + 时间 + 操作图标。
  *
- * 操作列：编辑信息 / 预览 / 复制 / 删除四个图标。**「复制」只属于工作条目**
- * （v0.5.8 §13 裁定：版本是冻结快照，复制它既不能改也产不出有用的新图，
- * 想基于某版本继续做事走编辑器内版本历史面板的 fork）。**「编辑信息」同样只
- * 属于工作条目**（v0.5.8 第三阶段：合并后版本行有快照列，但冻结不可改）。
+ * 草稿行不渲染版本列，也不挂徽标 —— 草稿块里条条都是草稿；`v{n}` 只在版本
+ * 条目上出现。尺寸列两块都有，未初始化时打 `—` 占位（列表得按列对齐）。
+ *
+ * 操作列：编辑信息 / 预览 / 复制 / 删除。**「复制」与「编辑信息」都只属于
+ * 工作条目** —— 版本是冻结快照，想基于某版本继续做走「以此为底稿新建」。
  * 预览对「从没发布过的工作条目」禁用。
  */
 interface ProjectListRowProps {
@@ -33,10 +32,9 @@ export function ProjectListRow({
   onPreview,
 }: ProjectListRowProps): JSX.Element {
   const initial = entry.name.trim().charAt(0) || '图';
-  const badge = entry.versionNo !== null ? `v${entry.versionNo}` : '草稿';
   const previewable = previewVersionNo(entry) !== null;
   /**
-   * v0.5.8 §13: 版本条目的主点击是「以此为底稿新建」—— 带 `?v={n}` 进编辑器，
+   * 版本条目的主点击是「以此为底稿新建」—— 带 `?v={n}` 进编辑器，
    * 保存时才生成草稿；只读预览留给眼睛图标。
    */
   const openTitle = entry.kind === 'version' ? '以此为底稿新建' : '进入编辑';
@@ -70,8 +68,18 @@ export function ProjectListRow({
       >
         <span className="truncate">{entry.name}</span>
       </button>
-      {/* 版本/草稿：单独一列、左对齐、等宽数字，让 v9 / v10 不错位。 */}
-      <span className="w-14 shrink-0 tabular-nums text-sm text-muted-foreground">{badge}</span>
+      {/* 版本列：**只有版本条目才有** —— 草稿块里这一列恒为「草稿」，整列不渲染
+          （v0.5.8 第五阶段）。单独一列、左对齐、等宽数字，让 v9 / v10 不错位。 */}
+      {entry.versionNo !== null ? (
+        <span className="w-14 shrink-0 tabular-nums text-sm text-muted-foreground">
+          v{entry.versionNo}
+        </span>
+      ) : null}
+      {/* 尺寸列（v0.5.8 第七阶段）：草稿与版本两块都要。未初始化时打 `—` 而不是
+          整列不渲染 —— 列表行要按列对齐，缺一格会让下面的描述/时间跟着漂。 */}
+      <span className="w-16 shrink-0 tabular-nums text-sm text-muted-foreground">
+        {entry.gridSize !== null ? `${entry.gridSize} × ${entry.gridSize}` : '—'}
+      </span>
       <span className="flex-1 truncate text-sm text-muted-foreground">
         {entry.description ?? ''}
       </span>

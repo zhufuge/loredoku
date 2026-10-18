@@ -8,7 +8,7 @@ import { readSource, tsxIn } from '@/testing/source';
 // the roster).
 //
 // The cell layers are shared with the work preview page, so they live in
-// `components/map/MapItemLayers.tsx` (v0.5.6: split out of `MapLayers.tsx`).
+// `components/map/MapItemLayers.tsx`.
 const source = readSource('components/editor/EditorCanvas.tsx');
 const layerSource = readSource('components/map/MapItemLayers.tsx');
 

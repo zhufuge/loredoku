@@ -54,7 +54,7 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(resolveMapStyle(null)).toEqual(DEFAULT_MAP_STYLE);
   });
 
-  it('v0.5.2 SPEC-M07: ships the new 基本信息 defaults', () => {
+  it('SPEC-M07: ships the new 基本信息 defaults', () => {
     const style = resolveMapStyle(undefined);
     expect(style.cellSize).toBeNull();
     // §7 新默认值逐项钉住。
@@ -308,7 +308,7 @@ describe('layer naming (SPEC-E01)', () => {
 
 // ---- v0.3.9 FEAT-E02: 标尺文本大小与间距 ----
 describe('ruler style (FEAT-E02)', () => {
-  it('v0.5.2 SPEC-M07: defaults to 24px / 24px', () => {
+  it('SPEC-M07: defaults to 24px / 24px', () => {
     expect(resolveMapStyle(undefined).ruler).toEqual({ fontSize: 24, gap: 24 });
   });
 

@@ -73,7 +73,7 @@ describe('ruler glyph styling (§5.1~§5.3)', () => {
 
   it('respects the font guard rails', () => {
     expect(rulerFontSize('normal', 0.1)).toBe(FONT_SIZE_MIN);
-    // The upper bound is gone; only the lower rail remains (v0.5.2 FIX-M08).
+    // The upper bound is gone; only the lower rail remains.
     expect(rulerFontSize('operation', 50)).toBeCloseTo(950, 6);
   });
 });

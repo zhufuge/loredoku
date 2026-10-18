@@ -138,7 +138,7 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
     expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('objectLayer'));
   });
 
-  it('v0.3.8 SPEC-D01: the two cursor boxes are adjacent layers', () => {
+  it('SPEC-D01: the two cursor boxes are adjacent layers', () => {
     expect(layerZ('mouseCursorBox') - layerZ('operationCursorBox')).toBe(1);
   });
 
@@ -191,7 +191,7 @@ describe('non-standable shadow (OPT-901 §1.2.5)', () => {
     expect(map.get('0,0')?.object).toEqual({ itemId: 7, w: 1, h: 1 });
   });
 
-  it('v0.3.8 SPEC-D01: renders below 区域边界线 and above 区域高亮线', () => {
+  it('SPEC-D01: renders below 区域边界线 and above 区域高亮线', () => {
     expect(MAP_LAYER_Z.nonStandableMask).toBeLessThan(MAP_LAYER_Z.regionOutline);
     expect(MAP_LAYER_Z.nonStandableMask).toBeGreaterThan(MAP_LAYER_Z.regionHighlight);
     expect(MAP_LAYER_Z.nonStandableMask).toBeLessThan(MAP_LAYER_Z.regionLabel);

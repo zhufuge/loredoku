@@ -13,7 +13,7 @@ import { readSource } from '@/testing/source';
  * These are real render tests (jsdom + `react-dom/client`), because the whole
  * point of the fix is that editing no longer touches the store.
  *
- * v0.3.10: FIX-F01 (the canvas size joins the draft), FIX-F02 (every change
+ * FIX-F01 (the canvas size joins the draft), FIX-F02 (every change
  * writes through), FIX-F04 / SPEC-F01 (source-level assertions).
  */
 

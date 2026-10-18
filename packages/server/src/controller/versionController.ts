@@ -12,7 +12,7 @@ const versionParamSchema = z.object({
 
 export async function publish(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  // v0.5.8 第三阶段（设计 §4.2）：body 可带 `version`（默认 MAX+1，用户可改）；
+  // body 可带 `version`（默认 MAX+1，用户可改）；
   // `.strict()` 仍挡住旧客户端多传的 `notes`。
   const body = parseOrThrow(publishSchema, ctx.request.body ?? {});
   const version = await versionService.publishProject(id, body.version);
@@ -38,7 +38,7 @@ export async function detail(ctx: Context): Promise<void> {
  * SPEC-K11 (docs/v0.5.0.md §7.3): "edit this version" creates a **new work
  * entry** in the same lineage; `map_versions` is never written.
  *
- * v0.5.8 §13: body 可带 `data` —— 版本条目进编辑器后「保存时才生成草稿」，
+ * body 可带 `data` —— 版本条目进编辑器后「保存时才生成草稿」，
  * 那一刻的编辑器画布随 fork 一起写进新行（不传则用快照 data，即版本历史
  * 面板「编辑此版本」的老行为）。
  */

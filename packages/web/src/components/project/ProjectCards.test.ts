@@ -2,20 +2,17 @@ import { describe, expect, it } from 'vitest';
 import { readSource } from '@/testing/source';
 
 /**
- * v0.5.8 §2: 工作条目与版本条目**展示相同**，操作大部分相同。
+ * 卡片与列表行：两类条目共用一套 DOM，差别只在数据。
  *
- * v0.5.9 §2/§3/§6 修三处：
- * - 徽标只看 `versionNo`（版本条目才 `v{n}`，工作条目一律「草稿」）；
- * - 封面默认放大裁中间、hover 缩回全图；
+ * - 徽标只看 `versionNo`：版本条目才有 `v{n}`；草稿块里条条都是草稿，所以
+ *   卡片不挂徽标、列表行也不占那一列。
+ * - 封面 4:3，默认放大裁中间，hover 缩回全图。
  * - 卡片主按钮按 kind 分叉（版本条目 → 自己的只读预览）。
- *
- * v0.5.8 §13 裁定再收一处：**「复制」只属于工作条目** —— 版本是冻结快照，
- * 复制它既不能改（版本行不可写）也产不出有用的新图。两类条目共同的只剩
- * 编辑信息 / 预览 / 删除。
- *
- * 卡片与行从「按 kind 分叉的一套 UI」收敛成同一套：名称后一个徽标，卡片上
- * 非破坏性操作收在三点菜单里，破坏性的删除独立在外。
- *
+ * - 「复制」「编辑信息」只属于工作条目 —— 版本是冻结快照，既改不了也复制不出
+ *   有用的新图。
+ */
+
+/**
  * 渲染 `ProjectGridCard` 需要 TanStack Query 的 provider 与 router，因此沿用本仓
  * 惯用的源码断言语境（同 `EditorPage.infoDrawer.test.ts`）。
  */
@@ -43,8 +40,8 @@ describe('ProjectGridCard (v0.5.8 §2)', () => {
     expect(cardSource).toContain('{initial}');
   });
 
-  it('v0.5.9 §3: crops the cover zoomed-in and reveals it all on card hover', () => {
-    // v0.5.8: 正方形封面在四列网格里太高，压住文字区；4:3 足够辨认。
+  it('crops the cover zoomed-in and reveals it all on card hover', () => {
+    // 正方形封面在四列网格里太高，压住文字区；4:3 足够辨认。
     expect(cardSource).toContain('aspect-[4/3]');
     expect(cardSource).not.toContain('aspect-square');
     // 默认 scale > 1（放大裁中间，overflow-hidden 切四边），hover 回 1 展示全部。
@@ -55,30 +52,29 @@ describe('ProjectGridCard (v0.5.8 §2)', () => {
     expect(cardSource).toContain('group flex flex-col');
   });
 
-  it('v0.5.9 §2: badges v{n} for version entries only, 草稿 otherwise', () => {
-    expect(cardSource).toContain('const badge = entry.versionNo !== null ? `v${entry.versionNo}` : \'草稿\';');
-    // currentVersionNo 不再是徽标来源 —— 发布过的工作条目也是「草稿」。
+  it('徽标只属于版本条目，草稿不渲染', () => {
+    // 分块之后草稿块里条条都是草稿，「草稿」二字纯属重复 —— 卡片上的徽标与
+    // 列表里的版本列都只给版本条目（`v{n}`）。
+    expect(cardSource).not.toContain("'草稿'");
+    expect(cardSource).toContain('{entry.versionNo !== null ? (');
+    expect(cardSource).toContain('v{entry.versionNo}');
+    expect(rowSource).not.toContain("'草稿'");
+    expect(rowSource).toContain('{entry.versionNo !== null ? (');
+    expect(rowSource).toContain('v{entry.versionNo}');
+    // 徽标只读 versionNo —— 发布过的工作条目也是草稿。
     expect(cardSource).not.toContain('currentVersionNo');
-    // 旧的两种写法都不该再出现。
+    expect(rowSource).not.toContain('currentVersionNo');
+    // 徽标不写前缀，只留 `v{n}`。
     expect(cardSource).not.toContain('已发布 v');
     expect(cardSource).not.toContain('地图 v');
-    // 行同款徽标。
-    expect(rowSource).toContain('const badge = entry.versionNo !== null ? `v${entry.versionNo}` : \'草稿\';');
-    expect(rowSource).not.toContain('currentVersionNo');
   });
 
-  it('v0.5.9 §2: drops the 共 N 个版本 meta line', () => {
+  it('drops the 共 N 个版本 meta line', () => {
     expect(cardSource).not.toContain('versionCount');
     expect(cardSource).not.toContain('共 ');
   });
 
-  it('hides the size line until the canvas is initialised', () => {
-    expect(cardSource).toContain('const size = entry.gridSize;');
-    expect(cardSource).toContain('{size !== null ? (');
-    expect(cardSource).not.toContain('{entry.gridSize} × {entry.gridSize}');
-  });
-
-  it('v0.5.8 §13: the primary button forks by entry kind', () => {
+  it('the primary button forks by entry kind', () => {
     expect(cardSource).toContain("const isVersion = entry.kind === 'version';");
     const firstButton = cardSource.slice(cardSource.indexOf('<Button size="sm"'));
     expect(firstButton).toContain('onClick={() => onOpen(entry)}');
@@ -101,7 +97,7 @@ describe('EntryActionsMenu (v0.5.8 §2)', () => {
     expect(menuSource).toContain('预览');
   });
 
-  it('v0.5.8 第三阶段：编辑信息只属于工作条目，版本条目不渲染', () => {
+  it('编辑信息只属于工作条目，版本条目不渲染', () => {
     // 合并后版本行确实有自己的 name / description / cover 快照列，但那些是
     // 冻结值 —— 能改名就破坏了「版本不可变」（设计 §11 第 9 条）。
     const editAt = menuSource.indexOf('编辑信息');
@@ -110,7 +106,7 @@ describe('EntryActionsMenu (v0.5.8 §2)', () => {
     expect(menuSource.slice(guardAt, editAt)).toContain('onEditInfo');
   });
 
-  it('v0.5.8 §13: 复制只属于工作条目，版本条目不渲染', () => {
+  it('复制只属于工作条目，版本条目不渲染', () => {
     // 版本是冻结快照：复制它既不能改（版本行不可写）也产不出有用的新图，
     // 想基于某版本继续做事走编辑器内版本历史面板的 fork。
     expect(menuSource).toContain("entry.kind !== 'version' ? (");
@@ -126,7 +122,7 @@ describe('EntryActionsMenu (v0.5.8 §2)', () => {
     expect(menuSource).toContain('disabled={!previewable}');
   });
 
-  it('v0.5.9 §1: portals the menu to <body> so the card cannot clip it', () => {
+  it('portals the menu to <body> so the card cannot clip it', () => {
     // 卡片 overflow-hidden（封面圆角）会裁掉探出下沿的 absolute 菜单。
     expect(menuSource).toContain('createPortal');
     expect(menuSource).toContain('createPortal(menu, document.body)');
@@ -155,15 +151,16 @@ describe('ProjectListRow (v0.5.8 §2)', () => {
     expect(rowSource).toContain("const initial = entry.name.trim().charAt(0) || '图';");
   });
 
-  it('gives the version / time / action columns their own aligned slots', () => {
-    // 版本列：等宽数字，v9 / v10 不错位。
+  it('gives the version / size / time / action columns their own aligned slots', () => {
+    // 版本列：等宽数字，v9 / v10 不错位；**只在版本条目上渲染**（草稿块整列不出现）。
     expect(rowSource).toContain('w-14 shrink-0 tabular-nums');
+    // 尺寸列：两块都有，固定宽度 + 等宽数字。
+    expect(rowSource).toContain('w-16 shrink-0 tabular-nums');
+    expect(rowSource).toContain("{entry.gridSize !== null ? `${entry.gridSize} × ${entry.gridSize}` : '—'}");
     // 时间列：右对齐 + 固定宽度。
     expect(rowSource).toContain('w-52 shrink-0 truncate text-right');
     // 操作列：固定宽度 + 右对齐。
     expect(rowSource).toContain('w-32 shrink-0 items-center justify-end');
-    // n × n 不再是独立一列（创建时不再有尺寸，列会经常是空的）。
-    expect(rowSource).not.toContain('{entry.gridSize} × {entry.gridSize}');
   });
 
   it('keeps the absolute time, not the relative form', () => {
@@ -176,14 +173,14 @@ describe('ProjectListRow (v0.5.8 §2)', () => {
     expect(rowSource).toContain('title="删除"');
     // 预览按可用性禁用，而不是按 kind 整块消失。
     expect(rowSource).toContain('title={previewable ? \'预览已发布版本\' : \'还没有已发布的版本可预览\'}');
-    // v0.5.8 §13 + 第三阶段：编辑信息与复制都按 kind 条件渲染 —— 版本条目都没有。
+    // 编辑信息与复制都按 kind 条件渲染 —— 版本条目都没有。
     const guards = rowSource.split("entry.kind !== 'version' ? (").length - 1;
     expect(guards).toBe(2);
     expect(rowSource).toContain('title="复制"');
     expect(rowSource).toContain('disabled={!previewable}');
   });
 
-  it('v0.5.8 §13: 主点击标题按 kind 分叉（版本条目 = 以此为底稿新建）', () => {
+  it('主点击标题按 kind 分叉（版本条目 = 以此为底稿新建）', () => {
     // 版本条目带 ?v= 进编辑器、保存时才生成草稿；眼睛图标仍去只读预览。
     expect(rowSource).toContain("const openTitle = entry.kind === 'version' ? '以此为底稿新建' : '进入编辑';");
     expect(rowSource).toContain('title={`${openTitle}：${entry.name}`}');

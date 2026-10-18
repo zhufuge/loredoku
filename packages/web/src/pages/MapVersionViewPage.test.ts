@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { readSource } from '@/testing/source';
 
 /**
- * v0.5.8 第三阶段（docs/map-table-merge-design.md §15 P0-1）：`/maps/:id/views`
- * 的 `:id` **一律指 `maps.id`** —— 合并后版本行与草稿行都是 `maps` 行，URL 不再
- * 借「拥有它的工作条目」这一层。四种组合的解析规则：
+ * `/maps/:id/views`
+ * 的 `:id` **一律指 `maps.id`** —— 版本行与草稿行都是 `maps` 行，URL 不借
+ * 「拥有它的工作条目」这一层。四种组合的解析规则：
  *
  * | `:id` 命中 | 无 `?v=` | 有 `?v=` |
  * |---|---|---|

@@ -5,7 +5,7 @@ import type { CellMap } from '@/lib/highlight';
 import type { useUpdateGridSize } from '@/hooks/useMap';
 
 /**
- * v0.5.6: the map editor's 调整画布尺寸 flow, lifted out of `EditorPage`.
+ * the map editor's 调整画布尺寸 flow, lifted out of `EditorPage`.
  *
  * The dialog previews exactly what the resize would remove (out-of-bounds
  * items and partially clipped regions) before it is confirmed, and a dirty

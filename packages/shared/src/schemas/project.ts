@@ -30,8 +30,8 @@ export const projectDescriptionSchema = z
   .max(PROJECT_DESCRIPTION_MAX_LENGTH, `描述不能超过 ${PROJECT_DESCRIPTION_MAX_LENGTH} 字`);
 
 /**
- * v0.5.8: 创建地图不再需要画布尺寸 —— 该字段整体移除，尺寸在编辑器首次进入时
- * 由初始化弹窗写入草稿（`draft_data.gridSize`）。
+ * 创建地图只要名称和描述：画布尺寸在编辑器首次进入时由初始化弹窗写进草稿
+ * （`data.gridSize`）。
  */
 export const createProjectSchema = z.object({
   name: projectNameSchema,
@@ -43,8 +43,15 @@ export const updateProjectSchema = z.object({
   description: projectDescriptionSchema.optional().nullable(),
 });
 
+/**
+ * `kind` 让「草稿」「版本」两块各自分页 —— 前端对同一端点发
+ * 两个请求，各自的 `total` 才准；不传则仍是并集口径（兼容既有调用方）。
+ */
+export const listMapEntriesKindSchema = z.enum(['draft', 'version']);
+
 export const listProjectsQuerySchema = z.object({
   keyword: z.string().trim().max(PROJECT_NAME_MAX_LENGTH).optional(),
+  kind: listMapEntriesKindSchema.optional(),
   sort: z.enum(['updatedAt', 'name', 'createdAt']).default('updatedAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
 });

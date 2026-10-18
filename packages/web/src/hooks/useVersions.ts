@@ -5,8 +5,7 @@ import { ErrorCode } from '@loredoku/shared';
 import type { MapDraft, MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import { ApiError } from '@/api/client';
 import { versionsApi } from '@/api/versions';
-import { mapKeys } from './useMap';
-import { mapEntryKeys } from './useMaps';
+import { mapEntryKeys, mapKeys } from './useMaps';
 
 export const versionKeys = {
   list: (id: number) => ['versions', id, 'list'] as const,
@@ -44,7 +43,7 @@ export interface PublishResult {
 
 export function usePublishProject(id: number) {
   const queryClient = useQueryClient();
-  // v0.5.8 第三阶段：变量是「用户填的版本号」，`undefined` = 用服务端默认
+  // 变量是「用户填的版本号」，`undefined` = 用服务端默认
   // （血统 MAX+1）。没改输入框就发 undefined，避免拿着过期的默认值撞 400。
   return useMutation<PublishResult, unknown, number | undefined>({
     mutationFn: async (version) => {
@@ -86,7 +85,7 @@ export function usePublishProject(id: number) {
  * entry** in the same lineage — `map_versions` is never written. The editor is
  * entered on the freshly created row.
  *
- * v0.5.8 §13: `data` 可选（编辑器里「保存时才生成草稿」带当前画布）；
+ * `data` 可选（编辑器里「保存时才生成草稿」带当前画布）；
  * `navigate: false` 供编辑器自己接管落盘后的跳转（它要 replace 而不是
  * push，且跳之前还得先把 store 标记成已保存）。
  */
@@ -97,10 +96,15 @@ export function useForkVersion(options: { navigate?: boolean } = {}) {
     mutationFn: ({ id, versionNo, data }: { id: number; versionNo: number; data?: MapDraft }) =>
       versionsApi.fork(id, versionNo, data),
     onSuccess: (project, { versionNo }) => {
-      toast.success(`已从 v${versionNo} 新增一个条目`);
       void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
       void queryClient.invalidateQueries({ queryKey: versionKeys.list(project.id) });
+      /*
+       * `navigate: false` = 调用方（编辑器）自己接管落盘后的跳转与提示 —— 它
+       * 要 replace 到新行 URL，提示语也按「已基于 v{n} 生成新地图」写。这里再
+       * 提示一次就成了同一次保存弹两条 toast。
+       */
       if (options.navigate !== false) {
+        toast.success(`已从 v${versionNo} 新增一个条目`);
         navigate(`/maps/${project.id}/edit`);
       }
     },

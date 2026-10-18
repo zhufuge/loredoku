@@ -27,7 +27,7 @@ import { useDeleteVersion } from '@/hooks/useVersions';
 const PAGE_SIZE = 12;
 
 /**
- * v0.5.9 §5: 视图选择持久化。网格 / 列表是纯展示偏好，刷新后应保持
+ * 视图选择持久化。网格 / 列表是纯展示偏好，刷新后应保持
  * （同 `MapVersionViewPage` 的标尺开关，RULER_STORAGE_KEY 模式）。
  */
 const VIEW_STORAGE_KEY = 'loredoku.maps.view';
@@ -41,18 +41,24 @@ function readStoredView(): ViewMode {
 type SortOption = 'updatedAt' | 'name';
 
 /**
- * v0.5.8 §15 / 设计 §17: 列表正文拆「草稿」「版本」两块 —— 分块天然实现原来
- * 三态 kind 筛选的用途，版本块按 `rootId asc, versionNo desc` 排序又吸收了
- * 「按地图归组」，于是两个纯视图控件一并删除。
+ * 列表正文拆「草稿」「版本」两块（设计 §17）：分块天然实现「只看草稿 / 只看
+ * 版本」，工具栏只剩关键词 / 排序 / 视图切换。
  *
- * v0.5.0 FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work
- * entries and version entries**, so `useMaps` answers with
- * `PaginatedData<MapEntrySummary>` instead of `ProjectDetail[]`. 分块只作用于
- * 当前页（分页仍是并集口径）。
+ * **两块各自分页**：同一端点带 `kind` 发两个请求，各带自己的页号与 `total`，
+ * 两块各有翻页条。并集分页时期两块共享一页，版本密集时某一页可能只出现版本
+ * 块、草稿全在别页，页码也对不上任何一块。
+ *
+ * 排序两块共用一套（`sort` / `order`，在服务端）；默认按更新时间倒序，所以
+ * 刚发布的版本在最上面。要看同一张图的各版本，用搜索框筛名称。
+ *
+ * FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work entries
+ * and version entries**, so the response is `PaginatedData<MapEntrySummary>`.
  */
 export function MapsPage(): JSX.Element {
   const navigate = useNavigate();
-  const [page, setPage] = useState(1);
+  /** 两块各有页号：翻版本块不该把草稿块也翻走。 */
+  const [draftPage, setDraftPage] = useState(1);
+  const [versionPage, setVersionPage] = useState(1);
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState<SortOption>('updatedAt');
@@ -69,64 +75,76 @@ export function MapsPage(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    // v0.5.9 §5: 视图偏好落 localStorage，下次进页面还是它。
+    // 视图偏好落 localStorage，下次进页面还是它。
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(VIEW_STORAGE_KEY, view);
     }
   }, [view]);
 
+  const resetPages = (): void => {
+    setDraftPage(1);
+    setVersionPage(1);
+  };
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setKeyword(keywordInput.trim());
-      setPage(1);
+      resetPages();
     }, 300);
     return () => clearTimeout(timer);
   }, [keywordInput]);
 
-  const params = useMemo(
+  const shared = useMemo(
     () => ({
-      page,
       pageSize: PAGE_SIZE,
       keyword: keyword || undefined,
       sort,
       order: 'desc' as const,
     }),
-    [page, keyword, sort],
+    [keyword, sort],
   );
 
-  const { data, isLoading, isError, error, refetch, isFetching } = useMaps(params);
+  const draftQuery = useMaps({ ...shared, kind: 'draft', page: draftPage });
+  const versionQuery = useMaps({ ...shared, kind: 'version', page: versionPage });
   const deleteMutation = useDeleteMap();
   const deleteVersionMutation = useDeleteVersion();
   const duplicateMutation = useDuplicateMap();
 
-  const total = data?.total ?? 0;
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const drafts = draftQuery.data?.list ?? [];
+  const versions = versionQuery.data?.list ?? [];
+  const draftTotal = draftQuery.data?.total ?? 0;
+  const versionTotal = versionQuery.data?.total ?? 0;
+  const draftPages = Math.max(1, Math.ceil(draftTotal / PAGE_SIZE));
+  const versionPages = Math.max(1, Math.ceil(versionTotal / PAGE_SIZE));
+
+  const isLoading = draftQuery.isLoading || versionQuery.isLoading;
+  const isError = draftQuery.isError || versionQuery.isError;
+  const isFetching = draftQuery.isFetching || versionQuery.isFetching;
+  const error = draftQuery.error ?? versionQuery.error;
+
+  const refetch = (): void => {
+    void draftQuery.refetch();
+    void versionQuery.refetch();
+  };
 
   /**
-   * v0.5.8 §15: 按 kind 分两块。草稿沿用后端序（`updated_at` 倒序 / 名称序）；
-   * 版本块固定 `rootId asc, versionNo desc` —— 同血统相邻、新号在上，这是原来
-   * 「按地图归组」的排序，现在成了版本块的常态。分页仍是并集分页，两块共享
-   * 当前页（某页可能只出现一块）。
+   * 删完当页最后一条时页号会越过新的总页数 —— 收敛到最后一页，否则用户看到
+   * 空白块还以为数据没了。
    */
-  const { drafts, versions } = useMemo(() => {
-    const list = data?.list ?? [];
-    return {
-      drafts: list.filter((entry) => entry.kind === 'draft'),
-      versions: list
-        .filter((entry) => entry.kind === 'version')
-        .sort((a, b) => a.rootId - b.rootId || (b.versionNo ?? 0) - (a.versionNo ?? 0)),
-    };
-  }, [data?.list]);
+  useEffect(() => {
+    if (draftPage > draftPages) setDraftPage(draftPages);
+  }, [draftPage, draftPages]);
+
+  useEffect(() => {
+    if (versionPage > versionPages) setVersionPage(versionPages);
+  }, [versionPage, versionPages]);
 
   const isVersionEntry = (entry: MapEntrySummary): boolean => entry.kind === 'version';
 
   /**
-   * v0.5.8 §13: 主点击按 kind 分叉 —— 工作条目进编辑器；版本条目走「以此为
-   * 底稿新建」：同样进编辑器，但带 `?v={n}`，画布装的是**版本快照**，且
-   * **保存时才生成草稿**（fork）。v0.5.8 里两者都去编辑器且同一个 id，
-   * 点哪条展出的都是地图草稿（「maps 内容覆盖 version 内容」）；v0.5.9 一度
-   * 改成进只读预览，但那样「基于旧版本继续改」就断了入口，只读预览留给
-   * 菜单 / 列表里的「预览」图标。
+   * 主点击按 kind 分叉 —— 工作条目进编辑器；版本条目走「以此为底稿新建」：
+   * 同样进编辑器，但带 `?v={n}`，画布装的是**版本快照**，且**保存时才生成
+   * 草稿**（fork）。只读预览留给菜单 / 列表里的「预览」图标。
    */
   const handleOpen = (entry: MapEntrySummary): void => {
     if (entry.kind === 'version' && entry.versionNo !== null) {
@@ -137,7 +155,7 @@ export function MapsPage(): JSX.Element {
   };
 
   /**
-   * v0.5.9 §7: 预览统一去 `/maps/:id/views`，具体版本走 `?v=` query ——
+   * 预览统一去 `/maps/:id/views`，具体版本走 `?v=` query ——
    * 版本条目看自己，工作条目看血统里最新的已发布版本；从没发布过的工作
    * 条目在 UI 上就是禁用的。
    */
@@ -163,6 +181,42 @@ export function MapsPage(): JSX.Element {
 
   const deleting = deleteMutation.isPending || deleteVersionMutation.isPending;
 
+  /**
+   * 一块一条翻页条。只在真有多页时出现 —— 单页的「第 1/1 页」
+   * 是噪音，块标题里已经写了总数。
+   */
+  function renderPager(
+    page: number,
+    totalPages: number,
+    total: number,
+    onPage: (next: number) => void,
+  ): JSX.Element | null {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center justify-end gap-3 text-sm text-muted-foreground">
+        <span>
+          第 {page} / {totalPages} 页 · 共 {total} 个
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPage(Math.max(1, page - 1))}
+        >
+          上一页
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => onPage(Math.min(totalPages, page + 1))}
+        >
+          下一页
+        </Button>
+      </div>
+    );
+  }
+
   function renderContent(): JSX.Element {
     if (isLoading) {
       return (
@@ -180,14 +234,14 @@ export function MapsPage(): JSX.Element {
           <p className="text-sm text-muted-foreground">
             {error instanceof Error ? error.message : '加载失败'}
           </p>
-          <Button variant="outline" onClick={() => void refetch()}>
+          <Button variant="outline" onClick={() => refetch()}>
             重试
           </Button>
         </Card>
       );
     }
 
-    if (drafts.length === 0 && versions.length === 0) {
+    if (draftTotal === 0 && versionTotal === 0) {
       return (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <p className="text-sm text-muted-foreground">
@@ -203,10 +257,10 @@ export function MapsPage(): JSX.Element {
 
     return (
       <div className="space-y-8">
-        {drafts.length > 0 ? (
+        {draftTotal > 0 ? (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">
-              草稿 <span className="ml-1 font-normal text-muted-foreground">{drafts.length}</span>
+              草稿 <span className="ml-1 font-normal text-muted-foreground">{draftTotal}</span>
             </h2>
             {view === 'list' ? (
               <Card className="overflow-hidden">
@@ -223,7 +277,7 @@ export function MapsPage(): JSX.Element {
                 ))}
               </Card>
             ) : (
-              // v0.5.9 §4: 最大一行 5 个（2xl），再宽也不铺满 —— 卡片封面要够大才认得出。
+              // 最大一行 5 个（2xl），再宽也不铺满 —— 卡片封面要够大才认得出。
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {drafts.map((entry) => (
                   <ProjectGridCard
@@ -238,14 +292,15 @@ export function MapsPage(): JSX.Element {
                 ))}
               </div>
             )}
+            {renderPager(draftPage, draftPages, draftTotal, setDraftPage)}
           </section>
         ) : null}
 
         {/* v0.5.8 §15: 版本块恒为列表行，不生成卡片 —— 视图切换只管草稿块。 */}
-        {versions.length > 0 ? (
+        {versionTotal > 0 ? (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">
-              版本 <span className="ml-1 font-normal text-muted-foreground">{versions.length}</span>
+              版本 <span className="ml-1 font-normal text-muted-foreground">{versionTotal}</span>
             </h2>
             <Card className="overflow-hidden">
               {versions.map((entry) => (
@@ -260,6 +315,7 @@ export function MapsPage(): JSX.Element {
                 />
               ))}
             </Card>
+            {renderPager(versionPage, versionPages, versionTotal, setVersionPage)}
           </section>
         ) : null}
       </div>
@@ -294,15 +350,16 @@ export function MapsPage(): JSX.Element {
           value={sort}
           onChange={(event) => {
             setSort(event.target.value as SortOption);
-            setPage(1);
+            resetPages();
           }}
           className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <option value="updatedAt">按更新时间</option>
           <option value="name">按名称</option>
         </select>
-        {/* v0.5.8 §15: 三态 kind 筛选与「按地图归组」已删 —— 分块取代前者，
-            版本块的固定排序吸收后者。 */}
+        {/* v0.5.8 §15: 三态 kind 筛选与「按地图归组」已删 —— 分块取代前者；
+            后者原本靠版本块的固定血统排序兼顾，第九阶段版本块改按时间排后
+            这层便利取消，要按图看各版本就用上面的搜索框筛名称。 */}
         <div className="ml-auto flex items-center gap-1 rounded-md border p-1">
           <Button
             size="icon"
@@ -326,30 +383,6 @@ export function MapsPage(): JSX.Element {
       <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>
         {renderContent()}
       </div>
-
-      {!isLoading && !isError && total > 0 ? (
-        <div className="flex items-center justify-end gap-3 text-sm text-muted-foreground">
-          <span>
-            第 {page} / {totalPages} 页 · 共 {total} 个
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
-          >
-            上一页
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-          >
-            下一页
-          </Button>
-        </div>
-      ) : null}
 
       <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
       <EditProjectDialog project={editProject} onOpenChange={(open) => !open && setEditProject(null)} />

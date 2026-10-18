@@ -13,7 +13,7 @@ import * as itemRepo from '../repository/itemRepository';
 import { AppError } from '../utils/AppError';
 
 /**
- * v0.5.8 第三阶段（设计 §5.1）：合并后版本行也是合法的 `maps` 行，`/api/projects/:id`
+ * 合并后版本行也是合法的 `maps` 行，`/api/projects/:id`
  * 的每个写入口都能直达它 —— 合并前它在另一张表，天然免疫。画布 / 尺寸 / 区域
  * 一律只允许写草稿行。
  */
@@ -55,7 +55,7 @@ async function assertValidReferences(draft: MapDraft, size: number): Promise<voi
   if (missingItems.length > 0) {
     throw AppError.validation('存在无效的物品引用', missingItems);
   }
-  // v0.5.0: the roster left the map (it belongs to the puzzle), so there is
+  // the roster left the map (it belongs to the puzzle), so there is
   // nothing character-shaped to validate here any more.
 }
 
@@ -85,30 +85,28 @@ export async function getMap(projectId: number): Promise<MapResponse> {
   if (!record) {
     throw AppError.notFound('地图不存在');
   }
-  return { project: toProject(row), draft: record.draft, updatedAt: record.updatedAt };
+  return { project: toProject(row), draft: record.draft };
 }
 
 export async function saveMap(projectId: number, input: SaveMapDraftInput): Promise<MapResponse> {
   assertWritable(await mapRepo.getProjectRow(projectId));
 
-  // v0.5.8: 尺寸只信草稿自己带的（DB 列已删），越界由 assertValidReferences 按
-  // 同一个值检查，两者不可能再不一致。
+  // 尺寸只认草稿自己带的那一份（DB 没有尺寸列），越界由
+  // assertValidReferences 按同一个值检查。
   const draft: MapDraft = { ...input.data };
   await assertValidReferences(draft, draft.gridSize);
   assertNoRegionOverlap(draft.regions);
 
-  const saved = await mapRepo.saveDraft(projectId, input.updatedAt ?? null, draft);
-  if (saved === undefined) {
+  // 后写覆盖：不做并发比对。
+  const saved = await mapRepo.saveDraft(projectId, draft);
+  if (!saved) {
     throw AppError.notFound('地图不存在');
-  }
-  if (saved === null) {
-    throw new AppError(ErrorCode.DRAFT_CONFLICT, '草稿已被其他会话修改，请刷新后重试');
   }
   const fresh = await mapRepo.getProjectRow(projectId);
   if (!fresh) {
     throw AppError.notFound('地图不存在');
   }
-  return { project: toProject(fresh), draft: saved.draft, updatedAt: saved.updatedAt };
+  return { project: toProject(fresh), draft: saved.draft };
 }
 
 export async function updateGridSize(projectId: number, gridSize: number): Promise<ResizeResult> {
@@ -126,7 +124,7 @@ export async function exportMap(projectId: number): Promise<MapDraft> {
   if (!record) {
     throw AppError.notFound('地图不存在');
   }
-  // v0.5.8: 未初始化的地图导出一份空草稿，比报错更符合「导出」的语义。
+  // 未初始化的地图导出一份空草稿，比报错更符合「导出」的语义。
   return record.draft ?? mapRepo.emptyDraft(GRID_SIZE_DEFAULT);
 }
 
@@ -138,7 +136,7 @@ export async function importMap(projectId: number, data: MapDraft): Promise<MapR
   if (!saved) {
     throw AppError.notFound('地图不存在');
   }
-  return { project: toProject(row), draft: saved.draft, updatedAt: saved.updatedAt };
+  return { project: toProject(row), draft: saved.draft };
 }
 
 export async function listRegions(projectId: number): Promise<DraftRegion[]> {

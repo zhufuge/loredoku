@@ -262,9 +262,13 @@ export const mapDraftSchema = z
 export const createRegionInputSchema = draftRegionSchema.omit({ id: true });
 export const updateRegionInputSchema = draftRegionSchema.omit({ id: true }).partial();
 
+/**
+ * 保存整份草稿：只收 `data`，服务端直接后写覆盖（不做并发比对）。
+ * 刻意**不加** `.strict()`：旧客户端若还带着 `updatedAt`，会被 zod 忽略而
+ * 不是报 400。
+ */
 export const saveMapDraftSchema = z.object({
   data: mapDraftSchema,
-  updatedAt: z.string().nullable().optional(),
 });
 
 export const importMapSchema = z.object({
@@ -276,7 +280,7 @@ export const updateGridSizeSchema = z.object({
 });
 
 /**
- * v0.5.0 §8.4: the parts of a v2 map payload that now belong to a puzzle. A
+ * the parts of a v2 map payload that now belong to a puzzle. A
  * `.strict()` parse would reject such a file with a generic message, so both
  * the web (before sending) and the server (before parsing) call this to say
  * **what** is wrong and where to import it instead.
@@ -294,12 +298,11 @@ export function legacyMapDraftBlocks(data: unknown): string[] {
 }
 
 /**
- * v0.5.8 §13 修订（docs/map-table-merge-design.md §4.2）：发布弹窗里的版本号
- * 默认 `MAX+1`、允许用户改成任意正整数（可填空洞号），所以 `version` 是可选
- * 入参 —— 不传就是默认值，行为与「全自动续号」完全一致。上限 9999 只是为了让
+ * 发布入参（设计 §4.2）：版本号默认 `MAX+1`，也允许用户填任意正整数（可以
+ * 填空洞号），所以 `version` 是可选的 —— 不传就用默认值。上限 9999 只是让
  * `CAST(version AS integer)` 永远安全（`version` 是 text 列）。
  *
- * `.strict()` 保留：旧客户端多传的 `notes` 仍被明确拒绝。
+ * `.strict()` 保留：多传的 `notes` 会被明确拒绝。
  */
 export const publishSchema = z
   .object({
@@ -308,7 +311,7 @@ export const publishSchema = z
   .strict();
 
 /**
- * v0.5.8 §13: 「以此为底稿新建」把 fork 的触发时机从「点击即生成」延后到
+ * 「以此为底稿新建」把 fork 的触发时机从「点击即生成」延后到
  * **编辑器里点保存**。版本条目进编辑器（`/maps/:id/edit?v={n}`）只把快照
  * 装进本地 store，保存时才调 fork，并把**编辑器当前画布**写进新行 ——
  * body 的 `data` 就是那一刻的 `editor.toDraft()`。不传（版本历史面板的

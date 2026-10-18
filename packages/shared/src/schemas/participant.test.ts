@@ -87,7 +87,7 @@ describe('participantTargetSchema', () => {
           .success,
       ).toBe(true);
     }
-    // v0.3.8: the palette is extensible, so any well-formed lowercase key is
+    // the palette is extensible, so any well-formed lowercase key is
     // accepted here; "does this puzzle define it?" is checked by
     // puzzleDraftSchema.
     expect(

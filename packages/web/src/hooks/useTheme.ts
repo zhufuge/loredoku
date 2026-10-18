@@ -22,7 +22,7 @@ export interface ThemeControls {
 }
 
 /**
- * v0.5.7: 订阅 `lib/theme.ts` 那份外部状态。
+ * 订阅 `lib/theme.ts` 那份外部状态。
  *
  * 两个 `useSyncExternalStore` 共用同一个 subscribe：`mode` 变了要重渲染，
  * **系统外观变了（mode 仍是 `system`）也要重渲染** —— 只订阅 mode 的话，

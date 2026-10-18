@@ -1,9 +1,11 @@
 import type { MapDraft, MapResponse, ResizeResult } from '@loredoku/shared';
 import { apiGet, apiPatch, apiPost, apiPut } from './client';
 
+/**
+ * 保存整份草稿只提交 `data`；服务端后写覆盖，不做并发比对。
+ */
 export interface SaveMapPayload {
   data: MapDraft;
-  updatedAt?: string | null;
 }
 
 export const mapApi = {

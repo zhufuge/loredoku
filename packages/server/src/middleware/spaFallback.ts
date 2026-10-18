@@ -15,7 +15,7 @@ function isApiOrAssetPath(path: string): boolean {
 }
 
 /**
- * v0.5.6: serve the web build so `npm start` alone can host the whole app.
+ * serve the web build so `npm start` alone can host the whole app.
  * Registered LAST (after notFoundHandler) on purpose: notFound's next() enters
  * this middleware, so a body it sets only materialises after we have already
  * decided. The other order deadlocks the fallback — notFound fills the JSON

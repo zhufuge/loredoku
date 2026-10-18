@@ -14,7 +14,7 @@ import { readSource, segment } from '@/testing/source';
  * These assertions read the component source so neither regression can come
  * back unnoticed.
  *
- * v0.5.6: the layers moved out of the old `MapLayers.tsx` into per-group
+ * the layers moved out of the old `MapLayers.tsx` into per-group
  * modules; the geometry assertions read `MapRegionLayers.tsx`, the ones about
  * the layer set as a whole read the union of all five.
  */

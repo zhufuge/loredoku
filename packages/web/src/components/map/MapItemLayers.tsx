@@ -10,7 +10,7 @@ import type { CellMap } from '@/lib/highlight';
 import { cellRectStyle, parseKey } from './layerGeometry';
 
 /**
- * v0.5.6: the item layers, split out of the old `MapLayers.tsx`.
+ * the item layers, split out of the old `MapLayers.tsx`.
  *
  * 层 12 · 背景图层（Background Layer）— artwork filling the whole cell.
  */

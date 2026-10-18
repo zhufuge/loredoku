@@ -6,7 +6,7 @@ import { THEME_STORAGE_KEY } from '@/lib/theme';
 import { ThemeToggle } from './ThemeToggle';
 
 /**
- * v0.5.7：切换按钮只做一件事 —— 把三态推进一格，并且**立刻**落盘 + 上色。
+ * 切换按钮只做一件事 —— 把三态推进一格，并且**立刻**落盘 + 上色。
  * 断言走 `data-*` 属性（而不是图标），这样换图标库不会让用例变哑。
  */
 

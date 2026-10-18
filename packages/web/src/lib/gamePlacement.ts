@@ -230,7 +230,7 @@ export function placementBlockReason(input: {
   if (hasParticipant(placement, participantId)) {
     // The cell already belongs to this participant:
     // - `participant` (avatar): a long-press there changes nothing and a tap is
-    //   not a number to remove (v0.4.3 §9 Q5) — refused either way;
+    // not a number to remove — refused either way;
     // - `numbers`: a long-press promotes it to the avatar, a tap removes the
     //   number (SPEC-J03 §3.2 toggle). Both are allowed.
     return placement.kind === 'participant' ? 'avatar' : null;
@@ -353,8 +353,8 @@ export function sweepParticipantNumbers(
 }
 
 /**
- * SPEC-G03 §9.2（v0.4.0 验收补充后）+ SPEC-G06（v0.4.1）+ SPEC-H01（v0.4.2）
- * + SPEC-J02 / SPEC-J03 / SPEC-J05（v0.4.3）：
+ * SPEC-G03 §9.2+ SPEC-G06+ SPEC-H01
+ * + SPEC-J02 / SPEC-J03 / SPEC-J05：
  *
  * - `variant: 'number'`（**短按**，默认）—— 放的是这位参与者的**编号**，而且是一次
  *   **切换**（SPEC-J03 §3.2）：

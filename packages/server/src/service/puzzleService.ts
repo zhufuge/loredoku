@@ -131,7 +131,7 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
     throw AppError.validation('所选地图版本不存在，请选择一个已发布的地图版本');
   }
 
-  // v0.5.8: `map_versions.grid_size` 删了，尺寸从快照自身读。
+  // `map_versions.grid_size` 删了，尺寸从快照自身读。
   const gridSize = version.data?.gridSize ?? 0;
   const description = input.description ?? '';
   const data: PuzzleDraft = {

@@ -70,7 +70,7 @@ describe('PuzzleEditorPage position-pick mode (FEAT-E01 §7.3, v0.5.0 搬家)', 
   });
 
   it('cancels the mode with Esc', () => {
-    // v0.5.6: the two standalone Escape listeners merged into the shared
+    // the two standalone Escape listeners merged into the shared
     // shortcut hook's cascade (`handlePuzzleEscape`).
     const escape = pageSource.slice(
       pageSource.indexOf('const handlePuzzleEscape'),
@@ -89,7 +89,7 @@ describe('PuzzleEditorPage position-pick mode (FEAT-E01 §7.3, v0.5.0 搬家)', 
 /**
  * OPT-H07 / OPT-H08 / OPT-H09（docs/v0.4.2.md §7 ~ §9）。
  *
- * - OPT-H07：联动列表不再渲染「高亮」徽标（效果固定，徽标不携带信息）；
+ * - OPT-H07：联动列表不渲染「高亮」徽标（效果固定，徽标不携带信息）；
  * - OPT-H08：主题色只显示当前选中（一行色块 + hex + 修改），调色板下沉到
  *   `ThemeColorDialog`；
  * - OPT-H09：保存 / 取消固定在抽屉底部，位于滚动区之外；× 与 Esc 等同取消。

@@ -68,7 +68,7 @@ function isRegionConnected(region: DraftRegion): boolean {
  *   P4 — multi-cell items fully inside the board (OPT-904 removed the
  *        "non-standable items cannot sit on the object layer" rule)
  *
- * v0.5.0: the participant rules (P1 / P2 / P5) went with the roster — a map is
+ * the participant rules (P1 / P2 / P5) went with the roster — a map is
  * pure canvas now, and the puzzle is what carries participants.
  */
 export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]> {
@@ -145,7 +145,7 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
  *
  * Q3 = B: 号来自整个血统的最大值，所以从 `v3` fork 出的草稿下次发布是 `v4`。
  *
- * v0.5.8 第三阶段（docs/map-table-merge-design.md §4.2）：`versionNo` 可由用户
+ * `versionNo` 可由用户
  * 指定（填空洞号），不传就是 `MAX+1`。血统内已有该号（**含软删行**，号不回收）
  * 直接 400。
  */
@@ -162,7 +162,7 @@ export async function publishProject(
   }
   const record = await mapRepo.getDraft(projectId);
   if (!record || record.draft === null) {
-    // v0.5.8: 创建地图不再写草稿，没初始化的地图没有可发布的画布。
+    // 创建地图时不写草稿，没初始化的地图没有可发布的画布。
     throw AppError.validation('请先在编辑器里初始化画布尺寸');
   }
 
@@ -203,7 +203,7 @@ export async function listVersionsForProject(projectId: number): Promise<MapVers
   const rows = await versionRepo.listVersionsForRoot(Number(project.root_id));
   return rows.map((row) => ({
     ...versionRepo.toVersionSummary(row),
-    // v0.5.8 第三阶段：版本行自己就是 maps 行，所以这里就是版本行 id。
+    // 版本行自己就是 maps 行，所以这里就是版本行 id。
     projectId: Number(row.id),
   }));
 }
@@ -222,9 +222,9 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
   return {
     id: Number(row.id),
     versionNo: Number(row.version),
-    // v0.5.8: 尺寸从快照自身读（详情页本来就要 data）。
+    // 尺寸从快照自身读（详情页本来就要 data）。
     gridSize: draft.gridSize ?? 0,
-    // v0.5.8 第三阶段：发布时间 = 版本行的插入时间（行插入即冻结）。
+    // 发布时间 = 版本行的插入时间（行插入即冻结）。
     publishedAt: new Date(row.created_at).toISOString(),
     data: draft,
     participantCount: 0,
@@ -240,23 +240,22 @@ export async function deleteVersion(projectId: number, versionNo: number): Promi
   if (!row) {
     throw AppError.notFound('版本不存在');
   }
-  // v0.5.8 第三阶段：软删（界面不展示、行还在、号仍占 MAX）。
+  // 软删（界面不展示、行还在、号仍占 MAX）。
   await versionRepo.deleteVersion(projectId, versionNo);
 }
 
 /**
  * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): "edit this version" never writes to
- * `map_versions`. It creates a **new work entry** — a fresh `maps` row
+ * the source version row. It creates a **new work entry** — a fresh `maps` row
  * seeded with the version's snapshot — that stays in the same blood lineage, so
  * the next publish continues the version numbering instead of restarting at v1.
  *
- * v0.5.8 §13 两处变化：
- * 1. `data` 可传 —— 版本条目进编辑器后「保存时才生成草稿」，body 的 data 是
+ * 1. `data` 可传：版本条目进编辑器后「保存时才生成草稿」，body 的 data 是
  *    那一刻的编辑器画布（用户可能已经改过）；不传则用快照 data（版本历史
- *    面板「编辑此版本」的老行为，点哪条生成哪条）。
- * 2. 命名带来源 —— 新行叫「{owner.name} (自 v{versionNo})」，撞名时按
+ *    面板「编辑此版本」—— 点哪条生成哪条）。
+ * 2. 命名带来源：新行叫「{owner.name} (自 v{versionNo})」，撞名时按
  *    `uniqueName` 加副本后缀。血统内可能同时有多条草稿（fork 不删旧草稿），
- *    不帶来源的话列表里分不清谁是谁。
+ *    不带来源的话列表里分不清谁是谁。
  */
 export async function forkVersion(
   projectId: number,
@@ -282,13 +281,13 @@ export async function forkVersion(
  * in-place mutation SPEC-K11 now forbids. Kept for historical callers with no
  * UI entry point.
  *
- * v0.5.8 第三阶段：目标行必须是草稿行 —— 合并后版本行也能出现在 `:id` 上，
+ * 目标行必须是草稿行 —— 合并后版本行也能出现在 `:id` 上，
  * 不拦就会把快照行覆盖掉（设计 §5.1）。
  */
 export async function createDraftFromVersion(
   projectId: number,
   versionNo: number,
-): Promise<{ draft: MapDraft; updatedAt: string | null }> {
+): Promise<{ draft: MapDraft }> {
   const target = await mapRepo.getProjectRow(projectId);
   if (!target) {
     throw AppError.notFound('地图不存在');
@@ -308,5 +307,5 @@ export async function createDraftFromVersion(
   if (!saved || saved.draft === null) {
     throw AppError.notFound('地图不存在');
   }
-  return { draft: saved.draft, updatedAt: saved.updatedAt };
+  return { draft: saved.draft };
 }

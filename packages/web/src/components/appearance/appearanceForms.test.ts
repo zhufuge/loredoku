@@ -50,7 +50,7 @@ describe.each(subjects)('$kind 外观（v0.5.1 FEAT-L01 / FEAT-L02）', (s) => {
   });
 
   it('lets 启用 through when there is a colour but no media', () => {
-    // v0.5.1 §1.2: the guard is 「已上传图片或有背景色」, not 「已上传图片」.
+    // the guard is 「已上传图片或有背景色」, not 「已上传图片」.
     expect(s.form).toContain(
       `const activatable = hasAppearance(Boolean(${s.ref}.${s.url}), ${s.ref}.bgColor);`,
     );

@@ -23,7 +23,7 @@ const shellSource = readSource('components/layout/AppShell.tsx');
 
 describe('GamesPage (FEAT-G01)', () => {
   it('is a top-level route outside the app shell', () => {
-    // v0.5.6: the page is code-split (`lazyPage`), so the import is dynamic —
+    // the page is code-split (`lazyPage`), so the import is dynamic —
     // the route still renders this module, it just arrives on demand.
     expect(routerSource).toContain("import('@/pages/GamesPage')");
     expect(routerSource).toContain("path: '/play',");
@@ -34,7 +34,7 @@ describe('GamesPage (FEAT-G01)', () => {
       routerSource.indexOf("path: '/maps/:projectId/edit'"),
     );
     expect(shellChildren).not.toContain('GamesPage');
-    // FEAT-L04 (v0.5.1 §4): the whole `/games` path is gone; only `/play`.
+    // FEAT-L04: the whole `/games` path is gone; only `/play`.
     expect(shellSource).not.toContain('/games');
     expect(routerSource).not.toContain("path: '/games");
     expect(shellSource).not.toContain('Gamepad2');
@@ -69,7 +69,7 @@ describe('GamesPage (FEAT-G01)', () => {
 
   it('clicking a card opens the game page by access path', () => {
     // OPT-W04 (docs/v0.4.1.md §4.7): the URL carries the slug, not the id.
-    // FEAT-L04 (v0.5.1 §4): the path is `/play`, not `/games`.
+    // FEAT-L04: the path is `/play`, not `/games`.
     expect(cardSource).toContain('navigate(`/play/${game.slug}`)');
     expect(cardSource).not.toContain('navigate(`/play/${game.id}`)');
     expect(cardSource).not.toContain('`/games/');

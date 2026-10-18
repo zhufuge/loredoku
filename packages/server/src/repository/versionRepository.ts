@@ -3,7 +3,7 @@ import type { MapDraft, MapVersionSummary, ProjectRow } from '@loredoku/shared';
 import { absorbLegacyMapDraft, readLegacyCharacterSlots } from '../service/mapDraftCompat';
 
 /**
- * v0.5.8 第三阶段：`map_versions` 已并入 `maps`
+ * `map_versions` 已并入 `maps`
  * （docs/map-table-merge-design.md）。本模块的每个函数都改查 `maps`，
  * 「版本行」= `version <> 'draft'` 的行。
  *
@@ -39,7 +39,7 @@ function summarizeData(raw: unknown): {
     if (cell?.object) itemIds.add(cell.object.itemId);
     if (cell?.background) itemIds.add(cell.background.itemId);
   }
-  // v0.5.0: participants live on puzzles, so this counts only legacy snapshots.
+  // participants live on puzzles, so this counts only legacy snapshots.
   const participantCount = readLegacyCharacterSlots(raw).filter((slot) => slot !== null).length;
   return {
     participantCount,
@@ -53,7 +53,7 @@ function toSummary(row: ProjectRow): MapVersionSummary {
   return {
     id: Number(row.id),
     versionNo: Number(row.version),
-    // v0.5.8: 版本行的 created_at 就是发布时间（插入即冻结）。
+    // 版本行的 created_at 就是发布时间（插入即冻结）。
     publishedAt: new Date(row.created_at).toISOString(),
     ...summarizeData(row.data),
   };
@@ -178,7 +178,7 @@ export async function createVersion(data: CreateVersionData): Promise<MapVersion
 }
 
 /**
- * FEAT-503: 删版本 = **软删**（`deleted_at`），界面不再展示，但行还在、号仍占
+ * FEAT-503: 删版本 = **软删**（`deleted_at`）：界面不展示，但行还在、号仍占
  * MAX、谜题引用仍可解析（设计 §2）。
  */
 export async function deleteVersion(id: number, versionNo: number): Promise<boolean> {

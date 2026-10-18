@@ -15,6 +15,7 @@ export interface ListProjectsParams {
   page: number;
   pageSize: number;
   keyword?: string;
+  kind?: 'draft' | 'version';
   sort: 'updatedAt' | 'name' | 'createdAt';
   order: 'asc' | 'desc';
 }
@@ -37,7 +38,7 @@ export type ProjectRowWithLineage = ProjectRow & {
 };
 
 /**
- * v0.5.8 第三阶段：`status` / `current_version_no` 两列已删，改由血统推导 ——
+ * `status` / `current_version_no` 两列已删，改由血统推导 ——
  * 每个读单行的查询都带上这两个子查询，比在 service 里补查询少一趟往返。
  */
 const LINEAGE_MAX_VERSION = db.raw(
@@ -50,8 +51,8 @@ const LINEAGE_VERSION_COUNT = db.raw(
 type CountRow = { count?: string | number } | undefined;
 
 /**
- * v0.5.8: 画布尺寸不再是列，读草稿即可。`null` = 这张地图还没初始化（创建时
- * 不再问尺寸，第一次进编辑器时才写）。
+ * 画布尺寸不是列，读草稿即可。`null` = 这张地图还没初始化（创建时不问
+ * 尺寸，第一次进编辑器时才写）。
  */
 export function draftGridSize(draft: MapDraft | null): number | null {
   const size = draft?.gridSize;
@@ -95,7 +96,7 @@ function draftCounts(draft: MapDraft | null): {
   for (const key of Object.keys(draft.cells)) {
     if (draft.cells[key]?.object) itemCount += 1;
   }
-  // v0.5.0: participants left the map; this counts only legacy drafts.
+  // participants left the map; this counts only legacy drafts.
   const characterCount = readLegacyCharacterSlots(draft).filter((slot) => slot !== null).length;
   return {
     itemCount,
@@ -106,11 +107,18 @@ function draftCounts(draft: MapDraft | null): {
 
 /**
  * FEAT-K09 (docs/v0.5.0.md §7.1) — the map list is a union of **work entries**
- * and **version entries**. 合并后两者是同一张表的行，所以并集查询塌成
+ * and **version entries**. 两者是同一张表的行，所以并集查询塌成
  * **一条单表查询**（`kind` 由 `version` 列判定），血统聚合用两个子查询。
  *
  * 软删的版本行不出现（设计 §5 四个过滤面之一）：漏掉这个条件，删掉的版本会
  * 「又冒出来」。
+ *
+ * `params.kind` 让「草稿」「版本」两块各自分页 —— 先按 kind 过滤再算 total，
+ * 前端两个请求各拿各的页码与总数。
+ *
+ * 两块共用一套排序（`sort` / `order`），默认 `updatedAt` 倒序，即最新发布的
+ * 版本在最上面。顺序必须由服务端定：客户端只能排当前页，跨页会乱。版本行
+ * 插入后不写库，`updated_at` 恒等于发布时刻。
  */
 export async function listMapEntries(
   params: ListProjectsParams,
@@ -131,7 +139,7 @@ export async function listMapEntries(
       id: Number(row.id),
       kind: isVersion ? 'version' : 'draft',
       rootId: Number(row.root_id),
-      // v0.5.8 第三阶段：版本行自己就是 maps 行，两个 id 相同。
+      // 版本行自己就是 maps 行，两个 id 相同。
       projectId: Number(row.id),
       versionNo,
       name: row.name,
@@ -148,15 +156,17 @@ export async function listMapEntries(
     };
   });
 
+  const byKind = params.kind ? entries.filter((entry) => entry.kind === params.kind) : entries;
+
   const keyword = params.keyword?.trim().toLowerCase();
   const filtered = keyword
-    ? entries.filter(
+    ? byKind.filter(
         (entry) =>
           entry.name.toLowerCase().includes(keyword) ||
           (entry.description ?? '').toLowerCase().includes(keyword) ||
           (entry.versionNo !== null && `v${entry.versionNo}`.includes(keyword)),
       )
-    : entries;
+    : byKind;
 
   const sorted = [...filtered].sort((a, b) => compareEntries(a, b, params.sort, params.order));
   const start = (params.page - 1) * params.pageSize;
@@ -178,13 +188,14 @@ function compareEntries(
 ): number {
   const left = sortKey(a, sort);
   const right = sortKey(b, sort);
-  let result = left < right ? -1 : left > right ? 1 : 0;
-  if (result === 0) {
-    // A work entry leads its own versions, newest version first.
-    if (a.kind !== b.kind) return a.kind === 'draft' ? -1 : 1;
-    result = (b.versionNo ?? 0) - (a.versionNo ?? 0);
+  const result = left < right ? -1 : left > right ? 1 : 0;
+  if (result !== 0) {
+    return order === 'asc' ? result : -result;
   }
-  return order === 'asc' ? result : -result;
+  // 同键时的次序是**固定**的，不随 order 翻转：工作条目排在它自己的版本前面，
+  // 版本之间新号在前（同一毫秒连发两版时不会把 v1 顶到 v2 上面）。
+  if (a.kind !== b.kind) return a.kind === 'draft' ? -1 : 1;
+  return (b.versionNo ?? 0) - (a.versionNo ?? 0);
 }
 
 /**
@@ -234,16 +245,14 @@ export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
 }
 
 /**
- * v0.5.8 第三阶段（设计 §5.2）：查重**只查草稿行**。版本名是发布时的快照，
- * 不改名连发十个就都叫一个名字 —— 不限定的话，新建地图会撞上某个历史版本名，
- * fork 草稿沿用 owner 名也会挡住之后所有的创建 / 改名。
+ * 只服务**自动取名**：复制 / fork 时拼「{base} 副本 N」要用它避开重复。
+ *
+ * 它**不是唯一性约束**——创建与改名都不查名，同名是允许的（血统里草稿与
+ * 版本同名本来就是常态）。查询限定 `version='draft'`：版本名是发布时的
+ * 快照，不改名连发十个都同名，拿版本名占位会让副本序列莫名跳号。
  */
-export async function existsByName(name: string, excludeId?: number): Promise<boolean> {
-  const query = db('maps').where({ name, version: 'draft' });
-  if (excludeId !== undefined) {
-    query.whereNot('id', excludeId);
-  }
-  const row = await query.first();
+export async function existsByName(name: string): Promise<boolean> {
+  const row = await db('maps').where({ name, version: 'draft' }).first();
   return Boolean(row);
 }
 
@@ -270,7 +279,7 @@ export async function getProjectCounts(
 }
 
 /**
- * v0.5.8: a new map has **no** draft and no canvas size — the first editor
+ * a new map has **no** draft and no canvas size — the first editor
  * entry initialises both (尺寸弹窗 / 导入). `root_id = id` still needs the
  * two-statement transaction. `version` 由 DB 默认值 `'draft'` 兜住。
  */
@@ -306,8 +315,8 @@ export async function updateProject(
 }
 
 /**
- * 删工作条目 = **硬删草稿行**。版本行不牵连（软删是另一条路）——
- * 所以「删地图」不再级联删掉历史版本（设计 §2）。
+ * 删工作条目 = **硬删草稿行**，版本行不牵连（软删是另一条路）——「删地图」
+ * 不会级联删掉历史版本（设计 §2）。
  */
 export async function deleteProject(id: number): Promise<boolean> {
   const affected = await db('maps').where({ id, version: 'draft' }).del();
@@ -357,7 +366,6 @@ export async function duplicateProject(
         cover_path: source.cover_path,
         root_id: source.id,
         data: source.data,
-        draft_updated_at: source.data ? trx.fn.now() : null,
       })
       .returning('*')) as ProjectRow[];
 
@@ -377,7 +385,7 @@ export async function duplicateProject(
  * 'draft'`) is created in the same lineage, seeded with the version's snapshot
  * and inheriting the map's cover (same convention as `duplicate`).
  *
- * v0.5.8 §13: `name` 由 service 传入（「{owner.name} (自 v{versionNo})」+
+ * `name` 由 service 传入（「{owner.name} (自 v{versionNo})」+
  * 查重兜底，血统内可能有多条草稿，命名必须带来源）；`data` 可传编辑器当前
  * 画布（「保存时才生成草稿」那条路），不传则用快照 data。
  *
@@ -409,7 +417,6 @@ export async function forkFromVersion(
         cover_path: owner.cover_path,
         root_id: owner.root_id,
         data: absorbLegacyMapDraft(draft) as ProjectRow['data'],
-        draft_updated_at: trx.fn.now(),
       })
       .returning('*')) as ProjectRow[];
     return Number(row!.id);

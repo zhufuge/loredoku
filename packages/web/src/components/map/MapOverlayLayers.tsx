@@ -15,7 +15,7 @@ import { cellRectStyle, parseKey } from './layerGeometry';
 import { RegionHighlightOutline } from './MapRegionLayers';
 
 /**
- * v0.5.6: the overlay layers (cell decoration, cursor boxes, labels, linkage
+ * the overlay layers (cell decoration, cursor boxes, labels, linkage
  * highlight), split out of the old `MapLayers.tsx`.
  */
 

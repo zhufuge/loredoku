@@ -8,14 +8,13 @@ import type {
 import { apiDelete, apiGet, apiPost } from './client';
 
 /**
- * v0.5.0 (docs/v0.5.0.md §7): `map_versions` — one row per publish, shown as a
+ * `map_versions` — one row per publish, shown as a
  * version entry in the map list.
  */
 export const versionsApi = {
   /**
-   * v0.5.8 第三阶段（设计 §4.2）：版本号默认服务端给 `MAX+1`，用户可在发布弹窗
-   * 里改成任意正整数（可填空洞号），所以 `version` 是可选入参 —— 不传就与服务端
-   * 默认一致。
+   * 版本号默认由服务端给 `MAX+1`；`version` 是可选的，传了就按用户填的
+   * 正整数发布（可填空洞号），不传与服务端默认一致。
    */
   publish(id: number, version?: number): Promise<MapVersionSummary> {
     return apiPost<MapVersionSummary>(
@@ -35,7 +34,7 @@ export const versionsApi = {
    * lineage. `map_versions` is never written — that is what makes a version
    * immutable.
    *
-   * v0.5.8 §13: `data` 可选 —— 版本条目进编辑器后「保存时才生成草稿」，
+   * `data` 可选 —— 版本条目进编辑器后「保存时才生成草稿」，
    * 编辑器那一刻的画布随 fork 一起写进新行；不传则用快照 data。
    */
   fork(id: number, versionNo: number, data?: MapDraft): Promise<ProjectDetail> {

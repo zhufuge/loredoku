@@ -42,7 +42,7 @@ import { cn } from '@/lib/utils';
  * **references** a map version (§5.1).
  *
  * The draft-then-commit contract is copied from `MapInfoDrawer` verbatim
- * (v0.3.9 FEAT-E01 + v0.3.10 FIX-F01/F02): every control writes a local draft,
+ *: every control writes a local draft,
  * the store is only touched on 保存, and the imperative handle lets the page
  * defer a panel switch until the user has decided.
  */

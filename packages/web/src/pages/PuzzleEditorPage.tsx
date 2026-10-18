@@ -169,7 +169,7 @@ export function PuzzleEditorPage(): JSX.Element {
    */
   const lastSavedAtRef = useRef<string | null>(null);
   /**
-   * v0.5.6: FIX-F01's single writer is shared with the map editor now. The
+   * FIX-F01's single writer is shared with the map editor now. The
    * puzzle side keeps its FIX-O18 bookkeeping (remember the `updatedAt` this
    * very save wrote back, so the detail query's answer is not mistaken for a
    * foreign write).
@@ -512,7 +512,7 @@ export function PuzzleEditorPage(): JSX.Element {
   }
 
   /**
-   * v0.5.6: the shared keys live in `useEditorShortcuts`. The puzzle canvas is
+   * the shared keys live in `useEditorShortcuts`. The puzzle canvas is
    * read-only (SPEC-K07 §4.4), so there is no `onKey` — no V / R / E tool
    * switches, and `Delete` / `Backspace` no longer erase a selected cell — and
    * Escape walks the page's own cascade.

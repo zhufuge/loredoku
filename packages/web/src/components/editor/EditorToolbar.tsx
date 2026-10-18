@@ -9,12 +9,17 @@ interface EditorToolbarProps {
   saving: boolean;
   /** FEAT-H05(c) (docs/v0.4.2.md §5.4): the publish request is in flight. */
   publishing: boolean;
-  status: ProjectStatus;
+  /**
+   * `null` = 这一屏还**不是**一张草稿 —— 版本条目的 fork 态，画布装的是
+   * 已发布快照，库里既没有新草稿也没有可发布的东西，所以徽标整个不出现
+   * （显示成「草稿」是谎报状态）。保存落库换成新草稿行后它才回来。
+   */
+  status: ProjectStatus | null;
   currentVersionNo: number | null;
   /** v0.3.8 FEAT-D01: toggles the 「地图基本信息」drawer. */
   mapInfoOpen: boolean;
   /**
-   * v0.5.0: the same button opens the **puzzle**'s 基本信息 on the puzzle
+   * the same button opens the **puzzle**'s 基本信息 on the puzzle
    * editor, so its tooltip has to say what that drawer actually holds.
    */
   infoTitle?: string;
@@ -66,9 +71,11 @@ export function EditorToolbar({
           <span className="truncate font-semibold" title={projectName}>
             {projectName}
           </span>
-          <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
-            {status === 'published' ? `已发布 v${currentVersionNo ?? ''}` : '草稿'}
-          </span>
+          {status === null ? null : (
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+              {status === 'published' ? `已发布 v${currentVersionNo ?? ''}` : '草稿'}
+            </span>
+          )}
           {dirty ? (
             /*
              * FEAT-H05(c) §5.4: the amber badge is both the standing indicator
@@ -125,8 +132,8 @@ export function EditorToolbar({
 
         {/*
          * FEAT-H05(c) §5.4（用户裁定）：保存与发布**不合并**。保存是这一屏的主
-         * 动作（实心 primary），发布退为描边次按钮 —— 它不再承担「能不能发」的
-         * 判断（那由确认弹窗按 dirty 分形态处理），所以**不再因 dirty 置灰**。
+         * 动作（实心 primary），发布是描边次按钮，且不因 dirty 置灰 —— 能不能发
+         * 由确认弹窗按 dirty 分形态处理。
          *
          * v0.5.0 Q17: the puzzle editor passes no `onPublish`, so the whole
          * button (not a disabled one) is left out.

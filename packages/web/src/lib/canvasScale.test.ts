@@ -105,7 +105,7 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     // INNER_LINE_WIDTH is 2 since OPT-C05 → 2 × 2 = 4.
     expect(metrics.innerLineWidth).toBe(4);
     expect(metrics.regionHighlightWidth).toBe(8);
-    // 17 × 2 = 34 — no longer flattened to 28 (v0.5.2 FIX-M08).
+    // 17 × 2 = 34 — no longer flattened to 28.
     expect(metrics.rulerFontSize).toBe(34);
     expect(metrics.rulerFontSizeActive).toBe(38);
   });
@@ -145,7 +145,7 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     const small = canvasMetrics(MIN_CELL_SIZE);
     const large = canvasMetrics(MAX_CELL_SIZE);
     expect(scaleFontSize(REGION_LABEL_FONT_SIZE, small.scale)).toBeCloseTo(12.75, 6);
-    // 17 × 2 = 34, no cap (v0.5.2 FIX-M08).
+    // 17 × 2 = 34, no cap.
     expect(scaleFontSize(REGION_LABEL_FONT_SIZE, large.scale)).toBe(34);
     expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, small.scale)).toBeCloseTo(3, 6);
     expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, large.scale)).toBe(8);

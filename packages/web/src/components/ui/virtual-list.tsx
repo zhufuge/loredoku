@@ -2,17 +2,6 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { LIST_ROW_HEIGHT } from '@loredoku/shared';
 import { cn } from '@/lib/utils';
 
-/**
- * v0.5.2 FEAT-M01 (docs/v0.5.2.md §1): a fixed-height, windowed list.
- *
- * The item and character lists render one `<img>` per row, so a long list used
- * to fire hundreds of thumbnail requests at once. Only the rows inside the
- * viewport (plus a small overscan) are mounted here — the rest are pure
- * spacing, so the browser never asks for their images.
- *
- * Deliberately dependency-free: rows are a uniform height, so simple index
- * arithmetic is enough and there is nothing to measure.
- */
 export interface VirtualListProps {
   /** Total number of rows in the data set (not just the rendered window). */
   count: number;

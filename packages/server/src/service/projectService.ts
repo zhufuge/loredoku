@@ -42,7 +42,7 @@ export async function getProjectDetail(id: number): Promise<ProjectDetail> {
 }
 
 /**
- * v0.5.8 第三阶段（设计 §5.1）：合并后版本行也是合法的 `maps` 行，改名 / 描
+ * 合并后版本行也是合法的 `maps` 行，改名 / 描
  * 述 / 封面这些「条目级」写操作必须把版本行拦下来 —— 版本是冻结快照。
  */
 async function findWritable(id: number): Promise<repo.ProjectRowWithLineage> {
@@ -56,10 +56,11 @@ async function findWritable(id: number): Promise<repo.ProjectRowWithLineage> {
   return row;
 }
 
+/**
+ * **名称可以重复**。一个血统里「草稿 + 发布过的一堆版本」本来同名，用户凭
+ * 版本号与更新时间区分；创建 / 改名都不查重，DB 侧也没有唯一约束。
+ */
 export async function createProject(input: CreateProjectInput): Promise<Project> {
-  if (await repo.existsByName(input.name)) {
-    throw AppError.conflict('地图名称已存在');
-  }
   return repo.createProject({
     name: input.name,
     description: input.description ?? null,
@@ -67,10 +68,7 @@ export async function createProject(input: CreateProjectInput): Promise<Project>
 }
 
 export async function updateProject(id: number, input: UpdateProjectInput): Promise<Project> {
-  const existing = await findWritable(id);
-  if (input.name && input.name !== existing.name && (await repo.existsByName(input.name, id))) {
-    throw AppError.conflict('地图名称已存在');
-  }
+  await findWritable(id);
   const updated = await repo.updateProject(id, input);
   if (!updated) {
     throw AppError.notFound('地图不存在');
@@ -113,7 +111,7 @@ export async function duplicateProject(id: number): Promise<Project> {
 
 /**
  * 复制 / fork 的取名兜底：`{base} 副本`、`{base} 副本 2`… 直到不撞名。
- * v0.5.8 §13 起 fork 也走它（「{name} (自 v{n})」为 base），故导出复用。
+ * fork 也走它（以「{name} (自 v{n})」为 base），故导出复用。
  */
 export async function uniqueCopyName(baseName: string): Promise<string> {
   let candidate = `${baseName} 副本`;
@@ -127,7 +125,7 @@ export async function uniqueCopyName(baseName: string): Promise<string> {
 
 /**
  * `base` 本身不撞名就用它，撞了再走 {@link uniqueCopyName} 的副本序列。
- * v0.5.8 §13: fork 的命名（「{name} (自 v{n})」）—— 血统内多草稿时第二次
+ * fork 的命名（「{name} (自 v{n})」）—— 血统内多草稿时第二次
  * fork 同一版本才需要加副本。
  */
 export async function uniqueName(baseName: string): Promise<string> {

@@ -20,19 +20,17 @@ export interface ProjectRow {
    */
   root_id: string | number;
   /**
-   * v0.5.8 第三阶段：`map_versions` 合并进本表，`draft_data` 改名 `data`。
-   * 草稿行可为 `NULL`（未初始化），版本行必非空（CHECK 兜住）。
+   * 画布数据。草稿行可为 `NULL`（未初始化），版本行必非空（CHECK 兜住）。
    */
   data: MapDraft | null;
   /**
-   * v0.5.8 第三阶段：`'draft'` = 工作条目，纯数字字符串 = 已发布版本。
+   * `'draft'` = 工作条目，纯数字字符串 = 已发布版本。
    * **不要**直接 `Number()`：`Number('draft')` 是 NaN，转换统一走
    * `versionToNo()`（docs/map-table-merge-design.md §15 P0-2）。
    */
   version: string;
   /** 软删标记：只有版本行会被设置；草稿行是硬删。 */
   deleted_at: Date | string | null;
-  draft_updated_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }
@@ -89,7 +87,7 @@ export interface CharacterRow {
  * survive as the referenced map version, and legacy rows have `puzzle_id = NULL`
  * with a v0.4.x snapshot shape.
  *
- * v0.5.8 第三阶段：`project_id` 现在指向**版本行**（`maps.version <> 'draft'`）
+ * `project_id` 现在指向**版本行**（`maps.version <> 'draft'`）
  * 的 id，因为版本行自己就是 `maps` 行了（docs/map-table-merge-design.md §9）。
  */
 export interface MapGameRow {

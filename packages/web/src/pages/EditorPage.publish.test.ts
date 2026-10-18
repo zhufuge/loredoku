@@ -7,13 +7,12 @@ import { readSource } from '@/testing/source';
  * **新增带版本标记的地图条目**（地图模块的版本管理）。
  *
  * - §5.2 发布前确认弹窗（标题 / 版本号预告 / dirty 提示）；
- * - §5.4 保存是 primary、发布是 outline，两个按钮**不合并**，且发布不再因 dirty 置灰。
+ * - §5.4 保存是 primary、发布是 outline，两个按钮**不合并**，发布也不因 dirty 置灰。
  *
- * v0.6.0: 发布成功后**只弹 toast，不再有跳转按钮**（用户反馈：提示即可）。
- * 曾经的「查看该条目 / 预览」成功弹窗（SPEC-K10 §7.2）整段删除，新版本号
- * 随 toast 文案给出；流程不再把 `MapVersionSummary` 带回页面。
+ * 发布成功后**只弹 toast**，新版本号写在文案里；页面不接收 `MapVersionSummary`，
+ * 也没有「查看该条目 / 预览」的后续入口。
  *
- * v0.5.6: the confirm flow moved into `useEditorPublish`; the page keeps the
+ * the confirm flow moved into `useEditorPublish`; the page keeps the
  * dialogs' JSX, so the two files are asserted side by side.
  *
  * 与 `EditorPage.autoSave.test.ts` / `EditorPage.infoDrawer.test.ts` 同一手法：
@@ -32,7 +31,9 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
   it('goes through a confirmation dialog instead of firing the request', () => {
     expect(publishHookSource).toContain('const [publishOpen, setPublishOpen] = useState(false);');
     expect(publishHookSource).toContain('const openPublishConfirm = (): void => {');
-    expect(pageSource).toContain('onPublish={handlePublishClick}');
+    expect(pageSource).toContain(
+      'onPublish={forkFrom === null ? openPublishConfirm : undefined}',
+    );
     expect(pageSource).toContain('open={publishOpen}');
   });
 
@@ -43,7 +44,7 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
     expect(publishHookSource).toContain('return (currentVersionNo ?? 0) + 1;');
   });
 
-  it('v0.5.8 §4: the note field is gone — a second confirmation is the ask', () => {
+  it('the note field is gone — a second confirmation is the ask', () => {
     expect(publishHookSource).not.toContain('publishNotes');
     expect(pageSource).not.toContain('publish-notes');
     // 二次确认文本留在 AlertDialogDescription 里。
@@ -68,10 +69,10 @@ describe('EditorPage publish confirm dialog (FEAT-H05 §5.2)', () => {
 
 describe('EditorPage publish success feedback (SPEC-K13 §7.4, v0.6.0)', () => {
   it('announces the new version with a toast and nothing else', () => {
-    // v0.6.0: 成功弹窗（查看该条目 / 预览）整段删除，只留提示。
+    // 成功弹窗（查看该条目 / 预览）整段删除，只留提示。
     expect(publishHookSource).toContain('toast.success(`已发布 v${result.version?.versionNo ?? \'\'}`');
     expect(publishHookSource).toContain("description: '已在地图列表新增条目。',");
-    // 流程不再把发布结果带回页面。
+    // 流程不把发布结果带回页面。
     expect(publishHookSource).not.toContain('publishedVersion');
     expect(publishHookSource).not.toContain('setPublishedVersion');
   });
@@ -80,7 +81,7 @@ describe('EditorPage publish success feedback (SPEC-K13 §7.4, v0.6.0)', () => {
     expect(pageSource).not.toContain('open={publishedVersion !== null}');
     expect(pageSource).not.toContain('查看该条目');
     // 唯一的 /views 导航是版本历史面板的预览（EditorPage.tsx onPreview），
-    // 与发布成功无关；发布弹窗自身不再 navigate 任何地方。
+    // 与发布成功无关；发布弹窗自身不做任何导航。
     expect(pageSource).not.toContain('navigate(`/maps/${id}/views');
   });
 
@@ -129,14 +130,14 @@ describe('EditorToolbar button hierarchy (FEAT-H05 §5.4)', () => {
 describe('usePublishProject carries the version back (FEAT-H05 §5.3)', () => {
   it('stops dropping the version the API already returns', () => {
     expect(versionsSource).toContain('version?: MapVersionSummary;');
-    // v0.5.8 第三阶段：发布带上用户填的版本号（`undefined` = 服务端 MAX+1）。
+    // 发布带上用户填的版本号（`undefined` = 服务端 MAX+1）。
     expect(versionsSource).toContain('const published = await versionsApi.publish(id, version);');
     expect(versionsSource).toContain('useMutation<PublishResult, unknown, number | undefined>');
     expect(versionsSource).toContain('return { ok: true, version: published };');
   });
 
   it('keeps the data hook free of toasts — the flow hook owns the feedback', () => {
-    // v0.6.0: 成功提示挪到 useEditorPublish；usePublishProject 只负责失效缓存。
+    // 成功提示挪到 useEditorPublish；usePublishProject 只负责失效缓存。
     const onSuccess = versionsSource.slice(
       versionsSource.indexOf('onSuccess: (result) => {'),
       versionsSource.indexOf('onError: (error) => {'),
@@ -149,9 +150,9 @@ describe('usePublishProject carries the version back (FEAT-H05 §5.3)', () => {
 });
 
 /**
- * v0.5.8 第三阶段（docs/map-table-merge-design.md §4.2）：发布弹窗里多了一个
- * **版本号输入框**，预填血统 `MAX+1`，用户可改成任意正整数（可填空洞号）。
- * 没改就发 `undefined`，交给服务端续号 —— 免得拿着过期的默认值撞号。
+ * 发布弹窗里有一个**版本号输入框**：预填血统 `MAX+1`，用户可以填任意正整数
+ * （可填空洞号）。等于默认号就发 `undefined`，交给服务端续号 —— 免得拿着过期
+ * 的默认值撞号。
  */
 describe('发布弹窗：版本号可改（v0.5.8 第三阶段）', () => {
   it('预填默认号，并在每次打开弹窗时重置', () => {

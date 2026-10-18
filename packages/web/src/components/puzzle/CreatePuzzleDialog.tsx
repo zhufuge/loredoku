@@ -156,7 +156,7 @@ export function CreatePuzzleDialog({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => navigate('/projects')}
+                  onClick={() => navigate('/maps')}
                 >
                   <MapIcon className="mr-1 h-3.5 w-3.5" />
                   前往地图

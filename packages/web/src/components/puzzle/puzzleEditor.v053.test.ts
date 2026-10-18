@@ -55,7 +55,7 @@ describe('主题色调色板（FEAT-N09）', () => {
   it('one shared swatch grid — the participant theme colour is its only home', () => {
     expect(colorPalette).toContain('THEME_COLOR_PALETTE.map(');
     expect(colorPalette).toContain('data-testid="color-palette"');
-    // 参与者主题色（v0.5.3 FEAT-N09）
+    // 参与者主题色
     expect(themeDialog).toContain('<ColorPalette');
     // FIX-O16 (docs/v0.5.4.md §7.3): the 基本信息 palette was removed again —
     // a colour is picked with the `ColorInput` + hex field, not a swatch grid.

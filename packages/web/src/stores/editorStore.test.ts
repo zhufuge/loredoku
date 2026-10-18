@@ -29,7 +29,7 @@ const regionInput = (id: string, cells: Array<[number, number]>): RegionInput =>
 });
 
 beforeEach(() => {
-  store().init(1, draft(), { updatedAt: null, currentVersionNo: null, status: 'draft' });
+  store().init(1, draft(), { currentVersionNo: null, status: 'draft' });
 });
 
 describe('placement', () => {
@@ -127,9 +127,9 @@ describe('history', () => {
   it('markSaved resets the dirty flag', () => {
     store().placeBackground(1, 0, 0);
     expect(store().dirty).toBe(true);
-    store().markSaved('2026-01-01T00:00:00.000Z');
+    // markSaved 不收修订号。
+    store().markSaved();
     expect(store().dirty).toBe(false);
-    expect(store().updatedAt).toBe('2026-01-01T00:00:00.000Z');
   });
 });
 
@@ -239,7 +239,7 @@ describe('init', () => {
     loaded.regions = [
       { id: 'rg_x', name: 'Loaded', color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
-    store().init(9, loaded, { updatedAt: '2026-01-01T00:00:00.000Z', currentVersionNo: 2, status: 'published' });
+    store().init(9, loaded, { currentVersionNo: 2, status: 'published' });
 
     expect(store().projectId).toBe(9);
     expect(store().gridSize).toBe(4);
@@ -256,7 +256,7 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
   it('serialises cells and regions — and carries no roster (SPEC-K12)', () => {
     store().placeObject({ id: 5, widthCells: 1, heightCells: 1 }, 1, 1);
     const output = store().toDraft();
-    // v0.5.0: the map JSON is v3 — participants live in the puzzle now.
+    // the map JSON is v3 — participants live in the puzzle now.
     expect(output.version).toBe(3);
     expect(output.cells['1,1']?.object).toEqual({ itemId: 5, w: 1, h: 1 });
     expect('characterSlots' in output).toBe(false);
@@ -291,7 +291,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
           gridSeparator: { width: 4, color: '#112233' },
         },
       } as MapDraft,
-      { updatedAt: null, currentVersionNo: null, status: 'draft' },
+      { currentVersionNo: null, status: 'draft' },
     );
     expect(store().style.cellSize).toBe(150);
     expect(store().style.gridSeparator).toEqual({ width: 4, color: '#112233' });

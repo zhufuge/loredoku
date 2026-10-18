@@ -3,13 +3,13 @@ import { MAP_LAYER_Z } from '@loredoku/shared';
 import { styleLineWidth } from '@/lib/mapStyle';
 
 /**
- * v0.5.6: the grid chrome layers, split out of the old `MapLayers.tsx`.
+ * the grid chrome layers, split out of the old `MapLayers.tsx`.
  *
  * 层 6 · 网格分隔线（Grid Separator）: adjacent cells **share** one separator,
  * so an `n × n` board draws `n-1` lines per axis — never four lines per cell.
  * The board outline is a separate layer (see {@link MapCanvasFrameLayer}).
  *
- * Width and colour come from `style.gridSeparator` (v0.3.8 FEAT-D02); the
+ * Width and colour come from `style.gridSeparator`; the
  * width is a base value and is still multiplied by `cellSize / BASE_CELL`.
  */
 export function MapGridSeparatorLayer({

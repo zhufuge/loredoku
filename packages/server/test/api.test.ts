@@ -52,19 +52,14 @@ async function initMap(projectId: number, gridSize: number): Promise<void> {
 }
 
 /**
- * v0.5.8: 建图后会先初始化一次草稿（`draft_updated_at` 不再是 null），所以
- * 「保存画布」必须带上当前 revision，否则撞乐观锁。这个 helper 把读 revision
- * 和写草稿合成一步，测试只关心写成功。
+ * v0.5.8 第八阶段：保存画布不再需要先读 revision —— 乐观锁取消，服务端后写
+ * 覆盖。这个 helper 只负责「写一次并且必须成功」。
  */
 /** supertest 的 Response（不是 DOM 那个）—— 用推断类型，避免撞名。 */
 type ApiResponse = Awaited<ReturnType<typeof api.get>>;
 
 async function saveCanvas(projectId: number, draft: MapDraft): Promise<ApiResponse> {
-  const current = await api.get(`/api/projects/${projectId}/map`);
-  expect(current.status).toBe(200);
-  const res = await api
-    .put(`/api/projects/${projectId}/map`)
-    .send({ data: draft, updatedAt: current.body.data.updatedAt });
+  const res = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
   expect(res.status).toBe(200);
   return res;
 }
@@ -207,6 +202,30 @@ describe('projects API', () => {
     expect(res.status).toBe(200);
     expect(res.body.data.gridSize).toBeNull();
     createdProjects.push(res.body.data.id);
+  });
+
+  it('v0.5.8 第六阶段: 允许同名创建与同名改名，但复制仍自动避开重名', async () => {
+    const name = `Twin ${uniqueCode('p')}`;
+
+    const first = await api.post('/api/projects').send({ name });
+    const second = await api.post('/api/projects').send({ name });
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(second.body.data.id).not.toBe(first.body.data.id);
+    expect(second.body.data.name).toBe(name);
+    createdProjects.push(first.body.data.id, second.body.data.id);
+
+    // 改名也不再查重。
+    const renamed = await api.patch(`/api/projects/${second.body.data.id}`).send({ name });
+    expect(renamed.status).toBe(200);
+    expect(renamed.body.data.name).toBe(name);
+
+    // 自动取名（`uniqueCopyName`）仍避重：两次复制得到「副本」「副本 2」。
+    const dup1 = await api.post(`/api/projects/${first.body.data.id}/duplicate`);
+    const dup2 = await api.post(`/api/projects/${first.body.data.id}/duplicate`);
+    expect(dup1.body.data.name).toBe(`${name} 副本`);
+    expect(dup2.body.data.name).toBe(`${name} 副本 2`);
+    createdProjects.push(dup1.body.data.id, dup2.body.data.id);
   });
 
   it('lists, reads, updates, duplicates and deletes a project', async () => {
@@ -507,14 +526,15 @@ describe('characters API', () => {
 });
 
 describe('map draft API', () => {
-  it('loads, saves with optimistic concurrency, and rejects stale writes', async () => {
+  it('v0.5.8 第八阶段：加载、保存，且后写覆盖（不再有乐观锁）', async () => {
     const projectId = await createProject({ name: `Map ${uniqueCode('p')}`, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
 
     const initial = await api.get(`/api/projects/${projectId}/map`);
     expect(initial.status).toBe(200);
     expect(initial.body.data.draft.cells).toEqual({});
-    const updatedAt = initial.body.data.updatedAt as string;
+    // 响应里不再有修订号 —— 它是锁的令牌，锁取消后连同 `draft_updated_at` 一起删了。
+    expect(initial.body.data.updatedAt).toBeUndefined();
 
     const draft = emptyDraft(6);
     draft.cells['0,0'] = { object: { itemId, w: 1, h: 1 } };
@@ -522,7 +542,7 @@ describe('map draft API', () => {
       { id: 'rg_a', name: 'Lounge', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
 
-    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft, updatedAt });
+    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
     expect(saved.status).toBe(200);
     expect(saved.body.data.draft.cells['0,0'].object.itemId).toBe(itemId);
     expect(saved.body.data.draft.regions).toHaveLength(1);
@@ -530,11 +550,12 @@ describe('map draft API', () => {
     const loaded = await api.get(`/api/projects/${projectId}/map`);
     expect(loaded.body.data.draft.regions[0].name).toBe('Lounge');
 
-    const stale = await api
+    // 同一份草稿再写一次（旧客户端可能仍带 updatedAt）—— 照样 200，最后写入的生效。
+    const again = await api
       .put(`/api/projects/${projectId}/map`)
-      .send({ data: emptyDraft(6), updatedAt });
-    expect(stale.status).toBe(409);
-    expect(stale.body.code).toBe(ErrorCode.DRAFT_CONFLICT);
+      .send({ data: emptyDraft(6), updatedAt: '1999-01-01T00:00:00.000Z' });
+    expect(again.status).toBe(200);
+    expect(again.body.data.draft.cells).toEqual({});
   });
 
   it('rejects out-of-bounds cells and unknown item references', async () => {
@@ -563,10 +584,7 @@ describe('map draft API', () => {
       { id: 'rg_b', name: 'B', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
     // 预期失败：不用 saveCanvas（它内部断言 200）。
-    const current = await api.get(`/api/projects/${projectId}/map`);
-    const res = await api
-      .put(`/api/projects/${projectId}/map`)
-      .send({ data: draft, updatedAt: current.body.data.updatedAt });
+    const res = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe(ErrorCode.REGION_OVERLAP);
   });
@@ -620,9 +638,6 @@ describe('map draft API', () => {
   it('persists and reloads the map style, and still accepts a style-less draft', async () => {
     const projectId = await createProject({ name: `Style ${uniqueCode('p')}`, gridSize: 6 });
 
-    const initial = await api.get(`/api/projects/${projectId}/map`);
-    const updatedAt = initial.body.data.updatedAt as string;
-
     const draft = {
       ...emptyDraft(6),
       style: {
@@ -631,7 +646,7 @@ describe('map draft API', () => {
         regionHighlight: { width: 6, color: '#0B7E74' },
       },
     };
-    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft, updatedAt });
+    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
     expect(saved.status).toBe(200);
     expect(saved.body.data.draft.style.cellSize).toBe(150);
     expect(saved.body.data.draft.style.canvasFrame.color).toBe('#112233');
@@ -640,9 +655,7 @@ describe('map draft API', () => {
     expect(reloaded.body.data.draft.style.regionHighlight.width).toBe(6);
 
     // A v0.3.7-era payload (no style block) is still accepted.
-    const legacy = await api
-      .put(`/api/projects/${projectId}/map`)
-      .send({ data: emptyDraft(6), updatedAt: reloaded.body.data.updatedAt as string });
+    const legacy = await api.put(`/api/projects/${projectId}/map`).send({ data: emptyDraft(6) });
     expect(legacy.status).toBe(200);
     expect(legacy.body.data.draft.style).toBeUndefined();
   });
@@ -1522,9 +1535,7 @@ describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
     const patched = await api.patch(`/api/projects/${versionRowId}`).send({ name: '改名' });
     expect(patched.status).toBe(400);
 
-    const saved = await api
-      .put(`/api/projects/${versionRowId}/map`)
-      .send({ data: emptyDraft(6), updatedAt: null });
+    const saved = await api.put(`/api/projects/${versionRowId}/map`).send({ data: emptyDraft(6) });
     expect(saved.status).toBe(400);
 
     const resized = await api.patch(`/api/projects/${versionRowId}/grid-size`).send({ gridSize: 8 });
@@ -1585,6 +1596,89 @@ describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
     expect(after.body.data.versionNo).toBeNull();
     expect(after.body.data.status).toBe('published');
     expect(after.body.data.currentVersionNo).toBe(1);
+  });
+});
+
+describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
+  it('kind 过滤只返回一类，两块 total 各算各的', async () => {
+    const token = uniqueCode('p');
+    const first = await createProject({ name: `Split A ${token}`, gridSize: 6 });
+    await publishVersion(first);
+    await publishVersion(first);
+    const second = await createProject({ name: `Split B ${token}`, gridSize: 6 });
+    await publishVersion(second);
+
+    const drafts = await api.get(`/api/projects?kind=draft&keyword=${token}`);
+    expect(drafts.status).toBe(200);
+    expect(drafts.body.data.total).toBe(2);
+    expect(
+      (drafts.body.data.list as Array<{ kind: string }>).every((row) => row.kind === 'draft'),
+    ).toBe(true);
+
+    const versions = await api.get(`/api/projects?kind=version&keyword=${token}`);
+    expect(versions.body.data.total).toBe(3);
+    expect(
+      (versions.body.data.list as Array<{ kind: string }>).every((row) => row.kind === 'version'),
+    ).toBe(true);
+
+    // 不传 kind 仍是并集口径，且两块 total 之和等于并集 total。
+    const union = await api.get(`/api/projects?keyword=${token}`);
+    expect(union.body.data.total).toBe(5);
+
+    // 非法 kind 值被 schema 拦下。
+    expect((await api.get('/api/projects?kind=nope')).status).toBe(400);
+  });
+
+  it('版本块默认按时间倒序，并跟随 sort/order（不再固定血统顺序）', async () => {
+    const token = uniqueCode('p');
+    const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5));
+    const first = await createProject({ name: `Order A ${token}`, gridSize: 6 });
+    await publishVersion(first);
+    await tick();
+    await publishVersion(first);
+    await tick();
+    const second = await createProject({ name: `Order B ${token}`, gridSize: 6 });
+    await publishVersion(second);
+
+    type Row = {
+      id: number;
+      kind: string;
+      name: string;
+      rootId: number;
+      versionNo: number;
+      updatedAt: string;
+    };
+
+    // 默认（不传 sort/order）＝ 按更新时间倒序，最新发布的在最上面。
+    const query = `/api/projects?kind=version&keyword=${token}&pageSize=2`;
+    const page1 = await api.get(`${query}&page=1`);
+    const page2 = await api.get(`${query}&page=2`);
+    const rows = [...page1.body.data.list, ...page2.body.data.list] as Row[];
+
+    // 各自翻页不重叠、不遗漏。
+    expect(page1.body.data.list).toHaveLength(2);
+    expect(page2.body.data.list).toHaveLength(1);
+
+    // 跨页拼回来时间单调不增 —— 排序在服务端，不是客户端只排当前页。
+    const times = rows.map((row) => new Date(row.updatedAt).getTime());
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    // 发布顺序是 A.v1 → A.v2 → B.v1，倒序之后就是反过来。
+    expect(rows.map((row) => row.versionNo)).toEqual([1, 2, 1]);
+    expect(rows.map((row) => row.rootId)).toEqual([second, first, first]);
+
+    // 显式写 updatedAt desc 与默认等价。
+    const explicit = await api.get(`${query}&sort=updatedAt&order=desc`);
+    expect((explicit.body.data.list as Row[]).map((row) => row.id)).toEqual(
+      (page1.body.data.list as Row[]).map((row) => row.id),
+    );
+
+    // 版本块现在也听 sort：按名称升序，A 血统（中间才发布）反而排在前面。
+    const byName = await api.get(
+      `/api/projects?kind=version&keyword=${token}&sort=name&order=asc`,
+    );
+    const names = (byName.body.data.list as Row[]).map((row) => row.name);
+    expect(names).toEqual([...names].sort());
+    expect(names[0]).toBe(`Order A ${token}`);
   });
 });
 

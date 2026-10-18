@@ -6,11 +6,10 @@ import { absorbLegacyMapDraft } from '../service/mapDraftCompat';
 
 export interface DraftRecord {
   /**
-   * v0.5.8: `null` = 这张地图还没初始化。`maps.grid_size` 删除后，创建地图
-   * 不再写任何草稿，第一次进编辑器时才由初始化弹窗（填尺寸 / 导入）写入。
+   * `null` = 这张地图还没初始化：创建地图时不写草稿，第一次进编辑器时
+   * 才由初始化弹窗（填尺寸 / 导入）写入。
    */
   draft: MapDraft | null;
-  updatedAt: string | null;
 }
 
 export interface ResizeOutcome {
@@ -28,21 +27,17 @@ export function emptyDraft(gridSize: number): MapDraft {
 }
 
 /**
- * v0.5.0 §8.3: stored drafts may still be the v2 shape (roster + palette). They
- * are absorbed on every read rather than migrated in the database, so the
+ * stored drafts may still be the v2 shape (roster + palette). They are
+ * absorbed on every read rather than migrated in the database, so the
  * migration stays reversible and no bytes are rewritten.
- */
-/**
- * v0.5.8: `maps.grid_size` 没了，一个从没初始化过的地图 `data` 就是
- * `null` —— 这个状态要一路透到前端，让编辑器弹初始化弹窗，所以这里不再用
- * `emptyDraft()` 兜底（兜底会把「未初始化」伪装成「已有一个默认画布」）。
+ *
+ * `data` 为 `null` 就是「未初始化」，这个状态要一路透到前端让编辑器弹初始化
+ * 弹窗，所以这里不用 `emptyDraft()` 兜底（兜底会把未初始化伪装成「已有一个
+ * 默认画布」）。
  */
 function parseDraft(project: ProjectRow): DraftRecord {
   const draft = absorbLegacyMapDraft(project.data) as MapDraft | null;
-  return {
-    draft,
-    updatedAt: project.draft_updated_at ? new Date(project.draft_updated_at).toISOString() : null,
-  };
+  return { draft };
 }
 
 export async function getProjectRow(projectId: number): Promise<ProjectRow | undefined> {
@@ -55,35 +50,21 @@ export async function getDraft(projectId: number): Promise<DraftRecord | undefin
 }
 
 /**
- * Optimistic-concurrency save.
+ * **后写覆盖**（不做锁）：两个会话同时编辑同一张图时，最后一次保存胜出。
+ * 用户刚点的这次保存一定落地，丢的是对方那份。
+ *
  * - `undefined`   -> project not found
- * - `null`        -> stale `expectedUpdatedAt` (draft conflict)
  * - `DraftRecord` -> saved
  */
 export async function saveDraft(
   projectId: number,
-  expectedUpdatedAt: string | null,
   draft: MapDraft,
-): Promise<DraftRecord | null | undefined> {
-  return db.transaction(async (trx) => {
-    const row = (await trx('maps').where({ id: projectId }).forUpdate().first()) as
-      | ProjectRow
-      | undefined;
-    if (!row) return undefined;
-
-    const current = row.draft_updated_at ? new Date(row.draft_updated_at).toISOString() : null;
-    if ((expectedUpdatedAt ?? null) !== current) return null;
-
-    const [updated] = (await trx('maps')
-      .where({ id: projectId })
-      .update({
-        data: draft,
-        draft_updated_at: trx.fn.now(),
-        updated_at: trx.fn.now(),
-      })
-      .returning('*')) as ProjectRow[];
-    return parseDraft(updated!);
-  });
+): Promise<DraftRecord | undefined> {
+  const [updated] = (await db('maps')
+    .where({ id: projectId })
+    .update({ data: draft, updated_at: db.fn.now() })
+    .returning('*')) as ProjectRow[];
+  return updated ? parseDraft(updated) : undefined;
 }
 
 export async function resizeDraft(
@@ -147,7 +128,6 @@ export async function resizeDraft(
       .where({ id: projectId })
       .update({
         data: next,
-        draft_updated_at: trx.fn.now(),
         updated_at: trx.fn.now(),
       })
       .returning('*')) as ProjectRow[];
@@ -185,7 +165,6 @@ export async function createRegion(
     draft.regions.push(created);
     await trx('maps').where({ id: projectId }).update({
       data: draft,
-      draft_updated_at: trx.fn.now(),
       updated_at: trx.fn.now(),
     });
     return created;
@@ -208,7 +187,6 @@ export async function updateRegion(
     Object.assign(region, patch);
     await trx('maps').where({ id: projectId }).update({
       data: draft,
-      draft_updated_at: trx.fn.now(),
       updated_at: trx.fn.now(),
     });
     return region;
@@ -227,7 +205,6 @@ export async function deleteRegion(projectId: number, regionId: string): Promise
     if (draft.regions.length === before) return false;
     await trx('maps').where({ id: projectId }).update({
       data: draft,
-      draft_updated_at: trx.fn.now(),
       updated_at: trx.fn.now(),
     });
     return true;
@@ -247,7 +224,6 @@ export async function overwriteDraft(
       .where({ id: projectId })
       .update({
         data: draft,
-        draft_updated_at: trx.fn.now(),
         updated_at: trx.fn.now(),
       })
       .returning('*')) as ProjectRow[];

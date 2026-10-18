@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils';
 import type { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 
 /**
- * v0.5.6: the chrome both editors render identically, lifted out of
+ * the chrome both editors render identically, lifted out of
  * `EditorPage` / `PuzzleEditorPage` — the save mask, the leave guard, the
  * 「基本信息有未保存的修改」 confirmation, the loading / error states and the
  * hidden JSON import input.

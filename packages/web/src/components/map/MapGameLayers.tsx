@@ -15,7 +15,7 @@ import { numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
 import { parseKey } from './layerGeometry';
 
 /**
- * v0.5.6: the two game-only layers, split out of the old `MapLayers.tsx`.
+ * the two game-only layers, split out of the old `MapLayers.tsx`.
  */
 
 /**
