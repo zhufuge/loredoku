@@ -5,6 +5,9 @@ import {
   Check,
   Eraser,
   Loader2,
+  Minus,
+  Plus,
+  RotateCcw,
   Ruler,
   Send,
   Undo2,
@@ -20,6 +23,7 @@ import {
   type Character,
   type CharacterSlotEntry,
   type Asset,
+  type GamePlacementBoard,
   type MapDraft,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
@@ -53,7 +57,16 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useAssets } from '@/hooks/useAssets';
-import { clientToCell, isInBounds } from '@/lib/grid';
+import {
+  clientToCell,
+  clampZoom,
+  isInBounds,
+  zoomAtPoint,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  ZOOM_STEP,
+} from '@/lib/grid';
+import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import {
   collectBlockingCells,
   collectItemCells,
@@ -158,6 +171,8 @@ export function GamePage(): JSX.Element {
   const navigate = useNavigate();
 
   const gameQuery = useGameDetail(slug);
+  /** v0.6.2：存档按游戏自己的 slug 分键（数据比路由参数更可信）。 */
+  const gameSlug = gameQuery.data?.slug ?? slug;
   // A deployed snapshot may reference items/characters that are now inactive.
   const assetsQuery = useAssets({});
   const charactersQuery = useCharacters({});
@@ -192,6 +207,27 @@ export function GamePage(): JSX.Element {
    * click 必须被吞掉，否则同一手势会既放头像又放编号。
    */
   const cellPressRef = useRef<{ timer: number; fired: boolean } | null>(null);
+
+  /**
+   * v0.6.2：视图缩放与拖拽平移，与只读预览页同一套手感 ——
+   * 缩放簇（放大 / 百分比 / 缩小 / 重置）、Ctrl+滚轮、空格或中键拖拽。
+   */
+  const [zoom, setZoom] = useState(1);
+  const [spaceHeld, setSpaceHeld] = useState(false);
+  const panRef = useRef<{ x: number; y: number } | null>(null);
+  /** 本次指针手势有没有真的拖过画布 —— 拖完那次 click 要吞掉。 */
+  const pannedRef = useRef(false);
+  /** 用户手动调过视图后，容器尺寸变化不再强制重排（预览页同款豁免）。 */
+  const userAdjustedRef = useRef(false);
+
+  /**
+   * 存档的两个镜像。事件处理器读「此刻」的值，而不是渲染闭包里的那份 ——
+   * 长按定时器与连续点击都在下一次渲染之外触发，闭包可能已经过期。
+   */
+  const placementRef = useRef(placementState);
+  placementRef.current = placementState;
+  const submittedRef = useRef(hasSubmitted);
+  submittedRef.current = hasSubmitted;
 
   /**
    * CONS-K16 (docs/v0.5.0.md §10.1): the game renders the **snapshot** captured
@@ -247,6 +283,46 @@ export function GamePage(): JSX.Element {
   const rulerMaxFont = scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale);
   const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
+  /**
+   * v0.6.2 §3：存档指纹。同 slug 重新部署后网格或名单可能变了，旧坐标与旧编号
+   * 都不再有意义 —— `readGameProgress` 会整条丢弃，恢复半张棋盘比空白更让人困惑。
+   */
+  const progressMeta = useMemo(
+    () => ({ gridSize, participantCount: slots.length }),
+    [gridSize, slots.length],
+  );
+
+  /** 写存档的唯一出口；空盘且没提交过时由 `writeGameProgress` 删键。 */
+  const saveProgress = useCallback(
+    (board: GamePlacementBoard, submitted: boolean): void => {
+      if (!gameSlug) return;
+      writeGameProgress(gameSlug, { board, submitted, ...progressMeta });
+    },
+    [gameSlug, progressMeta],
+  );
+
+  /**
+   * **所有改变棋盘的操作都从这里走**：算新状态 → 更新 → 顺手把结果落进
+   * 本地存档。集中一处，「哪个入口忘了存」就不会变成一个需要逐个排查的问题。
+   *
+   * `submitted` 只在提交那一步显式传，其余操作沿用当前值。
+   */
+  const updatePlacement = useCallback(
+    (updater: (state: GamePlacementState) => GamePlacementState, submitted?: boolean): void => {
+      const current = placementRef.current;
+      const next = updater(current);
+      if (next === current) return;
+      placementRef.current = next;
+      setPlacementState(next);
+      if (submitted !== undefined) {
+        submittedRef.current = submitted;
+        setHasSubmitted(submitted);
+      }
+      saveProgress(next.board, submitted ?? submittedRef.current);
+    },
+    [saveProgress],
+  );
+
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 (shared with the preview) ----
   const blockingCells = useMemo(() => collectBlockingCells(cells, assetsById), [cells, assetsById]);
   const itemCells = useMemo(() => collectItemCells(cells), [cells]);
@@ -294,23 +370,24 @@ export function GamePage(): JSX.Element {
       const coord = clientToCell(clientX, clientY, {
         rect: node.getBoundingClientRect(),
         pan,
-        zoom: 1,
+        zoom,
         cellSize,
       });
       return isInBounds(coord, gridSize) ? coord : null;
     },
-    [gridSize, pan, cellSize],
+    [gridSize, pan, zoom, cellSize],
   );
 
   /**
    * OPT-A01 §1.2: measure the viewport and re-fit the board. The game page has
    * no floating bottom toolbar, hence `showBottomBar: false`.
    *
-   * v0.4.0 验收补充：画布固定自适应——没有手动平移 / 缩放，也就没有
-   * 「用户调整过就跳过重算」的豁免，容器变化一律重新适应。
+   * v0.6.2：这也是「重置视图」——回到 100% 并居中，同时清掉「用户调整过」
+   * 的标记，让容器尺寸变化重新接管布局。
    */
   const fit = useCallback((): void => {
     const node = containerRef.current;
+    userAdjustedRef.current = false;
     if (!node || gridSize === 0) return;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
@@ -321,6 +398,7 @@ export function GamePage(): JSX.Element {
     });
     const next = computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
     setAutoCellSize((previous) => (previous === next ? previous : next));
+    setZoom(1);
     setPan(centeredPan(rect, insets, gridSize, effectiveCellSize(next, style), 1));
   }, [gridSize, showRulers, rulerStrip, style]);
 
@@ -330,8 +408,13 @@ export function GamePage(): JSX.Element {
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
-    fitRef.current();
-    const observer = new ResizeObserver(() => fitRef.current());
+    const apply = (): void => {
+      // v0.6.2：玩家放大 / 平移之后，改窗口大小不该把视图打回原形。
+      if (userAdjustedRef.current) return;
+      fitRef.current();
+    };
+    apply();
+    const observer = new ResizeObserver(apply);
     observer.observe(node);
     return () => observer.disconnect();
   }, [gridSize]);
@@ -354,16 +437,64 @@ export function GamePage(): JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // A new game must not inherit a stale activation, hover or board.
+  /**
+   * v0.6.2 §4：按住空格 + 拖拽 = 平移画布，与只读预览页同一套手感。
+   *
+   * `preventDefault` 挡的是浏览器把空格当成「翻页 / 点击聚焦元素」——
+   * 这一页没有任何输入框，不会误伤打字。
+   */
   useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.code !== 'Space') return;
+      event.preventDefault();
+      setSpaceHeld(true);
+    };
+    const onKeyUp = (event: KeyboardEvent): void => {
+      if (event.code === 'Space') setSpaceHeld(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+    };
+  }, []);
+
+  /**
+   * 换一局 / 首次加载：不继承上一局的激活、悬停与棋盘。
+   *
+   * v0.6.2 §3：棋盘优先从本地存档恢复（同 slug、同网格、同名单才认）。
+   * `hydratedKeyRef` 记住已经水合过哪一局 —— StrictMode 的双调用和后续重渲染
+   * 都不会把玩家刚摆的东西盖回存档里的那一版。
+   */
+  const hydratedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!draft) return;
+    const key = `${gameSlug ?? ''}|${gridSize}|${slots.length}`;
+    const firstLoad = hydratedKeyRef.current !== key;
+    hydratedKeyRef.current = key;
+
     setActivation(INACTIVE_ACTIVATION);
     setHover(null);
     setLabelRegionId(null);
     setMode({ kind: 'idle' });
-    setPlacementState(createGamePlacementState());
-    setHasSubmitted(false);
     setValidationIssues(null);
-  }, [draft]);
+    if (!firstLoad) return;
+
+    const saved = gameSlug ? readGameProgress(gameSlug, progressMeta) : null;
+    // 历史栈不落盘：回来时从「当前这一版棋盘」重新开始记，撤销不会跨会话。
+    const restored: GamePlacementState = saved
+      ? { board: saved.board, past: [], future: [], submittedPastLength: 0 }
+      : createGamePlacementState();
+    placementRef.current = restored;
+    setPlacementState(restored);
+    submittedRef.current = saved?.submitted ?? false;
+    setHasSubmitted(submittedRef.current);
+    // 只有棋盘上真有东西才提示；空盘提交过的存档只恢复那个勾。
+    if (saved && Object.keys(saved.board).length > 0) {
+      toast.success('已恢复上次的摆放');
+    }
+  }, [draft, gameSlug, gridSize, slots.length, progressMeta]);
 
   /**
    * SPEC-G05 §5.3: the roster cards of participants that are already on the
@@ -471,8 +602,7 @@ export function GamePage(): JSX.Element {
       setValidationIssues(result.issues);
       return;
     }
-    setPlacementState((state) => submitPlacement(state));
-    setHasSubmitted(true);
+    updatePlacement(submitPlacement, true);
     toast.success('校验通过，已提交');
   };
 
@@ -499,7 +629,7 @@ export function GamePage(): JSX.Element {
         toast.error(describeBlock(block, mode.participantId, placementState.board));
         return;
       }
-      setPlacementState((state) =>
+      updatePlacement((state) =>
         placeParticipant(state, {
           x,
           y,
@@ -512,11 +642,11 @@ export function GamePage(): JSX.Element {
       return;
     }
     if (mode.kind === 'forbidden') {
-      setPlacementState((state) => placeForbidden(state, { x, y, blockingCells }));
+      updatePlacement((state) => placeForbidden(state, { x, y, blockingCells }));
       return;
     }
     if (mode.kind === 'clearing') {
-      setPlacementState((state) => clearCell(state, { x, y }));
+      updatePlacement((state) => clearCell(state, { x, y }));
     }
   };
 
@@ -559,7 +689,7 @@ export function GamePage(): JSX.Element {
     press.timer = window.setTimeout(() => {
       press.fired = true;
       applyMode({ kind: 'clearing' });
-      setPlacementState((state) => clearAll(state));
+      updatePlacement(clearAll);
       toast.success('已清空全部放置');
     }, GAME_LONG_PRESS_MS);
     clearPressRef.current = press;
@@ -573,6 +703,26 @@ export function GamePage(): JSX.Element {
     // A completed long-press already acted; only a short tap toggles the mode.
     if (press.fired) return;
     toggleTool('clearing');
+  };
+
+  /**
+   * v0.6.2 §4：按钮以**视口中心**为锚点缩放。按钮在右栏，但用户看的是画布
+   * 中间；以按钮位置为锚点会让棋盘每点一下就往一边跑。
+   *
+   * 缩小到底 / 放大到顶时 `clampZoom` 返回同一个值，这里直接短路 —— 不做无谓
+   * 的 pan 重算。
+   */
+  const zoomBy = (direction: 1 | -1): void => {
+    const next = clampZoom(zoom + direction * ZOOM_STEP);
+    if (next === zoom) return;
+    userAdjustedRef.current = true;
+    const node = containerRef.current;
+    if (node) {
+      const rect = node.getBoundingClientRect();
+      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      setPan(zoomAtPoint(center, rect, pan, next, zoom));
+    }
+    setZoom(next);
   };
 
   const undoSteps = Math.max(0, placementState.past.length - placementState.submittedPastLength);
@@ -664,12 +814,20 @@ export function GamePage(): JSX.Element {
           ref={containerRef}
           className="relative min-h-0 flex-1 select-none overflow-hidden bg-muted/30"
           style={{
-            // v0.4.0 验收补充：画布固定自适应，空白处不可拖拽平移，也无缩放，
-            // 因此空白处就是普通光标；格内仍是 pointer。
-            cursor: hoverEffects.cell ? 'pointer' : 'default',
+            // v0.6.2：按住空格 / 中键时是抓手，格内放东西是 pointer，其余普通光标。
+            cursor: spaceHeld ? 'grab' : hoverEffects.cell ? 'pointer' : 'default',
             touchAction: 'none',
           }}
           onPointerDown={(event) => {
+            if (event.button === 1 || (event.button === 0 && spaceHeld)) {
+              // v0.6.2 §4：空格 + 左键 或 中键 = 平移，不是放置。
+              event.preventDefault();
+              event.currentTarget.setPointerCapture(event.pointerId);
+              userAdjustedRef.current = true;
+              pannedRef.current = false;
+              panRef.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };
+              return;
+            }
             if (event.button !== 0) return;
             if (mode.kind !== 'placing') return;
             const cell = toCell(event.clientX, event.clientY);
@@ -677,15 +835,48 @@ export function GamePage(): JSX.Element {
             startCellPress(cell.x, cell.y);
           }}
           onPointerMove={(event) => {
+            if (panRef.current) {
+              pannedRef.current = true;
+              setPan({
+                x: event.clientX - panRef.current.x,
+                y: event.clientY - panRef.current.y,
+              });
+              return;
+            }
             setHover(toCell(event.clientX, event.clientY));
           }}
-          onPointerUp={endCellPress}
-          onPointerCancel={dropCellPress}
+          onPointerUp={() => {
+            panRef.current = null;
+            endCellPress();
+          }}
+          onPointerCancel={() => {
+            panRef.current = null;
+            dropCellPress();
+          }}
           onPointerLeave={() => {
+            panRef.current = null;
             dropCellPress();
             setHover(null);
           }}
+          onWheel={(event) => {
+            // v0.6.2 §4：Ctrl / ⌘ + 滚轮以指针为锚点缩放（与预览页一致）。
+            if (!(event.ctrlKey || event.metaKey)) return;
+            const node = containerRef.current;
+            if (!node) return;
+            event.preventDefault();
+            const next = clampZoom(zoom + (event.deltaY > 0 ? -1 : 1) * ZOOM_STEP);
+            if (next === zoom) return;
+            userAdjustedRef.current = true;
+            const rect = node.getBoundingClientRect();
+            setPan(zoomAtPoint({ x: event.clientX, y: event.clientY }, rect, pan, next, zoom));
+            setZoom(next);
+          }}
           onClick={(event) => {
+            // 刚拖过画布：这一下 click 是拖拽手势的尾巴，不是放东西。
+            if (pannedRef.current) {
+              pannedRef.current = false;
+              return;
+            }
             const press = cellPressRef.current;
             if (press?.fired) {
               // 长按已经放了头像，这次 click 是同一手势的尾巴，吞掉。
@@ -700,7 +891,7 @@ export function GamePage(): JSX.Element {
           <div
             className="absolute left-0 top-0"
             style={{
-              transform: `translate(${pan.x}px, ${pan.y}px)`,
+              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
               width: total,
               height: total,
@@ -784,7 +975,7 @@ export function GamePage(): JSX.Element {
             <MapRulerStrips
               gridSize={gridSize}
               cellSize={cellSize}
-              zoom={1}
+              zoom={zoom}
               pan={pan}
               total={total}
               style={style}
@@ -818,7 +1009,7 @@ export function GamePage(): JSX.Element {
             className="h-12 w-full"
             title={canUndo(placementState) ? '回退上一步' : '没有可回退的操作'}
             disabled={!canUndo(placementState)}
-            onClick={() => setPlacementState((state) => undo(state))}
+            onClick={() => updatePlacement(undo)}
           >
             <Undo2 className="h-5 w-5" />
           </Button>
@@ -831,9 +1022,34 @@ export function GamePage(): JSX.Element {
             {hasSubmitted ? <Check className="h-5 w-5" /> : <Send className="h-5 w-5" />}
           </Button>
 
-          {/* v0.4.0 验收补充：视图簇（缩小 / 百分比 / 放大 / 重置）已移除——
-              画布固定自适应，没有平移也没有缩放，只保留标尺开关。 */}
-          <div className="mt-1 flex flex-col items-center gap-1 border-t pt-2">
+          {/* v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。 */}
+          <div className="mt-1 flex w-full flex-col items-center gap-1 border-t pt-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              title="放大"
+              aria-label="放大"
+              disabled={zoom >= ZOOM_MAX}
+              onClick={() => zoomBy(1)}
+            >
+              <Plus className="h-4 w-4" />
+            </Button>
+            <span className="w-full text-center text-[10px] tabular-nums text-muted-foreground">
+              {Math.round(zoom * 100)}%
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="缩小"
+              aria-label="缩小"
+              disabled={zoom <= ZOOM_MIN}
+              onClick={() => zoomBy(-1)}
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <Button variant="ghost" size="icon" title="重置视图" aria-label="重置视图" onClick={fit}>
+              <RotateCcw className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
