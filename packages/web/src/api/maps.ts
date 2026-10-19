@@ -1,8 +1,8 @@
 import type {
   MapEntrySummary,
   PaginatedData,
-  Project,
-  ProjectDetail,
+  MapEntry,
+  MapDetail,
   PublishedMapVersion,
 } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost } from './client';
@@ -13,16 +13,11 @@ export interface MapListParams {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  /**
-   * `/maps` 的「草稿」「版本」两块各自分页，各发一个请求并各带
-   * 自己的页号与 `total`。不传则是并集口径。
-   */
   kind?: 'draft' | 'version';
   sort?: MapSort;
   order?: 'asc' | 'desc';
 }
 
-/** v0.5.8: 创建时不再要画布尺寸 —— 尺寸在编辑器首次进入时写入草稿。 */
 export interface CreateMapPayload {
   name: string;
   description?: string;
@@ -34,45 +29,33 @@ export interface UpdateMapPayload {
 }
 
 export const mapsApi = {
-  /**
-   * FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work entries
-   * and version entries** grouped by blood-lineage root, not a flat list of
-   * `maps` rows.
-   */
   list(params: MapListParams): Promise<PaginatedData<MapEntrySummary>> {
-    return apiGet<PaginatedData<MapEntrySummary>>('/projects', { params });
+    return apiGet<PaginatedData<MapEntrySummary>>('/maps', { params });
   },
-  /** FEAT-K03 §2.4: every published version, for the puzzle picker. */
   listPublishedVersions(): Promise<PublishedMapVersion[]> {
-    return apiGet<PublishedMapVersion[]>('/projects/versions');
+    return apiGet<PublishedMapVersion[]>('/maps/versions');
   },
-  detail(id: number): Promise<ProjectDetail> {
-    return apiGet<ProjectDetail>(`/projects/${id}`);
+  detail(id: number): Promise<MapDetail> {
+    return apiGet<MapDetail>(`/maps/${id}`);
   },
-  create(payload: CreateMapPayload): Promise<Project> {
-    return apiPost<Project>('/projects', payload);
+  create(payload: CreateMapPayload): Promise<MapEntry> {
+    return apiPost<MapEntry>('/maps', payload);
   },
-  update(id: number, payload: UpdateMapPayload): Promise<Project> {
-    return apiPatch<Project>(`/projects/${id}`, payload);
+  update(id: number, payload: UpdateMapPayload): Promise<MapEntry> {
+    return apiPatch<MapEntry>(`/maps/${id}`, payload);
   },
   remove(id: number): Promise<null> {
-    return apiDelete<null>(`/projects/${id}`);
+    return apiDelete<null>(`/maps/${id}`);
   },
-  duplicate(id: number): Promise<Project> {
-    return apiPost<Project>(`/projects/${id}/duplicate`);
+  duplicate(id: number): Promise<MapEntry> {
+    return apiPost<MapEntry>(`/maps/${id}/duplicate`);
   },
-  /**
-   * FEAT-H03 §3.2(c) (docs/v0.4.2.md §3): create / update are JSON, so the cover
-   * travels in its own multipart request — and only after the row exists. Both
-   * routes answer with the refreshed detail, so the card repaints from it.
-   */
-  uploadCover(id: number, file: File): Promise<ProjectDetail> {
+  uploadCover(id: number, file: File): Promise<MapDetail> {
     const form = new FormData();
     form.append('file', file);
-    return apiPost<ProjectDetail>(`/projects/${id}/cover`, form);
+    return apiPost<MapDetail>(`/maps/${id}/cover`, form);
   },
-  /** FEAT-H03 §3.2(a): the explicit 「移除」 button — clears `cover_path`. */
-  removeCover(id: number): Promise<ProjectDetail> {
-    return apiDelete<ProjectDetail>(`/projects/${id}/cover`);
+  removeCover(id: number): Promise<MapDetail> {
+    return apiDelete<MapDetail>(`/maps/${id}/cover`);
   },
 };

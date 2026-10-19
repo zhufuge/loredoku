@@ -217,7 +217,7 @@ export function ItemsPage(): JSX.Element {
             <AlertDialogDescription>
               {usages && usages.length > 0
                 ? `该物品正被 ${usages.length} 张地图使用（${usages
-                    .map((usage) => usage.projectName)
+                    .map((usage) => usage.mapName)
                     .join('、')}）。删除将从数据库移除该物品，并清除草稿中的引用。`
                 : '删除后记录将从数据库中移除，且无法恢复。'}
             </AlertDialogDescription>

@@ -8,7 +8,7 @@ import {
   type UpdatePuzzlePayload,
 } from '@/api/puzzles';
 import { gameKeys } from './useGames';
-import { mapEntryKeys } from './useMaps';
+import { mapKeys } from './useMaps';
 
 /**
  * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2) — the puzzle module's data layer. The

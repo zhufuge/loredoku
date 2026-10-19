@@ -23,7 +23,7 @@ const slot = (extra: Record<string, unknown> = {}): Record<string, unknown> => (
 function draft(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     version: 1,
-    map: { projectId: 217, versionNo: 3, gridSize: 6 },
+    map: { mapId: 217, versionNo: 3, gridSize: 6 },
     name: '午夜花园',
     description: '六人六格，注意花丛的位置条件。',
     linkageColors: palette,
@@ -37,7 +37,7 @@ describe('puzzleDraftSchema —— v0.5.0 FEAT-K08 结构', () => {
     const result = puzzleDraftSchema.safeParse(draft());
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data.map).toEqual({ projectId: 217, versionNo: 3, gridSize: 6 });
+    expect(result.data.map).toEqual({ mapId: 217, versionNo: 3, gridSize: 6 });
     expect(result.data.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
   });
 
@@ -46,13 +46,13 @@ describe('puzzleDraftSchema —— v0.5.0 FEAT-K08 结构', () => {
     expect(puzzleDraftSchema.safeParse(draft({ style: {} })).success).toBe(false);
   });
 
-  it('rejects a map reference that is not a (projectId, versionNo, gridSize) triple', () => {
-    expect(puzzleDraftSchema.safeParse(draft({ map: { projectId: 1, versionNo: 0, gridSize: 6 } })).success).toBe(
+  it('rejects a map reference that is not a (mapId, versionNo, gridSize) triple', () => {
+    expect(puzzleDraftSchema.safeParse(draft({ map: { mapId: 1, versionNo: 0, gridSize: 6 } })).success).toBe(
       false,
     );
-    expect(puzzleDraftSchema.safeParse(draft({ map: { projectId: 1, gridSize: 6 } })).success).toBe(false);
+    expect(puzzleDraftSchema.safeParse(draft({ map: { mapId: 1, gridSize: 6 } })).success).toBe(false);
     expect(
-      puzzleDraftSchema.safeParse(draft({ map: { projectId: 1, versionNo: 1, gridSize: 99 } })).success,
+      puzzleDraftSchema.safeParse(draft({ map: { mapId: 1, versionNo: 1, gridSize: 99 } })).success,
     ).toBe(false);
   });
 
@@ -181,13 +181,13 @@ describe('puzzleDraftSchema 自洽引用校验 (§5.2 第一半)', () => {
 });
 
 describe('谜题的三个写入 schema', () => {
-  it('createPuzzleSchema requires name + mapProjectId + mapVersionNo', () => {
-    expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapProjectId: 217, mapVersionNo: 3 }).success).toBe(
+  it('createPuzzleSchema requires name + mapId + mapVersionNo', () => {
+    expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapId: 217, mapVersionNo: 3 }).success).toBe(
       true,
     );
-    expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapProjectId: 217 }).success).toBe(false);
+    expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapId: 217 }).success).toBe(false);
     expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapVersionNo: 3 }).success).toBe(false);
-    const parsed = createPuzzleSchema.parse({ name: ' 午夜花园 ', mapProjectId: 217, mapVersionNo: 3 });
+    const parsed = createPuzzleSchema.parse({ name: ' 午夜花园 ', mapId: 217, mapVersionNo: 3 });
     expect(parsed.name).toBe('午夜花园');
     expect(parsed.description).toBeUndefined();
   });

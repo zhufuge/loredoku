@@ -48,11 +48,11 @@ const COLUMNS = ['名称', '版本', '部署状态', '发布时间', '操作'] a
 
 /** §5.3 按地图筛选 — a checkbox dropdown so several maps can be picked. */
 function MapFilter({
-  projects,
+  maps,
   selected,
   onChange,
 }: {
-  projects: Array<{ id: number; name: string }>;
+  maps: Array<{ id: number; name: string }>;
   selected: number[];
   onChange: (ids: number[]) => void;
 }): JSX.Element {
@@ -74,7 +74,7 @@ function MapFilter({
     selected.length === 0
       ? '全部地图'
       : selected.length === 1
-        ? projects.find((project) => project.id === selected[0])?.name ?? '1 个地图'
+        ? maps.find((map) => map.id === selected[0])?.name ?? '1 个地图'
         : `${selected.length} 个地图`;
 
   return (
@@ -96,26 +96,26 @@ function MapFilter({
           >
             清空选择（全部地图）
           </button>
-          {projects.length === 0 ? (
+          {maps.length === 0 ? (
             <p className="px-2 py-2 text-xs text-muted-foreground">暂无可筛选的地图</p>
           ) : (
-            projects.map((project) => (
+            maps.map((map) => (
               <label
-                key={project.id}
+                key={map.id}
                 className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
               >
                 <input
                   type="checkbox"
-                  checked={selectedSet.has(project.id)}
+                  checked={selectedSet.has(map.id)}
                   onChange={(event) =>
                     onChange(
                       event.target.checked
-                        ? [...selected, project.id]
-                        : selected.filter((id) => id !== project.id),
+                        ? [...selected, map.id]
+                        : selected.filter((id) => id !== map.id),
                     )
                   }
                 />
-                <span className="truncate">{project.name}</span>
+                <span className="truncate">{map.name}</span>
               </label>
             ))
           )}
@@ -139,7 +139,7 @@ export function PuzzlesPage(): JSX.Element {
   const [deleteTarget, setDeleteTarget] = useState<PuzzleSummary | null>(null);
   const [deployTarget, setDeployTarget] = useState<PuzzleSummary | null>(null);
   /**
-   * §2.4: `?new={projectId}:{versionNo}` — a version entry in the map list
+   * §2.4: `?new={mapId}:{versionNo}` — a version entry in the map list
    * sends the author here with the map version already picked.
    */
   const [createOpen, setCreateOpen] = useState(() => searchParams.get('new') !== null);
@@ -154,7 +154,7 @@ export function PuzzlesPage(): JSX.Element {
   }, [filters, pageSize]);
 
   const puzzles = puzzlesQuery.data ?? [];
-  const projects = useMemo(() => collectPuzzleMaps(puzzles), [puzzles]);
+  const maps = useMemo(() => collectPuzzleMaps(puzzles), [puzzles]);
   const table = useMemo(
     () => buildPuzzlesTable(puzzles, filters, page, pageSize),
     [puzzles, filters, page, pageSize],
@@ -251,10 +251,10 @@ export function PuzzlesPage(): JSX.Element {
           />
         </div>
         <MapFilter
-          projects={projects}
-          selected={filters.mapProjectIds}
-          onChange={(mapProjectIds) =>
-            setFilters((previous) => ({ ...previous, mapProjectIds }))
+          maps={maps}
+          selected={filters.mapIds}
+          onChange={(mapIds) =>
+            setFilters((previous) => ({ ...previous, mapIds }))
           }
         />
         <Button variant="ghost" className="h-9" onClick={() => setFilters(EMPTY_PUZZLE_FILTERS)}>

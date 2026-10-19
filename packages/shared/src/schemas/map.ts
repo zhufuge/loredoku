@@ -1,82 +1,59 @@
 import { z } from 'zod';
 import {
-  CARD_ROTATIONS,
-  DEFAULT_REGION_COLOR,
-  REGION_BORDER_WIDTH_DEFAULT,
-  REGION_BORDER_WIDTH_MAX,
-  REGION_BORDER_WIDTH_MIN,
-  REGION_DESCRIPTION_MAX_LENGTH,
-  REGION_FILL_OPACITY_DEFAULT,
-  REGION_FILL_OPACITY_MAX,
-  REGION_FILL_OPACITY_MIN,
-  REGION_NAME_MAX_LENGTH,
+  GRID_SIZE_DEFAULT,
+  GRID_SIZE_MAX,
+  GRID_SIZE_MIN,
+  MAP_DESCRIPTION_MAX_LENGTH,
+  MAP_NAME_MAX_LENGTH,
 } from '../constants';
 
-export const regionColorSchema = z
+export const gridSizeSchema = z
+  .number()
+  .int('画布尺寸必须为整数')
+  .min(GRID_SIZE_MIN, `画布尺寸不能小于 ${GRID_SIZE_MIN}`)
+  .max(GRID_SIZE_MAX, `画布尺寸不能大于 ${GRID_SIZE_MAX}`);
+
+/**
+ * 校验消息直接出现在 web 的 toast 里，所以一律说「地图」而不是表名。
+ */
+export const mapNameSchema = z
   .string()
-  .regex(/^#[0-9a-fA-F]{6}$/, '颜色必须为 #RRGGBB 格式');
+  .trim()
+  .min(1, '地图名称必填')
+  .max(MAP_NAME_MAX_LENGTH, `地图名称不能超过 ${MAP_NAME_MAX_LENGTH} 字`);
 
-export const regionCellSchema = z.object({
-  x: z.number().int().min(0),
-  y: z.number().int().min(0),
+export const mapDescriptionSchema = z
+  .string()
+  .trim()
+  .max(MAP_DESCRIPTION_MAX_LENGTH, `描述不能超过 ${MAP_DESCRIPTION_MAX_LENGTH} 字`);
+
+/**
+ * 创建地图只要名称和描述：画布尺寸在编辑器首次进入时由初始化弹窗写进草稿
+ * （`data.gridSize`）。
+ */
+export const createMapSchema = z.object({
+  name: mapNameSchema,
+  description: mapDescriptionSchema.optional().nullable(),
 });
 
-export const mapCellSchema = z.object({
-  x: z.number().int().min(0),
-  y: z.number().int().min(0),
-  cardId: z.number().int().positive(),
-  rotation: z
-    .number()
-    .int()
-    .refine((v): v is (typeof CARD_ROTATIONS)[number] => (CARD_ROTATIONS as readonly number[]).includes(v), {
-      message: '旋转角度必须为 0 / 90 / 180 / 270',
-    })
-    .default(0),
-  zIndex: z.number().int().default(0),
+export const updateMapSchema = z.object({
+  name: mapNameSchema.optional(),
+  description: mapDescriptionSchema.optional().nullable(),
 });
 
-export const regionInputSchema = z.object({
-  id: z.number().int().positive().optional(),
-  name: z.string().trim().min(1, '区域名称必填').max(REGION_NAME_MAX_LENGTH),
-  description: z.string().trim().max(REGION_DESCRIPTION_MAX_LENGTH).optional().nullable(),
-  color: regionColorSchema.default(DEFAULT_REGION_COLOR),
-  borderWidth: z
-    .number()
-    .int()
-    .min(REGION_BORDER_WIDTH_MIN)
-    .max(REGION_BORDER_WIDTH_MAX)
-    .default(REGION_BORDER_WIDTH_DEFAULT),
-  fillOpacity: z
-    .number()
-    .min(REGION_FILL_OPACITY_MIN)
-    .max(REGION_FILL_OPACITY_MAX)
-    .default(REGION_FILL_OPACITY_DEFAULT),
-  cells: z.array(regionCellSchema).min(1, '区域至少包含一个单元格'),
+/**
+ * `kind` 让「草稿」「版本」两块各自分页 —— 前端对同一端点发
+ * 两个请求，各自的 `total` 才准；不传则仍是并集口径（兼容既有调用方）。
+ */
+export const listMapEntriesKindSchema = z.enum(['draft', 'version']);
+
+export const listMapsQuerySchema = z.object({
+  keyword: z.string().trim().max(MAP_NAME_MAX_LENGTH).optional(),
+  kind: listMapEntriesKindSchema.optional(),
+  sort: z.enum(['updatedAt', 'name', 'createdAt']).default('updatedAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
 });
 
-export const saveMapSchema = z.object({
-  updatedAt: z.string().optional(),
-  cells: z.array(mapCellSchema),
-  regions: z.array(regionInputSchema),
-});
-
-export const createRegionSchema = regionInputSchema.omit({ id: true });
-
-export const updateRegionSchema = z.object({
-  name: z.string().trim().min(1).max(REGION_NAME_MAX_LENGTH).optional(),
-  description: z.string().trim().max(REGION_DESCRIPTION_MAX_LENGTH).optional().nullable(),
-  color: regionColorSchema.optional(),
-  borderWidth: z.number().int().min(REGION_BORDER_WIDTH_MIN).max(REGION_BORDER_WIDTH_MAX).optional(),
-  fillOpacity: z.number().min(REGION_FILL_OPACITY_MIN).max(REGION_FILL_OPACITY_MAX).optional(),
-  cells: z.array(regionCellSchema).min(1).optional(),
-});
-
-export type MapCellInput = z.infer<typeof mapCellSchema>;
-export type RegionInput = z.infer<typeof regionInputSchema>;
-export type SaveMapInput = z.infer<typeof saveMapSchema>;
-export type CreateRegionInput = z.infer<typeof createRegionSchema>;
-export type UpdateRegionInput = z.infer<typeof updateRegionSchema>;
-
-export const regionIdParamSchema = z.object({
-  regionId: z.coerce.number().int().positive(),
-});
+export type CreateMapInput = z.infer<typeof createMapSchema>;
+export type UpdateMapInput = z.infer<typeof updateMapSchema>;
+export type ListMapsQuery = z.infer<typeof listMapsQuerySchema>;

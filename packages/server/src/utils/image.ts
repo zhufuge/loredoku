@@ -63,8 +63,8 @@ export function detectImageType(buffer: Buffer): DetectedImage | null {
   return null;
 }
 
-export async function processCardImage(cardId: number, buffer: Buffer): Promise<ProcessedImage> {
-  return processImage('cards', cardId, buffer, THUMBNAIL_MAX_DIMENSION);
+export async function processItemImage(itemId: number, buffer: Buffer): Promise<ProcessedImage> {
+  return processImage('items', itemId, buffer, THUMBNAIL_MAX_DIMENSION);
 }
 
 export async function processAvatarImage(characterId: number, buffer: Buffer): Promise<ProcessedImage> {
@@ -76,12 +76,12 @@ export async function processGameCover(gameId: number, buffer: Buffer): Promise<
   return processImage('games', gameId, buffer, GAME_COVER_MAX_DIMENSION);
 }
 
-/** FEAT-H03 (docs/v0.4.2.md §3.2c): a map's cover art, under `projects/<id>/`. */
-export async function processProjectCover(
-  projectId: number,
+/** FEAT-H03 (docs/v0.4.2.md §3.2c): a map's cover art, under `maps/<id>/`. */
+export async function processMapCover(
+  mapId: number,
   buffer: Buffer,
 ): Promise<ProcessedImage> {
-  return processImage('projects', projectId, buffer, MAP_COVER_MAX_DIMENSION);
+  return processImage('maps', mapId, buffer, MAP_COVER_MAX_DIMENSION);
 }
 
 async function processImage(

@@ -13,7 +13,7 @@ import { readSource } from '@/testing/source';
 
 const pageSource = readSource('pages/PuzzleEditorPage.tsx');
 
-const drawerSource = readSource('components/editor/EditorInfoDrawer.tsx');
+const drawerSource = readSource('components/map-editor/EditorInfoDrawer.tsx');
 
 describe('PuzzleEditorPage 只读信息弹框（SPEC-K12 §4.2）', () => {
   it('renders the shared drawer in read-only mode', () => {

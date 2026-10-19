@@ -73,17 +73,17 @@ describe('linkageColorsFromLegacyDraft (FEAT-K01 §11.2)', () => {
 });
 
 describe('buildPuzzleSeedFromMap (FEAT-K01 §11.2)', () => {
-  const project = { id: 42, name: '大宅', description: '一栋宅子', gridSize: 4 };
+  const mapRow = { id: 42, name: '大宅', description: '一栋宅子', gridSize: 4 };
 
   it('builds a puzzle draft for a map that has a published version', () => {
     const seed = buildPuzzleSeedFromMap(
-      project,
+      mapRow,
       { versionNo: 3, gridSize: 4, data: v2VersionData() },
       '大宅',
     );
     expect(seed).not.toBeNull();
     expect(seed!.version).toBe(PUZZLE_JSON_VERSION);
-    expect(seed!.map).toEqual({ projectId: 42, versionNo: 3, gridSize: 4 });
+    expect(seed!.map).toEqual({ mapId: 42, versionNo: 3, gridSize: 4 });
     expect(seed!.name).toBe('大宅');
     expect(seed!.description).toBe('一栋宅子');
     expect(seed!.characterSlots).toHaveLength(4);
@@ -93,7 +93,7 @@ describe('buildPuzzleSeedFromMap (FEAT-K01 §11.2)', () => {
 
   it('falls back to an empty description when the map had none', () => {
     const seed = buildPuzzleSeedFromMap(
-      { ...project, description: null },
+      { ...mapRow, description: null },
       { versionNo: 1, gridSize: 4, data: v2VersionData() },
       '大宅',
     );
@@ -103,6 +103,6 @@ describe('buildPuzzleSeedFromMap (FEAT-K01 §11.2)', () => {
   it('returns null when the map was never published', () => {
     // A puzzle cannot exist without a canvas to draw on, so the roster stays
     // in the old JSON untouched.
-    expect(buildPuzzleSeedFromMap(project, null, '大宅')).toBeNull();
+    expect(buildPuzzleSeedFromMap(mapRow, null, '大宅')).toBeNull();
   });
 });

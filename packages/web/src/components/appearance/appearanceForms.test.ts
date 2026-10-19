@@ -5,7 +5,7 @@ import { codeOf } from '@/testing/source';
  * v0.5.1 FEAT-L01 / FEAT-L02 — the two detail forms and the two create dialogs.
  *
  * These are big pages with a lot of surrounding state, so (like
- * `EditorPage.publish.test.ts`) the durable contract is asserted on the source:
+ * `MapEditorPage.publish.test.ts`) the durable contract is asserted on the source:
  * 「外观」区是二选一，启用按钮的可点条件是「有图 **或** 有颜色」。
  *
  * 物品 and 角色 are the same contract twice, so they share one table — only the

@@ -15,7 +15,7 @@ export async function publish(ctx: Context): Promise<void> {
   // body 可带 `version`（默认 MAX+1，用户可改）；
   // `.strict()` 仍挡住旧客户端多传的 `notes`。
   const body = parseOrThrow(publishSchema, ctx.request.body ?? {});
-  const version = await versionService.publishProject(id, body.version);
+  const version = await versionService.publishMap(id, body.version);
   success(ctx, version, '发布成功');
 }
 
@@ -26,7 +26,7 @@ export async function publish(ctx: Context): Promise<void> {
  */
 export async function list(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
-  success(ctx, await versionService.listVersionsForProject(id));
+  success(ctx, await versionService.listMapVersions(id));
 }
 
 export async function detail(ctx: Context): Promise<void> {
@@ -45,8 +45,8 @@ export async function detail(ctx: Context): Promise<void> {
 export async function fork(ctx: Context): Promise<void> {
   const { id, versionNo } = parseOrThrow(versionParamSchema, ctx.params);
   const body = parseOrThrow(forkVersionBodySchema, ctx.request.body ?? {});
-  const project = await versionService.forkVersion(id, versionNo, body.data);
-  success(ctx, project, `已从 v${versionNo} 新增一个条目`);
+  const mapEntry = await versionService.forkVersion(id, versionNo, body.data);
+  success(ctx, mapEntry, `已从 v${versionNo} 新增一个条目`);
 }
 
 /**

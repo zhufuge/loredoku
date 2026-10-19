@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_ROTATIONS, GRID_SIZE_MAX, GRID_SIZE_MIN } from '../constants'
-import { createCardSchema } from './card'
-import {
-  mapCellSchema,
-  regionColorSchema,
-  regionInputSchema,
-  saveMapSchema,
-} from './map'
-import { createProjectSchema, gridSizeSchema } from './project'
+import { GRID_SIZE_MAX, GRID_SIZE_MIN } from '../constants'
+import { createItemSchema } from './item'
+import { createMapSchema, gridSizeSchema } from './map'
+import { regionColorSchema } from './mapDraft'
 
 describe('gridSizeSchema', () => {
   it('accepts values within the supported range', () => {
@@ -22,31 +17,30 @@ describe('gridSizeSchema', () => {
   })
 })
 
-describe('createProjectSchema', () => {
+describe('createMapSchema', () => {
   it('no longer carries a canvas size', () => {
-    const parsed = createProjectSchema.parse({ name: '  My Map  ' })
+    const parsed = createMapSchema.parse({ name: '  My Map  ' })
     expect(parsed.name).toBe('My Map')
     expect(parsed).not.toHaveProperty('gridSize')
   })
 
   it('requires a non-empty name', () => {
-    expect(createProjectSchema.safeParse({ name: '   ' }).success).toBe(false)
+    expect(createMapSchema.safeParse({ name: '   ' }).success).toBe(false)
   })
 })
 
-describe('createCardSchema', () => {
+describe('createItemSchema', () => {
   it('enforces the code pattern and defaults the size', () => {
-    const parsed = createCardSchema.parse({ code: 'card_1', name: 'Suspect' })
-    // v0.5.2 FEAT-M03: the `triggers` default is gone with the table.
+    const parsed = createItemSchema.parse({ code: 'item_1', name: 'Suspect' })
     expect(parsed).not.toHaveProperty('triggers')
     expect(parsed.canStand).toBe(true)
-    expect(createCardSchema.safeParse({ code: 'bad code', name: 'x' }).success).toBe(false)
-    expect(createCardSchema.safeParse({ code: 'ok', name: 'x' }).success).toBe(true)
+    expect(createItemSchema.safeParse({ code: 'bad code', name: 'x' }).success).toBe(false)
+    expect(createItemSchema.safeParse({ code: 'ok', name: 'x' }).success).toBe(true)
   })
 
-  it('FEAT-M04: a background card is always standable', () => {
-    expect(createCardSchema.parse({ code: 'bg_1', name: 'Wall', category: 'background', canStand: false }).canStand).toBe(true)
-    expect(createCardSchema.parse({ code: 'ob_1', name: 'Lamp', category: 'object', canStand: false }).canStand).toBe(false)
+  it('a background item is always standable', () => {
+    expect(createItemSchema.parse({ code: 'bg_1', name: 'Wall', category: 'background', canStand: false }).canStand).toBe(true)
+    expect(createItemSchema.parse({ code: 'ob_1', name: 'Lamp', category: 'object', canStand: false }).canStand).toBe(false)
   })
 })
 
@@ -55,42 +49,5 @@ describe('regionColorSchema', () => {
     expect(regionColorSchema.safeParse('#3B82F6').success).toBe(true)
     expect(regionColorSchema.safeParse('#fff').success).toBe(false)
     expect(regionColorSchema.safeParse('blue').success).toBe(false)
-  })
-})
-
-describe('mapCellSchema', () => {
-  it('defaults rotation and zIndex', () => {
-    const parsed = mapCellSchema.parse({ x: 1, y: 2, cardId: 5 })
-    expect(parsed.rotation).toBe(0)
-    expect(parsed.zIndex).toBe(0)
-  })
-
-  it('only allows valid rotations', () => {
-    for (const rotation of CARD_ROTATIONS) {
-      expect(mapCellSchema.safeParse({ x: 0, y: 0, cardId: 1, rotation }).success).toBe(true)
-    }
-    expect(mapCellSchema.safeParse({ x: 0, y: 0, cardId: 1, rotation: 45 }).success).toBe(false)
-  })
-})
-
-describe('regionInputSchema', () => {
-  it('requires at least one cell and applies defaults', () => {
-    const parsed = regionInputSchema.parse({ name: 'Room', cells: [{ x: 0, y: 0 }] })
-    expect(parsed.color).toBe('#000000')
-    expect(parsed.cells).toHaveLength(1)
-    expect(regionInputSchema.safeParse({ name: 'Room', cells: [] }).success).toBe(false)
-  })
-})
-
-describe('saveMapSchema', () => {
-  it('accepts an empty map and optional updatedAt', () => {
-    expect(saveMapSchema.parse({ cells: [], regions: [] }).updatedAt).toBeUndefined()
-    const parsed = saveMapSchema.parse({
-      updatedAt: '2026-01-01T00:00:00.000Z',
-      cells: [{ x: 0, y: 0, cardId: 1 }],
-      regions: [{ name: 'R', cells: [{ x: 0, y: 0 }] }],
-    })
-    expect(parsed.cells).toHaveLength(1)
-    expect(parsed.regions).toHaveLength(1)
   })
 })

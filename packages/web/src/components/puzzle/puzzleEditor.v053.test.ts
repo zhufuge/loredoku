@@ -15,12 +15,12 @@ const pageSource = codeOf('pages/PuzzleEditorPage.tsx');
 const puzzlesPage = codeOf('pages/PuzzlesPage.tsx');
 const leftPanel = codeOf('components/puzzle/PuzzleEditorLeftPanel.tsx');
 const puzzleInfo = codeOf('components/puzzle/PuzzleInfoDrawer.tsx');
-const participantDrawer = codeOf('components/editor/ParticipantDrawer.tsx');
-const infoDrawer = codeOf('components/editor/EditorInfoDrawer.tsx');
-const linkageDialog = codeOf('components/editor/LinkageDialog.tsx');
+const participantDrawer = codeOf('components/map-editor/ParticipantDrawer.tsx');
+const infoDrawer = codeOf('components/map-editor/EditorInfoDrawer.tsx');
+const linkageDialog = codeOf('components/map-editor/LinkageDialog.tsx');
 const rulerStrips = codeOf('components/map/MapRulerStrips.tsx');
 const colorPalette = codeOf('components/ui/color-palette.tsx');
-const themeDialog = codeOf('components/editor/ThemeColorDialog.tsx');
+const themeDialog = codeOf('components/map-editor/ThemeColorDialog.tsx');
 
 describe('谜题列表项编辑按钮（FEAT-N05）', () => {
   it('opens the editor from the row', () => {

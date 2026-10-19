@@ -16,11 +16,11 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  CreateProjectDialog,
-  EditProjectDialog,
-} from '@/components/project/ProjectFormDialogs';
-import { ProjectGridCard } from '@/components/project/ProjectGridCard';
-import { ProjectListRow } from '@/components/project/ProjectListRow';
+  CreateMapDialog,
+  EditMapDialog,
+} from '@/components/map/MapFormDialogs';
+import { MapGridCard } from '@/components/map/MapGridCard';
+import { MapListRow } from '@/components/map/MapListRow';
 import { useDeleteMap, useDuplicateMap, useMaps } from '@/hooks/useMaps';
 import { useDeleteVersion } from '@/hooks/useVersions';
 
@@ -28,7 +28,7 @@ const PAGE_SIZE = 12;
 
 /**
  * 视图选择持久化。网格 / 列表是纯展示偏好，刷新后应保持
- * （同 `MapVersionViewPage` 的标尺开关，RULER_STORAGE_KEY 模式）。
+ * （同 `MapViewPage` 的标尺开关，RULER_STORAGE_KEY 模式）。
  */
 const VIEW_STORAGE_KEY = 'loredoku.maps.view';
 
@@ -56,7 +56,6 @@ type SortOption = 'updatedAt' | 'name';
  */
 export function MapsPage(): JSX.Element {
   const navigate = useNavigate();
-  /** 两块各有页号：翻版本块不该把草稿块也翻走。 */
   const [draftPage, setDraftPage] = useState(1);
   const [versionPage, setVersionPage] = useState(1);
   const [keywordInput, setKeywordInput] = useState('');
@@ -64,13 +63,11 @@ export function MapsPage(): JSX.Element {
   const [sort, setSort] = useState<SortOption>('updatedAt');
   const [view, setView] = useState<ViewMode>(readStoredView);
   const [createOpen, setCreateOpen] = useState(false);
-  /** A work entry being renamed / re-covered (`EditProjectDialog` needs a `Project`). */
-  const [editProject, setEditProject] = useState<MapEntrySummary | null>(null);
+  /** A work entry being renamed / re-covered (`EditMapDialog` needs a `MapEntry`). */
+  const [editMapEntry, setEditMapEntry] = useState<MapEntrySummary | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MapEntrySummary | null>(null);
 
   useEffect(() => {
-    // SPEC-O19 (docs/v0.5.4.md §4): 工坊 is the **header suffix** only — the
-    // page itself keeps speaking 地图.
     document.title = '地图 · 格物';
   }, []);
 
@@ -148,10 +145,10 @@ export function MapsPage(): JSX.Element {
    */
   const handleOpen = (entry: MapEntrySummary): void => {
     if (entry.kind === 'version' && entry.versionNo !== null) {
-      navigate(`/maps/${entry.projectId}/edit?v=${entry.versionNo}`);
+      navigate(`/maps/${entry.mapId}/edit?v=${entry.versionNo}`);
       return;
     }
-    navigate(`/maps/${entry.projectId}/edit`);
+    navigate(`/maps/${entry.mapId}/edit`);
   };
 
   /**
@@ -162,29 +159,24 @@ export function MapsPage(): JSX.Element {
   const handlePreview = (entry: MapEntrySummary): void => {
     const versionNo = entry.versionNo ?? entry.currentVersionNo;
     if (versionNo === null) return;
-    navigate(`/maps/${entry.projectId}/views?v=${versionNo}`);
+    navigate(`/maps/${entry.mapId}/views?v=${versionNo}`);
   };
 
   const confirmDelete = (): void => {
     if (!deleteTarget) return;
     const target = deleteTarget;
     if (isVersionEntry(target)) {
-      // §7.1 第 4 条: deleting a version entry removes that `map_versions` row.
       deleteVersionMutation.mutate(
-        { id: target.projectId, versionNo: target.versionNo ?? 0 },
+        { id: target.mapId, versionNo: target.versionNo ?? 0 },
         { onSuccess: () => setDeleteTarget(null) },
       );
       return;
     }
-    deleteMutation.mutate(target.projectId, { onSuccess: () => setDeleteTarget(null) });
+    deleteMutation.mutate(target.mapId, { onSuccess: () => setDeleteTarget(null) });
   };
 
   const deleting = deleteMutation.isPending || deleteVersionMutation.isPending;
 
-  /**
-   * 一块一条翻页条。只在真有多页时出现 —— 单页的「第 1/1 页」
-   * 是噪音，块标题里已经写了总数。
-   */
   function renderPager(
     page: number,
     totalPages: number,
@@ -265,27 +257,26 @@ export function MapsPage(): JSX.Element {
             {view === 'list' ? (
               <Card className="overflow-hidden">
                 {drafts.map((entry) => (
-                  <ProjectListRow
+                  <MapListRow
                     key={`${entry.kind}-${entry.id}`}
                     entry={entry}
                     onOpen={handleOpen}
-                    onRename={setEditProject}
-                    onDuplicate={(item) => duplicateMutation.mutate(item.projectId)}
+                    onRename={setEditMapEntry}
+                    onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
                     onDelete={setDeleteTarget}
                     onPreview={handlePreview}
                   />
                 ))}
               </Card>
             ) : (
-              // 最大一行 5 个（2xl），再宽也不铺满 —— 卡片封面要够大才认得出。
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
                 {drafts.map((entry) => (
-                  <ProjectGridCard
+                  <MapGridCard
                     key={`${entry.kind}-${entry.id}`}
                     entry={entry}
                     onOpen={handleOpen}
-                    onRename={setEditProject}
-                    onDuplicate={(item) => duplicateMutation.mutate(item.projectId)}
+                    onRename={setEditMapEntry}
+                    onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
                     onDelete={setDeleteTarget}
                     onPreview={handlePreview}
                   />
@@ -296,7 +287,6 @@ export function MapsPage(): JSX.Element {
           </section>
         ) : null}
 
-        {/* v0.5.8 §15: 版本块恒为列表行，不生成卡片 —— 视图切换只管草稿块。 */}
         {versionTotal > 0 ? (
           <section className="space-y-3">
             <h2 className="text-sm font-semibold">
@@ -304,12 +294,12 @@ export function MapsPage(): JSX.Element {
             </h2>
             <Card className="overflow-hidden">
               {versions.map((entry) => (
-                <ProjectListRow
+                <MapListRow
                   key={`${entry.kind}-${entry.id}`}
                   entry={entry}
                   onOpen={handleOpen}
-                  onRename={setEditProject}
-                  onDuplicate={(item) => duplicateMutation.mutate(item.projectId)}
+                  onRename={setEditMapEntry}
+                  onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
                   onDelete={setDeleteTarget}
                   onPreview={handlePreview}
                 />
@@ -357,9 +347,6 @@ export function MapsPage(): JSX.Element {
           <option value="updatedAt">按更新时间</option>
           <option value="name">按名称</option>
         </select>
-        {/* v0.5.8 §15: 三态 kind 筛选与「按地图归组」已删 —— 分块取代前者；
-            后者原本靠版本块的固定血统排序兼顾，第九阶段版本块改按时间排后
-            这层便利取消，要按图看各版本就用上面的搜索框筛名称。 */}
         <div className="ml-auto flex items-center gap-1 rounded-md border p-1">
           <Button
             size="icon"
@@ -384,8 +371,8 @@ export function MapsPage(): JSX.Element {
         {renderContent()}
       </div>
 
-      <CreateProjectDialog open={createOpen} onOpenChange={setCreateOpen} />
-      <EditProjectDialog project={editProject} onOpenChange={(open) => !open && setEditProject(null)} />
+      <CreateMapDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <EditMapDialog mapEntry={editMapEntry} onOpenChange={(open) => !open && setEditMapEntry(null)} />
 
       <AlertDialog
         open={deleteTarget !== null}

@@ -196,18 +196,18 @@ export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number
       .update({ data: { ...record, characterSlots: next }, updated_at: trx.fn.now() });
   }
 
-  const projects = (await trx('maps')
+  const mapRows = (await trx('maps')
     .where('version', 'draft')
     .whereNotNull('data')
     .select('id', 'data')) as Array<{ id: string | number; data: unknown }>;
-  for (const project of projects) {
-    const record = asRecord(project.data);
+  for (const mapRow of mapRows) {
+    const record = asRecord(mapRow.data);
     if (!record) continue;
     const slots = readLegacyCharacterSlots(record);
     if (slots.length === 0) continue;
     const next = slots.map((slot) => (slot && slot.characterId === id ? null : slot));
     if (JSON.stringify(next) === JSON.stringify(slots)) continue;
-    await trx('maps').where({ id: project.id }).update({
+    await trx('maps').where({ id: mapRow.id }).update({
       data: { ...record, characterSlots: next },
     });
   }
@@ -231,12 +231,12 @@ export async function hardDelete(id: number, clearReferences: boolean): Promise<
 export async function getUsages(characterId: number): Promise<CharacterUsage[]> {
   const puzzleRows = (await db('puzzles as pz')
     .join('maps as mp', 'mp.id', 'pz.map_project_id')
-    .select('pz.id', 'pz.name', 'pz.data', 'mp.id as project_id', 'mp.name as project_name')) as Array<{
+    .select('pz.id', 'pz.name', 'pz.data', 'mp.id as map_id', 'mp.name as map_name')) as Array<{
     id: string | number;
     name: string;
     data: unknown;
-    project_id: string | number;
-    project_name: string | null;
+    map_id: string | number;
+    map_name: string | null;
   }>;
 
   const usages: CharacterUsage[] = [];
@@ -246,14 +246,14 @@ export async function getUsages(characterId: number): Promise<CharacterUsage[]> 
     usages.push({
       puzzleId: Number(row.id),
       puzzleName: row.name,
-      projectId: Number(row.project_id),
-      projectName: row.project_name ?? '未命名地图',
+      mapId: Number(row.map_id),
+      mapName: row.map_name ?? '未命名地图',
       // CLAR-603: participants no longer occupy cells.
       cells: [],
     });
   }
 
-  const projects = (await db('maps')
+  const mapRows = (await db('maps')
     .where('version', 'draft')
     .whereNotNull('data')
     .select('id', 'name', 'data')) as Array<{
@@ -261,13 +261,13 @@ export async function getUsages(characterId: number): Promise<CharacterUsage[]> 
     name: string;
     data: unknown;
   }>;
-  for (const project of projects) {
-    const slots = readLegacyCharacterSlots(project.data);
+  for (const mapRow of mapRows) {
+    const slots = readLegacyCharacterSlots(mapRow.data);
     if (!slots.some((slot) => slot?.characterId === characterId)) continue;
     usages.push({
       legacy: true,
-      projectId: Number(project.id),
-      projectName: project.name,
+      mapId: Number(mapRow.id),
+      mapName: mapRow.name,
       cells: [],
     });
   }

@@ -9,7 +9,7 @@ import { codeOf } from '@/testing/source';
  * 地图模块）。
  *
  * 渲染整页需要 query client / router / 预置双 store，与
- * `EditorPage.infoDrawer.test.ts` 同款：源码断言。`codeOf` 已经剥掉注释——
+ * `MapEditorPage.infoDrawer.test.ts` 同款：源码断言。`codeOf` 已经剥掉注释——
  * 注释里为了说明「删了什么」反而写着那些名字。
  */
 
@@ -68,7 +68,7 @@ describe('PuzzleEditorPage left panel（SPEC-K12 §4.1）', () => {
     expect(pageSource).toContain('<PuzzleEditorLeftPanel');
     // 注意不能用裸子串：`PuzzleEditorLeftPanel` 自身包含 `EditorLeftPanel`。
     expect(pageSource).not.toContain('<EditorLeftPanel');
-    expect(pageSource).not.toContain("from '@/components/editor/EditorLeftPanel'");
+    expect(pageSource).not.toContain("from '@/components/map-editor/EditorLeftPanel'");
   });
 
   it('keeps the puzzle panel — no TABS switcher, no map-writing callbacks', () => {

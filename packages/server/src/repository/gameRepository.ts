@@ -38,7 +38,7 @@ export interface UpsertGameData {
   /** CONS-K16: the unit of deployment. */
   puzzleId: number;
   /** The referenced map version — kept denormalised for badges / keys. */
-  projectId: number;
+  mapId: number;
   versionNo: number;
   name: string;
   /** OPT-W04: already validated and clash-checked by the service. */
@@ -80,7 +80,7 @@ export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> 
     const [row] = (await trx('games')
       .insert({
         puzzle_id: data.puzzleId,
-        project_id: data.projectId,
+        project_id: data.mapId,
         version_no: data.versionNo,
         name: data.name,
         slug: data.slug,
@@ -162,7 +162,7 @@ export function toSummary(row: MapGameRow): MapGameSummary {
   return {
     id: Number(row.id),
     puzzleId: row.puzzle_id === null || row.puzzle_id === undefined ? null : Number(row.puzzle_id),
-    projectId: Number(row.project_id),
+    mapId: Number(row.project_id),
     versionNo: row.version_no,
     name: row.name,
     slug: row.slug,

@@ -122,7 +122,7 @@ describe('mapGameSnapshotSchema (CONS-K16 §10.1)', () => {
   const map = { version: 3, gridSize: 6, cells: {}, regions: [] };
   const puzzle = {
     version: 1,
-    map: { projectId: 217, versionNo: 3, gridSize: 6 },
+    map: { mapId: 217, versionNo: 3, gridSize: 6 },
     name: '午夜花园',
     description: '',
     linkageColors: [

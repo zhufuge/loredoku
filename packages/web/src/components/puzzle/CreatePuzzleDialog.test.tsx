@@ -39,7 +39,7 @@ vi.mock('@/hooks/usePuzzles', () => ({
 
 const published: PublishedMapVersion[] = [
   {
-    projectId: 217,
+    mapId: 217,
     rootId: 217,
     versionNo: 3,
     mapName: '古堡之谜',
@@ -47,7 +47,7 @@ const published: PublishedMapVersion[] = [
     publishedAt: '2026-10-01T09:30:00.000Z',
   },
   {
-    projectId: 219,
+    mapId: 219,
     rootId: 219,
     versionNo: 1,
     mapName: '午夜花园',
@@ -145,12 +145,12 @@ describe('CreatePuzzleDialog (FEAT-K03)', () => {
     expect(createMutate).toHaveBeenCalledWith({
       name: '午夜花园',
       description: '六人六格',
-      mapProjectId: 217,
+      mapId: 217,
       mapVersionNo: 3,
     });
   });
 
-  it('?new={projectId}:{versionNo} arrives with the version pre-picked', () => {
+  it('?new={mapId}:{versionNo} arrives with the version pre-picked', () => {
     render('/puzzles?new=217:3');
     expect(text()).toContain('6×6');
   });

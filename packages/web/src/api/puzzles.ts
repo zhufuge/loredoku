@@ -14,8 +14,8 @@ import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client';
 export interface CreatePuzzlePayload {
   name: string;
   description?: string | null;
-  /** The published map version the puzzle draws on (`map_versions.project_id`). */
-  mapProjectId: number;
+  /** The published map version the puzzle draws on (`maps.id`). */
+  mapId: number;
   mapVersionNo: number;
 }
 

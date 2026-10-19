@@ -14,17 +14,28 @@ import { characterSlotEntrySchema, mapLinkageColorSchema } from './mapDraft';
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 
 /**
- * v0.5.0 FEAT-K08 (docs/v0.5.0.md §6): the reference to the published map
- * version the puzzle draws on. The canvas itself is **not** copied — see §5.1.
- * `gridSize` rides along so the payload can be checked offline.
+ * 谜题引用的已发布地图版本。画布本身**不复制**（见 docs/v0.5.0.md §5.1），
+ * `gridSize` 随行以便离线校验。
+ *
+ * 导入的是用户手里的旧文件，键名不能强制 —— 旧文件里这个字段叫 `projectId`，
+ * 收下并归一化成 `mapId`；新数据只有 `mapId`。
  */
-export const puzzleMapRefSchema = z
-  .object({
-    projectId: z.number().int().positive(),
-    versionNo: z.number().int().positive(),
-    gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
-  })
-  .strict();
+export const puzzleMapRefSchema = z.preprocess(
+  (raw) => {
+    if (raw && typeof raw === 'object' && 'projectId' in raw && !('mapId' in raw)) {
+      const { projectId, ...rest } = raw as Record<string, unknown>;
+      return { ...rest, mapId: projectId };
+    }
+    return raw;
+  },
+  z
+    .object({
+      mapId: z.number().int().positive(),
+      versionNo: z.number().int().positive(),
+      gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
+    })
+    .strict(),
+);
 
 export const puzzleNameSchema = z
   .string()
@@ -151,7 +162,7 @@ export const puzzleDraftSchema = puzzleDraftBaseSchema.superRefine((draft, ctx) 
 export const createPuzzleSchema = z.object({
   name: puzzleNameSchema,
   description: puzzleDescriptionSchema.optional().nullable(),
-  mapProjectId: z.number().int().positive(),
+  mapId: z.number().int().positive(),
   mapVersionNo: z.number().int().positive(),
 });
 

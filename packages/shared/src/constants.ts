@@ -129,12 +129,12 @@ export const BG_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 /** Default colour of a freshly created colour block. */
 export const DEFAULT_BG_COLOR = '#FFFFFF';
 
-// ---- Project ----
-export const PROJECT_NAME_MAX_LENGTH = 100;
-export const PROJECT_DESCRIPTION_MAX_LENGTH = 500;
-export const PROJECT_STATUSES = ['draft', 'published'] as const;
-export const DEFAULT_PROJECT_STATUS = 'draft';
-export const PROJECT_NOTE_MAX_LENGTH = 200;
+// ---- MapEntry ----
+export const MAP_NAME_MAX_LENGTH = 100;
+export const MAP_DESCRIPTION_MAX_LENGTH = 500;
+export const MAP_STATUSES = ['draft', 'published'] as const;
+export const DEFAULT_MAP_STATUS = 'draft';
+export const MAP_NOTE_MAX_LENGTH = 200;
 
 // ---- Puzzle ----
 // v0.5.0 FEAT-K08: the puzzle owns participants + the linkage-colour palette and
@@ -571,7 +571,7 @@ export const GAME_DIFFICULTY_TEXT_COLORS: Record<
 /** FEAT-G02: the default tier pre-selected in the deploy dialog. */
 export const GAME_DIFFICULTY_DEFAULT: (typeof GAME_DIFFICULTY_LEVELS)[number] = 'medium';
 
-/** FEAT-G02: game name bounds (same width as a map project name). */
+/** FEAT-G02: game name bounds (same width as a map name). */
 export const GAME_NAME_MAX_LENGTH = 100;
 
 /** FEAT-G02: covers are the widest artwork in the app, so they get their own cap. */

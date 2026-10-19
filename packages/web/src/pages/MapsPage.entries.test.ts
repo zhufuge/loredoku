@@ -14,7 +14,7 @@ import { readSource } from '@/testing/source';
  * 翻页条。排序一律在服务端（客户端只能重排当前页，跨页会乱），默认按更新时间
  * 倒序 —— 版本的块里就是最新发布的在最上面。
  *
- * 源码断言（同 `EditorPage.infoDrawer.test.ts`）：整页渲染需要 query client。
+ * 源码断言（同 `MapEditorPage.infoDrawer.test.ts`）：整页渲染需要 query client。
  */
 
 /** Drop JSDoc / JSX block comments — assertions below only look at the code. */
@@ -23,7 +23,7 @@ const pageSource = readSource('pages/MapsPage.tsx').replace(/\/\*[\s\S]*?\*\//g,
 describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
   it('consumes the union type instead of a plain project list', () => {
     expect(pageSource).toContain("import type { MapEntrySummary } from '@loredoku/shared';");
-    expect(pageSource).toContain('const [editProject, setEditProject] = useState<MapEntrySummary | null>(null);');
+    expect(pageSource).toContain('const [editMapEntry, setEditMapEntry] = useState<MapEntrySummary | null>(null);');
     expect(pageSource).toContain('const [deleteTarget, setDeleteTarget] = useState<MapEntrySummary | null>(null);');
     expect(pageSource).toContain('const isVersionEntry = (entry: MapEntrySummary): boolean => entry.kind === \'version\';');
     // 两种条目用 `kind-id` 做 key，不会互相覆盖（草稿列表 / 草稿网格 / 版本列表）。
@@ -60,9 +60,9 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
   });
 
   it('version entries are always list rows, never cards', () => {
-    // 只有草稿块能出卡片；两种视图都用 `ProjectListRow` 的名单共两处（草稿 / 版本）。
-    expect(pageSource.match(/<ProjectGridCard/g)?.length ?? 0).toBe(1);
-    expect(pageSource.match(/<ProjectListRow/g)?.length ?? 0).toBe(2);
+    // 只有草稿块能出卡片；两种视图都用 `MapListRow` 的名单共两处（草稿 / 版本）。
+    expect(pageSource.match(/<MapGridCard/g)?.length ?? 0).toBe(1);
+    expect(pageSource.match(/<MapListRow/g)?.length ?? 0).toBe(2);
     // 视图切换只作用于草稿块：除工具栏按钮的选中态外，正文里只有草稿块用它分流。
     expect(pageSource.match(/view === 'list'/g)?.length ?? 0).toBe(2);
   });
@@ -86,7 +86,7 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
   it('previews go to /maps/:id/views with the version in the query', () => {
     // 预览对两类都存在：版本条目看自己，工作条目看血统最高版本。
     expect(pageSource).toContain('const versionNo = entry.versionNo ?? entry.currentVersionNo;');
-    expect(pageSource).toContain('navigate(`/maps/${entry.projectId}/views?v=${versionNo}`);');
+    expect(pageSource).toContain('navigate(`/maps/${entry.mapId}/views?v=${versionNo}`);');
     // 「新建谜题 / 编辑此版本」两个按 kind 分叉的入口已从列表页移除。
     expect(pageSource).not.toContain('/puzzles?new=');
     expect(pageSource).not.toContain('forkMutation');
@@ -100,8 +100,8 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
       pageSource.indexOf('const handlePreview'),
     );
     expect(open).toContain("entry.kind === 'version' && entry.versionNo !== null");
-    expect(open).toContain('navigate(`/maps/${entry.projectId}/edit?v=${entry.versionNo}`);');
-    expect(open).toContain('navigate(`/maps/${entry.projectId}/edit`);');
+    expect(open).toContain('navigate(`/maps/${entry.mapId}/edit?v=${entry.versionNo}`);');
+    expect(open).toContain('navigate(`/maps/${entry.mapId}/edit`);');
   });
 
   it('the view choice survives a reload', () => {
@@ -118,11 +118,11 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
     );
     expect(confirm).toContain('if (isVersionEntry(target)) {');
     expect(confirm).toContain('deleteVersionMutation.mutate(');
-    expect(confirm).toContain('deleteMutation.mutate(target.projectId');
+    expect(confirm).toContain('deleteMutation.mutate(target.mapId');
   });
 
   it('keeps a single rename / cover dialog for both blocks', () => {
-    expect(pageSource).toContain('<EditProjectDialog project={editProject}');
+    expect(pageSource).toContain('<EditMapDialog mapEntry={editMapEntry}');
     // 整页不出现 fork 之外的版本写入调用。
     expect(pageSource).not.toContain('versionsApi.createDraft');
     expect(pageSource).not.toContain('/draft`');
@@ -133,7 +133,7 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
       pageSource.indexOf('const handleOpen = (entry: MapEntrySummary): void => {'),
       pageSource.indexOf('const handlePreview'),
     );
-    expect(open).toContain('navigate(`/maps/${entry.projectId}/edit`);');
+    expect(open).toContain('navigate(`/maps/${entry.mapId}/edit`);');
   });
 
   it('the grid tops out at five cards per row', () => {

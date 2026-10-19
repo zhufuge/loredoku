@@ -11,7 +11,7 @@ export const PUZZLES_PAGE_SIZE_OPTIONS = [20, 50, 100] as const;
 
 export interface PuzzleFilters {
   /** 按地图筛选（下拉多选）— empty means "all maps". */
-  mapProjectIds: number[];
+  mapIds: number[];
   /** 关键词搜索（谜题名 / 版本号 / 描述 / 地图名）. */
   keyword: string;
   /** 按时间范围筛选 — inclusive `YYYY-MM-DD` bounds, `null` = open. */
@@ -20,7 +20,7 @@ export interface PuzzleFilters {
 }
 
 export const EMPTY_PUZZLE_FILTERS: PuzzleFilters = {
-  mapProjectIds: [],
+  mapIds: [],
   keyword: '',
   from: null,
   to: null,
@@ -68,9 +68,9 @@ function matchesTimeRange(puzzle: PuzzleSummary, from: string | null, to: string
 }
 
 export function filterPuzzles(puzzles: PuzzleSummary[], filters: PuzzleFilters): PuzzleSummary[] {
-  const mapFilter = new Set(filters.mapProjectIds);
+  const mapFilter = new Set(filters.mapIds);
   return puzzles.filter((puzzle) => {
-    if (mapFilter.size > 0 && !mapFilter.has(puzzle.mapProjectId)) return false;
+    if (mapFilter.size > 0 && !mapFilter.has(puzzle.mapId)) return false;
     if (!matchesKeyword(puzzle, filters.keyword)) return false;
     return matchesTimeRange(puzzle, filters.from, filters.to);
   });
@@ -121,7 +121,7 @@ export function collectPuzzleMaps(
 ): Array<{ id: number; name: string }> {
   const byId = new Map<number, string>();
   for (const puzzle of puzzles) {
-    if (!byId.has(puzzle.mapProjectId)) byId.set(puzzle.mapProjectId, puzzle.mapName);
+    if (!byId.has(puzzle.mapId)) byId.set(puzzle.mapId, puzzle.mapName);
   }
   return [...byId.entries()]
     .map(([id, name]) => ({ id, name }))

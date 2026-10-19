@@ -14,7 +14,7 @@ const context = {
 function draft(slots: PuzzleDraft['characterSlots']): PuzzleDraft {
   return {
     version: 1,
-    map: { projectId: 217, versionNo: 3, gridSize: 6 },
+    map: { mapId: 217, versionNo: 3, gridSize: 6 },
     name: '午夜花园',
     description: '',
     linkageColors: [

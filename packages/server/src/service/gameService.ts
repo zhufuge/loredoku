@@ -47,8 +47,8 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
     throw AppError.notFound('谜题不存在');
   }
 
-  const projectId = Number(puzzle.map_project_id);
-  const version = await versionRepo.findVersionRow(projectId, puzzle.map_version_no);
+  const mapId = Number(puzzle.map_project_id);
+  const version = await versionRepo.findVersionRow(mapId, puzzle.map_version_no);
   if (!version) {
     throw AppError.notFound('谜题引用的地图版本不存在，无法部署');
   }
@@ -69,7 +69,7 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
 
   return gameRepo.upsertGame({
     puzzleId,
-    projectId,
+    mapId,
     versionNo: puzzle.map_version_no,
     name,
     slug,

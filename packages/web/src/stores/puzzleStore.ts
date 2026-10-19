@@ -10,7 +10,7 @@ import {
   type MapLinkageColor,
   type MapStyle,
   type ParticipantTarget,
-  type ProjectStatus,
+  type MapStatus,
   type PuzzleDetail,
   type PuzzleDraft,
   type PuzzleMapContext,
@@ -110,7 +110,7 @@ export interface PuzzleState {
   // ---- persistence ----
   dirty: boolean;
   updatedAt: string | null;
-  status: ProjectStatus;
+  status: MapStatus;
   past: Snapshot[];
   future: Snapshot[];
 
@@ -413,7 +413,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
       return {
         version: PUZZLE_JSON_VERSION,
         map: {
-          projectId: state.mapContext?.projectId ?? 0,
+          mapId: state.mapContext?.mapId ?? 0,
           versionNo: state.mapContext?.versionNo ?? 0,
           gridSize: state.mapContext?.gridSize ?? state.characterSlots.length,
         },

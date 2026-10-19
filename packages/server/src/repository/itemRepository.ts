@@ -173,12 +173,12 @@ export interface ProcessedImageAlias {
 }
 
 export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Promise<void> {
-  const projects = (await trx('maps')
+  const mapRows = (await trx('maps')
     .where('version', 'draft')
     .whereNotNull('data')
     .select('id', 'data')) as Array<{ id: string | number; data: unknown }>;
-  for (const project of projects) {
-    const draft = project.data as MapDraft | null;
+  for (const mapRow of mapRows) {
+    const draft = mapRow.data as MapDraft | null;
     if (!draft?.cells) continue;
     let changed = false;
     for (const key of Object.keys(draft.cells)) {
@@ -194,7 +194,7 @@ export async function clearItemFromDrafts(trx: Knex.Transaction, id: number): Pr
       }
     }
     if (changed) {
-      await trx('maps').where({ id: project.id }).update({ data: draft });
+      await trx('maps').where({ id: mapRow.id }).update({ data: draft });
     }
   }
 }
@@ -234,7 +234,7 @@ export async function isReferenced(id: number): Promise<boolean> {
 }
 
 export async function getUsages(itemId: number): Promise<ItemUsage[]> {
-  const projects = (await db('maps')
+  const mapRows = (await db('maps')
     .where('version', 'draft')
     .whereNotNull('data')
     .select('id', 'name', 'data')) as Array<{
@@ -244,8 +244,8 @@ export async function getUsages(itemId: number): Promise<ItemUsage[]> {
   }>;
 
   const usages: ItemUsage[] = [];
-  for (const project of projects) {
-    const draft = project.data;
+  for (const mapRow of mapRows) {
+    const draft = mapRow.data;
     if (!draft?.cells) continue;
     const cells: Array<{ x: number; y: number }> = [];
     for (const key of Object.keys(draft.cells)) {
@@ -256,7 +256,7 @@ export async function getUsages(itemId: number): Promise<ItemUsage[]> {
       }
     }
     if (cells.length > 0) {
-      usages.push({ projectId: Number(project.id), projectName: project.name, cells });
+      usages.push({ mapId: Number(mapRow.id), mapName: mapRow.name, cells });
     }
   }
   return usages;

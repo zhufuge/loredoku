@@ -17,7 +17,7 @@ import { readLegacyCharacterSlots, readLegacyLinkageColors } from './mapDraftCom
  * untouched (the reader absorbs it — see `mapDraftCompat.ts`).
  */
 
-export interface PuzzleSeedProject {
+export interface PuzzleSeedMap {
   id: number;
   name: string;
   description: string | null;
@@ -64,17 +64,17 @@ export function linkageColorsFromLegacyDraft(raw: unknown): MapLinkageColor[] {
  * cannot exist, so the roster stays where it is (readable, just not shown).
  */
 export function buildPuzzleSeedFromMap(
-  project: PuzzleSeedProject,
+  mapRow: PuzzleSeedMap,
   version: PuzzleSeedVersion | null,
   seedName: string,
 ): PuzzleDraft | null {
   if (!version) return null;
 
   const gridSize = version.gridSize;
-  const description = project.description ?? '';
+  const description = mapRow.description ?? '';
   return {
     version: PUZZLE_JSON_VERSION,
-    map: { projectId: project.id, versionNo: version.versionNo, gridSize },
+    map: { mapId: mapRow.id, versionNo: version.versionNo, gridSize },
     name: seedName,
     description,
     linkageColors: linkageColorsFromLegacyDraft(version.data),

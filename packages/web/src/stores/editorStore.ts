@@ -57,7 +57,7 @@ interface Snapshot {
 }
 
 export interface EditorState {
-  projectId: number | null;
+  mapId: number | null;
   gridSize: number;
   cells: Map<CellKey, DraftCell>;
   regions: DraftRegion[];
@@ -76,7 +76,7 @@ export interface EditorState {
   past: Snapshot[];
   future: Snapshot[];
 
-  init: (projectId: number, draft: MapDraft, meta: EditorMeta) => void;
+  init: (mapId: number, draft: MapDraft, meta: EditorMeta) => void;
   setTool: (tool: EditorTool) => void;
   setLayer: (layer: EditorLayer) => void;
   setSelection: (selection: Selection | null) => void;
@@ -143,7 +143,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
   }
 
   return {
-    projectId: null,
+    mapId: null,
     gridSize: GRID_SIZE_DEFAULT,
     cells: new Map(),
     regions: [],
@@ -162,14 +162,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
     past: [],
     future: [],
 
-    init: (projectId, draft, meta) => {
+    init: (mapId, draft, meta) => {
       const cells = new Map<CellKey, DraftCell>();
       for (const key of Object.keys(draft.cells)) {
         const cell = draft.cells[key];
         if (cell) cells.set(key as CellKey, cell);
       }
       set({
-        projectId,
+        mapId,
         gridSize: draft.gridSize,
         cells,
         regions: draft.regions,

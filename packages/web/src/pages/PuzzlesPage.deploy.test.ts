@@ -5,10 +5,10 @@ import { codeOf, readSource } from '@/testing/source';
  * v0.5.0 SPEC-K03（docs/v0.5.0.md §2.4 / §5.3）：谜题列表页承接原作品页。
  *
  * 表头 5 列与操作按钮和 v0.4.3 作品页**逐字一致**（交付标准 #2），变的只是数据
- * 源：一条谜题引用 `(mapProjectId, mapVersionNo)`，部署以**谜题**为单位
+ * 源：一条谜题引用 `(mapId, mapVersionNo)`，部署以**谜题**为单位
  * （CONS-K16：一个谜题一个游戏），导出的是谜题自己的 `PuzzleDraft` v1。
  *
- * 源码断言（同 `EditorPage.infoDrawer.test.ts`）：整页渲染需要 query client。
+ * 源码断言（同 `MapEditorPage.infoDrawer.test.ts`）：整页渲染需要 query client。
  */
 
 const pageSource = readSource('pages/PuzzlesPage.tsx');

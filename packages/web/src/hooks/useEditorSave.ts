@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 /**
  * the save flow both editors share (FIX-F01's single writer, plus the
- * 保存中 mask), lifted out of `EditorPage` / `PuzzleEditorPage`.
+ * 保存中 mask), lifted out of `MapEditorPage` / `PuzzleEditorPage`.
  *
  * FIX-F01 (docs/v0.3.10.md §1): one code path persists the **whole** draft, so
  * the toolbar's 保存 and the 基本信息 drawer's 保存 can never disagree about

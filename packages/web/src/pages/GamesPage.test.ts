@@ -8,7 +8,7 @@ import { readSource } from '@/testing/source';
  * v0.4.0 验收补充：它是**独立顶层路由**，不在 `AppShell` 里——玩家看不到制作端
  * 的任何模块导航，只能通过链接进入。
  *
- * Source-level assertions (see `EditorPage.infoDrawer.test.ts` for the
+ * Source-level assertions (see `MapEditorPage.infoDrawer.test.ts` for the
  * rationale): the page needs a live query client to render, and what must be
  * protected is the wiring — which route, which data, which navigation.
  */
@@ -31,7 +31,7 @@ describe('GamesPage (FEAT-G01)', () => {
     // It must not live inside the AppShell children array…
     const shellChildren = routerSource.slice(
       routerSource.indexOf('element: <AppShell />'),
-      routerSource.indexOf("path: '/maps/:projectId/edit'"),
+      routerSource.indexOf("path: '/maps/:mapId/edit'"),
     );
     expect(shellChildren).not.toContain('GamesPage');
     // FEAT-L04: the whole `/games` path is gone; only `/play`.

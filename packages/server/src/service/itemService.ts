@@ -7,7 +7,7 @@ import type {
 } from '@loredoku/shared';
 import * as repo from '../repository/itemRepository';
 import { AppError } from '../utils/AppError';
-import { processCardImage } from '../utils/image';
+import { processItemImage } from '../utils/image';
 
 export async function listItems(query: ListItemsQuery): Promise<Item[]> {
   return repo.listItems(query);
@@ -63,7 +63,7 @@ export async function uploadImage(id: number, buffer: Buffer): Promise<Item> {
   if (!(await repo.findById(id))) {
     throw AppError.notFound('物品不存在');
   }
-  const processed = await processCardImage(id, buffer);
+  const processed = await processItemImage(id, buffer);
   await repo.setImage(id, {
     path: processed.relativePath,
     mime: processed.mime,

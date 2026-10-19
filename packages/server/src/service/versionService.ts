@@ -5,15 +5,15 @@ import type {
   MapVersionDetail,
   MapVersionEntry,
   MapVersionSummary,
-  ProjectDetail,
+  MapDetail,
   PublishViolation,
 } from '@loredoku/shared';
 import * as mapRepo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
-import * as projectRepo from '../repository/projectRepository';
+import * as mapCanvasRepo from '../repository/mapCanvasRepository';
 import * as itemRepo from '../repository/itemRepository';
 import { AppError } from '../utils/AppError';
-import { uniqueName } from './projectService';
+import { uniqueName } from './mapService';
 import { absorbLegacyMapDraft } from './mapDraftCompat';
 
 function parseCellKey(key: string): [number, number] {
@@ -149,18 +149,18 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
  * 指定（填空洞号），不传就是 `MAX+1`。血统内已有该号（**含软删行**，号不回收）
  * 直接 400。
  */
-export async function publishProject(
-  projectId: number,
+export async function publishMap(
+  mapId: number,
   versionNo?: number,
 ): Promise<MapVersionSummary> {
-  const project = await mapRepo.getProjectRow(projectId);
-  if (!project) {
+  const mapRow = await mapCanvasRepo.getMapRow(mapId);
+  if (!mapRow) {
     throw AppError.notFound('地图不存在');
   }
-  if (project.version !== 'draft') {
+  if (mapRow.version !== 'draft') {
     throw AppError.validation('只有草稿可以发布');
   }
-  const record = await mapRepo.getDraft(projectId);
+  const record = await mapCanvasRepo.getDraft(mapId);
   if (!record || record.draft === null) {
     // 创建地图时不写草稿，没初始化的地图没有可发布的画布。
     throw AppError.validation('请先在编辑器里初始化画布尺寸');
@@ -171,14 +171,14 @@ export async function publishProject(
     throw new AppError(ErrorCode.PUBLISH_VALIDATION_FAILED, '发布校验未通过', violations);
   }
 
-  const rootId = Number(project.root_id);
+  const rootId = Number(mapRow.root_id);
   const target = versionNo ?? (await versionRepo.nextVersionNo(rootId));
   if (await versionRepo.versionNoTaken(rootId, target)) {
     throw AppError.validation(`版本号 v${target} 已存在于该地图血统中，请换一个`);
   }
 
   return versionRepo.createVersion({
-    owner: project,
+    owner: mapRow,
     versionNo: target,
     // The snapshot is written in the v3 shape: a new version never carries the
     // roster or the palette, even when the working draft was seeded from v2.
@@ -186,30 +186,30 @@ export async function publishProject(
   });
 }
 
-export async function listVersions(projectId: number): Promise<MapVersionSummary[]> {
-  const project = await mapRepo.getProjectRow(projectId);
-  if (!project) {
+export async function listVersions(mapId: number): Promise<MapVersionSummary[]> {
+  const mapRow = await mapCanvasRepo.getMapRow(mapId);
+  if (!mapRow) {
     throw AppError.notFound('地图不存在');
   }
-  return versionRepo.listVersions(projectId);
+  return versionRepo.listVersions(mapId);
 }
 
 /** SPEC-K13 §7.4: the version-history panel lists the whole blood lineage. */
-export async function listVersionsForProject(projectId: number): Promise<MapVersionEntry[]> {
-  const project = await mapRepo.getProjectRow(projectId);
-  if (!project) {
+export async function listMapVersions(mapId: number): Promise<MapVersionEntry[]> {
+  const mapRow = await mapCanvasRepo.getMapRow(mapId);
+  if (!mapRow) {
     throw AppError.notFound('地图不存在');
   }
-  const rows = await versionRepo.listVersionsForRoot(Number(project.root_id));
+  const rows = await versionRepo.listVersionsForRoot(Number(mapRow.root_id));
   return rows.map((row) => ({
     ...versionRepo.toVersionSummary(row),
     // 版本行自己就是 maps 行，所以这里就是版本行 id。
-    projectId: Number(row.id),
+    mapId: Number(row.id),
   }));
 }
 
-export async function getVersion(projectId: number, versionNo: number): Promise<MapVersionDetail> {
-  const row = await versionRepo.getVersion(projectId, versionNo);
+export async function getVersion(mapId: number, versionNo: number): Promise<MapVersionDetail> {
+  const row = await versionRepo.getVersion(mapId, versionNo);
   if (!row) {
     throw AppError.notFound('版本不存在');
   }
@@ -230,18 +230,18 @@ export async function getVersion(projectId: number, versionNo: number): Promise<
     participantCount: 0,
     regionCount: draft?.regions?.length ?? 0,
     itemCount: itemIds.size,
-    // OPT-G01: fall back for legacy rows whose project name is missing.
-    projectName: row.project_name ?? '未命名地图',
+    // OPT-G01: fall back for legacy rows whose mapRow name is missing.
+    mapName: row.name ?? '未命名地图',
   };
 }
 
-export async function deleteVersion(projectId: number, versionNo: number): Promise<void> {
-  const row = await versionRepo.getVersion(projectId, versionNo);
+export async function deleteVersion(mapId: number, versionNo: number): Promise<void> {
+  const row = await versionRepo.getVersion(mapId, versionNo);
   if (!row) {
     throw AppError.notFound('版本不存在');
   }
   // 软删（界面不展示、行还在、号仍占 MAX）。
-  await versionRepo.deleteVersion(projectId, versionNo);
+  await versionRepo.deleteVersion(mapId, versionNo);
 }
 
 /**
@@ -258,17 +258,17 @@ export async function deleteVersion(projectId: number, versionNo: number): Promi
  *    不带来源的话列表里分不清谁是谁。
  */
 export async function forkVersion(
-  projectId: number,
+  mapId: number,
   versionNo: number,
   data?: MapDraft,
-): Promise<ProjectDetail> {
+): Promise<MapDetail> {
   // fork 源不过滤软删（设计 §5.1）：软删版本行也能当 `:id` 用。
-  const owner = await projectRepo.findByIdIncludingDeleted(projectId);
+  const owner = await mapRepo.findByIdIncludingDeleted(mapId);
   if (!owner) {
     throw AppError.notFound('地图不存在');
   }
   const name = await uniqueName(`${owner.name} (自 v${versionNo})`);
-  const created = await projectRepo.forkFromVersion(projectId, versionNo, name, data);
+  const created = await mapRepo.forkFromVersion(mapId, versionNo, name, data);
   if (!created) {
     throw AppError.notFound('版本不存在');
   }
@@ -285,10 +285,10 @@ export async function forkVersion(
  * 不拦就会把快照行覆盖掉（设计 §5.1）。
  */
 export async function createDraftFromVersion(
-  projectId: number,
+  mapId: number,
   versionNo: number,
 ): Promise<{ draft: MapDraft }> {
-  const target = await mapRepo.getProjectRow(projectId);
+  const target = await mapCanvasRepo.getMapRow(mapId);
   if (!target) {
     throw AppError.notFound('地图不存在');
   }
@@ -296,12 +296,12 @@ export async function createDraftFromVersion(
     throw AppError.validation('已发布的版本不可修改');
   }
   // 源版本不过滤软删：过滤只管可见性（§5.1）。
-  const row = await versionRepo.findVersionRow(projectId, versionNo);
+  const row = await versionRepo.findVersionRow(mapId, versionNo);
   if (!row) {
     throw AppError.notFound('版本不存在');
   }
-  const saved = await mapRepo.overwriteDraft(
-    projectId,
+  const saved = await mapCanvasRepo.overwriteDraft(
+    mapId,
     absorbLegacyMapDraft(row.data as MapDraft) as MapDraft,
   );
   if (!saved || saved.draft === null) {

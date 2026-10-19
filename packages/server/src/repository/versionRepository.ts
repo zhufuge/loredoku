@@ -1,5 +1,5 @@
 import { db } from '../db/knex';
-import type { MapDraft, MapVersionSummary, ProjectRow } from '@loredoku/shared';
+import type { MapDraft, MapVersionSummary, MapRow } from '@loredoku/shared';
 import { absorbLegacyMapDraft, readLegacyCharacterSlots } from '../service/mapDraftCompat';
 
 /**
@@ -23,8 +23,8 @@ export function versionToNo(row: { version: string }): number | null {
   return row.version === 'draft' ? null : Number(row.version);
 }
 
-/** 版本行 + 快照名（`project_name` 即该行自己的 `name`，发布时的快照）。 */
-export type VersionRow = ProjectRow & { project_name: string | null };
+/** 版本行 —— 快照名就是该行自己的 `name`（发布时快照进 `maps.name`）。 */
+export type VersionRow = MapRow;
 
 /** FEAT-503: the version panel shows participant / region / item totals. */
 function summarizeData(raw: unknown): {
@@ -49,7 +49,7 @@ function summarizeData(raw: unknown): {
   };
 }
 
-function toSummary(row: ProjectRow): MapVersionSummary {
+function toSummary(row: MapRow): MapVersionSummary {
   return {
     id: Number(row.id),
     versionNo: Number(row.version),
@@ -74,12 +74,12 @@ async function resolveRootId(id: number): Promise<number | undefined> {
 }
 
 /** 血统内的版本行（活行），版本号倒序。`CAST` 前已排除 `'draft'`。 */
-async function versionRowsOfRoot(rootId: number): Promise<ProjectRow[]> {
-  return (await db<ProjectRow>('maps')
+async function versionRowsOfRoot(rootId: number): Promise<MapRow[]> {
+  return (await db<MapRow>('maps')
     .where({ root_id: rootId })
     .whereNot('version', 'draft')
     .whereNull('deleted_at')
-    .orderByRaw('CAST(version AS integer) DESC')) as ProjectRow[];
+    .orderByRaw('CAST(version AS integer) DESC')) as MapRow[];
 }
 
 /**
@@ -90,7 +90,7 @@ async function versionRowsOfRoot(rootId: number): Promise<ProjectRow[]> {
  */
 export async function listVersionsForRoot(rootId: number): Promise<VersionRow[]> {
   const rows = await versionRowsOfRoot(rootId);
-  return rows.map((row) => ({ ...row, project_name: row.name }));
+  return rows;
 }
 
 /** `:id` → 该血统的版本行（活行）。 */
@@ -127,10 +127,10 @@ export async function findVersionRow(
 ): Promise<VersionRow | undefined> {
   const rootId = await resolveRootId(id);
   if (rootId === undefined) return undefined;
-  const query = db<ProjectRow>('maps').where({ root_id: rootId, version: String(versionNo) });
+  const query = db<MapRow>('maps').where({ root_id: rootId, version: String(versionNo) });
   if (!options.includeDeleted) query.whereNull('deleted_at');
-  const row = (await query.first()) as ProjectRow | undefined;
-  return row ? { ...row, project_name: row.name } : undefined;
+  const row = (await query.first()) as MapRow | undefined;
+  return row;
 }
 
 /**
@@ -156,7 +156,7 @@ export async function versionNoTaken(rootId: number, versionNo: number): Promise
 
 export interface CreateVersionData {
   /** 发布源 —— 必须是草稿行。 */
-  owner: ProjectRow;
+  owner: MapRow;
   versionNo: number;
   data: MapDraft;
 }
@@ -164,7 +164,7 @@ export interface CreateVersionData {
 export async function createVersion(data: CreateVersionData): Promise<MapVersionSummary> {
   // 发布 = INSERT 一条新 `maps` 行：name / description / cover 从此刻起是
   // **真实快照**（合并前版本条目只能借用工作条目的当前值，§5）。
-  const [row] = (await db<ProjectRow>('maps')
+  const [row] = (await db<MapRow>('maps')
     .insert({
       root_id: data.owner.root_id,
       name: data.owner.name,
@@ -173,7 +173,7 @@ export async function createVersion(data: CreateVersionData): Promise<MapVersion
       data: data.data,
       version: String(data.versionNo),
     })
-    .returning('*')) as ProjectRow[];
+    .returning('*')) as MapRow[];
   return toSummary(row!);
 }
 

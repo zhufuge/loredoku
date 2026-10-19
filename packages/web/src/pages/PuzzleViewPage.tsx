@@ -12,7 +12,7 @@ import {
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
-import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
+import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
 import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
 import {

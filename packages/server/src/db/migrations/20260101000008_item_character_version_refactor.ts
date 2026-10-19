@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { DEFAULT_ITEM_CATEGORY, DEFAULT_PROJECT_STATUS, MAP_JSON_VERSION } from '@loredoku/shared';
+import { DEFAULT_ITEM_CATEGORY, DEFAULT_MAP_STATUS, MAP_JSON_VERSION } from '@loredoku/shared';
 
 interface ProjectRow {
   id: string | number;
@@ -137,7 +137,7 @@ export async function up(knex: Knex): Promise<void> {
     });
 
     await trx.schema.alterTable('map_projects', (table) => {
-      table.string('status', 16).notNullable().defaultTo(DEFAULT_PROJECT_STATUS);
+      table.string('status', 16).notNullable().defaultTo(DEFAULT_MAP_STATUS);
       table.integer('current_version_no');
       table.jsonb('draft_data');
       table.timestamp('draft_updated_at', { useTz: true });

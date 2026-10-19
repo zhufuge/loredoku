@@ -6,7 +6,7 @@ import type {
   ITEM_FIT_MODES,
   EDITOR_LAYERS,
   REGION_SHAPES,
-  PROJECT_STATUSES,
+  MAP_STATUSES,
   CHARACTER_GENDERS,
   PARTICIPANT_TARGET_TYPES,
   EFFECT_COLORS,
@@ -22,7 +22,7 @@ export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
 export type ItemFitMode = (typeof ITEM_FIT_MODES)[number];
 export type EditorLayer = (typeof EDITOR_LAYERS)[number];
 export type RegionShape = (typeof REGION_SHAPES)[number];
-export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+export type MapStatus = (typeof MAP_STATUSES)[number];
 export type CharacterGender = (typeof CHARACTER_GENDERS)[number];
 export type ParticipantTargetType = (typeof PARTICIPANT_TARGET_TYPES)[number];
 export type GameDifficulty = (typeof GAME_DIFFICULTY_LEVELS)[number];
@@ -42,7 +42,7 @@ export interface CellCoord {
 }
 
 // ---- API DTOs (camelCase) ----
-export interface Project {
+export interface MapEntry {
   id: number;
   name: string;
   description: string | null;
@@ -57,7 +57,7 @@ export interface Project {
    * 这两个字段由 `version` 推导（字段名保留，前端按旧形状读取）。血统里
    * 没有版本行时 `status = 'draft'`。
    */
-  status: ProjectStatus;
+  status: MapStatus;
   /** 血统内最高版本号（含软删行）；没有版本行时为 `null`。 */
   currentVersionNo: number | null;
   /** 该行自己的版本号：版本行 = `Number(version)`，草稿行 = `null`。 */
@@ -66,7 +66,7 @@ export interface Project {
   updatedAt: string;
 }
 
-export interface ProjectDetail extends Project {
+export interface MapDetail extends MapEntry {
   cardCount: number;
   regionCount: number;
   itemCount: number;
@@ -233,7 +233,7 @@ export interface PuzzleDraft {
   /** `PUZZLE_JSON_VERSION` — import / export and migration. */
   version: number;
   /** The referenced published map version. `gridSize` is denormalised for offline checks. */
-  map: { projectId: number; versionNo: number; gridSize: number };
+  map: { mapId: number; versionNo: number; gridSize: number };
   name: string;
   description: string;
   /** Linked theme-colour palette (was `MapDraft.style.linkageColors`). */
@@ -243,7 +243,7 @@ export interface PuzzleDraft {
 }
 
 export interface MapResponse {
-  project: Project;
+  map: MapEntry;
   /**
    * `null` = 这张地图还没初始化（创建地图时不写草稿）。编辑器据此弹
    * 「初始化地图」弹窗：填尺寸，或导入一份地图。
@@ -274,7 +274,7 @@ export interface MapVersionDetail extends MapVersionSummary {
    * published from, so the preview page can title itself with the map name
    * and show the version as a badge. Joined from `maps`.
    */
-  projectName: string;
+  mapName: string;
 }
 
 /**
@@ -287,7 +287,7 @@ export interface MapVersionEntry extends MapVersionSummary {
    * 版本行自己就是 `maps` 行，所以这里就是**版本行 id**
    * （合并前是「拥有它的工作条目 id」）。
    */
-  projectId: number;
+  mapId: number;
 }
 
 /**
@@ -295,7 +295,7 @@ export interface MapVersionEntry extends MapVersionSummary {
  * create-puzzle dialog — a **published** map version and nothing else.
  */
 export interface PublishedMapVersion {
-  projectId: number;
+  mapId: number;
   rootId: number;
   versionNo: number;
   mapName: string;
@@ -318,9 +318,9 @@ export interface MapEntrySummary {
   rootId: number;
   /**
    * 版本行与草稿行同表，所以这里与 `id` 相同。保留字段是
-   * 为了 URL 拼装（`/maps/{projectId}/edit`）在合并前后一字不改。
+   * 为了 URL 拼装（`/maps/{mapId}/edit`）在合并前后一字不改。
    */
-  projectId: number;
+  mapId: number;
   /** Version number for version entries; `null` for work entries. */
   versionNo: number | null;
   name: string;
@@ -329,7 +329,7 @@ export interface MapEntrySummary {
   gridSize: number | null;
   coverPath: string | null;
   coverUrl: string | null;
-  status: ProjectStatus;
+  status: MapStatus;
   /** Highest published version of the whole lineage (work entries show it too). */
   currentVersionNo: number | null;
   /** How many version entries the lineage has. */
@@ -351,12 +351,12 @@ export interface PuzzleSummary {
   /** The referenced published map version — the 版本 column shows `v{n}`. */
   mapVersionNo: number;
   /** The `maps.id` that owns that version. */
-  mapProjectId: number;
+  mapId: number;
   /** That map's blood-lineage root. */
   mapRootId: number;
   mapName: string;
   gridSize: number;
-  status: ProjectStatus;
+  status: MapStatus;
   /** Q5: the 发布时间 column reads this (the header wording is unchanged). */
   createdAt: string;
   updatedAt: string;
@@ -374,7 +374,7 @@ export interface PuzzleDetail extends PuzzleSummary {
  * editor renders this and never writes it back.
  */
 export interface PuzzleMapContext {
-  projectId: number;
+  mapId: number;
   versionNo: number;
   mapName: string;
   gridSize: number;
@@ -394,7 +394,7 @@ export interface MapGameSummary {
   /** CONS-K16: the puzzle this game was deployed from (`null` for legacy rows). */
   puzzleId: number | null;
   /** The referenced map version's owner row + version number (badges / keys). */
-  projectId: number;
+  mapId: number;
   versionNo: number;
   name: string;
   /**
@@ -439,8 +439,8 @@ export interface CharacterUsage {
   /** The puzzle that uses it; omitted for a legacy map draft. */
   puzzleId?: number;
   puzzleName?: string;
-  projectId: number;
-  projectName: string;
+  mapId: number;
+  mapName: string;
   /** `true` = found in a stored v0.4.x map draft rather than a puzzle. */
   legacy?: boolean;
   cells: Array<{ x: number; y: number }>;
@@ -463,40 +463,12 @@ export interface PublishViolation {
   message: string;
 }
 
-export interface MapCell {
-  x: number;
-  y: number;
-  cardId: number;
-  rotation: CardRotation;
-  zIndex: number;
-}
-
-export interface RegionData {
-  id: number;
-  name: string;
-  description: string | null;
-  color: string;
-  borderWidth: number;
-  fillOpacity: number;
-  cells: CellCoord[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MapData {
-  project: Project;
-  cells: MapCell[];
-  regions: RegionData[];
-}
-
-export interface CardUsage {
-  projectId: number;
-  projectName: string;
+/** 一个物品 / 角色被哪些地图的草稿引用，物品与角色详情页共用。 */
+export interface ItemUsage {
+  mapId: number;
+  mapName: string;
   cells: CellCoord[];
 }
-
-export type ItemUsage = CardUsage;
-export type CharacterUsageDetail = CardUsage;
 
 // ---- API envelope ----
 export interface ApiSuccess<T> {

@@ -21,7 +21,7 @@ import {
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
-  PROJECT_NOTE_MAX_LENGTH,
+  MAP_NOTE_MAX_LENGTH,
   REGION_BORDER_WIDTH_DEFAULT,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
@@ -30,11 +30,15 @@ import {
   REGION_FILL_OPACITY_MIN,
   REGION_NAME_MAX_LENGTH,
 } from '../constants';
-import { regionColorSchema } from './map';
 import { participantLinkagesSchema, themeColorSchema } from './participant';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 const cellKeySchema = z.string().regex(/^\d+,\d+$/, '单元格坐标格式应为 "x,y"');
+
+/** 区域底色：`#RRGGBB`，与样式里的颜色同一套写法。 */
+export const regionColorSchema = z
+  .string()
+  .regex(/^#[0-9a-fA-F]{6}$/, '颜色必须为 #RRGGBB 格式');
 
 // ---- v0.3.8 FEAT-D02 地图样式（地图级缺省值） ----
 /** Colours are `#RRGGBB`; the only exception is the cursor shadow ring. */

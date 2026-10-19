@@ -25,14 +25,14 @@ function lazyPage(load: () => Promise<{ default: ComponentType }>): ComponentTyp
 const CharactersPage = lazyPage(() =>
   import('@/pages/CharactersPage').then((m) => ({ default: m.CharactersPage })),
 );
-const EditorPage = lazyPage(() => import('@/pages/EditorPage').then((m) => ({ default: m.EditorPage })));
+const MapEditorPage = lazyPage(() => import('@/pages/MapEditorPage').then((m) => ({ default: m.MapEditorPage })));
 const GamePage = lazyPage(() => import('@/pages/GamePage').then((m) => ({ default: m.GamePage })));
 const GamesPage = lazyPage(() =>
   import('@/pages/GamesPage').then((m) => ({ default: m.GamesPage })),
 );
 const ItemsPage = lazyPage(() => import('@/pages/ItemsPage').then((m) => ({ default: m.ItemsPage })));
-const MapVersionViewPage = lazyPage(() =>
-  import('@/pages/MapVersionViewPage').then((m) => ({ default: m.MapVersionViewPage })),
+const MapViewPage = lazyPage(() =>
+  import('@/pages/MapViewPage').then((m) => ({ default: m.MapViewPage })),
 );
 const MapsPage = lazyPage(() => import('@/pages/MapsPage').then((m) => ({ default: m.MapsPage })));
 const PuzzleEditorPage = lazyPage(() =>
@@ -60,8 +60,8 @@ export const router = createBrowserRouter([
     ],
   },
   {
-    path: '/maps/:projectId/edit',
-    element: <EditorPage />,
+    path: '/maps/:mapId/edit',
+    element: <MapEditorPage />,
   },
   {
     path: '/puzzles/:puzzleId/edit',
@@ -72,8 +72,8 @@ export const router = createBrowserRouter([
     element: <PuzzleViewPage />,
   },
   {
-    path: '/maps/:projectId/views',
-    element: <MapVersionViewPage />,
+    path: '/maps/:mapId/views',
+    element: <MapViewPage />,
   },
   {
     path: '/play',

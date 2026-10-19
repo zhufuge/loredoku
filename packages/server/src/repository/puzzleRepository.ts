@@ -46,19 +46,19 @@ export async function getPuzzleRow(id: number): Promise<PuzzleJoinedRow | undefi
 }
 
 export async function findPuzzleByName(
-  mapProjectId: number,
+  mapId: number,
   mapVersionNo: number,
   name: string,
 ): Promise<PuzzleRow | undefined> {
   return db<PuzzleRow>('puzzles')
-    .where({ map_project_id: mapProjectId, map_version_no: mapVersionNo, name })
+    .where({ map_project_id: mapId, map_version_no: mapVersionNo, name })
     .first();
 }
 
 export interface CreatePuzzleData {
   name: string;
   description: string;
-  mapProjectId: number;
+  mapId: number;
   mapVersionNo: number;
   gridSize: number;
   data: PuzzleDraft;
@@ -69,7 +69,7 @@ export async function createPuzzle(input: CreatePuzzleData): Promise<PuzzleJoine
     .insert({
       name: input.name,
       description: input.description,
-      map_project_id: input.mapProjectId,
+      map_project_id: input.mapId,
       map_version_no: input.mapVersionNo,
       grid_size: input.gridSize,
       data: input.data,

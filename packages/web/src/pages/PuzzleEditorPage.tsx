@@ -22,9 +22,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { EditorCanvas, type EditorCanvasHandle } from '@/components/editor/EditorCanvas';
-import { EditorInfoDrawer } from '@/components/editor/EditorInfoDrawer';
-import { EditorToolbar } from '@/components/editor/EditorToolbar';
+import { EditorCanvas, type EditorCanvasHandle } from '@/components/map-editor/EditorCanvas';
+import { EditorInfoDrawer } from '@/components/map-editor/EditorInfoDrawer';
+import { EditorToolbar } from '@/components/map-editor/EditorToolbar';
 import {
   EditorErrorState,
   EditorImportInput,
@@ -32,12 +32,12 @@ import {
   EditorPendingInfoActionDialog,
   EditorSaveMask,
   EditorUnsavedLeaveDialog,
-} from '@/components/editor/EditorShell';
+} from '@/components/map-editor/EditorShell';
 import {
   ParticipantDrawer,
   type PlacedItemOption,
-} from '@/components/editor/ParticipantDrawer';
-import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
+} from '@/components/map-editor/ParticipantDrawer';
+import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
 import { PuzzleBottomBar } from '@/components/puzzle/PuzzleBottomBar';
 import { PuzzleEditorLeftPanel } from '@/components/puzzle/PuzzleEditorLeftPanel';
 import {
@@ -475,7 +475,7 @@ export function PuzzleEditorPage(): JSX.Element {
         // §15 Q6: the map reference is fixed at creation time. Importing a file
         // that points at another version would silently re-target the puzzle.
         if (
-          draft.map.projectId !== context.projectId ||
+          draft.map.mapId !== context.mapId ||
           draft.map.versionNo !== context.versionNo
         ) {
           toast.error(
@@ -585,7 +585,7 @@ export function PuzzleEditorPage(): JSX.Element {
       <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
       <EditorToolbar
-        projectName={puzzle.name || detail?.name || ''}
+        mapName={puzzle.name || detail?.name || ''}
         dirty={puzzle.dirty}
         saving={saving}
         publishing={false}

@@ -1,6 +1,6 @@
 import type { Knex } from 'knex';
 import {
-  DEFAULT_PROJECT_STATUS,
+  DEFAULT_MAP_STATUS,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   PUZZLE_NAME_MAX_LENGTH,
@@ -8,7 +8,7 @@ import {
 import {
   buildPuzzleSeedFromMap,
   slotsFromLegacyDraft,
-  type PuzzleSeedProject,
+  type PuzzleSeedMap,
 } from '../../service/puzzleBackfill';
 
 /**
@@ -57,7 +57,7 @@ export async function up(knex: Knex): Promise<void> {
     table.integer('map_version_no').notNullable();
     table.integer('grid_size').notNullable();
     table.jsonb('data').notNullable();
-    table.string('status', 16).notNullable().defaultTo(DEFAULT_PROJECT_STATUS);
+    table.string('status', 16).notNullable().defaultTo(DEFAULT_MAP_STATUS);
     table.timestamp('created_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
     table.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(knex.fn.now());
     table.check(`grid_size >= ${GRID_SIZE_MIN} AND grid_size <= ${GRID_SIZE_MAX}`);
@@ -73,7 +73,7 @@ export async function up(knex: Knex): Promise<void> {
     'name',
     'description',
     'grid_size',
-  )) as PuzzleSeedProject[];
+  )) as PuzzleSeedMap[];
 
   for (const project of projects) {
     const version = (await knex('map_versions')
@@ -116,7 +116,7 @@ export async function up(knex: Knex): Promise<void> {
       map_version_no: version.version_no,
       grid_size: gridSize,
       data: seed,
-      status: DEFAULT_PROJECT_STATUS,
+      status: DEFAULT_MAP_STATUS,
     });
   }
 }

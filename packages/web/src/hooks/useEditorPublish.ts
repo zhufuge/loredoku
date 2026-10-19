@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
-import type { PublishResult, usePublishProject } from '@/hooks/useVersions';
+import type { PublishResult, usePublishMap } from '@/hooks/useVersions';
 
 /**
- * the map editor's publish flow, lifted out of `EditorPage`.
+ * the map editor's publish flow, lifted out of `MapEditorPage`.
  *
  * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing adds an entry to the map list
  * (版本管理). With Q3 = B the next version number spans the whole blood
@@ -29,7 +29,7 @@ export interface EditorPublishSpec {
   saving: boolean;
   /** FIX-F01's single writer — a failed save aborts the publish. */
   persist: () => Promise<boolean>;
-  publishMutation: ReturnType<typeof usePublishProject>;
+  publishMutation: ReturnType<typeof usePublishMap>;
 }
 
 export interface EditorPublishFlow {

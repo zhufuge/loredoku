@@ -1,23 +1,25 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import type { MapEntry, MapResponse } from '@loredoku/shared';
 import { mapsApi, type MapListParams } from '@/api/maps';
 import type { CreateMapPayload, UpdateMapPayload } from '@/api/maps';
 
-export const mapEntryKeys = {
-  all: ['projects'] as const,
-  list: (params: MapListParams) => [...mapEntryKeys.all, 'list', params] as const,
-  detail: (id: number) => [...mapEntryKeys.all, 'detail', id] as const,
+export const mapKeys = {
+  all: ['maps'] as const,
+  list: (params: MapListParams) => [...mapKeys.all, 'list', params] as const,
+  detail: (id: number) => [...mapKeys.all, 'detail', id] as const,
   /** FEAT-K03 §2.4: the published-version picker's own key. */
-  publishedVersions: () => [...mapEntryKeys.all, 'published-versions'] as const,
+  publishedVersions: () => [...mapKeys.all, 'published-versions'] as const,
 };
 
 /**
- * The editor's own query (`GET /projects/:id/map`) — a **different** key from
- * `mapEntryKeys.detail`: it carries the canvas draft on top of the project row.
+ * The editor's own query (`GET /maps/:id/map`) — a **different** key from
+ * `mapKeys.detail`: it carries the canvas draft on top of the map row.
  * It is cached with `staleTime: Infinity`, so nothing refreshes it by accident;
- * whoever writes the project row has to invalidate it explicitly.
+ * whoever writes the map row has to invalidate it explicitly.
  */
-export const mapKeys = {
+export const mapCanvasKeys = {
   detail: (id: number) => ['map', id] as const,
 };
 
@@ -25,9 +27,20 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
+/**
+ * 编辑器的 `GET /maps/:id/map` 把地图行**快照**放在 `map` 上，且缓存
+ * `staleTime: Infinity`。改名 / 换封面后先就地改这份缓存，标题与封面不会
+ * 在重取回来前闪回旧值；失效仍然照发，保证列表与别处的数据对齐。
+ */
+function patchCanvasEntry(queryClient: QueryClient, entry: MapEntry): void {
+  queryClient.setQueryData<MapResponse>(mapCanvasKeys.detail(entry.id), (previous) =>
+    previous ? { ...previous, map: entry } : previous,
+  );
+}
+
 export function useMaps(params: MapListParams) {
   return useQuery({
-    queryKey: mapEntryKeys.list(params),
+    queryKey: mapKeys.list(params),
     queryFn: () => mapsApi.list(params),
     placeholderData: (previous) => previous,
   });
@@ -35,7 +48,7 @@ export function useMaps(params: MapListParams) {
 
 export function useMapEntry(id: number | null) {
   return useQuery({
-    queryKey: mapEntryKeys.detail(id ?? 0),
+    queryKey: mapKeys.detail(id ?? 0),
     queryFn: () => mapsApi.detail(id as number),
     enabled: id !== null && Number.isFinite(id),
   });
@@ -47,7 +60,7 @@ export function useMapEntry(id: number | null) {
  */
 export function usePublishedVersions() {
   return useQuery({
-    queryKey: mapEntryKeys.publishedVersions(),
+    queryKey: mapKeys.publishedVersions(),
     queryFn: () => mapsApi.listPublishedVersions(),
     placeholderData: (previous) => previous,
   });
@@ -59,7 +72,7 @@ export function useCreateMap(onSuccess?: () => void) {
     mutationFn: (payload: CreateMapPayload) => mapsApi.create(payload),
     onSuccess: () => {
       toast.success('地图创建成功');
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
       onSuccess?.();
     },
     onError: (error) => toast.error(errorMessage(error, '创建失败')),
@@ -71,12 +84,13 @@ export function useUpdateMap(onSuccess?: () => void) {
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateMapPayload }) =>
       mapsApi.update(id, payload),
-    onSuccess: (project) => {
+    onSuccess: (mapEntry) => {
       toast.success('地图已更新');
       // 改名 / 改简介落的是 `maps` 行，而编辑器的标题读的是 `GET /map` 的
-      // `project` 快照 —— 那份缓存 `staleTime: Infinity`，不失效就一直是旧名。
-      void queryClient.invalidateQueries({ queryKey: mapKeys.detail(project.id) });
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+      // `map` 快照 —— 那份缓存 `staleTime: Infinity`，不失效就一直是旧名。
+      patchCanvasEntry(queryClient, mapEntry);
+      void queryClient.invalidateQueries({ queryKey: mapCanvasKeys.detail(mapEntry.id) });
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
       onSuccess?.();
     },
     onError: (error) => toast.error(errorMessage(error, '更新失败')),
@@ -89,7 +103,7 @@ export function useDeleteMap() {
     mutationFn: (id: number) => mapsApi.remove(id),
     onSuccess: () => {
       toast.success('地图已删除');
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '删除失败')),
   });
@@ -101,7 +115,7 @@ export function useDuplicateMap() {
     mutationFn: (id: number) => mapsApi.duplicate(id),
     onSuccess: () => {
       toast.success('地图已复制');
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '复制失败')),
   });
@@ -117,9 +131,10 @@ export function useUploadMapCover() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, file }: { id: number; file: File }) => mapsApi.uploadCover(id, file),
-    onSuccess: (project) => {
-      queryClient.setQueryData(mapEntryKeys.detail(project.id), project);
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+    onSuccess: (mapEntry) => {
+      patchCanvasEntry(queryClient, mapEntry);
+      queryClient.setQueryData(mapKeys.detail(mapEntry.id), mapEntry);
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '封面未上传成功')),
   });
@@ -129,9 +144,10 @@ export function useRemoveMapCover() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => mapsApi.removeCover(id),
-    onSuccess: (project) => {
-      queryClient.setQueryData(mapEntryKeys.detail(project.id), project);
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+    onSuccess: (mapEntry) => {
+      patchCanvasEntry(queryClient, mapEntry);
+      queryClient.setQueryData(mapKeys.detail(mapEntry.id), mapEntry);
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
     },
     onError: (error) => toast.error(errorMessage(error, '封面移除失败')),
   });

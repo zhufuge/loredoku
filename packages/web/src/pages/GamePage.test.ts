@@ -3,7 +3,7 @@ import { readSource } from '@/testing/source';
 
 /**
  * FEAT-G03 (docs/v0.4.0.md §6) + SPEC-G03 / SPEC-G04 — source-level guards for
- * the game page, the same technique as `EditorPage.infoDrawer.test.ts`.
+ * the game page, the same technique as `MapEditorPage.infoDrawer.test.ts`.
  *
  * What must not regress: the roster and the map are the **preview's** (same
  * component, same state machine), the operation cursor box is gone, and the two
@@ -24,7 +24,7 @@ describe('GamePage (FEAT-G03)', () => {
     // It must not live inside the AppShell children array.
     const shellChildren = routerSource.slice(
       routerSource.indexOf('element: <AppShell />'),
-      routerSource.indexOf("path: '/maps/:projectId/edit'"),
+      routerSource.indexOf("path: '/maps/:mapId/edit'"),
     );
     expect(shellChildren).not.toContain('GamePage');
   });

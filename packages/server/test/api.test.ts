@@ -5,14 +5,14 @@ import type { MapDraft } from '@loredoku/shared';
 import { api } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
 
-const createdProjects: number[] = [];
+const createdMapEntries: number[] = [];
 const createdItems: number[] = [];
 const createdCharacters: number[] = [];
-/** Deleted before `map_projects` — `puzzles.map_project_id` is ON DELETE RESTRICT. */
+/** Deleted before `maps` — `puzzles.map_project_id` is ON DELETE RESTRICT. */
 const createdPuzzles: number[] = [];
 const uploadedAvatarDirs: string[] = [];
 const uploadedGameCoverDirs: string[] = [];
-const uploadedProjectCoverDirs: string[] = [];
+const uploadedMapCoverDirs: string[] = [];
 
 function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
@@ -42,11 +42,11 @@ function emptyDraft(gridSize: number): MapDraft {
 
 /**
  * v0.5.8: 创建地图不再带画布尺寸（`maps.grid_size` 已删）。测试里的
- * `createProject({ name, gridSize: n })` 语义不变 —— helper 把 gridSize 转成
+ * `createMap({ name, gridSize: n })` 语义不变 —— helper 把 gridSize 转成
  * 建后的一次初始化调用，这样所有既有用例一行不用改。
  */
-async function initMap(projectId: number, gridSize: number): Promise<void> {
-  const res = await api.patch(`/api/projects/${projectId}/grid-size`).send({ gridSize });
+async function initMap(mapId: number, gridSize: number): Promise<void> {
+  const res = await api.patch(`/api/maps/${mapId}/grid-size`).send({ gridSize });
   expect(res.status).toBe(200);
   expect(res.body.code).toBe(ErrorCode.OK);
 }
@@ -58,18 +58,18 @@ async function initMap(projectId: number, gridSize: number): Promise<void> {
 /** supertest 的 Response（不是 DOM 那个）—— 用推断类型，避免撞名。 */
 type ApiResponse = Awaited<ReturnType<typeof api.get>>;
 
-async function saveCanvas(projectId: number, draft: MapDraft): Promise<ApiResponse> {
-  const res = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+async function saveCanvas(mapId: number, draft: MapDraft): Promise<ApiResponse> {
+  const res = await api.put(`/api/maps/${mapId}/map`).send({ data: draft });
   expect(res.status).toBe(200);
   return res;
 }
 
-async function createProject(body: Record<string, unknown> = {}): Promise<number> {
-  const res = await api.post('/api/projects').send(body);
+async function createMap(body: Record<string, unknown> = {}): Promise<number> {
+  const res = await api.post('/api/maps').send(body);
   expect(res.status).toBe(200);
   expect(res.body.code).toBe(ErrorCode.OK);
   const id = res.body.data.id as number;
-  createdProjects.push(id);
+  createdMapEntries.push(id);
   if (typeof body.gridSize === 'number') {
     await initMap(id, body.gridSize);
   }
@@ -114,9 +114,9 @@ async function createCharacterWithAvatar(body: Record<string, unknown> = {}): Pr
 }
 
 /** Publishes the map's working draft and returns the freshly minted version. */
-async function publish(projectId: number): Promise<number> {
+async function publish(mapId: number): Promise<number> {
   // v0.5.8: 发布弹窗去掉备注，请求体为空对象。
-  const res = await api.post(`/api/projects/${projectId}/versions`).send({});
+  const res = await api.post(`/api/maps/${mapId}/versions`).send({});
   expect(res.status).toBe(200);
   return res.body.data.versionNo as number;
 }
@@ -127,9 +127,9 @@ async function publish(projectId: number): Promise<number> {
  */
 const createdVersionRows: number[] = [];
 
-async function publishVersion(projectId: number, version?: number): Promise<ApiResponse> {
+async function publishVersion(mapId: number, version?: number): Promise<ApiResponse> {
   const res = await api
-    .post(`/api/projects/${projectId}/versions`)
+    .post(`/api/maps/${mapId}/versions`)
     .send(version === undefined ? {} : { version });
   expect(res.status).toBe(200);
   createdVersionRows.push(res.body.data.id as number);
@@ -149,32 +149,32 @@ async function createPuzzle(body: Record<string, unknown>): Promise<number> {
 /** A map whose canvas holds one object item, published as `v1`. */
 async function publishedMapWithItem(
   name: string,
-): Promise<{ projectId: number; itemId: number; versionNo: number }> {
-  const projectId = await createProject({ name, gridSize: 6 });
+): Promise<{ mapId: number; itemId: number; versionNo: number }> {
+  const mapId = await createMap({ name, gridSize: 6 });
   const itemId = await createItem({ category: 'object', canStand: true });
   const draft = emptyDraft(6);
   draft.cells['0,0'] = { object: { itemId, w: 1, h: 1 } };
-  const saved = await saveCanvas(projectId, draft);
+  const saved = await saveCanvas(mapId, draft);
   expect(saved.status).toBe(200);
-  const versionNo = await publish(projectId);
-  return { projectId, itemId, versionNo };
+  const versionNo = await publish(mapId);
+  return { mapId, itemId, versionNo };
 }
 
 /** A puzzle bound to a published version — enough for a deploy. */
 async function puzzleWithVersion(
   name: string,
-): Promise<{ projectId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
-  const projectId = await createProject({ name, gridSize: 6 });
-  const versionNo = await publish(projectId);
+): Promise<{ mapId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
+  const mapId = await createMap({ name, gridSize: 6 });
+  const versionNo = await publish(mapId);
   const puzzleName = `${name} 谜题`;
-  const puzzleId = await createPuzzle({ name: puzzleName, mapProjectId: projectId, mapVersionNo: versionNo });
-  return { projectId, puzzleId, versionNo, puzzleName };
+  const puzzleId = await createPuzzle({ name: puzzleName, mapId: mapId, mapVersionNo: versionNo });
+  return { mapId, puzzleId, versionNo, puzzleName };
 }
 
 /** The same, plus one participant with an avatar on the roster. */
 async function deployablePuzzle(
   name: string,
-): Promise<{ projectId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
+): Promise<{ mapId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
   const context = await puzzleWithVersion(name);
   const characterId = await createCharacterWithAvatar();
   const initial = await api.get(`/api/puzzles/${context.puzzleId}`);
@@ -187,70 +187,84 @@ async function deployablePuzzle(
   return context;
 }
 
-describe('projects API', () => {
-  it('v0.5.8 §1: creates a project with no canvas size at all', async () => {
-    const res = await api.post('/api/projects').send({ name: `Smoke ${uniqueCode('p')}` });
+describe('旧接口前缀', () => {
+  it('/api/projects 308 重定向到 /api/maps', async () => {
+    const res = await api.get('/api/projects').redirects(0);
+    expect(res.status).toBe(308);
+    expect(res.headers.location).toBe('/api/maps');
+  });
+
+  it('重定向保留子路径', async () => {
+    const res = await api.get('/api/projects/12/versions').redirects(0);
+    expect(res.status).toBe(308);
+    expect(res.headers.location).toBe('/api/maps/12/versions');
+  });
+});
+
+describe('maps API', () => {
+  it('v0.5.8 §1: creates a map with no canvas size at all', async () => {
+    const res = await api.post('/api/maps').send({ name: `Smoke ${uniqueCode('p')}` });
     expect(res.status).toBe(200);
     // 创建时不再写尺寸 —— 第一次进编辑器时才由初始化弹窗写入草稿。
     expect(res.body.data.gridSize).toBeNull();
-    createdProjects.push(res.body.data.id);
+    createdMapEntries.push(res.body.data.id);
   });
 
   it('v0.5.8 §1: ignores a legacy gridSize field instead of validating it', async () => {
-    const res = await api.post('/api/projects').send({ name: `Bad ${uniqueCode('p')}`, gridSize: 1 });
+    const res = await api.post('/api/maps').send({ name: `Bad ${uniqueCode('p')}`, gridSize: 1 });
     // schema 不再认识这个字段（非 strict，直接忽略），尺寸仍为空。
     expect(res.status).toBe(200);
     expect(res.body.data.gridSize).toBeNull();
-    createdProjects.push(res.body.data.id);
+    createdMapEntries.push(res.body.data.id);
   });
 
   it('v0.5.8 第六阶段: 允许同名创建与同名改名，但复制仍自动避开重名', async () => {
     const name = `Twin ${uniqueCode('p')}`;
 
-    const first = await api.post('/api/projects').send({ name });
-    const second = await api.post('/api/projects').send({ name });
+    const first = await api.post('/api/maps').send({ name });
+    const second = await api.post('/api/maps').send({ name });
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect(second.body.data.id).not.toBe(first.body.data.id);
     expect(second.body.data.name).toBe(name);
-    createdProjects.push(first.body.data.id, second.body.data.id);
+    createdMapEntries.push(first.body.data.id, second.body.data.id);
 
     // 改名也不再查重。
-    const renamed = await api.patch(`/api/projects/${second.body.data.id}`).send({ name });
+    const renamed = await api.patch(`/api/maps/${second.body.data.id}`).send({ name });
     expect(renamed.status).toBe(200);
     expect(renamed.body.data.name).toBe(name);
 
     // 自动取名（`uniqueCopyName`）仍避重：两次复制得到「副本」「副本 2」。
-    const dup1 = await api.post(`/api/projects/${first.body.data.id}/duplicate`);
-    const dup2 = await api.post(`/api/projects/${first.body.data.id}/duplicate`);
+    const dup1 = await api.post(`/api/maps/${first.body.data.id}/duplicate`);
+    const dup2 = await api.post(`/api/maps/${first.body.data.id}/duplicate`);
     expect(dup1.body.data.name).toBe(`${name} 副本`);
     expect(dup2.body.data.name).toBe(`${name} 副本 2`);
-    createdProjects.push(dup1.body.data.id, dup2.body.data.id);
+    createdMapEntries.push(dup1.body.data.id, dup2.body.data.id);
   });
 
-  it('lists, reads, updates, duplicates and deletes a project', async () => {
+  it('lists, reads, updates, duplicates and deletes a map', async () => {
     const name = `Lifecycle ${uniqueCode('p')}`;
-    const id = await createProject({ name, gridSize: 8 });
+    const id = await createMap({ name, gridSize: 8 });
 
-    const list = await api.get('/api/projects');
+    const list = await api.get('/api/maps');
     expect(list.status).toBe(200);
     expect(Array.isArray(list.body.data.list)).toBe(true);
-    expect(list.body.data.list.some((p: { projectId: number }) => p.projectId === id)).toBe(true);
+    expect(list.body.data.list.some((p: { mapId: number }) => p.mapId === id)).toBe(true);
 
-    const detail = await api.get(`/api/projects/${id}`);
+    const detail = await api.get(`/api/maps/${id}`);
     expect(detail.body.data.gridSize).toBe(8);
 
-    const updated = await api.patch(`/api/projects/${id}`).send({ name: `${name} v2` });
+    const updated = await api.patch(`/api/maps/${id}`).send({ name: `${name} v2` });
     expect(updated.body.data.name).toBe(`${name} v2`);
 
-    const dup = await api.post(`/api/projects/${id}/duplicate`);
+    const dup = await api.post(`/api/maps/${id}/duplicate`);
     expect(dup.status).toBe(200);
     expect(dup.body.data.gridSize).toBe(8);
-    createdProjects.push(dup.body.data.id);
+    createdMapEntries.push(dup.body.data.id);
 
-    const removed = await api.delete(`/api/projects/${id}`);
+    const removed = await api.delete(`/api/maps/${id}`);
     expect(removed.status).toBe(200);
-    const missing = await api.get(`/api/projects/${id}`);
+    const missing = await api.get(`/api/maps/${id}`);
     expect(missing.status).toBe(404);
     expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
   });
@@ -263,16 +277,16 @@ describe('projects API', () => {
    */
   it('groups a work entry with its version entries in one list (FEAT-K09)', async () => {
     const name = `Union ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
-    await publish(projectId);
-    await publish(projectId);
+    const mapId = await createMap({ name, gridSize: 6 });
+    await publish(mapId);
+    await publish(mapId);
 
-    const res = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    const res = await api.get(`/api/maps?keyword=${encodeURIComponent(name)}`);
     expect(res.status).toBe(200);
     const rows = res.body.data.list as Array<{
       kind: 'draft' | 'version';
       rootId: number;
-      projectId: number;
+      mapId: number;
       versionNo: number | null;
       currentVersionNo: number | null;
       versionCount: number;
@@ -282,7 +296,7 @@ describe('projects API', () => {
     expect(rows.every((row) => row.name === name)).toBe(true);
 
     const work = rows.find((row) => row.kind === 'draft');
-    expect(work?.projectId).toBe(projectId);
+    expect(work?.mapId).toBe(mapId);
     expect(work?.versionNo).toBeNull();
     expect(work?.currentVersionNo).toBe(2);
     expect(work?.versionCount).toBe(2);
@@ -302,14 +316,14 @@ describe('projects API', () => {
   /** FEAT-K03 §2.4: the 「地图版本」 picker of the create-puzzle dialog. */
   it('lists every published version for the puzzle picker (FEAT-K03)', async () => {
     const name = `Picker ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
-    const versionNo = await publish(projectId);
+    const mapId = await createMap({ name, gridSize: 6 });
+    const versionNo = await publish(mapId);
 
-    const res = await api.get('/api/projects/versions');
+    const res = await api.get('/api/maps/versions');
     expect(res.status).toBe(200);
     const row = (
       res.body.data as Array<{
-        projectId: number;
+        mapId: number;
         rootId: number;
         versionNo: number;
         mapName: string;
@@ -334,20 +348,20 @@ describe('projects API', () => {
    * 时必须同步 `PUBLIC_BASE_URL` —— 这里顺带验证 URL 真的能取到文件。
    */
   it('uploads a cover, serves it, then clears it (FEAT-H03)', async () => {
-    const id = await createProject({ name: `Cover ${uniqueCode('p')}` });
-    uploadedProjectCoverDirs.push(resolveUploadPath(`projects/${id}`));
+    const id = await createMap({ name: `Cover ${uniqueCode('p')}` });
+    uploadedMapCoverDirs.push(resolveUploadPath(`maps/${id}`));
 
-    const before = await api.get(`/api/projects/${id}`);
+    const before = await api.get(`/api/maps/${id}`);
     expect(before.body.data.coverPath).toBeNull();
     expect(before.body.data.coverUrl).toBeNull();
 
     const uploaded = await api
-      .post(`/api/projects/${id}/cover`)
+      .post(`/api/maps/${id}/cover`)
       .attach('file', TINY_PNG, 'cover.png');
     expect(uploaded.status).toBe(200);
     expect(uploaded.body.code).toBe(ErrorCode.OK);
     expect(typeof uploaded.body.data.coverPath).toBe('string');
-    expect(uploaded.body.data.coverPath).toContain(`projects/${id}/`);
+    expect(uploaded.body.data.coverPath).toContain(`maps/${id}/`);
     expect(typeof uploaded.body.data.coverUrl).toBe('string');
 
     // The URL the client gets is actually fetchable.
@@ -355,47 +369,47 @@ describe('projects API', () => {
     const served = await api.get(`${url.pathname}${url.search}`);
     expect(served.status).toBe(200);
 
-    const cleared = await api.delete(`/api/projects/${id}/cover`);
+    const cleared = await api.delete(`/api/maps/${id}/cover`);
     expect(cleared.status).toBe(200);
     expect(cleared.body.data.coverPath).toBeNull();
     expect(cleared.body.data.coverUrl).toBeNull();
   });
 
   it('copies the cover reference when a map is duplicated (FEAT-H03 §3.2)', async () => {
-    const id = await createProject({ name: `Cover dup ${uniqueCode('p')}` });
-    uploadedProjectCoverDirs.push(resolveUploadPath(`projects/${id}`));
+    const id = await createMap({ name: `Cover dup ${uniqueCode('p')}` });
+    uploadedMapCoverDirs.push(resolveUploadPath(`maps/${id}`));
     const uploaded = await api
-      .post(`/api/projects/${id}/cover`)
+      .post(`/api/maps/${id}/cover`)
       .attach('file', TINY_PNG, 'cover.png');
     expect(uploaded.status).toBe(200);
 
-    const dup = await api.post(`/api/projects/${id}/duplicate`);
+    const dup = await api.post(`/api/maps/${id}/duplicate`);
     expect(dup.status).toBe(200);
-    createdProjects.push(dup.body.data.id as number);
+    createdMapEntries.push(dup.body.data.id as number);
     expect(dup.body.data.coverPath).toBe(uploaded.body.data.coverPath);
     expect(dup.body.data.coverUrl).toBe(uploaded.body.data.coverUrl);
   });
 
   it('rejects a non-image cover and leaves cover_path untouched (FEAT-H03 §3.2c)', async () => {
-    const id = await createProject({ name: `Cover bad ${uniqueCode('p')}` });
+    const id = await createMap({ name: `Cover bad ${uniqueCode('p')}` });
     const res = await api
-      .post(`/api/projects/${id}/cover`)
+      .post(`/api/maps/${id}/cover`)
       .attach('file', Buffer.from('definitely not an image'), 'notes.txt');
     expect(res.status).toBeGreaterThanOrEqual(400);
     expect(res.body.code).toBe(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
 
-    const detail = await api.get(`/api/projects/${id}`);
+    const detail = await api.get(`/api/maps/${id}`);
     expect(detail.body.data.coverPath).toBeNull();
     expect(detail.body.data.coverUrl).toBeNull();
   });
 
   it('asks for a file when the cover request has none (FEAT-H03)', async () => {
-    const id = await createProject({ name: `Cover none ${uniqueCode('p')}` });
-    const res = await api.post(`/api/projects/${id}/cover`);
+    const id = await createMap({ name: `Cover none ${uniqueCode('p')}` });
+    const res = await api.post(`/api/maps/${id}/cover`);
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
-    const detail = await api.get(`/api/projects/${id}`);
+    const detail = await api.get(`/api/maps/${id}`);
     expect(detail.body.data.coverPath).toBeNull();
   });
 });
@@ -527,10 +541,10 @@ describe('characters API', () => {
 
 describe('map draft API', () => {
   it('v0.5.8 第八阶段：加载、保存，且后写覆盖（不再有乐观锁）', async () => {
-    const projectId = await createProject({ name: `Map ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `Map ${uniqueCode('p')}`, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
 
-    const initial = await api.get(`/api/projects/${projectId}/map`);
+    const initial = await api.get(`/api/maps/${mapId}/map`);
     expect(initial.status).toBe(200);
     expect(initial.body.data.draft.cells).toEqual({});
     // 响应里不再有修订号 —— 它是锁的令牌，锁取消后连同 `draft_updated_at` 一起删了。
@@ -542,57 +556,57 @@ describe('map draft API', () => {
       { id: 'rg_a', name: 'Lounge', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
 
-    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    const saved = await api.put(`/api/maps/${mapId}/map`).send({ data: draft });
     expect(saved.status).toBe(200);
     expect(saved.body.data.draft.cells['0,0'].object.itemId).toBe(itemId);
     expect(saved.body.data.draft.regions).toHaveLength(1);
 
-    const loaded = await api.get(`/api/projects/${projectId}/map`);
+    const loaded = await api.get(`/api/maps/${mapId}/map`);
     expect(loaded.body.data.draft.regions[0].name).toBe('Lounge');
 
     // 同一份草稿再写一次（旧客户端可能仍带 updatedAt）—— 照样 200，最后写入的生效。
     const again = await api
-      .put(`/api/projects/${projectId}/map`)
+      .put(`/api/maps/${mapId}/map`)
       .send({ data: emptyDraft(6), updatedAt: '1999-01-01T00:00:00.000Z' });
     expect(again.status).toBe(200);
     expect(again.body.data.draft.cells).toEqual({});
   });
 
   it('rejects out-of-bounds cells and unknown item references', async () => {
-    const projectId = await createProject({ name: `Bounds ${uniqueCode('p')}`, gridSize: 4 });
+    const mapId = await createMap({ name: `Bounds ${uniqueCode('p')}`, gridSize: 4 });
 
     const outOfBounds = emptyDraft(4);
     outOfBounds.cells['10,0'] = { background: { itemId: await createItem({ category: 'background' }) } };
     const boundsRes = await api
-      .put(`/api/projects/${projectId}/map`)
+      .put(`/api/maps/${mapId}/map`)
       .send({ data: outOfBounds });
     expect(boundsRes.status).toBe(400);
     expect(boundsRes.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
     const unknown = emptyDraft(4);
     unknown.cells['0,0'] = { object: { itemId: 99999999, w: 1, h: 1 } };
-    const unknownRes = await api.put(`/api/projects/${projectId}/map`).send({ data: unknown });
+    const unknownRes = await api.put(`/api/maps/${mapId}/map`).send({ data: unknown });
     expect(unknownRes.status).toBe(400);
     expect(unknownRes.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   it('rejects overlapping regions within one save', async () => {
-    const projectId = await createProject({ name: `Overlap ${uniqueCode('p')}`, gridSize: 5 });
+    const mapId = await createMap({ name: `Overlap ${uniqueCode('p')}`, gridSize: 5 });
     const draft = emptyDraft(5);
     draft.regions = [
       { id: 'rg_a', name: 'A', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
       { id: 'rg_b', name: 'B', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
     // 预期失败：不用 saveCanvas（它内部断言 200）。
-    const res = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    const res = await api.put(`/api/maps/${mapId}/map`).send({ data: draft });
     expect(res.status).toBe(409);
     expect(res.body.code).toBe(ErrorCode.REGION_OVERLAP);
   });
 
   it('manages individual regions and blocks conflicts', async () => {
-    const projectId = await createProject({ name: `Regions ${uniqueCode('p')}`, gridSize: 5 });
+    const mapId = await createMap({ name: `Regions ${uniqueCode('p')}`, gridSize: 5 });
 
-    const first = await api.post(`/api/projects/${projectId}/regions`).send({
+    const first = await api.post(`/api/maps/${mapId}/regions`).send({
       name: 'Study',
       color: '#3b82f6',
       borderWidth: 4,
@@ -607,27 +621,27 @@ describe('map draft API', () => {
     expect(typeof regionId).toBe('string');
 
     const conflict = await api
-      .post(`/api/projects/${projectId}/regions`)
+      .post(`/api/maps/${mapId}/regions`)
       .send({ name: 'Clash', cells: [[1, 0]] });
     expect(conflict.status).toBe(409);
     expect(conflict.body.code).toBe(ErrorCode.REGION_OVERLAP);
 
-    const list = await api.get(`/api/projects/${projectId}/regions`);
+    const list = await api.get(`/api/maps/${mapId}/regions`);
     expect(list.body.data).toHaveLength(1);
 
     const patched = await api
-      .patch(`/api/projects/${projectId}/regions/${regionId}`)
+      .patch(`/api/maps/${mapId}/regions/${regionId}`)
       .send({ name: 'Library' });
     expect(patched.body.data.name).toBe('Library');
 
-    const removed = await api.delete(`/api/projects/${projectId}/regions/${regionId}`);
+    const removed = await api.delete(`/api/maps/${mapId}/regions/${regionId}`);
     expect(removed.status).toBe(200);
-    const after = await api.get(`/api/projects/${projectId}/regions`);
+    const after = await api.get(`/api/maps/${mapId}/regions`);
     expect(after.body.data).toHaveLength(0);
   });
 
-  it('returns 404 for a missing project', async () => {
-    const res = await api.get('/api/projects/99999999/map');
+  it('returns 404 for a missing map', async () => {
+    const res = await api.get('/api/maps/99999999/map');
     expect(res.status).toBe(404);
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
@@ -636,7 +650,7 @@ describe('map draft API', () => {
   // v0.5.0 FEAT-K14: it no longer carries `linkageColors` — the palette moved to
   // the puzzle, and the strict schema rejects the old key outright.
   it('persists and reloads the map style, and still accepts a style-less draft', async () => {
-    const projectId = await createProject({ name: `Style ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `Style ${uniqueCode('p')}`, gridSize: 6 });
 
     const draft = {
       ...emptyDraft(6),
@@ -646,23 +660,23 @@ describe('map draft API', () => {
         regionHighlight: { width: 6, color: '#0B7E74' },
       },
     };
-    const saved = await api.put(`/api/projects/${projectId}/map`).send({ data: draft });
+    const saved = await api.put(`/api/maps/${mapId}/map`).send({ data: draft });
     expect(saved.status).toBe(200);
     expect(saved.body.data.draft.style.cellSize).toBe(150);
     expect(saved.body.data.draft.style.canvasFrame.color).toBe('#112233');
 
-    const reloaded = await api.get(`/api/projects/${projectId}/map`);
+    const reloaded = await api.get(`/api/maps/${mapId}/map`);
     expect(reloaded.body.data.draft.style.regionHighlight.width).toBe(6);
 
     // A v0.3.7-era payload (no style block) is still accepted.
-    const legacy = await api.put(`/api/projects/${projectId}/map`).send({ data: emptyDraft(6) });
+    const legacy = await api.put(`/api/maps/${mapId}/map`).send({ data: emptyDraft(6) });
     expect(legacy.status).toBe(200);
     expect(legacy.body.data.draft.style).toBeUndefined();
   });
 
   it('rejects a v2 style palette rather than stripping it (FEAT-K14)', async () => {
-    const projectId = await createProject({ name: `StylePalette ${uniqueCode('p')}`, gridSize: 6 });
-    const res = await api.put(`/api/projects/${projectId}/map`).send({
+    const mapId = await createMap({ name: `StylePalette ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api.put(`/api/maps/${mapId}/map`).send({
       data: {
         ...emptyDraft(6),
         style: {
@@ -676,9 +690,9 @@ describe('map draft API', () => {
   });
 
   it('rejects an out-of-range style value', async () => {
-    const projectId = await createProject({ name: `StyleRange ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `StyleRange ${uniqueCode('p')}`, gridSize: 6 });
     const res = await api
-      .put(`/api/projects/${projectId}/map`)
+      .put(`/api/maps/${mapId}/map`)
       .send({ data: { ...emptyDraft(6), style: { cellSize: 500 } } });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
@@ -690,8 +704,8 @@ describe('map draft API', () => {
    * came along with the canvas.
    */
   it('rejects a v2 map JSON on import and points at the puzzle module (§8.4)', async () => {
-    const projectId = await createProject({ name: `Import ${uniqueCode('p')}`, gridSize: 6 });
-    const res = await api.post(`/api/projects/${projectId}/map/import`).send({
+    const mapId = await createMap({ name: `Import ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api.post(`/api/maps/${mapId}/map/import`).send({
       data: {
         version: 2,
         gridSize: 6,
@@ -709,37 +723,37 @@ describe('map draft API', () => {
 
 describe('versions API', () => {
   it('publishes, lists, reads and deletes a version', async () => {
-    const projectId = await createProject({ name: `Versions ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `Versions ${uniqueCode('p')}`, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
 
     const draft = emptyDraft(6);
     draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
-    await saveCanvas(projectId, draft);
+    await saveCanvas(mapId, draft);
 
-    const published = await api.post(`/api/projects/${projectId}/versions`).send({});
+    const published = await api.post(`/api/maps/${mapId}/versions`).send({});
     expect(published.status).toBe(200);
     expect(published.body.data.versionNo).toBe(1);
     expect(published.body.data.itemCount).toBe(1);
 
-    const list = await api.get(`/api/projects/${projectId}/versions`);
+    const list = await api.get(`/api/maps/${mapId}/versions`);
     expect(list.body.data).toHaveLength(1);
-    // v0.5.8 第三阶段：版本行自己就是 maps 行，面板拿 projectId 拼 URL，所以
+    // v0.5.8 第三阶段：版本行自己就是 maps 行，面板拿 mapId 拼 URL，所以
     // 它等于版本行 id（合并前是「拥有它的工作条目 id」）。
-    expect(list.body.data[0].projectId).toBe(published.body.data.id);
+    expect(list.body.data[0].mapId).toBe(published.body.data.id);
 
-    const detail = await api.get(`/api/projects/${projectId}/versions/1`);
+    const detail = await api.get(`/api/maps/${mapId}/versions/1`);
     expect(detail.body.data.data.cells['1,1'].object.itemId).toBe(itemId);
     // The snapshot is a pure canvas — the roster never rides along (v0.5.0).
     expect(detail.body.data.data.characterSlots).toBeUndefined();
 
-    const removed = await api.delete(`/api/projects/${projectId}/versions/1`);
+    const removed = await api.delete(`/api/maps/${mapId}/versions/1`);
     expect(removed.status).toBe(200);
-    const gone = await api.get(`/api/projects/${projectId}/versions/1`);
+    const gone = await api.get(`/api/maps/${mapId}/versions/1`);
     expect(gone.status).toBe(404);
   });
 
   it('rejects publishing when validation fails', async () => {
-    const projectId = await createProject({ name: `PubFail ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `PubFail ${uniqueCode('p')}`, gridSize: 6 });
 
     const draft = emptyDraft(6);
     // P3: a region must be a connected blob ((0,0) and (3,3) are not adjacent).
@@ -756,9 +770,9 @@ describe('versions API', () => {
         ],
       },
     ];
-    await saveCanvas(projectId, draft);
+    await saveCanvas(mapId, draft);
 
-    const res = await api.post(`/api/projects/${projectId}/versions`).send({});
+    const res = await api.post(`/api/maps/${mapId}/versions`).send({});
     expect(res.status).toBe(422);
     expect(res.body.code).toBe(ErrorCode.PUBLISH_VALIDATION_FAILED);
     expect(Array.isArray(res.body.data)).toBe(true);
@@ -773,15 +787,15 @@ describe('versions API', () => {
   // OPT-904 (docs/v0.3.4.md §4.1): a non-standable item IS allowed on the
   // object layer — the v0.3.1 `object_can_stand` rule was removed.
   it('OPT-904: publishes a non-standable item placed on the object layer', async () => {
-    const projectId = await createProject({ name: `NoStand ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `NoStand ${uniqueCode('p')}`, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: false });
 
     const draft = emptyDraft(6);
     draft.cells['2,2'] = { object: { itemId, w: 2, h: 2 } };
-    const saved = await saveCanvas(projectId, draft);
+    const saved = await saveCanvas(mapId, draft);
     expect(saved.status).toBe(200);
 
-    const res = await api.post(`/api/projects/${projectId}/versions`).send({});
+    const res = await api.post(`/api/maps/${mapId}/versions`).send({});
     expect(res.status).toBe(200);
     expect(res.body.data.versionNo).toBe(1);
   });
@@ -791,16 +805,16 @@ describe('versions API', () => {
    * historical caller still restores a version into the working draft.
    */
   it('restores a version into the working draft via the deprecated route (Q9)', async () => {
-    const projectId = await createProject({ name: `Restore ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `Restore ${uniqueCode('p')}`, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
 
     const draft = emptyDraft(6);
     draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
-    await saveCanvas(projectId, draft);
-    await publish(projectId);
+    await saveCanvas(mapId, draft);
+    await publish(mapId);
 
-    await saveCanvas(projectId, emptyDraft(6));
-    const restored = await api.post(`/api/projects/${projectId}/versions/1/draft`);
+    await saveCanvas(mapId, emptyDraft(6));
+    const restored = await api.post(`/api/maps/${mapId}/versions/1/draft`);
     expect(restored.status).toBe(200);
     expect(restored.body.data.draft.cells['1,1'].object.itemId).toBe(itemId);
   });
@@ -815,121 +829,121 @@ describe('versions API', () => {
 describe('version fork (SPEC-K11 / Q3 = B)', () => {
   it('adds a work entry in the same lineage without touching map_versions', async () => {
     const name = `Fork ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
+    const mapId = await createMap({ name, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
     const draft = emptyDraft(6);
     draft.cells['2,2'] = { object: { itemId, w: 1, h: 1 } };
-    await saveCanvas(projectId, draft);
-    await publish(projectId);
-    await publish(projectId);
+    await saveCanvas(mapId, draft);
+    await publish(mapId);
+    await publish(mapId);
 
-    const before = await api.get(`/api/projects/${projectId}/versions/2`);
-    const forked = await api.post(`/api/projects/${projectId}/versions/2/fork`);
+    const before = await api.get(`/api/maps/${mapId}/versions/2`);
+    const forked = await api.post(`/api/maps/${mapId}/versions/2/fork`);
     expect(forked.status).toBe(200);
     const forkedId = forked.body.data.id as number;
-    createdProjects.push(forkedId);
+    createdMapEntries.push(forkedId);
 
     // The published snapshot is untouched: same timestamp, same payload.
-    const after = await api.get(`/api/projects/${projectId}/versions/2`);
+    const after = await api.get(`/api/maps/${mapId}/versions/2`);
     expect(after.body.data.publishedAt).toBe(before.body.data.publishedAt);
     expect(after.body.data.data.cells['2,2'].object.itemId).toBe(itemId);
 
     // The fork is a *draft* entry seeded from v2, sharing the original's root.
-    const list = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    const list = await api.get(`/api/maps?keyword=${encodeURIComponent(name)}`);
     const rows = list.body.data.list as Array<{
       kind: 'draft' | 'version';
       rootId: number;
-      projectId: number;
+      mapId: number;
       versionNo: number | null;
       currentVersionNo: number | null;
       versionCount: number;
     }>;
-    const original = rows.find((row) => row.projectId === projectId && row.kind === 'draft');
-    const forkEntry = rows.find((row) => row.projectId === forkedId && row.kind === 'draft');
+    const original = rows.find((row) => row.mapId === mapId && row.kind === 'draft');
+    const forkEntry = rows.find((row) => row.mapId === forkedId && row.kind === 'draft');
     expect(forkEntry).toBeDefined();
     expect(forkEntry?.rootId).toBe(original?.rootId);
     expect(forkEntry?.currentVersionNo).toBe(2);
     expect(forkEntry?.versionCount).toBe(2);
 
-    const forkedDraft = await api.get(`/api/projects/${forkedId}/map`);
+    const forkedDraft = await api.get(`/api/maps/${forkedId}/map`);
     expect(forkedDraft.body.data.draft.cells['2,2'].object.itemId).toBe(itemId);
   });
 
   it('continues the lineage numbering after a fork (v3, not v1)', async () => {
     const name = `Lineage ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
-    await publish(projectId);
-    await publish(projectId);
+    const mapId = await createMap({ name, gridSize: 6 });
+    await publish(mapId);
+    await publish(mapId);
 
-    const forked = await api.post(`/api/projects/${projectId}/versions/2/fork`);
+    const forked = await api.post(`/api/maps/${mapId}/versions/2/fork`);
     const forkedId = forked.body.data.id as number;
-    createdProjects.push(forkedId);
+    createdMapEntries.push(forkedId);
 
-    const next = await api.post(`/api/projects/${forkedId}/versions`).send({});
+    const next = await api.post(`/api/maps/${forkedId}/versions`).send({});
     expect(next.status).toBe(200);
     expect(next.body.data.versionNo).toBe(3);
 
-    // The lineage panel spans both rows; 合并后每条的 projectId 就是它自己那行。
-    const lineage = await api.get(`/api/projects/${forkedId}/versions`);
+    // The lineage panel spans both rows; 合并后每条的 mapId 就是它自己那行。
+    const lineage = await api.get(`/api/maps/${forkedId}/versions`);
     expect(lineage.status).toBe(200);
     expect(lineage.body.data.map((entry: { versionNo: number }) => entry.versionNo)).toEqual([3, 2, 1]);
     expect(
       lineage.body.data.every(
-        (entry: { projectId: number; id: number }) => entry.projectId === entry.id,
+        (entry: { mapId: number; id: number }) => entry.mapId === entry.id,
       ),
     ).toBe(true);
   });
 
   it('404s when the version to fork does not exist', async () => {
-    const projectId = await createProject({ name: `NoFork ${uniqueCode('p')}`, gridSize: 6 });
-    const res = await api.post(`/api/projects/${projectId}/versions/99/fork`);
+    const mapId = await createMap({ name: `NoFork ${uniqueCode('p')}`, gridSize: 6 });
+    const res = await api.post(`/api/maps/${mapId}/versions/99/fork`);
     expect(res.status).toBe(404);
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
   it('v0.5.8 §13: names the forked draft after its source version', async () => {
     const name = `ForkName ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
-    await publish(projectId);
+    const mapId = await createMap({ name, gridSize: 6 });
+    await publish(mapId);
 
-    const forked = await api.post(`/api/projects/${projectId}/versions/1/fork`);
+    const forked = await api.post(`/api/maps/${mapId}/versions/1/fork`);
     expect(forked.status).toBe(200);
     const forkedId = forked.body.data.id as number;
-    createdProjects.push(forkedId);
+    createdMapEntries.push(forkedId);
     expect(forked.body.data.name).toBe(`${name} (自 v1)`);
 
     // 再 fork 同一版本 → uniqueCopyName 兜底（血统内可能有多条草稿，不能撞名）。
-    const again = await api.post(`/api/projects/${projectId}/versions/1/fork`);
+    const again = await api.post(`/api/maps/${mapId}/versions/1/fork`);
     expect(again.status).toBe(200);
-    createdProjects.push(again.body.data.id as number);
+    createdMapEntries.push(again.body.data.id as number);
     expect(again.body.data.name).toBe(`${name} (自 v1) 副本`);
   });
 
   it('v0.5.8 §13: fork carries the editor canvas (save-time fork)', async () => {
     const name = `ForkData ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
+    const mapId = await createMap({ name, gridSize: 6 });
     const itemId = await createItem({ category: 'object', canStand: true });
     const draft = emptyDraft(6);
     draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
-    await saveCanvas(projectId, draft);
-    await publish(projectId);
+    await saveCanvas(mapId, draft);
+    await publish(mapId);
 
     // 「以此为底稿新建」进编辑器后又改了一格（还没保存）—— 保存时这一帧
     // 画布随 fork 一起落库；不传 data 则仍是快照 data（上面的老用例）。
     const edited = emptyDraft(6);
     edited.cells['3,3'] = { object: { itemId, w: 1, h: 1 } };
-    const forked = await api.post(`/api/projects/${projectId}/versions/1/fork`).send({ data: edited });
+    const forked = await api.post(`/api/maps/${mapId}/versions/1/fork`).send({ data: edited });
     expect(forked.status).toBe(200);
     const forkedId = forked.body.data.id as number;
-    createdProjects.push(forkedId);
+    createdMapEntries.push(forkedId);
 
-    const forkedDraft = await api.get(`/api/projects/${forkedId}/map`);
+    const forkedDraft = await api.get(`/api/maps/${forkedId}/map`);
     expect(forkedDraft.body.data.draft.cells['3,3'].object.itemId).toBe(itemId);
     // 旧草稿的 1,1 不在新行里 —— 带的就是发送那一刻的画布，不是合并。
     expect(forkedDraft.body.data.draft.cells['1,1']).toBeUndefined();
 
     // 版本快照本身不动（不可变）。
-    const snapshot = await api.get(`/api/projects/${projectId}/versions/1`);
+    const snapshot = await api.get(`/api/maps/${mapId}/versions/1`);
     expect(snapshot.body.data.data.cells['1,1'].object.itemId).toBe(itemId);
   });
 });
@@ -941,11 +955,11 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
  */
 describe('puzzles API (FEAT-K01)', () => {
   it('creates a puzzle bound to a published version and reads it back', async () => {
-    const { projectId, versionNo, itemId } = await publishedMapWithItem(`Pz ${uniqueCode('p')}`);
+    const { mapId, versionNo, itemId } = await publishedMapWithItem(`Pz ${uniqueCode('p')}`);
     const id = await createPuzzle({
       name: '谜题一',
       description: '第一题',
-      mapProjectId: projectId,
+      mapId: mapId,
       mapVersionNo: versionNo,
     });
 
@@ -955,13 +969,13 @@ describe('puzzles API (FEAT-K01)', () => {
       list.body.data as Array<{
         id: number;
         mapVersionNo: number;
-        mapProjectId: number;
+        mapId: number;
         mapName: string;
         deployed: boolean;
       }>
     ).find((entry) => entry.id === id);
     expect(row?.mapVersionNo).toBe(versionNo);
-    expect(row?.mapProjectId).toBe(projectId);
+    expect(row?.mapId).toBe(mapId);
     expect(row?.mapName).toContain('Pz');
     expect(row?.deployed).toBe(false);
 
@@ -971,7 +985,7 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(detail.body.data.description).toBe('第一题');
     expect(detail.body.data.gridSize).toBe(6);
     // The reference is recorded, but the canvas is not copied (§5.1).
-    expect(detail.body.data.data.map).toEqual({ projectId, versionNo, gridSize: 6 });
+    expect(detail.body.data.data.map).toEqual({ mapId, versionNo, gridSize: 6 });
     expect(detail.body.data.data.characterSlots).toHaveLength(6);
     expect(
       detail.body.data.data.characterSlots.every((slot: unknown) => slot === null),
@@ -985,32 +999,32 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   it('rejects a puzzle whose map version was never published', async () => {
-    const projectId = await createProject({ name: `NoVer ${uniqueCode('p')}`, gridSize: 6 });
+    const mapId = await createMap({ name: `NoVer ${uniqueCode('p')}`, gridSize: 6 });
     const res = await api
       .post('/api/puzzles')
-      .send({ name: '无版本', mapProjectId: projectId, mapVersionNo: 1 });
+      .send({ name: '无版本', mapId: mapId, mapVersionNo: 1 });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(res.body.message).toContain('地图版本');
   });
 
   it('rejects a puzzle with a blank name', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`BadName ${uniqueCode('p')}`);
+    const { mapId, versionNo } = await publishedMapWithItem(`BadName ${uniqueCode('p')}`);
     const res = await api
       .post('/api/puzzles')
-      .send({ name: '   ', mapProjectId: projectId, mapVersionNo: versionNo });
+      .send({ name: '   ', mapId: mapId, mapVersionNo: versionNo });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   /** §5.1 + Q16: the canvas is read-only and its style has no palette. */
   it('serves the referenced canvas read-only and strips the palette (Q16)', async () => {
-    const { projectId, itemId, versionNo } = await publishedMapWithItem(`Ctx ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '只读画布', mapProjectId: projectId, mapVersionNo: versionNo });
+    const { mapId, itemId, versionNo } = await publishedMapWithItem(`Ctx ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '只读画布', mapId: mapId, mapVersionNo: versionNo });
 
     const res = await api.get(`/api/puzzles/${id}/map`);
     expect(res.status).toBe(200);
-    expect(res.body.data.projectId).toBe(projectId);
+    expect(res.body.data.mapId).toBe(mapId);
     expect(res.body.data.versionNo).toBe(versionNo);
     expect(res.body.data.gridSize).toBe(6);
     expect(res.body.data.cells['0,0'].object.itemId).toBe(itemId);
@@ -1018,8 +1032,8 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   it('saves the draft with optimistic concurrency and rejects a stale write', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`Save ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '保存', mapProjectId: projectId, mapVersionNo: versionNo });
+    const { mapId, versionNo } = await publishedMapWithItem(`Save ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '保存', mapId: mapId, mapVersionNo: versionNo });
 
     const initial = await api.get(`/api/puzzles/${id}`);
     const updatedAt = initial.body.data.updatedAt as string;
@@ -1036,8 +1050,8 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   it('reads metadata back through the list after a save', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`Mirror ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '旧名', mapProjectId: projectId, mapVersionNo: versionNo });
+    const { mapId, versionNo } = await publishedMapWithItem(`Mirror ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '旧名', mapId: mapId, mapVersionNo: versionNo });
 
     const initial = await api.get(`/api/puzzles/${id}`);
     const draft = initial.body.data.data;
@@ -1059,23 +1073,23 @@ describe('puzzles API (FEAT-K01)', () => {
   it('forces the stored map reference back on save', async () => {
     const a = await publishedMapWithItem(`RefA ${uniqueCode('p')}`);
     const b = await publishedMapWithItem(`RefB ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '引用', mapProjectId: a.projectId, mapVersionNo: a.versionNo });
+    const id = await createPuzzle({ name: '引用', mapId: a.mapId, mapVersionNo: a.versionNo });
 
     const initial = await api.get(`/api/puzzles/${id}`);
     const draft = initial.body.data.data;
-    draft.map = { projectId: b.projectId, versionNo: b.versionNo, gridSize: 6 };
+    draft.map = { mapId: b.mapId, versionNo: b.versionNo, gridSize: 6 };
     const saved = await api
       .put(`/api/puzzles/${id}`)
       .send({ data: draft, updatedAt: initial.body.data.updatedAt });
     expect(saved.status).toBe(200);
-    expect(saved.body.data.data.map.projectId).toBe(a.projectId);
+    expect(saved.body.data.data.map.mapId).toBe(a.mapId);
     expect(saved.body.data.data.map.versionNo).toBe(a.versionNo);
   });
 
   /** §5.2: `item` / `region` targets are checked against the referenced canvas. */
   it('rejects an item linkage whose target is not on the referenced canvas', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`BadRef ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '坏引用', mapProjectId: projectId, mapVersionNo: versionNo });
+    const { mapId, versionNo } = await publishedMapWithItem(`BadRef ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '坏引用', mapId: mapId, mapVersionNo: versionNo });
     const characterId = await createCharacter();
 
     const initial = await api.get(`/api/puzzles/${id}`);
@@ -1094,8 +1108,8 @@ describe('puzzles API (FEAT-K01)', () => {
 
   /** §5.2: the self-consistent half — a `cell` target must be inside the board. */
   it('rejects a linkage target outside the canvas', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`CellRef ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '越界', mapProjectId: projectId, mapVersionNo: versionNo });
+    const { mapId, versionNo } = await publishedMapWithItem(`CellRef ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '越界', mapId: mapId, mapVersionNo: versionNo });
     const characterId = await createCharacter();
 
     const initial = await api.get(`/api/puzzles/${id}`);
@@ -1112,8 +1126,8 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   it('renames and re-describes, mirroring into the exported JSON', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`Rename ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '旧名', mapProjectId: projectId, mapVersionNo: versionNo });
+    const { mapId, versionNo } = await publishedMapWithItem(`Rename ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '旧名', mapId: mapId, mapVersionNo: versionNo });
 
     const res = await api.patch(`/api/puzzles/${id}`).send({ name: '新名', description: '新描述' });
     expect(res.status).toBe(200);
@@ -1124,8 +1138,8 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   it('duplicates a puzzle under a unique copy name', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`Dup ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '原件', mapProjectId: projectId, mapVersionNo: versionNo });
+    const { mapId, versionNo } = await publishedMapWithItem(`Dup ${uniqueCode('p')}`);
+    const id = await createPuzzle({ name: '原件', mapId: mapId, mapVersionNo: versionNo });
 
     const first = await api.post(`/api/puzzles/${id}/duplicate`);
     expect(first.status).toBe(200);
@@ -1138,10 +1152,10 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   it('deletes a puzzle', async () => {
-    const { projectId, versionNo } = await publishedMapWithItem(`Del ${uniqueCode('p')}`);
+    const { mapId, versionNo } = await publishedMapWithItem(`Del ${uniqueCode('p')}`);
     const created = await api
       .post('/api/puzzles')
-      .send({ name: '待删', mapProjectId: projectId, mapVersionNo: versionNo });
+      .send({ name: '待删', mapId: mapId, mapVersionNo: versionNo });
     const id = created.body.data.id as number;
 
     const removed = await api.delete(`/api/puzzles/${id}`);
@@ -1447,55 +1461,55 @@ describe('games API slug (OPT-W04)', () => {
 describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
   it('自定义版本号：能填空洞号，活行与软删行重号都 400', async () => {
     const name = `MergeNo ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
+    const mapId = await createMap({ name, gridSize: 6 });
 
-    const v1 = await publishVersion(projectId);
+    const v1 = await publishVersion(mapId);
     expect(v1.body.data.versionNo).toBe(1);
-    const v2 = await publishVersion(projectId);
+    const v2 = await publishVersion(mapId);
     expect(v2.body.data.versionNo).toBe(2);
 
     // 跳过 3~6，直接给 7 —— 版本号不必连续。
-    const custom = await publishVersion(projectId, 7);
+    const custom = await publishVersion(mapId, 7);
     expect(custom.body.data.versionNo).toBe(7);
 
     // 活行重号
-    const dupe = await api.post(`/api/projects/${projectId}/versions`).send({ version: 7 });
+    const dupe = await api.post(`/api/maps/${mapId}/versions`).send({ version: 7 });
     expect(dupe.status).toBe(400);
     expect(dupe.body.message).toContain('已存在');
 
     // 软删之后号仍被占用（软删行参与 MAX、占唯一位）
-    const removed = await api.delete(`/api/projects/${projectId}/versions/7`);
+    const removed = await api.delete(`/api/maps/${mapId}/versions/7`);
     expect(removed.status).toBe(200);
-    const reuse = await api.post(`/api/projects/${projectId}/versions`).send({ version: 7 });
+    const reuse = await api.post(`/api/maps/${mapId}/versions`).send({ version: 7 });
     expect(reuse.status).toBe(400);
     expect(reuse.body.message).toContain('已存在');
 
     // 默认号 = 血统 MAX（含软删行）+ 1
-    const next = await publishVersion(projectId);
+    const next = await publishVersion(mapId);
     expect(next.body.data.versionNo).toBe(8);
 
     // 入参校验：0 / 非整数一律 400（schema 是 .strict() + 正整数）
-    const invalid = await api.post(`/api/projects/${projectId}/versions`).send({ version: 0 });
+    const invalid = await api.post(`/api/maps/${mapId}/versions`).send({ version: 0 });
     expect(invalid.status).toBe(400);
   });
 
   it('软删的版本在四个可见面消失，但直达读取与 fork 源仍可用', async () => {
     const name = `SoftDel ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
-    await publish(projectId);
-    const v2 = await publishVersion(projectId);
+    const mapId = await createMap({ name, gridSize: 6 });
+    await publish(mapId);
+    const v2 = await publishVersion(mapId);
     const v2RowId = v2.body.data.id as number;
 
-    const removed = await api.delete(`/api/projects/${projectId}/versions/2`);
+    const removed = await api.delete(`/api/maps/${mapId}/versions/2`);
     expect(removed.status).toBe(200);
 
     // ① /maps 列表
-    const list = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    const list = await api.get(`/api/maps?keyword=${encodeURIComponent(name)}`);
     const rows = list.body.data.list as Array<{ kind: string; versionNo: number | null }>;
     expect(rows.filter((row) => row.kind === 'version').map((row) => row.versionNo)).toEqual([1]);
 
     // ② 创建谜题的可选地图列表（按发布时的名字快照查）
-    const picker = await api.get('/api/projects/versions');
+    const picker = await api.get('/api/maps/versions');
     expect(
       (picker.body.data as Array<{ mapName: string; versionNo: number }>).some(
         (entry) => entry.mapName === name && entry.versionNo === 2,
@@ -1503,79 +1517,79 @@ describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
     ).toBe(false);
 
     // ③ 版本历史面板
-    const lineage = await api.get(`/api/projects/${projectId}/versions`);
+    const lineage = await api.get(`/api/maps/${mapId}/versions`);
     expect(lineage.body.data.map((entry: { versionNo: number }) => entry.versionNo)).toEqual([1]);
 
     // ④ 版本详情直达 → 404（「不可见」包含直达入口）
-    const gone = await api.get(`/api/projects/${projectId}/versions/2`);
+    const gone = await api.get(`/api/maps/${mapId}/versions/2`);
     expect(gone.status).toBe(404);
 
     // 号不回收：默认号仍是 3
-    const next = await publishVersion(projectId);
+    const next = await publishVersion(mapId);
     expect(next.body.data.versionNo).toBe(3);
 
     // fork 源不过滤软删（过滤管可见性，不管直达读取）→ 版本行 id 也能当 :id
-    const forked = await api.post(`/api/projects/${v2RowId}/versions/2/fork`);
+    const forked = await api.post(`/api/maps/${v2RowId}/versions/2/fork`);
     expect(forked.status).toBe(200);
-    createdProjects.push(forked.body.data.id as number);
+    createdMapEntries.push(forked.body.data.id as number);
   });
 
   it('版本行是只读行：条目级与画布级写入口一律 400', async () => {
     const name = `ReadOnly ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
-    const versionRowId = (await publishVersion(projectId)).body.data.id as number;
+    const mapId = await createMap({ name, gridSize: 6 });
+    const versionRowId = (await publishVersion(mapId)).body.data.id as number;
 
     // 详情与画布读取仍然允许（只读渲染要能用）
-    const detail = await api.get(`/api/projects/${versionRowId}`);
+    const detail = await api.get(`/api/maps/${versionRowId}`);
     expect(detail.status).toBe(200);
     expect(detail.body.data.versionNo).toBe(1);
-    const canvas = await api.get(`/api/projects/${versionRowId}/map`);
+    const canvas = await api.get(`/api/maps/${versionRowId}/map`);
     expect(canvas.status).toBe(200);
 
-    const patched = await api.patch(`/api/projects/${versionRowId}`).send({ name: '改名' });
+    const patched = await api.patch(`/api/maps/${versionRowId}`).send({ name: '改名' });
     expect(patched.status).toBe(400);
 
-    const saved = await api.put(`/api/projects/${versionRowId}/map`).send({ data: emptyDraft(6) });
+    const saved = await api.put(`/api/maps/${versionRowId}/map`).send({ data: emptyDraft(6) });
     expect(saved.status).toBe(400);
 
-    const resized = await api.patch(`/api/projects/${versionRowId}/grid-size`).send({ gridSize: 8 });
+    const resized = await api.patch(`/api/maps/${versionRowId}/grid-size`).send({ gridSize: 8 });
     expect(resized.status).toBe(400);
 
-    const cover = await api.delete(`/api/projects/${versionRowId}/cover`);
+    const cover = await api.delete(`/api/maps/${versionRowId}/cover`);
     expect(cover.status).toBe(400);
 
-    const republish = await api.post(`/api/projects/${versionRowId}/versions`).send({});
+    const republish = await api.post(`/api/maps/${versionRowId}/versions`).send({});
     expect(republish.status).toBe(400);
     expect(republish.body.message).toContain('草稿');
 
-    const duplicated = await api.post(`/api/projects/${versionRowId}/duplicate`);
+    const duplicated = await api.post(`/api/maps/${versionRowId}/duplicate`);
     expect(duplicated.status).toBe(400);
 
-    const region = await api.post(`/api/projects/${versionRowId}/regions`).send({
+    const region = await api.post(`/api/maps/${versionRowId}/regions`).send({
       name: 'Lounge',
       cells: [[0, 0]],
     });
     expect(region.status).toBe(400);
 
     // 通用 DELETE 对版本行分流成软删：行还在（详情 404），但号不回收。
-    const deleted = await api.delete(`/api/projects/${versionRowId}`);
+    const deleted = await api.delete(`/api/maps/${versionRowId}`);
     expect(deleted.status).toBe(200);
-    expect((await api.get(`/api/projects/${versionRowId}`)).status).toBe(404);
-    const revived = await api.post(`/api/projects/${projectId}/versions`).send({ version: 1 });
+    expect((await api.get(`/api/maps/${versionRowId}`)).status).toBe(404);
+    const revived = await api.post(`/api/maps/${mapId}/versions`).send({ version: 1 });
     expect(revived.status).toBe(400);
   });
 
   it('删工作条目保留它的版本行（不再级联）', async () => {
     const name = `KeepVersions ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
-    await publishVersion(projectId);
-    await publishVersion(projectId);
+    const mapId = await createMap({ name, gridSize: 6 });
+    await publishVersion(mapId);
+    await publishVersion(mapId);
 
-    const removed = await api.delete(`/api/projects/${projectId}`);
+    const removed = await api.delete(`/api/maps/${mapId}`);
     expect(removed.status).toBe(200);
 
     // 列表里草稿行没了，版本行还在。
-    const list = await api.get(`/api/projects?keyword=${encodeURIComponent(name)}`);
+    const list = await api.get(`/api/maps?keyword=${encodeURIComponent(name)}`);
     const rows = list.body.data.list as Array<{ kind: string; versionNo: number | null }>;
     expect(rows.filter((row) => row.kind === 'draft')).toHaveLength(0);
     expect(rows.map((row) => row.versionNo).sort()).toEqual([1, 2]);
@@ -1583,15 +1597,15 @@ describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
 
   it('草稿行的 versionNo 短路成 null，status 由血统推导（设计 §15 P0-2）', async () => {
     const name = `DraftNo ${uniqueCode('p')}`;
-    const projectId = await createProject({ name, gridSize: 6 });
+    const mapId = await createMap({ name, gridSize: 6 });
 
-    const fresh = await api.get(`/api/projects/${projectId}`);
+    const fresh = await api.get(`/api/maps/${mapId}`);
     expect(fresh.body.data.versionNo).toBeNull();
     expect(fresh.body.data.status).toBe('draft');
     expect(fresh.body.data.currentVersionNo).toBeNull();
 
-    await publishVersion(projectId);
-    const after = await api.get(`/api/projects/${projectId}`);
+    await publishVersion(mapId);
+    const after = await api.get(`/api/maps/${mapId}`);
     // 草稿行仍然没有自己的版本号，但血统已经发布了 v1。
     expect(after.body.data.versionNo).toBeNull();
     expect(after.body.data.status).toBe('published');
@@ -1602,42 +1616,42 @@ describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
 describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
   it('kind 过滤只返回一类，两块 total 各算各的', async () => {
     const token = uniqueCode('p');
-    const first = await createProject({ name: `Split A ${token}`, gridSize: 6 });
+    const first = await createMap({ name: `Split A ${token}`, gridSize: 6 });
     await publishVersion(first);
     await publishVersion(first);
-    const second = await createProject({ name: `Split B ${token}`, gridSize: 6 });
+    const second = await createMap({ name: `Split B ${token}`, gridSize: 6 });
     await publishVersion(second);
 
-    const drafts = await api.get(`/api/projects?kind=draft&keyword=${token}`);
+    const drafts = await api.get(`/api/maps?kind=draft&keyword=${token}`);
     expect(drafts.status).toBe(200);
     expect(drafts.body.data.total).toBe(2);
     expect(
       (drafts.body.data.list as Array<{ kind: string }>).every((row) => row.kind === 'draft'),
     ).toBe(true);
 
-    const versions = await api.get(`/api/projects?kind=version&keyword=${token}`);
+    const versions = await api.get(`/api/maps?kind=version&keyword=${token}`);
     expect(versions.body.data.total).toBe(3);
     expect(
       (versions.body.data.list as Array<{ kind: string }>).every((row) => row.kind === 'version'),
     ).toBe(true);
 
     // 不传 kind 仍是并集口径，且两块 total 之和等于并集 total。
-    const union = await api.get(`/api/projects?keyword=${token}`);
+    const union = await api.get(`/api/maps?keyword=${token}`);
     expect(union.body.data.total).toBe(5);
 
     // 非法 kind 值被 schema 拦下。
-    expect((await api.get('/api/projects?kind=nope')).status).toBe(400);
+    expect((await api.get('/api/maps?kind=nope')).status).toBe(400);
   });
 
   it('版本块默认按时间倒序，并跟随 sort/order（不再固定血统顺序）', async () => {
     const token = uniqueCode('p');
     const tick = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 5));
-    const first = await createProject({ name: `Order A ${token}`, gridSize: 6 });
+    const first = await createMap({ name: `Order A ${token}`, gridSize: 6 });
     await publishVersion(first);
     await tick();
     await publishVersion(first);
     await tick();
-    const second = await createProject({ name: `Order B ${token}`, gridSize: 6 });
+    const second = await createMap({ name: `Order B ${token}`, gridSize: 6 });
     await publishVersion(second);
 
     type Row = {
@@ -1650,7 +1664,7 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
     };
 
     // 默认（不传 sort/order）＝ 按更新时间倒序，最新发布的在最上面。
-    const query = `/api/projects?kind=version&keyword=${token}&pageSize=2`;
+    const query = `/api/maps?kind=version&keyword=${token}&pageSize=2`;
     const page1 = await api.get(`${query}&page=1`);
     const page2 = await api.get(`${query}&page=2`);
     const rows = [...page1.body.data.list, ...page2.body.data.list] as Row[];
@@ -1674,7 +1688,7 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
 
     // 版本块现在也听 sort：按名称升序，A 血统（中间才发布）反而排在前面。
     const byName = await api.get(
-      `/api/projects?kind=version&keyword=${token}&sort=name&order=asc`,
+      `/api/maps?kind=version&keyword=${token}&sort=name&order=asc`,
     );
     const names = (byName.body.data.list as Row[]).map((row) => row.name);
     expect(names).toEqual([...names].sort());
@@ -1684,17 +1698,17 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
 
 afterAll(async () => {
   const { db } = await import('../src/db/knex');
-  // Puzzles first: `puzzles.map_project_id` is ON DELETE RESTRICT, so a project
+  // Puzzles first: `puzzles.map_project_id` is ON DELETE RESTRICT, so a map
   // that still has a puzzle cannot be deleted. Deleting a puzzle demotes its
-  // game (`map_games.puzzle_id` → NULL), which the project cascade then removes.
+  // game (`map_games.puzzle_id` → NULL), which the map cascade then removes.
   if (createdPuzzles.length) await db('puzzles').whereIn('id', createdPuzzles).del();
   // v0.5.8 第三阶段：先删这批用例自己记账的版本行（有些工作条目已被删，按
   // root_id 扫不到），再按血统兜一遍，最后删草稿行。
   if (createdVersionRows.length) await db('maps').whereIn('id', createdVersionRows).del();
-  if (createdProjects.length) {
-    const roots = db('maps').whereIn('id', createdProjects).select('root_id');
+  if (createdMapEntries.length) {
+    const roots = db('maps').whereIn('id', createdMapEntries).select('root_id');
     await db('maps').whereNot('version', 'draft').whereIn('root_id', roots).del();
-    await db('maps').whereIn('id', createdProjects).del();
+    await db('maps').whereIn('id', createdMapEntries).del();
   }
   if (createdItems.length) await db('items').whereIn('id', createdItems).del();
   if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
@@ -1705,7 +1719,7 @@ afterAll(async () => {
   for (const dir of uploadedGameCoverDirs) {
     await rm(dir, { recursive: true, force: true });
   }
-  for (const dir of uploadedProjectCoverDirs) {
+  for (const dir of uploadedMapCoverDirs) {
     await rm(dir, { recursive: true, force: true });
   }
 });

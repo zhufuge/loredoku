@@ -34,7 +34,7 @@ function wrappedSnapshot(): Record<string, unknown> {
     map: { version: MAP_JSON_VERSION, gridSize: 4, cells: {}, regions: [] },
     puzzle: {
       version: 1,
-      map: { projectId: 42, versionNo: 3, gridSize: 4 },
+      map: { mapId: 42, versionNo: 3, gridSize: 4 },
       name: '谜题',
       description: '',
       linkageColors: [{ key: 'red', label: '红', color: '#EF9A9A' }],

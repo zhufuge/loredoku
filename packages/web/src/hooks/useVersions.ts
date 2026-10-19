@@ -5,7 +5,7 @@ import { ErrorCode } from '@loredoku/shared';
 import type { MapDraft, MapVersionSummary, PublishViolation } from '@loredoku/shared';
 import { ApiError } from '@/api/client';
 import { versionsApi } from '@/api/versions';
-import { mapEntryKeys, mapKeys } from './useMaps';
+import { mapKeys, mapCanvasKeys } from './useMaps';
 
 export const versionKeys = {
   list: (id: number) => ['versions', id, 'list'] as const,
@@ -22,11 +22,11 @@ export function useVersions(id: number | null) {
 }
 
 /** One published version with its full snapshot (entry preview page). */
-export function useVersionDetail(projectId: number | null, versionNo: number | null) {
+export function useVersionDetail(mapId: number | null, versionNo: number | null) {
   return useQuery({
-    queryKey: versionKeys.detail(projectId ?? 0, versionNo ?? 0),
-    queryFn: () => versionsApi.detail(projectId as number, versionNo as number),
-    enabled: projectId !== null && versionNo !== null,
+    queryKey: versionKeys.detail(mapId ?? 0, versionNo ?? 0),
+    queryFn: () => versionsApi.detail(mapId as number, versionNo as number),
+    enabled: mapId !== null && versionNo !== null,
   });
 }
 
@@ -41,7 +41,7 @@ export interface PublishResult {
   version?: MapVersionSummary;
 }
 
-export function usePublishProject(id: number) {
+export function usePublishMap(id: number) {
   const queryClient = useQueryClient();
   // 变量是「用户填的版本号」，`undefined` = 用服务端默认
   // （血统 MAX+1）。没改输入框就发 undefined，避免拿着过期的默认值撞 400。
@@ -67,11 +67,11 @@ export function usePublishProject(id: number) {
          * instead, because it carries the two next steps (preview / map list).
          *
          * v0.5.0 FEAT-K10: publishing now **adds an entry to the map list**, so
-         * the project list has to be invalidated too.
+         * the map list has to be invalidated too.
          */
-        void queryClient.invalidateQueries({ queryKey: mapKeys.detail(id) });
+        void queryClient.invalidateQueries({ queryKey: mapCanvasKeys.detail(id) });
         void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
-        void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+        void queryClient.invalidateQueries({ queryKey: mapKeys.all });
       }
     },
     onError: (error) => {
@@ -95,9 +95,9 @@ export function useForkVersion(options: { navigate?: boolean } = {}) {
   return useMutation({
     mutationFn: ({ id, versionNo, data }: { id: number; versionNo: number; data?: MapDraft }) =>
       versionsApi.fork(id, versionNo, data),
-    onSuccess: (project, { versionNo }) => {
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
-      void queryClient.invalidateQueries({ queryKey: versionKeys.list(project.id) });
+    onSuccess: (mapEntry, { versionNo }) => {
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
+      void queryClient.invalidateQueries({ queryKey: versionKeys.list(mapEntry.id) });
       /*
        * `navigate: false` = 调用方（编辑器）自己接管落盘后的跳转与提示 —— 它
        * 要 replace 到新行 URL，提示语也按「已基于 v{n} 生成新地图」写。这里再
@@ -105,7 +105,7 @@ export function useForkVersion(options: { navigate?: boolean } = {}) {
        */
       if (options.navigate !== false) {
         toast.success(`已从 v${versionNo} 新增一个条目`);
-        navigate(`/maps/${project.id}/edit`);
+        navigate(`/maps/${mapEntry.id}/edit`);
       }
     },
     onError: (error) => {
@@ -122,7 +122,7 @@ export function useDeleteVersion() {
     onSuccess: (_data, { id }) => {
       toast.success('版本已删除');
       void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
-      void queryClient.invalidateQueries({ queryKey: mapEntryKeys.all });
+      void queryClient.invalidateQueries({ queryKey: mapKeys.all });
     },
     onError: (error) => {
       toast.error(error instanceof Error ? error.message : '删除失败');

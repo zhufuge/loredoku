@@ -35,7 +35,7 @@ const CONDITIONS = [
 
 function mapContext(gridSize = 6): PuzzleMapContext {
   return {
-    projectId: 217,
+    mapId: 217,
     versionNo: 3,
     mapName: '古堡之谜',
     gridSize,
@@ -67,7 +67,7 @@ function mapContext(gridSize = 6): PuzzleMapContext {
 function detail(overrides: Partial<PuzzleDraft> = {}): PuzzleDetail {
   const draft: PuzzleDraft = {
     version: PUZZLE_JSON_VERSION,
-    map: { projectId: 217, versionNo: 3, gridSize: 6 },
+    map: { mapId: 217, versionNo: 3, gridSize: 6 },
     name: '午夜花园',
     description: '六人六格，注意花丛的位置条件。',
     linkageColors: [
@@ -82,7 +82,7 @@ function detail(overrides: Partial<PuzzleDraft> = {}): PuzzleDetail {
     name: draft.name,
     description: draft.description,
     mapVersionNo: 3,
-    mapProjectId: 217,
+    mapId: 217,
     mapRootId: 217,
     mapName: '古堡之谜',
     gridSize: 6,
@@ -551,7 +551,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     store().assignSlot(4);
     const output = store().toDraft();
     expect(output.version).toBe(PUZZLE_JSON_VERSION);
-    expect(output.map).toEqual({ projectId: 217, versionNo: 3, gridSize: 6 });
+    expect(output.map).toEqual({ mapId: 217, versionNo: 3, gridSize: 6 });
     expect(output.name).toBe('午夜花园');
     expect(output.description).toBe('六人六格，注意花丛的位置条件。');
     expect(output.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
@@ -565,7 +565,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
   it('round-trips through applyDraft', () => {
     const imported: PuzzleDraft = {
       version: PUZZLE_JSON_VERSION,
-      map: { projectId: 217, versionNo: 3, gridSize: 6 },
+      map: { mapId: 217, versionNo: 3, gridSize: 6 },
       name: '导入的谜题',
       description: '导入来的',
       linkageColors: [
@@ -597,7 +597,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
   it('applyDraft resizes the roster to the referenced grid size', () => {
     store().applyDraft({
       ...detail().data,
-      map: { projectId: 217, versionNo: 3, gridSize: 4 },
+      map: { mapId: 217, versionNo: 3, gridSize: 4 },
       characterSlots: [null, null],
     });
     expect(store().characterSlots).toHaveLength(6);

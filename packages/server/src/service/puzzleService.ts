@@ -44,7 +44,7 @@ export function toSummary(row: puzzleRepo.PuzzleJoinedRow): PuzzleSummary {
     name: row.name,
     description: row.description,
     mapVersionNo: row.map_version_no,
-    mapProjectId: Number(row.map_project_id),
+    mapId: Number(row.map_project_id),
     mapRootId: Number(row.root_id),
     mapName: row.map_name ?? '未命名地图',
     gridSize: row.grid_size,
@@ -65,7 +65,7 @@ function emptyDraft(row: puzzleRepo.PuzzleJoinedRow): PuzzleDraft {
   return {
     version: PUZZLE_JSON_VERSION,
     map: {
-      projectId: Number(row.map_project_id),
+      mapId: Number(row.map_project_id),
       versionNo: row.map_version_no,
       gridSize: row.grid_size,
     },
@@ -108,9 +108,9 @@ export async function getPuzzleMapContext(id: number): Promise<PuzzleMapContext>
     | { cells?: PuzzleMapContext['cells']; regions?: PuzzleMapContext['regions']; style?: MapStyle }
     | null;
   return {
-    projectId: Number(row.map_project_id),
+    mapId: Number(row.map_project_id),
     versionNo: row.map_version_no,
-    mapName: row.map_name ?? version.project_name ?? '未命名地图',
+    mapName: row.map_name ?? version.name ?? '未命名地图',
     gridSize: row.grid_size,
     cells: draft?.cells ?? {},
     regions: draft?.regions ?? [],
@@ -126,7 +126,7 @@ export async function getPuzzleMapContext(id: number): Promise<PuzzleMapContext>
  */
 export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDetail> {
   // 创建时选版本要**过滤软删**：已删版本不能作为新谜题的底图（可见性）。
-  const version = await versionRepo.getVersion(input.mapProjectId, input.mapVersionNo);
+  const version = await versionRepo.getVersion(input.mapId, input.mapVersionNo);
   if (!version) {
     throw AppError.validation('所选地图版本不存在，请选择一个已发布的地图版本');
   }
@@ -136,7 +136,7 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
   const description = input.description ?? '';
   const data: PuzzleDraft = {
     version: PUZZLE_JSON_VERSION,
-    map: { projectId: input.mapProjectId, versionNo: input.mapVersionNo, gridSize },
+    map: { mapId: input.mapId, versionNo: input.mapVersionNo, gridSize },
     name: input.name,
     description,
     linkageColors: inheritedLinkageColors(version.data),
@@ -146,7 +146,7 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
   const row = await puzzleRepo.createPuzzle({
     name: input.name,
     description,
-    mapProjectId: input.mapProjectId,
+    mapId: input.mapId,
     mapVersionNo: input.mapVersionNo,
     gridSize,
     data,
@@ -175,7 +175,7 @@ export async function savePuzzle(
   const data: PuzzleDraft = {
     ...input.data,
     map: {
-      projectId: Number(row.map_project_id),
+      mapId: Number(row.map_project_id),
       versionNo: row.map_version_no,
       gridSize: row.grid_size,
     },

@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { ParticipantPanel } from '@/components/editor/ParticipantPanel';
+import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';

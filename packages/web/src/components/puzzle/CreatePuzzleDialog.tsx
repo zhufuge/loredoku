@@ -33,7 +33,7 @@ import { cn } from '@/lib/utils';
  * to reference yet. Selecting one pins the canvas size (`n × n`), which is why
  * the dialog says so out loud before the puzzle exists.
  *
- * `?new={projectId}:{versionNo}` (from the map list's version entries, §7.1) is
+ * `?new={mapId}:{versionNo}` (from the map list's version entries, §7.1) is
  * read here so 「以此版本新建谜题」 arrives with the version already picked.
  */
 export function CreatePuzzleDialog({
@@ -57,9 +57,9 @@ export function CreatePuzzleDialog({
 
   const versions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
 
-  /** `{projectId}:{versionNo}` — the identity of one published version. */
+  /** `{mapId}:{versionNo}` — the identity of one published version. */
   const keyOf = (version: PublishedMapVersion): string =>
-    `${version.projectId}:${version.versionNo}`;
+    `${version.mapId}:${version.versionNo}`;
 
   const selected = useMemo(
     () => versions.find((version) => keyOf(version) === selectedKey) ?? null,
@@ -99,7 +99,7 @@ export function CreatePuzzleDialog({
     create.mutate({
       name: trimmed,
       description: trimmedDescription.length > 0 ? trimmedDescription : undefined,
-      mapProjectId: selected.projectId,
+      mapId: selected.mapId,
       mapVersionNo: selected.versionNo,
     });
   };

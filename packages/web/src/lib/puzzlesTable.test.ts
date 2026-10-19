@@ -21,7 +21,7 @@ function puzzle(overrides: Partial<PuzzleSummary> = {}): PuzzleSummary {
     name: '谜题一',
     description: null,
     mapVersionNo: 1,
-    mapProjectId: 1,
+    mapId: 1,
     mapRootId: 1,
     mapName: '地图一',
     gridSize: 6,
@@ -34,10 +34,10 @@ function puzzle(overrides: Partial<PuzzleSummary> = {}): PuzzleSummary {
 }
 
 const puzzles: PuzzleSummary[] = [
-  puzzle({ id: 11, mapVersionNo: 1, mapProjectId: 1, mapName: '地图一', createdAt: '2026-01-01T08:00:00.000Z', description: '初版' }),
-  puzzle({ id: 12, mapVersionNo: 2, mapProjectId: 1, mapName: '地图一', createdAt: '2026-03-05T09:30:00.000Z', description: '修了线索' }),
-  puzzle({ id: 21, mapVersionNo: 1, mapProjectId: 2, mapName: '地图二', createdAt: '2026-02-10T12:00:00.000Z', description: null }),
-  puzzle({ id: 22, mapVersionNo: 3, mapProjectId: 2, mapName: '地图二', createdAt: '2026-03-05T09:30:00.000Z', description: '第三版' }),
+  puzzle({ id: 11, mapVersionNo: 1, mapId: 1, mapName: '地图一', createdAt: '2026-01-01T08:00:00.000Z', description: '初版' }),
+  puzzle({ id: 12, mapVersionNo: 2, mapId: 1, mapName: '地图一', createdAt: '2026-03-05T09:30:00.000Z', description: '修了线索' }),
+  puzzle({ id: 21, mapVersionNo: 1, mapId: 2, mapName: '地图二', createdAt: '2026-02-10T12:00:00.000Z', description: null }),
+  puzzle({ id: 22, mapVersionNo: 3, mapId: 2, mapName: '地图二', createdAt: '2026-03-05T09:30:00.000Z', description: '第三版' }),
 ];
 
 describe('sortPuzzlesNewestFirst (SPEC-K02)', () => {
@@ -67,12 +67,12 @@ describe('filterPuzzles (SPEC-K02)', () => {
 
   it('filters by one or several maps (multi-select)', () => {
     expect(
-      filterPuzzles(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapProjectIds: [2] }).map((entry) => entry.id),
+      filterPuzzles(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapIds: [2] }).map((entry) => entry.id),
     ).toEqual([21, 22]);
     expect(
-      filterPuzzles(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapProjectIds: [1, 2] }),
+      filterPuzzles(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapIds: [1, 2] }),
     ).toHaveLength(4);
-    expect(filterPuzzles(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapProjectIds: [99] })).toHaveLength(0);
+    expect(filterPuzzles(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapIds: [99] })).toHaveLength(0);
   });
 
   it('searches the version number, the description and the map name', () => {
@@ -108,7 +108,7 @@ describe('filterPuzzles (SPEC-K02)', () => {
 
   it('combines the map, keyword and time filters', () => {
     const filtered = filterPuzzles(puzzles, {
-      mapProjectIds: [1],
+      mapIds: [1],
       keyword: 'v2',
       from: '2026-01-01',
       to: '2026-12-31',
@@ -155,7 +155,7 @@ describe('paginatePuzzles (SPEC-K02)', () => {
 
 describe('buildPuzzlesTable (SPEC-K02)', () => {
   it('sorts, filters and pages in one pass', () => {
-    const result = buildPuzzlesTable(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapProjectIds: [2] }, 1, 20);
+    const result = buildPuzzlesTable(puzzles, { ...EMPTY_PUZZLE_FILTERS, mapIds: [2] }, 1, 20);
     expect(result.rows.map((entry) => entry.id)).toEqual([22, 21]);
     expect(result.total).toBe(2);
   });

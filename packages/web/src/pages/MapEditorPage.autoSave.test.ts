@@ -1,0 +1,78 @@
+import { describe, expect, it } from 'vitest';
+import { readSource } from '@/testing/source';
+
+/**
+ * v0.3.10 FIX-F01 / FIX-F03 (docs/v0.3.10.md §1 / §3).
+ *
+ * `MapEditorPage` owns the wiring that makes 「地图基本信息」 a single, complete
+ * form: the drawer commits the style **and** the canvas size, and a project
+ * whose basics were never persisted gets one implicit save on first entry.
+ *
+ * the single writer moved into `useEditorSave` (both editors share
+ * it); the page supplies the payload builder and the post-save bookkeeping.
+ *
+ * Rendering the page needs a query client, a router and a store seeded with a
+ * project, so — like `EditorCanvas.noDrag.test.ts` — these are source-level
+ * assertions on the wiring itself.
+ */
+
+const pageSource = readSource('pages/MapEditorPage.tsx');
+
+const saveHookSource = readSource('hooks/useEditorSave.ts');
+
+const resizeHookSource = readSource('hooks/useEditorResize.ts');
+
+describe('MapEditorPage (FIX-F01 / FIX-F03)', () => {
+  it('FIX-F01: the drawer commits the style and the canvas size together', () => {
+    expect(pageSource).toContain('const commitMapInfo = (');
+    // The size is applied locally (undoable); the server-side trim waits for 保存.
+    expect(pageSource).toContain('editor.setGridSize(nextGridSize);');
+    expect(pageSource).toContain('gridTrimRef.current = true;');
+    // The drawer no longer owns a resize side channel.
+    expect(pageSource).not.toContain('onRequestResize');
+  });
+
+  it('抽屉的保存只应用本地草稿，请求留给右上角「保存」', () => {
+    // 用户裁定：基本信息抽屉的「保存」不触发请求。名称 / 描述 / 封面
+    // 先落进 pendingEntryInfo（参与 dirty），由 persist 统一写库。
+    const commit = pageSource.slice(
+      pageSource.indexOf('const commitMapInfo ='),
+      pageSource.indexOf('const closeMapInfo ='),
+    );
+    expect(commit).not.toContain('mutateAsync');
+    expect(commit).not.toContain('persist(');
+    expect(commit).toContain('setPendingEntryInfo(');
+    expect(pageSource).toContain('await updateMapMutation.mutateAsync');
+    expect(pageSource).toContain('await uploadCoverMutation.mutateAsync');
+    expect(pageSource).toContain('await removeCoverMutation.mutateAsync');
+  });
+
+  it('FIX-F01: one code path persists the whole draft', () => {
+    // `persist` is the single writer; both the toolbar and the drawer use it.
+    expect(saveHookSource).toContain('const persist = async (): Promise<boolean> => {');
+    // The page builds the payload from the live store, not from a snapshot.
+    // payload 里只剩 `data` —— 草稿修订号（锁的令牌）已删。
+    expect(pageSource).toContain('buildPayload: () => ({ data: editor.toDraft() })');
+    expect(pageSource).not.toContain('updatedAt: editor.updatedAt');
+    // A dirty canvas is saved before the server-side resize re-seeds it.
+    expect(resizeHookSource).toContain('if (dirty) await persist();');
+  });
+
+  it('entering the editor never triggers a save by itself', () => {
+    // FIX-F03 的「首次进入自动保存」整条移除：它在快速点击同一条目时会跟着
+    // query 失效反复触发，写出一连串草稿修订。现在进编辑器只 init，不写。
+    expect(pageSource).not.toContain('basicInfoPersistedRef');
+    expect(pageSource).not.toContain('已保存默认地图基本信息');
+    expect(pageSource).not.toContain('useEditorStore.getState()');
+    // 未初始化的地图走初始化弹窗，那两条出路都是用户显式动作。fork 态
+    // （`?v=`）跳过这条 —— 画布来自版本快照，与草稿初始化与否无关。
+    expect(pageSource).toContain('if (forkFrom === null && mapQuery.data?.draft == null) {');
+    expect(pageSource).toContain('<MapInitDialog');
+    expect(pageSource).toContain('onInitSize={handleInitSize}');
+    expect(pageSource).toContain('onImport={handleInitImport}');
+  });
+
+  it('an uninitialised draft is never fed to editor.init', () => {
+    expect(pageSource).toContain('if (data.draft === null) return;');
+  });
+});

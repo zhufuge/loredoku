@@ -6,8 +6,8 @@ import { resolveEditorInit, type EditorInitInput } from './editorInit';
  * 「什么都没变 → none」。草稿内容不参与判定。
  */
 const base: EditorInitInput = {
-  loadedProjectId: 7,
-  projectId: 7,
+  loadedMapId: 7,
+  mapId: 7,
   storedVersionNo: null,
   fetchedVersionNo: null,
   storedStatus: 'draft',
@@ -41,8 +41,8 @@ describe('resolveEditorInit (FIX-E01)', () => {
   });
 
   it('re-initialises when a different map is loaded', () => {
-    expect(resolveEditorInit({ ...base, loadedProjectId: 3 })).toBe('init');
-    expect(resolveEditorInit({ ...base, loadedProjectId: null })).toBe('init');
+    expect(resolveEditorInit({ ...base, loadedMapId: 3 })).toBe('init');
+    expect(resolveEditorInit({ ...base, loadedMapId: null })).toBe('init');
   });
 
   it('改名 / 换封面不会再重建画布（判定里已无修订号）', () => {
@@ -50,8 +50,8 @@ describe('resolveEditorInit (FIX-E01)', () => {
     expect(Object.keys(base).sort()).toEqual([
       'fetchedStatus',
       'fetchedVersionNo',
-      'loadedProjectId',
-      'projectId',
+      'loadedMapId',
+      'mapId',
       'storedStatus',
       'storedVersionNo',
     ]);

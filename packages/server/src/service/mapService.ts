@@ -1,23 +1,52 @@
-import { ErrorCode, GRID_SIZE_DEFAULT } from '@loredoku/shared';
 import type {
-  DraftRegion,
-  MapDraft,
-  MapResponse,
-  ProjectRow,
-  ResizeResult,
-  SaveMapDraftInput,
+  CreateMapInput,
+  ListMapsQuery,
+  MapEntrySummary,
+  MapEntry,
+  MapDetail,
+  PublishedMapVersion,
+  UpdateMapInput,
 } from '@loredoku/shared';
-import * as mapRepo from '../repository/mapRepository';
-import { toProject } from '../repository/projectRepository';
-import * as itemRepo from '../repository/itemRepository';
+import * as repo from '../repository/mapRepository';
+import * as versionRepo from '../repository/versionRepository';
 import { AppError } from '../utils/AppError';
+import { processMapCover } from '../utils/image';
+
+/** Raised when `POST /api/maps/:id/cover` arrives without a file part. */
+export function coverRequired(): AppError {
+  return AppError.validation('请选择封面图片');
+}
 
 /**
- * 合并后版本行也是合法的 `maps` 行，`/api/projects/:id`
- * 的每个写入口都能直达它 —— 合并前它在另一张表，天然免疫。画布 / 尺寸 / 区域
- * 一律只允许写草稿行。
+ * FEAT-K09 (docs/v0.5.0.md §7.1): the list is the **union of work entries and
+ * version entries**, so a `MapDetail[]` is no longer the right shape.
  */
-function assertWritable(row: ProjectRow | undefined): ProjectRow {
+export async function listMapEntries(
+  query: ListMapsQuery & { page: number; pageSize: number },
+): Promise<{ list: MapEntrySummary[]; total: number }> {
+  return repo.listMapEntries(query);
+}
+
+/** FEAT-K03 §2.4: every published map version, for the puzzle picker. */
+export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
+  return repo.listPublishedVersions();
+}
+
+export async function getMapDetail(id: number): Promise<MapDetail> {
+  const row = await repo.findById(id);
+  if (!row) {
+    throw AppError.notFound('地图不存在');
+  }
+  const counts = await repo.getMapCounts(id);
+  return { ...repo.toMapEntry(row), ...counts };
+}
+
+/**
+ * 合并后版本行也是合法的 `maps` 行，改名 / 描
+ * 述 / 封面这些「条目级」写操作必须把版本行拦下来 —— 版本是冻结快照。
+ */
+async function findWritable(id: number): Promise<repo.MapRowWithLineage> {
+  const row = await repo.findById(id);
   if (!row) {
     throw AppError.notFound('地图不存在');
   }
@@ -27,184 +56,101 @@ function assertWritable(row: ProjectRow | undefined): ProjectRow {
   return row;
 }
 
-async function assertValidReferences(draft: MapDraft, size: number): Promise<void> {
-  for (const key of Object.keys(draft.cells)) {
-    const [x, y] = key.split(',').map(Number) as [number, number];
-    if (x < 0 || y < 0 || x >= size || y >= size) {
-      throw AppError.validation(`单元格 (${x}, ${y}) 超出边界`);
-    }
-  }
-
-  for (const region of draft.regions) {
-    for (const [x, y] of region.cells) {
-      if (x < 0 || y < 0 || x >= size || y >= size) {
-        throw AppError.validation(`区域「${region.name}」的单元格 (${x}, ${y}) 超出边界`);
-      }
-    }
-  }
-
-  const itemIds = new Set<number>();
-  for (const key of Object.keys(draft.cells)) {
-    const cell = draft.cells[key];
-    if (!cell) continue;
-    if (cell.object) itemIds.add(cell.object.itemId);
-    if (cell.background) itemIds.add(cell.background.itemId);
-  }
-  const existingItems = await itemRepo.existingItemIds([...itemIds]);
-  const missingItems = [...itemIds].filter((id) => !existingItems.has(id));
-  if (missingItems.length > 0) {
-    throw AppError.validation('存在无效的物品引用', missingItems);
-  }
-  // the roster left the map (it belongs to the puzzle), so there is
-  // nothing character-shaped to validate here any more.
+/**
+ * **名称可以重复**。一个血统里「草稿 + 发布过的一堆版本」本来同名，用户凭
+ * 版本号与更新时间区分；创建 / 改名都不查重，DB 侧也没有唯一约束。
+ */
+export async function createMap(input: CreateMapInput): Promise<MapEntry> {
+  return repo.createMap({
+    name: input.name,
+    description: input.description ?? null,
+  });
 }
 
-function assertNoRegionOverlap(regions: DraftRegion[]): void {
-  const owner = new Map<string, string>();
-  for (const region of regions) {
-    for (const [x, y] of region.cells) {
-      const key = `${x},${y}`;
-      const previous = owner.get(key);
-      if (previous) {
-        throw new AppError(
-          ErrorCode.REGION_OVERLAP,
-          `单元格 (${x}, ${y}) 同时属于「${previous}」与「${region.name}」`,
-        );
-      }
-      owner.set(key, region.name);
-    }
+export async function updateMap(id: number, input: UpdateMapInput): Promise<MapEntry> {
+  await findWritable(id);
+  const updated = await repo.updateMap(id, input);
+  if (!updated) {
+    throw AppError.notFound('地图不存在');
   }
+  return updated;
 }
 
-export async function getMap(projectId: number): Promise<MapResponse> {
-  const row = await mapRepo.getProjectRow(projectId);
+/**
+ * `DELETE /api/maps/:id` 对两种行分流（设计 §5.1）：草稿行**硬删**（不牵连
+ * 版本），版本行**软删**（界面消失、数据保留、号仍占 MAX）。版本删除另有专属
+ * 端点，这里兜住「拿着版本行 id 直接调通用删除」的情况。
+ */
+export async function deleteMap(id: number): Promise<void> {
+  const row = await repo.findById(id);
   if (!row) {
     throw AppError.notFound('地图不存在');
   }
-  const record = await mapRepo.getDraft(projectId);
-  if (!record) {
-    throw AppError.notFound('地图不存在');
-  }
-  return { project: toProject(row), draft: record.draft };
-}
-
-export async function saveMap(projectId: number, input: SaveMapDraftInput): Promise<MapResponse> {
-  assertWritable(await mapRepo.getProjectRow(projectId));
-
-  // 尺寸只认草稿自己带的那一份（DB 没有尺寸列），越界由
-  // assertValidReferences 按同一个值检查。
-  const draft: MapDraft = { ...input.data };
-  await assertValidReferences(draft, draft.gridSize);
-  assertNoRegionOverlap(draft.regions);
-
-  // 后写覆盖：不做并发比对。
-  const saved = await mapRepo.saveDraft(projectId, draft);
-  if (!saved) {
-    throw AppError.notFound('地图不存在');
-  }
-  const fresh = await mapRepo.getProjectRow(projectId);
-  if (!fresh) {
-    throw AppError.notFound('地图不存在');
-  }
-  return { project: toProject(fresh), draft: saved.draft };
-}
-
-export async function updateGridSize(projectId: number, gridSize: number): Promise<ResizeResult> {
-  assertWritable(await mapRepo.getProjectRow(projectId));
-  const outcome = await mapRepo.resizeDraft(projectId, gridSize);
-  if (!outcome || outcome.record.draft === null) {
-    throw AppError.notFound('地图不存在');
-  }
-  // resizeDraft 一定会写回一个带 gridSize 的草稿，所以这里非空。
-  return { gridSize: outcome.record.draft.gridSize, removed: outcome.removed };
-}
-
-export async function exportMap(projectId: number): Promise<MapDraft> {
-  const record = await mapRepo.getDraft(projectId);
-  if (!record) {
-    throw AppError.notFound('地图不存在');
-  }
-  // 未初始化的地图导出一份空草稿，比报错更符合「导出」的语义。
-  return record.draft ?? mapRepo.emptyDraft(GRID_SIZE_DEFAULT);
-}
-
-export async function importMap(projectId: number, data: MapDraft): Promise<MapResponse> {
-  const row = assertWritable(await mapRepo.getProjectRow(projectId));
-  await assertValidReferences(data, data.gridSize);
-  assertNoRegionOverlap(data.regions);
-  const saved = await mapRepo.overwriteDraft(projectId, data);
-  if (!saved) {
-    throw AppError.notFound('地图不存在');
-  }
-  return { project: toProject(row), draft: saved.draft };
-}
-
-export async function listRegions(projectId: number): Promise<DraftRegion[]> {
-  const row = await mapRepo.getProjectRow(projectId);
-  if (!row) {
-    throw AppError.notFound('地图不存在');
-  }
-  return mapRepo.listRegions(projectId);
-}
-export async function createRegion(
-  projectId: number,
-  input: Omit<DraftRegion, 'id'> & { id?: string },
-): Promise<DraftRegion> {
-  assertWritable(await mapRepo.getProjectRow(projectId));
-  const record = await mapRepo.getDraft(projectId);
-  if (!record) {
-    throw AppError.notFound('地图不存在');
-  }
-  const size = record.draft?.gridSize ?? GRID_SIZE_DEFAULT;
-  for (const [x, y] of input.cells) {
-    if (x < 0 || y < 0 || x >= size || y >= size) {
-      throw AppError.validation(`区域单元格 (${x}, ${y}) 超出边界`);
+  if (row.version !== 'draft') {
+    const removed = await versionRepo.deleteVersion(id, Number(row.version));
+    if (!removed) {
+      throw AppError.notFound('地图不存在');
     }
+    return;
   }
-  const existing = await mapRepo.listRegions(projectId);
-  assertNoRegionOverlap([...existing, { ...input, id: input.id ?? '__new__' }]);
-  const created = await mapRepo.createRegion(projectId, input);
+  const deleted = await repo.deleteMap(id);
+  if (!deleted) {
+    throw AppError.notFound('地图不存在');
+  }
+}
+
+export async function duplicateMap(id: number): Promise<MapEntry> {
+  const source = await findWritable(id);
+  const name = await uniqueCopyName(source.name);
+  const created = await repo.duplicateMap(id, name);
   if (!created) {
     throw AppError.notFound('地图不存在');
   }
   return created;
 }
 
-export async function updateRegion(
-  projectId: number,
-  regionId: string,
-  patch: Partial<Omit<DraftRegion, 'id'>>,
-): Promise<DraftRegion> {
-  assertWritable(await mapRepo.getProjectRow(projectId));
-  const record = await mapRepo.getDraft(projectId);
-  if (!record) {
-    throw AppError.notFound('地图不存在');
+/**
+ * 复制 / fork 的取名兜底：`{base} 副本`、`{base} 副本 2`… 直到不撞名。
+ * fork 也走它（以「{name} (自 v{n})」为 base），故导出复用。
+ */
+export async function uniqueCopyName(baseName: string): Promise<string> {
+  let candidate = `${baseName} 副本`;
+  let index = 2;
+  while (await repo.existsByName(candidate)) {
+    candidate = `${baseName} 副本 ${index}`;
+    index += 1;
   }
-  const size = record.draft?.gridSize ?? GRID_SIZE_DEFAULT;
-  const region = await mapRepo.findRegion(projectId, regionId);
-  if (!region) {
-    throw AppError.notFound('区域不存在');
-  }
-  if (patch.cells) {
-    for (const [x, y] of patch.cells) {
-      if (x < 0 || y < 0 || x >= size || y >= size) {
-        throw AppError.validation(`区域单元格 (${x}, ${y}) 超出边界`);
-      }
-    }
-    const others = (await mapRepo.listRegions(projectId)).filter((item) => item.id !== regionId);
-    assertNoRegionOverlap([...others, { ...region, ...patch, id: regionId }]);
-  }
-  const updated = await mapRepo.updateRegion(projectId, regionId, patch);
-  if (!updated) {
-    throw AppError.notFound('区域不存在');
-  }
-  return updated;
+  return candidate;
 }
 
-export async function deleteRegion(projectId: number, regionId: string): Promise<void> {
-  assertWritable(await mapRepo.getProjectRow(projectId));
-  const removed = await mapRepo.deleteRegion(projectId, regionId);
-  if (!removed) {
-    throw AppError.notFound('区域不存在');
+/**
+ * `base` 本身不撞名就用它，撞了再走 {@link uniqueCopyName} 的副本序列。
+ * fork 的命名（「{name} (自 v{n})」）—— 血统内多草稿时第二次
+ * fork 同一版本才需要加副本。
+ */
+export async function uniqueName(baseName: string): Promise<string> {
+  if (!(await repo.existsByName(baseName))) return baseName;
+  return uniqueCopyName(baseName);
+}
+
+/**
+ * FEAT-H03 §3.2(c) (docs/v0.4.2.md §3): the cover is a binary file while create /
+ * update are JSON, so it travels in its own multipart request. Both routes
+ * return the refreshed detail, so the card repaints straight from the response.
+ */
+export async function uploadCover(id: number, buffer: Buffer): Promise<MapDetail> {
+  await findWritable(id);
+  const image = await processMapCover(id, buffer);
+  const row = await repo.updateCoverPath(id, image.relativePath);
+  if (!row) {
+    throw AppError.notFound('地图不存在');
   }
+  return getMapDetail(id);
+}
+
+/** FEAT-H03 §3.2a: the explicit "remove" button — `cover_path` goes back to NULL. */
+export async function removeCover(id: number): Promise<MapDetail> {
+  await findWritable(id);
+  await repo.updateCoverPath(id, null);
+  return getMapDetail(id);
 }

@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 
 /**
- * the keyboard flow both editors share, lifted out of `EditorPage` /
+ * the keyboard flow both editors share, lifted out of `MapEditorPage` /
  * `PuzzleEditorPage`.
  *
  * The shared keys are the ones that mean the same thing on both canvases:

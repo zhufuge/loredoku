@@ -2,28 +2,28 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MapResponse, Project } from '@loredoku/shared';
-import { mapApi } from '@/api/map';
+import type { MapResponse, MapEntry } from '@loredoku/shared';
+import { mapCanvasApi } from '@/api/mapCanvas';
 import { mapsApi } from '@/api/maps';
-import { useProjectMap } from './useMap';
-import { mapEntryKeys, mapKeys, useUpdateMap } from './useMaps';
+import { useMapCanvas } from './useMapCanvas';
+import { mapKeys, mapCanvasKeys, useUpdateMap } from './useMaps';
 
 /**
  * 改名要顺带把编辑器的缓存也打脏。
  *
- * 编辑器标题读的是 `GET /projects/:id/map` 里的 `project` 快照，而那份查询挂
- * 着 `staleTime: Infinity`：只失效列表（`mapEntryKeys`）时，从列表改完名再进
+ * 编辑器标题读的是 `GET /maps/:id/map` 里的 `map` 快照，而那份查询挂
+ * 着 `staleTime: Infinity`：只失效列表（`mapKeys`）时，从列表改完名再进
  * 编辑器，标题仍是旧名，直到整页刷新。
  */
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/api/maps', () => ({
   mapsApi: { update: vi.fn() },
 }));
-vi.mock('@/api/map', () => ({
-  mapApi: { get: vi.fn() },
+vi.mock('@/api/mapCanvas', () => ({
+  mapCanvasApi: { get: vi.fn() },
 }));
 
-const oldProject: Project = {
+const oldMapEntry: MapEntry = {
   id: 7,
   name: '旧名',
   description: null,
@@ -37,7 +37,7 @@ const oldProject: Project = {
   updatedAt: '2026-10-01T00:00:00.000Z',
 };
 
-const newProject: Project = { ...oldProject, name: '新名' };
+const newMapEntry: MapEntry = { ...oldMapEntry, name: '新名' };
 
 describe('useUpdateMap', () => {
   let container: HTMLDivElement;
@@ -54,8 +54,8 @@ describe('useUpdateMap', () => {
 
   /** 只挂「编辑器读取」，用于观察重取之后的标题。 */
   function EditorProbe(): JSX.Element {
-    const { data } = useProjectMap(7);
-    return <span>{data?.project.name ?? '加载中'}</span>;
+    const { data } = useMapCanvas(7);
+    return <span>{data?.map.name ?? '加载中'}</span>;
   }
 
   function render(node: JSX.Element): void {
@@ -70,10 +70,10 @@ describe('useUpdateMap', () => {
     root = createRoot(container);
     client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     rename = null;
-    vi.mocked(mapsApi.update).mockResolvedValue(newProject);
-    vi.mocked(mapApi.get).mockResolvedValue({ project: newProject, draft: null } as MapResponse);
-    client.setQueryData<MapResponse>(mapKeys.detail(7), { project: oldProject, draft: null });
-    client.setQueryData(mapEntryKeys.detail(7), oldProject);
+    vi.mocked(mapsApi.update).mockResolvedValue(newMapEntry);
+    vi.mocked(mapCanvasApi.get).mockResolvedValue({ map: newMapEntry, draft: null } as MapResponse);
+    client.setQueryData<MapResponse>(mapCanvasKeys.detail(7), { map: oldMapEntry, draft: null });
+    client.setQueryData(mapKeys.detail(7), oldMapEntry);
   });
 
   afterEach(() => {
@@ -85,14 +85,14 @@ describe('useUpdateMap', () => {
 
   it('改名后 /map 缓存与列表缓存一起失效', async () => {
     render(<RenameProbe />);
-    expect(client.getQueryState(mapKeys.detail(7))?.isInvalidated).toBe(false);
+    expect(client.getQueryState(mapCanvasKeys.detail(7))?.isInvalidated).toBe(false);
 
     await act(async () => {
       await rename?.();
     });
 
+    expect(client.getQueryState(mapCanvasKeys.detail(7))?.isInvalidated).toBe(true);
     expect(client.getQueryState(mapKeys.detail(7))?.isInvalidated).toBe(true);
-    expect(client.getQueryState(mapEntryKeys.detail(7))?.isInvalidated).toBe(true);
   });
 
   it('改完名再进编辑器会重取，标题跟着新名字走', async () => {
@@ -107,6 +107,6 @@ describe('useUpdateMap', () => {
     await vi.waitFor(() => {
       expect(container.textContent).toBe('新名');
     });
-    expect(mapApi.get).toHaveBeenCalledWith(7);
+    expect(mapCanvasApi.get).toHaveBeenCalledWith(7);
   });
 });

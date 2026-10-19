@@ -3,7 +3,7 @@ import type {
   MapVersionDetail,
   MapVersionEntry,
   MapVersionSummary,
-  ProjectDetail,
+  MapDetail,
 } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPost } from './client';
 
@@ -18,16 +18,16 @@ export const versionsApi = {
    */
   publish(id: number, version?: number): Promise<MapVersionSummary> {
     return apiPost<MapVersionSummary>(
-      `/projects/${id}/versions`,
+      `/maps/${id}/versions`,
       version === undefined ? {} : { version },
     );
   },
   /** SPEC-K13 §7.4: the whole blood lineage, each entry naming its owner row. */
   list(id: number): Promise<MapVersionEntry[]> {
-    return apiGet<MapVersionEntry[]>(`/projects/${id}/versions`);
+    return apiGet<MapVersionEntry[]>(`/maps/${id}/versions`);
   },
   detail(id: number, versionNo: number): Promise<MapVersionDetail> {
-    return apiGet<MapVersionDetail>(`/projects/${id}/versions/${versionNo}`);
+    return apiGet<MapVersionDetail>(`/maps/${id}/versions/${versionNo}`);
   },
   /**
    * SPEC-K11 (Q3 = B): 「编辑此版本」 opens a **new work entry** in the same
@@ -37,10 +37,10 @@ export const versionsApi = {
    * `data` 可选 —— 版本条目进编辑器后「保存时才生成草稿」，
    * 编辑器那一刻的画布随 fork 一起写进新行；不传则用快照 data。
    */
-  fork(id: number, versionNo: number, data?: MapDraft): Promise<ProjectDetail> {
-    return apiPost<ProjectDetail>(`/projects/${id}/versions/${versionNo}/fork`, data ? { data } : {});
+  fork(id: number, versionNo: number, data?: MapDraft): Promise<MapDetail> {
+    return apiPost<MapDetail>(`/maps/${id}/versions/${versionNo}/fork`, data ? { data } : {});
   },
   remove(id: number, versionNo: number): Promise<null> {
-    return apiDelete<null>(`/projects/${id}/versions/${versionNo}`);
+    return apiDelete<null>(`/maps/${id}/versions/${versionNo}`);
   },
 };

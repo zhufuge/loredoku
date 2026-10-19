@@ -6,9 +6,9 @@ import type {
   ItemFitMode,
   MapDraft,
 } from './domain';
-import type { PROJECT_STATUSES } from '../constants';
+import type { MAP_STATUSES } from '../constants';
 
-export interface ProjectRow {
+export interface MapRow {
   id: string | number;
   name: string;
   description: string | null;
@@ -125,7 +125,7 @@ export interface PuzzleRow {
   grid_size: number;
   /** `PuzzleDraft`; read through `absorbLegacyPuzzleDraft` before parsing. */
   data: unknown;
-  status: (typeof PROJECT_STATUSES)[number];
+  status: (typeof MAP_STATUSES)[number];
   created_at: Date | string;
   updated_at: Date | string;
 }

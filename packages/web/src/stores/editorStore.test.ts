@@ -241,7 +241,7 @@ describe('init', () => {
     ];
     store().init(9, loaded, { currentVersionNo: 2, status: 'published' });
 
-    expect(store().projectId).toBe(9);
+    expect(store().mapId).toBe(9);
     expect(store().gridSize).toBe(4);
     expect(store().cells.get('0,0')?.object?.itemId).toBe(3);
     expect(store().regions).toHaveLength(1);
