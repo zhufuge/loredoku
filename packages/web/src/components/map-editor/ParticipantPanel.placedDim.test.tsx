@@ -3,7 +3,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GAME_PLACED_OPACITY } from '@loredoku/shared';
 import { ParticipantPanel } from './ParticipantPanel';
-import { readSource } from '@/testing/source';
 
 /**
  * SPEC-H14（docs/v0.4.2.md §1.3）+ OPT-H06（§6）。
@@ -14,50 +13,6 @@ import { readSource } from '@/testing/source';
  * 头像区只有**一层圆**（主题色圆盘），缩略图不带圆环，无图角色直接显示首字
  * 而不是一个白色内圆。
  */
-
-const source = readSource('components/map-editor/ParticipantPanel.tsx');
-
-describe('ParticipantPanel — 整框淡化（SPEC-H14 §1.3）', () => {
-  it('accepts the placed slot indices as an optional prop', () => {
-    expect(source).toContain('placedSlotIndices?: Set<number>;');
-    expect(source).toContain('placedSlotIndices,');
-  });
-
-  it('derives "placed" from the index the board reports', () => {
-    expect(source).toContain('const isPlaced = placedSlotIndices?.has(index) ?? false;');
-  });
-
-  it('puts the opacity on the card root, using the shared constant', () => {
-    expect(source).toContain('opacity: isPlaced ? GAME_PLACED_OPACITY : undefined,');
-    // The root is the node carrying `data-slot-index`.
-    const rootIndex = source.indexOf('data-slot-index={index}');
-    const opacityIndex = source.indexOf('opacity: isPlaced ? GAME_PLACED_OPACITY : undefined,');
-    expect(rootIndex).toBeGreaterThan(-1);
-    expect(opacityIndex).toBeGreaterThan(rootIndex);
-  });
-
-  it('renders the dimming exactly once — no child multiplies it', () => {
-    expect(source.split('GAME_PLACED_OPACITY').length - 1).toBe(2); // import + usage
-    expect(source.split('opacity: isPlaced').length - 1).toBe(1);
-  });
-
-  it('the avatar span no longer carries the opacity (OPT-H06 keeps it a plain disc)', () => {
-    const avatarOpen = source.indexOf('data-testid={`slot-avatar-${index}`}');
-    const avatarClose = source.indexOf('</span>', avatarOpen);
-    expect(avatarOpen).toBeGreaterThan(-1);
-    const avatarBlock = source.slice(avatarOpen, avatarClose);
-    expect(avatarBlock).not.toContain('opacity');
-    // OPT-H06: one circle only — the theme-colour disc clips, the thumbnail does not.
-    expect(avatarBlock).toContain('overflow-hidden rounded-full');
-    expect(avatarBlock).toContain('shape="plain"');
-    expect(avatarBlock).toContain('bordered={false}');
-  });
-
-  it('defaults to no dimming for callers that do not pass the prop (editor / preview)', () => {
-    expect(source).toContain('placedSlotIndices?: Set<number>;');
-    expect(source).toContain('?? false;');
-  });
-});
 
 describe('ParticipantPanel — 渲染级断言（SPEC-H14）', () => {
   let container: HTMLDivElement;

@@ -1,20 +1,14 @@
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
 import {
-  ASSET_SIZE_MAX,
-  ASSET_SIZE_MIN,
   ASSET_TYPES,
   ASSET_TYPE_LABELS,
-  DEFAULT_BG_COLOR,
-  UPLOAD_MAX_SIZE,
+  DEFAULT_ASSET_FORM_NAME,
+  assetHasAppearance,
   blockingFor,
-  hasAppearance,
-  type AppearanceMode,
   type Asset,
-  type AssetType,
-  type AssetFitMode,
+  type AssetForm,
 } from '@loredoku/shared';
-import { AppearanceField } from '@/components/appearance/AppearanceField';
+import { AssetFormCard } from '@/components/asset/AssetFormCard';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -27,13 +21,12 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ImageUploader } from '@/components/asset/ImageUploader';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
 import {
-  useDeleteAssetImage,
+  useCreateAssetForm,
+  useDeleteAssetForm,
   useSetAssetActive,
   useUpdateAsset,
-  useUploadAssetImage,
 } from '@/hooks/useAssets';
 
 /** FEAT-O11: the type as radio buttons (背景 / 物品). */
@@ -42,51 +35,44 @@ const ASSET_TYPE_OPTIONS = ASSET_TYPES.map((value) => ({
   label: ASSET_TYPE_LABELS[value],
 }));
 
-const FIT_MODE_LABELS: Record<AssetFitMode, string> = {
-  cover: '裁切填满（cover）',
-  contain: '完整留白（contain）',
-};
-
 interface AssetDetailFormProps {
   asset: Asset;
   onRequestDelete: (asset: Asset) => void;
 }
 
+/**
+ * v0.6.1 (docs/v0.6.1.md §8.4): the pane splits in two.
+ *
+ * - **资源区** — identity and behaviour only: name / type / blocking.
+ * - **形态区** — one card per form; each card owns its look and footprint.
+ *
+ * The split mirrors the data: an asset is 「what it is」, a form is 「how it
+ * looks and how many cells it covers」. Both types get the same treatment — a
+ * background asset may own several forms as well; only its footprint stays
+ * pinned at 1×1, which `AssetFormCard` hides rather than lies about.
+ */
 export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps): JSX.Element {
   const [name, setName] = useState(asset.name);
   const [type, setType] = useState(asset.type);
-  const [widthCells, setWidthCells] = useState(asset.widthCells);
-  const [heightCells, setHeightCells] = useState(asset.heightCells);
   const [blocking, setBlocking] = useState(asset.blocking);
-  const [fitMode, setFitMode] = useState<AssetFitMode>(asset.fitMode);
-  // v0.5.1 FEAT-L01: image mode by default; a stored colour means colour block.
-  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(
-    asset.bgColor ? 'color' : 'image',
-  );
-  const [bgColor, setBgColor] = useState(asset.bgColor ?? DEFAULT_BG_COLOR);
-  const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<AssetForm | null>(null);
 
   const updateMutation = useUpdateAsset();
-  const uploadMutation = useUploadAssetImage();
-  const deleteImageMutation = useDeleteAssetImage();
   const activeMutation = useSetAssetActive();
+  const createFormMutation = useCreateAssetForm();
+  const deleteFormMutation = useDeleteAssetForm();
 
   useEffect(() => {
     setName(asset.name);
     setType(asset.type);
-    setWidthCells(asset.widthCells);
-    setHeightCells(asset.heightCells);
     setBlocking(asset.blocking);
-    setFitMode(asset.fitMode);
-    setAppearanceMode(asset.bgColor ? 'color' : 'image');
-    setBgColor(asset.bgColor ?? DEFAULT_BG_COLOR);
   }, [asset.id, asset.updatedAt]);
 
   const saving = updateMutation.isPending;
-  // v0.5.1 FEAT-L01: an uploaded image **or** a colour block can be activated.
-  const activatable = hasAppearance(Boolean(asset.imageUrl), asset.bgColor);
-  // v0.5.2 FEAT-M04: 「阻挡」 is meaningless for a background asset.
+  // v0.6.1: an asset needs a look somewhere before it can be enabled.
+  const activatable = assetHasAppearance(asset);
   const blockable = type === 'item';
+  const canDeleteForm = asset.forms.length > 1;
 
   const handleSave = async (): Promise<void> => {
     try {
@@ -95,17 +81,27 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
         payload: {
           name: name.trim(),
           type,
-          widthCells,
-          heightCells,
           blocking: blockingFor(type, blocking),
-          fitMode,
-          // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
-          bgColor: appearanceMode === 'color' ? bgColor : null,
         },
       });
     } catch {
       return;
     }
+  };
+
+  /** 新形态默认 1×1，名字取「形态 N」，撞名由服务端 409 兜底。 */
+  const handleAddForm = (): void => {
+    const taken = new Set(asset.forms.map((form) => form.name));
+    let suggestion = DEFAULT_ASSET_FORM_NAME;
+    let index = asset.forms.length + 1;
+    while (taken.has(suggestion)) {
+      suggestion = `形态 ${index}`;
+      index += 1;
+    }
+    createFormMutation.mutate({
+      assetId: asset.id,
+      payload: { name: suggestion, widthCells: 1, heightCells: 1 },
+    });
   };
 
   return (
@@ -137,7 +133,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
               <Button
                 variant="outline"
                 disabled={activeMutation.isPending || !activatable}
-                title={activatable ? undefined : '请先上传图片或选择纯色块颜色后再启用'}
+                title={activatable ? undefined : '请先给至少一个形态上传图片或选择纯色块颜色后再启用'}
                 onClick={() => activeMutation.mutate({ id: asset.id, active: true })}
               >
                 启用
@@ -154,7 +150,8 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
         </div>
       </div>
 
-      <div className="grid gap-4">
+      <section className="grid gap-4">
+        <h3 className="text-sm font-medium text-muted-foreground">基本信息</h3>
         <div className="grid gap-2">
           <Label>名称</Label>
           <Input
@@ -175,30 +172,8 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
               onChange={(next) => setType(next as Asset['type'])}
             />
           </div>
-          <div className="grid gap-2">
-            <Label>占格宽</Label>
-            <Input
-              type="number"
-              min={1}
-              max={12}
-              value={widthCells}
-              onChange={(event) => setWidthCells(Number(event.target.value))}
-            />
-          </div>
-          <div className="grid gap-2">
-            <Label>占格高</Label>
-            <Input
-              type="number"
-              min={1}
-              max={12}
-              value={heightCells}
-              onChange={(event) => setHeightCells(Number(event.target.value))}
-            />
-          </div>
           {/* v0.5.2 FEAT-M04: a background asset is never blocking, so the
-              checkbox would be a lie — it is only offered for 物品.
-              FIX-O08 (docs/v0.5.4.md §5.1): the 「背景类型恒定不阻挡」 caption
-              is gone — the rule still holds, it just no longer explains itself. */}
+              checkbox would be a lie — it is only offered for 物品. */}
           {blockable ? (
             <label className="mt-6 flex items-center gap-2 text-sm">
               <input
@@ -212,75 +187,71 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
           ) : null}
         </div>
 
-        <div className="grid gap-2">
-          <Label>图片填充方式</Label>
-          <select
-            value={fitMode}
-            onChange={(event) => setFitMode(event.target.value as AssetFitMode)}
-            className="h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        <div className="flex justify-end border-t pt-4">
+          <Button onClick={() => void handleSave()} disabled={saving}>
+            {saving ? '保存中…' : '保存'}
+          </Button>
+        </div>
+      </section>
+
+      <section className="grid gap-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-sm font-medium">形态</h3>
+            <p className="text-xs text-muted-foreground">
+              每个形态有自己的外观与占格；放置时可任选其一。
+            </p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={createFormMutation.isPending}
+            onClick={handleAddForm}
           >
-            {(['cover', 'contain'] as AssetFitMode[]).map((value) => (
-              <option key={value} value={value}>
-                {FIT_MODE_LABELS[value]}
-              </option>
-            ))}
-          </select>
+            {createFormMutation.isPending ? '添加中…' : '添加形态'}
+          </Button>
         </div>
 
-        <AppearanceField
-          mode={appearanceMode}
-          onModeChange={setAppearanceMode}
-          bgColor={bgColor}
-          onBgColorChange={setBgColor}
-        >
-          <ImageUploader
-            imageUrl={asset.imageUrl}
-            thumbUrl={asset.imageThumbUrl}
-            width={asset.imageWidth}
-            height={asset.imageHeight}
-            size={asset.imageSize}
-            uploading={uploadMutation.isPending}
-            deleting={deleteImageMutation.isPending}
-            onUpload={(file) => uploadMutation.mutate({ id: asset.id, file })}
-            onDelete={() => setConfirmDeleteImage(true)}
-          />
-        </AppearanceField>
-      </div>
-
-      <div className="flex justify-end gap-2 border-t pt-4">
-        <Button onClick={() => void handleSave()} disabled={saving}>
-          {saving ? '保存中…' : '保存'}
-        </Button>
-      </div>
+        <div className="grid gap-3">
+          {asset.forms.map((form) => (
+            <AssetFormCard
+              key={form.id}
+              asset={asset}
+              form={form}
+              canDelete={canDeleteForm}
+              onRequestDelete={setDeleteTarget}
+            />
+          ))}
+        </div>
+      </section>
 
       <AlertDialog
-        open={confirmDeleteImage}
+        open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open && !deleteImageMutation.isPending) setConfirmDeleteImage(false);
+          if (!open && !deleteFormMutation.isPending) setDeleteTarget(null);
         }}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>删除图片？</AlertDialogTitle>
+            <AlertDialogTitle>删除形态「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
-              {/* v0.5.1 FEAT-L01: a colour block does not depend on the image. */}
-              {asset.bgColor
-                ? '该资源是纯色块，删除图片后仍可继续启用。'
-                : '删除图片后，该资源将自动停用。'}
+              画布上已放置的占位不受影响；若该形态正被地图使用，服务端会拒绝删除。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteImageMutation.isPending}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteFormMutation.isPending}>取消</AlertDialogCancel>
             <Button
               variant="destructive"
-              disabled={deleteImageMutation.isPending}
-              onClick={() =>
-                deleteImageMutation.mutate(asset.id, {
-                  onSuccess: () => setConfirmDeleteImage(false),
-                })
-              }
+              disabled={deleteFormMutation.isPending}
+              onClick={() => {
+                if (!deleteTarget) return;
+                deleteFormMutation.mutate(
+                  { assetId: asset.id, formId: deleteTarget.id },
+                  { onSuccess: () => setDeleteTarget(null) },
+                );
+              }}
             >
-              {deleteImageMutation.isPending ? '删除中…' : '删除并停用'}
+              {deleteFormMutation.isPending ? '删除中…' : '删除'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

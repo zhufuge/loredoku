@@ -6,7 +6,6 @@ import {
   ASSET_CODE_PATTERN,
   ASSET_FIT_MODES,
   ASSET_NAME_MAX_LENGTH,
-  ASSET_SIZE_DEFAULT,
   ASSET_SIZE_MAX,
   ASSET_SIZE_MIN,
   ASSET_TYPES,
@@ -41,15 +40,19 @@ export const assetSizeSchema = z.number().int().min(ASSET_SIZE_MIN).max(ASSET_SI
  *
  * v0.5.2 FEAT-M04: both schemas normalise `blocking` through `blockingFor`, so
  * a background asset never blocks no matter what the caller sent.
+ *
+ * v0.6.1: the footprint and the appearance belong to a **form**, so they left
+ * the asset payload. Creating an asset still takes the initial form's
+ * appearance (`bgColor` / `fitMode`) — the server writes them into the single
+ * 1×1 「默认」 form it creates alongside (docs/v0.6.1.md §5.2).
  */
 export const createAssetSchema = z
   .object({
     code: assetCodeSchema,
     name: z.string().trim().min(1, '资源名称不能为空').max(ASSET_NAME_MAX_LENGTH),
     type: assetTypeSchema.default(DEFAULT_ASSET_TYPE),
-    widthCells: assetSizeSchema.default(ASSET_SIZE_DEFAULT),
-    heightCells: assetSizeSchema.default(ASSET_SIZE_DEFAULT),
     blocking: z.boolean().default(false),
+    /** The initial form's fill mode; the rest of its look is uploaded later. */
     fitMode: assetFitModeSchema.default(DEFAULT_ASSET_FIT_MODE),
     /** v0.5.1 FEAT-L01: colour-block colour; `null` keeps the image mode. */
     bgColor: bgColorSchema,
@@ -62,16 +65,16 @@ export const createAssetSchema = z
   })
   .transform((value) => ({ ...value, blocking: blockingFor(value.type, value.blocking) }));
 
+/**
+ * v0.6.1: `widthCells` / `heightCells` / `fitMode` / `bgColor` are gone — with
+ * several forms per asset, "the asset's footprint" is no longer a thing. Use
+ * `PATCH /api/assets/:id/forms/:formId` instead.
+ */
 export const updateAssetSchema = z
   .object({
     name: z.string().trim().min(1).max(ASSET_NAME_MAX_LENGTH).optional(),
     type: assetTypeSchema.optional(),
-    widthCells: assetSizeSchema.optional(),
-    heightCells: assetSizeSchema.optional(),
     blocking: z.boolean().optional(),
-    fitMode: assetFitModeSchema.optional(),
-    /** v0.5.1 FEAT-L01: pass `null` to drop back to the image mode. */
-    bgColor: bgColorSchema,
     isActive: z.boolean().optional(),
   })
   .transform((value) =>

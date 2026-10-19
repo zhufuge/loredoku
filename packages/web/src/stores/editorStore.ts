@@ -67,6 +67,8 @@ export interface EditorState {
   selection: Selection | null;
   selectedRegionId: string | null;
   selectedAssetId: number | null;
+  /** v0.6.1: the palette selects an asset **and** one of its forms. */
+  selectedFormId: number | null;
   regionDraftSelection: Set<string>;
   zoom: number;
   pan: { x: number; y: number };
@@ -81,16 +83,26 @@ export interface EditorState {
   setLayer: (layer: EditorLayer) => void;
   setSelection: (selection: Selection | null) => void;
   setSelectedRegion: (id: string | null) => void;
-  setSelectedItem: (id: number | null) => void;
+  /** v0.6.1: pass both, or neither — the selection is the (asset, form) pair. */
+  setSelectedItem: (assetId: number | null, formId?: number | null) => void;
 
   toggleDraftCell: (x: number, y: number) => void;
   addDraftCells: (cells: Array<[number, number]>) => void;
   removeDraftCells: (cells: Array<[number, number]>) => void;
   clearDraftSelection: () => void;
 
-  placeBackground: (assetId: number, x: number, y: number) => void;
+  /**
+   * v0.6.1: the background cell records which form was painted. `formId` is
+   * optional so a payload written before background assets could own several
+   * forms keeps loading — rendering falls back to the asset's first form.
+   */
+  placeBackground: (assetId: number, formId: number | undefined, x: number, y: number) => void;
+  /**
+   * v0.6.1: the caller hands over the chosen **form's** footprint and id; the
+   * anchor freezes all three, so later form edits never move placed items.
+   */
   placeItem: (
-    item: { id: number; widthCells: number; heightCells: number },
+    item: { assetId: number; formId?: number; w: number; h: number },
     x: number,
     y: number,
   ) => void;
@@ -153,6 +165,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     selection: null,
     selectedRegionId: null,
     selectedAssetId: null,
+    selectedFormId: null,
     regionDraftSelection: new Set<string>(),
     zoom: 1,
     pan: { x: 0, y: 0 },
@@ -179,6 +192,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selection: null,
         selectedRegionId: null,
         selectedAssetId: null,
+        selectedFormId: null,
         regionDraftSelection: new Set<string>(),
         zoom: 1,
         pan: { x: 0, y: 0 },
@@ -197,7 +211,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setLayer: (activeLayer) => set({ activeLayer }),
     setSelection: (selection) => set({ selection }),
     setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
-    setSelectedItem: (selectedAssetId) => set({ selectedAssetId }),
+    setSelectedItem: (selectedAssetId, formId = null) =>
+      set({ selectedAssetId, selectedFormId: selectedAssetId === null ? null : formId }),
 
     toggleDraftCell: (x, y) =>
       set((state) => {
@@ -224,22 +239,33 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     clearDraftSelection: () => set({ regionDraftSelection: new Set<string>() }),
 
-    placeBackground: (assetId, x, y) =>
+    placeBackground: (assetId, formId, x, y) =>
       commit((next) => {
         const key = cellKey(x, y);
-        const cell: DraftCell = { ...(next.cells.get(key) ?? {}), background: { assetId } };
+        const cell: DraftCell = {
+          ...(next.cells.get(key) ?? {}),
+          background: {
+            assetId,
+            ...(formId === undefined ? {} : { formId }),
+          },
+        };
         next.cells.set(key, cell);
       }),
 
     placeItem: (item, x, y) =>
       commit((next) => {
-        for (let dy = 0; dy < item.heightCells; dy += 1) {
-          for (let dx = 0; dx < item.widthCells; dx += 1) {
+        for (let dy = 0; dy < item.h; dy += 1) {
+          for (let dx = 0; dx < item.w; dx += 1) {
             const key = cellKey(x + dx, y + dy);
             const cell: DraftCell = { ...(next.cells.get(key) ?? {}) };
             delete cell.item;
             if (dx === 0 && dy === 0) {
-              cell.item = { assetId: item.id, w: item.widthCells, h: item.heightCells };
+              cell.item = {
+                assetId: item.assetId,
+                ...(item.formId === undefined ? {} : { formId: item.formId }),
+                w: item.w,
+                h: item.h,
+              };
             }
             next.cells.set(key, cell);
           }

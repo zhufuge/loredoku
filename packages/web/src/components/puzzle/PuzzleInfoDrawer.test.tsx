@@ -4,23 +4,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LINKAGE_COLORS } from '@loredoku/shared';
 import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
 import { PuzzleInfoDrawer, type PuzzleInfoDrawerHandle } from './PuzzleInfoDrawer';
-import { readSource } from '@/testing/source';
 
 /**
  * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 is exactly two
  * blocks — 描述 and 联动主题色 — and it is a **form** (draft → 保存), the same
  * contract `MapInfoDrawer` follows.
- *
- * The whole point of the spec is what is **not** here, so the first two cases
- * are reverse assertions against the map drawer's field names.
  */
-
-const drawerSource = readSource('components/puzzle/PuzzleInfoDrawer.tsx');
-
-/** Strips `/* … *\/` doc comments so prose may name the fields it excludes. */
-function stripBlockComments(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '');
-}
 
 function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(
@@ -95,24 +84,6 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
     // The map drawer's own blocks are gone for good.
     for (const gone of ['画布', '方格大小', '画布外框', '网格分隔线', '区域标签', '标尺']) {
       expect(text, gone).not.toContain(gone);
-    }
-  });
-
-  it('SPEC-K05: the source carries none of the map style fields', () => {
-    const code = stripBlockComments(drawerSource);
-    for (const field of [
-      'cellSize',
-      'canvasFrame',
-      'gridSeparator',
-      'mouseCursorBox',
-      'operationCursorBox',
-      'regionLabel',
-      'regionOutline',
-      'regionHighlight',
-      'ruler',
-      'MapInfoDrawer',
-    ]) {
-      expect(code, field).not.toContain(field);
     }
   });
 

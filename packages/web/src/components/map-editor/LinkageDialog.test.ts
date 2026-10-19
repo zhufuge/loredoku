@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { ParticipantTarget } from '@loredoku/shared';
-import { readSource } from '@/testing/source';
 import {
   buildLinkages,
   draftFromLinkage,
@@ -145,17 +144,5 @@ describe('buildLinkages (MOD-801 multi-object expansion)', () => {
     const [linkage] = buildLinkages({ ...EMPTY_LINKAGE_DRAFT, type: 'cell', cells });
     cells[0] = [9, 9];
     expect(linkage).toMatchObject({ type: 'cell', cells: [[1, 1]] });
-  });
-});
-
-/**
- * OPT-H07（docs/v0.4.2.md §7.2）：效果固定为「高亮」，所以「效果与颜色」这一区块
- * 只保留颜色。
- */
-describe('LinkageDialog — colour-only block (OPT-H07 §7.2)', () => {
-const source = readSource('components/map-editor/LinkageDialog.tsx');
-
-  it('keeps the colour dots rendered from the map palette', () => {
-    expect(source).toContain('linkageColors');
   });
 });

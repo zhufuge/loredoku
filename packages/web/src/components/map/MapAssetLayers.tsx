@@ -3,6 +3,7 @@ import {
   MAP_LAYER_Z,
   ITEM_HOVER_LIFT_PX,
   ITEM_HOVER_TRANSITION_MS,
+  resolveAssetForm,
   type CellCoord,
   type Asset,
 } from '@loredoku/shared';
@@ -31,17 +32,21 @@ export function MapBackgroundLayer({
       {[...cells.entries()]
         .filter(([, cell]) => cell.background)
         .map(([key, cell]) => {
-          const item = assetsById.get(cell.background!.assetId);
-          if (!item) return null;
+          const asset = assetsById.get(cell.background!.assetId);
+          // v0.6.1 §6.2: `formId` first, first form as the fallback for payloads
+          // written before background assets could own several forms, and for
+          // forms deleted after publication.
+          const look = asset ? resolveAssetForm(asset, cell.background!.formId) : undefined;
+          if (!look) return null;
           const [x, y] = parseKey(key);
-          const src = item.imageThumbUrl ?? item.imageUrl;
+          const src = look.imageThumbUrl ?? look.imageUrl;
           // v0.5.1 FEAT-L01 / SPEC-L03: a colour block fills the cell with its
           // colour — no image needed.
-          const block = item.bgColor ? (
+          const block = look.bgColor ? (
             <div
-              data-color-block={item.bgColor}
+              data-color-block={look.bgColor}
               className="block h-full w-full"
-              style={{ backgroundColor: item.bgColor }}
+              style={{ backgroundColor: look.bgColor }}
             />
           ) : src ? (
             <img
@@ -49,7 +54,7 @@ export function MapBackgroundLayer({
               alt=""
               draggable={false}
               className="block h-full w-full"
-              style={{ objectFit: item.fitMode === 'contain' ? 'contain' : 'cover' }}
+              style={{ objectFit: look.fitMode === 'contain' ? 'contain' : 'cover' }}
             />
           ) : null;
           if (!block) return null;
@@ -107,9 +112,12 @@ export function MapItemLayer({
         .filter(([, cell]) => cell.item)
         .map(([key, cell]) => {
           const anchor = cell.item!;
-          const item = assetsById.get(anchor.assetId);
+          const asset = assetsById.get(anchor.assetId);
+          // v0.6.1 §6.2: `formId` first, first form as the fallback for v4
+          // payloads and for forms deleted after publication.
+          const look = asset ? resolveAssetForm(asset, anchor.formId) : undefined;
           const [x, y] = parseKey(key);
-          const src = item?.imageThumbUrl ?? item?.imageUrl;
+          const src = look?.imageThumbUrl ?? look?.imageUrl;
           const hovered =
             hover !== null &&
             hover.x >= x &&
@@ -118,13 +126,13 @@ export function MapItemLayer({
             hover.y < y + anchor.h;
           // OPT-902: the lift is a picture affordance; a solid block has no
           // artwork to lift, so it stays put.
-          const lifted = hovered && liftOnHover && !item?.bgColor;
+          const lifted = hovered && liftOnHover && !look?.bgColor;
           // v0.5.1 FEAT-L01 / SPEC-L03: colour blocks render as a solid block.
-          const inner = item?.bgColor ? (
+          const inner = look?.bgColor ? (
             <div
-              data-color-block={item.bgColor}
+              data-color-block={look.bgColor}
               className="block h-full w-full"
-              style={{ backgroundColor: item.bgColor }}
+              style={{ backgroundColor: look.bgColor }}
             />
           ) : src ? (
             <img
@@ -134,7 +142,7 @@ export function MapItemLayer({
               className="block h-full w-full"
               style={{
                 // OPT-C06: the item's own fitMode is preserved, never forced.
-                objectFit: item?.fitMode === 'contain' ? 'contain' : 'cover',
+                objectFit: look?.fitMode === 'contain' ? 'contain' : 'cover',
                 transform: lifted ? `translateY(-${ITEM_HOVER_LIFT_PX}px)` : undefined,
                 transition: `transform ${ITEM_HOVER_TRANSITION_MS}ms ease-out`,
               }}
@@ -156,7 +164,7 @@ export function MapItemLayer({
                 pointerEvents: interactive ? 'auto' : 'none',
                 cursor: interactive ? 'pointer' : 'inherit',
               }}
-              title={item?.name ?? undefined}
+              title={asset?.name ?? undefined}
               onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
                 if (!interactive) return;
                 event.stopPropagation();

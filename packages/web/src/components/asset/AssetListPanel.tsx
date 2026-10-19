@@ -1,4 +1,9 @@
-import { ASSET_TYPE_LABELS, LIST_ROW_HEIGHT, type Asset } from '@loredoku/shared';
+import {
+  ASSET_TYPE_LABELS,
+  LIST_ROW_HEIGHT,
+  assetHasAppearance,
+  type Asset,
+} from '@loredoku/shared';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { VirtualList } from '@/components/ui/virtual-list';
 import { cn } from '@/lib/utils';
@@ -7,6 +12,17 @@ interface AssetListPanelProps {
   assets: Asset[];
   selectedId: number | null;
   onSelect: (id: number) => void;
+}
+
+/**
+ * v0.6.1: one row per resource, so the size line has to summarise the forms —
+ * a single form names its footprint, several forms just count themselves.
+ */
+function formSummary(asset: Asset): string {
+  const first = asset.forms[0];
+  if (!first) return '无形态';
+  if (asset.forms.length === 1) return `${first.widthCells}×${first.heightCells}`;
+  return `${asset.forms.length} 个形态`;
 }
 
 /**
@@ -29,7 +45,8 @@ export function AssetListPanel({ assets, selectedId, onSelect }: AssetListPanelP
         className="divide-y"
         renderRow={(index) => {
           const asset = assets[index];
-          if (!asset) return null;
+          const look = asset?.forms[0];
+          if (!asset || !look) return null;
           return (
             <button
               type="button"
@@ -39,7 +56,7 @@ export function AssetListPanel({ assets, selectedId, onSelect }: AssetListPanelP
                 selectedId === asset.id && 'bg-accent',
               )}
             >
-              <AssetThumbnail asset={asset} className="h-10 w-10 shrink-0" />
+              <AssetThumbnail appearance={look} name={asset.name} className="h-10 w-10 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium">{asset.name}</span>
@@ -48,12 +65,12 @@ export function AssetListPanel({ assets, selectedId, onSelect }: AssetListPanelP
                   </span>
                   {!asset.isActive ? (
                     <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                      {asset.imageUrl ? '已停用' : '未启用'}
+                      {assetHasAppearance(asset) ? '已停用' : '未启用'}
                     </span>
                   ) : null}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {asset.code} · {asset.widthCells}×{asset.heightCells}
+                  {asset.code} · {formSummary(asset)}
                   {asset.type === 'item' && asset.blocking ? ' · 阻挡' : ''}
                 </div>
               </div>

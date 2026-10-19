@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BoxSelect } from 'lucide-react';
-import type { Asset, DraftRegion, EditorLayer, EditorTool } from '@loredoku/shared';
+import type { Asset, AssetForm, DraftRegion, EditorLayer, EditorTool } from '@loredoku/shared';
 import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
 import { AssetPalette } from '@/components/map-editor/AssetPalette';
 import { RegionList } from '@/components/map-editor/RegionList';
@@ -27,10 +27,11 @@ interface EditorLeftPanelProps {
   assetsError: boolean;
   activeLayer: EditorLayer;
   selectedAssetId: number | null;
+  selectedFormId: number | null;
   regions: DraftRegion[];
   selectedRegionId: string | null;
   onSetLayer: (layer: EditorLayer) => void;
-  onSelectAsset: (asset: Asset | null) => void;
+  onSelectAsset: (asset: Asset | null, form: AssetForm | null) => void;
   onSetTool: (tool: EditorTool) => void;
   onSelectRegion: (id: string | null) => void;
   onEditRegion: (region: DraftRegion) => void;
@@ -43,6 +44,7 @@ export function EditorLeftPanel({
   assetsError,
   activeLayer,
   selectedAssetId,
+  selectedFormId,
   regions,
   selectedRegionId,
   onSetLayer,
@@ -84,7 +86,7 @@ export function EditorLeftPanel({
                   type="button"
                   onClick={() => {
                     onSetLayer(layer);
-                    onSelectAsset(null);
+                    onSelectAsset(null, null);
                   }}
                   className={
                     activeLayer === layer
@@ -103,6 +105,7 @@ export function EditorLeftPanel({
                 isError={assetsError}
                 activeLayer={activeLayer}
                 selectedAssetId={selectedAssetId}
+                selectedFormId={selectedFormId}
                 onSelect={onSelectAsset}
               />
             </div>

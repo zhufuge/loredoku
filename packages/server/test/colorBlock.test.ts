@@ -12,7 +12,9 @@ import { resolveUploadPath } from '../src/utils/paths';
  * - deleting the media no longer deactivates an entry that is a colour block
  *   (the v0.3.5 OPT-305 rule is narrowed, not removed).
  *
- * 资源 and 角色 are the same contract twice, so they share one table.
+ * 角色 carries the colour on the row itself. 资源 carries it on a **form** since
+ * v0.6.1, so its contract runs through `/api/assets/:id/forms/:formId` — same
+ * rules, one level deeper.
  */
 
 const created: Array<{ table: 'assets' | 'characters'; id: number }> = [];
@@ -28,89 +30,176 @@ function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
-const subjects = [
-  {
-    kind: 'assets',
-    table: 'assets' as const,
-    media: 'image',
-    url: 'imageUrl',
-    uploadPath: 'assets',
-    colour: '#FF8800',
-    create: (body: Record<string, unknown> = {}) =>
-      api.post('/api/assets').send({ code: uniqueCode('item'), name: 'Asset', ...body }),
-  },
-  {
-    kind: 'characters',
-    table: 'characters' as const,
-    media: 'avatar',
-    url: 'avatarUrl',
-    uploadPath: 'characters',
-    colour: '#123456',
-    create: (body: Record<string, unknown> = {}) =>
-      api.post('/api/characters').send({ code: uniqueCode('char'), name: 'Character', ...body }),
-  },
-];
+interface AssetFixture {
+  id: number;
+  formId: number;
+  bgColor: string | null;
+  imageUrl: string | null;
+  isActive: boolean;
+}
 
-describe.each(subjects)('$kind 纯色块（v0.5.1 FEAT-L01 / FEAT-L02）', (s) => {
+function readAsset(body: { data: Record<string, unknown> }): AssetFixture {
+  const forms = body.data.forms as Array<Record<string, unknown>>;
+  const form = forms[0]!;
+  return {
+    id: body.data.id as number,
+    formId: form.id as number,
+    bgColor: form.bgColor as string | null,
+    imageUrl: form.imageUrl as string | null,
+    isActive: body.data.isActive as boolean,
+  };
+}
+
+describe('assets 纯色块（形态级）', () => {
+  async function create(body: Record<string, unknown> = {}): Promise<AssetFixture> {
+    const res = await api
+      .post('/api/assets')
+      .send({ code: uniqueCode('block'), name: 'Asset', ...body });
+    expect(res.status).toBe(200);
+    const asset = readAsset(res.body);
+    created.push({ table: 'assets', id: asset.id });
+    return asset;
+  }
+
+  async function upload(asset: AssetFixture): Promise<void> {
+    const res = await api
+      .post(`/api/assets/${asset.id}/forms/${asset.formId}/image`)
+      .attach('file', TINY_PNG, 'x.png');
+    expect(res.status).toBe(200);
+    uploadedDirs.push(resolveUploadPath(`assets/${asset.id}/forms/${asset.formId}`));
+  }
+
+  async function setActive(asset: AssetFixture, isActive: boolean): Promise<AssetFixture> {
+    const res = await api.patch(`/api/assets/${asset.id}`).send({ isActive });
+    expect(res.status).toBe(200);
+    return readAsset(res.body);
+  }
+
+  it('creates with a colour and reads it back on the initial form', async () => {
+    const asset = await create({ bgColor: '#FF8800' });
+    expect(asset.bgColor).toBe('#FF8800');
+
+    const detail = await api.get(`/api/assets/${asset.id}`);
+    expect(readAsset(detail.body).bgColor).toBe('#FF8800');
+  });
+
+  it('omits bgColor when it is not given', async () => {
+    const asset = await create();
+    expect(asset.bgColor).toBeNull();
+  });
+
+  it('sets and clears the colour on the form', async () => {
+    const asset = await create();
+    const set = await api
+      .patch(`/api/assets/${asset.id}/forms/${asset.formId}`)
+      .send({ bgColor: '#00AABB' });
+    expect(set.body.data.bgColor).toBe('#00AABB');
+    const cleared = await api
+      .patch(`/api/assets/${asset.id}/forms/${asset.formId}`)
+      .send({ bgColor: null });
+    expect(cleared.body.data.bgColor).toBeNull();
+  });
+
+  it('rejects a malformed colour', async () => {
+    const posted = await api
+      .post('/api/assets')
+      .send({ code: uniqueCode('bad'), name: 'Bad', bgColor: '#GGG' });
+    expect(posted.status).toBe(400);
+    expect(posted.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+
+    const asset = await create();
+    const patched = await api
+      .patch(`/api/assets/${asset.id}/forms/${asset.formId}`)
+      .send({ bgColor: 'white' });
+    expect(patched.status).toBe(400);
+  });
+
+  it('keeps a colour block active after the media is deleted', async () => {
+    const asset = await create({ bgColor: '#FFFFFF' });
+    await upload(asset);
+    expect((await setActive(asset, true)).isActive).toBe(true);
+
+    const removed = await api.delete(`/api/assets/${asset.id}/forms/${asset.formId}/image`);
+    expect(removed.status).toBe(200);
+    const after = readAsset(removed.body);
+    // A colour block does not depend on the media.
+    expect(after.imageUrl).toBeNull();
+    expect(after.bgColor).toBe('#FFFFFF');
+    expect(after.isActive).toBe(true);
+  });
+
+  it('still deactivates a media-only asset when the last look is deleted', async () => {
+    const asset = await create();
+    await upload(asset);
+    expect((await setActive(asset, true)).isActive).toBe(true);
+
+    const removed = await api.delete(`/api/assets/${asset.id}/forms/${asset.formId}/image`);
+    expect(removed.status).toBe(200);
+    const after = readAsset(removed.body);
+    // OPT-305 unchanged for assets that are not colour blocks.
+    expect(after.bgColor).toBeNull();
+    expect(after.isActive).toBe(false);
+  });
+});
+
+describe('characters 纯色块（v0.5.1 FEAT-L02）', () => {
   async function create(body: Record<string, unknown> = {}): Promise<number> {
-    const res = await s.create(body);
+    const res = await api
+      .post('/api/characters')
+      .send({ code: uniqueCode('char'), name: 'Character', ...body });
     expect(res.status).toBe(200);
     const id = res.body.data.id as number;
-    created.push({ table: s.table, id });
+    created.push({ table: 'characters', id });
     return id;
   }
 
   async function upload(id: number): Promise<void> {
-    const res = await api.post(`/api/${s.kind}/${id}/${s.media}`).attach('file', TINY_PNG, 'x.png');
+    const res = await api.post(`/api/characters/${id}/avatar`).attach('file', TINY_PNG, 'x.png');
     expect(res.status).toBe(200);
-    uploadedDirs.push(resolveUploadPath(`${s.uploadPath}/${id}`));
+    uploadedDirs.push(resolveUploadPath(`characters/${id}`));
   }
 
   it('creates with a colour and reads it back', async () => {
-    const res = await s.create({ name: '色块', bgColor: s.colour });
-    expect(res.status).toBe(200);
-    const id = res.body.data.id as number;
-    created.push({ table: s.table, id });
-    expect(res.body.data.bgColor).toBe(s.colour);
-
-    const detail = await api.get(`/api/${s.kind}/${id}`);
-    expect(detail.body.data.bgColor).toBe(s.colour);
+    const id = await create({ bgColor: '#123456' });
+    const detail = await api.get(`/api/characters/${id}`);
+    expect(detail.body.data.bgColor).toBe('#123456');
   });
 
   it('omits bgColor when it is not given', async () => {
     const id = await create();
-    const detail = await api.get(`/api/${s.kind}/${id}`);
+    const detail = await api.get(`/api/characters/${id}`);
     expect(detail.body.data.bgColor).toBeNull();
   });
 
   it('sets and clears the colour on patch', async () => {
     const id = await create();
-    const set = await api.patch(`/api/${s.kind}/${id}`).send({ bgColor: '#00AABB' });
+    const set = await api.patch(`/api/characters/${id}`).send({ bgColor: '#00AABB' });
     expect(set.body.data.bgColor).toBe('#00AABB');
-    const cleared = await api.patch(`/api/${s.kind}/${id}`).send({ bgColor: null });
+    const cleared = await api.patch(`/api/characters/${id}`).send({ bgColor: null });
     expect(cleared.body.data.bgColor).toBeNull();
   });
 
   it('rejects a malformed colour', async () => {
-    const posted = await s.create({ name: 'Bad', bgColor: '#GGG' });
+    const posted = await api
+      .post('/api/characters')
+      .send({ code: uniqueCode('bad'), name: 'Bad', bgColor: '#GGG' });
     expect(posted.status).toBe(400);
     expect(posted.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
     const id = await create();
-    const patched = await api.patch(`/api/${s.kind}/${id}`).send({ bgColor: 'white' });
+    const patched = await api.patch(`/api/characters/${id}`).send({ bgColor: 'white' });
     expect(patched.status).toBe(400);
   });
 
   it('keeps a colour block active after the media is deleted', async () => {
     const id = await create({ bgColor: '#FFFFFF' });
     await upload(id);
-    const activated = await api.patch(`/api/${s.kind}/${id}`).send({ isActive: true });
+    const activated = await api.patch(`/api/characters/${id}`).send({ isActive: true });
     expect(activated.body.data.isActive).toBe(true);
 
-    const removed = await api.delete(`/api/${s.kind}/${id}/${s.media}`);
+    const removed = await api.delete(`/api/characters/${id}/avatar`);
     expect(removed.status).toBe(200);
-    expect(removed.body.data[s.url]).toBeNull();
-    // A colour block does not depend on the media.
+    expect(removed.body.data.avatarUrl).toBeNull();
     expect(removed.body.data.bgColor).toBe('#FFFFFF');
     expect(removed.body.data.isActive).toBe(true);
   });
@@ -118,12 +207,11 @@ describe.each(subjects)('$kind 纯色块（v0.5.1 FEAT-L01 / FEAT-L02）', (s) =
   it('still deactivates a media-only entry when the media is deleted', async () => {
     const id = await create();
     await upload(id);
-    const activated = await api.patch(`/api/${s.kind}/${id}`).send({ isActive: true });
+    const activated = await api.patch(`/api/characters/${id}`).send({ isActive: true });
     expect(activated.body.data.isActive).toBe(true);
 
-    const removed = await api.delete(`/api/${s.kind}/${id}/${s.media}`);
+    const removed = await api.delete(`/api/characters/${id}/avatar`);
     expect(removed.status).toBe(200);
-    // OPT-305 unchanged for entries that are not colour blocks.
     expect(removed.body.data.bgColor).toBeNull();
     expect(removed.body.data.isActive).toBe(false);
   });

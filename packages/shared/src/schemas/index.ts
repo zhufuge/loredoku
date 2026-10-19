@@ -2,6 +2,7 @@ export * from './common';
 export * from './appearance';
 export * from './map';
 export * from './asset';
+export * from './assetForm';
 export * from './character';
 export * from './mapDraft';
 export * from './participant';

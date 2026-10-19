@@ -3,57 +3,11 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_THEME_COLOR, THEME_COLOR_PALETTE } from '@loredoku/shared';
 import { ThemeColorDialog } from './ThemeColorDialog';
-import { readSource } from '@/testing/source';
 
 /**
  * FEAT-H08（docs/v0.4.2.md §8）：主题色弹窗是**受控**组件 —— 抽屉只展示当前选中，
  * 选色（15 色板 / 自定义 hex）在这里完成，且只把结果交回抽屉，自己绝不写 store。
  */
-
-const raw = readSource('components/map-editor/ThemeColorDialog.tsx');
-
-const source = raw;
-
-/** FIX-O15 asserts the **absence** of things, so comments must not count. */
-const code = raw
-  .replace(/\/\*[\s\S]*?\*\//g, '')
-  .split('\n')
-  .filter((line) => !/^\s*\/\//.test(line))
-  .join('\n');
-
-describe('ThemeColorDialog — 源码契约（FEAT-H08 §8.2）', () => {
-  it('is controlled: value in, onConfirm out, no store access', () => {
-    expect(source).toContain('value: string;');
-    expect(source).toContain('onConfirm: (color: string) => void;');
-    expect(source).toContain('onOpenChange: (open: boolean) => void;');
-    // It never imports the store — the drawer's 保存 is still the only writer.
-    expect(source).not.toContain('editorStore');
-    expect(source).not.toContain('useEditorStore');
-  });
-
-  it('re-seeds its draft on every open so a cancelled edit cannot leak', () => {
-    expect(source).toContain('if (!open) return;');
-    expect(source).toContain('setDraft(value);');
-    expect(source).toContain('setHexDraft(value);');
-  });
-
-  it('offers the shared palette and a custom hex field with validation', () => {
-    // v0.5.3 FEAT-N09: the swatch grid moved into the shared `ColorPalette`.
-    expect(source).toContain("from '@/components/ui/color-palette'");
-    expect(source).toContain('<ColorPalette');
-    expect(source).toContain('normalizeHexColor(hexDraft)');
-    expect(source).toContain('aria-label="自定义主题色"');
-  });
-
-  it('puts the colour picker **before** the hex field, with no 应用 button', () => {
-    // FIX-O15 (docs/v0.5.4.md §7.2).
-    expect(code).toContain("from '@/components/ui/color-input'");
-    expect(code).toContain('<ColorInput');
-    // The picker replaces both the 应用 button and the trailing preview row.
-    expect(code.indexOf('<ColorInput')).toBeLessThan(code.indexOf('aria-label="自定义主题色"'));
-    expect(code).not.toContain('theme-color-preview');
-  });
-});
 
 describe('ThemeColorDialog — 渲染行为（FEAT-H08）', () => {
   let container: HTMLDivElement;

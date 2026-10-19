@@ -7,9 +7,6 @@ import {
   ASSET_CODE_MAX_LENGTH,
   ASSET_CODE_PATTERN,
   ASSET_NAME_MAX_LENGTH,
-  ASSET_SIZE_DEFAULT,
-  ASSET_SIZE_MAX,
-  ASSET_SIZE_MIN,
   ASSET_TYPES,
   ASSET_TYPE_LABELS,
   BG_COLOR_PATTERN,
@@ -34,7 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
-import { useCreateAsset, useUpdateAsset, useUploadAssetImage } from '@/hooks/useAssets';
+import { useCreateAsset, useUpdateAsset, useUploadAssetFormImage } from '@/hooks/useAssets';
 
 /** FEAT-O11: the type as radio buttons (背景 / 物品). */
 const ASSET_TYPE_OPTIONS = ASSET_TYPES.map((value) => ({
@@ -51,8 +48,6 @@ const schema = z.object({
     .max(ASSET_CODE_MAX_LENGTH, '业务 ID 过长')
     .regex(ASSET_CODE_PATTERN, '业务 ID 仅允许字母、数字与下划线'),
   type: z.enum(ASSET_TYPES),
-  widthCells: z.coerce.number().int().min(ASSET_SIZE_MIN).max(ASSET_SIZE_MAX),
-  heightCells: z.coerce.number().int().min(ASSET_SIZE_MIN).max(ASSET_SIZE_MAX),
   blocking: z.boolean(),
   /** v0.5.1 FEAT-L01: image mode (default) or a colour block. */
   appearanceMode: z.enum(APPEARANCE_MODES),
@@ -65,8 +60,6 @@ const DEFAULTS: FormValues = {
   name: '',
   code: '',
   type: DEFAULT_ASSET_TYPE,
-  widthCells: ASSET_SIZE_DEFAULT,
-  heightCells: ASSET_SIZE_DEFAULT,
   blocking: false,
   appearanceMode: DEFAULT_APPEARANCE_MODE,
   bgColor: DEFAULT_BG_COLOR,
@@ -102,7 +95,7 @@ export function CreateAssetDialog({
   const [file, setFile] = useState<File | null>(null);
 
   const createMutation = useCreateAsset();
-  const uploadMutation = useUploadAssetImage();
+  const uploadMutation = useUploadAssetFormImage();
   /** FEAT-N06 §5.4: reverts an auto-enable whose image never landed. */
   const updateMutation = useUpdateAsset();
 
@@ -125,14 +118,12 @@ export function CreateAssetDialog({
      * image is deleted, so the two can never disagree.
      */
     const isActive = hasAppearance(file !== null, bgColor);
-    let asset: { id: number };
+    let asset: { id: number; forms: Array<{ id: number }> };
     try {
       asset = await createMutation.mutateAsync({
         name: values.name,
         code: values.code,
         type: values.type,
-        widthCells: values.widthCells,
-        heightCells: values.heightCells,
         blocking: blockingFor(values.type, values.blocking),
         bgColor,
         isActive,
@@ -145,7 +136,7 @@ export function CreateAssetDialog({
     // closes either way and the user retries from the detail pane.
     if (file) {
       const uploaded = await uploadMutation
-        .mutateAsync({ id: asset.id, file })
+        .mutateAsync({ assetId: asset.id, formId: asset.forms[0]!.id, file })
         .then(() => true)
         .catch(() => false);
       /**
@@ -195,28 +186,6 @@ export function CreateAssetDialog({
                 />
               )}
             />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor="asset-width">占格宽</Label>
-              <Input
-                id="asset-width"
-                type="number"
-                min={ASSET_SIZE_MIN}
-                max={ASSET_SIZE_MAX}
-                {...register('widthCells')}
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="asset-height">占格高</Label>
-              <Input
-                id="asset-height"
-                type="number"
-                min={ASSET_SIZE_MIN}
-                max={ASSET_SIZE_MAX}
-                {...register('heightCells')}
-              />
-            </div>
           </div>
           {/* v0.5.2 FEAT-M04: a background asset is never blocking, so the
               checkbox only exists for 物品. */}

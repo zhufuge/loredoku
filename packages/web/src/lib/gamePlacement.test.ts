@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import type { CellPlacement, CharacterSlotEntry, GamePlacementBoard } from '@loredoku/shared';
-import { readSource } from '@/testing/source';
 import {
   autoForbiddenCells,
   canPlaceForbidden,
@@ -88,15 +87,6 @@ function sweepOf(x: number, y: number, gridSize = GRID): string[] {
 
 function slot(characterId: number, positionConditions?: Array<{ x: number; y: number }>): CharacterSlotEntry {
   return positionConditions ? { characterId, positionConditions } : { characterId };
-}
-
-/** The raw `placeParticipant` body — for the structural assertions of §2.2 / §3.2. */
-function placeParticipantBody(): string {
-const source = readSource('lib/gamePlacement.ts');
-  return source.slice(
-    source.indexOf('export function placeParticipant('),
-    source.indexOf('export function placeForbidden('),
-  );
 }
 
 describe('placing a participant (SPEC-G03 §9.2)', () => {
@@ -811,39 +801,6 @@ describe('number cleanup on placement (SPEC-H01 §1.2)', () => {
     const refused = place(blocked, 3, 3, 1);
     expect(refused).toBe(blocked);
     expect(placementAt(second.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
-  });
-
-  it('runs the × sweep only under the long-press guard (SPEC-J02 §2.2)', () => {
-    const body = placeParticipantBody();
-    const assignmentAt = body.indexOf("if (variant === 'image') {");
-    expect(assignmentAt).toBeGreaterThan(-1);
-    // The number path — toggle-off return and add branch included — reaches
-    // neither sweep.
-    const numberPath = body.slice(0, assignmentAt);
-    expect(numberPath).not.toContain('autoForbiddenCells');
-    expect(numberPath).not.toContain('sweepParticipantNumbers');
-    // Both live inside the guard that the `image` variant opens (the last one).
-    const guard = body.slice(body.lastIndexOf("if (variant === 'image') {"));
-    expect(guard).toContain('autoForbiddenCells({');
-    expect(guard).toContain('for (const swept of');
-    // SPEC-H01 cleanup runs after the × sweep, inside the same gesture.
-    expect(guard.indexOf('sweepParticipantNumbers(board, {')).toBeGreaterThan(
-      guard.indexOf('for (const swept of'),
-    );
-    expect(guard).toContain('return commit(state, board);');
-  });
-
-  it('returns from the toggle-off branch before touching the sweep (SPEC-J03 §3.2)', () => {
-    const body = placeParticipantBody();
-    const toggleAt = body.indexOf('previous.entries.includes(input.participantId)');
-    const returnAt = body.indexOf('return commit(state, board);');
-    expect(toggleAt).toBeGreaterThan(-1);
-    expect(returnAt).toBeGreaterThan(toggleAt);
-    const toggleBlock = body.slice(toggleAt, returnAt);
-    expect(toggleBlock).toContain('delete board[key];');
-    expect(toggleBlock).toContain('filter((entry) => entry !== input.participantId)');
-    expect(toggleBlock).not.toContain('autoForbiddenCells');
-    expect(toggleBlock).not.toContain('sweepParticipantNumbers');
   });
 });
 

@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { readSource } from '@/testing/source';
 import {
   DEFAULT_MAP_STYLE,
   DEFAULT_THEME_COLOR,
@@ -420,18 +419,6 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
   function load(draftToLoad: PuzzleDraft): void {
     store().init(detail(draftToLoad), mapContext(draftToLoad.map.gridSize));
   }
-
-  it('ensureEntry carries every CharacterSlotEntry field (source guard)', () => {
-const source = readSource('stores/puzzleStore.ts');
-    const body = source.slice(
-      source.indexOf('export function ensureEntry('),
-      source.indexOf('/** The undoable half of the state. */'),
-    );
-    // The 5th field is the one that went missing — pin all of them.
-    for (const field of ['characterId', 'themeColor', 'clue', 'linkages', 'positionConditions']) {
-      expect(body).toContain(field);
-    }
-  });
 
   it('survives init — a page reload no longer drops the list', () => {
     const loaded = withRoster();

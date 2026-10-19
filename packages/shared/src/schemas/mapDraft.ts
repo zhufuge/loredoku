@@ -176,11 +176,26 @@ export const mapStyleSchema = z.object({
 /** v0.6.0: the background layer — one asset, no footprint. */
 export const draftAssetRefSchema = z.object({
   assetId: z.number().int().positive(),
+  /**
+   * v0.6.1: optional for the same reason as the item anchor — a payload
+   * written before background assets could have several forms keeps
+   * validating, and rendering falls back to the asset's first form.
+   * `draftCellSchema` is `.strict()`, so the key has to be declared here.
+   */
+  formId: z.number().int().positive().optional(),
 });
 
-/** v0.6.0: the item layer — the anchor cell carries the footprint. */
+/**
+ * v0.6.0: the item layer — the anchor cell carries the footprint.
+ *
+ * v0.6.1: `formId` is **optional on purpose** — a v4 payload has no such key and
+ * must keep validating; rendering falls back to the asset's first form.
+ * `draftCellSchema` is `.strict()`, so the key has to be declared here or new
+ * writes would be rejected.
+ */
 export const draftAnchorItemSchema = z.object({
   assetId: z.number().int().positive(),
+  formId: z.number().int().positive().optional(),
   w: z.number().int().min(1),
   h: z.number().int().min(1),
 });

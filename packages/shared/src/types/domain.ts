@@ -77,16 +77,11 @@ export interface MapDetail extends MapEntry {
 
 /** `EffectType` stays — participant linkages still use it. */
 
-export interface Asset {
-  id: number;
-  code: string;
-  name: string;
-  /** v0.6.0: was `category`; the values are the two canvas layers. */
-  type: AssetType;
-  widthCells: number;
-  heightCells: number;
-  /** v0.6.0: was `canStand`, inverted — `true` = 阻挡（不可站立/不可放置）. */
-  blocking: boolean;
+/**
+ * v0.6.1: the appearance half of an asset. It lives on a **form**, never on the
+ * asset itself (docs/v0.6.1.md §5.1) — one asset may carry several looks.
+ */
+export interface AssetAppearance {
   fitMode: AssetFitMode;
   imagePath: string | null;
   imageUrl: string | null;
@@ -97,7 +92,36 @@ export interface Asset {
   imageHeight: number | null;
   /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bgColor: string | null;
+}
+
+/**
+ * v0.6.1: one way an asset can look and sit on the canvas. An asset always has
+ * at least one. A background form's footprint is never rendered — a background
+ * cell is always one cell wide — so it stays pinned at 1×1.
+ */
+export interface AssetForm extends AssetAppearance {
+  id: number;
+  assetId: number;
+  name: string;
+  widthCells: number;
+  heightCells: number;
+  /** Palette order; the list response is sorted by `sortOrder, id`. */
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Asset {
+  id: number;
+  code: string;
+  name: string;
+  /** v0.6.0: was `category`; the values are the two canvas layers. */
+  type: AssetType;
+  /** v0.6.0: was `canStand`, inverted — `true` = 阻挡（不可站立/不可放置）. */
+  blocking: boolean;
   isActive: boolean;
+  /** v0.6.1: never empty; ordered by `sortOrder, id`. */
+  forms: AssetForm[];
   createdAt: string;
   updatedAt: string;
 }
@@ -124,14 +148,29 @@ export interface Character {
 }
 
 // ---- Map draft JSON (single-column storage, see docs/feature-0.2.md §FEAT-06) ----
-/** A background cell: one asset, no footprint (it fills the single cell). */
+/**
+ * A background cell: one asset, no footprint (it fills the single cell).
+ *
+ * v0.6.1: `formId` names which of the asset's forms was painted. Optional so a
+ * payload written before background assets could have several forms keeps
+ * validating — rendering then falls back to the asset's first form
+ * (docs/v0.6.1.md §6.2).
+ */
 export interface DraftAssetRef {
   assetId: number;
+  formId?: number;
 }
 
-/** v0.6.0: the item layer. The anchor cell stores the footprint (`w` × `h`). */
+/**
+ * v0.6.0: the item layer. The anchor cell stores the footprint (`w` × `h`).
+ *
+ * v0.6.1: `formId` names the asset **form** that was placed. It is optional so a
+ * v4 payload (written before forms existed) keeps validating — rendering then
+ * falls back to the asset's first form (docs/v0.6.1.md §6.2).
+ */
 export interface DraftAnchorItem {
   assetId: number;
+  formId?: number;
   w: number;
   h: number;
 }

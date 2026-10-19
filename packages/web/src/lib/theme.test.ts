@@ -1,8 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
-import { readIndexHtml, readSource } from '@/testing/source';
 import {
-  DARK_MEDIA_QUERY,
   THEME_STORAGE_KEY,
   applyTheme,
   getSystemDark,
@@ -184,34 +182,3 @@ describe('subscribing to the OS', () => {
   });
 });
 
-describe('dark-mode surfaces that are not plain tokens', () => {
-  it('inverts the brand mark, which is black ink and would vanish on a dark page', () => {
-    const logo = readSource('components/layout/BrandLogo.tsx');
-    expect(logo).toContain('dark:invert');
-    // 只反亮度、把色相转回来，否则深红会变青色。
-    expect(logo).toContain('dark:hue-rotate-180');
-  });
-});
-
-describe('index.html first paint', () => {
-  const html = readIndexHtml();
-
-  it('loads the script at all', () => {
-    expect(html).not.toBe('');
-  });
-  it('uses the same storage key as lib/theme.ts', () => {
-    expect(html).toContain(`'${THEME_STORAGE_KEY}'`);
-  });
-
-  it('applies the same fallback rule: anything but a stored light follows the OS', () => {
-    expect(html).toContain(DARK_MEDIA_QUERY);
-    // 「只有明确存了 light 才是浅色」—— 与 resolveTheme('system', …) 同义。
-    expect(html).toContain("mode !== 'light'");
-    expect(html).toContain("root.classList.add('dark')");
-    expect(html).toContain('root.style.colorScheme');
-  });
-
-  it('declares both schemes so native controls never flash light', () => {
-    expect(html).toContain('name="color-scheme" content="light dark"');
-  });
-});

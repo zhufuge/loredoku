@@ -34,21 +34,26 @@ beforeEach(() => {
 
 describe('placement', () => {
   it('places a background and marks the map dirty', () => {
-    store().placeBackground(7, 2, 3);
-    expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7 } });
+    store().placeBackground(7, 41, 2, 3);
+    expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7, formId: 41 } });
     expect(store().dirty).toBe(true);
     expect(store().past).toHaveLength(1);
   });
 
+  it('leaves the form out when the caller has none to name', () => {
+    store().placeBackground(7, undefined, 2, 3);
+    expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7 } });
+  });
+
   it('places a multi-cell object with a single anchor', () => {
-    store().placeItem({ id: 5, widthCells: 2, heightCells: 2 }, 0, 0);
-    expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, w: 2, h: 2 });
+    store().placeItem({ assetId: 5, formId: 1, w: 2, h: 2 }, 0, 0);
+    expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, formId: 1, w: 2, h: 2 });
     expect(store().cells.get('1,0')?.item).toBeUndefined();
     expect(store().cells.has('1,1')).toBe(true);
   });
 
   it('removes a multi-cell object footprint together with its placeholders', () => {
-    store().placeItem({ id: 2, widthCells: 2, heightCells: 2 }, 0, 0);
+    store().placeItem({ assetId: 2, formId: 1, w: 2, h: 2 }, 0, 0);
     store().eraseAt(1, 1);
     expect(store().cells.size).toBe(0);
   });
@@ -57,23 +62,23 @@ describe('placement', () => {
 describe('eraseAt', () => {
   // docs/v0.2.5.md BUG-406 — object layer first, background last.
   it('erases the object layer before the background layer', () => {
-    store().placeBackground(1, 0, 0);
-    store().placeItem({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
+    store().placeBackground(1, 11, 0, 0);
+    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
 
     store().eraseAt(0, 0);
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
 
     store().eraseAt(0, 0);
     expect(store().cells.has('0,0')).toBe(false);
   });
 
   it('ignores activeLayer', () => {
-    store().placeBackground(1, 0, 0);
-    store().placeItem({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
+    store().placeBackground(1, 11, 0, 0);
+    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
 
     store().setLayer('background');
     store().eraseAt(0, 0);
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
 
     store().setLayer('item');
     store().eraseAt(0, 0);
@@ -88,8 +93,8 @@ describe('eraseAt', () => {
   });
 
   it('records two erases as two steps undone in reverse order', () => {
-    store().placeBackground(1, 0, 0);
-    store().placeItem({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
+    store().placeBackground(1, 11, 0, 0);
+    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
     const baseline = store().past.length;
 
     store().eraseAt(0, 0);
@@ -98,34 +103,34 @@ describe('eraseAt', () => {
     expect(store().cells.has('0,0')).toBe(false);
 
     store().undo();
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
     store().undo();
     expect(store().cells.get('0,0')).toEqual({
-      background: { assetId: 1 },
-      item: { assetId: 2, w: 1, h: 1 },
+      background: { assetId: 1, formId: 11 },
+      item: { assetId: 2, formId: 1, w: 1, h: 1 },
     });
   });
 });
 
 describe('history', () => {
   it('undoes and redoes a placement', () => {
-    store().placeBackground(1, 0, 0);
+    store().placeBackground(1, 11, 0, 0);
     store().undo();
     expect(store().cells.size).toBe(0);
     store().redo();
-    expect(store().cells.get('0,0')?.background).toEqual({ assetId: 1 });
+    expect(store().cells.get('0,0')?.background).toEqual({ assetId: 1, formId: 11 });
   });
 
   it('clears the redo stack after a new action', () => {
-    store().placeBackground(1, 0, 0);
+    store().placeBackground(1, 11, 0, 0);
     store().undo();
     expect(store().future).toHaveLength(1);
-    store().placeBackground(2, 1, 1);
+    store().placeBackground(2, 12, 1, 1);
     expect(store().future).toHaveLength(0);
   });
 
   it('markSaved resets the dirty flag', () => {
-    store().placeBackground(1, 0, 0);
+    store().placeBackground(1, 11, 0, 0);
     expect(store().dirty).toBe(true);
     // markSaved 不收修订号。
     store().markSaved();
@@ -212,10 +217,10 @@ describe('selection', () => {
 
 describe('cell clearing', () => {
   it('clears a cell object and then the whole cell', () => {
-    store().placeBackground(1, 0, 0);
-    store().placeItem({ id: 2, widthCells: 1, heightCells: 1 }, 0, 0);
+    store().placeBackground(1, 11, 0, 0);
+    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
     store().clearItemAt(0, 0);
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
     store().clearCell(0, 0);
     expect(store().cells.has('0,0')).toBe(false);
   });
@@ -223,7 +228,7 @@ describe('cell clearing', () => {
 
 describe('grid resize', () => {
   it('crops out-of-bounds cells and regions', () => {
-    store().placeBackground(1, 5, 5);
+    store().placeBackground(1, 11, 5, 5);
     store().createRegion(regionInput('rg_a', [[5, 5]]), 'override');
     store().setGridSize(3);
     expect(store().gridSize).toBe(3);
@@ -254,11 +259,12 @@ describe('init', () => {
 
 describe('toDraft (FEAT-K14: MapDraft v3)', () => {
   it('serialises cells and regions — and carries no roster (SPEC-K12)', () => {
-    store().placeItem({ id: 5, widthCells: 1, heightCells: 1 }, 1, 1);
+    store().placeItem({ assetId: 5, formId: 1, w: 1, h: 1 }, 1, 1);
     const output = store().toDraft();
-    // the map JSON is v4 — participants live in the puzzle now.
-    expect(output.version).toBe(4);
-    expect(output.cells['1,1']?.item).toEqual({ assetId: 5, w: 1, h: 1 });
+    // the map JSON is v6 — anchors name a form on both layers; participants
+    // live in the puzzle.
+    expect(output.version).toBe(6);
+    expect(output.cells['1,1']?.item).toEqual({ assetId: 5, formId: 1, w: 1, h: 1 });
     expect('characterSlots' in output).toBe(false);
     expect('placedCharacters' in output).toBe(false);
   });

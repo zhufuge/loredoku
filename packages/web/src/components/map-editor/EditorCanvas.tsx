@@ -17,6 +17,7 @@ import {
   type DraftRegion,
   type EditorTool,
   type Asset,
+  type AssetForm,
   type MapStyle,
   type RegionShape,
 } from '@loredoku/shared';
@@ -93,7 +94,8 @@ interface EditorCanvasProps {
   regionShape: RegionShape;
   spaceHeld: boolean;
   showRulers: boolean;
-  pendingAsset: Asset | null;
+  /** v0.6.1: the armed (asset, form) pair; the form supplies the footprint. */
+  pendingForm: { asset: Asset; form: AssetForm } | null;
   regionDraftSelection: Set<string>;
   /** Resolved participant highlight (shared with the work preview page). */
   highlight: HighlightState | null;
@@ -158,7 +160,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     regionShape,
     spaceHeld,
     showRulers,
-    pendingAsset,
+    pendingForm,
     regionDraftSelection,
     highlight,
     highlightLeaving = false,
@@ -376,11 +378,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   const pendingFootprint = useMemo<{ w: number; h: number }>(() => {
-    if (pendingAsset && pendingAsset.type === 'item') {
-      return { w: pendingAsset.widthCells, h: pendingAsset.heightCells };
+    if (pendingForm && pendingForm.asset.type === 'item') {
+      return { w: pendingForm.form.widthCells, h: pendingForm.form.heightCells };
     }
     return { w: 1, h: 1 };
-  }, [pendingAsset]);
+  }, [pendingForm]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const node = containerRef.current;
@@ -464,7 +466,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         onToggleRegionCell(coord);
         return;
       }
-      if (pendingAsset) {
+      if (pendingForm) {
         if (fits(coord.x, coord.y, pendingFootprint.w, pendingFootprint.h)) onPlaceItem(coord);
         return;
       }
@@ -588,7 +590,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       : 'grab';
 
   const showPreview =
-    activeTool === 'select' && hover !== null && pendingAsset !== null;
+    activeTool === 'select' && hover !== null && pendingForm !== null;
 
   const marqueeRect = marquee
     ? {
@@ -620,7 +622,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   // Cell content is clickable (selection only) unless a brush item is armed or
   // the user is panning; it never carries drag handlers (BUG-405).
   const selectInteractive =
-    activeTool === 'select' && pendingAsset === null && !spaceHeld;
+    activeTool === 'select' && pendingForm === null && !spaceHeld;
 
   const selectionCell =
     selection?.type === 'cell'

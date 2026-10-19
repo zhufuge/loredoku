@@ -8,6 +8,7 @@ import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   mapDraftSchema,
+  resolveAssetForm,
   type DraftRegion,
   type EditorTool,
   type Asset,
@@ -210,10 +211,17 @@ export function MapEditorPage(): JSX.Element {
     return map;
   }, [assetsQuery.data]);
 
-  const pendingAsset = useMemo(
-    () => (editor.selectedAssetId === null ? null : assetsById.get(editor.selectedAssetId) ?? null),
-    [editor.selectedAssetId, assetsById],
-  );
+  /**
+   * v0.6.1: the palette selects a (asset, form) pair — the form supplies the
+   * footprint, the asset supplies the layer rules and the name.
+   */
+  const pendingForm = useMemo(() => {
+    if (editor.selectedAssetId === null) return null;
+    const asset = assetsById.get(editor.selectedAssetId);
+    if (!asset) return null;
+    const form = resolveAssetForm(asset, editor.selectedFormId);
+    return form ? { asset, form } : null;
+  }, [editor.selectedAssetId, editor.selectedFormId, assetsById]);
 
   /**
    * the save / publish / resize flows are hooks now. The page keeps
@@ -893,6 +901,7 @@ export function MapEditorPage(): JSX.Element {
               assetsError={assetsQuery.isError}
               activeLayer={editor.activeLayer}
               selectedAssetId={editor.selectedAssetId}
+              selectedFormId={editor.selectedFormId}
               regions={editor.regions}
               selectedRegionId={editor.selectedRegionId}
               onSetTool={setTool}
@@ -900,7 +909,9 @@ export function MapEditorPage(): JSX.Element {
                 editor.setLayer(layer);
                 editor.setSelectedItem(null);
               }}
-              onSelectAsset={(item) => editor.setSelectedItem(item ? item.id : null)}
+              onSelectAsset={(asset, form) =>
+                editor.setSelectedItem(asset ? asset.id : null, form ? form.id : null)
+              }
               onSelectRegion={editor.setSelectedRegion}
               onEditRegion={(region) => {
                 editor.setSelectedRegion(region.id);
@@ -928,7 +939,7 @@ export function MapEditorPage(): JSX.Element {
             regionShape={regionShape}
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
-            pendingAsset={pendingAsset}
+            pendingForm={pendingForm}
             regionDraftSelection={editor.regionDraftSelection}
             // SPEC-K12 §9.1: the map editor has no participants, so there is
             // no linkage highlight to show — the layer stays empty.
@@ -953,21 +964,27 @@ export function MapEditorPage(): JSX.Element {
               }
             }}
             onPlaceItem={(coord) => {
-              if (!pendingAsset) return;
+              if (!pendingForm) return;
               // OPT-904 §4.1: the placement layer must match the item category
-              // (the background layer only accepts `category === 'background'`).
-              if (!canPlaceAssetOnLayer(pendingAsset, editor.activeLayer)) {
+              // (the background layer only accepts `type === 'background'`).
+              if (!canPlaceAssetOnLayer(pendingForm.asset, editor.activeLayer)) {
                 toast.error('该物品不能放在当前图层');
                 return;
               }
-              if (pendingAsset.type === 'background') {
-                editor.placeBackground(pendingAsset.id, coord.x, coord.y);
+              if (pendingForm.asset.type === 'background') {
+                editor.placeBackground(
+                  pendingForm.asset.id,
+                  pendingForm.form.id,
+                  coord.x,
+                  coord.y,
+                );
               } else {
                 editor.placeItem(
                   {
-                    id: pendingAsset.id,
-                    widthCells: pendingAsset.widthCells,
-                    heightCells: pendingAsset.heightCells,
+                    assetId: pendingForm.asset.id,
+                    formId: pendingForm.form.id,
+                    w: pendingForm.form.widthCells,
+                    h: pendingForm.form.heightCells,
                   },
                   coord.x,
                   coord.y,

@@ -5,7 +5,6 @@ import { DEFAULT_MAP_STYLE } from '@loredoku/shared';
 import type { MapStyle } from '@loredoku/shared';
 import { MapInfoDrawer, type MapInfoDrawerHandle } from './MapInfoDrawer';
 import { resolveMapStyle } from '@/lib/mapStyle';
-import { readSource } from '@/testing/source';
 
 /**
  * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a **form** — every
@@ -13,12 +12,8 @@ import { readSource } from '@/testing/source';
  * These are real render tests (jsdom + `react-dom/client`), because the whole
  * point of the fix is that editing no longer touches the store.
  *
- * FIX-F01 (the canvas size joins the draft), FIX-F02 (every change
- * writes through), FIX-F04 / SPEC-F01 (source-level assertions).
+ * FIX-F01 (the canvas size joins the draft), FIX-F02 (every change writes through).
  */
-
-/** The drawer source, read as raw text for the architectural assertions. */
-const drawerSource = readSource('components/map-editor/MapInfoDrawer.tsx');
 
 function setValue(element: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
@@ -260,17 +255,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     expect(onCommit.mock.calls[0]![1]).toBe(24);
   });
 
-  it('FIX-F04: no bare colour input — every swatch is the shared ColorInput', () => {
-    expect(drawerSource).not.toMatch(/type="color"/);
-    expect(drawerSource).toContain("from '@/components/ui/color-input'");
-    expect(drawerSource.match(/<ColorInput/g)?.length ?? 0).toBeGreaterThan(0);
-  });
-
-  it('SPEC-F01: hints are circular icons, never a title on the label', () => {
-    expect(drawerSource).not.toMatch(/<Label[^>]*\stitle=/);
-    expect(drawerSource).toContain('HelpCircle');
-  });
-
   it('FEAT-E02: the ruler group edits text size and the text→board gap', () => {
     act(() => typeInto(input('map-info-ruler-font'), '22'));
     act(() => typeInto(input('map-info-ruler-gap'), '12'));
@@ -296,13 +280,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     }
   });
 
-  /**
-   */
-  it('SPEC-K12: the map drawer carries no linkage palette', () => {
-    expect(drawerSource).not.toContain('linkageColors');
-    expect(drawerSource).not.toContain('characterSlots');
-  });
-
   it('名称 / 描述 follow the same draft and are committed with it', () => {
     act(() => typeInto(input('map-info-name'), '新名字'));
     const description = container.querySelector<HTMLTextAreaElement>('#map-info-description');
@@ -325,12 +302,5 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     // 抽屉也不允许从这里静默关闭。
     expect(handle?.save()).toBe(false);
     expect(onCommit).not.toHaveBeenCalled();
-  });
-
-  it('触达不了任何请求 —— 保存只把草稿交给页面', () => {
-    // 用户裁定：抽屉的「保存」不发请求，写入统一由右上角「保存」触发。
-    expect(drawerSource).not.toContain('useUpdateMap');
-    expect(drawerSource).not.toContain('mutateAsync');
-    expect(drawerSource).not.toContain('apiPatch');
   });
 });

@@ -35,15 +35,34 @@ export interface MapRow {
   updated_at: Date | string;
 }
 
-/** v0.6.0: the `assets` table (was `items`); `category` → `type`, `can_stand` → `blocking`. */
+/**
+ * v0.6.0: the `assets` table (was `items`); `category` → `type`, `can_stand` → `blocking`.
+ *
+ * v0.6.1: the asset row keeps only identity + behaviour; the appearance and the
+ * footprint live on {@link AssetFormRow} (docs/v0.6.1.md §3).
+ */
 export interface AssetRow {
   id: string | number;
   code: string;
   name: string;
   type: AssetType;
+  blocking: boolean;
+  /** v0.5.2 FEAT-M03: the free-form `meta` blob was dropped with the column. */
+  is_active: boolean;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+/**
+ * v0.6.1: one row of `asset_forms` — how an asset looks and how many cells it
+ * covers. `asset_id` cascades, so deleting the asset deletes its forms.
+ */
+export interface AssetFormRow {
+  id: string | number;
+  asset_id: string | number;
+  name: string;
   width_cells: number;
   height_cells: number;
-  blocking: boolean;
   fit_mode: AssetFitMode;
   image_path: string | null;
   image_mime: string | null;
@@ -52,8 +71,7 @@ export interface AssetRow {
   image_height: number | null;
   /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
-  /** v0.5.2 FEAT-M03: the free-form `meta` blob was dropped with the column. */
-  is_active: boolean;
+  sort_order: number;
   created_at: Date | string;
   updated_at: Date | string;
 }

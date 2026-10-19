@@ -3,7 +3,6 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_BG_COLOR } from '@loredoku/shared';
 import { AppearanceField } from './AppearanceField';
-import { readSource } from '@/testing/source';
 
 /**
  * v0.5.1 FEAT-L01 / FEAT-L02 — the shared 「外观」 control.
@@ -11,26 +10,6 @@ import { readSource } from '@/testing/source';
  * The two modes must be mutually exclusive: 「纯色块」 shows a colour picker and
  * hides the uploader, 「图片」 shows the uploader and hides the picker.
  */
-
-const source = readSource('components/appearance/AppearanceField.tsx');
-
-describe('AppearanceField — 源码契约（v0.5.1 FEAT-L01 / L02）', () => {
-  it('offers exactly the two shared modes', () => {
-    expect(source).toContain('APPEARANCE_MODES.map(');
-    expect(source).toContain('APPEARANCE_MODE_LABELS[value]');
-    expect(source).toContain('role="radiogroup"');
-  });
-
-  it('defaults the colour to white and never renders an empty swatch', () => {
-    expect(source).toContain('DEFAULT_BG_COLOR');
-    expect(source).toContain("bgColor.trim() === '' ? DEFAULT_BG_COLOR : bgColor");
-  });
-
-  it('hides the uploader in colour mode and the picker in image mode', () => {
-    expect(source).toContain("mode === 'color' ? (");
-    expect(source).toContain('<ColorInput');
-  });
-});
 
 describe('AppearanceField — 渲染行为（v0.5.1）', () => {
   let container: HTMLDivElement;

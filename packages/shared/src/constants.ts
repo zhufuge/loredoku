@@ -64,6 +64,9 @@ export const ASSET_TYPE_LABELS: Record<(typeof ASSET_TYPES)[number], string> = {
 };
 export const ASSET_FIT_MODES = ['cover', 'contain'] as const;
 export const DEFAULT_ASSET_FIT_MODE = 'cover';
+// v0.6.1: 形态（asset_forms）—— 一个资源的多种「样子 + 占位」。
+export const ASSET_FORM_NAME_MAX_LENGTH = 32;
+export const DEFAULT_ASSET_FORM_NAME = '默认';
 
 // ---- 历史迁移兼容常量（仅 v0.6.0 之前的迁移文件引用，值冻结为当时语义）----
 // v0.6.0 把 `category` 改名为 `type`、取值 `object` 改成 `item`。历史迁移
@@ -159,8 +162,16 @@ export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
  * v0.5.0 FEAT-K14: v3 — no `characterSlots` and no `style.linkageColors` (both
  * moved to the puzzle). v2 added `style` (FEAT-D02); v1 stays valid because a
  * missing `style` resolves to `DEFAULT_MAP_STYLE`.
+ *
+ * v0.6.1: v5 — a canvas item anchor may carry `formId`, pointing at one of the
+ * asset's forms (docs/v0.6.1.md §6). The field is optional, so v4 payloads keep
+ * validating and fall back to the asset's first form.
+ *
+ * v0.6.1 (background forms): v6 — a background cell may carry `formId` too, now
+ * that a background asset may own several forms. Same deal: optional, and the
+ * fallback is the asset's first form.
  */
-export const MAP_JSON_VERSION = 4;
+export const MAP_JSON_VERSION = 6;
 
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;

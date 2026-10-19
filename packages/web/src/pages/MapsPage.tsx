@@ -316,7 +316,6 @@ export function MapsPage(): JSX.Element {
     <section className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          {/* SPEC-O19: 工坊 lives in the header wordmark, not here. */}
           <h1 className="text-2xl font-semibold">地图</h1>
           <p className="text-sm text-muted-foreground">创建、管理并编辑你的地图。</p>
         </div>

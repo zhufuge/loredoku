@@ -52,20 +52,6 @@ export async function disable(ctx: Context): Promise<void> {
   success(ctx, await assetService.setAssetActive(id, false), '已停用');
 }
 
-export async function uploadImage(ctx: Context): Promise<void> {
-  const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const file = ctx.file;
-  if (!file) {
-    throw new Error('缺少上传文件');
-  }
-  success(ctx, await assetService.uploadImage(id, file.buffer), '上传成功');
-}
-
-export async function deleteImage(ctx: Context): Promise<void> {
-  const { id } = parseOrThrow(idParamSchema, ctx.params);
-  success(ctx, await assetService.deleteImage(id), '图片已删除');
-}
-
 export async function usages(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   success(ctx, await assetService.getUsages(id));

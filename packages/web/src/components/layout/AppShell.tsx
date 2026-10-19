@@ -6,34 +6,22 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const navItems = [
-  // v0.5.4 FEAT-O06 / SPEC-O19 (docs/v0.5.4.md §4): the module moved to
-  // `/maps`, but it still **speaks** 地图 — 工坊 is only the header suffix the
-  // page adds to the wordmark.
   { to: '/maps', label: '地图', icon: Map },
   { to: '/assets', label: '资源', icon: Package },
   { to: '/characters', label: '角色', icon: Users },
   { to: '/puzzles', label: '谜题', icon: Puzzle },
 ];
 
-/**
- * FEAT-O05 §4.2 / SPEC-O19: the header's wordmark gains a third segment —
- * 「图标 · 格物 · 工坊」 — while the console is on the map page. 工坊 is
- * the **maker-side name of the console**, so it rides the wordmark; the page
- * title, the nav label and `document.title` all keep speaking 地图.
- */
 const WORKSHOP_SUFFIX = ' · 工坊';
 
 export function AppShell(): JSX.Element {
   const navigate = useNavigate();
-  const { pathname } = useLocation();
-  const onMaps = pathname === '/maps' || pathname.startsWith('/maps/');
 
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-6 px-6">
-          {/* v0.5.3 FEAT-N02 (docs/v0.5.3.md §2): 「图标 · 格物」. */}
-          <BrandLogo height={20} withWordmark suffix={onMaps ? WORKSHOP_SUFFIX : undefined} />
+          <BrandLogo height={20} withWordmark suffix={WORKSHOP_SUFFIX} />
           <nav className="flex items-center gap-1">
             {navItems.map((item) => (
               <NavLink

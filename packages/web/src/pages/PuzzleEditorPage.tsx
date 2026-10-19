@@ -685,7 +685,7 @@ export function PuzzleEditorPage(): JSX.Element {
             regionShape="rect"
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
-            pendingAsset={null}
+            pendingForm={null}
             regionDraftSelection={new Set<string>()}
             highlight={highlight}
             highlightLeaving={highlightLeaving}

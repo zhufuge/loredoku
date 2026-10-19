@@ -2,8 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   assetsApi,
+  assetFormsApi,
+  type CreateAssetFormPayload,
   type CreateAssetPayload,
   type ListAssetsParams,
+  type UpdateAssetFormPayload,
   type UpdateAssetPayload,
 } from '@/api/assets';
 
@@ -101,10 +104,59 @@ export function useSetAssetActive() {
   });
 }
 
-export function useUploadAssetImage() {
+// ---- v0.6.1: forms ----
+
+export function useCreateAssetForm() {
   const invalidate = useInvalidateAssets();
   return useMutation({
-    mutationFn: ({ id, file }: { id: number; file: File }) => assetsApi.uploadImage(id, file),
+    mutationFn: ({ assetId, payload }: { assetId: number; payload: CreateAssetFormPayload }) =>
+      assetFormsApi.create(assetId, payload),
+    onSuccess: () => {
+      toast.success('形态已添加');
+      invalidate();
+    },
+    onError: (error) => toast.error(errorMessage(error, '添加失败')),
+  });
+}
+
+export function useUpdateAssetForm() {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: ({
+      assetId,
+      formId,
+      payload,
+    }: {
+      assetId: number;
+      formId: number;
+      payload: UpdateAssetFormPayload;
+    }) => assetFormsApi.update(assetId, formId, payload),
+    onSuccess: () => {
+      toast.success('形态已保存');
+      invalidate();
+    },
+    onError: (error) => toast.error(errorMessage(error, '保存失败')),
+  });
+}
+
+export function useDeleteAssetForm() {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: ({ assetId, formId }: { assetId: number; formId: number }) =>
+      assetFormsApi.remove(assetId, formId),
+    onSuccess: () => {
+      toast.success('形态已删除');
+      invalidate();
+    },
+    onError: (error) => toast.error(errorMessage(error, '删除失败')),
+  });
+}
+
+export function useUploadAssetFormImage() {
+  const invalidate = useInvalidateAssets();
+  return useMutation({
+    mutationFn: ({ assetId, formId, file }: { assetId: number; formId: number; file: File }) =>
+      assetFormsApi.uploadImage(assetId, formId, file),
     onSuccess: () => {
       toast.success('图片已上传');
       invalidate();
@@ -113,12 +165,13 @@ export function useUploadAssetImage() {
   });
 }
 
-export function useDeleteAssetImage() {
+export function useDeleteAssetFormImage() {
   const invalidate = useInvalidateAssets();
   return useMutation({
-    mutationFn: (id: number) => assetsApi.deleteImage(id),
+    mutationFn: ({ assetId, formId }: { assetId: number; formId: number }) =>
+      assetFormsApi.deleteImage(assetId, formId),
     onSuccess: () => {
-      toast.success('图片已删除，该资源已自动停用');
+      toast.success('图片已删除');
       invalidate();
     },
     onError: (error) => toast.error(errorMessage(error, '删除失败')),

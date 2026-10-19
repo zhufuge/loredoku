@@ -1,4 +1,4 @@
-import { UI_Z } from '@loredoku/shared';
+import { UI_Z, resolveAssetForm } from '@loredoku/shared';
 import type { DraftCell, DraftRegion, Asset } from '@loredoku/shared';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { Button } from '@/components/ui/button';
@@ -142,6 +142,12 @@ function CellBranch({
   const backgroundAsset =
     cell?.background?.assetId !== undefined ? assetsById.get(cell.background.assetId) : undefined;
   const itemAsset = cell?.item?.assetId !== undefined ? assetsById.get(cell.item.assetId) : undefined;
+  // v0.6.1: both layers show the form the cell was painted with; a missing or
+  // dangling `formId` falls back to the asset's first form.
+  const backgroundLook = backgroundAsset
+    ? resolveAssetForm(backgroundAsset, cell?.background?.formId)
+    : undefined;
+  const itemLook = itemAsset ? resolveAssetForm(itemAsset, cell?.item?.formId) : undefined;
 
   return (
     <>
@@ -156,8 +162,15 @@ function CellBranch({
         <h3 className="text-xs font-medium text-muted-foreground">背景层</h3>
         {backgroundAsset ? (
           <div className="flex items-center gap-2">
-            <AssetThumbnail asset={backgroundAsset} className="h-8 w-8" />
-            <span className="truncate text-sm">{backgroundAsset.name}</span>
+            {backgroundLook ? (
+              <AssetThumbnail appearance={backgroundLook} name={backgroundAsset.name} className="h-8 w-8" />
+            ) : null}
+            <span className="truncate text-sm">
+              {backgroundAsset.name}
+              {backgroundLook && backgroundAsset.forms.length > 1 ? (
+                <span className="text-muted-foreground"> · {backgroundLook.name}</span>
+              ) : null}
+            </span>
             <span className="ml-auto font-mono text-[10px] text-muted-foreground">
               #{backgroundAsset.id}
             </span>
@@ -171,8 +184,15 @@ function CellBranch({
         <h3 className="text-xs font-medium text-muted-foreground">物品层</h3>
         {itemAsset ? (
           <div className="flex items-center gap-2">
-            <AssetThumbnail asset={itemAsset} className="h-8 w-8" />
-            <span className="truncate text-sm">{itemAsset.name}</span>
+            {itemLook ? (
+              <AssetThumbnail appearance={itemLook} name={itemAsset.name} className="h-8 w-8" />
+            ) : null}
+            <span className="truncate text-sm">
+              {itemAsset.name}
+              {itemLook && itemAsset.forms.length > 1 ? (
+                <span className="text-muted-foreground"> · {itemLook.name}</span>
+              ) : null}
+            </span>
             <span className="ml-auto text-[10px] text-muted-foreground">
               {cell?.item?.w}×{cell?.item?.h}
             </span>

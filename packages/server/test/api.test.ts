@@ -420,8 +420,6 @@ describe('assets API', () => {
       code: uniqueCode('candlestick'),
       name: 'Candlestick',
       type: 'item',
-      widthCells: 2,
-      heightCells: 1,
       blocking: false,
     });
     expect(res.status).toBe(200);
@@ -430,7 +428,14 @@ describe('assets API', () => {
     // The trigger array — and the free-form meta blob — are gone.
     expect(res.body.data).not.toHaveProperty('triggers');
     expect(res.body.data).not.toHaveProperty('meta');
-    expect(res.body.data.widthCells).toBe(2);
+    // v0.6.1: the footprint and the look moved to the initial form.
+    expect(res.body.data).not.toHaveProperty('widthCells');
+    expect(res.body.data.forms).toHaveLength(1);
+    expect(res.body.data.forms[0]).toMatchObject({
+      name: '默认',
+      widthCells: 1,
+      heightCells: 1,
+    });
 
     const patched = await api.patch(`/api/assets/${id}`).send({ name: 'Candlestick Holder' });
     expect(patched.body.data.name).toBe('Candlestick Holder');
