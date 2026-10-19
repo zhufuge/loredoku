@@ -3,7 +3,7 @@ import type { DraftCell, DraftRegion, PuzzleDraft } from './types/domain';
 /**
  * v0.5.0 FEAT-K01 (docs/v0.5.0.md §5.2) — the **cross-table** half of the puzzle
  * reference check. `puzzleDraftSchema` can check `character` / `cell` (inside the
- * payload), but `item` / `region` live in the referenced **map version snapshot**.
+ * payload), but `asset` / `region` live in the referenced **map version snapshot**.
  * Web (before save / import) and server (`puzzleService.save`) both call this, so
  * an imported JSON cannot slip past a front-end-only check.
  */
@@ -24,17 +24,17 @@ export interface PuzzleRefIssue {
 }
 
 /**
- * Every linkage whose `item` / `region` target is missing from the referenced map
- * version; `[]` means all resolve. Empty `cells` / `regions` is not an error — a
- * bare canvas legitimately has neither.
+ * Every linkage whose `asset` / `region` target is missing from the referenced
+ * map version; `[]` means all resolve. Empty `cells` / `regions` is not an
+ * error — a bare canvas legitimately has neither.
  */
 export function validatePuzzleReferences(
   draft: PuzzleDraft,
   context: PuzzleRefContext,
 ): PuzzleRefIssue[] {
-  const objectItemIds = new Set<number>();
+  const itemAssetIds = new Set<number>();
   for (const cell of Object.values(context.cells)) {
-    if (cell?.object) objectItemIds.add(cell.object.itemId);
+    if (cell?.item) itemAssetIds.add(cell.item.assetId);
   }
   const regionIds = new Set(context.regions.map((region) => region.id));
 
@@ -42,11 +42,11 @@ export function validatePuzzleReferences(
   draft.characterSlots.forEach((slot, slotIndex) => {
     if (!slot) return;
     (slot.linkages ?? []).forEach((target, targetIndex) => {
-      if (target.type === 'item' && !objectItemIds.has(target.id)) {
+      if (target.type === 'asset' && !itemAssetIds.has(target.id)) {
         issues.push({
           slotIndex,
           targetIndex,
-          message: `参与者框 ${slotIndex + 1} 的联动目标物品 #${target.id} 不在地图中`,
+          message: `参与者框 ${slotIndex + 1} 的联动目标资源 #${target.id} 不在地图中`,
         });
       }
       if (target.type === 'region' && !regionIds.has(target.id)) {

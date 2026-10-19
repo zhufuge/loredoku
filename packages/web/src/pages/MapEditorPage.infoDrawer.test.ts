@@ -86,7 +86,7 @@ describe('MapEditorPage (BUG-G01)', () => {
  * 选中区域本身（区域分支）时它们仍然可用。
  *
  * v0.5.0 SPEC-K12 §4.2 进一步把方格分支的操作按钮全部去掉（readOnly 时连
- * 「清空本格 / 清空物件层」也不渲染）——谜题编辑器的只读信息框复用同一组件。
+ * 「清空本格 / 清空物品层」也不渲染）——谜题编辑器的只读信息框复用同一组件。
  */
 const drawerSource = readSource('components/map-editor/EditorInfoDrawer.tsx');
 

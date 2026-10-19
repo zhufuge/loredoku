@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import {
   MAP_LAYER_Z,
-  NO_STAND_SHADOW_COLOR,
+  BLOCKING_SHADOW_COLOR,
   type CellCoord,
   type DraftRegion,
   type MapStyle,
@@ -20,32 +20,32 @@ import { RegionHighlightOutline } from './MapRegionLayers';
  */
 
 /**
- * 层 8 · 不可站立遮罩（Non-standable Mask）— a `rgba(0,0,0,0.18)` mask for
- * cells whose object-layer item has `canStand === false`.
+ * 层 8 · 阻挡遮罩（Blocking Mask）— a `rgba(0,0,0,0.18)` mask for
+ * cells whose item-layer item has `blocking === true`.
  *
  * v0.3.8 SPEC-D01: the mask sits **below** 区域轮廓线 and **above** 区域高亮线
- * (see `docs/layer-priority.md` §2). The artwork is above it, but every object
- * image keeps a transparent `objectPadding` ring, so the mask stays visible
+ * (see `docs/layer-priority.md` §2). The artwork is above it, but every item
+ * image keeps a transparent `itemPadding` ring, so the mask stays visible
  * around it. It is inset to the grid separator so it never paints over it.
  */
-export function MapNonStandableMaskLayer({
-  noStandCells,
+export function MapBlockingMaskLayer({
+  blockingCells,
   cellSize,
   style,
 }: {
-  noStandCells: Set<string>;
+  blockingCells: Set<string>;
   cellSize: number;
   style: MapStyle;
 }): JSX.Element | null {
-  if (noStandCells.size === 0) return null;
+  if (blockingCells.size === 0) return null;
   const inset = styleLineWidth(style.gridSeparator.width, cellSize) / 2;
   const size = Math.max(0, cellSize - inset * 2);
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.nonStandableMask }}
+      style={{ zIndex: MAP_LAYER_Z.blockingMask }}
     >
-      {[...noStandCells].map((key) => {
+      {[...blockingCells].map((key) => {
         const [x, y] = parseKey(key);
         return (
           <div
@@ -56,7 +56,7 @@ export function MapNonStandableMaskLayer({
               top: y * cellSize + inset,
               width: size,
               height: size,
-              backgroundColor: NO_STAND_SHADOW_COLOR,
+              backgroundColor: BLOCKING_SHADOW_COLOR,
             }}
           />
         );

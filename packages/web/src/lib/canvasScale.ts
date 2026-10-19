@@ -6,9 +6,9 @@ import {
   INNER_LINE_WIDTH,
   LINE_WIDTH_MAX,
   LINE_WIDTH_MIN,
-  OBJECT_PADDING_BASE,
-  OBJECT_PADDING_MAX,
-  OBJECT_PADDING_MIN,
+  ITEM_PADDING_BASE,
+  ITEM_PADDING_MAX,
+  ITEM_PADDING_MIN,
   REGION_HIGHLIGHT_WIDTH,
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
@@ -47,12 +47,12 @@ export function scaleFontSize(size: number, scale: number): number {
 
 /**
  * OPT-C06 (docs/v0.3.7.md §OPT-C06): object-layer artwork is inset inside its
- * cell. Clamped to `[OBJECT_PADDING_MIN, OBJECT_PADDING_MAX]`.
+ * cell. Clamped to `[ITEM_PADDING_MIN, ITEM_PADDING_MAX]`.
  */
-export function objectPadding(cellSize: number): number {
-  const scaled = OBJECT_PADDING_BASE * cellScale(cellSize);
-  if (!Number.isFinite(scaled)) return OBJECT_PADDING_BASE;
-  return Math.min(OBJECT_PADDING_MAX, Math.max(OBJECT_PADDING_MIN, scaled));
+export function itemPadding(cellSize: number): number {
+  const scaled = ITEM_PADDING_BASE * cellScale(cellSize);
+  if (!Number.isFinite(scaled)) return ITEM_PADDING_BASE;
+  return Math.min(ITEM_PADDING_MAX, Math.max(ITEM_PADDING_MIN, scaled));
 }
 
 /** The scaled geometry of one board render, derived once per `cellSize`. */

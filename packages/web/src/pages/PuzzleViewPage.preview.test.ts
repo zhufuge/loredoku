@@ -64,10 +64,10 @@ describe('PuzzleViewPage is read-only', () => {
   it('keeps the shared layer stack, rulers and hover affordances', () => {
     expect(pageSource).toContain('<MapBackgroundLayer');
     expect(pageSource).toContain('<MapHighlightLayer');
-    expect(pageSource).toContain('<MapObjectLayer');
+    expect(pageSource).toContain('<MapItemLayer');
     expect(pageSource).toContain('<MapRegionLabelLayer');
     expect(pageSource).toContain('MapRulerStrips');
-    expect(pageSource).toContain('resolveHoverEffects({ hover, noStandCells, objectCells, regions })');
+    expect(pageSource).toContain('resolveHoverEffects({ hover, blockingCells, itemCells, regions })');
     // OPT-A01：自适应格宽 + 手动缩放后停止自动重排。
     expect(pageSource).toContain('computeCellSizeForInsets');
     expect(pageSource).toContain('userAdjustedRef');

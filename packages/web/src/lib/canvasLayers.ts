@@ -6,7 +6,7 @@ import {
   type DraftCell,
   type DraftRegion,
   type EditorLayer,
-  type Item,
+  type Asset,
   type MapLayerName,
   type MapStyleMouseCursorBox,
   type MapStyleOperationCursorBox,
@@ -32,10 +32,10 @@ export function layerStack(): Array<{ name: MapLayerName; z: number }> {
 }
 
 /** Base inset of the non-standable mask before the OPT-B03 scale is applied. */
-export const NO_STAND_SHADOW_INSET = BORDER_WIDTH / 2;
+export const BLOCKING_SHADOW_INSET = BORDER_WIDTH / 2;
 
 /** OPT-B03: the mask inset follows the scaled Border width. */
-export function noStandShadowInset(cellSize: number): number {
+export function blockingShadowInset(cellSize: number): number {
   return scaleLineWidth(BORDER_WIDTH, cellScale(cellSize)) / 2;
 }
 
@@ -48,10 +48,10 @@ function parseKey(key: string): [number, number] {
  * Every cell covered by an object, anchor cells included. A multi-cell
  * object occupies `w × h` cells even though only the anchor is stored.
  */
-export function collectObjectCells(cells: CellMap): Set<string> {
+export function collectItemCells(cells: CellMap): Set<string> {
   const covered = new Set<string>();
   for (const [key, cell] of cells.entries()) {
-    const anchor = cell.object;
+    const anchor = cell.item;
     if (!anchor) continue;
     const [x, y] = parseKey(key);
     for (let dy = 0; dy < anchor.h; dy += 1) {
@@ -64,24 +64,24 @@ export function collectObjectCells(cells: CellMap): Set<string> {
 }
 
 /**
- * OPT-901 §1.2.5: cells whose **物件层** item has `canStand === false` get a
- * super-low-opacity grey mask. An item that is missing from `itemsById`
- * (inactive or deleted) is treated as standable so stale drafts don't grow
+ * OPT-901 §1.2.5: cells whose **物品层** item has `blocking === true` get a
+ * super-low-opacity grey mask. An item that is missing from `assetsById`
+ * (inactive or deleted) is treated as non-blocking so stale drafts don't grow
  * a shadow.
  *
- * Because §4.1 keeps the mask purely presentational, changing `can_stand` in
- * the item manager takes effect on the next render — nothing is removed from
+ * Because §4.1 keeps the mask purely presentational, changing `blocking` in
+ * the asset manager takes effect on the next render — nothing is removed from
  * the board.
  */
-export function collectNoStandCells(
+export function collectBlockingCells(
   cells: CellMap,
-  itemsById: Map<number, Item>,
+  assetsById: Map<number, Asset>,
 ): Set<string> {
   const result = new Set<string>();
   for (const [key, cell] of cells.entries()) {
-    const anchor = cell.object;
+    const anchor = cell.item;
     if (!anchor) continue;
-    if (itemsById.get(anchor.itemId)?.canStand !== false) continue;
+    if (assetsById.get(anchor.assetId)?.blocking !== true) continue;
     const [x, y] = parseKey(key);
     for (let dy = 0; dy < anchor.h; dy += 1) {
       for (let dx = 0; dx < anchor.w; dx += 1) {
@@ -100,14 +100,14 @@ export interface HoverEffects {
   /** OPT-902 §2.2: id of the region covering the hovered cell. */
   regionId: string | null;
   /** OPT-902 §2.3: an object image sits under the cursor and should lift. */
-  hasObject: boolean;
+  hasItem: boolean;
 }
 
 export const NO_HOVER_EFFECTS: HoverEffects = {
   cell: null,
   blocked: false,
   regionId: null,
-  hasObject: false,
+  hasItem: false,
 };
 
 /**
@@ -116,18 +116,18 @@ export const NO_HOVER_EFFECTS: HoverEffects = {
  */
 export function resolveHoverEffects(input: {
   hover: { x: number; y: number } | null;
-  noStandCells: Set<string>;
-  objectCells: Set<string>;
+  blockingCells: Set<string>;
+  itemCells: Set<string>;
   regions: DraftRegion[];
 }): HoverEffects {
-  const { hover, noStandCells, objectCells, regions } = input;
+  const { hover, blockingCells, itemCells, regions } = input;
   if (!hover) return NO_HOVER_EFFECTS;
   const key = `${hover.x},${hover.y}`;
   return {
     cell: { x: hover.x, y: hover.y },
-    blocked: noStandCells.has(key),
+    blocked: blockingCells.has(key),
     regionId: regionAt(regions, hover.x, hover.y)?.id ?? null,
-    hasObject: objectCells.has(key),
+    hasItem: itemCells.has(key),
   };
 }
 
@@ -218,12 +218,12 @@ export function resolveCursorBoxes(input: {
 }
 
 /**
- * OPT-904 §4.1: the background layer only accepts `category === 'background'`
- * items and the object layer only accepts `category === 'object'` items, so a
- * non-standable object is still placeable on the object layer while never
- * being placeable on the background layer.
+ * OPT-904 §4.1: the background layer only accepts `type === 'background'`
+ * assets and the item layer only accepts `type === 'item'` assets, so a
+ * blocking item is still placeable on the item layer while never being
+ * placeable on the background layer.
  */
-export function canPlaceItemOnLayer(item: Item | null, layer: EditorLayer): boolean {
-  if (!item) return false;
-  return item.category === layer;
+export function canPlaceAssetOnLayer(asset: Asset | null, layer: EditorLayer): boolean {
+  if (!asset) return false;
+  return asset.type === layer;
 }

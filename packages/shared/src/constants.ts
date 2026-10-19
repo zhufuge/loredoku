@@ -47,32 +47,37 @@ export const GRID_LINE_COLOR = LINE_COLOR;
 export const GRID_LINE_WIDTH = BORDER_WIDTH;
 export const GRID_BORDER_WIDTH = OUTLINE_WIDTH;
 
-// ---- Item ----
-export const ITEM_NAME_MAX_LENGTH = 100;
-export const ITEM_CODE_MAX_LENGTH = 64;
-export const ITEM_CODE_PATTERN = /^[A-Za-z0-9_]+$/;
-export const ITEM_CATEGORIES = ['background', 'object'] as const;
-export const DEFAULT_ITEM_CATEGORY = 'object';
-export const ITEM_SIZE_MIN = 1;
-export const ITEM_SIZE_MAX = 12;
-export const ITEM_SIZE_DEFAULT = 1;
-export const ITEM_CATEGORY_LABELS: Record<(typeof ITEM_CATEGORIES)[number], string> = {
+// ---- Asset（资源库：背景 / 物品两类图案） ----
+// v0.6.0: 「物品」这个词让给了画布上的物件层，资源库改叫 assets；原来的
+// `category` 换成 `type`，取值 `object` 改为 `item`。
+export const ASSET_NAME_MAX_LENGTH = 100;
+export const ASSET_CODE_MAX_LENGTH = 64;
+export const ASSET_CODE_PATTERN = /^[A-Za-z0-9_]+$/;
+export const ASSET_TYPES = ['background', 'item'] as const;
+export const DEFAULT_ASSET_TYPE = 'item';
+export const ASSET_SIZE_MIN = 1;
+export const ASSET_SIZE_MAX = 12;
+export const ASSET_SIZE_DEFAULT = 1;
+export const ASSET_TYPE_LABELS: Record<(typeof ASSET_TYPES)[number], string> = {
   background: '背景',
-  object: '物体',
+  item: '物品',
 };
-export const ITEM_FIT_MODES = ['cover', 'contain'] as const;
-export const DEFAULT_ITEM_FIT_MODE = 'cover';
+export const ASSET_FIT_MODES = ['cover', 'contain'] as const;
+export const DEFAULT_ASSET_FIT_MODE = 'cover';
+
+// ---- 历史迁移兼容常量（仅 v0.6.0 之前的迁移文件引用，值冻结为当时语义）----
+// v0.6.0 把 `category` 改名为 `type`、取值 `object` 改成 `item`。历史迁移
+// `...000008` / `...000009` 描述的是当时的表结构（`items.category` 默认 `'object'`），
+// 逻辑一个字都不能改，所以这里保留旧名、冻结旧值。业务代码一律用 ASSET_*。
+export const DEFAULT_ITEM_CATEGORY = 'object' as const;
+export const DEFAULT_ITEM_FIT_MODE = 'cover' as const;
 
 // ---- Editor layers ----
-export const EDITOR_LAYERS = ['background', 'object'] as const;
+/** v0.6.0: the canvas layers are `background` and `item` (was `object`). */
+export const EDITOR_LAYERS = ['background', 'item'] as const;
 
 // Deprecated (v1 rotation no longer used; kept for legacy migration typings).
 export const CARD_ROTATIONS = [0, 90, 180, 270] as const;
-
-// Backward-compatible aliases (prefer the ITEM_* constants).
-export const CARD_NAME_MAX_LENGTH = ITEM_NAME_MAX_LENGTH;
-export const CARD_CODE_MAX_LENGTH = ITEM_CODE_MAX_LENGTH;
-export const CARD_CODE_PATTERN = ITEM_CODE_PATTERN;
 
 // ---- Region ----
 export const REGION_NAME_MAX_LENGTH = 100;
@@ -116,7 +121,7 @@ export const GENDER_SYMBOL_COLORS: Record<(typeof CHARACTER_GENDERS)[number], st
 };
 
 // ---- Appearance ----
-// An item / character renders as an uploaded image or a colour block (`bgColor`),
+// An asset / character renders as an uploaded image or a colour block (`bgColor`),
 // which needs no upload and can be activated straight away.
 export const APPEARANCE_MODES = ['image', 'color'] as const;
 export const DEFAULT_APPEARANCE_MODE = 'image';
@@ -145,12 +150,17 @@ export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
 
 // ---- Map draft JSON ----
 /**
+ * v0.6.0: v4 — a cell's object layer is `item` (was `object`) and every asset
+ * reference is `assetId` (was `itemId`). Schemas are `.strict()`, so a v3
+ * payload is rejected on write and absorbed on read by
+ * `service/mapDraftCompat.ts` (migration `20260101000025` has already
+ * rewritten the stored rows).
+ *
  * v0.5.0 FEAT-K14: v3 — no `characterSlots` and no `style.linkageColors` (both
- * moved to the puzzle). Schemas are `.strict()`, so v2 is rejected on write and
- * absorbed on read by `service/mapDraftCompat.ts`. v2 added `style` (FEAT-D02);
- * v1 stays valid because a missing `style` resolves to `DEFAULT_MAP_STYLE`.
+ * moved to the puzzle). v2 added `style` (FEAT-D02); v1 stays valid because a
+ * missing `style` resolves to `DEFAULT_MAP_STYLE`.
  */
-export const MAP_JSON_VERSION = 3;
+export const MAP_JSON_VERSION = 4;
 
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
@@ -166,7 +176,8 @@ export const HIGHLIGHT_BLUE = '#90CAF9';
 
 // ---- Participant linkage (docs/v0.3.0.md FEAT-502, v0.3.3 MOD-801) ----
 // MOD-801: click/touch trigger grouping is gone — linkages are a flat list.
-export const PARTICIPANT_TARGET_TYPES = ['character', 'item', 'cell', 'region'] as const;
+/** v0.6.0: `item` became `asset` — a linkage points at a resource, not at a placed item. */
+export const PARTICIPANT_TARGET_TYPES = ['character', 'asset', 'cell', 'region'] as const;
 export const EFFECT_COLORS = ['red', 'blue'] as const;
 export const EFFECT_COLOR_HEX: Record<(typeof EFFECT_COLORS)[number], string> = {
   red: HIGHLIGHT_RED,
@@ -210,7 +221,7 @@ export const THEME_COLOR_PALETTE = [
  * 《画布图层优先级规范》 (`docs/layer-priority.md` §2) — the single authority.
  * Keys are that document's 代码常量 names, so code, docs and
  * UI share one vocabulary. v0.4.0 SPEC-G01/G02 inserted the two game-only
- * layers between 区域标签 and 物件图层, renumbering the stack.
+ * layers between 区域标签 and 物品图层, renumbering the stack.
  */
 export const MAP_LAYER_ORDER = [
   'mouseCursorBox',
@@ -218,11 +229,11 @@ export const MAP_LAYER_ORDER = [
   'regionLabel',
   'gameToolHint',
   'gamePlacement',
-  'objectLayer',
+  'itemLayer',
   'canvasFrame',
   'gridSeparator',
   'regionOutline',
-  'nonStandableMask',
+  'blockingMask',
   'regionHighlight',
   'cellHighlight',
   'backgroundHighlight',
@@ -243,16 +254,16 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   gameToolHint: 41,
   /** 5 游戏放置层 — v0.4.0 SPEC-G01, game-only placements. */
   gamePlacement: 40,
-  /** 6 物件图层 — above the grid lines so items are never cut by them. */
-  objectLayer: 38,
+  /** 6 物品图层 — above the grid lines so items are never cut by them. */
+  itemLayer: 38,
   /** 7 画布外框 — drawn outside the board rectangle. */
   canvasFrame: 36,
   /** 8 网格分隔线（内部分隔线） */
   gridSeparator: 34,
   /** 9 区域轮廓线 — below the grid lines so the separators stay readable. */
   regionOutline: 32,
-  /** 10 不可站立遮罩 — below 区域轮廓线, above 区域高亮线. */
-  nonStandableMask: 30,
+  /** 10 阻挡遮罩 — below 区域轮廓线, above 区域高亮线. */
+  blockingMask: 30,
   /** 11 区域高亮线 */
   regionHighlight: 28,
   /** 12 方块高亮 */
@@ -315,7 +326,7 @@ export const STYLE_DEFAULT_REGION_LABEL_STROKE_WIDTH = 10;
 export const STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE = 36;
 
 // ---- v0.5.2 FEAT-M01: 虚拟列表 ----
-/** Fixed row height (px) shared by the item and character lists. */
+/** Fixed row height (px) shared by the asset and character lists. */
 export const LIST_ROW_HEIGHT = 64;
 
 /** Linkage palette bounds (FEAT-D04). */
@@ -349,9 +360,9 @@ export const OPERATION_CURSOR_OUTLINE_WIDTH = 2;
 /** Distance from the cell edge (an Outline sits outside the Border). */
 export const OPERATION_CURSOR_OUTLINE_OFFSET = 1;
 
-// ---- OPT-A03 §3.1 + OPT-A06 §5.2 不可站立物体阴影 ----
-/** Deepened from `rgba(0,0,0,0.08)` to make blocked cells readable. */
-export const NO_STAND_SHADOW_COLOR = 'rgba(0,0,0,0.18)';
+// ---- OPT-A03 §3.1 + OPT-A06 §5.2 阻挡物品阴影 ----
+/** Deepened from `rgba(0,0,0,0.08)` to make blocking cells readable. */
+export const BLOCKING_SHADOW_COLOR = 'rgba(0,0,0,0.18)';
 // OPT-C03: `noStandShadow` / `canvasFrame` have their own `MAP_LAYER_Z` entries;
 // the old `NO_STAND_SHADOW_Z` / `CANVAS_FRAME_Z` aliases are gone.
 
@@ -367,16 +378,16 @@ export const REGION_LABEL_STROKE_COLOR = '#000000';
 /** Hover tints the label blue and enlarges it; OPT-C04 keeps it above the 17px base. */
 export const REGION_LABEL_HOVER_FONT_SIZE = 19;
 
-// ---- OPT-C06 物件层内边距 ----
-/** OPT-C06 (docs/v0.3.7.md §OPT-C06): object artwork is inset so it never touches the grid lines. */
-export const OBJECT_PADDING_BASE = 4;
-export const OBJECT_PADDING_MIN = 2;
-export const OBJECT_PADDING_MAX = 12;
+// ---- OPT-C06 物品层内边距 ----
+/** OPT-C06 (docs/v0.3.7.md §OPT-C06): item artwork is inset so it never touches the grid lines. */
+export const ITEM_PADDING_BASE = 4;
+export const ITEM_PADDING_MIN = 2;
+export const ITEM_PADDING_MAX = 12;
 
 // ---- OPT-902 §2.3 物品悬停 ----
-/** The object image stretches upward by this many pixels while hovered. */
-export const OBJECT_HOVER_LIFT_PX = 4;
-export const OBJECT_HOVER_TRANSITION_MS = 120;
+/** The item image stretches upward by this many pixels while hovered. */
+export const ITEM_HOVER_LIFT_PX = 4;
+export const ITEM_HOVER_TRANSITION_MS = 120;
 
 // ---- OPT-B05 标尺字符（docs/v0.3.6.md §5） ----
 /** Ruler glyph base sizes; both are multiplied by the OPT-B03 `scale`. */
@@ -400,7 +411,7 @@ export const RULER_SIZE = 28;
 // ---- OPT-B06 参与者区（docs/v0.3.6.md §6） ----
 /** Minimum participant cell width; the height stays at the v0.3.5 value. */
 export const PARTICIPANT_MIN_WIDTH = 110;
-/** Participant title bar height, kept in sync with the item panel header. */
+/** Participant title bar height, kept in sync with the asset panel header. */
 export const PARTICIPANT_HEADER_HEIGHT = 40;
 /** Participant cell minimum height. */
 export const PARTICIPANT_MIN_HEIGHT = 104;
@@ -427,7 +438,7 @@ export const PARTICIPANT_SEQ_INSET = 0;
 // ---- v0.3.8 FEAT-D02 地图基本信息（地图级缺省值） ----
 /**
  * Map-level display constants edited by the 「地图基本信息」 drawer (FEAT-D02).
- * Everything here is a **default** — per-object settings still win. The one
+ * Everything here is a **default** — per-item settings still win. The one
  * exception is 区域轮廓线 colour, which is global (the region's own `color`
  * only drives the fill). SPEC-E01 renamed fields to the layer names:
  * `border` → `gridSeparator`, `regionBorder` → `regionOutline`, etc.
@@ -438,7 +449,7 @@ export interface MapStyleLine {
 }
 
 export interface MapStyleMouseCursorBox extends MapStyleLine {
-  /** Stroke colour over a cell whose object has `canStand === false`. */
+  /** Stroke colour over a cell whose item has `blocking === true`. */
   blockedColor: string;
   /** Ring drawn over the grid separator so the box stays readable. */
   shadowColor: string;

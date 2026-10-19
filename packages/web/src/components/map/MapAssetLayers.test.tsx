@@ -1,27 +1,27 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { Item } from '@loredoku/shared';
+import type { Asset } from '@loredoku/shared';
 import type { CellMap } from '@/lib/canvasLayers';
-import { MapBackgroundLayer, MapObjectLayer } from './MapItemLayers';
+import { MapBackgroundLayer, MapItemLayer } from './MapAssetLayers';
 
 /**
  * v0.5.1 FEAT-L01 / SPEC-L03 — 「在背景展示该色块」.
  *
  * A colour-block item fills its cell(s) with the colour on **both** item layers
- * (层 12 背景层 / 层 4 物体层), with no `<img>` anywhere. An ordinary image item
+ * (层 12 背景层 / 层 4 物品层), with no `<img>` anywhere. An ordinary image item
  * keeps rendering its `<img>` exactly as before.
  */
 
-function item(id: number, overrides: Partial<Item> = {}): Item {
+function item(id: number, overrides: Partial<Asset> = {}): Asset {
   return {
     id,
     code: `item_${id}`,
-    name: `Item ${id}`,
-    category: 'object',
+    name: `Asset ${id}`,
+    type: 'item',
     widthCells: 1,
     heightCells: 1,
-    canStand: true,
+    blocking: true,
     fitMode: 'cover',
     imagePath: null,
     imageUrl: null,
@@ -42,7 +42,7 @@ const block = item(1, { bgColor: '#FF8800' });
 const picture = item(2, { imageUrl: '/uploads/p.png', imageThumbUrl: '/uploads/p.png' });
 const bare = item(3);
 
-const itemsById = new Map<number, Item>([
+const assetsById = new Map<number, Asset>([
   [1, block],
   [2, picture],
   [3, bare],
@@ -56,14 +56,14 @@ const layers = [
   {
     name: '层 12 · 背景层',
     layer: (cells: CellMap) => (
-      <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={100} />
+      <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={100} />
     ),
-    cells: (itemId: number) => new Map([['0,0', { background: { itemId } }]]),
+    cells: (assetId: number) => new Map([['0,0', { background: { assetId } }]]),
   },
   {
-    name: '层 4 · 物体层',
-    layer: (cells: CellMap) => <MapObjectLayer cells={cells} itemsById={itemsById} cellSize={100} />,
-    cells: (itemId: number) => new Map([['0,0', { object: { itemId, w: 1, h: 1 } }]]),
+    name: '层 4 · 物品层',
+    layer: (cells: CellMap) => <MapItemLayer cells={cells} assetsById={assetsById} cellSize={100} />,
+    cells: (assetId: number) => new Map([['0,0', { item: { assetId, w: 1, h: 1 } }]]),
   },
 ] as const;
 
@@ -109,7 +109,7 @@ describe.each(layers)('$name — 纯色块（v0.5.1 SPEC-L03 §3.1）', ({ layer
   });
 });
 
-describe('层 4 · 物体层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () => {
+describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -127,9 +127,9 @@ describe('层 4 · 物体层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () =>
   it('fills the whole footprint, not one cell', () => {
     act(() => {
       root.render(
-        <MapObjectLayer
-          cells={new Map([['0,0', { object: { itemId: 1, w: 2, h: 2 } }]])}
-          itemsById={itemsById}
+        <MapItemLayer
+          cells={new Map([['0,0', { item: { assetId: 1, w: 2, h: 2 } }]])}
+          assetsById={assetsById}
           cellSize={100}
         />,
       );

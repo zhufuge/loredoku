@@ -15,9 +15,9 @@ export type CellSelection = Extract<Selection, { type: 'cell' }>;
  * Multi-cell objects only store their anchor at the origin cell, covered cells
  * are plain placeholders, so any of them must hit-test back to the anchor.
  */
-export function resolveObjectAnchor(cells: CellMap, x: number, y: number): [number, number] | null {
+export function resolveItemAnchor(cells: CellMap, x: number, y: number): [number, number] | null {
   for (const [key, cell] of cells.entries()) {
-    const anchor = cell.object;
+    const anchor = cell.item;
     if (!anchor) continue;
     const [ax, ay] = key.split(',').map(Number) as [number, number];
     if (x >= ax && y >= ay && x < ax + anchor.w && y < ay + anchor.h) return [ax, ay];
@@ -39,7 +39,7 @@ export interface HitTestInput {
 export function hitTestCell({ x, y, gridSize, cells }: HitTestInput): CellSelection | null {
   if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return null;
 
-  const anchor = resolveObjectAnchor(cells, x, y);
+  const anchor = resolveItemAnchor(cells, x, y);
   if (anchor) return { type: 'cell', x: anchor[0], y: anchor[1] };
 
   return { type: 'cell', x, y };

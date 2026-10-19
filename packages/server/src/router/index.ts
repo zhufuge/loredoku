@@ -3,7 +3,7 @@ import type { Context } from 'koa';
 import { API_PREFIX } from '@loredoku/shared';
 import { healthRouter } from './health';
 import { mapsRouter } from './maps';
-import { itemsRouter } from './items';
+import { assetsRouter } from './assets';
 import { charactersRouter } from './characters';
 import { puzzlesRouter } from './puzzles';
 import { gamesRouter } from './games';
@@ -12,7 +12,7 @@ export const apiRouter = new Router({ prefix: API_PREFIX });
 
 apiRouter.use(healthRouter.routes(), healthRouter.allowedMethods());
 apiRouter.use('/maps', mapsRouter.routes(), mapsRouter.allowedMethods());
-apiRouter.use('/items', itemsRouter.routes(), itemsRouter.allowedMethods());
+apiRouter.use('/assets', assetsRouter.routes(), assetsRouter.allowedMethods());
 apiRouter.use('/characters', charactersRouter.routes(), charactersRouter.allowedMethods());
 // v0.5.0 FEAT-K01: the puzzle module. It replaced the flat `/api/versions`
 // listing (the old works table) — the table's data source is `/api/puzzles`.
@@ -24,8 +24,10 @@ apiRouter.use('/games', gamesRouter.routes(), gamesRouter.allowedMethods());
 // 旧前缀，前端不再调用；重定向只为手边还存着旧 URL 的场景。
 redirectLegacyPrefix('/projects', '/maps');
 
-// Legacy v0.1 route: /api/cards -> /api/items (permanent redirect).
-redirectLegacyPrefix('/cards', '/items');
+// Legacy v0.1 route: /api/cards -> /api/assets (permanent redirect).
+redirectLegacyPrefix('/cards', '/assets');
+// v0.6.0: /api/items -> /api/assets (permanent redirect).
+redirectLegacyPrefix('/items', '/assets');
 
 /**
  * 旧前缀的永久重定向，余下路径与查询串原样带过去。

@@ -1,9 +1,9 @@
 import type {
+  AssetFitMode,
+  AssetType,
   CardRotation,
   CharacterGender,
   GameDifficulty,
-  ItemCategory,
-  ItemFitMode,
   MapDraft,
 } from './domain';
 import type { MAP_STATUSES } from '../constants';
@@ -35,15 +35,16 @@ export interface MapRow {
   updated_at: Date | string;
 }
 
-export interface ItemRow {
+/** v0.6.0: the `assets` table (was `items`); `category` → `type`, `can_stand` → `blocking`. */
+export interface AssetRow {
   id: string | number;
   code: string;
   name: string;
-  category: ItemCategory;
+  type: AssetType;
   width_cells: number;
   height_cells: number;
-  can_stand: boolean;
-  fit_mode: ItemFitMode;
+  blocking: boolean;
+  fit_mode: AssetFitMode;
   image_path: string | null;
   image_mime: string | null;
   image_size: number | null;
@@ -56,8 +57,6 @@ export interface ItemRow {
   created_at: Date | string;
   updated_at: Date | string;
 }
-
-export type CardRow = ItemRow;
 
 /**
  */

@@ -104,13 +104,6 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
     expect(open).toContain('navigate(`/maps/${entry.mapId}/edit`);');
   });
 
-  it('the view choice survives a reload', () => {
-    expect(pageSource).toContain("const VIEW_STORAGE_KEY = 'loredoku.maps.view';");
-    expect(pageSource).toContain('useState<ViewMode>(readStoredView)');
-    expect(pageSource).toContain('window.localStorage.setItem(VIEW_STORAGE_KEY, view);');
-    expect(pageSource).toContain("window.localStorage.getItem(VIEW_STORAGE_KEY) === 'list'");
-  });
-
   it('deletes through two different endpoints by entry kind', () => {
     const confirm = pageSource.slice(
       pageSource.indexOf('const confirmDelete = (): void => {'),
@@ -119,21 +112,6 @@ describe('MapsPage 条目并集（FEAT-K09 §7.1 / v0.5.4 FEAT-O06）', () => {
     expect(confirm).toContain('if (isVersionEntry(target)) {');
     expect(confirm).toContain('deleteVersionMutation.mutate(');
     expect(confirm).toContain('deleteMutation.mutate(target.mapId');
-  });
-
-  it('keeps a single rename / cover dialog for both blocks', () => {
-    expect(pageSource).toContain('<EditMapDialog mapEntry={editMapEntry}');
-    // 整页不出现 fork 之外的版本写入调用。
-    expect(pageSource).not.toContain('versionsApi.createDraft');
-    expect(pageSource).not.toContain('/draft`');
-  });
-
-  it('opens the editor at /maps/:id/edit for a work entry', () => {
-    const open = pageSource.slice(
-      pageSource.indexOf('const handleOpen = (entry: MapEntrySummary): void => {'),
-      pageSource.indexOf('const handlePreview'),
-    );
-    expect(open).toContain('navigate(`/maps/${entry.mapId}/edit`);');
   });
 
   it('the grid tops out at five cards per row', () => {

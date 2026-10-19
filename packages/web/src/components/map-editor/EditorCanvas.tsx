@@ -16,7 +16,7 @@ import {
   type CellCoord,
   type DraftRegion,
   type EditorTool,
-  type Item,
+  type Asset,
   type MapStyle,
   type RegionShape,
 } from '@loredoku/shared';
@@ -24,7 +24,7 @@ import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/re
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
+import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
   MapRegionFillLayer,
   MapRegionHighlightLayer,
@@ -33,14 +33,14 @@ import {
 import {
   MapHighlightLayer,
   MapMouseCursorBoxLayer,
-  MapNonStandableMaskLayer,
+  MapBlockingMaskLayer,
   MapOperationCursorBoxLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import {
-  collectNoStandCells,
-  collectObjectCells,
+  collectBlockingCells,
+  collectItemCells,
   resolveCursorBoxes,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
@@ -49,7 +49,7 @@ import {
   centeredPan,
   computeCellSizeForInsets,
 } from '@/lib/canvasSize';
-import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
+import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize } from '@/lib/mapStyle';
 import { rulerStripSize } from '@/lib/ruler';
 import {
@@ -81,7 +81,7 @@ export interface EditorCanvasHandle {
 interface EditorCanvasProps {
   gridSize: number;
   cells: CellMap;
-  itemsById: Map<number, Item>;
+  assetsById: Map<number, Asset>;
   regions: DraftRegion[];
   /** v0.3.8 FEAT-D02: the map's display constants. */
   style: MapStyle;
@@ -93,7 +93,7 @@ interface EditorCanvasProps {
   regionShape: RegionShape;
   spaceHeld: boolean;
   showRulers: boolean;
-  pendingItem: Item | null;
+  pendingAsset: Asset | null;
   regionDraftSelection: Set<string>;
   /** Resolved participant highlight (shared with the work preview page). */
   highlight: HighlightState | null;
@@ -147,7 +147,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   {
     gridSize,
     cells,
-    itemsById,
+    assetsById,
     regions,
     style,
     selectedRegionId,
@@ -158,7 +158,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     regionShape,
     spaceHeld,
     showRulers,
-    pendingItem,
+    pendingAsset,
     regionDraftSelection,
     highlight,
     highlightLeaving = false,
@@ -376,11 +376,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   const pendingFootprint = useMemo<{ w: number; h: number }>(() => {
-    if (pendingItem && pendingItem.category === 'object') {
-      return { w: pendingItem.widthCells, h: pendingItem.heightCells };
+    if (pendingAsset && pendingAsset.type === 'item') {
+      return { w: pendingAsset.widthCells, h: pendingAsset.heightCells };
     }
     return { w: 1, h: 1 };
-  }, [pendingItem]);
+  }, [pendingAsset]);
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const node = containerRef.current;
@@ -464,7 +464,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         onToggleRegionCell(coord);
         return;
       }
-      if (pendingItem) {
+      if (pendingAsset) {
         if (fits(coord.x, coord.y, pendingFootprint.w, pendingFootprint.h)) onPlaceItem(coord);
         return;
       }
@@ -588,7 +588,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       : 'grab';
 
   const showPreview =
-    activeTool === 'select' && hover !== null && pendingItem !== null;
+    activeTool === 'select' && hover !== null && pendingAsset !== null;
 
   const marqueeRect = marquee
     ? {
@@ -600,16 +600,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     : null;
 
   // ---- OPT-901 §1.2.5: cells holding a non-standable object ----
-  const noStandCells = useMemo(
-    () => collectNoStandCells(cells, itemsById),
-    [cells, itemsById],
+  const blockingCells = useMemo(
+    () => collectBlockingCells(cells, assetsById),
+    [cells, assetsById],
   );
-  const objectCells = useMemo(() => collectObjectCells(cells), [cells]);
+  const itemCells = useMemo(() => collectItemCells(cells), [cells]);
 
   // ---- OPT-902 §2.1~2.4: cursor box + region emphasis + item lift ----
   const hoverEffects = useMemo(
-    () => resolveHoverEffects({ hover, noStandCells, objectCells, regions }),
-    [hover, noStandCells, objectCells, regions],
+    () => resolveHoverEffects({ hover, blockingCells, itemCells, regions }),
+    [hover, blockingCells, itemCells, regions],
   );
   /** §2.2: hovering any cell of a region emphasises that region. */
   const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
@@ -620,7 +620,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   // Cell content is clickable (selection only) unless a brush item is armed or
   // the user is panning; it never carries drag handlers (BUG-405).
   const selectInteractive =
-    activeTool === 'select' && pendingItem === null && !spaceHeld;
+    activeTool === 'select' && pendingAsset === null && !spaceHeld;
 
   const selectionCell =
     selection?.type === 'cell'
@@ -729,7 +729,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
         {/* 《画布图层优先级规范》§2 — rendered bottom-up; the z-index of each
             layer is pinned by MAP_LAYER_Z so the stacking order matches. */}
-        <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
+        <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
         <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
         <MapHighlightLayer
           highlight={highlight}
@@ -739,7 +739,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           leaving={highlightLeaving}
         />
         <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-        <MapNonStandableMaskLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
+        <MapBlockingMaskLayer blockingCells={blockingCells} cellSize={cellSize} style={style} />
         <MapRegionOutlineLayer
           regions={regions}
           gridSize={gridSize}
@@ -750,12 +750,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         {draftOverlay}
 
         <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
-        <MapObjectLayer
+        <MapItemLayer
           cells={cells}
-          itemsById={itemsById}
+          assetsById={assetsById}
           cellSize={cellSize}
           // OPT-C06: object artwork is inset inside its footprint.
-          padding={objectPadding(cellSize)}
+          padding={itemPadding(cellSize)}
           interactive={selectInteractive}
           hover={hover}
           onClick={(coord, event) => {

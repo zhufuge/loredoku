@@ -92,7 +92,7 @@ describe('标尺层低于方格信息框（FIX-N11）', () => {
 
 describe('联动 · 物品显示名称（业务 ID）（FIX-N12）', () => {
   it('drops the `#主键` prefix', () => {
-    expect(linkageDialog).not.toContain('#{item.itemId}');
+    expect(linkageDialog).not.toContain('#{item.assetId}');
     expect(linkageDialog).toContain('{item.name}');
     expect(linkageDialog).toContain('{item.code ?');
   });
@@ -100,7 +100,7 @@ describe('联动 · 物品显示名称（业务 ID）（FIX-N12）', () => {
   it('carries 业务 ID on the option', () => {
     expect(linkageDialog).toContain('code: string;');
     expect(participantDrawer).toContain('code: item.code,');
-    expect(pageSource).toContain('code: itemsById.get(cell.object.itemId)?.code ?? \'\',');
+    expect(pageSource).toContain('code: assetsById.get(cell.item.assetId)?.code ?? \'\',');
   });
 });
 

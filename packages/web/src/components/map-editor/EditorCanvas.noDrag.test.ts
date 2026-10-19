@@ -8,18 +8,18 @@ import { readSource, tsxIn } from '@/testing/source';
 // the roster).
 //
 // The cell layers are shared with the work preview page, so they live in
-// `components/map/MapItemLayers.tsx`.
+// `components/map/MapAssetLayers.tsx`.
 const source = readSource('components/map-editor/EditorCanvas.tsx');
-const layerSource = readSource('components/map/MapItemLayers.tsx');
+const layerSource = readSource('components/map/MapAssetLayers.tsx');
 
 // CLAR-603: MapCharacterLayer is gone; only the object layer remains
 // interactive on the canvas. The roster (ParticipantPanel) handles its own
 // pointer-drag reordering.
-const objectNodes = layerSource.slice(layerSource.indexOf('export function MapObjectLayer'));
+const objectNodes = layerSource.slice(layerSource.indexOf('export function MapItemLayer'));
 
 describe('cell content layers', () => {
   it('are present in the shared map module', () => {
-    expect(source).toContain('MapObjectLayer');
+    expect(source).toContain('MapItemLayer');
   });
 
   it('selects on click with a pointer cursor', () => {

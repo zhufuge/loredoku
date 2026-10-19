@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { DraftCell } from '@loredoku/shared';
 import {
   isEmptyCell,
-  objectFootprintKeys,
+  itemFootprintKeys,
   resolveEraseTarget,
   type EraseTarget,
 } from './erase';
@@ -22,10 +22,10 @@ describe('resolveEraseTarget', () => {
 
   it('clears the object first when both layers are stacked', () => {
     const cells = map({
-      '0,0': { background: { itemId: 1 }, object: { itemId: 2, w: 1, h: 1 } },
+      '0,0': { background: { assetId: 1 }, item: { assetId: 2, w: 1, h: 1 } },
     });
     expect(resolveEraseTarget(cells, 0, 0)).toEqual({
-      layer: 'object',
+      layer: 'item',
       key: '0,0',
       x: 0,
       y: 0,
@@ -33,7 +33,7 @@ describe('resolveEraseTarget', () => {
   });
 
   it('clears the background when only that layer is present', () => {
-    const cells = map({ '0,0': { background: { itemId: 1 } } });
+    const cells = map({ '0,0': { background: { assetId: 1 } } });
     expect(resolveEraseTarget(cells, 0, 0)).toEqual({
       layer: 'background',
       key: '0,0',
@@ -43,9 +43,9 @@ describe('resolveEraseTarget', () => {
   });
 
   it('clears the object when only that layer is present', () => {
-    const cells = map({ '0,0': { object: { itemId: 2, w: 1, h: 1 } } });
+    const cells = map({ '0,0': { item: { assetId: 2, w: 1, h: 1 } } });
     expect(resolveEraseTarget(cells, 0, 0)).toEqual({
-      layer: 'object',
+      layer: 'item',
       key: '0,0',
       x: 0,
       y: 0,
@@ -54,21 +54,21 @@ describe('resolveEraseTarget', () => {
 
   it('resolves a covered cell to the object anchor', () => {
     const cells = map({
-      '2,2': { object: { itemId: 5, w: 2, h: 2 } },
-      '3,2': { background: { itemId: 1 } },
+      '2,2': { item: { assetId: 5, w: 2, h: 2 } },
+      '3,2': { background: { assetId: 1 } },
       '2,3': {},
       '3,3': {},
     });
     const target = resolveEraseTarget(cells, 3, 3) as EraseTarget;
-    expect(target.layer).toBe('object');
+    expect(target.layer).toBe('item');
     expect(target.key).toBe('2,2');
     expect([target.x, target.y]).toEqual([2, 2]);
   });
 });
 
-describe('objectFootprintKeys', () => {
+describe('itemFootprintKeys', () => {
   it('lists the anchor and its placeholder cells', () => {
-    expect(objectFootprintKeys({ w: 2, h: 2 }, 2, 2)).toEqual([
+    expect(itemFootprintKeys({ w: 2, h: 2 }, 2, 2)).toEqual([
       '2,2',
       '3,2',
       '2,3',
@@ -81,7 +81,7 @@ describe('isEmptyCell', () => {
   it('treats missing and empty cells as removable', () => {
     expect(isEmptyCell(undefined)).toBe(true);
     expect(isEmptyCell({})).toBe(true);
-    expect(isEmptyCell({ background: { itemId: 1 } })).toBe(false);
-    expect(isEmptyCell({ object: { itemId: 1, w: 1, h: 1 } })).toBe(false);
+    expect(isEmptyCell({ background: { assetId: 1 } })).toBe(false);
+    expect(isEmptyCell({ item: { assetId: 1, w: 1, h: 1 } })).toBe(false);
   });
 });

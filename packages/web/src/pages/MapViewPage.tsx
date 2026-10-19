@@ -6,12 +6,12 @@ import {
   MAP_LAYER_Z,
   RULER_ACTIVE_FONT_DELTA,
   type CellCoord,
-  type Item,
+  type Asset,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
+import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
   MapRegionFillLayer,
   MapRegionHighlightLayer,
@@ -19,21 +19,21 @@ import {
 } from '@/components/map/MapRegionLayers';
 import {
   MapMouseCursorBoxLayer,
-  MapNonStandableMaskLayer,
+  MapBlockingMaskLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
-import { useItems } from '@/hooks/useItems';
+import { useAssets } from '@/hooks/useAssets';
 import { useMapCanvas } from '@/hooks/useMapCanvas';
 import { useVersionDetail } from '@/hooks/useVersions';
 import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import {
-  collectNoStandCells,
-  collectObjectCells,
+  collectBlockingCells,
+  collectItemCells,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
-import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
+import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { rulerStripSize } from '@/lib/ruler';
 
@@ -98,7 +98,7 @@ export function MapViewPage(): JSX.Element {
 
   const detailQuery = useVersionDetail(valid ? mapId : null, versionNo);
   // A published snapshot may reference items that are now inactive.
-  const itemsQuery = useItems({});
+  const assetsQuery = useAssets({});
 
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [zoom, setZoom] = useState(1);
@@ -120,11 +120,11 @@ export function MapViewPage(): JSX.Element {
     document.title = name ? `${name} · 格物` : '地图预览 · 格物';
   }, [detailQuery.data?.mapName]);
 
-  const itemsById = useMemo(() => {
-    const map = new Map<number, Item>();
-    for (const item of itemsQuery.data ?? []) map.set(item.id, item);
+  const assetsById = useMemo(() => {
+    const map = new Map<number, Asset>();
+    for (const item of assetsQuery.data ?? []) map.set(item.id, item);
     return map;
-  }, [itemsQuery.data]);
+  }, [assetsQuery.data]);
 
   const cells = useMemo(() => {
     const map = new Map<string, NonNullable<typeof draft>['cells'][string]>();
@@ -158,14 +158,14 @@ export function MapViewPage(): JSX.Element {
   const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 ----
-  const noStandCells = useMemo(
-    () => collectNoStandCells(cells, itemsById),
-    [cells, itemsById],
+  const blockingCells = useMemo(
+    () => collectBlockingCells(cells, assetsById),
+    [cells, assetsById],
   );
-  const objectCells = useMemo(() => collectObjectCells(cells), [cells]);
+  const itemCells = useMemo(() => collectItemCells(cells), [cells]);
   const hoverEffects = useMemo(
-    () => resolveHoverEffects({ hover, noStandCells, objectCells, regions }),
-    [hover, noStandCells, objectCells, regions],
+    () => resolveHoverEffects({ hover, blockingCells, itemCells, regions }),
+    [hover, blockingCells, itemCells, regions],
   );
   const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
   const hoveredRegion = hoveredRegionId
@@ -403,10 +403,10 @@ export function MapViewPage(): JSX.Element {
           />
 
           {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
-          <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
+          <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
           <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
           <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-          <MapNonStandableMaskLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
+          <MapBlockingMaskLayer blockingCells={blockingCells} cellSize={cellSize} style={style} />
           <MapRegionOutlineLayer
             regions={regions}
             gridSize={gridSize}
@@ -414,12 +414,12 @@ export function MapViewPage(): JSX.Element {
             style={style}
           />
           <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
-          <MapObjectLayer
+          <MapItemLayer
             cells={cells}
-            itemsById={itemsById}
+            assetsById={assetsById}
             cellSize={cellSize}
             // OPT-C06: object artwork is inset inside its footprint.
-            padding={objectPadding(cellSize)}
+            padding={itemPadding(cellSize)}
             hover={hover}
           />
 

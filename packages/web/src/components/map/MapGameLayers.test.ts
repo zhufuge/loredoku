@@ -41,7 +41,7 @@ describe('游戏放置层 / 工具提示层 (SPEC-G01 / SPEC-G02)', () => {
     // Numbers come from the shared 3×3 layout helper.
     expect(placement).toContain('numberSlotAnchor(index)');
     // The participant avatar is inset by the shared object padding.
-    expect(placement).toContain('objectPadding(cellSize)');
+    expect(placement).toContain('itemPadding(cellSize)');
   });
 
   it('keeps avatars undraggable', () => {

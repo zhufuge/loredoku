@@ -30,7 +30,7 @@ import { validatePuzzleReferences } from '@loredoku/shared';
  *   **immutable afterwards** — a save forces `data.map` back to the stored
  *   reference, so a payload can never repoint a puzzle at another canvas;
  * - `grid_size` comes from that version, never from the client;
- * - `item` / `region` linkage targets are checked against the version's canvas
+ * - `asset` / `region` linkage targets are checked against the version's canvas
  *   (`validatePuzzleReferences`), since the schema cannot see across tables.
  */
 
@@ -209,7 +209,7 @@ async function assertKnownCharacters(data: PuzzleDraft): Promise<void> {
 }
 
 /**
- * The cross-table half of §5.2: item / region targets must exist on the
+ * The cross-table half of §5.2: asset / region targets must exist on the
  * referenced canvas. A front-end check is not enough — an imported JSON can
  * bypass it, so the service re-runs it before every write.
  */

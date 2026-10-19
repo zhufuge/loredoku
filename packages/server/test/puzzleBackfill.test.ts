@@ -18,7 +18,7 @@ function v2VersionData(overrides: Record<string, unknown> = {}): Record<string, 
   return {
     version: 2,
     gridSize: 4,
-    cells: { '1,1': { object: { itemId: 9, w: 1, h: 1 } } },
+    cells: { '1,1': { item: { assetId: 9, w: 1, h: 1 } } },
     regions: [],
     characterSlots: [
       { characterId: 5, themeColor: '#FFFFFF', clue: '', linkages: [] },

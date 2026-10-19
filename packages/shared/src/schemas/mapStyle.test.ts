@@ -115,7 +115,7 @@ describe('mapDraftSchema 的 v3 形状 (v0.5.0 FEAT-K14)', () => {
     const result = mapDraftSchema.safeParse(
       draft({
         version: MAP_JSON_VERSION,
-        cells: { '0,0': { object: { itemId: 7, w: 1, h: 1 } } },
+        cells: { '0,0': { item: { assetId: 7, w: 1, h: 1 } } },
         regions: [{ id: 'rg_1', name: '门厅', cells: [[0, 0]] }],
         style: { cellSize: null },
       }),

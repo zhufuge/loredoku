@@ -12,10 +12,10 @@ import { resolveUploadPath } from '../src/utils/paths';
  * - deleting the media no longer deactivates an entry that is a colour block
  *   (the v0.3.5 OPT-305 rule is narrowed, not removed).
  *
- * 物品 and 角色 are the same contract twice, so they share one table.
+ * 资源 and 角色 are the same contract twice, so they share one table.
  */
 
-const created: Array<{ table: 'items' | 'characters'; id: number }> = [];
+const created: Array<{ table: 'assets' | 'characters'; id: number }> = [];
 const uploadedDirs: string[] = [];
 
 /** 1×1 PNG — the smallest thing the image pipeline accepts. */
@@ -30,14 +30,14 @@ function uniqueCode(prefix: string): string {
 
 const subjects = [
   {
-    kind: 'items',
-    table: 'items' as const,
+    kind: 'assets',
+    table: 'assets' as const,
     media: 'image',
     url: 'imageUrl',
-    uploadPath: 'items',
+    uploadPath: 'assets',
     colour: '#FF8800',
     create: (body: Record<string, unknown> = {}) =>
-      api.post('/api/items').send({ code: uniqueCode('item'), name: 'Item', ...body }),
+      api.post('/api/assets').send({ code: uniqueCode('item'), name: 'Asset', ...body }),
   },
   {
     kind: 'characters',

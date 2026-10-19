@@ -10,7 +10,7 @@ import {
   type CharacterSlotEntry,
 } from '@loredoku/shared';
 import type { GamePlacementBoard } from '@loredoku/shared';
-import { objectPadding } from '@/lib/canvasScale';
+import { itemPadding } from '@/lib/canvasScale';
 import { numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
 import { parseKey } from './layerGeometry';
 
@@ -154,7 +154,7 @@ export function MapGamePlacementLayer({
   const numberFontSize = cellSize * GAME_NUMBER_FONT_RATIO;
   const numberStroke = numberFontSize * GAME_NUMBER_STROKE_RATIO;
   const forbiddenFontSize = cellSize * GAME_FORBIDDEN_FONT_RATIO;
-  const avatarPadding = objectPadding(cellSize);
+  const avatarPadding = itemPadding(cellSize);
 
   return (
     <div

@@ -94,7 +94,7 @@ function draftCounts(draft: MapDraft | null): {
   }
   let itemCount = 0;
   for (const key of Object.keys(draft.cells)) {
-    if (draft.cells[key]?.object) itemCount += 1;
+    if (draft.cells[key]?.item) itemCount += 1;
   }
   // participants left the map; this counts only legacy drafts.
   const characterCount = readLegacyCharacterSlots(draft).filter((slot) => slot !== null).length;

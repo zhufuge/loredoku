@@ -63,7 +63,7 @@ describe('participantTargetSchema', () => {
         .success,
     ).toBe(true);
     expect(
-      participantTargetSchema.safeParse({ type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' })
+      participantTargetSchema.safeParse({ type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'blue' })
         .success,
     ).toBe(true);
     expect(
@@ -104,9 +104,9 @@ describe('participantTargetSchema', () => {
     ).toBe(false);
   });
 
-  it('MOD-708: accepts item targets with scope instances + instance coords', () => {
+  it('MOD-708: accepts asset targets with scope instances + instance coords', () => {
     const result = participantTargetSchema.safeParse({
-      type: 'item',
+      type: 'asset',
       id: 12,
       scope: 'instances',
       instances: [[1, 2], [3, 4]],
@@ -145,7 +145,7 @@ describe('participantLinkagesSchema (MOD-801)', () => {
   it('accepts a flat mixed list (no click/touch grouping)', () => {
     const result = participantLinkagesSchema.safeParse([
       { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-      { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
+      { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
       { type: 'cell', cells: [[2, 2], [3, 2]], effect: 'highlight', color: 'red' },
       { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
     ]);

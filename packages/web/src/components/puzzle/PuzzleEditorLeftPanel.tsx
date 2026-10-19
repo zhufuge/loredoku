@@ -20,7 +20,7 @@ interface PuzzleEditorLeftPanelProps {
 /**
  * SPEC-K04 (docs/v0.5.0.md §4.1): the puzzle editor's left panel keeps the
  * 「角色」 tab **only** — the 物品 / 区域 tabs (and their `onSetLayer` /
- * `onSelectItem` / `onSelectRegion` / `onEditRegion` / `onDeleteRegion` props)
+ * `onSelectAsset` / `onSelectRegion` / `onEditRegion` / `onDeleteRegion` props)
  * belong to the map editor, which owns the canvas those tools write to. The
  * canvas here is read-only, so the content is the old 「角色」 branch verbatim.
  *

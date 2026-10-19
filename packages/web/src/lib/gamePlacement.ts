@@ -203,11 +203,11 @@ export function placementBlockReason(input: {
   x: number;
   y: number;
   participantId: number;
-  noStandCells: Set<string>;
+  blockingCells: Set<string>;
   variant?: ParticipantPlacementVariant;
 }): PlacementBlock | null {
-  const { board, x, y, participantId, noStandCells, variant = 'number' } = input;
-  if (noStandCells.has(cellKey(x, y))) return 'non-standable';
+  const { board, x, y, participantId, blockingCells, variant = 'number' } = input;
+  if (blockingCells.has(cellKey(x, y))) return 'non-standable';
 
   // SPEC-J05 §3.6 (docs/v0.4.3.md): a 编号 is a **candidate** mark and one
   // participant may carry it on many cells at once — so a short press is never
@@ -246,7 +246,7 @@ export function canPlaceParticipant(input: {
   x: number;
   y: number;
   participantId: number;
-  noStandCells: Set<string>;
+  blockingCells: Set<string>;
   variant?: ParticipantPlacementVariant;
 }): boolean {
   return placementBlockReason(input) === null;
@@ -261,10 +261,10 @@ export function canPlaceForbidden(input: {
   board: GamePlacementBoard;
   x: number;
   y: number;
-  noStandCells: Set<string>;
+  blockingCells: Set<string>;
 }): boolean {
-  const { board, x, y, noStandCells } = input;
-  if (noStandCells.has(cellKey(x, y))) return false;
+  const { board, x, y, blockingCells } = input;
+  if (blockingCells.has(cellKey(x, y))) return false;
   return !showsAvatar(placementAt(board, x, y));
 }
 
@@ -299,14 +299,14 @@ export function autoForbiddenCells(input: {
   x: number;
   y: number;
   gridSize: number;
-  noStandCells: Set<string>;
+  blockingCells: Set<string>;
 }): string[] {
-  const { board, x, y, gridSize, noStandCells } = input;
+  const { board, x, y, gridSize, blockingCells } = input;
   const keys: string[] = [];
   const consider = (cx: number, cy: number): void => {
     if (cx === x && cy === y) return;
     const key = cellKey(cx, cy);
-    if (noStandCells.has(key)) return;
+    if (blockingCells.has(key)) return;
     const placement = placementAt(board, cx, cy);
     if (placement?.kind === 'forbidden') return;
     if (showsAvatar(placement)) return;
@@ -376,7 +376,7 @@ export function placeParticipant(
     x: number;
     y: number;
     participantId: number;
-    noStandCells: Set<string>;
+    blockingCells: Set<string>;
     /** SPEC-G06: the row/column sweep needs to know how far the board extends. */
     gridSize: number;
     variant?: ParticipantPlacementVariant;
@@ -426,7 +426,7 @@ export function placeParticipant(
       x: input.x,
       y: input.y,
       gridSize: input.gridSize,
-      noStandCells: input.noStandCells,
+      blockingCells: input.blockingCells,
     })) {
       board[swept] = { kind: 'forbidden' };
     }
@@ -445,7 +445,7 @@ export function placeParticipant(
 /** SPEC-G04 §10.1: `×` replaces any numbers-only cell and blocks a new one. */
 export function placeForbidden(
   state: GamePlacementState,
-  input: { x: number; y: number; noStandCells: Set<string> },
+  input: { x: number; y: number; blockingCells: Set<string> },
 ): GamePlacementState {
   if (!canPlaceForbidden({ ...input, board: state.board })) return state;
   const key = cellKey(input.x, input.y);

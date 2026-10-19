@@ -1,36 +1,36 @@
 import { useState } from 'react';
 import { BoxSelect } from 'lucide-react';
-import type { DraftRegion, EditorLayer, EditorTool, Item } from '@loredoku/shared';
+import type { Asset, DraftRegion, EditorLayer, EditorTool } from '@loredoku/shared';
 import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
-import { ItemPalette } from '@/components/map-editor/ItemPalette';
+import { AssetPalette } from '@/components/map-editor/AssetPalette';
 import { RegionList } from '@/components/map-editor/RegionList';
 
 /**
  * v0.5.0 SPEC-K12 (docs/v0.5.0.md §4.1 / §9.1): the map editor is 只编辑地图 —
- * the 「角色」tab moved to the puzzle. Only 物品 / 区域 remain.
+ * the 「角色」tab moved to the puzzle. Only 资源 / 区域 remain.
  */
-type PanelTab = 'items' | 'regions';
+type PanelTab = 'assets' | 'regions';
 
 const TABS: Array<{ id: PanelTab; label: string }> = [
-  { id: 'items', label: '物品' },
+  { id: 'assets', label: '资源' },
   { id: 'regions', label: '区域' },
 ];
 
 const LAYER_LABELS: Record<EditorLayer, string> = {
   background: '背景层',
-  object: '物体层',
+  item: '物品层',
 };
 
 interface EditorLeftPanelProps {
-  items: Item[] | undefined;
-  itemsLoading: boolean;
-  itemsError: boolean;
+  assets: Asset[] | undefined;
+  assetsLoading: boolean;
+  assetsError: boolean;
   activeLayer: EditorLayer;
-  selectedItemId: number | null;
+  selectedAssetId: number | null;
   regions: DraftRegion[];
   selectedRegionId: string | null;
   onSetLayer: (layer: EditorLayer) => void;
-  onSelectItem: (item: Item | null) => void;
+  onSelectAsset: (asset: Asset | null) => void;
   onSetTool: (tool: EditorTool) => void;
   onSelectRegion: (id: string | null) => void;
   onEditRegion: (region: DraftRegion) => void;
@@ -38,53 +38,53 @@ interface EditorLeftPanelProps {
 }
 
 export function EditorLeftPanel({
-  items,
-  itemsLoading,
-  itemsError,
+  assets,
+  assetsLoading,
+  assetsError,
   activeLayer,
-  selectedItemId,
+  selectedAssetId,
   regions,
   selectedRegionId,
   onSetLayer,
-  onSelectItem,
+  onSelectAsset,
   onSetTool,
   onSelectRegion,
   onEditRegion,
   onDeleteRegion,
 }: EditorLeftPanelProps): JSX.Element {
-  const [tab, setTab] = useState<PanelTab>('items');
+  const [tab, setTab] = useState<PanelTab>('assets');
 
   return (
     <aside className="flex h-full w-[280px] shrink-0 flex-col border-r bg-background">
       {/* OPT-B06 §6.1: header aligns with the participant panel title bar */}
       <div className="flex shrink-0 border-b" style={{ height: PARTICIPANT_HEADER_HEIGHT }}>
-        {TABS.map((item) => (
+        {TABS.map((tabItem) => (
           <button
-            key={item.id}
+            key={tabItem.id}
             type="button"
-            onClick={() => setTab(item.id)}
+            onClick={() => setTab(tabItem.id)}
             className={
-              tab === item.id
+              tab === tabItem.id
                 ? 'flex-1 border-b-2 border-primary px-2 text-sm font-medium text-foreground'
                 : 'flex-1 border-b-2 border-transparent px-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground'
             }
           >
-            {item.label}
+            {tabItem.label}
           </button>
         ))}
       </div>
 
       <div className="min-h-0 flex-1 p-3">
-        {tab === 'items' ? (
+        {tab === 'assets' ? (
           <div className="flex h-full flex-col gap-3">
             <div className="flex shrink-0 gap-1 rounded-md border p-1">
-              {(['background', 'object'] as EditorLayer[]).map((layer) => (
+              {(['background', 'item'] as EditorLayer[]).map((layer) => (
                 <button
                   key={layer}
                   type="button"
                   onClick={() => {
                     onSetLayer(layer);
-                    onSelectItem(null);
+                    onSelectAsset(null);
                   }}
                   className={
                     activeLayer === layer
@@ -97,13 +97,13 @@ export function EditorLeftPanel({
               ))}
             </div>
             <div className="min-h-0 flex-1">
-              <ItemPalette
-                items={items}
-                isLoading={itemsLoading}
-                isError={itemsError}
+              <AssetPalette
+                assets={assets}
+                isLoading={assetsLoading}
+                isError={assetsError}
                 activeLayer={activeLayer}
-                selectedItemId={selectedItemId}
-                onSelect={onSelectItem}
+                selectedAssetId={selectedAssetId}
+                onSelect={onSelectAsset}
               />
             </div>
           </div>

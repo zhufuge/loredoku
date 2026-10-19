@@ -13,7 +13,7 @@ import {
   LINE_COLOR,
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
-  NO_STAND_SHADOW_COLOR,
+  BLOCKING_SHADOW_COLOR,
   OPERATION_CURSOR_COLOR,
   PARTICIPANT_HEADER_HEIGHT,
   PARTICIPANT_MIN_WIDTH,
@@ -33,25 +33,25 @@ import {
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
   EXTRA_MARGIN,
-  OBJECT_PADDING_BASE,
-  OBJECT_PADDING_MAX,
-  OBJECT_PADDING_MIN,
+  ITEM_PADDING_BASE,
+  ITEM_PADDING_MAX,
+  ITEM_PADDING_MIN,
   RULER_GAP,
   type DraftCell,
   type DraftRegion,
-  type Item,
+  type Asset,
 } from '@loredoku/shared';
 import {
-  canPlaceItemOnLayer,
+  canPlaceAssetOnLayer,
   cellCursorShadow,
-  collectNoStandCells,
-  collectObjectCells,
+  collectBlockingCells,
+  collectItemCells,
   layerStack,
   layerZ,
   NO_CURSOR_BOXES,
   NO_HOVER_EFFECTS,
-  NO_STAND_SHADOW_INSET,
-  noStandShadowInset,
+  BLOCKING_SHADOW_INSET,
+  blockingShadowInset,
   operationCursorOutline,
   operationCursorStyle,
   resolveCursorBoxes,
@@ -63,15 +63,15 @@ function cells(entries: Array<[string, DraftCell]>): CellMap {
   return new Map(entries);
 }
 
-function item(overrides: Partial<Item> = {}): Item {
+function item(overrides: Partial<Asset> = {}): Asset {
   return {
     id: 1,
     code: 'item_1',
-    name: 'Item',
-    category: 'object',
+    name: 'Asset',
+    type: 'item',
     widthCells: 1,
     heightCells: 1,
-    canStand: true,
+    blocking: true,
     fitMode: 'cover',
     imagePath: null,
     imageUrl: null,
@@ -117,16 +117,16 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
   });
 
   it('keeps the ordering rules the spec calls out explicitly', () => {
-    // "「物体」位于 Border 之上" — items are never cut by the grid lines.
-    expect(layerZ('objectLayer')).toBeGreaterThan(layerZ('gridSeparator'));
+    // "「物品」位于 Border 之上" — items are never cut by the grid lines.
+    expect(layerZ('itemLayer')).toBeGreaterThan(layerZ('gridSeparator'));
     // "「区域边界线」位于 Border 之下" — the Border stays readable.
     expect(layerZ('regionOutline')).toBeLessThan(layerZ('gridSeparator'));
     // The board frame sits below the items, above the separators.
-    expect(layerZ('canvasFrame')).toBeLessThan(layerZ('objectLayer'));
+    expect(layerZ('canvasFrame')).toBeLessThan(layerZ('itemLayer'));
     expect(layerZ('canvasFrame')).toBeGreaterThan(layerZ('gridSeparator'));
     // v0.3.8 SPEC-D01: the mask moves below 区域边界线, above 区域高亮线.
-    expect(layerZ('nonStandableMask')).toBeLessThan(layerZ('regionOutline'));
-    expect(layerZ('nonStandableMask')).toBeGreaterThan(layerZ('regionHighlight'));
+    expect(layerZ('blockingMask')).toBeLessThan(layerZ('regionOutline'));
+    expect(layerZ('blockingMask')).toBeGreaterThan(layerZ('regionHighlight'));
     // 区域高亮线 / 方块高亮 / 背景高亮 / 背景
     expect(layerZ('regionHighlight')).toBeGreaterThan(layerZ('cellHighlight'));
     expect(layerZ('cellHighlight')).toBeGreaterThan(layerZ('backgroundHighlight'));
@@ -135,7 +135,7 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
     expect(layerZ('mouseCursorBox')).toBe(Math.max(...Object.values(MAP_LAYER_Z)));
     expect(layerZ('operationCursorBox')).toBeLessThan(layerZ('mouseCursorBox'));
     expect(layerZ('regionLabel')).toBeLessThan(layerZ('operationCursorBox'));
-    expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('objectLayer'));
+    expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('itemLayer'));
   });
 
   it('SPEC-D01: the two cursor boxes are adjacent layers', () => {
@@ -143,119 +143,119 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
   });
 
   // ---- v0.4.0 SPEC-G01 / SPEC-G02: the two game-only layers ----
-  it('SPEC-G01/G02: 区域标签 > 工具提示层 > 游戏放置层 > 物件图层', () => {
+  it('SPEC-G01/G02: 区域标签 > 工具提示层 > 游戏放置层 > 物品图层', () => {
     expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('gameToolHint'));
     expect(layerZ('gameToolHint')).toBeGreaterThan(layerZ('gamePlacement'));
-    expect(layerZ('gamePlacement')).toBeGreaterThan(layerZ('objectLayer'));
+    expect(layerZ('gamePlacement')).toBeGreaterThan(layerZ('itemLayer'));
   });
 });
 
-// ---- OPT-901 §1.2.5: non-standable shadow ----
-describe('non-standable shadow (OPT-901 §1.2.5)', () => {
-  it('masks the cell of a non-standable object', () => {
-    const map = cells([['2,3', { object: { itemId: 7, w: 1, h: 1 } }]]);
-    const items = new Map([[7, item({ id: 7, canStand: false })]]);
-    expect(collectNoStandCells(map, items)).toEqual(new Set(['2,3']));
+// ---- OPT-901 §1.2.5: blocking shadow ----
+describe('blocking shadow (OPT-901 §1.2.5)', () => {
+  it('masks the cell of a blocking item', () => {
+    const map = cells([['2,3', { item: { assetId: 7, w: 1, h: 1 } }]]);
+    const items = new Map([[7, item({ id: 7, blocking: true })]]);
+    expect(collectBlockingCells(map, items)).toEqual(new Set(['2,3']));
   });
 
   it('masks every cell of a multi-cell footprint', () => {
-    const map = cells([['1,1', { object: { itemId: 7, w: 2, h: 2 } }]]);
-    const items = new Map([[7, item({ id: 7, canStand: false })]]);
-    expect([...collectNoStandCells(map, items)].sort()).toEqual(['1,1', '1,2', '2,1', '2,2']);
+    const map = cells([['1,1', { item: { assetId: 7, w: 2, h: 2 } }]]);
+    const items = new Map([[7, item({ id: 7, blocking: true })]]);
+    expect([...collectBlockingCells(map, items)].sort()).toEqual(['1,1', '1,2', '2,1', '2,2']);
   });
 
-  it('renders nothing for standable objects or background-only cells', () => {
+  it('renders nothing for non-blocking items or background-only cells', () => {
     const map = cells([
-      ['0,0', { object: { itemId: 7, w: 1, h: 1 } }],
-      ['1,0', { background: { itemId: 8 } }],
+      ['0,0', { item: { assetId: 7, w: 1, h: 1 } }],
+      ['1,0', { background: { assetId: 8 } }],
     ]);
     const items = new Map([
-      [7, item({ id: 7, canStand: true })],
-      [8, item({ id: 8, category: 'background', canStand: false })],
+      [7, item({ id: 7, blocking: false })],
+      [8, item({ id: 8, type: 'background', blocking: true })],
     ]);
-    expect(collectNoStandCells(map, items).size).toBe(0);
+    expect(collectBlockingCells(map, items).size).toBe(0);
   });
 
-  it('treats an unknown (inactive / deleted) item as standable', () => {
-    const map = cells([['0,0', { object: { itemId: 404, w: 1, h: 1 } }]]);
-    expect(collectNoStandCells(map, new Map()).size).toBe(0);
+  it('treats an unknown (inactive / deleted) item as non-blocking', () => {
+    const map = cells([['0,0', { item: { assetId: 404, w: 1, h: 1 } }]]);
+    expect(collectBlockingCells(map, new Map()).size).toBe(0);
   });
 
-  it('updates as soon as `canStand` flips, without touching the board', () => {
-    const map = cells([['0,0', { object: { itemId: 7, w: 1, h: 1 } }]]);
-    const standable = new Map([[7, item({ id: 7, canStand: true })]]);
-    const blocked = new Map([[7, item({ id: 7, canStand: false })]]);
-    expect(collectNoStandCells(map, standable).size).toBe(0);
-    expect(collectNoStandCells(map, blocked).size).toBe(1);
+  it('updates as soon as `blocking` flips, without touching the board', () => {
+    const map = cells([['0,0', { item: { assetId: 7, w: 1, h: 1 } }]]);
+    const blocking = new Map([[7, item({ id: 7, blocking: true })]]);
+    const nonBlocking = new Map([[7, item({ id: 7, blocking: false })]]);
+    expect(collectBlockingCells(map, nonBlocking).size).toBe(0);
+    expect(collectBlockingCells(map, blocking).size).toBe(1);
     // The board itself is untouched either way.
-    expect(map.get('0,0')?.object).toEqual({ itemId: 7, w: 1, h: 1 });
+    expect(map.get('0,0')?.item).toEqual({ assetId: 7, w: 1, h: 1 });
   });
 
   it('SPEC-D01: renders below 区域边界线 and above 区域高亮线', () => {
-    expect(MAP_LAYER_Z.nonStandableMask).toBeLessThan(MAP_LAYER_Z.regionOutline);
-    expect(MAP_LAYER_Z.nonStandableMask).toBeGreaterThan(MAP_LAYER_Z.regionHighlight);
-    expect(MAP_LAYER_Z.nonStandableMask).toBeLessThan(MAP_LAYER_Z.regionLabel);
-    expect(NO_STAND_SHADOW_INSET).toBeGreaterThan(0);
+    expect(MAP_LAYER_Z.blockingMask).toBeLessThan(MAP_LAYER_Z.regionOutline);
+    expect(MAP_LAYER_Z.blockingMask).toBeGreaterThan(MAP_LAYER_Z.regionHighlight);
+    expect(MAP_LAYER_Z.blockingMask).toBeLessThan(MAP_LAYER_Z.regionLabel);
+    expect(BLOCKING_SHADOW_INSET).toBeGreaterThan(0);
   });
 
   it('collects every covered object cell (not just the anchor)', () => {
-    const map = cells([['0,0', { object: { itemId: 7, w: 2, h: 1 } }]]);
-    expect([...collectObjectCells(map)].sort()).toEqual(['0,0', '1,0']);
+    const map = cells([['0,0', { item: { assetId: 7, w: 2, h: 1 } }]]);
+    expect([...collectItemCells(map)].sort()).toEqual(['0,0', '1,0']);
   });
 });
 
 // ---- OPT-902 §2.1~2.4: the three hover effects ----
 describe('hover effects (OPT-902 §2.1~2.4)', () => {
   const hoverCells = cells([
-    ['1,1', { object: { itemId: 7, w: 1, h: 1 } }],
-    ['3,3', { object: { itemId: 9, w: 1, h: 1 } }],
+    ['1,1', { item: { assetId: 7, w: 1, h: 1 } }],
+    ['3,3', { item: { assetId: 9, w: 1, h: 1 } }],
   ]);
   const items = new Map([
-    [7, item({ id: 7, canStand: true })],
-    [9, item({ id: 9, canStand: false })],
+    [7, item({ id: 7, blocking: false })],
+    [9, item({ id: 9, blocking: true })],
   ]);
-  const objectCells = collectObjectCells(hoverCells);
-  const noStandCells = collectNoStandCells(hoverCells, items);
+  const itemCells = collectItemCells(hoverCells);
+  const blockingCells = collectBlockingCells(hoverCells, items);
 
   it('returns nothing when the pointer is off the board', () => {
     expect(
-      resolveHoverEffects({ hover: null, noStandCells, objectCells, regions: [region] }),
+      resolveHoverEffects({ hover: null, blockingCells, itemCells, regions: [region] }),
     ).toEqual(NO_HOVER_EFFECTS);
   });
 
   it('§2.1: a free cell gets the white cursor box', () => {
     const effects = resolveHoverEffects({
       hover: { x: 0, y: 0 },
-      noStandCells,
-      objectCells,
+      blockingCells,
+      itemCells,
       regions: [region],
     });
-    expect(effects).toEqual({ cell: { x: 0, y: 0 }, blocked: false, regionId: null, hasObject: false });
+    expect(effects).toEqual({ cell: { x: 0, y: 0 }, blocked: false, regionId: null, hasItem: false });
   });
 
-  it('§2.1: a cell holding a non-standable object gets the red cursor box', () => {
+  it('§2.1: a cell holding a blocking item gets the red cursor box', () => {
     const effects = resolveHoverEffects({
       hover: { x: 3, y: 3 },
-      noStandCells,
-      objectCells,
+      blockingCells,
+      itemCells,
       regions: [region],
     });
     expect(effects.blocked).toBe(true);
-    expect(effects.hasObject).toBe(true);
+    expect(effects.hasItem).toBe(true);
   });
 
   it('§2.2: hovering any covered cell of a region reports that region', () => {
     for (const hover of [{ x: 1, y: 1 }, { x: 2, y: 1 }]) {
       expect(
-        resolveHoverEffects({ hover, noStandCells, objectCells, regions: [region] }).regionId,
+        resolveHoverEffects({ hover, blockingCells, itemCells, regions: [region] }).regionId,
       ).toBe('rg_a');
     }
     // §2.2 边界情形: stepping out of the region clears the emphasis.
     expect(
       resolveHoverEffects({
         hover: { x: 5, y: 5 },
-        noStandCells,
-        objectCells,
+        blockingCells,
+        itemCells,
         regions: [region],
       }).regionId,
     ).toBeNull();
@@ -265,14 +265,14 @@ describe('hover effects (OPT-902 §2.1~2.4)', () => {
     const other: DraftRegion = { ...region, id: 'rg_b', name: 'B 区', cells: [[3, 1]] };
     const first = resolveHoverEffects({
       hover: { x: 1, y: 1 },
-      noStandCells,
-      objectCells,
+      blockingCells,
+      itemCells,
       regions: [region, other],
     });
     const second = resolveHoverEffects({
       hover: { x: 3, y: 1 },
-      noStandCells,
-      objectCells,
+      blockingCells,
+      itemCells,
       regions: [region, other],
     });
     expect(first.regionId).toBe('rg_a');
@@ -282,13 +282,13 @@ describe('hover effects (OPT-902 §2.1~2.4)', () => {
   it('§2.4: cursor box, region emphasis and item lift stack on one hover', () => {
     const effects = resolveHoverEffects({
       hover: { x: 1, y: 1 },
-      noStandCells,
-      objectCells,
+      blockingCells,
+      itemCells,
       regions: [region],
     });
     expect(effects.cell).toEqual({ x: 1, y: 1 });
     expect(effects.regionId).toBe('rg_a');
-    expect(effects.hasObject).toBe(true);
+    expect(effects.hasItem).toBe(true);
     expect(effects.blocked).toBe(false);
   });
 });
@@ -422,25 +422,25 @@ describe('highlight palette (OPT-A06)', () => {
   });
 
   it('§3.1/§5.2: deepens the non-standable mask to 0.18', () => {
-    expect(NO_STAND_SHADOW_COLOR).toBe('rgba(0,0,0,0.18)');
+    expect(BLOCKING_SHADOW_COLOR).toBe('rgba(0,0,0,0.18)');
   });
 });
 
-// ---- OPT-904 §4.1: layer / category matching ----
+// ---- OPT-904 §4.1: layer / type matching ----
 describe('placement validation (OPT-904 §4.1)', () => {
-  it('allows a non-standable object on the object layer', () => {
-    expect(canPlaceItemOnLayer(item({ canStand: false }), 'object')).toBe(true);
+  it('allows a blocking item on the item layer', () => {
+    expect(canPlaceAssetOnLayer(item({ blocking: true }), 'item')).toBe(true);
   });
 
-  it('never allows a background item on the object layer (or vice versa)', () => {
-    const background = item({ category: 'background', canStand: true });
-    expect(canPlaceItemOnLayer(background, 'background')).toBe(true);
-    expect(canPlaceItemOnLayer(background, 'object')).toBe(false);
-    expect(canPlaceItemOnLayer(item({ category: 'object' }), 'background')).toBe(false);
+  it('never allows a background asset on the item layer (or vice versa)', () => {
+    const background = item({ type: 'background', blocking: true });
+    expect(canPlaceAssetOnLayer(background, 'background')).toBe(true);
+    expect(canPlaceAssetOnLayer(background, 'item')).toBe(false);
+    expect(canPlaceAssetOnLayer(item({ type: 'item' }), 'background')).toBe(false);
   });
 
   it('rejects an unarmed palette', () => {
-    expect(canPlaceItemOnLayer(null, 'object')).toBe(false);
+    expect(canPlaceAssetOnLayer(null, 'item')).toBe(false);
   });
 });
 
@@ -455,9 +455,9 @@ describe('v0.3.6 constants (§7)', () => {
     expect(REGION_HIGHLIGHT_WIDTH).toBe(4);
     expect(EXTRA_MARGIN).toBe(24);
     expect(RULER_GAP).toBe(6);
-    expect(OBJECT_PADDING_BASE).toBe(4);
-    expect(OBJECT_PADDING_MIN).toBe(2);
-    expect(OBJECT_PADDING_MAX).toBe(12);
+    expect(ITEM_PADDING_BASE).toBe(4);
+    expect(ITEM_PADDING_MIN).toBe(2);
+    expect(ITEM_PADDING_MAX).toBe(12);
     expect(RULER_FONT_SIZE).toBe(17);
     expect(RULER_FONT_SIZE_ACTIVE).toBe(19);
     expect(RULER_COLOR).toBe('#9CA3AF');
@@ -470,7 +470,7 @@ describe('v0.3.6 constants (§7)', () => {
     expect(CANVAS_OUTER_BORDER_WIDTH).toBe(REGION_BORDER_WIDTH);
     expect(CANVAS_OUTER_BORDER_WIDTH).toBeGreaterThan(BORDER_WIDTH);
     // It has its own layer now, below the items but above the separators.
-    expect(MAP_LAYER_Z.canvasFrame).toBeLessThan(MAP_LAYER_Z.objectLayer);
+    expect(MAP_LAYER_Z.canvasFrame).toBeLessThan(MAP_LAYER_Z.itemLayer);
     expect(MAP_LAYER_Z.canvasFrame).toBeGreaterThan(MAP_LAYER_Z.gridSeparator);
     expect(MAP_LAYER_Z.canvasFrame).toBeGreaterThan(MAP_LAYER_Z.cellHighlight);
   });
@@ -511,7 +511,7 @@ describe('OPT-B03: scaled cursor geometry', () => {
     expect(shadow).toContain('inset 0 0 0 6px');
     expect(shadow).toContain('0 0 0 3px');
     // 1.5px / 2 = 0.75, matching the scaled Border.
-    expect(noStandShadowInset(90)).toBeCloseTo(0.75, 6);
-    expect(NO_STAND_SHADOW_INSET).toBeCloseTo(1, 6);
+    expect(blockingShadowInset(90)).toBeCloseTo(0.75, 6);
+    expect(BLOCKING_SHADOW_INSET).toBeCloseTo(1, 6);
   });
 });

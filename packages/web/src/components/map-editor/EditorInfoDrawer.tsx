@@ -1,6 +1,6 @@
 import { UI_Z } from '@loredoku/shared';
-import type { DraftCell, DraftRegion, Item } from '@loredoku/shared';
-import { ItemThumbnail } from '@/components/item/ItemThumbnail';
+import type { DraftCell, DraftRegion, Asset } from '@loredoku/shared';
+import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { Button } from '@/components/ui/button';
 import { regionAt } from '@/lib/region';
 import type { Selection } from '@/stores/editorStore';
@@ -12,16 +12,16 @@ interface EditorInfoDrawerProps {
   selection: Selection | null;
   cells: Map<string, DraftCell>;
   regions: DraftRegion[];
-  itemsById: Map<number, Item>;
+  assetsById: Map<number, Asset>;
   onClearCell: (x: number, y: number) => void;
-  onClearObject: (x: number, y: number) => void;
+  onClearItem: (x: number, y: number) => void;
   onEditRegion: (region: DraftRegion) => void;
   onDeleteRegion: (region: DraftRegion) => void;
   onLocateRegion: (region: DraftRegion) => void;
   /**
    * v0.5.0 SPEC-K06 (docs/v0.5.0.md §4.3): the puzzle editor renders this same
    * drawer against its **read-only** canvas, so every action button
-   * (清空本格 / 清空物件层 / 编辑 / 定位 / 删除) must disappear. Default `false`
+   * (清空本格 / 清空物品层 / 编辑 / 定位 / 删除) must disappear. Default `false`
    * keeps the map editor's behaviour untouched.
    */
   readOnly?: boolean;
@@ -126,22 +126,22 @@ function CellBranch({
   selection,
   cell,
   region,
-  itemsById,
+  assetsById,
   onClearCell,
-  onClearObject,
+  onClearItem,
   readOnly = false,
 }: {
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
   region: DraftRegion | undefined;
-  itemsById: Map<number, Item>;
+  assetsById: Map<number, Asset>;
   onClearCell: (x: number, y: number) => void;
-  onClearObject: (x: number, y: number) => void;
+  onClearItem: (x: number, y: number) => void;
   readOnly?: boolean;
 }): JSX.Element {
-  const backgroundItem =
-    cell?.background?.itemId !== undefined ? itemsById.get(cell.background.itemId) : undefined;
-  const objectItem = cell?.object?.itemId !== undefined ? itemsById.get(cell.object.itemId) : undefined;
+  const backgroundAsset =
+    cell?.background?.assetId !== undefined ? assetsById.get(cell.background.assetId) : undefined;
+  const itemAsset = cell?.item?.assetId !== undefined ? assetsById.get(cell.item.assetId) : undefined;
 
   return (
     <>
@@ -154,12 +154,12 @@ function CellBranch({
 
       <section className="space-y-1">
         <h3 className="text-xs font-medium text-muted-foreground">背景层</h3>
-        {backgroundItem ? (
+        {backgroundAsset ? (
           <div className="flex items-center gap-2">
-            <ItemThumbnail item={backgroundItem} className="h-8 w-8" />
-            <span className="truncate text-sm">{backgroundItem.name}</span>
+            <AssetThumbnail asset={backgroundAsset} className="h-8 w-8" />
+            <span className="truncate text-sm">{backgroundAsset.name}</span>
             <span className="ml-auto font-mono text-[10px] text-muted-foreground">
-              #{backgroundItem.id}
+              #{backgroundAsset.id}
             </span>
           </div>
         ) : (
@@ -168,13 +168,13 @@ function CellBranch({
       </section>
 
       <section className="space-y-1">
-        <h3 className="text-xs font-medium text-muted-foreground">物件层</h3>
-        {objectItem ? (
+        <h3 className="text-xs font-medium text-muted-foreground">物品层</h3>
+        {itemAsset ? (
           <div className="flex items-center gap-2">
-            <ItemThumbnail item={objectItem} className="h-8 w-8" />
-            <span className="truncate text-sm">{objectItem.name}</span>
+            <AssetThumbnail asset={itemAsset} className="h-8 w-8" />
+            <span className="truncate text-sm">{itemAsset.name}</span>
             <span className="ml-auto text-[10px] text-muted-foreground">
-              {cell?.object?.w}×{cell?.object?.h}
+              {cell?.item?.w}×{cell?.item?.h}
             </span>
           </div>
         ) : (
@@ -201,9 +201,9 @@ function CellBranch({
               size="sm"
               variant="outline"
               className="h-7 flex-1 text-[11px]"
-              onClick={() => onClearObject(selection.x, selection.y)}
+              onClick={() => onClearItem(selection.x, selection.y)}
             >
-              清空物件层
+              清空物品层
             </Button>
           </div>
         </section>
@@ -225,9 +225,9 @@ export function EditorInfoDrawer({
   selection,
   cells,
   regions,
-  itemsById,
+  assetsById,
   onClearCell,
-  onClearObject,
+  onClearItem,
   onEditRegion,
   onDeleteRegion,
   onLocateRegion,
@@ -288,9 +288,9 @@ export function EditorInfoDrawer({
                 selection={selection}
                 cell={cell}
                 region={region}
-                itemsById={itemsById}
+                assetsById={assetsById}
                 onClearCell={onClearCell}
-                onClearObject={onClearObject}
+                onClearItem={onClearItem}
                 readOnly={readOnly}
               />
             ) : (

@@ -1,7 +1,7 @@
 import type { DraftCell } from '@loredoku/shared';
 import { cellKey, type CellMap } from './hitTest';
 
-export type EraseLayer = 'object' | 'background';
+export type EraseLayer = 'item' | 'background';
 
 export interface EraseTarget {
   layer: EraseLayer;
@@ -26,15 +26,15 @@ export function resolveEraseTarget(
   const key = cellKey(x, y);
 
   const cell = cells.get(key);
-  if (cell?.object) return { layer: 'object', key, x, y };
+  if (cell?.item) return { layer: 'item', key, x, y };
 
   // Inside a multi-cell footprint but not the anchor cell.
   for (const [anchorKey, candidate] of cells.entries()) {
-    const anchor = candidate.object;
+    const anchor = candidate.item;
     if (!anchor) continue;
     const [ax, ay] = anchorKey.split(',').map(Number) as [number, number];
     if (x >= ax && y >= ay && x < ax + anchor.w && y < ay + anchor.h) {
-      return { layer: 'object', key: anchorKey, x: ax, y: ay };
+      return { layer: 'item', key: anchorKey, x: ax, y: ay };
     }
   }
 
@@ -43,7 +43,7 @@ export function resolveEraseTarget(
 }
 
 /** Cells that belong to an object anchor's footprint, including empty placeholders. */
-export function objectFootprintKeys(anchor: { w: number; h: number }, x: number, y: number): string[] {
+export function itemFootprintKeys(anchor: { w: number; h: number }, x: number, y: number): string[] {
   const keys: string[] = [];
   for (let dy = 0; dy < anchor.h; dy += 1) {
     for (let dx = 0; dx < anchor.w; dx += 1) {
@@ -55,5 +55,5 @@ export function objectFootprintKeys(anchor: { w: number; h: number }, x: number,
 
 export function isEmptyCell(cell: DraftCell | undefined): boolean {
   if (!cell) return true;
-  return !cell.background && !cell.object && !cell.objectRef;
+  return !cell.background && !cell.item && !cell.itemRef;
 }

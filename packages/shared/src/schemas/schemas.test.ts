@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { GRID_SIZE_MAX, GRID_SIZE_MIN } from '../constants'
-import { createItemSchema } from './item'
+import { createAssetSchema } from './asset'
 import { createMapSchema, gridSizeSchema } from './map'
 import { regionColorSchema } from './mapDraft'
 
@@ -29,18 +29,18 @@ describe('createMapSchema', () => {
   })
 })
 
-describe('createItemSchema', () => {
+describe('createAssetSchema', () => {
   it('enforces the code pattern and defaults the size', () => {
-    const parsed = createItemSchema.parse({ code: 'item_1', name: 'Suspect' })
+    const parsed = createAssetSchema.parse({ code: 'asset_1', name: 'Suspect' })
     expect(parsed).not.toHaveProperty('triggers')
-    expect(parsed.canStand).toBe(true)
-    expect(createItemSchema.safeParse({ code: 'bad code', name: 'x' }).success).toBe(false)
-    expect(createItemSchema.safeParse({ code: 'ok', name: 'x' }).success).toBe(true)
+    expect(parsed.blocking).toBe(false)
+    expect(createAssetSchema.safeParse({ code: 'bad code', name: 'x' }).success).toBe(false)
+    expect(createAssetSchema.safeParse({ code: 'ok', name: 'x' }).success).toBe(true)
   })
 
-  it('a background item is always standable', () => {
-    expect(createItemSchema.parse({ code: 'bg_1', name: 'Wall', category: 'background', canStand: false }).canStand).toBe(true)
-    expect(createItemSchema.parse({ code: 'ob_1', name: 'Lamp', category: 'object', canStand: false }).canStand).toBe(false)
+  it('a background asset never blocks', () => {
+    expect(createAssetSchema.parse({ code: 'bg_1', name: 'Wall', type: 'background', blocking: true }).blocking).toBe(false)
+    expect(createAssetSchema.parse({ code: 'ob_1', name: 'Lamp', type: 'item', blocking: false }).blocking).toBe(false)
   })
 })
 

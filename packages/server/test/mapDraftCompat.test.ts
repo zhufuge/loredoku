@@ -18,7 +18,7 @@ function v2Draft(): Record<string, unknown> {
   return {
     version: 2,
     gridSize: 4,
-    cells: { '0,0': { object: { itemId: 3, w: 1, h: 1 } } },
+    cells: { '0,0': { item: { assetId: 3, w: 1, h: 1 } } },
     regions: [{ id: 'rg_a', name: 'A', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] }],
     characterSlots: [
       { characterId: 5, themeColor: '#FFFFFF', clue: '', linkages: [] },
@@ -93,7 +93,7 @@ describe('absorbLegacyMapDraft (FEAT-K14)', () => {
     expect('linkageColors' in style).toBe(false);
     // Everything else is passed through untouched.
     expect(absorbed['gridSize']).toBe(4);
-    expect(absorbed['cells']).toEqual({ '0,0': { object: { itemId: 3, w: 1, h: 1 } } });
+    expect(absorbed['cells']).toEqual({ '0,0': { item: { assetId: 3, w: 1, h: 1 } } });
     expect((absorbed['regions'] as unknown[])[0]).toMatchObject({ id: 'rg_a' });
   });
 

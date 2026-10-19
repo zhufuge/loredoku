@@ -8,13 +8,13 @@ import {
   type CellCoord,
   type Character,
   type CharacterSlotEntry,
-  type Item,
+  type Asset,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
+import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
   MapRegionFillLayer,
   MapRegionHighlightLayer,
@@ -23,22 +23,22 @@ import {
 import {
   MapHighlightLayer,
   MapMouseCursorBoxLayer,
-  MapNonStandableMaskLayer,
+  MapBlockingMaskLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useCharacters } from '@/hooks/useCharacters';
-import { useItems } from '@/hooks/useItems';
+import { useAssets } from '@/hooks/useAssets';
 import { useHighlight } from '@/hooks/useHighlight';
 import { usePuzzle, usePuzzleMapContext } from '@/hooks/usePuzzles';
 import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import {
-  collectNoStandCells,
-  collectObjectCells,
+  collectBlockingCells,
+  collectItemCells,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
-import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
+import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import { rulerStripSize } from '@/lib/ruler';
@@ -84,7 +84,7 @@ export function PuzzleViewPage(): JSX.Element {
   const detailQuery = usePuzzle(valid ? id : null);
   const mapQuery = usePuzzleMapContext(valid ? id : null);
   // A referenced version may point at items/characters that are now inactive.
-  const itemsQuery = useItems({});
+  const assetsQuery = useAssets({});
   const charactersQuery = useCharacters({});
 
   const {
@@ -116,11 +116,11 @@ export function PuzzleViewPage(): JSX.Element {
     document.title = name ? `${name} · 格物` : '谜题预览 · 格物';
   }, [detailQuery.data?.name]);
 
-  const itemsById = useMemo(() => {
-    const map = new Map<number, Item>();
-    for (const item of itemsQuery.data ?? []) map.set(item.id, item);
+  const assetsById = useMemo(() => {
+    const map = new Map<number, Asset>();
+    for (const item of assetsQuery.data ?? []) map.set(item.id, item);
     return map;
-  }, [itemsQuery.data]);
+  }, [assetsQuery.data]);
 
   const charactersById = useMemo(() => {
     const map = new Map<number, Character>();
@@ -167,14 +167,14 @@ export function PuzzleViewPage(): JSX.Element {
   const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 ----
-  const noStandCells = useMemo(
-    () => collectNoStandCells(cells, itemsById),
-    [cells, itemsById],
+  const blockingCells = useMemo(
+    () => collectBlockingCells(cells, assetsById),
+    [cells, assetsById],
   );
-  const objectCells = useMemo(() => collectObjectCells(cells), [cells]);
+  const itemCells = useMemo(() => collectItemCells(cells), [cells]);
   const hoverEffects = useMemo(
-    () => resolveHoverEffects({ hover, noStandCells, objectCells, regions }),
-    [hover, noStandCells, objectCells, regions],
+    () => resolveHoverEffects({ hover, blockingCells, itemCells, regions }),
+    [hover, blockingCells, itemCells, regions],
   );
   const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
   const hoveredRegion = hoveredRegionId
@@ -484,7 +484,7 @@ export function PuzzleViewPage(): JSX.Element {
             />
 
             {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
-            <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
+            <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
             <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
             <MapHighlightLayer
               highlight={highlight}
@@ -494,7 +494,7 @@ export function PuzzleViewPage(): JSX.Element {
               leaving={highlightLeaving}
             />
             <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-            <MapNonStandableMaskLayer noStandCells={noStandCells} cellSize={cellSize} style={style} />
+            <MapBlockingMaskLayer blockingCells={blockingCells} cellSize={cellSize} style={style} />
             <MapRegionOutlineLayer
               regions={regions}
               gridSize={gridSize}
@@ -502,12 +502,12 @@ export function PuzzleViewPage(): JSX.Element {
               style={style}
             />
             <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
-            <MapObjectLayer
+            <MapItemLayer
               cells={cells}
-              itemsById={itemsById}
+              assetsById={assetsById}
               cellSize={cellSize}
               // OPT-C06: object artwork is inset inside its footprint.
-              padding={objectPadding(cellSize)}
+              padding={itemPadding(cellSize)}
               hover={hover}
             />
 

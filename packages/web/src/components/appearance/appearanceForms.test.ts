@@ -14,13 +14,13 @@ import { codeOf } from '@/testing/source';
 
 const subjects = [
   {
-    kind: '物品',
-    ref: 'item',
+    kind: '资源',
+    ref: 'asset',
     media: '图片',
     url: 'imageUrl',
-    form: codeOf('components/item/ItemDetailForm.tsx'),
-    dialog: codeOf('components/item/CreateItemDialog.tsx'),
-    badge: '该物品是纯色块，删除图片后仍可继续启用。',
+    form: codeOf('components/asset/AssetDetailForm.tsx'),
+    dialog: codeOf('components/asset/CreateAssetDialog.tsx'),
+    badge: '该资源是纯色块，删除图片后仍可继续启用。',
   },
   {
     kind: '角色',

@@ -90,7 +90,7 @@ export function VersionHistoryDialog({
                   </div>
                   <div className="text-[11px] text-muted-foreground">
                     {version.gridSize} × {version.gridSize} · 参与者 {version.participantCount} · 区域{' '}
-                    {version.regionCount} · 物体 {version.itemCount}
+                    {version.regionCount} · 物品 {version.itemCount}
                   </div>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">

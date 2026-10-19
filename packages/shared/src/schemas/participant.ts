@@ -38,7 +38,7 @@ export const effectColorSchema = z
   .string()
   .trim()
   .regex(LINKAGE_COLOR_KEY_PATTERN, '联动主题色 key 需为小写字母开头的标识符');
-/** Reuses the item effect enum; named to avoid clashing with `./item`. */
+/** Reuses the effect enum; named to avoid clashing with `./asset`. */
 export const participantEffectTypeSchema = z.enum(EFFECT_TYPES);
 export const participantTargetTypeSchema = z.enum(PARTICIPANT_TARGET_TYPES);
 
@@ -54,7 +54,8 @@ export const participantTargetSchema = z.discriminatedUnion('type', [
     color: effectColorSchema,
   }),
   z.object({
-    type: z.literal('item'),
+    /** v0.6.0: was `item` — the linkage targets a resource. */
+    type: z.literal('asset'),
     id: z.number().int().positive(),
     scope: z.enum(['all', 'instances']).default('all'),
     instances: z.array(coordTupleSchema).optional(),

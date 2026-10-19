@@ -24,7 +24,7 @@ const REGION_END = '\n/** Region colour fill';
 
 const LAYER_UNION = [
   'components/map/MapGridLayers.tsx',
-  'components/map/MapItemLayers.tsx',
+  'components/map/MapAssetLayers.tsx',
   'components/map/MapRegionLayers.tsx',
   'components/map/MapOverlayLayers.tsx',
   'components/map/MapGameLayers.tsx',
@@ -74,10 +74,10 @@ describe('layer z-index keys (SPEC-E01)', () => {
     for (const key of [
       'mouseCursorBox',
       'operationCursorBox',
-      'objectLayer',
+      'itemLayer',
       'gridSeparator',
       'regionOutline',
-      'nonStandableMask',
+      'blockingMask',
       'backgroundLayer',
     ]) {
       expect(LAYER_UNION, key).toContain(`MAP_LAYER_Z.${key}`);

@@ -13,7 +13,7 @@ function legacySnapshot(): Record<string, unknown> {
   return {
     version: 2,
     gridSize: 4,
-    cells: { '0,0': { object: { itemId: 3, w: 1, h: 1 } } },
+    cells: { '0,0': { item: { assetId: 3, w: 1, h: 1 } } },
     regions: [],
     characterSlots: [
       { characterId: 5, themeColor: '#FFFFFF', clue: '', linkages: [] },
@@ -73,7 +73,7 @@ describe('toGameSnapshot — v0.4.x upgrade (CONS-K16)', () => {
       'linkageColors' in (snapshot.map.style as unknown as Record<string, unknown>),
     ).toBe(false);
     // The map's own fields survive the upgrade.
-    expect(snapshot.map.cells['0,0']!.object!.itemId).toBe(3);
+    expect(snapshot.map.cells['0,0']!.item!.assetId).toBe(3);
   });
 
   it('omits the legacy fields when the old snapshot had neither', () => {

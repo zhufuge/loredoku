@@ -75,7 +75,7 @@ describe('PuzzleEditorPage left panel（SPEC-K12 §4.1）', () => {
     expect(leftPanelSource).not.toContain('const TABS');
     // 写地图的回调一个都不在。
     expect(leftPanelSource).not.toContain('onSetLayer');
-    expect(leftPanelSource).not.toContain('onSelectItem');
+    expect(leftPanelSource).not.toContain('onSelectAsset');
     expect(leftPanelSource).not.toContain('onSelectRegion');
     expect(leftPanelSource).not.toContain('onEditRegion');
     expect(leftPanelSource).not.toContain('onDeleteRegion');
@@ -85,7 +85,7 @@ describe('PuzzleEditorPage left panel（SPEC-K12 §4.1）', () => {
 describe('PuzzleEditorPage canvas（SPEC-K12 §5.1：只读参考画布）', () => {
   it('pins the tool to select and neuters every write handler', () => {
     expect(pageSource).toContain('activeTool="select"');
-    expect(pageSource).toContain('pendingItem={null}');
+    expect(pageSource).toContain('pendingAsset={null}');
     expect(pageSource).toContain('regionDraftSelection={new Set<string>()}');
     expect(pageSource).toContain('onPlaceItem={() => undefined}');
     expect(pageSource).toContain('onErase={() => undefined}');

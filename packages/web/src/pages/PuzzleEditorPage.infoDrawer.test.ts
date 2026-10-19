@@ -6,7 +6,7 @@ import { readSource } from '@/testing/source';
  *
  * 画布是被引用地图版本的参考视图，任何「清除 / 编辑 / 删除」在这里都没有意义
  * （改了也不会写进地图版本），所以 `EditorInfoDrawer` 以 `readOnly` 渲染：
- * 方格分支连「清空本格 / 清空物件层」都不出现，区域分支不渲染
+ * 方格分支连「清空本格 / 清空物品层」都不出现，区域分支不渲染
  * 编辑 / 定位 / 删除。页面同时把所有写回调接成 `() => undefined` —— 双保险，
  * 断言两侧都要看。
  */
@@ -32,7 +32,7 @@ describe('PuzzleEditorPage 只读信息弹框（SPEC-K12 §4.2）', () => {
 
   it('neutered every write callback the drawer could call', () => {
     expect(pageSource).toContain('onClearCell={() => undefined}');
-    expect(pageSource).toContain('onClearObject={() => undefined}');
+    expect(pageSource).toContain('onClearItem={() => undefined}');
     expect(pageSource).toContain('onEditRegion={() => undefined}');
     expect(pageSource).toContain('onDeleteRegion={() => undefined}');
     // 定位是查看动作（居中），保留实现。
@@ -40,7 +40,7 @@ describe('PuzzleEditorPage 只读信息弹框（SPEC-K12 §4.2）', () => {
   });
 
   it('the cell branch shows no 快捷操作 block at all', () => {
-    // `readOnly ? null : (…)` 把整段快捷操作（清空本格 / 清空物件层）摘掉。
+    // `readOnly ? null : (…)` 把整段快捷操作（清空本格 / 清空物品层）摘掉。
     expect(drawerSource).toContain('readOnly ? null : (');
     const cellBranch = drawerSource.slice(
       drawerSource.indexOf('function CellBranch({'),

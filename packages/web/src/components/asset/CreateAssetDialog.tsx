@@ -4,19 +4,19 @@ import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import {
   APPEARANCE_MODES,
+  ASSET_CODE_MAX_LENGTH,
+  ASSET_CODE_PATTERN,
+  ASSET_NAME_MAX_LENGTH,
+  ASSET_SIZE_DEFAULT,
+  ASSET_SIZE_MAX,
+  ASSET_SIZE_MIN,
+  ASSET_TYPES,
+  ASSET_TYPE_LABELS,
   BG_COLOR_PATTERN,
   DEFAULT_APPEARANCE_MODE,
+  DEFAULT_ASSET_TYPE,
   DEFAULT_BG_COLOR,
-  DEFAULT_ITEM_CATEGORY,
-  ITEM_CATEGORIES,
-  ITEM_CATEGORY_LABELS,
-  ITEM_CODE_MAX_LENGTH,
-  ITEM_CODE_PATTERN,
-  ITEM_NAME_MAX_LENGTH,
-  ITEM_SIZE_DEFAULT,
-  ITEM_SIZE_MAX,
-  ITEM_SIZE_MIN,
-  canStandFor,
+  blockingFor,
   hasAppearance,
   type AppearanceMode,
 } from '@loredoku/shared';
@@ -34,26 +34,26 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
-import { useCreateItem, useUpdateItem, useUploadItemImage } from '@/hooks/useItems';
+import { useCreateAsset, useUpdateAsset, useUploadAssetImage } from '@/hooks/useAssets';
 
-/** FEAT-O11: the category as radio buttons (背景 / 物体). */
-const ITEM_CATEGORY_OPTIONS = ITEM_CATEGORIES.map((value) => ({
+/** FEAT-O11: the type as radio buttons (背景 / 物品). */
+const ASSET_TYPE_OPTIONS = ASSET_TYPES.map((value) => ({
   value,
-  label: ITEM_CATEGORY_LABELS[value],
+  label: ASSET_TYPE_LABELS[value],
 }));
 
 const schema = z.object({
-  name: z.string().trim().min(1, '请输入物品名称').max(ITEM_NAME_MAX_LENGTH, '名称过长'),
+  name: z.string().trim().min(1, '请输入资源名称').max(ASSET_NAME_MAX_LENGTH, '名称过长'),
   code: z
     .string()
     .trim()
     .min(1, '请输入业务 ID')
-    .max(ITEM_CODE_MAX_LENGTH, '业务 ID 过长')
-    .regex(ITEM_CODE_PATTERN, '业务 ID 仅允许字母、数字与下划线'),
-  category: z.enum(ITEM_CATEGORIES),
-  widthCells: z.coerce.number().int().min(ITEM_SIZE_MIN).max(ITEM_SIZE_MAX),
-  heightCells: z.coerce.number().int().min(ITEM_SIZE_MIN).max(ITEM_SIZE_MAX),
-  canStand: z.boolean(),
+    .max(ASSET_CODE_MAX_LENGTH, '业务 ID 过长')
+    .regex(ASSET_CODE_PATTERN, '业务 ID 仅允许字母、数字与下划线'),
+  type: z.enum(ASSET_TYPES),
+  widthCells: z.coerce.number().int().min(ASSET_SIZE_MIN).max(ASSET_SIZE_MAX),
+  heightCells: z.coerce.number().int().min(ASSET_SIZE_MIN).max(ASSET_SIZE_MAX),
+  blocking: z.boolean(),
   /** v0.5.1 FEAT-L01: image mode (default) or a colour block. */
   appearanceMode: z.enum(APPEARANCE_MODES),
   bgColor: z.string().regex(BG_COLOR_PATTERN, '颜色需为 #RRGGBB 格式'),
@@ -64,25 +64,25 @@ type FormValues = z.infer<typeof schema>;
 const DEFAULTS: FormValues = {
   name: '',
   code: '',
-  category: DEFAULT_ITEM_CATEGORY,
-  widthCells: ITEM_SIZE_DEFAULT,
-  heightCells: ITEM_SIZE_DEFAULT,
-  canStand: false,
+  type: DEFAULT_ASSET_TYPE,
+  widthCells: ASSET_SIZE_DEFAULT,
+  heightCells: ASSET_SIZE_DEFAULT,
+  blocking: false,
   appearanceMode: DEFAULT_APPEARANCE_MODE,
   bgColor: DEFAULT_BG_COLOR,
 };
 
-interface CreateItemDialogProps {
+interface CreateAssetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (id: number) => void;
 }
 
-export function CreateItemDialog({
+export function CreateAssetDialog({
   open,
   onOpenChange,
   onCreated,
-}: CreateItemDialogProps): JSX.Element {
+}: CreateAssetDialogProps): JSX.Element {
   const {
     register,
     handleSubmit,
@@ -96,15 +96,15 @@ export function CreateItemDialog({
     defaultValues: DEFAULTS,
   });
   const appearanceMode = watch('appearanceMode');
-  const category = watch('category');
+  const type = watch('type');
   // v0.5.2 FEAT-M05: the picked file waits for the create call to hand back an
   // id; a colour block needs no image at all.
   const [file, setFile] = useState<File | null>(null);
 
-  const createMutation = useCreateItem();
-  const uploadMutation = useUploadItemImage();
+  const createMutation = useCreateAsset();
+  const uploadMutation = useUploadAssetImage();
   /** FEAT-N06 §5.4: reverts an auto-enable whose image never landed. */
-  const updateMutation = useUpdateItem();
+  const updateMutation = useUpdateAsset();
 
   useEffect(() => {
     if (!open) {
@@ -120,20 +120,20 @@ export function CreateItemDialog({
     const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;
     /**
      * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an appearance handed over at create
-     * time enables the item right away — 「建完还得再点一次启用」 was pure
+     * time enables the asset right away — 「建完还得再点一次启用」 was pure
      * repetition. `hasAppearance` is the same predicate v0.5.1 uses when an
      * image is deleted, so the two can never disagree.
      */
     const isActive = hasAppearance(file !== null, bgColor);
-    let item: { id: number };
+    let asset: { id: number };
     try {
-      item = await createMutation.mutateAsync({
+      asset = await createMutation.mutateAsync({
         name: values.name,
         code: values.code,
-        category: values.category,
+        type: values.type,
         widthCells: values.widthCells,
         heightCells: values.heightCells,
-        canStand: canStandFor(values.category, values.canStand),
+        blocking: blockingFor(values.type, values.blocking),
         bgColor,
         isActive,
       });
@@ -141,56 +141,56 @@ export function CreateItemDialog({
       // The hook already toasted the reason (e.g. duplicate 业务 ID).
       return;
     }
-    // §5.1: an upload failure must not swallow the created item — the dialog
+    // §5.1: an upload failure must not swallow the created asset — the dialog
     // closes either way and the user retries from the detail pane.
     if (file) {
       const uploaded = await uploadMutation
-        .mutateAsync({ id: item.id, file })
+        .mutateAsync({ id: asset.id, file })
         .then(() => true)
         .catch(() => false);
       /**
-       * §5.4: the only reason this item is enabled is the image that just
+       * §5.4: the only reason this asset is enabled is the image that just
        * failed to land — put it back to 停用 so no「启用但无外观」row is left.
        * A colour block needs no image, so it stays enabled.
        */
       if (!uploaded && isActive && !bgColor) {
-        await updateMutation.mutateAsync({ id: item.id, payload: { isActive: false } });
+        await updateMutation.mutateAsync({ id: asset.id, payload: { isActive: false } });
       }
     }
     onOpenChange(false);
-    onCreated(item.id);
+    onCreated(asset.id);
   });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>新建物品</DialogTitle>
+          <DialogTitle>新建资源</DialogTitle>
           <DialogDescription>业务 ID 创建后不可修改。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={onSubmit}>
           <div className="grid gap-2">
-            <Label htmlFor="item-name">名称</Label>
-            <Input id="item-name" placeholder="例如：大树" {...register('name')} />
+            <Label htmlFor="asset-name">名称</Label>
+            <Input id="asset-name" placeholder="例如：大树" {...register('name')} />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="item-code">业务 ID</Label>
-            <Input id="item-code" placeholder="big_tree" {...register('code')} />
+            <Label htmlFor="asset-code">业务 ID</Label>
+            <Input id="asset-code" placeholder="big_tree" {...register('code')} />
             {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="item-category">分类</Label>
+            <Label htmlFor="asset-type">类型</Label>
             {/* FEAT-O11 (docs/v0.5.4.md §5.4): buttons instead of a dropdown. */}
             <Controller
               control={control}
-              name="category"
+              name="type"
               render={({ field }) => (
                 <SegmentedRadio
-                  id="item-category"
-                  ariaLabel="分类"
+                  id="asset-type"
+                  ariaLabel="类型"
                   value={field.value}
-                  options={ITEM_CATEGORY_OPTIONS}
+                  options={ASSET_TYPE_OPTIONS}
                   onChange={field.onChange}
                 />
               )}
@@ -198,33 +198,33 @@ export function CreateItemDialog({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="grid gap-2">
-              <Label htmlFor="item-width">占格宽</Label>
+              <Label htmlFor="asset-width">占格宽</Label>
               <Input
-                id="item-width"
+                id="asset-width"
                 type="number"
-                min={ITEM_SIZE_MIN}
-                max={ITEM_SIZE_MAX}
+                min={ASSET_SIZE_MIN}
+                max={ASSET_SIZE_MAX}
                 {...register('widthCells')}
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="item-height">占格高</Label>
+              <Label htmlFor="asset-height">占格高</Label>
               <Input
-                id="item-height"
+                id="asset-height"
                 type="number"
-                min={ITEM_SIZE_MIN}
-                max={ITEM_SIZE_MAX}
+                min={ASSET_SIZE_MIN}
+                max={ASSET_SIZE_MAX}
                 {...register('heightCells')}
               />
             </div>
           </div>
-          {/* v0.5.2 FEAT-M04: a background item is always standable, so the
-              checkbox only exists for 物体. */}
-          {category === 'object' ? (
+          {/* v0.5.2 FEAT-M04: a background asset is never blocking, so the
+              checkbox only exists for 物品. */}
+          {type === 'item' ? (
             <label className="flex items-center gap-2 text-sm">
               <Controller
                 control={control}
-                name="canStand"
+                name="blocking"
                 render={({ field }) => (
                   <input
                     type="checkbox"
@@ -234,7 +234,7 @@ export function CreateItemDialog({
                   />
                 )}
               />
-              可站立（可作为物体层放置）
+              阻挡（不可站立、不可放置）
             </label>
           ) : null}
           <Controller
@@ -242,7 +242,7 @@ export function CreateItemDialog({
             name="appearanceMode"
             render={({ field }) => (
               <AppearanceField
-                id="item-appearance"
+                id="asset-appearance"
                 mode={field.value as AppearanceMode}
                 onModeChange={(mode) => field.onChange(mode)}
                 bgColor={watch('bgColor')}
@@ -251,8 +251,8 @@ export function CreateItemDialog({
                 {/* v0.5.2 FEAT-M05: upload right here, no "create first"
                     round trip for the user. */}
                 <PendingImageField
-                  id="item-image"
-                  label="物品图片"
+                  id="asset-image"
+                  label="资源图片"
                   file={file}
                   onFileChange={setFile}
                 />

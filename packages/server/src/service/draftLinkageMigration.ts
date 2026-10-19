@@ -15,8 +15,8 @@ export interface LinkageMigrationStats {
   linksDeduped: number;
   /** Slots that received `clue: ''`. */
   clueAdded: number;
-  /** `item` linkages that received `scope: 'all'`. */
-  itemScopesAdded: number;
+  /** `asset` linkages that received `scope: 'all'`. */
+  assetScopesAdded: number;
   /** `cell` linkages converted from `{ x, y }` to `{ cells: [[x, y]] }`. */
   cellTargetsMigrated: number;
 }
@@ -26,7 +26,7 @@ export function emptyStats(): LinkageMigrationStats {
     linksMerged: 0,
     linksDeduped: 0,
     clueAdded: 0,
-    itemScopesAdded: 0,
+    assetScopesAdded: 0,
     cellTargetsMigrated: 0,
   };
 }
@@ -36,8 +36,8 @@ export function linkageTargetKey(target: Record<string, unknown>): string {
   switch (target['type']) {
     case 'character':
       return `character:${target['id']}`;
-    case 'item':
-      return `item:${target['id']}`;
+    case 'asset':
+      return `asset:${target['id']}`;
     case 'region':
       return `region:${target['id']}`;
     case 'cell': {
@@ -59,9 +59,9 @@ function normalizeLinkage(
   stats: LinkageMigrationStats,
 ): boolean {
   let changed = false;
-  if (linkage['type'] === 'item' && linkage['scope'] === undefined) {
+  if (linkage['type'] === 'asset' && linkage['scope'] === undefined) {
     linkage['scope'] = 'all';
-    stats.itemScopesAdded++;
+    stats.assetScopesAdded++;
     changed = true;
   }
   if (linkage['type'] === 'cell' && !Array.isArray(linkage['cells'])) {
@@ -84,7 +84,7 @@ function normalizeLinkage(
  *  2. merge `characterSlots[i].triggers[].targets` into a flat `linkages`
  *     array (same object + colour counts as one entry, later wins) and drop
  *     the legacy `triggers` field;
- *  3. normalise `linkages` (item `scope`, legacy cell shape).
+ *  3. normalise `linkages` (asset `scope`, legacy cell shape).
  *
  * Idempotent: the legacy `triggers` field is deleted after folding, and any
  * `linkages` already present are kept as the starting point (union, deduped),

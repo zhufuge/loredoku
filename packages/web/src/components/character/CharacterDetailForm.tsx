@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { GenderBadge } from '@/components/character/GenderBadge';
-import { ImageUploader } from '@/components/item/ImageUploader';
+import { ImageUploader } from '@/components/asset/ImageUploader';
 import {
   useDeleteCharacterAvatar,
   useSetCharacterActive,

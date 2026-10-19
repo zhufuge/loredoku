@@ -10,7 +10,7 @@ import type {
 import * as mapRepo from '../repository/mapRepository';
 import * as mapCanvasRepo from '../repository/mapCanvasRepository';
 import { toMapEntry } from '../repository/mapRepository';
-import * as itemRepo from '../repository/itemRepository';
+import * as assetRepo from '../repository/assetRepository';
 import { AppError } from '../utils/AppError';
 
 /**
@@ -44,17 +44,17 @@ async function assertValidReferences(draft: MapDraft, size: number): Promise<voi
     }
   }
 
-  const itemIds = new Set<number>();
+  const assetIds = new Set<number>();
   for (const key of Object.keys(draft.cells)) {
     const cell = draft.cells[key];
     if (!cell) continue;
-    if (cell.object) itemIds.add(cell.object.itemId);
-    if (cell.background) itemIds.add(cell.background.itemId);
+    if (cell.item) assetIds.add(cell.item.assetId);
+    if (cell.background) assetIds.add(cell.background.assetId);
   }
-  const existingItems = await itemRepo.existingItemIds([...itemIds]);
-  const missingItems = [...itemIds].filter((id) => !existingItems.has(id));
-  if (missingItems.length > 0) {
-    throw AppError.validation('存在无效的物品引用', missingItems);
+  const existingAssets = await assetRepo.existingAssetIds([...assetIds]);
+  const missingAssets = [...assetIds].filter((id) => !existingAssets.has(id));
+  if (missingAssets.length > 0) {
+    throw AppError.validation('存在无效的资源引用', missingAssets);
   }
   // the roster left the map (it belongs to the puzzle), so there is
   // nothing character-shaped to validate here any more.

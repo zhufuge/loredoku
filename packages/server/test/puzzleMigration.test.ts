@@ -124,16 +124,16 @@ describe('v0.5.0 migration shape (§11.1)', () => {
 });
 
 /**
- * v0.5.1 FEAT-L01 / FEAT-L02（docs/v0.5.1.md §6.1）：迁移 18 给 `items` 与
+ * v0.5.1 FEAT-L01 / FEAT-L02（docs/v0.5.1.md §6.1）：迁移 18 给 `assets` 与
  * `characters` 各加一列可空的 `bg_color`。
  *
  * 可空是刻意的 —— 存量行 `NULL` 表示「图片类型」，渲染走原分支，行为逐像素不变
  * （§6.3），所以没有回填、也不需要改任何已存的 JSON。
  */
 describe('v0.5.1 colour-block migration (§6.1)', () => {
-  it('adds a nullable bg_color to items', async () => {
+  it('adds a nullable bg_color to assets', async () => {
     const rows = await db('information_schema.columns')
-      .where({ table_name: 'items', column_name: 'bg_color', table_schema: 'public' })
+      .where({ table_name: 'assets', column_name: 'bg_color', table_schema: 'public' })
       .select('is_nullable', 'data_type');
     expect(rows).toHaveLength(1);
     expect(rows[0].is_nullable).toBe('YES');
@@ -153,7 +153,7 @@ describe('v0.5.1 colour-block migration (§6.1)', () => {
     // The point of "nullable, no backfill" is that pre-v0.5.1 rows stay on the
     // image branch. Asserting a row count would be flaky (other suites — and
     // real usage — legitimately write colours), so check the schema instead.
-    for (const table of ['items', 'characters']) {
+    for (const table of ['assets', 'characters']) {
       const rows = await db('information_schema.columns')
         .where({ table_name: table, column_name: 'bg_color', table_schema: 'public' })
         .select('column_default');
@@ -164,12 +164,12 @@ describe('v0.5.1 colour-block migration (§6.1)', () => {
 
 /**
  * v0.5.2 FEAT-M03 / FEAT-M04（docs/v0.5.2.md §3.1 / §4 / §9.1）：
- * 迁移 19 删掉 `items.meta` 与 `item_triggers` 表，并把背景物品抬成可站立。
+ * 迁移 19 删掉 `assets.meta` 与 `item_triggers` 表，并把背景资源抬成不阻挡。
  */
-describe('v0.5.2 item slimming migration (§9.1)', () => {
-  it('drops items.meta', async () => {
+describe('v0.5.2 asset slimming migration (§9.1)', () => {
+  it('drops assets.meta', async () => {
     const rows = await db('information_schema.columns')
-      .where({ table_name: 'items', column_name: 'meta', table_schema: 'public' })
+      .where({ table_name: 'assets', column_name: 'meta', table_schema: 'public' })
       .select('column_name');
     expect(rows).toHaveLength(0);
   });
@@ -181,16 +181,16 @@ describe('v0.5.2 item slimming migration (§9.1)', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('keeps characters.meta — only the item side was slimmed', async () => {
+  it('keeps characters.meta — only the asset side was slimmed', async () => {
     const rows = await db('information_schema.columns')
       .where({ table_name: 'characters', column_name: 'meta', table_schema: 'public' })
       .select('column_name');
     expect(rows).toHaveLength(1);
   });
 
-  it('leaves no background item that cannot stand', async () => {
-    const rows = await db('items')
-      .where({ category: 'background', can_stand: false })
+  it('leaves no background asset that blocks', async () => {
+    const rows = await db('assets')
+      .where({ type: 'background', blocking: true })
       .count('* as c');
     expect(Number(rows[0]?.c ?? 0)).toBe(0);
   });

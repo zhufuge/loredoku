@@ -173,21 +173,23 @@ export const mapStyleSchema = z.object({
    */
   .strict();
 
-export const draftItemRefSchema = z.object({
-  itemId: z.number().int().positive(),
+/** v0.6.0: the background layer — one asset, no footprint. */
+export const draftAssetRefSchema = z.object({
+  assetId: z.number().int().positive(),
 });
 
+/** v0.6.0: the item layer — the anchor cell carries the footprint. */
 export const draftAnchorItemSchema = z.object({
-  itemId: z.number().int().positive(),
+  assetId: z.number().int().positive(),
   w: z.number().int().min(1),
   h: z.number().int().min(1),
 });
 
 export const draftCellSchema = z
   .object({
-    background: draftItemRefSchema.optional(),
-    object: draftAnchorItemSchema.optional(),
-    objectRef: z.string().trim().min(1).max(64).optional(),
+    background: draftAssetRefSchema.optional(),
+    item: draftAnchorItemSchema.optional(),
+    itemRef: z.string().trim().min(1).max(64).optional(),
   })
   .strict();
 
@@ -334,7 +336,7 @@ export const regionStringIdParamSchema = z.object({
   regionId: z.string().trim().min(1).max(64),
 });
 
-export type DraftItemRefInput = z.infer<typeof draftItemRefSchema>;
+export type DraftAssetRefInput = z.infer<typeof draftAssetRefSchema>;
 export type DraftAnchorItemInput = z.infer<typeof draftAnchorItemSchema>;
 export type DraftCellInput = z.infer<typeof draftCellSchema>;
 export type DraftRegionInput = z.infer<typeof draftRegionSchema>;

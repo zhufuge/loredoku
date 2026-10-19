@@ -40,8 +40,8 @@ function mapContext(gridSize = 6): PuzzleMapContext {
     mapName: '古堡之谜',
     gridSize,
     cells: {
-      '0,0': { object: { itemId: 12, w: 1, h: 1 } },
-      '2,3': { background: { itemId: 7 } },
+      '0,0': { item: { assetId: 12, w: 1, h: 1 } },
+      '2,3': { background: { assetId: 7 } },
     },
     regions: [
       {
@@ -148,7 +148,7 @@ describe('mapContext helpers (Q16)', () => {
 
   it('flattens cells and regions for the renderer', () => {
     const cells = mapContextCells(mapContext());
-    expect(cells.get('0,0')?.object).toEqual({ itemId: 12, w: 1, h: 1 });
+    expect(cells.get('0,0')?.item).toEqual({ assetId: 12, w: 1, h: 1 });
     expect(cells.size).toBe(2);
     expect(mapContextRegions(mapContext()).map((region) => region.id)).toEqual(['rg_1']);
     // A missing context must not throw — the page renders nothing.

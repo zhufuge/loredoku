@@ -6,7 +6,7 @@ import { api } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
 
 const createdMapEntries: number[] = [];
-const createdItems: number[] = [];
+const createdAssets: number[] = [];
 const createdCharacters: number[] = [];
 /** Deleted before `maps` — `puzzles.map_project_id` is ON DELETE RESTRICT. */
 const createdPuzzles: number[] = [];
@@ -76,13 +76,13 @@ async function createMap(body: Record<string, unknown> = {}): Promise<number> {
   return id;
 }
 
-async function createItem(body: Record<string, unknown> = {}): Promise<number> {
+async function createAsset(body: Record<string, unknown> = {}): Promise<number> {
   const res = await api
-    .post('/api/items')
-    .send({ code: uniqueCode('item'), name: 'Item', ...body });
+    .post('/api/assets')
+    .send({ code: uniqueCode('item'), name: 'Asset', ...body });
   expect(res.status).toBe(200);
   const id = res.body.data.id as number;
-  createdItems.push(id);
+  createdAssets.push(id);
   return id;
 }
 
@@ -149,15 +149,15 @@ async function createPuzzle(body: Record<string, unknown>): Promise<number> {
 /** A map whose canvas holds one object item, published as `v1`. */
 async function publishedMapWithItem(
   name: string,
-): Promise<{ mapId: number; itemId: number; versionNo: number }> {
+): Promise<{ mapId: number; assetId: number; versionNo: number }> {
   const mapId = await createMap({ name, gridSize: 6 });
-  const itemId = await createItem({ category: 'object', canStand: true });
+  const assetId = await createAsset({ type: 'item', blocking: false });
   const draft = emptyDraft(6);
-  draft.cells['0,0'] = { object: { itemId, w: 1, h: 1 } };
+  draft.cells['0,0'] = { item: { assetId, w: 1, h: 1 } };
   const saved = await saveCanvas(mapId, draft);
   expect(saved.status).toBe(200);
   const versionNo = await publish(mapId);
-  return { mapId, itemId, versionNo };
+  return { mapId, assetId, versionNo };
 }
 
 /** A puzzle bound to a published version — enough for a deploy. */
@@ -414,104 +414,104 @@ describe('maps API', () => {
   });
 });
 
-describe('items API', () => {
-  it('creates an item and manages its lifecycle (v0.5.2 FEAT-M03: no triggers)', async () => {
-    const res = await api.post('/api/items').send({
+describe('assets API', () => {
+  it('creates an asset and manages its lifecycle (v0.5.2 FEAT-M03: no triggers)', async () => {
+    const res = await api.post('/api/assets').send({
       code: uniqueCode('candlestick'),
       name: 'Candlestick',
-      category: 'object',
+      type: 'item',
       widthCells: 2,
       heightCells: 1,
-      canStand: true,
+      blocking: false,
     });
     expect(res.status).toBe(200);
     const id = res.body.data.id as number;
-    createdItems.push(id);
+    createdAssets.push(id);
     // The trigger array — and the free-form meta blob — are gone.
     expect(res.body.data).not.toHaveProperty('triggers');
     expect(res.body.data).not.toHaveProperty('meta');
     expect(res.body.data.widthCells).toBe(2);
 
-    const patched = await api.patch(`/api/items/${id}`).send({ name: 'Candlestick Holder' });
+    const patched = await api.patch(`/api/assets/${id}`).send({ name: 'Candlestick Holder' });
     expect(patched.body.data.name).toBe('Candlestick Holder');
 
-    const usages = await api.get(`/api/items/${id}/usages`);
+    const usages = await api.get(`/api/assets/${id}/usages`);
     expect(usages.status).toBe(200);
     expect(usages.body.data).toEqual([]);
 
-    const removed = await api.delete(`/api/items/${id}`);
+    const removed = await api.delete(`/api/assets/${id}`);
     expect(removed.status).toBe(200);
   });
 
   it('v0.5.2 FEAT-M03: the triggers endpoint is gone', async () => {
-    const res = await api.post('/api/items').send({
+    const res = await api.post('/api/assets').send({
       code: uniqueCode('notriggers'),
       name: 'No Triggers',
-      category: 'object',
+      type: 'item',
     });
     const id = res.body.data.id as number;
-    createdItems.push(id);
-    const replaced = await api.put(`/api/items/${id}/triggers`).send([]);
+    createdAssets.push(id);
+    const replaced = await api.put(`/api/assets/${id}/triggers`).send([]);
     expect(replaced.status).toBe(404);
   });
 
-  it('v0.5.2 FEAT-M04: a background item is always standable', async () => {
-    const created = await api.post('/api/items').send({
+  it('v0.5.2 FEAT-M04: a background asset never blocks', async () => {
+    const created = await api.post('/api/assets').send({
       code: uniqueCode('wallpaper'),
       name: 'Wallpaper',
-      category: 'background',
-      canStand: false,
+      type: 'background',
+      blocking: true,
     });
     expect(created.status).toBe(200);
     const id = created.body.data.id as number;
-    createdItems.push(id);
-    expect(created.body.data.canStand).toBe(true);
+    createdAssets.push(id);
+    expect(created.body.data.blocking).toBe(false);
 
-    // Flipping an object item to 背景 makes it standable too.
-    const object = await api.post('/api/items').send({
+    // Flipping an item asset to 背景 makes it non-blocking too.
+    const itemAsset = await api.post('/api/assets').send({
       code: uniqueCode('lamp'),
       name: 'Lamp',
-      category: 'object',
-      canStand: false,
+      type: 'item',
+      blocking: true,
     });
-    const objectId = object.body.data.id as number;
-    createdItems.push(objectId);
-    expect(object.body.data.canStand).toBe(false);
+    const assetId2 = itemAsset.body.data.id as number;
+    createdAssets.push(assetId2);
+    expect(itemAsset.body.data.blocking).toBe(true);
 
-    const patched = await api.patch(`/api/items/${objectId}`).send({ category: 'background' });
-    expect(patched.body.data.canStand).toBe(true);
+    const patched = await api.patch(`/api/assets/${assetId2}`).send({ type: 'background' });
+    expect(patched.body.data.blocking).toBe(false);
 
-    // …and an object keeps whatever the caller asked for.
-    const kept = await api.patch(`/api/items/${objectId}`).send({ category: 'object', canStand: true });
-    expect(kept.body.data.canStand).toBe(true);
-    const dropped = await api.patch(`/api/items/${objectId}`).send({ canStand: false });
-    expect(dropped.body.data.canStand).toBe(false);
+    // …and an item asset keeps whatever the caller asked for.
+    const kept = await api.patch(`/api/assets/${assetId2}`).send({ type: 'item', blocking: false });
+    expect(kept.body.data.blocking).toBe(false);
+    const dropped = await api.patch(`/api/assets/${assetId2}`).send({ blocking: true });
+    expect(dropped.body.data.blocking).toBe(true);
   });
 
   it('v0.5.3 FEAT-N06: a create can land enabled, and defaults to 停用', async () => {
-    const plain = await api.post('/api/items').send({
+    const plain = await api.post('/api/assets').send({
       code: uniqueCode('inactive'),
       name: 'Inactive Item',
-      category: 'object',
+      type: 'item',
     });
     expect(plain.status).toBe(200);
-    createdItems.push(plain.body.data.id as number);
+    createdAssets.push(plain.body.data.id as number);
     // OPT-305 stands: no appearance, no `isActive` → 停用.
     expect(plain.body.data.isActive).toBe(false);
 
-    const enabled = await api.post('/api/items').send({
+    const enabled = await api.post('/api/assets').send({
       code: uniqueCode('active'),
       name: 'Active Item',
-      category: 'object',
+      type: 'item',
       isActive: true,
     });
     expect(enabled.status).toBe(200);
-    createdItems.push(enabled.body.data.id as number);
+    createdAssets.push(enabled.body.data.id as number);
     expect(enabled.body.data.isActive).toBe(true);
   });
 
-  it('rejects an invalid item code', async () => {
-    const res = await api.post('/api/items').send({ code: 'bad code', name: 'Bad' });
+  it('rejects an invalid asset code', async () => {
+    const res = await api.post('/api/assets').send({ code: 'bad code', name: 'Bad' });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
@@ -542,7 +542,7 @@ describe('characters API', () => {
 describe('map draft API', () => {
   it('v0.5.8 第八阶段：加载、保存，且后写覆盖（不再有乐观锁）', async () => {
     const mapId = await createMap({ name: `Map ${uniqueCode('p')}`, gridSize: 6 });
-    const itemId = await createItem({ category: 'object', canStand: true });
+    const assetId = await createAsset({ type: 'item', blocking: false });
 
     const initial = await api.get(`/api/maps/${mapId}/map`);
     expect(initial.status).toBe(200);
@@ -551,14 +551,14 @@ describe('map draft API', () => {
     expect(initial.body.data.updatedAt).toBeUndefined();
 
     const draft = emptyDraft(6);
-    draft.cells['0,0'] = { object: { itemId, w: 1, h: 1 } };
+    draft.cells['0,0'] = { item: { assetId, w: 1, h: 1 } };
     draft.regions = [
       { id: 'rg_a', name: 'Lounge', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
     ];
 
     const saved = await api.put(`/api/maps/${mapId}/map`).send({ data: draft });
     expect(saved.status).toBe(200);
-    expect(saved.body.data.draft.cells['0,0'].object.itemId).toBe(itemId);
+    expect(saved.body.data.draft.cells['0,0'].item.assetId).toBe(assetId);
     expect(saved.body.data.draft.regions).toHaveLength(1);
 
     const loaded = await api.get(`/api/maps/${mapId}/map`);
@@ -572,11 +572,11 @@ describe('map draft API', () => {
     expect(again.body.data.draft.cells).toEqual({});
   });
 
-  it('rejects out-of-bounds cells and unknown item references', async () => {
+  it('rejects out-of-bounds cells and unknown asset references', async () => {
     const mapId = await createMap({ name: `Bounds ${uniqueCode('p')}`, gridSize: 4 });
 
     const outOfBounds = emptyDraft(4);
-    outOfBounds.cells['10,0'] = { background: { itemId: await createItem({ category: 'background' }) } };
+    outOfBounds.cells['10,0'] = { background: { assetId: await createAsset({ type: 'background' }) } };
     const boundsRes = await api
       .put(`/api/maps/${mapId}/map`)
       .send({ data: outOfBounds });
@@ -584,7 +584,7 @@ describe('map draft API', () => {
     expect(boundsRes.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
     const unknown = emptyDraft(4);
-    unknown.cells['0,0'] = { object: { itemId: 99999999, w: 1, h: 1 } };
+    unknown.cells['0,0'] = { item: { assetId: 99999999, w: 1, h: 1 } };
     const unknownRes = await api.put(`/api/maps/${mapId}/map`).send({ data: unknown });
     expect(unknownRes.status).toBe(400);
     expect(unknownRes.body.code).toBe(ErrorCode.VALIDATION_FAILED);
@@ -724,10 +724,10 @@ describe('map draft API', () => {
 describe('versions API', () => {
   it('publishes, lists, reads and deletes a version', async () => {
     const mapId = await createMap({ name: `Versions ${uniqueCode('p')}`, gridSize: 6 });
-    const itemId = await createItem({ category: 'object', canStand: true });
+    const assetId = await createAsset({ type: 'item', blocking: false });
 
     const draft = emptyDraft(6);
-    draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
+    draft.cells['1,1'] = { item: { assetId, w: 1, h: 1 } };
     await saveCanvas(mapId, draft);
 
     const published = await api.post(`/api/maps/${mapId}/versions`).send({});
@@ -742,7 +742,7 @@ describe('versions API', () => {
     expect(list.body.data[0].mapId).toBe(published.body.data.id);
 
     const detail = await api.get(`/api/maps/${mapId}/versions/1`);
-    expect(detail.body.data.data.cells['1,1'].object.itemId).toBe(itemId);
+    expect(detail.body.data.data.cells['1,1'].item.assetId).toBe(assetId);
     // The snapshot is a pure canvas — the roster never rides along (v0.5.0).
     expect(detail.body.data.data.characterSlots).toBeUndefined();
 
@@ -784,14 +784,14 @@ describe('versions API', () => {
     ).toBe(true);
   });
 
-  // OPT-904 (docs/v0.3.4.md §4.1): a non-standable item IS allowed on the
-  // object layer — the v0.3.1 `object_can_stand` rule was removed.
-  it('OPT-904: publishes a non-standable item placed on the object layer', async () => {
+  // OPT-904 (docs/v0.3.4.md §4.1): a blocking asset IS allowed on the
+  // item layer — the v0.3.1 `object_can_stand` rule was removed.
+  it('OPT-904: publishes a blocking asset placed on the item layer', async () => {
     const mapId = await createMap({ name: `NoStand ${uniqueCode('p')}`, gridSize: 6 });
-    const itemId = await createItem({ category: 'object', canStand: false });
+    const assetId = await createAsset({ type: 'item', blocking: true });
 
     const draft = emptyDraft(6);
-    draft.cells['2,2'] = { object: { itemId, w: 2, h: 2 } };
+    draft.cells['2,2'] = { item: { assetId, w: 2, h: 2 } };
     const saved = await saveCanvas(mapId, draft);
     expect(saved.status).toBe(200);
 
@@ -806,17 +806,17 @@ describe('versions API', () => {
    */
   it('restores a version into the working draft via the deprecated route (Q9)', async () => {
     const mapId = await createMap({ name: `Restore ${uniqueCode('p')}`, gridSize: 6 });
-    const itemId = await createItem({ category: 'object', canStand: true });
+    const assetId = await createAsset({ type: 'item', blocking: false });
 
     const draft = emptyDraft(6);
-    draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
+    draft.cells['1,1'] = { item: { assetId, w: 1, h: 1 } };
     await saveCanvas(mapId, draft);
     await publish(mapId);
 
     await saveCanvas(mapId, emptyDraft(6));
     const restored = await api.post(`/api/maps/${mapId}/versions/1/draft`);
     expect(restored.status).toBe(200);
-    expect(restored.body.data.draft.cells['1,1'].object.itemId).toBe(itemId);
+    expect(restored.body.data.draft.cells['1,1'].item.assetId).toBe(assetId);
   });
 });
 
@@ -830,9 +830,9 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
   it('adds a work entry in the same lineage without touching map_versions', async () => {
     const name = `Fork ${uniqueCode('p')}`;
     const mapId = await createMap({ name, gridSize: 6 });
-    const itemId = await createItem({ category: 'object', canStand: true });
+    const assetId = await createAsset({ type: 'item', blocking: false });
     const draft = emptyDraft(6);
-    draft.cells['2,2'] = { object: { itemId, w: 1, h: 1 } };
+    draft.cells['2,2'] = { item: { assetId, w: 1, h: 1 } };
     await saveCanvas(mapId, draft);
     await publish(mapId);
     await publish(mapId);
@@ -846,7 +846,7 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
     // The published snapshot is untouched: same timestamp, same payload.
     const after = await api.get(`/api/maps/${mapId}/versions/2`);
     expect(after.body.data.publishedAt).toBe(before.body.data.publishedAt);
-    expect(after.body.data.data.cells['2,2'].object.itemId).toBe(itemId);
+    expect(after.body.data.data.cells['2,2'].item.assetId).toBe(assetId);
 
     // The fork is a *draft* entry seeded from v2, sharing the original's root.
     const list = await api.get(`/api/maps?keyword=${encodeURIComponent(name)}`);
@@ -866,7 +866,7 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
     expect(forkEntry?.versionCount).toBe(2);
 
     const forkedDraft = await api.get(`/api/maps/${forkedId}/map`);
-    expect(forkedDraft.body.data.draft.cells['2,2'].object.itemId).toBe(itemId);
+    expect(forkedDraft.body.data.draft.cells['2,2'].item.assetId).toBe(assetId);
   });
 
   it('continues the lineage numbering after a fork (v3, not v1)', async () => {
@@ -922,29 +922,29 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
   it('v0.5.8 §13: fork carries the editor canvas (save-time fork)', async () => {
     const name = `ForkData ${uniqueCode('p')}`;
     const mapId = await createMap({ name, gridSize: 6 });
-    const itemId = await createItem({ category: 'object', canStand: true });
+    const assetId = await createAsset({ type: 'item', blocking: false });
     const draft = emptyDraft(6);
-    draft.cells['1,1'] = { object: { itemId, w: 1, h: 1 } };
+    draft.cells['1,1'] = { item: { assetId, w: 1, h: 1 } };
     await saveCanvas(mapId, draft);
     await publish(mapId);
 
     // 「以此为底稿新建」进编辑器后又改了一格（还没保存）—— 保存时这一帧
     // 画布随 fork 一起落库；不传 data 则仍是快照 data（上面的老用例）。
     const edited = emptyDraft(6);
-    edited.cells['3,3'] = { object: { itemId, w: 1, h: 1 } };
+    edited.cells['3,3'] = { item: { assetId, w: 1, h: 1 } };
     const forked = await api.post(`/api/maps/${mapId}/versions/1/fork`).send({ data: edited });
     expect(forked.status).toBe(200);
     const forkedId = forked.body.data.id as number;
     createdMapEntries.push(forkedId);
 
     const forkedDraft = await api.get(`/api/maps/${forkedId}/map`);
-    expect(forkedDraft.body.data.draft.cells['3,3'].object.itemId).toBe(itemId);
+    expect(forkedDraft.body.data.draft.cells['3,3'].item.assetId).toBe(assetId);
     // 旧草稿的 1,1 不在新行里 —— 带的就是发送那一刻的画布，不是合并。
     expect(forkedDraft.body.data.draft.cells['1,1']).toBeUndefined();
 
     // 版本快照本身不动（不可变）。
     const snapshot = await api.get(`/api/maps/${mapId}/versions/1`);
-    expect(snapshot.body.data.data.cells['1,1'].object.itemId).toBe(itemId);
+    expect(snapshot.body.data.data.cells['1,1'].item.assetId).toBe(assetId);
   });
 });
 
@@ -955,7 +955,7 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
  */
 describe('puzzles API (FEAT-K01)', () => {
   it('creates a puzzle bound to a published version and reads it back', async () => {
-    const { mapId, versionNo, itemId } = await publishedMapWithItem(`Pz ${uniqueCode('p')}`);
+    const { mapId, versionNo, assetId } = await publishedMapWithItem(`Pz ${uniqueCode('p')}`);
     const id = await createPuzzle({
       name: '谜题一',
       description: '第一题',
@@ -995,7 +995,7 @@ describe('puzzles API (FEAT-K01)', () => {
 
     // The canvas lives on the version, not in the puzzle payload.
     expect(detail.body.data.data.cells).toBeUndefined();
-    expect(itemId).toBeGreaterThan(0);
+    expect(assetId).toBeGreaterThan(0);
   });
 
   it('rejects a puzzle whose map version was never published', async () => {
@@ -1019,7 +1019,7 @@ describe('puzzles API (FEAT-K01)', () => {
 
   /** §5.1 + Q16: the canvas is read-only and its style has no palette. */
   it('serves the referenced canvas read-only and strips the palette (Q16)', async () => {
-    const { mapId, itemId, versionNo } = await publishedMapWithItem(`Ctx ${uniqueCode('p')}`);
+    const { mapId, assetId, versionNo } = await publishedMapWithItem(`Ctx ${uniqueCode('p')}`);
     const id = await createPuzzle({ name: '只读画布', mapId: mapId, mapVersionNo: versionNo });
 
     const res = await api.get(`/api/puzzles/${id}/map`);
@@ -1027,7 +1027,7 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(res.body.data.mapId).toBe(mapId);
     expect(res.body.data.versionNo).toBe(versionNo);
     expect(res.body.data.gridSize).toBe(6);
-    expect(res.body.data.cells['0,0'].object.itemId).toBe(itemId);
+    expect(res.body.data.cells['0,0'].item.assetId).toBe(assetId);
     expect(res.body.data.style.linkageColors).toBeUndefined();
   });
 
@@ -1086,8 +1086,8 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(saved.body.data.data.map.versionNo).toBe(a.versionNo);
   });
 
-  /** §5.2: `item` / `region` targets are checked against the referenced canvas. */
-  it('rejects an item linkage whose target is not on the referenced canvas', async () => {
+  /** §5.2: `asset` / `region` targets are checked against the referenced canvas. */
+  it('rejects an asset linkage whose target is not on the referenced canvas', async () => {
     const { mapId, versionNo } = await publishedMapWithItem(`BadRef ${uniqueCode('p')}`);
     const id = await createPuzzle({ name: '坏引用', mapId: mapId, mapVersionNo: versionNo });
     const characterId = await createCharacter();
@@ -1096,7 +1096,7 @@ describe('puzzles API (FEAT-K01)', () => {
     const draft = initial.body.data.data;
     draft.characterSlots[0] = {
       characterId,
-      linkages: [{ type: 'item', id: 99999999, scope: 'all', effect: 'highlight', color: 'red' }],
+      linkages: [{ type: 'asset', id: 99999999, scope: 'all', effect: 'highlight', color: 'red' }],
     };
     const res = await api
       .put(`/api/puzzles/${id}`)
@@ -1710,7 +1710,7 @@ afterAll(async () => {
     await db('maps').whereNot('version', 'draft').whereIn('root_id', roots).del();
     await db('maps').whereIn('id', createdMapEntries).del();
   }
-  if (createdItems.length) await db('items').whereIn('id', createdItems).del();
+  if (createdAssets.length) await db('assets').whereIn('id', createdAssets).del();
   if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
   await db.destroy();
   for (const dir of uploadedAvatarDirs) {

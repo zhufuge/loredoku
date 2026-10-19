@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest'
 import { BG_COLOR_PATTERN, DEFAULT_BG_COLOR } from '../constants'
 import { appearanceModeSchema, bgColorSchema, hasAppearance } from './appearance'
 import { createCharacterSchema, updateCharacterSchema } from './character'
-import { createItemSchema, updateItemSchema } from './item'
+import { createAssetSchema, updateAssetSchema } from './asset'
 
 /**
  * v0.5.1 FEAT-L01 / FEAT-L02 — the colour-block field.
  *
  * `bgColor` is optional and nullable: omitted / `null` means image mode (the
  * pre-v0.5.1 behaviour), a `#RRGGBB` string means colour block. Anything else
- * must be rejected by **both** the item and the character schema, because the
+ * must be rejected by **both** the asset and the character schema, because the
  * server never validates it a second time.
  */
 
@@ -59,16 +59,16 @@ describe('hasAppearance', () => {
   })
 })
 
-describe('createItemSchema — bgColor (FEAT-L01)', () => {
+describe('createAssetSchema — bgColor (FEAT-L01)', () => {
   const base = { code: 'block_1', name: '色块' }
 
   it('defaults to no colour block', () => {
-    expect(createItemSchema.parse(base).bgColor).toBeUndefined()
+    expect(createAssetSchema.parse(base).bgColor).toBeUndefined()
   })
 
   it('keeps a supplied colour and rejects a malformed one', () => {
-    expect(createItemSchema.parse({ ...base, bgColor: '#123456' }).bgColor).toBe('#123456')
-    expect(createItemSchema.safeParse({ ...base, bgColor: '#GGG' }).success).toBe(false)
+    expect(createAssetSchema.parse({ ...base, bgColor: '#123456' }).bgColor).toBe('#123456')
+    expect(createAssetSchema.safeParse({ ...base, bgColor: '#GGG' }).success).toBe(false)
   })
 })
 
@@ -79,29 +79,29 @@ describe('create schemas — isActive (FEAT-N06)', () => {
   it('omit it and the OPT-305 default (false) stands', () => {
     // The repository turns `undefined` into `false`, so an old caller's
     // behaviour is bit-for-bit unchanged.
-    expect(createItemSchema.parse(item).isActive).toBeUndefined()
+    expect(createAssetSchema.parse(item).isActive).toBeUndefined()
     expect(createCharacterSchema.parse(character).isActive).toBeUndefined()
   })
 
   it('accepts both values so a create can land enabled', () => {
-    expect(createItemSchema.parse({ ...item, isActive: true }).isActive).toBe(true)
-    expect(createItemSchema.parse({ ...item, isActive: false }).isActive).toBe(false)
+    expect(createAssetSchema.parse({ ...item, isActive: true }).isActive).toBe(true)
+    expect(createAssetSchema.parse({ ...item, isActive: false }).isActive).toBe(false)
     expect(createCharacterSchema.parse({ ...character, isActive: true }).isActive).toBe(true)
   })
 
   it('rejects anything that is not a boolean', () => {
-    expect(createItemSchema.safeParse({ ...item, isActive: 'yes' }).success).toBe(false)
+    expect(createAssetSchema.safeParse({ ...item, isActive: 'yes' }).success).toBe(false)
     expect(createCharacterSchema.safeParse({ ...character, isActive: 1 }).success).toBe(false)
   })
 })
 
-describe('updateItemSchema — bgColor (FEAT-L01)', () => {
+describe('updateAssetSchema — bgColor (FEAT-L01)', () => {
   it('accepts null, which drops back to the image mode', () => {
-    expect(updateItemSchema.parse({ bgColor: null }).bgColor).toBeNull()
+    expect(updateAssetSchema.parse({ bgColor: null }).bgColor).toBeNull()
   })
 
   it('rejects a malformed colour', () => {
-    expect(updateItemSchema.safeParse({ bgColor: 'white' }).success).toBe(false)
+    expect(updateAssetSchema.safeParse({ bgColor: 'white' }).success).toBe(false)
   })
 })
 

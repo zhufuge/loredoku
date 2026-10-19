@@ -56,7 +56,7 @@ function place(
   y: number,
   participantId: number,
   options: {
-    noStandCells?: Set<string>;
+    blockingCells?: Set<string>;
     variant?: ParticipantPlacementVariant;
     gridSize?: number;
   } = {},
@@ -65,14 +65,14 @@ function place(
     x,
     y,
     participantId,
-    noStandCells: options.noStandCells ?? EMPTY_NOSTAND,
+    blockingCells: options.blockingCells ?? EMPTY_NOSTAND,
     gridSize: options.gridSize ?? GRID,
     variant: options.variant ?? 'number',
   });
 }
 
 function forbid(state: GamePlacementState, x: number, y: number): GamePlacementState {
-  return placeForbidden(state, { x, y, noStandCells: EMPTY_NOSTAND });
+  return placeForbidden(state, { x, y, blockingCells: EMPTY_NOSTAND });
 }
 
 /** The `×` keys the sweep added around a placement at (x, y). */
@@ -82,7 +82,7 @@ function sweepOf(x: number, y: number, gridSize = GRID): string[] {
     x,
     y,
     gridSize,
-    noStandCells: EMPTY_NOSTAND,
+    blockingCells: EMPTY_NOSTAND,
   });
 }
 
@@ -144,18 +144,18 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
   it('rejects a non-standable cell in both variants', () => {
     const state = createGamePlacementState();
     const noStand = nostand('1,1');
-    expect(canPlaceParticipant({ board: state.board, x: 1, y: 1, participantId: 1, noStandCells: noStand })).toBe(false);
-    expect(place(state, 1, 1, 1, { noStandCells: noStand })).toBe(state);
-    expect(place(state, 1, 1, 1, { noStandCells: noStand, variant: 'image' })).toBe(state);
+    expect(canPlaceParticipant({ board: state.board, x: 1, y: 1, participantId: 1, blockingCells: noStand })).toBe(false);
+    expect(place(state, 1, 1, 1, { blockingCells: noStand })).toBe(state);
+    expect(place(state, 1, 1, 1, { blockingCells: noStand, variant: 'image' })).toBe(state);
     expect(
-      placementBlockReason({ board: state.board, x: 1, y: 1, participantId: 1, noStandCells: noStand }),
+      placementBlockReason({ board: state.board, x: 1, y: 1, participantId: 1, blockingCells: noStand }),
     ).toBe('non-standable');
   });
 
   it('rejects a cell that already carries a × in both variants', () => {
     const state = forbid(createGamePlacementState(), 4, 4);
-    expect(canPlaceParticipant({ board: state.board, x: 4, y: 4, participantId: 1, noStandCells: EMPTY_NOSTAND })).toBe(false);
-    expect(canPlaceParticipant({ board: state.board, x: 4, y: 4, participantId: 1, noStandCells: EMPTY_NOSTAND, variant: 'image' })).toBe(false);
+    expect(canPlaceParticipant({ board: state.board, x: 4, y: 4, participantId: 1, blockingCells: EMPTY_NOSTAND })).toBe(false);
+    expect(canPlaceParticipant({ board: state.board, x: 4, y: 4, participantId: 1, blockingCells: EMPTY_NOSTAND, variant: 'image' })).toBe(false);
     expect(place(state, 4, 4, 1)).toBe(state);
     expect(place(state, 4, 4, 1, { variant: 'image' })).toBe(state);
   });
@@ -165,11 +165,11 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
       '0,0': { kind: 'numbers', entries: [1, 2, 3, 4, 5, 6, 7, 8, 9] },
     };
     const state = withPlacements(full);
-    expect(canPlaceParticipant({ board: state.board, x: 0, y: 0, participantId: 10, noStandCells: EMPTY_NOSTAND })).toBe(false);
+    expect(canPlaceParticipant({ board: state.board, x: 0, y: 0, participantId: 10, blockingCells: EMPTY_NOSTAND })).toBe(false);
     expect(place(state, 0, 0, 10)).toBe(state);
     // The confirm gesture replaces the cell wholesale, so a full grid is no
     // obstacle for the image variant.
-    expect(canPlaceParticipant({ board: state.board, x: 0, y: 0, participantId: 4, noStandCells: EMPTY_NOSTAND, variant: 'image' })).toBe(true);
+    expect(canPlaceParticipant({ board: state.board, x: 0, y: 0, participantId: 4, blockingCells: EMPTY_NOSTAND, variant: 'image' })).toBe(true);
     const confirmed = place(state, 0, 0, 4, { variant: 'image' });
     expect(placementAt(confirmed.board, 0, 0)).toEqual({ kind: 'participant', index: 4 });
   });
@@ -194,7 +194,7 @@ describe('uniqueness is about the avatar only (SPEC-J05 §3.6)', () => {
         x: 6,
         y: 6,
         participantId: 1,
-        noStandCells: EMPTY_NOSTAND,
+        blockingCells: EMPTY_NOSTAND,
       }),
     ).toBeNull();
   });
@@ -209,7 +209,7 @@ describe('uniqueness is about the avatar only (SPEC-J05 §3.6)', () => {
         x: 5,
         y: 5,
         participantId: 2,
-        noStandCells: EMPTY_NOSTAND,
+        blockingCells: EMPTY_NOSTAND,
         variant: 'image',
       }),
     ).toBe('elsewhere');
@@ -283,7 +283,7 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
         x: 1,
         y: 1,
         participantId: 4,
-        noStandCells: EMPTY_NOSTAND,
+        blockingCells: EMPTY_NOSTAND,
       }),
     ).toBe('avatar');
     expect(placementAt(avatar.board, 1, 1)).toEqual({ kind: 'participant', index: 4 });
@@ -297,7 +297,7 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
         x: 6,
         y: 6,
         participantId: 7,
-        noStandCells: EMPTY_NOSTAND,
+        blockingCells: EMPTY_NOSTAND,
       }),
     ).toBeNull();
     expect(
@@ -306,7 +306,7 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
         x: 6,
         y: 6,
         participantId: 7,
-        noStandCells: EMPTY_NOSTAND,
+        blockingCells: EMPTY_NOSTAND,
       }),
     ).toBe(true);
   });
@@ -387,7 +387,7 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
     // A pre-existing avatar at (3,0): the sweep must leave it alone.
     const state = withPlacements({ '3,0': { kind: 'participant', index: 8 } });
     const next = place(state, 1, 0, 1, {
-      noStandCells: nostand('4,0'),
+      blockingCells: nostand('4,0'),
       gridSize: 5,
       variant: 'image',
     });
@@ -407,7 +407,7 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
       x: 2,
       y: 2,
       gridSize: 4,
-      noStandCells: EMPTY_NOSTAND,
+      blockingCells: EMPTY_NOSTAND,
     });
     // Everything the sweep would touch already carries a ×.
     for (const key of again) {
@@ -461,13 +461,13 @@ describe('the forbidden × (SPEC-G04 §10.1)', () => {
 
   it('leaves a cell showing a participant avatar alone', () => {
     const state = place(createGamePlacementState(), 2, 2, 1, { variant: 'image' });
-    expect(canPlaceForbidden({ board: state.board, x: 2, y: 2, noStandCells: EMPTY_NOSTAND })).toBe(false);
-    expect(placeForbidden(state, { x: 2, y: 2, noStandCells: EMPTY_NOSTAND })).toBe(state);
+    expect(canPlaceForbidden({ board: state.board, x: 2, y: 2, blockingCells: EMPTY_NOSTAND })).toBe(false);
+    expect(placeForbidden(state, { x: 2, y: 2, blockingCells: EMPTY_NOSTAND })).toBe(state);
   });
 
   it('is rejected on a non-standable cell', () => {
     const state = createGamePlacementState();
-    expect(placeForbidden(state, { x: 0, y: 1, noStandCells: nostand('0,1') })).toBe(state);
+    expect(placeForbidden(state, { x: 0, y: 1, blockingCells: nostand('0,1') })).toBe(state);
   });
 
   it('activates the non-standable mask for the cells it covers', () => {
@@ -957,7 +957,7 @@ describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
     const state = placeForbidden(createGamePlacementState(), {
       x: 3,
       y: 3,
-      noStandCells: EMPTY_NOSTAND,
+      blockingCells: EMPTY_NOSTAND,
     });
     expect(avatarPlacedParticipantIds(state.board)).toEqual(new Set());
     expect(placedParticipantIds(state.board)).toEqual(new Set());

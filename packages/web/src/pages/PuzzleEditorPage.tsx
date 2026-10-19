@@ -8,7 +8,7 @@ import {
   validatePuzzleReferences,
   type Character,
   type CharacterSlotEntry,
-  type Item,
+  type Asset,
   type ParticipantTarget,
   type PuzzleDraft,
 } from '@loredoku/shared';
@@ -45,7 +45,7 @@ import {
   type PuzzleInfoDrawerHandle,
 } from '@/components/puzzle/PuzzleInfoDrawer';
 import { useCharacters } from '@/hooks/useCharacters';
-import { useItems } from '@/hooks/useItems';
+import { useAssets } from '@/hooks/useAssets';
 import { useHighlight } from '@/hooks/useHighlight';
 import { usePuzzle, usePuzzleMapContext, useSavePuzzle } from '@/hooks/usePuzzles';
 import { useEditorSave } from '@/hooks/useEditorSave';
@@ -97,7 +97,7 @@ export function PuzzleEditorPage(): JSX.Element {
   const mapQuery = usePuzzleMapContext(valid ? id : null);
   // The referenced snapshot may point at items / characters that are inactive
   // now, so both lists are unfiltered (same rule as the work preview page).
-  const itemsQuery = useItems({});
+  const assetsQuery = useAssets({});
   const charactersQuery = useCharacters({});
   const saveMutation = useSavePuzzle();
   const leaveGuard = useUnsavedChangesGuard(puzzle.dirty);
@@ -136,11 +136,11 @@ export function PuzzleEditorPage(): JSX.Element {
     }
   }, [rulerVisible]);
 
-  const itemsById = useMemo(() => {
-    const map = new Map<number, Item>();
-    for (const item of itemsQuery.data ?? []) map.set(item.id, item);
+  const assetsById = useMemo(() => {
+    const map = new Map<number, Asset>();
+    for (const item of assetsQuery.data ?? []) map.set(item.id, item);
     return map;
-  }, [itemsQuery.data]);
+  }, [assetsQuery.data]);
 
   const charactersById = useMemo(() => {
     const map = new Map<number, Character>();
@@ -257,19 +257,19 @@ export function PuzzleEditorPage(): JSX.Element {
   const placedItems = useMemo<PlacedItemOption[]>(() => {
     const list: PlacedItemOption[] = [];
     for (const [key, cell] of cells.entries()) {
-      if (!cell.object) continue;
+      if (!cell.item) continue;
       const [x, y] = key.split(',').map(Number) as [number, number];
       list.push({
-        itemId: cell.object.itemId,
-        name: itemsById.get(cell.object.itemId)?.name ?? '',
+        assetId: cell.item.assetId,
+        name: assetsById.get(cell.item.assetId)?.name ?? '',
         // FIX-N12 §6.5: carried through to the linkage picker.
-        code: itemsById.get(cell.object.itemId)?.code ?? '',
+        code: assetsById.get(cell.item.assetId)?.code ?? '',
         x,
         y,
       });
     }
     return list;
-  }, [cells, itemsById]);
+  }, [cells, assetsById]);
 
   /**
    * OPT-C07 (docs/v0.3.7.md §OPT-C07): the participant activation and the cell
@@ -669,7 +669,7 @@ export function PuzzleEditorPage(): JSX.Element {
             ref={canvasRef}
             gridSize={gridSize}
             cells={cells}
-            itemsById={itemsById}
+            assetsById={assetsById}
             regions={regions}
             style={style}
             onAutoCellSize={setAutoCellSize}
@@ -685,7 +685,7 @@ export function PuzzleEditorPage(): JSX.Element {
             regionShape="rect"
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
-            pendingItem={null}
+            pendingAsset={null}
             regionDraftSelection={new Set<string>()}
             highlight={highlight}
             highlightLeaving={highlightLeaving}
@@ -759,9 +759,9 @@ export function PuzzleEditorPage(): JSX.Element {
             selection={puzzle.selection}
             cells={cells}
             regions={regions}
-            itemsById={itemsById}
+            assetsById={assetsById}
             onClearCell={() => undefined}
-            onClearObject={() => undefined}
+            onClearItem={() => undefined}
             onEditRegion={() => undefined}
             onDeleteRegion={() => undefined}
             onLocateRegion={() => canvasRef.current?.centerView()}

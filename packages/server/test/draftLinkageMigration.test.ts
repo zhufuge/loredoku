@@ -22,8 +22,8 @@ function legacyDraft(): Record<string, unknown> {
             trigger: 'click',
             targets: [
               { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-              { type: 'item', id: 12, effect: 'highlight', color: 'blue' },
-              { type: 'item', id: 15, effect: 'highlight', color: 'red' },
+              { type: 'asset', id: 12, effect: 'highlight', color: 'blue' },
+              { type: 'asset', id: 15, effect: 'highlight', color: 'red' },
               { type: 'cell', x: 2, y: 2, effect: 'highlight', color: 'red' },
             ],
           },
@@ -49,19 +49,19 @@ describe('MOD-801 migration: triggers → flat linkages', () => {
 
     expect(slot['triggers']).toBeUndefined();
     const linkages = slot['linkages'] as Array<Record<string, unknown>>;
-    // 6 targets across both groups, 1 duplicate → 4 unique (2 items + char + region)
+    // 6 targets across both groups, 1 duplicate → 5 unique (2 assets + char + region)
     expect(linkages).toHaveLength(5);
     expect(linkages.map((linkage) => linkage['type']).sort()).toEqual([
+      'asset',
+      'asset',
       'cell',
       'character',
-      'item',
-      'item',
       'region',
     ]);
     expect(stats.linksMerged).toBe(6);
   });
 
-  it('treats object + colour as the dedupe key (cross-group duplicates collapse)', () => {
+  it('treats the same target + colour as the dedupe key (cross-group duplicates collapse)', () => {
     const draft = legacyDraft();
     const stats = migrateDraftLinkages(draft, emptyStats());
     // character 7 / red appears in both groups → kept once.
@@ -74,7 +74,7 @@ describe('MOD-801 migration: triggers → flat linkages', () => {
     expect(linkages.filter((linkage) => linkage['type'] === 'character')).toHaveLength(1);
   });
 
-  it('keeps the same object twice when the colour differs', () => {
+  it('keeps the same target twice when the colour differs', () => {
     const draft = {
       characterSlots: [
         {
@@ -118,7 +118,7 @@ describe('MOD-801 migration: triggers → flat linkages', () => {
     expect(stats.clueAdded).toBe(0);
   });
 
-  it('adds scope=all to item linkages and converts legacy cell coordinates', () => {
+  it('adds scope=all to asset linkages and converts legacy cell coordinates', () => {
     const draft = legacyDraft();
     const stats = migrateDraftLinkages(draft, emptyStats());
     const linkages = (
@@ -127,14 +127,14 @@ describe('MOD-801 migration: triggers → flat linkages', () => {
       >
     );
     for (const linkage of linkages) {
-      if (linkage['type'] === 'item') expect(linkage['scope']).toBe('all');
+      if (linkage['type'] === 'asset') expect(linkage['scope']).toBe('all');
       if (linkage['type'] === 'cell') {
         expect(linkage['cells']).toEqual([[2, 2]]);
         expect(linkage['x']).toBeUndefined();
         expect(linkage['y']).toBeUndefined();
       }
     }
-    expect(stats.itemScopesAdded).toBe(2);
+    expect(stats.assetScopesAdded).toBe(2);
     expect(stats.cellTargetsMigrated).toBe(1);
   });
 
@@ -148,7 +148,7 @@ describe('MOD-801 migration: triggers → flat linkages', () => {
     expect(second.linksMerged).toBe(0);
     expect(second.linksDeduped).toBe(0);
     expect(second.clueAdded).toBe(0);
-    expect(second.itemScopesAdded).toBe(0);
+    expect(second.assetScopesAdded).toBe(0);
     expect(second.cellTargetsMigrated).toBe(0);
   });
 
@@ -191,7 +191,7 @@ describe('MOD-801 migration: triggers → flat linkages', () => {
 
   it('identifies targets across value orderings (colour excluded)', () => {
     expect(linkageTargetKey({ type: 'character', id: 3 })).toBe('character:3');
-    expect(linkageTargetKey({ type: 'item', id: 4 })).toBe('item:4');
+    expect(linkageTargetKey({ type: 'asset', id: 4 })).toBe('asset:4');
     expect(linkageTargetKey({ type: 'region', id: 'rg_a' })).toBe('region:rg_a');
     expect(linkageTargetKey({ type: 'cell', cells: [[3, 2], [2, 2]] })).toBe(
       linkageTargetKey({ type: 'cell', cells: [[2, 2], [3, 2]] }),

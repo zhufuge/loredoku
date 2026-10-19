@@ -1,10 +1,10 @@
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from 'react';
 import {
   MAP_LAYER_Z,
-  OBJECT_HOVER_LIFT_PX,
-  OBJECT_HOVER_TRANSITION_MS,
+  ITEM_HOVER_LIFT_PX,
+  ITEM_HOVER_TRANSITION_MS,
   type CellCoord,
-  type Item,
+  type Asset,
 } from '@loredoku/shared';
 import type { CellMap } from '@/lib/highlight';
 import { cellRectStyle, parseKey } from './layerGeometry';
@@ -16,11 +16,11 @@ import { cellRectStyle, parseKey } from './layerGeometry';
  */
 export function MapBackgroundLayer({
   cells,
-  itemsById,
+  assetsById,
   cellSize,
 }: {
   cells: CellMap;
-  itemsById: Map<number, Item>;
+  assetsById: Map<number, Asset>;
   cellSize: number;
 }): JSX.Element {
   return (
@@ -31,7 +31,7 @@ export function MapBackgroundLayer({
       {[...cells.entries()]
         .filter(([, cell]) => cell.background)
         .map(([key, cell]) => {
-          const item = itemsById.get(cell.background!.itemId);
+          const item = assetsById.get(cell.background!.assetId);
           if (!item) return null;
           const [x, y] = parseKey(key);
           const src = item.imageThumbUrl ?? item.imageUrl;
@@ -68,16 +68,16 @@ export function MapBackgroundLayer({
 }
 
 /**
- * 层 4 · 物件图层（Object Layer）— above the grid separators so items are
+ * 层 4 · 物品图层（Object Layer）— above the grid separators so items are
  * never visually cut by them; the image itself is still clipped inside its
  * cells.
  *
  * OPT-902 §2.3: on hover the image stretches upward by
- * `OBJECT_HOVER_LIFT_PX` with a 120ms ease-out transition.
+ * `ITEM_HOVER_LIFT_PX` with a 120ms ease-out transition.
  */
-export function MapObjectLayer({
+export function MapItemLayer({
   cells,
-  itemsById,
+  assetsById,
   cellSize,
   interactive = false,
   hover = null,
@@ -87,7 +87,7 @@ export function MapObjectLayer({
   onClick,
 }: {
   cells: CellMap;
-  itemsById: Map<number, Item>;
+  assetsById: Map<number, Asset>;
   cellSize: number;
   interactive?: boolean;
   hover?: CellCoord | null;
@@ -101,13 +101,13 @@ export function MapObjectLayer({
   return (
     <div
       className="no-drag pointer-events-none absolute left-0 top-0"
-      style={{ zIndex: MAP_LAYER_Z.objectLayer }}
+      style={{ zIndex: MAP_LAYER_Z.itemLayer }}
     >
       {[...cells.entries()]
-        .filter(([, cell]) => cell.object)
+        .filter(([, cell]) => cell.item)
         .map(([key, cell]) => {
-          const anchor = cell.object!;
-          const item = itemsById.get(anchor.itemId);
+          const anchor = cell.item!;
+          const item = assetsById.get(anchor.assetId);
           const [x, y] = parseKey(key);
           const src = item?.imageThumbUrl ?? item?.imageUrl;
           const hovered =
@@ -135,8 +135,8 @@ export function MapObjectLayer({
               style={{
                 // OPT-C06: the item's own fitMode is preserved, never forced.
                 objectFit: item?.fitMode === 'contain' ? 'contain' : 'cover',
-                transform: lifted ? `translateY(-${OBJECT_HOVER_LIFT_PX}px)` : undefined,
-                transition: `transform ${OBJECT_HOVER_TRANSITION_MS}ms ease-out`,
+                transform: lifted ? `translateY(-${ITEM_HOVER_LIFT_PX}px)` : undefined,
+                transition: `transform ${ITEM_HOVER_TRANSITION_MS}ms ease-out`,
               }}
             />
           ) : null;
@@ -147,7 +147,7 @@ export function MapObjectLayer({
               className="absolute"
               style={{
                 ...cellRectStyle(x, y, cellSize, anchor.w, anchor.h),
-                zIndex: MAP_LAYER_Z.objectLayer,
+                zIndex: MAP_LAYER_Z.itemLayer,
                 // The lift is allowed to poke past the cell edge while hovered.
                 overflow: lifted ? 'visible' : 'hidden',
                 // OPT-C06: the padding applies to the whole footprint, not per cell.

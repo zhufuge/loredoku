@@ -1,24 +1,24 @@
 import { useState } from 'react';
 import { ImageIcon } from 'lucide-react';
-import type { Item } from '@loredoku/shared';
+import type { Asset } from '@loredoku/shared';
 import { cn } from '@/lib/utils';
 
-interface ItemThumbnailProps {
-  item: Item;
+interface AssetThumbnailProps {
+  asset: Asset;
   className?: string;
 }
 
-export function ItemThumbnail({ item, className }: ItemThumbnailProps): JSX.Element {
+export function AssetThumbnail({ asset, className }: AssetThumbnailProps): JSX.Element {
   const [failed, setFailed] = useState(false);
-  const src = failed ? item.imageUrl : item.imageThumbUrl ?? item.imageUrl;
+  const src = failed ? asset.imageUrl : asset.imageThumbUrl ?? asset.imageUrl;
 
   // v0.5.1 FEAT-L01 / SPEC-L03: a colour block wins over the image — the
   // background simply shows the block.
-  if (item.bgColor) {
+  if (asset.bgColor) {
     return (
       <div
-        data-color-block={item.bgColor}
-        style={{ backgroundColor: item.bgColor }}
+        data-color-block={asset.bgColor}
+        style={{ backgroundColor: asset.bgColor }}
         className={cn('rounded border', className)}
       />
     );
@@ -40,7 +40,7 @@ export function ItemThumbnail({ item, className }: ItemThumbnailProps): JSX.Elem
   return (
     <img
       src={src}
-      alt={item.name}
+      alt={asset.name}
       loading="lazy"
       draggable={false}
       onError={() => setFailed(true)}

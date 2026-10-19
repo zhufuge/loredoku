@@ -1,39 +1,39 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import type { EditorLayer, Item } from '@loredoku/shared';
+import type { Asset, EditorLayer } from '@loredoku/shared';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ItemThumbnail } from '@/components/item/ItemThumbnail';
+import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { cn } from '@/lib/utils';
 
-interface ItemPaletteProps {
-  items: Item[] | undefined;
+interface AssetPaletteProps {
+  assets: Asset[] | undefined;
   isLoading: boolean;
   isError: boolean;
   activeLayer: EditorLayer;
-  selectedItemId: number | null;
-  onSelect: (item: Item | null) => void;
+  selectedAssetId: number | null;
+  onSelect: (asset: Asset | null) => void;
 }
 
-export function ItemPalette({
-  items,
+export function AssetPalette({
+  assets,
   isLoading,
   isError,
   activeLayer,
-  selectedItemId,
+  selectedAssetId,
   onSelect,
-}: ItemPaletteProps): JSX.Element {
+}: AssetPaletteProps): JSX.Element {
   const [keyword, setKeyword] = useState('');
 
   const filtered = useMemo(() => {
-    const list = (items ?? []).filter((item) => item.category === activeLayer);
+    const list = (assets ?? []).filter((asset) => asset.type === activeLayer);
     const query = keyword.trim().toLowerCase();
     if (!query) return list;
     return list.filter(
-      (item) =>
-        item.name.toLowerCase().includes(query) || item.code.toLowerCase().includes(query),
+      (asset) =>
+        asset.name.toLowerCase().includes(query) || asset.code.toLowerCase().includes(query),
     );
-  }, [items, activeLayer, keyword]);
+  }, [assets, activeLayer, keyword]);
 
   return (
     <div className="flex h-full flex-col gap-2">
@@ -42,7 +42,7 @@ export function ItemPalette({
         <Input
           value={keyword}
           onChange={(event) => setKeyword(event.target.value)}
-          placeholder="搜索物品"
+          placeholder="搜索资源"
           className="h-9 pl-9"
         />
       </div>
@@ -55,33 +55,33 @@ export function ItemPalette({
             ))}
           </div>
         ) : isError ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">物品加载失败</p>
+          <p className="py-6 text-center text-sm text-muted-foreground">资源加载失败</p>
         ) : filtered.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted-foreground">
             {keyword
-              ? '没有匹配的物品'
+              ? '没有匹配的资源'
               : activeLayer === 'background'
-                ? '暂无背景物品'
-                : '暂无物体物品'}
+                ? '暂无背景资源'
+                : '暂无物品资源'}
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-2">
-            {filtered.map((item) => (
+            {filtered.map((asset) => (
               <button
-                key={item.id}
+                key={asset.id}
                 type="button"
-                title={`${item.name} · ${item.widthCells}×${item.heightCells}`}
-                onClick={() => onSelect(item.id === selectedItemId ? null : item)}
+                title={`${asset.name} · ${asset.widthCells}×${asset.heightCells}`}
+                onClick={() => onSelect(asset.id === selectedAssetId ? null : asset)}
                 className={cn(
                   'group flex cursor-pointer flex-col items-center gap-1 rounded-md border p-1 text-center',
-                  item.id === selectedItemId
+                  asset.id === selectedAssetId
                     ? 'border-primary bg-accent'
                     : 'hover:border-primary hover:shadow-sm',
                 )}
               >
-                <ItemThumbnail item={item} className="h-12 w-12" />
+                <AssetThumbnail asset={asset} className="h-12 w-12" />
                 <span className="w-full truncate text-[11px] leading-tight text-muted-foreground group-hover:text-foreground">
-                  {item.name}
+                  {asset.name}
                 </span>
               </button>
             ))}
@@ -89,9 +89,9 @@ export function ItemPalette({
         )}
       </div>
 
-      {selectedItemId !== null ? (
+      {selectedAssetId !== null ? (
         <p className="shrink-0 rounded-md bg-secondary px-2 py-1 text-[11px] text-secondary-foreground">
-          已选中物品，点击画布放置；再次点击可取消。
+          已选中资源，点击画布放置；再次点击可取消。
         </p>
       ) : null}
     </div>

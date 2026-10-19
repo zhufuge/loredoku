@@ -10,18 +10,18 @@ import {
 import { cellPlacementSchema, gameDeploySchema, gameSlugParamSchema, mapGameSnapshotSchema } from './game';
 
 describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
-  it('lists fifteen layers, the two game-only ones between 区域标签 and 物件图层', () => {
+  it('lists fifteen layers, the two game-only ones between 区域标签 and 物品图层', () => {
     expect(MAP_LAYER_ORDER).toEqual([
       'mouseCursorBox',
       'operationCursorBox',
       'regionLabel',
       'gameToolHint',
       'gamePlacement',
-      'objectLayer',
+      'itemLayer',
       'canvasFrame',
       'gridSeparator',
       'regionOutline',
-      'nonStandableMask',
+      'blockingMask',
       'regionHighlight',
       'cellHighlight',
       'backgroundHighlight',
@@ -42,10 +42,10 @@ describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
     expect(MAP_LAYER_Z.mouseCursorBox).toBe(Math.max(...Object.values(MAP_LAYER_Z)));
   });
 
-  it('registers the two game layers between 区域标签 and 物件图层', () => {
+  it('registers the two game layers between 区域标签 and 物品图层', () => {
     expect(MAP_LAYER_Z.regionLabel).toBeGreaterThan(MAP_LAYER_Z.gameToolHint);
     expect(MAP_LAYER_Z.gameToolHint).toBeGreaterThan(MAP_LAYER_Z.gamePlacement);
-    expect(MAP_LAYER_Z.gamePlacement).toBeGreaterThan(MAP_LAYER_Z.objectLayer);
+    expect(MAP_LAYER_Z.gamePlacement).toBeGreaterThan(MAP_LAYER_Z.itemLayer);
   });
 });
 

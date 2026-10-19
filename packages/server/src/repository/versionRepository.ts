@@ -34,17 +34,17 @@ function summarizeData(raw: unknown): {
   gridSize: number;
 } {
   const draft = (absorbLegacyMapDraft(raw) ?? null) as MapDraft | null;
-  const itemIds = new Set<number>();
+  const assetIds = new Set<number>();
   for (const cell of Object.values(draft?.cells ?? {})) {
-    if (cell?.object) itemIds.add(cell.object.itemId);
-    if (cell?.background) itemIds.add(cell.background.itemId);
+    if (cell?.item) assetIds.add(cell.item.assetId);
+    if (cell?.background) assetIds.add(cell.background.assetId);
   }
   // participants live on puzzles, so this counts only legacy snapshots.
   const participantCount = readLegacyCharacterSlots(raw).filter((slot) => slot !== null).length;
   return {
     participantCount,
     regionCount: draft?.regions?.length ?? 0,
-    itemCount: itemIds.size,
+    itemCount: assetIds.size,
     gridSize: draft?.gridSize ?? 0,
   };
 }

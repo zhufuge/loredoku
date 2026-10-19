@@ -10,7 +10,7 @@ import {
   mapDraftSchema,
   type DraftRegion,
   type EditorTool,
-  type Item,
+  type Asset,
   type MapDraft,
   type MapStyle,
   type RegionShape,
@@ -57,7 +57,7 @@ import { MapInitDialog } from '@/components/map-editor/MapInitDialog';
 import { RegionDialog } from '@/components/map-editor/RegionDialog';
 import { RegionSelectionBar } from '@/components/map-editor/RegionSelectionBar';
 import { VersionHistoryDialog } from '@/components/map-editor/VersionHistoryDialog';
-import { useItems } from '@/hooks/useItems';
+import { useAssets } from '@/hooks/useAssets';
 import { useMapCanvas, useSaveMap, useUpdateGridSize, useImportMap } from '@/hooks/useMapCanvas';
 import {
   useRemoveMapCover,
@@ -71,7 +71,7 @@ import { useEditorSave } from '@/hooks/useEditorSave';
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
-import { canPlaceItemOnLayer } from '@/lib/canvasLayers';
+import { canPlaceAssetOnLayer } from '@/lib/canvasLayers';
 import { infoDrawerOpen, reduceEditorFocus } from '@/lib/editorFocus';
 import { resolveEditorInit } from '@/lib/editorInit';
 import type { Coord } from '@/lib/region';
@@ -114,7 +114,7 @@ export function MapEditorPage(): JSX.Element {
   const editor = useEditorStore();
 
   const mapQuery = useMapCanvas(id);
-  const itemsQuery = useItems({ isActive: true });
+  const assetsQuery = useAssets({ isActive: true });
   const versionsQuery = useVersions(Number.isFinite(id) ? id : null);
   /**
    * fork 态的数据源是**版本快照**，不是工作条目草稿 —— 草稿可能
@@ -133,7 +133,7 @@ export function MapEditorPage(): JSX.Element {
   const removeCoverMutation = useRemoveMapCover();
   /**
    * 抽屉里改过尺寸、但服务端还没裁剪过。失败时保留，下一次保存接着补 ——
-   * 否则草稿里会一直留着被截断的物体。
+   * 否则草稿里会一直留着被截断的物品。
    */
   const gridTrimRef = useRef(false);
   /** 一次「保存」要连发多个请求，用这个标记把整段算作「保存中」。 */
@@ -204,15 +204,15 @@ export function MapEditorPage(): JSX.Element {
     }
   }, [rulerVisible]);
 
-  const itemsById = useMemo(() => {
-    const map = new Map<number, Item>();
-    for (const item of itemsQuery.data ?? []) map.set(item.id, item);
+  const assetsById = useMemo(() => {
+    const map = new Map<number, Asset>();
+    for (const item of assetsQuery.data ?? []) map.set(item.id, item);
     return map;
-  }, [itemsQuery.data]);
+  }, [assetsQuery.data]);
 
-  const pendingItem = useMemo(
-    () => (editor.selectedItemId === null ? null : itemsById.get(editor.selectedItemId) ?? null),
-    [editor.selectedItemId, itemsById],
+  const pendingAsset = useMemo(
+    () => (editor.selectedAssetId === null ? null : assetsById.get(editor.selectedAssetId) ?? null),
+    [editor.selectedAssetId, assetsById],
   );
 
   /**
@@ -319,7 +319,7 @@ export function MapEditorPage(): JSX.Element {
 
   /**
    * 画布尺寸的落库：草稿保存已经把新尺寸写进 `data.gridSize`，但缩小尺寸
-   * 时被截断的物体 / 区域要由 resize 接口抹掉（前端只裁了整格越界的内容）。
+   * 时被截断的物品 / 区域要由 resize 接口抹掉（前端只裁了整格越界的内容）。
    * 基线取**保存前**缓存里的尺寸：保存之后缓存里的值就是刚写进去的新尺寸，
    * 拿它比较会永远相等。
    */
@@ -329,10 +329,10 @@ export function MapEditorPage(): JSX.Element {
     try {
       const result = await resizeMutation.mutateAsync({ id: targetId, gridSize: editor.gridSize });
       gridTrimRef.current = false;
-      const { background, object, regions } = result.removed;
-      if (background + object + regions > 0) {
+      const { background, item, regions } = result.removed;
+      if (background + item + regions > 0) {
         toast.message('画布已调整', {
-          description: `已移除越界内容：背景 ${background}、物体 ${object}、区域 ${regions}`,
+          description: `已移除越界内容：背景 ${background}、物品 ${item}、区域 ${regions}`,
         });
       }
       return true;
@@ -422,7 +422,7 @@ export function MapEditorPage(): JSX.Element {
     gridSize: editor.gridSize,
     cells: editor.cells,
     regions: editor.regions,
-    itemsById,
+    assetsById,
     dirty: editor.dirty || entryDirty,
     saving,
     persist,
@@ -888,11 +888,11 @@ export function MapEditorPage(): JSX.Element {
             )}
           >
             <EditorLeftPanel
-              items={itemsQuery.data}
-              itemsLoading={itemsQuery.isLoading}
-              itemsError={itemsQuery.isError}
+              assets={assetsQuery.data}
+              assetsLoading={assetsQuery.isLoading}
+              assetsError={assetsQuery.isError}
               activeLayer={editor.activeLayer}
-              selectedItemId={editor.selectedItemId}
+              selectedAssetId={editor.selectedAssetId}
               regions={editor.regions}
               selectedRegionId={editor.selectedRegionId}
               onSetTool={setTool}
@@ -900,7 +900,7 @@ export function MapEditorPage(): JSX.Element {
                 editor.setLayer(layer);
                 editor.setSelectedItem(null);
               }}
-              onSelectItem={(item) => editor.setSelectedItem(item ? item.id : null)}
+              onSelectAsset={(item) => editor.setSelectedItem(item ? item.id : null)}
               onSelectRegion={editor.setSelectedRegion}
               onEditRegion={(region) => {
                 editor.setSelectedRegion(region.id);
@@ -916,7 +916,7 @@ export function MapEditorPage(): JSX.Element {
             ref={canvasRef}
             gridSize={editor.gridSize}
             cells={editor.cells}
-            itemsById={itemsById}
+            assetsById={assetsById}
             regions={editor.regions}
             style={editor.style}
             onAutoCellSize={setAutoCellSize}
@@ -928,7 +928,7 @@ export function MapEditorPage(): JSX.Element {
             regionShape={regionShape}
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
-            pendingItem={pendingItem}
+            pendingAsset={pendingAsset}
             regionDraftSelection={editor.regionDraftSelection}
             // SPEC-K12 §9.1: the map editor has no participants, so there is
             // no linkage highlight to show — the layer stays empty.
@@ -953,21 +953,21 @@ export function MapEditorPage(): JSX.Element {
               }
             }}
             onPlaceItem={(coord) => {
-              if (!pendingItem) return;
+              if (!pendingAsset) return;
               // OPT-904 §4.1: the placement layer must match the item category
               // (the background layer only accepts `category === 'background'`).
-              if (!canPlaceItemOnLayer(pendingItem, editor.activeLayer)) {
+              if (!canPlaceAssetOnLayer(pendingAsset, editor.activeLayer)) {
                 toast.error('该物品不能放在当前图层');
                 return;
               }
-              if (pendingItem.category === 'background') {
-                editor.placeBackground(pendingItem.id, coord.x, coord.y);
+              if (pendingAsset.type === 'background') {
+                editor.placeBackground(pendingAsset.id, coord.x, coord.y);
               } else {
-                editor.placeObject(
+                editor.placeItem(
                   {
-                    id: pendingItem.id,
-                    widthCells: pendingItem.widthCells,
-                    heightCells: pendingItem.heightCells,
+                    id: pendingAsset.id,
+                    widthCells: pendingAsset.widthCells,
+                    heightCells: pendingAsset.heightCells,
                   },
                   coord.x,
                   coord.y,
@@ -1037,9 +1037,9 @@ export function MapEditorPage(): JSX.Element {
             selection={editor.selection}
             cells={editor.cells}
             regions={editor.regions}
-            itemsById={itemsById}
+            assetsById={assetsById}
             onClearCell={(x, y) => editor.clearCell(x, y)}
-            onClearObject={(x, y) => editor.clearObjectAt(x, y)}
+            onClearItem={(x, y) => editor.clearItemAt(x, y)}
             onEditRegion={(region) => {
               editor.setSelectedRegion(region.id);
               setRegionDialog({ open: true, mode: 'edit', cells: region.cells, region });

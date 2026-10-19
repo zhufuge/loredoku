@@ -6,7 +6,7 @@
 
 ## 1. 这是什么
 
-`loredoku`（格物）—— 一款推理数独类游戏，包含游戏编辑工坊。工坊中包含地图、物品、角色和谜题的管理 monorepo。
+`loredoku`（格物）—— 一款推理数独类游戏，包含游戏编辑工坊。工坊中包含地图、资源、角色和谜题的管理 monorepo。
 
 - `packages/shared`：跨端共享的 TS 类型、常量、zod schema。**不依赖任何运行时**。
 - `packages/server`：Koa + Knex + PostgreSQL。
@@ -50,7 +50,7 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 
 - 浮层 `z-index` 只用 shared 的 `UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }`，**不要在组件里写 `z-*` 类**。
 - 弹窗一律**禁止点遮罩关闭**。
-- 配色只用语义 token（`bg-background` / `text-muted-foreground` / `border-border` …），**不要写 `bg-white` 之类的定色**，那在深色下会变成白疤。地图背景、物品/角色色块、区域色属于**作品内容**，不随主题变（画布范围的界定见 `docs/map-management-and-editor.md` §6）。
+- 配色只用语义 token（`bg-background` / `text-muted-foreground` / `border-border` …），**不要写 `bg-white` 之类的定色**，那在深色下会变成白疤。地图背景、资源/角色色块、区域色属于**作品内容**，不随主题变（画布范围的界定见 `docs/map-management-and-editor.md` §6）。
 - 主题（浅色 / 深色 / 跟随系统）的唯一状态源是 `lib/theme.ts`，React 侧只通过 `useTheme()` 读；不要另建 store，也不要在组件里直接改 `document` 的 class。
 
 ### 3.3 数据库迁移
@@ -72,13 +72,16 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 
 ---
 
-## 4. 测试
+## 4. 测试规范
 
 ### 4.1 临时文件
 
 - **必须及时删除测试临时产物**, 比如 vitest.config.ts.timestamp-....mjs 和产生的数据库数据。
-- `scripts/run-tests.sh` 每个文件都把输出写进固定的 `/tmp/vt.log`，**不要并行跑两个包** ——
-  计数会串成另一个文件的，汇总里的 `?` 就是撞了。串行跑。
+
+### 4.2 测试用例
+
+- 测试验证「行为/输出」，不验证「源码排版」。
+- 禁止读源码文件后用 `toContain` 断言某段代码文本存在，除非被测物的正确输出本身就是文本（代码生成器、模板、lint 规则）。
 
 ---
 

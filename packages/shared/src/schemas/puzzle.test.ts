@@ -165,14 +165,14 @@ describe('puzzleDraftSchema 自洽引用校验 (§5.2 第一半)', () => {
     ).toBe(true);
   });
 
-  it('leaves item / region targets to validatePuzzleReferences (§5.2 第二半)', () => {
-    // The schema cannot see the map's canvas, so an unresolvable item target
+  it('leaves asset / region targets to validatePuzzleReferences (§5.2 第二半)', () => {
+    // The schema cannot see the map's canvas, so an unresolvable asset target
     // is accepted here — `validatePuzzleReferences` rejects it.
     expect(
       puzzleDraftSchema.safeParse(
         draft({
           characterSlots: [
-            slot({ linkages: [{ type: 'item', id: 999, scope: 'all', effect: 'highlight', color: 'red' }] }),
+            slot({ linkages: [{ type: 'asset', id: 999, scope: 'all', effect: 'highlight', color: 'red' }] }),
           ],
         }),
       ).success,

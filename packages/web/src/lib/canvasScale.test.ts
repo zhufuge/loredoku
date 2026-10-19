@@ -16,11 +16,11 @@ import {
   STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE,
   RULER_FONT_SIZE,
   RULER_FONT_SIZE_ACTIVE,
-  OBJECT_PADDING_BASE,
-  OBJECT_PADDING_MAX,
-  OBJECT_PADDING_MIN,
+  ITEM_PADDING_BASE,
+  ITEM_PADDING_MAX,
+  ITEM_PADDING_MIN,
 } from '@loredoku/shared';
-import { canvasMetrics, cellScale, objectPadding, scaleFontSize, scaleLineWidth } from './canvasScale';
+import { canvasMetrics, cellScale, itemPadding, scaleFontSize, scaleLineWidth } from './canvasScale';
 
 describe('cellScale (OPT-B03 §3.2)', () => {
   it('is 1 at the reference cell width', () => {
@@ -50,13 +50,13 @@ describe('scaleLineWidth / scaleFontSize (§3.2 约束)', () => {
   });
 
   it('OPT-C06: object padding scales but stays within [2, 12]', () => {
-    expect(OBJECT_PADDING_BASE).toBe(4);
-    expect(objectPadding(BASE_CELL)).toBe(OBJECT_PADDING_BASE);
-    expect(objectPadding(MIN_CELL_SIZE)).toBe(3); // 4 × 0.75
-    expect(objectPadding(MAX_CELL_SIZE)).toBe(8); // 4 × 2
-    expect(objectPadding(1)).toBe(OBJECT_PADDING_MIN);
-    expect(objectPadding(100000)).toBe(OBJECT_PADDING_MAX);
-    expect(objectPadding(Number.NaN)).toBe(OBJECT_PADDING_BASE);
+    expect(ITEM_PADDING_BASE).toBe(4);
+    expect(itemPadding(BASE_CELL)).toBe(ITEM_PADDING_BASE);
+    expect(itemPadding(MIN_CELL_SIZE)).toBe(3); // 4 × 0.75
+    expect(itemPadding(MAX_CELL_SIZE)).toBe(8); // 4 × 2
+    expect(itemPadding(1)).toBe(ITEM_PADDING_MIN);
+    expect(itemPadding(100000)).toBe(ITEM_PADDING_MAX);
+    expect(itemPadding(Number.NaN)).toBe(ITEM_PADDING_BASE);
   });
 
   // v0.5.2 FIX-M08 (docs/v0.5.2.md §8): the 28px ceiling is gone — only the

@@ -4,9 +4,9 @@ import type { PuzzleDraft } from './types/domain';
 
 const context = {
   cells: {
-    '0,0': { object: { itemId: 12, w: 1, h: 1 } },
-    '1,1': { object: { itemId: 34, w: 1, h: 1 } },
-    '2,2': { background: { itemId: 5 } },
+    '0,0': { item: { assetId: 12, w: 1, h: 1 } },
+    '1,1': { item: { assetId: 34, w: 1, h: 1 } },
+    '2,2': { background: { assetId: 5 } },
   },
   regions: [{ id: 'rg_a1b2c3', name: '森林区', color: '#000000', borderWidth: 2, fillOpacity: 0.2, cells: [[2, 2]] as Array<[number, number]> }],
 };
@@ -33,11 +33,11 @@ const slot = (linkages: NonNullable<PuzzleDraft['characterSlots'][number]>['link
 });
 
 describe('validatePuzzleReferences (v0.5.0 §5.2)', () => {
-  it('returns nothing when every item / region target resolves', () => {
+  it('returns nothing when every asset / region target resolves', () => {
     const issues = validatePuzzleReferences(
       draft([
         slot([
-          { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'red' },
+          { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'red' },
           { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
         ]),
       ]),
@@ -59,24 +59,24 @@ describe('validatePuzzleReferences (v0.5.0 §5.2)', () => {
     expect(issues).toEqual([]);
   });
 
-  it('ignores an object-layer item id that only exists as a background', () => {
-    // Item #5 sits on the background layer, so it is not an object anchor.
+  it('ignores an item-layer asset id that only exists as a background', () => {
+    // Asset #5 sits on the background layer, so it is not an item anchor.
     const issues = validatePuzzleReferences(
-      draft([slot([{ type: 'item', id: 5, scope: 'all', effect: 'highlight', color: 'red' }])]),
+      draft([slot([{ type: 'asset', id: 5, scope: 'all', effect: 'highlight', color: 'red' }])]),
       context,
     );
     expect(issues).toHaveLength(1);
-    expect(issues[0]?.message).toContain('联动目标物品 #5 不在地图中');
+    expect(issues[0]?.message).toContain('联动目标资源 #5 不在地图中');
   });
 
-  it('reports a missing item target with the slot + target index', () => {
+  it('reports a missing asset target with the slot + target index', () => {
     const issues = validatePuzzleReferences(
-      draft([null, slot([{ type: 'item', id: 999, scope: 'all', effect: 'highlight', color: 'red' }])]),
+      draft([null, slot([{ type: 'asset', id: 999, scope: 'all', effect: 'highlight', color: 'red' }])]),
       context,
     );
     expect(issues).toHaveLength(1);
     expect(issues[0]).toMatchObject({ slotIndex: 1, targetIndex: 0 });
-    expect(issues[0]?.message).toBe('参与者框 2 的联动目标物品 #999 不在地图中');
+    expect(issues[0]?.message).toBe('参与者框 2 的联动目标资源 #999 不在地图中');
   });
 
   it('reports a missing region target', () => {
@@ -92,10 +92,10 @@ describe('validatePuzzleReferences (v0.5.0 §5.2)', () => {
     const issues = validatePuzzleReferences(
       draft([
         slot([
-          { type: 'item', id: 999, scope: 'all', effect: 'highlight', color: 'red' },
+          { type: 'asset', id: 999, scope: 'all', effect: 'highlight', color: 'red' },
           { type: 'region', id: 'nope', effect: 'highlight', color: 'red' },
         ]),
-        slot([{ type: 'item', id: 998, scope: 'all', effect: 'highlight', color: 'red' }]),
+        slot([{ type: 'asset', id: 998, scope: 'all', effect: 'highlight', color: 'red' }]),
       ]),
       context,
     );
@@ -111,11 +111,11 @@ describe('validatePuzzleReferences (v0.5.0 §5.2)', () => {
     expect(validatePuzzleReferences(draft([null, null]), { cells: {}, regions: [] })).toEqual([]);
   });
 
-  it('rejects every item / region target when the referenced map has no canvas', () => {
+  it('rejects every asset / region target when the referenced map has no canvas', () => {
     const issues = validatePuzzleReferences(
       draft([
         slot([
-          { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'red' },
+          { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'red' },
           { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'red' },
         ]),
       ]),

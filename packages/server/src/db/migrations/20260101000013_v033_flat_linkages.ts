@@ -42,7 +42,7 @@ export async function up(knex: Knex): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(
       `[v0.3.3] links merged: ${stats.linksMerged} (deduped: ${stats.linksDeduped}), ` +
-        `clue added: ${stats.clueAdded}, item scopes added: ${stats.itemScopesAdded}, ` +
+        `clue added: ${stats.clueAdded}, asset scopes added: ${stats.assetScopesAdded}, ` +
         `cell targets migrated: ${stats.cellTargetsMigrated}`,
     );
 

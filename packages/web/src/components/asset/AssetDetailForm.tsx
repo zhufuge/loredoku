@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
+  ASSET_SIZE_MAX,
+  ASSET_SIZE_MIN,
+  ASSET_TYPES,
+  ASSET_TYPE_LABELS,
   DEFAULT_BG_COLOR,
-  ITEM_CATEGORIES,
-  ITEM_CATEGORY_LABELS,
-  ITEM_SIZE_MAX,
-  ITEM_SIZE_MIN,
   UPLOAD_MAX_SIZE,
-  canStandFor,
+  blockingFor,
   hasAppearance,
   type AppearanceMode,
-  type Item,
-  type ItemCategory,
-  type ItemFitMode,
+  type Asset,
+  type AssetType,
+  type AssetFitMode,
 } from '@loredoku/shared';
 import { AppearanceField } from '@/components/appearance/AppearanceField';
 import {
@@ -27,77 +27,77 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ImageUploader } from '@/components/item/ImageUploader';
+import { ImageUploader } from '@/components/asset/ImageUploader';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
 import {
-  useDeleteItemImage,
-  useSetItemActive,
-  useUpdateItem,
-  useUploadItemImage,
-} from '@/hooks/useItems';
+  useDeleteAssetImage,
+  useSetAssetActive,
+  useUpdateAsset,
+  useUploadAssetImage,
+} from '@/hooks/useAssets';
 
-/** FEAT-O11: the category as radio buttons (背景 / 物体). */
-const ITEM_CATEGORY_OPTIONS = ITEM_CATEGORIES.map((value) => ({
+/** FEAT-O11: the type as radio buttons (背景 / 物品). */
+const ASSET_TYPE_OPTIONS = ASSET_TYPES.map((value) => ({
   value,
-  label: ITEM_CATEGORY_LABELS[value],
+  label: ASSET_TYPE_LABELS[value],
 }));
 
-const FIT_MODE_LABELS: Record<ItemFitMode, string> = {
+const FIT_MODE_LABELS: Record<AssetFitMode, string> = {
   cover: '裁切填满（cover）',
   contain: '完整留白（contain）',
 };
 
-interface ItemDetailFormProps {
-  item: Item;
-  onRequestDelete: (item: Item) => void;
+interface AssetDetailFormProps {
+  asset: Asset;
+  onRequestDelete: (asset: Asset) => void;
 }
 
-export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): JSX.Element {
-  const [name, setName] = useState(item.name);
-  const [category, setCategory] = useState(item.category);
-  const [widthCells, setWidthCells] = useState(item.widthCells);
-  const [heightCells, setHeightCells] = useState(item.heightCells);
-  const [canStand, setCanStand] = useState(item.canStand);
-  const [fitMode, setFitMode] = useState<ItemFitMode>(item.fitMode);
+export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps): JSX.Element {
+  const [name, setName] = useState(asset.name);
+  const [type, setType] = useState(asset.type);
+  const [widthCells, setWidthCells] = useState(asset.widthCells);
+  const [heightCells, setHeightCells] = useState(asset.heightCells);
+  const [blocking, setBlocking] = useState(asset.blocking);
+  const [fitMode, setFitMode] = useState<AssetFitMode>(asset.fitMode);
   // v0.5.1 FEAT-L01: image mode by default; a stored colour means colour block.
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(
-    item.bgColor ? 'color' : 'image',
+    asset.bgColor ? 'color' : 'image',
   );
-  const [bgColor, setBgColor] = useState(item.bgColor ?? DEFAULT_BG_COLOR);
+  const [bgColor, setBgColor] = useState(asset.bgColor ?? DEFAULT_BG_COLOR);
   const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
 
-  const updateMutation = useUpdateItem();
-  const uploadMutation = useUploadItemImage();
-  const deleteImageMutation = useDeleteItemImage();
-  const activeMutation = useSetItemActive();
+  const updateMutation = useUpdateAsset();
+  const uploadMutation = useUploadAssetImage();
+  const deleteImageMutation = useDeleteAssetImage();
+  const activeMutation = useSetAssetActive();
 
   useEffect(() => {
-    setName(item.name);
-    setCategory(item.category);
-    setWidthCells(item.widthCells);
-    setHeightCells(item.heightCells);
-    setCanStand(item.canStand);
-    setFitMode(item.fitMode);
-    setAppearanceMode(item.bgColor ? 'color' : 'image');
-    setBgColor(item.bgColor ?? DEFAULT_BG_COLOR);
-  }, [item.id, item.updatedAt]);
+    setName(asset.name);
+    setType(asset.type);
+    setWidthCells(asset.widthCells);
+    setHeightCells(asset.heightCells);
+    setBlocking(asset.blocking);
+    setFitMode(asset.fitMode);
+    setAppearanceMode(asset.bgColor ? 'color' : 'image');
+    setBgColor(asset.bgColor ?? DEFAULT_BG_COLOR);
+  }, [asset.id, asset.updatedAt]);
 
   const saving = updateMutation.isPending;
   // v0.5.1 FEAT-L01: an uploaded image **or** a colour block can be activated.
-  const activatable = hasAppearance(Boolean(item.imageUrl), item.bgColor);
-  // v0.5.2 FEAT-M04: 「可站立」 is meaningless for a background item.
-  const standable = category === 'object';
+  const activatable = hasAppearance(Boolean(asset.imageUrl), asset.bgColor);
+  // v0.5.2 FEAT-M04: 「阻挡」 is meaningless for a background asset.
+  const blockable = type === 'item';
 
   const handleSave = async (): Promise<void> => {
     try {
       await updateMutation.mutateAsync({
-        id: item.id,
+        id: asset.id,
         payload: {
           name: name.trim(),
-          category,
+          type,
           widthCells,
           heightCells,
-          canStand: canStandFor(category, canStand),
+          blocking: blockingFor(type, blocking),
           fitMode,
           // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
           bgColor: appearanceMode === 'color' ? bgColor : null,
@@ -112,11 +112,11 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold">{item.name}</h2>
-          <p className="text-xs text-muted-foreground">业务 ID：{item.code}（不可修改）</p>
+          <h2 className="text-xl font-semibold">{asset.name}</h2>
+          <p className="text-xs text-muted-foreground">业务 ID：{asset.code}（不可修改）</p>
         </div>
         <div className="flex items-center gap-2">
-          {item.isActive ? (
+          {asset.isActive ? (
             <>
               <span className="rounded bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
                 启用中
@@ -124,7 +124,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
               <Button
                 variant="outline"
                 disabled={activeMutation.isPending}
-                onClick={() => activeMutation.mutate({ id: item.id, active: false })}
+                onClick={() => activeMutation.mutate({ id: asset.id, active: false })}
               >
                 停用
               </Button>
@@ -138,14 +138,14 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
                 variant="outline"
                 disabled={activeMutation.isPending || !activatable}
                 title={activatable ? undefined : '请先上传图片或选择纯色块颜色后再启用'}
-                onClick={() => activeMutation.mutate({ id: item.id, active: true })}
+                onClick={() => activeMutation.mutate({ id: asset.id, active: true })}
               >
                 启用
               </Button>
               <Button
                 variant="outline"
                 className="text-destructive hover:text-destructive"
-                onClick={() => onRequestDelete(item)}
+                onClick={() => onRequestDelete(asset)}
               >
                 删除
               </Button>
@@ -166,13 +166,13 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <div className="grid gap-2">
-            <Label>分类</Label>
+            <Label>类型</Label>
             {/* FEAT-O11 (docs/v0.5.4.md §5.4): buttons instead of a dropdown. */}
             <SegmentedRadio
-              ariaLabel="分类"
-              value={category}
-              options={ITEM_CATEGORY_OPTIONS}
-              onChange={(next) => setCategory(next as Item['category'])}
+              ariaLabel="类型"
+              value={type}
+              options={ASSET_TYPE_OPTIONS}
+              onChange={(next) => setType(next as Asset['type'])}
             />
           </div>
           <div className="grid gap-2">
@@ -195,19 +195,19 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
               onChange={(event) => setHeightCells(Number(event.target.value))}
             />
           </div>
-          {/* v0.5.2 FEAT-M04: a background item is always standable, so the
-              checkbox would be a lie — it is only offered for 物体.
-              FIX-O08 (docs/v0.5.4.md §5.1): the 「背景类型恒定可站立」 caption
+          {/* v0.5.2 FEAT-M04: a background asset is never blocking, so the
+              checkbox would be a lie — it is only offered for 物品.
+              FIX-O08 (docs/v0.5.4.md §5.1): the 「背景类型恒定不阻挡」 caption
               is gone — the rule still holds, it just no longer explains itself. */}
-          {standable ? (
+          {blockable ? (
             <label className="mt-6 flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
-                checked={canStand}
-                onChange={(event) => setCanStand(event.target.checked)}
+                checked={blocking}
+                onChange={(event) => setBlocking(event.target.checked)}
                 className="h-4 w-4"
               />
-              可站立
+              阻挡
             </label>
           ) : null}
         </div>
@@ -216,10 +216,10 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           <Label>图片填充方式</Label>
           <select
             value={fitMode}
-            onChange={(event) => setFitMode(event.target.value as ItemFitMode)}
+            onChange={(event) => setFitMode(event.target.value as AssetFitMode)}
             className="h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            {(['cover', 'contain'] as ItemFitMode[]).map((value) => (
+            {(['cover', 'contain'] as AssetFitMode[]).map((value) => (
               <option key={value} value={value}>
                 {FIT_MODE_LABELS[value]}
               </option>
@@ -234,14 +234,14 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
           onBgColorChange={setBgColor}
         >
           <ImageUploader
-            imageUrl={item.imageUrl}
-            thumbUrl={item.imageThumbUrl}
-            width={item.imageWidth}
-            height={item.imageHeight}
-            size={item.imageSize}
+            imageUrl={asset.imageUrl}
+            thumbUrl={asset.imageThumbUrl}
+            width={asset.imageWidth}
+            height={asset.imageHeight}
+            size={asset.imageSize}
             uploading={uploadMutation.isPending}
             deleting={deleteImageMutation.isPending}
-            onUpload={(file) => uploadMutation.mutate({ id: item.id, file })}
+            onUpload={(file) => uploadMutation.mutate({ id: asset.id, file })}
             onDelete={() => setConfirmDeleteImage(true)}
           />
         </AppearanceField>
@@ -264,9 +264,9 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
             <AlertDialogTitle>删除图片？</AlertDialogTitle>
             <AlertDialogDescription>
               {/* v0.5.1 FEAT-L01: a colour block does not depend on the image. */}
-              {item.bgColor
-                ? '该物品是纯色块，删除图片后仍可继续启用。'
-                : '删除图片后，该物品将自动停用。'}
+              {asset.bgColor
+                ? '该资源是纯色块，删除图片后仍可继续启用。'
+                : '删除图片后，该资源将自动停用。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -275,7 +275,7 @@ export function ItemDetailForm({ item, onRequestDelete }: ItemDetailFormProps): 
               variant="destructive"
               disabled={deleteImageMutation.isPending}
               onClick={() =>
-                deleteImageMutation.mutate(item.id, {
+                deleteImageMutation.mutate(asset.id, {
                   onSuccess: () => setConfirmDeleteImage(false),
                 })
               }

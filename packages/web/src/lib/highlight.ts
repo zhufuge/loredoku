@@ -43,7 +43,7 @@ export interface HighlightState {
   /**
    * OPT-903 §1.2.7 方块高亮: an opaque block that lights up the **whole
    * cell** (background layer included). Used by `cell` linkages and by
-   * linkages on **物件层** items — the v0.3.3 translucent item overlay is
+   * linkages on **物品层** items — the v0.3.3 translucent item overlay is
    * gone. A multi-cell item emits one rect per covered cell (§7.3).
    */
   cellHighlights: HighlightRect[];
@@ -97,7 +97,7 @@ export function targetIdentity(target: ParticipantTarget): string {
   switch (target.type) {
     case 'character':
       return `character:${target.id}`;
-    case 'item':
+    case 'asset':
       return `item:${target.id}`;
     case 'cell':
       return `cell:${target.cells.map((c) => c.join(',')).join('|')}`;
@@ -127,7 +127,7 @@ export function collectLinkages(
 }
 
 /** OPT-903: which map layer a placement lives on decides the highlight. */
-export type ItemPlacementLayer = 'object' | 'background';
+export type ItemPlacementLayer = 'item' | 'background';
 
 export interface ItemPlacement {
   layer: ItemPlacementLayer;
@@ -146,35 +146,35 @@ export interface ItemPlacement {
  * 高亮) or a background-layer placement (→ 背景高亮), so both layers are
  * scanned. `scope: 'instances'` is matched against the anchor coord.
  */
-export function findItemPlacements(cells: CellMap, itemId: number): ItemPlacement[] {
+export function findItemPlacements(cells: CellMap, assetId: number): ItemPlacement[] {
   const result: ItemPlacement[] = [];
   for (const [key, cell] of cells.entries()) {
     const [x, y] = key.split(',').map(Number) as [number, number];
-    if (cell.object?.itemId === itemId) {
+    if (cell.item?.assetId === assetId) {
       result.push({
-        layer: 'object',
+        layer: 'item',
         x,
         y,
-        w: cell.object.w,
-        h: cell.object.h,
+        w: cell.item.w,
+        h: cell.item.h,
         anchorX: x,
         anchorY: y,
       });
     }
-    if (cell.background?.itemId === itemId) {
+    if (cell.background?.assetId === assetId) {
       result.push({ layer: 'background', x, y, w: 1, h: 1, anchorX: x, anchorY: y });
     }
   }
   return result;
 }
 
-/** All anchor cells of a given `itemId` on the **物件层** (MOD-708). */
+/** All anchor cells of a given `assetId` on the **物品层** (MOD-708). */
 export function findAllItemAnchors(
   cells: CellMap,
-  itemId: number,
+  assetId: number,
 ): Array<HighlightRect> {
-  return findItemPlacements(cells, itemId)
-    .filter((placement) => placement.layer === 'object')
+  return findItemPlacements(cells, assetId)
+    .filter((placement) => placement.layer === 'item')
     .map((placement) => ({
       x: placement.x,
       y: placement.y,
@@ -189,7 +189,7 @@ export function findAllItemAnchors(
  *
  * MOD-708: `cell` targets have `cells` array; `item` targets have `scope`.
  * MOD-802: `region` targets always produce an inner blue border.
- * OPT-903: item targets produce 方块高亮 (物件层) or 背景高亮 (背景层) —
+ * OPT-903: item targets produce 方块高亮 (物品层) or 背景高亮 (背景层) —
  * never a translucent overlay.
  */
 export function resolveHighlight(
@@ -220,7 +220,7 @@ export function resolveHighlight(
       continue;
     }
 
-    if (target.type === 'item') {
+    if (target.type === 'asset') {
       const placements = findItemPlacements(ctx.cells, target.id);
       if (placements.length === 0) continue;
       const wanted =

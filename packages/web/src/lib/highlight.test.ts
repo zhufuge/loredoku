@@ -33,7 +33,7 @@ const regions: DraftRegion[] = [
 ];
 
 const ctxCells = cells([
-  ['0,0', { object: { itemId: 12, w: 2, h: 1 } }],
+  ['0,0', { item: { assetId: 12, w: 2, h: 1 } }],
   ['1,0', {}],
 ]);
 
@@ -54,7 +54,7 @@ const slots: Array<CharacterSlotEntry | null> = [
 // MOD-801: one flat list (no click/touch grouping).
 const linkages: ParticipantTarget[] = [
   { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-  { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
+  { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
   { type: 'cell', cells: [[4, 4]], effect: 'highlight', color: 'red' },
   { type: 'region', id: 'rg_forest', effect: 'highlight', color: 'blue' },
 ];
@@ -62,12 +62,12 @@ const linkages: ParticipantTarget[] = [
 describe('findItemPlacements', () => {
   it('reports the layer of every placement of an item id', () => {
     const mixed = cells([
-      ['0,0', { object: { itemId: 12, w: 2, h: 1 } }],
-      ['3,3', { background: { itemId: 12 } }],
-      ['4,4', { background: { itemId: 99 } }],
+      ['0,0', { item: { assetId: 12, w: 2, h: 1 } }],
+      ['3,3', { background: { assetId: 12 } }],
+      ['4,4', { background: { assetId: 99 } }],
     ]);
     expect(findItemPlacements(mixed, 12)).toEqual([
-      { layer: 'object', x: 0, y: 0, w: 2, h: 1, anchorX: 0, anchorY: 0 },
+      { layer: 'item', x: 0, y: 0, w: 2, h: 1, anchorX: 0, anchorY: 0 },
       { layer: 'background', x: 3, y: 3, w: 1, h: 1, anchorX: 3, anchorY: 3 },
     ]);
     expect(findItemPlacements(mixed, 42)).toEqual([]);
@@ -77,8 +77,8 @@ describe('findItemPlacements', () => {
 describe('findAllItemAnchors', () => {
   it('locates all anchor cells of a placed object (object layer only)', () => {
     const mixed = cells([
-      ['0,0', { object: { itemId: 12, w: 2, h: 1 } }],
-      ['3,3', { background: { itemId: 12 } }],
+      ['0,0', { item: { assetId: 12, w: 2, h: 1 } }],
+      ['3,3', { background: { assetId: 12 } }],
     ]);
     expect(findAllItemAnchors(mixed, 12)).toEqual([{ x: 0, y: 0, w: 2, h: 1, color: '' }]);
     expect(findAllItemAnchors(ctxCells, 99)).toEqual([]);
@@ -176,7 +176,7 @@ describe('resolveHighlight', () => {
       resolveHighlight(
         [
           { type: 'character', id: 7, effect: 'highlight', color: 'red' },
-          { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
+          { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
         ],
         { gridSize: 6, cells: cells([]), characterSlots: [], regions: [] },
       ),
@@ -189,13 +189,13 @@ describe('resolveHighlight', () => {
 
   it('MOD-708: item scope instances highlights only specified coords', () => {
     const multiCells = cells([
-      ['0,0', { object: { itemId: 12, w: 1, h: 1 } }],
-      ['2,2', { object: { itemId: 12, w: 1, h: 1 } }],
+      ['0,0', { item: { assetId: 12, w: 1, h: 1 } }],
+      ['2,2', { item: { assetId: 12, w: 1, h: 1 } }],
     ]);
     const state = resolveHighlight(
       [
         {
-          type: 'item',
+          type: 'asset',
           id: 12,
           scope: 'instances',
           instances: [[2, 2]],
@@ -211,11 +211,11 @@ describe('resolveHighlight', () => {
 
   it('MOD-708: item scope all highlights every instance', () => {
     const multiCells = cells([
-      ['0,0', { object: { itemId: 12, w: 1, h: 1 } }],
-      ['2,2', { object: { itemId: 12, w: 1, h: 1 } }],
+      ['0,0', { item: { assetId: 12, w: 1, h: 1 } }],
+      ['2,2', { item: { assetId: 12, w: 1, h: 1 } }],
     ]);
     const state = resolveHighlight(
-      [{ type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' }],
+      [{ type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'blue' }],
       { gridSize: 6, cells: multiCells, characterSlots: slots, regions },
     );
     expect(state!.cellHighlights).toHaveLength(2);
@@ -224,7 +224,7 @@ describe('resolveHighlight', () => {
   // ---- OPT-903 §3 / §7.3: 方块高亮 replaces the v0.3.3 translucent overlay ----
   it('OPT-903 §7.3: an object linkage produces 方块高亮, never a translucent overlay', () => {
     const state = resolveHighlight(
-      [{ type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'red' }],
+      [{ type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'red' }],
       { ...ctx, characterSlots: slots },
     );
     // One opaque rect per occupied cell of the 2×1 footprint.
@@ -238,12 +238,12 @@ describe('resolveHighlight', () => {
 
   it('OPT-903 §1.2.8: a background linkage produces 背景高亮 only', () => {
     const mixed = cells([
-      ['0,0', { background: { itemId: 21 } }],
-      ['2,2', { background: { itemId: 21 } }],
-      ['3,3', { object: { itemId: 21, w: 1, h: 1 } }],
+      ['0,0', { background: { assetId: 21 } }],
+      ['2,2', { background: { assetId: 21 } }],
+      ['3,3', { item: { assetId: 21, w: 1, h: 1 } }],
     ]);
     const state = resolveHighlight(
-      [{ type: 'item', id: 21, scope: 'all', effect: 'highlight', color: 'blue' }],
+      [{ type: 'asset', id: 21, scope: 'all', effect: 'highlight', color: 'blue' }],
       { gridSize: 6, cells: mixed, characterSlots: slots, regions },
     );
     // Background placements → 背景高亮; the object placement → 方块高亮.
@@ -257,9 +257,9 @@ describe('resolveHighlight', () => {
   });
 
   it('OPT-903: 方块高亮 spans every cell of a 2×2 object', () => {
-    const big = cells([['1,1', { object: { itemId: 30, w: 2, h: 2 } }]]);
+    const big = cells([['1,1', { item: { assetId: 30, w: 2, h: 2 } }]]);
     const state = resolveHighlight(
-      [{ type: 'item', id: 30, scope: 'all', effect: 'highlight', color: 'red' }],
+      [{ type: 'asset', id: 30, scope: 'all', effect: 'highlight', color: 'red' }],
       { gridSize: 6, cells: big, characterSlots: slots, regions },
     );
     expect(state!.cellHighlights.map((rect) => `${rect.x},${rect.y}`).sort()).toEqual([

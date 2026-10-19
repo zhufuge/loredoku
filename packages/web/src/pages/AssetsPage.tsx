@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Loader2, Plus, Search } from 'lucide-react';
-import { ITEM_CATEGORIES, ITEM_CATEGORY_LABELS, type Item, type ItemCategory } from '@loredoku/shared';
+import { ASSET_TYPES, ASSET_TYPE_LABELS, type Asset, type AssetType } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -15,31 +15,31 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ItemDetailForm } from '@/components/item/ItemDetailForm';
-import { ItemListPanel } from '@/components/item/ItemListPanel';
-import { CreateItemDialog } from '@/components/item/CreateItemDialog';
+import { AssetDetailForm } from '@/components/asset/AssetDetailForm';
+import { AssetListPanel } from '@/components/asset/AssetListPanel';
+import { CreateAssetDialog } from '@/components/asset/CreateAssetDialog';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
-import { useDeleteItem, useItemUsages, useItems } from '@/hooks/useItems';
+import { useDeleteAsset, useAssetUsages, useAssets } from '@/hooks/useAssets';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
-type CategoryFilter = 'all' | ItemCategory;
+type TypeFilter = 'all' | AssetType;
 
-/** FEAT-O11: 全部分类 / 背景 / 物体 as one radio row. */
-const CATEGORY_FILTER_OPTIONS: ReadonlyArray<{ value: CategoryFilter; label: string }> = [
-  { value: 'all', label: '全部分类' },
-  ...ITEM_CATEGORIES.map((value) => ({ value, label: ITEM_CATEGORY_LABELS[value] })),
+/** FEAT-O11: 全部类型 / 背景 / 物品 as one radio row. */
+const TYPE_FILTER_OPTIONS: ReadonlyArray<{ value: TypeFilter; label: string }> = [
+  { value: 'all', label: '全部类型' },
+  ...ASSET_TYPES.map((value) => ({ value, label: ASSET_TYPE_LABELS[value] })),
 ];
 
-export function ItemsPage(): JSX.Element {
+export function AssetsPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
-  const [category, setCategory] = useState<CategoryFilter>('all');
+  const [type, setType] = useState<TypeFilter>('all');
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get('id');
   const [selectedId, setSelectedId] = useState<number | null>(initialId ? Number(initialId) : null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<Item | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Asset | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => setKeyword(keywordInput.trim()), 300);
@@ -50,39 +50,39 @@ export function ItemsPage(): JSX.Element {
     () => ({
       keyword: keyword || undefined,
       isActive: status === 'all' ? undefined : status === 'active',
-      category: category === 'all' ? undefined : category,
+      type: type === 'all' ? undefined : type,
     }),
-    [keyword, status, category],
+    [keyword, status, type],
   );
 
-  const { data: items, isLoading, isError, error, refetch } = useItems(params);
-  const { data: usages } = useItemUsages(deleteTarget?.id ?? null);
-  const deleteMutation = useDeleteItem();
+  const { data: assets, isLoading, isError, error, refetch } = useAssets(params);
+  const { data: usages } = useAssetUsages(deleteTarget?.id ?? null);
+  const deleteMutation = useDeleteAsset();
   const deleting = deleteMutation.isPending;
 
   useEffect(() => {
-    document.title = '物品 · 格物';
+    document.title = '资源 · 格物';
   }, []);
 
   useEffect(() => {
-    if (items && items.length > 0) {
+    if (assets && assets.length > 0) {
       const idParam = searchParams.get('id');
       if (idParam) {
         const id = Number(idParam);
-        if (items.some((item) => item.id === id)) {
+        if (assets.some((asset) => asset.id === id)) {
           if (selectedId !== id) setSelectedId(id);
           return;
         }
       }
-      if (!items.some((item) => item.id === selectedId)) {
-        setSelectedId(items[0]!.id);
+      if (!assets.some((asset) => asset.id === selectedId)) {
+        setSelectedId(assets[0]!.id);
       }
     }
-  }, [items, searchParams, selectedId]);
+  }, [assets, searchParams, selectedId]);
 
-  const selectedItem = items?.find((item) => item.id === selectedId) ?? null;
+  const selectedAsset = assets?.find((asset) => asset.id === selectedId) ?? null;
 
-  const selectItem = (id: number): void => {
+  const selectAsset = (id: number): void => {
     setSelectedId(id);
     setSearchParams({ id: String(id) }, { replace: true });
   };
@@ -119,28 +119,28 @@ export function ItemsPage(): JSX.Element {
       );
     }
 
-    if (!items || items.length === 0) {
+    if (!assets || assets.length === 0) {
       return (
         <Card className="flex flex-col items-center gap-3 p-8 text-center">
           <p className="text-sm text-muted-foreground">
-            {keyword ? '没有匹配的物品' : '还没有物品，先创建一个吧'}
+            {keyword ? '没有匹配的资源' : '还没有资源，先创建一个吧'}
           </p>
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" />
-            新建物品
+            新建资源
           </Button>
         </Card>
       );
     }
 
-    return <ItemListPanel items={items} selectedId={selectedId} onSelect={selectItem} />;
+    return <AssetListPanel assets={assets} selectedId={selectedId} onSelect={selectAsset} />;
   }
 
   return (
     <section className="space-y-5">
       <div>
-          <h1 className="text-2xl font-semibold">物品</h1>
-        <p className="text-sm text-muted-foreground">维护背景 / 物体图案、占格尺寸与触发信息。</p>
+          <h1 className="text-2xl font-semibold">资源</h1>
+        <p className="text-sm text-muted-foreground">维护背景 / 物品图案、占格尺寸与触发信息。</p>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
@@ -160,12 +160,12 @@ export function ItemsPage(): JSX.Element {
             </Button>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* FEAT-O11 (docs/v0.5.4.md §5.4): 分类 is three buttons now. */}
+            {/* FEAT-O11 (docs/v0.5.4.md §5.4): 类型 is three buttons now. */}
             <SegmentedRadio
-              ariaLabel="分类筛选"
-              value={category}
-              options={CATEGORY_FILTER_OPTIONS}
-              onChange={(next) => setCategory(next)}
+              ariaLabel="类型筛选"
+              value={type}
+              options={TYPE_FILTER_OPTIONS}
+              onChange={(next) => setType(next)}
             />
             <select
               value={status}
@@ -181,17 +181,17 @@ export function ItemsPage(): JSX.Element {
         </div>
 
         <Card className="p-6">
-          {selectedItem ? (
-            <ItemDetailForm item={selectedItem} onRequestDelete={setDeleteTarget} />
+          {selectedAsset ? (
+            <AssetDetailForm asset={selectedAsset} onRequestDelete={setDeleteTarget} />
           ) : (
             <div className="flex h-full min-h-64 items-center justify-center text-sm text-muted-foreground">
-              选择左侧物品进行编辑
+              选择左侧资源进行编辑
             </div>
           )}
         </Card>
       </div>
 
-      <CreateItemDialog
+      <CreateAssetDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
         onCreated={(id) => {
@@ -213,12 +213,12 @@ export function ItemsPage(): JSX.Element {
           }}
         >
           <AlertDialogHeader>
-            <AlertDialogTitle>彻底删除物品「{deleteTarget?.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>彻底删除资源「{deleteTarget?.name}」？</AlertDialogTitle>
             <AlertDialogDescription>
               {usages && usages.length > 0
-                ? `该物品正被 ${usages.length} 张地图使用（${usages
+                ? `该资源正被 ${usages.length} 张地图使用（${usages
                     .map((usage) => usage.mapName)
-                    .join('、')}）。删除将从数据库移除该物品，并清除草稿中的引用。`
+                    .join('、')}）。删除将从数据库移除该资源，并清除草稿中的引用。`
                 : '删除后记录将从数据库中移除，且无法恢复。'}
             </AlertDialogDescription>
           </AlertDialogHeader>

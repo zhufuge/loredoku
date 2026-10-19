@@ -2,8 +2,8 @@ import type {
   EFFECT_TYPES,
   EDITOR_TOOLS,
   CARD_ROTATIONS,
-  ITEM_CATEGORIES,
-  ITEM_FIT_MODES,
+  ASSET_TYPES,
+  ASSET_FIT_MODES,
   EDITOR_LAYERS,
   REGION_SHAPES,
   MAP_STATUSES,
@@ -18,8 +18,9 @@ import type {
 export type EffectType = (typeof EFFECT_TYPES)[number];
 export type EditorTool = (typeof EDITOR_TOOLS)[number];
 export type CardRotation = (typeof CARD_ROTATIONS)[number];
-export type ItemCategory = (typeof ITEM_CATEGORIES)[number];
-export type ItemFitMode = (typeof ITEM_FIT_MODES)[number];
+/** v0.6.0: `background` | `item` — an asset's kind, and the layer it may be placed on. */
+export type AssetType = (typeof ASSET_TYPES)[number];
+export type AssetFitMode = (typeof ASSET_FIT_MODES)[number];
 export type EditorLayer = (typeof EDITOR_LAYERS)[number];
 export type RegionShape = (typeof REGION_SHAPES)[number];
 export type MapStatus = (typeof MAP_STATUSES)[number];
@@ -76,15 +77,17 @@ export interface MapDetail extends MapEntry {
 
 /** `EffectType` stays — participant linkages still use it. */
 
-export interface Item {
+export interface Asset {
   id: number;
   code: string;
   name: string;
-  category: ItemCategory;
+  /** v0.6.0: was `category`; the values are the two canvas layers. */
+  type: AssetType;
   widthCells: number;
   heightCells: number;
-  canStand: boolean;
-  fitMode: ItemFitMode;
+  /** v0.6.0: was `canStand`, inverted — `true` = 阻挡（不可站立/不可放置）. */
+  blocking: boolean;
+  fitMode: AssetFitMode;
   imagePath: string | null;
   imageUrl: string | null;
   imageThumbUrl: string | null;
@@ -98,9 +101,6 @@ export interface Item {
   createdAt: string;
   updatedAt: string;
 }
-
-// Backward-compatible aliases (kept while the web app migrates in a later phase).
-export type Card = Item;
 
 export interface Character {
   id: number;
@@ -124,20 +124,24 @@ export interface Character {
 }
 
 // ---- Map draft JSON (single-column storage, see docs/feature-0.2.md §FEAT-06) ----
-export interface DraftItemRef {
-  itemId: number;
+/** A background cell: one asset, no footprint (it fills the single cell). */
+export interface DraftAssetRef {
+  assetId: number;
 }
 
+/** v0.6.0: the item layer. The anchor cell stores the footprint (`w` × `h`). */
 export interface DraftAnchorItem {
-  itemId: number;
+  assetId: number;
   w: number;
   h: number;
 }
 
 export interface DraftCell {
-  background?: DraftItemRef;
-  object?: DraftAnchorItem;
-  objectRef?: string;
+  background?: DraftAssetRef;
+  /** v0.6.0: was `object` — the item layer. */
+  item?: DraftAnchorItem;
+  /** v0.6.0: was `objectRef`. */
+  itemRef?: string;
 }
 
 export interface DraftRegion {
@@ -159,9 +163,10 @@ export interface DraftRegion {
 export type ParticipantTarget =
   | { type: 'character'; id: number; effect: EffectType; color: LinkageColorKey }
   | {
-      type: 'item';
+      /** v0.6.0: was `item` — a linkage points at a resource, not at a placed item. */
+      type: 'asset';
       id: number;
-      /** MOD-708: `'all'` highlights every instance of `itemId`; `'instances'` only `instances`. */
+      /** MOD-708: `'all'` highlights every instance of `assetId`; `'instances'` only `instances`. */
       scope: 'all' | 'instances';
       /** Coordinates of specific instances when `scope === 'instances'`. */
       instances?: Array<[number, number]>;
@@ -448,7 +453,8 @@ export interface CharacterUsage {
 
 export interface ResizeRemoved {
   background: number;
-  object: number;
+  /** v0.6.0: was `object` — the item layer. */
+  item: number;
   regions: number;
   charactersReturnedToSlot: number;
 }
@@ -463,8 +469,8 @@ export interface PublishViolation {
   message: string;
 }
 
-/** 一个物品 / 角色被哪些地图的草稿引用，物品与角色详情页共用。 */
-export interface ItemUsage {
+/** 一个资源 / 角色被哪些地图的草稿引用，资源与角色详情页共用。 */
+export interface AssetUsage {
   mapId: number;
   mapName: string;
   cells: CellCoord[];

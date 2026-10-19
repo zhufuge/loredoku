@@ -67,7 +67,7 @@ describe('EditorLeftPanel (v0.5.0 SPEC-K12 §9.1: the 角色 tab is gone)', () =
       leftPanelSource.indexOf('const LAYER_LABELS'),
     );
     const ids = Array.from(tabs.matchAll(/id: '(\w+)'/g)).map((match) => match[1]);
-    expect(ids).toEqual(['items', 'regions']);
+    expect(ids).toEqual(['assets', 'regions']);
     // SPEC-K04: the roster's whole branch (and its props) left with it.
     expect(leftPanelSource).not.toContain('characterSlots');
     expect(leftPanelSource).not.toContain('selectedCharacterId');

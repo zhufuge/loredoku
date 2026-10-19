@@ -80,7 +80,7 @@ export async function resizeDraft(
     const draft = (row.data as MapDraft | null) ?? emptyDraft(GRID_SIZE_DEFAULT);
     const removed: ResizeRemoved = {
       background: 0,
-      object: 0,
+      item: 0,
       regions: 0,
       charactersReturnedToSlot: 0,
     };
@@ -97,7 +97,7 @@ export async function resizeDraft(
         continue;
       }
       if (cell.background) removed.background += 1;
-      if (cell.object) removed.object += 1;
+      if (cell.item) removed.item += 1;
     }
 
     const nextRegions: DraftRegion[] = [];

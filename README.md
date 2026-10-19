@@ -1,6 +1,6 @@
 # loredoku · 格物
 
-一款推理数独类游戏，包含游戏编辑工坊。工坊中包含地图、物品、角色和谜题的管理。
+一款推理数独类游戏，包含游戏编辑工坊。工坊中包含地图、资源、角色和谜题的管理。
 
 - 技术栈：Node.js + TypeScript · Koa + PostgreSQL（Knex）· Vite + React 18 + TailwindCSS + shadcn/ui
 - 仓库形态：npm workspaces monorepo（`shared` / `server` / `web`）
@@ -15,14 +15,14 @@ loredoku/
 ├── packages/
 │   ├── shared/                 # 跨端共享：TS 类型、常量、zod schema
 │   │   └── src/
-│   │       ├── constants.ts    # 网格/物品/区域/角色/图层等全局常量
+│   │       ├── constants.ts    # 网格/资源/区域/角色/图层等全局常量
 │   │       ├── color.ts        # 主题色调色板与颜色工具
-│   │       ├── schemas/        # item / character / map / mapDraft / participant 等 zod 校验
+│   │       ├── schemas/        # asset / character / map / mapDraft / participant 等 zod 校验
 │   │       └── types/          # 领域模型与数据库行类型
 │   ├── server/                 # Koa 后端
 │   │   └── src/
 │   │       ├── app.ts          # 应用装配（中间件、路由、静态资源）
-│   │       ├── router/         # 路由（health / projects / puzzles / items / characters / versions / games）
+│   │       ├── router/         # 路由（health / maps / puzzles / assets / characters / versions / games）
 │   │       ├── controller/     # 控制器
 │   │       ├── service/        # 业务逻辑（含发布校验 versionService、兼容层 *Compat.ts）
 │   │       ├── repository/     # Knex 数据访问
@@ -30,8 +30,8 @@ loredoku/
 │   │       └── utils/          # 日志、图片、响应封装、校验
 │   └── web/                    # Vite + React 前端
 │       └── src/
-│           ├── pages/          # MapsPage / ItemsPage / CharactersPage / PuzzlesPage / …
-│           ├── components/     # editor / puzzle / item / character / project / game / map / ui
+│           ├── pages/          # MapsPage / AssetsPage / CharactersPage / PuzzlesPage / …
+│           ├── components/     # map-editor / puzzle / asset / character / map / game / ui
 │           ├── stores/         # editorStore（地图画布）/ puzzleStore（谜题），均带撤销栈
 │           ├── hooks/          # TanStack Query 数据 hooks 与编辑器流程 hooks（useEditorSave 等）
 │           ├── api/            # Axios 接口封装
@@ -58,7 +58,7 @@ npm run dev               # 后端 3000 + 前端 5173
 npm run build && npm start # 生产模式：后端 3000 直接托管前端构建产物（单端口访问）
 ```
 
-`npm run dev` 支持 `-s <port>` / `-w <port>` 自定义端口（命令行 > `.env`，且 `PUBLIC_BASE_URL` 会跟着后端端口一起改，否则头像 / 物品图 / 封面会全部 404）。
+`npm run dev` 支持 `-s <port>` / `-w <port>` 自定义端口（命令行 > `.env`，且 `PUBLIC_BASE_URL` 会跟着后端端口一起改，否则头像 / 资源图 / 封面会全部 404）。
 
 浏览器访问 `http://localhost:{web-port}`。
 

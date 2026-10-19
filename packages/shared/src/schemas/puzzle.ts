@@ -69,7 +69,7 @@ const puzzleLinkageColorsSchema = z
  *   - `color`             → a key of **this puzzle's** `linkageColors`
  *   - `positionConditions`→ inside `map.gridSize`
  *
- * `item` / `region` targets live in the referenced map version and are checked
+ * `asset` / `region` targets live in the referenced map version and are checked
  * by `validatePuzzleReferences` (shared `puzzleRefs.ts`), which both the web
  * and the server run.
  */

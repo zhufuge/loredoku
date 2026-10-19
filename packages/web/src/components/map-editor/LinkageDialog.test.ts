@@ -21,7 +21,7 @@ describe('draftFromLinkage (MOD-801 edit refill)', () => {
 
   it('refills an item linkage with scope + instances', () => {
     const draft = draftFromLinkage({
-      type: 'item',
+      type: 'asset',
       id: 12,
       scope: 'instances',
       instances: [[1, 2]],
@@ -29,10 +29,10 @@ describe('draftFromLinkage (MOD-801 edit refill)', () => {
       color: 'red',
     });
     expect(draft).toMatchObject({
-      type: 'item',
-      itemId: 12,
-      itemScope: 'instances',
-      itemInstances: [[1, 2]],
+      type: 'asset',
+      assetId: 12,
+      assetScope: 'instances',
+      assetInstances: [[1, 2]],
     });
   });
 
@@ -82,13 +82,13 @@ describe('buildLinkages (MOD-801 multi-object expansion)', () => {
   it('stores item scope all without instances', () => {
     const linkages = buildLinkages({
       ...EMPTY_LINKAGE_DRAFT,
-      type: 'item',
-      itemId: 12,
-      itemScope: 'all',
+      type: 'asset',
+      assetId: 12,
+      assetScope: 'all',
       color: 'blue',
     });
     expect(linkages).toEqual([
-      { type: 'item', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
+      { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'blue' },
     ]);
     expect('instances' in linkages[0]!).toBe(false);
   });
@@ -96,15 +96,15 @@ describe('buildLinkages (MOD-801 multi-object expansion)', () => {
   it('stores item scope instances with coords', () => {
     const linkages = buildLinkages({
       ...EMPTY_LINKAGE_DRAFT,
-      type: 'item',
-      itemId: 12,
-      itemScope: 'instances',
-      itemInstances: [[1, 2], [3, 4]],
+      type: 'asset',
+      assetId: 12,
+      assetScope: 'instances',
+      assetInstances: [[1, 2], [3, 4]],
       color: 'red',
     });
     expect(linkages).toEqual([
       {
-        type: 'item',
+        type: 'asset',
         id: 12,
         scope: 'instances',
         instances: [[1, 2], [3, 4]],
@@ -128,7 +128,7 @@ describe('buildLinkages (MOD-801 multi-object expansion)', () => {
 
   it('rejects drafts without any selectable object', () => {
     expect(buildLinkages({ ...EMPTY_LINKAGE_DRAFT, type: 'character', characterIds: [] })).toEqual([]);
-    expect(buildLinkages({ ...EMPTY_LINKAGE_DRAFT, type: 'item', itemId: null })).toEqual([]);
+    expect(buildLinkages({ ...EMPTY_LINKAGE_DRAFT, type: 'asset', assetId: null })).toEqual([]);
     expect(buildLinkages({ ...EMPTY_LINKAGE_DRAFT, type: 'cell', cells: [] })).toEqual([]);
     expect(buildLinkages({ ...EMPTY_LINKAGE_DRAFT, type: 'region', regionIds: [] })).toEqual([]);
   });

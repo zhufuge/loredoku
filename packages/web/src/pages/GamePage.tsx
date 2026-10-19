@@ -19,7 +19,7 @@ import {
   type CellCoord,
   type Character,
   type CharacterSlotEntry,
-  type Item,
+  type Asset,
   type MapDraft,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
@@ -35,7 +35,7 @@ import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapObjectLayer } from '@/components/map/MapItemLayers';
+import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import { MapGamePlacementLayer, MapGameToolHintLayer } from '@/components/map/MapGameLayers';
 import {
   MapRegionFillLayer,
@@ -45,22 +45,22 @@ import {
 import {
   MapHighlightLayer,
   MapMouseCursorBoxLayer,
-  MapNonStandableMaskLayer,
+  MapBlockingMaskLayer,
   MapRegionLabelLayer,
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
 import { useHighlight } from '@/hooks/useHighlight';
-import { useItems } from '@/hooks/useItems';
+import { useAssets } from '@/hooks/useAssets';
 import { clientToCell, isInBounds } from '@/lib/grid';
 import {
-  collectNoStandCells,
-  collectObjectCells,
+  collectBlockingCells,
+  collectItemCells,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
-import { cellScale, objectPadding, scaleFontSize } from '@/lib/canvasScale';
+import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import { rulerStripSize } from '@/lib/ruler';
@@ -159,7 +159,7 @@ export function GamePage(): JSX.Element {
 
   const gameQuery = useGameDetail(slug);
   // A deployed snapshot may reference items/characters that are now inactive.
-  const itemsQuery = useItems({});
+  const assetsQuery = useAssets({});
   const charactersQuery = useCharacters({});
 
   const {
@@ -216,11 +216,11 @@ export function GamePage(): JSX.Element {
     document.title = gameQuery.data ? `${gameQuery.data.name} · 格物` : '游戏 · 格物';
   }, [gameQuery.data]);
 
-  const itemsById = useMemo(() => {
-    const map = new Map<number, Item>();
-    for (const item of itemsQuery.data ?? []) map.set(item.id, item);
+  const assetsById = useMemo(() => {
+    const map = new Map<number, Asset>();
+    for (const item of assetsQuery.data ?? []) map.set(item.id, item);
     return map;
-  }, [itemsQuery.data]);
+  }, [assetsQuery.data]);
 
   const charactersById = useMemo(() => {
     const map = new Map<number, Character>();
@@ -248,11 +248,11 @@ export function GamePage(): JSX.Element {
   const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 (shared with the preview) ----
-  const noStandCells = useMemo(() => collectNoStandCells(cells, itemsById), [cells, itemsById]);
-  const objectCells = useMemo(() => collectObjectCells(cells), [cells]);
+  const blockingCells = useMemo(() => collectBlockingCells(cells, assetsById), [cells, assetsById]);
+  const itemCells = useMemo(() => collectItemCells(cells), [cells]);
   const hoverEffects = useMemo(
-    () => resolveHoverEffects({ hover, noStandCells, objectCells, regions }),
-    [hover, noStandCells, objectCells, regions],
+    () => resolveHoverEffects({ hover, blockingCells, itemCells, regions }),
+    [hover, blockingCells, itemCells, regions],
   );
   const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
   const hoveredRegion = hoveredRegionId
@@ -264,10 +264,10 @@ export function GamePage(): JSX.Element {
    * non-standable items use, so both read as "you may not put anything here".
    */
   const maskCells = useMemo(() => {
-    const merged = new Set(noStandCells);
+    const merged = new Set(blockingCells);
     for (const key of forbiddenCells(placementState.board)) merged.add(key);
     return merged;
-  }, [noStandCells, placementState.board]);
+  }, [blockingCells, placementState.board]);
 
   /** SPEC-G02: the hint is a projection of mode × hovered cell. */
   const toolHint = useMemo(() => {
@@ -275,9 +275,9 @@ export function GamePage(): JSX.Element {
     return resolveToolHint({
       mode,
       placement: placementAt(placementState.board, hover.x, hover.y),
-      nonStandable: noStandCells.has(cellKey(hover.x, hover.y)),
+      nonStandable: blockingCells.has(cellKey(hover.x, hover.y)),
     });
-  }, [mode, hover, placementState.board, noStandCells]);
+  }, [mode, hover, placementState.board, blockingCells]);
 
   const themeColors = useMemo(() => {
     const map = new Map<number, string>();
@@ -492,7 +492,7 @@ export function GamePage(): JSX.Element {
         x,
         y,
         participantId: mode.participantId,
-        noStandCells,
+        blockingCells,
         variant,
       });
       if (block) {
@@ -504,7 +504,7 @@ export function GamePage(): JSX.Element {
           x,
           y,
           participantId: mode.participantId,
-          noStandCells,
+          blockingCells,
           gridSize,
           variant,
         }),
@@ -512,7 +512,7 @@ export function GamePage(): JSX.Element {
       return;
     }
     if (mode.kind === 'forbidden') {
-      setPlacementState((state) => placeForbidden(state, { x, y, noStandCells }));
+      setPlacementState((state) => placeForbidden(state, { x, y, blockingCells }));
       return;
     }
     if (mode.kind === 'clearing') {
@@ -714,7 +714,7 @@ export function GamePage(): JSX.Element {
             {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z.
                 SPEC-G01: the game page drops 操作光标框 and adds the two
                 game-only layers above 区域标签. */}
-            <MapBackgroundLayer cells={cells} itemsById={itemsById} cellSize={cellSize} />
+            <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
             <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
             <MapHighlightLayer
               highlight={highlight}
@@ -724,7 +724,7 @@ export function GamePage(): JSX.Element {
               leaving={highlightLeaving}
             />
             <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-            <MapNonStandableMaskLayer noStandCells={maskCells} cellSize={cellSize} style={style} />
+            <MapBlockingMaskLayer blockingCells={maskCells} cellSize={cellSize} style={style} />
             <MapRegionOutlineLayer
               regions={regions}
               gridSize={gridSize}
@@ -732,11 +732,11 @@ export function GamePage(): JSX.Element {
               style={style}
             />
             <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
-            <MapObjectLayer
+            <MapItemLayer
               cells={cells}
-              itemsById={itemsById}
+              assetsById={assetsById}
               cellSize={cellSize}
-              padding={objectPadding(cellSize)}
+              padding={itemPadding(cellSize)}
               hover={hover}
             />
 

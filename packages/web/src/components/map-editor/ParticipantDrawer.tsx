@@ -29,7 +29,7 @@ import {
 import {
   LinkageDialog,
   type LinkageCharacterOption,
-  type LinkageItemOption,
+  type LinkageAssetOption,
 } from './LinkageDialog';
 import { ThemeColorDialog } from './ThemeColorDialog';
 
@@ -39,7 +39,7 @@ const CLUE_MAX = 200;
 const DELETE_FEEDBACK_MS = 150;
 
 export interface PlacedItemOption {
-  itemId: number;
+  assetId: number;
   name: string;
   /** v0.5.3 FIX-N12: the item's 业务 ID (the linkage picker shows it). */
   code: string;
@@ -167,15 +167,15 @@ export function ParticipantDrawer({
     return options;
   }, [slots, charactersById, slotIndex]);
 
-  const itemOptions = useMemo<LinkageItemOption[]>(() => {
-    const byId = new Map<number, LinkageItemOption>();
+  const itemOptions = useMemo<LinkageAssetOption[]>(() => {
+    const byId = new Map<number, LinkageAssetOption>();
     for (const item of placedItems) {
-      const existing = byId.get(item.itemId);
+      const existing = byId.get(item.assetId);
       if (existing) {
         existing.instances.push([item.x, item.y]);
       } else {
-        byId.set(item.itemId, {
-          itemId: item.itemId,
+        byId.set(item.assetId, {
+          assetId: item.assetId,
           name: item.name,
           // FIX-N12 §6.5: the 业务 ID travels with the option so the picker can
           // show 名称（业务 ID）instead of `#主键`.
@@ -614,14 +614,14 @@ function stripMeta(linkage: ParticipantTarget): Record<string, unknown> {
 function describeLinkage(
   linkage: ParticipantTarget,
   charactersById: Map<number, Character>,
-  items: LinkageItemOption[],
+  items: LinkageAssetOption[],
   regions: DraftRegion[],
 ): string {
   switch (linkage.type) {
     case 'character':
       return `角色 · ${charactersById.get(linkage.id)?.name ?? `#${linkage.id}`}`;
-    case 'item': {
-      const item = items.find((entry) => entry.itemId === linkage.id);
+    case 'asset': {
+      const item = items.find((entry) => entry.assetId === linkage.id);
       const label = item?.name ?? `#${linkage.id}`;
       return linkage.scope === 'instances'
         ? `物品 · ${label} · ${linkage.instances?.length ?? 0} 实例`

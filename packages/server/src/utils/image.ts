@@ -63,8 +63,8 @@ export function detectImageType(buffer: Buffer): DetectedImage | null {
   return null;
 }
 
-export async function processItemImage(itemId: number, buffer: Buffer): Promise<ProcessedImage> {
-  return processImage('items', itemId, buffer, THUMBNAIL_MAX_DIMENSION);
+export async function processAssetImage(assetId: number, buffer: Buffer): Promise<ProcessedImage> {
+  return processImage('assets', assetId, buffer, THUMBNAIL_MAX_DIMENSION);
 }
 
 export async function processAvatarImage(characterId: number, buffer: Buffer): Promise<ProcessedImage> {

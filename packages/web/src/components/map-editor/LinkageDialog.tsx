@@ -40,12 +40,12 @@ export interface LinkageCharacterOption {
   name: string;
 }
 
-export interface LinkageItemOption {
-  itemId: number;
+export interface LinkageAssetOption {
+  assetId: number;
   name: string;
   /**
    * v0.5.3 FIX-N12 (docs/v0.5.3.md §6.5): the item's **业务 ID**. The list used
-   * to lead with `#${itemId}` — a database primary key the author never sees.
+   * to lead with `#${assetId}` — a database primary key the author never sees.
    * `''` means the item carries no code, and the label degrades to the name.
    */
   code: string;
@@ -55,7 +55,7 @@ export interface LinkageItemOption {
 
 const TARGET_TYPE_LABELS: Record<ParticipantTargetType, string> = {
   character: '角色',
-  item: '物品',
+  asset: '资源',
   cell: '方格',
   region: '区域',
 };
@@ -72,9 +72,9 @@ const QUICK_LABELS: Record<Exclude<QuickMode, null>, string> = {
 export interface LinkageDraft {
   type: ParticipantTargetType;
   characterIds: number[];
-  itemId: number | null;
-  itemScope: 'all' | 'instances';
-  itemInstances: Array<[number, number]>;
+  assetId: number | null;
+  assetScope: 'all' | 'instances';
+  assetInstances: Array<[number, number]>;
   regionIds: string[];
   cells: Array<[number, number]>;
   /** FEAT-D04: a key of the linkage palette. */
@@ -84,9 +84,9 @@ export interface LinkageDraft {
 export const EMPTY_LINKAGE_DRAFT: LinkageDraft = {
   type: 'character',
   characterIds: [],
-  itemId: null,
-  itemScope: 'all',
-  itemInstances: [],
+  assetId: null,
+  assetScope: 'all',
+  assetInstances: [],
   regionIds: [],
   cells: [],
   color: 'red',
@@ -103,12 +103,12 @@ export function draftFromLinkage(linkage: ParticipantTarget | null): LinkageDraf
   switch (linkage.type) {
     case 'character':
       return { ...base, characterIds: [linkage.id] };
-    case 'item':
+    case 'asset':
       return {
         ...base,
-        itemId: linkage.id,
-        itemScope: linkage.scope,
-        itemInstances: linkage.instances ? [...linkage.instances] : [],
+        assetId: linkage.id,
+        assetScope: linkage.scope,
+        assetInstances: linkage.instances ? [...linkage.instances] : [],
       };
     case 'cell':
       return { ...base, cells: linkage.cells.map((cell) => [...cell] as [number, number]) };
@@ -129,19 +129,19 @@ export function buildLinkages(draft: LinkageDraft): ParticipantTarget[] {
       return draft.characterIds.map((id) => ({ type: 'character', id, effect, color: draft.color }));
     case 'region':
       return draft.regionIds.map((id) => ({ type: 'region', id, effect, color: draft.color }));
-    case 'item': {
-      if (draft.itemId === null) return [];
+    case 'asset': {
+      if (draft.assetId === null) return [];
       const linkage: ParticipantTarget =
-        draft.itemScope === 'instances'
+        draft.assetScope === 'instances'
           ? {
-              type: 'item',
-              id: draft.itemId,
+              type: 'asset',
+              id: draft.assetId,
               scope: 'instances',
-              instances: draft.itemInstances.map((cell) => [...cell] as [number, number]),
+              instances: draft.assetInstances.map((cell) => [...cell] as [number, number]),
               effect,
               color: draft.color,
             }
-          : { type: 'item', id: draft.itemId, scope: 'all', effect, color: draft.color };
+          : { type: 'asset', id: draft.assetId, scope: 'all', effect, color: draft.color };
       return [linkage];
     }
     case 'cell': {
@@ -169,7 +169,7 @@ interface LinkageDialogProps {
   /** Linkage being edited; `null` opens the dialog in add mode. */
   linkage: ParticipantTarget | null;
   characters: LinkageCharacterOption[];
-  items: LinkageItemOption[];
+  items: LinkageAssetOption[];
   regions: DraftRegion[];
   gridSize: number;
   /** FEAT-D04: the palette the swatches come from (map-level, extensible). */
@@ -237,12 +237,12 @@ export function LinkageDialog({
   const toggleInstance = (coord: [number, number]): void =>
     setDraft((previous) => {
       const key = cellKey(coord[0], coord[1]);
-      const has = previous.itemInstances.some(([x, y]) => cellKey(x, y) === key);
+      const has = previous.assetInstances.some(([x, y]) => cellKey(x, y) === key);
       return {
         ...previous,
-        itemInstances: has
-          ? previous.itemInstances.filter(([x, y]) => cellKey(x, y) !== key)
-          : [...previous.itemInstances, [...coord] as [number, number]],
+        assetInstances: has
+          ? previous.assetInstances.filter(([x, y]) => cellKey(x, y) !== key)
+          : [...previous.assetInstances, [...coord] as [number, number]],
       };
     });
 
@@ -265,7 +265,7 @@ export function LinkageDialog({
     patch({ cells: selectionToCoords(toggleCell(cellSelection, x, y)) });
   };
 
-  const selectedItem = items.find((item) => item.itemId === draft.itemId) ?? null;
+  const selectedAsset = items.find((item) => item.assetId === draft.assetId) ?? null;
   const valid = isLinkageDraftValid(draft);
 
   const submit = (): void => {
@@ -335,7 +335,7 @@ export function LinkageDialog({
               </div>
             ) : null}
 
-            {draft.type === 'item' ? (
+            {draft.type === 'asset' ? (
               <div className="space-y-2">
                 <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
                   {items.length === 0 ? (
@@ -345,17 +345,17 @@ export function LinkageDialog({
                   ) : (
                     items.map((item) => (
                       <label
-                        key={item.itemId}
+                        key={item.assetId}
                         className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-accent"
                       >
                         <input
                           type="checkbox"
-                          checked={draft.itemId === item.itemId}
+                          checked={draft.assetId === item.assetId}
                           onChange={() =>
                             patch({
-                              itemId: draft.itemId === item.itemId ? null : item.itemId,
-                              itemScope: 'all',
-                              itemInstances: [],
+                              assetId: draft.assetId === item.assetId ? null : item.assetId,
+                              assetScope: 'all',
+                              assetInstances: [],
                             })
                           }
                         />
@@ -368,33 +368,33 @@ export function LinkageDialog({
                     ))
                   )}
                 </div>
-                {selectedItem && selectedItem.instances.length > 1 ? (
+                {selectedAsset && selectedAsset.instances.length > 1 ? (
                   <div className="space-y-1 rounded-md border bg-muted/30 p-2">
                     <div className="flex items-center gap-2">
                       <Button
                         type="button"
                         size="sm"
-                        variant={draft.itemScope === 'all' ? 'secondary' : 'ghost'}
+                        variant={draft.assetScope === 'all' ? 'secondary' : 'ghost'}
                         className="h-6 text-xs"
-                        onClick={() => patch({ itemScope: 'all' })}
+                        onClick={() => patch({ assetScope: 'all' })}
                       >
                         全部实例
                       </Button>
                       <Button
                         type="button"
                         size="sm"
-                        variant={draft.itemScope === 'instances' ? 'secondary' : 'ghost'}
+                        variant={draft.assetScope === 'instances' ? 'secondary' : 'ghost'}
                         className="h-6 text-xs"
-                        onClick={() => patch({ itemScope: 'instances' })}
+                        onClick={() => patch({ assetScope: 'instances' })}
                       >
-                        指定实例（{draft.itemInstances.length}）
+                        指定实例（{draft.assetInstances.length}）
                       </Button>
                     </div>
-                    {draft.itemScope === 'instances' ? (
+                    {draft.assetScope === 'instances' ? (
                       <div className="grid grid-cols-4 gap-1">
-                        {selectedItem.instances.map(([x, y]) => {
+                        {selectedAsset.instances.map(([x, y]) => {
                           const key = cellKey(x, y);
-                          const checked = draft.itemInstances.some(
+                          const checked = draft.assetInstances.some(
                             ([ix, iy]) => cellKey(ix, iy) === key,
                           );
                           return (

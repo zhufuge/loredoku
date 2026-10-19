@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from 'react';
 import { toast } from 'sonner';
-import type { DraftRegion, Item } from '@loredoku/shared';
+import type { DraftRegion, Asset } from '@loredoku/shared';
 import type { CellMap } from '@/lib/highlight';
 import type { useUpdateGridSize } from '@/hooks/useMapCanvas';
 
@@ -16,7 +16,7 @@ export interface EditorResizeSpec {
   gridSize: number;
   cells: CellMap;
   regions: DraftRegion[];
-  itemsById: Map<number, Item>;
+  assetsById: Map<number, Asset>;
   dirty: boolean;
   saving: boolean;
   /** FIX-F01's single writer — a dirty canvas is saved before the resize. */
@@ -37,7 +37,7 @@ export interface EditorResizeFlow {
 }
 
 export function useEditorResize(spec: EditorResizeSpec): EditorResizeFlow {
-  const { id, gridSize, cells, regions, itemsById, dirty, saving, persist, resizeMutation } = spec;
+  const { id, gridSize, cells, regions, assetsById, dirty, saving, persist, resizeMutation } = spec;
   const [resizeOpen, setResizeOpen] = useState(false);
   const [resizeValue, setResizeValue] = useState(gridSize);
 
@@ -58,18 +58,18 @@ export function useEditorResize(spec: EditorResizeSpec): EditorResizeFlow {
     for (const [key, cell] of cells.entries()) {
       const [x, y] = key.split(',').map(Number) as [number, number];
       if (cell.background && !inBounds(x, y)) {
-        const item = itemsById.get(cell.background.itemId);
-        items.push(`物品「${item?.name ?? `#${cell.background.itemId}`}」位于 C${x + 1},R${y + 1}`);
+        const item = assetsById.get(cell.background.assetId);
+        items.push(`物品「${item?.name ?? `#${cell.background.assetId}`}」位于 C${x + 1},R${y + 1}`);
       }
       if (
-        cell.object &&
-        !(inBounds(x, y) && x + cell.object.w <= size && y + cell.object.h <= size)
+        cell.item &&
+        !(inBounds(x, y) && x + cell.item.w <= size && y + cell.item.h <= size)
       ) {
         if (!seenObjects.has(key)) {
           seenObjects.add(key);
-          const item = itemsById.get(cell.object.itemId);
+          const item = assetsById.get(cell.item.assetId);
           items.push(
-            `物品「${item?.name ?? `#${cell.object.itemId}`}」(${cell.object.w}×${cell.object.h}) 位于 C${x + 1},R${y + 1}`,
+            `物品「${item?.name ?? `#${cell.item.assetId}`}」(${cell.item.w}×${cell.item.h}) 位于 C${x + 1},R${y + 1}`,
           );
         }
       }
@@ -80,7 +80,7 @@ export function useEditorResize(spec: EditorResizeSpec): EditorResizeFlow {
       if (count > 0) outOfBounds.push(`区域「${region.name}」部分格子越界（${count} 格）`);
     }
     return { items, regions: outOfBounds };
-  }, [resizeOpen, resizeValue, cells, regions, itemsById]);
+  }, [resizeOpen, resizeValue, cells, regions, assetsById]);
 
   const confirmResize = (): void => {
     const size = resizeValue;
@@ -92,10 +92,10 @@ export function useEditorResize(spec: EditorResizeSpec): EditorResizeFlow {
       try {
         if (dirty) await persist();
         const result = await resizeMutation.mutateAsync({ id, gridSize: size });
-        const { background, object, regions: removedRegions } = result.removed;
-        if (background + object + removedRegions > 0) {
+        const { background, item, regions: removedRegions } = result.removed;
+        if (background + item + removedRegions > 0) {
           toast.message('画布已调整', {
-            description: `已移除越界内容：背景 ${background}、物体 ${object}、区域 ${removedRegions}`,
+            description: `已移除越界内容：背景 ${background}、物品 ${item}、区域 ${removedRegions}`,
           });
         } else {
           toast.success('画布已调整');

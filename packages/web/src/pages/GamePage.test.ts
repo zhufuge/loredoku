@@ -54,10 +54,10 @@ describe('GamePage (FEAT-G03)', () => {
       'MapRegionFillLayer',
       'MapHighlightLayer',
       'MapRegionHighlightLayer',
-      'MapNonStandableMaskLayer',
+      'MapBlockingMaskLayer',
       'MapRegionOutlineLayer',
       'MapGridSeparatorLayer',
-      'MapObjectLayer',
+      'MapItemLayer',
       'MapRegionLabelLayer',
       'MapCanvasFrameLayer',
       'MapMouseCursorBoxLayer',
@@ -120,7 +120,7 @@ describe('GamePage (FEAT-G03)', () => {
       pageSource.indexOf('const startClearPress ='),
     );
     expect(dispatch).toContain('placeParticipant(state, {');
-    expect(dispatch).toContain('placeForbidden(state, { x, y, noStandCells })');
+    expect(dispatch).toContain('placeForbidden(state, { x, y, blockingCells })');
     expect(dispatch).toContain('clearCell(state, { x, y })');
     // 放置态下 variant 区分短按（编号）与长按（头像）。
     expect(dispatch).toContain('variant,');
@@ -213,6 +213,6 @@ describe('GamePage (FEAT-G03)', () => {
 
   it('merges placed × into the non-standable mask', () => {
     expect(pageSource).toContain('forbiddenCells(placementState.board)');
-    expect(pageSource).toContain('noStandCells={maskCells}');
+    expect(pageSource).toContain('blockingCells={maskCells}');
   });
 });

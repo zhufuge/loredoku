@@ -11,7 +11,7 @@ import type {
 import * as mapRepo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
 import * as mapCanvasRepo from '../repository/mapCanvasRepository';
-import * as itemRepo from '../repository/itemRepository';
+import * as assetRepo from '../repository/assetRepository';
 import { AppError } from '../utils/AppError';
 import { uniqueName } from './mapService';
 import { absorbLegacyMapDraft } from './mapDraftCompat';
@@ -82,32 +82,32 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     }
   }
 
-  // ---- Item references + multi-cell coverage (P4) ----
-  const itemIds = new Set<number>();
+  // ---- Asset references + multi-cell coverage (P4) ----
+  const assetIds = new Set<number>();
   for (const key of Object.keys(draft.cells)) {
     const cell = draft.cells[key];
     if (!cell) continue;
-    if (cell.object) itemIds.add(cell.object.itemId);
-    if (cell.background) itemIds.add(cell.background.itemId);
+    if (cell.item) assetIds.add(cell.item.assetId);
+    if (cell.background) assetIds.add(cell.background.assetId);
   }
-  const meta = await itemRepo.itemMetaByIds([...itemIds]);
-  for (const id of itemIds) {
+  const meta = await assetRepo.assetMetaByIds([...assetIds]);
+  for (const id of assetIds) {
     if (!meta.has(id)) {
-      violations.push({ rule: 'item_reference', message: `物品 #${id} 不存在` });
+      violations.push({ rule: 'asset_reference', message: `资源 #${id} 不存在` });
     }
   }
   for (const key of Object.keys(draft.cells)) {
     const cell = draft.cells[key];
-    if (!cell?.object) continue;
-    // OPT-904 (docs/v0.3.4.md §4.1): a non-standable item IS allowed on the
-    // object layer. Only the background layer is restricted, and that is
-    // enforced by requiring `category === 'background'` for background
-    // placements (front-end palette + `canPlaceItemOnLayer`).
+    if (!cell?.item) continue;
+    // OPT-904 (docs/v0.3.4.md §4.1): a blocking asset IS allowed on the
+    // item layer. Only the background layer is restricted, and that is
+    // enforced by requiring `type === 'background'` for background
+    // placements (front-end palette + `canPlaceAssetOnLayer`).
     const [x, y] = parseCellKey(key);
-    if (x + cell.object.w > size || y + cell.object.h > size) {
+    if (x + cell.item.w > size || y + cell.item.h > size) {
       violations.push({
-        rule: 'object_out_of_bounds',
-        message: `物品 #${cell.object.itemId} (${cell.object.w}×${cell.object.h}) 越出画布`,
+        rule: 'item_out_of_bounds',
+        message: `资源 #${cell.item.assetId} (${cell.item.w}×${cell.item.h}) 越出画布`,
       });
     }
   }
@@ -214,10 +214,10 @@ export async function getVersion(mapId: number, versionNo: number): Promise<MapV
     throw AppError.notFound('版本不存在');
   }
   const draft = absorbLegacyMapDraft(row.data) as MapDraft;
-  const itemIds = new Set<number>();
+  const assetIds = new Set<number>();
   for (const cell of Object.values(draft?.cells ?? {})) {
-    if (cell?.object) itemIds.add(cell.object.itemId);
-    if (cell?.background) itemIds.add(cell.background.itemId);
+    if (cell?.item) assetIds.add(cell.item.assetId);
+    if (cell?.background) assetIds.add(cell.background.assetId);
   }
   return {
     id: Number(row.id),
@@ -229,7 +229,7 @@ export async function getVersion(mapId: number, versionNo: number): Promise<MapV
     data: draft,
     participantCount: 0,
     regionCount: draft?.regions?.length ?? 0,
-    itemCount: itemIds.size,
+    itemCount: assetIds.size,
     // OPT-G01: fall back for legacy rows whose mapRow name is missing.
     mapName: row.name ?? '未命名地图',
   };

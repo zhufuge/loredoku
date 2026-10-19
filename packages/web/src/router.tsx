@@ -30,7 +30,7 @@ const GamePage = lazyPage(() => import('@/pages/GamePage').then((m) => ({ defaul
 const GamesPage = lazyPage(() =>
   import('@/pages/GamesPage').then((m) => ({ default: m.GamesPage })),
 );
-const ItemsPage = lazyPage(() => import('@/pages/ItemsPage').then((m) => ({ default: m.ItemsPage })));
+const AssetsPage = lazyPage(() => import('@/pages/AssetsPage').then((m) => ({ default: m.AssetsPage })));
 const MapViewPage = lazyPage(() =>
   import('@/pages/MapViewPage').then((m) => ({ default: m.MapViewPage })),
 );
@@ -52,10 +52,11 @@ export const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/play" replace /> },
       { path: 'maps', element: <MapsPage /> },
-      { path: 'items', element: <ItemsPage /> },
+      { path: 'assets', element: <AssetsPage /> },
       { path: 'characters', element: <CharactersPage /> },
       { path: 'puzzles', element: <PuzzlesPage /> },
-      { path: 'cards', element: <Navigate to="/items" replace /> },
+      { path: 'items', element: <Navigate to="/assets" replace /> },
+      { path: 'cards', element: <Navigate to="/assets" replace /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },

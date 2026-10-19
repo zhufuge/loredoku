@@ -11,7 +11,7 @@ import {
   type MapStyle,
 } from '@loredoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
-import { isEmptyCell, objectFootprintKeys, resolveEraseTarget } from '@/lib/erase';
+import { isEmptyCell, itemFootprintKeys, resolveEraseTarget } from '@/lib/erase';
 import { resolveMapStyle } from '@/lib/mapStyle';
 
 export type CellKey = `${number},${number}`;
@@ -66,7 +66,7 @@ export interface EditorState {
   activeLayer: EditorLayer;
   selection: Selection | null;
   selectedRegionId: string | null;
-  selectedItemId: number | null;
+  selectedAssetId: number | null;
   regionDraftSelection: Set<string>;
   zoom: number;
   pan: { x: number; y: number };
@@ -88,15 +88,15 @@ export interface EditorState {
   removeDraftCells: (cells: Array<[number, number]>) => void;
   clearDraftSelection: () => void;
 
-  placeBackground: (itemId: number, x: number, y: number) => void;
-  placeObject: (
+  placeBackground: (assetId: number, x: number, y: number) => void;
+  placeItem: (
     item: { id: number; widthCells: number; heightCells: number },
     x: number,
     y: number,
   ) => void;
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
-  clearObjectAt: (x: number, y: number) => void;
+  clearItemAt: (x: number, y: number) => void;
 
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
   toggleRegionCell: (id: string, x: number, y: number) => void;
@@ -152,7 +152,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     activeLayer: 'background',
     selection: null,
     selectedRegionId: null,
-    selectedItemId: null,
+    selectedAssetId: null,
     regionDraftSelection: new Set<string>(),
     zoom: 1,
     pan: { x: 0, y: 0 },
@@ -178,7 +178,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         activeLayer: 'background',
         selection: null,
         selectedRegionId: null,
-        selectedItemId: null,
+        selectedAssetId: null,
         regionDraftSelection: new Set<string>(),
         zoom: 1,
         pan: { x: 0, y: 0 },
@@ -197,7 +197,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setLayer: (activeLayer) => set({ activeLayer }),
     setSelection: (selection) => set({ selection }),
     setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
-    setSelectedItem: (selectedItemId) => set({ selectedItemId }),
+    setSelectedItem: (selectedAssetId) => set({ selectedAssetId }),
 
     toggleDraftCell: (x, y) =>
       set((state) => {
@@ -224,22 +224,22 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     clearDraftSelection: () => set({ regionDraftSelection: new Set<string>() }),
 
-    placeBackground: (itemId, x, y) =>
+    placeBackground: (assetId, x, y) =>
       commit((next) => {
         const key = cellKey(x, y);
-        const cell: DraftCell = { ...(next.cells.get(key) ?? {}), background: { itemId } };
+        const cell: DraftCell = { ...(next.cells.get(key) ?? {}), background: { assetId } };
         next.cells.set(key, cell);
       }),
 
-    placeObject: (item, x, y) =>
+    placeItem: (item, x, y) =>
       commit((next) => {
         for (let dy = 0; dy < item.heightCells; dy += 1) {
           for (let dx = 0; dx < item.widthCells; dx += 1) {
             const key = cellKey(x + dx, y + dy);
             const cell: DraftCell = { ...(next.cells.get(key) ?? {}) };
-            delete cell.object;
+            delete cell.item;
             if (dx === 0 && dy === 0) {
-              cell.object = { itemId: item.id, w: item.widthCells, h: item.heightCells };
+              cell.item = { assetId: item.id, w: item.widthCells, h: item.heightCells };
             }
             next.cells.set(key, cell);
           }
@@ -253,17 +253,17 @@ export const useEditorStore = create<EditorState>((set, get) => {
       if (!target) return;
       const targetKey = target.key as CellKey;
       commit((next) => {
-        if (target.layer === 'object') {
-          const anchor = next.cells.get(targetKey)?.object;
+        if (target.layer === 'item') {
+          const anchor = next.cells.get(targetKey)?.item;
           const keys = anchor
-            ? objectFootprintKeys(anchor, target.x, target.y)
+            ? itemFootprintKeys(anchor, target.x, target.y)
             : [target.key];
           for (const rawKey of keys) {
             const key = rawKey as CellKey;
             const cell = next.cells.get(key);
             if (!cell) continue;
             const copy = { ...cell };
-            delete copy.object;
+            delete copy.item;
             if (isEmptyCell(copy)) next.cells.delete(key);
             else next.cells.set(key, copy);
           }
@@ -283,13 +283,13 @@ export const useEditorStore = create<EditorState>((set, get) => {
         next.cells.delete(cellKey(x, y));
       }),
 
-    clearObjectAt: (x, y) =>
+    clearItemAt: (x, y) =>
       commit((next) => {
         const key = cellKey(x, y);
         const cell = next.cells.get(key);
         if (!cell) return;
         const copy = { ...cell };
-        delete copy.object;
+        delete copy.item;
         if (isEmptyCell(copy)) next.cells.delete(key);
         else next.cells.set(key, copy);
       }),

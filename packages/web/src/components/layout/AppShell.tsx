@@ -10,7 +10,7 @@ const navItems = [
   // `/maps`, but it still **speaks** 地图 — 工坊 is only the header suffix the
   // page adds to the wordmark.
   { to: '/maps', label: '地图', icon: Map },
-  { to: '/items', label: '物品', icon: Package },
+  { to: '/assets', label: '资源', icon: Package },
   { to: '/characters', label: '角色', icon: Users },
   { to: '/puzzles', label: '谜题', icon: Puzzle },
 ];
