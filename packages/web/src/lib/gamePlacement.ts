@@ -6,6 +6,7 @@ import {
   type CharacterSlotEntry,
 } from '@loredoku/shared';
 import type { CellPlacement, GamePlacementBoard } from '@loredoku/shared';
+import { estimateTextWidth } from './textWidth';
 
 /**
  * SPEC-G01 / SPEC-G03 / SPEC-G04 (docs/v0.4.0.md §7 ~ §10): the game board's
@@ -570,19 +571,15 @@ export function numberSlotAnchor(index: number): { x: number; y: number } {
  *
  * A 编号 is no longer necessarily a digit — the puzzle can configure any text
  * for a participant, and a 3×3 slot is only a third of a cell wide. Wide (CJK /
- * fullwidth) glyphs count as a full em, everything else as ~0.62em; when the
- * estimate exceeds the box the font shrinks proportionally, so a long label
- * never spills over its neighbours. Digits — the historical case — never
- * trigger the shrink.
+ * fullwidth) glyphs count as a full em, everything else as ~0.62em (see
+ * `textWidth.ts`); when the estimate exceeds the box the font shrinks
+ * proportionally, so a long label never spills over its neighbours. Digits —
+ * the historical case — never trigger the shrink.
  */
 export function glyphFontSize(text: string, boxWidth: number, fontSize: number): number {
   if (!Number.isFinite(boxWidth) || boxWidth <= 0) return fontSize;
   if (!Number.isFinite(fontSize) || fontSize <= 0) return fontSize;
-  let units = 0;
-  for (const char of text) {
-    units += (char.codePointAt(0) ?? 0) >= 0x2e80 ? 1 : 0.62;
-  }
-  const width = units * fontSize;
+  const width = estimateTextWidth(text, fontSize);
   return width <= boxWidth ? fontSize : (fontSize * boxWidth) / width;
 }
 

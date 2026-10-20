@@ -46,9 +46,6 @@ function mapContext(gridSize = 6): PuzzleMapContext {
       {
         id: 'rg_1',
         name: '花园',
-        color: '#3B82F6',
-        borderWidth: 4,
-        fillOpacity: 1,
         cells: [
           [0, 0],
           [1, 0],

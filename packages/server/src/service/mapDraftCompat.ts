@@ -1,5 +1,9 @@
 import { MAP_JSON_VERSION } from '@loredoku/shared';
 import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
+import {
+  hasLegacyRegionStyle,
+  upgradeRegionStyleDraft,
+} from './regionStyleMigration';
 
 /**
  * v0.5.0 FEAT-K14 (docs/v0.5.0.md §8.3) — the absorption layer for stored map
@@ -10,6 +14,13 @@ import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
  * JSON through `absorbLegacyMapDraft` first. The old fields stay in the database,
  * simply no longer read — `readLegacyCharacterSlots` / `readLegacyLinkageColors`
  * are the two accessors that still look, for backfill and snapshot upgrade.
+ *
+ * v0.7.0 (docs/v0.7.0.md §4): the same deal for a region's flat
+ * `color` / `borderWidth` / `fillOpacity` trio — stripped on read, with
+ * `borderWidth` carried over as `style.outline.width` when it disagreed with
+ * the map-level default. Migration `20260101000030` rewrites the stored rows;
+ * this keeps a payload written by an older client (or restored by `down`)
+ * readable without a second migration.
  */
 
 function asRecord(raw: unknown): Record<string, unknown> | null {
@@ -46,6 +57,10 @@ export function readLegacyLinkageColors(raw: unknown): MapLinkageColor[] {
  * `style.linkageColors`, and stamps `version = MAP_JSON_VERSION`. Every other
  * field is passed through untouched.
  *
+ * v0.7.0: a region still carrying the retired `color` / `borderWidth` /
+ * `fillOpacity` trio is upgraded the same way (see
+ * `service/regionStyleMigration.ts`).
+ *
  * **Idempotent**: a payload that is already v3 (nothing to strip, version
  * matches) is returned as the **same reference**, so re-running this on every
  * read costs nothing.
@@ -57,9 +72,10 @@ export function absorbLegacyMapDraft(raw: unknown): unknown {
   const hasSlots = 'characterSlots' in record;
   const style = asRecord(record['style']);
   const hasStylePalette = style !== null && 'linkageColors' in style;
+  const hasLegacyRegions = hasLegacyRegionStyle(record['regions']);
   const versionMatches = record['version'] === MAP_JSON_VERSION;
 
-  if (!hasSlots && !hasStylePalette && versionMatches) return raw;
+  if (!hasSlots && !hasStylePalette && !hasLegacyRegions && versionMatches) return raw;
 
   const next: Record<string, unknown> = { ...record, version: MAP_JSON_VERSION };
   delete next['characterSlots'];
@@ -67,6 +83,13 @@ export function absorbLegacyMapDraft(raw: unknown): unknown {
     const nextStyle: Record<string, unknown> = { ...style };
     delete nextStyle['linkageColors'];
     next['style'] = nextStyle;
+  }
+  if (hasLegacyRegions) {
+    // `next` is already a fresh shallow copy, but its `regions` array (and the
+    // region objects inside) are shared with the caller's raw row — the
+    // upgrade builds new ones instead of mutating those.
+    const upgraded = upgradeRegionStyleDraft(next);
+    if (upgraded) return upgraded;
   }
   return next;
 }

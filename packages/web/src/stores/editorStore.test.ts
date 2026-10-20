@@ -19,13 +19,11 @@ function draft(gridSize = 6): MapDraft {
   };
 }
 
-const regionInput = (id: string, cells: Array<[number, number]>): RegionInput => ({
+const regionInput = (id: string, cells: Array<[number, number]>, style?: RegionInput['style']): RegionInput => ({
   id,
   name: 'Room',
-  color: '#3B82F6',
-  borderWidth: 4,
-  fillOpacity: 1,
   cells,
+  ...(style ? { style } : {}),
 });
 
 beforeEach(() => {
@@ -242,7 +240,12 @@ describe('init', () => {
     const loaded = draft(4);
     loaded.cells['0,0'] = { item: { assetId: 3, w: 1, h: 1 } };
     loaded.regions = [
-      { id: 'rg_x', name: 'Loaded', color: '#3B82F6', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
+      {
+        id: 'rg_x',
+        name: 'Loaded',
+        cells: [[0, 0]],
+        style: { outline: { width: 6 } },
+      },
     ];
     store().init(9, loaded, { currentVersionNo: 2, status: 'published' });
 
@@ -261,9 +264,9 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
   it('serialises cells and regions — and carries no roster (SPEC-K12)', () => {
     store().placeItem({ assetId: 5, formId: 1, w: 1, h: 1 }, 1, 1);
     const output = store().toDraft();
-    // the map JSON is v6 — anchors name a form on both layers; participants
-    // live in the puzzle.
-    expect(output.version).toBe(6);
+    // the map JSON is v7 — regions carry only their style differences;
+    // participants live in the puzzle.
+    expect(output.version).toBe(7);
     expect(output.cells['1,1']?.item).toEqual({ assetId: 5, formId: 1, w: 1, h: 1 });
     expect('characterSlots' in output).toBe(false);
     expect('placedCharacters' in output).toBe(false);
@@ -327,7 +330,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     expect(store().style.cellSize).toBeNull();
   });
 
-  it('FEAT-D02 §关键规则 4: the region outline width syncs to every region', () => {
+  it('v0.7.0: the map-level outline width no longer writes into regions', () => {
     store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
     store().createRegion(regionInput('rg_b', [[2, 2]]), 'override');
     store().setMapStyle((current) => ({
@@ -335,26 +338,106 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
       regionOutline: { ...current.regionOutline, width: 10 },
     }));
     expect(store().style.regionOutline.width).toBe(10);
-    expect(store().regions.map((region) => region.borderWidth)).toEqual([10, 10]);
-    // Style + regions are one undo step.
+    // Both regions follow the new default — neither carries an override.
+    expect(store().regions.map((region) => region.style)).toEqual([undefined, undefined]);
+    // One undo step for the style itself.
     expect(store().past).toHaveLength(3);
     store().undo();
-    // v0.5.2 SPEC-M07: the pre-change default is 12px now.
     expect(store().style.regionOutline.width).toBe(12);
-    expect(store().regions.map((region) => region.borderWidth)).toEqual([4, 4]);
   });
 
-  it('FEAT-D02 §关键规则 4: the region outline colour is map-level only', () => {
-    store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+  it('v0.7.0: a region keeps the override it recorded across a default change', () => {
+    store().createRegion(
+      regionInput('rg_a', [[0, 0]], {
+        outline: { width: 6, color: '#111111' },
+        highlight: { width: 5, color: '#3B82F6' },
+        label: {
+          fontSize: 32,
+          strokeWidth: 10,
+          color: '#FFFFFF',
+          strokeColor: '#000000',
+          hoverFontSize: 36,
+          hoverColor: '#FFFFFF',
+          hoverStrokeColor: '#3B82F6',
+          hoverStrokeWidth: 10,
+        },
+      }),
+      'override',
+    );
+    // Only the outline width / colour and the highlight width differ from the
+    // shipped defaults (outline 12 / #000000, highlight 12 / #3B82F6).
+    expect(store().regions[0]?.style).toEqual({
+      outline: { width: 6, color: '#111111' },
+      highlight: { width: 5 },
+    });
     store().setMapStyle((current) => ({
       ...current,
-      regionOutline: { ...current.regionOutline, color: '#FF0000' },
+      regionOutline: { ...current.regionOutline, width: 10 },
     }));
-    expect(store().style.regionOutline.color).toBe('#FF0000');
-    // The region keeps its own colour — it drives the fill.
-    expect(store().regions[0]?.color).toBe('#3B82F6');
-    // ...and its width is untouched when only the colour changed.
-    expect(store().regions[0]?.borderWidth).toBe(4);
+    // The recorded override survives; only the *default* moved.
+    expect(store().regions[0]?.style?.outline?.width).toBe(6);
+  });
+
+  it('v0.7.0: creating a region whose style equals the defaults stores no style key', () => {
+    store().createRegion(
+      regionInput('rg_a', [[0, 0]], {
+        outline: { width: 12, color: '#000000' },
+        highlight: { width: 12, color: '#3B82F6' },
+        label: {
+          fontSize: 32,
+          strokeWidth: 10,
+          color: '#FFFFFF',
+          strokeColor: '#000000',
+          hoverFontSize: 36,
+          hoverColor: '#FFFFFF',
+          hoverStrokeColor: '#3B82F6',
+          hoverStrokeWidth: 10,
+        },
+      }),
+      'override',
+    );
+    expect('style' in (store().regions[0] ?? {})).toBe(false);
+  });
+
+  it('v0.7.0: updating a region drops a style that came to match the defaults', () => {
+    store().createRegion(
+      regionInput('rg_a', [[0, 0]], {
+        outline: { width: 6, color: '#111111' },
+        highlight: { width: 12, color: '#3B82F6' },
+        label: {
+          fontSize: 32,
+          strokeWidth: 10,
+          color: '#FFFFFF',
+          strokeColor: '#000000',
+          hoverFontSize: 36,
+          hoverColor: '#FFFFFF',
+          hoverStrokeColor: '#3B82F6',
+          hoverStrokeWidth: 10,
+        },
+      }),
+      'override',
+    );
+    expect(store().regions[0]?.style).toEqual({ outline: { width: 6, color: '#111111' } });
+    store().updateRegion('rg_a', {
+      id: 'rg_a',
+      name: 'Room',
+      cells: [[0, 0]],
+      style: {
+        outline: { width: 12, color: '#000000' },
+        highlight: { width: 12, color: '#3B82F6' },
+        label: {
+          fontSize: 32,
+          strokeWidth: 10,
+          color: '#FFFFFF',
+          strokeColor: '#000000',
+          hoverFontSize: 36,
+          hoverColor: '#FFFFFF',
+          hoverStrokeColor: '#3B82F6',
+          hoverStrokeWidth: 10,
+        },
+      },
+    });
+    expect('style' in (store().regions[0] ?? {})).toBe(false);
   });
 
   it('applyDraft adopts the imported style and resets the history', () => {

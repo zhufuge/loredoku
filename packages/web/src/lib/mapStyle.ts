@@ -173,6 +173,12 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
       ),
       hoverColor: color(fallback.regionLabel.hoverColor, regionLabel.hoverColor),
       hoverStrokeColor: color(fallback.regionLabel.hoverStrokeColor, regionLabel.hoverStrokeColor),
+      // v0.7.0: the hovered label's own stroke size — no "never smaller" rule
+      // here, the author may thin the hovered stroke on purpose.
+      hoverStrokeWidth:
+        typeof regionLabel.hoverStrokeWidth === 'number'
+          ? clampRegionLabelStroke(regionLabel.hoverStrokeWidth)
+          : fallback.regionLabel.hoverStrokeWidth,
     },
     regionOutline: {
       // The region outline follows its own 4 ~ 12px range, not the line range.

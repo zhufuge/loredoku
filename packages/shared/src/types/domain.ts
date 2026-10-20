@@ -5,7 +5,6 @@ import type {
   ASSET_TYPES,
   ASSET_FIT_MODES,
   EDITOR_LAYERS,
-  REGION_SHAPES,
   MAP_STATUSES,
   CHARACTER_GENDERS,
   PARTICIPANT_TARGET_TYPES,
@@ -13,6 +12,7 @@ import type {
   GAME_DIFFICULTY_LEVELS,
   MapLinkageColor,
   MapStyle,
+  RegionStyleOverride,
 } from '../constants';
 
 export type EffectType = (typeof EFFECT_TYPES)[number];
@@ -22,7 +22,6 @@ export type CardRotation = (typeof CARD_ROTATIONS)[number];
 export type AssetType = (typeof ASSET_TYPES)[number];
 export type AssetFitMode = (typeof ASSET_FIT_MODES)[number];
 export type EditorLayer = (typeof EDITOR_LAYERS)[number];
-export type RegionShape = (typeof REGION_SHAPES)[number];
 export type MapStatus = (typeof MAP_STATUSES)[number];
 export type CharacterGender = (typeof CHARACTER_GENDERS)[number];
 export type ParticipantTargetType = (typeof PARTICIPANT_TARGET_TYPES)[number];
@@ -186,11 +185,15 @@ export interface DraftCell {
 export interface DraftRegion {
   id: string;
   name: string;
-  color: string;
-  borderWidth: number;
-  fillOpacity: number;
   cells: Array<[number, number]>;
   labelCell?: [number, number] | null;
+  /**
+   * v0.7.0 (docs/v0.7.0.md §4): the region's own display style — a deep partial
+   * over the map-level defaults (`MapStyle.regionOutline` / `regionHighlight` /
+   * `regionLabel`). Absent = the defaults win; a present block records only what
+   * differs. Replaces the old flat `color` / `borderWidth` / `fillOpacity`.
+   */
+  style?: RegionStyleOverride;
 }
 
 // ---- Participant linkage (docs/v0.3.1.md CLAR-603, updated v0.3.3 MOD-801) ----

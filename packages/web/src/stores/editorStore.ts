@@ -9,10 +9,13 @@ import {
   type EditorTool,
   type MapDraft,
   type MapStyle,
+  type RegionStyle,
+  type RegionStyleOverride,
 } from '@loredoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
 import { isEmptyCell, itemFootprintKeys, resolveEraseTarget } from '@/lib/erase';
 import { resolveMapStyle } from '@/lib/mapStyle';
+import { regionStyleOverride } from '@/lib/regionStyle';
 
 export type CellKey = `${number},${number}`;
 
@@ -29,13 +32,16 @@ export interface EditorMeta {
   status: 'draft' | 'published';
 }
 
+/**
+ * v0.7.0 (docs/v0.7.0.md §4): the editor hands over the region's **resolved**
+ * style; the store records only what differs from the map-level defaults, so a
+ * region that agrees everywhere carries no `style` key at all.
+ */
 export interface RegionInput {
   id: string;
   name: string;
-  color: string;
-  borderWidth: number;
-  fillOpacity: number;
   cells: Array<[number, number]>;
+  style?: RegionStyle;
 }
 
 export type ConflictMode = 'override' | 'skip';
@@ -341,6 +347,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
           }
           cells = input.cells.filter(([x, y]) => !owned.has(coordKey(x, y)));
         }
+        const styleOverride = input.style ? regionStyleOverride(input.style, next.style) : undefined;
         next.regions =
           cells.length === 0
             ? regions
@@ -349,11 +356,9 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 {
                   id,
                   name: input.name,
-                  color: input.color,
-                  borderWidth: input.borderWidth,
-                  fillOpacity: input.fillOpacity,
                   cells: [...cells],
                   labelCell: computeLabelCell(cells),
+                  ...(styleOverride ? { style: styleOverride } : {}),
                 },
               ];
       });
@@ -376,16 +381,15 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     updateRegion: (regionId, input) =>
       commit((next) => {
+        const styleOverride = input.style ? regionStyleOverride(input.style, next.style) : undefined;
         next.regions = next.regions.map((region) =>
           region.id === regionId
             ? {
                 id: input.id || region.id,
                 name: input.name,
-                color: input.color,
-                borderWidth: input.borderWidth,
-                fillOpacity: input.fillOpacity,
                 cells: [...input.cells],
                 labelCell: computeLabelCell(input.cells),
+                ...(styleOverride ? { style: styleOverride } : {}),
               }
             : region,
         );
@@ -439,18 +443,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     /**
      * v0.3.8 FEAT-D02 §关键规则 4 + v0.3.9: the map style is committed in one
-     * step. 区域轮廓线（Region Outline）is a map-level style, so writing its
-     * width also mirrors it onto every existing region's own `borderWidth` —
-     * same undo step, so Ctrl+Z reverts both together.
+     * step. v0.7.0 (docs/v0.7.0.md §4): the map-level block is only the
+     * **default** — a region keeps whatever it explicitly overrides, so writing
+     * `regionOutline.width` no longer rewrites every region (regions without an
+     * override simply follow the new default).
      */
     setMapStyle: (updater) =>
       commit((next) => {
-        const previousWidth = next.style.regionOutline.width;
         next.style = resolveMapStyle(updater(next.style));
-        if (next.style.regionOutline.width !== previousWidth) {
-          const width = next.style.regionOutline.width;
-          next.regions = next.regions.map((region) => ({ ...region, borderWidth: width }));
-        }
       }),
 
     setCellSizeOverride: (value) =>

@@ -60,10 +60,13 @@ export function MapGridSeparatorLayer({
 }
 
 /**
- * 层 5 · 画布外框（Canvas Frame）: the board's outermost frame, drawn fully
- * **outside** the board rectangle so no item or highlight layer can overlap it
- * — which is why the stroke is offset by half its width (the SVG needs
- * `overflow: visible` for that).
+ * 层 5 · 画布外框（Canvas Frame）: the board's outermost frame.
+ *
+ * v0.7.0 (docs/v0.7.0.md §3): the stroke is **centred on the canvas boundary**,
+ * exactly like the internal separators — so the grid's outermost line and the
+ * canvas frame are one and the same line (「网格框最外描边线 = 画布外框」). Half
+ * the stroke therefore falls inside the board, which is why the SVG still needs
+ * `overflow: visible`.
  *
  * This is the outer frame only; the lines *between* cells are 网格分隔线
  * ({@link MapGridSeparatorLayer}). Width and colour come from
@@ -95,7 +98,6 @@ export function MapCanvasFrameLayer({
         fill="none"
         stroke={style.canvasFrame.color}
         strokeWidth={width}
-        style={{ transform: `translate(${-width / 2}px, ${-width / 2}px)` }}
       />
     </svg>
   );

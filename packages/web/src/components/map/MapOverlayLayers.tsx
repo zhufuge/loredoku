@@ -11,6 +11,7 @@ import { cellScale, scaleFontSize } from '@/lib/canvasScale';
 import { HIGHLIGHT_FADEOUT_MS, type HighlightState } from '@/lib/highlight';
 import { styleLineWidth } from '@/lib/mapStyle';
 import { computeLabelCell } from '@/lib/region';
+import { resolveRegionStyle } from '@/lib/regionStyle';
 import { cellRectStyle, parseKey } from './layerGeometry';
 import { RegionHighlightOutline } from './MapRegionLayers';
 
@@ -293,8 +294,7 @@ export function MapHighlightLayer({
                 key={`hl-rb-${border.regionId}`}
                 cells={region.cells}
                 cellSize={cellSize}
-                borderWidth={region.borderWidth}
-                style={style}
+                regionStyle={resolveRegionStyle(style, region.style)}
               />
             );
           })}

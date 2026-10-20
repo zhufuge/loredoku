@@ -1,5 +1,6 @@
 import { Grid3x3, Maximize, Redo2, Ruler, Undo2, ZoomIn, ZoomOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
 interface PuzzleBottomBarProps {
@@ -48,9 +49,12 @@ export function PuzzleBottomBar({
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
       <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-full border bg-background px-4 py-2 shadow-lg">
         <Button
-          variant={rulerVisible ? 'secondary' : 'ghost'}
+          variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn(
+            'h-9 w-9 rounded-full',
+            rulerVisible ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
+          )}
           title="显示 / 隐藏标尺"
           onClick={onToggleRuler}
         >
@@ -72,7 +76,7 @@ export function PuzzleBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="整体缩小查看（不修改方格大小）"
           onClick={onZoomOut}
         >
@@ -84,7 +88,7 @@ export function PuzzleBottomBar({
           title="重置查看比例为 100%（不修改方格大小）"
           className={cn(
             'h-9 min-w-[3.5rem] rounded-full px-2 text-xs tabular-nums text-muted-foreground',
-            'hover:bg-accent hover:text-foreground',
+            'hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70',
           )}
         >
           {Math.round(zoom * 100)}%
@@ -92,7 +96,7 @@ export function PuzzleBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="整体放大查看（不修改方格大小）"
           onClick={onZoomIn}
         >
@@ -101,7 +105,7 @@ export function PuzzleBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="适应画布（重算自适应方格大小并重置查看比例）"
           onClick={onFit}
         >
@@ -113,7 +117,7 @@ export function PuzzleBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="撤销 (Ctrl+Z)"
           disabled={!canUndo}
           onClick={onUndo}
@@ -123,7 +127,7 @@ export function PuzzleBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="重做 (Ctrl+Shift+Z)"
           disabled={!canRedo}
           onClick={onRedo}

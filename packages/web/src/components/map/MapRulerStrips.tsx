@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { RULER_ACTIVE_FONT_DELTA, UI_Z } from '@loredoku/shared';
 import type { CellCoord } from '@loredoku/shared';
 import type { MapStyle } from '@loredoku/shared';
-import { buildRulerGlyphs, rulerStripSize } from '@/lib/ruler';
+import { buildRulerGlyphs, rulerLabelWidth, rulerStripSize, rulerStripStart } from '@/lib/ruler';
 import { cellScale, scaleFontSize } from '@/lib/canvasScale';
 
 export interface MapRulerStripsProps {
@@ -32,6 +32,15 @@ export interface MapRulerStripsProps {
  * The strips live **outside** the zoomed board wrapper, which is why the glyph
  * size is multiplied by `zoom` here (OPT-B03's only documented exception) and
  * why the strip itself is positioned from `pan` minus its own thickness.
+ *
+ * v0.7.0 (docs/v0.7.0.md §3): each strip's thin axis follows the board via
+ * `rulerStripStart` — it hugs the board edge when the label fits between it and
+ * the viewport edge, and otherwise pins inward so the label stays whole.
+ *
+ * v0.7.0 fix: the two thin axes are sized **independently** — the column strip
+ * needs the glyph height (+ gap), the row strip additionally the label *width*
+ * (`C24` ≈ 3 × 0.62em). Sharing one height-derived thickness left the row
+ * labels clipped by the strip's own `overflow: hidden` at any real zoom.
  */
 export function MapRulerStrips({
   gridSize,
@@ -47,7 +56,15 @@ export function MapRulerStrips({
   const rulerGap = style.ruler.gap;
   const rulerMaxFont =
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
-  const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: rulerGap });
+  // v0.7.0 fix: the row strip's thin axis is horizontal — size it for the
+  // widest label, not just the glyph height.
+  const rulerLabel = rulerLabelWidth(gridSize, rulerMaxFont);
+  const columnStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: rulerGap });
+  const rowStrip = rulerStripSize({
+    maxFontSize: rulerMaxFont,
+    gap: rulerGap,
+    maxLabelWidth: rulerLabel,
+  });
 
   const columns = useMemo(
     () =>
@@ -90,8 +107,8 @@ export function MapRulerStrips({
         style={{
           zIndex: UI_Z.ruler,
           left: pan.x,
-          top: pan.y - rulerStrip,
-          height: rulerStrip,
+          top: rulerStripStart(pan.y, columnStrip, rulerMaxFont, rulerGap),
+          height: columnStrip,
           width: total * zoom,
           overflow: 'hidden',
         }}
@@ -127,9 +144,9 @@ export function MapRulerStrips({
         className="pointer-events-none absolute"
         style={{
           zIndex: UI_Z.ruler,
-          left: pan.x - rulerStrip,
+          left: rulerStripStart(pan.x, rowStrip, rulerLabel, rulerGap),
           top: pan.y,
-          width: rulerStrip,
+          width: rowStrip,
           height: total * zoom,
           overflow: 'hidden',
         }}

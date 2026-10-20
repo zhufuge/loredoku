@@ -94,7 +94,30 @@ describe('absorbLegacyMapDraft (FEAT-K14)', () => {
     // Everything else is passed through untouched.
     expect(absorbed['gridSize']).toBe(4);
     expect(absorbed['cells']).toEqual({ '0,0': { item: { assetId: 3, w: 1, h: 1 } } });
-    expect((absorbed['regions'] as unknown[])[0]).toMatchObject({ id: 'rg_a' });
+    // v0.7.0: the region's retired trio is gone; the custom width (4 ≠ the
+    // map-level default 12) survives as the outline override.
+    expect((absorbed['regions'] as unknown[])[0]).toEqual({
+      id: 'rg_a',
+      name: 'A',
+      cells: [[0, 0]],
+      style: { outline: { width: 4 } },
+    });
+  });
+
+  it('upgrades a region-only legacy payload (v0.7.0)', () => {
+    const absorbed = absorbLegacyMapDraft({
+      version: 6,
+      gridSize: 4,
+      cells: {},
+      regions: [{ id: 'rg_a', name: 'A', color: '#000000', borderWidth: 12, fillOpacity: 0, cells: [[0, 0]] }],
+    }) as Record<string, unknown>;
+    expect(absorbed['version']).toBe(MAP_JSON_VERSION);
+    // 12 === the map-level default → no override recorded.
+    expect((absorbed['regions'] as unknown[])[0]).toEqual({
+      id: 'rg_a',
+      name: 'A',
+      cells: [[0, 0]],
+    });
   });
 
   it('is idempotent — a v3 payload comes back as the very same reference', () => {

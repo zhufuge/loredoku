@@ -5,6 +5,7 @@ import {
   infoDrawerOpen,
   INITIAL_FOCUS,
   reduceEditorFocus,
+  regionFocusSelection,
   type EditorFocus,
 } from './editorFocus';
 
@@ -127,6 +128,19 @@ describe('focusOwner (OPT-C07 §5)', () => {
     expect(
       focusOwner(withSelection(null, null, { type: 'region', regionId: 'rg_a' })),
     ).toBe('region');
+  });
+});
+
+// ---- v0.7.0 fix: the region list must focus like the region label ----
+describe('regionFocusSelection', () => {
+  it('mirrors the canvas label click — both axes end on the region', () => {
+    // The list used to set only `selectedRegionId`, so the info drawer opened
+    // with `selection === null` and rendered an empty panel.
+    expect(regionFocusSelection('rg_a')).toEqual({ type: 'region', regionId: 'rg_a' });
+  });
+
+  it('clears the selection when the item is clicked again (toggle off)', () => {
+    expect(regionFocusSelection(null)).toBeNull();
   });
 });
 

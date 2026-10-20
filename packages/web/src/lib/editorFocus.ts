@@ -54,6 +54,23 @@ export function reduceEditorFocus(focus: EditorFocus, event: FocusEvent): Editor
 }
 
 /**
+ * v0.7.0 fix: what a click on a region **list item** (left panel) focuses.
+ *
+ * The canvas label click sets both axes — `onSelect({ type: 'region' })` plus
+ * `onSelectRegion(id)`. The list used to set only `selectedRegionId`, so the
+ * info drawer opened with `selection === null` and rendered an empty panel
+ * (「点列表项，信息框弹出来但是空白」). Both entry points must therefore end
+ * with the same pair; this helper is the shared half.
+ *
+ * A store-level `setSelectedRegion` that also wrote `selection` would be
+ * wrong: `selectCellAt` sets `selection` (cell) **before** `selectedRegionId`
+ * (the containing region), so it would overwrite the cell focus.
+ */
+export function regionFocusSelection(regionId: string | null): Selection | null {
+  return regionId === null ? null : { type: 'region', regionId };
+}
+
+/**
  * Who currently owns the drawer. Hover never changes it (MOD-802) — only a
  * click-pinned participant takes the drawer away from a selected cell.
  */

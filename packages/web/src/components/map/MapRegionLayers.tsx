@@ -1,27 +1,35 @@
 import {
   MAP_LAYER_Z,
-  REGION_FILL_Z,
   type DraftRegion,
   type MapStyle,
+  type RegionStyle,
 } from '@loredoku/shared';
 import { buildRegionEdges, buildRegionHighlightPaths } from '@/lib/region';
 import { styleLineWidth } from '@/lib/mapStyle';
+import { resolveRegionStyle } from '@/lib/regionStyle';
 
 /**
  * the region layers, split out of the old `MapLayers.tsx`.
+ *
+ * v0.7.0 (docs/v0.7.0.md §4): a region carries only the **differences** from
+ * the map-level defaults (`DraftRegion.style`), so every layer resolves its own
+ * values through `resolveRegionStyle`. The v0.6.x fill layer is gone — 填充
+ * retired together with the region's `color` / `fillOpacity`.
  */
 
 /**
  * OPT-B01 (docs/v0.3.6.md §1): the highlight hugs the **inner** side of the
  * region boundary and grows inwards, never covering it. The boundary itself
- * is a `borderWidth × scale` stroke centred on the contour, so it eats
- * `borderWidth × scale / 2` into the region; the highlight starts exactly
+ * is a `outline.width × scale` stroke centred on the contour, so it eats
+ * `outline.width × scale / 2` into the region; the highlight starts exactly
  * there.
  */
-function regionHighlightInset(borderWidth: number, cellSize: number, highlightWidth: number): number {
-  return (
-    styleLineWidth(borderWidth, cellSize) / 2 + styleLineWidth(highlightWidth, cellSize) / 2
-  );
+function regionHighlightInset(
+  outlineWidth: number,
+  cellSize: number,
+  highlightWidth: number,
+): number {
+  return styleLineWidth(outlineWidth, cellSize) / 2 + styleLineWidth(highlightWidth, cellSize) / 2;
 }
 
 /**
@@ -37,22 +45,27 @@ function regionHighlightInset(borderWidth: number, cellSize: number, highlightWi
 /**
  * Exported for {@link MapHighlightLayer} (`MapOverlayLayers.tsx`), which draws
  * the same continuous outline for linkage-targeted regions.
+ *
+ * v0.7.0: takes the region's **resolved** style — the highlight width / colour
+ * and the outline width the inset nests inside may all be region-specific.
  */
 export function RegionHighlightOutline({
   cells,
   cellSize,
-  borderWidth,
-  style,
+  regionStyle,
 }: {
   cells: Array<[number, number]>;
   cellSize: number;
-  /** The region's own `borderWidth`; the highlight nests inside it. */
-  borderWidth: number;
-  style: MapStyle;
+  /** The region's resolved style (map defaults + its own overrides). */
+  regionStyle: RegionStyle;
 }): JSX.Element {
-  const inset = regionHighlightInset(borderWidth, cellSize, style.regionHighlight.width);
+  const inset = regionHighlightInset(
+    regionStyle.outline.width,
+    cellSize,
+    regionStyle.highlight.width,
+  );
   const paths = buildRegionHighlightPaths(cells, cellSize, inset);
-  const width = styleLineWidth(style.regionHighlight.width, cellSize);
+  const width = styleLineWidth(regionStyle.highlight.width, cellSize);
   return (
     <svg className="absolute left-0 top-0" style={{ overflow: 'visible' }}>
       {paths.map((path, index) => (
@@ -60,7 +73,7 @@ export function RegionHighlightOutline({
           key={index}
           d={path.d}
           fill="none"
-          stroke={style.regionHighlight.color}
+          stroke={regionStyle.highlight.color}
           strokeWidth={width}
           strokeOpacity={0.9}
           strokeLinecap="butt"
@@ -71,53 +84,25 @@ export function RegionHighlightOutline({
   );
 }
 
-/** Region colour fill — see `REGION_FILL_Z` (docs/layer-priority.md §1). */
-export function MapRegionFillLayer({
-  regions,
-  gridSize,
-  cellSize,
-}: {
-  regions: DraftRegion[];
-  gridSize: number;
-  cellSize: number;
-}): JSX.Element {
-  const total = gridSize * cellSize;
-  return (
-    <svg
-      className="pointer-events-none absolute left-0 top-0"
-      width={total}
-      height={total}
-      style={{ zIndex: REGION_FILL_Z }}
-    >
-      {regions.flatMap((region) =>
-        region.cells.map(([x, y]) => (
-          <rect
-            key={`${region.id}-${x}-${y}`}
-            x={x * cellSize}
-            y={y * cellSize}
-            width={cellSize}
-            height={cellSize}
-            fill={region.color}
-            fillOpacity={region.fillOpacity}
-          />
-        )),
-      )}
-    </svg>
-  );
-}
-
 /**
  * 层 7 · 区域轮廓线（Region Outline）— the region's outer contour, wider than a
- * grid separator (`region.borderWidth`, 4 ~ 12px) and drawn below it so the
- * grid stays readable.
+ * grid separator (4 ~ 12px) and drawn above the canvas frame / grid lines so a
+ * region boundary is never cut into dashes; only item artwork still sits on top.
  *
- * v0.3.8 FEAT-D02: the **colour** comes from the map style
- * (`style.regionOutline.color`), so one setting tunes every region; the
- * **width** stays per-region and is initialised from `style.regionOutline.width`.
+ * v0.7.0 (docs/v0.7.0.md §4): **both** the width and the colour come from the
+ * region's resolved style — the map-level block is the default, the region's
+ * own `style.outline` overrides it. (The v0.6.x split, map colour + per-region
+ * width, is gone with the flat `color` field.)
  *
  * Adjacent regions each draw their own outline, so a shared edge renders both
  * lines. Nothing is merged and no priority is applied — a thicker junction is
  * the expected result.
+ *
+ * `overflow: visible` is required, not cosmetic: the stroke is centred on the
+ * contour, so an edge lying on the board boundary (`x = 0` / `total`) puts half
+ * its width outside the SVG viewport. Without it the browser clips that half
+ * and the boundary edge renders as a half-width line that no longer matches the
+ * rest of the contour — the canvas frame solves the same problem the same way.
  */
 export function MapRegionOutlineLayer({
   regions,
@@ -138,12 +123,13 @@ export function MapRegionOutlineLayer({
       className="pointer-events-none absolute left-0 top-0"
       width={total}
       height={total}
-      style={{ zIndex: MAP_LAYER_Z.regionOutline }}
+      style={{ overflow: 'visible', zIndex: MAP_LAYER_Z.regionOutline }}
     >
       {regions.map((region) => {
         const selected = selectedRegionId === region.id;
+        const resolved = resolveRegionStyle(style, region.style);
         const edges = buildRegionEdges(region.cells, cellSize);
-        const width = styleLineWidth(region.borderWidth + (selected ? 2 : 0), cellSize);
+        const width = styleLineWidth(resolved.outline.width + (selected ? 2 : 0), cellSize);
         return (
           <g key={region.id}>
             {edges.map((edge, index) => (
@@ -153,7 +139,7 @@ export function MapRegionOutlineLayer({
                 y1={edge.y1}
                 x2={edge.x2}
                 y2={edge.y2}
-                stroke={style.regionOutline.color}
+                stroke={resolved.outline.color}
                 strokeOpacity={1}
                 strokeWidth={width}
                 strokeLinecap="square"
@@ -190,8 +176,7 @@ export function MapRegionHighlightLayer({
       <RegionHighlightOutline
         cells={region.cells}
         cellSize={cellSize}
-        borderWidth={region.borderWidth}
-        style={style}
+        regionStyle={resolveRegionStyle(style, region.style)}
       />
     </div>
   );

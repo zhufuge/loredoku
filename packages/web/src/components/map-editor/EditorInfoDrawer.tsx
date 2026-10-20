@@ -1,9 +1,14 @@
-import { UI_Z, resolveAssetForm } from '@loredoku/shared';
-import type { DraftCell, DraftRegion, Asset } from '@loredoku/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { UI_Z, REGION_ID_MAX_LENGTH, REGION_ID_PATTERN, resolveAssetForm } from '@loredoku/shared';
+import type { DraftCell, DraftRegion, Asset, MapStyle, RegionStyle } from '@loredoku/shared';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
 import { regionAt } from '@/lib/region';
-import type { Selection } from '@/stores/editorStore';
+import { resolveRegionStyle, regionStyleEquals } from '@/lib/regionStyle';
+import type { RegionInput, Selection } from '@/stores/editorStore';
 
 interface EditorInfoDrawerProps {
   open: boolean;
@@ -13,111 +18,236 @@ interface EditorInfoDrawerProps {
   cells: Map<string, DraftCell>;
   regions: DraftRegion[];
   assetsById: Map<number, Asset>;
+  /**
+   * v0.7.0: the map-level style block. The region branch edits **resolved**
+   * values, and this is the default every field falls back to (docs/v0.7.0.md §5).
+   */
+  style: MapStyle;
   onClearCell: (x: number, y: number) => void;
   onClearItem: (x: number, y: number) => void;
-  onEditRegion: (region: DraftRegion) => void;
+  /** Saves the region's name / id / style. The store derives the minimal override. */
+  onSubmitRegion: (regionId: string, input: RegionInput) => void;
   onDeleteRegion: (region: DraftRegion) => void;
   onLocateRegion: (region: DraftRegion) => void;
+  /** Reports the region branch's dirty flag so the page can guard a leave. */
+  onRegionDirtyChange?: (dirty: boolean) => void;
   /**
    * v0.5.0 SPEC-K06 (docs/v0.5.0.md §4.3): the puzzle editor renders this same
    * drawer against its **read-only** canvas, so every action button
-   * (清空本格 / 清空物品层 / 编辑 / 定位 / 删除) must disappear. Default `false`
+   * (清空本格 / 清空物品层 / 保存 / 定位 / 删除) must disappear. Default `false`
    * keeps the map editor's behaviour untouched.
    */
   readOnly?: boolean;
 }
 
-// OPT-H10: a single compact bordered block replaces the two-column `dl` —
-// the region id moves into the `title` attribute so a uuid can no longer
-// squeeze the region name out of the row.
-function RegionInfo({ region }: { region: DraftRegion }): JSX.Element {
-  const regionId = String(region.id);
+/**
+ * v0.7.0 (docs/v0.7.0.md §5): the region branch **is** the editor now.
+ *
+ * The old 「编辑」dialog (颜色 / 边界线宽 / 填充透明度) moved here and became the
+ * three style groups; the left panel's pencil button is gone, so clicking a
+ * region in the list and clicking its label on the canvas open the same box.
+ *
+ * Every control edits a local draft seeded from the **resolved** style — the
+ * region's own override merged over the map-level defaults — and 保存 hands the
+ * resolved values to the store, which keeps only the fields that differ from the
+ * map default (`regionStyleOverride`). A region that agrees everywhere therefore
+ * carries no `style` key at all.
+ */
+function RegionEditBranch({
+  region,
+  regions,
+  style,
+  onSubmitRegion,
+  onDeleteRegion,
+  onLocateRegion,
+  onDirtyChange,
+}: {
+  region: DraftRegion;
+  regions: DraftRegion[];
+  style: MapStyle;
+  onSubmitRegion: (regionId: string, input: RegionInput) => void;
+  onDeleteRegion: (region: DraftRegion) => void;
+  onLocateRegion: (region: DraftRegion) => void;
+  onDirtyChange?: (dirty: boolean) => void;
+}): JSX.Element {
+  const resolved = useMemo(() => resolveRegionStyle(style, region.style), [style, region.style]);
+  const [name, setName] = useState(region.name);
+  const [regionId, setRegionId] = useState(region.id);
+  const [draft, setDraft] = useState<RegionStyle>(resolved);
+  const [error, setError] = useState<string | null>(null);
+
+  /**
+   * Re-seed when the committed region changes **what the form shows**: another
+   * region, a renamed one, or new committed style values (a save, an undo, a
+   * changed map-level default). A pure **cell** edit does not re-seed —
+   * shift+clicking more cells into the region must not drop the style the
+   * author is in the middle of typing.
+   */
+  const seedKey = `${region.id}\u0000${region.name}\u0000${JSON.stringify(resolved)}`;
+  const seedRef = useRef(seedKey);
+  useEffect(() => {
+    if (seedRef.current === seedKey) return;
+    seedRef.current = seedKey;
+    setName(region.name);
+    setRegionId(region.id);
+    setDraft(resolved);
+    setError(null);
+  }, [seedKey, region.name, region.id, resolved]);
+
+  const dirty =
+    name !== region.name || regionId !== region.id || !regionStyleEquals(draft, resolved);
+
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+
+  const save = (): void => {
+    const trimmedName = name.trim();
+    const trimmedId = regionId.trim();
+    if (!trimmedName) {
+      setError('请填写区域名称');
+      return;
+    }
+    if (!trimmedId) {
+      setError('请填写区域 ID');
+      return;
+    }
+    if (trimmedId.length > REGION_ID_MAX_LENGTH || !REGION_ID_PATTERN.test(trimmedId)) {
+      setError('区域 ID 只能包含字母、数字与下划线');
+      return;
+    }
+    if (regions.some((item) => item.id === trimmedId && item.id !== region.id)) {
+      setError('区域 ID 已存在，请更换');
+      return;
+    }
+    setError(null);
+    onSubmitRegion(region.id, {
+      id: trimmedId,
+      name: trimmedName,
+      cells: region.cells,
+      style: draft,
+    });
+  };
+
   return (
-    <div className="rounded-md border bg-muted/30 px-3 py-2" title={`区域 ID：${regionId}`}>
+    <section className="space-y-3">
       <div className="flex items-center gap-2">
-        <span
-          className="h-3 w-3 shrink-0 rounded-full border"
-          style={{ backgroundColor: region.color, borderColor: region.color }}
-        />
-        <span className="truncate text-sm" title={region.name}>
-          {region.name}
-        </span>
+        <h3 className="text-xs font-medium text-muted-foreground">区域信息</h3>
         <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
           包含 {region.cells.length} 格
         </span>
       </div>
-      <dl className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-        <div className="flex items-center gap-1">
-          <dt>边界线宽</dt>
-          <dd className="text-foreground">{region.borderWidth}</dd>
-        </div>
-        <span aria-hidden="true">·</span>
-        <div className="flex items-center gap-1">
-          <dt>填充</dt>
-          <dd className="text-foreground">{Math.round(region.fillOpacity * 100)}%</dd>
-        </div>
-      </dl>
-    </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="region-info-name" className="text-[11px] font-normal text-muted-foreground">
+          名称
+        </Label>
+        <Input
+          id="region-info-name"
+          value={name}
+          maxLength={100}
+          onChange={(event) => setName(event.target.value)}
+          className="h-7 text-xs"
+        />
+      </div>
+
+      <div className="grid gap-1.5">
+        <Label htmlFor="region-info-id" className="text-[11px] font-normal text-muted-foreground">
+          区域 ID
+        </Label>
+        <Input
+          id="region-info-id"
+          value={regionId}
+          maxLength={REGION_ID_MAX_LENGTH}
+          onChange={(event) => setRegionId(event.target.value)}
+          className="h-7 font-mono text-xs"
+        />
+        <span className="text-[10px] text-muted-foreground">仅字母、数字与下划线</span>
+      </div>
+
+      <RegionStyleEditor
+        idPrefix="region-info"
+        value={draft}
+        onChange={(next) => setDraft(next)}
+      />
+
+      {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
+
+      <div className="flex gap-1">
+        <Button
+          size="sm"
+          variant="default"
+          className="h-7 flex-1 text-[11px]"
+          disabled={!dirty}
+          onClick={save}
+        >
+          保存
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 flex-1 text-[11px]"
+          onClick={() => onLocateRegion(region)}
+        >
+          定位
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 flex-1 text-[11px] text-destructive hover:text-destructive"
+          onClick={() => onDeleteRegion(region)}
+        >
+          删除
+        </Button>
+      </div>
+    </section>
   );
 }
 
 /**
- * OPT-H10: the region's secondary actions travel as one optional object. The
- * cell branch omits it entirely (the region is read-only context there), the
- * region branch passes it, so the two branches share a single layout.
+ * SPEC-K06: the puzzle canvas is read-only, so the region branch is a summary
+ * of the **resolved** style (the map default stands in for anything the region
+ * does not override).
  */
-interface RegionActionHandlers {
-  onEdit: (region: DraftRegion) => void;
-  onDelete: (region: DraftRegion) => void;
-  onLocate: (region: DraftRegion) => void;
-}
-
-function RegionActions({
+function RegionSummary({
   region,
-  actions,
+  style,
 }: {
   region: DraftRegion;
-  actions: RegionActionHandlers;
+  style: MapStyle;
 }): JSX.Element {
-  return (
-    <div className="flex gap-1">
-      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => actions.onEdit(region)}>
-        编辑
-      </Button>
-      <Button size="sm" variant="outline" className="h-7 flex-1 text-[11px]" onClick={() => actions.onLocate(region)}>
-        定位
-      </Button>
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-7 flex-1 text-[11px] text-destructive hover:text-destructive"
-        onClick={() => actions.onDelete(region)}
-      >
-        删除
-      </Button>
-    </div>
-  );
-}
-
-function RegionSection({
-  region,
-  actions,
-}: {
-  region: DraftRegion | undefined;
-  /** Omitted by the cell branch → no 编辑 / 定位 / 删除 buttons. */
-  actions?: RegionActionHandlers;
-}): JSX.Element {
+  const resolved = resolveRegionStyle(style, region.style);
   return (
     <section className="space-y-2">
       <h3 className="text-xs font-medium text-muted-foreground">区域信息</h3>
-      {region ? (
-        <>
-          <RegionInfo region={region} />
-          {actions ? <RegionActions region={region} actions={actions} /> : null}
-        </>
-      ) : (
-        <p className="text-sm text-muted-foreground">无</p>
-      )}
+      <div className="rounded-md border bg-muted/30 px-3 py-2" title={`区域 ID：${region.id}`}>
+        <div className="flex items-center gap-2">
+          <span
+            className="h-3 w-3 shrink-0 rounded-full border"
+            style={{
+              backgroundColor: resolved.outline.color,
+              borderColor: resolved.outline.color,
+            }}
+          />
+          <span className="truncate text-sm" title={region.name}>
+            {region.name}
+          </span>
+          <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+            包含 {region.cells.length} 格
+          </span>
+        </div>
+        <dl className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-1">
+            <dt>轮廓线宽</dt>
+            <dd className="text-foreground">{resolved.outline.width}</dd>
+          </div>
+          <span aria-hidden="true">·</span>
+          <div className="flex items-center gap-1">
+            <dt>标签字号</dt>
+            <dd className="text-foreground">{resolved.label.fontSize}</dd>
+          </div>
+        </dl>
+      </div>
     </section>
   );
 }
@@ -126,6 +256,7 @@ function CellBranch({
   selection,
   cell,
   region,
+  style,
   assetsById,
   onClearCell,
   onClearItem,
@@ -134,6 +265,7 @@ function CellBranch({
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
   region: DraftRegion | undefined;
+  style: MapStyle;
   assetsById: Map<number, Asset>;
   onClearCell: (x: number, y: number) => void;
   onClearItem: (x: number, y: number) => void;
@@ -202,7 +334,8 @@ function CellBranch({
         )}
       </section>
 
-      <RegionSection region={region} />
+      {/* SPEC-K06: a read-only canvas shows the region as context only. */}
+      {region && readOnly ? <RegionSummary region={region} style={style} /> : null}
 
       {/* SPEC-K06: a read-only canvas has nothing to clear. */}
       {readOnly ? null : (
@@ -246,11 +379,13 @@ export function EditorInfoDrawer({
   cells,
   regions,
   assetsById,
+  style,
   onClearCell,
   onClearItem,
-  onEditRegion,
+  onSubmitRegion,
   onDeleteRegion,
   onLocateRegion,
+  onRegionDirtyChange,
   readOnly = false,
 }: EditorInfoDrawerProps): JSX.Element {
   const cell =
@@ -308,24 +443,28 @@ export function EditorInfoDrawer({
                 selection={selection}
                 cell={cell}
                 region={region}
+                style={style}
                 assetsById={assetsById}
                 onClearCell={onClearCell}
                 onClearItem={onClearItem}
                 readOnly={readOnly}
               />
+            ) : region ? (
+              readOnly ? (
+                <RegionSummary region={region} style={style} />
+              ) : (
+                <RegionEditBranch
+                  region={region}
+                  regions={regions}
+                  style={style}
+                  onSubmitRegion={onSubmitRegion}
+                  onDeleteRegion={onDeleteRegion}
+                  onLocateRegion={onLocateRegion}
+                  onDirtyChange={onRegionDirtyChange}
+                />
+              )
             ) : (
-              <RegionSection
-                region={region}
-                actions={
-                  readOnly
-                    ? undefined
-                    : {
-                        onEdit: onEditRegion,
-                        onDelete: onDeleteRegion,
-                        onLocate: onLocateRegion,
-                      }
-                }
-              />
+              <p className="text-sm text-muted-foreground">区域不存在或已删除</p>
             )}
           </div>
         </div>

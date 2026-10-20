@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import {
   DEFAULT_MAP_STYLE,
-  DEFAULT_REGION_COLOR,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   LINKAGE_COLOR_KEY_PATTERN,
@@ -13,33 +12,24 @@ import {
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
   MAP_STYLE_OPERATION_OFFSET_MIN,
-  MAP_STYLE_RULER_FONT_MAX,
-  MAP_STYLE_RULER_FONT_MIN,
-  MAP_STYLE_RULER_GAP_MAX,
-  MAP_STYLE_RULER_GAP_MIN,
   MAP_STYLE_REGION_LABEL_FONT_MAX,
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
+  MAP_STYLE_RULER_FONT_MAX,
+  MAP_STYLE_RULER_FONT_MIN,
+  MAP_STYLE_RULER_GAP_MAX,
+  MAP_STYLE_RULER_GAP_MIN,
   MAP_NOTE_MAX_LENGTH,
   PARTICIPANT_DISPLAY_NUMBER_MAX,
-  REGION_BORDER_WIDTH_DEFAULT,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
-  REGION_FILL_OPACITY_DEFAULT,
-  REGION_FILL_OPACITY_MAX,
-  REGION_FILL_OPACITY_MIN,
   REGION_NAME_MAX_LENGTH,
 } from '../constants';
 import { participantLinkagesSchema, themeColorSchema } from './participant';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 const cellKeySchema = z.string().regex(/^\d+,\d+$/, '单元格坐标格式应为 "x,y"');
-
-/** 区域底色：`#RRGGBB`，与样式里的颜色同一套写法。 */
-export const regionColorSchema = z
-  .string()
-  .regex(/^#[0-9a-fA-F]{6}$/, '颜色必须为 #RRGGBB 格式');
 
 // ---- v0.3.8 FEAT-D02 地图样式（地图级缺省值） ----
 /** Colours are `#RRGGBB`; the only exception is the cursor shadow ring. */
@@ -138,6 +128,11 @@ export const mapStyleSchema = z.object({
       .default(DEFAULT_MAP_STYLE.regionLabel.hoverFontSize),
     hoverColor: styleColorSchema.default(DEFAULT_MAP_STYLE.regionLabel.hoverColor),
     hoverStrokeColor: styleColorSchema.default(DEFAULT_MAP_STYLE.regionLabel.hoverStrokeColor),
+    hoverStrokeWidth: z
+      .number()
+      .min(MAP_STYLE_REGION_LABEL_STROKE_MIN)
+      .max(MAP_STYLE_REGION_LABEL_STROKE_MAX)
+      .default(DEFAULT_MAP_STYLE.regionLabel.hoverStrokeWidth),
   }).default(() => ({
     ...DEFAULT_MAP_STYLE.regionLabel,
   })),
@@ -209,24 +204,76 @@ export const draftCellSchema = z
   })
   .strict();
 
+// ---- v0.7.0 区域自有样式（docs/v0.7.0.md §4） ----
+/**
+ * 区域级覆盖：与地图级缺省同一套边界，但**没有默认值**——缺省在地图级，
+ * 区域只记自己改过的字段（深 partial）。三个子对象都可整个缺席。
+ */
+const regionOutlineOverrideSchema = z
+  .object({
+    width: z.number().int().min(REGION_BORDER_WIDTH_MIN).max(REGION_BORDER_WIDTH_MAX).optional(),
+    color: styleColorSchema.optional(),
+  })
+  .strict();
+
+const regionHighlightOverrideSchema = z
+  .object({
+    width: z.number().min(MAP_STYLE_LINE_WIDTH_MIN).max(MAP_STYLE_LINE_WIDTH_MAX).optional(),
+    color: styleColorSchema.optional(),
+  })
+  .strict();
+
+const regionLabelOverrideSchema = z
+  .object({
+    fontSize: z
+      .number()
+      .int()
+      .min(MAP_STYLE_REGION_LABEL_FONT_MIN)
+      .max(MAP_STYLE_REGION_LABEL_FONT_MAX)
+      .optional(),
+    strokeWidth: z
+      .number()
+      .min(MAP_STYLE_REGION_LABEL_STROKE_MIN)
+      .max(MAP_STYLE_REGION_LABEL_STROKE_MAX)
+      .optional(),
+    color: styleColorSchema.optional(),
+    strokeColor: styleColorSchema.optional(),
+    hoverFontSize: z
+      .number()
+      .int()
+      .min(MAP_STYLE_REGION_LABEL_FONT_MIN)
+      .max(MAP_STYLE_REGION_LABEL_FONT_MAX)
+      .optional(),
+    hoverColor: styleColorSchema.optional(),
+    hoverStrokeColor: styleColorSchema.optional(),
+    hoverStrokeWidth: z
+      .number()
+      .min(MAP_STYLE_REGION_LABEL_STROKE_MIN)
+      .max(MAP_STYLE_REGION_LABEL_STROKE_MAX)
+      .optional(),
+  })
+  .strict();
+
+export const regionStyleOverrideSchema = z
+  .object({
+    outline: regionOutlineOverrideSchema.optional(),
+    highlight: regionHighlightOverrideSchema.optional(),
+    label: regionLabelOverrideSchema.optional(),
+  })
+  .strict();
+
 export const draftRegionSchema = z
   .object({
     id: z.string().trim().min(1).max(64),
     name: z.string().trim().min(1, '区域名称不能为空').max(REGION_NAME_MAX_LENGTH),
-    color: regionColorSchema.default(DEFAULT_REGION_COLOR),
-    borderWidth: z
-      .number()
-      .int()
-      .min(REGION_BORDER_WIDTH_MIN)
-      .max(REGION_BORDER_WIDTH_MAX)
-      .default(REGION_BORDER_WIDTH_DEFAULT),
-    fillOpacity: z
-      .number()
-      .min(REGION_FILL_OPACITY_MIN)
-      .max(REGION_FILL_OPACITY_MAX)
-      .default(REGION_FILL_OPACITY_DEFAULT),
     cells: z.array(z.tuple([coordSchema, coordSchema])).min(1, '区域至少包含一个单元格'),
     labelCell: z.tuple([coordSchema, coordSchema]).nullable().optional(),
+    /**
+     * v0.7.0: replaces the flat `color` / `borderWidth` / `fillOpacity` trio.
+     * `.strict()` rejects a v6 region payload on write; migration
+     * `20260101000030` rewrote the stored rows.
+     */
+    style: regionStyleOverrideSchema.optional(),
   })
   .strict();
 

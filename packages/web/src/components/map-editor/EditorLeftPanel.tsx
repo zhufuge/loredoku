@@ -34,7 +34,6 @@ interface EditorLeftPanelProps {
   onSelectAsset: (asset: Asset | null, form: AssetForm | null) => void;
   onSetTool: (tool: EditorTool) => void;
   onSelectRegion: (id: string | null) => void;
-  onEditRegion: (region: DraftRegion) => void;
   onDeleteRegion: (region: DraftRegion) => void;
 }
 
@@ -51,7 +50,6 @@ export function EditorLeftPanel({
   onSelectAsset,
   onSetTool,
   onSelectRegion,
-  onEditRegion,
   onDeleteRegion,
 }: EditorLeftPanelProps): JSX.Element {
   const [tab, setTab] = useState<PanelTab>('assets');
@@ -90,8 +88,8 @@ export function EditorLeftPanel({
                   }}
                   className={
                     activeLayer === layer
-                      ? 'flex-1 rounded bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground'
-                      : 'flex-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent'
+                      ? 'flex-1 rounded bg-slate-200 px-2 py-1 text-xs font-medium text-slate-900 dark:bg-slate-700 dark:text-slate-100'
+                      : 'flex-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-700/70'
                   }
                 >
                   {LAYER_LABELS[layer]}
@@ -125,7 +123,6 @@ export function EditorLeftPanel({
                 regions={regions}
                 selectedRegionId={selectedRegionId}
                 onSelect={onSelectRegion}
-                onEdit={onEditRegion}
                 onDelete={onDeleteRegion}
               />
             </div>

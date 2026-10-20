@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { HelpCircle, RotateCcw, X } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
 import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
@@ -16,17 +16,12 @@ import {
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
   MAP_STYLE_OPERATION_OFFSET_MIN,
-  MAP_STYLE_REGION_LABEL_FONT_MAX,
-  MAP_STYLE_REGION_LABEL_FONT_MIN,
-  MAP_STYLE_REGION_LABEL_STROKE_MAX,
-  MAP_STYLE_REGION_LABEL_STROKE_MIN,
   MAP_STYLE_RULER_FONT_MAX,
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
-  REGION_BORDER_WIDTH_MAX,
-  REGION_BORDER_WIDTH_MIN,
   type MapStyle,
+  type RegionStyle,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ColorInput } from '@/components/ui/color-input';
@@ -34,14 +29,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CoverPicker } from '@/components/map/CoverPicker';
+import { ColorField, Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
+import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
 import { cn } from '@/lib/utils';
 import {
   clampCellSize,
   clampLineWidth,
   clampOperationOffset,
-  clampRegionBorderWidth,
-  clampRegionLabelFont,
-  clampRegionLabelStroke,
   clampRulerFontSize,
   clampRulerGap,
   isValidShadowColor,
@@ -106,7 +100,9 @@ interface MapInfoDrawerProps {
   onDirtyChange?: (dirty: boolean) => void;
 }
 
-/** Draft-then-commit wrapper so the store is only touched on 保存. */
+/**
+ * Draft-then-commit wrapper so the store is only touched on 保存.
+ */
 function useDraft<T>(source: T, open: boolean): [T, (next: T | ((current: T) => T)) => void] {
   const [draft, setDraft] = useState<T>(source);
   useEffect(() => {
@@ -115,183 +111,6 @@ function useDraft<T>(source: T, open: boolean): [T, (next: T | ((current: T) => 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
   return [draft, setDraft];
-}
-
-/**
- * v0.3.10 FIX-F02: a number field that writes through on **every** change.
- *
- * The previous implementation kept the parsed value in a local text buffer and
- * only committed on `blur` / `Enter`, so clicking the input's stepper buttons
- * left the draft (and therefore 保存) untouched. Now every keystroke and every
- * stepper click pushes the parsed value into the draft immediately; `blur` /
- * `Enter` only serve to roll back non-numeric input.
- *
- * The text buffer is deliberately **not** re-synced while the field has focus,
- * otherwise a clamped commit (e.g. typing `1` into a 90 ~ 240 field) would
- * rewrite the text under the user's cursor and make multi-digit entry
- * impossible.
- */
-function NumberField({
-  id,
-  value,
-  min,
-  max,
-  step = 1,
-  suffix,
-  commit,
-}: {
-  id: string;
-  value: number;
-  min: number;
-  max: number;
-  step?: number;
-  suffix?: string;
-  commit: (value: number) => void;
-}): JSX.Element {
-  const [draft, setDraft] = useState(String(value));
-  const focusedRef = useRef(false);
-
-  useEffect(() => {
-    if (focusedRef.current) return;
-    setDraft((current) => (current === String(value) ? current : String(value)));
-  }, [value]);
-
-  const flush = (): void => {
-    const text = draft.trim();
-    // An emptied field (a `type="number"` input reports `''` for anything
-    // non-numeric) is *not* a value — restore the committed one instead of
-    // silently committing 0.
-    if (text.length === 0) {
-      setDraft(String(value));
-      return;
-    }
-    const parsed = Number(text);
-    if (!Number.isFinite(parsed)) {
-      setDraft(String(value));
-      return;
-    }
-    commit(parsed);
-  };
-
-  return (
-    <div className="flex items-center gap-1">
-      <Input
-        id={id}
-        type="number"
-        min={min}
-        max={max}
-        step={step}
-        value={draft}
-        onChange={(event) => {
-          const text = event.target.value;
-          setDraft(text);
-          const parsed = Number(text);
-          if (text.trim().length > 0 && Number.isFinite(parsed)) commit(parsed);
-        }}
-        onFocus={() => {
-          focusedRef.current = true;
-        }}
-        onBlur={() => {
-          focusedRef.current = false;
-          flush();
-        }}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            flush();
-          }
-        }}
-        className="h-7 w-16 text-xs tabular-nums"
-      />
-      {suffix ? <span className="text-[10px] text-muted-foreground">{suffix}</span> : null}
-    </div>
-  );
-}
-
-/**
- * v0.3.10 FIX-F04: the colour swatch is the shared `ColorInput` — borderless,
- * with only a hairline ring so light swatches stay visible.
- */
-function ColorField({
-  id,
-  value,
-  commit,
-}: {
-  id: string;
-  value: string;
-  commit: (value: string) => void;
-}): JSX.Element {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  const flush = (): void => {
-    if (isValidStyleColor(draft)) commit(draft.trim().toUpperCase());
-    else setDraft(value);
-  };
-
-  return (
-    <div className="flex items-center gap-1">
-      <ColorInput
-        id={id}
-        value={isValidStyleColor(value) ? value : '#000000'}
-        onChange={(next) => {
-          setDraft(next);
-          commit(next);
-        }}
-        aria-label="选择颜色"
-      />
-      <Input
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={flush}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            flush();
-          }
-        }}
-        className="h-7 w-24 font-mono text-[11px]"
-      />
-    </div>
-  );
-}
-
-/**
- * SPEC-F01: every explanation lives behind a circular question-mark icon that
- * trails the label — no more `title` on the label itself and no more grey
- * paragraphs floating under the fields.
- */
-function Hint({ text }: { text: string }): JSX.Element {
-  return (
-    <span
-      className="ml-1 inline-flex shrink-0 items-center text-muted-foreground"
-      title={text}
-      aria-label={text}
-      role="img"
-    >
-      <HelpCircle className="h-3.5 w-3.5 cursor-help" />
-    </span>
-  );
-}
-
-function Row({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}): JSX.Element {
-  return (
-    <div className="flex items-center justify-between gap-2">
-      <Label className="flex items-center text-[11px] font-normal text-muted-foreground">
-        <span>{label}</span>
-        {hint ? <Hint text={hint} /> : null}
-      </Label>
-      {children}
-    </div>
-  );
 }
 
 function Section({
@@ -781,180 +600,29 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
               </Row>
             </div>
 
-            <Row
-              label="区域轮廓线"
-              hint="Region Outline — 区域外轮廓的描线。改色对所有区域生效；改线宽会同步写入所有现存区域，并成为新建区域的缺省值。区域自身的颜色仍用于区域填充。"
-            >
-              <div className="flex items-center gap-1">
-                <NumberField
-                  id="map-info-region-outline-width"
-                  value={draft.regionOutline.width}
-                  min={REGION_BORDER_WIDTH_MIN}
-                  max={REGION_BORDER_WIDTH_MAX}
-                  commit={(value) =>
-                    patch((current) => ({
-                      ...current,
-                      regionOutline: {
-                        ...current.regionOutline,
-                        width: clampRegionBorderWidth(value),
-                      },
-                    }))
-                  }
-                />
-                <ColorField
-                  id="map-info-region-outline-color"
-                  value={draft.regionOutline.color}
-                  commit={(value) =>
-                    patch((current) => ({
-                      ...current,
-                      regionOutline: { ...current.regionOutline, color: value },
-                    }))
-                  }
-                />
-              </div>
-            </Row>
-
-            <Row
-              label="区域高亮线"
-              hint="Region Highlight — 区域被悬停或联动激活时出现的内侧高亮线，连续闭合；激活期间常亮，结束时 150ms 淡出。"
-            >
-              <div className="flex items-center gap-1">
-                <NumberField
-                  id="map-info-region-highlight-width"
-                  value={draft.regionHighlight.width}
-                  min={MAP_STYLE_LINE_WIDTH_MIN}
-                  max={MAP_STYLE_LINE_WIDTH_MAX}
-                  commit={(value) =>
-                    patch((current) => ({
-                      ...current,
-                      regionHighlight: {
-                        ...current.regionHighlight,
-                        width: clampLineWidth(value),
-                      },
-                    }))
-                  }
-                />
-                <ColorField
-                  id="map-info-region-highlight-color"
-                  value={draft.regionHighlight.color}
-                  commit={(value) =>
-                    patch((current) => ({
-                      ...current,
-                      regionHighlight: { ...current.regionHighlight, color: value },
-                    }))
-                  }
-                />
-              </div>
-            </Row>
           </Section>
 
-          {/* ---- 区域标签 ---- */}
+          {/* ---- 区域 ---- */}
           <Section
-            title="区域标签"
-            hint="Region Label — 区域名称文字，采用「描边 + 填充」绘制，在深浅背景上都可读。"
+            title="区域"
+            hint="Region — 区域外观的缺省值。区域信息框默认填入这里的数值，只有与缺省不同的字段才会记到区域自己身上。"
           >
-            <Row label="字体大小">
-              <NumberField
-                id="map-info-label-font"
-                value={draft.regionLabel.fontSize}
-                min={MAP_STYLE_REGION_LABEL_FONT_MIN}
-                max={MAP_STYLE_REGION_LABEL_FONT_MAX}
-                suffix="px"
-                commit={(value) =>
-                  patch((current) => ({
-                    ...current,
-                    regionLabel: {
-                      ...current.regionLabel,
-                      fontSize: clampRegionLabelFont(value),
-                    },
-                  }))
-                }
-              />
-            </Row>
-            <Row label="描边大小">
-              <NumberField
-                id="map-info-label-stroke"
-                value={draft.regionLabel.strokeWidth}
-                min={MAP_STYLE_REGION_LABEL_STROKE_MIN}
-                max={MAP_STYLE_REGION_LABEL_STROKE_MAX}
-                suffix="px"
-                commit={(value) =>
-                  patch((current) => ({
-                    ...current,
-                    regionLabel: {
-                      ...current.regionLabel,
-                      strokeWidth: clampRegionLabelStroke(value),
-                    },
-                  }))
-                }
-              />
-            </Row>
-            <Row label="字体颜色">
-              <ColorField
-                id="map-info-label-color"
-                value={draft.regionLabel.color}
-                commit={(value) =>
-                  patch((current) => ({
-                    ...current,
-                    regionLabel: { ...current.regionLabel, color: value },
-                  }))
-                }
-              />
-            </Row>
-            <Row label="描边颜色">
-              <ColorField
-                id="map-info-label-stroke-color"
-                value={draft.regionLabel.strokeColor}
-                commit={(value) =>
-                  patch((current) => ({
-                    ...current,
-                    regionLabel: { ...current.regionLabel, strokeColor: value },
-                  }))
-                }
-              />
-            </Row>
-            <Row label="高亮字体大小">
-              <NumberField
-                id="map-info-label-hover-font"
-                value={draft.regionLabel.hoverFontSize}
-                min={MAP_STYLE_REGION_LABEL_FONT_MIN}
-                max={MAP_STYLE_REGION_LABEL_FONT_MAX}
-                suffix="px"
-                commit={(value) =>
-                  patch((current) => ({
-                    ...current,
-                    regionLabel: {
-                      ...current.regionLabel,
-                      hoverFontSize: clampRegionLabelFont(value),
-                    },
-                  }))
-                }
-              />
-            </Row>
-            <Row label="高亮字体颜色">
-              <ColorField
-                id="map-info-label-hover-color"
-                value={draft.regionLabel.hoverColor}
-                commit={(value) =>
-                  patch((current) => ({
-                    ...current,
-                    regionLabel: { ...current.regionLabel, hoverColor: value },
-                  }))
-                }
-              />
-            </Row>
-            <Row label="高亮描边颜色">
-              <ColorField
-                id="map-info-label-hover-stroke"
-                value={draft.regionLabel.hoverStrokeColor}
-                commit={(value) =>
-                  patch((current) => ({
-                    ...current,
-                    regionLabel: { ...current.regionLabel, hoverStrokeColor: value },
-                  }))
-                }
-              />
-            </Row>
+            <RegionStyleEditor
+              idPrefix="map-info-region"
+              value={{
+                outline: draft.regionOutline,
+                highlight: draft.regionHighlight,
+                label: draft.regionLabel,
+              }}
+              onChange={(next) =>
+                patch((current) => ({
+                  ...current,
+                  regionOutline: next.outline,
+                  regionHighlight: next.highlight,
+                  regionLabel: next.label,
+                }))
+              }
+            />
           </Section>
 
           {/* ---- 标尺 ---- */}

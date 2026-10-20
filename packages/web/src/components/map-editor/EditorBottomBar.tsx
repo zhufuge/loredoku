@@ -2,19 +2,20 @@ import {
   BoxSelect,
   Eraser,
   Grid3x3,
+  Hand,
   Maximize,
   MousePointer2,
-  Paintbrush,
   Package,
   Redo2,
   Ruler,
-  Square,
   Undo2,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react';
-import type { EditorTool, RegionShape } from '@loredoku/shared';
+import type { Asset, AssetForm, EditorTool } from '@loredoku/shared';
+import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { Button } from '@/components/ui/button';
+import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
 const TOOLS: Array<{
@@ -25,7 +26,7 @@ const TOOLS: Array<{
   icon: typeof MousePointer2;
 }> = [
   { id: 'select', label: '选择 / 放置', hint: 'V', icon: MousePointer2 },
-  { id: 'region', label: '区域选择', hint: 'R', icon: BoxSelect },
+  { id: 'region', label: '区域选择', hint: 'R', icon: BoxSelect, tip: '自由笔刷：按住涂抹' },
   {
     id: 'eraser',
     label: '橡皮擦',
@@ -33,31 +34,26 @@ const TOOLS: Array<{
     tip: '按 物品 → 背景 顺序逐层清除',
     icon: Eraser,
   },
+  { id: 'pan', label: '平移', hint: 'H', tip: '拖动画布平移视图', icon: Hand },
   // OPT-H11: the character-placement button (C) is gone — since CLAR-603
   // characters never enter the map, so the entry point was a dead end.
   // Participants reach the board through the left 「角色」 tab → 加入 → drag from
   // the participant area. `EditorTool` keeps the `'character'` member on purpose
   // (§17 Q8).
-  // v0.3.9 FEAT-E03: the pan tool button is gone — dragging the empty area
-  // outside the board pans the canvas directly, and Space/中键 still work.
-];
-
-const SHAPES: Array<{ id: RegionShape; label: string; icon: typeof Square }> = [
-  { id: 'rect', label: '矩形', icon: Square },
-  { id: 'brush', label: '自由笔刷', icon: Paintbrush },
 ];
 
 interface EditorBottomBarProps {
   activeTool: EditorTool;
-  regionShape: RegionShape;
   canUndo: boolean;
   canRedo: boolean;
   zoom: number;
   gridSize: number;
   itemsOpen: boolean;
   rulerVisible: boolean;
+  /** 当前将要放置的资源（左面板选中态解析出来的 asset + form；null = 未选中）。 */
+  selectedAsset: Asset | null;
+  selectedForm: AssetForm | null;
   onSetTool: (tool: EditorTool) => void;
-  onSetRegionShape: (shape: RegionShape) => void;
   onUndo: () => void;
   onRedo: () => void;
   onZoomIn: () => void;
@@ -67,19 +63,21 @@ interface EditorBottomBarProps {
   onToggleItems: () => void;
   onToggleRuler: () => void;
   onOpenResize: () => void;
+  /** 点「当前资源」芯片：把左面板找回来（收起态下唯一的选中资源指示器）。 */
+  onRevealItems: () => void;
 }
 
 export function EditorBottomBar({
   activeTool,
-  regionShape,
   canUndo,
   canRedo,
   zoom,
   gridSize,
   itemsOpen,
   rulerVisible,
+  selectedAsset,
+  selectedForm,
   onSetTool,
-  onSetRegionShape,
   onUndo,
   onRedo,
   onZoomIn,
@@ -89,18 +87,23 @@ export function EditorBottomBar({
   onToggleItems,
   onToggleRuler,
   onOpenResize,
+  onRevealItems,
 }: EditorBottomBarProps): JSX.Element {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
       <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-full border bg-background px-4 py-2 shadow-lg">
         {TOOLS.map((tool) => {
           const Icon = tool.icon;
+          const active = activeTool === tool.id;
           return (
             <Button
               key={tool.id}
-              variant={activeTool === tool.id ? 'secondary' : 'ghost'}
+              variant="ghost"
               size="icon"
-              className="h-9 w-9 rounded-full"
+              className={cn(
+                'h-9 w-9 rounded-full',
+                active && TOOLBAR_ICON_ACTIVE_CLASS,
+              )}
               title={[`${tool.label} (${tool.hint})`, tool.tip].filter(Boolean).join(' · ')}
               onClick={() => onSetTool(tool.id)}
             >
@@ -109,33 +112,15 @@ export function EditorBottomBar({
           );
         })}
 
-        {activeTool === 'region' ? (
-          <>
-            <span className="mx-1 h-6 w-px bg-border" />
-            {SHAPES.map((shape) => {
-              const Icon = shape.icon;
-              return (
-                <Button
-                  key={shape.id}
-                  variant={regionShape === shape.id ? 'secondary' : 'ghost'}
-                  size="icon"
-                  className="h-9 w-9 rounded-full"
-                  title={shape.label}
-                  onClick={() => onSetRegionShape(shape.id)}
-                >
-                  <Icon className="h-4 w-4" />
-                </Button>
-              );
-            })}
-          </>
-        ) : null}
-
         <span className="mx-1 h-6 w-px bg-border" />
 
         <Button
-          variant={itemsOpen ? 'secondary' : 'ghost'}
+          variant="ghost"
           size="sm"
-          className="h-9 gap-1 rounded-full px-3 text-xs"
+          className={cn(
+            'h-9 gap-1 rounded-full px-3 text-xs',
+            itemsOpen ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
+          )}
           title="物品抽屉"
           onClick={onToggleItems}
         >
@@ -143,12 +128,47 @@ export function EditorBottomBar({
           物品
         </Button>
 
+        {/*
+          当前放置资源：左面板收起后这里是唯一的选中指示。**未选中时整块不渲染**
+          （没有占位框、也没有「未选择资源」文案）——工具条保持干净，槽位不存在
+          也就无所谓跳动。选中态用与工具按钮同一档的实心淡灰。
+        */}
+        {selectedAsset && selectedForm ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'h-9 max-w-[12rem] gap-1.5 overflow-hidden rounded-full px-2 text-xs',
+              TOOLBAR_ICON_ACTIVE_CLASS,
+            )}
+            title={`当前放置：${selectedAsset.name}${
+              selectedAsset.forms.length > 1 ? ` · ${selectedForm.name}` : ''
+            } · ${selectedForm.widthCells}×${selectedForm.heightCells}（点击展开资源面板）`}
+            onClick={onRevealItems}
+          >
+            <AssetThumbnail
+              appearance={selectedForm}
+              name={selectedAsset.name}
+              className="h-6 w-6 shrink-0"
+            />
+            <span className="min-w-0 truncate">{selectedAsset.name}</span>
+            {selectedAsset.forms.length > 1 ? (
+              <span className="shrink-0 text-[11px] text-muted-foreground">
+                {selectedForm.name}
+              </span>
+            ) : null}
+          </Button>
+        ) : null}
+
         <span className="mx-1 h-6 w-px bg-border" />
 
         <Button
-          variant={rulerVisible ? 'secondary' : 'ghost'}
+          variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn(
+            'h-9 w-9 rounded-full',
+            rulerVisible ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
+          )}
           title="显示 / 隐藏标尺"
           onClick={onToggleRuler}
         >
@@ -158,7 +178,7 @@ export function EditorBottomBar({
         <Button
           variant="ghost"
           size="sm"
-          className="h-9 gap-1 rounded-full px-3 text-xs tabular-nums"
+          className={cn('h-9 gap-1 rounded-full px-3 text-xs tabular-nums', TOOLBAR_ICON_HOVER_CLASS)}
           title="画布尺寸 n（与「基本信息」中的 n 一致）"
           onClick={onOpenResize}
         >
@@ -171,7 +191,7 @@ export function EditorBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="整体缩小查看（不修改方格大小）"
           onClick={onZoomOut}
         >
@@ -183,7 +203,7 @@ export function EditorBottomBar({
           title="重置查看比例为 100%（不修改方格大小）"
           className={cn(
             'h-9 min-w-[3.5rem] rounded-full px-2 text-xs tabular-nums text-muted-foreground',
-            'hover:bg-accent hover:text-foreground',
+            'hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70',
           )}
         >
           {Math.round(zoom * 100)}%
@@ -191,7 +211,7 @@ export function EditorBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="整体放大查看（不修改方格大小）"
           onClick={onZoomIn}
         >
@@ -200,7 +220,7 @@ export function EditorBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="适应画布（重算自适应方格大小并重置查看比例）"
           onClick={onFit}
         >
@@ -212,7 +232,7 @@ export function EditorBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="撤销 (Ctrl+Z)"
           disabled={!canUndo}
           onClick={onUndo}
@@ -222,7 +242,7 @@ export function EditorBottomBar({
         <Button
           variant="ghost"
           size="icon"
-          className="h-9 w-9 rounded-full"
+          className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
           title="重做 (Ctrl+Shift+Z)"
           disabled={!canRedo}
           onClick={onRedo}

@@ -6,63 +6,19 @@ export function coordKey(x: number, y: number): string {
   return `${x},${y}`;
 }
 
-export function rectCells(a: Coord, b: Coord): Coord[] {
-  const minX = Math.min(a[0], b[0]);
-  const maxX = Math.max(a[0], b[0]);
-  const minY = Math.min(a[1], b[1]);
-  const maxY = Math.max(a[1], b[1]);
-  const cells: Coord[] = [];
-  for (let y = minY; y <= maxY; y += 1) {
-    for (let x = minX; x <= maxX; x += 1) {
-      cells.push([x, y]);
-    }
-  }
-  return cells;
-}
-
-export interface RegionPointerUpResult {
-  toAdd: Coord[];
-  toRemove: Coord[];
-  /** Next click-anchor: set after a lone click, cleared once a rectangle is committed. */
-  anchor: Coord | null;
+export function regionCellSet(region: DraftRegion): Set<string> {
+  return new Set(region.cells.map(([x, y]) => coordKey(x, y)));
 }
 
 /**
- * Resolve what a region-tool pointerup should do (see docs/v0.2.4.md FIX-302).
+ * v0.7.0: 区域自由笔刷这一笔是「添加」还是「清除」。
  *
- * - First click (no anchor, no movement): toggles the cell in and remembers it as
- *   an anchor so the next click forms a rectangle.
- * - Second click / drag: expands `[anchor..end]` and appends it. `Alt` removes.
- * - Double-click on the same cell removes it (toggle off).
+ * 矩形模式退役后，纠正单个错格不能再靠「再点一次取消」——规则改成看**起点
+ * 格**：起点格已在选区里，整笔就是清除；`Alt` 永远强制清除。一笔之内方向固
+ * 定，不会出现画到一半反过来把刚抹上的又擦掉。
  */
-export function resolveRegionPointerUp(input: {
-  anchor: Coord;
-  end: Coord;
-  moved: boolean;
-  alt: boolean;
-  anchored: boolean;
-}): RegionPointerUpResult {
-  const { anchor, end, moved, alt, anchored } = input;
-  const same = anchor[0] === end[0] && anchor[1] === end[1];
-
-  if (!anchored && !moved) {
-    return alt
-      ? { toAdd: [], toRemove: [anchor], anchor }
-      : { toAdd: [anchor], toRemove: [], anchor };
-  }
-
-  if (anchored && !moved && same) {
-    return { toAdd: [], toRemove: [anchor], anchor: null };
-  }
-
-  const rect = rectCells(anchor, end);
-  return alt
-    ? { toAdd: [], toRemove: rect, anchor: null }
-    : { toAdd: rect, toRemove: [], anchor: null };
-}
-
-export function regionCellSet(region: DraftRegion): Set<string> {
-  return new Set(region.cells.map(([x, y]) => coordKey(x, y)));
+export function brushStrokeErases(startSelected: boolean, alt: boolean): boolean {
+  return alt || startSelected;
 }
 
 export interface Edge {

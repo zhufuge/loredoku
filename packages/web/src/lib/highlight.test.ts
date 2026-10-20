@@ -22,9 +22,6 @@ const regions: DraftRegion[] = [
   {
     id: 'rg_forest',
     name: '森林区',
-    color: '#000000',
-    borderWidth: 6,
-    fillOpacity: 0,
     cells: [
       [2, 2],
       [3, 2],

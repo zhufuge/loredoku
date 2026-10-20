@@ -103,9 +103,6 @@ function item(overrides: Partial<Asset> = {}): Asset {
 const region: DraftRegion = {
   id: 'rg_a',
   name: 'A 区',
-  color: '#000000',
-  borderWidth: 6,
-  fillOpacity: 0,
   cells: [
     [1, 1],
     [2, 1],
@@ -131,8 +128,11 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
   it('keeps the ordering rules the spec calls out explicitly', () => {
     // "「物品」位于 Border 之上" — items are never cut by the grid lines.
     expect(layerZ('itemLayer')).toBeGreaterThan(layerZ('gridSeparator'));
-    // "「区域边界线」位于 Border 之下" — the Border stays readable.
-    expect(layerZ('regionOutline')).toBeLessThan(layerZ('gridSeparator'));
+    // v0.7.0 fix: 区域轮廓线跃过 画布外框 / 网格分隔线（用户指定次序）,
+    // 但仍压在物品图层之下 —— 物品图不被轮廓线割断。
+    expect(layerZ('regionOutline')).toBeGreaterThan(layerZ('canvasFrame'));
+    expect(layerZ('regionOutline')).toBeGreaterThan(layerZ('gridSeparator'));
+    expect(layerZ('regionOutline')).toBeLessThan(layerZ('itemLayer'));
     // The board frame sits below the items, above the separators.
     expect(layerZ('canvasFrame')).toBeLessThan(layerZ('itemLayer'));
     expect(layerZ('canvasFrame')).toBeGreaterThan(layerZ('gridSeparator'));

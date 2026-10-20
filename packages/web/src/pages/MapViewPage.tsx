@@ -13,7 +13,6 @@ import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
 import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
-  MapRegionFillLayer,
   MapRegionHighlightLayer,
   MapRegionOutlineLayer,
 } from '@/components/map/MapRegionLayers';
@@ -404,7 +403,6 @@ export function MapViewPage(): JSX.Element {
 
           {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
           <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
-          <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
           <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
           <MapBlockingMaskLayer blockingCells={blockingCells} cellSize={cellSize} style={style} />
           <MapRegionOutlineLayer

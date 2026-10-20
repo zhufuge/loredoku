@@ -42,7 +42,6 @@ import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/Map
 import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import { MapGamePlacementLayer, MapGameToolHintLayer } from '@/components/map/MapGameLayers';
 import {
-  MapRegionFillLayer,
   MapRegionHighlightLayer,
   MapRegionOutlineLayer,
 } from '@/components/map/MapRegionLayers';
@@ -68,6 +67,8 @@ import {
 } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import { rosterPanelWidthFor } from '@/lib/participantLayout';
+import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
+import { cn } from '@/lib/utils';
 import {
   collectBlockingCells,
   collectItemCells,
@@ -770,6 +771,7 @@ export function GamePage(): JSX.Element {
               <Button
                 variant="ghost"
                 size="icon"
+                className={TOOLBAR_ICON_HOVER_CLASS}
                 onClick={() => navigate('/play')}
                 title="返回游戏列表"
               >
@@ -914,7 +916,6 @@ export function GamePage(): JSX.Element {
                 SPEC-G01: the game page drops 操作光标框 and adds the two
                 game-only layers above 区域标签. */}
             <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
-            <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
             <MapHighlightLayer
               highlight={highlight}
               regions={regions}
@@ -1007,7 +1008,10 @@ export function GamePage(): JSX.Element {
         <aside className="flex w-[84px] shrink-0 flex-col items-center gap-2 border-l bg-background p-2">
           <Button
             variant="ghost"
-            className={`h-12 w-full ${mode.kind === 'forbidden' ? 'bg-accent text-accent-foreground' : ''}`}
+            className={cn(
+              'h-12 w-full',
+              mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
+            )}
             title="禁止符号：标记该格为排除项"
             onClick={() => toggleTool('forbidden')}
           >
@@ -1015,7 +1019,10 @@ export function GamePage(): JSX.Element {
           </Button>
           <Button
             variant="ghost"
-            className={`h-12 w-full ${mode.kind === 'clearing' ? 'bg-accent text-accent-foreground' : ''}`}
+            className={cn(
+              'h-12 w-full',
+              mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
+            )}
             title="清除工具：清除该格放置；长按清空全部"
             onPointerDown={startClearPress}
             onPointerUp={endClearPress}
@@ -1025,7 +1032,7 @@ export function GamePage(): JSX.Element {
           </Button>
           <Button
             variant="ghost"
-            className="h-12 w-full"
+            className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
             title={canUndo(placementState) ? '回退上一步' : '没有可回退的操作'}
             disabled={!canUndo(placementState)}
             onClick={() => updatePlacement(undo)}
@@ -1034,7 +1041,10 @@ export function GamePage(): JSX.Element {
           </Button>
           <Button
             variant="ghost"
-            className={`h-12 w-full ${hasSubmitted ? 'bg-accent text-accent-foreground' : ''}`}
+            className={cn(
+              'h-12 w-full',
+              hasSubmitted ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
+            )}
             title={hasSubmitted ? '已提交，可继续摆放后再次提交' : '提交当前摆放（先校验）'}
             onClick={submit}
           >
@@ -1046,6 +1056,7 @@ export function GamePage(): JSX.Element {
             <Button
               variant="ghost"
               size="icon"
+              className={TOOLBAR_ICON_HOVER_CLASS}
               title="放大"
               aria-label="放大"
               disabled={zoom >= ZOOM_MAX}
@@ -1059,6 +1070,7 @@ export function GamePage(): JSX.Element {
             <Button
               variant="ghost"
               size="icon"
+              className={TOOLBAR_ICON_HOVER_CLASS}
               title="缩小"
               aria-label="缩小"
               disabled={zoom <= ZOOM_MIN}
@@ -1066,13 +1078,20 @@ export function GamePage(): JSX.Element {
             >
               <Minus className="h-4 w-4" />
             </Button>
-            <Button variant="ghost" size="icon" title="重置视图" aria-label="重置视图" onClick={fit}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={TOOLBAR_ICON_HOVER_CLASS}
+              title="重置视图"
+              aria-label="重置视图"
+              onClick={fit}
+            >
               <RotateCcw className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className={showRulers ? 'bg-accent text-accent-foreground' : undefined}
+              className={cn(showRulers ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS)}
               title="显示 / 隐藏标尺"
               aria-label="显示 / 隐藏标尺"
               onClick={() => setShowRulers((current) => !current)}

@@ -8,7 +8,7 @@ const context = {
     '1,1': { item: { assetId: 34, w: 1, h: 1 } },
     '2,2': { background: { assetId: 5 } },
   },
-  regions: [{ id: 'rg_a1b2c3', name: '森林区', color: '#000000', borderWidth: 2, fillOpacity: 0.2, cells: [[2, 2]] as Array<[number, number]> }],
+  regions: [{ id: 'rg_a1b2c3', name: '森林区', cells: [[2, 2]] as Array<[number, number]> }],
 };
 
 function draft(slots: PuzzleDraft['characterSlots']): PuzzleDraft {

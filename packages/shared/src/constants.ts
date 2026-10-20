@@ -37,9 +37,9 @@ export const BORDER_WIDTH = 2;
 export const OUTLINE_WIDTH = 3;
 /** OPT-C05 (docs/v0.3.7.md §OPT-C05): 1px → 2px so the mouse box reads like the operation box. */
 export const INNER_LINE_WIDTH = 2;
-/** Region outline width range — the region's own `borderWidth` attribute. */
+/** Region outline width range — the region's own `style.outline.width` override. */
 export const REGION_BORDER_WIDTH = 6;
-/** OPT-B04 (docs/v0.3.6.md §4): the board frame never follows a region's custom `borderWidth`. */
+/** OPT-B04 (docs/v0.3.6.md §4): the board frame never follows a region's custom outline width. */
 export const CANVAS_OUTER_BORDER_WIDTH = REGION_BORDER_WIDTH;
 
 // Deprecated aliases (kept so older imports keep compiling).
@@ -85,15 +85,11 @@ export const CARD_ROTATIONS = [0, 90, 180, 270] as const;
 // ---- Region ----
 export const REGION_NAME_MAX_LENGTH = 100;
 export const REGION_DESCRIPTION_MAX_LENGTH = 500;
+/** 区域轮廓线线宽边界：与地图级缺省同一套，区域只能在区间内覆盖。 */
 export const REGION_BORDER_WIDTH_MIN = 4;
 export const REGION_BORDER_WIDTH_MAX = 12;
-export const REGION_BORDER_WIDTH_DEFAULT = 6;
-export const REGION_FILL_OPACITY_MIN = 0;
-export const REGION_FILL_OPACITY_MAX = 1;
-export const REGION_FILL_OPACITY_DEFAULT = 0;
-export const REGION_TRANSPARENT_FILL_OPACITY = 0.3;
+/** 区域轮廓线的地图级缺省颜色。 */
 export const DEFAULT_REGION_COLOR = '#000000';
-export const REGION_SHAPES = ['rect', 'brush'] as const;
 export const REGION_ID_MAX_LENGTH = 64;
 export const REGION_ID_PATTERN = /^[A-Za-z0-9_]+$/;
 
@@ -170,8 +166,13 @@ export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
  * v0.6.1 (background forms): v6 — a background cell may carry `formId` too, now
  * that a background asset may own several forms. Same deal: optional, and the
  * fallback is the asset's first form.
+ *
+ * v0.7.0: v7 — a region's own display style moved off `color` / `borderWidth` /
+ * `fillOpacity` onto `style`, a deep partial over the map-level defaults (the
+ * fill is gone entirely). Schemas are `.strict()`, so a v6 region payload is
+ * rejected on write and rewritten on read by migration `20260101000030`.
  */
-export const MAP_JSON_VERSION = 6;
+export const MAP_JSON_VERSION = 7;
 
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
@@ -233,17 +234,16 @@ export const THEME_COLOR_PALETTE = [
  * Keys are that document's 代码常量 names, so code, docs and
  * UI share one vocabulary. v0.4.0 SPEC-G01/G02 inserted the two game-only
  * layers between 区域标签 and 物品图层, renumbering the stack.
- */
-export const MAP_LAYER_ORDER = [
+ */export const MAP_LAYER_ORDER = [
   'mouseCursorBox',
   'operationCursorBox',
   'regionLabel',
   'gameToolHint',
   'gamePlacement',
   'itemLayer',
+  'regionOutline',
   'canvasFrame',
   'gridSeparator',
-  'regionOutline',
   'blockingMask',
   'regionHighlight',
   'cellHighlight',
@@ -267,12 +267,12 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   gamePlacement: 40,
   /** 6 物品图层 — above the grid lines so items are never cut by them. */
   itemLayer: 38,
-  /** 7 画布外框 — drawn outside the board rectangle. */
-  canvasFrame: 36,
-  /** 8 网格分隔线（内部分隔线） */
-  gridSeparator: 34,
-  /** 9 区域轮廓线 — below the grid lines so the separators stay readable. */
-  regionOutline: 32,
+  /** 7 区域轮廓线 — above 画布外框 / 网格分隔线, below the item layer. */
+  regionOutline: 36,
+  /** 8 画布外框 — 骑在画布边界上. */
+  canvasFrame: 34,
+  /** 9 网格分隔线（内部分隔线） */
+  gridSeparator: 32,
   /** 10 阻挡遮罩 — below 区域轮廓线, above 区域高亮线. */
   blockingMask: 30,
   /** 11 区域高亮线 */
@@ -286,9 +286,6 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   /** 15 画布底色 */
   canvasBase: 10,
 };
-
-/** 区域填充 — a v0.2.5 leftover parked between 背景图层 and 背景高亮 (`layer-priority.md` §1). */
-export const REGION_FILL_Z = MAP_LAYER_Z.backgroundLayer + 2;
 
 // ---- Map style ----
 /**
@@ -335,6 +332,8 @@ export const STYLE_DEFAULT_REGION_LABEL_FONT_SIZE = 32;
 export const STYLE_DEFAULT_REGION_LABEL_STROKE_WIDTH = 10;
 /** §2: the hovered label must be **larger** than the idle one (32 → 36). */
 export const STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE = 36;
+/** v0.7.0: the hovered label keeps the idle stroke size by default. */
+export const STYLE_DEFAULT_REGION_LABEL_HOVER_STROKE_WIDTH = 10;
 
 // ---- v0.5.2 FEAT-M01: 虚拟列表 ----
 /** Fixed row height (px) shared by the asset and character lists. */
@@ -520,6 +519,8 @@ export interface MapStyleRegionLabel {
   hoverFontSize: number;
   hoverColor: string;
   hoverStrokeColor: string;
+  /** v0.7.0 (docs/v0.7.0.md §4): the hovered label's stroke size. */
+  hoverStrokeWidth: number;
 }
 
 /** v0.3.9 FEAT-E02: ruler text size + the text→board gap. */
@@ -548,6 +549,34 @@ export interface MapStyle {
   ruler: MapStyleRuler;
 }
 
+// ---- v0.7.0 区域自有样式（docs/v0.7.0.md §4） ----
+/**
+ * 一条线的区域级覆盖：形状与它覆盖的地图级缺省相同（轮廓线线宽是整数，
+ * 高亮线线宽可以是小数，边界由 zod 分别把守）。
+ */
+export type RegionLineStyle = MapStyleLine;
+
+/** 区域标签的区域级覆盖：与 `MapStyleRegionLabel` 同字段。 */
+export type RegionLabelStyle = MapStyleRegionLabel;
+
+/** The resolved region style: the map-level defaults with the region's overrides merged in. */
+export interface RegionStyle {
+  outline: RegionLineStyle;
+  highlight: RegionLineStyle;
+  label: RegionLabelStyle;
+}
+
+/**
+ * 区域样式的**存储形态**：对地图级缺省的深 partial，只记差异。渲染时
+ * `resolveRegionStyle(地图级缺省, override)` 合成完整值；三者全等于缺省时
+ * 整个 `style` 键不落盘（`regionStyleOverride` 助手负责这件事）。
+ */
+export interface RegionStyleOverride {
+  outline?: Partial<RegionLineStyle>;
+  highlight?: Partial<RegionLineStyle>;
+  label?: Partial<RegionLabelStyle>;
+}
+
 /** Declared after every constant it reads, to avoid the temporal dead zone on import. */
 export const DEFAULT_MAP_STYLE: MapStyle = {
   /** FEAT-D03: `null` means "whatever the first adaptive pass computed". */
@@ -574,6 +603,7 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
     hoverFontSize: STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE,
     hoverColor: REGION_LABEL_COLOR,
     hoverStrokeColor: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
+    hoverStrokeWidth: STYLE_DEFAULT_REGION_LABEL_HOVER_STROKE_WIDTH,
   },
   regionOutline: {
     width: STYLE_DEFAULT_REGION_OUTLINE_WIDTH,

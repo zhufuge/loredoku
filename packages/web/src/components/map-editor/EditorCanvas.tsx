@@ -19,15 +19,13 @@ import {
   type Asset,
   type AssetForm,
   type MapStyle,
-  type RegionShape,
 } from '@loredoku/shared';
-import { coordKey, regionAt, resolveRegionPointerUp, type Coord } from '@/lib/region';
+import { brushStrokeErases, coordKey, regionAt, type Coord } from '@/lib/region';
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
 import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
-  MapRegionFillLayer,
   MapRegionHighlightLayer,
   MapRegionOutlineLayer,
 } from '@/components/map/MapRegionLayers';
@@ -56,7 +54,6 @@ import { rulerStripSize } from '@/lib/ruler';
 import {
   clampZoom,
   clientToCell,
-  DRAG_THRESHOLD,
   isInBounds,
   zoomAtPoint,
   ZOOM_STEP,
@@ -65,8 +62,8 @@ import type { Selection } from '@/stores/editorStore';
 
 /**
  * The two cursor boxes are 层 1 / 层 2 of 《画布图层优先级规范》, so the editor's
- * own affordances (marquee, region draft) live just under them and never cover
- * the hover / operation indicators.
+ * own affordances (brush preview, region draft) live just under them and never
+ * cover the hover / operation indicators.
  */
 const EDITOR_OVERLAY_Z = MAP_LAYER_Z.operationCursorBox - 1;
 const DRAFT_OVERLAY_Z = MAP_LAYER_Z.operationCursorBox - 2;
@@ -98,7 +95,6 @@ interface EditorCanvasProps {
   pan: { x: number; y: number };
   selection: Selection | null;
   activeTool: EditorTool;
-  regionShape: RegionShape;
   spaceHeld: boolean;
   showRulers: boolean;
   /** v0.6.1: the armed (asset, form) pair; the form supplies the footprint. */
@@ -115,7 +111,6 @@ interface EditorCanvasProps {
   onAutoCellSize?: (cellSize: number) => void;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
-  onAnchorChange: (anchor: CellCoord | null) => void;
   onDraftAdd: (cells: Coord[]) => void;
   onDraftRemove: (cells: Coord[]) => void;
   onDraftClear: () => void;
@@ -141,14 +136,12 @@ type Interaction =
       moved: boolean;
     }
   | { kind: 'erase'; visited: Set<string> }
-  | {
-      kind: 'region-rect';
-      anchor: CellCoord;
-      startX: number;
-      startY: number;
-      remove: boolean;
-      anchored: boolean;
-    }
+  /**
+   * v0.7.0: the region tool is a free brush only — the rectangle mode is gone.
+   * `erase` is fixed for the whole stroke: `Alt` always removes, otherwise the
+   * first cell decides (already selected → the stroke subtracts), which is what
+   * makes a wrong single cell correctable without a separate clear step.
+   */
   | { kind: 'brush'; keys: Set<string>; erase: boolean }
   | null;
 
@@ -164,7 +157,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     pan,
     selection,
     activeTool,
-    regionShape,
     spaceHeld,
     showRulers,
     pendingForm,
@@ -174,7 +166,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     onAutoCellSize,
     onSelect,
     onSelectRegion,
-    onAnchorChange,
     onDraftAdd,
     onDraftRemove,
     onDraftClear,
@@ -196,8 +187,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const [hover, setHover] = useState<CellCoord | null>(null);
-  const [marquee, setMarquee] = useState<{ start: CellCoord; end: CellCoord } | null>(null);
-  const [regionAnchor, setRegionAnchor] = useState<CellCoord | null>(null);
   const [brushCells, setBrushCells] = useState<Coord[]>([]);
   /** Set when the pointer sits directly on a region label (§2.2). */
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
@@ -292,13 +281,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     },
     [pan, zoom, cellSize],
   );
-  const clampCell = useCallback(
-    (coord: CellCoord): CellCoord => ({
-      x: Math.min(gridSize - 1, Math.max(0, coord.x)),
-      y: Math.min(gridSize - 1, Math.max(0, coord.y)),
-    }),
-    [gridSize],
-  );
 
   useImperativeHandle(
     ref,
@@ -372,25 +354,17 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       }
       interactionRef.current = null;
       setBrushCells([]);
-      setMarquee(null);
-      setRegionAnchor((anchor) => {
-        if (anchor) return null;
-        onDraftClear();
-        return null;
-      });
+      // Escape cancels an in-progress region stroke: the draft selection goes
+      // away, exactly like the old anchor-then-click flow did.
+      onDraftClear();
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [onDraftClear]);
 
   useEffect(() => {
-    onAnchorChange(regionAnchor);
-  }, [regionAnchor, onAnchorChange]);
-
-  useEffect(() => {
     setBrushCells([]);
-    setRegionAnchor(null);
-  }, [activeTool, regionShape]);
+  }, [activeTool]);
 
   const fits = (x: number, y: number, w: number, h: number): boolean =>
     x >= 0 && y >= 0 && x + w <= gridSize && y + h <= gridSize;
@@ -443,28 +417,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     const inBounds = isInBounds(coord, gridSize);
 
     if (activeTool === 'region') {
-      if (regionShape === 'brush') {
-        if (!inBounds) return;
-        node.setPointerCapture(event.pointerId);
-        const key = coordKey(coord.x, coord.y);
-        const keys = new Set<string>([key]);
-        interactionRef.current = { kind: 'brush', keys, erase: event.altKey };
-        setBrushCells(Array.from(keys).map((item) => item.split(',').map(Number) as Coord));
-        return;
-      }
+      if (!inBounds) return;
       node.setPointerCapture(event.pointerId);
-      const down = clampCell(coord);
-      const anchored = regionAnchor !== null;
-      const rectAnchor = regionAnchor ?? down;
-      interactionRef.current = {
-        kind: 'region-rect',
-        anchor: rectAnchor,
-        startX: event.clientX,
-        startY: event.clientY,
-        remove: event.altKey,
-        anchored,
-      };
-      setMarquee({ start: rectAnchor, end: down });
+      const key = coordKey(coord.x, coord.y);
+      // 起点格已选中 → 这一笔整段清除（Alt 永远强制清除）。
+      const erase = brushStrokeErases(regionDraftSelection.has(key), event.altKey);
+      const keys = new Set<string>([key]);
+      interactionRef.current = { kind: 'brush', keys, erase };
+      setBrushCells(Array.from(keys).map((item) => item.split(',').map(Number) as Coord));
       return;
     }
 
@@ -543,15 +503,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       return;
     }
 
-    if (interaction.kind === 'region-rect') {
-      setMarquee((previous) =>
-        previous && previous.end.x === coord.x && previous.end.y === coord.y
-          ? previous
-          : { start: interaction.anchor, end: clampCell(coord) },
-      );
-      return;
-    }
-
     if (interaction.kind === 'brush') {
       if (!inBounds) return;
       const key = coordKey(coord.x, coord.y);
@@ -573,28 +524,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         onSelect(null);
         onSelectRegion(null);
       }
-      return;
-    }
-
-    if (interaction?.kind === 'region-rect') {
-      const end = clampCell(toCell(event.clientX, event.clientY));
-      setMarquee(null);
-      const distance = Math.hypot(
-        event.clientX - interaction.startX,
-        event.clientY - interaction.startY,
-      );
-      const result = resolveRegionPointerUp({
-        anchor: [interaction.anchor.x, interaction.anchor.y],
-        end: [end.x, end.y],
-        moved: distance > DRAG_THRESHOLD,
-        alt: interaction.remove,
-        anchored: interaction.anchored,
-      });
-      if (result.toAdd.length > 0) onDraftAdd(result.toAdd);
-      if (result.toRemove.length > 0) onDraftRemove(result.toRemove);
-      setRegionAnchor(
-        result.anchor ? { x: result.anchor[0], y: result.anchor[1] } : null,
-      );
       return;
     }
 
@@ -624,15 +553,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
   const showPreview =
     activeTool === 'select' && hover !== null && pendingForm !== null;
-
-  const marqueeRect = marquee
-    ? {
-        left: Math.min(marquee.start.x, marquee.end.x) * cellSize,
-        top: Math.min(marquee.start.y, marquee.end.y) * cellSize,
-        width: (Math.abs(marquee.end.x - marquee.start.x) + 1) * cellSize,
-        height: (Math.abs(marquee.end.y - marquee.start.y) + 1) * cellSize,
-      }
-    : null;
 
   // ---- OPT-901 §1.2.5: cells holding a non-standable object ----
   const blockingCells = useMemo(
@@ -707,21 +627,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           }}
         />
       ) : null}
-      {regionAnchor ? (
-        <div
-          className="absolute animate-pulse border-[3px] border-primary bg-primary/30"
-          style={{
-            left: regionAnchor.x * cellSize,
-            top: regionAnchor.y * cellSize,
-            width: cellSize,
-            height: cellSize,
-            boxShadow: '0 0 0 2px rgba(59,130,246,0.4)',
-          }}
-        />
-      ) : null}
-      {marqueeRect ? (
-        <div className="absolute border-2 border-dashed border-primary bg-primary/10" style={marqueeRect} />
-      ) : null}
       {brushCells.map(([x, y]) => (
         <div
           key={`brush-${x}-${y}`}
@@ -765,7 +670,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         {/* 《画布图层优先级规范》§2 — rendered bottom-up; the z-index of each
             layer is pinned by MAP_LAYER_Z so the stacking order matches. */}
         <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
-        <MapRegionFillLayer regions={regions} gridSize={gridSize} cellSize={cellSize} />
         <MapHighlightLayer
           highlight={highlight}
           regions={regions}

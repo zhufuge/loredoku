@@ -558,7 +558,7 @@ describe('map draft API', () => {
     const draft = emptyDraft(6);
     draft.cells['0,0'] = { item: { assetId, w: 1, h: 1 } };
     draft.regions = [
-      { id: 'rg_a', name: 'Lounge', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
+      { id: 'rg_a', name: 'Lounge', cells: [[0, 0]], style: { outline: { width: 8 } } },
     ];
 
     const saved = await api.put(`/api/maps/${mapId}/map`).send({ data: draft });
@@ -599,8 +599,8 @@ describe('map draft API', () => {
     const mapId = await createMap({ name: `Overlap ${uniqueCode('p')}`, gridSize: 5 });
     const draft = emptyDraft(5);
     draft.regions = [
-      { id: 'rg_a', name: 'A', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
-      { id: 'rg_b', name: 'B', color: '#000000', borderWidth: 4, fillOpacity: 1, cells: [[0, 0]] },
+      { id: 'rg_a', name: 'A', cells: [[0, 0]] },
+      { id: 'rg_b', name: 'B', cells: [[0, 0]] },
     ];
     // 预期失败：不用 saveCanvas（它内部断言 200）。
     const res = await api.put(`/api/maps/${mapId}/map`).send({ data: draft });
@@ -613,9 +613,7 @@ describe('map draft API', () => {
 
     const first = await api.post(`/api/maps/${mapId}/regions`).send({
       name: 'Study',
-      color: '#3b82f6',
-      borderWidth: 4,
-      fillOpacity: 0.1,
+      style: { outline: { width: 8, color: '#3b82f6' } },
       cells: [
         [0, 0],
         [1, 0],
@@ -633,6 +631,8 @@ describe('map draft API', () => {
 
     const list = await api.get(`/api/maps/${mapId}/regions`);
     expect(list.body.data).toHaveLength(1);
+    // v0.7.0: the region's own style rides through the CRUD untouched.
+    expect(list.body.data[0].style).toEqual({ outline: { width: 8, color: '#3b82f6' } });
 
     const patched = await api
       .patch(`/api/maps/${mapId}/regions/${regionId}`)
@@ -766,9 +766,6 @@ describe('versions API', () => {
       {
         id: 'rg_split',
         name: '断裂区',
-        color: '#000000',
-        borderWidth: 6,
-        fillOpacity: 0,
         cells: [
           [0, 0],
           [3, 3],

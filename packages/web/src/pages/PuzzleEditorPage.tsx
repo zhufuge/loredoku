@@ -680,7 +680,6 @@ export function PuzzleEditorPage(): JSX.Element {
             // SPEC-K07: the canvas is a read-only reference, so the tool is
             // pinned and nothing can be placed or erased on it.
             activeTool="select"
-            regionShape="rect"
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
             pendingForm={null}
@@ -720,7 +719,6 @@ export function PuzzleEditorPage(): JSX.Element {
                 puzzle.setSelection(regionId === null ? null : { type: 'region', regionId });
               });
             }}
-            onAnchorChange={() => undefined}
             onDraftAdd={() => undefined}
             onDraftRemove={() => undefined}
             onDraftClear={() => undefined}
@@ -758,9 +756,10 @@ export function PuzzleEditorPage(): JSX.Element {
             cells={cells}
             regions={regions}
             assetsById={assetsById}
+            style={style}
             onClearCell={() => undefined}
             onClearItem={() => undefined}
-            onEditRegion={() => undefined}
+            onSubmitRegion={() => undefined}
             onDeleteRegion={() => undefined}
             onLocateRegion={() => canvasRef.current?.centerView()}
             readOnly

@@ -14,7 +14,6 @@ import {
   type Asset,
   type MapDraft,
   type MapStyle,
-  type RegionShape,
 } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -73,18 +72,15 @@ import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { isInBounds } from '@/lib/grid';
 import { canPlaceAssetOnLayer } from '@/lib/canvasLayers';
-import { infoDrawerOpen, reduceEditorFocus } from '@/lib/editorFocus';
+import { infoDrawerOpen, reduceEditorFocus, regionFocusSelection } from '@/lib/editorFocus';
 import { resolveEditorInit } from '@/lib/editorInit';
 import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
-import { cn } from '@/lib/utils';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 
 interface RegionDialogState {
   open: boolean;
-  mode: 'create' | 'edit';
   cells: Coord[];
-  region: DraftRegion | null;
 }
 
 /**
@@ -170,25 +166,24 @@ export function MapEditorPage(): JSX.Element {
    */
   const pendingEntryRef = useRef<MapInfoEntryDraft | null>(null);
   /**
-   * 离开编辑器时的拦截：画布 dirty **或** 有未写库的基本信息，都算没保存。
-   * `entryDirty` 在下面派生，这里直接读 state，免得把拦截放到后面。
+   * 离开编辑器时的拦截：画布 dirty **或** 有未写库的基本信息 / 区域表单，都算
+   * 没保存。`entryDirty` 在下面派生，这里直接读 state，免得把拦截放到后面。
    */
-  const leaveGuard = useUnsavedChangesGuard(editor.dirty || pendingEntryInfo !== null);
+  const [regionInfoDirty, setRegionInfoDirty] = useState(false);
+  const leaveGuard = useUnsavedChangesGuard(
+    editor.dirty || pendingEntryInfo !== null || regionInfoDirty,
+  );
 
   const [spaceHeld, setSpaceHeld] = useState(false);
-  const [regionShape, setRegionShape] = useState<RegionShape>('rect');
   const [itemsOpen, setItemsOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
   /** v0.3.8 FEAT-D01: the 「地图基本信息」drawer. */
   const [mapInfoOpen, setMapInfoOpen] = useState(false);
   /** FEAT-D03: the adaptive value the canvas last computed. */
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
-  const [regionAnchorActive, setRegionAnchorActive] = useState(false);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
     open: false,
-    mode: 'create',
     cells: [],
-    region: null,
   });
   const [deleteRegionTarget, setDeleteRegionTarget] = useState<DraftRegion | null>(null);
   const [regionError, setRegionError] = useState<string | null>(null);
@@ -635,20 +630,23 @@ export function MapEditorPage(): JSX.Element {
     }
   };
 
+  /**
+   * v0.7.0: 区域的外观编辑在右边信息框里完成（默认填入「地图基本信息」的
+   * 缺省值，保存时只记差异）；对话框只剩「创建」这一步 ——  ID 与名称。
+   */
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
-    if (regionDialog.mode === 'create') {
-      editor.createRegion(input, conflictMode);
-      editor.clearDraftSelection();
-      setTool('select');
-    } else if (regionDialog.region) {
-      editor.updateRegion(regionDialog.region.id, input);
-    }
+    editor.createRegion(input, conflictMode);
+    editor.clearDraftSelection();
+    setTool('select');
     setRegionDialog((state) => ({ ...state, open: false }));
   };
 
+  /** 右边信息框里区域表单的未保存修改 —— 离开编辑器时一并拦截。 */
+  const submitRegionEdit = (regionId: string, input: RegionInput): void => {
+    editor.updateRegion(regionId, input);
+  };
+
   const previewCellSize = Math.max(3, Math.floor(180 / editor.gridSize));
-  const panelsLocked = editor.activeTool === 'region';
-  const panelsDisabled = editor.activeTool === 'eraser';
 
   const exportToFile = (): void => {
     const blob = new Blob([JSON.stringify(editor.toDraft(), null, 2)], {
@@ -769,8 +767,7 @@ export function MapEditorPage(): JSX.Element {
     if (event.key === 'v' || event.key === 'V') setTool('select');
     else if (event.key === 'r' || event.key === 'R') setTool('region');
     else if (event.key === 'e' || event.key === 'E') setTool('eraser');
-    // FEAT-E03: no pan-tool shortcut any more — drag the empty area outside
-    // the board (or hold Space) to pan.
+    else if (event.key === 'h' || event.key === 'H') setTool('pan');
     return false;
   };
 
@@ -887,13 +884,7 @@ export function MapEditorPage(): JSX.Element {
         <EditorSaveMask saving={saving} visible={saveMaskVisible} />
 
         {itemsOpen ? (
-          <div
-            className={cn(
-              'flex min-h-0 transition-opacity',
-              panelsLocked ? 'pointer-events-none opacity-60' : undefined,
-              panelsDisabled ? 'pointer-events-none opacity-50' : undefined,
-            )}
-          >
+          <div className="flex min-h-0">
             <EditorLeftPanel
               assets={assetsQuery.data}
               assetsLoading={assetsQuery.isLoading}
@@ -908,13 +899,23 @@ export function MapEditorPage(): JSX.Element {
                 editor.setLayer(layer);
                 editor.setSelectedItem(null);
               }}
-              onSelectAsset={(asset, form) =>
-                editor.setSelectedItem(asset ? asset.id : null, form ? form.id : null)
-              }
-              onSelectRegion={editor.setSelectedRegion}
-              onEditRegion={(region) => {
-                editor.setSelectedRegion(region.id);
-                setRegionDialog({ open: true, mode: 'edit', cells: region.cells, region });
+              onSelectAsset={(asset, form) => {
+                // 橡皮擦 / 平移 / 区域都与放置互斥：点资源即回到选择 / 放置。
+                // store 的 setTool 离开区域工具时会一并清掉圈选草稿，所以这条
+                // 打断路径不会留下不能确认也不能取消的半截选区。
+                if (editor.activeTool !== 'select') setTool('select');
+                editor.setSelectedItem(asset ? asset.id : null, form ? form.id : null);
+              }}
+              onSelectRegion={(regionId) => {
+                // 与画布上的区域标签同一套动作：聚焦区域 + 信息框渲染区域分支。
+                // 此前这里只设了 `selectedRegionId`，`selection` 仍是 null ——
+                // 抽屉会弹出来却是空的（点列表项信息框空白）。
+                // 区域 / 平移 / 橡皮擦工具下点击 = 取消当前功能，回到选择。
+                guardMapInfo(() => {
+                  if (regionId !== null && editor.activeTool !== 'select') setTool('select');
+                  editor.setSelection(regionFocusSelection(regionId));
+                  editor.setSelectedRegion(regionId);
+                });
               }}
               onDeleteRegion={setDeleteRegionTarget}
             />
@@ -935,7 +936,6 @@ export function MapEditorPage(): JSX.Element {
             pan={editor.pan}
             selection={editor.selection}
             activeTool={editor.activeTool}
-            regionShape={regionShape}
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
             pendingForm={pendingForm}
@@ -953,7 +953,6 @@ export function MapEditorPage(): JSX.Element {
               // so it leaves the basic-info drawer the same way a cell does.
               guardMapInfo(() => editor.setSelectedRegion(regionId));
             }}
-            onAnchorChange={(anchor) => setRegionAnchorActive(anchor !== null)}
             onDraftAdd={editor.addDraftCells}
             onDraftRemove={editor.removeDraftCells}
             onDraftClear={editor.clearDraftSelection}
@@ -998,7 +997,6 @@ export function MapEditorPage(): JSX.Element {
           {editor.activeTool === 'region' ? (
             <RegionSelectionBar
               count={editor.regionDraftSelection.size}
-              anchored={regionAnchorActive}
               onClear={editor.clearDraftSelection}
               onConfirm={() => {
                 const cells = Array.from(editor.regionDraftSelection).map(
@@ -1012,7 +1010,7 @@ export function MapEditorPage(): JSX.Element {
                   setRegionError('区域必须是相连的方格，请调整选区。');
                   return;
                 }
-                setRegionDialog({ open: true, mode: 'create', cells, region: null });
+                setRegionDialog({ open: true, cells });
               }}
               onCancel={() => {
                 editor.clearDraftSelection();
@@ -1023,18 +1021,15 @@ export function MapEditorPage(): JSX.Element {
 
           <EditorBottomBar
             activeTool={editor.activeTool}
-            regionShape={regionShape}
             canUndo={editor.past.length > 0}
             canRedo={editor.future.length > 0}
             zoom={editor.zoom}
             gridSize={editor.gridSize}
             itemsOpen={itemsOpen}
             rulerVisible={rulerVisible}
-            onSetTool={(tool) => {
-              setTool(tool);
-              if (tool !== 'region') setRegionShape('rect');
-            }}
-            onSetRegionShape={setRegionShape}
+            selectedAsset={pendingForm?.asset ?? null}
+            selectedForm={pendingForm?.form ?? null}
+            onSetTool={setTool}
             onUndo={editor.undo}
             onRedo={editor.redo}
             onZoomIn={() => zoomBy(1)}
@@ -1044,6 +1039,7 @@ export function MapEditorPage(): JSX.Element {
             onToggleItems={() => setItemsOpen((open) => !open)}
             onToggleRuler={() => setRulerVisible((visible) => !visible)}
             onOpenResize={() => setResizeOpen(true)}
+            onRevealItems={() => setItemsOpen(true)}
           />
 
           <EditorInfoDrawer
@@ -1054,14 +1050,13 @@ export function MapEditorPage(): JSX.Element {
             cells={editor.cells}
             regions={editor.regions}
             assetsById={assetsById}
+            style={editor.style}
             onClearCell={(x, y) => editor.clearCell(x, y)}
             onClearItem={(x, y) => editor.clearItemAt(x, y)}
-            onEditRegion={(region) => {
-              editor.setSelectedRegion(region.id);
-              setRegionDialog({ open: true, mode: 'edit', cells: region.cells, region });
-            }}
+            onSubmitRegion={submitRegionEdit}
             onDeleteRegion={setDeleteRegionTarget}
             onLocateRegion={() => canvasRef.current?.centerView()}
+            onRegionDirtyChange={setRegionInfoDirty}
           />
 
           <MapInfoDrawer
@@ -1084,11 +1079,8 @@ export function MapEditorPage(): JSX.Element {
       <RegionDialog
         open={regionDialog.open}
         onOpenChange={(open) => setRegionDialog((state) => ({ ...state, open }))}
-        mode={regionDialog.mode}
         cells={regionDialog.cells}
-        region={regionDialog.region}
         regions={editor.regions}
-        defaultBorderWidth={editor.style.regionOutline.width}
         onSubmit={submitRegion}
       />
 
