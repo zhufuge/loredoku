@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import type { Character, CharacterSlotEntry } from '@loredoku/shared';
 import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
@@ -29,6 +29,12 @@ interface PuzzleEditorLeftPanelProps {
  * dozen characters was unsearchable before. Both are view-only state and stay
  * in the component: they must never reach `puzzleStore`, whose undo stack holds
  * the puzzle's own data only.
+ *
+ * v0.6.3 fix: a full roster collapses the panel **by default**. Every 加入
+ * button is disabled at that point, so the list has nothing left to offer and
+ * the canvas deserves the width. It is a default, not a lock: the first manual
+ * 展开 / 收起 takes over for the rest of the session (tracked by
+ * `userTookOverRef`, never in the store).
  */
 export function PuzzleEditorLeftPanel({
   characters,
@@ -43,6 +49,27 @@ export function PuzzleEditorLeftPanel({
   const [keyword, setKeyword] = useState('');
 
   const rosterIds = new Set(characterSlots.filter(Boolean).map((slot) => slot!.characterId));
+
+  /**
+   * v0.6.3 fix: every slot taken = the roster is full. An empty roster is not
+   * "full" — there is nothing to collapse for yet.
+   */
+  const rosterFull =
+    characterSlots.length > 0 && characterSlots.every((slot) => slot !== null);
+  /**
+   * Set the moment the user clicks 展开 / 收起: from then on the panel's state
+   * is theirs alone, and the auto-collapse below stops touching it.
+   */
+  const userTookOverRef = useRef(false);
+  useEffect(() => {
+    if (userTookOverRef.current) return;
+    setCollapsed(rosterFull);
+  }, [rosterFull]);
+
+  const takeOver = (next: boolean): void => {
+    userTookOverRef.current = true;
+    setCollapsed(next);
+  };
 
   /** FEAT-N08: 名称 / 业务 ID, case-insensitive. */
   const visible = useMemo(() => {
@@ -70,7 +97,7 @@ export function PuzzleEditorLeftPanel({
             title="展开角色列表"
             aria-label="展开角色列表"
             aria-expanded={false}
-            onClick={() => setCollapsed(false)}
+            onClick={() => takeOver(false)}
             className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <ChevronRight className="h-4 w-4" />
@@ -101,7 +128,7 @@ export function PuzzleEditorLeftPanel({
           title="收起角色列表"
           aria-label="收起角色列表"
           aria-expanded
-          onClick={() => setCollapsed(true)}
+          onClick={() => takeOver(true)}
           className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
         >
           <ChevronLeft className="h-4 w-4" />

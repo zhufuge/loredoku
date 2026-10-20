@@ -2,6 +2,7 @@ import {
   forwardRef,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -13,10 +14,16 @@ import {
   LINKAGE_COLOR_MAX_COUNT,
   LINKAGE_COLOR_MIN_COUNT,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
+  ROSTER_COLS_MAX,
   UI_Z,
   type CharacterSlotEntry,
   type MapLinkageColor,
 } from '@loredoku/shared';
+import {
+  computeParticipantLayout,
+  resolveRosterCols,
+  rosterRows,
+} from '@/lib/participantLayout';
 import { Button } from '@/components/ui/button';
 import { ColorInput } from '@/components/ui/color-input';
 import { Input } from '@/components/ui/input';
@@ -34,7 +41,8 @@ import { cn } from '@/lib/utils';
 /**
  * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 drawer.
  *
- * It is exactly two things — the **description** and the **联动主题色 palette** —
+ * It holds what the puzzle owns — the **description**, the
+ * **联动主题色 palette** and (v0.6.3 §3) the **参与者布局** column count —
  * and nothing else. Everything the map drawer carries (地图名称 / 画布尺寸 /
  * `cellSize` / `canvasFrame` / `gridSeparator` / `mouseCursorBox` /
  * `operationCursorBox` / `regionLabel` / `regionOutline` / `regionHighlight` /
@@ -60,6 +68,8 @@ export interface PuzzleBasicInfo {
   linkageColors: MapLinkageColor[];
   /** The roster, re-pointed at surviving palette keys (FEAT-D04 §UI 规则). */
   characterSlots: Array<CharacterSlotEntry | null>;
+  /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
+  rosterCols: number | null;
 }
 
 interface PuzzleInfoDrawerProps {
@@ -69,6 +79,8 @@ interface PuzzleInfoDrawerProps {
   linkageColors: MapLinkageColor[];
   /** Needed only to re-point (and to preview) palette deletions. */
   characterSlots: Array<CharacterSlotEntry | null>;
+  /** v0.6.3 §3: the committed column count. `null` = 自动. */
+  rosterCols: number | null;
   /**
    * The drawer never closes itself: both × and 取消 call this, and the page
    * decides whether to prompt for unsaved edits first.
@@ -135,6 +147,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       description,
       linkageColors,
       characterSlots,
+      rosterCols,
       onRequestClose,
       onCommit,
       onDirtyChange,
@@ -143,6 +156,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
   ): JSX.Element {
     const [draftDescription, setDraftDescription] = useDraft<string>(description, open);
     const [draftPalette, setDraftPalette] = useDraft<MapLinkageColor[]>(linkageColors, open);
+    /** v0.6.3 §3: the column count is drafted like everything else here. */
+    const [draftCols, setDraftCols] = useDraft<number | null>(rosterCols, open);
     /**
      * The roster the draft carries. It only ever differs from the committed one
      * because a palette key was renamed or deleted — the drawer never edits a
@@ -156,9 +171,11 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     const settledRef = useRef(false);
 
     const dirty =
-      draftDescription !== description || !paletteEquals(draftPalette, linkageColors);
-    const latest = useRef({ draftDescription, draftPalette, draftSlots, dirty });
-    latest.current = { draftDescription, draftPalette, draftSlots, dirty };
+      draftDescription !== description ||
+      !paletteEquals(draftPalette, linkageColors) ||
+      draftCols !== rosterCols;
+    const latest = useRef({ draftDescription, draftPalette, draftSlots, draftCols, dirty });
+    latest.current = { draftDescription, draftPalette, draftSlots, draftCols, dirty };
 
     useEffect(() => {
       if (open) settledRef.current = false;
@@ -177,10 +194,17 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             draftDescription: text,
             draftPalette: palette,
             draftSlots: slots,
+            draftCols: cols,
             dirty: isDirty,
           } = latest.current;
           settledRef.current = true;
-          if (isDirty) onCommit({ description: text, linkageColors: palette, characterSlots: slots });
+          if (isDirty)
+            onCommit({
+              description: text,
+              linkageColors: palette,
+              characterSlots: slots,
+              rosterCols: cols,
+            });
           else onRequestClose();
         },
         discard: () => {
@@ -188,17 +212,20 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           setDraftDescription(description);
           setDraftPalette(linkageColors);
           setDraftSlots(characterSlots);
+          setDraftCols(rosterCols);
         },
       }),
       [
         characterSlots,
         description,
         linkageColors,
+        rosterCols,
         onCommit,
         onRequestClose,
         setDraftDescription,
         setDraftPalette,
         setDraftSlots,
+        setDraftCols,
       ],
     );
 
@@ -247,6 +274,36 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
 
     const descriptionOverLimit = draftDescription.length > PUZZLE_DESCRIPTION_MAX_LENGTH;
 
+    /**
+     * v0.6.3 §3.2: the row count is never typed, only shown — it is
+     * `ceil(参与者数 / 列数)`, recomputed on every keystroke. With no column
+     * count (自动) the preview shows the golden-ratio layout the panel will
+     * pick, so the two agree before the user commits to a number.
+     */
+    const slotTotal = characterSlots.length;
+    const autoLayout = useMemo(() => computeParticipantLayout(slotTotal), [slotTotal]);
+    const previewCols = draftCols ?? autoLayout.cols;
+    const previewRows = draftCols === null ? autoLayout.rows : rosterRows(slotTotal, draftCols);
+
+    /**
+     * An empty field means 自动 (the stored value is `null`); anything else is
+     * forced into `[1, min(参与者数, ROSTER_COLS_MAX)]` so the preview can
+     * never describe a matrix with more columns than it has people, and the
+     * panel never has to scroll to show them.
+     */
+    const changeCols = (raw: string): void => {
+      if (raw.trim() === '') {
+        setDraftCols(null);
+        return;
+      }
+      const parsed = Number.parseInt(raw, 10);
+      if (!Number.isFinite(parsed)) {
+        setDraftCols(null);
+        return;
+      }
+      setDraftCols(Math.min(ROSTER_COLS_MAX, resolveRosterCols(parsed, slotTotal) ?? 1));
+    };
+
     return (
       <aside
         aria-hidden={!open}
@@ -285,6 +342,38 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             <div className="flex justify-end text-[11px] text-muted-foreground">
               <span className={descriptionOverLimit ? 'font-medium text-destructive' : ''}>
                 {draftDescription.length} / {PUZZLE_DESCRIPTION_MAX_LENGTH}
+              </span>
+            </div>
+          </Section>
+
+          <Section
+            title="参与者布局"
+            hint="Roster Layout — 只填列数，行数按参与者数量算出。槽框尺寸固定，面板整体宽度随列数变化；留空则回到自动排列。"
+          >
+            {/*
+              v0.6.3: the control is just 「输入框 × 行数」— the field carries
+              the column count, so a 列数 label would only repeat it, and the
+              row count is derived, never typed. 自动 (empty field) shows the
+              layout the panel will pick on its own.
+            */}
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={1}
+                max={ROSTER_COLS_MAX}
+                value={draftCols === null ? '' : String(draftCols)}
+                placeholder="自动"
+                onChange={(event) => changeCols(event.target.value)}
+                className="h-7 w-20 text-xs tabular-nums"
+                aria-label="参与者列数"
+              />
+              <span
+                data-testid="roster-layout-preview"
+                className="text-xs tabular-nums text-muted-foreground"
+              >
+                {draftCols === null
+                  ? `${previewCols} × ${previewRows}（自动）`
+                  : `× ${previewRows}`}
               </span>
             </div>
           </Section>
@@ -394,6 +483,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 description: draftDescription,
                 linkageColors: draftPalette,
                 characterSlots: draftSlots,
+                rosterCols: draftCols,
               })
             }
           >

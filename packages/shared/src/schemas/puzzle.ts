@@ -147,6 +147,23 @@ const puzzleDraftBaseSchema = z
      * length and is normalised by the store, not rejected by the schema.
      */
     characterSlots: z.array(characterSlotEntrySchema.nullable()),
+    /**
+     * v0.6.3 (docs/v0.6.3.md §3): the roster matrix's column count.
+     *
+     * Optional for two reasons: a puzzle created before this version has no
+     * such field and must keep validating (absent = 自动), and a payload
+     * that has never been through the layout section must be storable too.
+     * The upper bound is the board's, not the roster's — a cols value above
+     * the slot count is clamped by `resolveRosterCols` at render time rather
+     * than rejected here, because it is a layout hint, not a fact.
+     */
+    rosterCols: z
+      .number()
+      .int()
+      .min(1, '列数至少为 1')
+      .max(GRID_SIZE_MAX, `列数不能超过 ${GRID_SIZE_MAX}`)
+      .nullable()
+      .optional(),
   })
   .strict();
 

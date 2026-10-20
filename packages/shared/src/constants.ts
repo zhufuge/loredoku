@@ -434,6 +434,8 @@ export const PARTICIPANT_NAME_HEIGHT = 20;
 export const PARTICIPANT_CELL_GAP = 14;
 /** Minimum avatar diameter. */
 export const PARTICIPANT_AVATAR_MIN = 56;
+/** The slot card's corner radius. The sequence badge rounds its top-left with it. */
+export const PARTICIPANT_SLOT_RADIUS = 6;
 /** OPT-B06 §6.3 + FEAT-O13 (docs/v0.5.4.md §6.2): sequence badge in the top-left corner, enlarged. */
 export const PARTICIPANT_SEQ_SIZE = 20;
 export const PARTICIPANT_SEQ_FONT_SIZE = 14;
@@ -441,10 +443,49 @@ export const PARTICIPANT_SEQ_COLOR = '#374151';
 /** Translucent white so the badge stays readable on any theme colour. */
 export const PARTICIPANT_SEQ_BACKGROUND = 'rgba(255,255,255,0.85)';
 export const PARTICIPANT_SEQ_BORDER = '1px solid rgba(0,0,0,0.1)';
-/** FEAT-O13: no top / left edge of its own — the card's frame is those two lines; only BR rounds. */
-export const PARTICIPANT_SEQ_BORDER_RADIUS = '0 0 6px 0';
+/**
+ * FEAT-O13: no top / left edge of its own — the card's frame is those two
+ * lines; only BR rounds. The top-left rounds with the **card's** radius: the
+ * badge sits flush in the corner (inset 0), so a square corner there would
+ * poke past the card's rounded frame.
+ */
+export const PARTICIPANT_SEQ_BORDER_RADIUS = `${PARTICIPANT_SLOT_RADIUS}px 0 6px 0`;
 /** Kept for the callers that still inset the badge (0 = corner, see §6.2). */
 export const PARTICIPANT_SEQ_INSET = 0;
+/**
+ * v0.6.4 (docs/v0.6.4.md §2): max length of a participant's configured 编号展示
+ * text. The badge grows around its text, so the bound keeps a long label from
+ * taking over the slot's corner.
+ */
+export const PARTICIPANT_DISPLAY_NUMBER_MAX = 6;
+
+// ---- v0.6.3 参与者布局（docs/v0.6.3.md §3） ----
+/**
+ * The horizontal padding around the slot matrix. It is a constant because the
+ * panel's width is derived from the column count, so the padding has to be
+ * part of the arithmetic — a Tailwind class drifting away from it would make
+ * the panel 8px too narrow for its own content.
+ */
+export const ROSTER_PANEL_PADDING = 8;
+/**
+ * The width of the panel aside's own right border (the separator against the
+ * canvas). The aside is `border-box`, so that 1px comes out of the width the
+ * arithmetic computes — leaving it out makes the scroll container's content
+ * box 1px narrower than the matrix, and a 1px overflow is enough to bring the
+ * horizontal scrollbar back.
+ */
+export const ROSTER_PANEL_BORDER_WIDTH = 1;
+/** The panel never goes below the width it had before it became resizable. */
+export const ROSTER_PANEL_MIN_WIDTH = 256;
+/** Past ROSTER_COLS_MAX the panel stops growing here and scrolls instead. */
+export const ROSTER_PANEL_MAX_WIDTH = 512;
+/**
+ * v0.6.3: the widest column count the 基本信息 field accepts — and, at the
+ * same time, the widest the panel still fits without a horizontal scrollbar.
+ * A stored count above it (an import, or a puzzle authored before the cap)
+ * keeps the capped-and-scrolling layout instead of pushing the canvas away.
+ */
+export const ROSTER_COLS_MAX = 6;
 
 // ---- v0.3.8 FEAT-D02 地图基本信息（地图级缺省值） ----
 /**
@@ -645,6 +686,20 @@ export const GAME_DIFFICULTY_SLUGS: Record<(typeof GAME_DIFFICULTY_LEVELS)[numbe
 
 /** SPEC-G05 §5.3: an already-placed participant fades out in the read-only roster. */
 export const GAME_PLACED_OPACITY = 0.45;
+
+/**
+ * v0.6.4 (docs/v0.6.4.md §3): how much the touched / clicked participant's
+ * avatar is magnified by on the board, so the player can see where that
+ * participant currently sits. A modest scale keeps the avatar inside its
+ * neighbourhood — it is a hint, not a zoom.
+ */
+export const GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE = 1.3;
+/**
+ * v0.6.4 §3: the same magnification for that participant's 编号 glyphs. Only
+ * the active participant's own numbers grow — a cell shared with other
+ * participants keeps their glyphs at the normal size.
+ */
+export const GAME_ACTIVE_PARTICIPANT_NUMBER_SCALE = 1.5;
 
 // ---- Uploads ----
 export const UPLOAD_MAX_SIZE = 2 * 1024 * 1024; // 2 MB

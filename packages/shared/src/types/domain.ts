@@ -244,6 +244,15 @@ export interface CharacterSlotEntry {
    * into the published snapshot with no extra table.
    */
   positionConditions?: Array<{ x: number; y: number }>;
+  /**
+   * v0.6.4 (docs/v0.6.4.md §2): the text shown in the slot's top-left 编号
+   * badge instead of the sequence number. Configured per participant in the
+   * 参与者信息 drawer; absent / empty / null = the sequence number, which is
+   * derived from the slot's position and therefore changes when the roster is
+   * rearranged — the configured text never does, because it lives on the entry
+   * and the entry moves with its participant.
+   */
+  displayNumber?: string | null;
 }
 
 /**
@@ -284,6 +293,17 @@ export interface PuzzleDraft {
   linkageColors: MapLinkageColor[];
   /** Roster; length = `map.gridSize` (same convention as the old map editor). */
   characterSlots: Array<CharacterSlotEntry | null>;
+  /**
+   * v0.6.3 (docs/v0.6.3.md §3): how many columns the roster matrix uses.
+   * The row count is **derived** from it (`ceil(slots / cols)`) and never
+   * stored — one number, one source of truth.
+   *
+   * `null` / absent = 自动: the panel picks a golden-ratio column count and
+   * still shrinks it to fit its container. That is what every puzzle created
+   * before this version does, which is why the field is optional and the JSON
+   * version stays where it is.
+   */
+  rosterCols?: number | null;
 }
 
 export interface MapResponse {

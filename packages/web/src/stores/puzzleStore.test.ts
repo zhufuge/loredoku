@@ -386,17 +386,30 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
         null,
         null,
       ],
+      // v0.6.3 §3: the layout column count is part of the same gesture.
+      rosterCols: 3,
     });
 
     expect(store().description).toBe('改过的描述');
     expect(store().linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
     expect(store().characterSlots[0]?.linkages?.[0]?.color).toBe('blue');
+    expect(store().rosterCols).toBe(3);
     // Exactly one step for the whole form.
     expect(store().past).toHaveLength(baseline + 1);
     store().undo();
     expect(store().description).toBe('六人六格，注意花丛的位置条件。');
     expect(store().linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue', 'teal']);
     expect(store().characterSlots[0]?.linkages?.[0]?.color).toBe('teal');
+    // v0.6.3 §3: the layout goes back too — it is one of the basics.
+    expect(store().rosterCols).toBeNull();
+  });
+
+  /**
+   * v0.6.3 §3.1: the fixture carries no `rosterCols`, which is what a puzzle
+   * saved before this version looks like. It must load as 自动, not as 0.
+   */
+  it('reads a legacy puzzle as 自动', () => {
+    expect(store().rosterCols).toBeNull();
   });
 });
 
@@ -533,6 +546,96 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
   });
 });
 
+/**
+ * v0.6.4 (docs/v0.6.4.md §2): the per-participant 编号展示 text.
+ *
+ * The field lives on the slot entry, so the same rules that kept
+ * `positionConditions` alive across BUG-J04 apply: it must survive init, an
+ * unrelated commit and `toDraft` — and a cleared one is stored absent, the
+ * same "no dead array" discipline.
+ */
+describe('displayNumber survives (v0.6.4 §2)', () => {
+  function withRoster(): PuzzleDraft {
+    return {
+      ...detail().data,
+      characterSlots: [
+        { characterId: 8, themeColor: '#FFCC00', clue: '', linkages: [] },
+        null,
+        null,
+        null,
+        null,
+        null,
+      ],
+    };
+  }
+
+  function load(draftToLoad: PuzzleDraft): void {
+    store().init(detail(draftToLoad), mapContext(draftToLoad.map.gridSize));
+  }
+
+  const patch = (displayNumber: string) => ({
+    themeColor: '#FFCC00',
+    clue: '',
+    linkages: [],
+    positionConditions: [],
+    displayNumber,
+  });
+
+  it('survives init — a puzzle saved with a label reloads with it', () => {
+    const loaded = withRoster();
+    loaded.characterSlots[0] = { ...loaded.characterSlots[0]!, displayNumber: '甲' };
+    load(loaded);
+    expect(store().characterSlots[0]?.displayNumber).toBe('甲');
+  });
+
+  it('reaches toDraft — what the server stores now carries it', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, patch('K1'));
+    expect(store().toDraft().characterSlots[0]?.displayNumber).toBe('K1');
+  });
+
+  it('survives an unrelated commit', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, patch('甲'));
+    store().setDescription('无关的编辑');
+    expect(store().characterSlots[0]?.displayNumber).toBe('甲');
+  });
+
+  it('keeps the entry across a swapSlots — the label travels with its participant', () => {
+    load(withRoster());
+    store().assignSlot(9);
+    store().setParticipantConfig(0, patch('甲'));
+    store().swapSlots(0, 1);
+    // The entry (and its label) moved; only the sequence number changed.
+    expect(store().characterSlots[1]).toMatchObject({ characterId: 8, displayNumber: '甲' });
+    expect(store().characterSlots[0]).toMatchObject({ characterId: 9 });
+    expect(store().characterSlots[0]?.displayNumber).toBeUndefined();
+  });
+
+  it('trims on the way in and stores a cleared label as absent', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, patch('  7  '));
+    expect(store().characterSlots[0]?.displayNumber).toBe('7');
+
+    store().setParticipantConfig(0, patch('   '));
+    const entry = store().characterSlots[0];
+    expect(entry).not.toBeNull();
+    expect(entry && 'displayNumber' in entry).toBe(false);
+  });
+
+  it('an omitted patch field keeps what is stored', () => {
+    load(withRoster());
+    store().setParticipantConfig(0, patch('甲'));
+    store().setParticipantConfig(0, {
+      themeColor: '#123456',
+      clue: '',
+      linkages: [],
+      positionConditions: [],
+    });
+    expect(store().characterSlots[0]?.displayNumber).toBe('甲');
+  });
+});
+
 describe('toDraft / applyDraft (FEAT-K08)', () => {
   it('serialises the map reference, never a copy of the canvas', () => {
     store().assignSlot(4);
@@ -547,6 +650,28 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect('cells' in output).toBe(false);
     expect('regions' in output).toBe(false);
     expect('style' in output).toBe(false);
+  });
+
+  /**
+   * v0.6.3 §3.1: the column count has to leave the editor, because the game
+   * page reads it straight out of the deployed snapshot.
+   */
+  it('carries the layout column count to the server', () => {
+    store().setBasicInfo({
+      description: '六人六格，注意花丛的位置条件。',
+      linkageColors: store().linkageColors,
+      characterSlots: store().characterSlots,
+      rosterCols: 2,
+    });
+    expect(store().toDraft().rosterCols).toBe(2);
+    // 自动 is stored as `null`, not dropped — the field is always present.
+    store().setBasicInfo({
+      description: '六人六格，注意花丛的位置条件。',
+      linkageColors: store().linkageColors,
+      characterSlots: store().characterSlots,
+      rosterCols: null,
+    });
+    expect(store().toDraft().rosterCols).toBeNull();
   });
 
   it('round-trips through applyDraft', () => {
@@ -567,6 +692,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
         null,
         null,
       ],
+      // v0.6.3 §3: an imported layout survives the import.
+      rosterCols: 3,
     };
     store().applyDraft(imported);
     const state = store();
@@ -574,6 +701,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(state.description).toBe('导入来的');
     expect(state.linkageColors.map((entry) => entry.key)).toEqual(['red', 'teal']);
     expect(state.characterSlots[0]).toMatchObject({ characterId: 8, clue: '线索' });
+    expect(state.rosterCols).toBe(3);
     // §6: import is undoable, and it never re-points the map reference.
     expect(state.dirty).toBe(true);
     expect(state.mapContext?.versionNo).toBe(3);

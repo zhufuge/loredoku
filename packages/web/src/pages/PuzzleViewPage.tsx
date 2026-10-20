@@ -413,6 +413,7 @@ export function PuzzleViewPage(): JSX.Element {
         <ParticipantPanel
           slots={slots}
           charactersById={charactersById}
+          cols={draft?.rosterCols ?? null}
           selectedSlotIndex={null}
           draggingIndex={null}
           activeSlotIndex={activation.activeParticipantId}

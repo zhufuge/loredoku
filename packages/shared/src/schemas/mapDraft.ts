@@ -22,6 +22,7 @@ import {
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
   MAP_NOTE_MAX_LENGTH,
+  PARTICIPANT_DISPLAY_NUMBER_MAX,
   REGION_BORDER_WIDTH_DEFAULT,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
@@ -242,6 +243,10 @@ export const characterSlotSchema = z.object({
  * FEAT-E01 (docs/v0.4.1.md §7.4): `positionConditions` is the optional set of
  * cells this participant may occupy (OR-ed). Old drafts without the field stay
  * valid — an absent list means "no positional constraint".
+ *
+ * v0.6.4 (docs/v0.6.4.md §2): `displayNumber` is the optional 编号展示 text.
+ * It is trimmed, bounded by {@link PARTICIPANT_DISPLAY_NUMBER_MAX} and stored
+ * absent when cleared — the badge then falls back to the sequence number.
  */
 export const characterSlotEntrySchema = z
   .object({
@@ -251,6 +256,12 @@ export const characterSlotEntrySchema = z
     linkages: participantLinkagesSchema,
     positionConditions: z
       .array(z.object({ x: coordSchema, y: coordSchema }).strict())
+      .optional(),
+    displayNumber: z
+      .string()
+      .trim()
+      .max(PARTICIPANT_DISPLAY_NUMBER_MAX, `编号展示不能超过 ${PARTICIPANT_DISPLAY_NUMBER_MAX} 个字符`)
+      .nullable()
       .optional(),
   })
   // MOD-801: legacy `triggers` payloads are rejected, not silently stripped.

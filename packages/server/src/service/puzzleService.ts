@@ -73,6 +73,9 @@ function emptyDraft(row: puzzleRepo.PuzzleJoinedRow): PuzzleDraft {
     description: row.description ?? '',
     linkageColors: DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry })),
     characterSlots: Array.from({ length: row.grid_size }, () => null),
+    // v0.6.3 §3: no column count → the roster falls back to the automatic
+    // (golden-ratio) layout.
+    rosterCols: null,
   };
 }
 
@@ -141,6 +144,9 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
     description,
     linkageColors: inheritedLinkageColors(version.data),
     characterSlots: Array.from({ length: gridSize }, () => null),
+    // v0.6.3 §3: a new puzzle starts on 自动 — the author picks a column count
+    // in 「基本信息」 later.
+    rosterCols: null,
   };
 
   const row = await puzzleRepo.createPuzzle({

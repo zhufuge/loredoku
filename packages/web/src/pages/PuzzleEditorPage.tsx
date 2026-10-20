@@ -51,7 +51,6 @@ import { usePuzzle, usePuzzleMapContext, useSavePuzzle } from '@/hooks/usePuzzle
 import { useEditorSave } from '@/hooks/useEditorSave';
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
-import { clampZoom, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
 import {
@@ -315,11 +314,8 @@ export function PuzzleEditorPage(): JSX.Element {
     setPendingPuzzleInfoAction(() => proceed);
   };
 
-  const commitPuzzleInfo = (next: {
-    description: string;
-    linkageColors: Parameters<typeof puzzle.setBasicInfo>[0]['linkageColors'];
-    characterSlots: Array<CharacterSlotEntry | null>;
-  }): void => {
+  /** v0.6.3 §3: the layout column count rides along with the other basics. */
+  const commitPuzzleInfo = (next: Parameters<typeof puzzle.setBasicInfo>[0]): void => {
     puzzle.setBasicInfo(next);
     setPuzzleInfoOpen(false);
   };
@@ -347,6 +343,8 @@ export function PuzzleEditorPage(): JSX.Element {
       clue: string;
       linkages: ParticipantTarget[];
       positionConditions: Array<{ x: number; y: number }>;
+      /** v0.6.4 §2: 编号展示；`''` = 清回序号。 */
+      displayNumber: string;
     },
   ): void => {
     puzzle.setParticipantConfig(slotIndex, patch);
@@ -500,15 +498,14 @@ export function PuzzleEditorPage(): JSX.Element {
     })();
   };
 
+  /**
+   * v0.6.3: the zoom maths lives in the canvas (next to the wheel handler) so
+   * the button path marks the view as user-adjusted too — otherwise the
+   * adaptive auto-centre pass centres the new zoom away on the next render
+   * and the buttons look dead until a wheel zoom sets that flag.
+   */
   function zoomBy(direction: 1 | -1): void {
-    const rect = canvasRef.current?.getRect() ?? null;
-    const next = clampZoom(puzzle.zoom + direction * ZOOM_STEP);
-    if (next === puzzle.zoom) return;
-    if (rect) {
-      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      puzzle.setPan(zoomAtPoint(center, rect, puzzle.pan, next, puzzle.zoom));
-    }
-    puzzle.setZoom(next);
+    canvasRef.current?.zoomByStep(direction);
   }
 
   /**
@@ -594,7 +591,7 @@ export function PuzzleEditorPage(): JSX.Element {
         onBack={() => navigate('/puzzles')}
         onSave={save}
         mapInfoOpen={puzzleInfoOpen}
-        infoTitle="谜题基本信息（描述、联动主题色）"
+        infoTitle="谜题基本信息（描述、参与者布局、联动主题色）"
         onOpenMapInfo={() => {
           if (puzzleInfoOpen) {
             closePuzzleInfo();
@@ -634,6 +631,7 @@ export function PuzzleEditorPage(): JSX.Element {
         <ParticipantPanel
           slots={puzzle.characterSlots}
           charactersById={charactersById}
+          cols={puzzle.rosterCols}
           selectedSlotIndex={puzzle.selectedSlotIndex}
           draggingIndex={slotDrag}
           activeSlotIndex={puzzle.activeParticipantId}
@@ -774,6 +772,7 @@ export function PuzzleEditorPage(): JSX.Element {
             description={puzzle.description}
             linkageColors={puzzle.linkageColors}
             characterSlots={puzzle.characterSlots}
+            rosterCols={puzzle.rosterCols}
             onRequestClose={closePuzzleInfo}
             onCommit={commitPuzzleInfo}
           />

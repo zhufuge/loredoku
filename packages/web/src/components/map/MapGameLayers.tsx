@@ -1,6 +1,9 @@
 import {
+  GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE,
+  GAME_ACTIVE_PARTICIPANT_NUMBER_SCALE,
   GAME_FORBIDDEN_FONT_RATIO,
   GAME_NUMBER_FONT_RATIO,
+  GAME_NUMBER_GRID,
   GAME_NUMBER_STROKE_RATIO,
   GAME_TOOL_HINT_ERASER_COLOR,
   GAME_TOOL_HINT_FORBIDDEN_COLOR,
@@ -11,7 +14,8 @@ import {
 } from '@loredoku/shared';
 import type { GamePlacementBoard } from '@loredoku/shared';
 import { itemPadding } from '@/lib/canvasScale';
-import { numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
+import { glyphFontSize, numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
+import { participantBadgeText } from '@/lib/participantLayout';
 import { parseKey } from './layerGeometry';
 
 /**
@@ -28,30 +32,39 @@ import { parseKey } from './layerGeometry';
  *
  * The layer never receives pointer events, and it survives a completed
  * placement: the hint and the placement layer are independent (SPEC-G02 §3).
+ *
+ * v0.6.4 fix (docs/v0.6.4.md §4): the preview number is the same 编号展示 text
+ * the placement layer will draw — configured text if the participant has one,
+ * their sequence number otherwise — so hovering never promises a different
+ * label than the one that gets placed.
  */
 export function MapGameToolHintLayer({
   hint,
   cell,
   cellSize,
-  themeColors,
+  slots,
 }: {
   hint: GameToolHint | null;
   cell: CellCoord | null;
   cellSize: number;
-  /** Slot index → theme colour, for the number glyph. */
-  themeColors: Map<number, string>;
+  /** The roster, for the number glyph's colour and 编号展示 text. */
+  slots: Array<CharacterSlotEntry | null>;
 }): JSX.Element | null {
   if (!hint || !cell) return null;
   const total = cellSize;
   const glyph = ((): JSX.Element => {
     if (hint.kind === 'number') {
-      const fontSize = cellSize * GAME_NUMBER_FONT_RATIO;
+      const slot = slots[hint.participantId - 1] ?? null;
+      const label = participantBadgeText(slot, hint.participantId - 1);
+      // v0.6.4 fix §4: a configured label can be wider than a digit, so the
+      // font shrinks to keep it inside its third of the cell.
+      const fontSize = glyphFontSize(label, total / GAME_NUMBER_GRID, total * GAME_NUMBER_FONT_RATIO);
       const anchor = numberSlotAnchor(0);
       return (
         <text
           x={anchor.x * total}
           y={anchor.y * total}
-          fill={themeColors.get(hint.participantId) ?? '#000000'}
+          fill={slot?.themeColor ?? '#000000'}
           stroke="#000000"
           strokeWidth={fontSize * GAME_NUMBER_STROKE_RATIO}
           paintOrder="stroke fill"
@@ -60,7 +73,7 @@ export function MapGameToolHintLayer({
           textAnchor="middle"
           dominantBaseline="central"
         >
-          {hint.participantId}
+          {label}
         </text>
       );
     }
@@ -137,22 +150,34 @@ export function MapGameToolHintLayer({
  * the numbers instead, so the two never overlap.
  *
  * The layer is inert — every interaction is dispatched by the board container.
+ *
+ * v0.6.4 (docs/v0.6.4.md §3): `activeParticipantId` magnifies whatever that
+ * participant already has on the board — their avatar and their own 编号
+ * glyphs — so touching / clicking a roster card shows where that participant
+ * currently sits. Only their own glyphs grow; a cell shared with other
+ * participants keeps everyone else at the normal size.
+ *
+ * v0.6.4 fix (§4): a 编号 glyph shows the participant's configured 编号展示
+ * text when they have one, and their sequence number otherwise — the same
+ * mapping the roster badges use, so the board never disagrees with the panel.
  */
 export function MapGamePlacementLayer({
   board,
   slots,
   charactersById,
   cellSize,
+  activeParticipantId = null,
 }: {
   board: GamePlacementBoard;
   slots: Array<CharacterSlotEntry | null>;
   charactersById: Map<number, Character>;
   cellSize: number;
+  /** 1-based participant id (the board's numbering); `null` = nobody active. */
+  activeParticipantId?: number | null;
 }): JSX.Element | null {
   const entries = Object.entries(board).filter(([, placement]) => placement !== null && placement !== undefined);
   if (entries.length === 0) return null;
   const numberFontSize = cellSize * GAME_NUMBER_FONT_RATIO;
-  const numberStroke = numberFontSize * GAME_NUMBER_STROKE_RATIO;
   const forbiddenFontSize = cellSize * GAME_FORBIDDEN_FONT_RATIO;
   const avatarPadding = itemPadding(cellSize);
 
@@ -176,32 +201,69 @@ export function MapGamePlacementLayer({
             }}
           >
             {placement.kind === 'participant' ? (
-              <ParticipantAvatar
-                slot={slots[placement.index - 1] ?? null}
-                charactersById={charactersById}
-                padding={avatarPadding}
-              />
+              <div
+                className="absolute"
+                style={{
+                  inset: 0,
+                  // v0.6.4 §3: the active participant's avatar magnifies around
+                  // the cell centre, with a ring so it reads as "this one" even
+                  // at a glance. Inactive avatars are untouched.
+                  transform:
+                    placement.index === activeParticipantId
+                      ? `scale(${GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE})`
+                      : undefined,
+                  transformOrigin: 'center',
+                  transition: 'transform 150ms ease-out',
+                  borderRadius: '50%',
+                  boxShadow:
+                    placement.index === activeParticipantId
+                      ? '0 0 0 2px hsl(var(--primary))'
+                      : undefined,
+                }}
+              >
+                <ParticipantAvatar
+                  slot={slots[placement.index - 1] ?? null}
+                  charactersById={charactersById}
+                  padding={avatarPadding}
+                />
+              </div>
             ) : null}
 
             {placement.kind === 'numbers' ? (
               <svg className="absolute left-0 top-0" width={cellSize} height={cellSize}>
                 {placement.entries.map((participantId, index) => {
                   const anchor = numberSlotAnchor(index);
+                  // v0.6.4 §3: only the active participant's own glyph grows —
+                  // the stroke scales with it so the outline keeps its weight.
+                  const active = participantId === activeParticipantId;
+                  const glyphScale = active ? GAME_ACTIVE_PARTICIPANT_NUMBER_SCALE : 1;
+                  // v0.6.4 fix §4: the glyph is the participant's 编号展示
+                  // text when they have one — the same mapping the roster
+                  // badges use — and their sequence number otherwise.
+                  const slot = slots[participantId - 1] ?? null;
+                  const label = participantBadgeText(slot, participantId - 1);
+                  // A configured label can be wider than a digit, so the font
+                  // shrinks to keep it inside its third of the cell.
+                  const fontSize = glyphFontSize(
+                    label,
+                    cellSize / GAME_NUMBER_GRID,
+                    numberFontSize * glyphScale,
+                  );
                   return (
                     <text
                       key={`num-${key}-${participantId}-${index}`}
                       x={anchor.x * cellSize}
                       y={anchor.y * cellSize}
-                      fill={slots[participantId - 1]?.themeColor ?? '#000000'}
+                      fill={slot?.themeColor ?? '#000000'}
                       stroke="#000000"
-                      strokeWidth={numberStroke}
+                      strokeWidth={fontSize * GAME_NUMBER_STROKE_RATIO}
                       paintOrder="stroke fill"
-                      fontSize={numberFontSize}
+                      fontSize={fontSize}
                       fontWeight={700}
                       textAnchor="middle"
                       dominantBaseline="central"
                     >
-                      {participantId}
+                      {label}
                     </text>
                   );
                 })}

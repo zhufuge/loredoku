@@ -67,6 +67,7 @@ import {
   ZOOM_STEP,
 } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
+import { rosterPanelWidthFor } from '@/lib/participantLayout';
 import {
   collectBlockingCells,
   collectItemCells,
@@ -247,6 +248,17 @@ export function GamePage(): JSX.Element {
     () => snapshot?.puzzle?.linkageColors ?? snapshot?.legacyLinkageColors ?? [],
     [snapshot],
   );
+  /**
+   * v0.6.3 (docs/v0.6.3.md §3.4): the deployed game renders the roster the way
+   * the puzzle was laid out. The column count is frozen into the snapshot with
+   * the rest of the puzzle, so only a re-deploy changes it — editing the puzzle
+   * afterwards cannot move a board that is already published.
+   */
+  const rosterCols = snapshot?.puzzle?.rosterCols ?? null;
+  const rosterWidth = useMemo(
+    () => rosterPanelWidthFor(rosterCols, slots.length),
+    [rosterCols, slots.length],
+  );
 
   useEffect(() => {
     document.title = gameQuery.data ? `${gameQuery.data.name} · 格物` : '游戏 · 格物';
@@ -354,14 +366,6 @@ export function GamePage(): JSX.Element {
       nonStandable: blockingCells.has(cellKey(hover.x, hover.y)),
     });
   }, [mode, hover, placementState.board, blockingCells]);
-
-  const themeColors = useMemo(() => {
-    const map = new Map<number, string>();
-    slots.forEach((slot, index) => {
-      if (slot) map.set(index + 1, slot.themeColor ?? '#000000');
-    });
-    return map;
-  }, [slots]);
 
   const toCell = useCallback(
     (clientX: number, clientY: number): CellCoord | null => {
@@ -755,7 +759,10 @@ export function GamePage(): JSX.Element {
       <div className="flex min-h-0 flex-1">
         {/* 左列：上 = 品牌 + 游戏名（v0.5.1 SPEC-L06~L09 精简后的两行），
             下 = 参与者面板（与预览页同一个组件） */}
-        <aside className="flex w-[256px] shrink-0 flex-col border-r bg-background">
+        <aside
+          className="flex shrink-0 flex-col border-r bg-background"
+          style={{ width: rosterWidth }}
+        >
           <div className="shrink-0 space-y-1 border-b p-3">
             {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
                 v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
@@ -780,6 +787,7 @@ export function GamePage(): JSX.Element {
             <ParticipantPanel
               slots={slots}
               charactersById={charactersById}
+              cols={rosterCols}
               selectedSlotIndex={null}
               draggingIndex={null}
               activeSlotIndex={activation.activeParticipantId}
@@ -944,7 +952,7 @@ export function GamePage(): JSX.Element {
               hint={toolHint}
               cell={hoverEffects.cell}
               cellSize={cellSize}
-              themeColors={themeColors}
+              slots={slots}
             />
 
             {/* 层 5 · 游戏放置层 — SPEC-G01 */}
@@ -953,6 +961,17 @@ export function GamePage(): JSX.Element {
               slots={slots}
               charactersById={charactersById}
               cellSize={cellSize}
+              /*
+               * v0.6.4 §3: 触碰 / 点击参与者时，放大展示地图中该参与者的头像
+               * 与编号，提示当前放置的情况。面板说的是 0 基槽位号，棋盘从 1
+               * 编号——和放置态同样 +1。悬停与点击都走激活态，所以摸一下和
+               * 点一下效果一致。
+               */
+              activeParticipantId={
+                activation.activeParticipantId === null
+                  ? null
+                  : activation.activeParticipantId + 1
+              }
             />
 
             <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />

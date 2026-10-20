@@ -77,6 +77,11 @@ export function ensureEntry(entry: CharacterSlotEntry | null): CharacterSlotEntr
     ...(conditions.length > 0
       ? { positionConditions: conditions.map((condition) => ({ ...condition })) }
       : {}),
+    // v0.6.4 §2: the configured 编号展示 survives normalisation like every
+    // other optional field — a cleared one stays absent, not `undefined`.
+    ...(entry.displayNumber?.trim()
+      ? { displayNumber: entry.displayNumber.trim() }
+      : {}),
   };
 }
 
@@ -86,6 +91,8 @@ interface Snapshot {
   description: string;
   linkageColors: MapLinkageColor[];
   characterSlots: Array<CharacterSlotEntry | null>;
+  /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
+  rosterCols: number | null;
 }
 
 export interface PuzzleState {
@@ -98,6 +105,12 @@ export interface PuzzleState {
   description: string;
   linkageColors: MapLinkageColor[];
   characterSlots: Array<CharacterSlotEntry | null>;
+  /**
+   * v0.6.3 (docs/v0.6.3.md §3): the roster matrix's column count, owned by the
+   * puzzle. It rides in the undo stack with the rest of the basics, so
+   * 撤销 takes a layout change back too.
+   */
+  rosterCols: number | null;
 
   // ---- view / focus (never in the undo stack) ----
   selection: PuzzleSelection | null;
@@ -120,14 +133,15 @@ export interface PuzzleState {
   setLinkageColors: (colors: MapLinkageColor[]) => void;
   removeLinkageColor: (key: string) => void;
   /**
-   * SPEC-K05 (docs/v0.5.0.md §4.2): the 「谜题基本信息」 drawer commits the
-   * description, the palette **and** the re-pointed roster as one gesture —
-   * one 保存, one undo step.
+   * SPEC-K05 (docs/v0.5.0.md §4.2) + v0.6.3 §3: the 「谜题基本信息」 drawer
+   * commits the description, the palette, the roster **and** its column count
+   * as one gesture — one 保存, one undo step.
    */
   setBasicInfo: (patch: {
     description: string;
     linkageColors: MapLinkageColor[];
     characterSlots: Array<CharacterSlotEntry | null>;
+    rosterCols: number | null;
   }) => void;
   setParticipantConfig: (
     slotIndex: number,
@@ -136,6 +150,12 @@ export interface PuzzleState {
       clue?: string;
       linkages?: ParticipantTarget[];
       positionConditions?: Array<{ x: number; y: number }>;
+      /**
+       * v0.6.4 (docs/v0.6.4.md §2): the configured 编号展示 text. Omitted =
+       * keep what is stored; a blank string clears it back to the sequence
+       * number.
+       */
+      displayNumber?: string | null;
     },
   ) => void;
   assignSlot: (characterId: number) => number | null;
@@ -165,6 +185,7 @@ function snapshot(state: PuzzleState): Snapshot {
     description: state.description,
     linkageColors: state.linkageColors.map((entry) => ({ ...entry })),
     characterSlots: state.characterSlots.map(ensureEntry),
+    rosterCols: state.rosterCols,
   };
 }
 
@@ -203,6 +224,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     description: '',
     linkageColors: resolveLinkageColors(undefined),
     characterSlots: [],
+    rosterCols: null,
     selection: null,
     selectedSlotIndex: null,
     activeParticipantId: null,
@@ -235,6 +257,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           mapContext.gridSize,
           detail.data.characterSlots,
         ).map(ensureEntry),
+        rosterCols: detail.data.rosterCols ?? null,
         selection: null,
         selectedSlotIndex: null,
         ...INACTIVE_ACTIVATION,
@@ -266,6 +289,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           get().mapContext?.gridSize ?? patch.characterSlots.length,
           patch.characterSlots,
         ).map(ensureEntry);
+        next.rosterCols = patch.rosterCols;
       }),
 
     // Guarded before `commit` so a rejected removal neither dirties the puzzle
@@ -288,6 +312,13 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
       commit((next) => {
         const entry = next.characterSlots[slotIndex];
         if (!entry) return;
+        // v0.6.4 §2: a cleared field is stored as absent, like
+        // `positionConditions` — the badge then shows the sequence number
+        // again instead of an empty chip.
+        const displayNumber =
+          patch.displayNumber === undefined
+            ? entry.displayNumber
+            : patch.displayNumber?.trim() || undefined;
         next.characterSlots = next.characterSlots.map((slot, index) =>
           index === slotIndex
             ? {
@@ -305,6 +336,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
                     ? { positionConditions: conditions.map((c) => ({ ...c })) }
                     : {};
                 })(),
+                ...(displayNumber ? { displayNumber } : {}),
               }
             : slot,
         );
@@ -421,6 +453,9 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         description: state.description,
         linkageColors: resolveLinkageColors(state.linkageColors),
         characterSlots: state.characterSlots.map(ensureEntry),
+        // v0.6.3 §3: the published game renders the roster the way the puzzle
+        // asked for, so the column count has to reach the snapshot.
+        rosterCols: state.rosterCols,
       };
     },
 
@@ -433,6 +468,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           description: draft.description ?? '',
           linkageColors: resolveLinkageColors(draft.linkageColors),
           characterSlots: genSlotArray(size, draft.characterSlots).map(ensureEntry),
+          rosterCols: draft.rosterCols ?? null,
           past,
           future: [],
           dirty: true,

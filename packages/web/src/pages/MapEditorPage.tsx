@@ -71,7 +71,7 @@ import { useEditorResize } from '@/hooks/useEditorResize';
 import { useEditorSave } from '@/hooks/useEditorSave';
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
-import { clampZoom, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
+import { isInBounds } from '@/lib/grid';
 import { canPlaceAssetOnLayer } from '@/lib/canvasLayers';
 import { infoDrawerOpen, reduceEditorFocus } from '@/lib/editorFocus';
 import { resolveEditorInit } from '@/lib/editorInit';
@@ -729,15 +729,14 @@ export function MapEditorPage(): JSX.Element {
     })();
   };
 
+  /**
+   * v0.6.3: the zoom maths lives in the canvas (next to the wheel handler) so
+   * the button path marks the view as user-adjusted too — otherwise the
+   * adaptive auto-centre pass centres the new zoom away on the next render
+   * and the buttons look dead until a wheel zoom sets that flag.
+   */
   function zoomBy(direction: 1 | -1): void {
-    const rect = canvasRef.current?.getRect() ?? null;
-    const next = clampZoom(editor.zoom + direction * ZOOM_STEP);
-    if (next === editor.zoom) return;
-    if (rect) {
-      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      editor.setPan(zoomAtPoint(center, rect, editor.pan, next, editor.zoom));
-    }
-    editor.setZoom(next);
+    canvasRef.current?.zoomByStep(direction);
   }
 
   /**

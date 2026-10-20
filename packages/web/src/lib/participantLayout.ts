@@ -1,3 +1,14 @@
+import {
+  PARTICIPANT_CELL_GAP,
+  PARTICIPANT_MIN_WIDTH,
+  ROSTER_COLS_MAX,
+  ROSTER_PANEL_BORDER_WIDTH,
+  ROSTER_PANEL_MAX_WIDTH,
+  ROSTER_PANEL_MIN_WIDTH,
+  ROSTER_PANEL_PADDING,
+  type CharacterSlotEntry,
+} from '@loredoku/shared';
+
 /**
  * CLAR-602 (docs/v0.3.1.md §2.2): matrix layout for the participant panel.
  *
@@ -95,12 +106,88 @@ export function computeParticipantLayout(n: number): ParticipantLayout {
 }
 
 /**
+ * v0.6.3 (docs/v0.6.3.md §3): the roster's column count, once the puzzle says
+ * what it is.
+ *
+ * Returns `null` for "the puzzle has no opinion" — absent, or the user emptied
+ * the field — which is the signal to fall back to {@link computeParticipantLayout}
+ * (and to the container-fit shrink). Otherwise the value is forced into
+ * `[1, total]`: a stored `cols` may exceed today's roster because the board
+ * was resized or an import brought its own number, and a layout hint that lies
+ * would push slots outside the matrix.
+ */
+export function resolveRosterCols(
+  cols: number | null | undefined,
+  total: number,
+): number | null {
+  if (cols === null || cols === undefined || !Number.isFinite(cols)) return null;
+  const upper = Math.max(1, Math.floor(total));
+  return Math.min(Math.max(1, Math.round(cols)), upper);
+}
+
+/**
+ * v0.6.3 §3.3: the panel width for a roster of `total` slots.
+ *
+ * The single entry point for both the panel and the pages that have to size
+ * their left column around it (the game page's aside wraps the panel, so it
+ * needs the same number). 自动 keeps the panel at its historical fixed width —
+ * that is where the shrink-to-fit layout does its work.
+ */
+export function rosterPanelWidthFor(cols: number | null | undefined, total: number): number {
+  const fixed = resolveRosterCols(cols, total);
+  return fixed === null ? ROSTER_PANEL_MIN_WIDTH : rosterPanelWidth(fixed);
+}
+
+/** v0.6.3 §3.2: the row count the editor shows next to the column field. */
+export function rosterRows(total: number, cols: number): number {
+  const safeCols = Math.max(1, Math.floor(cols));
+  return Math.ceil(Math.max(0, total) / safeCols);
+}
+
+/**
+ * v0.6.3 §3.3: how wide the panel has to be for `cols` fixed-size slots.
+ *
+ * The slot cell keeps its size — that is the point of the whole change — so
+ * the only thing that can give is the panel. Up to {@link ROSTER_COLS_MAX}
+ * columns the panel grows to exactly fit its matrix **plus its own 1px
+ * separator border** (the aside is `border-box`, so the border has to be part
+ * of the sum): the scroll container's content box then equals the matrix's
+ * width to the pixel, so no horizontal scrollbar can ever appear. Past that
+ * the cap wins and the matrix scrolls inside it, because a column count the
+ * editor no longer offers must not squeeze the canvas out of the page.
+ */
+export function rosterPanelWidth(cols: number): number {
+  const safeCols = Math.max(1, Math.floor(cols));
+  const inner = safeCols * PARTICIPANT_MIN_WIDTH + (safeCols - 1) * PARTICIPANT_CELL_GAP;
+  const natural = inner + ROSTER_PANEL_PADDING * 2 + ROSTER_PANEL_BORDER_WIDTH;
+  if (safeCols <= ROSTER_COLS_MAX) return Math.max(ROSTER_PANEL_MIN_WIDTH, natural);
+  return Math.min(natural, ROSTER_PANEL_MAX_WIDTH);
+}
+
+/**
  * OPT-B06 (docs/v0.3.6.md §6.3): the sequence badge shown in a cell's
  * top-left corner. The number matches `characterSlots` order, which is the
  * row-major order {@link slotIndex} produces.
  */
 export function participantSequence(index: number): number {
   return index + 1;
+}
+
+/**
+ * v0.6.4 (docs/v0.6.4.md §2): the text the top-left badge actually shows.
+ *
+ * The configured 编号展示 wins; anything blank (absent, empty, whitespace)
+ * falls back to the sequence number. The fallback is derived from the slot's
+ * position, so rearranging the roster renumbers the badges — while a
+ * configured text stays with its participant, because it lives on the slot
+ * entry and `swapSlots` moves whole entries.
+ */
+export function participantBadgeText(
+  slot: CharacterSlotEntry | null | undefined,
+  index: number,
+): string {
+  const configured = slot?.displayNumber?.trim();
+  return configured ? configured : String(participantSequence(index));
 }
 
 /**

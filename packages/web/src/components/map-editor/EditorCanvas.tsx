@@ -77,6 +77,13 @@ export interface EditorCanvasHandle {
   containsPoint: (clientX: number, clientY: number) => boolean;
   getRect: () => DOMRect | null;
   centerView: () => void;
+  /**
+   * v0.6.3: one zoom step around the viewport centre — the bottom bar's ±
+   * buttons. It lives here, next to the wheel path, because both have to do
+   * the same one extra thing: mark the view as user-adjusted (see
+   * `zoomByStep`'s comment).
+   */
+  zoomByStep: (direction: 1 | -1) => void;
 }
 
 interface EditorCanvasProps {
@@ -252,6 +259,31 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     );
   }, [gridSize, showRulers, styleCellSize, rulerStrip]);
 
+  /**
+   * v0.6.3: one zoom step around the viewport centre — the bottom bar's ±
+   * buttons. It is the button-shaped twin of the Ctrl+wheel handler below
+   * (same anchor maths, pointer swapped for the viewport centre), and it has
+   * to live here for one reason the pages cannot supply: a zoom step changes
+   * the ruler strip, which re-creates `centerView`, which re-runs the
+   * adaptive auto-centre effect above. That effect resets the view back to
+   * 100% unless the view is marked as user-adjusted — so the button path sets
+   * the same flag the wheel path sets. Without it the buttons appear dead:
+   * the store takes the new zoom for one render and the effect immediately
+   * centres it away, and only a wheel zoom (which sets the flag) sticks.
+   */
+  const zoomByStep = useCallback((direction: 1 | -1): void => {
+    const node = containerRef.current;
+    if (!node) return;
+    const view = viewRef.current;
+    const next = clampZoom(view.zoom + direction * ZOOM_STEP);
+    if (next === view.zoom) return;
+    userPannedRef.current = true;
+    const rect = node.getBoundingClientRect();
+    const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    view.onPan(zoomAtPoint(center, rect, view.pan, next, view.zoom));
+    view.onZoom(next);
+  }, []);
+
   const toCell = useCallback(
     (clientX: number, clientY: number): CellCoord => {
       const node = containerRef.current;
@@ -260,7 +292,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     },
     [pan, zoom, cellSize],
   );
-
   const clampCell = useCallback(
     (coord: CellCoord): CellCoord => ({
       x: Math.min(gridSize - 1, Math.max(0, coord.x)),
@@ -279,14 +310,16 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       },
       getRect: () => containerRef.current?.getBoundingClientRect() ?? null,
       centerView,
+      zoomByStep,
     }),
-    [toCell, centerView],
+    [toCell, centerView, zoomByStep],
   );
 
   /**
    * OPT-A01 §1.2 生效时机: adapt on mount and on every resize, but only while
-   * the user has not manually zoomed (Ctrl+wheel) or dragged the canvas. A
-   * manual interaction flips `userPannedRef`; "重置视图" re-arms it.
+   * the user has not taken the view over (Ctrl+wheel, the ± buttons, or a
+   * canvas drag). A manual interaction flips `userPannedRef`; "重置视图"
+   * re-arms it.
    */
   useEffect(() => {
     const node = containerRef.current;

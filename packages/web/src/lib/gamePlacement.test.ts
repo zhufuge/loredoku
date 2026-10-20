@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import type { CellPlacement, CharacterSlotEntry, GamePlacementBoard } from '@loredoku/shared';
+import {
+  GAME_NUMBER_FONT_RATIO,
+  GAME_NUMBER_GRID,
+  type CellPlacement,
+  type CharacterSlotEntry,
+  type GamePlacementBoard,
+} from '@loredoku/shared';
 import {
   autoForbiddenCells,
   canPlaceForbidden,
@@ -14,6 +20,7 @@ import {
   createGamePlacementState,
   forbiddenCells,
   formatCellLabel,
+  glyphFontSize,
   hasParticipant,
   numberSlotAnchor,
   numbersIn,
@@ -725,6 +732,34 @@ describe('helpers', () => {
     expect(numberSlotAnchor(2)).toEqual({ x: 5 / 6, y: 1 / 6 });
     expect(numberSlotAnchor(4)).toEqual({ x: 0.5, y: 0.5 });
     expect(numberSlotAnchor(8)).toEqual({ x: 5 / 6, y: 5 / 6 });
+  });
+
+  // v0.6.4 fix (docs/v0.6.4.md §4): a 编号 glyph can be configured text, and
+  // a third of a 40px cell (≈13.3px) is not much room for it.
+  const SLOT = 40 / GAME_NUMBER_GRID;
+  const FONT = 40 * GAME_NUMBER_FONT_RATIO;
+
+  it('keeps the font size for a label that fits its slot', () => {
+    // Digits — the historical case — never shrink, even two of them.
+    expect(glyphFontSize('7', SLOT, FONT)).toBe(FONT);
+    expect(glyphFontSize('12', SLOT, FONT)).toBe(FONT);
+    // A single wide glyph is exactly one em and still fits.
+    expect(glyphFontSize('甲', SLOT, FONT)).toBe(FONT);
+  });
+
+  it('shrinks a label that would spill over its slot', () => {
+    const fitted = glyphFontSize('甲乙', SLOT, FONT);
+    expect(fitted).toBeLessThan(FONT);
+    // The estimate at the fitted size is exactly the box: 2 em × font = slot.
+    expect(fitted * 2).toBeCloseTo(SLOT, 6);
+    // Three digits are wider than a slot too.
+    expect(glyphFontSize('123', SLOT, FONT)).toBeLessThan(FONT);
+  });
+
+  it('leaves the font size alone when the box is unusable', () => {
+    expect(glyphFontSize('甲乙', 0, FONT)).toBe(FONT);
+    expect(glyphFontSize('甲乙', Number.NaN, FONT)).toBe(FONT);
+    expect(glyphFontSize('', SLOT, FONT)).toBe(FONT);
   });
 });
 

@@ -1,10 +1,25 @@
 import { describe, expect, it } from 'vitest';
 import {
+  PARTICIPANT_CELL_GAP,
+  PARTICIPANT_MIN_WIDTH,
+  ROSTER_COLS_MAX,
+  ROSTER_PANEL_BORDER_WIDTH,
+  ROSTER_PANEL_MAX_WIDTH,
+  ROSTER_PANEL_MIN_WIDTH,
+  ROSTER_PANEL_PADDING,
+  type CharacterSlotEntry,
+} from '@loredoku/shared';
+import {
   computeParticipantLayout,
   deriveLayout,
   fitColumns,
   matrixOrder,
+  participantBadgeText,
   participantSequence,
+  resolveRosterCols,
+  rosterPanelWidth,
+  rosterPanelWidthFor,
+  rosterRows,
   slotIndex,
   slotPosition,
 } from './participantLayout';
@@ -197,6 +212,39 @@ describe('participantSequence (OPT-B06 §6.3)', () => {
   });
 });
 
+// ---- v0.6.4 §2: the configured 编号展示 ----
+describe('participantBadgeText (v0.6.4 §2)', () => {
+  const slot = (displayNumber?: string): CharacterSlotEntry => ({
+    characterId: 1,
+    ...(displayNumber === undefined ? {} : { displayNumber }),
+  });
+
+  it('shows the sequence number when nothing is configured', () => {
+    expect(participantBadgeText(null, 0)).toBe('1');
+    expect(participantBadgeText(slot(), 3)).toBe('4');
+  });
+
+  it('prefers the configured text, whatever it is', () => {
+    expect(participantBadgeText(slot('甲'), 0)).toBe('甲');
+    expect(participantBadgeText(slot('7'), 0)).toBe('7');
+    expect(participantBadgeText(slot('K1'), 5)).toBe('K1');
+  });
+
+  it('treats blank text as "not configured"', () => {
+    expect(participantBadgeText(slot(''), 2)).toBe('3');
+    expect(participantBadgeText(slot('   '), 2)).toBe('3');
+  });
+
+  it('keeps the configured text across a rearrangement — only the number would move', () => {
+    // The same entry at a different index: the label is the entry's, the
+    // sequence is the position's.
+    const entry = slot('甲');
+    expect(participantBadgeText(entry, 0)).toBe('甲');
+    expect(participantBadgeText(entry, 4)).toBe('甲');
+    expect(participantBadgeText(null, 4)).toBe('5');
+  });
+});
+
 describe('matrixOrder (OPT-B06 §6.3)', () => {
   it('reads top-to-bottom, then left-to-right, for every n ≥ 2', () => {
     for (let n = 2; n <= 24; n += 1) {
@@ -223,5 +271,108 @@ describe('matrixOrder (OPT-B06 §6.3)', () => {
 
   it('returns nothing for an empty layout', () => {
     expect(matrixOrder(computeParticipantLayout(0))).toEqual([]);
+  });
+});
+
+// ---- v0.6.3 §3: the puzzle owns the column count ----
+describe('resolveRosterCols (v0.6.3 §3.1)', () => {
+  it('reads an absent or null column count as 自动', () => {
+    expect(resolveRosterCols(null, 6)).toBeNull();
+    expect(resolveRosterCols(undefined, 6)).toBeNull();
+  });
+
+  it('clamps into [1, 参与者数]', () => {
+    expect(resolveRosterCols(3, 6)).toBe(3);
+    expect(resolveRosterCols(0, 6)).toBe(1);
+    expect(resolveRosterCols(-4, 6)).toBe(1);
+    // An import that asked for 8 columns, on a board that now holds 6.
+    expect(resolveRosterCols(8, 6)).toBe(6);
+    expect(resolveRosterCols(2.4, 6)).toBe(2);
+  });
+
+  it('keeps the roster inside a matrix that can hold it', () => {
+    expect(resolveRosterCols(5, 1)).toBe(1);
+    // The roster can be empty before the map context arrives.
+    expect(resolveRosterCols(3, 0)).toBe(1);
+  });
+
+  it('treats a non-finite number as 自动', () => {
+    expect(resolveRosterCols(Number.NaN, 6)).toBeNull();
+    expect(resolveRosterCols(Number.POSITIVE_INFINITY, 6)).toBeNull();
+  });
+});
+
+describe('rosterRows (v0.6.3 §3.2)', () => {
+  it.each([
+    [6, 3, 2],
+    [6, 2, 3],
+    [7, 3, 3],
+    [5, 1, 5],
+  ] as Array<[number, number, number]>)('%i 人 / %i 列 → %i 行', (total, cols, rows) => {
+    expect(rosterRows(total, cols)).toBe(rows);
+  });
+
+  it('agrees with the layout it feeds', () => {
+    for (const total of [2, 5, 6, 9, 12]) {
+      for (let cols = 1; cols <= total; cols += 1) {
+        expect(rosterRows(total, cols)).toBe(deriveLayout(total, cols).rows);
+      }
+    }
+  });
+
+  it('survives a zero column count and an empty roster', () => {
+    expect(rosterRows(6, 0)).toBe(6);
+    expect(rosterRows(0, 3)).toBe(0);
+  });
+});
+
+describe('rosterPanelWidth (v0.6.3 §3.3)', () => {
+  it('grows by exactly one fixed slot per column', () => {
+    // 3 → 4 columns: the slot keeps its size, the panel gives.
+    expect(rosterPanelWidth(4) - rosterPanelWidth(3)).toBe(
+      PARTICIPANT_MIN_WIDTH + PARTICIPANT_CELL_GAP,
+    );
+  });
+
+  it('never goes below the historical panel width', () => {
+    // One column needs 126px, which the 参与者 header cannot live in.
+    expect(rosterPanelWidth(1)).toBe(ROSTER_PANEL_MIN_WIDTH);
+    expect(rosterPanelWidth(2)).toBe(ROSTER_PANEL_MIN_WIDTH);
+  });
+
+  it('fits every column count up to the maximum exactly — no scrollbar', () => {
+    // The panel is as wide as its own matrix **plus its own 1px separator
+    // border** (the aside is border-box, so the border comes out of the
+    // computed width): the scroll container's content box then equals the
+    // matrix's width to the pixel, and nothing can overflow. Leaving the
+    // border out is what brought the scrollbar back at three columns.
+    for (let cols = 1; cols <= ROSTER_COLS_MAX; cols += 1) {
+      const needed =
+        cols * PARTICIPANT_MIN_WIDTH +
+        (cols - 1) * PARTICIPANT_CELL_GAP +
+        ROSTER_PANEL_PADDING * 2 +
+        ROSTER_PANEL_BORDER_WIDTH;
+      expect(rosterPanelWidth(cols)).toBe(Math.max(ROSTER_PANEL_MIN_WIDTH, needed));
+    }
+  });
+
+  it('caps only what the editor can no longer ask for', () => {
+    // A stored count above ROSTER_COLS_MAX (an import, or a puzzle authored
+    // before the cap) scrolls inside the cap instead of widening the page.
+    expect(rosterPanelWidth(ROSTER_COLS_MAX + 1)).toBe(ROSTER_PANEL_MAX_WIDTH);
+    expect(rosterPanelWidth(99)).toBe(ROSTER_PANEL_MAX_WIDTH);
+  });
+});
+
+describe('rosterPanelWidthFor (v0.6.3 §3.3)', () => {
+  it('keeps 自动 at the historical width', () => {
+    expect(rosterPanelWidthFor(null, 9)).toBe(ROSTER_PANEL_MIN_WIDTH);
+    expect(rosterPanelWidthFor(undefined, 9)).toBe(ROSTER_PANEL_MIN_WIDTH);
+  });
+
+  it('sizes the panel the same way the panel sizes itself', () => {
+    expect(rosterPanelWidthFor(3, 9)).toBe(rosterPanelWidth(3));
+    // A column count above the roster is clamped before it reaches the width.
+    expect(rosterPanelWidthFor(9, 3)).toBe(rosterPanelWidth(3));
   });
 });

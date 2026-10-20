@@ -6,6 +6,7 @@ import {
   PARTICIPANT_AVATAR_MIN,
   PARTICIPANT_CELL_GAP,
   PARTICIPANT_CLUE_HEIGHT,
+  ROSTER_PANEL_PADDING,
   PARTICIPANT_HEADER_HEIGHT,
   PARTICIPANT_MIN_HEIGHT,
   PARTICIPANT_MIN_WIDTH,
@@ -17,6 +18,7 @@ import {
   PARTICIPANT_SEQ_FONT_SIZE,
   PARTICIPANT_SEQ_INSET,
   PARTICIPANT_SEQ_SIZE,
+  PARTICIPANT_SLOT_RADIUS,
   type Character,
   type CharacterSlotEntry,
 } from '@loredoku/shared';
@@ -25,7 +27,9 @@ import {
   computeParticipantLayout,
   deriveLayout,
   fitColumns,
-  participantSequence,
+  participantBadgeText,
+  resolveRosterCols,
+  rosterPanelWidthFor,
   slotIndex,
   type ParticipantLayout,
 } from '@/lib/participantLayout';
@@ -50,10 +54,18 @@ import { cn } from '@/lib/utils';
  * - v0.3.10 FIX-F07: `readOnly` renders the **same** panel on the work preview
  *   page — no drag, no remove button, pointer cursor — so the preview roster is
  *   pixel-identical to the editor's.
+ * - v0.6.3 (docs/v0.6.3.md §3): the column count is the puzzle's, not the
+ *   panel's. With `cols` set, the slot keeps its size and the panel widens to
+ *   fit the columns; without it, the old adaptive layout is untouched.
  */
 interface ParticipantPanelProps {
   slots: Array<CharacterSlotEntry | null>;
   charactersById: Map<number, Character>;
+  /**
+   * v0.6.3 (docs/v0.6.3.md §3): the column count the puzzle asks for.
+   * `null` / omitted = 自动 — the old golden-ratio + shrink-to-fit behaviour.
+   */
+  cols?: number | null;
   selectedSlotIndex: number | null;
   draggingIndex: number | null;
   /** MOD-802: slot whose linkages are currently previewed. */
@@ -116,6 +128,7 @@ const DRAG_HOVER_LOCK = true;
 export function ParticipantPanel({
   slots,
   charactersById,
+  cols = null,
   selectedSlotIndex,
   draggingIndex,
   activeSlotIndex = null,
@@ -148,20 +161,39 @@ export function ParticipantPanel({
     [slots.length],
   );
 
+  /**
+   * v0.6.3 §3: a stored column count wins outright — the slot size is fixed,
+   * so the panel width follows the columns instead of the other way round.
+   * `null` means the puzzle has no opinion and the old two-step rule applies:
+   * golden ratio, then shrink to whatever the container can hold.
+   */
+  const fixedCols = useMemo(() => resolveRosterCols(cols, slots.length), [cols, slots.length]);
+
   // MOD-803: shrink the column count when the panel can't hold it; when even
   // one column doesn't fit, the scroll container takes over.
   const layout = useMemo<ParticipantLayout>(() => {
+    if (fixedCols !== null) return deriveLayout(slots.length, fixedCols);
     if (panelWidth <= 0) return preferred;
-    const cols = fitColumns(panelWidth - 16, preferred.cols, PANEL_CELL_WIDTH, CELL_GAP);
-    return deriveLayout(slots.length, cols);
-  }, [panelWidth, preferred, slots.length]);
+    const fit = fitColumns(
+      panelWidth - ROSTER_PANEL_PADDING * 2,
+      preferred.cols,
+      PANEL_CELL_WIDTH,
+      CELL_GAP,
+    );
+    return deriveLayout(slots.length, fit);
+  }, [panelWidth, preferred, slots.length, fixedCols]);
+
+  /** v0.6.3 §3.3: the panel is as wide as its columns demand. */
+  const panelBoxWidth = rosterPanelWidthFor(cols, slots.length);
 
   const measuredRef = useRef<HTMLDivElement | null>(null);
 
   // MOD-803: track the panel width so the column count can shrink to fit.
+  // Only 自动 needs it — with an explicit column count the side we measure is
+  // the one we just set ourselves.
   useEffect(() => {
     const node = measuredRef.current;
-    if (!node || typeof window === 'undefined') return;
+    if (!node || typeof window === 'undefined' || fixedCols !== null) return;
     const update = (): void => {
       const width = node.clientWidth;
       setPanelWidth((current) => (current === width ? current : width));
@@ -171,7 +203,7 @@ export function ParticipantPanel({
     const observer = new ResizeObserver(update);
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [fixedCols]);
 
   const placedCount = useMemo(() => slots.filter(Boolean).length, [slots]);
 
@@ -200,7 +232,8 @@ export function ParticipantPanel({
   return (
     <aside
       ref={measuredRef}
-      className="flex w-[256px] shrink-0 flex-col border-r bg-background"
+      className="flex shrink-0 flex-col border-r bg-background"
+      style={{ width: panelBoxWidth }}
     >
       {/* OPT-B06 §6.1: title bar 40px, aligned with the item panel header */}
       <div
@@ -215,7 +248,16 @@ export function ParticipantPanel({
       >
         参与者 {placedCount}/{slots.length}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2 py-2">
+      {/*
+        v0.6.3 §3.3: the horizontal padding is a constant, not a Tailwind class,
+        because the panel's width is computed from it — a drift between the two
+        would make the panel 8px too narrow for its own matrix. `overflow-auto`
+        so a column count wider than the cap scrolls instead of clipping.
+      */}
+      <div
+        className="min-h-0 flex-1 overflow-auto py-2"
+        style={{ paddingLeft: ROSTER_PANEL_PADDING, paddingRight: ROSTER_PANEL_PADDING }}
+      >
         {slots.length === 0 ? (
           <p className="px-2 py-6 text-center text-[10px] text-muted-foreground">
             {readOnly ? '该谜题暂无参与者' : '从角色列表拖拽到参与者区'}
@@ -223,10 +265,15 @@ export function ParticipantPanel({
         ) : (
           <div
             className="grid"
+            data-testid="roster-matrix"
             style={{
               gridTemplateColumns: `repeat(${layout.cols}, ${PANEL_CELL_WIDTH}px)`,
               gap: CELL_GAP,
               justifyContent: 'center',
+              // v0.6.3 §3.3: never narrower than its own tracks. Without this,
+              // a matrix wider than the panel would be centred and its left
+              // edge clipped — the part `overflow` can never scroll back to.
+              minWidth: 'max-content',
             }}
           >
             {cells.map((item, position) => {
@@ -267,6 +314,10 @@ export function ParticipantPanel({
                     width: PANEL_CELL_WIDTH,
                     // FEAT-O12: the name row is added to the card's height.
                     height: PANEL_CELL_HEIGHT + NAME_AREA_HEIGHT + CLUE_AREA_HEIGHT,
+                    // The radius is inline (not `rounded-md`) because the
+                    // sequence badge rounds its top-left corner with it — the
+                    // two must never drift apart.
+                    borderRadius: PARTICIPANT_SLOT_RADIUS,
                     // FIX-E04: the slot's single highlight frame.
                     ...focusRingStyle,
                     // SPEC-H14 §1.3: placed → the **whole** card dims (frame +
@@ -349,7 +400,7 @@ export function ParticipantPanel({
                       : `空参与者框 ${index + 1}`
                   }
                   className={cn(
-                    'relative flex flex-col items-center justify-start rounded-md border',
+                    'relative flex flex-col items-center justify-start border',
                     readOnly
                       ? slot
                         ? 'cursor-pointer'
@@ -371,7 +422,12 @@ export function ParticipantPanel({
                       FEAT-O13 (docs/v0.5.4.md §6.2): bigger, and pushed into
                       the corner — its top / left edges are dropped so the
                       **card's frame** is those two lines, and only the
-                      bottom-right corner is rounded. */}
+                      bottom-right corner is rounded. The top-left rounds with
+                      the **card's** radius: the badge sits at inset 0, so a
+                      square corner there would poke past the card's rounded
+                      frame.
+                      v0.6.4 §2: the glyph is the configured 编号展示 when the
+                      participant has one, and the sequence number otherwise. */}
                   <span
                     data-testid={`slot-seq-${index}`}
                     className="absolute flex items-center justify-center"
@@ -392,7 +448,7 @@ export function ParticipantPanel({
                       borderLeftWidth: 0,
                     }}
                   >
-                    {participantSequence(index)}
+                    {participantBadgeText(slot, index)}
                   </span>
 
                   {/* Avatar area (top portion) — MOD-803: 8px padding */}

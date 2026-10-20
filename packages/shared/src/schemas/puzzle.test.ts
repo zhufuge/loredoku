@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { PUZZLE_DESCRIPTION_MAX_LENGTH, PUZZLE_NAME_MAX_LENGTH } from '../constants';
+import {
+  GRID_SIZE_MAX,
+  PARTICIPANT_DISPLAY_NUMBER_MAX,
+  PUZZLE_DESCRIPTION_MAX_LENGTH,
+  PUZZLE_NAME_MAX_LENGTH,
+} from '../constants';
 import {
   createPuzzleSchema,
   puzzleDraftSchema,
@@ -90,6 +95,65 @@ describe('puzzleDraftSchema —— v0.5.0 FEAT-K08 结构', () => {
       puzzleDraftSchema.safeParse(draft({ characterSlots: Array.from({ length: 20 }, () => null) }))
         .success,
     ).toBe(true);
+  });
+
+  /**
+   * v0.6.3 (docs/v0.6.3.md §3.1) — the roster's column count.
+   *
+   * The point of the field being optional: a puzzle saved before this version
+   * has no such key and must still load, and it loads as 自动 — which is
+   * exactly the layout it had. That is also why the JSON version stays put.
+   */
+  it('keeps the roster column count optional and bounded', () => {
+    const older = puzzleDraftSchema.parse(draft());
+    expect(older.rosterCols).toBeUndefined();
+
+    expect(puzzleDraftSchema.safeParse(draft({ rosterCols: null })).success).toBe(true);
+    expect(puzzleDraftSchema.parse(draft({ rosterCols: 3 })).rosterCols).toBe(3);
+    // The board's own bound, not the roster's — a column count above the slot
+    // count is clamped at render time, not refused here.
+    expect(puzzleDraftSchema.safeParse(draft({ rosterCols: GRID_SIZE_MAX })).success).toBe(true);
+
+    for (const bad of [0, -2, 2.5, GRID_SIZE_MAX + 1, '3'] as Array<unknown>) {
+      expect(puzzleDraftSchema.safeParse(draft({ rosterCols: bad })).success, String(bad)).toBe(
+        false,
+      );
+    }
+  });
+
+  /**
+   * v0.6.4 (docs/v0.6.4.md §2) — the per-participant 编号展示 text.
+   *
+   * Same optional-field rule as `rosterCols`: a payload saved before this
+   * version has no such key and still parses, and the badge then shows the
+   * sequence number — which is what it always showed. Trimmed on the way in,
+   * bounded, and `null` is accepted so "cleared" round-trips.
+   */
+  it('keeps the participant 编号展示 text optional, trimmed and bounded', () => {
+    const older = puzzleDraftSchema.parse(draft());
+    expect(older.characterSlots[0]).not.toHaveProperty('displayNumber');
+
+    expect(puzzleDraftSchema.safeParse(draft({ characterSlots: [slot({ displayNumber: '甲' })] })).success).toBe(
+      true,
+    );
+    expect(
+      puzzleDraftSchema.parse(draft({ characterSlots: [slot({ displayNumber: '  7  ' })] }))
+        .characterSlots[0],
+    ).toMatchObject({ displayNumber: '7' });
+    expect(puzzleDraftSchema.safeParse(draft({ characterSlots: [slot({ displayNumber: null })] })).success).toBe(
+      true,
+    );
+
+    const tooLong = 'x'.repeat(PARTICIPANT_DISPLAY_NUMBER_MAX + 1);
+    expect(
+      puzzleDraftSchema.safeParse(draft({ characterSlots: [slot({ displayNumber: tooLong })] })).success,
+    ).toBe(false);
+    for (const bad of [7, {}, []] as Array<unknown>) {
+      expect(
+        puzzleDraftSchema.safeParse(draft({ characterSlots: [slot({ displayNumber: bad })] })).success,
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
   });
 });
 

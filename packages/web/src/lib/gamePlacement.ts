@@ -565,6 +565,28 @@ export function numberSlotAnchor(index: number): { x: number; y: number } {
 }
 
 /**
+ * v0.6.4 fix (docs/v0.6.4.md §4): the font size at which `text` still fits a
+ * `boxWidth`-wide box.
+ *
+ * A 编号 is no longer necessarily a digit — the puzzle can configure any text
+ * for a participant, and a 3×3 slot is only a third of a cell wide. Wide (CJK /
+ * fullwidth) glyphs count as a full em, everything else as ~0.62em; when the
+ * estimate exceeds the box the font shrinks proportionally, so a long label
+ * never spills over its neighbours. Digits — the historical case — never
+ * trigger the shrink.
+ */
+export function glyphFontSize(text: string, boxWidth: number, fontSize: number): number {
+  if (!Number.isFinite(boxWidth) || boxWidth <= 0) return fontSize;
+  if (!Number.isFinite(fontSize) || fontSize <= 0) return fontSize;
+  let units = 0;
+  for (const char of text) {
+    units += (char.codePointAt(0) ?? 0) >= 0x2e80 ? 1 : 0.62;
+  }
+  const width = units * fontSize;
+  return width <= boxWidth ? fontSize : (fontSize * boxWidth) / width;
+}
+
+/**
  * Structural comparison — `commit` uses it to detect a no-op placement, so a
  * rejected click never occupies an undo step.
  */

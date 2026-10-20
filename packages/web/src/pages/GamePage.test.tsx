@@ -40,6 +40,8 @@ const fixture = vi.hoisted(() => ({
           { characterId: 13, themeColor: '#0000AA' },
         ],
         linkageColors: [],
+        // v0.6.3 §3.4: the layout the puzzle was published with.
+        rosterCols: 3,
       },
     },
   },
@@ -167,6 +169,23 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(
       container.querySelector('[title="已提交，可继续摆放后再次提交"]'),
     ).not.toBeNull();
+  });
+
+  /**
+   * v0.6.3 §3.4: the deployed game renders the roster the puzzle was published
+   * with — the column count is frozen into the snapshot, so what the author
+   * typed in 「基本信息」 is what players see.
+   */
+  it('renders the roster in the columns the snapshot carries', () => {
+    render();
+    const matrix = container.querySelector('[data-testid="roster-matrix"]');
+    const raw = matrix?.getAttribute('style') ?? '';
+    expect(/repeat\(3,/.test(raw)).toBe(true);
+    // Three participants in three columns → one row, and the left column is
+    // wide enough for them (3 × 110 + 2 × 14 + 16 padding + the aside's own
+    // 1px separator border — without that last pixel the scrollbar is back).
+    const aside = container.querySelector('aside');
+    expect(aside?.style.width).toBe('375px');
   });
 
   it('starts empty when the save belongs to another grid', () => {

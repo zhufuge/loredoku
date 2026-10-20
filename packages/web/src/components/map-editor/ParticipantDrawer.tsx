@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   DEFAULT_THEME_COLOR,
+  PARTICIPANT_DISPLAY_NUMBER_MAX,
   UI_Z,
   type Character,
   type CharacterSlotEntry,
@@ -14,6 +15,7 @@ import { linkageColorFor, linkageLabelFor } from '@/lib/mapStyle';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -79,6 +81,8 @@ interface ParticipantDrawerProps {
       linkages: ParticipantTarget[];
       /** FEAT-E01 §7.4: `[]` means "no positional constraint". */
       positionConditions: Array<{ x: number; y: number }>;
+      /** v0.6.4 §2: the 编号展示 text; `''` clears it back to the sequence number. */
+      displayNumber: string;
     },
   ) => void;
 }
@@ -113,6 +117,8 @@ export function ParticipantDrawer({
   /** FEAT-H08 §8.2(a): the palette lives one layer down now. */
   const [themeDialogOpen, setThemeDialogOpen] = useState(false);
   const [clue, setClue] = useState<string>('');
+  /** v0.6.4 §2: the configured 编号展示 text (`''` = show the sequence number). */
+  const [displayNumber, setDisplayNumber] = useState<string>('');
   const [linkages, setLinkages] = useState<ParticipantTarget[]>([]);
   /** FEAT-E01: the cells this participant may occupy (OR-ed, §14 Q11). */
   const [positionConditions, setPositionConditions] = useState<Array<{ x: number; y: number }>>(
@@ -132,6 +138,7 @@ export function ParticipantDrawer({
     if (!open || !slot) return;
     setThemeColor(slot.themeColor ?? DEFAULT_THEME_COLOR);
     setClue(slot.clue ?? '');
+    setDisplayNumber(slot.displayNumber ?? '');
     setLinkages((slot.linkages ?? []).map((linkage) => ({ ...linkage })));
     setPositionConditions((slot.positionConditions ?? []).map((entry) => ({ ...entry })));
     setLinkageDialog({ open: false, editIndex: null });
@@ -198,6 +205,7 @@ export function ParticipantDrawer({
     if (slot) {
       setThemeColor(slot.themeColor ?? DEFAULT_THEME_COLOR);
       setClue(slot.clue ?? '');
+      setDisplayNumber(slot.displayNumber ?? '');
       setLinkages((slot.linkages ?? []).map((linkage) => ({ ...linkage })));
       setPositionConditions((slot.positionConditions ?? []).map((entry) => ({ ...entry })));
     }
@@ -344,6 +352,27 @@ export function ParticipantDrawer({
                   <span className="font-mono text-xs">{themeColor}</span>
                   <span className="ml-auto text-xs text-muted-foreground">修改</span>
                 </button>
+              </div>
+
+              {/*
+               * v0.6.4 (docs/v0.6.4.md §2): 编号展示 — the text the slot's
+               * top-left badge shows. Left empty it shows the sequence number,
+               * which is what the placeholder spells out. The mapping lives on
+               * the slot entry, so rearranging the roster renumbers the badges
+               * but never overwrites a configured text.
+               */}
+              <div className="space-y-2">
+                <Label>编号展示</Label>
+                <Input
+                  value={displayNumber}
+                  onChange={(event) => setDisplayNumber(event.target.value)}
+                  maxLength={PARTICIPANT_DISPLAY_NUMBER_MAX}
+                  placeholder={`序号 ${(slotIndex ?? 0) + 1}`}
+                  data-testid="display-number-input"
+                />
+                <p className="text-xs text-muted-foreground">
+                  留空显示序号；拖动改变位置时序号会更新，不会覆盖此处配置。
+                </p>
               </div>
 
               {/* MOD-702: clue editor (no bold hint, char count kept) */}
@@ -531,7 +560,13 @@ export function ParticipantDrawer({
               disabled={clueOverLimit}
               onClick={() => {
                 if (slotIndex === null) return;
-                onSave(slotIndex, { themeColor, clue, linkages, positionConditions });
+                onSave(slotIndex, {
+                  themeColor,
+                  clue,
+                  linkages,
+                  positionConditions,
+                  displayNumber,
+                });
               }}
             >
               保存
