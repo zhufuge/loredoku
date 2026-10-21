@@ -209,8 +209,17 @@ export function useForkPuzzleVersion(options: { navigate?: boolean } = {}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   return useMutation({
-    mutationFn: ({ id, versionNo, data }: { id: number; versionNo: number; data?: PuzzleDraft }) =>
-      puzzlesApi.forkVersion(id, versionNo, data),
+    mutationFn: ({
+      id,
+      versionNo,
+      data,
+      mapSource,
+    }: {
+      id: number;
+      versionNo: number;
+      data?: PuzzleDraft;
+      mapSource?: { mapId: number; versionNo: number };
+    }) => puzzlesApi.forkVersion(id, versionNo, data, mapSource),
     onSuccess: (created, { versionNo }) => {
       void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
       if (options.navigate !== false) {

@@ -32,10 +32,11 @@ import {
  * two shared a store, every read-only canvas field would become writable by
  * accident. So:
  *
- * - `mapContext` is loaded from `GET /api/puzzles/:id/map` and **never** enters
- *   the undo stack;
- * - the undo stack covers exactly the puzzle's own data (`linkageColors` /
- *   `characterSlots` / `description`);
+ * - `mapContext` is loaded from `GET /api/puzzles/:id/map`, and the only writer
+ *   after that is `replaceMapContext`（引入新地图）—— 它跟着其余字段一起进快照，
+ *   撤销能把底图也换回来；
+ * - the undo stack covers the puzzle's own data (`linkageColors` /
+ *   `characterSlots` / `description` / `name`) **and** the referenced canvas;
  * - `activeTool` is not a thing here — SPEC-K07 pins the canvas to `select`.
  */
 export type PuzzleSelection =
@@ -94,11 +95,18 @@ interface Snapshot {
   characterSlots: Array<CharacterSlotEntry | null>;
   /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
   rosterCols: number | null;
+  /**
+   * v0.7.3 §4：底图也是可撤销的一部分。
+   *
+   * 「引入新地图」换的是 `mapContext`，撤销要能把它换回来 —— 否则会出现
+   * 「底图是新的、联动是旧的的」这种半截状态。引用级存放，不做深拷贝：它只读。
+   */
+  mapContext: PuzzleMapContext | null;
 }
 
 export interface PuzzleState {
   puzzleId: number | null;
-  /** Read-only canvas of the referenced map version. Never in the undo stack. */
+  /** Read-only canvas of the referenced map version. `replaceMapContext` 之外没人写它。 */
   mapContext: PuzzleMapContext | null;
 
   // ---- puzzle-owned, undoable ----
@@ -134,11 +142,15 @@ export interface PuzzleState {
   setLinkageColors: (colors: MapLinkageColor[]) => void;
   removeLinkageColor: (key: string) => void;
   /**
-   * SPEC-K05 (docs/v0.5.0.md §4.2) + v0.6.3 §3: the 「谜题基本信息」 drawer
-   * commits the description, the palette, the roster **and** its column count
-   * as one gesture — one 保存, one undo step.
+   * SPEC-K05 (docs/v0.5.0.md §4.2) + v0.6.3 §3 + v0.7.3 §2.2: the 「谜题基本
+   * 信息」 drawer commits the name, the description, the palette, the roster
+   * **and** its column count as one gesture — one 保存, one undo step.
+   *
+   * 名称走这里（而不是单独 PATCH）：它本来就在 `PuzzleDraft.name` 里，
+   * `savePuzzleDraft` 会把它镜像回 `puzzles.name`，顺带拿到撤销。
    */
   setBasicInfo: (patch: {
+    name: string;
     description: string;
     linkageColors: MapLinkageColor[];
     characterSlots: Array<CharacterSlotEntry | null>;
@@ -168,6 +180,18 @@ export interface PuzzleState {
   activateParticipantClick: (participantId: number) => void;
   clearActivation: () => void;
   setSelection: (selection: PuzzleSelection | null) => void;
+  /**
+   * v0.7.3 §3.3：引入新地图 —— 只换底图（连同它的名称 / 版本 / 画布），谜题自己
+   * 的字段一个不动。一个撤销步，撤销后底图也一起换回来。
+   *
+   * `characterSlots` 是**同一笔**改动的一部分：换底图时，指向旧画布的联动目标
+   * （`asset` / `region`）已经不存在，必须一起摘掉，否则这份草稿再也存不进去
+   * （服务端 `assertReferenceIssues` 会 400）。分开提交就会变成两个撤销步。
+   */
+  replaceMapContext: (
+    context: PuzzleMapContext,
+    characterSlots?: Array<CharacterSlotEntry | null>,
+  ) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
   resetView: () => void;
@@ -193,6 +217,7 @@ function snapshot(state: PuzzleState): Snapshot {
     linkageColors: state.linkageColors.map((entry) => ({ ...entry })),
     characterSlots: state.characterSlots.map(ensureEntry),
     rosterCols: state.rosterCols,
+    mapContext: state.mapContext,
   };
 }
 
@@ -291,6 +316,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
 
     setBasicInfo: (patch) =>
       commit((next) => {
+        next.name = patch.name;
         next.description = patch.description;
         next.linkageColors = resolveLinkageColors(patch.linkageColors);
         next.characterSlots = genSlotArray(
@@ -425,6 +451,35 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     setZoom: (zoom) => set({ zoom }),
     setPan: (pan) => set({ pan }),
     resetView: () => set({ zoom: 1, pan: { x: 0, y: 0 } }),
+
+    /**
+     * 与 {@link commit} 同一套历史记账，但换的是 `mapContext`（唯一会写它的地方）。
+     *
+     * 换底图后格子坐标的含义变了，所以顺带清掉选择与参与者激活 —— 留着它们只会
+     * 让信息框 / 高亮描述一块已经不存在的地。
+     */
+    replaceMapContext: (context, characterSlots) => {
+      const state = get();
+      if (
+        state.mapContext &&
+        state.mapContext.mapId === context.mapId &&
+        state.mapContext.versionNo === context.versionNo &&
+        !characterSlots
+      ) {
+        return;
+      }
+      const past = [...state.past, snapshot(state)].slice(-MAX_HISTORY_STEPS);
+      set({
+        mapContext: context,
+        ...(characterSlots ? { characterSlots: characterSlots.map(ensureEntry) } : {}),
+        selection: null,
+        selectedSlotIndex: null,
+        ...INACTIVE_ACTIVATION,
+        past,
+        future: [],
+        dirty: true,
+      });
+    },
 
     undo: () => {
       const state = get();

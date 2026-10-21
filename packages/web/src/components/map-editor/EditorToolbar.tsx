@@ -1,4 +1,14 @@
-import { ArrowLeft, Download, History, Loader2, Save, Send, Settings2, Upload } from 'lucide-react';
+import {
+  ArrowLeft,
+  Download,
+  History,
+  Loader2,
+  Map as MapIcon,
+  Save,
+  Send,
+  Settings2,
+  Upload,
+} from 'lucide-react';
 import type { MapStatus } from '@loredoku/shared';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
@@ -39,6 +49,11 @@ interface EditorToolbarProps {
    */
   onPublish?: () => void;
   onOpenVersions?: () => void;
+  /**
+   * v0.7.3 §3.1：「引入新地图」只属于谜题编辑器（换掉被引用的底图）。地图编辑器
+   * 没有这个动作，不传即不渲染 —— 按钮不是这里的东西。
+   */
+  onImportMap?: () => void;
   onOpenMapInfo: () => void;
   onExport: () => void;
   onImport: () => void;
@@ -58,6 +73,7 @@ export function EditorToolbar({
   onSave,
   onPublish,
   onOpenVersions,
+  onImportMap,
   onOpenMapInfo,
   onExport,
   onImport,
@@ -113,6 +129,18 @@ export function EditorToolbar({
         <Button variant="ghost" size="icon" onClick={onExport} disabled={saving} title="导出 JSON">
           <Download className="h-4 w-4" />
         </Button>
+        {onImportMap ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onImportMap}
+            disabled={saving}
+            title="引入新地图（只替换底图画布）"
+            aria-label="引入新地图"
+          >
+            <MapIcon className="h-4 w-4" />
+          </Button>
+        ) : null}
         <Button
           variant={mapInfoOpen ? 'secondary' : 'ghost'}
           size="sm"

@@ -55,12 +55,24 @@ export const puzzleMapSnapshotSchema = z
   })
   .strict();
 
+/**
+ * v0.7.3 §3.4：「引入新地图」只交**来源**，不交画布。画布永远由服务端从那份已发布
+ * 版本读出来 —— 与「保存时用存量覆盖 `data.map`」同一条护栏，客户端伪造不了底图。
+ *
+ * 缺省 = 不换底图（老行为）。
+ */
+export const puzzleMapSourceSchema = z
+  .object({
+    mapId: z.number().int().positive(),
+    versionNo: z.number().int().positive(),
+  })
+  .strict();
+
 export const puzzleNameSchema = z
   .string()
   .trim()
   .min(1, '谜题名称必填')
   .max(PUZZLE_NAME_MAX_LENGTH, `谜题名称不能超过 ${PUZZLE_NAME_MAX_LENGTH} 字`);
-
 export const puzzleDescriptionSchema = z
   .string()
   .trim()
@@ -204,6 +216,8 @@ export const createPuzzleSchema = z.object({
 export const savePuzzleDraftSchema = z.object({
   data: puzzleDraftSchema,
   updatedAt: z.string().nullable().optional(),
+  /** 非空且与存量不同 = 换底图（v0.7.3 §3.4）。 */
+  mapSource: puzzleMapSourceSchema.optional(),
 });
 
 export const importPuzzleSchema = z.object({
@@ -218,6 +232,8 @@ export const importPuzzleSchema = z.object({
  */
 export const forkPuzzleVersionBodySchema = z.object({
   data: puzzleDraftSchema.optional(),
+  /** v0.7.3 §3.4：fork 同样可以带一次换底图。 */
+  mapSource: puzzleMapSourceSchema.optional(),
 });
 
 export const updatePuzzleSchema = z.object({
@@ -238,6 +254,7 @@ export const listPuzzlesQuerySchema = z.object({
 });
 
 export type PuzzleMapRefInput = z.infer<typeof puzzleMapRefSchema>;
+export type PuzzleMapSource = z.infer<typeof puzzleMapSourceSchema>;
 export type PuzzleDraftInput = z.infer<typeof puzzleDraftSchema>;
 export type CreatePuzzleInput = z.infer<typeof createPuzzleSchema>;
 export type SavePuzzleDraftInput = z.infer<typeof savePuzzleDraftSchema>;

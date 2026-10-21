@@ -17,6 +17,8 @@ import type {
   PuzzleDraft,
   PuzzleEntrySummary,
   PuzzleMapContext,
+  PuzzleMapSnapshot,
+  PuzzleMapSource,
   SavePuzzleDraftInput,
   UpdatePuzzleInput,
 } from '@loredoku/shared';
@@ -51,6 +53,53 @@ export function coverRequired(): AppError {
 /** 存量行读成 `PuzzleDraft`（v1 会补一份空画布）；读不出来就是坏数据。 */
 function rowDraft(row: { data: unknown }): PuzzleDraft | null {
   return absorbLegacyPuzzleDraft(row.data);
+}
+
+/**
+ * 本次保存该用哪份底图（v0.7.3 §3.4）。
+ *
+ * 客户端只交来源（`mapSource`），画布永远从这里读 —— 与「保存时用存量覆盖
+ * `data.map`」同一条护栏：底图只可能是某个**已发布版本**的冻结快照，绝不来自
+ * 请求体。三种情形：
+ *
+ * 1. 没带 `mapSource`，或它与存量相同 → 用存量（老行为，零查询）；
+ * 2. 不同 → 读那份已发布版本（过滤软删）并换成它的画布；
+ * 3. 版本不存在 / 没有画布 / 方格尺寸不同 → 400。
+ *
+ * 尺寸必须一致不是客气：底图尺寸决定名册长度与所有格子坐标，换尺寸等于换坐标系
+ * （那是「新建谜题」的事）。
+ */
+async function resolveMapSnapshot(
+  current: PuzzleMapSnapshot,
+  mapSource?: PuzzleMapSource,
+): Promise<PuzzleMapSnapshot> {
+  if (!mapSource) return current;
+  if (mapSource.mapId === current.mapId && mapSource.versionNo === current.versionNo) {
+    return current;
+  }
+
+  const version = await versionRepo.getVersion(mapSource.mapId, mapSource.versionNo);
+  if (!version) {
+    throw AppError.validation('所选地图版本不存在，请选择一个已发布的地图版本');
+  }
+  const canvas = absorbLegacyMapDraft(version.data) as MapDraft;
+  const gridSize = canvas?.gridSize ?? 0;
+  if (gridSize <= 0) {
+    throw AppError.validation('所选地图版本没有可用的画布');
+  }
+  const currentSize = current.data.gridSize;
+  if (gridSize !== currentSize) {
+    throw AppError.validation(
+      `只能引入方格尺寸相同的地图版本（当前 ${currentSize} × ${currentSize}）`,
+    );
+  }
+
+  return {
+    mapId: mapSource.mapId,
+    versionNo: mapSource.versionNo,
+    mapName: version.name ?? '',
+    data: canvas,
+  };
 }
 
 function toDetail(row: puzzleRepo.PuzzleRowWithLineage): PuzzleDetail {
@@ -212,11 +261,12 @@ export async function savePuzzle(
     throw AppError.validation('谜题的底图画布不可读，请重新创建谜题');
   }
 
-  // 底图快照与版本戳是服务端的，永远用存量覆盖客户端送来的那份。
+  // 底图快照与版本戳是服务端的：默认用存量覆盖客户端送来的那份；
+  // 只有显式带了**不同**的 `mapSource` 才换成那份已发布版本的画布（v0.7.3 §3.4）。
   const data: PuzzleDraft = {
     ...input.data,
     version: PUZZLE_JSON_VERSION,
-    map: stored.map,
+    map: await resolveMapSnapshot(stored.map, input.mapSource),
   };
 
   await assertKnownCharacters(data);
@@ -409,6 +459,7 @@ export async function forkVersion(
   id: number,
   versionNo: number,
   data?: PuzzleDraft,
+  mapSource?: PuzzleMapSource,
 ): Promise<PuzzleDetail> {
   const owner = await puzzleRepo.findByIdIncludingDeleted(id);
   if (!owner) {
@@ -425,12 +476,26 @@ export async function forkVersion(
     if (!source) {
       throw AppError.validation('版本的底图画布不可读，无法编辑');
     }
-    next = { ...data, version: PUZZLE_JSON_VERSION, map: source.map };
+    // `mapSource` 只在带 `data` 时才有意义 —— 不带 `data` 的 fork 就是「照
+    // 快照复制一份」，没有可以挂新底图的草稿。
+    next = {
+      ...data,
+      version: PUZZLE_JSON_VERSION,
+      map: await resolveMapSnapshot(source.map, mapSource),
+    };
     await assertKnownCharacters(next);
     assertReferenceIssues(next);
   }
 
-  const name = await uniqueName(`${target.name} (自 v${versionNo})`);
+  /**
+   * fork 出来的行名：作者在「基本信息」里改过名就用他的，否则用
+   * `{版本名} (自 v{n})` —— 血统里多份草稿才分得清。
+   */
+  const authored = data?.name?.trim();
+  const name =
+    authored && authored !== target.name
+      ? authored
+      : await uniqueName(`${target.name} (自 v${versionNo})`);
   const created = await puzzleVersionRepo.forkVersion(id, versionNo, name, next);
   if (!created) {
     throw AppError.notFound('版本不存在');

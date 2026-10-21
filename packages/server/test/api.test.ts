@@ -1593,6 +1593,90 @@ describe('v0.7.1 谜题版本与部署', () => {
     expect(draft.data.map).toEqual(version.body.data.data.map);
   });
 
+  /**
+   * v0.7.3 §3.4：「引入新地图」只交**来源**，画布由服务端从那份已发布版本读。
+   * 换的只是 `data.map`，谜题自己的字段一个都不许动。
+   */
+  it('保存带 mapSource 换底图：画布来自新版本，谜题字段一个不动', async () => {
+    const { draftId } = await deployablePuzzle(`Swap ${uniqueCode('p')}`);
+    const otherMapId = await createMap({ name: `Other ${uniqueCode('p')}`, gridSize: 6 });
+    const canvas = (await api.get(`/api/maps/${otherMapId}/map`)).body.data.draft;
+    await saveCanvas(otherMapId, {
+      ...canvas,
+      regions: [{ id: 'rg_swap01', name: '新区域', cells: [[0, 0]] }],
+    });
+    const otherVersionNo = await publish(otherMapId);
+
+    const before = await api.get(`/api/puzzles/${draftId}`);
+    const edited = before.body.data.data;
+    edited.description = '换底图但不改描述';
+    const saved = await api.put(`/api/puzzles/${draftId}`).send({
+      data: edited,
+      updatedAt: before.body.data.updatedAt,
+      mapSource: { mapId: otherMapId, versionNo: otherVersionNo },
+    });
+    expect(saved.status).toBe(200);
+
+    const after = saved.body.data.data;
+    expect(after.map.mapId).toBe(otherMapId);
+    expect(after.map.versionNo).toBe(otherVersionNo);
+    // 画布真的换了：新版本上的区域过来了，旧画布是空的。
+    expect(after.map.data.regions.map((region: { id: string }) => region.id)).toEqual([
+      'rg_swap01',
+    ]);
+    // 「仅替换地图信息」：名册、描述、调色板照旧，尺寸还是 6。
+    expect(after.description).toBe('换底图但不改描述');
+    expect(after.characterSlots).toHaveLength(6);
+    expect(after.characterSlots[0]).not.toBeNull();
+    expect(saved.body.data.gridSize).toBe(6);
+  });
+
+  it('换底图只接受同尺寸的已发布版本', async () => {
+    const { draftId } = await deployablePuzzle(`SwapSize ${uniqueCode('p')}`);
+    const before = await api.get(`/api/puzzles/${draftId}`);
+
+    // 尺寸不同：底图尺寸决定名册长度与所有坐标，不是 UI 的客气。
+    const wideMapId = await createMap({ name: `Wide ${uniqueCode('p')}`, gridSize: 9 });
+    const wideVersionNo = await publish(wideMapId);
+    const mismatched = await api.put(`/api/puzzles/${draftId}`).send({
+      data: before.body.data.data,
+      updatedAt: before.body.data.updatedAt,
+      mapSource: { mapId: wideMapId, versionNo: wideVersionNo },
+    });
+    expect(mismatched.status).toBe(400);
+    expect(mismatched.body.message).toContain('方格尺寸相同');
+
+    // 版本不存在（同尺寸地图但号是编的）。
+    const ghostMapId = await createMap({ name: `Ghost ${uniqueCode('p')}`, gridSize: 6 });
+    const ghost = await api.put(`/api/puzzles/${draftId}`).send({
+      data: before.body.data.data,
+      updatedAt: before.body.data.updatedAt,
+      mapSource: { mapId: ghostMapId, versionNo: 9 },
+    });
+    expect(ghost.status).toBe(400);
+    expect(ghost.body.message).toContain('地图版本不存在');
+
+    // 两次都没写进去。
+    const unchanged = await api.get(`/api/puzzles/${draftId}`);
+    expect(unchanged.body.data.data.map.mapId).toBe(before.body.data.data.map.mapId);
+  });
+
+  it('fork 也可以带着换过的底图落库', async () => {
+    const { versionId } = await deployablePuzzle(`ForkSwap ${uniqueCode('p')}`);
+    const otherMapId = await createMap({ name: `ForkOther ${uniqueCode('p')}`, gridSize: 6 });
+    const otherVersionNo = await publish(otherMapId);
+
+    const version = await api.get(`/api/puzzles/${versionId}/versions/1`);
+    const forked = await api.post(`/api/puzzles/${versionId}/versions/1/fork`).send({
+      data: version.body.data.data,
+      mapSource: { mapId: otherMapId, versionNo: otherVersionNo },
+    });
+    expect(forked.status).toBe(200);
+    createdPuzzles.push(forked.body.data.id as number);
+    expect(forked.body.data.data.map.mapId).toBe(otherMapId);
+    expect(forked.body.data.data.map.versionNo).toBe(otherVersionNo);
+  });
+
   it('编辑此版本 = fork 出新草稿行，版本行不动', async () => {
     const { draftId, versionId } = await deployablePuzzle(`Fork ${uniqueCode('p')}`);
     const owner = await api.get(`/api/puzzles/${draftId}`);

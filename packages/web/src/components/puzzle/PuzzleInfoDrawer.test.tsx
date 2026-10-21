@@ -7,8 +7,9 @@ import { PuzzleInfoDrawer, type PuzzleInfoDrawerHandle } from './PuzzleInfoDrawe
 
 /**
  * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 holds what the
- * puzzle owns — 描述, 联动主题色 and (v0.6.3 §3) 参与者布局 — and it is a
- * **form** (draft → 保存), the same contract `MapInfoDrawer` follows.
+ * puzzle owns — 名称 / 封面（v0.7.3）、描述、联动主题色 and (v0.6.3 §3)
+ * 参与者布局 — and it is a **form** (draft → 保存), the same contract
+ * `MapInfoDrawer` follows.
  */
 
 function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string): void {
@@ -48,7 +49,10 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
   ];
 
   /** v0.6.3 §3: the column count is a prop, so the fixture can drive it. */
-  function render(rosterCols: number | null = null): void {
+  function render(
+    rosterCols: number | null = null,
+    options: { name?: string; coverUrl?: string | null } = {},
+  ): void {
     act(() => {
       root.render(
         <PuzzleInfoDrawer
@@ -56,10 +60,14 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
             handle = instance;
           }}
           open
+          name={options.name ?? '午夜花园'}
           description="旧描述"
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={rosterCols}
+          coverUrl={options.coverUrl ?? null}
+          coverFile={null}
+          coverRemoved={false}
           onRequestClose={onRequestClose}
           onCommit={onCommit}
         />,
@@ -97,11 +105,14 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
   const layoutPreview = (): string =>
     container.querySelector('[data-testid="roster-layout-preview"]')?.textContent ?? '';
 
-  it('SPEC-K05: only 描述 / 联动主题色 / 参与者布局 are present', () => {
+  it('SPEC-K05: holds 基本 / 参与者布局 / 联动主题色 and nothing from the map drawer', () => {
     const text = container.textContent ?? '';
     expect(text).toContain('描述');
     expect(text).toContain('联动主题色');
     expect(text).toContain('参与者布局');
+    // v0.7.3 §2: 名称与封面搬进来了。
+    expect(text).toContain('名称');
+    expect(text).toContain('封面');
     // The map drawer's own blocks are gone for good.
     for (const gone of ['画布', '方格大小', '画布外框', '网格分隔线', '区域标签', '标尺']) {
       expect(text, gone).not.toContain(gone);
@@ -228,6 +239,145 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
     render(3);
     expect(colsInput().value).toBe('3');
     expect(layoutPreview()).toContain('× 3');
+    expect(handle?.isDirty()).toBe(false);
+  });
+});
+
+/**
+ * v0.7.3 §2：名称与封面搬进「基本信息」。名称进草稿（一个撤销步、随保存落库）；
+ * 封面只交 `{ file, removed }` —— 上传是页面的第二步。
+ */
+describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let handle: PuzzleInfoDrawerHandle | null;
+
+  const palette: MapLinkageColor[] = DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry }));
+  const onCommit = vi.fn();
+  const onRequestClose = vi.fn();
+  const slots: Array<CharacterSlotEntry | null> = [{ characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] }];
+
+  function render(options: { name?: string; coverUrl?: string | null } = {}): void {
+    act(() => {
+      root.render(
+        <PuzzleInfoDrawer
+          ref={(instance) => {
+            handle = instance;
+          }}
+          open
+          name={options.name ?? '午夜花园'}
+          description="旧描述"
+          linkageColors={palette}
+          characterSlots={slots}
+          rosterCols={null}
+          coverUrl={options.coverUrl ?? null}
+          coverFile={null}
+          coverRemoved={false}
+          onRequestClose={onRequestClose}
+          onCommit={onCommit}
+        />,
+      );
+    });
+  }
+
+  const nameInput = (): HTMLInputElement =>
+    container.querySelector<HTMLInputElement>('#puzzle-info-name') as HTMLInputElement;
+  const save = (): HTMLButtonElement =>
+    container.querySelector<HTMLButtonElement>('footer button:last-child') as HTMLButtonElement;
+  const coverInput = (): HTMLInputElement =>
+    container.querySelector<HTMLInputElement>('input[type="file"]') as HTMLInputElement;
+
+  function pickCover(file: File): void {
+    const input = coverInput();
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    act(() => {
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
+  beforeEach(() => {
+    handle = null;
+    onCommit.mockClear();
+    onRequestClose.mockClear();
+    // jsdom 没有 URL.createObjectURL —— 封面预览会在这里炸掉整棵树。
+    URL.createObjectURL = vi.fn(() => 'blob:preview');
+    URL.revokeObjectURL = vi.fn();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    render();
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('carries the name and the cover picker', () => {
+    const text = container.textContent ?? '';
+    expect(text).toContain('名称');
+    expect(text).toContain('封面');
+    expect(nameInput().value).toBe('午夜花园');
+    expect(coverInput()).not.toBeNull();
+  });
+
+  it('commits the name together with the rest', () => {
+    act(() => setValue(nameInput(), '新名字'));
+    expect(handle?.isDirty()).toBe(true);
+    act(() => save().click());
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    const committed = onCommit.mock.calls[0]![0] as {
+      name: string;
+      description: string;
+      coverFile: File | null;
+    };
+    expect(committed.name).toBe('新名字');
+    expect(committed.description).toBe('旧描述');
+    expect(committed.coverFile).toBeNull();
+  });
+
+  it('refuses to commit without a name', () => {
+    act(() => setValue(nameInput(), '   '));
+    expect(save().disabled).toBe(true);
+    expect(handle?.save()).toBe(false);
+    expect(onCommit).not.toHaveBeenCalled();
+    // 页面据此把用户留在抽屉里补完，而不是顺手切走。
+    expect(onRequestClose).not.toHaveBeenCalled();
+  });
+
+  it('hands a picked file over with the rest of the draft', () => {
+    const file = new File(['x'], 'cover.png', { type: 'image/png' });
+    pickCover(file);
+    expect(handle?.isDirty()).toBe(true);
+    act(() => save().click());
+    expect((onCommit.mock.calls[0]![0] as { coverFile: File | null }).coverFile).toBe(file);
+  });
+
+  it('reports the stored cover being removed, and can take it back', () => {
+    act(() => root.unmount());
+    container.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    render({ coverUrl: '/files/puzzle-1.png' });
+
+    const remove = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === '移除',
+    );
+    act(() => remove?.click());
+    expect(handle?.isDirty()).toBe(true);
+
+    const restore = Array.from(container.querySelectorAll('button')).find(
+      (button) => button.textContent === '恢复封面',
+    );
+    act(() => restore?.click());
+    expect(handle?.isDirty()).toBe(false);
+  });
+
+  it('discard restores the committed name', () => {
+    act(() => setValue(nameInput(), '新名字'));
+    act(() => handle?.discard());
+    expect(nameInput().value).toBe('午夜花园');
     expect(handle?.isDirty()).toBe(false);
   });
 });

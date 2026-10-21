@@ -294,4 +294,18 @@ describe('谜题的三个写入 schema', () => {
       false,
     );
   });
+
+  it('save / fork take an optional mapSource and nothing else', () => {
+    const mapSource = { mapId: 217, versionNo: 3 };
+    expect(savePuzzleDraftSchema.parse({ data: draft(), mapSource }).mapSource).toEqual(mapSource);
+    expect(
+      forkPuzzleVersionBodySchema.parse({ data: draft(), mapSource }).mapSource,
+    ).toEqual(mapSource);
+    // 缺省 = 不换底图。
+    expect(savePuzzleDraftSchema.parse({ data: draft() }).mapSource).toBeUndefined();
+    // 只收来源三元组里的两个；画布不走这条路（服务端自己读版本）。
+    for (const bad of [{ mapId: 217 }, { mapId: 0, versionNo: 1 }, { mapId: 1, versionNo: 1, data: {} }]) {
+      expect(savePuzzleDraftSchema.safeParse({ data: draft(), mapSource: bad }).success).toBe(false);
+    }
+  });
 });

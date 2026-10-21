@@ -1,17 +1,21 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
+  prunePuzzleReferences,
   puzzleDraftSchema,
   validatePuzzleReferences,
   type Character,
   type CharacterSlotEntry,
   type Asset,
   type ParticipantTarget,
+  type PublishedMapVersion,
   type PuzzleDraft,
+  type PuzzleMapContext,
 } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -41,10 +45,12 @@ import {
 import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
 import { Input } from '@/components/ui/input';
 import { PuzzleBottomBar } from '@/components/puzzle/PuzzleBottomBar';
+import { PuzzleMapSwapDialog } from '@/components/puzzle/PuzzleMapSwapDialog';
 import { PuzzleVersionHistoryDialog } from '@/components/puzzle/PuzzleVersionHistoryDialog';
 import { PuzzleEditorLeftPanel } from '@/components/puzzle/PuzzleEditorLeftPanel';
 import {
   PuzzleInfoDrawer,
+  type PuzzleBasicInfo,
   type PuzzleInfoDrawerHandle,
 } from '@/components/puzzle/PuzzleInfoDrawer';
 import { useCharacters } from '@/hooks/useCharacters';
@@ -56,14 +62,19 @@ import {
   usePuzzle,
   usePuzzleMapContext,
   usePuzzleVersions,
+  useRemovePuzzleCover,
   useSavePuzzle,
+  useUploadPuzzleCover,
 } from '@/hooks/usePuzzles';
 import { useEditorPublish } from '@/hooks/useEditorPublish';
 import { useEditorSave } from '@/hooks/useEditorSave';
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
+import { versionKeys } from '@/hooks/useVersions';
+import { versionsApi } from '@/api/versions';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
+import { resolveMapStyle } from '@/lib/mapStyle';
 import {
   mapContextCells,
   mapContextRegions,
@@ -117,6 +128,7 @@ export function PuzzleEditorPage(): JSX.Element {
   }, [searchParams]);
 
   const puzzle = usePuzzleStore();
+  const queryClient = useQueryClient();
 
   const detailQuery = usePuzzle(valid ? id : null);
   const mapQuery = usePuzzleMapContext(valid ? id : null);
@@ -129,7 +141,21 @@ export function PuzzleEditorPage(): JSX.Element {
   const forkSaveMutation = useForkPuzzleVersion({ navigate: false });
   const versionsQuery = usePuzzleVersions(valid ? id : null);
   const publishMutation = usePublishPuzzle(id);
-  const leaveGuard = useUnsavedChangesGuard(puzzle.dirty);
+  /** 封面没有 JSON 通道，落库是「先保存草稿、再传文件」两步。 */
+  const uploadCoverMutation = useUploadPuzzleCover();
+  const removeCoverMutation = useRemovePuzzleCover();
+  /** v0.7.3 §3：引入新地图的弹窗 + 取新画布时的忙碌态。 */
+  const [swapOpen, setSwapOpen] = useState(false);
+  const [swapBusy, setSwapBusy] = useState(false);
+  /**
+   * v0.7.3 §2.2：抽屉提交的封面改动。它是**行字段**、不是草稿的一部分，且 fork 态
+   * 下还没有可写的行，所以留在这里等草稿保存成功之后再上传。
+   */
+  const [pendingCover, setPendingCover] = useState<{ file: File | null; removed: boolean } | null>(
+    null,
+  );
+  const coverDirty = pendingCover !== null;
+  const leaveGuard = useUnsavedChangesGuard(puzzle.dirty || coverDirty);
 
   const canvasRef = useRef<EditorCanvasHandle | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -200,10 +226,35 @@ export function PuzzleEditorPage(): JSX.Element {
    */
   const lastSavedAtRef = useRef<string | null>(null);
   /**
-   * FIX-F01's single writer is shared with the map editor now. The
-   * puzzle side keeps its FIX-O18 bookkeeping (remember the `updatedAt` this
-   * very save wrote back, so the detail query's answer is not mistaken for a
-   * foreign write).
+   * v0.7.3 §3.4：底图**来源**恒发。服务端按「与存量相同就短路」处理，所以没换过
+   * 底图时零查询、也不会因为地图版本后来被删而存不进去；换过之后这里就是新版本，
+   * 保存时服务端据此重读一次画布（画布永远不由客户端提供）。
+   */
+  const mapSource = puzzle.mapContext
+    ? { mapId: puzzle.mapContext.mapId, versionNo: puzzle.mapContext.versionNo }
+    : undefined;
+
+  /**
+   * 封面的第二步：草稿已经落库（fork 态时是刚生成的新行），现在才有 id 可传。
+   * 失败由 mutation 自己 toast —— 草稿本身已经保存成功，不该因此拦下整次保存。
+   */
+  const applyPendingCover = async (
+    targetId: number,
+    choice: { file: File | null; removed: boolean },
+  ): Promise<void> => {
+    setPendingCover(null);
+    try {
+      if (choice.file) await uploadCoverMutation.mutateAsync({ id: targetId, file: choice.file });
+      else if (choice.removed) await removeCoverMutation.mutateAsync(targetId);
+    } catch {
+      /* errors surfaced via mutation toasts */
+    }
+  };
+
+  /**
+   * FIX-F01's single writer is shared with the map editor. The puzzle side keeps
+   * its FIX-O18 bookkeeping (remember the `updatedAt` this very save wrote back,
+   * so the detail query's answer is not mistaken for a foreign write).
    */
   const { persist, save, saving, saveMaskVisible } = useEditorSave({
     id,
@@ -220,15 +271,21 @@ export function PuzzleEditorPage(): JSX.Element {
             id,
             versionNo: forkFrom,
             data: vars.payload.data,
+            mapSource,
           });
         }
         return saveMutation.mutateAsync(vars);
       },
     },
-    buildPayload: () => ({ data: puzzle.toDraft(), updatedAt: puzzle.updatedAt }),
+    buildPayload: () => ({ data: puzzle.toDraft(), updatedAt: puzzle.updatedAt, mapSource }),
     onSaved: (data) => {
       const savedAt = data.updatedAt ?? new Date().toISOString();
       lastSavedAtRef.current = savedAt;
+      /**
+       * 封面在草稿之后：fork 态这一刻才有新行 id，普通保存也是「先写 JSON、
+       * 再传文件」（上传端点认 id）。
+       */
+      if (pendingCover) void applyPendingCover(data.id, pendingCover);
       if (forkFrom !== null) {
         /**
          * 这一屏刚落库成一条**新草稿行**：只换身份，画布 / 撤销栈 / 视口都不动
@@ -406,9 +463,29 @@ export function PuzzleEditorPage(): JSX.Element {
     setPendingPuzzleInfoAction(() => proceed);
   };
 
-  /** v0.6.3 §3: the layout column count rides along with the other basics. */
-  const commitPuzzleInfo = (next: Parameters<typeof puzzle.setBasicInfo>[0]): void => {
-    puzzle.setBasicInfo(next);
+  /**
+   * v0.6.3 §3 + v0.7.3 §2：基本信息抽屉的「保存」只应用本地草稿 —— 名称 / 描述 /
+   * 布局 / 调色板进 store（可撤销），封面留成 `pendingCover`，等草稿落库后上传。
+   */
+  const commitPuzzleInfo = (next: PuzzleBasicInfo): void => {
+    puzzle.setBasicInfo({
+      name: next.name,
+      description: next.description,
+      linkageColors: next.linkageColors,
+      characterSlots: next.characterSlots,
+      rosterCols: next.rosterCols,
+    });
+    // 抽屉每次提交都带上当前的封面状态，所以只在真的变了时才改 pending。
+    const coverChanged =
+      next.coverFile !== (pendingCover?.file ?? null) ||
+      next.coverRemoved !== (pendingCover?.removed ?? false);
+    if (coverChanged) {
+      setPendingCover(
+        next.coverFile || next.coverRemoved
+          ? { file: next.coverFile, removed: next.coverRemoved }
+          : null,
+      );
+    }
     setPuzzleInfoOpen(false);
   };
 
@@ -420,8 +497,10 @@ export function PuzzleEditorPage(): JSX.Element {
   const resolvePendingPuzzleInfo = (mode: 'save' | 'discard'): void => {
     const action = pendingPuzzleInfoAction;
     setPendingPuzzleInfoAction(null);
-    if (mode === 'save') puzzleInfoRef.current?.save();
-    else {
+    if (mode === 'save') {
+      // 名称为空时抽屉拒绝提交 —— 留在原地让用户补完，别顺手切走。
+      if (puzzleInfoRef.current?.save() === false) return;
+    } else {
       puzzleInfoRef.current?.discard();
       setPuzzleInfoOpen(false);
     }
@@ -591,6 +670,54 @@ export function PuzzleEditorPage(): JSX.Element {
   };
 
   /**
+   * v0.7.3 §3：引入新地图。
+   *
+   * 只换底图 —— 画布取那份已发布版本的快照（`GET /api/maps/:id/versions/:n`），
+   * 谜题自己的字段一个不动。指向旧画布的联动目标（`asset` / `region`）在新画布
+   * 上不存在，与换底图**同一个撤销步**摘掉，否则这份草稿再也存不进去。
+   */
+  const swapMap = async (version: PublishedMapVersion): Promise<void> => {
+    setSwapBusy(true);
+    try {
+      const detail = await queryClient.fetchQuery({
+        queryKey: versionKeys.detail(version.mapId, version.versionNo),
+        queryFn: () => versionsApi.detail(version.mapId, version.versionNo),
+      });
+      if (detail.gridSize !== gridSize) {
+        toast.error(`只能引入方格尺寸相同的地图版本（当前 ${gridSize} × ${gridSize}）`);
+        return;
+      }
+      const context: PuzzleMapContext = {
+        mapId: version.mapId,
+        versionNo: version.versionNo,
+        mapName: detail.mapName || version.mapName,
+        gridSize: detail.gridSize,
+        cells: detail.data.cells ?? {},
+        regions: detail.data.regions ?? [],
+        style: resolveMapStyle(detail.data.style),
+      };
+      const pruned = prunePuzzleReferences(puzzle.characterSlots, {
+        cells: context.cells,
+        regions: context.regions,
+      });
+      puzzle.replaceMapContext(context, pruned.slots);
+      setPositionPickSlot(null);
+      setSwapOpen(false);
+      if (pruned.removed.length > 0) {
+        toast.message('已引入新地图', {
+          description: `${pruned.removed.length} 项联动目标在新地图上不存在，已一并移除（可撤销）`,
+        });
+      } else {
+        toast.success(`已引入「${context.mapName}」v${version.versionNo}`);
+      }
+    } catch {
+      toast.error('引入新地图失败，请稍后重试');
+    } finally {
+      setSwapBusy(false);
+    }
+  };
+
+  /**
    * v0.6.3: the zoom maths lives in the canvas (next to the wheel handler) so
    * the button path marks the view as user-adjusted too — otherwise the
    * adaptive auto-centre pass centres the new zoom away on the next render
@@ -685,14 +812,15 @@ export function PuzzleEditorPage(): JSX.Element {
          */
         status={forkFrom !== null ? null : puzzle.status}
         currentVersionNo={detail?.currentVersionNo ?? null}
-        // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点。
-        canSave={puzzle.dirty || forkFrom !== null}
+        // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点；只换了封面也一样。
+        canSave={puzzle.dirty || coverDirty || forkFrom !== null}
         onBack={() => navigate('/puzzles')}
         onSave={save}
         onPublish={forkFrom === null ? openPublishConfirm : undefined}
         onOpenVersions={() => setVersionsOpen(true)}
+        onImportMap={() => setSwapOpen(true)}
         mapInfoOpen={puzzleInfoOpen}
-        infoTitle="谜题基本信息（描述、参与者布局、联动主题色）"
+        infoTitle="谜题基本信息（名称、封面、描述、参与者布局、联动主题色）"
         onOpenMapInfo={() => {
           if (puzzleInfoOpen) {
             closePuzzleInfo();
@@ -869,10 +997,14 @@ export function PuzzleEditorPage(): JSX.Element {
           <PuzzleInfoDrawer
             ref={puzzleInfoRef}
             open={puzzleInfoOpen}
+            name={puzzle.name}
             description={puzzle.description}
             linkageColors={puzzle.linkageColors}
             characterSlots={puzzle.characterSlots}
             rosterCols={puzzle.rosterCols}
+            coverUrl={detail?.coverUrl ?? null}
+            coverFile={pendingCover?.file ?? null}
+            coverRemoved={pendingCover?.removed ?? false}
             onRequestClose={closePuzzleInfo}
             onCommit={commitPuzzleInfo}
           />
@@ -1056,6 +1188,21 @@ export function PuzzleEditorPage(): JSX.Element {
         onPreview={(version) => {
           setVersionsOpen(false);
           navigate(`/puzzles/${version.id}/view`);
+        }}
+      />
+
+      <PuzzleMapSwapDialog
+        open={swapOpen}
+        onOpenChange={setSwapOpen}
+        current={{
+          mapId: mapContext.mapId,
+          versionNo: mapContext.versionNo,
+          mapName: mapContext.mapName,
+          gridSize,
+        }}
+        busy={swapBusy}
+        onConfirm={(version) => {
+          void swapMap(version);
         }}
       />
 

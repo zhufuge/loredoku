@@ -42,7 +42,7 @@ export async function detail(ctx: Context): Promise<void> {
 export async function fork(ctx: Context): Promise<void> {
   const { id, versionNo } = parseOrThrow(versionParamSchema, ctx.params);
   const body = parseOrThrow(forkPuzzleVersionBodySchema, ctx.request.body ?? {});
-  success(ctx, await puzzleService.forkVersion(id, versionNo, body.data), `已从 v${versionNo} 新增一个条目`);
+  success(ctx, await puzzleService.forkVersion(id, versionNo, body.data, body.mapSource), `已从 v${versionNo} 新增一个条目`);
 }
 
 /** 删版本 = 软删；挂着未取消部署的游戏时 400。 */

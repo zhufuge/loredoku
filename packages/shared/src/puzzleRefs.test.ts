@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { validatePuzzleReferences } from './puzzleRefs';
+import { prunePuzzleReferences, validatePuzzleReferences } from './puzzleRefs';
 import type { PuzzleDraft } from './types/domain';
 
 const context = {
@@ -127,5 +127,47 @@ describe('validatePuzzleReferences (v0.5.0 §5.2)', () => {
       { cells: {}, regions: [] },
     );
     expect(issues).toHaveLength(2);
+  });
+});
+
+describe('prunePuzzleReferences (v0.7.3 §3.5)', () => {
+  it('drops only the targets the new canvas cannot resolve', () => {
+    const slots = [
+      slot([
+        { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'red' },
+        { type: 'asset', id: 999, scope: 'all', effect: 'highlight', color: 'red' },
+        { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
+        { type: 'region', id: 'rg_gone', effect: 'highlight', color: 'blue' },
+      ]),
+    ];
+    const { slots: next, removed } = prunePuzzleReferences(slots, context);
+    expect(removed).toHaveLength(2);
+    expect(next[0]?.linkages).toEqual([
+      { type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'red' },
+      { type: 'region', id: 'rg_a1b2c3', effect: 'highlight', color: 'blue' },
+    ]);
+  });
+
+  it('leaves character / cell targets alone — they do not live in the canvas', () => {
+    const slots = [
+      slot([
+        { type: 'character', id: 999, effect: 'highlight', color: 'red' },
+        { type: 'cell', cells: [[99, 99]], effect: 'highlight', color: 'red' },
+      ]),
+    ];
+    const { slots: next, removed } = prunePuzzleReferences(slots, context);
+    expect(removed).toEqual([]);
+    // Same reference — nothing to write back.
+    expect(next).toBe(slots);
+  });
+
+  it('keeps empty slots and untouched participants by identity', () => {
+    const intact = slot([{ type: 'asset', id: 12, scope: 'all', effect: 'highlight', color: 'red' }]);
+    const broken = slot([{ type: 'region', id: 'rg_gone', effect: 'highlight', color: 'blue' }]);
+    const slots = [intact, null, broken];
+    const { slots: next } = prunePuzzleReferences(slots, context);
+    expect(next[0]).toBe(intact);
+    expect(next[1]).toBeNull();
+    expect(next[2]?.linkages).toEqual([]);
   });
 });

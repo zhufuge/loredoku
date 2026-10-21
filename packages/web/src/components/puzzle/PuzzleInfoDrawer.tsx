@@ -14,11 +14,13 @@ import {
   LINKAGE_COLOR_MAX_COUNT,
   LINKAGE_COLOR_MIN_COUNT,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
+  PUZZLE_NAME_MAX_LENGTH,
   ROSTER_COLS_MAX,
   UI_Z,
   type CharacterSlotEntry,
   type MapLinkageColor,
 } from '@loredoku/shared';
+import { CoverPicker } from '@/components/common/CoverPicker';
 import {
   computeParticipantLayout,
   resolveRosterCols,
@@ -41,46 +43,62 @@ import { cn } from '@/lib/utils';
 /**
  * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 drawer.
  *
- * It holds what the puzzle owns — the **description**, the
- * **联动主题色 palette** and (v0.6.3 §3) the **参与者布局** column count —
- * and nothing else. Everything the map drawer carries (地图名称 / 画布尺寸 /
- * `cellSize` / `canvasFrame` / `gridSeparator` / `mouseCursorBox` /
- * `operationCursorBox` / `regionLabel` / `regionOutline` / `regionHighlight` /
- * `ruler`) belongs to the map and is deliberately absent: the puzzle only
- * **references** a map version (§5.1).
+ * It holds what the puzzle owns — **名称 / 封面**（v0.7.3）、the **description**,
+ * the **联动主题色 palette** and (v0.6.3 §3) the **参与者布局** column count —
+ * and nothing else. Everything the map drawer carries (画布尺寸 / `cellSize` /
+ * `canvasFrame` / `gridSeparator` / `mouseCursorBox` / `operationCursorBox` /
+ * `regionLabel` / `regionOutline` / `regionHighlight` / `ruler`) belongs to the
+ * map and is deliberately absent: the puzzle only **references** a map version
+ * (§5.1).
  *
- * The draft-then-commit contract is copied from `MapInfoDrawer` verbatim
- *: every control writes a local draft,
- * the store is only touched on 保存, and the imperative handle lets the page
- * defer a panel switch until the user has decided.
+ * 名称与其余字段一起进草稿（撤销 + 随保存落库）；封面不同 —— 它没有 JSON 通道，
+ * 且 fork 态（`?v=`）下还没有可写的行，所以这里只产出 `{ file, removed }`，
+ * 由页面留在本地、等草稿保存成功后再上传（与 `MapInfoDrawer` 同一套契约）。
+ *
+ * The draft-then-commit contract: every control writes a local draft, the store
+ * is only touched on 保存, and the imperative handle lets the page defer a panel
+ * switch until the user has decided.
  */
 export interface PuzzleInfoDrawerHandle {
-  /** True while the draft differs from the committed description / palette. */
+  /** True while the draft differs from the committed name / description / palette / cover. */
   isDirty: () => boolean;
-  /** Commits the draft (same as pressing 保存). */
-  save: () => void;
-  /** Drops the draft and re-reads the committed description / palette. */
+  /** Commits the draft (same as pressing 保存). `false` = the name is invalid. */
+  save: () => boolean;
+  /** Drops the draft and re-reads the committed values. */
   discard: () => void;
 }
 
 export interface PuzzleBasicInfo {
+  /** v0.7.3 §2: the puzzle's own name (required). */
+  name: string;
   description: string;
   linkageColors: MapLinkageColor[];
   /** The roster, re-pointed at surviving palette keys (FEAT-D04 §UI 规则). */
   characterSlots: Array<CharacterSlotEntry | null>;
   /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
   rosterCols: number | null;
+  /** v0.7.3 §2: a freshly picked cover file, or `null` to keep the stored one. */
+  coverFile: File | null;
+  /** v0.7.3 §2: the stored cover should be dropped. */
+  coverRemoved: boolean;
 }
 
 interface PuzzleInfoDrawerProps {
   open: boolean;
   /** The committed values — the drawer edits a copy of them. */
+  name: string;
   description: string;
   linkageColors: MapLinkageColor[];
   /** Needed only to re-point (and to preview) palette deletions. */
   characterSlots: Array<CharacterSlotEntry | null>;
   /** v0.6.3 §3: the committed column count. `null` = 自动. */
   rosterCols: number | null;
+  /** The cover currently on the server (`null` when it has none). */
+  coverUrl: string | null;
+  /** A cover file already applied to the page's local state but not uploaded yet. */
+  coverFile: File | null;
+  /** The page's local state already marks the stored cover as removed. */
+  coverRemoved: boolean;
   /**
    * The drawer never closes itself: both × and 取消 call this, and the page
    * decides whether to prompt for unsaved edits first.
@@ -144,20 +162,28 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
   function PuzzleInfoDrawer(
     {
       open,
+      name,
       description,
       linkageColors,
       characterSlots,
       rosterCols,
+      coverUrl,
+      coverFile,
+      coverRemoved,
       onRequestClose,
       onCommit,
       onDirtyChange,
     },
     ref,
   ): JSX.Element {
+    const [draftName, setDraftName] = useDraft<string>(name, open);
     const [draftDescription, setDraftDescription] = useDraft<string>(description, open);
     const [draftPalette, setDraftPalette] = useDraft<MapLinkageColor[]>(linkageColors, open);
     /** v0.6.3 §3: the column count is drafted like everything else here. */
     const [draftCols, setDraftCols] = useDraft<number | null>(rosterCols, open);
+    /** v0.7.3 §2: the cover is drafted as `{ file, removed }` and uploaded on save. */
+    const [draftCoverFile, setDraftCoverFile] = useDraft<File | null>(coverFile, open);
+    const [draftCoverRemoved, setDraftCoverRemoved] = useDraft<boolean>(coverRemoved, open);
     /**
      * The roster the draft carries. It only ever differs from the committed one
      * because a palette key was renamed or deleted — the drawer never edits a
@@ -170,12 +196,36 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     /** Set while committing / discarding, so the deferred switch reads clean. */
     const settledRef = useRef(false);
 
+    const nameBlank = draftName.trim().length === 0;
     const dirty =
+      draftName !== name ||
       draftDescription !== description ||
       !paletteEquals(draftPalette, linkageColors) ||
-      draftCols !== rosterCols;
-    const latest = useRef({ draftDescription, draftPalette, draftSlots, draftCols, dirty });
-    latest.current = { draftDescription, draftPalette, draftSlots, draftCols, dirty };
+      draftCols !== rosterCols ||
+      draftCoverFile !== coverFile ||
+      draftCoverRemoved !== coverRemoved;
+    const latest = useRef({
+      draftName,
+      draftDescription,
+      draftPalette,
+      draftSlots,
+      draftCols,
+      draftCoverFile,
+      draftCoverRemoved,
+      dirty,
+      blocked: nameBlank,
+    });
+    latest.current = {
+      draftName,
+      draftDescription,
+      draftPalette,
+      draftSlots,
+      draftCols,
+      draftCoverFile,
+      draftCoverRemoved,
+      dirty,
+      blocked: nameBlank,
+    };
 
     useEffect(() => {
       if (open) settledRef.current = false;
@@ -190,42 +240,51 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       () => ({
         isDirty: () => !settledRef.current && latest.current.dirty,
         save: () => {
-          const {
-            draftDescription: text,
-            draftPalette: palette,
-            draftSlots: slots,
-            draftCols: cols,
-            dirty: isDirty,
-          } = latest.current;
+          const current = latest.current;
+          // 名称为空时不提交、也不关 —— 留在原地让用户补完。
+          if (current.blocked) return false;
           settledRef.current = true;
-          if (isDirty)
+          if (current.dirty)
             onCommit({
-              description: text,
-              linkageColors: palette,
-              characterSlots: slots,
-              rosterCols: cols,
+              name: current.draftName.trim(),
+              description: current.draftDescription,
+              linkageColors: current.draftPalette,
+              characterSlots: current.draftSlots,
+              rosterCols: current.draftCols,
+              coverFile: current.draftCoverFile,
+              coverRemoved: current.draftCoverRemoved,
             });
           else onRequestClose();
+          return true;
         },
         discard: () => {
           settledRef.current = true;
+          setDraftName(name);
           setDraftDescription(description);
           setDraftPalette(linkageColors);
           setDraftSlots(characterSlots);
           setDraftCols(rosterCols);
+          setDraftCoverFile(coverFile);
+          setDraftCoverRemoved(coverRemoved);
         },
       }),
       [
         characterSlots,
+        coverFile,
+        coverRemoved,
+        name,
         description,
         linkageColors,
         rosterCols,
         onCommit,
         onRequestClose,
+        setDraftName,
         setDraftDescription,
         setDraftPalette,
         setDraftSlots,
         setDraftCols,
+        setDraftCoverFile,
+        setDraftCoverRemoved,
       ],
     );
 
@@ -330,20 +389,69 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <Section title="描述" hint="Description — 面向玩家的谜题说明，可留空。">
-            <Textarea
-              value={draftDescription}
-              rows={5}
-              maxLength={PUZZLE_DESCRIPTION_MAX_LENGTH}
-              placeholder="例如：六人六格，注意花丛的位置条件。"
-              className={descriptionOverLimit ? 'border-destructive' : ''}
-              onChange={(event) => setDraftDescription(event.target.value)}
-            />
-            <div className="flex justify-end text-[11px] text-muted-foreground">
-              <span className={descriptionOverLimit ? 'font-medium text-destructive' : ''}>
-                {draftDescription.length} / {PUZZLE_DESCRIPTION_MAX_LENGTH}
-              </span>
+          {/*
+            v0.7.3 §2：名称 / 描述 / 封面合成一块「基本」，与地图抽屉同一个排版。
+            名称与描述进草稿；封面只交 `{ file, removed }`，页面等保存成功后再上传。
+          */}
+          <Section
+            title="基本"
+            hint="Info — 名称、描述与封面。封面图片在点「保存」后上传。"
+          >
+            <div className="grid gap-1.5">
+              <Label htmlFor="puzzle-info-name" className="text-[11px] font-normal text-muted-foreground">
+                名称
+              </Label>
+              <Input
+                id="puzzle-info-name"
+                value={draftName}
+                maxLength={PUZZLE_NAME_MAX_LENGTH}
+                placeholder="例如：午夜花园"
+                className={cn('h-7 text-xs', nameBlank ? 'border-destructive' : undefined)}
+                onChange={(event) => setDraftName(event.target.value)}
+              />
+              {nameBlank ? <p className="text-[11px] text-destructive">谜题名称必填。</p> : null}
             </div>
+
+            <div className="grid gap-1.5">
+              <Label
+                htmlFor="puzzle-info-description"
+                className="text-[11px] font-normal text-muted-foreground"
+              >
+                描述
+              </Label>
+              <Textarea
+                id="puzzle-info-description"
+                value={draftDescription}
+                rows={5}
+                maxLength={PUZZLE_DESCRIPTION_MAX_LENGTH}
+                placeholder="例如：六人六格，注意花丛的位置条件。"
+                className={descriptionOverLimit ? 'border-destructive' : undefined}
+                onChange={(event) => setDraftDescription(event.target.value)}
+              />
+              <div className="flex justify-end text-[11px] text-muted-foreground">
+                <span className={descriptionOverLimit ? 'font-medium text-destructive' : ''}>
+                  {draftDescription.length} / {PUZZLE_DESCRIPTION_MAX_LENGTH}
+                </span>
+              </div>
+            </div>
+
+            <CoverPicker
+              noun="谜题"
+              layout="stack"
+              storedUrl={coverUrl}
+              file={draftCoverFile}
+              removed={draftCoverRemoved}
+              onPick={(picked) => {
+                setDraftCoverFile(picked);
+                // 新选的文件永远盖过「准备移除」这个状态。
+                if (picked) setDraftCoverRemoved(false);
+              }}
+              onRemove={() => {
+                setDraftCoverFile(null);
+                setDraftCoverRemoved(true);
+              }}
+              onRestore={() => setDraftCoverRemoved(false)}
+            />
           </Section>
 
           <Section
@@ -477,13 +585,16 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           <Button
             type="button"
             size="sm"
-            disabled={!dirty || descriptionOverLimit}
+            disabled={!dirty || descriptionOverLimit || nameBlank}
             onClick={() =>
               onCommit({
+                name: draftName.trim(),
                 description: draftDescription,
                 linkageColors: draftPalette,
                 characterSlots: draftSlots,
                 rosterCols: draftCols,
+                coverFile: draftCoverFile,
+                coverRemoved: draftCoverRemoved,
               })
             }
           >

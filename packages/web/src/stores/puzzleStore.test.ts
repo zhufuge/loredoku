@@ -4,6 +4,7 @@ import {
   DEFAULT_THEME_COLOR,
   MAP_JSON_VERSION,
   PUZZLE_JSON_VERSION,
+  prunePuzzleReferences,
   type CharacterSlotEntry,
   type ParticipantTarget,
   type PuzzleDetail,
@@ -387,6 +388,7 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
     const baseline = store().past.length;
 
     store().setBasicInfo({
+      name: '午夜花园',
       description: '改过的描述',
       linkageColors: [
         { key: 'red', label: '红', color: '#EF9A9A' },
@@ -430,6 +432,99 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
    */
   it('reads a legacy puzzle as 自动', () => {
     expect(store().rosterCols).toBeNull();
+  });
+});
+
+/**
+ * v0.7.3 §3.3：引入新地图。换的只是底图（连同它的名称 / 版本 / 画布），谜题
+ * 自己的字段一个不动；底图进快照，所以撤销能把旧底图换回来。
+ */
+describe('replaceMapContext (v0.7.3 §3.3)', () => {
+  /** 另一张同尺寸地图 —— 区域 id 与旧画布不重叠。 */
+  function swapped(): PuzzleMapContext {
+    return {
+      mapId: 318,
+      versionNo: 1,
+      mapName: '新地图',
+      gridSize: 6,
+      cells: { '1,1': { item: { assetId: 34, w: 1, h: 1 } } },
+      regions: [{ id: 'rg_new', name: '新区域', cells: [[1, 1]] }],
+      style: DEFAULT_MAP_STYLE,
+    };
+  }
+
+  it('swaps only the canvas and leaves the puzzle-owned fields alone', () => {
+    store().setBasicInfo({
+      name: '改过的名字',
+      description: '改过的描述',
+      linkageColors: store().linkageColors,
+      characterSlots: store().characterSlots,
+      rosterCols: 2,
+    });
+    const baseline = store().past.length;
+
+    store().replaceMapContext(swapped());
+
+    expect(store().mapContext?.mapId).toBe(318);
+    expect(store().name).toBe('改过的名字');
+    expect(store().description).toBe('改过的描述');
+    expect(store().rosterCols).toBe(2);
+    expect(store().characterSlots).toHaveLength(6);
+    // 一个撤销步，且这一屏确实变了。
+    expect(store().past).toHaveLength(baseline + 1);
+    expect(store().dirty).toBe(true);
+    // 选择与参与者激活都在描述旧画布上的东西，换完就不再成立。
+    expect(store().selection).toBeNull();
+    expect(store().activeParticipantId).toBeNull();
+    expect(store().selectedSlotIndex).toBeNull();
+  });
+
+  it('undo brings the old canvas back', () => {
+    store().replaceMapContext(swapped());
+    store().undo();
+    expect(store().mapContext?.mapId).toBe(217);
+    expect(store().mapContext?.versionNo).toBe(3);
+    expect(store().toDraft().map.data.regions.map((region) => region.id)).toEqual(['rg_1']);
+  });
+
+  it('writes the new canvas into the draft', () => {
+    store().replaceMapContext(swapped());
+    expect(store().toDraft().map).toMatchObject({
+      mapId: 318,
+      versionNo: 1,
+      mapName: '新地图',
+    });
+    expect(store().toDraft().map.data.regions.map((region) => region.id)).toEqual(['rg_new']);
+  });
+
+  it('lands the pruned roster and the new canvas in one undo step', () => {
+    store().assignSlot(4);
+    store().setParticipantConfig(0, {
+      linkages: [{ type: 'region', id: 'rg_1', effect: 'highlight', color: 'red' }],
+    });
+    const next = swapped();
+    const pruned = prunePuzzleReferences(store().characterSlots, {
+      cells: next.cells,
+      regions: next.regions,
+    });
+    expect(pruned.removed).toHaveLength(1);
+    const baseline = store().past.length;
+
+    store().replaceMapContext(next, pruned.slots);
+
+    expect(store().past).toHaveLength(baseline + 1);
+    expect(store().mapContext?.mapId).toBe(318);
+    expect(store().characterSlots[0]?.linkages).toEqual([]);
+    // 一次撤销把两半一起换回来。
+    store().undo();
+    expect(store().mapContext?.mapId).toBe(217);
+    expect(store().characterSlots[0]?.linkages).toHaveLength(1);
+  });
+
+  it('ignores a no-op swap', () => {
+    store().replaceMapContext(mapContext());
+    expect(store().past).toHaveLength(0);
+    expect(store().dirty).toBe(false);
   });
 });
 
@@ -679,6 +774,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
    */
   it('carries the layout column count to the server', () => {
     store().setBasicInfo({
+      name: '午夜花园',
       description: '六人六格，注意花丛的位置条件。',
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
@@ -687,6 +783,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(store().toDraft().rosterCols).toBe(2);
     // 自动 is stored as `null`, not dropped — the field is always present.
     store().setBasicInfo({
+      name: '午夜花园',
       description: '六人六格，注意花丛的位置条件。',
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
