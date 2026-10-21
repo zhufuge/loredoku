@@ -6,8 +6,14 @@ export const GRID_SIZE_MIN = 2;
 export const GRID_SIZE_MAX = 24;
 export const GRID_SIZE_DEFAULT = 6;
 
-/** OPT-A01 (docs/v0.3.5.md §1.1): cell width range; `MIN` is also the pre-measure fallback. */
-export const MIN_CELL_SIZE = 90;
+/**
+ * OPT-A01 (docs/v0.3.5.md §1.1): cell width range; `MIN` is also the pre-measure
+ * fallback. v0.7.2 §7 把下限从 90 一路放到 32：它同时是「基本信息 → 方格边长」的
+ * 可填最小值与自适应缩放的**下限**，下限太高会让 24×24 的板子在笔记本上必然溢出
+ * 视口。32px 时 `cellScale` ≈ 0.267，线宽（2 × 0.267 = 0.53）刚好还在
+ * `LINE_WIDTH_MIN` 之上，字号则一律被 `FONT_SIZE_MIN` 兜住。
+ */
+export const MIN_CELL_SIZE = 32;
 export const MAX_CELL_SIZE = 240;
 /** Alias used as the default cell width before the adaptive pass runs. */
 export const DEFAULT_CELL_SIZE = MIN_CELL_SIZE;

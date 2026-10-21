@@ -7,6 +7,7 @@ import {
 } from '../constants';
 import {
   createPuzzleSchema,
+  forkPuzzleVersionBodySchema,
   puzzleDraftSchema,
   savePuzzleDraftSchema,
   updatePuzzleSchema,
@@ -281,5 +282,16 @@ describe('谜题的三个写入 schema', () => {
     expect(updatePuzzleSchema.safeParse({ description: '' }).success).toBe(true);
     expect(updatePuzzleSchema.safeParse({ name: '   ' }).success).toBe(false);
     expect(updatePuzzleSchema.safeParse({}).success).toBe(true);
+  });
+
+  it('forkPuzzleVersionBodySchema takes an optional draft', () => {
+    // 空 body = 用版本快照（版本历史面板的老用法）。
+    expect(forkPuzzleVersionBodySchema.safeParse({}).success).toBe(true);
+    expect(forkPuzzleVersionBodySchema.parse({}).data).toBeUndefined();
+    expect(forkPuzzleVersionBodySchema.safeParse({ data: draft() }).success).toBe(true);
+    // 坏草稿在这里就拦下，不用等服务端引用校验。
+    expect(forkPuzzleVersionBodySchema.safeParse({ data: draft({ name: '' }) }).success).toBe(
+      false,
+    );
   });
 });

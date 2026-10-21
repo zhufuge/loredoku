@@ -24,7 +24,7 @@ import { isValidStyleColor } from '@/lib/mapStyle';
  * `Enter` only serve to roll back non-numeric input.
  *
  * The text buffer is deliberately **not** re-synced while the field has focus,
- * otherwise a clamped commit (e.g. typing `1` into a 90 ~ 240 field) would
+ * otherwise a clamped commit (e.g. typing `1` into a 32 ~ 240 field) would
  * rewrite the text under the user's cursor and make multi-digit entry
  * impossible.
  */

@@ -1,4 +1,4 @@
-import { Copy, Eye, Pencil, Trash2 } from 'lucide-react';
+import { Copy, Eye, Pencil, SquarePen, Trash2 } from 'lucide-react';
 import type { MapEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
@@ -10,13 +10,18 @@ import { entryPreviewable, entryPreviewTitle } from '@/components/common/EntryAc
  * 草稿行不渲染版本列，也不挂徽标 —— 草稿块里条条都是草稿；`v{n}` 只在版本
  * 条目上出现。尺寸列两块都有，未初始化时打 `—` 占位（列表得按列对齐）。
  *
- * 操作列：编辑信息 / 预览 / 复制 / 删除。**「复制」与「编辑信息」都只属于
- * 工作条目** —— 版本是冻结快照，想基于某版本继续做走「以此为底稿新建」。
- * 预览两块都有：草稿看自己的画布（未初始化的草稿禁用），版本看自己。
+ * 操作列：编辑信息 / 预览 / **编辑** / 复制 / 删除。**「复制」与「编辑信息」
+ * 都只属于工作条目** —— 版本是冻结快照，想基于某版本继续做走「编辑」。
+ *
+ * v0.7.2：版本行的封面与名称**点击即预览**（与眼睛按钮同一个动作），改版本
+ * 走预览后面那个「编辑」按钮 —— 看和改分成两个入口，误点封面不会再直接进
+ * 编辑态。草稿行的封面 / 名称点击仍是「进编辑器」。
  */
 interface MapListRowProps {
   entry: MapEntrySummary;
   onOpen: (entry: MapEntrySummary) => void;
+  /** v0.7.2：版本行的「编辑」—— 带 `?v=` 进编辑器的 fork 态。 */
+  onEdit: (entry: MapEntrySummary) => void;
   onRename: (entry: MapEntrySummary) => void;
   onDuplicate: (entry: MapEntrySummary) => void;
   onDelete: (entry: MapEntrySummary) => void;
@@ -26,6 +31,7 @@ interface MapListRowProps {
 export function MapListRow({
   entry,
   onOpen,
+  onEdit,
   onRename,
   onDuplicate,
   onDelete,
@@ -33,18 +39,17 @@ export function MapListRow({
 }: MapListRowProps): JSX.Element {
   const initial = entry.name.trim().charAt(0) || '图';
   const previewable = entryPreviewable(entry);
-  /**
-   * 版本条目的主点击是「以此为底稿新建」—— 带 `?v={n}` 进编辑器，
-   * 保存时才生成草稿；只读预览留给眼睛图标。
-   */
-  const openTitle = entry.kind === 'version' ? '以此为底稿新建' : '进入编辑';
+  const isVersion = entry.kind === 'version';
+  /** 版本行的封面 / 名称是「看」，草稿行的是「改」。 */
+  const coverAction = (): void => (isVersion ? onPreview(entry) : onOpen(entry));
+  const coverTitle = isVersion ? entryPreviewTitle(entry) : '进入编辑';
 
   return (
-    <div className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0">
+    <div className="flex items-center gap-4 border-b px-4 py-3 transition-colors last:border-b-0 hover:bg-accent/60">
       <button
         type="button"
-        onClick={() => onOpen(entry)}
-        title={`${openTitle}：${entry.name}`}
+        onClick={coverAction}
+        title={`${coverTitle}：${entry.name}`}
         className="h-10 w-16 shrink-0 cursor-pointer overflow-hidden rounded border bg-muted/40"
       >
         {entry.coverUrl ? (
@@ -62,7 +67,7 @@ export function MapListRow({
       </button>
       <button
         type="button"
-        onClick={() => onOpen(entry)}
+        onClick={coverAction}
         className="w-48 shrink-0 truncate text-left font-medium hover:underline"
         title={entry.name}
       >
@@ -87,10 +92,10 @@ export function MapListRow({
       <span className="w-52 shrink-0 truncate text-right text-xs text-muted-foreground">
         {formatDateTime(entry.publishedAt ?? entry.updatedAt)}
       </span>
-      <div className="flex w-32 shrink-0 items-center justify-end gap-1">
+      <div className="flex w-40 shrink-0 items-center justify-end gap-1">
         {/* v0.5.8 第三阶段（设计 §11 第 9 条）：版本条目的快照列不可改 ——
             改名 / 改描述会破坏「版本不可变」，所以这块只给工作条目。 */}
-        {entry.kind !== 'version' ? (
+        {!isVersion ? (
           <Button size="icon" variant="ghost" title="编辑信息" onClick={() => onRename(entry)}>
             <Pencil className="h-4 w-4" />
           </Button>
@@ -104,7 +109,12 @@ export function MapListRow({
         >
           <Eye className="h-4 w-4" />
         </Button>
-        {entry.kind !== 'version' ? (
+        {isVersion ? (
+          <Button size="icon" variant="ghost" title="编辑此版本" onClick={() => onEdit(entry)}>
+            <SquarePen className="h-4 w-4" />
+          </Button>
+        ) : null}
+        {!isVersion ? (
           <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(entry)}>
             <Copy className="h-4 w-4" />
           </Button>

@@ -105,12 +105,16 @@ export async function deleteVersion(id: number, versionNo: number): Promise<bool
  * `name` 由 service 传入（「{name} (自 v{n})」+ 查重兜底）；`data.name` 也要
  * 跟着改 —— 行名与 JSON 名是两个必须同源的副本。
  *
+ * `data` 可传编辑器当前的草稿（v0.7.2 §3.3「保存时才生成草稿」那条路，画布与
+ * 参与者配置都是作者刚改过的版本）；不传则用版本快照。
+ *
  * fork 源**不过滤软删**：软删版本也能拿来开新草稿。
  */
 export async function forkVersion(
   id: number,
   versionNo: number,
   name: string,
+  data?: PuzzleDraft,
 ): Promise<PuzzleRow | undefined> {
   return db.transaction(async (trx) => {
     const owner = (await trx<PuzzleRow>('puzzles').where({ id }).first()) as
@@ -123,14 +127,14 @@ export async function forkVersion(
       .first()) as PuzzleRow | undefined;
     if (!version) return undefined;
 
-    const draft = absorbLegacyPuzzleDraft(version.data);
+    const source = data ?? absorbLegacyPuzzleDraft(version.data);
     const [row] = (await trx<PuzzleRow>('puzzles')
       .insert({
         root_id: owner.root_id,
         name,
         description: version.description,
         cover_path: version.cover_path,
-        data: draft ? { ...draft, name } : version.data,
+        data: source ? { ...source, name } : version.data,
       })
       .returning('*')) as PuzzleRow[];
     return row;

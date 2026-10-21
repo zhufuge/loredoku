@@ -33,6 +33,23 @@ export function isInBounds(coord: CellCoord, gridSize: number): boolean {
   return coord.x >= 0 && coord.y >= 0 && coord.x < gridSize && coord.y < gridSize;
 }
 
+export interface PanGesture {
+  /** `PointerEvent.button`: 0 left, 1 middle. */
+  button: number;
+  spaceHeld: boolean;
+  panMode: boolean;
+}
+
+/**
+ * 一次按下是否开始平移视图。三条入口并存、互不排斥：中键拖动、空格按住拖
+ * 左键、手形开关打开后直接拖左键。
+ */
+export function startsPan(gesture: PanGesture): boolean {
+  if (gesture.button === 1) return true;
+  if (gesture.button !== 0) return false;
+  return gesture.spaceHeld || gesture.panMode;
+}
+
 export function boardSize(gridSize: number, cellSize: number, zoom = 1): number {
   return gridSize * cellSize * zoom;
 }

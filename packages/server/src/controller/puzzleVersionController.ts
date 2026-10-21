@@ -1,5 +1,5 @@
 import type { Context } from 'koa';
-import { idParamSchema, publishSchema } from '@loredoku/shared';
+import { forkPuzzleVersionBodySchema, idParamSchema, publishSchema } from '@loredoku/shared';
 import { z } from 'zod';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
@@ -33,10 +33,16 @@ export async function detail(ctx: Context): Promise<void> {
   success(ctx, await puzzleService.getVersion(id, versionNo));
 }
 
-/** 「编辑此版本」= fork 出一条新草稿行，版本行不动（谜题不做 `?v=` fork 态）。 */
+/**
+ * 「编辑此版本」= fork 出一条新草稿行，版本行不动。
+ *
+ * v0.7.2 §3.3：body 可带 `data` —— 编辑器 `?v=` 态下点「保存」时才走到这里，
+ * 带的是作者此刻的草稿；不带就用版本快照（版本历史面板的老行为）。
+ */
 export async function fork(ctx: Context): Promise<void> {
   const { id, versionNo } = parseOrThrow(versionParamSchema, ctx.params);
-  success(ctx, await puzzleService.forkVersion(id, versionNo), `已从 v${versionNo} 新增一个条目`);
+  const body = parseOrThrow(forkPuzzleVersionBodySchema, ctx.request.body ?? {});
+  success(ctx, await puzzleService.forkVersion(id, versionNo, body.data), `已从 v${versionNo} 新增一个条目`);
 }
 
 /** 删版本 = 软删；挂着未取消部署的游戏时 400。 */

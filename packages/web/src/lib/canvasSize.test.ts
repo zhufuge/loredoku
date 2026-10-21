@@ -19,8 +19,8 @@ import {
 } from './canvasSize';
 
 describe('computeCellSize (OPT-A01 §1.1)', () => {
-  it('never leaves the 90–240px range', () => {
-    expect(MIN_CELL_SIZE).toBe(90);
+  it('never leaves the 32–240px range', () => {
+    expect(MIN_CELL_SIZE).toBe(32);
     expect(MAX_CELL_SIZE).toBe(240);
     expect(DEFAULT_CELL_SIZE).toBe(MIN_CELL_SIZE);
 
@@ -62,10 +62,14 @@ describe('computeCellSize (OPT-A01 §1.1)', () => {
     }
   });
 
-  it('n = 2 approaches the maximum and n = 24 the minimum', () => {
+  it('n = 2 approaches the maximum and n = 24 stays near the minimum', () => {
     const roomy = { availableWidth: 1440, availableHeight: 900 };
     expect(computeCellSize({ ...roomy, gridSize: 2 })).toBe(MAX_CELL_SIZE);
-    expect(computeCellSize({ ...roomy, gridSize: 24 })).toBe(MIN_CELL_SIZE);
+    // 24×24 在 1440×900 里是 36 —— **不再被下限夹住**（这正是下限放到 32 的目的），
+    // 所以只要求它明显小于中等板子、且不低于下限。
+    const dense = computeCellSize({ ...roomy, gridSize: 24 });
+    expect(dense).toBeGreaterThanOrEqual(MIN_CELL_SIZE);
+    expect(dense).toBeLessThan(computeCellSize({ ...roomy, gridSize: 6 }));
     // Monotonic: more cells never means wider cells.
     let previous = Number.POSITIVE_INFINITY;
     for (let gridSize = 2; gridSize <= 24; gridSize += 1) {
@@ -170,7 +174,7 @@ describe('computeCellSizeForInsets (§2.2)', () => {
 
   it('§2.3: the bottom reserve can push the cell down to the minimum', () => {
     const insets = canvasInsets({ showRulers: true, showBottomBar: true });
-    // 24 cells in a short viewport → clamped to 90, and the board scrolls.
+    // 24 cells in a short viewport → clamped to the minimum, and the board scrolls.
     expect(computeCellSizeForInsets({ width: 700, height: 600, gridSize: 24, insets })).toBe(
       MIN_CELL_SIZE,
     );

@@ -123,9 +123,29 @@ export function GameDeployDialog({
     return () => URL.revokeObjectURL(coverPreview);
   }, [coverPreview]);
 
-  /** OPT-W03: what the cover area shows right now — new file, stored, or none. */
-  const storedCover = coverRemoved ? null : existingGame?.coverUrl ?? null;
-  const showStoredCover = !cover && storedCover !== null;
+  /**
+   * v0.7.2 §4：封面来源分四档 —— 新选的文件 / 游戏已有的 / **谜题自己的** / 无。
+   * 谜题封面是「默认值」：作者不选文件，就把谜题那张复制成游戏封面，省掉每次
+   * 部署都重选一次图。
+   */
+  const puzzleCoverUrl = puzzle?.coverUrl ?? null;
+  const coverSource: 'picked' | 'game' | 'puzzle' | 'none' = cover
+    ? 'picked'
+    : coverRemoved
+      ? 'none'
+      : existingGame?.coverUrl
+        ? 'game'
+        : puzzleCoverUrl
+          ? 'puzzle'
+          : 'none';
+  /** 此刻封面框里画的那张图（选了新文件时由 `coverPreview` 顶替）。 */
+  const inheritedCover =
+    coverSource === 'game'
+      ? existingGame?.coverUrl ?? null
+      : coverSource === 'puzzle'
+        ? puzzleCoverUrl
+        : null;
+  const showStoredCover = !cover && inheritedCover !== null;
 
   /**
    * §4.4 / Q13: the line under the input. An untouched name that slugifies to
@@ -175,6 +195,8 @@ export function GameDeployDialog({
         // Only an explicit removal clears the stored cover (OPT-W03 §3).
         clearCover: coverRemoved && !cover,
         cover,
+        // v0.7.2 §4：没有自己的封面时，把谜题封面复制一份过来。
+        coverFromPuzzleUrl: coverSource === 'puzzle' ? puzzleCoverUrl : null,
       },
       { onSuccess: () => onOpenChange(false) },
     );
@@ -290,7 +312,7 @@ export function GameDeployDialog({
                   />
                 ) : showStoredCover ? (
                   <img
-                    src={storedCover}
+                    src={inheritedCover ?? undefined}
                     alt="当前封面"
                     draggable={false}
                     className="no-drag h-full w-full object-cover"
@@ -305,11 +327,13 @@ export function GameDeployDialog({
               <div className="flex flex-1 flex-col justify-between gap-2">
                 <p className="text-xs text-muted-foreground">
                   支持 PNG / JPEG / WebP / SVG，≤ 2 MB。封面可留空。
-                  {cover
-                    ? `已选择：${cover.name}`
-                    : showStoredCover
+                  {coverSource === 'picked'
+                    ? `已选择：${cover?.name ?? ''}`
+                    : coverSource === 'game'
                       ? '当前为该游戏已上传的封面。'
-                      : ''}
+                      : coverSource === 'puzzle'
+                        ? '默认使用谜题封面，可替换。'
+                        : ''}
                 </p>
                 <div className="flex gap-2">
                   <Button

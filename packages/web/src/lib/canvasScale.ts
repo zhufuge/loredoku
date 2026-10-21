@@ -15,7 +15,7 @@ import {
 } from '@loredoku/shared';
 
 /**
- * OPT-B03 (docs/v0.3.6.md §3): the cell width spans 90 ~ 240px, so a fixed 2px
+ * OPT-B03 (docs/v0.3.6.md §3): the cell width spans 32 ~ 240px, so a fixed 2px
  * grid line is heavy at one end and hairline at the other. Everything geometric is
  * authored against `BASE_CELL` and multiplied by `scale = cellSize / BASE_CELL`.
  * §3.3: only `cellSize` re-scales — canvas zoom is a container `transform`, so

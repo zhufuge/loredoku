@@ -3,7 +3,6 @@ import {
   BASE_CELL,
   FONT_SIZE_MIN,
   MAX_CELL_SIZE,
-  MIN_CELL_SIZE,
   RULER_COLOR,
   RULER_COLOR_HOVER,
   RULER_FONT_SIZE,
@@ -66,8 +65,11 @@ describe('ruler glyph styling (§5.1~§5.3)', () => {
   });
 
   it('OPT-B03: multiplies both sizes by the cell scale', () => {
-    expect(rulerFontSize('normal', cellScale(MIN_CELL_SIZE))).toBeCloseTo(12.75, 6);
-    expect(rulerFontSize('operation', cellScale(MIN_CELL_SIZE))).toBeCloseTo(14.25, 6);
+    // 格宽下限 48px 时 17 × 0.4 = 6.8 会被 `FONT_SIZE_MIN` 兜住（见下一例），
+    // 所以这里取基准格的 3/4 来验「真的按比例缩放」。
+    const scale = cellScale(BASE_CELL * 0.75);
+    expect(rulerFontSize('normal', scale)).toBeCloseTo(12.75, 6);
+    expect(rulerFontSize('operation', scale)).toBeCloseTo(14.25, 6);
     // v0.5.2 FIX-M08: 17 × 2 = 34 / 19 × 2 = 38 — no 28px ceiling any more.
     expect(rulerFontSize('normal', cellScale(MAX_CELL_SIZE))).toBeCloseTo(34, 6);
     expect(rulerFontSize('operation', cellScale(MAX_CELL_SIZE))).toBeCloseTo(38, 6);

@@ -210,6 +210,16 @@ export const importPuzzleSchema = z.object({
   data: puzzleDraftSchema,
 });
 
+/**
+ * v0.7.2 §3.3：「编辑此版本」进 `?v=` 态时**不建行**，保存才 fork。`data` 是
+ * 编辑器此刻的草稿（不传 = 用版本自己的快照，即版本历史面板的老行为）。
+ *
+ * 与地图的 `forkVersionBodySchema` 同形，只是内层 schema 换成 `PuzzleDraft`。
+ */
+export const forkPuzzleVersionBodySchema = z.object({
+  data: puzzleDraftSchema.optional(),
+});
+
 export const updatePuzzleSchema = z.object({
   name: puzzleNameSchema.optional(),
   description: puzzleDescriptionSchema.optional().nullable(),
@@ -234,3 +244,4 @@ export type SavePuzzleDraftInput = z.infer<typeof savePuzzleDraftSchema>;
 export type ImportPuzzleInput = z.infer<typeof importPuzzleSchema>;
 export type UpdatePuzzleInput = z.infer<typeof updatePuzzleSchema>;
 export type ListPuzzlesQuery = z.infer<typeof listPuzzlesQuerySchema>;
+export type ForkPuzzleVersionInput = z.infer<typeof forkPuzzleVersionBodySchema>;

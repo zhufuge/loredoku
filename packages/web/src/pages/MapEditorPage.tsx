@@ -856,6 +856,8 @@ export function MapEditorPage(): JSX.Element {
          */
         status={forkFrom !== null ? null : editor.status}
         currentVersionNo={editor.currentVersionNo}
+        // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点。
+        canSave={editor.dirty || entryDirty || forkFrom !== null}
         onBack={() => navigate('/maps')}
         onSave={save}
         onPublish={forkFrom === null ? openPublishConfirm : undefined}

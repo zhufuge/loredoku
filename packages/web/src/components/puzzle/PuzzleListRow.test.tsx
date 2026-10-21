@@ -5,10 +5,14 @@ import type { PuzzleEntrySummary } from '@loredoku/shared';
 import { PuzzleListRow } from './PuzzleListRow';
 
 /**
- * 谜题列表行的按钮集（v0.7.1 §6.2 / §7.1 第 1 层）。
+ * 谜题列表行的按钮集（v0.7.1 §6.2 / §7.1 第 1 层，v0.7.2 §2）。
  *
  * 这一层是「草稿不能部署」的第一道拦截：草稿行上**连按钮都不渲染**（不是禁用），
  * 版本行才有。其余按钮与地图列表一致 —— 编辑信息 / 复制只给草稿行。
+ *
+ * v0.7.2：版本行的封面 / 名称点击改成**预览**（不再是「点一下就在库里多一条
+ * 草稿」），改版本走预览后面那个「编辑此版本」按钮；「已部署」也从名称里搬出来
+ * 独立成一列。
  */
 function entry(overrides: Partial<PuzzleEntrySummary> = {}): PuzzleEntrySummary {
   return {
@@ -55,6 +59,7 @@ describe('PuzzleListRow (v0.7.1 §6.2)', () => {
     onDelete: vi.fn(),
     onPreview: vi.fn(),
     onDeploy: vi.fn(),
+    onEdit: vi.fn(),
   };
 
   function render(item: PuzzleEntrySummary): void {
@@ -91,19 +96,58 @@ describe('PuzzleListRow (v0.7.1 §6.2)', () => {
     expect(container.textContent).not.toContain('部署');
   });
 
-  it('给版本行渲染 预览 / 部署 / 删除，不给编辑信息与复制', () => {
+  it('给版本行渲染 预览 / 编辑 / 部署 / 删除，不给编辑信息与复制', () => {
     render(versionEntry());
     expect(button('预览版本')).toBeDefined();
+    expect(button('编辑此版本')).toBeDefined();
     expect(button('部署为游戏')).toBeDefined();
     expect(button('删除')).toBeDefined();
     expect(button('编辑信息')).toBeUndefined();
     expect(button('复制')).toBeUndefined();
   });
 
-  it('已部署的版本行把部署按钮说成「重新部署」', () => {
-    render(versionEntry({ deployed: true }));
+  it('版本行的封面 / 名称点击走预览，编辑按钮才进编辑态', () => {
+    const item = versionEntry();
+    render(item);
+    const nameButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (node) => node.getAttribute('title') === item.name,
+    );
+    act(() => nameButton?.click());
+    expect(handlers.onPreview).toHaveBeenCalledWith(item);
+    expect(handlers.onOpen).not.toHaveBeenCalled();
+
+    act(() => button('编辑此版本')?.click());
+    expect(handlers.onEdit).toHaveBeenCalledWith(item);
+    // 编辑按钮只是「进编辑器」，不再顺带 fork 或直接打开。
+    expect(handlers.onOpen).not.toHaveBeenCalled();
+  });
+
+  it('草稿行的封面 / 名称点击仍是进编辑器', () => {
+    const item = entry();
+    render(item);
+    const nameButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (node) => node.getAttribute('title') === item.name,
+    );
+    act(() => nameButton?.click());
+    expect(handlers.onOpen).toHaveBeenCalledWith(item);
+    expect(button('编辑此版本')).toBeUndefined();
+  });
+
+  it('已部署的版本行把部署按钮说成「重新部署」，且徽标不在名称里', () => {
+    const item = versionEntry({ deployed: true });
+    render(item);
     expect(button('重新部署为游戏')).toBeDefined();
     expect(container.textContent).toContain('已部署');
+    // v0.7.2 §2.2：徽标独立成列 —— 名称按钮自己的文本里没有它。
+    const nameButton = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (node) => node.getAttribute('title') === item.name,
+    );
+    expect(nameButton?.textContent).not.toContain('已部署');
+  });
+
+  it('未部署的版本行不打徽标', () => {
+    render(versionEntry());
+    expect(container.textContent).not.toContain('已部署');
   });
 
   it('点部署把整个条目交出去（弹窗要拿它拼默认访问路径）', () => {

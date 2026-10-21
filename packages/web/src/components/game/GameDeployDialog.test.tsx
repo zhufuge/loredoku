@@ -172,4 +172,43 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
       expect.anything(),
     );
   });
+
+  it('谜题有封面时默认用它（v0.7.2 §4）', () => {
+    render({ puzzle: puzzle({ coverUrl: 'https://cdn.test/puzzle.webp' }) });
+    const shown = document.querySelector<HTMLImageElement>('img[alt="当前封面"]');
+    expect(shown?.getAttribute('src')).toBe('https://cdn.test/puzzle.webp');
+    expect(text()).toContain('默认使用谜题封面，可替换。');
+
+    clickButton('部署');
+    expect(deployMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ coverFromPuzzleUrl: 'https://cdn.test/puzzle.webp' }),
+      expect.anything(),
+    );
+  });
+
+  it('重新部署时优先用游戏自己的封面，不拿谜题封面顶掉它', () => {
+    render({
+      puzzle: puzzle({ coverUrl: 'https://cdn.test/puzzle.webp' }),
+      existingGame: existingGame({ coverUrl: 'https://cdn.test/game.webp' }),
+    });
+    expect(
+      document.querySelector<HTMLImageElement>('img[alt="当前封面"]')?.getAttribute('src'),
+    ).toBe('https://cdn.test/game.webp');
+    expect(text()).toContain('当前为该游戏已上传的封面。');
+
+    clickButton('部署');
+    expect(deployMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ coverFromPuzzleUrl: null }),
+      expect.anything(),
+    );
+  });
+
+  it('谜题与游戏都没有封面时不传图', () => {
+    render({ puzzle: puzzle() });
+    clickButton('部署');
+    expect(deployMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ coverFromPuzzleUrl: null }),
+      expect.anything(),
+    );
+  });
 });

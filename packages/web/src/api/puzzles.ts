@@ -86,9 +86,17 @@ export const puzzlesApi = {
   versionDetail(id: number, versionNo: number): Promise<PuzzleDetail> {
     return apiGet<PuzzleDetail>(`/puzzles/${id}/versions/${versionNo}`);
   },
-  /** 「编辑此版本」= fork 出一条新草稿行（版本行不动）。 */
-  forkVersion(id: number, versionNo: number): Promise<PuzzleDetail> {
-    return apiPost<PuzzleDetail>(`/puzzles/${id}/versions/${versionNo}/fork`);
+  /**
+   * 「编辑此版本」= fork 出一条新草稿行（版本行不动）。
+   *
+   * `data` 可选：编辑器 `?v=` 态「保存时才生成草稿」，带的是作者此刻的草稿；
+   * 不传就用版本快照（版本历史面板的老用法）。
+   */
+  forkVersion(id: number, versionNo: number, data?: PuzzleDraft): Promise<PuzzleDetail> {
+    return apiPost<PuzzleDetail>(
+      `/puzzles/${id}/versions/${versionNo}/fork`,
+      data ? { data } : {},
+    );
   },
   removeVersion(id: number, versionNo: number): Promise<null> {
     return apiDelete<null>(`/puzzles/${id}/versions/${versionNo}`);

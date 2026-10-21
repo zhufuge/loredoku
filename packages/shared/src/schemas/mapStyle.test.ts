@@ -35,7 +35,7 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
   it('rejects out-of-range numbers instead of silently clamping', () => {
     expect(mapStyleSchema.safeParse({ gridSeparator: { width: 99 } }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ gridSeparator: { width: 0 } }).success).toBe(false);
-    expect(mapStyleSchema.safeParse({ cellSize: 40 }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ cellSize: 31 }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ cellSize: 400 }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ regionOutline: { width: 99 } }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ regionLabel: { fontSize: 400 } }).success).toBe(false);
@@ -43,7 +43,7 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
   });
 
   it('accepts every documented boundary value', () => {
-    expect(mapStyleSchema.safeParse({ cellSize: 90 }).success).toBe(true);
+    expect(mapStyleSchema.safeParse({ cellSize: 32 }).success).toBe(true);
     expect(mapStyleSchema.safeParse({ cellSize: 240 }).success).toBe(true);
     expect(mapStyleSchema.safeParse({ regionOutline: { width: 4 } }).success).toBe(true);
     expect(mapStyleSchema.safeParse({ regionOutline: { width: 12 } }).success).toBe(true);

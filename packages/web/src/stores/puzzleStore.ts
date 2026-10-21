@@ -174,6 +174,12 @@ export interface PuzzleState {
   undo: () => void;
   redo: () => void;
   markSaved: (updatedAt: string) => void;
+  /**
+   * 「保存时才生成草稿」落库之后接管新行：只换身份（id / 名称 / 描述 /
+   * `updatedAt` / `status`），画布、撤销栈与视口一个都不动 —— 内容就是刚写进去
+   * 的那份，重新 `init` 只会把缩放打回 1×、把历史清空。
+   */
+  adoptSavedEntry: (detail: PuzzleDetail) => void;
   /** FEAT-K08: the whole draft, ready for save / export. */
   toDraft: () => PuzzleDraft;
   /** FEAT-K08: import / undo — replaces only the puzzle-owned fields. */
@@ -439,6 +445,17 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     },
 
     markSaved: (updatedAt) => set({ dirty: false, updatedAt }),
+
+    adoptSavedEntry: (detail) =>
+      set({
+        puzzleId: detail.id,
+        name: detail.data.name,
+        description: detail.data.description ?? '',
+        updatedAt: detail.updatedAt,
+        // fork 出来的新行必然是草稿行。
+        status: 'draft',
+        dirty: false,
+      }),
 
     toDraft: () => {
       const state = get();

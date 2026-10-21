@@ -1566,6 +1566,33 @@ describe('v0.7.1 谜题版本与部署', () => {
     expect(lineage.body.data.map((row: { versionNo: number }) => row.versionNo)).toEqual([6, 1]);
   });
 
+  /**
+   * v0.7.2 §3.3：编辑器 `?v=` 态「保存才 fork」，所以 fork 端点要能接住作者
+   * 此刻的草稿。底图不认客户端那份 —— 永远以版本行里的 `map` 为准。
+   */
+  it('fork 可以带着编辑后的草稿落库，底图仍取版本自己的画布', async () => {
+    const { versionId } = await deployablePuzzle(`ForkData ${uniqueCode('p')}`);
+    const version = await api.get(`/api/puzzles/${versionId}/versions/1`);
+    expect(version.status).toBe(200);
+
+    const edited = version.body.data.data;
+    edited.description = '作者刚改过的描述';
+    const forked = await api
+      .post(`/api/puzzles/${versionId}/versions/1/fork`)
+      .send({ data: edited });
+    expect(forked.status).toBe(200);
+    createdPuzzles.push(forked.body.data.id as number);
+
+    const draft = forked.body.data;
+    expect(draft.kind).toBe('draft');
+    expect(draft.data.description).toBe('作者刚改过的描述');
+    // 行名与 JSON 名同源（都由服务端生成）。
+    expect(draft.data.name).toBe(draft.name);
+    expect(draft.name).toContain('自 v1');
+    // 底图不接受客户端版本：送来的那份与版本快照一致。
+    expect(draft.data.map).toEqual(version.body.data.data.map);
+  });
+
   it('编辑此版本 = fork 出新草稿行，版本行不动', async () => {
     const { draftId, versionId } = await deployablePuzzle(`Fork ${uniqueCode('p')}`);
     const owner = await api.get(`/api/puzzles/${draftId}`);

@@ -9,11 +9,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import {
-  useDeletePuzzleVersion,
-  useForkPuzzleVersion,
-  usePuzzleVersions,
-} from '@/hooks/usePuzzles';
+import { useDeletePuzzleVersion, usePuzzleVersions } from '@/hooks/usePuzzles';
 import { formatDateTime } from '@/lib/format';
 
 interface PuzzleVersionHistoryDialogProps {
@@ -29,9 +25,9 @@ interface PuzzleVersionHistoryDialogProps {
 /**
  * 谜题版本历史（v0.7.1 §5.5）：血统内所有活着的版本行，版本号倒序。
  *
- * 与地图的版本面板同一套动作，「编辑此版本」在这里是 **fork 出一条新草稿行**
- * 再进编辑器（版本行本身不可写）。删除会被服务端挡住：挂着未取消部署的游戏时
- * 返回 400「该版本已部署为游戏，请先取消部署」。
+ * 与地图的版本面板同一套动作：「编辑此版本」进编辑器 `?v=` 的 fork 态（v0.7.2
+ * 起不再当场 fork —— 保存时才生成新草稿行）。删除会被服务端挡住：挂着未取消
+ * 部署的游戏时返回 400「该版本已部署为游戏，请先取消部署」。
  */
 export function PuzzleVersionHistoryDialog({
   puzzleId,
@@ -42,11 +38,10 @@ export function PuzzleVersionHistoryDialog({
 }: PuzzleVersionHistoryDialogProps): JSX.Element {
   const navigate = useNavigate();
   const versionsQuery = usePuzzleVersions(open ? puzzleId : null);
-  const fork = useForkPuzzleVersion();
   const remove = useDeletePuzzleVersion();
 
   const versions = versionsQuery.data ?? [];
-  const busy = fork.isPending || remove.isPending;
+  const busy = remove.isPending;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,18 +105,13 @@ export function PuzzleVersionHistoryDialog({
                     variant="outline"
                     size="sm"
                     disabled={busy}
-                    title="以此版本为起点新增一个条目"
-                    onClick={() =>
-                      fork.mutate(
-                        { id: version.id, versionNo: version.versionNo ?? 0 },
-                        {
-                          onSuccess: (created) => {
-                            onOpenChange(false);
-                            navigate(`/puzzles/${created.id}/edit`);
-                          },
-                        },
-                      )
-                    }
+                    title="进入编辑器的版本态（保存时才生成新草稿）"
+                    onClick={() => {
+                      // v0.7.2 §3.5：和列表的「编辑」同一个副作用 —— 只进 `?v=`
+                      // fork 态，不在这里提前建行。
+                      onOpenChange(false);
+                      navigate(`/puzzles/${version.id}/edit?v=${version.versionNo ?? 0}`);
+                    }}
                   >
                     <Pencil className="mr-1 h-3.5 w-3.5" />
                     编辑此版本

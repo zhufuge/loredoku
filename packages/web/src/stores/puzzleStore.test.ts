@@ -769,6 +769,38 @@ describe('markSaved', () => {
   });
 });
 
+describe('adoptSavedEntry (v0.7.2 §3.3 fork 落库后接管新行)', () => {
+  it('只换身份，画布 / 撤销栈 / 视口都不动', () => {
+    store().setDescription('改过');
+    store().setZoom(1.6);
+    store().setPan({ x: 40, y: -12 });
+    const canvasBefore = store().mapContext;
+    const historyBefore = store().past.length;
+
+    store().adoptSavedEntry({
+      ...detail(),
+      id: 88,
+      versionNo: null,
+      data: { ...detail().data, name: '午夜花园 (自 v2)' },
+      updatedAt: '2026-03-03T00:00:00.000Z',
+    });
+
+    const state = store();
+    expect(state.puzzleId).toBe(88);
+    // 名称/描述来自新行，徽标回到「草稿」。
+    expect(state.name).toBe('午夜花园 (自 v2)');
+    expect(state.description).toBe('六人六格，注意花丛的位置条件。');
+    expect(state.status).toBe('draft');
+    expect(state.updatedAt).toBe('2026-03-03T00:00:00.000Z');
+    expect(state.dirty).toBe(false);
+    // 画布、历史、视口原地不动 —— 内容就是刚写进去的那份。
+    expect(state.mapContext).toBe(canvasBefore);
+    expect(state.past).toHaveLength(historyBefore);
+    expect(state.zoom).toBe(1.6);
+    expect(state.pan).toEqual({ x: 40, y: -12 });
+  });
+});
+
 describe('ensureEntry / genSlotArray (pure helpers)', () => {
   it('ensureEntry returns null for an empty slot', () => {
     expect(ensureEntry(null)).toBeNull();

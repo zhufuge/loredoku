@@ -10,6 +10,12 @@ interface EditorToolbarProps {
   /** FEAT-H05(c) (docs/v0.4.2.md §5.4): the publish request is in flight. */
   publishing: boolean;
   /**
+   * 保存按钮能不能点。缺省按 `dirty` 判定 —— 但 fork 态（`?v=` 还没落库）下
+   * 「保存」本身就是「生成新草稿」这个动作，没有 dirty 也必须有得点，
+   * 否则「点编辑 → 点保存」什么都不会发生。
+   */
+  canSave?: boolean;
+  /**
    * `null` = 这一屏还**不是**一张草稿 —— 版本条目的 fork 态，画布装的是
    * 已发布快照，库里既没有新草稿也没有可发布的东西，所以徽标整个不出现
    * （显示成「草稿」是谎报状态）。保存落库换成新草稿行后它才回来。
@@ -43,6 +49,7 @@ export function EditorToolbar({
   dirty,
   saving,
   publishing,
+  canSave,
   status,
   currentVersionNo,
   mapInfoOpen,
@@ -138,7 +145,7 @@ export function EditorToolbar({
          * v0.5.0 Q17: the puzzle editor passes no `onPublish`, so the whole
          * button (not a disabled one) is left out.
          */}
-        <Button size="sm" onClick={onSave} disabled={saving || !dirty}>
+        <Button size="sm" onClick={onSave} disabled={saving || !(canSave ?? dirty)}>
           {saving ? (
             <Loader2 className="mr-1 h-4 w-4 animate-spin" />
           ) : (

@@ -26,7 +26,6 @@ import {
   useDeletePuzzle,
   useDeletePuzzleVersion,
   useDuplicatePuzzle,
-  useForkPuzzleVersion,
   usePuzzles,
 } from '@/hooks/usePuzzles';
 
@@ -110,7 +109,6 @@ export function PuzzlesPage(): JSX.Element {
   const deleteMutation = useDeletePuzzle();
   const deleteVersionMutation = useDeletePuzzleVersion();
   const duplicateMutation = useDuplicatePuzzle();
-  const forkMutation = useForkPuzzleVersion();
 
   const drafts = draftQuery.data?.list ?? [];
   const versions = versionQuery.data?.list ?? [];
@@ -147,15 +145,21 @@ export function PuzzlesPage(): JSX.Element {
   const isVersionEntry = (entry: PuzzleEntrySummary): boolean => entry.kind === 'version';
 
   /**
-   * 主点击按 kind 分叉：草稿行进编辑器；版本行**先 fork 出一条新草稿行**再进
-   * 编辑器（版行本身不可写，谜题编辑器也不做地图那种 `?v=` 的 fork 态）。
+   * 封面 / 名称的主点击：草稿行进编辑器。**版本条目不从这里走** —— v0.7.2
+   * 起版本行的封面 / 名称是「预览」（见 `PuzzleListRow`），改版本走独立的
+   * 「编辑」按钮（{@link handleEdit}），不再「点一下就在库里多一条草稿」。
    */
   const handleOpen = (entry: PuzzleEntrySummary): void => {
+    navigate(`/puzzles/${entry.id}/edit`);
+  };
+
+  /**
+   * v0.7.2 §3：版本条目的「编辑」= 带 `?v=` 进编辑器的 fork 态 —— 进去**不建
+   * 行**、不触发保存，点「保存」时才 fork 出新草稿。
+   */
+  const handleEdit = (entry: PuzzleEntrySummary): void => {
     if (isVersionEntry(entry) && entry.versionNo !== null) {
-      forkMutation.mutate(
-        { id: entry.id, versionNo: entry.versionNo },
-        { onSuccess: (created) => navigate(`/puzzles/${created.id}/edit`) },
-      );
+      navigate(`/puzzles/${entry.id}/edit?v=${entry.versionNo}`);
       return;
     }
     navigate(`/puzzles/${entry.id}/edit`);
@@ -222,6 +226,7 @@ export function PuzzlesPage(): JSX.Element {
 
   const rowProps = {
     onOpen: handleOpen,
+    onEdit: handleEdit,
     onRename: setEditTarget,
     onDuplicate: (entry: PuzzleEntrySummary) => duplicateMutation.mutate(entry.id),
     onDelete: setDeleteTarget,

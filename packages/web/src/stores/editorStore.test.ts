@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { MapDraft } from '@loredoku/shared';
+import { MIN_CELL_SIZE } from '@loredoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();
@@ -325,7 +326,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     store().setCellSizeOverride(123.6);
     expect(store().style.cellSize).toBe(124);
     store().setCellSizeOverride(10);
-    expect(store().style.cellSize).toBe(90);
+    expect(store().style.cellSize).toBe(MIN_CELL_SIZE);
     store().setCellSizeOverride(null);
     expect(store().style.cellSize).toBeNull();
   });

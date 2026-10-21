@@ -15,7 +15,7 @@ import {
  * cellByW = (availableW - (gridSize-1) * borderGap) / gridSize
  * cellByH = (availableH - (gridSize-1) * borderGap) / gridSize
  * idealCell = min(cellByW, cellByH)
- * finalCell = clamp(idealCell, 90, 240)
+ * finalCell = clamp(idealCell, 32, 240)
  * ```
  *
  * `borderGap` is the shared Border width between adjacent cells (2px) — see

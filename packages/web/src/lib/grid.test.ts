@@ -5,6 +5,7 @@ import {
   clampZoom,
   clientToCell,
   isInBounds,
+  startsPan,
   zoomAtPoint,
   ZOOM_MAX,
   ZOOM_MIN,
@@ -68,6 +69,29 @@ describe('boardSize', () => {
   it('scales the board with zoom', () => {
     expect(boardSize(6, DEFAULT_CELL_SIZE)).toBe(6 * DEFAULT_CELL_SIZE)
     expect(boardSize(6, DEFAULT_CELL_SIZE, 2)).toBe(12 * DEFAULT_CELL_SIZE)
+  })
+})
+
+describe('startsPan', () => {
+  it('starts on a middle-button drag without any modifier', () => {
+    expect(startsPan({ button: 1, spaceHeld: false, panMode: false })).toBe(true)
+  })
+
+  it('starts on a left drag while space is held', () => {
+    expect(startsPan({ button: 0, spaceHeld: true, panMode: false })).toBe(true)
+  })
+
+  it('starts on a left drag once the hand tool is on', () => {
+    expect(startsPan({ button: 0, spaceHeld: false, panMode: true })).toBe(true)
+  })
+
+  it('ignores a plain left drag with the hand tool off', () => {
+    expect(startsPan({ button: 0, spaceHeld: false, panMode: false })).toBe(false)
+  })
+
+  it('ignores right and back buttons even with the hand tool on', () => {
+    expect(startsPan({ button: 2, spaceHeld: false, panMode: true })).toBe(false)
+    expect(startsPan({ button: 3, spaceHeld: true, panMode: true })).toBe(false)
   })
 })
 

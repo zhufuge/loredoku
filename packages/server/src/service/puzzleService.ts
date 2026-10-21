@@ -395,12 +395,21 @@ export async function getVersion(id: number, versionNo: number): Promise<PuzzleD
 }
 
 /**
- * 「编辑此版本」= fork 出一条新草稿行再跳编辑器（§5.5，与地图**有意不同**：
- * 谜题编辑器不做 `?v=` 的 fork 态，画布太大、也没必要在保存时才落行）。
+ * 「编辑此版本」= fork 出一条新草稿行（§5.5）。
+ *
+ * v0.7.2 §3.3：编辑器不再「点一下就 fork」，而是 `?v=` 进编辑器、**保存时**才
+ * 带着当前草稿来这里落行。`data` 缺省 = 用版本快照（版本历史面板老行为）。
+ *
+ * 护栏与 `savePuzzle` 同一套，只是基准画布取**版本自己的** `map` —— 客户端送来
+ * 的副本可以被改，服务端只用它的谜题侧字段，底图永远以版本行里的那份为准。
  *
  * fork 源不过滤软删：软删版本也能开新草稿（过滤只管可见性）。
  */
-export async function forkVersion(id: number, versionNo: number): Promise<PuzzleDetail> {
+export async function forkVersion(
+  id: number,
+  versionNo: number,
+  data?: PuzzleDraft,
+): Promise<PuzzleDetail> {
   const owner = await puzzleRepo.findByIdIncludingDeleted(id);
   if (!owner) {
     throw AppError.notFound('谜题不存在');
@@ -409,8 +418,20 @@ export async function forkVersion(id: number, versionNo: number): Promise<Puzzle
   if (!target) {
     throw AppError.notFound('版本不存在');
   }
+
+  let next: PuzzleDraft | undefined;
+  if (data) {
+    const source = rowDraft(target);
+    if (!source) {
+      throw AppError.validation('版本的底图画布不可读，无法编辑');
+    }
+    next = { ...data, version: PUZZLE_JSON_VERSION, map: source.map };
+    await assertKnownCharacters(next);
+    assertReferenceIssues(next);
+  }
+
   const name = await uniqueName(`${target.name} (自 v${versionNo})`);
-  const created = await puzzleVersionRepo.forkVersion(id, versionNo, name);
+  const created = await puzzleVersionRepo.forkVersion(id, versionNo, name, next);
   if (!created) {
     throw AppError.notFound('版本不存在');
   }

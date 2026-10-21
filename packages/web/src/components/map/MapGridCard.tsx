@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react';
+import { SquarePen, Trash2 } from 'lucide-react';
 import type { MapEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -22,6 +22,8 @@ import { EntryActionsMenu } from '@/components/common/EntryActionsMenu';
 interface MapGridCardProps {
   entry: MapEntrySummary;
   onOpen: (entry: MapEntrySummary) => void;
+  /** v0.7.2：版本行的「编辑」（`?v=` fork 态）。卡片只服务草稿块，留着为了版式自洽。 */
+  onEdit: (entry: MapEntrySummary) => void;
   onRename: (entry: MapEntrySummary) => void;
   onDuplicate: (entry: MapEntrySummary) => void;
   onDelete: (entry: MapEntrySummary) => void;
@@ -32,6 +34,7 @@ interface MapGridCardProps {
 export function MapGridCard({
   entry,
   onOpen,
+  onEdit,
   onRename,
   onDuplicate,
   onDelete,
@@ -96,6 +99,11 @@ export function MapGridCard({
             {isVersion ? '以此为底稿新建' : '进入编辑'}
           </Button>
           <div className="ml-auto flex items-center gap-1">
+            {isVersion ? (
+              <Button size="icon" variant="ghost" title="编辑此版本" onClick={() => onEdit(entry)}>
+                <SquarePen className="h-4 w-4" />
+              </Button>
+            ) : null}
             <EntryActionsMenu
               entry={entry}
               onEditInfo={onRename}

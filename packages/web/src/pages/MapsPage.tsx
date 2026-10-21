@@ -140,11 +140,19 @@ export function MapsPage(): JSX.Element {
   const isVersionEntry = (entry: MapEntrySummary): boolean => entry.kind === 'version';
 
   /**
-   * 主点击按 kind 分叉 —— 工作条目进编辑器；版本条目走「以此为底稿新建」：
-   * 同样进编辑器，但带 `?v={n}`，画布装的是**版本快照**，且**保存时才生成
-   * 草稿**（fork）。只读预览留给菜单 / 列表里的「预览」图标。
+   * 封面 / 名称的主点击：工作条目进编辑器。**版本条目不从这里走** —— v0.7.2
+   * 起版本行的封面 / 名称是「预览」（见 `MapListRow`），改版本走独立的「编辑」
+   * 按钮（{@link handleEdit}）。
    */
   const handleOpen = (entry: MapEntrySummary): void => {
+    navigate(`/maps/${entry.mapId}/edit`);
+  };
+
+  /**
+   * v0.7.2 §5：版本条目的「编辑」= 带 `?v=` 进编辑器的 fork 态 —— 进去**不建
+   * 行**，点保存才 fork 出新草稿。
+   */
+  const handleEdit = (entry: MapEntrySummary): void => {
     if (entry.kind === 'version' && entry.versionNo !== null) {
       navigate(`/maps/${entry.mapId}/edit?v=${entry.versionNo}`);
       return;
@@ -260,6 +268,7 @@ export function MapsPage(): JSX.Element {
                     key={`${entry.kind}-${entry.id}`}
                     entry={entry}
                     onOpen={handleOpen}
+                    onEdit={handleEdit}
                     onRename={setEditMapEntry}
                     onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
                     onDelete={setDeleteTarget}
@@ -274,6 +283,7 @@ export function MapsPage(): JSX.Element {
                     key={`${entry.kind}-${entry.id}`}
                     entry={entry}
                     onOpen={handleOpen}
+                    onEdit={handleEdit}
                     onRename={setEditMapEntry}
                     onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
                     onDelete={setDeleteTarget}
@@ -297,6 +307,7 @@ export function MapsPage(): JSX.Element {
                   key={`${entry.kind}-${entry.id}`}
                   entry={entry}
                   onOpen={handleOpen}
+                  onEdit={handleEdit}
                   onRename={setEditMapEntry}
                   onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
                   onDelete={setDeleteTarget}

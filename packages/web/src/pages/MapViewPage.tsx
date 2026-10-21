@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
+import { ArrowLeft, Hand, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
   MAP_LAYER_Z,
@@ -24,7 +24,7 @@ import {
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useAssets } from '@/hooks/useAssets';
 import { useMapCanvas } from '@/hooks/useMapCanvas';
-import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
+import { clampZoom, clientToCell, isInBounds, startsPan, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import {
   collectBlockingCells,
   collectItemCells,
@@ -81,6 +81,11 @@ export function MapViewPage(): JSX.Element {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
+  /**
+   * 手形开关：打开后左键直接拖动视图，不必按空格或中键。**默认打开** —— 预览页
+   * 只读，左键没有别的含义，默认能拖才符合「看画」的直觉。
+   */
+  const [panMode, setPanMode] = useState(true);
   /** OPT-902: the cell under the cursor, driving the hover affordances. */
   const [hover, setHover] = useState<CellCoord | null>(null);
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
@@ -300,6 +305,17 @@ export function MapViewPage(): JSX.Element {
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className={panMode ? 'bg-accent text-accent-foreground' : undefined}
+            title="平移视图（拖动画布）"
+            aria-label="平移视图"
+            aria-pressed={panMode}
+            onClick={() => setPanMode((current) => !current)}
+          >
+            <Hand className="h-4 w-4" />
+          </Button>
           {/* FEAT-F01: the reader can hide the strips; the choice is persisted. */}
           <Button
             variant="ghost"
@@ -333,11 +349,11 @@ export function MapViewPage(): JSX.Element {
         ref={containerRef}
         className="relative min-h-0 flex-1 overflow-hidden bg-muted/30"
         style={{
-          cursor: spaceHeld ? 'grab' : 'default',
+          cursor: spaceHeld || panMode ? 'grab' : 'default',
           touchAction: 'none',
         }}
         onPointerDown={(event) => {
-          if (event.button === 1 || spaceHeld) {
+          if (startsPan({ button: event.button, spaceHeld, panMode })) {
             event.currentTarget.setPointerCapture(event.pointerId);
             userAdjustedRef.current = true;
             panRef.current = { x: event.clientX - pan.x, y: event.clientY - pan.y };

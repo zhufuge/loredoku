@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ErrorCode,
@@ -197,15 +198,25 @@ export function usePublishPuzzle(id: number) {
   });
 }
 
-/** 「编辑此版本」= fork 出新草稿行，跳进编辑器（谜题编辑器没有 `?v=` 态）。 */
-export function useForkPuzzleVersion() {
+/**
+ * 「编辑此版本」= fork 出一条新草稿行，版本行不动。
+ *
+ * v0.7.2 §3.3：编辑器 `?v=` 态下「保存才 fork」，所以 `data` 可选（不带就用
+ * 版本快照）。`navigate: false` 供编辑器自己接管落盘后的跳转 —— 它要 replace
+ * 到新行、并且先把 store 的身份换成新行；这里再跳一次就成了双跳。
+ */
+export function useForkPuzzleVersion(options: { navigate?: boolean } = {}) {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   return useMutation({
-    mutationFn: ({ id, versionNo }: { id: number; versionNo: number }) =>
-      puzzlesApi.forkVersion(id, versionNo),
-    onSuccess: () => {
-      toast.success('已新增一个条目');
+    mutationFn: ({ id, versionNo, data }: { id: number; versionNo: number; data?: PuzzleDraft }) =>
+      puzzlesApi.forkVersion(id, versionNo, data),
+    onSuccess: (created, { versionNo }) => {
       void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
+      if (options.navigate !== false) {
+        toast.success(`已从 v${versionNo} 新增一个条目`);
+        navigate(`/puzzles/${created.id}/edit`);
+      }
     },
     onError: (error) => toast.error(errorMessage(error, '操作失败')),
   });

@@ -203,6 +203,9 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   it('writes the board back to localStorage while playing', () => {
     render();
     sizeCanvas();
+    // 视口是测完才有尺寸的，自适应那一遍还没跑过；点一下「重置视图」把棋盘真正
+    // 摆到视口中央，下面按视口中心点算出来的格子才稳定（不依赖默认格宽）。
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click());
 
     const forbidden = container.querySelector<HTMLButtonElement>('button[title^="禁止符号"]');
     expect(forbidden).not.toBeNull();

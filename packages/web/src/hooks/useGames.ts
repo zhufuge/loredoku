@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { gamesApi, type DeployGamePayload } from '@/api/games';
 import { ApiError } from '@/api/client';
+import { fileFromImageUrl } from '@/lib/fileFromImageUrl';
 import { puzzleKeys } from './usePuzzles';
 
 export const gameKeys = {
@@ -58,6 +59,9 @@ function errorMessage(error: unknown, fallback: string): string {
  * OPT-W03 §3: `clearCover` rides along with the deploy (`true` only when the
  * author explicitly removed the existing cover) — omitting the cover entirely
  * keeps whatever the game already had.
+ *
+ * v0.7.2 §4：`coverFromPuzzleUrl` = 作者没选文件、游戏也还没有封面，于是把
+ * **谜题自己的封面**复制成游戏封面（读成 File 再走同一条上传端点）。
  */
 export function useDeployGame() {
   const queryClient = useQueryClient();
@@ -69,7 +73,12 @@ export function useDeployGame() {
       difficulty,
       clearCover,
       cover,
-    }: DeployGamePayload & { puzzleId: number; cover?: File | null }) => {
+      coverFromPuzzleUrl,
+    }: DeployGamePayload & {
+      puzzleId: number;
+      cover?: File | null;
+      coverFromPuzzleUrl?: string | null;
+    }) => {
       const game = await gamesApi.deploy(puzzleId, {
         name,
         slug,
@@ -78,6 +87,11 @@ export function useDeployGame() {
       });
       if (cover) {
         await gamesApi.uploadCover(game.id, cover);
+        return game;
+      }
+      if (coverFromPuzzleUrl) {
+        const copied = await fileFromImageUrl(coverFromPuzzleUrl, slug || `game-${game.id}`);
+        if (copied) await gamesApi.uploadCover(game.id, copied);
       }
       return game;
     },

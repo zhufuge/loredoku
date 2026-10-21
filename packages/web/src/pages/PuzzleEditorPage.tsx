@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -51,6 +51,7 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { useAssets } from '@/hooks/useAssets';
 import { useHighlight } from '@/hooks/useHighlight';
 import {
+  useForkPuzzleVersion,
   usePublishPuzzle,
   usePuzzle,
   usePuzzleMapContext,
@@ -91,14 +92,29 @@ function readStoredRulerVisible(): boolean {
  * - nothing else writes the canvas, which is what SPEC-K07's 「尺寸仅展示」
  *   and SPEC-K06's read-only info box both rest on.
  *
- * There is no 发布 button (Q17) and no 「调整画布尺寸」 dialog: the canvas
- * belongs to the referenced map version, which is immutable (SPEC-K11).
+ * There is no 「调整画布尺寸」 dialog: the canvas inside the puzzle is a copy the
+ * author never edits from here (SPEC-K11).
+ *
+ * v0.7.2 §3：`?v={n}` = 「编辑此版本」的 fork 态。进来**不建行**（版本行只读，
+ * 谁都写不脏），点「保存」才带着当前草稿 fork 出一条新草稿行，随后 replace 到
+ * 新行的 URL。没落库之前没有发布按钮 —— 这一屏既不是草稿也不是版本。
  */
 export function PuzzleEditorPage(): JSX.Element {
   const { puzzleId } = useParams<{ puzzleId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const id = Number(puzzleId);
   const valid = Number.isFinite(id) && id > 0;
+
+  /**
+   * `?v={n}` = fork 态：`:puzzleId` 仍然是**被点的那一行自己的 id**（版本行是
+   * 一条完整的 `puzzles` 行，带整份画布副本），`?v=` 只用来标记「这一屏还没落库」。
+   */
+  const forkFrom = useMemo(() => {
+    const raw = searchParams.get('v');
+    const parsed = raw === null ? Number.NaN : Number(raw);
+    return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
 
   const puzzle = usePuzzleStore();
 
@@ -109,6 +125,8 @@ export function PuzzleEditorPage(): JSX.Element {
   const assetsQuery = useAssets({});
   const charactersQuery = useCharacters({});
   const saveMutation = useSavePuzzle();
+  /** fork 态的保存 mutation：不自己跳转，由下面的 persist 收尾。 */
+  const forkSaveMutation = useForkPuzzleVersion({ navigate: false });
   const versionsQuery = usePuzzleVersions(valid ? id : null);
   const publishMutation = usePublishPuzzle(id);
   const leaveGuard = useUnsavedChangesGuard(puzzle.dirty);
@@ -189,11 +207,45 @@ export function PuzzleEditorPage(): JSX.Element {
    */
   const { persist, save, saving, saveMaskVisible } = useEditorSave({
     id,
-    mutation: saveMutation,
+    /**
+     * fork 态把「保存」换成 fork：同一个按钮、同一个遮罩，落库后由 `onSaved`
+     * 收尾（换身份 + replace 到新行）。两条路都返回 `PuzzleDetail`，所以调用方
+     * 看到的是一次保存。
+     */
+    mutation: {
+      isPending: saveMutation.isPending || forkSaveMutation.isPending,
+      mutateAsync: async (vars) => {
+        if (forkFrom !== null) {
+          return forkSaveMutation.mutateAsync({
+            id,
+            versionNo: forkFrom,
+            data: vars.payload.data,
+          });
+        }
+        return saveMutation.mutateAsync(vars);
+      },
+    },
     buildPayload: () => ({ data: puzzle.toDraft(), updatedAt: puzzle.updatedAt }),
     onSaved: (data) => {
       const savedAt = data.updatedAt ?? new Date().toISOString();
       lastSavedAtRef.current = savedAt;
+      if (forkFrom !== null) {
+        /**
+         * 这一屏刚落库成一条**新草稿行**：只换身份，画布 / 撤销栈 / 视口都不动
+         * （重新 `init` 会把缩放打回 1×、把历史清空，而内容一个字节都没变）。
+         * `initKeyRef` 记下新 key，随后的 detail 到达不会再把 store 重播一遍。
+         */
+        initKeyRef.current = `${data.id}:${data.updatedAt ?? ''}`;
+        puzzle.adoptSavedEntry(data);
+        toast.success(`已基于 v${forkFrom} 生成新谜题`);
+        /**
+         * 换 URL 要等 React 把 dirty=false flush 掉：`useUnsavedChangesGuard`
+         * 读的是渲染闭包里的 dirty，同一 continuation 里 navigate 会拿旧值把
+         * 自己拦下。setTimeout(0) 落在 flush 之后；replace 不留中间态。
+         */
+        window.setTimeout(() => navigate(`/puzzles/${data.id}/edit`, { replace: true }), 0);
+        return;
+      }
       puzzle.markSaved(savedAt);
     },
   });
@@ -626,11 +678,18 @@ export function PuzzleEditorPage(): JSX.Element {
         dirty={puzzle.dirty}
         saving={saving}
         publishing={publishMutation.isPending}
-        status={puzzle.status}
+        /**
+         * fork 态（`?v={n}`，还没落库）这一屏既不是草稿也不是版本：状态徽标与
+         * 发布按钮都不出现。保存生成新草稿行 → replace 到新行 URL →
+         * `forkFrom` 变 null，二者一起回来。
+         */
+        status={forkFrom !== null ? null : puzzle.status}
         currentVersionNo={detail?.currentVersionNo ?? null}
+        // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点。
+        canSave={puzzle.dirty || forkFrom !== null}
         onBack={() => navigate('/puzzles')}
         onSave={save}
-        onPublish={openPublishConfirm}
+        onPublish={forkFrom === null ? openPublishConfirm : undefined}
         onOpenVersions={() => setVersionsOpen(true)}
         mapInfoOpen={puzzleInfoOpen}
         infoTitle="谜题基本信息（描述、参与者布局、联动主题色）"

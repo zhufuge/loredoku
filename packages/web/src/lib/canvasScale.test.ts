@@ -28,8 +28,8 @@ describe('cellScale (OPT-B03 §3.2)', () => {
     expect(cellScale(BASE_CELL)).toBe(1);
   });
 
-  it('tracks the adaptive range 90 → 240', () => {
-    expect(cellScale(MIN_CELL_SIZE)).toBeCloseTo(0.75, 6);
+  it('tracks the adaptive range 32 → 240', () => {
+    expect(cellScale(MIN_CELL_SIZE)).toBeCloseTo(MIN_CELL_SIZE / BASE_CELL, 6);
     expect(cellScale(MAX_CELL_SIZE)).toBeCloseTo(2, 6);
   });
 
@@ -52,7 +52,7 @@ describe('scaleLineWidth / scaleFontSize (§3.2 约束)', () => {
   it('OPT-C06: object padding scales but stays within [2, 12]', () => {
     expect(ITEM_PADDING_BASE).toBe(4);
     expect(itemPadding(BASE_CELL)).toBe(ITEM_PADDING_BASE);
-    expect(itemPadding(MIN_CELL_SIZE)).toBe(3); // 4 × 0.75
+    expect(itemPadding(MIN_CELL_SIZE)).toBe(2); // 4 × 0.27 → 夹到 ITEM_PADDING_MIN = 2
     expect(itemPadding(MAX_CELL_SIZE)).toBe(8); // 4 × 2
     expect(itemPadding(1)).toBe(ITEM_PADDING_MIN);
     expect(itemPadding(100000)).toBe(ITEM_PADDING_MAX);
@@ -110,18 +110,22 @@ describe('canvasMetrics (§3.2 要素表)', () => {
     expect(metrics.rulerFontSizeActive).toBe(38);
   });
 
-  it('shrinks at the minimum cell size (90 → scale 0.75)', () => {
+  it('shrinks at the minimum cell size (32 → scale 0.267)', () => {
     const metrics = canvasMetrics(MIN_CELL_SIZE);
-    expect(metrics.scale).toBeCloseTo(0.75, 6);
-    expect(metrics.borderWidth).toBeCloseTo(1.5, 6);
-    expect(metrics.outerBorderWidth).toBeCloseTo(4.5, 6);
-    expect(metrics.innerLineWidth).toBeCloseTo(1.5, 6);
-    expect(metrics.regionHighlightWidth).toBeCloseTo(3, 6);
-    expect(metrics.rulerFontSize).toBeCloseTo(12.75, 6);
-    expect(metrics.rulerFontSizeActive).toBeCloseTo(14.25, 6);
+    const scale = MIN_CELL_SIZE / BASE_CELL;
+    expect(metrics.scale).toBeCloseTo(scale, 6);
+    // 2 × 0.267 = 0.53 —— 刚好还在 LINE_WIDTH_MIN = 0.5 之上，线不会消失。
+    expect(metrics.borderWidth).toBeCloseTo(BORDER_WIDTH * scale, 6);
+    expect(metrics.borderWidth).toBeGreaterThan(LINE_WIDTH_MIN);
+    expect(metrics.outerBorderWidth).toBeCloseTo(CANVAS_OUTER_BORDER_WIDTH * scale, 6);
+    expect(metrics.innerLineWidth).toBeCloseTo(INNER_LINE_WIDTH * scale, 6);
+    expect(metrics.regionHighlightWidth).toBeCloseTo(REGION_HIGHLIGHT_WIDTH * scale, 6);
+    // 17 × 0.267 = 4.5 / 19 × 0.267 = 5.1 都低于字号下限，被夹到 FONT_SIZE_MIN。
+    expect(metrics.rulerFontSize).toBe(FONT_SIZE_MIN);
+    expect(metrics.rulerFontSizeActive).toBe(FONT_SIZE_MIN);
   });
 
-  it('keeps every line and font inside its guard rails for cellSize 90~240', () => {
+  it('keeps every line and font inside its guard rails for cellSize 32~240', () => {
     for (let cellSize = MIN_CELL_SIZE; cellSize <= MAX_CELL_SIZE; cellSize += 1) {
       const metrics = canvasMetrics(cellSize);
       for (const width of [
@@ -144,10 +148,14 @@ describe('canvasMetrics (§3.2 要素表)', () => {
   it('scales the region label and its stroke with the cell', () => {
     const small = canvasMetrics(MIN_CELL_SIZE);
     const large = canvasMetrics(MAX_CELL_SIZE);
-    expect(scaleFontSize(REGION_LABEL_FONT_SIZE, small.scale)).toBeCloseTo(12.75, 6);
+    // 17 × 0.267 = 4.5 低于字号下限，被夹到 FONT_SIZE_MIN。
+    expect(scaleFontSize(REGION_LABEL_FONT_SIZE, small.scale)).toBe(FONT_SIZE_MIN);
     // 17 × 2 = 34, no cap.
     expect(scaleFontSize(REGION_LABEL_FONT_SIZE, large.scale)).toBe(34);
-    expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, small.scale)).toBeCloseTo(3, 6);
+    expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, small.scale)).toBeCloseTo(
+      REGION_LABEL_STROKE_WIDTH * (MIN_CELL_SIZE / BASE_CELL),
+      6,
+    );
     expect(scaleLineWidth(REGION_LABEL_STROKE_WIDTH, large.scale)).toBe(8);
   });
 });
