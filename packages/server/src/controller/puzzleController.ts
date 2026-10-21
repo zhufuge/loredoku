@@ -2,6 +2,8 @@ import type { Context } from 'koa';
 import {
   createPuzzleSchema,
   idParamSchema,
+  listPuzzlesQuerySchema,
+  paginationQuerySchema,
   savePuzzleDraftSchema,
   updatePuzzleSchema,
 } from '@loredoku/shared';
@@ -10,13 +12,14 @@ import { parseOrThrow } from '../utils/validate';
 import * as puzzleService from '../service/puzzleService';
 
 /**
- * FEAT-K01 (docs/v0.5.0.md §2.2): the puzzle module's HTTP layer. Every handler
- * is a thin wrapper — the rules (published version required, immutable
- * reference, cross-table linkage check) live in `puzzleService`.
+ * 谜题模块的 HTTP 层（v0.7.1 §6.3）。每个 handler 都是薄壳 —— 规则（版本行只读、
+ * 底图自带、发布校验）全在 `puzzleService`。
  */
 
 export async function list(ctx: Context): Promise<void> {
-  success(ctx, await puzzleService.listPuzzles());
+  const query = parseOrThrow(listPuzzlesQuerySchema, ctx.query);
+  const { page, pageSize } = parseOrThrow(paginationQuerySchema, ctx.query);
+  success(ctx, await puzzleService.listPuzzleEntries({ ...query, page, pageSize }));
 }
 
 export async function create(ctx: Context): Promise<void> {
@@ -29,7 +32,7 @@ export async function detail(ctx: Context): Promise<void> {
   success(ctx, await puzzleService.getPuzzle(id));
 }
 
-/** §5.1: the read-only canvas the puzzle draws on (no palette — Q16). */
+/** §5.3：编辑器渲染的只读画布 —— 现在读谜题**自己的副本**。 */
 export async function mapContext(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   success(ctx, await puzzleService.getPuzzleMapContext(id));
@@ -56,4 +59,19 @@ export async function remove(ctx: Context): Promise<void> {
 export async function duplicate(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   success(ctx, await puzzleService.duplicatePuzzle(id), '复制成功');
+}
+
+/** §7.5: 谜题封面（multipart）—— 建行之后才传，所以新建弹窗是「建完再传」。 */
+export async function uploadCover(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw puzzleService.coverRequired();
+  }
+  success(ctx, await puzzleService.uploadCover(id, file.buffer), '封面上传成功');
+}
+
+export async function removeCover(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  success(ctx, await puzzleService.removeCover(id), '封面已移除');
 }

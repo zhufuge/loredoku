@@ -37,6 +37,8 @@ export interface CoverPickerProps {
    * narrow column (the preview takes the full width, buttons go underneath).
    */
   layout?: 'row' | 'stack';
+  /** 「当前为该{noun}的封面」里的名词 —— 地图与谜题各说各的。 */
+  noun?: string;
   onPick: (file: File | null) => void;
   onRemove: () => void;
   /** Offered while `removed` — lets the user take the removal back. */
@@ -53,6 +55,7 @@ export function CoverPicker({
   removed,
   disabled = false,
   layout = 'row',
+  noun = '地图',
   onPick,
   onRemove,
   onRestore,
@@ -96,7 +99,7 @@ export function CoverPicker({
         <div className="flex flex-1 flex-col justify-between gap-2">
           <p className="text-xs text-muted-foreground">
             支持 PNG / JPEG / WebP / SVG，≤ {COVER_MAX_MB} MB。可留空。
-            {file ? `已选择：${file.name}` : showStored ? '当前为该地图的封面。' : ''}
+            {file ? `已选择：${file.name}` : showStored ? `当前为该${noun}的封面。` : ''}
           </p>
           <div className="flex flex-wrap gap-2">
             <Button

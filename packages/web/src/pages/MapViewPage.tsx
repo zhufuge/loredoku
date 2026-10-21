@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
@@ -24,7 +24,6 @@ import {
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { useAssets } from '@/hooks/useAssets';
 import { useMapCanvas } from '@/hooks/useMapCanvas';
-import { useVersionDetail } from '@/hooks/useVersions';
 import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
 import {
   collectBlockingCells,
@@ -49,24 +48,17 @@ function readStoredRulerVisible(): boolean {
 }
 
 /**
- * v0.5.0 FEAT-K09 (docs/v0.5.0.md §7.1): the read-only canvas preview of one
- * **version entry**, reached from the map list (and from the editor's 版本历史
- * panel).
+ * 只读画布预览，路由 `/maps/:mapId/views`。
  *
- * the route is `/maps/:mapId/views` and the version number moved
- * from the path into the `?v=` query — the page is about *a map's published
- * versions*, not one addressable snapshot.
+ * v0.7.1：**一条 URL 只由 `:mapId` 决定看什么**。`maps` 合并后草稿行与版本行
+ * 都自带 `data`，所以不再有「草稿行 → 去血统里找最新版本号」这一步，`?v=`
+ * 整个退役：
  *
- * `:id` 一律指 `maps.id`，草稿行与版本行都
- * 可能命中，解析规则是 ——
- *
- * | `:id` 命中 | 无 `?v=` | 有 `?v=` |
- * |---|---|---|
- * | 版本行 | 直接展示**这一行**（它自带 `data`） | 以 `?v=` 为准 |
- * | 草稿行 | 取该血统的 `MAX(version)`（裸链接永远有效） | 以 `?v=` 为准 |
- *
- * 于是 `/maps/:id/views` 不依赖「草稿行还没被删」这个偶然条件，旧链接里的
- * `?v=` 也照旧被尊重。
+ * | `:mapId` 命中 | 渲染 |
+ * |---|---|
+ * | 版本行 | 该行 `data`（发布时冻结的快照） |
+ * | 草稿行 | 该行 `data`；`null` 时显示「该草稿还没有画布」 |
+ * | 软删版本行 | 照常渲染（读取口不过滤软删，与 fork 源同口径） |
  *
  * It is the old work preview page with the participant half removed: a map
  * version is a frozen canvas, and participants moved to puzzles in v0.5.0
@@ -76,26 +68,12 @@ function readStoredRulerVisible(): boolean {
  */
 export function MapViewPage(): JSX.Element {
   const { mapId: mapIdParam } = useParams<{ mapId: string }>();
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
   const mapId = Number(mapIdParam);
   const valid = Number.isFinite(mapId) && mapId > 0;
 
   const mapQuery = useMapCanvas(valid ? mapId : Number.NaN);
-  /**
-   * 缺省版本号：`:id` 命中版本行时用它自己的号（`mapEntry.versionNo`），命中草稿
-   * 行时用血统最高号（`mapEntry.currentVersionNo`）。两者都可能为 `null`（一张
-   * 从没发布过的图）。
-   */
-  const requestedNo = Number(searchParams.get('v'));
-  const fallbackVersionNo = mapQuery.data
-    ? mapQuery.data.map.versionNo ?? mapQuery.data.map.currentVersionNo
-    : null;
-  const versionNo =
-    Number.isFinite(requestedNo) && requestedNo > 0 ? requestedNo : fallbackVersionNo;
-
-  const detailQuery = useVersionDetail(valid ? mapId : null, versionNo);
   // A published snapshot may reference items that are now inactive.
   const assetsQuery = useAssets({});
 
@@ -111,13 +89,13 @@ export function MapViewPage(): JSX.Element {
   /** OPT-A01 §1.2: stops the automatic re-fit after a manual zoom / pan. */
   const userAdjustedRef = useRef(false);
 
-  const draft = detailQuery.data?.data;
+  const entry = mapQuery.data?.map;
+  const draft = mapQuery.data?.draft;
 
   useEffect(() => {
-    // OPT-G01: the tab is titled with the map name once the detail lands.
-    const name = detailQuery.data?.mapName;
-    document.title = name ? `${name} · 格物` : '地图预览 · 格物';
-  }, [detailQuery.data?.mapName]);
+    // OPT-G01: the tab is titled with the map name once the response lands.
+    document.title = entry ? `${entry.name} · 格物` : '地图预览 · 格物';
+  }, [entry]);
 
   const assetsById = useMemo(() => {
     const map = new Map<number, Asset>();
@@ -266,7 +244,7 @@ export function MapViewPage(): JSX.Element {
     setZoom(next);
   };
 
-  if (detailQuery.isLoading || (versionNo === null && mapQuery.isLoading)) {
+  if (mapQuery.isLoading) {
     return (
       <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -275,10 +253,21 @@ export function MapViewPage(): JSX.Element {
     );
   }
 
-  if (!valid || !draft || detailQuery.isError) {
+  if (!valid || mapQuery.isError || !entry) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
-        <p className="text-sm text-muted-foreground">地图版本不存在或加载失败。</p>
+        <p className="text-sm text-muted-foreground">地图不存在或加载失败。</p>
+        <Button variant="outline" onClick={() => navigate('/maps')}>
+          返回地图列表
+        </Button>
+      </div>
+    );
+  }
+
+  if (!draft) {
+    return (
+      <div className="flex h-screen flex-col items-center justify-center gap-4">
+        <p className="text-sm text-muted-foreground">该草稿还没有画布，去编辑器里先初始化。</p>
         <Button variant="outline" onClick={() => navigate('/maps')}>
           返回地图列表
         </Button>
@@ -299,12 +288,10 @@ export function MapViewPage(): JSX.Element {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate font-semibold">
-              {detailQuery.data?.mapName ?? '地图'}
-            </span>
-            {/* OPT-G01: the version is a badge now, not part of the title. */}
+            <span className="truncate font-semibold">{entry.name}</span>
+            {/* OPT-G01: 版本是徽标而非标题的一部分；草稿行标「草稿」。 */}
             <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
-              v{versionNo ?? ''}
+              {entry.versionNo !== null ? `v${entry.versionNo}` : '草稿'}
             </span>
             <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
               {gridSize} × {gridSize}

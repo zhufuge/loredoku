@@ -2,7 +2,7 @@ import { Copy, Eye, Pencil, Trash2 } from 'lucide-react';
 import type { MapEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format';
-import { previewVersionNo } from './MapEntryActionsMenu';
+import { entryPreviewable, entryPreviewTitle } from '@/components/common/EntryActionsMenu';
 
 /**
  * 列表行：缩略图 + 名称 +（版本号）+ 尺寸 + 描述 + 时间 + 操作图标。
@@ -12,7 +12,7 @@ import { previewVersionNo } from './MapEntryActionsMenu';
  *
  * 操作列：编辑信息 / 预览 / 复制 / 删除。**「复制」与「编辑信息」都只属于
  * 工作条目** —— 版本是冻结快照，想基于某版本继续做走「以此为底稿新建」。
- * 预览对「从没发布过的工作条目」禁用。
+ * 预览两块都有：草稿看自己的画布（未初始化的草稿禁用），版本看自己。
  */
 interface MapListRowProps {
   entry: MapEntrySummary;
@@ -32,7 +32,7 @@ export function MapListRow({
   onPreview,
 }: MapListRowProps): JSX.Element {
   const initial = entry.name.trim().charAt(0) || '图';
-  const previewable = previewVersionNo(entry) !== null;
+  const previewable = entryPreviewable(entry);
   /**
    * 版本条目的主点击是「以此为底稿新建」—— 带 `?v={n}` 进编辑器，
    * 保存时才生成草稿；只读预览留给眼睛图标。
@@ -98,7 +98,7 @@ export function MapListRow({
         <Button
           size="icon"
           variant="ghost"
-          title={previewable ? '预览已发布版本' : '还没有已发布的版本可预览'}
+          title={entryPreviewTitle(entry)}
           disabled={!previewable}
           onClick={() => onPreview(entry)}
         >

@@ -1,20 +1,32 @@
 import type {
+  PaginatedData,
   PuzzleDetail,
   PuzzleDraft,
+  PuzzleEntrySummary,
   PuzzleMapContext,
-  PuzzleSummary,
 } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client';
 
 /**
- * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.2) — the puzzle module. A puzzle owns the
- * roster + palette and only **references** one published map version, so the
- * canvas arrives separately through `GET /puzzles/:id/map` (read-only).
+ * 谜题模块的端点（v0.7.1 §6.3）。谜题自带底图画布，所以 `/puzzles/:id/map`
+ * 读的是**自己那份副本**（只读），不再 join 地图版本。
  */
+export type PuzzleSort = 'updatedAt' | 'name' | 'createdAt';
+
+/** 与 `/api/maps` 同参数 —— `kind` 让「草稿」「版本」两块各自分页。 */
+export interface PuzzleListParams {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  kind?: 'draft' | 'version';
+  sort?: PuzzleSort;
+  order?: 'asc' | 'desc';
+}
+
 export interface CreatePuzzlePayload {
   name: string;
   description?: string | null;
-  /** The published map version the puzzle draws on (`maps.id`). */
+  /** 建谜题时复制哪一份底图（maps 版本行）。 */
   mapId: number;
   mapVersionNo: number;
 }
@@ -30,8 +42,8 @@ export interface SavePuzzlePayload {
 }
 
 export const puzzlesApi = {
-  list(): Promise<PuzzleSummary[]> {
-    return apiGet<PuzzleSummary[]>('/puzzles');
+  list(params: PuzzleListParams): Promise<PaginatedData<PuzzleEntrySummary>> {
+    return apiGet<PaginatedData<PuzzleEntrySummary>>('/puzzles', { params });
   },
   create(payload: CreatePuzzlePayload): Promise<PuzzleDetail> {
     return apiPost<PuzzleDetail>('/puzzles', payload);
@@ -39,7 +51,7 @@ export const puzzlesApi = {
   detail(id: number): Promise<PuzzleDetail> {
     return apiGet<PuzzleDetail>(`/puzzles/${id}`);
   },
-  /** §5.1: the referenced version's canvas, read-only, palette already stripped. */
+  /** 编辑器渲染的只读画布（谜题自己的副本）。 */
   map(id: number): Promise<PuzzleMapContext> {
     return apiGet<PuzzleMapContext>(`/puzzles/${id}/map`);
   },
@@ -52,8 +64,33 @@ export const puzzlesApi = {
   remove(id: number): Promise<null> {
     return apiDelete<null>(`/puzzles/${id}`);
   },
-  /** 沿用同一个地图版本引用（与地图复制沿用同一 `cover_path` 同款约定）。 */
   duplicate(id: number): Promise<PuzzleDetail> {
     return apiPost<PuzzleDetail>(`/puzzles/${id}/duplicate`);
+  },
+  uploadCover(id: number, file: File): Promise<PuzzleDetail> {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<PuzzleDetail>(`/puzzles/${id}/cover`, form);
+  },
+  removeCover(id: number): Promise<PuzzleDetail> {
+    return apiDelete<PuzzleDetail>(`/puzzles/${id}/cover`);
+  },
+
+  /** 发布 = 血统里新增一条版本行；`version` 省略时由服务端续号。 */
+  publish(id: number, version?: number): Promise<PuzzleEntrySummary> {
+    return apiPost<PuzzleEntrySummary>(`/puzzles/${id}/versions`, version ? { version } : {});
+  },
+  listVersions(id: number): Promise<PuzzleEntrySummary[]> {
+    return apiGet<PuzzleEntrySummary[]>(`/puzzles/${id}/versions`);
+  },
+  versionDetail(id: number, versionNo: number): Promise<PuzzleDetail> {
+    return apiGet<PuzzleDetail>(`/puzzles/${id}/versions/${versionNo}`);
+  },
+  /** 「编辑此版本」= fork 出一条新草稿行（版本行不动）。 */
+  forkVersion(id: number, versionNo: number): Promise<PuzzleDetail> {
+    return apiPost<PuzzleDetail>(`/puzzles/${id}/versions/${versionNo}/fork`);
+  },
+  removeVersion(id: number, versionNo: number): Promise<null> {
+    return apiDelete<null>(`/puzzles/${id}/versions/${versionNo}`);
   },
 };

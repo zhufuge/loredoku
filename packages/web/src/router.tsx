@@ -44,17 +44,22 @@ const PuzzlesPage = lazyPage(() =>
 const PuzzleViewPage = lazyPage(() =>
   import('@/pages/PuzzleViewPage').then((m) => ({ default: m.PuzzleViewPage })),
 );
+const DeploymentsPage = lazyPage(() =>
+  import('@/pages/DeploymentsPage').then((m) => ({ default: m.DeploymentsPage })),
+);
 
 export const router = createBrowserRouter([
   {
     path: '/',
     element: <AppShell />,
     children: [
-      { index: true, element: <Navigate to="/play" replace /> },
+      // v0.7.1 §3：根路径落到「地图」，从首页进来默认就是地图 Tab 高亮。
+      { index: true, element: <Navigate to="/maps" replace /> },
       { path: 'maps', element: <MapsPage /> },
       { path: 'assets', element: <AssetsPage /> },
       { path: 'characters', element: <CharactersPage /> },
       { path: 'puzzles', element: <PuzzlesPage /> },
+      { path: 'deployments', element: <DeploymentsPage /> },
       { path: 'items', element: <Navigate to="/assets" replace /> },
       { path: 'cards', element: <Navigate to="/assets" replace /> },
       { path: '*', element: <NotFoundPage /> },

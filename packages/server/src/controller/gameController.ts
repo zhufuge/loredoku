@@ -45,3 +45,10 @@ export async function uploadCover(ctx: Context): Promise<void> {
   }
   success(ctx, await gameService.uploadGameCover(id, file.buffer), '封面上传成功');
 }
+
+/** §7.4: 取消部署 = 假删（链接立刻失效，slug 可复用）。 */
+export async function remove(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  await gameService.cancelGame(id);
+  success(ctx, null, '已取消部署');
+}

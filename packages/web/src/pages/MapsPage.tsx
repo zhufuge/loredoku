@@ -21,6 +21,7 @@ import {
 } from '@/components/map/MapFormDialogs';
 import { MapGridCard } from '@/components/map/MapGridCard';
 import { MapListRow } from '@/components/map/MapListRow';
+import { entryPreviewable } from '@/components/common/EntryActionsMenu';
 import { useDeleteMap, useDuplicateMap, useMaps } from '@/hooks/useMaps';
 import { useDeleteVersion } from '@/hooks/useVersions';
 
@@ -152,14 +153,12 @@ export function MapsPage(): JSX.Element {
   };
 
   /**
-   * 预览统一去 `/maps/:id/views`，具体版本走 `?v=` query ——
-   * 版本条目看自己，工作条目看血统里最新的已发布版本；从没发布过的工作
-   * 条目在 UI 上就是禁用的。
+   * 预览统一去 `/maps/:id/views`，一条 URL 只由 `:mapId` 决定看什么：
+   * 草稿条目看草稿自己的画布，版本条目看自己那一行。没有 `?v=`。
    */
   const handlePreview = (entry: MapEntrySummary): void => {
-    const versionNo = entry.versionNo ?? entry.currentVersionNo;
-    if (versionNo === null) return;
-    navigate(`/maps/${entry.mapId}/views?v=${versionNo}`);
+    if (!entryPreviewable(entry)) return;
+    navigate(`/maps/${entry.mapId}/views`);
   };
 
   const confirmDelete = (): void => {

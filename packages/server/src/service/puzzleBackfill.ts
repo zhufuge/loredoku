@@ -1,8 +1,5 @@
-import {
-  DEFAULT_LINKAGE_COLORS,
-  PUZZLE_JSON_VERSION,
-} from '@loredoku/shared';
-import type { CharacterSlotEntry, MapLinkageColor, PuzzleDraft } from '@loredoku/shared';
+import { DEFAULT_LINKAGE_COLORS } from '@loredoku/shared';
+import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
 import { readLegacyCharacterSlots, readLegacyLinkageColors } from './mapDraftCompat';
 
 /**
@@ -59,21 +56,36 @@ export function linkageColorsFromLegacyDraft(raw: unknown): MapLinkageColor[] {
 }
 
 /**
- * Builds the `PuzzleDraft` a map's participants should move into. Returns
- * `null` when the map has **no published version**: a puzzle without a canvas
- * cannot exist, so the roster stays where it is (readable, just not shown).
+ * 迁移 `00016` 写进行里的**历史形状**：v1 的引用式底图（`{ mapId, versionNo,
+ * gridSize }`，画布不复制）。迁移 `00031` 会把每一行升成 v2 并补齐画布副本，
+ * 所以这里刻意写死 `version: 1` —— 迁移产物必须与 `PUZZLE_JSON_VERSION` 当前
+ * 取值无关，否则重放一段历史迁移的结果会随版本号漂移。
+ */
+export interface PuzzleSeedDraft {
+  version: 1;
+  map: { mapId: number; versionNo: number; gridSize: number };
+  name: string;
+  description: string;
+  linkageColors: MapLinkageColor[];
+  characterSlots: Array<CharacterSlotEntry | null>;
+}
+
+/**
+ * Builds the puzzle row a map's participants should move into. Returns `null`
+ * when the map has **no published version**: a puzzle without a canvas cannot
+ * exist, so the roster stays where it is (readable, just not shown).
  */
 export function buildPuzzleSeedFromMap(
   mapRow: PuzzleSeedMap,
   version: PuzzleSeedVersion | null,
   seedName: string,
-): PuzzleDraft | null {
+): PuzzleSeedDraft | null {
   if (!version) return null;
 
   const gridSize = version.gridSize;
   const description = mapRow.description ?? '';
   return {
-    version: PUZZLE_JSON_VERSION,
+    version: 1,
     map: { mapId: mapRow.id, versionNo: version.versionNo, gridSize },
     name: seedName,
     description,

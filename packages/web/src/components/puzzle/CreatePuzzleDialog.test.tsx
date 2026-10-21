@@ -147,6 +147,8 @@ describe('CreatePuzzleDialog (FEAT-K03)', () => {
       description: '六人六格',
       mapId: 217,
       mapVersionNo: 3,
+      // 没选封面时也带上这个键：上传那一步由 `useCreatePuzzle` 统一处理。
+      cover: null,
     });
   });
 

@@ -1,17 +1,19 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Copy, Eye, MoreHorizontal, Pencil } from 'lucide-react';
-import type { MapEntrySummary } from '@loredoku/shared';
+import { Copy, Eye, MoreHorizontal, Pencil, Rocket } from 'lucide-react';
 import { UI_Z } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 /**
- * 卡片上的「三点」菜单。
+ * 列表卡片 / 行上的「三点」菜单。地图与谜题共用一套按钮顺序：
  *
- * 工作条目：编辑信息 / 复制 / 预览；版本条目只有**预览** —— 版本是发布时冻结
- * 的快照，复制一份既改不了也产不出有用的新图，改名则破坏「版本不可变」。
- * 想基于某个版本继续做事，走「以此为底稿新建」。
+ * - 编辑信息 / 复制：**只给草稿行** —— 版本是发布时冻结的快照，复制一份既改不了
+ *   也产不出有用的新行，改名则破坏「版本不可变」。想基于某个版本继续做事，走
+ *   「编辑此版本」（谜题 fork 出新草稿行 / 地图 `?v=` 进编辑器）。
+ * - 预览：两种行都有；草稿未初始化画布时可预览性为假。
+ * - 部署：**只给版本行**，而且只有调用方（谜题列表）提供 `onDeploy` 时才渲染。
+ *   草稿行连按钮都不渲染 —— 草稿永远不满足「已发布」，禁用按钮只会让人猜原因。
  *
  * 菜单浮层 **portal 到 `<body>`** 并 `position: fixed` 跟随按钮：卡片带
  * `overflow-hidden`（封面圆角需要），把菜单当卡片内的 `absolute` 子元素会被
@@ -22,33 +24,57 @@ import { cn } from '@/lib/utils';
  * 已不在容器内（portal），所以外部关闭必须**同时排除菜单节点**，否则
  * pointerdown 先卸载浮层、菜单项的 click 就永远不触发。
  */
-interface MapEntryActionsMenuProps {
-  entry: MapEntrySummary;
-  onEditInfo: (entry: MapEntrySummary) => void;
-  onPreview: (entry: MapEntrySummary) => void;
-  onDuplicate: (entry: MapEntrySummary) => void;
+export interface EntryLike {
+  kind: 'draft' | 'version';
+  versionNo: number | null;
+  /** 草稿未初始化画布时为 `null`（地图）；谜题的 `gridSize` 恒为数字。 */
+  gridSize: number | null;
 }
 
-/** 这条条目有没有可预览的快照（工作条目看血统的最高版本）。 */
-export function previewVersionNo(entry: MapEntrySummary): number | null {
-  return entry.versionNo ?? entry.currentVersionNo;
+interface EntryActionsMenuProps<E extends EntryLike> {
+  entry: E;
+  onEditInfo: (entry: E) => void;
+  onPreview: (entry: E) => void;
+  onDuplicate: (entry: E) => void;
+  /** 谜题专有：把**这个版本**部署为游戏。 */
+  onDeploy?: (entry: E) => void;
+}
+
+/** 这条条目能不能打开只读预览，以及预览的是什么。 */
+export function entryPreviewable(entry: EntryLike): boolean {
+  // 版本行是发布时冻住的快照，永远可看；草稿行看自己，未初始化画布时无可预览。
+  return entry.kind === 'version' ? true : entry.gridSize !== null;
+}
+
+/**
+ * 预览按钮的 `title`。只在这里分 kind —— 列表行、卡片菜单共用，
+ * 避免各处各写一套文案。
+ */
+export function entryPreviewTitle(entry: EntryLike): string {
+  if (entry.kind === 'version') return '预览版本';
+  return entry.gridSize !== null ? '预览草稿' : '草稿还没初始化画布';
 }
 
 /** `w-32` —— portal 后用来把浮层右缘对齐按钮右缘。 */
 const MENU_WIDTH = 128;
 
-export function MapEntryActionsMenu({
+const itemClass =
+  'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground';
+
+export function EntryActionsMenu<E extends EntryLike>({
   entry,
   onEditInfo,
   onPreview,
   onDuplicate,
-}: MapEntryActionsMenuProps): JSX.Element {
+  onDeploy,
+}: EntryActionsMenuProps<E>): JSX.Element {
   const [open, setOpen] = useState(false);
   /** 浮层的 viewport 坐标；`null` = 还没量过（开菜单的同一次布局里量）。 */
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const previewable = previewVersionNo(entry) !== null;
+  const previewable = entryPreviewable(entry);
+  const isVersion = entry.kind === 'version';
 
   // 量按钮、把浮层钉在它下面；滚动 / 缩放时跟着走（capture，浮层可能落在
   // 任何滚动容器里）。layout effect 保证开菜单的同一次绘制就有坐标。
@@ -86,7 +112,7 @@ export function MapEntryActionsMenu({
     return () => document.removeEventListener('pointerdown', onPointerDown);
   }, [open]);
 
-  const run = (action: (entry: MapEntrySummary) => void): void => {
+  const run = (action: (entry: E) => void): void => {
     setOpen(false);
     action(entry);
   };
@@ -98,13 +124,8 @@ export function MapEntryActionsMenu({
       style={{ position: 'fixed', top: position?.top ?? 0, left: position?.left ?? 0, zIndex: UI_Z.drawer }}
       className="w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
     >
-      {entry.kind !== 'version' ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-          onClick={() => run(onEditInfo)}
-        >
+      {!isVersion ? (
+        <button type="button" role="menuitem" className={itemClass} onClick={() => run(onEditInfo)}>
           <Pencil className="h-3.5 w-3.5" />
           编辑信息
         </button>
@@ -113,25 +134,23 @@ export function MapEntryActionsMenu({
         type="button"
         role="menuitem"
         disabled={!previewable}
-        title={previewable ? '预览已发布版本' : '还没有已发布的版本可预览'}
-        className={cn(
-          'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground',
-          !previewable ? 'cursor-not-allowed opacity-50' : undefined,
-        )}
+        title={entryPreviewTitle(entry)}
+        className={cn(itemClass, !previewable ? 'cursor-not-allowed opacity-50' : undefined)}
         onClick={() => previewable && run(onPreview)}
       >
         <Eye className="h-3.5 w-3.5" />
         预览
       </button>
-      {entry.kind !== 'version' ? (
-        <button
-          type="button"
-          role="menuitem"
-          className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground"
-          onClick={() => run(onDuplicate)}
-        >
+      {!isVersion ? (
+        <button type="button" role="menuitem" className={itemClass} onClick={() => run(onDuplicate)}>
           <Copy className="h-3.5 w-3.5" />
           复制
+        </button>
+      ) : null}
+      {isVersion && onDeploy ? (
+        <button type="button" role="menuitem" className={itemClass} onClick={() => run(onDeploy)}>
+          <Rocket className="h-3.5 w-3.5" />
+          部署
         </button>
       ) : null}
     </div>

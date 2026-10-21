@@ -25,10 +25,17 @@ const slot = (extra: Record<string, unknown> = {}): Record<string, unknown> => (
   ...extra,
 });
 
+const mapSnapshot = (gridSize = 6): Record<string, unknown> => ({
+  mapId: 217,
+  versionNo: 3,
+  mapName: '午夜花园',
+  data: { version: 7, gridSize, cells: {}, regions: [] },
+});
+
 function draft(extra: Record<string, unknown> = {}): Record<string, unknown> {
   return {
-    version: 1,
-    map: { mapId: 217, versionNo: 3, gridSize: 6 },
+    version: 2,
+    map: mapSnapshot(),
     name: '午夜花园',
     description: '六人六格，注意花丛的位置条件。',
     linkageColors: palette,
@@ -37,12 +44,13 @@ function draft(extra: Record<string, unknown> = {}): Record<string, unknown> {
   };
 }
 
-describe('puzzleDraftSchema —— v0.5.0 FEAT-K08 结构', () => {
+describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
   it('accepts the documented payload shape', () => {
     const result = puzzleDraftSchema.safeParse(draft());
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data.map).toEqual({ mapId: 217, versionNo: 3, gridSize: 6 });
+    expect(result.data.map).toEqual(mapSnapshot());
+    expect(result.data.map.data.gridSize).toBe(6);
     expect(result.data.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
   });
 
@@ -51,13 +59,17 @@ describe('puzzleDraftSchema —— v0.5.0 FEAT-K08 结构', () => {
     expect(puzzleDraftSchema.safeParse(draft({ style: {} })).success).toBe(false);
   });
 
-  it('rejects a map reference that is not a (mapId, versionNo, gridSize) triple', () => {
-    expect(puzzleDraftSchema.safeParse(draft({ map: { mapId: 1, versionNo: 0, gridSize: 6 } })).success).toBe(
-      false,
-    );
-    expect(puzzleDraftSchema.safeParse(draft({ map: { mapId: 1, gridSize: 6 } })).success).toBe(false);
+  it('rejects a map snapshot without a canvas (the v1 reference shape)', () => {
+    // v1 payloads are readable only through `absorbLegacyPuzzleDraft`; a raw v1
+    // object must not slip through the v2 schema.
     expect(
-      puzzleDraftSchema.safeParse(draft({ map: { mapId: 1, versionNo: 1, gridSize: 99 } })).success,
+      puzzleDraftSchema.safeParse(draft({ map: { mapId: 217, versionNo: 3, gridSize: 6 } })).success,
+    ).toBe(false);
+    expect(puzzleDraftSchema.safeParse(draft({ map: { mapId: 1, versionNo: 3 } })).success).toBe(false);
+    expect(
+      puzzleDraftSchema.safeParse(
+        draft({ map: { ...mapSnapshot(), data: { version: 7, gridSize: 99, cells: {}, regions: [] } } }),
+      ).success,
     ).toBe(false);
   });
 

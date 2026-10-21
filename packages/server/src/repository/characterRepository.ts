@@ -7,8 +7,8 @@ import type {
   CharacterRow,
   CharacterUsage,
 } from '@loredoku/shared';
+import { absorbLegacyPuzzleDraft } from '@loredoku/shared';
 import { readLegacyCharacterSlots } from '../service/mapDraftCompat';
-import * as puzzleRepo from './puzzleRepository';
 
 export interface ListCharactersParams {
   keyword?: string;
@@ -227,27 +227,29 @@ export async function hardDelete(id: number, clearReferences: boolean): Promise<
  * FEAT-K01: where a character is used. v0.5.0 reads **puzzles** first (the
  * roster's new home) and reports any v0.4.x map draft that still holds one, so
  * a hard delete never leaves a dangling reference behind.
+ *
+ * v0.7.1: 谜题自带底图，所以「在哪张图上」直接读 `data.map` 快照，不再 join
+ * `maps`；软删的版本行不算使用（它已经不在界面上）。
  */
 export async function getUsages(characterId: number): Promise<CharacterUsage[]> {
-  const puzzleRows = (await db('puzzles as pz')
-    .join('maps as mp', 'mp.id', 'pz.map_project_id')
-    .select('pz.id', 'pz.name', 'pz.data', 'mp.id as map_id', 'mp.name as map_name')) as Array<{
+  const puzzleRows = (await db('puzzles')
+    .whereNull('deleted_at')
+    .select('id', 'name', 'data')) as Array<{
     id: string | number;
     name: string;
     data: unknown;
-    map_id: string | number;
-    map_name: string | null;
   }>;
 
   const usages: CharacterUsage[] = [];
   for (const row of puzzleRows) {
-    if (!puzzleRepo.isPuzzleDraft(row.data)) continue;
-    if (!row.data.characterSlots.some((slot) => slot?.characterId === characterId)) continue;
+    const draft = absorbLegacyPuzzleDraft(row.data);
+    if (!draft) continue;
+    if (!draft.characterSlots.some((slot) => slot?.characterId === characterId)) continue;
     usages.push({
       puzzleId: Number(row.id),
       puzzleName: row.name,
-      mapId: Number(row.map_id),
-      mapName: row.map_name ?? '未命名地图',
+      mapId: draft.map.mapId,
+      mapName: draft.map.mapName || '未命名地图',
       // CLAR-603: participants no longer occupy cells.
       cells: [],
     });

@@ -1089,9 +1089,7 @@ export function MapEditorPage(): JSX.Element {
         open={versionsOpen}
         onOpenChange={setVersionsOpen}
         currentVersionNo={editor.currentVersionNo}
-        onPreview={({ mapId: ownerId, versionNo }) =>
-          navigate(`/maps/${ownerId}/views?v=${versionNo}`)
-        }
+        onPreview={(version) => navigate(`/maps/${version.id}/views`)}
       />
 
       <AlertDialog

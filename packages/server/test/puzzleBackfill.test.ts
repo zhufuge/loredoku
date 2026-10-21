@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LINKAGE_COLORS, PUZZLE_JSON_VERSION } from '@loredoku/shared';
+import { DEFAULT_LINKAGE_COLORS } from '@loredoku/shared';
 import {
   buildPuzzleSeedFromMap,
   linkageColorsFromLegacyDraft,
@@ -82,7 +82,8 @@ describe('buildPuzzleSeedFromMap (FEAT-K01 §11.2)', () => {
       '大宅',
     );
     expect(seed).not.toBeNull();
-    expect(seed!.version).toBe(PUZZLE_JSON_VERSION);
+    // 历史形状：迁移 00016 写 v1，00031 再升到 v2。
+    expect(seed!.version).toBe(1);
     expect(seed!.map).toEqual({ mapId: 42, versionNo: 3, gridSize: 4 });
     expect(seed!.name).toBe('大宅');
     expect(seed!.description).toBe('一栋宅子');

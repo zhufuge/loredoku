@@ -281,20 +281,39 @@ export interface MapDraft {
 
 // ---- Puzzle draft JSON ----
 /**
+ * v0.7.1 (docs/v0.7.1.md §5.3): the canvas a puzzle was created from —
+ * **source info for display only** (no FK) plus a **copy of the board**, so a
+ * published puzzle is self-contained and can be frozen.
+ *
+ * The copy is the only truth for the puzzle's grid size
+ * (`map.data.gridSize`, 高压线 4) — never a column, never `map.versionNo`.
+ */
+export interface PuzzleMapSnapshot {
+  /** The `maps` row id this canvas was copied from (traceability only). */
+  mapId: number;
+  /** The version number it was copied from. */
+  versionNo: number;
+  /** That version's name at copy time (shown in the puzzle header). */
+  mapName: string;
+  /** The copied canvas (`MapDraft`, v7 shape). */
+  data: MapDraft;
+}
+
+/**
  * v0.5.0 FEAT-K01: a puzzle is the "出题" half of the product. It owns the
- * roster + palette and **references** one published map version for its
- * canvas (read-only) instead of copying it — see docs/v0.5.0.md §5.1.
+ * roster + palette and — since v0.7.1 — a **copy** of the map canvas it was
+ * created from (see {@link PuzzleMapSnapshot}).
  */
 export interface PuzzleDraft {
   /** `PUZZLE_JSON_VERSION` — import / export and migration. */
   version: number;
-  /** The referenced published map version. `gridSize` is denormalised for offline checks. */
-  map: { mapId: number; versionNo: number; gridSize: number };
+  /** The copied canvas + where it came from. */
+  map: PuzzleMapSnapshot;
   name: string;
   description: string;
   /** Linked theme-colour palette (was `MapDraft.style.linkageColors`). */
   linkageColors: MapLinkageColor[];
-  /** Roster; length = `map.gridSize` (same convention as the old map editor). */
+  /** Roster; length = `map.data.gridSize` (same convention as the map editor). */
   characterSlots: Array<CharacterSlotEntry | null>;
   /**
    * v0.6.3 (docs/v0.6.3.md §3): how many columns the roster matrix uses.
@@ -303,8 +322,7 @@ export interface PuzzleDraft {
    *
    * `null` / absent = 自动: the panel picks a golden-ratio column count and
    * still shrinks it to fit its container. That is what every puzzle created
-   * before this version does, which is why the field is optional and the JSON
-   * version stays where it is.
+   * before this version does, which is why the field is optional.
    */
   rosterCols?: number | null;
 }
@@ -411,27 +429,40 @@ export interface MapEntrySummary {
  * table keeps the old 5 columns and their wording; only the values are the
  * puzzle's now.
  */
-export interface PuzzleSummary {
+/**
+ * v0.7.1 §6.3: one row of `puzzles` (draft row or version row), the shape the
+ * puzzle list renders. Mirrors {@link MapEntrySummary} so the two list pages
+ * share the same skeleton, buttons and pager.
+ *
+ * v0.7.1 起谜题与地图同构：`kind` 由 `version` 列判定，草稿行硬删、版本行软删。
+ */
+export interface PuzzleEntrySummary {
   id: number;
+  kind: 'draft' | 'version';
+  rootId: number;
+  /** 版本行自己的号；草稿行 `null`。 */
+  versionNo: number | null;
   name: string;
   description: string | null;
-  /** The referenced published map version — the 版本 column shows `v{n}`. */
-  mapVersionNo: number;
-  /** The `maps.id` that owns that version. */
-  mapId: number;
-  /** That map's blood-lineage root. */
-  mapRootId: number;
-  mapName: string;
+  /** 派生自 `data.map.data.gridSize`（唯一真源）。 */
   gridSize: number;
-  status: MapStatus;
-  /** Q5: the 发布时间 column reads this (the header wording is unchanged). */
+  /** 底图来源（追溯 / 展示，无 FK）。 */
+  mapId: number;
+  mapName: string;
+  mapVersionNo: number;
+  coverPath: string | null;
+  coverUrl: string | null;
+  /** 血统内最高版本号（草稿行也带）。 */
+  currentVersionNo: number | null;
+  versionCount: number;
+  publishedAt: string | null;
+  /** 挂着未删的 game。 */
+  deployed: boolean;
   createdAt: string;
   updatedAt: string;
-  /** FEAT-G02: this puzzle already has a deployed game. */
-  deployed: boolean;
 }
 
-export interface PuzzleDetail extends PuzzleSummary {
+export interface PuzzleDetail extends PuzzleEntrySummary {
   data: PuzzleDraft;
 }
 
@@ -452,49 +483,42 @@ export interface PuzzleMapContext {
 }
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5): a deployed game. v0.5.0 CONS-K16 narrows the
- * unit from "one map" to **one puzzle** — `puzzle_id` is unique, so deploying
- * another version of the same puzzle overwrites the row.
+ * FEAT-G02 (docs/v0.4.0.md §5) + v0.7.1 §7.3: a deployed game.
+ *
+ * v0.7.1: the game only **references** one puzzle row (`puzzles_id` unique) —
+ * the canvas and the roster are read from that row instead of a snapshot copy.
+ * Because a game can only be deployed from a **published** puzzle version
+ * (and version rows are read-only), the content stays frozen without a copy.
  */
 export interface MapGameSummary {
   id: number;
-  /** CONS-K16: the puzzle this game was deployed from (`null` for legacy rows). */
-  puzzleId: number | null;
-  /** The referenced map version's owner row + version number (badges / keys). */
-  mapId: number;
-  versionNo: number;
+  /** The puzzle row this game was deployed from (always a version row). */
+  puzzleId: number;
+  /** 谜题名（来自 puzzle 行）。 */
+  puzzleName: string;
+  /** 谜题自己的版本号（`'draft'` 不可能出现）。 */
+  puzzleVersionNo: number;
   name: string;
   /**
    * OPT-W04 (docs/v0.4.1.md §4): the game's access path — the page lives at
-   * `/games/{slug}`. Unique across every deployed game.
+   * `/play/{slug}`. Unique among **not-deleted** games.
    */
   slug: string;
   coverUrl: string | null;
   difficulty: GameDifficulty;
+  /** 派生自 `puzzle.data.map.data.gridSize`。 */
   gridSize: number;
   participantCount: number;
   createdAt: string;
 }
 
 /**
- * CONS-K16 (docs/v0.5.0.md §10.1): the frozen payload a game renders.
- *
- * - `map` — the canvas (v3 shape: no roster);
- * - `puzzle` — the puzzle data at deploy time (roster / palette / description);
- * - `legacyCharacterSlots` / `legacyLinkageColors` — v0.4.x snapshots kept the
- *   roster and palette inside the map, so the server lifts them out on read and
- *   legacy games stay playable with **zero** repair.
+ * v0.7.1 §7.3: the game page renders straight from the puzzle row — no snapshot
+ * copy any more. `puzzle` is `null` only for a defensively-unreadable `data`.
  */
-export interface MapGameSnapshot {
+export interface MapGameDetail extends MapGameSummary {
   map: MapDraft;
   puzzle: PuzzleDraft | null;
-  legacyCharacterSlots?: Array<CharacterSlotEntry | null>;
-  legacyLinkageColors?: MapLinkageColor[];
-}
-
-/** The game page renders the snapshot the puzzle carried when it was deployed. */
-export interface MapGameDetail extends MapGameSummary {
-  snapshot: MapGameSnapshot;
 }
 
 /**

@@ -2,94 +2,129 @@ import {
   DEFAULT_LINKAGE_COLORS,
   DEFAULT_MAP_STYLE,
   ErrorCode,
+  MAP_JSON_VERSION,
   PUZZLE_JSON_VERSION,
+  absorbLegacyPuzzleDraft,
+  puzzleGridSize,
+  validatePuzzleReferences,
 } from '@loredoku/shared';
 import type {
   CreatePuzzleInput,
-  MapStyle,
+  ListPuzzlesQuery,
+  MapDraft,
+  PublishViolation,
   PuzzleDetail,
   PuzzleDraft,
+  PuzzleEntrySummary,
   PuzzleMapContext,
-  PuzzleSummary,
   SavePuzzleDraftInput,
   UpdatePuzzleInput,
 } from '@loredoku/shared';
 import * as puzzleRepo from '../repository/puzzleRepository';
+import * as puzzleVersionRepo from '../repository/puzzleVersionRepository';
 import * as versionRepo from '../repository/versionRepository';
+import * as gameRepo from '../repository/gameRepository';
 import * as characterRepo from '../repository/characterRepository';
 import { AppError } from '../utils/AppError';
 import { absorbLegacyMapDraft, readLegacyLinkageColors } from './mapDraftCompat';
-import { validatePuzzleReferences } from '@loredoku/shared';
+import { processPuzzleCover } from '../utils/image';
 
 /**
- * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2) — the puzzle module's service layer.
+ * 谜题模块的服务层（v0.7.1 §5）。
  *
- * The boundary this file enforces:
+ * 这里守住四条边界：
  *
- * - the referenced map version must **exist and be published** (create), and is
- *   **immutable afterwards** — a save forces `data.map` back to the stored
- *   reference, so a payload can never repoint a puzzle at another canvas;
- * - `grid_size` comes from that version, never from the client;
- * - `asset` / `region` linkage targets are checked against the version's canvas
- *   (`validatePuzzleReferences`), since the schema cannot see across tables.
+ * 1. **谜题自带底图**：创建时把地图版本画布整份复制进 `data.map.data`，此后再
+ *    也不问地图要数据（`getPuzzleMapContext` 读自己的副本）。JSON 里那份画布是
+ *    服务端资产 —— 保存时一律用存量覆盖客户端送来的副本，画布不可能被改掉。
+ * 2. **尺寸只有一个来源**：`puzzleGridSize(draft)`，没有任何列参与。
+ * 3. **版本行只读**：改名 / 描述 / 封面 / 保存一律先过 {@link findWritable}。
+ * 4. **联动引用对自带画布校验**：schema 看不见跨表的 `asset` / `region`，写在
+ *    这里，导入的 JSON 也绕不过去。
  */
 
-function toIso(value: Date | string): string {
-  return new Date(value).toISOString();
+/** Raised when `POST /api/puzzles/:id/cover` arrives without a file part. */
+export function coverRequired(): AppError {
+  return AppError.validation('请选择封面图片');
 }
 
-export function toSummary(row: puzzleRepo.PuzzleJoinedRow): PuzzleSummary {
-  return {
-    id: Number(row.id),
-    name: row.name,
-    description: row.description,
-    mapVersionNo: row.map_version_no,
-    mapId: Number(row.map_project_id),
-    mapRootId: Number(row.root_id),
-    mapName: row.map_name ?? '未命名地图',
-    gridSize: row.grid_size,
-    status: row.status,
-    createdAt: toIso(row.created_at),
-    updatedAt: toIso(row.updated_at),
-    deployed: row.game_slug !== null && row.game_slug !== undefined,
-  };
+/** 存量行读成 `PuzzleDraft`（v1 会补一份空画布）；读不出来就是坏数据。 */
+function rowDraft(row: { data: unknown }): PuzzleDraft | null {
+  return absorbLegacyPuzzleDraft(row.data);
 }
 
-function toDetail(row: puzzleRepo.PuzzleJoinedRow): PuzzleDetail {
-  const data = puzzleRepo.isPuzzleDraft(row.data) ? row.data : emptyDraft(row);
-  return { ...toSummary(row), data };
+function toDetail(row: puzzleRepo.PuzzleRowWithLineage): PuzzleDetail {
+  const entry = puzzleRepo.toPuzzleEntry(row);
+  return { ...entry, data: rowDraft(row) ?? emptyDraft(entry) };
 }
 
-/** Defensive fallback — a stored puzzle should always carry a valid draft. */
-function emptyDraft(row: puzzleRepo.PuzzleJoinedRow): PuzzleDraft {
+/** Defensive fallback —— 存进去的谜题本该永远是一份合法的草稿。 */
+function emptyDraft(entry: PuzzleEntrySummary): PuzzleDraft {
   return {
     version: PUZZLE_JSON_VERSION,
     map: {
-      mapId: Number(row.map_project_id),
-      versionNo: row.map_version_no,
-      gridSize: row.grid_size,
+      mapId: entry.mapId,
+      versionNo: entry.mapVersionNo,
+      mapName: entry.mapName,
+      data: {
+        version: MAP_JSON_VERSION,
+        gridSize: entry.gridSize,
+        cells: {},
+        regions: [],
+      } as MapDraft,
     },
-    name: row.name,
-    description: row.description ?? '',
-    linkageColors: DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry })),
-    characterSlots: Array.from({ length: row.grid_size }, () => null),
-    // v0.6.3 §3: no column count → the roster falls back to the automatic
-    // (golden-ratio) layout.
+    name: entry.name,
+    description: entry.description ?? '',
+    linkageColors: DEFAULT_LINKAGE_COLORS.map((color) => ({ ...color })),
+    characterSlots: Array.from({ length: entry.gridSize }, () => null),
     rosterCols: null,
   };
 }
 
-async function requireRow(id: number): Promise<puzzleRepo.PuzzleJoinedRow> {
-  const row = await puzzleRepo.getPuzzleRow(id);
+/**
+ * 复制 / fork 的取名兜底：`{base} 副本`、`{base} 副本 2`… 直到不撞名。
+ * 只看草稿行（版本名是发布快照，拿它占位会让序号莫名跳号）。
+ */
+async function uniqueCopyName(base: string): Promise<string> {
+  let candidate = `${base} 副本`;
+  let index = 2;
+  while (await puzzleRepo.existsByName(candidate)) {
+    candidate = `${base} 副本 ${index}`;
+    index += 1;
+  }
+  return candidate;
+}
+
+/** `base` 本身不撞名就用它，撞了才走副本序列（fork 的命名用）。 */
+async function uniqueName(base: string): Promise<string> {
+  if (!(await puzzleRepo.existsByName(base))) return base;
+  return uniqueCopyName(base);
+}
+
+async function requireRow(id: number): Promise<puzzleRepo.PuzzleRowWithLineage> {
+  const row = await puzzleRepo.findById(id);
   if (!row) {
     throw AppError.notFound('谜题不存在');
   }
   return row;
 }
 
-export async function listPuzzles(): Promise<PuzzleSummary[]> {
-  const rows = await puzzleRepo.listPuzzles();
-  return rows.map(toSummary);
+/**
+ * 版本行也是合法的 `puzzles` 行，所以每个「条目级」写操作都要先过这里 ——
+ * 版本是冻结快照，改名 / 封面 / 保存都会让已部署的游戏悄悄变形。
+ */
+async function findWritable(id: number): Promise<puzzleRepo.PuzzleRowWithLineage> {
+  const row = await requireRow(id);
+  if (row.version !== 'draft') {
+    throw AppError.validation('已发布的版本不可修改');
+  }
+  return row;
+}
+
+export async function listPuzzleEntries(
+  query: ListPuzzlesQuery & { page: number; pageSize: number },
+): Promise<{ list: PuzzleEntrySummary[]; total: number }> {
+  return puzzleRepo.listPuzzleEntries(query);
 }
 
 export async function getPuzzle(id: number): Promise<PuzzleDetail> {
@@ -97,35 +132,34 @@ export async function getPuzzle(id: number): Promise<PuzzleDetail> {
 }
 
 /**
- * FEAT-K01 §5: the read-only canvas, lifted from the referenced version.
- * `style.linkageColors` is **stripped** (Q16) — the palette's only truth is the
- * puzzle's own `linkageColors`, which the editor merges back at render time.
+ * 谜题编辑器渲染的只读画布 —— 从**自己的副本**读（v0.7.1 起不再 join 地图）。
+ * `style` 里没有 `linkageColors`：调色板的唯一真源是谜题自己的
+ * `linkageColors`，编辑器渲染时再合并。
  */
 export async function getPuzzleMapContext(id: number): Promise<PuzzleMapContext> {
   const row = await requireRow(id);
-  const version = await versionRepo.findVersionRow(Number(row.map_project_id), row.map_version_no);
-  if (!version) {
-    throw AppError.notFound('谜题引用的地图版本不存在');
+  const draft = rowDraft(row);
+  if (!draft) {
+    throw AppError.validation('谜题的底图画布不可读，请重新创建谜题');
   }
-  const draft = absorbLegacyMapDraft(version.data) as
-    | { cells?: PuzzleMapContext['cells']; regions?: PuzzleMapContext['regions']; style?: MapStyle }
-    | null;
+  const canvas = draft.map.data;
   return {
-    mapId: Number(row.map_project_id),
-    versionNo: row.map_version_no,
-    mapName: row.map_name ?? version.name ?? '未命名地图',
-    gridSize: row.grid_size,
-    cells: draft?.cells ?? {},
-    regions: draft?.regions ?? [],
-    style: draft?.style ?? { ...DEFAULT_MAP_STYLE },
+    mapId: draft.map.mapId,
+    versionNo: draft.map.versionNo,
+    mapName: draft.map.mapName || '未命名地图',
+    gridSize: puzzleGridSize(draft),
+    cells: canvas.cells ?? {},
+    regions: canvas.regions ?? [],
+    style: canvas.style ?? { ...DEFAULT_MAP_STYLE },
   };
 }
 
 /**
- * FEAT-K03: the puzzle is **bound to a published map version at creation**, and
- * that binding never changes. The roster starts empty (length = the version's
- * grid size) and the palette is inherited from the version — falling back to
- * the shipped red / blue pair for versions published before the palette existed.
+ * 创建谜题（仍是 JSON，先建行才有 id 能挂封面）：把所选**已发布**地图版本的
+ * 画布复制进 `data.map.data`，名册按画布尺寸开空位，调色板继承源版本的
+ * 老调色板（没有就用随包的红 / 蓝对）。
+ *
+ * 底图从此固定 —— 地图后来发布新版本不影响既有谜题（要换底图只能新建谜题）。
  */
 export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDetail> {
   // 创建时选版本要**过滤软删**：已删版本不能作为新谜题的底图（可见性）。
@@ -134,33 +168,34 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
     throw AppError.validation('所选地图版本不存在，请选择一个已发布的地图版本');
   }
 
-  // `map_versions.grid_size` 删了，尺寸从快照自身读。
-  const gridSize = version.data?.gridSize ?? 0;
+  const canvas = absorbLegacyMapDraft(version.data) as MapDraft;
+  const gridSize = canvas?.gridSize ?? 0;
+  if (gridSize <= 0) {
+    throw AppError.validation('所选地图版本没有可用的画布');
+  }
+
   const description = input.description ?? '';
   const data: PuzzleDraft = {
     version: PUZZLE_JSON_VERSION,
-    map: { mapId: input.mapId, versionNo: input.mapVersionNo, gridSize },
+    map: {
+      mapId: input.mapId,
+      versionNo: input.mapVersionNo,
+      mapName: version.name ?? '',
+      data: canvas,
+    },
     name: input.name,
     description,
     linkageColors: inheritedLinkageColors(version.data),
     characterSlots: Array.from({ length: gridSize }, () => null),
-    // v0.6.3 §3: a new puzzle starts on 自动 — the author picks a column count
-    // in 「基本信息」 later.
+    // v0.6.3 §3: 新建谜题从「自动」列数开始，作者之后在「基本信息」里定。
     rosterCols: null,
   };
 
-  const row = await puzzleRepo.createPuzzle({
-    name: input.name,
-    description,
-    mapId: input.mapId,
-    mapVersionNo: input.mapVersionNo,
-    gridSize,
-    data,
-  });
+  const row = await puzzleRepo.createPuzzle({ name: input.name, description, data });
   return toDetail(row);
 }
 
-/** The version's own palette, or the default pair when it had none. */
+/** 源版本的调色板，没有就用默认的一对。 */
 function inheritedLinkageColors(raw: unknown): PuzzleDraft['linkageColors'] {
   const legacy = readLegacyLinkageColors(raw);
   if (legacy.length > 0) return legacy.map((entry) => ({ ...entry }));
@@ -171,24 +206,21 @@ export async function savePuzzle(
   id: number,
   input: SavePuzzleDraftInput,
 ): Promise<PuzzleDetail> {
-  const row = await requireRow(id);
-  const version = await versionRepo.findVersionRow(Number(row.map_project_id), row.map_version_no);
-  if (!version) {
-    throw AppError.notFound('谜题引用的地图版本不存在');
+  const row = await findWritable(id);
+  const stored = rowDraft(row);
+  if (!stored) {
+    throw AppError.validation('谜题的底图画布不可读，请重新创建谜题');
   }
 
-  // The reference and the grid size are the server's, never the client's.
+  // 底图快照与版本戳是服务端的，永远用存量覆盖客户端送来的那份。
   const data: PuzzleDraft = {
     ...input.data,
-    map: {
-      mapId: Number(row.map_project_id),
-      versionNo: row.map_version_no,
-      gridSize: row.grid_size,
-    },
+    version: PUZZLE_JSON_VERSION,
+    map: stored.map,
   };
 
   await assertKnownCharacters(data);
-  assertReferenceIssues(data, version.data);
+  assertReferenceIssues(data);
 
   const saved = await puzzleRepo.savePuzzleDraft(id, input.updatedAt ?? null, data);
   if (saved === undefined) {
@@ -200,7 +232,7 @@ export async function savePuzzle(
   return toDetail(saved);
 }
 
-/** Every roster character must exist — the same guard `mapService` applies. */
+/** 名册里的角色必须都存在 —— 与 `mapService` 同一条护栏。 */
 async function assertKnownCharacters(data: PuzzleDraft): Promise<void> {
   const ids = new Set<number>();
   for (const slot of data.characterSlots) {
@@ -215,17 +247,13 @@ async function assertKnownCharacters(data: PuzzleDraft): Promise<void> {
 }
 
 /**
- * The cross-table half of §5.2: asset / region targets must exist on the
- * referenced canvas. A front-end check is not enough — an imported JSON can
- * bypass it, so the service re-runs it before every write.
+ * 跨表那半：`asset` / `region` 目标必须在**谜题自己的画布**上。前端的检查不算
+ * 数 —— 导入的 JSON 能绕过它，所以每次写入前服务端重跑一遍。
  */
-function assertReferenceIssues(data: PuzzleDraft, versionData: unknown): void {
-  const draft = absorbLegacyMapDraft(versionData) as
-    | { cells?: PuzzleMapContext['cells']; regions?: PuzzleMapContext['regions'] }
-    | null;
+function assertReferenceIssues(data: PuzzleDraft): void {
   const issues = validatePuzzleReferences(data, {
-    cells: draft?.cells ?? {},
-    regions: draft?.regions ?? [],
+    cells: data.map.data.cells ?? {},
+    regions: data.map.data.regions ?? [],
   });
   if (issues.length > 0) {
     throw AppError.validation('联动引用校验未通过', issues.map((issue) => issue.message));
@@ -233,7 +261,7 @@ function assertReferenceIssues(data: PuzzleDraft, versionData: unknown): void {
 }
 
 export async function updatePuzzle(id: number, input: UpdatePuzzleInput): Promise<PuzzleDetail> {
-  await requireRow(id);
+  await findWritable(id);
   const updated = await puzzleRepo.updatePuzzle(id, input);
   if (!updated) {
     throw AppError.notFound('谜题不存在');
@@ -241,7 +269,16 @@ export async function updatePuzzle(id: number, input: UpdatePuzzleInput): Promis
   return toDetail(updated);
 }
 
+/**
+ * `DELETE /api/puzzles/:id` 对两种行分流（同地图）：草稿行**硬删**，版本行
+ * **软删**（另有专属端点，这里兜住「拿版本行 id 直接调通用删除」）。
+ */
 export async function deletePuzzle(id: number): Promise<void> {
+  const row = await requireRow(id);
+  if (row.version !== 'draft') {
+    await deleteVersion(id, Number(row.version));
+    return;
+  }
   const deleted = await puzzleRepo.deletePuzzle(id);
   if (!deleted) {
     throw AppError.notFound('谜题不存在');
@@ -249,8 +286,8 @@ export async function deletePuzzle(id: number): Promise<void> {
 }
 
 export async function duplicatePuzzle(id: number): Promise<PuzzleDetail> {
-  const source = await requireRow(id);
-  const name = await uniqueCopyName(source);
+  const source = await findWritable(id);
+  const name = await uniqueCopyName(source.name);
   const created = await puzzleRepo.duplicatePuzzle(id, name);
   if (!created) {
     throw AppError.notFound('谜题不存在');
@@ -258,14 +295,140 @@ export async function duplicatePuzzle(id: number): Promise<PuzzleDetail> {
   return toDetail(created);
 }
 
-async function uniqueCopyName(source: puzzleRepo.PuzzleJoinedRow): Promise<string> {
-  let candidate = `${source.name} 副本`;
-  let index = 2;
-  while (
-    await puzzleRepo.findPuzzleByName(Number(source.map_project_id), source.map_version_no, candidate)
-  ) {
-    candidate = `${source.name} 副本 ${index}`;
-    index += 1;
+/**
+ * 封面是二进制、创建 / 改名是 JSON，所以单独一条 multipart 路由（同地图）。
+ * 建行之后才能上传 —— 新建弹窗里的封面因此是「创建成功后自动传」。
+ */
+export async function uploadCover(id: number, buffer: Buffer): Promise<PuzzleDetail> {
+  await findWritable(id);
+  const image = await processPuzzleCover(id, buffer);
+  const row = await puzzleRepo.updateCoverPath(id, image.relativePath);
+  if (!row) {
+    throw AppError.notFound('谜题不存在');
   }
-  return candidate;
+  return toDetail(row);
+}
+
+export async function removeCover(id: number): Promise<PuzzleDetail> {
+  await findWritable(id);
+  const row = await puzzleRepo.updateCoverPath(id, null);
+  if (!row) {
+    throw AppError.notFound('谜题不存在');
+  }
+  return toDetail(row);
+}
+
+/**
+ * 发布校验（§5.5，阻断式）：名册至少 1 位参与者（否则部署出去也没法玩）、
+ * 角色 id 都存在、联动引用对自带画布合法。
+ */
+export async function validatePuzzle(draft: PuzzleDraft): Promise<PublishViolation[]> {
+  const violations: PublishViolation[] = [];
+
+  const ids = new Set<number>();
+  for (const slot of draft.characterSlots) {
+    if (slot) ids.add(slot.characterId);
+  }
+  if (ids.size === 0) {
+    violations.push({ rule: 'roster_empty', message: '至少需要 1 位参与者才能发布' });
+  }
+  if (ids.size > 0) {
+    const existing = await characterRepo.existingCharacterIds([...ids]);
+    for (const id of ids) {
+      if (!existing.has(id)) {
+        violations.push({ rule: 'character_reference', message: `角色 #${id} 不存在` });
+      }
+    }
+  }
+
+  const issues = validatePuzzleReferences(draft, {
+    cells: draft.map.data.cells ?? {},
+    regions: draft.map.data.regions ?? [],
+  });
+  for (const issue of issues) {
+    violations.push({ rule: 'linkage_reference', message: issue.message });
+  }
+
+  return violations;
+}
+
+/**
+ * 发布 = 在 `puzzles` 里 INSERT 一条版本行（§5.2），草稿行不动。号来自整个
+ * 血统的最大值（含软删行），可由用户指定（填空洞号），撞号直接 400。
+ */
+export async function publishPuzzle(id: number, versionNo?: number): Promise<PuzzleEntrySummary> {
+  const row = await findWritable(id);
+  const draft = rowDraft(row);
+  if (!draft) {
+    throw AppError.validation('谜题的底图画布不可读，请重新创建谜题');
+  }
+
+  const violations = await validatePuzzle(draft);
+  if (violations.length > 0) {
+    throw new AppError(ErrorCode.PUBLISH_VALIDATION_FAILED, '发布校验未通过', violations);
+  }
+
+  const rootId = Number(row.root_id);
+  const target = versionNo ?? (await puzzleVersionRepo.nextVersionNo(rootId));
+  if (await puzzleVersionRepo.versionNoTaken(rootId, target)) {
+    throw AppError.validation(`版本号 v${target} 已存在于该谜题血统中，请换一个`);
+  }
+
+  const created = await puzzleVersionRepo.createVersion({ owner: row, versionNo: target, data: draft });
+  const withLineage = await puzzleRepo.findById(Number(created.id));
+  return puzzleRepo.toPuzzleEntry(withLineage ?? created);
+}
+
+/** 血统内的版本历史（活行，版本号倒序）。 */
+export async function listVersions(id: number): Promise<PuzzleEntrySummary[]> {
+  const owner = await requireRow(id);
+  const rows = await puzzleVersionRepo.listVersionRows(Number(owner.root_id));
+  return rows.map((row) => puzzleRepo.toPuzzleEntry(row));
+}
+
+export async function getVersion(id: number, versionNo: number): Promise<PuzzleDetail> {
+  const row = await puzzleVersionRepo.getVersion(id, versionNo);
+  if (!row) {
+    throw AppError.notFound('版本不存在');
+  }
+  return toDetail(row);
+}
+
+/**
+ * 「编辑此版本」= fork 出一条新草稿行再跳编辑器（§5.5，与地图**有意不同**：
+ * 谜题编辑器不做 `?v=` 的 fork 态，画布太大、也没必要在保存时才落行）。
+ *
+ * fork 源不过滤软删：软删版本也能开新草稿（过滤只管可见性）。
+ */
+export async function forkVersion(id: number, versionNo: number): Promise<PuzzleDetail> {
+  const owner = await puzzleRepo.findByIdIncludingDeleted(id);
+  if (!owner) {
+    throw AppError.notFound('谜题不存在');
+  }
+  const target = await puzzleVersionRepo.getVersion(id, versionNo, { includeDeleted: true });
+  if (!target) {
+    throw AppError.notFound('版本不存在');
+  }
+  const name = await uniqueName(`${target.name} (自 v${versionNo})`);
+  const created = await puzzleVersionRepo.forkVersion(id, versionNo, name);
+  if (!created) {
+    throw AppError.notFound('版本不存在');
+  }
+  return toDetail(created);
+}
+
+/**
+ * 删版本 = 软删。挂着**未取消部署**的游戏时拒绝 —— 删了会让已在线的
+ * `/play/{slug}` 指向一份不存在的谜题。
+ */
+export async function deleteVersion(id: number, versionNo: number): Promise<void> {
+  const row = await puzzleVersionRepo.getVersion(id, versionNo);
+  if (!row) {
+    throw AppError.notFound('版本不存在');
+  }
+  const game = await gameRepo.getGameByPuzzle(Number(row.id));
+  if (game) {
+    throw AppError.validation('该版本已部署为游戏，请先取消部署');
+  }
+  await puzzleVersionRepo.deleteVersion(id, versionNo);
 }

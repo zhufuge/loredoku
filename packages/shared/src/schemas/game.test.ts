@@ -7,7 +7,7 @@ import {
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
 } from '../constants';
-import { cellPlacementSchema, gameDeploySchema, gameSlugParamSchema, mapGameSnapshotSchema } from './game';
+import { cellPlacementSchema, gameDeploySchema, gameSlugParamSchema } from './game';
 
 describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
   it('lists fifteen layers, the two game-only ones between 区域标签 and 物品图层', () => {
@@ -54,15 +54,11 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
     const parsed = gameDeploySchema.parse({
       name: '  神秘古堡  ',
       difficulty: 'expert',
-      coverPath: 'games/1/a.png',
-      coverMime: 'image/png',
-      coverSize: 1234,
-      coverWidth: 960,
-      coverHeight: 540,
+      clearCover: false,
     });
     expect(parsed.name).toBe('神秘古堡');
     expect(parsed.difficulty).toBe('expert');
-    expect(parsed.coverPath).toBe('games/1/a.png');
+    expect(parsed.clearCover).toBe(false);
   });
 
   it('defaults the difficulty to medium and leaves the name to the service', () => {
@@ -114,59 +110,8 @@ describe('gameDeploySchema slug & clearCover (OPT-W04 / OPT-W03)', () => {
   it('flag the "remove the stored cover" request separately from the cover bytes', () => {
     const parsed = gameDeploySchema.parse({ clearCover: true });
     expect(parsed.clearCover).toBe(true);
-    expect(parsed.coverPath).toBeUndefined();
-  });
-});
-
-describe('mapGameSnapshotSchema (CONS-K16 §10.1)', () => {
-  const map = { version: 3, gridSize: 6, cells: {}, regions: [] };
-  const puzzle = {
-    version: 1,
-    map: { mapId: 217, versionNo: 3, gridSize: 6 },
-    name: '午夜花园',
-    description: '',
-    linkageColors: [
-      { key: 'red', label: '红', color: '#E5484D' },
-      { key: 'blue', label: '蓝', color: '#3E63DD' },
-    ],
-    characterSlots: [{ characterId: 12, themeColor: '#FFFFFF', clue: '', linkages: [] }],
-  };
-
-  it('新快照：画布 + 谜题', () => {
-    const result = mapGameSnapshotSchema.safeParse({ map, puzzle });
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.data.puzzle?.name).toBe('午夜花园');
-    expect(result.data.legacyCharacterSlots).toBeUndefined();
-  });
-
-  it('老快照：画布 + legacy 参与者 / 调色板，puzzle 为 null', () => {
-    const result = mapGameSnapshotSchema.safeParse({
-      map,
-      puzzle: null,
-      legacyCharacterSlots: [{ characterId: 12, themeColor: '#FFFFFF', clue: '', linkages: [] }],
-      legacyLinkageColors: [{ key: 'red', label: '红', color: '#E5484D' }],
-    });
-    expect(result.success).toBe(true);
-    if (!result.success) return;
-    expect(result.data.puzzle).toBeNull();
-    expect(result.data.legacyCharacterSlots).toHaveLength(1);
-  });
-
-  it('部署时谜题尚无参与者：空槽位数组也合法', () => {
-    expect(
-      mapGameSnapshotSchema.safeParse({ map, puzzle: { ...puzzle, characterSlots: [] } }).success,
-    ).toBe(true);
-  });
-
-  it('rejects a snapshot that keeps the roster inside the map (v0.4.x 未升级形状)', () => {
-    expect(
-      mapGameSnapshotSchema.safeParse({ map: { ...map, characterSlots: [] }, puzzle }).success,
-    ).toBe(false);
-  });
-
-  it('rejects an unknown top-level key', () => {
-    expect(mapGameSnapshotSchema.safeParse({ map, puzzle, works: {} }).success).toBe(false);
+    // v0.7.1 §7.2: the mime / size / dimension fields are gone with the columns.
+    expect(parsed).not.toHaveProperty('coverPath');
   });
 });
 

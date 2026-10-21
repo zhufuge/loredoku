@@ -30,15 +30,14 @@ export function useVersionDetail(mapId: number | null, versionNo: number | null)
   });
 }
 
-export interface PublishResult {
+/**
+ * 发布结果：验证未通过（422）是**结果**而不是异常，`ok: false` 带着问题清单
+ * 让调用方展开；`version` 是刚发布的那一行（地图 / 谜题各自的行类型）。
+ */
+export interface PublishResult<T = MapVersionSummary> {
   ok: boolean;
   violations?: PublishViolation[];
-  /**
-   * FEAT-H05 §5.3 (docs/v0.4.2.md §5.3): the newly published version, so the
-   * success dialog can link straight to the preview. `versionsApi.publish`
-   * already answers with `MapVersionSummary` — this just stops dropping it.
-   */
-  version?: MapVersionSummary;
+  version?: T;
 }
 
 export function usePublishMap(id: number) {

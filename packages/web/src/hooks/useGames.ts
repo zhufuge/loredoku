@@ -19,6 +19,24 @@ export function useGames() {
   });
 }
 
+/**
+ * v0.7.1 §7.4：取消部署 = 假删。玩家的 `/play/{slug}` 立刻 404，谜题列表的
+ * 「已部署」徽标同步消失，slug 随之可被重新使用。
+ */
+export function useCancelGame() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => gamesApi.cancel(id),
+    onSuccess: () => {
+      toast.success('已取消部署');
+      void queryClient.invalidateQueries({ queryKey: gameKeys.all });
+      // 「已部署」徽标与「可删版本」的判定都读谜题行，列表要跟着刷新。
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '取消部署失败')),
+  });
+}
+
 /** FEAT-G03 + OPT-W04: the game page renders the snapshot captured at deploy. */
 export function useGameDetail(slug: string | null) {
   return useQuery({

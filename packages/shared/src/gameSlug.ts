@@ -31,13 +31,48 @@ export function slugify(input: string): string {
 /**
  * §4.3: `puzzle-` + slugified name + `-` + slugified difficulty. Q13: a name that
  * slugifies to nothing returns `''` rather than inventing `puzzle-medium`.
+ *
+ * v0.7.1 §7.6.1: the deploy dialog edits the **middle** only (prefix `puzzle-`
+ * and the difficulty suffix are read-only text around the input), so the three
+ * pieces are composed by {@link composeSlug}. This stays the one derivation used
+ * by the dialog default, 「重新生成」 and the server's fallback.
  */
 export function buildDefaultSlug(input: { name: string; difficulty: GameDifficulty }): string {
-  const name = slugify(input.name);
-  if (name.length === 0) return '';
-  const difficulty = GAME_DIFFICULTY_SLUGS[input.difficulty];
-  const parts = [GAME_SLUG_PREFIX, name, difficulty].filter((part) => part.length > 0);
+  const middle = slugify(input.name);
+  if (middle.length === 0) return '';
+  return composeSlug(middle, input.difficulty);
+}
+
+/**
+ * v0.7.1 §7.6.1: `puzzle-{middle}-{difficulty}`. The middle is slugified and
+ * stripped of edge dashes (a trailing `-` while typing would otherwise produce
+ * `puzzle-x--hard`), and the whole thing is truncated to the column width.
+ */
+export function composeSlug(middle: string, difficulty: GameDifficulty): string {
+  const body = slugify(middle).replace(/^-+|-+$/g, '');
+  const suffix = GAME_DIFFICULTY_SLUGS[difficulty];
+  const parts = [GAME_SLUG_PREFIX, body, suffix].filter((part) => part.length > 0);
   return truncateSlug(parts.join('-'));
+}
+
+/**
+ * v0.7.1 §7.6.1: the inverse for the deploy dialog's prefill — an already
+ * published slug back to the editable middle.
+ *
+ * Strips the prefix and the **current** difficulty suffix when both are present;
+ * a slug that does not end with that suffix (a legacy path, or one whose
+ * difficulty the author is about to change) keeps everything after the prefix,
+ * which is the closest truthful answer.
+ */
+export function splitSlug(slug: string, difficulty: GameDifficulty): string {
+  let middle = slug;
+  const prefix = `${GAME_SLUG_PREFIX}-`;
+  if (middle.startsWith(prefix)) middle = middle.slice(prefix.length);
+  const suffix = `-${GAME_DIFFICULTY_SLUGS[difficulty]}`;
+  if (suffix.length > 1 && middle.endsWith(suffix)) {
+    middle = middle.slice(0, middle.length - suffix.length);
+  }
+  return middle;
 }
 
 /** §4.4: the author-visible reason a slug is unusable, or `null`. User-facing verbatim. */

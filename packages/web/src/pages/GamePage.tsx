@@ -232,30 +232,24 @@ export function GamePage(): JSX.Element {
   submittedRef.current = hasSubmitted;
 
   /**
-   * CONS-K16 (docs/v0.5.0.md §10.1): the game renders the **snapshot** captured
-   * at deploy time — `{ map, puzzle, legacy* }`. The canvas comes from
-   * `snapshot.map` (a v3 `MapDraft`, no roster), while the roster and the
-   * linkage palette come from `snapshot.puzzle`; v0.4.x snapshots kept them
-   * inside the map, so the `legacy*` fields are the fallback and old games stay
-   * playable with zero repair.
+   * v0.7.1 §7.3: 游戏直接读**谜题版本行**，不再有快照拷贝 —— 画布来自
+   * `detail.map`（谜题自带的那份副本），名册与调色板来自 `detail.puzzle`。
+   * 内容仍然是冻结的：版本行只读，作者改不动已在线的游戏。
    */
-  const snapshot = gameQuery.data?.snapshot;
-  const draft = snapshot?.map;
+  const detail = gameQuery.data;
+  const draft = detail?.map;
   const slots = useMemo<Array<CharacterSlotEntry | null>>(
-    () => snapshot?.puzzle?.characterSlots ?? snapshot?.legacyCharacterSlots ?? [],
-    [snapshot],
+    () => detail?.puzzle?.characterSlots ?? [],
+    [detail],
   );
-  const linkageColors = useMemo(
-    () => snapshot?.puzzle?.linkageColors ?? snapshot?.legacyLinkageColors ?? [],
-    [snapshot],
-  );
+  const linkageColors = useMemo(() => detail?.puzzle?.linkageColors ?? [], [detail]);
   /**
    * v0.6.3 (docs/v0.6.3.md §3.4): the deployed game renders the roster the way
-   * the puzzle was laid out. The column count is frozen into the snapshot with
-   * the rest of the puzzle, so only a re-deploy changes it — editing the puzzle
-   * afterwards cannot move a board that is already published.
+   * the puzzle was laid out. The column count lives in the puzzle row, and the
+   * row is immutable once published — so only re-deploying a new version can
+   * move a board that is already online.
    */
-  const rosterCols = snapshot?.puzzle?.rosterCols ?? null;
+  const rosterCols = detail?.puzzle?.rosterCols ?? null;
   const rosterWidth = useMemo(
     () => rosterPanelWidthFor(rosterCols, slots.length),
     [rosterCols, slots.length],

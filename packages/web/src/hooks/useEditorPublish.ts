@@ -1,12 +1,32 @@
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import type { MapVersionSummary, PublishViolation } from '@loredoku/shared';
-import type { PublishResult, usePublishMap } from '@/hooks/useVersions';
+import type { PublishViolation } from '@loredoku/shared';
 
 /**
- * the map editor's publish flow, lifted out of `MapEditorPage`.
+ * 发布流程只关心「发布出去的那一行叫什么号」——地图与谜题的行类型不同，所以
+ * 这里收窄成结构形状，两边的 mutation 都能喂进来。
+ */
+export interface PublishOutcome {
+  ok: boolean;
+  violations?: PublishViolation[];
+  version?: { versionNo: number | null };
+}
+
+export interface PublishMutationLike {
+  isPending: boolean;
+  mutate: (
+    versionNo: number | undefined,
+    options?: {
+      onSuccess?: (result: PublishOutcome) => void;
+      onError?: () => void;
+    },
+  ) => void;
+}
+
+/**
+ * the map / puzzle editor's shared publish flow.
  *
- * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing adds an entry to the map list
+ * SPEC-K13 §7.4 (docs/v0.5.0.md): publishing adds an entry to the list
  * (版本管理). With Q3 = B the next version number spans the whole blood
  * lineage, so it is read from the version list rather than from this row's
  * own `current_version_no`.
@@ -18,18 +38,20 @@ import type { PublishResult, usePublishMap } from '@/hooks/useVersions';
  *
  * the success **dialog** is gone (user feedback — 提示即可，不需要按钮
  * 跳转). The new version number rides the toast, which also means the flow no
- * longer needs to carry `MapVersionSummary` state back to the page.
+ * longer needs to carry the version summary state back to the page.
  */
 export interface EditorPublishSpec {
   /** The whole blood lineage (version history), for the next version number. */
-  versions: MapVersionSummary[] | undefined;
+  versions: Array<{ versionNo: number | null }> | undefined;
   currentVersionNo: number | null;
   dirty: boolean;
   /** The save flow's in-flight flag — publishing waits for a running save. */
   saving: boolean;
   /** FIX-F01's single writer — a failed save aborts the publish. */
   persist: () => Promise<boolean>;
-  publishMutation: ReturnType<typeof usePublishMap>;
+  publishMutation: PublishMutationLike;
+  /** 列表名词，只用于成功提示（「已在地图列表新增条目」/「谜题列表」）。 */
+  entryNoun?: string;
 }
 
 export interface EditorPublishFlow {
@@ -52,16 +74,17 @@ export interface EditorPublishFlow {
 }
 
 export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
-  const { versions, currentVersionNo, dirty, saving, persist, publishMutation } = spec;
+  const { versions, currentVersionNo, dirty, saving, persist, publishMutation, entryNoun } = spec;
   const [publishOpen, setPublishOpen] = useState(false);
   const [violations, setViolations] = useState<PublishViolation[] | null>(null);
   const [versionInput, setVersionInput] = useState('');
   const [versionError, setVersionError] = useState<string | null>(null);
 
   const nextVersionNo = useMemo(() => {
-    if (versions && versions.length > 0) {
-      return Math.max(...versions.map((version) => version.versionNo)) + 1;
-    }
+    const numbers = (versions ?? [])
+      .map((version) => version.versionNo)
+      .filter((no): no is number => typeof no === 'number');
+    if (numbers.length > 0) return Math.max(...numbers) + 1;
     return (currentVersionNo ?? 0) + 1;
   }, [versions, currentVersionNo]);
 
@@ -76,7 +99,7 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
     const parsed = Number(trimmed);
     if (parsed < 1) return '版本号需为正整数';
     if (versions?.some((version) => version.versionNo === parsed)) {
-      return `版本号 v${parsed} 已存在于该地图血统中，请换一个`;
+      return `版本号 v${parsed} 已存在于该血统中，请换一个`;
     }
     return null;
   };
@@ -102,14 +125,14 @@ export function useEditorPublish(spec: EditorPublishSpec): EditorPublishFlow {
     void (async () => {
       if (dirty && !(await persist())) return;
       publishMutation.mutate(explicit, {
-        onSuccess: (result: PublishResult) => {
+        onSuccess: (result: PublishOutcome) => {
           setPublishOpen(false);
           if (!result.ok) {
             setViolations(result.violations ?? []);
             return;
           }
           toast.success(`已发布 v${result.version?.versionNo ?? ''}`, {
-            description: '已在地图列表新增条目。',
+            description: `已在${entryNoun ?? '地图'}列表新增条目。`,
           });
         },
         onError: () => setPublishOpen(false),

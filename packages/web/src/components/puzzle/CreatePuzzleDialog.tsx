@@ -8,6 +8,7 @@ import {
   type PublishedMapVersion,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { CoverPicker } from '@/components/common/CoverPicker';
 import {
   Dialog,
   DialogContent,
@@ -54,6 +55,8 @@ export function CreatePuzzleDialog({
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  /** 封面在建行之后才传（上传端点认 id），由 `useCreatePuzzle` 一并完成。 */
+  const [cover, setCover] = useState<File | null>(null);
 
   const versions = useMemo(() => versionsQuery.data ?? [], [versionsQuery.data]);
 
@@ -72,6 +75,7 @@ export function CreatePuzzleDialog({
     setName('');
     setDescription('');
     setSelectedKey(null);
+    setCover(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -101,6 +105,7 @@ export function CreatePuzzleDialog({
       description: trimmedDescription.length > 0 ? trimmedDescription : undefined,
       mapId: selected.mapId,
       mapVersionNo: selected.versionNo,
+      cover,
     });
   };
 
@@ -139,6 +144,16 @@ export function CreatePuzzleDialog({
               onChange={(event) => setDescription(event.target.value)}
             />
           </div>
+
+          <CoverPicker
+            noun="谜题"
+            storedUrl={null}
+            file={cover}
+            removed={false}
+            disabled={create.isPending}
+            onPick={setCover}
+            onRemove={() => setCover(null)}
+          />
 
           <div className="space-y-1.5">
             <span className="text-sm font-medium">地图版本</span>

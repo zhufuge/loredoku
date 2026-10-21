@@ -6,7 +6,6 @@ import type {
   GameDifficulty,
   MapDraft,
 } from './domain';
-import type { MAP_STATUSES } from '../constants';
 
 export interface MapRow {
   id: string | number;
@@ -99,50 +98,50 @@ export interface CharacterRow {
 }
 
 /**
- * v0.5.0 CONS-K16: a deployed game. `puzzle_id` is unique — one deployed game
- * per puzzle, later deploys overwrite the row. `project_id` / `version_no`
- * survive as the referenced map version, and legacy rows have `puzzle_id = NULL`
- * with a v0.4.x snapshot shape.
+ * v0.7.1 §7.2: a deployed game only points at **one puzzle row**.
  *
- * `project_id` 现在指向**版本行**（`maps.version <> 'draft'`）
- * 的 id，因为版本行自己就是 `maps` 行了（docs/map-table-merge-design.md §9）。
+ * `puzzle_id` is unique across live rows, so re-deploying the same version
+ * replaces that row (`gameRepository.upsertGame` does delete-then-insert);
+ * different versions of the same puzzle each get their own game and slug.
+ * Cancelling a deployment sets `deleted_at` — the row stays, the slug becomes
+ * reusable (partial unique index) and the player link 404s.
  */
 export interface MapGameRow {
   id: string | number;
-  puzzle_id: string | number | null;
-  project_id: string | number;
-  version_no: number;
+  puzzle_id: string | number;
   name: string;
-  /** OPT-W04: the unique access path (`/games/{slug}`). */
+  /** OPT-W04: the unique access path (`/play/{slug}`). */
   slug: string;
   cover_path: string | null;
-  cover_mime: string | null;
-  cover_size: number | null;
-  cover_width: number | null;
-  cover_height: number | null;
   difficulty: GameDifficulty;
-  grid_size: number;
-  /**
-   * Typed loosely on purpose: rows written before v0.5.0 hold the v0.4.x shape
-   * (roster inside the map), and the server lifts those into a
-   * {@link MapGameSnapshot} while reading.
-   */
-  snapshot: unknown;
+  /** 取消部署 = 假删；列表与详情一律过滤掉。 */
+  deleted_at: Date | string | null;
   created_at: Date | string;
   updated_at: Date | string;
 }
 
-/** v0.5.0 FEAT-K01: one row of `puzzles`. */
+/**
+ * v0.7.1 §5.1: `puzzles` is versioned exactly like `maps` — `root_id` groups a
+ * blood lineage, `version` is `'draft'` or a numeric string, and version rows
+ * are soft-deleted (draft rows are hard-deleted).
+ *
+ * `data` carries the whole `PuzzleDraft` **including the copied canvas**, so the
+ * row is self-contained: no `map_project_id` / `map_version_no` / `grid_size` /
+ * `status` columns any more.
+ */
 export interface PuzzleRow {
   id: string | number;
+  /** 血统根；普通谜题指向自己，fork 出的草稿沿用来源的根。 */
+  root_id: string | number;
+  /** `'draft'` = 工作条目，纯数字字符串 = 已发布版本（转换走 `versionToNo()`）。 */
+  version: string;
+  /** 软删标记：只有版本行会被设置；草稿行是硬删。 */
+  deleted_at: Date | string | null;
   name: string;
   description: string | null;
-  map_project_id: string | number;
-  map_version_no: number;
-  grid_size: number;
-  /** `PuzzleDraft`; read through `absorbLegacyPuzzleDraft` before parsing. */
+  cover_path: string | null;
+  /** `PuzzleDraft`（v2）；读之前过 `absorbLegacyPuzzleDraft`。 */
   data: unknown;
-  status: (typeof MAP_STATUSES)[number];
   created_at: Date | string;
   updated_at: Date | string;
 }

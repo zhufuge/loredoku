@@ -1,4 +1,5 @@
 import { History, Loader2, Pencil, Trash2 } from 'lucide-react';
+import type { MapVersionSummary } from '@loredoku/shared';
 import {
   Dialog,
   DialogContent,
@@ -15,8 +16,11 @@ interface VersionHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentVersionNo: number | null;
-  /** SPEC-K13 §7.4: a version row's 「查看效果」 opens this read-only preview. */
-  onPreview: (version: { mapId: number; versionNo: number }) => void;
+  /**
+   * SPEC-K13 §7.4: a version row's 「查看效果」 opens this read-only preview.
+   * v0.7.1：预览路由只认 `:mapId`，所以这里把**版本行自己的 `id`** 一起交出去。
+   */
+  onPreview: (version: MapVersionSummary) => void;
 }
 
 /**
@@ -98,9 +102,7 @@ export function VersionHistoryDialog({
                     variant="outline"
                     size="sm"
                     disabled={busy}
-                    onClick={() =>
-                      onPreview({ mapId: version.mapId, versionNo: version.versionNo })
-                    }
+                    onClick={() => onPreview(version)}
                   >
                     查看效果
                   </Button>

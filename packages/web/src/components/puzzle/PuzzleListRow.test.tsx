@@ -1,0 +1,120 @@
+import { act } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { PuzzleEntrySummary } from '@loredoku/shared';
+import { PuzzleListRow } from './PuzzleListRow';
+
+/**
+ * 谜题列表行的按钮集（v0.7.1 §6.2 / §7.1 第 1 层）。
+ *
+ * 这一层是「草稿不能部署」的第一道拦截：草稿行上**连按钮都不渲染**（不是禁用），
+ * 版本行才有。其余按钮与地图列表一致 —— 编辑信息 / 复制只给草稿行。
+ */
+function entry(overrides: Partial<PuzzleEntrySummary> = {}): PuzzleEntrySummary {
+  return {
+    id: 7,
+    kind: 'draft',
+    rootId: 7,
+    versionNo: null,
+    name: '午夜花园',
+    description: '六人六格',
+    gridSize: 6,
+    mapId: 217,
+    mapName: '古堡之谜',
+    mapVersionNo: 3,
+    coverPath: null,
+    coverUrl: null,
+    currentVersionNo: null,
+    versionCount: 0,
+    publishedAt: null,
+    deployed: false,
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-02T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+const versionEntry = (overrides: Partial<PuzzleEntrySummary> = {}): PuzzleEntrySummary =>
+  entry({
+    id: 9,
+    kind: 'version',
+    versionNo: 2,
+    currentVersionNo: 2,
+    versionCount: 2,
+    publishedAt: '2026-01-03T00:00:00.000Z',
+    ...overrides,
+  });
+
+describe('PuzzleListRow (v0.7.1 §6.2)', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const handlers = {
+    onOpen: vi.fn(),
+    onRename: vi.fn(),
+    onDuplicate: vi.fn(),
+    onDelete: vi.fn(),
+    onPreview: vi.fn(),
+    onDeploy: vi.fn(),
+  };
+
+  function render(item: PuzzleEntrySummary): void {
+    act(() => {
+      root.render(<PuzzleListRow entry={item} {...handlers} />);
+    });
+  }
+
+  const button = (title: string): HTMLButtonElement | undefined =>
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (node) => node.getAttribute('title') === title,
+    );
+
+  beforeEach(() => {
+    for (const handler of Object.values(handlers)) handler.mockClear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('给草稿行渲染 编辑信息 / 预览 / 复制 / 删除，不渲染部署', () => {
+    render(entry());
+    expect(button('编辑信息')).toBeDefined();
+    expect(button('预览草稿')).toBeDefined();
+    expect(button('复制')).toBeDefined();
+    expect(button('删除')).toBeDefined();
+    // 第一道拦截：草稿行永远不可能满足「已发布」，按钮连渲染都不渲染。
+    expect(button('部署为游戏')).toBeUndefined();
+    expect(container.textContent).not.toContain('部署');
+  });
+
+  it('给版本行渲染 预览 / 部署 / 删除，不给编辑信息与复制', () => {
+    render(versionEntry());
+    expect(button('预览版本')).toBeDefined();
+    expect(button('部署为游戏')).toBeDefined();
+    expect(button('删除')).toBeDefined();
+    expect(button('编辑信息')).toBeUndefined();
+    expect(button('复制')).toBeUndefined();
+  });
+
+  it('已部署的版本行把部署按钮说成「重新部署」', () => {
+    render(versionEntry({ deployed: true }));
+    expect(button('重新部署为游戏')).toBeDefined();
+    expect(container.textContent).toContain('已部署');
+  });
+
+  it('点部署把整个条目交出去（弹窗要拿它拼默认访问路径）', () => {
+    const item = versionEntry();
+    render(item);
+    act(() => button('部署为游戏')?.click());
+    expect(handlers.onDeploy).toHaveBeenCalledWith(item);
+  });
+
+  it('草稿与版本都显示底图来源', () => {
+    render(entry());
+    expect(container.textContent).toContain('古堡之谜 v3');
+  });
+});

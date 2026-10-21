@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
@@ -38,7 +39,9 @@ import {
   type PlacedItemOption,
 } from '@/components/map-editor/ParticipantDrawer';
 import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
+import { Input } from '@/components/ui/input';
 import { PuzzleBottomBar } from '@/components/puzzle/PuzzleBottomBar';
+import { PuzzleVersionHistoryDialog } from '@/components/puzzle/PuzzleVersionHistoryDialog';
 import { PuzzleEditorLeftPanel } from '@/components/puzzle/PuzzleEditorLeftPanel';
 import {
   PuzzleInfoDrawer,
@@ -47,7 +50,14 @@ import {
 import { useCharacters } from '@/hooks/useCharacters';
 import { useAssets } from '@/hooks/useAssets';
 import { useHighlight } from '@/hooks/useHighlight';
-import { usePuzzle, usePuzzleMapContext, useSavePuzzle } from '@/hooks/usePuzzles';
+import {
+  usePublishPuzzle,
+  usePuzzle,
+  usePuzzleMapContext,
+  usePuzzleVersions,
+  useSavePuzzle,
+} from '@/hooks/usePuzzles';
+import { useEditorPublish } from '@/hooks/useEditorPublish';
 import { useEditorSave } from '@/hooks/useEditorSave';
 import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
@@ -99,6 +109,8 @@ export function PuzzleEditorPage(): JSX.Element {
   const assetsQuery = useAssets({});
   const charactersQuery = useCharacters({});
   const saveMutation = useSavePuzzle();
+  const versionsQuery = usePuzzleVersions(valid ? id : null);
+  const publishMutation = usePublishPuzzle(id);
   const leaveGuard = useUnsavedChangesGuard(puzzle.dirty);
 
   const canvasRef = useRef<EditorCanvasHandle | null>(null);
@@ -128,6 +140,8 @@ export function PuzzleEditorPage(): JSX.Element {
    * happens to unsaved 基本信息 edits.
    */
   const [pendingPuzzleInfoAction, setPendingPuzzleInfoAction] = useState<(() => void) | null>(null);
+  /** 「版本历史」面板（§5.5）。 */
+  const [versionsOpen, setVersionsOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -182,6 +196,32 @@ export function PuzzleEditorPage(): JSX.Element {
       lastSavedAtRef.current = savedAt;
       puzzle.markSaved(savedAt);
     },
+  });
+  /**
+   * 发布流程与地图共用 `useEditorPublish`：下一个版本号取自整个血统的版本历史，
+   * 版本号可手填（填空洞号），dirty 时先保存再发布。
+   */
+  const {
+    publishOpen,
+    setPublishOpen,
+    violations,
+    setViolations,
+    nextVersionNo,
+    versionInput,
+    setVersionInput,
+    versionError,
+    setVersionError,
+    validateVersion,
+    openPublishConfirm,
+    confirmPublish,
+  } = useEditorPublish({
+    versions: versionsQuery.data,
+    currentVersionNo: detailQuery.data?.currentVersionNo ?? null,
+    dirty: puzzle.dirty,
+    saving,
+    persist,
+    publishMutation,
+    entryNoun: '谜题',
   });
   useEffect(() => {
     if (!detailQuery.data || !mapQuery.data) return;
@@ -585,11 +625,13 @@ export function PuzzleEditorPage(): JSX.Element {
         mapName={puzzle.name || detail?.name || ''}
         dirty={puzzle.dirty}
         saving={saving}
-        publishing={false}
+        publishing={publishMutation.isPending}
         status={puzzle.status}
-        currentVersionNo={detail?.mapVersionNo ?? null}
+        currentVersionNo={detail?.currentVersionNo ?? null}
         onBack={() => navigate('/puzzles')}
         onSave={save}
+        onPublish={openPublishConfirm}
+        onOpenVersions={() => setVersionsOpen(true)}
         mapInfoOpen={puzzleInfoOpen}
         infoTitle="谜题基本信息（描述、参与者布局、联动主题色）"
         onOpenMapInfo={() => {
@@ -863,6 +905,99 @@ export function PuzzleEditorPage(): JSX.Element {
         open={pendingPuzzleInfoAction !== null}
         onOpenChange={(open) => !open && setPendingPuzzleInfoAction(null)}
         onResolve={resolvePendingPuzzleInfo}
+      />
+
+      {/* 发布确认（与地图同一套：版本号可填、dirty 时「保存并发布」） */}
+      <AlertDialog
+        open={publishOpen}
+        onOpenChange={(open) => {
+          if (!open && !publishMutation.isPending) setPublishOpen(false);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              发布为 v{versionInput.trim() === '' ? nextVersionNo : versionInput.trim()}？
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              将新增一个带 v{versionInput.trim() === '' ? nextVersionNo : versionInput.trim()}{' '}
+              标记的谜题版本，出现在谜题列表中，可以部署为游戏。当前草稿不会被覆盖，你可以继续编辑并发布下一版。
+              发布后该版本不可修改。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5">
+            <label htmlFor="puzzle-publish-version" className="text-sm font-medium">
+              版本号
+            </label>
+            <Input
+              id="puzzle-publish-version"
+              inputMode="numeric"
+              value={versionInput}
+              disabled={publishMutation.isPending}
+              onChange={(event) => {
+                setVersionInput(event.target.value);
+                setVersionError(null);
+              }}
+              onBlur={() => setVersionError(validateVersion(versionInput))}
+            />
+            <p className={versionError ? 'text-xs text-destructive' : 'text-xs text-muted-foreground'}>
+              {versionError ?? `默认 v${nextVersionNo}，可改成任意正整数（不必连续）。`}
+            </p>
+          </div>
+          {puzzle.dirty ? (
+            <p className="text-xs text-muted-foreground">有未保存的修改，将先保存再发布。</p>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={publishMutation.isPending}>取消</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={publishMutation.isPending}
+              onClick={(event) => {
+                // 请求在飞时保持弹窗打开。
+                event.preventDefault();
+                confirmPublish();
+              }}
+            >
+              {publishMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  发布中…
+                </>
+              ) : puzzle.dirty ? (
+                '保存并发布'
+              ) : (
+                '确认发布'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={violations !== null} onOpenChange={(open) => !open && setViolations(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>无法发布</AlertDialogTitle>
+            <AlertDialogDescription>发布前校验未通过，请先修复以下问题：</AlertDialogDescription>
+          </AlertDialogHeader>
+          <ul className="max-h-64 list-disc space-y-1 overflow-y-auto pl-5 text-sm text-muted-foreground">
+            {(violations ?? []).map((violation, index) => (
+              <li key={`${violation.rule}-${index}`}>{violation.message}</li>
+            ))}
+          </ul>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setViolations(null)}>关闭</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <PuzzleVersionHistoryDialog
+        puzzleId={valid ? id : null}
+        open={versionsOpen}
+        onOpenChange={setVersionsOpen}
+        currentVersionNo={detail?.currentVersionNo ?? null}
+        onPreview={(version) => {
+          setVersionsOpen(false);
+          navigate(`/puzzles/${version.id}/view`);
+        }}
       />
 
       <EditorUnsavedLeaveDialog guard={leaveGuard} />

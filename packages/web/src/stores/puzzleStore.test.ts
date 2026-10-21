@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   DEFAULT_MAP_STYLE,
   DEFAULT_THEME_COLOR,
+  MAP_JSON_VERSION,
   PUZZLE_JSON_VERSION,
   type CharacterSlotEntry,
   type ParticipantTarget,
@@ -60,10 +61,26 @@ function mapContext(gridSize = 6): PuzzleMapContext {
   };
 }
 
+/** v0.7.1 §5.3：底图是副本 —— 画布内容 + 来源信息，尺寸只看 `data.gridSize`。 */
+function mapSnapshot(gridSize = 6) {
+  return {
+    mapId: 217,
+    versionNo: 3,
+    mapName: '古堡之谜',
+    data: {
+      version: MAP_JSON_VERSION,
+      gridSize,
+      cells: {},
+      regions: [],
+      style: DEFAULT_MAP_STYLE,
+    },
+  };
+}
+
 function detail(overrides: Partial<PuzzleDraft> = {}): PuzzleDetail {
   const draft: PuzzleDraft = {
     version: PUZZLE_JSON_VERSION,
-    map: { mapId: 217, versionNo: 3, gridSize: 6 },
+    map: mapSnapshot(),
     name: '午夜花园',
     description: '六人六格，注意花丛的位置条件。',
     linkageColors: [
@@ -75,17 +92,23 @@ function detail(overrides: Partial<PuzzleDraft> = {}): PuzzleDetail {
   };
   return {
     id: 42,
+    kind: 'draft',
+    rootId: 42,
+    versionNo: null,
     name: draft.name,
     description: draft.description,
-    mapVersionNo: 3,
-    mapId: 217,
-    mapRootId: 217,
-    mapName: '古堡之谜',
-    gridSize: 6,
-    status: 'draft',
+    gridSize: draft.map.data.gridSize,
+    mapId: draft.map.mapId,
+    mapName: draft.map.mapName,
+    mapVersionNo: draft.map.versionNo,
+    coverPath: null,
+    coverUrl: null,
+    currentVersionNo: null,
+    versionCount: 0,
+    publishedAt: null,
+    deployed: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-02T00:00:00.000Z',
-    deployed: false,
     data: draft,
   };
 }
@@ -427,7 +450,7 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
   }
 
   function load(draftToLoad: PuzzleDraft): void {
-    store().init(detail(draftToLoad), mapContext(draftToLoad.map.gridSize));
+    store().init(detail(draftToLoad), mapContext(draftToLoad.map.data.gridSize));
   }
 
   it('survives init — a page reload no longer drops the list', () => {
@@ -567,7 +590,7 @@ describe('displayNumber survives (v0.6.4 §2)', () => {
   }
 
   function load(draftToLoad: PuzzleDraft): void {
-    store().init(detail(draftToLoad), mapContext(draftToLoad.map.gridSize));
+    store().init(detail(draftToLoad), mapContext(draftToLoad.map.data.gridSize));
   }
 
   const patch = (displayNumber: string) => ({
@@ -634,19 +657,20 @@ describe('displayNumber survives (v0.6.4 §2)', () => {
 });
 
 describe('toDraft / applyDraft (FEAT-K08)', () => {
-  it('serialises the map reference, never a copy of the canvas', () => {
+  it('serialises the canvas copy along with the source info', () => {
     store().assignSlot(4);
     const output = store().toDraft();
     expect(output.version).toBe(PUZZLE_JSON_VERSION);
-    expect(output.map).toEqual({ mapId: 217, versionNo: 3, gridSize: 6 });
+    // 来源信息（展示 / 追溯）+ 一份画布副本；尺寸的唯一真源是 `data.gridSize`。
+    expect(output.map).toMatchObject({ mapId: 217, versionNo: 3, mapName: '古堡之谜' });
+    expect(output.map.data.gridSize).toBe(6);
+    expect(output.map.data.version).toBe(MAP_JSON_VERSION);
+    expect(output.map.data.cells['0,0']?.item?.assetId).toBe(12);
+    expect(output.map.data.regions.map((region) => region.id)).toEqual(['rg_1']);
     expect(output.name).toBe('午夜花园');
     expect(output.description).toBe('六人六格，注意花丛的位置条件。');
     expect(output.linkageColors.map((entry) => entry.key)).toEqual(['red', 'blue']);
     expect(output.characterSlots[0]).toMatchObject({ characterId: 4, linkages: [] });
-    // §5.1: the canvas is **referenced**, not duplicated.
-    expect('cells' in output).toBe(false);
-    expect('regions' in output).toBe(false);
-    expect('style' in output).toBe(false);
   });
 
   /**
@@ -674,7 +698,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
   it('round-trips through applyDraft', () => {
     const imported: PuzzleDraft = {
       version: PUZZLE_JSON_VERSION,
-      map: { mapId: 217, versionNo: 3, gridSize: 6 },
+      map: mapSnapshot(),
       name: '导入的谜题',
       description: '导入来的',
       linkageColors: [
@@ -709,7 +733,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
   it('applyDraft resizes the roster to the referenced grid size', () => {
     store().applyDraft({
       ...detail().data,
-      map: { mapId: 217, versionNo: 3, gridSize: 4 },
+      map: mapSnapshot(4),
       characterSlots: [null, null],
     });
     expect(store().characterSlots).toHaveLength(6);

@@ -1,5 +1,5 @@
 import type { GameDifficulty, MapGameDetail, MapGameSummary } from '@loredoku/shared';
-import { apiGet, apiPost } from './client';
+import { apiDelete, apiGet, apiPost } from './client';
 
 /**
  * CONS-K16 (docs/v0.5.0.md §10.2): the unit of deployment is a **puzzle** now —
@@ -44,5 +44,9 @@ export const gamesApi = {
     const form = new FormData();
     form.append('file', file);
     return apiPost<MapGameSummary>(`/games/${id}/cover`, form);
+  },
+  /** v0.7.1 §7.4：取消部署 = 假删（`deleted_at`），访问路径随之释放。 */
+  cancel(id: number): Promise<null> {
+    return apiDelete<null>(`/games/${id}`);
   },
 };

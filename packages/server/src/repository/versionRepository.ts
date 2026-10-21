@@ -1,6 +1,7 @@
 import { db } from '../db/knex';
 import type { MapDraft, MapVersionSummary, MapRow } from '@loredoku/shared';
 import { absorbLegacyMapDraft, readLegacyCharacterSlots } from '../service/mapDraftCompat';
+import * as versioning from './versioning';
 
 /**
  * `map_versions` 已并入 `maps`
@@ -134,24 +135,16 @@ export async function findVersionRow(
 }
 
 /**
- * SPEC-K11 + Q3 = B: the next version number of the **whole lineage**. 软删行
- * 也算 —— 号不回收（否则删掉 v3 再发布会重新产出 v3，与谜题快照对不上）。
+ * SPEC-K11 + Q3 = B: 血统内下一个版本号。SQL 统一在 `repository/versioning.ts`
+ * （`puzzles` 用同一份实现），这里只把表名钉成 `maps`。
  */
 export async function nextVersionNo(rootId: number): Promise<number> {
-  const result = await db.raw(
-    "SELECT COALESCE(MAX(CAST(version AS integer)), 0) AS max FROM maps WHERE root_id = ? AND version <> 'draft'",
-    [rootId],
-  );
-  const row = (result.rows[0] ?? {}) as { max?: string | number | null };
-  return Number(row.max ?? 0) + 1;
+  return versioning.nextVersionNo('maps', rootId);
 }
 
 /** 血统内该版本号是否已被占用（含软删行）。 */
 export async function versionNoTaken(rootId: number, versionNo: number): Promise<boolean> {
-  const row = await db('maps')
-    .where({ root_id: rootId, version: String(versionNo) })
-    .first('id');
-  return Boolean(row);
+  return versioning.versionNoTaken('maps', rootId, versionNo);
 }
 
 export interface CreateVersionData {

@@ -13,8 +13,13 @@ const context = {
 
 function draft(slots: PuzzleDraft['characterSlots']): PuzzleDraft {
   return {
-    version: 1,
-    map: { mapId: 217, versionNo: 3, gridSize: 6 },
+    version: 2,
+    map: {
+      mapId: 217,
+      versionNo: 3,
+      mapName: '午夜花园',
+      data: { version: 7, gridSize: 6, cells: {}, regions: [] },
+    },
     name: '午夜花园',
     description: '',
     linkageColors: [

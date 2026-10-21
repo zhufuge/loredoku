@@ -1,0 +1,117 @@
+import { Trash2 } from 'lucide-react';
+import type { PuzzleEntrySummary } from '@loredoku/shared';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { EntryActionsMenu } from '@/components/common/EntryActionsMenu';
+import { formatDateTime } from '@/lib/format';
+import { formatRelativeTime } from '@/lib/relativeTime';
+
+/**
+ * 谜题卡片（网格视图，服务草稿块）：封面 + 名称 + 描述 + 「尺寸 · 底图 · 时间」
+ * 一行 + 主按钮。
+ *
+ * 主按钮按 kind 分叉：草稿行进编辑器，版本行走「编辑此版本」（fork 出一条新
+ * 草稿再进编辑器 —— 版本行本身不可写）。三点菜单里的可见项同理由
+ * `EntryActionsMenu` 按 `entry.kind` 分流，卡片本身不掺和。
+ */
+interface PuzzleGridCardProps {
+  entry: PuzzleEntrySummary;
+  onOpen: (entry: PuzzleEntrySummary) => void;
+  onRename: (entry: PuzzleEntrySummary) => void;
+  onDuplicate: (entry: PuzzleEntrySummary) => void;
+  onDelete: (entry: PuzzleEntrySummary) => void;
+  onPreview: (entry: PuzzleEntrySummary) => void;
+  /** 只有版本条目会走到这里（草稿行不渲染「部署」）。 */
+  onDeploy: (entry: PuzzleEntrySummary) => void;
+}
+
+export function PuzzleGridCard({
+  entry,
+  onOpen,
+  onRename,
+  onDuplicate,
+  onDelete,
+  onPreview,
+  onDeploy,
+}: PuzzleGridCardProps): JSX.Element {
+  const initial = entry.name.trim().charAt(0) || '谜';
+  const isVersion = entry.kind === 'version';
+
+  return (
+    <Card className="group flex flex-col overflow-hidden transition-colors hover:border-primary">
+      <button
+        type="button"
+        onClick={() => onOpen(entry)}
+        title={`${isVersion ? '编辑此版本' : '进入编辑'}：${entry.name}`}
+        className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden border-b bg-muted/40"
+      >
+        {entry.coverUrl ? (
+          <img
+            src={entry.coverUrl}
+            alt={entry.name}
+            draggable={false}
+            className="h-full w-full object-cover transition-transform duration-200 ease-out scale-[1.2] group-hover:scale-100"
+          />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center bg-secondary/40 text-3xl font-semibold text-muted-foreground/60">
+            {initial}
+          </span>
+        )}
+      </button>
+      <div className="flex flex-1 flex-col gap-3 p-4">
+        <div className="flex-1 space-y-1">
+          <h3 className="flex items-center gap-1.5 truncate font-medium" title={entry.name}>
+            <span className="truncate">{entry.name}</span>
+            {entry.versionNo !== null ? (
+              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground tabular-nums">
+                v{entry.versionNo}
+              </span>
+            ) : null}
+            {entry.deployed ? (
+              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+                已部署
+              </span>
+            ) : null}
+          </h3>
+          {entry.description ? (
+            <p className="line-clamp-2 text-xs text-muted-foreground">{entry.description}</p>
+          ) : null}
+        </div>
+        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+          <span className="shrink-0 tabular-nums">
+            {entry.gridSize} × {entry.gridSize}
+          </span>
+          <span className="truncate" title={entry.mapName}>
+            {entry.mapName ? `${entry.mapName} v${entry.mapVersionNo}` : '—'}
+          </span>
+          <span className="shrink-0" title={formatDateTime(entry.publishedAt ?? entry.updatedAt)}>
+            {formatRelativeTime(entry.publishedAt ?? entry.updatedAt)}更新
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button size="sm" variant="secondary" onClick={() => onOpen(entry)}>
+            {isVersion ? '编辑此版本' : '进入编辑'}
+          </Button>
+          <div className="ml-auto flex items-center gap-1">
+            <EntryActionsMenu
+              entry={entry}
+              onEditInfo={onRename}
+              onPreview={onPreview}
+              onDuplicate={onDuplicate}
+              onDeploy={onDeploy}
+            />
+            <Button
+              size="icon"
+              variant="ghost"
+              title="删除"
+              className="text-destructive hover:text-destructive"
+              onClick={() => onDelete(entry)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}

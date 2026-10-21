@@ -8,9 +8,11 @@ import {
 } from './constants';
 import {
   buildDefaultSlug,
+  composeSlug,
   normalizeSlugInput,
   slugError,
   slugify,
+  splitSlug,
   truncateSlug,
 } from './gameSlug';
 
@@ -157,5 +159,59 @@ describe('truncateSlug (OPT-W04 §4.3)', () => {
     const trimmed = truncateSlug(`${'x'.repeat(GAME_SLUG_MAX_LENGTH - 1)}-more`);
     expect(trimmed).toHaveLength(GAME_SLUG_MAX_LENGTH - 1);
     expect(trimmed.endsWith('-')).toBe(false);
+  });
+});
+
+/**
+ * v0.7.1 §7.6.1: the deploy dialog edits only the **middle** — `puzzle-` and the
+ * difficulty suffix are read-only text around the input, composed on save and
+ * split back on prefill.
+ */
+describe('composeSlug (v0.7.1 §7.6.1)', () => {
+  it('wraps the middle with the fixed prefix and the difficulty segment', () => {
+    expect(composeSlug('flower-garden', 'medium')).toBe('puzzle-flower-garden-medium');
+    expect(composeSlug('flower-garden', 'veryEasy')).toBe('puzzle-flower-garden-very-easy');
+  });
+
+  it('slugifies the middle so an author cannot type an illegal character', () => {
+    expect(composeSlug('Flower Garden!', 'hard')).toBe('puzzle-flower-garden-hard');
+    expect(composeSlug('古堡 Castle', 'easy')).toBe('puzzle-castle-easy');
+  });
+
+  it('eats leading / trailing hyphens so the join never doubles them', () => {
+    expect(composeSlug('-castle-', 'medium')).toBe('puzzle-castle-medium');
+    expect(composeSlug('a--b', 'medium')).toBe('puzzle-a-b-medium');
+  });
+
+  it('keeps the result inside the column width without a trailing hyphen', () => {
+    const slug = composeSlug('x'.repeat(GAME_SLUG_MAX_LENGTH + 20), 'expert');
+    expect(slug.length).toBeLessThanOrEqual(GAME_SLUG_MAX_LENGTH);
+    expect(slug.endsWith('-')).toBe(false);
+  });
+
+  it('agrees with buildDefaultSlug for a plain name', () => {
+    for (const difficulty of GAME_DIFFICULTY_LEVELS) {
+      expect(buildDefaultSlug({ name: 'Flower Garden', difficulty })).toBe(
+        composeSlug(slugify('Flower Garden'), difficulty),
+      );
+    }
+  });
+});
+
+describe('splitSlug (v0.7.1 §7.6.1)', () => {
+  it('round-trips a composed slug back to its middle', () => {
+    const middle = 'flower-garden-2019';
+    expect(splitSlug(composeSlug(middle, 'hard'), 'hard')).toBe(middle);
+  });
+
+  it('strips only the prefix when the suffix belongs to another difficulty', () => {
+    // The author switched the difficulty: the stored path still ends in the old
+    // segment, which is not part of the middle.
+    expect(splitSlug('puzzle-flower-garden-medium', 'hard')).toBe('flower-garden-medium');
+  });
+
+  it('leaves a path without the prefix alone', () => {
+    expect(splitSlug('castle-hard', 'hard')).toBe('castle');
+    expect(splitSlug('flower-garden', 'hard')).toBe('flower-garden');
   });
 });

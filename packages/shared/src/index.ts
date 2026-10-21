@@ -3,5 +3,6 @@ export * from './color';
 export * from './gameSlug';
 export * from './assetRules';
 export * from './puzzleRefs';
+export * from './puzzleDraft';
 export * from './types';
 export * from './schemas';

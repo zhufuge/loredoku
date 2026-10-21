@@ -6,14 +6,18 @@ import {
   GAME_DIFFICULTY_DEFAULT,
   GAME_DIFFICULTY_LABELS,
   GAME_DIFFICULTY_LEVELS,
+  GAME_DIFFICULTY_SLUGS,
   GAME_DIFFICULTY_TEXT_COLORS,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
-  buildDefaultSlug,
+  GAME_SLUG_PREFIX,
+  composeSlug,
   normalizeSlugInput,
   slugError,
+  slugify,
+  splitSlug,
 } from '@loredoku/shared';
-import type { GameDifficulty, MapGameSummary, PuzzleSummary } from '@loredoku/shared';
+import type { GameDifficulty, MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -30,19 +34,14 @@ import { cn } from '@/lib/utils';
 const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5.2) + v0.4.1 (docs/v0.4.1.md §3 / §4): the deploy
- * dialog. The cover is staged here and uploaded right after the game row is
- * created, because the upload endpoint targets the new game's id.
+ * 部署弹窗（v0.4.0 FEAT-G02 起，v0.7.1 §7.6 / §7.6.1 定稿）。封面在这里暂存，
+ * 行建好之后才上传 —— 上传端点认的是新游戏的 id。
  *
- * v0.4.1 additions:
- * - OPT-W03: re-deploying prefills the difficulty and shows the current cover,
- *   with a three-way choice — keep it, replace it, or remove it;
- * - OPT-W04: the game's **access path** is a first-class field, defaulted to
- *   `puzzle-{name}-{difficulty}` and previewed as `/play/{value}`.
- *
- * v0.5.0 CONS-K16 (docs/v0.5.0.md §10.2): the deployed unit is a **puzzle**
- * now — one game per puzzle, so `puzzle_id` is what the request targets and
- * the default access path is built from the puzzle's name.
+ * - OPT-W03：重新部署时回填难度并展示现有封面，三态（保留 / 替换 / 移除）；
+ * - **部署单元是一个谜题版本行**（§7.1 第 2 层拦截）：草稿行进不来，因为
+ *   `puzzle` prop 的形状就是版本条目；
+ * - 访问路径拆成「只读前缀 `puzzle-` + 可编辑中段 + 只读难度后缀」：难度永远
+ *   实时参与拼接，已部署过的路径被改掉时明写「原访问路径将失效」。
  */
 export function GameDeployDialog({
   puzzle,
@@ -50,7 +49,11 @@ export function GameDeployDialog({
   open,
   onOpenChange,
 }: {
-  puzzle: PuzzleSummary | null;
+  /**
+   * 第 2 层拦截（v0.7.1 §7.1）：只有**版本条目**能进来 —— 草稿行不满足「已发布」，
+   * 部署单元就是一个谜题版本行。
+   */
+  puzzle: PuzzleEntrySummary | null;
   /** OPT-W03: the puzzle's current game, used to prefill the re-deploy. */
   existingGame?: MapGameSummary | null;
   open: boolean;
@@ -58,7 +61,12 @@ export function GameDeployDialog({
 }): JSX.Element {
   const deploy = useDeployGame();
   const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
+  /**
+   * v0.7.1 §7.6.1：访问路径拆成「前缀 + 可编辑中段 + 难度后缀」。前缀（`puzzle-`）
+   * 与后缀（`-medium` 之类）是只读文本，唯一可编辑的是中段 —— 作者要对外公布
+   * 的是整条路径，但只有中段需要他操心。
+   */
+  const [middle, setMiddle] = useState('');
   const [difficulty, setDifficulty] = useState<GameDifficulty>(GAME_DIFFICULTY_DEFAULT);
   const [cover, setCover] = useState<File | null>(null);
   /**
@@ -66,11 +74,11 @@ export function GameDeployDialog({
    * replace it with `cover`, or drop it (`coverRemoved`).
    */
   const [coverRemoved, setCoverRemoved] = useState(false);
-  const [slugTouched, setSlugTouched] = useState(false);
+  const [middleTouched, setMiddleTouched] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   // Every open starts from the puzzle's own defaults, or from the game's stored
-  // values when this puzzle was deployed before (OPT-W03).
+  // values when this version row was deployed before (OPT-W03).
   useEffect(() => {
     if (!open || !puzzle) return;
     const startName = puzzle.name;
@@ -80,23 +88,31 @@ export function GameDeployDialog({
     setCover(null);
     setCoverRemoved(false);
     if (existingGame) {
-      // An already-published path is a promise to whoever holds the link, so it
-      // is prefilled and treated as "done editing" — changing the name or the
-      // difficulty will not silently rewrite it (docs/v0.4.1.md §4.2).
-      setSlug(existingGame.slug);
-      setSlugTouched(true);
+      // 已发布的路径是给持链接的人的承诺：回填并当作「已经改过」，改名字或难度
+      // 都不会悄悄重写它，只会在下面显式提示「原路径将失效」。
+      setMiddle(splitSlug(existingGame.slug, existingGame.difficulty));
+      setMiddleTouched(true);
     } else {
-      setSlug(buildDefaultSlug({ name: startName, difficulty: startDifficulty }));
-      setSlugTouched(false);
+      setMiddle(slugify(startName));
+      setMiddleTouched(false);
     }
   }, [open, puzzle, existingGame]);
 
-  // OPT-W04 §4.2: while the author has not edited the path themselves, it
-  // follows the name and the difficulty.
-  useEffect(() => {
-    if (!open || slugTouched) return;
-    setSlug(buildDefaultSlug({ name, difficulty }));
-  }, [open, slugTouched, name, difficulty]);
+  /**
+   * 作者没手动改过中段时，它跟着名称走 —— 直接写在名称输入的 onChange 里，而不是
+   * 用一个「同步」effect：两个 effect 抢着写同一个 state 时，初始化的那次回填会
+   * 被随后的一次覆盖（已部署游戏的中段被清成默认值）。
+   */
+  const changeName = (next: string): void => {
+    setName(next);
+    if (!middleTouched) setMiddle(slugify(next));
+  };
+
+  /**
+   * 难度**永远**实时参与拼接（v0.7.1 起不再冻结）—— 改难度就改后缀，
+   * 路径跟着变，`existingGame` 在场时下面会提示原路径失效。
+   */
+  const slug = middle.trim().length > 0 ? composeSlug(middle, difficulty) : '';
 
   const coverPreview = useMemo(
     () => (cover ? URL.createObjectURL(cover) : null),
@@ -119,9 +135,12 @@ export function GameDeployDialog({
   const slugProblem =
     slug.length > 0
       ? slugError(slug)
-      : slugTouched
+      : middleTouched
         ? '请填写访问路径'
         : '无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）';
+
+  /** 已部署过的路径被改掉了 —— 明写出来，别让作者以为旧链接还有效。 */
+  const slugReplaced = existingGame != null && slug.length > 0 && slug !== existingGame.slug;
 
   const submit = (): void => {
     if (!puzzle) return;
@@ -130,11 +149,17 @@ export function GameDeployDialog({
       toast.error('请填写游戏名称');
       return;
     }
-    const trimmedSlug = slug.trim();
-    if (trimmedSlug.length === 0) {
-      toast.error('请填写访问路径');
+    // 中段为空时不要拼 —— `composeSlug('')` 会退化成 `puzzle-medium`，
+    // 看着合法其实丢了名称。
+    if (middle.trim().length === 0) {
+      toast.error(
+        middleTouched
+          ? '请填写访问路径'
+          : '无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）',
+      );
       return;
     }
+    const trimmedSlug = slug.trim();
     const problem = slugError(trimmedSlug);
     if (problem) {
       toast.error(problem);
@@ -162,7 +187,7 @@ export function GameDeployDialog({
           <DialogTitle>部署为游戏</DialogTitle>
           <DialogDescription>
             {puzzle
-              ? `把谜题「${puzzle.name} v${puzzle.mapVersionNo}」部署为可玩的游戏。相同谜题只能部署一个游戏，再次部署将覆盖此前的游戏。`
+              ? `把谜题「${puzzle.name} v${puzzle.versionNo ?? ''}」部署为可玩的游戏。每个谜题版本可以部署一个游戏；再次部署同一版本将覆盖此前的游戏。`
               : '把谜题部署为可玩的游戏。'}
           </DialogDescription>
         </DialogHeader>
@@ -177,39 +202,54 @@ export function GameDeployDialog({
               value={name}
               maxLength={GAME_NAME_MAX_LENGTH}
               placeholder="默认为谜题名称"
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => changeName(event.target.value)}
               disabled={deploy.isPending}
             />
           </div>
 
-          {/* OPT-W04 §4.2: the access path is the game's public URL. */}
+          {/* OPT-W04 §4.2 + v0.7.1 §7.6.1: the access path is the game's public
+              URL — the author edits only its middle segment. */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="game-deploy-slug">
               访问路径
             </label>
             <div className="flex items-center gap-2">
-              <Input
-                id="game-deploy-slug"
-                value={slug}
-                maxLength={GAME_SLUG_MAX_LENGTH}
-                placeholder="puzzle-my-map-medium"
-                className={cn('font-mono text-xs', slugProblem ? 'border-destructive' : '')}
-                onChange={(event) => {
-                  setSlugTouched(true);
-                  setSlug(normalizeSlugInput(event.target.value));
-                }}
-                disabled={deploy.isPending}
-              />
+              <div
+                className={cn(
+                  'flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-background px-2 font-mono text-xs',
+                  slugProblem ? 'border-destructive' : undefined,
+                )}
+              >
+                {/* 前缀 / 后缀是只读文本：路径的「固定形状」由它俩表达。 */}
+                <span className="shrink-0 select-none text-muted-foreground">
+                  {GAME_SLUG_PREFIX}-
+                </span>
+                <input
+                  id="game-deploy-slug"
+                  value={middle}
+                  maxLength={GAME_SLUG_MAX_LENGTH}
+                  placeholder="my-map"
+                  disabled={deploy.isPending}
+                  className="min-w-0 flex-1 bg-transparent px-0.5 font-mono text-xs outline-none placeholder:text-muted-foreground/60 disabled:cursor-not-allowed"
+                  onChange={(event) => {
+                    setMiddleTouched(true);
+                    setMiddle(normalizeSlugInput(event.target.value));
+                  }}
+                />
+                <span className="shrink-0 select-none text-muted-foreground">
+                  -{GAME_DIFFICULTY_SLUGS[difficulty]}
+                </span>
+              </div>
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                className="h-9 shrink-0"
-                title="按当前名称与难度重新生成"
+                className="h-10 shrink-0"
+                title="按当前名称重新生成中段"
                 disabled={deploy.isPending}
                 onClick={() => {
-                  setSlug(buildDefaultSlug({ name, difficulty }));
-                  setSlugTouched(true);
+                  setMiddle(slugify(name));
+                  setMiddleTouched(true);
                 }}
               >
                 <RefreshCw className="mr-1 h-3.5 w-3.5" />
@@ -224,6 +264,11 @@ export function GameDeployDialog({
             >
               {slugProblem ?? `/play/${slug}`}
             </p>
+            {slugReplaced && !slugProblem ? (
+              <p className="text-xs text-amber-600 dark:text-amber-500">
+                原访问路径 /play/{existingGame.slug} 将失效。
+              </p>
+            ) : null}
           </div>
 
           <div className="space-y-1.5">

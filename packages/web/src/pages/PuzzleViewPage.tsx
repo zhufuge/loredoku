@@ -350,7 +350,7 @@ export function PuzzleViewPage(): JSX.Element {
     );
   }
 
-  const mapVersionNo = detailQuery.data?.mapVersionNo ?? mapContext.versionNo;
+  const viewed = detailQuery.data;
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
@@ -361,9 +361,11 @@ export function PuzzleViewPage(): JSX.Element {
           </Button>
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold">{detailQuery.data?.name ?? '谜题'}</span>
-            {/* OPT-G01: the referenced map version is a badge, not part of the title. */}
-            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
-              v{mapVersionNo}
+            {/* `v{n}` 是**这一行谜题自己**的版本号；草稿行看草稿，标「草稿」。 */}
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] tabular-nums text-secondary-foreground">
+              {viewed?.versionNo !== null && viewed?.versionNo !== undefined
+                ? `v${viewed.versionNo}`
+                : '草稿'}
             </span>
             <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
               {gridSize} × {gridSize}

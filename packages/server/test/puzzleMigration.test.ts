@@ -2,16 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { db } from '../src/db/knex';
 
 /**
- * v0.5.0（docs/v0.5.0.md §13.2 / §11.1）：两个迁移的 schema 层验收。
- *
- * 迁移本身在 `npm run db:migrate` 时应用（§13.4 的往返由命令行完成），这里钉住
- * 的是**应用后的形状**：
- *
- * - `map_projects.root_id` 存在、NOT NULL、存量行全部等于自身 id（Q3 = B 的
- *   「普通地图的血缘根恒等于自己的 id」）；
- * - `puzzles` 表存在，`map_project_id` 外键 RESTRICT（删地图前必须先删谜题）；
- * - `map_games.puzzle_id` 列 + **部分**唯一索引（NULL 行不受限，存量游戏可多条）；
- * - `map_games.project_id` 的旧 UNIQUE 约束已删（同一地图的不同版本可同时被部署）。
+ * 迁移的 schema 层验收：迁移本身在 `npm run db:migrate` 时应用（往返由命令行
+ * 完成），这里钉住的是**当前表形状**。每一节对应发起它的那个版本，后面的版本
+ * 改过形状时，旧断言跟着改（测试只描述现状，不描述履历）。
  */
 
 async function columns(table: string): Promise<string[]> {
@@ -53,73 +46,111 @@ describe('v0.5.0 migration shape (§11.1)', () => {
     expect(index).toBeDefined();
   });
 
-  it('creates the puzzles table with a RESTRICT foreign key', async () => {
+});
+
+/**
+ * v0.7.1（docs/v0.7.1.md §5.1 / §7.2）：`puzzles` 版本化、`games` 只引用谜题行。
+ *
+ * 这两条是数据模型的地基，靠代码兜不住 —— 列真的没了、约束真的在，才谈得上
+ * 「草稿不能部署」「删掉的 slug 能重用」。
+ */
+describe('v0.7.1 puzzles versioning shape', () => {
+  it('adds the lineage columns and drops the map reference', async () => {
     const cols = await columns('puzzles');
-    for (const name of [
-      'id',
-      'name',
-      'description',
-      'map_project_id',
-      'map_version_no',
-      'grid_size',
-      'data',
-      'status',
-      'created_at',
-      'updated_at',
-    ]) {
+    for (const name of ['root_id', 'version', 'deleted_at', 'cover_path', 'data']) {
       expect(cols).toContain(name);
     }
-
-    // map_project_id 是 puzzles 的外键列。
-    const fk = await db('information_schema.key_column_usage')
-      .where({ table_name: 'puzzles', column_name: 'map_project_id', table_schema: 'public' })
-      .select('constraint_name');
-    expect(fk).toHaveLength(1);
-
-    // ON DELETE RESTRICT：删地图不会级联删谜题（迁移注释里的约定）。
-    const deleteRule = await db('information_schema.referential_constraints')
-      .where({ constraint_name: fk[0].constraint_name as string, constraint_schema: 'public' })
-      .select('delete_rule');
-    expect(deleteRule.map((row) => row.delete_rule)).toContain('RESTRICT');
+    // 底图改成自带副本，四列全部退休。
+    for (const name of ['map_project_id', 'map_version_no', 'grid_size', 'status']) {
+      expect(cols).not.toContain(name);
+    }
   });
 
-  it('adds map_games.puzzle_id with a partial unique index (CONS-K16)', async () => {
+  it('enforces one live row per version, and a numeric version', async () => {
+    const index = await db('pg_indexes')
+      .where({ tablename: 'puzzles', indexname: 'uq_puzzles_root_version' })
+      .first();
+    expect(index?.indexdef).toContain('UNIQUE');
+    // 部分索引：软删行不占唯一位（号仍然不回收，那是 MAX 的口径）。
+    expect(index?.indexdef).toContain("version <> 'draft'");
+    expect(index?.indexdef).toContain('deleted_at IS NULL');
+
+    const check = await db('pg_constraint')
+      .where({ conname: 'puzzles_version_format_check' })
+      .first();
+    expect(check).toBeDefined();
+  });
+
+  it('keeps every stored puzzle self-contained (v2 carries the canvas)', async () => {
+    const rows = (await db('puzzles').select('id', 'data')) as Array<{
+      id: string | number;
+      data: {
+        version?: number;
+        map?: { data?: { gridSize?: number }; mapName?: string };
+        characterSlots?: unknown[];
+      };
+    }>;
+    for (const row of rows) {
+      expect(row.data.version).toBe(2);
+      expect(typeof row.data.map?.data?.gridSize).toBe('number');
+      // 名册长度与画布尺寸一致 —— 否则编辑器一打开就对不上格子。
+      expect(row.data.characterSlots?.length).toBe(row.data.map?.data?.gridSize);
+    }
+  });
+});
+
+describe('v0.7.1 games reference puzzles shape', () => {
+  it('drops the snapshot and the denormalised columns', async () => {
     const cols = await columns('games');
-    expect(cols).toContain('puzzle_id');
+    for (const name of [
+      'project_id',
+      'version_no',
+      'cover_mime',
+      'cover_size',
+      'cover_width',
+      'cover_height',
+      'grid_size',
+      'snapshot',
+    ]) {
+      expect(cols).not.toContain(name);
+    }
+    expect(cols).toContain('deleted_at');
+  });
+
+  it('requires a puzzle row and allows only one game per version row', async () => {
+    const nullable = await db('information_schema.columns')
+      .where({ table_name: 'games', column_name: 'puzzle_id', table_schema: 'public' })
+      .select('is_nullable');
+    expect(nullable[0]?.is_nullable).toBe('NO');
 
     const index = await db('pg_indexes')
       .where({ tablename: 'games', indexname: 'games_puzzle_id_unique' })
       .first();
-    expect(index).toBeDefined();
-    // 部分索引：只约束 puzzle_id IS NOT NULL 的行。
-    expect(index?.indexdef).toContain('WHERE (puzzle_id IS NOT NULL)');
     expect(index?.indexdef).toContain('UNIQUE');
+    // 普通唯一索引（不再是 `WHERE puzzle_id IS NOT NULL` 的部分索引）。
+    expect(index?.indexdef).not.toContain('WHERE');
 
-    // 删除规则是 SET NULL：删谜题只把游戏降级成存量游戏。
+    // 版本行挂着游戏时不可删。
     const fk = await db('information_schema.key_column_usage')
       .where({ table_name: 'games', column_name: 'puzzle_id', table_schema: 'public' })
       .select('constraint_name');
-    expect(fk).toHaveLength(1);
     const rules = await db('information_schema.referential_constraints')
       .where({ constraint_name: fk[0].constraint_name as string, constraint_schema: 'public' })
       .select('delete_rule');
-    expect(rules.map((row) => row.delete_rule)).toContain('SET NULL');
+    expect(rules.map((row) => row.delete_rule)).toContain('RESTRICT');
   });
 
-  it('drops the old map_games.project_id UNIQUE constraint', async () => {
-    const unique = await db('information_schema.table_constraints')
-      .where({
-        table_name: 'games',
-        constraint_type: 'UNIQUE',
-        table_schema: 'public',
-      })
-      .select('constraint_name');
-    expect(unique.map((row) => row.constraint_name)).not.toContain('map_games_project_id_unique');
+  it('makes the access path unique only among live rows', async () => {
+    const index = await db('pg_indexes')
+      .where({ tablename: 'games', indexname: 'uq_games_slug_active' })
+      .first();
+    expect(index?.indexdef).toContain('UNIQUE');
+    expect(index?.indexdef).toContain('deleted_at IS NULL');
 
-    // 但 project_id 列本身还在（它仍然表示被引用的地图版本）。
-    const cols = await columns('games');
-    expect(cols).toContain('project_id');
-    expect(cols).toContain('version_no');
+    const full = await db('information_schema.table_constraints')
+      .where({ table_name: 'games', table_schema: 'public', constraint_type: 'UNIQUE' })
+      .select('constraint_name');
+    expect(full.map((row) => row.constraint_name)).not.toContain('games_slug_unique');
   });
 });
 

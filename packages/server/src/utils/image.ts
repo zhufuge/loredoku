@@ -7,6 +7,7 @@ import {
   ErrorCode,
   GAME_COVER_MAX_DIMENSION,
   MAP_COVER_MAX_DIMENSION,
+  PUZZLE_COVER_MAX_DIMENSION,
   THUMBNAIL_MAX_DIMENSION,
   UPLOAD_ALLOWED_MIME,
 } from '@loredoku/shared';
@@ -91,6 +92,14 @@ export async function processMapCover(
   buffer: Buffer,
 ): Promise<ProcessedImage> {
   return processImage('maps', mapId, buffer, MAP_COVER_MAX_DIMENSION);
+}
+
+/** v0.7.1 §7.5: a puzzle's cover art, under `puzzles/<id>/`. */
+export async function processPuzzleCover(
+  puzzleId: number,
+  buffer: Buffer,
+): Promise<ProcessedImage> {
+  return processImage('puzzles', puzzleId, buffer, PUZZLE_COVER_MAX_DIMENSION);
 }
 
 async function processImage(

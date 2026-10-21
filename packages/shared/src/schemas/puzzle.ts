@@ -5,17 +5,20 @@ import {
   GRID_SIZE_MIN,
   LINKAGE_COLOR_MAX_COUNT,
   LINKAGE_COLOR_MIN_COUNT,
+  MAP_NAME_MAX_LENGTH,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
   PUZZLE_JSON_VERSION,
   PUZZLE_NAME_MAX_LENGTH,
 } from '../constants';
-import { characterSlotEntrySchema, mapLinkageColorSchema } from './mapDraft';
+import { characterSlotEntrySchema, mapDraftSchema, mapLinkageColorSchema } from './mapDraft';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 
 /**
- * 谜题引用的已发布地图版本。画布本身**不复制**（见 docs/v0.5.0.md §5.1），
- * `gridSize` 随行以便离线校验。
+ * **v1** 的底图引用（docs/v0.5.0.md §5.1）：只记「哪张图的哪个版本 + 尺寸」，
+ * 画布不复制。v0.7.1 起新数据不再写这个形状（见
+ * {@link puzzleMapSnapshotSchema}），但存量行、导出的旧文件仍按它读取 ——
+ * 所以 schema 留着，只做 v1 读取用。
  *
  * 导入的是用户手里的旧文件，键名不能强制 —— 旧文件里这个字段叫 `projectId`，
  * 收下并归一化成 `mapId`；新数据只有 `mapId`。
@@ -36,6 +39,21 @@ export const puzzleMapRefSchema = z.preprocess(
     })
     .strict(),
 );
+
+/**
+ * **v2** 的底图画布（docs/v0.7.1.md §5.3）：来源信息（展示 / 追溯，无 FK）+
+ * 一份画布副本。谜题因此自带底图，可以独立发布与冻结。
+ *
+ * 尺寸的唯一真源是 `data.gridSize`（高压线 4）——`versionNo` 只用于展示。
+ */
+export const puzzleMapSnapshotSchema = z
+  .object({
+    mapId: z.number().int().positive(),
+    versionNo: z.number().int().positive(),
+    mapName: z.string().trim().max(MAP_NAME_MAX_LENGTH).default(''),
+    data: mapDraftSchema,
+  })
+  .strict();
 
 export const puzzleNameSchema = z
   .string()
@@ -65,19 +83,19 @@ const puzzleLinkageColorsSchema = z
  * `validateParticipantReferences` that only needs the puzzle payload itself:
  *
  *   - `character` targets → another slot's `characterId`
- *   - `cell` targets      → inside `map.gridSize`
+ *   - `cell` targets      → inside the board (`map.data.gridSize`)
  *   - `color`             → a key of **this puzzle's** `linkageColors`
- *   - `positionConditions`→ inside `map.gridSize`
+ *   - `positionConditions`→ inside the board
  *
- * `asset` / `region` targets live in the referenced map version and are checked
- * by `validatePuzzleReferences` (shared `puzzleRefs.ts`), which both the web
- * and the server run.
+ * `asset` / `region` targets live on the puzzle's own copied canvas and are
+ * checked by `validatePuzzleReferences` (shared `puzzleRefs.ts`), which both the
+ * web and the server run.
  */
 function validateSelfConsistentReferences(
   draft: z.output<typeof puzzleDraftBaseSchema>,
   ctx: z.RefinementCtx,
 ): void {
-  const size = draft.map.gridSize;
+  const size = draft.map.data.gridSize;
   const participantIds = new Set<number>();
   for (const slot of draft.characterSlots) {
     if (slot) participantIds.add(slot.characterId);
@@ -137,7 +155,7 @@ function validateSelfConsistentReferences(
 const puzzleDraftBaseSchema = z
   .object({
     version: z.number().int().positive().default(PUZZLE_JSON_VERSION),
-    map: puzzleMapRefSchema,
+    map: puzzleMapSnapshotSchema,
     name: puzzleNameSchema,
     description: puzzleDescriptionSchema.default(''),
     linkageColors: puzzleLinkageColorsSchema,
@@ -197,9 +215,22 @@ export const updatePuzzleSchema = z.object({
   description: puzzleDescriptionSchema.optional().nullable(),
 });
 
+/**
+ * v0.7.1 §6.3: 谜题列表与地图列表同参数 —— `kind` 让「草稿」「版本」两块各自
+ * 分页（前端对同一端点发两个请求，各自的 `total` 才准），关键词与排序也走
+ * 服务端（客户端只能排当前页）。
+ */
+export const listPuzzlesQuerySchema = z.object({
+  keyword: z.string().trim().max(PUZZLE_NAME_MAX_LENGTH).optional(),
+  kind: z.enum(['draft', 'version']).optional(),
+  sort: z.enum(['updatedAt', 'name', 'createdAt']).default('updatedAt'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
+
 export type PuzzleMapRefInput = z.infer<typeof puzzleMapRefSchema>;
 export type PuzzleDraftInput = z.infer<typeof puzzleDraftSchema>;
 export type CreatePuzzleInput = z.infer<typeof createPuzzleSchema>;
 export type SavePuzzleDraftInput = z.infer<typeof savePuzzleDraftSchema>;
 export type ImportPuzzleInput = z.infer<typeof importPuzzleSchema>;
 export type UpdatePuzzleInput = z.infer<typeof updatePuzzleSchema>;
+export type ListPuzzlesQuery = z.infer<typeof listPuzzlesQuerySchema>;

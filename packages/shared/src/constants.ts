@@ -143,7 +143,12 @@ export const MAP_NOTE_MAX_LENGTH = 200;
 // ---- Puzzle ----
 // v0.5.0 FEAT-K08: the puzzle owns participants + the linkage-colour palette and
 // only **references** a published map version (`PuzzleDraft.map`).
-export const PUZZLE_JSON_VERSION = 1;
+//
+// v0.7.1 (docs/v0.7.1.md §5.3): v2 — `map` carries a **copy of the canvas**
+// (`{ mapId, versionNo, mapName, data }`), so a puzzle can be published and
+// frozen on its own. v1 payloads (reference only, no canvas) are still readable
+// but cannot be imported: they have no board to render.
+export const PUZZLE_JSON_VERSION = 2;
 export const PUZZLE_NAME_MAX_LENGTH = 100;
 export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
 
@@ -674,6 +679,9 @@ export const GAME_COVER_MAX_DIMENSION = 960;
 export const MAP_COVER_ASPECT = 16 / 10;
 /** FEAT-H03: stored map covers are capped like game covers. */
 export const MAP_COVER_MAX_DIMENSION = 960;
+
+/** v0.7.1 §7.5: puzzle covers reuse the map's frame and cap. */
+export const PUZZLE_COVER_MAX_DIMENSION = 960;
 
 /** SPEC-G01: a cell holds a 3×3 grid of participant numbers; number font is `cellSize / 4`. */
 export const GAME_NUMBER_GRID = 3;

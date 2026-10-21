@@ -6,17 +6,12 @@ import {
   GAME_SLUG_MAX_LENGTH,
   GAME_SLUG_PATTERN,
 } from '../constants';
-import { mapDraftSchema, characterSlotEntrySchema, mapLinkageColorSchema } from './mapDraft';
-import { puzzleDraftSchema } from './puzzle';
 
 /**
- * FEAT-G02 (docs/v0.4.0.md §5.2) + OPT-W04 (docs/v0.4.1.md §4): the deploy
- * dialog body. The name defaults to the puzzle name but is editable, the access
- * path defaults to `puzzle-{name}-{difficulty}` but is editable, the cover is
- * optional, and the difficulty is one of five tiers.
- *
- * v0.5.0 CONS-K16: **no `versionNo`** — the unit being deployed is a puzzle,
- * and a puzzle pins the map version it draws on, so the route already knows it.
+ * v0.7.1 §7.2: the game row only keeps a cover **path** — mime / size / the two
+ * dimensions are gone (the image is served, not re-rendered). `clearCover` stays
+ * because OPT-W03's keep / replace / remove trichotomy is still the dialog's
+ * behaviour.
  */
 export const gameDeploySchema = z.object({
   name: z
@@ -31,34 +26,10 @@ export const gameDeploySchema = z.object({
     .optional(),
   /** OPT-W03 §3: explicit "remove the cover" — no cover bytes are involved. */
   clearCover: z.boolean().optional(),
-  coverPath: z.string().trim().min(1).nullish(),
-  coverMime: z.string().trim().min(1).nullish(),
-  coverSize: z.number().int().nonnegative().nullish(),
-  coverWidth: z.number().int().nonnegative().nullish(),
-  coverHeight: z.number().int().nonnegative().nullish(),
   difficulty: z
     .enum(GAME_DIFFICULTY_LEVELS)
     .default(GAME_DIFFICULTY_DEFAULT),
 });
-
-/**
- * CONS-K16 (docs/v0.5.0.md §10.1): the frozen payload a game renders, in its
- * **normalised** form — the server lifts a legacy roster out of the map part
- * before storing / serving it, so this schema describes what the game page
- * actually receives.
- */
-export const mapGameSnapshotSchema = z
-  .object({
-    map: mapDraftSchema,
-    puzzle: puzzleDraftSchema.nullable(),
-    /** v0.4.x compatibility: the roster used to live inside the map draft. */
-    legacyCharacterSlots: z.array(characterSlotEntrySchema.nullable()).optional(),
-    /** v0.4.x compatibility: the palette used to live in `map.style`. */
-    legacyLinkageColors: z.array(mapLinkageColorSchema).optional(),
-  })
-  .strict();
-
-export type MapGameSnapshotInput = z.infer<typeof mapGameSnapshotSchema>;
 
 /**
  * SPEC-G01 (docs/v0.4.0.md §7.1): what one cell of the 游戏放置层 holds.

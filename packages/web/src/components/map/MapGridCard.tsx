@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/format';
 import { formatRelativeTime } from '@/lib/relativeTime';
-import { MapEntryActionsMenu } from './MapEntryActionsMenu';
+import { EntryActionsMenu } from '@/components/common/EntryActionsMenu';
 
 /**
  * 卡片：封面 + 名称 + 描述 + 「尺寸 … 时间」一行。
@@ -96,7 +96,7 @@ export function MapGridCard({
             {isVersion ? '以此为底稿新建' : '进入编辑'}
           </Button>
           <div className="ml-auto flex items-center gap-1">
-            <MapEntryActionsMenu
+            <EntryActionsMenu
               entry={entry}
               onEditInfo={onRename}
               onPreview={onPreview}

@@ -160,31 +160,53 @@ async function publishedMapWithItem(
   return { mapId, assetId, versionNo };
 }
 
-/** A puzzle bound to a published version — enough for a deploy. */
+/** 一个新谜题（只有草稿行），底图复制自一张刚发布的地图版本。 */
 async function puzzleWithVersion(
   name: string,
-): Promise<{ mapId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
+): Promise<{ mapId: number; draftId: number; puzzleName: string }> {
   const mapId = await createMap({ name, gridSize: 6 });
   const versionNo = await publish(mapId);
   const puzzleName = `${name} 谜题`;
-  const puzzleId = await createPuzzle({ name: puzzleName, mapId: mapId, mapVersionNo: versionNo });
-  return { mapId, puzzleId, versionNo, puzzleName };
+  const draftId = await createPuzzle({
+    name: puzzleName,
+    mapId: mapId,
+    mapVersionNo: versionNo,
+  });
+  return { mapId, draftId, puzzleName };
 }
 
-/** The same, plus one participant with an avatar on the roster. */
-async function deployablePuzzle(
-  name: string,
-): Promise<{ mapId: number; puzzleId: number; versionNo: number; puzzleName: string }> {
+/** 发布一个谜题，返回**版本行 id** —— 部署的单位（草稿行不能部署）。 */
+async function publishPuzzle(puzzleId: number, version?: number): Promise<number> {
+  const res = await api
+    .post(`/api/puzzles/${puzzleId}/versions`)
+    .send(version === undefined ? {} : { version });
+  expect(res.status).toBe(200);
+  const id = res.body.data.id as number;
+  // 版本行是**新插入的行**，也要单独记账（草稿行删了扫不到它）。
+  createdPuzzles.push(id);
+  return id;
+}
+
+/** 一个已发布的谜题：名册上有一位带头像的参与者，可以部署。 */
+async function deployablePuzzle(name: string): Promise<{
+  mapId: number;
+  draftId: number;
+  versionId: number;
+  versionNo: number;
+  puzzleName: string;
+}> {
   const context = await puzzleWithVersion(name);
   const characterId = await createCharacterWithAvatar();
-  const initial = await api.get(`/api/puzzles/${context.puzzleId}`);
+  const initial = await api.get(`/api/puzzles/${context.draftId}`);
   const draft = initial.body.data.data;
   draft.characterSlots[0] = { characterId };
   const saved = await api
-    .put(`/api/puzzles/${context.puzzleId}`)
+    .put(`/api/puzzles/${context.draftId}`)
     .send({ data: draft, updatedAt: initial.body.data.updatedAt });
   expect(saved.status).toBe(200);
-  return context;
+
+  const versionId = await publishPuzzle(context.draftId);
+  return { ...context, versionId, versionNo: 1 };
 }
 
 describe('旧接口前缀', () => {
@@ -968,14 +990,18 @@ describe('puzzles API (FEAT-K01)', () => {
     const list = await api.get('/api/puzzles');
     expect(list.status).toBe(200);
     const row = (
-      list.body.data as Array<{
+      list.body.data.list as Array<{
         id: number;
+        kind: string;
+        versionNo: number | null;
         mapVersionNo: number;
         mapId: number;
         mapName: string;
         deployed: boolean;
       }>
     ).find((entry) => entry.id === id);
+    expect(row?.kind).toBe('draft');
+    expect(row?.versionNo).toBeNull();
     expect(row?.mapVersionNo).toBe(versionNo);
     expect(row?.mapId).toBe(mapId);
     expect(row?.mapName).toContain('Pz');
@@ -986,8 +1012,13 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(detail.body.data.name).toBe('谜题一');
     expect(detail.body.data.description).toBe('第一题');
     expect(detail.body.data.gridSize).toBe(6);
-    // The reference is recorded, but the canvas is not copied (§5.1).
-    expect(detail.body.data.data.map).toEqual({ mapId, versionNo, gridSize: 6 });
+    // v2：来源信息 + 一份画布副本（§5.3）。
+    expect(detail.body.data.data.version).toBe(2);
+    expect(detail.body.data.data.map.mapId).toBe(mapId);
+    expect(detail.body.data.data.map.versionNo).toBe(versionNo);
+    expect(detail.body.data.data.map.mapName).toContain('Pz');
+    expect(detail.body.data.data.map.data.gridSize).toBe(6);
+    expect(detail.body.data.data.map.data.cells['0,0'].item.assetId).toBe(assetId);
     expect(detail.body.data.data.characterSlots).toHaveLength(6);
     expect(
       detail.body.data.data.characterSlots.every((slot: unknown) => slot === null),
@@ -995,9 +1026,8 @@ describe('puzzles API (FEAT-K01)', () => {
     // The palette is seeded from the version (here: the shipped red / blue pair).
     expect(detail.body.data.data.linkageColors.length).toBeGreaterThanOrEqual(2);
 
-    // The canvas lives on the version, not in the puzzle payload.
+    // 画布只在自己的 `map` 块里，谜题 payload 顶层没有第二份。
     expect(detail.body.data.data.cells).toBeUndefined();
-    expect(assetId).toBeGreaterThan(0);
   });
 
   it('rejects a puzzle whose map version was never published', async () => {
@@ -1019,8 +1049,8 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
-  /** §5.1 + Q16: the canvas is read-only and its style has no palette. */
-  it('serves the referenced canvas read-only and strips the palette (Q16)', async () => {
+  /** §5.3: 编辑器渲染的画布来自谜题自己的副本，且 style 里没有调色板。 */
+  it('serves the copied canvas read-only and strips the palette', async () => {
     const { mapId, assetId, versionNo } = await publishedMapWithItem(`Ctx ${uniqueCode('p')}`);
     const id = await createPuzzle({ name: '只读画布', mapId: mapId, mapVersionNo: versionNo });
 
@@ -1064,28 +1094,35 @@ describe('puzzles API (FEAT-K01)', () => {
 
     // The row mirrors the JSON, so the list and the export never drift apart.
     const list = await api.get('/api/puzzles');
-    const row = (list.body.data as Array<{ id: number; name: string; description: string | null }>).find(
-      (entry) => entry.id === id,
-    );
+    const row = (
+      list.body.data.list as Array<{ id: number; name: string; description: string | null }>
+    ).find((entry) => entry.id === id);
     expect(row?.name).toBe('改名后');
     expect(row?.description).toBe('描述也改了');
   });
 
-  /** The reference is the server's — a payload can never repoint a puzzle. */
-  it('forces the stored map reference back on save', async () => {
+  /** 底图快照是服务端的 —— payload 既不能换图，也不能改画布。 */
+  it('forces the stored map snapshot back on save', async () => {
     const a = await publishedMapWithItem(`RefA ${uniqueCode('p')}`);
     const b = await publishedMapWithItem(`RefB ${uniqueCode('p')}`);
     const id = await createPuzzle({ name: '引用', mapId: a.mapId, mapVersionNo: a.versionNo });
 
     const initial = await api.get(`/api/puzzles/${id}`);
     const draft = initial.body.data.data;
-    draft.map = { mapId: b.mapId, versionNo: b.versionNo, gridSize: 6 };
+    draft.map = {
+      mapId: b.mapId,
+      versionNo: b.versionNo,
+      mapName: '偷换的底图',
+      data: { ...draft.map.data, cells: {} },
+    };
     const saved = await api
       .put(`/api/puzzles/${id}`)
       .send({ data: draft, updatedAt: initial.body.data.updatedAt });
     expect(saved.status).toBe(200);
     expect(saved.body.data.data.map.mapId).toBe(a.mapId);
     expect(saved.body.data.data.map.versionNo).toBe(a.versionNo);
+    // 画布也退回存量那份（B 是空画布，A 有一个资源）。
+    expect(saved.body.data.data.map.data.cells['0,0'].item).toBeDefined();
   });
 
   /** §5.2: `asset` / `region` targets are checked against the referenced canvas. */
@@ -1177,14 +1214,14 @@ describe('puzzles API (FEAT-K01)', () => {
 // ---- v0.4.0 FEAT-G02 + v0.5.0 CONS-K16: the unit of deployment is a puzzle ----
 describe('games API (FEAT-G02 + CONS-K16)', () => {
   it('deploys a puzzle and lists it on the games home page', async () => {
-    const { puzzleId } = await deployablePuzzle(`Game ${uniqueCode('p')}`);
+    const { versionId } = await deployablePuzzle(`Game ${uniqueCode('p')}`);
     const slug = uniqueSlug('mystery-castle');
 
     const deploy = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ name: '神秘古堡', slug, difficulty: 'hard' });
     expect(deploy.status).toBe(200);
-    expect(deploy.body.data.puzzleId).toBe(puzzleId);
+    expect(deploy.body.data.puzzleId).toBe(versionId);
     expect(deploy.body.data.name).toBe('神秘古堡');
     expect(deploy.body.data.difficulty).toBe('hard');
     expect(deploy.body.data.gridSize).toBe(6);
@@ -1196,53 +1233,55 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
     const list = await api.get('/api/games');
     expect(list.status).toBe(200);
     const row = (list.body.data as Array<{ puzzleId: number | null; name: string }>).find(
-      (entry) => entry.puzzleId === puzzleId,
+      (entry) => entry.puzzleId === versionId,
     );
     expect(row?.name).toBe('神秘古堡');
 
     // FEAT-G02 §5.1: the puzzle table now badges the row as deployed.
     const puzzles = await api.get('/api/puzzles');
     expect(
-      (puzzles.body.data as Array<{ id: number; deployed: boolean }>).find(
-        (entry) => entry.id === puzzleId,
+      (puzzles.body.data.list as Array<{ id: number; deployed: boolean }>).find(
+        (entry) => entry.id === versionId,
       )?.deployed,
     ).toBe(true);
 
     const detail = await api.get(`/api/games/${deploy.body.data.id}`);
     expect(detail.status).toBe(200);
-    // CONS-K16: the frozen snapshot carries both halves — canvas + puzzle.
-    expect(detail.body.data.snapshot.map.gridSize).toBe(6);
-    expect(detail.body.data.snapshot.puzzle.characterSlots[0]).not.toBeNull();
+    // §7.3：游戏只引用谜题行，画布与名册直接读它 —— 没有快照拷贝。
+    expect(detail.body.data.map.gridSize).toBe(6);
+    expect(detail.body.data.puzzle.characterSlots[0]).not.toBeNull();
+    expect(detail.body.data.puzzleVersionNo).toBe(1);
+    expect(detail.body.data.snapshot).toBeUndefined();
   });
 
   it('defaults the game name to the puzzle name and the difficulty to medium', async () => {
-    const { puzzleId, puzzleName } = await deployablePuzzle(`Defaulted ${uniqueCode('p')}`);
+    const { versionId, puzzleName } = await deployablePuzzle(`Defaulted ${uniqueCode('p')}`);
 
-    const deploy = await api.post(`/api/puzzles/${puzzleId}/games`).send({});
+    const deploy = await api.post(`/api/puzzles/${versionId}/games`).send({});
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.name).toBe(puzzleName);
     expect(deploy.body.data.difficulty).toBe('medium');
   });
 
   it('keeps one game per puzzle — a later deploy overwrites the earlier one', async () => {
-    const { puzzleId } = await deployablePuzzle(`Overwrite ${uniqueCode('p')}`);
+    const { versionId } = await deployablePuzzle(`Overwrite ${uniqueCode('p')}`);
 
     const first = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ name: '第一版', slug: uniqueSlug('first'), difficulty: 'easy' });
     expect(first.status).toBe(200);
 
     const second = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ name: '第二版', slug: uniqueSlug('second'), difficulty: 'expert' });
     expect(second.status).toBe(200);
     expect(second.body.data.id).not.toBe(first.body.data.id);
-    // The puzzle pins its version, so a re-deploy never moves it.
-    expect(second.body.data.versionNo).toBe(1);
+    // 游戏挂在版本行上，所以摘要里的版本号就是那个版本。
+    expect(second.body.data.puzzleVersionNo).toBe(1);
 
     const list = await api.get('/api/games');
     const rows = (list.body.data as Array<{ id: number; puzzleId: number | null }>).filter(
-      (entry) => entry.puzzleId === puzzleId,
+      (entry) => entry.puzzleId === versionId,
     );
     expect(rows).toHaveLength(1);
     expect(rows[0]!.id).toBe(second.body.data.id);
@@ -1255,14 +1294,14 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
   });
 
   it('rejects an unknown difficulty and an empty name', async () => {
-    const { puzzleId } = await deployablePuzzle(`Invalid ${uniqueCode('p')}`);
+    const { versionId } = await deployablePuzzle(`Invalid ${uniqueCode('p')}`);
 
     const badDifficulty = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ difficulty: 'nightmare' });
     expect(badDifficulty.status).toBe(400);
 
-    const emptyName = await api.post(`/api/puzzles/${puzzleId}/games`).send({ name: '   ' });
+    const emptyName = await api.post(`/api/puzzles/${versionId}/games`).send({ name: '   ' });
     expect(emptyName.status).toBe(400);
   });
 
@@ -1273,9 +1312,9 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
   });
 
   it('uploads a cover for a deployed game', async () => {
-    const { puzzleId } = await deployablePuzzle(`Cover ${uniqueCode('p')}`);
+    const { versionId } = await deployablePuzzle(`Cover ${uniqueCode('p')}`);
     const deploy = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ name: '带封面', slug: uniqueSlug('with-cover') });
     const gameId = deploy.body.data.id as number;
 
@@ -1300,10 +1339,10 @@ describe('games API slug (OPT-W04)', () => {
 
   it('derives puzzle-{name}-{difficulty} when the path is left untouched', async () => {
     const hex = token();
-    const { puzzleId } = await deployablePuzzle(`Flower Garden ${hex}`);
+    const { versionId } = await deployablePuzzle(`Flower Garden ${hex}`);
 
     const deploy = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ name: `Flower Garden ${hex}`, difficulty: 'veryEasy' });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
@@ -1311,7 +1350,7 @@ describe('games API slug (OPT-W04)', () => {
     // The list carries the slug so the card can link straight to it.
     const list = await api.get('/api/games');
     const row = (list.body.data as Array<{ puzzleId: number | null; slug: string }>).find(
-      (entry) => entry.puzzleId === puzzleId,
+      (entry) => entry.puzzleId === versionId,
     );
     expect(row?.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
 
@@ -1320,7 +1359,7 @@ describe('games API slug (OPT-W04)', () => {
     expect(detail.status).toBe(200);
     expect(detail.body.data.id).toBe(deploy.body.data.id);
     expect(detail.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
-    expect(detail.body.data.snapshot.puzzle.characterSlots[0]).not.toBeNull();
+    expect(detail.body.data.puzzle.characterSlots[0]).not.toBeNull();
 
     // The by-id route still works (cover upload and internal callers).
     const byId = await api.get(`/api/games/${deploy.body.data.id}`);
@@ -1328,11 +1367,11 @@ describe('games API slug (OPT-W04)', () => {
   });
 
   it('honours an explicitly typed path (Q15: no puzzle- prefix required)', async () => {
-    const { puzzleId, puzzleName } = await deployablePuzzle(`Custom ${token()}`);
+    const { versionId, puzzleName } = await deployablePuzzle(`Custom ${token()}`);
     const slug = `my-map-${token()}`;
 
     const deploy = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ slug, difficulty: 'hard' });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.slug).toBe(slug);
@@ -1346,15 +1385,15 @@ describe('games API slug (OPT-W04)', () => {
 
   it('rejects a path owned by another puzzle and stores nothing (Q12)', async () => {
     const slug = `shared-path-${token()}`;
-    const first = await puzzleWithVersion(`Owner ${token()}`);
+    const first = await deployablePuzzle(`Owner ${token()}`);
     const ok = await api
-      .post(`/api/puzzles/${first.puzzleId}/games`)
+      .post(`/api/puzzles/${first.versionId}/games`)
       .send({ slug, difficulty: 'easy' });
     expect(ok.status).toBe(200);
 
-    const second = await puzzleWithVersion(`Thief ${token()}`);
+    const second = await deployablePuzzle(`Thief ${token()}`);
     const clash = await api
-      .post(`/api/puzzles/${second.puzzleId}/games`)
+      .post(`/api/puzzles/${second.versionId}/games`)
       .send({ slug, difficulty: 'easy' });
     expect(clash.status).toBe(400);
     expect(clash.body.code).toBe(ErrorCode.VALIDATION_FAILED);
@@ -1363,42 +1402,42 @@ describe('games API slug (OPT-W04)', () => {
     // Nothing was written for the second puzzle.
     const list = await api.get('/api/games');
     const rows = (list.body.data as Array<{ puzzleId: number | null }>).filter(
-      (entry) => entry.puzzleId === second.puzzleId,
+      (entry) => entry.puzzleId === second.versionId,
     );
     expect(rows).toHaveLength(0);
   });
 
   it('lets the same puzzle re-deploy its own path — an overwrite is not a conflict', async () => {
     const slug = `mine-${token()}`;
-    const { puzzleId } = await puzzleWithVersion(`Mine ${token()}`);
+    const { versionId } = await deployablePuzzle(`Mine ${token()}`);
 
     const first = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ slug, difficulty: 'easy' });
     expect(first.status).toBe(200);
 
     const second = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ slug, difficulty: 'hard' });
     expect(second.status).toBe(200);
     expect(second.body.data.slug).toBe(slug);
 
     const list = await api.get('/api/games');
     const rows = (list.body.data as Array<{ puzzleId: number | null }>).filter(
-      (entry) => entry.puzzleId === puzzleId,
+      (entry) => entry.puzzleId === versionId,
     );
     expect(rows).toHaveLength(1);
   });
 
   it('rejects an explicitly blank path instead of silently deriving one', async () => {
-    const { puzzleId } = await puzzleWithVersion(`Blank ${token()}`);
-    const res = await api.post(`/api/puzzles/${puzzleId}/games`).send({ slug: '   ' });
+    const { versionId } = await deployablePuzzle(`Blank ${token()}`);
+    const res = await api.post(`/api/puzzles/${versionId}/games`).send({ slug: '   ' });
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('访问路径必填');
   });
 
   it('rejects a malformed or over-long path before it reaches the database', async () => {
-    const { puzzleId } = await puzzleWithVersion(`Bad ${token()}`);
+    const { versionId } = await deployablePuzzle(`Bad ${token()}`);
     const rejected = [
       'with space',
       'under_score',
@@ -1409,7 +1448,7 @@ describe('games API slug (OPT-W04)', () => {
       'x'.repeat(81),
     ];
     for (const slug of rejected) {
-      const res = await api.post(`/api/puzzles/${puzzleId}/games`).send({ slug });
+      const res = await api.post(`/api/puzzles/${versionId}/games`).send({ slug });
       expect(res.status, slug).toBe(400);
       expect(res.body.code, slug).toBe(ErrorCode.VALIDATION_FAILED);
     }
@@ -1417,26 +1456,26 @@ describe('games API slug (OPT-W04)', () => {
 
   it('folds an uppercase path to lowercase rather than rejecting it', async () => {
     // The dialog normalises while typing; the server is forgiving the same way.
-    const { puzzleId } = await puzzleWithVersion(`Fold ${token()}`);
+    const { versionId } = await deployablePuzzle(`Fold ${token()}`);
     const hex = token();
     const res = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ slug: `Puzzle-${hex.toUpperCase()}` });
     expect(res.status).toBe(200);
     expect(res.body.data.slug).toBe(`puzzle-${hex}`);
   });
 
   it('asks for a manual path when the name derives nothing (Q13)', async () => {
-    const { puzzleId } = await puzzleWithVersion(`汉字项目 ${token()}`);
+    const { versionId } = await deployablePuzzle(`汉字项目 ${token()}`);
     const res = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ name: '神秘古堡', difficulty: 'medium' });
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）');
 
     // …and taking the hint works.
     const typed = await api
-      .post(`/api/puzzles/${puzzleId}/games`)
+      .post(`/api/puzzles/${versionId}/games`)
       .send({ name: '神秘古堡', slug: `mystery-castle-${token()}`, difficulty: 'medium' });
     expect(typed.status).toBe(200);
   });
@@ -1451,6 +1490,170 @@ describe('games API slug (OPT-W04)', () => {
     const res = await api.get('/api/games/slug/Not%20A%20Slug');
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+  });
+});
+
+/**
+ * v0.7.1 §5.2 / §7.1：谜题有了版本，部署的单位从「谜题」变成「谜题版本行」。
+ *
+ * 这一组钉住四层拦截的第三层（服务端 400）与两个唯一约束的分工：
+ * 草稿行不能部署、版本行只读、号不回收、删掉的 slug 可以重用。
+ */
+describe('v0.7.1 谜题版本与部署', () => {
+  it('草稿行不能部署 —— 只有已发布的版本可以', async () => {
+    const { draftId } = await puzzleWithVersion(`DraftDeploy ${uniqueCode('p')}`);
+    const res = await api
+      .post(`/api/puzzles/${draftId}/games`)
+      .send({ name: 'X', slug: uniqueSlug('draft-deploy') });
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.message).toBe('只有已发布的谜题版本可以部署');
+  });
+
+  it('发布产生版本行：名册为空拒绝，号 MAX+1 且不回收，版本行只读', async () => {
+    const { draftId } = await puzzleWithVersion(`Publish ${uniqueCode('p')}`);
+
+    // 名册一位参与者都没有 —— 部署出去也没法玩，发布前就挡住。
+    const empty = await api.post(`/api/puzzles/${draftId}/versions`).send({});
+    expect(empty.status).toBe(422);
+    expect(empty.body.code).toBe(ErrorCode.PUBLISH_VALIDATION_FAILED);
+    expect(empty.body.message).toBe('发布校验未通过');
+
+    const characterId = await createCharacter();
+    const initial = await api.get(`/api/puzzles/${draftId}`);
+    const draft = initial.body.data.data;
+    draft.characterSlots[0] = { characterId, linkages: [] };
+    const saved = await api
+      .put(`/api/puzzles/${draftId}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(saved.status).toBe(200);
+
+    const v1 = await api.post(`/api/puzzles/${draftId}/versions`).send({});
+    expect(v1.status).toBe(200);
+    expect(v1.body.data.kind).toBe('version');
+    expect(v1.body.data.versionNo).toBe(1);
+    // 发布 = INSERT 一条新行，草稿行不动。
+    expect(v1.body.data.id).not.toBe(draftId);
+    createdPuzzles.push(v1.body.data.id as number);
+
+    // 版本行只读：改名 / 保存 / 封面上传一律 400。
+    const patched = await api.patch(`/api/puzzles/${v1.body.data.id}`).send({ name: '改名' });
+    expect(patched.status).toBe(400);
+    const rewritten = await api
+      .put(`/api/puzzles/${v1.body.data.id}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(rewritten.status).toBe(400);
+    const cover = await api.delete(`/api/puzzles/${v1.body.data.id}/cover`);
+    expect(cover.status).toBe(400);
+
+    // 号可自定义（填空洞），活行重号 400，软删之后仍然不许复用。
+    const v5 = await api.post(`/api/puzzles/${draftId}/versions`).send({ version: 5 });
+    expect(v5.body.data.versionNo).toBe(5);
+    createdPuzzles.push(v5.body.data.id as number);
+    const dupe = await api.post(`/api/puzzles/${draftId}/versions`).send({ version: 5 });
+    expect(dupe.status).toBe(400);
+    expect(dupe.body.message).toContain('已存在');
+
+    await api.delete(`/api/puzzles/${draftId}/versions/5`);
+    const reuse = await api.post(`/api/puzzles/${draftId}/versions`).send({ version: 5 });
+    expect(reuse.status).toBe(400);
+    const next = await api.post(`/api/puzzles/${draftId}/versions`).send({});
+    expect(next.body.data.versionNo).toBe(6);
+    createdPuzzles.push(next.body.data.id as number);
+
+    // 血统的版本历史按号倒序，软删的 v5 不出现。
+    const lineage = await api.get(`/api/puzzles/${draftId}/versions`);
+    expect(lineage.body.data.map((row: { versionNo: number }) => row.versionNo)).toEqual([6, 1]);
+  });
+
+  it('编辑此版本 = fork 出新草稿行，版本行不动', async () => {
+    const { draftId, versionId } = await deployablePuzzle(`Fork ${uniqueCode('p')}`);
+    const owner = await api.get(`/api/puzzles/${draftId}`);
+
+    const forked = await api.post(`/api/puzzles/${versionId}/versions/1/fork`);
+    expect(forked.status).toBe(200);
+    createdPuzzles.push(forked.body.data.id as number);
+    expect(forked.body.data.kind).toBe('draft');
+    expect(forked.body.data.versionNo).toBeNull();
+    expect(forked.body.data.rootId).toBe(owner.body.data.rootId);
+    // 名字带来源，血统里多份草稿才分得清。
+    expect(forked.body.data.name).toContain('自 v1');
+    // 名册跟着复制过来（fork 的是内容，不是空壳）。
+    expect(forked.body.data.data.characterSlots[0]).not.toBeNull();
+  });
+
+  it('同一谜题两个版本的默认路径相同 —— 第二个被服务端挡住（Q10）', async () => {
+    const { draftId, versionId, puzzleName } = await deployablePuzzle(`Same ${uniqueCode('p')}`);
+    const first = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ name: puzzleName, difficulty: 'medium' });
+    expect(first.status).toBe(200);
+
+    // 从 v1 fork 出草稿，直接发布成 v2（名册已复制，校验能过）。
+    const forked = await api.post(`/api/puzzles/${versionId}/versions/1/fork`);
+    const forkedId = forked.body.data.id as number;
+    createdPuzzles.push(forkedId);
+    const v2 = await publishPuzzle(forkedId);
+
+    // 中段不带版本号，所以名称相同 ⇒ 默认路径相同。
+    const clash = await api
+      .post(`/api/puzzles/${v2}/games`)
+      .send({ name: puzzleName, difficulty: 'medium' });
+    expect(clash.status).toBe(400);
+    expect(clash.body.message).toContain('已被占用');
+
+    // 作者在中段里写点别的即可。
+    const ok = await api
+      .post(`/api/puzzles/${v2}/games`)
+      .send({ name: puzzleName, slug: uniqueSlug('same-second'), difficulty: 'medium' });
+    expect(ok.status).toBe(200);
+  });
+
+  it('取消部署是假删：列表消失、玩家链接 404、同一 slug 可以再用', async () => {
+    const { draftId, versionId } = await deployablePuzzle(`Cancel ${uniqueCode('p')}`);
+    const slug = uniqueSlug('cancel');
+    const deploy = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug, difficulty: 'easy' });
+    expect(deploy.status).toBe(200);
+    const gameId = deploy.body.data.id as number;
+
+    // 版本行挂着游戏时不许删 —— 否则在线链接会指向不存在的谜题。
+    const blocked = await api.delete(`/api/puzzles/${versionId}/versions/1`);
+    expect(blocked.status).toBe(400);
+    expect(blocked.body.message).toContain('取消部署');
+
+    // 取消部署：行还在（假删），三个可见面同时消失。
+    const cancelled = await api.delete(`/api/games/${gameId}`);
+    expect(cancelled.status).toBe(200);
+    expect((await api.get(`/api/games/${gameId}`)).status).toBe(404);
+    expect((await api.get(`/api/games/slug/${slug}`)).status).toBe(404);
+    const list = await api.get('/api/games');
+    expect(
+      (list.body.data as Array<{ id: number }>).some((row) => row.id === gameId),
+    ).toBe(false);
+    // 谜题列表的「已部署」徽标同步消失。
+    const puzzles = await api.get('/api/puzzles?kind=version');
+    expect(
+      (puzzles.body.data.list as Array<{ id: number; deployed: boolean }>).find(
+        (row) => row.id === versionId,
+      )?.deployed,
+    ).toBe(false);
+
+    // slug 被释放：同一路径可以重新部署。
+    const again = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug, difficulty: 'easy' });
+    expect(again.status).toBe(200);
+    expect(again.body.data.slug).toBe(slug);
+
+    // 取消之后版本行才删得掉（软删 → 详情 404）。
+    await api.delete(`/api/games/${again.body.data.id as number}`);
+    const removed = await api.delete(`/api/puzzles/${versionId}/versions/1`);
+    expect(removed.status).toBe(200);
+    expect((await api.get(`/api/puzzles/${versionId}`)).status).toBe(404);
+    // 草稿行不受影响。
+    expect((await api.get(`/api/puzzles/${draftId}`)).status).toBe(200);
   });
 });
 
@@ -1700,10 +1903,11 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
 
 afterAll(async () => {
   const { db } = await import('../src/db/knex');
-  // Puzzles first: `puzzles.map_project_id` is ON DELETE RESTRICT, so a map
-  // that still has a puzzle cannot be deleted. Deleting a puzzle demotes its
-  // game (`map_games.puzzle_id` → NULL), which the map cascade then removes.
-  if (createdPuzzles.length) await db('puzzles').whereIn('id', createdPuzzles).del();
+  // 游戏先删：`games.puzzle_id` 是 ON DELETE RESTRICT，谜题还挂着游戏时删不掉。
+  if (createdPuzzles.length) {
+    await db('games').whereIn('puzzle_id', createdPuzzles).del();
+    await db('puzzles').whereIn('id', createdPuzzles).del();
+  }
   // v0.5.8 第三阶段：先删这批用例自己记账的版本行（有些工作条目已被删，按
   // root_id 扫不到），再按血统兜一遍，最后删草稿行。
   if (createdVersionRows.length) await db('maps').whereIn('id', createdVersionRows).del();

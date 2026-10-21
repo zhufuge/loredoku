@@ -1,16 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import {
-  ChevronDown,
-  Download,
-  Eye,
-  Loader2,
-  Pencil,
-  Plus,
-  Rocket,
-  Trash2,
-} from 'lucide-react';
-import type { MapGameSummary, PuzzleSummary } from '@loredoku/shared';
+import { LayoutGrid, List, Loader2, Plus, Search } from 'lucide-react';
+import type { MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -21,464 +12,402 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { entryPreviewable } from '@/components/common/EntryActionsMenu';
 import { CreatePuzzleDialog } from '@/components/puzzle/CreatePuzzleDialog';
+import { EditPuzzleDialog } from '@/components/puzzle/EditPuzzleDialog';
+import { PuzzleGridCard } from '@/components/puzzle/PuzzleGridCard';
+import { PuzzleListRow } from '@/components/puzzle/PuzzleListRow';
 import { GameDeployDialog } from '@/components/game/GameDeployDialog';
-import { puzzlesApi } from '@/api/puzzles';
-import { useDeletePuzzle, useDuplicatePuzzle, usePuzzles } from '@/hooks/usePuzzles';
 import { useGames } from '@/hooks/useGames';
-import { formatDateTimeMinute } from '@/lib/format';
 import {
-  buildPuzzlesTable,
-  collectPuzzleMaps,
-  EMPTY_PUZZLE_FILTERS,
-  PUZZLES_PAGE_SIZE_OPTIONS,
-  type PuzzleFilters,
-} from '@/lib/puzzlesTable';
-import { cn } from '@/lib/utils';
+  useDeletePuzzle,
+  useDeletePuzzleVersion,
+  useDuplicatePuzzle,
+  useForkPuzzleVersion,
+  usePuzzles,
+} from '@/hooks/usePuzzles';
 
-/**
- * SPEC-K02 (docs/v0.5.0.md §2.3): the puzzle table is the old works table
- * **verbatim** — five columns in the same order with the same wording, the same
- * filter bar, the same paging bar and the same row buttons. Only the values are
- * the puzzle's now (see the mapping table in §2.3), and the page gains one
- * thing: a 「新建谜题」 primary button (§2.4).
- */
-const COLUMNS = ['名称', '版本', '部署状态', '发布时间', '操作'] as const;
+const PAGE_SIZE = 12;
 
-/** §5.3 按地图筛选 — a checkbox dropdown so several maps can be picked. */
-function MapFilter({
-  maps,
-  selected,
-  onChange,
-}: {
-  maps: Array<{ id: number; name: string }>;
-  selected: number[];
-  onChange: (ids: number[]) => void;
-}): JSX.Element {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+/** 视图选择持久化 —— 纯展示偏好，与地图列表各记各的。 */
+const VIEW_STORAGE_KEY = 'loredoku.puzzles.view';
 
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: PointerEvent): void => {
-      if (containerRef.current?.contains(event.target as Node)) return;
-      setOpen(false);
-    };
-    window.addEventListener('pointerdown', onPointerDown);
-    return () => window.removeEventListener('pointerdown', onPointerDown);
-  }, [open]);
+type ViewMode = 'grid' | 'list';
 
-  const selectedSet = new Set(selected);
-  const label =
-    selected.length === 0
-      ? '全部地图'
-      : selected.length === 1
-        ? maps.find((map) => map.id === selected[0])?.name ?? '1 个地图'
-        : `${selected.length} 个地图`;
-
-  return (
-    <div ref={containerRef} className="relative">
-      <Button
-        variant="outline"
-        className="h-9 w-48 justify-between font-normal"
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span className="truncate">{label}</span>
-        <ChevronDown className="ml-1 h-4 w-4 shrink-0 opacity-60" />
-      </Button>
-      {open ? (
-        <div className="absolute right-0 z-30 mt-1 max-h-72 w-56 overflow-y-auto rounded-md border bg-background p-1 shadow-lg">
-          <button
-            type="button"
-            className="w-full rounded px-2 py-1.5 text-left text-xs text-muted-foreground hover:bg-accent"
-            onClick={() => onChange([])}
-          >
-            清空选择（全部地图）
-          </button>
-          {maps.length === 0 ? (
-            <p className="px-2 py-2 text-xs text-muted-foreground">暂无可筛选的地图</p>
-          ) : (
-            maps.map((map) => (
-              <label
-                key={map.id}
-                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-accent"
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedSet.has(map.id)}
-                  onChange={(event) =>
-                    onChange(
-                      event.target.checked
-                        ? [...selected, map.id]
-                        : selected.filter((id) => id !== map.id),
-                    )
-                  }
-                />
-                <span className="truncate">{map.name}</span>
-              </label>
-            ))
-          )}
-        </div>
-      ) : null}
-    </div>
-  );
+function readStoredView(): ViewMode {
+  if (typeof window === 'undefined') return 'grid';
+  return window.localStorage.getItem(VIEW_STORAGE_KEY) === 'list' ? 'list' : 'grid';
 }
 
+type SortOption = 'updatedAt' | 'name';
+
+/**
+ * 谜题列表与地图列表同构（v0.7.1 §6）：正文拆「草稿」「版本」两块，
+ * **两块各自分页** —— 同一端点带 `kind` 发两个请求，各带自己的页号与 `total`。
+ * 并集分页时期两块共享一页，版本密集时某一页可能只出现版本块、草稿全在别页。
+ *
+ * 关键词与排序都走服务端（客户端只能排当前页）。排序两块共用一套。
+ *
+ * 按钮集与地图一致（编辑信息 / 预览 / 复制 / 删除），只多一个**部署**：
+ * 它只出现在版本条目上 —— 草稿永远不满足「已发布」，按钮连渲染都不渲染。
+ */
 export function PuzzlesPage(): JSX.Element {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const puzzlesQuery = usePuzzles();
-  const gamesQuery = useGames();
-  const deletePuzzle = useDeletePuzzle();
-  const duplicatePuzzle = useDuplicatePuzzle();
-
-  const [filters, setFilters] = useState<PuzzleFilters>(EMPTY_PUZZLE_FILTERS);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState<number>(PUZZLES_PAGE_SIZE_OPTIONS[0]);
-  const [deleteTarget, setDeleteTarget] = useState<PuzzleSummary | null>(null);
-  const [deployTarget, setDeployTarget] = useState<PuzzleSummary | null>(null);
-  /**
-   * §2.4: `?new={mapId}:{versionNo}` — a version entry in the map list
-   * sends the author here with the map version already picked.
-   */
+  const [draftPage, setDraftPage] = useState(1);
+  const [versionPage, setVersionPage] = useState(1);
+  const [keywordInput, setKeywordInput] = useState('');
+  const [keyword, setKeyword] = useState('');
+  const [sort, setSort] = useState<SortOption>('updatedAt');
+  const [view, setView] = useState<ViewMode>(readStoredView);
+  /** `?new={mapId}:{versionNo}` —— 从地图列表「以此版本新建谜题」过来。 */
   const [createOpen, setCreateOpen] = useState(() => searchParams.get('new') !== null);
+  const [editTarget, setEditTarget] = useState<PuzzleEntrySummary | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<PuzzleEntrySummary | null>(null);
+  /** 只有版本条目会进这里（草稿行不渲染部署按钮）。 */
+  const [deployTarget, setDeployTarget] = useState<PuzzleEntrySummary | null>(null);
 
   useEffect(() => {
     document.title = '谜题 · 格物';
   }, []);
 
-  // §5.3: any filter / page-size change restarts from the first page.
   useEffect(() => {
-    setPage(1);
-  }, [filters, pageSize]);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, view);
+    }
+  }, [view]);
 
-  const puzzles = puzzlesQuery.data ?? [];
-  const maps = useMemo(() => collectPuzzleMaps(puzzles), [puzzles]);
-  const table = useMemo(
-    () => buildPuzzlesTable(puzzles, filters, page, pageSize),
-    [puzzles, filters, page, pageSize],
+  const resetPages = (): void => {
+    setDraftPage(1);
+    setVersionPage(1);
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setKeyword(keywordInput.trim());
+      resetPages();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [keywordInput]);
+
+  const shared = useMemo(
+    () => ({
+      pageSize: PAGE_SIZE,
+      keyword: keyword || undefined,
+      sort,
+      order: 'desc' as const,
+    }),
+    [keyword, sort],
   );
-  /**
-   * CONS-K16 (docs/v0.5.0.md §10.2): one game per **puzzle** now, so the map
-   * is `puzzleId → game` — it links the 「已部署」 badge and prefills the
-   * re-deploy dialog with the values used last time.
-   */
+
+  const draftQuery = usePuzzles({ ...shared, kind: 'draft', page: draftPage });
+  const versionQuery = usePuzzles({ ...shared, kind: 'version', page: versionPage });
+  /** 部署弹窗回填：一条 game 挂一个谜题行，所以按 `puzzleId` 查。 */
+  const gamesQuery = useGames();
+  const deleteMutation = useDeletePuzzle();
+  const deleteVersionMutation = useDeletePuzzleVersion();
+  const duplicateMutation = useDuplicatePuzzle();
+  const forkMutation = useForkPuzzleVersion();
+
+  const drafts = draftQuery.data?.list ?? [];
+  const versions = versionQuery.data?.list ?? [];
+  const draftTotal = draftQuery.data?.total ?? 0;
+  const versionTotal = versionQuery.data?.total ?? 0;
+  const draftPages = Math.max(1, Math.ceil(draftTotal / PAGE_SIZE));
+  const versionPages = Math.max(1, Math.ceil(versionTotal / PAGE_SIZE));
+
+  const isLoading = draftQuery.isLoading || versionQuery.isLoading;
+  const isError = draftQuery.isError || versionQuery.isError;
+  const isFetching = draftQuery.isFetching || versionQuery.isFetching;
+  const error = draftQuery.error ?? versionQuery.error;
+
+  const refetch = (): void => {
+    void draftQuery.refetch();
+    void versionQuery.refetch();
+  };
+
+  /** 删完当页最后一条时页号会越过新的总页数 —— 收敛到最后一页。 */
+  useEffect(() => {
+    if (draftPage > draftPages) setDraftPage(draftPages);
+  }, [draftPage, draftPages]);
+
+  useEffect(() => {
+    if (versionPage > versionPages) setVersionPage(versionPages);
+  }, [versionPage, versionPages]);
+
   const gameByPuzzle = useMemo(() => {
     const map = new Map<number, MapGameSummary>();
-    for (const game of gamesQuery.data ?? []) {
-      if (game.puzzleId !== null) map.set(game.puzzleId, game);
-    }
+    for (const game of gamesQuery.data ?? []) map.set(game.puzzleId, game);
     return map;
   }, [gamesQuery.data]);
 
-  /** FEAT-K08: export the puzzle's own draft (`PuzzleDraft` v1). */
-  const exportPuzzle = (puzzle: PuzzleSummary): void => {
-    void (async () => {
-      try {
-        const detail = await puzzlesApi.detail(puzzle.id);
-        const blob = new Blob([JSON.stringify(detail.data, null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = `${puzzle.name}-puzzle.json`;
-        anchor.click();
-        URL.revokeObjectURL(url);
-      } catch {
-        /* errors surfaced via mutation toasts */
-      }
-    })();
+  const isVersionEntry = (entry: PuzzleEntrySummary): boolean => entry.kind === 'version';
+
+  /**
+   * 主点击按 kind 分叉：草稿行进编辑器；版本行**先 fork 出一条新草稿行**再进
+   * 编辑器（版行本身不可写，谜题编辑器也不做地图那种 `?v=` 的 fork 态）。
+   */
+  const handleOpen = (entry: PuzzleEntrySummary): void => {
+    if (isVersionEntry(entry) && entry.versionNo !== null) {
+      forkMutation.mutate(
+        { id: entry.id, versionNo: entry.versionNo },
+        { onSuccess: (created) => navigate(`/puzzles/${created.id}/edit`) },
+      );
+      return;
+    }
+    navigate(`/puzzles/${entry.id}/edit`);
+  };
+
+  /** 预览一条 URL 只由 `:puzzleId` 决定看哪一行 —— 草稿看草稿自己，版本看自己。 */
+  const handlePreview = (entry: PuzzleEntrySummary): void => {
+    if (!entryPreviewable(entry)) return;
+    navigate(`/puzzles/${entry.id}/view`);
+  };
+
+  const handleDeploy = (entry: PuzzleEntrySummary): void => {
+    // 第 1 层拦截：草稿行永远到不了这里（按钮不渲染）。
+    if (!isVersionEntry(entry)) return;
+    setDeployTarget(entry);
   };
 
   const confirmDelete = (): void => {
     if (!deleteTarget) return;
     const target = deleteTarget;
-    // OPT-210: keep the dialog open until the request settles.
-    deletePuzzle.mutate(target.id, { onSettled: () => setDeleteTarget(null) });
+    if (isVersionEntry(target) && target.versionNo !== null) {
+      deleteVersionMutation.mutate(
+        { id: target.id, versionNo: target.versionNo },
+        { onSuccess: () => setDeleteTarget(null) },
+      );
+      return;
+    }
+    deleteMutation.mutate(target.id, { onSuccess: () => setDeleteTarget(null) });
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold">谜题</h1>
-          <p className="text-xs text-muted-foreground">
-            {puzzlesQuery.isLoading
-              ? '正在加载谜题…'
-              : `全部地图共 ${table.total} 件谜题，可预览效果、导出或部署为游戏。`}
-          </p>
+  const deleting = deleteMutation.isPending || deleteVersionMutation.isPending;
+
+  function renderPager(
+    page: number,
+    totalPages: number,
+    total: number,
+    onPage: (next: number) => void,
+  ): JSX.Element | null {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center justify-end gap-3 text-sm text-muted-foreground">
+        <span>
+          第 {page} / {totalPages} 页 · 共 {total} 个
+        </span>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page <= 1}
+          onClick={() => onPage(Math.max(1, page - 1))}
+        >
+          上一页
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={page >= totalPages}
+          onClick={() => onPage(Math.min(totalPages, page + 1))}
+        >
+          下一页
+        </Button>
+      </div>
+    );
+  }
+
+  const rowProps = {
+    onOpen: handleOpen,
+    onRename: setEditTarget,
+    onDuplicate: (entry: PuzzleEntrySummary) => duplicateMutation.mutate(entry.id),
+    onDelete: setDeleteTarget,
+    onPreview: handlePreview,
+    onDeploy: handleDeploy,
+  };
+
+  function renderContent(): JSX.Element {
+    if (isLoading) {
+      return (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+          {Array.from({ length: 8 }).map((_, index) => (
+            <Skeleton key={index} className="h-72 w-full" />
+          ))}
         </div>
-        {/* SPEC-K03 §2.4: the only addition to the table itself. */}
+      );
+    }
+
+    if (isError) {
+      return (
+        <Card className="flex flex-col items-center gap-3 p-12 text-center">
+          <p className="text-sm text-muted-foreground">
+            {error instanceof Error ? error.message : '加载失败'}
+          </p>
+          <Button variant="outline" onClick={() => refetch()}>
+            重试
+          </Button>
+        </Card>
+      );
+    }
+
+    if (draftTotal === 0 && versionTotal === 0) {
+      return (
+        <Card className="flex flex-col items-center gap-3 p-12 text-center">
+          <p className="text-sm text-muted-foreground">
+            {keyword ? '没有匹配的谜题' : '还没有谜题，创建一个开始吧'}
+          </p>
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            新建谜题
+          </Button>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-8">
+        {draftTotal > 0 ? (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold">
+              草稿 <span className="ml-1 font-normal text-muted-foreground">{draftTotal}</span>
+            </h2>
+            {view === 'list' ? (
+              <Card className="overflow-hidden">
+                {drafts.map((entry) => (
+                  <PuzzleListRow key={`draft-${entry.id}`} entry={entry} {...rowProps} />
+                ))}
+              </Card>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                {drafts.map((entry) => (
+                  <PuzzleGridCard key={`draft-${entry.id}`} entry={entry} {...rowProps} />
+                ))}
+              </div>
+            )}
+            {renderPager(draftPage, draftPages, draftTotal, setDraftPage)}
+          </section>
+        ) : null}
+
+        {versionTotal > 0 ? (
+          <section className="space-y-3">
+            <h2 className="text-sm font-semibold">
+              版本 <span className="ml-1 font-normal text-muted-foreground">{versionTotal}</span>
+            </h2>
+            <Card className="overflow-hidden">
+              {versions.map((entry) => (
+                <PuzzleListRow key={`version-${entry.id}`} entry={entry} {...rowProps} />
+              ))}
+            </Card>
+            {renderPager(versionPage, versionPages, versionTotal, setVersionPage)}
+          </section>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <section className="space-y-5">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">谜题</h1>
+          <p className="text-sm text-muted-foreground">创建、发布并部署你的谜题。</p>
+        </div>
         <Button onClick={() => setCreateOpen(true)}>
           <Plus className="mr-1 h-4 w-4" />
           新建谜题
         </Button>
       </div>
 
-      {/* §5.3 排序与筛选 */}
-      <div className="flex flex-wrap items-end gap-2">
-        <div className="relative flex-1 min-w-[180px]">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full max-w-xs">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={filters.keyword}
-            onChange={(event) =>
-              setFilters((previous) => ({ ...previous, keyword: event.target.value }))
-            }
-            placeholder="搜索名称 / 版本号 / 描述"
-            className="h-9"
+            value={keywordInput}
+            onChange={(event) => setKeywordInput(event.target.value)}
+            placeholder="搜索谜题名称"
+            className="pl-9"
           />
         </div>
-        <div className="flex items-center gap-1">
-          <Input
-            type="date"
-            value={filters.from ?? ''}
-            onChange={(event) =>
-              setFilters((previous) => ({ ...previous, from: event.target.value || null }))
-            }
-            className="h-9 w-40"
-            title="发布时间起始"
-          />
-          <span className="text-xs text-muted-foreground">至</span>
-          <Input
-            type="date"
-            value={filters.to ?? ''}
-            onChange={(event) =>
-              setFilters((previous) => ({ ...previous, to: event.target.value || null }))
-            }
-            className="h-9 w-40"
-            title="发布时间结束"
-          />
-        </div>
-        <MapFilter
-          maps={maps}
-          selected={filters.mapIds}
-          onChange={(mapIds) =>
-            setFilters((previous) => ({ ...previous, mapIds }))
-          }
-        />
-        <Button variant="ghost" className="h-9" onClick={() => setFilters(EMPTY_PUZZLE_FILTERS)}>
-          重置
-        </Button>
-      </div>
-
-      {/* §5.2 表格 */}
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full min-w-[960px] border-collapse text-sm">
-          <thead>
-            <tr className="bg-muted/50 text-xs text-muted-foreground">
-              {COLUMNS.map((column) => (
-                <th
-                  key={column}
-                  className={cn(
-                    'whitespace-nowrap px-3 py-2 text-left font-medium',
-                    column === '操作' && 'text-right',
-                  )}
-                >
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {puzzlesQuery.isLoading ? (
-              <tr>
-                <td colSpan={COLUMNS.length} className="py-12">
-                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    正在加载谜题…
-                  </div>
-                </td>
-              </tr>
-            ) : puzzlesQuery.isError ? (
-              <tr>
-                <td
-                  colSpan={COLUMNS.length}
-                  className="py-12 text-center text-sm text-muted-foreground"
-                >
-                  谜题加载失败
-                </td>
-              </tr>
-            ) : puzzles.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={COLUMNS.length}
-                  className="py-12 text-center text-sm text-muted-foreground"
-                >
-                  暂无谜题，新建一个试试
-                </td>
-              </tr>
-            ) : table.rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={COLUMNS.length}
-                  className="py-12 text-center text-sm text-muted-foreground"
-                >
-                  没有符合条件的谜题
-                </td>
-              </tr>
-            ) : (
-              table.rows.map((puzzle) => {
-                const game = gameByPuzzle.get(puzzle.id) ?? null;
-                const isDeployed = game !== null && puzzle.deployed;
-                return (
-                  <tr key={puzzle.id} className="border-t align-middle">
-                    <td className="px-3 py-2 font-medium" title={`地图：${puzzle.mapName}`}>
-                      {puzzle.name}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 tabular-nums">
-                      v{puzzle.mapVersionNo}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {isDeployed ? (
-                        <button
-                          type="button"
-                          className="shrink-0 cursor-pointer rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground transition-colors hover:bg-secondary/70"
-                          title="该谜题已部署为游戏，点击进入游戏页面"
-                          onClick={() => navigate(`/play/${game.slug}`)}
-                        >
-                          已部署
-                        </button>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
-                      {formatDateTimeMinute(puzzle.createdAt)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {/* FEAT-N05 (docs/v0.5.3.md §4): 编辑 leads the row —
-                            it is what a puzzle row is opened for. The five
-                            columns and their order are untouched (SPEC-K02). */}
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8"
-                          onClick={() => navigate(`/puzzles/${puzzle.id}/edit`)}
-                        >
-                          <Pencil className="mr-1 h-3.5 w-3.5" />
-                          编辑
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8"
-                          onClick={() => navigate(`/puzzles/${puzzle.id}/view`)}
-                        >
-                          <Eye className="mr-1 h-3.5 w-3.5" />
-                          查看效果
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8"
-                          onClick={() => setDeployTarget(puzzle)}
-                        >
-                          <Rocket className="mr-1 h-3.5 w-3.5" />
-                          {isDeployed ? '重新部署' : '部署'}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8"
-                          onClick={() => exportPuzzle(puzzle)}
-                        >
-                          <Download className="mr-1 h-3.5 w-3.5" />
-                          导出
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8"
-                          disabled={duplicatePuzzle.isPending}
-                          onClick={() =>
-                            duplicatePuzzle.mutate(puzzle.id, {
-                              onSuccess: (created) => navigate(`/puzzles/${created.id}/edit`),
-                            })
-                          }
-                        >
-                          复制
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-8 text-destructive hover:text-destructive"
-                          onClick={() => setDeleteTarget(puzzle)}
-                        >
-                          <Trash2 className="mr-1 h-3.5 w-3.5" />
-                          删除
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* §5.3 分页 */}
-      <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>
-          共 {table.total} 条，第 {table.page} / {table.totalPages} 页
-        </span>
-        <div className="flex items-center gap-2">
-          <span>每页</span>
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={pageSize}
-            onChange={(event) => setPageSize(Number(event.target.value))}
-          >
-            {PUZZLES_PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>
-                {size} 条
-              </option>
-            ))}
-          </select>
+        <select
+          value={sort}
+          onChange={(event) => {
+            setSort(event.target.value as SortOption);
+            resetPages();
+          }}
+          className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <option value="updatedAt">按更新时间</option>
+          <option value="name">按名称</option>
+        </select>
+        <div className="ml-auto flex items-center gap-1 rounded-md border p-1">
           <Button
-            size="sm"
-            variant="outline"
-            className="h-8"
-            disabled={table.page <= 1}
-            onClick={() => setPage((value) => Math.max(1, value - 1))}
+            size="icon"
+            variant={view === 'grid' ? 'secondary' : 'ghost'}
+            title="网格视图"
+            onClick={() => setView('grid')}
           >
-            上一页
+            <LayoutGrid className="h-4 w-4" />
           </Button>
           <Button
-            size="sm"
-            variant="outline"
-            className="h-8"
-            disabled={table.page >= table.totalPages}
-            onClick={() => setPage((value) => value + 1)}
+            size="icon"
+            variant={view === 'list' ? 'secondary' : 'ghost'}
+            title="列表视图"
+            onClick={() => setView('list')}
           >
-            下一页
+            <List className="h-4 w-4" />
           </Button>
         </div>
       </div>
+
+      <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>
+        {renderContent()}
+      </div>
+
+      <CreatePuzzleDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <EditPuzzleDialog
+        entry={editTarget}
+        onOpenChange={(open) => {
+          if (!open) setEditTarget(null);
+        }}
+      />
 
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open && !deletePuzzle.isPending) setDeleteTarget(null);
+          if (!open && !deleting) setDeleteTarget(null);
         }}
       >
-        <AlertDialogContent>
+        <AlertDialogContent
+          onEscapeKeyDown={(event) => {
+            if (deleting) event.preventDefault();
+          }}
+        >
           <AlertDialogHeader>
-            <AlertDialogTitle>删除谜题「{deleteTarget?.name}」？</AlertDialogTitle>
+            <AlertDialogTitle>
+              {deleteTarget && isVersionEntry(deleteTarget)
+                ? `删除谜题版本 v${deleteTarget.versionNo ?? ''}？`
+                : `删除谜题「${deleteTarget?.name}」？`}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              该谜题及其参与者配置将被永久删除，所引用的地图版本不受影响。
+              {deleteTarget && isVersionEntry(deleteTarget)
+                ? '该版本将从列表中移除，已部署为游戏的版本需先取消部署。'
+                : '该谜题及其参与者配置将被永久删除，底图与已发布的版本不受影响。'}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletePuzzle.isPending}>取消</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              disabled={deletePuzzle.isPending}
-              onClick={confirmDelete}
-            >
-              {deletePuzzle.isPending ? '删除中…' : '删除'}
+            <AlertDialogCancel disabled={deleting}>取消</AlertDialogCancel>
+            <Button variant="destructive" disabled={deleting} onClick={confirmDelete}>
+              {deleting ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  删除中…
+                </>
+              ) : (
+                '删除'
+              )}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -492,8 +421,6 @@ export function PuzzlesPage(): JSX.Element {
           if (!open) setDeployTarget(null);
         }}
       />
-
-      <CreatePuzzleDialog open={createOpen} onOpenChange={setCreateOpen} />
-    </div>
+    </section>
   );
 }

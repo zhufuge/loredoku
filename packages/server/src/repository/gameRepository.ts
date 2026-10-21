@@ -1,184 +1,182 @@
 import { db } from '../db/knex';
-import { buildFileUrl } from '../utils/paths';
+import { MAP_JSON_VERSION, absorbLegacyPuzzleDraft, puzzleGridSize } from '@loredoku/shared';
 import type {
   GameDifficulty,
   MapGameDetail,
   MapGameRow,
-  MapGameSnapshot,
   MapGameSummary,
+  PuzzleDraft,
 } from '@loredoku/shared';
-import { toGameSnapshot } from '../service/gameSnapshotCompat';
+import { buildFileUrl } from '../utils/paths';
 
-/** FEAT-G02: the games home page lists every deployed game, newest first. */
+/**
+ * `games` 仓储（v0.7.1 §7.2 / §7.3）。
+ *
+ * 一行 = 一个**已部署**的游戏，只指向一个谜题**版本行**（`puzzle_id`：
+ * `puzzle_id` 全域唯一 ⇒ 一个版本行 ⇄ 一个 game 行；不同版本各有一个游戏、各有
+ * 一个 slug，可以同时在线）。画布与名册都从谜题行读 —— 没有 `snapshot` 拷贝，
+ * 冻结性由「版本行只读」保证。
+ *
+ * 取消部署 = **假删**（`deleted_at`）：行保留、列表与详情一律过滤、slug 随
+ * 部分唯一索引释放，可以再用同一路径重新部署。
+ */
+
+/** 列表 / 详情共用的 join 结果：game 行 + 它挂着的谜题行。 */
+export interface GameRowWithPuzzle extends MapGameRow {
+  puzzle_name: string;
+  puzzle_version: string;
+  puzzle_data: unknown;
+}
+
+const GAME_SELECT = [
+  'g.*',
+  'pz.name as puzzle_name',
+  'pz.version as puzzle_version',
+  'pz.data as puzzle_data',
+] as const;
+
+/** 只服务活行：取消部署的 game 在列表、详情、slug 解析里全部「不存在」。 */
+function liveQuery() {
+  return db('games as g')
+    .join('puzzles as pz', 'pz.id', 'g.puzzle_id')
+    .whereNull('g.deleted_at');
+}
+
 export async function listGames(): Promise<MapGameSummary[]> {
-  const rows = (await db<MapGameRow>('games').orderBy('created_at', 'desc')) as MapGameRow[];
+  const rows = (await liveQuery()
+    .select(...GAME_SELECT)
+    .orderBy('g.created_at', 'desc')) as GameRowWithPuzzle[];
   return rows.map(toSummary);
 }
 
-export async function getGameRow(id: number): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('games').where({ id }).first();
+export async function getGameRow(id: number): Promise<GameRowWithPuzzle | undefined> {
+  return liveQuery().where('g.id', id).select(...GAME_SELECT).first() as Promise<
+    GameRowWithPuzzle | undefined
+  >;
 }
 
-/** OPT-W04: the game page is addressed by its access path, not its id. */
-export async function getGameRowBySlug(slug: string): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('games').where({ slug }).first();
+/** OPT-W04: 游戏页按访问路径寻址，不按 id。 */
+export async function getGameRowBySlug(slug: string): Promise<GameRowWithPuzzle | undefined> {
+  return liveQuery().where('g.slug', slug).select(...GAME_SELECT).first() as Promise<
+    GameRowWithPuzzle | undefined
+  >;
 }
 
-/** OPT-W04 §4.4: who owns a path — another puzzle is a clash. */
+/** OPT-W04 §4.4: 这条路径现在归谁 —— 别的谜题版本就是冲突。 */
 export async function findGameBySlug(slug: string): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('games').where({ slug }).first();
+  return db<MapGameRow>('games').where({ slug }).whereNull('deleted_at').first();
 }
 
-/** CONS-K16: one game per puzzle, so the lookup is by `puzzle_id`. */
+/** 一个版本行 ⇄ 一个 game 行：部署覆盖与「有部署时禁删版本」都查这个。 */
 export async function getGameByPuzzle(puzzleId: number): Promise<MapGameRow | undefined> {
-  return db<MapGameRow>('games').where({ puzzle_id: puzzleId }).first();
+  return db<MapGameRow>('games').where({ puzzle_id: puzzleId }).whereNull('deleted_at').first();
 }
 
 export interface UpsertGameData {
-  /** CONS-K16: the unit of deployment. */
+  /** 部署单元 —— 必须是谜题的**版本行**（草稿行在 service 层就被拒）。 */
   puzzleId: number;
-  /** The referenced map version — kept denormalised for badges / keys. */
-  mapId: number;
-  versionNo: number;
   name: string;
-  /** OPT-W04: already validated and clash-checked by the service. */
+  /** OPT-W04: 已由 service 校验过格式与占用。 */
   slug: string;
-  /** OPT-W03: new cover bytes (post-upload) — `null` keeps / clears per below. */
-  coverPath: string | null;
-  coverMime: string | null;
-  coverSize: number | null;
-  coverWidth: number | null;
-  coverHeight: number | null;
   /**
-   * OPT-W03 §3: when true the stored cover is dropped. When false (default)
-   * and no new cover is supplied, the previous cover is carried over — a
-   * re-deploy must not silently lose the artwork the author already uploaded.
+   * OPT-W03 §3: 新封面路径（`null` = 没换）。`clearCover` 为真时显式清除；
+   * 两者都没有就沿用上一行的封面 —— 重新部署不该悄悄丢掉作者上传的图。
    */
+  coverPath: string | null;
   clearCover: boolean;
   difficulty: GameDifficulty;
-  gridSize: number;
-  snapshot: MapGameSnapshot;
 }
 
 /**
- * CONS-K16 (docs/v0.5.0.md §10.1): one deployed game per **puzzle**. Deploying
- * again overwrites the previous row, so the insert and the delete share a
- * transaction and the row gets a fresh id.
- *
- * OPT-W03 §3: the cover follows a three-way rule — `clearCover` drops it, a
- * supplied `coverPath` replaces it, and neither keeps whatever was stored.
+ * 同一版本行再次部署 = **覆盖**（delete-then-insert，行换新 id）；取消部署后
+ * 再部署是新增行（旧行已假删，`puzzle_id` 唯一约束不拦）。
  */
 export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> {
-  return db.transaction(async (trx) => {
+  const id = await db.transaction(async (trx) => {
     const previous = (await trx<MapGameRow>('games')
       .where({ puzzle_id: data.puzzleId })
       .first()) as MapGameRow | undefined;
 
-    const cover = resolveCover(previous, data);
+    const coverPath = data.clearCover ? null : data.coverPath ?? previous?.cover_path ?? null;
 
     await trx('games').where({ puzzle_id: data.puzzleId }).del();
-    const [row] = (await trx('games')
+    const [row] = (await trx<MapGameRow>('games')
       .insert({
         puzzle_id: data.puzzleId,
-        project_id: data.mapId,
-        version_no: data.versionNo,
         name: data.name,
         slug: data.slug,
-        cover_path: cover.path,
-        cover_mime: cover.mime,
-        cover_size: cover.size,
-        cover_width: cover.width,
-        cover_height: cover.height,
+        cover_path: coverPath,
         difficulty: data.difficulty,
-        grid_size: data.gridSize,
-        snapshot: data.snapshot,
       })
-      .returning('*')) as MapGameRow[];
-    return toSummary(row!);
+      .returning('id')) as Array<{ id: string | number }>;
+    return Number(row!.id);
   });
-}
 
-/** OPT-W03 §3: keep / replace / remove, in that precedence order. */
-function resolveCover(
-  previous: MapGameRow | undefined,
-  data: UpsertGameData,
-): {
-  path: string | null;
-  mime: string | null;
-  size: number | null;
-  width: number | null;
-  height: number | null;
-} {
-  if (data.clearCover) {
-    return { path: null, mime: null, size: null, width: null, height: null };
-  }
-  if (data.coverPath) {
-    return {
-      path: data.coverPath,
-      mime: data.coverMime,
-      size: data.coverSize,
-      width: data.coverWidth,
-      height: data.coverHeight,
-    };
-  }
-  if (!previous) {
-    return { path: null, mime: null, size: null, width: null, height: null };
-  }
-  return {
-    path: previous.cover_path,
-    mime: previous.cover_mime,
-    size: previous.cover_size,
-    width: previous.cover_width,
-    height: previous.cover_height,
-  };
+  const created = await getGameRow(id);
+  if (!created) throw new Error('游戏部署后读取失败');
+  return toSummary(created);
 }
 
 export async function updateGameCover(
   id: number,
-  cover: { path: string; mime: string; size: number; width: number | null; height: number | null },
-): Promise<MapGameRow | undefined> {
-  const [row] = (await db<MapGameRow>('games')
+  path: string,
+): Promise<GameRowWithPuzzle | undefined> {
+  await db('games')
     .where({ id })
-    .update({
-      cover_path: cover.path,
-      cover_mime: cover.mime,
-      cover_size: cover.size,
-      cover_width: cover.width,
-      cover_height: cover.height,
-      updated_at: db.fn.now(),
-    })
-    .returning('*')) as MapGameRow[];
-  return row;
+    .whereNull('deleted_at')
+    .update({ cover_path: path, updated_at: db.fn.now() });
+  return getGameRow(id);
 }
 
-/** CONS-K16: the roster comes from the puzzle, or from a legacy map snapshot. */
-export function snapshotParticipants(snapshot: MapGameSnapshot): number {
-  const slots = snapshot.puzzle?.characterSlots ?? snapshot.legacyCharacterSlots ?? [];
-  return slots.filter((slot) => slot !== null).length;
+/** 取消部署 = 假删。行还在（审计 / 同一 slug 可复用），只是不再出现。 */
+export async function cancelGame(id: number): Promise<boolean> {
+  const affected = await db('games')
+    .where({ id })
+    .whereNull('deleted_at')
+    .update({ deleted_at: db.fn.now() });
+  return affected > 0;
 }
 
-export function toSummary(row: MapGameRow): MapGameSummary {
-  const snapshot = toGameSnapshot(row.snapshot);
+function puzzleDraftOf(row: GameRowWithPuzzle): PuzzleDraft | null {
+  return absorbLegacyPuzzleDraft(row.puzzle_data);
+}
+
+/** 名册里非空槽位的数量 —— 游戏卡片上的「n 位参与者」。 */
+function participantCount(draft: PuzzleDraft | null): number {
+  if (!draft) return 0;
+  return draft.characterSlots.filter((slot) => slot !== null).length;
+}
+
+export function toSummary(row: GameRowWithPuzzle): MapGameSummary {
+  const draft = puzzleDraftOf(row);
   return {
     id: Number(row.id),
-    puzzleId: row.puzzle_id === null || row.puzzle_id === undefined ? null : Number(row.puzzle_id),
-    mapId: Number(row.project_id),
-    versionNo: row.version_no,
+    puzzleId: Number(row.puzzle_id),
+    puzzleName: row.puzzle_name,
+    // 游戏只挂在版本行上，`'draft'` 不可能出现（`Number()` 在这里是安全的，
+    // 但版本号从 `versionToNo` 的语义来 —— 这里直接取，仍留个 0 兜底）。
+    puzzleVersionNo: row.puzzle_version === 'draft' ? 0 : Number(row.puzzle_version),
     name: row.name,
     slug: row.slug,
     coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
     difficulty: row.difficulty,
-    gridSize: row.grid_size,
-    participantCount: snapshotParticipants(snapshot),
+    gridSize: draft ? puzzleGridSize(draft) : 0,
+    participantCount: participantCount(draft),
     createdAt: new Date(row.created_at).toISOString(),
   };
 }
 
-export function toDetail(row: MapGameRow): MapGameDetail {
+/** 详情直接给画布 + 谜题（游戏页从这两块渲染，不再有快照）。 */
+export function toDetail(row: GameRowWithPuzzle): MapGameDetail {
+  const puzzle = puzzleDraftOf(row);
   return {
     ...toSummary(row),
-    // The game page renders the snapshot exactly as it was deployed, upgraded
-    // to the current shape (legacy rosters become `legacyCharacterSlots`).
-    snapshot: toGameSnapshot(row.snapshot),
+    map: puzzle?.map.data ?? {
+      version: MAP_JSON_VERSION,
+      gridSize: 0,
+      cells: {},
+      regions: [],
+    },
+    puzzle,
   };
 }

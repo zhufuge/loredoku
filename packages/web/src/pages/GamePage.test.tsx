@@ -19,8 +19,9 @@ import { GamePage } from './GamePage';
 const fixture = vi.hoisted(() => ({
   detail: {
     id: 1,
-    mapId: 1,
-    versionNo: 1,
+    puzzleId: 7,
+    puzzleName: '夜车',
+    puzzleVersionNo: 1,
     name: '夜车',
     slug: 'night-train',
     coverUrl: null,
@@ -28,21 +29,26 @@ const fixture = vi.hoisted(() => ({
     gridSize: 9,
     participantCount: 3,
     createdAt: '2026-01-01T00:00:00.000Z',
-    snapshot: {
-      map: { version: 6, gridSize: 9, cells: {}, regions: [] },
-      puzzle: {
-        version: 1,
-        map: { mapId: 1, versionNo: 1, gridSize: 9 },
-        name: '夜车',
-        characterSlots: [
-          { characterId: 11, themeColor: '#AA0000' },
-          { characterId: 12, themeColor: '#00AA00' },
-          { characterId: 13, themeColor: '#0000AA' },
-        ],
-        linkageColors: [],
-        // v0.6.3 §3.4: the layout the puzzle was published with.
-        rosterCols: 3,
+    // v0.7.1 §7.3：游戏直接读谜题版本行 —— 画布与名册都在它身上，没有快照拷贝。
+    map: { version: 7, gridSize: 9, cells: {}, regions: [] },
+    puzzle: {
+      version: 2,
+      map: {
+        mapId: 1,
+        versionNo: 1,
+        mapName: '夜车',
+        data: { version: 7, gridSize: 9, cells: {}, regions: [] },
       },
+      name: '夜车',
+      description: '',
+      characterSlots: [
+        { characterId: 11, themeColor: '#AA0000' },
+        { characterId: 12, themeColor: '#00AA00' },
+        { characterId: 13, themeColor: '#0000AA' },
+      ],
+      linkageColors: [],
+      // v0.6.3 §3.4: the layout the puzzle was published with.
+      rosterCols: 3,
     },
   },
 }));

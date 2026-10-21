@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import type { MapEntry } from '@loredoku/shared';
-import { CoverPicker } from '@/components/map/CoverPicker';
+import { CoverPicker } from '@/components/common/CoverPicker';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

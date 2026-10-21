@@ -1,33 +1,41 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { PuzzleDraft } from '@loredoku/shared';
+import {
+  ErrorCode,
+  type PublishViolation,
+  type PuzzleDraft,
+  type PuzzleEntrySummary,
+} from '@loredoku/shared';
 import {
   puzzlesApi,
   type CreatePuzzlePayload,
+  type PuzzleListParams,
   type SavePuzzlePayload,
   type UpdatePuzzlePayload,
 } from '@/api/puzzles';
+import { ApiError } from '@/api/client';
 import { gameKeys } from './useGames';
-import { mapKeys } from './useMaps';
+import type { PublishResult } from './useVersions';
 
-/**
- * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2) — the puzzle module's data layer. The
- * canvas arrives through its own query key because it belongs to the
- * **referenced map version**, not to the puzzle: it is read-only and never
- * saved back.
- */
 export const puzzleKeys = {
   all: ['puzzles'] as const,
-  list: () => [...puzzleKeys.all, 'list'] as const,
+  /** 与地图列表同构：参数进 key，两块的页码各自独立。 */
+  list: (params: PuzzleListParams) => [...puzzleKeys.all, 'list', params] as const,
   detail: (id: number) => [...puzzleKeys.all, 'detail', id] as const,
   map: (id: number) => [...puzzleKeys.all, 'map', id] as const,
+  versions: (id: number) => [...puzzleKeys.all, 'versions', id] as const,
+  version: (id: number, versionNo: number) =>
+    [...puzzleKeys.all, 'version', id, versionNo] as const,
 };
 
-/** SPEC-K02: the flat, cross-map puzzle table (the old works table). */
-export function usePuzzles() {
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error ? error.message : fallback;
+}
+
+export function usePuzzles(params: PuzzleListParams) {
   return useQuery({
-    queryKey: puzzleKeys.list(),
-    queryFn: () => puzzlesApi.list(),
+    queryKey: puzzleKeys.list(params),
+    queryFn: () => puzzlesApi.list(params),
     placeholderData: (previous) => previous,
   });
 }
@@ -40,29 +48,42 @@ export function usePuzzle(id: number | null) {
   });
 }
 
-/** §5.1: the read-only canvas the puzzle draws on. */
+/** 编辑器渲染的只读画布 —— 谜题自己的副本。 */
 export function usePuzzleMapContext(id: number | null) {
   return useQuery({
     queryKey: puzzleKeys.map(id ?? 0),
     queryFn: () => puzzlesApi.map(id as number),
     enabled: id !== null && Number.isFinite(id),
-    staleTime: Infinity,
-    refetchOnWindowFocus: false,
   });
 }
 
+/** 血统内的版本历史（活行，版本号倒序）。 */
+export function usePuzzleVersions(id: number | null) {
+  return useQuery({
+    queryKey: puzzleKeys.versions(id ?? 0),
+    queryFn: () => puzzlesApi.listVersions(id as number),
+    enabled: id !== null && Number.isFinite(id),
+  });
+}
+
+/**
+ * 建谜题时选的封面在建行**之后**才传（上传端点认 id），所以创建与上传合成
+ * 一次 mutation，共用一个 pending 状态和一条成功提示。
+ */
 export function useCreatePuzzle(onSuccess?: (id: number) => void) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (payload: CreatePuzzlePayload) => puzzlesApi.create(payload),
+    mutationFn: async ({ cover, ...payload }: CreatePuzzlePayload & { cover?: File | null }) => {
+      const created = await puzzlesApi.create(payload);
+      if (!cover) return created;
+      return puzzlesApi.uploadCover(created.id, cover);
+    },
     onSuccess: (puzzle) => {
       toast.success('谜题创建成功');
       void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
       onSuccess?.(puzzle.id);
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : '创建失败');
-    },
+    onError: (error) => toast.error(errorMessage(error, '创建失败')),
   });
 }
 
@@ -73,14 +94,13 @@ export function useSavePuzzle() {
       puzzlesApi.save(id, payload),
     onSuccess: (data, { id }) => {
       queryClient.setQueryData(puzzleKeys.detail(id), data);
-      void queryClient.invalidateQueries({ queryKey: puzzleKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
       toast.success('谜题已保存');
     },
     onError: (error, { id }) => {
-      // A 409 means another session wrote first — reload so the editor shows
-      // the surviving draft instead of an unrecoverable local state.
+      // 409 = 另一个会话先写了；重取一次，让编辑器显示活下来的那份草稿。
       void queryClient.invalidateQueries({ queryKey: puzzleKeys.detail(id) });
-      toast.error(error instanceof Error ? error.message : '保存失败');
+      toast.error(errorMessage(error, '保存失败'));
     },
   });
 }
@@ -92,11 +112,9 @@ export function useUpdatePuzzle() {
       puzzlesApi.update(id, payload),
     onSuccess: (data) => {
       queryClient.setQueryData(puzzleKeys.detail(data.id), data);
-      void queryClient.invalidateQueries({ queryKey: puzzleKeys.list() });
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : '更新失败');
-    },
+    onError: (error) => toast.error(errorMessage(error, '更新失败')),
   });
 }
 
@@ -109,9 +127,7 @@ export function useDeletePuzzle() {
       void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
       void queryClient.invalidateQueries({ queryKey: gameKeys.all });
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : '删除失败');
-    },
+    onError: (error) => toast.error(errorMessage(error, '删除失败')),
   });
 }
 
@@ -123,9 +139,88 @@ export function useDuplicatePuzzle() {
       toast.success('谜题已复制');
       void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
     },
-    onError: (error) => {
-      toast.error(error instanceof Error ? error.message : '复制失败');
+    onError: (error) => toast.error(errorMessage(error, '复制失败')),
+  });
+}
+
+export function useUploadPuzzleCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) => puzzlesApi.uploadCover(id, file),
+    onSuccess: (data) => {
+      queryClient.setQueryData(puzzleKeys.detail(data.id), data);
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
+      toast.success('封面上传成功');
     },
+    onError: (error) => toast.error(errorMessage(error, '封面上传失败')),
+  });
+}
+
+export function useRemovePuzzleCover() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => puzzlesApi.removeCover(id),
+    onSuccess: (data) => {
+      queryClient.setQueryData(puzzleKeys.detail(data.id), data);
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '操作失败')),
+  });
+}
+
+/**
+ * 发布：与地图同一套结果约定 —— 校验未通过（422）折成 `{ ok: false }` 让调用方
+ * 展开问题清单，其余错误照常抛给 mutation 的 `onError`。
+ */
+export function usePublishPuzzle(id: number) {
+  const queryClient = useQueryClient();
+  return useMutation<PublishResult<PuzzleEntrySummary>, unknown, number | undefined>({
+    mutationFn: async (version) => {
+      try {
+        const published = await puzzlesApi.publish(id, version);
+        return { ok: true, version: published };
+      } catch (error) {
+        if (error instanceof ApiError && error.code === ErrorCode.PUBLISH_VALIDATION_FAILED) {
+          const violations = Array.isArray(error.details)
+            ? (error.details as PublishViolation[])
+            : [];
+          return { ok: false, violations };
+        }
+        throw error;
+      }
+    },
+    onSuccess: (result) => {
+      if (!result.ok) return;
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '发布失败')),
+  });
+}
+
+/** 「编辑此版本」= fork 出新草稿行，跳进编辑器（谜题编辑器没有 `?v=` 态）。 */
+export function useForkPuzzleVersion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, versionNo }: { id: number; versionNo: number }) =>
+      puzzlesApi.forkVersion(id, versionNo),
+    onSuccess: () => {
+      toast.success('已新增一个条目');
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '操作失败')),
+  });
+}
+
+export function useDeletePuzzleVersion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, versionNo }: { id: number; versionNo: number }) =>
+      puzzlesApi.removeVersion(id, versionNo),
+    onSuccess: () => {
+      toast.success('版本已删除');
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '删除失败')),
   });
 }
 

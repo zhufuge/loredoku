@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   DEFAULT_THEME_COLOR,
   LINKAGE_COLOR_MIN_COUNT,
+  MAP_JSON_VERSION,
   MAX_HISTORY_STEPS,
   PUZZLE_JSON_VERSION,
   type CharacterSlotEntry,
@@ -265,7 +266,8 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         pan: samePuzzle ? state.pan : { x: 0, y: 0 },
         dirty: false,
         updatedAt: detail.updatedAt,
-        status: detail.status,
+        // 版本行一发布就不可写，所以「已发布」只可能是版本行；草稿行恒为草稿。
+        status: detail.kind === 'version' ? 'published' : 'draft',
         past: [],
         future: [],
         };
@@ -440,14 +442,21 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
 
     toDraft: () => {
       const state = get();
-      // §2.4 / §5.1: the map triplet is a **reference**, never a copy. The
-      // server forces it back to the stored values anyway.
+      // v0.7.1 §5.3：底图是**副本**，来源信息只用于展示 / 追溯。尺寸的唯一真源
+      // 是 `map.data.gridSize`，所以这里必须把整块画布写回去（不是只写三元组）。
       return {
         version: PUZZLE_JSON_VERSION,
         map: {
           mapId: state.mapContext?.mapId ?? 0,
           versionNo: state.mapContext?.versionNo ?? 0,
-          gridSize: state.mapContext?.gridSize ?? state.characterSlots.length,
+          mapName: state.mapContext?.mapName ?? '',
+          data: {
+            version: MAP_JSON_VERSION,
+            gridSize: state.mapContext?.gridSize ?? state.characterSlots.length,
+            cells: state.mapContext?.cells ?? {},
+            regions: state.mapContext?.regions ?? [],
+            style: state.mapContext?.style,
+          },
         },
         name: state.name,
         description: state.description,
