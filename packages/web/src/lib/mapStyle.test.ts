@@ -150,7 +150,9 @@ describe('clamp helpers (FEAT-D02 §关键规则 6)', () => {
     expect(clampRegionLabelFont(17.6)).toBe(18);
     expect(clampRegionLabelStroke(-3)).toBe(0);
     expect(clampOperationOffset(20)).toBe(8);
-    expect(clampRegionBorderWidth(1)).toBe(4);
+    // v0.7.4: 轮廓线下限 4 → 1，0 仍然被夹到 1。
+    expect(clampRegionBorderWidth(0)).toBe(1);
+    expect(clampRegionBorderWidth(1)).toBe(1);
     expect(clampRegionBorderWidth(99)).toBe(12);
     expect(clampCellSize(10)).toBe(MIN_CELL_SIZE);
     expect(clampCellSize(10_000)).toBe(MAX_CELL_SIZE);

@@ -990,7 +990,11 @@ export function PuzzleEditorPage(): JSX.Element {
             onClearItem={() => undefined}
             onSubmitRegion={() => undefined}
             onDeleteRegion={() => undefined}
-            onLocateRegion={() => canvasRef.current?.centerView()}
+            /**
+             * v0.7.4：地图编辑器的面板改成占据空间，谜题编辑器保持浮层 ——
+             * 这边的参与者面板与谜题基本信息都是浮层，只改一个反而更不一致。
+             */
+            layout="overlay"
             readOnly
           />
 

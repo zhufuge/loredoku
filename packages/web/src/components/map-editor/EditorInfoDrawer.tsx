@@ -28,16 +28,25 @@ interface EditorInfoDrawerProps {
   /** Saves the region's name / id / style. The store derives the minimal override. */
   onSubmitRegion: (regionId: string, input: RegionInput) => void;
   onDeleteRegion: (region: DraftRegion) => void;
-  onLocateRegion: (region: DraftRegion) => void;
   /** Reports the region branch's dirty flag so the page can guard a leave. */
   onRegionDirtyChange?: (dirty: boolean) => void;
   /**
    * v0.5.0 SPEC-K06 (docs/v0.5.0.md §4.3): the puzzle editor renders this same
    * drawer against its **read-only** canvas, so every action button
-   * (清空本格 / 清空物品层 / 保存 / 定位 / 删除) must disappear. Default `false`
+   * (清空本格 / 清空物品层 / 保存 / 删除) must disappear. Default `false`
    * keeps the map editor's behaviour untouched.
    */
   readOnly?: boolean;
+  /**
+   * v0.7.4 (docs/v0.7.4.md §4): how the host arranges the panel.
+   *
+   * `split`（默认）— 面板**占据**编辑区右侧一块空间，画布跟着收窄，不再压在
+   * 画布上。地图编辑器的两个右侧面板都是这个形态。
+   *
+   * `overlay` — 仍旧浮在画布上（原来的行为）。谜题编辑器用它：那边的参与者面板
+   * 与谜题基本信息面板都是浮层，只把信息框改成占据空间反而更不一致。
+   */
+  layout?: 'split' | 'overlay';
 }
 
 /**
@@ -59,7 +68,6 @@ function RegionEditBranch({
   style,
   onSubmitRegion,
   onDeleteRegion,
-  onLocateRegion,
   onDirtyChange,
 }: {
   region: DraftRegion;
@@ -67,7 +75,6 @@ function RegionEditBranch({
   style: MapStyle;
   onSubmitRegion: (regionId: string, input: RegionInput) => void;
   onDeleteRegion: (region: DraftRegion) => void;
-  onLocateRegion: (region: DraftRegion) => void;
   onDirtyChange?: (dirty: boolean) => void;
 }): JSX.Element {
   const resolved = useMemo(() => resolveRegionStyle(style, region.style), [style, region.style]);
@@ -182,14 +189,6 @@ function RegionEditBranch({
           onClick={save}
         >
           保存
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-7 flex-1 text-[11px]"
-          onClick={() => onLocateRegion(region)}
-        >
-          定位
         </Button>
         <Button
           size="sm"
@@ -384,9 +383,9 @@ export function EditorInfoDrawer({
   onClearItem,
   onSubmitRegion,
   onDeleteRegion,
-  onLocateRegion,
   onRegionDirtyChange,
   readOnly = false,
+  layout = 'split',
 }: EditorInfoDrawerProps): JSX.Element {
   const cell =
     selection?.type === 'cell' ? cells.get(`${selection.x},${selection.y}`) : undefined;
@@ -397,78 +396,109 @@ export function EditorInfoDrawer({
         ? regionAt(regions, selection.x, selection.y)
         : undefined;
 
-  return (
-    <>
-      {!open ? (
+  /** The 8px strip that re-opens a collapsed drawer. */
+  const reopenTab = (
+    <button
+      type="button"
+      onClick={onOpen}
+      className="absolute right-0 top-1/2 flex h-16 w-2 -translate-y-1/2 items-center justify-center rounded-l-full border border-r-0 bg-background shadow hover:bg-accent"
+      style={{ zIndex: UI_Z.infoDrawer }}
+      title="展开信息抽屉"
+    />
+  );
+
+  const body = (
+    <div className="flex h-full flex-col">
+      <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
+        <h2 className="text-sm font-semibold">信息</h2>
         <button
           type="button"
-          onClick={onOpen}
-          className="absolute right-0 top-1/2 flex h-16 w-2 -translate-y-1/2 items-center justify-center rounded-l-full border border-r-0 bg-background shadow hover:bg-accent"
-          style={{ zIndex: UI_Z.infoDrawer }}
-          title="展开信息抽屉"
-        />
-      ) : null}
-      <aside
-        className={
-          'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200 ' +
-          (open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full')
-        }
-        // FIX-N11 (docs/v0.5.3.md §6.4): above the ruler strips, below the
-        // participant drawer.
-        style={{ zIndex: UI_Z.infoDrawer }}
-        aria-hidden={!open}
-      >
-        <div className="flex h-full flex-col">
-          <div className="flex shrink-0 items-center justify-between border-b px-4 py-3">
-            <h2 className="text-sm font-semibold">信息</h2>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
-              title="关闭"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
-              </svg>
-            </button>
-          </div>
+          onClick={onClose}
+          className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground"
+          title="关闭"
+        >
+          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M18 6 6 18M6 6l12 12" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
 
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3 text-sm">
-            {!selection ? (
-              <p className="py-6 text-center text-xs text-muted-foreground">
-                在画布上点击格位或区域标签查看详情
-              </p>
-            ) : selection.type === 'cell' ? (
-              <CellBranch
-                selection={selection}
-                cell={cell}
-                region={region}
-                style={style}
-                assetsById={assetsById}
-                onClearCell={onClearCell}
-                onClearItem={onClearItem}
-                readOnly={readOnly}
-              />
-            ) : region ? (
-              readOnly ? (
-                <RegionSummary region={region} style={style} />
-              ) : (
-                <RegionEditBranch
-                  region={region}
-                  regions={regions}
-                  style={style}
-                  onSubmitRegion={onSubmitRegion}
-                  onDeleteRegion={onDeleteRegion}
-                  onLocateRegion={onLocateRegion}
-                  onDirtyChange={onRegionDirtyChange}
-                />
-              )
-            ) : (
-              <p className="text-sm text-muted-foreground">区域不存在或已删除</p>
-            )}
-          </div>
-        </div>
-      </aside>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-3 text-sm">
+        {!selection ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            在画布上点击格位或区域标签查看详情
+          </p>
+        ) : selection.type === 'cell' ? (
+          <CellBranch
+            selection={selection}
+            cell={cell}
+            region={region}
+            style={style}
+            assetsById={assetsById}
+            onClearCell={onClearCell}
+            onClearItem={onClearItem}
+            readOnly={readOnly}
+          />
+        ) : region ? (
+          readOnly ? (
+            <RegionSummary region={region} style={style} />
+          ) : (
+            <RegionEditBranch
+              region={region}
+              regions={regions}
+              style={style}
+              onSubmitRegion={onSubmitRegion}
+              onDeleteRegion={onDeleteRegion}
+              onDirtyChange={onRegionDirtyChange}
+            />
+          )
+        ) : (
+          <p className="text-sm text-muted-foreground">区域不存在或已删除</p>
+        )}
+      </div>
+    </div>
+  );
+
+  /**
+   * `overlay` — the v0.7.0 behaviour, kept whole for the puzzle editor: the
+   * panel stays mounted and slides in / out over the canvas.
+   */
+  if (layout === 'overlay') {
+    return (
+      <>
+        {!open ? reopenTab : null}
+        <aside
+          className={
+            'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200 ' +
+            (open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full')
+          }
+          // FIX-N11 (docs/v0.5.3.md §6.4): above the ruler strips, below the
+          // participant drawer.
+          style={{ zIndex: UI_Z.infoDrawer }}
+          aria-hidden={!open}
+        >
+          {body}
+        </aside>
+      </>
+    );
+  }
+
+  /**
+   * `split` (v0.7.4) — a real flex child of the editor row: opening it takes
+   * 320px away from the canvas instead of covering it, and the canvas's own
+   * ResizeObserver re-fits the board into what is left.
+   */
+  return (
+    <>
+      {!open ? reopenTab : null}
+      {open ? (
+        <aside
+          className="relative flex h-full w-80 max-w-[50vw] shrink-0 flex-col border-l bg-background"
+          style={{ zIndex: UI_Z.infoDrawer }}
+        >
+          {body}
+        </aside>
+      ) : null}
     </>
   );
 }

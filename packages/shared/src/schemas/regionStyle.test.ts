@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_MAP_STYLE,
+  DEFAULT_REGION_LABEL_FONT_FAMILY,
+  MAP_STYLE_FONT_FAMILY_KEYS,
+  MAP_STYLE_FONT_FAMILY_STACKS,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
   STYLE_DEFAULT_REGION_LABEL_HOVER_STROKE_WIDTH,
+  fontFamilyStack,
+  isMapStyleFontFamilyKey,
 } from '../constants';
 import {
   createRegionInputSchema,
@@ -65,7 +70,8 @@ describe('regionStyleOverrideSchema (v0.7.0)', () => {
     expect(regionStyleOverrideSchema.safeParse({ outline: { width: REGION_BORDER_WIDTH_MAX } }).success).toBe(
       true,
     );
-    expect(regionStyleOverrideSchema.safeParse({ outline: { width: 2 } }).success).toBe(false);
+    // v0.7.4: 轮廓线下限降到 1，0 仍然不合法。
+    expect(regionStyleOverrideSchema.safeParse({ outline: { width: 0 } }).success).toBe(false);
     expect(regionStyleOverrideSchema.safeParse({ outline: { width: 8.5 } }).success).toBe(false);
     expect(regionStyleOverrideSchema.safeParse({ highlight: { width: 1.5 } }).success).toBe(true);
     expect(regionStyleOverrideSchema.safeParse({ highlight: { width: 99 } }).success).toBe(false);
@@ -130,5 +136,69 @@ describe('DEFAULT_MAP_STYLE (v0.7.0)', () => {
     expect(DEFAULT_MAP_STYLE.regionLabel.hoverStrokeWidth).toBe(
       DEFAULT_MAP_STYLE.regionLabel.strokeWidth,
     );
+  });
+});
+
+describe('区域标签字体 (v0.7.4)', () => {
+  it('fills fontFamily from the shipped default', () => {
+    expect(mapStyleSchema.parse({}).regionLabel.fontFamily).toBe(
+      DEFAULT_REGION_LABEL_FONT_FAMILY,
+    );
+    expect(DEFAULT_REGION_LABEL_FONT_FAMILY).toBe('system');
+  });
+
+  it('accepts the built-in keys and keeps their stacks', () => {
+    for (const key of MAP_STYLE_FONT_FAMILY_KEYS) {
+      expect(mapStyleSchema.parse({ regionLabel: { fontFamily: key } }).regionLabel.fontFamily).toBe(
+        key,
+      );
+      expect(
+        regionStyleOverrideSchema.safeParse({ label: { fontFamily: key } }).success,
+        key,
+      ).toBe(true);
+      expect(fontFamilyStack(key)).toBe(MAP_STYLE_FONT_FAMILY_STACKS[key]);
+    }
+  });
+
+  it('accepts a concrete font name and quotes it in front of the system stack', () => {
+    for (const name of ['WenKai', 'Noto Serif SC', '霞鹜文楷', 'LXGW-WenKai']) {
+      expect(mapStyleSchema.parse({ regionLabel: { fontFamily: name } }).regionLabel.fontFamily).toBe(
+        name,
+      );
+      expect(regionStyleOverrideSchema.safeParse({ label: { fontFamily: name } }).success).toBe(
+        true,
+      );
+      expect(fontFamilyStack(name).startsWith(`"${name}", `)).toBe(true);
+      expect(fontFamilyStack(name).endsWith(MAP_STYLE_FONT_FAMILY_STACKS.system)).toBe(true);
+    }
+  });
+
+  it('trims the name before storing it', () => {
+    expect(
+      mapStyleSchema.parse({ regionLabel: { fontFamily: '  WenKai  ' } }).regionLabel.fontFamily,
+    ).toBe('WenKai');
+  });
+
+  it('rejects names that could break out of the CSS fallback chain', () => {
+    for (const bad of ['', '   ', 'a;b', 'a,b', 'a"b', 'a(b)', 'a}b', 'x'.repeat(65)]) {
+      expect(mapStyleSchema.safeParse({ regionLabel: { fontFamily: bad } }).success, bad).toBe(
+        false,
+      );
+      expect(regionStyleOverrideSchema.safeParse({ label: { fontFamily: bad } }).success, bad).toBe(
+        false,
+      );
+    }
+  });
+
+  it('falls back to the default stack for a name it cannot quote safely', () => {
+    expect(fontFamilyStack('a;b')).toBe(
+      MAP_STYLE_FONT_FAMILY_STACKS[DEFAULT_REGION_LABEL_FONT_FAMILY],
+    );
+    expect(fontFamilyStack('')).toBe(
+      MAP_STYLE_FONT_FAMILY_STACKS[DEFAULT_REGION_LABEL_FONT_FAMILY],
+    );
+    expect(isMapStyleFontFamilyKey('serif')).toBe(true);
+    expect(isMapStyleFontFamilyKey('WenKai')).toBe(false);
+    expect(isMapStyleFontFamilyKey(42)).toBe(false);
   });
 });

@@ -399,10 +399,10 @@ describe('line constants (OPT-A04 §3.2)', () => {
     expect(LINE_COLOR).toBe('#000000');
   });
 
-  it('keeps the region outline wider than the grid Border', () => {
+  it('keeps the shipped region outline wider than the grid Border', () => {
     expect(REGION_BORDER_WIDTH).toBeGreaterThan(BORDER_WIDTH);
-    expect(REGION_BORDER_WIDTH_MIN).toBeGreaterThan(BORDER_WIDTH);
-    expect(REGION_BORDER_WIDTH_MIN).toBe(4);
+    // v0.7.4：作者可调的**下限**从 4 降到 1，出厂的默认线宽不变。
+    expect(REGION_BORDER_WIDTH_MIN).toBe(1);
     expect(REGION_BORDER_WIDTH_MAX).toBe(12);
   });
 });

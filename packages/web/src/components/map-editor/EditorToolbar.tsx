@@ -1,6 +1,7 @@
 import {
   ArrowLeft,
   Download,
+  Eye,
   History,
   Loader2,
   Map as MapIcon,
@@ -50,6 +51,12 @@ interface EditorToolbarProps {
   onPublish?: () => void;
   onOpenVersions?: () => void;
   /**
+   * v0.7.4 §3：「预览」—— 打开只读预览页。不传即不渲染（谜题编辑器没有这条动线：
+   * 它预览的是谜题玩法，走谜题列表）。fork 态也不传，因为 `?v=` 那一屏的数据源是
+   * 版本快照，预览页按 `:mapId` 读行，读不到这份草稿。
+   */
+  onPreview?: () => void;
+  /**
    * v0.7.3 §3.1：「引入新地图」只属于谜题编辑器（换掉被引用的底图）。地图编辑器
    * 没有这个动作，不传即不渲染 —— 按钮不是这里的东西。
    */
@@ -68,11 +75,12 @@ export function EditorToolbar({
   status,
   currentVersionNo,
   mapInfoOpen,
-  infoTitle = '地图基本信息（名称、描述、封面、方格大小、线宽颜色、区域名称）',
+  infoTitle = '地图基本信息（名称、描述、封面、方格大小、线宽颜色、区域标签字体与名称）',
   onBack,
   onSave,
   onPublish,
   onOpenVersions,
+  onPreview,
   onImportMap,
   onOpenMapInfo,
   onExport,
@@ -162,6 +170,18 @@ export function EditorToolbar({
         >
           <History className="h-4 w-4" />
         </Button>
+        {onPreview ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onPreview}
+            disabled={saving}
+            title="预览（只读，先保存当前修改）"
+            aria-label="预览"
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+        ) : null}
 
         <div className="mx-1 h-5 w-px bg-border" />
 

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   DEFAULT_MAP_STYLE,
+  DEFAULT_REGION_LABEL_FONT_FAMILY,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   LINKAGE_COLOR_KEY_PATTERN,
@@ -8,6 +9,8 @@ import {
   MAP_STYLE_CELL_SIZE_MAX,
   MAP_STYLE_CELL_SIZE_MIN,
   MAP_STYLE_COLOR_PATTERN,
+  MAP_STYLE_FONT_FAMILY_NAME_MAX_LENGTH,
+  MAP_STYLE_FONT_FAMILY_NAME_PATTERN,
   MAP_STYLE_LINE_WIDTH_MAX,
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
@@ -59,6 +62,25 @@ const regionOutlineWidthSchema = z
   .max(REGION_BORDER_WIDTH_MAX)
   .default(DEFAULT_MAP_STYLE.regionOutline.width);
 
+/**
+ * v0.7.4: the region label's typeface — a **font name** (`WenKai`, `霞鹜文楷`)
+ * or one of the built-in keys (`system` / `serif` …).
+ *
+ * Not an enum any more: the set of selectable fonts is whatever lives in
+ * `packages/web/src/assets/fonts/`, which `shared` must not know about. What is
+ * still enforced is the *shape* of the name — length plus a character set that
+ * cannot break out of the quoted slot in the CSS fallback chain
+ * (`MAP_STYLE_FONT_FAMILY_NAME_PATTERN`). A name that survives here is safe to
+ * render, and a name that came from another build simply falls back at render
+ * time instead of failing the parse.
+ */
+const fontFamilySchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(MAP_STYLE_FONT_FAMILY_NAME_MAX_LENGTH)
+  .regex(MAP_STYLE_FONT_FAMILY_NAME_PATTERN, 'fontFamily 需为字体名（不含引号 / 逗号 / 分号）');
+
 export const mapLinkageColorSchema = z.object({
   key: z.string().trim().regex(LINKAGE_COLOR_KEY_PATTERN, '主题色 key 需为小写字母开头的标识符'),
   label: z.string().trim().min(1).max(LINKAGE_COLOR_LABEL_MAX_LENGTH),
@@ -107,6 +129,7 @@ export const mapStyleSchema = z.object({
     ...DEFAULT_MAP_STYLE.operationCursorBox,
   })),
   regionLabel: z.object({
+    fontFamily: fontFamilySchema.default(DEFAULT_REGION_LABEL_FONT_FAMILY),
     fontSize: z
       .number()
       .int()
@@ -225,6 +248,7 @@ const regionHighlightOverrideSchema = z
 
 const regionLabelOverrideSchema = z
   .object({
+    fontFamily: fontFamilySchema.optional(),
     fontSize: z
       .number()
       .int()

@@ -5,6 +5,7 @@ import type {
   RegionStyle,
   RegionStyleOverride,
 } from '@loredoku/shared';
+import { isMapStyleFontFamilyName } from '@loredoku/shared';
 import {
   clampLineWidth,
   clampRegionBorderWidth,
@@ -64,6 +65,14 @@ export function resolveRegionStyle(
       color: pickColor(base.regionHighlight.color, highlight.color),
     },
     label: {
+      // v0.7.4: the typeface is a font name, so the only failure mode is a
+      // malformed name — that falls back to the map-level value, not to the
+      // shipped default. A name this build does not ship is still honoured:
+      // the renderer quotes it and lets the browser walk the fallback chain.
+      fontFamily:
+        label.fontFamily !== undefined && isMapStyleFontFamilyName(label.fontFamily)
+          ? label.fontFamily
+          : base.regionLabel.fontFamily,
       fontSize,
       strokeWidth:
         typeof label.strokeWidth === 'number'
@@ -116,6 +125,9 @@ export function regionStyleOverride(
   }
 
   const label: Partial<RegionLabelStyle> = {};
+  if (style.label.fontFamily !== base.regionLabel.fontFamily) {
+    label.fontFamily = style.label.fontFamily;
+  }
   if (style.label.fontSize !== base.regionLabel.fontSize) {
     label.fontSize = style.label.fontSize;
   }

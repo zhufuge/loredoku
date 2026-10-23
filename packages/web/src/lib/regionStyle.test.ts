@@ -56,8 +56,9 @@ describe('resolveRegionStyle', () => {
     expect(resolved.label.strokeColor).toBe(DEFAULT_MAP_STYLE.regionLabel.strokeColor);
   });
 
-  it('keeps the outline inside its own 4 ~ 12 range', () => {
-    expect(resolveRegionStyle(baseStyle(), { outline: { width: 2 } }).outline.width).toBe(
+  it('keeps the outline inside its own 1 ~ 12 range', () => {
+    // v0.7.4：下限 4 → 1，细到 1px 的轮廓也允许。
+    expect(resolveRegionStyle(baseStyle(), { outline: { width: 0 } }).outline.width).toBe(
       REGION_BORDER_WIDTH_MIN,
     );
     expect(resolveRegionStyle(baseStyle(), { outline: { width: 4.4 } }).outline.width).toBe(4);
@@ -68,6 +69,25 @@ describe('resolveRegionStyle', () => {
     const resolved = resolveRegionStyle(baseStyle(), { label: { fontSize: 40 } });
     expect(resolved.label.fontSize).toBe(40);
     expect(resolved.label.hoverFontSize).toBe(40);
+  });
+
+  it('resolves the label typeface: map default, then the region override', () => {
+    expect(resolveRegionStyle(baseStyle()).label.fontFamily).toBe(
+      DEFAULT_MAP_STYLE.regionLabel.fontFamily,
+    );
+    expect(
+      resolveRegionStyle(baseStyle(), { label: { fontFamily: 'serif' } }).label.fontFamily,
+    ).toBe('serif');
+    // 本构建没带的字体名照原样留着 —— 渲染时按回退链找，不能悄悄换成地图级。
+    expect(
+      resolveRegionStyle(baseStyle(), { label: { fontFamily: 'WenKai' } }).label.fontFamily,
+    ).toBe('WenKai');
+    // 拼不进 CSS 的名字（手改的 JSON）回落到**地图级**的值，而不是出厂默认。
+    expect(
+      resolveRegionStyle(baseStyle(), {
+        label: { fontFamily: 'a;b' as never },
+      }).label.fontFamily,
+    ).toBe(DEFAULT_MAP_STYLE.regionLabel.fontFamily);
   });
 
   it('tolerates a null override', () => {
@@ -93,6 +113,22 @@ describe('regionStyleOverride', () => {
       outline: { width: 6 },
       label: { hoverColor: '#00FF00' },
     });
+  });
+
+  it('records the typeface only when the region differs from the map default', () => {
+    const base = baseStyle();
+    expect(
+      regionStyleOverride(resolveRegionStyle(base, { label: { fontFamily: 'mono' } }), base)
+        ?.label?.fontFamily,
+    ).toBe('mono');
+    expect(
+      regionStyleOverride(
+        resolveRegionStyle(base, {
+          label: { fontFamily: base.regionLabel.fontFamily },
+        }),
+        base,
+      ),
+    ).toBeUndefined();
   });
 
   it('round-trips: override → resolve → override', () => {

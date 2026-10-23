@@ -91,8 +91,14 @@ export const CARD_ROTATIONS = [0, 90, 180, 270] as const;
 // ---- Region ----
 export const REGION_NAME_MAX_LENGTH = 100;
 export const REGION_DESCRIPTION_MAX_LENGTH = 500;
-/** 区域轮廓线线宽边界：与地图级缺省同一套，区域只能在区间内覆盖。 */
-export const REGION_BORDER_WIDTH_MIN = 4;
+/**
+ * 区域轮廓线线宽边界：与地图级缺省同一套，区域只能在区间内覆盖。
+ *
+ * v0.7.4：下限 4 → 1。原来的 4 只是为了让轮廓线比网格分隔线（2）粗一档，
+ * 现在作者可以自己决定细到什么程度（线宽一律按 `cellSize / BASE_CELL` 缩放，
+ * 1 在大格子上仍然看得见）。
+ */
+export const REGION_BORDER_WIDTH_MIN = 1;
 export const REGION_BORDER_WIDTH_MAX = 12;
 /** 区域轮廓线的地图级缺省颜色。 */
 export const DEFAULT_REGION_COLOR = '#000000';
@@ -312,6 +318,81 @@ export const MAP_STYLE_REGION_LABEL_FONT_MIN = 9;
 export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
 export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
 export const MAP_STYLE_REGION_LABEL_STROKE_MAX = 12;
+
+// ---- v0.7.4 区域标签字体（docs/v0.7.4.md §2） ----
+/**
+ * 区域标签用的字体。
+ *
+ * 草稿里存的是**字体名**（例如 `WenKai`、`霞鹜文楷`），不是 CSS 字符串：一份
+ * 草稿会被导出 / 导入、被复制成版本快照，存一个名字意味着换机器、换字号都还是
+ * 同一款字体；而拼好的 `font-family` 一进 JSON 就再也没法安全地和别的回退链
+ * 合并。字体文件由前端自己带（`packages/web/src/assets/fonts/`），本包只认名字。
+ *
+ * 下面这几个 key 是**内置字族**：不需要任何字体文件，靠系统里同名字族 + 回退链
+ * 兜住。它们仍然合法（老草稿里存的就是它们），但选择器现在主推具体字体。
+ */
+export const MAP_STYLE_FONT_FAMILY_KEYS = ['system', 'sans', 'serif', 'kai', 'mono'] as const;
+export type MapStyleFontFamilyKey = (typeof MAP_STYLE_FONT_FAMILY_KEYS)[number];
+export const MAP_STYLE_FONT_FAMILY_LABELS: Record<MapStyleFontFamilyKey, string> = {
+  system: '系统默认',
+  sans: '无衬线',
+  serif: '衬线',
+  kai: '楷体',
+  mono: '等宽',
+};
+export const MAP_STYLE_FONT_FAMILY_STACKS: Record<MapStyleFontFamilyKey, string> = {
+  system:
+    'ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif',
+  sans: '"Helvetica Neue", Helvetica, Arial, "PingFang SC", "Microsoft YaHei", sans-serif',
+  serif: 'Georgia, "Times New Roman", "Songti SC", SimSun, serif',
+  kai: '"Kaiti SC", KaiTi, STKaiti, "Noto Serif SC", serif',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace',
+};
+export const DEFAULT_REGION_LABEL_FONT_FAMILY = 'system';
+
+/**
+ * 字体名的长度与字符集。
+ *
+ * 宽到能装下 `Source Han Serif SC` / `LXGW WenKai` / `霞鹜文楷`，但把**引号、
+ * 逗号、分号、圆括号**排除在外 —— 拼回退链时唯一能注入 CSS 的位置就是字体名，
+ * 而回退链本身由 `fontFamilyStack` 加引号包住，名字里再出现引号就会把它撕开。
+ */
+export const MAP_STYLE_FONT_FAMILY_NAME_MAX_LENGTH = 64;
+export const MAP_STYLE_FONT_FAMILY_NAME_PATTERN =
+  /^[A-Za-z0-9\u4e00-\u9fff][A-Za-z0-9\u4e00-\u9fff ._-]*$/;
+
+/** 读草稿 / 导入 JSON / 读下拉值时的唯一判定点。 */
+export function isMapStyleFontFamilyName(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= MAP_STYLE_FONT_FAMILY_NAME_MAX_LENGTH &&
+    MAP_STYLE_FONT_FAMILY_NAME_PATTERN.test(value)
+  );
+}
+
+/** 内置字族的 key（不是具体字体名）。 */
+export function isMapStyleFontFamilyKey(value: unknown): value is MapStyleFontFamilyKey {
+  return (
+    typeof value === 'string' &&
+    (MAP_STYLE_FONT_FAMILY_KEYS as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * 字体名 → 可直接放进 `style.fontFamily` 的回退链。
+ *
+ * 内置 key 用自己的回退链；具体字体名被引号包住、后面再挂系统默认那一串 ——
+ * 字体文件没加载出来（或草稿来自没带这款字体的构建）时，标签退回系统字体而不是
+ * 变成浏览器默认的衬线体。非法名字一律回退系统默认，绝不透传。
+ */
+export function fontFamilyStack(name: string): string {
+  if (isMapStyleFontFamilyKey(name)) return MAP_STYLE_FONT_FAMILY_STACKS[name];
+  if (!isMapStyleFontFamilyName(name)) {
+    return MAP_STYLE_FONT_FAMILY_STACKS[DEFAULT_REGION_LABEL_FONT_FAMILY];
+  }
+  return `"${name}", ${MAP_STYLE_FONT_FAMILY_STACKS.system}`;
+}
 /** v0.3.9 FEAT-E02: ruler text size and text→board gap. */
 export const MAP_STYLE_RULER_FONT_MIN = 9;
 export const MAP_STYLE_RULER_FONT_MAX = 32;
@@ -523,6 +604,11 @@ export interface MapStyleOperationCursorBox extends MapStyleLine {
 }
 
 export interface MapStyleRegionLabel {
+  /**
+   * v0.7.4 (docs/v0.7.4.md §2): the label's typeface — a concrete font family
+   * name (`WenKai`) or one of the built-in `MAP_STYLE_FONT_FAMILY_KEYS`.
+   */
+  fontFamily: string;
   fontSize: number;
   strokeWidth: number;
   color: string;
@@ -607,6 +693,7 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
     offset: OPERATION_CURSOR_OUTLINE_OFFSET,
   },
   regionLabel: {
+    fontFamily: DEFAULT_REGION_LABEL_FONT_FAMILY,
     fontSize: STYLE_DEFAULT_REGION_LABEL_FONT_SIZE,
     strokeWidth: STYLE_DEFAULT_REGION_LABEL_STROKE_WIDTH,
     color: REGION_LABEL_COLOR,

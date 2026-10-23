@@ -20,6 +20,7 @@ import {
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
+  UI_Z,
   type MapStyle,
   type RegionStyle,
 } from '@loredoku/shared';
@@ -31,7 +32,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { CoverPicker } from '@/components/common/CoverPicker';
 import { ColorField, Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
-import { cn } from '@/lib/utils';
 import {
   clampCellSize,
   clampLineWidth,
@@ -164,7 +164,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       onDirtyChange,
     },
     ref,
-  ): JSX.Element {
+  ): JSX.Element | null {
     const [draft, setDraft] = useDraft<MapStyle>(style, open);
     const [draftGridSize, setDraftGridSize] = useDraft<number>(gridSize, open);
     const [draftName, setDraftName] = useDraft<string>(name, open);
@@ -268,21 +268,27 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
     };
 
     const cellSizeValue = draft.cellSize ?? autoCellSize;
-
     const cellSizeHint = `方格边长（px），可指定 ${MAP_STYLE_CELL_SIZE_MIN} ~ ${MAP_STYLE_CELL_SIZE_MAX}，未指定时按窗口自适应。${
       draft.cellSize === null
         ? `当前为自适应（本次计算值 ${autoCellSize}px），窗口尺寸变化会重新计算。`
         : '当前已手动指定，窗口尺寸变化不再改变方格大小。'
     }`;
 
+    /**
+     * v0.7.4 (docs/v0.7.4.md §4): 面板**占据**编辑区右侧一块空间，关掉时不渲染
+     * 任何东西（不再留一条 `translate-x-full` 的浮层）。关掉不丢东西：草稿本来
+     * 就在 `open` 变 true 时重新播种（`useDraft`），关掉只可能是「放弃」或
+     * 「已提交」。
+     */
+    if (!open) return null;
+
     return (
       <aside
-        aria-hidden={!open}
         data-testid="map-info-drawer"
-        className={cn(
-          'absolute inset-y-0 right-0 z-30 flex w-80 max-w-[85vw] flex-col border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200',
-          open ? 'translate-x-0' : 'pointer-events-none translate-x-full',
-        )}
+        className="relative flex h-full w-80 max-w-[50vw] shrink-0 flex-col border-l bg-background"
+        // 高于信息抽屉的 8px 展开条（`UI_Z.infoDrawer`）—— 两者都开时窄条不该
+        // 压在本面板上。
+        style={{ zIndex: UI_Z.drawer }}
       >
         <header className="flex h-11 shrink-0 items-center justify-between border-b px-4">
           <span className="text-sm font-semibold">地图基本信息</span>

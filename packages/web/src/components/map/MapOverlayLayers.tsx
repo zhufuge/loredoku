@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react';
 import {
   MAP_LAYER_Z,
   BLOCKING_SHADOW_COLOR,
+  fontFamilyStack,
   type CellCoord,
   type DraftRegion,
   type MapStyle,
@@ -132,8 +133,13 @@ export function MapOperationCursorBoxLayer({
 
 /**
  * 层 3 · 区域标签（Region Label）— the region name text, drawn above the
- * artwork with stroke + fill colours and a hover pair, all driven by
- * `style.regionLabel` (FEAT-D02).
+ * artwork with stroke + fill colours and a hover pair.
+ *
+ * v0.7.0 made the label three-level (map default + region override), but this
+ * layer kept reading the **map-level** block for every region — a region that
+ * set its own label size / colour / typeface showed nothing of it. v0.7.4 reads
+ * the region's resolved style like the outline and highlight layers already do,
+ * which is also what makes the new `fontFamily` field meaningful per region.
  */
 export function MapRegionLabelLayer({
   regions,
@@ -150,9 +156,7 @@ export function MapRegionLabelLayer({
   onHover?: (id: string | null) => void;
   onSelect?: (id: string) => void;
 }): JSX.Element {
-  const label = style.regionLabel;
   const scale = cellScale(cellSize);
-  const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
   return (
     <div
       className="pointer-events-none absolute left-0 top-0"
@@ -162,6 +166,8 @@ export function MapRegionLabelLayer({
         const anchor = region.labelCell ?? computeLabelCell(region.cells);
         if (!anchor) return null;
         const hovered = hoveredRegionId === region.id;
+        const label = resolveRegionStyle(style, region.style).label;
+        const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
         return (
           <button
             key={`label-${region.id}`}
@@ -173,6 +179,7 @@ export function MapRegionLabelLayer({
                 top: (anchor[1] + 1) * cellSize - 2,
                 transform: 'translate(-50%, -100%)',
                 color: hovered ? label.hoverColor : label.color,
+                fontFamily: fontFamilyStack(label.fontFamily),
                 fontWeight: 700,
                 fontSize: scaleFontSize(hovered ? label.hoverFontSize : label.fontSize, scale),
                 lineHeight: 1.1,
@@ -180,7 +187,8 @@ export function MapRegionLabelLayer({
                   hovered ? label.hoverStrokeColor : label.strokeColor
                 }`,
                 paintOrder: 'stroke fill',
-                transition: 'font-size 120ms ease-out, -webkit-text-stroke-color 120ms ease-out',
+                transition:
+                  'font-size 120ms ease-out, -webkit-text-stroke-color 120ms ease-out',
               } as CSSProperties
             }
             onMouseEnter={() => onHover?.(region.id)}

@@ -16,6 +16,8 @@ import {
   clampRegionLabelStroke,
 } from '@/lib/mapStyle';
 import { ColorField, Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
+import { fontFamilyOptions, hasBundledFonts } from '@/lib/fonts';
+import { Select } from '@/components/ui/select';
 
 /**
  * v0.7.0 (docs/v0.7.0.md §5) — the one layout both info boxes use for a
@@ -28,8 +30,8 @@ import { ColorField, Hint, NumberField, Row } from '@/components/map-editor/Styl
  * (`regionStyleOverride`), so a field left at the default never reaches the
  * region record.
  *
- * The four label rows mirror the map-level names: 字体 / 描边 / 高亮 /
- * 高亮描边, each a size + a colour.
+ * The label block mirrors the map-level names: 字体（具体字体，v0.7.4）/ 字号 /
+ * 描边 / 高亮 / 高亮描边，后四行各是一个大小 + 一个颜色。
  */
 export function RegionStyleEditor({
   idPrefix,
@@ -54,6 +56,13 @@ export function RegionStyleEditor({
     }
     onChange({ ...value, label });
   };
+
+  /**
+   * v0.7.4: the picker lists **concrete fonts** — whatever lives in
+   * `src/assets/fonts/` — plus 系统默认. Resolved once per render: the list is a
+   * build-time constant, so there is nothing to subscribe to.
+   */
+  const fontOptions = fontFamilyOptions(value.label.fontFamily);
 
   return (
     <div className="space-y-2">
@@ -116,7 +125,28 @@ export function RegionStyleEditor({
           <span>区域标签</span>
           <Hint text="Region Label — 区域名称文字，采用「描边 + 填充」绘制，在深浅背景上都可读。" />
         </span>
-        <Row label="字体">
+        <Row
+          label="字体"
+          hint={
+            hasBundledFonts()
+              ? 'Font — 区域名称文字使用的字体，可选项来自 packages/web/src/assets/fonts/；缺字时按系统回退链继续找。'
+              : 'Font — 目前只装了「系统默认」：把 .ttf / .otf 放进 packages/web/fonts-source/，跑 npm run fonts 裁字转成 woff2（命名如 WenKai-Bold.woff2），重新构建后即出现在这里。'
+          }
+        >
+          <Select
+            id={`${idPrefix}-label-font-family`}
+            value={value.label.fontFamily}
+            onChange={(event) => patchLabel({ fontFamily: event.target.value })}
+            className="h-7 w-40 max-w-[65%] text-xs"
+          >
+            {fontOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </Select>
+        </Row>
+        <Row label="字号">
           <div className="flex items-center gap-1">
             <NumberField
               id={`${idPrefix}-label-font-size`}

@@ -353,6 +353,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
         outline: { width: 6, color: '#111111' },
         highlight: { width: 5, color: '#3B82F6' },
         label: {
+          fontFamily: 'system',
           fontSize: 32,
           strokeWidth: 10,
           color: '#FFFFFF',
@@ -385,6 +386,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
         outline: { width: 12, color: '#000000' },
         highlight: { width: 12, color: '#3B82F6' },
         label: {
+          fontFamily: 'system',
           fontSize: 32,
           strokeWidth: 10,
           color: '#FFFFFF',
@@ -406,6 +408,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
         outline: { width: 6, color: '#111111' },
         highlight: { width: 12, color: '#3B82F6' },
         label: {
+          fontFamily: 'system',
           fontSize: 32,
           strokeWidth: 10,
           color: '#FFFFFF',
@@ -427,6 +430,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
         outline: { width: 12, color: '#000000' },
         highlight: { width: 12, color: '#3B82F6' },
         label: {
+          fontFamily: 'system',
           fontSize: 32,
           strokeWidth: 10,
           color: '#FFFFFF',

@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { ArrowLeft, Hand, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
@@ -69,9 +69,19 @@ function readStoredRulerVisible(): boolean {
 export function MapViewPage(): JSX.Element {
   const { mapId: mapIdParam } = useParams<{ mapId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const mapId = Number(mapIdParam);
   const valid = Number.isFinite(mapId) && mapId > 0;
+
+  /**
+   * v0.7.4 (docs/v0.7.4.md §3)：从编辑器头部的「预览」进来时（`state.from =
+   * 'editor'`），返回键回编辑器 —— 预览就是为了「看一眼再改」，退到地图列表等于
+   * 把作者丢出去。直接打开这条 URL 的读者仍回列表。
+   */
+  const fromEditor = (location.state as { from?: string } | null)?.from === 'editor';
+  const backTarget = fromEditor ? `/maps/${mapId}/edit` : '/maps';
+  const backTitle = fromEditor ? '返回编辑器' : '返回地图列表';
 
   const mapQuery = useMapCanvas(valid ? mapId : Number.NaN);
   // A published snapshot may reference items that are now inactive.
@@ -287,8 +297,9 @@ export function MapViewPage(): JSX.Element {
           <Button
             variant="ghost"
             size="icon"
-            onClick={() => navigate('/maps')}
-            title="返回地图列表"
+            onClick={() => navigate(backTarget)}
+            title={backTitle}
+            aria-label={backTitle}
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>

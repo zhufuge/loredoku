@@ -58,10 +58,9 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
 
   const onSubmitRegion = vi.fn();
   const onDeleteRegion = vi.fn();
-  const onLocateRegion = vi.fn();
   const onRegionDirtyChange = vi.fn();
 
-  function render(region: DraftRegion, readOnly = false): void {
+  function render(region: DraftRegion, readOnly = false, mapStyle: MapStyle = style): void {
     act(() => {
       root.render(
         <EditorInfoDrawer
@@ -72,12 +71,11 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
           cells={new Map()}
           regions={[region]}
           assetsById={new Map()}
-          style={style}
+          style={mapStyle}
           onClearCell={vi.fn()}
           onClearItem={vi.fn()}
           onSubmitRegion={onSubmitRegion}
           onDeleteRegion={onDeleteRegion}
-          onLocateRegion={onLocateRegion}
           onRegionDirtyChange={onRegionDirtyChange}
           readOnly={readOnly}
         />,
@@ -93,7 +91,6 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
   beforeEach(() => {
     onSubmitRegion.mockClear();
     onDeleteRegion.mockClear();
-    onLocateRegion.mockClear();
     onRegionDirtyChange.mockClear();
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -199,7 +196,6 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
           onClearItem={vi.fn()}
           onSubmitRegion={onSubmitRegion}
           onDeleteRegion={onDeleteRegion}
-          onLocateRegion={onLocateRegion}
           onRegionDirtyChange={onRegionDirtyChange}
         />,
       );
@@ -225,14 +221,10 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
     expect(onRegionDirtyChange).toHaveBeenLastCalledWith(true);
   });
 
-  it('定位 / 删除 keep working from the same box', () => {
+  it('删除 works from the same box; 定位 is gone (v0.7.4)', () => {
     render(plainRegion);
-    act(() => {
-      buttons()
-        .find((button) => button.textContent === '定位')
-        ?.click();
-    });
-    expect(onLocateRegion).toHaveBeenCalledTimes(1);
+    // 区域已经在画布上被点开了，再给一个「定位视图」按钮只是重复用户刚做的事。
+    expect(buttons().some((button) => button.textContent === '定位')).toBe(false);
     act(() => {
       buttons()
         .find((button) => button.textContent === '删除')
@@ -241,14 +233,56 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
     expect(onDeleteRegion).toHaveBeenCalledTimes(1);
   });
 
+  it('offers a font picker that starts at 系统默认', () => {
+    render(plainRegion);
+    const select = container.querySelector<HTMLSelectElement>(
+      '#region-info-label-font-family',
+    );
+    expect(select).not.toBeNull();
+    // 第一项恒是「系统默认」；其余是 assets/fonts/ 里发现的字体。
+    expect(select?.options[0]?.value).toBe('system');
+    expect(select?.options[0]?.textContent).toBe('系统默认');
+    expect(select?.value).toBe(style.regionLabel.fontFamily);
+  });
+
+  it('keeps a font this build does not ship selectable, and submits the pick', () => {
+    // 地图级缺省写一个本构建没带的字体名：它必须出现在下拉里（否则 <select>
+    // 会静默显示成第一项，而那和画布上画的不是一回事）。
+    const shippedElsewhere: MapStyle = {
+      ...style,
+      regionLabel: { ...style.regionLabel, fontFamily: 'WenKai' },
+    };
+    render(plainRegion, false, shippedElsewhere);
+    const select = container.querySelector<HTMLSelectElement>(
+      '#region-info-label-font-family',
+    );
+    expect(select?.value).toBe('WenKai');
+    const current = Array.from(select?.options ?? []).find((option) => option.value === 'WenKai');
+    expect(current?.textContent).toContain('当前');
+
+    act(() => {
+      if (select) {
+        select.value = 'system';
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+    act(() => {
+      buttons()
+        .find((button) => button.textContent === '保存')
+        ?.click();
+    });
+    const [, submitted] = onSubmitRegion.mock.calls[0] as [string, RegionInput];
+    expect(submitted.style?.label.fontFamily).toBe('system');
+  });
+
   it('SPEC-K06: read-only mode shows a summary and no inputs', () => {
     render(styledRegion, true);
     expect(container.querySelectorAll('input')).toHaveLength(0);
     expect(container.textContent).toContain('洞穴区');
     // 摘要读的是**解析后**的值：覆盖 8，不是地图级缺省。
     expect(container.textContent).toContain('8');
-    // 只有抽屉自己的关闭按钮，没有 保存 / 定位 / 删除。
-    for (const label of ['保存', '定位', '删除']) {
+    // 只有抽屉自己的关闭按钮，没有 保存 / 删除。
+    for (const label of ['保存', '删除']) {
       expect(
         buttons().some((button) => button.textContent === label),
         label,

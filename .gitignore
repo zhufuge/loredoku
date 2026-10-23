@@ -23,6 +23,11 @@ packages/server/storage/uploads/**
 !packages/server/storage/uploads/.gitkeep
 !packages/server/storage/uploads/cards/
 
+# 字体源文件（几十 MB 的 TTF/OTF）：由 npm run fonts 裁成 src/assets/fonts/ 里的 woff2，
+# 仓库只收裁好的那一份
+packages/web/fonts-source/*.ttf
+packages/web/fonts-source/*.otf
+
 # editor / os
 .vscode/*
 !.vscode/extensions.json

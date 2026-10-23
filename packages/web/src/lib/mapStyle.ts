@@ -8,6 +8,7 @@ import {
   MAP_STYLE_CELL_SIZE_MAX,
   MAP_STYLE_CELL_SIZE_MIN,
   MAP_STYLE_COLOR_PATTERN,
+  isMapStyleFontFamilyName,
   MAP_STYLE_LINE_WIDTH_MAX,
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
@@ -74,6 +75,21 @@ export function clampRulerGap(value: number): number {
 
 export function clampRegionBorderWidth(value: number): number {
   return Math.round(clampNumber(value, REGION_BORDER_WIDTH_MIN, REGION_BORDER_WIDTH_MAX));
+}
+
+/**
+ * v0.7.4: the label typeface is a **font name**, so there is nothing to clamp —
+ * only a shape to check. A name that fails it (a hand-edited JSON, a draft
+ * written by a newer build, an empty string) falls back to the shipped default
+ * instead of leaking into `style.fontFamily`; a well-formed name that this
+ * build does not ship still renders, the browser falls back along its stack.
+ */
+export function resolveFontFamilyName(value: unknown): string {
+  if (typeof value === 'string') {
+    const name = value.trim();
+    if (isMapStyleFontFamilyName(name)) return name;
+  }
+  return DEFAULT_MAP_STYLE.regionLabel.fontFamily;
 }
 
 /** FEAT-D03: the explicit override, clamped to the adaptive range. */
@@ -156,6 +172,7 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
           : fallback.operationCursorBox.offset,
     },
     regionLabel: {
+      fontFamily: resolveFontFamilyName(regionLabel.fontFamily),
       fontSize: baseLabelFontSize,
       strokeWidth:
         typeof regionLabel.strokeWidth === 'number'

@@ -390,6 +390,26 @@ export function MapEditorPage(): JSX.Element {
   };
 
   /**
+   * v0.7.4 §3：头部「预览」= **先落库、再进只读预览页**。
+   *
+   * 预览页读的是服务端那一行的 `data`，不先保存就等于给用户看上一版；而弹一句
+   * 「有未保存的修改，离开将丢失」再让用户选一次，只是把同一个念头问两遍 ——
+   * 「我想看现在的样子」本身就是那个问题的答案。
+   */
+  const openPreview = async (): Promise<void> => {
+    if (mapInfoOpen && mapInfoRef.current?.isDirty()) {
+      if (mapInfoRef.current.save() === false) return;
+    }
+    if (editor.dirty || pendingEntryRef.current !== null) {
+      if (!(await persist(pendingEntryRef.current))) return;
+    }
+    // 与 `forkAndSave` 同一个理由：`useBlocker` 读的是渲染闭包里的 dirty，
+    // 同一 continuation 里 navigate 会拿旧值把自己拦下。setTimeout(0) 落在
+    // React flush 之后。
+    window.setTimeout(() => navigate(`/maps/${id}/views`, { state: { from: 'editor' } }), 0);
+  };
+
+  /**
    * 「保存中」覆盖这一轮可能连发的四个请求；mask 跟着它们一起亮，用户眼里
    * 仍然是一次保存。
    */
@@ -862,6 +882,7 @@ export function MapEditorPage(): JSX.Element {
         onSave={save}
         onPublish={forkFrom === null ? openPublishConfirm : undefined}
         onOpenVersions={() => setVersionsOpen(true)}
+        onPreview={forkFrom === null ? () => void openPreview() : undefined}
         mapInfoOpen={mapInfoOpen}
         onOpenMapInfo={() => {
           if (mapInfoOpen) {
@@ -924,125 +945,133 @@ export function MapEditorPage(): JSX.Element {
           </div>
         ) : null}
 
-        <main className="relative min-h-0 flex-1">
-          <EditorCanvas
-            ref={canvasRef}
-            gridSize={editor.gridSize}
-            cells={editor.cells}
-            assetsById={assetsById}
-            regions={editor.regions}
-            style={editor.style}
-            onAutoCellSize={setAutoCellSize}
-            selectedRegionId={editor.selectedRegionId}
-            zoom={editor.zoom}
-            pan={editor.pan}
-            selection={editor.selection}
-            activeTool={editor.activeTool}
-            spaceHeld={spaceHeld}
-            showRulers={rulerVisible}
-            pendingForm={pendingForm}
-            regionDraftSelection={editor.regionDraftSelection}
-            // SPEC-K12 §9.1: the map editor has no participants, so there is
-            // no linkage highlight to show — the layer stays empty.
-            highlight={null}
-            onSelect={(selection) => {
-              // OPT-C07: clicking the board hands the focus to the cell.
-              // FEAT-E01: switching away from the info drawer is confirmed first.
-              guardMapInfo(() => editor.setSelection(selection));
-            }}
-            onSelectRegion={(regionId) => {
-              // OPT-C07 / BUG-G01: a region label click is a focus switch too,
-              // so it leaves the basic-info drawer the same way a cell does.
-              guardMapInfo(() => editor.setSelectedRegion(regionId));
-            }}
-            onDraftAdd={editor.addDraftCells}
-            onDraftRemove={editor.removeDraftCells}
-            onDraftClear={editor.clearDraftSelection}
-            onToggleRegionCell={(coord) => {
-              if (editor.selectedRegionId !== null) {
-                editor.toggleRegionCell(editor.selectedRegionId, coord.x, coord.y);
-              }
-            }}
-            onPlaceItem={(coord) => {
-              if (!pendingForm) return;
-              // OPT-904 §4.1: the placement layer must match the item category
-              // (the background layer only accepts `type === 'background'`).
-              if (!canPlaceAssetOnLayer(pendingForm.asset, editor.activeLayer)) {
-                toast.error('该物品不能放在当前图层');
-                return;
-              }
-              if (pendingForm.asset.type === 'background') {
-                editor.placeBackground(
-                  pendingForm.asset.id,
-                  pendingForm.form.id,
-                  coord.x,
-                  coord.y,
-                );
-              } else {
-                editor.placeItem(
-                  {
-                    assetId: pendingForm.asset.id,
-                    formId: pendingForm.form.id,
-                    w: pendingForm.form.widthCells,
-                    h: pendingForm.form.heightCells,
-                  },
-                  coord.x,
-                  coord.y,
-                );
-              }
-            }}
-            onErase={(coord) => editor.eraseAt(coord.x, coord.y)}
-            onZoom={editor.setZoom}
-            onPan={editor.setPan}
-          />
-
-          {editor.activeTool === 'region' ? (
-            <RegionSelectionBar
-              count={editor.regionDraftSelection.size}
-              onClear={editor.clearDraftSelection}
-              onConfirm={() => {
-                const cells = Array.from(editor.regionDraftSelection).map(
-                  (key) => key.split(',').map(Number) as Coord,
-                );
-                if (cells.length === 0) {
-                  toast.error('请先选择至少一个格子');
+        {/*
+         * v0.7.4 (docs/v0.7.4.md §4): 右侧两个面板是这一行的**兄弟节点**，
+         * 不是浮在画布上的 absolute 层 —— 打开就把 320px 从画布那儿拿走。
+         * 内层 div 只装画布与两条浮在画布上的工具条，所以底部工具条仍居中于
+         * 「看得见的画布」，而不是居中于整行。
+         */}
+        <main className="relative flex min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1">
+            <EditorCanvas
+              ref={canvasRef}
+              gridSize={editor.gridSize}
+              cells={editor.cells}
+              assetsById={assetsById}
+              regions={editor.regions}
+              style={editor.style}
+              onAutoCellSize={setAutoCellSize}
+              selectedRegionId={editor.selectedRegionId}
+              zoom={editor.zoom}
+              pan={editor.pan}
+              selection={editor.selection}
+              activeTool={editor.activeTool}
+              spaceHeld={spaceHeld}
+              showRulers={rulerVisible}
+              pendingForm={pendingForm}
+              regionDraftSelection={editor.regionDraftSelection}
+              // SPEC-K12 §9.1: the map editor has no participants, so there is
+              // no linkage highlight to show — the layer stays empty.
+              highlight={null}
+              onSelect={(selection) => {
+                // OPT-C07: clicking the board hands the focus to the cell.
+                // FEAT-E01: switching away from the info drawer is confirmed first.
+                guardMapInfo(() => editor.setSelection(selection));
+              }}
+              onSelectRegion={(regionId) => {
+                // OPT-C07 / BUG-G01: a region label click is a focus switch too,
+                // so it leaves the basic-info drawer the same way a cell does.
+                guardMapInfo(() => editor.setSelectedRegion(regionId));
+              }}
+              onDraftAdd={editor.addDraftCells}
+              onDraftRemove={editor.removeDraftCells}
+              onDraftClear={editor.clearDraftSelection}
+              onToggleRegionCell={(coord) => {
+                if (editor.selectedRegionId !== null) {
+                  editor.toggleRegionCell(editor.selectedRegionId, coord.x, coord.y);
+                }
+              }}
+              onPlaceItem={(coord) => {
+                if (!pendingForm) return;
+                // OPT-904 §4.1: the placement layer must match the item category
+                // (the background layer only accepts `type === 'background'`).
+                if (!canPlaceAssetOnLayer(pendingForm.asset, editor.activeLayer)) {
+                  toast.error('该物品不能放在当前图层');
                   return;
                 }
-                if (!isConnected(cells)) {
-                  setRegionError('区域必须是相连的方格，请调整选区。');
-                  return;
+                if (pendingForm.asset.type === 'background') {
+                  editor.placeBackground(
+                    pendingForm.asset.id,
+                    pendingForm.form.id,
+                    coord.x,
+                    coord.y,
+                  );
+                } else {
+                  editor.placeItem(
+                    {
+                      assetId: pendingForm.asset.id,
+                      formId: pendingForm.form.id,
+                      w: pendingForm.form.widthCells,
+                      h: pendingForm.form.heightCells,
+                    },
+                    coord.x,
+                    coord.y,
+                  );
                 }
-                setRegionDialog({ open: true, cells });
               }}
-              onCancel={() => {
-                editor.clearDraftSelection();
-                setTool('select');
-              }}
+              onErase={(coord) => editor.eraseAt(coord.x, coord.y)}
+              onZoom={editor.setZoom}
+              onPan={editor.setPan}
             />
-          ) : null}
 
-          <EditorBottomBar
-            activeTool={editor.activeTool}
-            canUndo={editor.past.length > 0}
-            canRedo={editor.future.length > 0}
-            zoom={editor.zoom}
-            gridSize={editor.gridSize}
-            itemsOpen={itemsOpen}
-            rulerVisible={rulerVisible}
-            selectedAsset={pendingForm?.asset ?? null}
-            selectedForm={pendingForm?.form ?? null}
-            onSetTool={setTool}
-            onUndo={editor.undo}
-            onRedo={editor.redo}
-            onZoomIn={() => zoomBy(1)}
-            onZoomOut={() => zoomBy(-1)}
-            onZoomReset={() => editor.setZoom(1)}
-            onFit={() => canvasRef.current?.centerView()}
-            onToggleItems={() => setItemsOpen((open) => !open)}
-            onToggleRuler={() => setRulerVisible((visible) => !visible)}
-            onOpenResize={() => setResizeOpen(true)}
-            onRevealItems={() => setItemsOpen(true)}
-          />
+            {editor.activeTool === 'region' ? (
+              <RegionSelectionBar
+                count={editor.regionDraftSelection.size}
+                onClear={editor.clearDraftSelection}
+                onConfirm={() => {
+                  const cells = Array.from(editor.regionDraftSelection).map(
+                    (key) => key.split(',').map(Number) as Coord,
+                  );
+                  if (cells.length === 0) {
+                    toast.error('请先选择至少一个格子');
+                    return;
+                  }
+                  if (!isConnected(cells)) {
+                    setRegionError('区域必须是相连的方格，请调整选区。');
+                    return;
+                  }
+                  setRegionDialog({ open: true, cells });
+                }}
+                onCancel={() => {
+                  editor.clearDraftSelection();
+                  setTool('select');
+                }}
+              />
+            ) : null}
+
+            <EditorBottomBar
+              activeTool={editor.activeTool}
+              canUndo={editor.past.length > 0}
+              canRedo={editor.future.length > 0}
+              zoom={editor.zoom}
+              gridSize={editor.gridSize}
+              itemsOpen={itemsOpen}
+              rulerVisible={rulerVisible}
+              selectedAsset={pendingForm?.asset ?? null}
+              selectedForm={pendingForm?.form ?? null}
+              onSetTool={setTool}
+              onUndo={editor.undo}
+              onRedo={editor.redo}
+              onZoomIn={() => zoomBy(1)}
+              onZoomOut={() => zoomBy(-1)}
+              onZoomReset={() => editor.setZoom(1)}
+              onFit={() => canvasRef.current?.centerView()}
+              onToggleItems={() => setItemsOpen((open) => !open)}
+              onToggleRuler={() => setRulerVisible((visible) => !visible)}
+              onOpenResize={() => setResizeOpen(true)}
+              onRevealItems={() => setItemsOpen(true)}
+            />
+          </div>
 
           <EditorInfoDrawer
             open={infoDrawerOpen({ infoOpen, mapInfoOpen, selectedSlotIndex: null })}
@@ -1057,7 +1086,6 @@ export function MapEditorPage(): JSX.Element {
             onClearItem={(x, y) => editor.clearItemAt(x, y)}
             onSubmitRegion={submitRegionEdit}
             onDeleteRegion={setDeleteRegionTarget}
-            onLocateRegion={() => canvasRef.current?.centerView()}
             onRegionDirtyChange={setRegionInfoDirty}
           />
 
