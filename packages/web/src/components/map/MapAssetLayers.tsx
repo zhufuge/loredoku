@@ -8,7 +8,7 @@ import {
   type Asset,
 } from '@loredoku/shared';
 import type { CellMap } from '@/lib/highlight';
-import { cellRectStyle, parseKey } from './layerGeometry';
+import { cellRectStyle, itemRectStyle, parseKey } from './layerGeometry';
 
 /**
  * the item layers, split out of the old `MapLayers.tsx`.
@@ -74,11 +74,16 @@ export function MapBackgroundLayer({
 
 /**
  * 层 4 · 物品图层（Object Layer）— above the grid separators so items are
- * never visually cut by them; the image itself is still clipped inside its
- * cells.
+ * never visually cut by them.
  *
  * OPT-902 §2.3: on hover the image stretches upward by
  * `ITEM_HOVER_LIFT_PX` with a 120ms ease-out transition.
+ *
+ * v0.7.5 (docs/v0.7.5.md §4): the box is the item's **display** rect, not its
+ * footprint — `scale` grows it around the footprint centre and the offsets push
+ * it by whole cells, so artwork may legitimately poke outside its cells. The
+ * hover test still runs against the footprint: hovering the overhang of a
+ * neighbouring cell must not light this item up.
  */
 export function MapItemLayer({
   cells,
@@ -154,7 +159,7 @@ export function MapItemLayer({
               key={`obj-${key}`}
               className="absolute"
               style={{
-                ...cellRectStyle(x, y, cellSize, anchor.w, anchor.h),
+                ...itemRectStyle(x, y, cellSize, anchor),
                 zIndex: MAP_LAYER_Z.itemLayer,
                 // The lift is allowed to poke past the cell edge while hovered.
                 overflow: lifted ? 'visible' : 'hidden',

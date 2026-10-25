@@ -1084,6 +1084,7 @@ export function MapEditorPage(): JSX.Element {
             style={editor.style}
             onClearCell={(x, y) => editor.clearCell(x, y)}
             onClearItem={(x, y) => editor.clearItemAt(x, y)}
+            onItemTransform={(x, y, patch) => editor.setItemTransform(x, y, patch)}
             onSubmitRegion={submitRegionEdit}
             onDeleteRegion={setDeleteRegionTarget}
             onRegionDirtyChange={setRegionInfoDirty}

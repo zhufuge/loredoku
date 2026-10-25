@@ -4,6 +4,10 @@ import {
   DEFAULT_REGION_LABEL_FONT_FAMILY,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
+  ITEM_OFFSET_MAX,
+  ITEM_OFFSET_MIN,
+  ITEM_SCALE_MAX,
+  ITEM_SCALE_MIN,
   LINKAGE_COLOR_KEY_PATTERN,
   LINKAGE_COLOR_LABEL_MAX_LENGTH,
   MAP_STYLE_CELL_SIZE_MAX,
@@ -217,6 +221,15 @@ export const draftAnchorItemSchema = z.object({
   formId: z.number().int().positive().optional(),
   w: z.number().int().min(1),
   h: z.number().int().min(1),
+  /**
+   * v0.7.5 (docs/v0.7.5.md §3): the display transform. Optional so every draft
+   * written before this version keeps validating — absent means identity.
+   * Offsets are in **cells** and may be negative (artwork poking out to the
+   * left / up); the renderer clamps again through `resolveItemTransform`.
+   */
+  scale: z.number().min(ITEM_SCALE_MIN).max(ITEM_SCALE_MAX).optional(),
+  offsetX: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
+  offsetY: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
 });
 
 export const draftCellSchema = z

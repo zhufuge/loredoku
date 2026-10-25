@@ -289,3 +289,56 @@ describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
     expect(paintedColour()).toBe('#33AA33');
   });
 });
+
+/**
+ * v0.7.5 (docs/v0.7.5.md §4): 物品的展示变换。盒子画在**展示矩形**上 ——
+ * 放大围绕脚位中心、偏移按格走，可以整块跑到脚位之外；占格（w × h）不动，
+ * 所以占格、擦除、碰撞的逻辑一行都不用改。
+ */
+describe('层 4 · 物品层 — 展示变换（v0.7.5）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function paint(cells: CellMap): HTMLElement | null {
+    act(() => {
+      root.render(<MapItemLayer cells={cells} assetsById={assetsById} cellSize={100} />);
+    });
+    return container.querySelector<HTMLElement>('[data-color-block]')?.parentElement ?? null;
+  }
+
+  it('keeps the plain footprint rect when there is no transform', () => {
+    const box = paint(new Map([['1,1', { item: { assetId: 1, w: 1, h: 1 } }]]));
+    expect(box?.style.left).toBe('100px');
+    expect(box?.style.top).toBe('100px');
+    expect(box?.style.width).toBe('100px');
+    expect(box?.style.height).toBe('100px');
+  });
+
+  it('grows around the footprint centre and shifts by whole cells', () => {
+    const box = paint(
+      new Map([['1,1', { item: { assetId: 1, w: 1, h: 1, scale: 2, offsetX: 1 } }]]),
+    );
+    // 中心 150 + 偏移 100 = 250，减去半宽 100。
+    expect(box?.style.left).toBe('150px');
+    expect(box?.style.top).toBe('50px');
+    expect(box?.style.width).toBe('200px');
+    expect(box?.style.height).toBe('200px');
+  });
+
+  it('lets a shrunk item sit inside its cell without moving it', () => {
+    const box = paint(new Map([['2,0', { item: { assetId: 1, w: 1, h: 1, scale: 0.5 } }]]));
+    expect(box?.style.left).toBe('225px');
+    expect(box?.style.width).toBe('50px');
+  });
+});

@@ -172,6 +172,15 @@ export interface DraftAnchorItem {
   formId?: number;
   w: number;
   h: number;
+  /**
+   * v0.7.5 (docs/v0.7.5.md §3): the **display** transform — uniform scale and a
+   * cell-unit offset that may push the artwork outside the footprint. All three
+   * are optional and absent means identity (`1` / `0` / `0`); the footprint is
+   * untouched, so occupancy, erasing and collision keep reading `w` × `h`.
+   */
+  scale?: number;
+  offsetX?: number;
+  offsetY?: number;
 }
 
 export interface DraftCell {

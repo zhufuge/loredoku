@@ -1,11 +1,34 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { UI_Z, REGION_ID_MAX_LENGTH, REGION_ID_PATTERN, resolveAssetForm } from '@loredoku/shared';
-import type { DraftCell, DraftRegion, Asset, MapStyle, RegionStyle } from '@loredoku/shared';
+import {
+  ITEM_OFFSET_MAX,
+  ITEM_OFFSET_MIN,
+  ITEM_OFFSET_STEP,
+  ITEM_SCALE_MAX,
+  ITEM_SCALE_MIN,
+  ITEM_SCALE_STEP,
+  UI_Z,
+  REGION_ID_MAX_LENGTH,
+  REGION_ID_PATTERN,
+  isIdentityItemTransform,
+  resolveAssetForm,
+  resolveItemTransform,
+} from '@loredoku/shared';
+import type {
+  DraftAnchorItem,
+  DraftCell,
+  DraftRegion,
+  Asset,
+  ItemTransformOverride,
+  MapStyle,
+  RegionStyle,
+} from '@loredoku/shared';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
+import { NumberField, Row } from '@/components/map-editor/StyleFields';
+import { findItemAnchor } from '@/lib/erase';
 import { regionAt } from '@/lib/region';
 import { resolveRegionStyle, regionStyleEquals } from '@/lib/regionStyle';
 import type { RegionInput, Selection } from '@/stores/editorStore';
@@ -25,6 +48,11 @@ interface EditorInfoDrawerProps {
   style: MapStyle;
   onClearCell: (x: number, y: number) => void;
   onClearItem: (x: number, y: number) => void;
+  /**
+   * v0.7.5 (docs/v0.7.5.md §5): 改物品的展示变换。`x, y` 传当前格即可 —— store
+   * 会自己解析到脚位锚点。缺省 = 只读环境，控件不渲染。
+   */
+  onItemTransform?: (x: number, y: number, patch: ItemTransformOverride) => void;
   /** Saves the region's name / id / style. The store derives the minimal override. */
   onSubmitRegion: (regionId: string, input: RegionInput) => void;
   onDeleteRegion: (region: DraftRegion) => void;
@@ -254,31 +282,42 @@ function RegionSummary({
 function CellBranch({
   selection,
   cell,
+  item,
   region,
   style,
   assetsById,
   onClearCell,
   onClearItem,
+  onItemTransform,
   readOnly = false,
 }: {
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
+  /**
+   * v0.7.5: the item anchor covering this cell — the selected cell itself, or
+   * the anchor of a multi-cell footprint it sits inside. The drawer used to read
+   * `cell.item` directly, which meant clicking the middle of a 2×2 said 「空」.
+   */
+  item: DraftAnchorItem | undefined;
   region: DraftRegion | undefined;
   style: MapStyle;
   assetsById: Map<number, Asset>;
   onClearCell: (x: number, y: number) => void;
   onClearItem: (x: number, y: number) => void;
+  onItemTransform?: (x: number, y: number, patch: ItemTransformOverride) => void;
   readOnly?: boolean;
 }): JSX.Element {
   const backgroundAsset =
     cell?.background?.assetId !== undefined ? assetsById.get(cell.background.assetId) : undefined;
-  const itemAsset = cell?.item?.assetId !== undefined ? assetsById.get(cell.item.assetId) : undefined;
+  const itemAsset = item?.assetId !== undefined ? assetsById.get(item.assetId) : undefined;
   // v0.6.1: both layers show the form the cell was painted with; a missing or
   // dangling `formId` falls back to the asset's first form.
   const backgroundLook = backgroundAsset
     ? resolveAssetForm(backgroundAsset, cell?.background?.formId)
     : undefined;
-  const itemLook = itemAsset ? resolveAssetForm(itemAsset, cell?.item?.formId) : undefined;
+  const itemLook = itemAsset ? resolveAssetForm(itemAsset, item?.formId) : undefined;
+  const transform = resolveItemTransform(item);
+  const identity = isIdentityItemTransform(transform);
 
   return (
     <>
@@ -312,7 +351,21 @@ function CellBranch({
       </section>
 
       <section className="space-y-1">
-        <h3 className="text-xs font-medium text-muted-foreground">物品层</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-medium text-muted-foreground">物品层</h3>
+          {/* v0.7.5: a way back to "as placed" that does not require typing 100 and two zeroes. */}
+          {item && !readOnly && onItemTransform && !identity ? (
+            <button
+              type="button"
+              className="text-[10px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              onClick={() =>
+                onItemTransform(selection.x, selection.y, { scale: 1, offsetX: 0, offsetY: 0 })
+              }
+            >
+              复位
+            </button>
+          ) : null}
+        </div>
         {itemAsset ? (
           <div className="flex items-center gap-2">
             {itemLook ? (
@@ -325,12 +378,72 @@ function CellBranch({
               ) : null}
             </span>
             <span className="ml-auto text-[10px] text-muted-foreground">
-              {cell?.item?.w}×{cell?.item?.h}
+              {item?.w}×{item?.h}
             </span>
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">空</p>
         )}
+
+        {/* v0.7.5 (docs/v0.7.5.md §6): 展示变换 —— 只改画出来的大小 / 位置，占格不变。 */}
+        {item ? (
+          readOnly ? (
+            identity ? null : (
+              <p className="text-[11px] text-muted-foreground">
+                展示 {Math.round(transform.scale * 100)}% · 偏移 ({transform.offsetX},{' '}
+                {transform.offsetY}) 格
+              </p>
+            )
+          ) : onItemTransform ? (
+            <div className="space-y-1 pt-1">
+              <Row
+                label="大小"
+                hint="Item Scale — 等比例放大 / 缩小这张图，围绕脚位中心缩放。只影响展示，占格与擦除范围仍是 w×h。"
+              >
+                <NumberField
+                  id="cell-item-scale"
+                  value={Math.round(transform.scale * 100)}
+                  min={Math.round(ITEM_SCALE_MIN * 100)}
+                  max={Math.round(ITEM_SCALE_MAX * 100)}
+                  step={Math.round(ITEM_SCALE_STEP * 100)}
+                  suffix="%"
+                  commit={(value) =>
+                    onItemTransform(selection.x, selection.y, { scale: value / 100 })
+                  }
+                />
+              </Row>
+              <Row
+                label="偏移"
+                hint="Item Offset — 以格为单位，可正可负（负数向左 / 上）。超出脚位的部分照常画出来，不会裁掉。"
+              >
+                <div className="flex items-center gap-1">
+                  <NumberField
+                    id="cell-item-offset-x"
+                    value={transform.offsetX}
+                    min={ITEM_OFFSET_MIN}
+                    max={ITEM_OFFSET_MAX}
+                    step={ITEM_OFFSET_STEP}
+                    suffix="X 格"
+                    commit={(value) =>
+                      onItemTransform(selection.x, selection.y, { offsetX: value })
+                    }
+                  />
+                  <NumberField
+                    id="cell-item-offset-y"
+                    value={transform.offsetY}
+                    min={ITEM_OFFSET_MIN}
+                    max={ITEM_OFFSET_MAX}
+                    step={ITEM_OFFSET_STEP}
+                    suffix="Y 格"
+                    commit={(value) =>
+                      onItemTransform(selection.x, selection.y, { offsetY: value })
+                    }
+                  />
+                </div>
+              </Row>
+            </div>
+          ) : null
+        ) : null}
       </section>
 
       {/* SPEC-K06: a read-only canvas shows the region as context only. */}
@@ -381,6 +494,7 @@ export function EditorInfoDrawer({
   style,
   onClearCell,
   onClearItem,
+  onItemTransform,
   onSubmitRegion,
   onDeleteRegion,
   onRegionDirtyChange,
@@ -432,11 +546,13 @@ export function EditorInfoDrawer({
           <CellBranch
             selection={selection}
             cell={cell}
+            item={findItemAnchor(cells, selection.x, selection.y)?.item}
             region={region}
             style={style}
             assetsById={assetsById}
             onClearCell={onClearCell}
             onClearItem={onClearItem}
+            onItemTransform={onItemTransform}
             readOnly={readOnly}
           />
         ) : region ? (

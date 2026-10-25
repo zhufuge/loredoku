@@ -453,3 +453,65 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     expect(store().dirty).toBe(true);
   });
 });
+
+/**
+ * v0.7.5 (docs/v0.7.5.md §5): 展示变换存在**脚位锚点**上，缺省不写键。
+ * 信息框可能停在脚位里的任意一格（2×2 的中间那格也是合法选中），所以
+ * 动作自己解析锚点，调用方只管传当前格。
+ */
+describe('setItemTransform', () => {
+  it('records only the fields that differ from the default', () => {
+    store().placeItem({ assetId: 5, w: 1, h: 1 }, 1, 1);
+    store().setItemTransform(1, 1, { scale: 1.5, offsetX: -0.5 });
+    expect(store().cells.get('1,1')?.item).toEqual({
+      assetId: 5,
+      w: 1,
+      h: 1,
+      scale: 1.5,
+      offsetX: -0.5,
+    });
+  });
+
+  it('resolves the anchor from any cell of the footprint', () => {
+    store().placeItem({ assetId: 5, w: 2, h: 2 }, 0, 0);
+    store().setItemTransform(1, 1, { scale: 2 });
+    expect(store().cells.get('0,0')?.item?.scale).toBe(2);
+    // 其余脚位格仍然只是占位，不携带 item。
+    expect(store().cells.get('1,1')?.item).toBeUndefined();
+  });
+
+  it('clamps and rounds to two decimals', () => {
+    store().placeItem({ assetId: 5, w: 1, h: 1 }, 0, 0);
+    store().setItemTransform(0, 0, { scale: 99, offsetX: -99, offsetY: 0.333 });
+    expect(store().cells.get('0,0')?.item).toEqual({
+      assetId: 5,
+      w: 1,
+      h: 1,
+      scale: 4,
+      offsetX: -4,
+      offsetY: 0.33,
+    });
+  });
+
+  it('drops the keys again when everything is back at the default', () => {
+    store().placeItem({ assetId: 5, formId: 7, w: 2, h: 1 }, 0, 0);
+    store().setItemTransform(0, 0, { scale: 2, offsetY: 1 });
+    store().setItemTransform(0, 0, { scale: 1, offsetX: 0, offsetY: 0 });
+    expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, formId: 7, w: 2, h: 1 });
+  });
+
+  it('does not push a history step when the resolved value is unchanged', () => {
+    store().placeItem({ assetId: 5, w: 1, h: 1 }, 0, 0);
+    const before = store().past.length;
+    // 已经是 1（默认），再提交一次 1 / 夹到边界的重复值都不该进撤销栈。
+    store().setItemTransform(0, 0, { scale: 1 });
+    store().setItemTransform(0, 0, { offsetX: 99 });
+    expect(store().past.length).toBe(before + 1); // 只有 offsetX=99 → 4 那一步
+  });
+
+  it('ignores a cell with no item', () => {
+    store().setItemTransform(4, 4, { scale: 2 });
+    expect(store().cells.size).toBe(0);
+    expect(store().dirty).toBe(false);
+  });
+});

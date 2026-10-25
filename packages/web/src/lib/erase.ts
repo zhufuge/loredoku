@@ -11,6 +11,41 @@ export interface EraseTarget {
   y: number;
 }
 
+export interface ItemAnchorHit {
+  /** Key of the anchor cell. */
+  key: string;
+  x: number;
+  y: number;
+  item: NonNullable<DraftCell['item']>;
+}
+
+/**
+ * The item anchor covering `x, y`, whether the coordinate is the anchor itself
+ * or a cell inside a multi-cell footprint.
+ *
+ * v0.7.5: the item's info box edits the anchor (`scale` / offsets), and the user
+ * may well have selected a cell in the middle of a 3×3 footprint — the anchor is
+ * the only cell that carries the item, so every edit has to resolve it first.
+ */
+export function findItemAnchor(
+  cells: CellMap,
+  x: number,
+  y: number,
+): ItemAnchorHit | null {
+  const own = cells.get(cellKey(x, y))?.item;
+  if (own) return { key: cellKey(x, y), x, y, item: own };
+
+  for (const [anchorKey, candidate] of cells.entries()) {
+    const anchor = candidate.item;
+    if (!anchor) continue;
+    const [ax, ay] = anchorKey.split(',').map(Number) as [number, number];
+    if (x >= ax && y >= ay && x < ax + anchor.w && y < ay + anchor.h) {
+      return { key: anchorKey, x: ax, y: ay, item: anchor };
+    }
+  }
+  return null;
+}
+
 /**
  * Eraser resolution order: object layer → background layer (top-most visual
  * layer first). `activeLayer` is deliberately ignored.
@@ -25,20 +60,10 @@ export function resolveEraseTarget(
 ): EraseTarget | null {
   const key = cellKey(x, y);
 
-  const cell = cells.get(key);
-  if (cell?.item) return { layer: 'item', key, x, y };
+  const item = findItemAnchor(cells, x, y);
+  if (item) return { layer: 'item', key: item.key, x: item.x, y: item.y };
 
-  // Inside a multi-cell footprint but not the anchor cell.
-  for (const [anchorKey, candidate] of cells.entries()) {
-    const anchor = candidate.item;
-    if (!anchor) continue;
-    const [ax, ay] = anchorKey.split(',').map(Number) as [number, number];
-    if (x >= ax && y >= ay && x < ax + anchor.w && y < ay + anchor.h) {
-      return { layer: 'item', key: anchorKey, x: ax, y: ay };
-    }
-  }
-
-  if (cell?.background) return { layer: 'background', key, x, y };
+  if (cells.get(key)?.background) return { layer: 'background', key, x, y };
   return null;
 }
 

@@ -1,9 +1,13 @@
 import { create } from 'zustand';
 import {
+  DEFAULT_ITEM_OFFSET,
+  DEFAULT_ITEM_SCALE,
   GRID_SIZE_DEFAULT,
   MAP_JSON_VERSION,
   MAX_HISTORY_STEPS,
+  resolveItemTransform,
   type DraftCell,
+  type ItemTransformOverride,
   type DraftRegion,
   type EditorLayer,
   type EditorTool,
@@ -13,7 +17,7 @@ import {
   type RegionStyleOverride,
 } from '@loredoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
-import { isEmptyCell, itemFootprintKeys, resolveEraseTarget } from '@/lib/erase';
+import { findItemAnchor, isEmptyCell, itemFootprintKeys, resolveEraseTarget } from '@/lib/erase';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import { regionStyleOverride } from '@/lib/regionStyle';
 
@@ -112,6 +116,12 @@ export interface EditorState {
     x: number,
     y: number,
   ) => void;
+  /**
+   * v0.7.5 (docs/v0.7.5.md §5): 改已放置物品的**展示**变换（等比例缩放 + 按格
+   * 偏移）。`x, y` 可以是脚位里的任意一格，内部会先解析到锚点；与默认值相同的
+   * 字段不写进草稿，三个字段全默认时 `item` 上没有这三个键。
+   */
+  setItemTransform: (x: number, y: number, patch: ItemTransformOverride) => void;
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
   clearItemAt: (x: number, y: number) => void;
@@ -277,6 +287,39 @@ export const useEditorStore = create<EditorState>((set, get) => {
           }
         }
       }),
+
+    setItemTransform: (x, y, patch) => {
+      const state = get();
+      const anchor = findItemAnchor(state.cells, x, y);
+      if (!anchor) return;
+      const current = resolveItemTransform(anchor.item);
+      const resolved = resolveItemTransform({ ...current, ...patch });
+      // NumberField 每次按键都提交；掐到边界的重复值不该在撤销栈里堆一串
+      // 一模一样的步骤，所以「解析后没变化」直接返回。
+      if (
+        resolved.scale === current.scale &&
+        resolved.offsetX === current.offsetX &&
+        resolved.offsetY === current.offsetY
+      ) {
+        return;
+      }
+      commit((next) => {
+        const cell = next.cells.get(anchor.key as CellKey);
+        if (!cell?.item) return;
+        next.cells.set(anchor.key as CellKey, {
+          ...cell,
+          item: {
+            assetId: cell.item.assetId,
+            ...(cell.item.formId === undefined ? {} : { formId: cell.item.formId }),
+            w: cell.item.w,
+            h: cell.item.h,
+            ...(resolved.scale === DEFAULT_ITEM_SCALE ? {} : { scale: resolved.scale }),
+            ...(resolved.offsetX === DEFAULT_ITEM_OFFSET ? {} : { offsetX: resolved.offsetX }),
+            ...(resolved.offsetY === DEFAULT_ITEM_OFFSET ? {} : { offsetY: resolved.offsetY }),
+          },
+        });
+      });
+    },
 
     // Eraser order: object layer → background layer (CLAR-603: no character layer).
     eraseAt: (x, y) => {
