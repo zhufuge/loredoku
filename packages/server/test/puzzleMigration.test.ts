@@ -162,11 +162,11 @@ describe('v0.7.1 games reference puzzles shape', () => {
  * （§6.3），所以没有回填、也不需要改任何已存的 JSON。
  */
 describe('v0.5.1 colour-block migration (§6.1)', () => {
-  // v0.6.1: the colour block moved to `asset_forms` with the rest of the
+  // v0.6.1: the colour block moved to `asset_variants` with the rest of the
   // appearance; the column's shape (nullable, `text`, no default) is unchanged.
   it('adds a nullable bg_color to the asset appearance row', async () => {
     const rows = await db('information_schema.columns')
-      .where({ table_name: 'asset_forms', column_name: 'bg_color', table_schema: 'public' })
+      .where({ table_name: 'asset_variants', column_name: 'bg_color', table_schema: 'public' })
       .select('is_nullable', 'data_type');
     expect(rows).toHaveLength(1);
     expect(rows[0].is_nullable).toBe('YES');
@@ -186,7 +186,7 @@ describe('v0.5.1 colour-block migration (§6.1)', () => {
     // The point of "nullable, no backfill" is that pre-v0.5.1 rows stay on the
     // image branch. Asserting a row count would be flaky (other suites — and
     // real usage — legitimately write colours), so check the schema instead.
-    for (const table of ['asset_forms', 'characters']) {
+    for (const table of ['asset_variants', 'characters']) {
       const rows = await db('information_schema.columns')
         .where({ table_name: table, column_name: 'bg_color', table_schema: 'public' })
         .select('column_default');
@@ -214,11 +214,12 @@ describe('v0.5.2 asset slimming migration (§9.1)', () => {
     expect(rows).toHaveLength(0);
   });
 
-  it('keeps characters.meta — only the asset side was slimmed', async () => {
+  // v0.5.2 当时只瘦身资源侧，角色侧「留待后续」；v0.7.6 一并删掉（docs/v0.7.6.md）。
+  it('drops characters.meta too (v0.7.6 补刀)', async () => {
     const rows = await db('information_schema.columns')
       .where({ table_name: 'characters', column_name: 'meta', table_schema: 'public' })
       .select('column_name');
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(0);
   });
 
   it('leaves no background asset that blocks', async () => {
@@ -232,10 +233,11 @@ describe('v0.5.2 asset slimming migration (§9.1)', () => {
 /**
  * v0.6.1（docs/v0.6.1.md §7）：资源和形态分家后的形状。
  *
- * 迁移把九列从 `assets` 搬到 `asset_forms`，并给已存的画布锚点补上 `formId`。
+ * 迁移把九列从 `assets` 搬到 `asset_variants`，并给已存的画布锚点补上 `variantId`。
  * 这里钉住三件不能靠代码兜底的事：列真的搬走了、每个资源都有形态、画布真的指向形态。
  */
-describe('v0.6.1 asset-form migration shape', () => {
+describe('v0.6.1 asset-variant migration shape', () => {
+  /** v0.6.1 从 `assets` 搬走的那九列（当时的完整清单）。 */
   const movedColumns = [
     'width_cells',
     'height_cells',
@@ -247,6 +249,9 @@ describe('v0.6.1 asset-form migration shape', () => {
     'image_height',
     'bg_color',
   ];
+  /** v0.7.6 又把占格 + 上传回执六列删了，`asset_variants` 上只剩这三样。 */
+  const survivingColumns = ['fit_mode', 'image_path', 'bg_color'];
+  const droppedByV077 = movedColumns.filter((col) => !survivingColumns.includes(col));
 
   it('moves the appearance and footprint columns off assets', async () => {
     const cols = await columns('assets');
@@ -259,16 +264,20 @@ describe('v0.6.1 asset-form migration shape', () => {
     }
   });
 
-  it('puts them on asset_forms', async () => {
-    const cols = await columns('asset_forms');
-    for (const col of [...movedColumns, 'asset_id', 'name', 'sort_order']) {
+  it('keeps the look on asset_variants and nothing else', async () => {
+    const cols = await columns('asset_variants');
+    for (const col of [...survivingColumns, 'asset_id', 'name', 'sort_order']) {
       expect(cols).toContain(col);
+    }
+    // v0.7.6：占格（width/height_cells）与上传回执（image_mime/size/width/height）已删。
+    for (const col of droppedByV077) {
+      expect(cols).not.toContain(col);
     }
   });
 
-  it('names the form rows after the table, not an older one', async () => {
+  it('names the variant rows after the table, not an older one', async () => {
     const rows = await db('information_schema.columns')
-      .where({ table_name: 'asset_forms', table_schema: 'public' })
+      .where({ table_name: 'asset_variants', table_schema: 'public' })
       .select('column_name');
     const names = rows.map((row) => row.column_name as string);
     expect(names.every((name) => !name.startsWith('items_') && !name.startsWith('cards_'))).toBe(
@@ -276,15 +285,15 @@ describe('v0.6.1 asset-form migration shape', () => {
     );
   });
 
-  it('leaves every asset with at least one form', async () => {
+  it('leaves every asset with at least one variant', async () => {
     const rows = await db('assets')
-      .leftJoin('asset_forms', 'asset_forms.asset_id', 'assets.id')
-      .whereNull('asset_forms.id')
+      .leftJoin('asset_variants', 'asset_variants.asset_id', 'assets.id')
+      .whereNull('asset_variants.id')
       .count('* as c');
     expect(Number(rows[0]?.c ?? 0)).toBe(0);
   });
 
-  it('points every stored item anchor at a form, and stamps version 5', async () => {
+  it('points every stored item anchor at a variant, and stamps version 5', async () => {
     const maps = (await db('maps').whereNotNull('data').select('id', 'data')) as Array<{
       data: Record<string, unknown>;
     }>;
@@ -293,7 +302,7 @@ describe('v0.6.1 asset-form migration shape', () => {
       for (const cell of Object.values(cells)) {
         const item = cell['item'] as Record<string, unknown> | undefined;
         if (!item) continue;
-        expect(typeof item['formId']).toBe('number');
+        expect(typeof item['variantId']).toBe('number');
       }
       // v2 之类更老的画布不在本次改写范围内（它们在上一次迁移里也没被动过），
       // 但凡是被改写的行都必须落到 v5。
@@ -305,11 +314,11 @@ describe('v0.6.1 asset-form migration shape', () => {
 /**
  * v0.6.1 续（背景资源也多形态）：背景格同样显式带上自己选的是哪个形态。
  *
- * 表结构没动（`asset_forms` 早就能容纳多个形态），改的只有画布 JSON：补
- * `formId` 并把 version 从 5 推到 6。存量背景资源都只有一个形态，补的就是它。
+ * 表结构没动（`asset_variants` 早就能容纳多个形态），改的只有画布 JSON：补
+ * `variantId` 并把 version 从 5 推到 6。存量背景资源都只有一个形态，补的就是它。
  */
-describe('v0.6.1 background-form migration shape', () => {
-  it('points every stored background cell at a form, and stamps version 6', async () => {
+describe('v0.6.1 background-variant migration shape', () => {
+  it('points every stored background cell at a variant, and stamps version 6', async () => {
     const maps = (await db('maps').whereNotNull('data').select('id', 'data')) as Array<{
       data: Record<string, unknown>;
     }>;
@@ -318,7 +327,7 @@ describe('v0.6.1 background-form migration shape', () => {
       for (const cell of Object.values(cells)) {
         const background = cell['background'] as Record<string, unknown> | undefined;
         if (!background) continue;
-        expect(typeof background['formId']).toBe('number');
+        expect(typeof background['variantId']).toBe('number');
       }
       expect(mapRow.data?.['version']).not.toBe(5);
     }

@@ -8,7 +8,7 @@ import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   mapDraftSchema,
-  resolveAssetForm,
+  resolveAssetVariant,
   type DraftRegion,
   type EditorTool,
   type Asset,
@@ -207,20 +207,20 @@ export function MapEditorPage(): JSX.Element {
   }, [assetsQuery.data]);
 
   /**
-   * v0.6.1: the palette selects a (asset, form) pair — the form supplies the
+   * v0.6.1: the palette selects a (asset, variant) pair — the variant supplies the
    * footprint, the asset supplies the layer rules and the name.
    */
-  const pendingForm = useMemo(() => {
+  const pendingVariant = useMemo(() => {
     if (editor.selectedAssetId === null) return null;
     const asset = assetsById.get(editor.selectedAssetId);
     if (!asset) return null;
-    const form = resolveAssetForm(asset, editor.selectedFormId);
-    return form ? { asset, form } : null;
-  }, [editor.selectedAssetId, editor.selectedFormId, assetsById]);
+    const variant = resolveAssetVariant(asset, editor.selectedVariantId);
+    return variant ? { asset, variant } : null;
+  }, [editor.selectedAssetId, editor.selectedVariantId, assetsById]);
 
   /**
    * the save / publish / resize flows are hooks now. The page keeps
-   * only what is specific to the map editor: the 基本信息 form, the FIX-F03
+   * only what is specific to the map editor: the 基本信息 variant, the FIX-F03
    * first-entry save, the canvas callbacks and the dialogs' JSX.
    */
   const { persist: persistDraft, saving: savePending, saveMaskVisible } = useEditorSave({
@@ -475,6 +475,24 @@ export function MapEditorPage(): JSX.Element {
   });
 
   /**
+   * v0.7.7: 左面板刷新（以及别处改资源后触发的失效重取）之后，选中项可能已经
+   * 不在列表里 —— 资源被删 / 被停用，或者只是那个形态被删。悬空选中会让画布
+   * 把一个不存在的 `variantId` 写进草稿，渲染再回退到首形态，看着像「点了没
+   * 反应」。这里清掉选中，让作者从新列表里重挑。
+   */
+  useEffect(() => {
+    if (editor.selectedAssetId === null) return;
+    const list = assetsQuery.data;
+    if (!list) return;
+    const asset = list.find((item) => item.id === editor.selectedAssetId);
+    const stillThere =
+      asset !== undefined &&
+      (editor.selectedVariantId === null ||
+        asset.variants.some((variant) => variant.id === editor.selectedVariantId));
+    if (!stillThere) editor.setSelectedItem(null, null);
+  }, [assetsQuery.data, editor, editor.selectedAssetId, editor.selectedVariantId]);
+
+  /**
    * BUG-G01 (docs/v0.4.0.md §1): a click on a cell writes **both** `selection`
    * and `selectedRegionId` (see `EditorCanvas.selectCellAt`), so this effect
    * must not blindly re-open the info drawer — otherwise closing the
@@ -561,7 +579,7 @@ export function MapEditorPage(): JSX.Element {
   }, [forkFrom, versionQuery.data, mapQuery.data, id, editor]);
 
   /**
-   * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a form, so
+   * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a variant, so
    * leaving it with unsaved edits has to be confirmed. Every path that closes
    * the drawer or hands focus to another panel goes through this guard.
    *
@@ -912,9 +930,11 @@ export function MapEditorPage(): JSX.Element {
               assets={assetsQuery.data}
               assetsLoading={assetsQuery.isLoading}
               assetsError={assetsQuery.isError}
+              assetsRefreshing={assetsQuery.isFetching}
+              onRefreshAssets={() => void assetsQuery.refetch()}
               activeLayer={editor.activeLayer}
               selectedAssetId={editor.selectedAssetId}
-              selectedFormId={editor.selectedFormId}
+              selectedVariantId={editor.selectedVariantId}
               regions={editor.regions}
               selectedRegionId={editor.selectedRegionId}
               onSetTool={setTool}
@@ -922,12 +942,12 @@ export function MapEditorPage(): JSX.Element {
                 editor.setLayer(layer);
                 editor.setSelectedItem(null);
               }}
-              onSelectAsset={(asset, form) => {
+              onSelectAsset={(asset, variant) => {
                 // 橡皮擦 / 平移 / 区域都与放置互斥：点资源即回到选择 / 放置。
                 // store 的 setTool 离开区域工具时会一并清掉圈选草稿，所以这条
                 // 打断路径不会留下不能确认也不能取消的半截选区。
                 if (editor.activeTool !== 'select') setTool('select');
-                editor.setSelectedItem(asset ? asset.id : null, form ? form.id : null);
+                editor.setSelectedItem(asset ? asset.id : null, variant ? variant.id : null);
               }}
               onSelectRegion={(regionId) => {
                 // 与画布上的区域标签同一套动作：聚焦区域 + 信息框渲染区域分支。
@@ -968,7 +988,7 @@ export function MapEditorPage(): JSX.Element {
               activeTool={editor.activeTool}
               spaceHeld={spaceHeld}
               showRulers={rulerVisible}
-              pendingForm={pendingForm}
+              pendingVariant={pendingVariant}
               regionDraftSelection={editor.regionDraftSelection}
               // SPEC-K12 §9.1: the map editor has no participants, so there is
               // no linkage highlight to show — the layer stays empty.
@@ -992,27 +1012,28 @@ export function MapEditorPage(): JSX.Element {
                 }
               }}
               onPlaceItem={(coord) => {
-                if (!pendingForm) return;
+                if (!pendingVariant) return;
                 // OPT-904 §4.1: the placement layer must match the item category
                 // (the background layer only accepts `type === 'background'`).
-                if (!canPlaceAssetOnLayer(pendingForm.asset, editor.activeLayer)) {
+                if (!canPlaceAssetOnLayer(pendingVariant.asset, editor.activeLayer)) {
                   toast.error('该物品不能放在当前图层');
                   return;
                 }
-                if (pendingForm.asset.type === 'background') {
+                if (pendingVariant.asset.type === 'background') {
                   editor.placeBackground(
-                    pendingForm.asset.id,
-                    pendingForm.form.id,
+                    pendingVariant.asset.id,
+                    pendingVariant.variant.id,
                     coord.x,
                     coord.y,
                   );
                 } else {
                   editor.placeItem(
                     {
-                      assetId: pendingForm.asset.id,
-                      formId: pendingForm.form.id,
-                      w: pendingForm.form.widthCells,
-                      h: pendingForm.form.heightCells,
+                      assetId: pendingVariant.asset.id,
+                      variantId: pendingVariant.variant.id,
+                      // v0.7.6: 占格恒 1，想画大用信息框里的「大小」。
+                      w: 1,
+                      h: 1,
                     },
                     coord.x,
                     coord.y,
@@ -1057,8 +1078,8 @@ export function MapEditorPage(): JSX.Element {
               gridSize={editor.gridSize}
               itemsOpen={itemsOpen}
               rulerVisible={rulerVisible}
-              selectedAsset={pendingForm?.asset ?? null}
-              selectedForm={pendingForm?.form ?? null}
+              selectedAsset={pendingVariant?.asset ?? null}
+              selectedVariant={pendingVariant?.variant ?? null}
               onSetTool={setTool}
               onUndo={editor.undo}
               onRedo={editor.redo}
@@ -1070,6 +1091,7 @@ export function MapEditorPage(): JSX.Element {
               onToggleRuler={() => setRulerVisible((visible) => !visible)}
               onOpenResize={() => setResizeOpen(true)}
               onRevealItems={() => setItemsOpen(true)}
+              onClearSelection={() => editor.setSelectedItem(null, null)}
             />
           </div>
 
@@ -1365,7 +1387,7 @@ export function MapEditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* FEAT-E01: leaving the 「地图基本信息」form with unsaved edits */}
+      {/* FEAT-E01: leaving the 「地图基本信息」variant with unsaved edits */}
       <EditorPendingInfoActionDialog
         open={pendingMapInfoAction !== null}
         onOpenChange={(open) => !open && setPendingMapInfoAction(null)}

@@ -31,7 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
-import { useCreateAsset, useUpdateAsset, useUploadAssetFormImage } from '@/hooks/useAssets';
+import { useCreateAsset, useUpdateAsset, useUploadAssetVariantImage } from '@/hooks/useAssets';
 
 /** FEAT-O11: the type as radio buttons (背景 / 物品). */
 const ASSET_TYPE_OPTIONS = ASSET_TYPES.map((value) => ({
@@ -95,7 +95,7 @@ export function CreateAssetDialog({
   const [file, setFile] = useState<File | null>(null);
 
   const createMutation = useCreateAsset();
-  const uploadMutation = useUploadAssetFormImage();
+  const uploadMutation = useUploadAssetVariantImage();
   /** FEAT-N06 §5.4: reverts an auto-enable whose image never landed. */
   const updateMutation = useUpdateAsset();
 
@@ -118,7 +118,7 @@ export function CreateAssetDialog({
      * image is deleted, so the two can never disagree.
      */
     const isActive = hasAppearance(file !== null, bgColor);
-    let asset: { id: number; forms: Array<{ id: number }> };
+    let asset: { id: number; variants: Array<{ id: number }> };
     try {
       asset = await createMutation.mutateAsync({
         name: values.name,
@@ -136,7 +136,7 @@ export function CreateAssetDialog({
     // closes either way and the user retries from the detail pane.
     if (file) {
       const uploaded = await uploadMutation
-        .mutateAsync({ assetId: asset.id, formId: asset.forms[0]!.id, file })
+        .mutateAsync({ assetId: asset.id, variantId: asset.variants[0]!.id, file })
         .then(() => true)
         .catch(() => false);
       /**

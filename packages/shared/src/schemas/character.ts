@@ -38,7 +38,6 @@ export const createCharacterSchema = z.object({
    * already supplies an appearance (avatar or colour block); omitted → `false`.
    */
   isActive: z.boolean().optional(),
-  meta: z.record(z.unknown()).default({}),
 });
 
 export const updateCharacterSchema = z
@@ -48,7 +47,6 @@ export const updateCharacterSchema = z
     description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH).optional().nullable(),
     /** v0.5.1 FEAT-L02: pass `null` to drop back to the image mode. */
     bgColor: bgColorSchema,
-    meta: z.record(z.unknown()).optional(),
     isActive: z.boolean().optional(),
   })
   .refine((value) => Object.keys(value).length > 0, '请提供需要更新的字段');

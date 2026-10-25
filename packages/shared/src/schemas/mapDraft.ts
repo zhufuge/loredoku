@@ -196,41 +196,69 @@ export const mapStyleSchema = z.object({
    */
   .strict();
 
+/**
+ * v0.7.6 (docs/v0.7.6.md §10): the anchor key used to be `formId`, back when the
+ * table was `asset_forms`. Stored drafts are rewritten by migration
+ * `20260101000035`, but a JSON file exported before that still carries the old
+ * key — accept it and normalise, the same way `projectId` is accepted for
+ * `mapId` in `puzzleMapRefSchema`. Without this the key would be **silently
+ * stripped** (inner anchors are not `.strict()`) and a multi-variant asset would
+ * quietly fall back to its first look.
+ */
+function withLegacyAnchorKey<T extends z.ZodTypeAny>(schema: T): T {
+  return z.preprocess((raw) => {
+    if (raw && typeof raw === 'object' && 'formId' in raw && !('variantId' in raw)) {
+      const { formId, ...rest } = raw as Record<string, unknown>;
+      return { ...rest, variantId: formId };
+    }
+    return raw;
+  }, schema) as unknown as T;
+}
+
 /** v0.6.0: the background layer — one asset, no footprint. */
-export const draftAssetRefSchema = z.object({
-  assetId: z.number().int().positive(),
-  /**
-   * v0.6.1: optional for the same reason as the item anchor — a payload
-   * written before background assets could have several forms keeps
-   * validating, and rendering falls back to the asset's first form.
-   * `draftCellSchema` is `.strict()`, so the key has to be declared here.
-   */
-  formId: z.number().int().positive().optional(),
-});
+export const draftAssetRefSchema = withLegacyAnchorKey(
+  z.object({
+    assetId: z.number().int().positive(),
+    /**
+     * v0.6.1: optional for the same reason as the item anchor — a payload
+     * written before background assets could have several variants keeps
+     * validating, and rendering falls back to the asset's first variant.
+     * `draftCellSchema` is `.strict()`, so the key has to be declared here.
+     */
+    variantId: z.number().int().positive().optional(),
+  }),
+);
 
 /**
  * v0.6.0: the item layer — the anchor cell carries the footprint.
  *
- * v0.6.1: `formId` is **optional on purpose** — a v4 payload has no such key and
- * must keep validating; rendering falls back to the asset's first form.
+ * v0.6.1: `variantId` is **optional on purpose** — a v4 payload has no such key and
+ * must keep validating; rendering falls back to the asset's first variant.
  * `draftCellSchema` is `.strict()`, so the key has to be declared here or new
  * writes would be rejected.
  */
-export const draftAnchorItemSchema = z.object({
-  assetId: z.number().int().positive(),
-  formId: z.number().int().positive().optional(),
-  w: z.number().int().min(1),
-  h: z.number().int().min(1),
+export const draftAnchorItemSchema = withLegacyAnchorKey(
+  z.object({
+    assetId: z.number().int().positive(),
+    variantId: z.number().int().positive().optional(),
+    /**
+     * v0.7.6: the footprint is still stored **per placement** — it just no longer
+     * comes from the variant (every new placement writes 1). Old drafts keep
+     * their 2×2 so published maps render exactly as before.
+     */
+    w: z.number().int().min(1),
+    h: z.number().int().min(1),
   /**
    * v0.7.5 (docs/v0.7.5.md §3): the display transform. Optional so every draft
    * written before this version keeps validating — absent means identity.
    * Offsets are in **cells** and may be negative (artwork poking out to the
    * left / up); the renderer clamps again through `resolveItemTransform`.
    */
-  scale: z.number().min(ITEM_SCALE_MIN).max(ITEM_SCALE_MAX).optional(),
-  offsetX: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
-  offsetY: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
-});
+    scale: z.number().min(ITEM_SCALE_MIN).max(ITEM_SCALE_MAX).optional(),
+    offsetX: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
+    offsetY: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
+  }),
+);
 
 export const draftCellSchema = z
   .object({

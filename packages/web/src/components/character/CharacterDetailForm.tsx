@@ -196,9 +196,6 @@ export function CharacterDetailForm({
           <ImageUploader
             imageUrl={character.avatarUrl}
             thumbUrl={character.avatarThumbUrl}
-            width={character.avatarWidth}
-            height={character.avatarHeight}
-            size={character.avatarSize}
             maxDimension={CHARACTER_AVATAR_MAX_DIMENSION}
             uploading={uploadMutation.isPending}
             deleting={deleteAvatarMutation.isPending}

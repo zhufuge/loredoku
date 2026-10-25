@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import {
   ASSET_TYPES,
   ASSET_TYPE_LABELS,
-  DEFAULT_ASSET_FORM_NAME,
+  DEFAULT_ASSET_VARIANT_NAME,
   assetHasAppearance,
   blockingFor,
   type Asset,
-  type AssetForm,
+  type AssetVariant,
 } from '@loredoku/shared';
-import { AssetFormCard } from '@/components/asset/AssetFormCard';
+import { AssetVariantCard } from '@/components/asset/AssetVariantCard';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -23,8 +23,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
 import {
-  useCreateAssetForm,
-  useDeleteAssetForm,
+  useCreateAssetVariant,
+  useDeleteAssetVariant,
   useSetAssetActive,
   useUpdateAsset,
 } from '@/hooks/useAssets';
@@ -44,23 +44,23 @@ interface AssetDetailFormProps {
  * v0.6.1 (docs/v0.6.1.md §8.4): the pane splits in two.
  *
  * - **资源区** — identity and behaviour only: name / type / blocking.
- * - **形态区** — one card per form; each card owns its look and footprint.
+ * - **形态区** — one card per variant; each card owns its look.
  *
- * The split mirrors the data: an asset is 「what it is」, a form is 「how it
- * looks and how many cells it covers」. Both types get the same treatment — a
- * background asset may own several forms as well; only its footprint stays
- * pinned at 1×1, which `AssetFormCard` hides rather than lies about.
+ * The split mirrors the data: an asset is 「what it is」, a variant is 「how it
+ * looks」. Both types get the same treatment — a background asset may own several
+ * variants as well. (v0.7.6: the footprint left both the data and the card; where
+ * an item sits and how big it draws is the placement's business.)
  */
 export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps): JSX.Element {
   const [name, setName] = useState(asset.name);
   const [type, setType] = useState(asset.type);
   const [blocking, setBlocking] = useState(asset.blocking);
-  const [deleteTarget, setDeleteTarget] = useState<AssetForm | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<AssetVariant | null>(null);
 
   const updateMutation = useUpdateAsset();
   const activeMutation = useSetAssetActive();
-  const createFormMutation = useCreateAssetForm();
-  const deleteFormMutation = useDeleteAssetForm();
+  const createVariantMutation = useCreateAssetVariant();
+  const deleteVariantMutation = useDeleteAssetVariant();
 
   useEffect(() => {
     setName(asset.name);
@@ -72,7 +72,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
   // v0.6.1: an asset needs a look somewhere before it can be enabled.
   const activatable = assetHasAppearance(asset);
   const blockable = type === 'item';
-  const canDeleteForm = asset.forms.length > 1;
+  const canDeleteVariant = asset.variants.length > 1;
 
   const handleSave = async (): Promise<void> => {
     try {
@@ -89,18 +89,18 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
     }
   };
 
-  /** 新形态默认 1×1，名字取「形态 N」，撞名由服务端 409 兜底。 */
-  const handleAddForm = (): void => {
-    const taken = new Set(asset.forms.map((form) => form.name));
-    let suggestion = DEFAULT_ASSET_FORM_NAME;
-    let index = asset.forms.length + 1;
+  /** 新形态不带任何外观，名字取「形态 N」，撞名由服务端 409 兜底。 */
+  const handleAddVariant = (): void => {
+    const taken = new Set(asset.variants.map((variant) => variant.name));
+    let suggestion = DEFAULT_ASSET_VARIANT_NAME;
+    let index = asset.variants.length + 1;
     while (taken.has(suggestion)) {
       suggestion = `形态 ${index}`;
       index += 1;
     }
-    createFormMutation.mutate({
+    createVariantMutation.mutate({
       assetId: asset.id,
-      payload: { name: suggestion, widthCells: 1, heightCells: 1 },
+      payload: { name: suggestion },
     });
   };
 
@@ -199,26 +199,26 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
           <div>
             <h3 className="text-sm font-medium">形态</h3>
             <p className="text-xs text-muted-foreground">
-              每个形态有自己的外观与占格；放置时可任选其一。
+              每个形态有自己的外观；放置时从这些形态里任选其一。
             </p>
           </div>
           <Button
             variant="outline"
             size="sm"
-            disabled={createFormMutation.isPending}
-            onClick={handleAddForm}
+            disabled={createVariantMutation.isPending}
+            onClick={handleAddVariant}
           >
-            {createFormMutation.isPending ? '添加中…' : '添加形态'}
+            {createVariantMutation.isPending ? '添加中…' : '添加形态'}
           </Button>
         </div>
 
         <div className="grid gap-3">
-          {asset.forms.map((form) => (
-            <AssetFormCard
-              key={form.id}
+          {asset.variants.map((variant) => (
+            <AssetVariantCard
+              key={variant.id}
               asset={asset}
-              form={form}
-              canDelete={canDeleteForm}
+              variant={variant}
+              canDelete={canDeleteVariant}
               onRequestDelete={setDeleteTarget}
             />
           ))}
@@ -228,7 +228,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
       <AlertDialog
         open={deleteTarget !== null}
         onOpenChange={(open) => {
-          if (!open && !deleteFormMutation.isPending) setDeleteTarget(null);
+          if (!open && !deleteVariantMutation.isPending) setDeleteTarget(null);
         }}
       >
         <AlertDialogContent>
@@ -239,19 +239,19 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteFormMutation.isPending}>取消</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteVariantMutation.isPending}>取消</AlertDialogCancel>
             <Button
               variant="destructive"
-              disabled={deleteFormMutation.isPending}
+              disabled={deleteVariantMutation.isPending}
               onClick={() => {
                 if (!deleteTarget) return;
-                deleteFormMutation.mutate(
-                  { assetId: asset.id, formId: deleteTarget.id },
+                deleteVariantMutation.mutate(
+                  { assetId: asset.id, variantId: deleteTarget.id },
                   { onSuccess: () => setDeleteTarget(null) },
                 );
               }}
             >
-              {deleteFormMutation.isPending ? '删除中…' : '删除'}
+              {deleteVariantMutation.isPending ? '删除中…' : '删除'}
             </Button>
           </AlertDialogFooter>
         </AlertDialogContent>

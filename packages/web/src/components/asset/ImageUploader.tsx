@@ -35,6 +35,7 @@ export function ImageUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const preview = thumbUrl ?? imageUrl;
+  const hasMetrics = width != null || height != null || size != null;
 
   const handleFiles = (files: FileList | null): void => {
     const file = files?.[0];
@@ -85,10 +86,16 @@ export function ImageUploader({
             {maxDimension ? `，最长边将压缩至 ${maxDimension}px` : ''}。
           </p>
           {imageUrl ? (
-            <p>
-              {width ?? '?'} × {height ?? '?'}
-              {size ? ` · ${(size / 1024).toFixed(0)} KB` : ''}
-            </p>
+            hasMetrics ? (
+              <p>
+                {width ?? '?'} × {height ?? '?'}
+                {size ? ` · ${(size / 1024).toFixed(0)} KB` : ''}
+              </p>
+            ) : (
+              // v0.7.6: 角色侧不再存原图尺寸 / 体积（docs/v0.7.6.md），
+              // 资源形态侧还在传，所以有就显示、没有就只说「已上传」。
+              <p>已上传</p>
+            )
           ) : (
             <p>尚未上传图片。</p>
           )}

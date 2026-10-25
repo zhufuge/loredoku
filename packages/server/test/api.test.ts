@@ -450,14 +450,12 @@ describe('assets API', () => {
     // The trigger array — and the free-form meta blob — are gone.
     expect(res.body.data).not.toHaveProperty('triggers');
     expect(res.body.data).not.toHaveProperty('meta');
-    // v0.6.1: the footprint and the look moved to the initial form.
+    // v0.6.1: the look moved to the initial variant; v0.7.6: the footprint left
+    // the variant entirely (every placement is one cell now).
     expect(res.body.data).not.toHaveProperty('widthCells');
-    expect(res.body.data.forms).toHaveLength(1);
-    expect(res.body.data.forms[0]).toMatchObject({
-      name: '默认',
-      widthCells: 1,
-      heightCells: 1,
-    });
+    expect(res.body.data.variants).toHaveLength(1);
+    expect(res.body.data.variants[0]).toMatchObject({ name: '默认' });
+    expect(res.body.data.variants[0]).not.toHaveProperty('widthCells');
 
     const patched = await api.patch(`/api/assets/${id}`).send({ name: 'Candlestick Holder' });
     expect(patched.body.data.name).toBe('Candlestick Holder');
@@ -563,6 +561,23 @@ describe('characters API', () => {
     const res = await api.post('/api/characters').send({ code: 'bad code', name: 'Bad' });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+  });
+
+  it('v0.7.6: 不再回传 avatarMime / meta，旧调用方带 meta 也不报错', async () => {
+    const id = await createCharacter({ name: 'Colonel Mustard', meta: { note: 'legacy' } });
+
+    const detail = await api.get(`/api/characters/${id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.data).not.toHaveProperty('avatarMime');
+    expect(detail.body.data).not.toHaveProperty('meta');
+
+    // 老前端照旧塞 meta：schema 不收这个键，但也**不拒绝**（zod 剥掉未知键）。
+    const patched = await api
+      .patch(`/api/characters/${id}`)
+      .send({ name: 'Mustard', meta: { a: 1 } });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.name).toBe('Mustard');
+    expect(patched.body.data).not.toHaveProperty('meta');
   });
 });
 

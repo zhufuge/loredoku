@@ -1,12 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  ASSET_SIZE_MAX,
-  ASSET_SIZE_MIN,
   DEFAULT_BG_COLOR,
   type AppearanceMode,
   type Asset,
   type AssetFitMode,
-  type AssetForm,
+  type AssetVariant,
 } from '@loredoku/shared';
 import { AppearanceField } from '@/components/appearance/AppearanceField';
 import { ImageUploader } from '@/components/asset/ImageUploader';
@@ -23,9 +21,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
-  useDeleteAssetFormImage,
-  useUpdateAssetForm,
-  useUploadAssetFormImage,
+  useDeleteAssetVariantImage,
+  useUpdateAssetVariant,
+  useUploadAssetVariantImage,
 } from '@/hooks/useAssets';
 
 const FIT_MODE_LABELS: Record<AssetFitMode, string> = {
@@ -33,51 +31,48 @@ const FIT_MODE_LABELS: Record<AssetFitMode, string> = {
   contain: '完整留白（contain）',
 };
 
-interface AssetFormCardProps {
+interface AssetVariantCardProps {
   asset: Asset;
-  form: AssetForm;
-  /** False for the last form — the server would answer 409 anyway. */
+  variant: AssetVariant;
+  /** False for the last variant — the server would answer 409 anyway. */
   canDelete: boolean;
-  onRequestDelete: (form: AssetForm) => void;
+  onRequestDelete: (variant: AssetVariant) => void;
 }
 
 /**
- * v0.6.1 (docs/v0.6.1.md §8.4): one card per form. The look and the footprint
- * save together; the uploaded file applies immediately, matching the old
- * asset-level rhythm.
+ * v0.6.1 (docs/v0.6.1.md §8.4): one card per variant. Everything on it saves
+ * together; the uploaded file applies immediately, matching the old asset-level
+ * rhythm.
  *
- * A background asset hides the footprint inputs — its single form always renders
- * as one cell, so those numbers would be a lie (the server rejects them too).
+ * v0.7.6 (docs/v0.7.6.md §9): the footprint inputs are gone — a variant only
+ * describes how the asset **looks**. Where it sits and how big it draws is the
+ * placement's business (1 cell + `scale`).
  */
-export function AssetFormCard({
+export function AssetVariantCard({
   asset,
-  form,
+  variant,
   canDelete,
   onRequestDelete,
-}: AssetFormCardProps): JSX.Element {
+}: AssetVariantCardProps): JSX.Element {
   const background = asset.type === 'background';
-  const [name, setName] = useState(form.name);
-  const [widthCells, setWidthCells] = useState(form.widthCells);
-  const [heightCells, setHeightCells] = useState(form.heightCells);
-  const [fitMode, setFitMode] = useState<AssetFitMode>(form.fitMode);
+  const [name, setName] = useState(variant.name);
+  const [fitMode, setFitMode] = useState<AssetFitMode>(variant.fitMode);
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(
-    form.bgColor ? 'color' : 'image',
+    variant.bgColor ? 'color' : 'image',
   );
-  const [bgColor, setBgColor] = useState(form.bgColor ?? DEFAULT_BG_COLOR);
+  const [bgColor, setBgColor] = useState(variant.bgColor ?? DEFAULT_BG_COLOR);
   const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
 
-  const updateMutation = useUpdateAssetForm();
-  const uploadMutation = useUploadAssetFormImage();
-  const deleteImageMutation = useDeleteAssetFormImage();
+  const updateMutation = useUpdateAssetVariant();
+  const uploadMutation = useUploadAssetVariantImage();
+  const deleteImageMutation = useDeleteAssetVariantImage();
 
   useEffect(() => {
-    setName(form.name);
-    setWidthCells(form.widthCells);
-    setHeightCells(form.heightCells);
-    setFitMode(form.fitMode);
-    setAppearanceMode(form.bgColor ? 'color' : 'image');
-    setBgColor(form.bgColor ?? DEFAULT_BG_COLOR);
-  }, [form.id, form.updatedAt]);
+    setName(variant.name);
+    setFitMode(variant.fitMode);
+    setAppearanceMode(variant.bgColor ? 'color' : 'image');
+    setBgColor(variant.bgColor ?? DEFAULT_BG_COLOR);
+  }, [variant.id, variant.updatedAt]);
 
   const saving = updateMutation.isPending;
 
@@ -85,10 +80,9 @@ export function AssetFormCard({
     try {
       await updateMutation.mutateAsync({
         assetId: asset.id,
-        formId: form.id,
+        variantId: variant.id,
         payload: {
           name: name.trim(),
-          ...(background ? {} : { widthCells, heightCells }),
           fitMode,
           bgColor: appearanceMode === 'color' ? bgColor : null,
         },
@@ -102,9 +96,9 @@ export function AssetFormCard({
     <div className="rounded-lg border p-4">
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium">形态 · {form.name}</p>
+          <p className="text-sm font-medium">形态 · {variant.name}</p>
           <p className="text-xs text-muted-foreground">
-            {background ? '背景恒占 1 格' : `占格 ${form.widthCells}×${form.heightCells}`}
+            {background ? '背景层：每格铺满' : '物品层：放置后占 1 格，用大小调整外观'}
           </p>
         </div>
         <Button
@@ -113,42 +107,16 @@ export function AssetFormCard({
           className="text-destructive hover:text-destructive"
           disabled={!canDelete}
           title={canDelete ? undefined : '资源至少要保留一个形态'}
-          onClick={() => onRequestDelete(form)}
+          onClick={() => onRequestDelete(variant)}
         >
           删除
         </Button>
       </div>
 
       <div className="grid gap-4">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="grid gap-2">
-            <Label>形态名称</Label>
-            <Input value={name} onChange={(event) => setName(event.target.value)} />
-          </div>
-          {background ? null : (
-            <>
-              <div className="grid gap-2">
-                <Label>占格宽</Label>
-                <Input
-                  type="number"
-                  min={ASSET_SIZE_MIN}
-                  max={ASSET_SIZE_MAX}
-                  value={widthCells}
-                  onChange={(event) => setWidthCells(Number(event.target.value))}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label>占格高</Label>
-                <Input
-                  type="number"
-                  min={ASSET_SIZE_MIN}
-                  max={ASSET_SIZE_MAX}
-                  value={heightCells}
-                  onChange={(event) => setHeightCells(Number(event.target.value))}
-                />
-              </div>
-            </>
-          )}
+        <div className="grid max-w-xs gap-2">
+          <Label>形态名称</Label>
+          <Input value={name} onChange={(event) => setName(event.target.value)} />
         </div>
 
         <div className="grid gap-2">
@@ -173,15 +141,12 @@ export function AssetFormCard({
           onBgColorChange={setBgColor}
         >
           <ImageUploader
-            imageUrl={form.imageUrl}
-            thumbUrl={form.imageThumbUrl}
-            width={form.imageWidth}
-            height={form.imageHeight}
-            size={form.imageSize}
+            imageUrl={variant.imageUrl}
+            thumbUrl={variant.imageThumbUrl}
             uploading={uploadMutation.isPending}
             deleting={deleteImageMutation.isPending}
             onUpload={(file) =>
-              uploadMutation.mutate({ assetId: asset.id, formId: form.id, file })
+              uploadMutation.mutate({ assetId: asset.id, variantId: variant.id, file })
             }
             onDelete={() => setConfirmDeleteImage(true)}
           />
@@ -205,7 +170,7 @@ export function AssetFormCard({
             <AlertDialogTitle>删除图片？</AlertDialogTitle>
             <AlertDialogDescription>
               {/* v0.5.1 FEAT-L01: a colour block does not depend on the image. */}
-              {form.bgColor
+              {variant.bgColor
                 ? '该形态是纯色块，删除图片后仍可继续使用。'
                 : '删除后若资源下所有形态都没有外观，资源将自动停用。'}
             </AlertDialogDescription>
@@ -217,7 +182,7 @@ export function AssetFormCard({
               disabled={deleteImageMutation.isPending}
               onClick={() =>
                 deleteImageMutation.mutate(
-                  { assetId: asset.id, formId: form.id },
+                  { assetId: asset.id, variantId: variant.id },
                   { onSuccess: () => setConfirmDeleteImage(false) },
                 )
               }

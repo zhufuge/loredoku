@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { MapDraft } from '@loredoku/shared';
-import { MIN_CELL_SIZE } from '@loredoku/shared';
+import { MAP_JSON_VERSION, MIN_CELL_SIZE } from '@loredoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();
@@ -34,25 +34,25 @@ beforeEach(() => {
 describe('placement', () => {
   it('places a background and marks the map dirty', () => {
     store().placeBackground(7, 41, 2, 3);
-    expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7, formId: 41 } });
+    expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7, variantId: 41 } });
     expect(store().dirty).toBe(true);
     expect(store().past).toHaveLength(1);
   });
 
-  it('leaves the form out when the caller has none to name', () => {
+  it('leaves the variant out when the caller has none to name', () => {
     store().placeBackground(7, undefined, 2, 3);
     expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7 } });
   });
 
   it('places a multi-cell object with a single anchor', () => {
-    store().placeItem({ assetId: 5, formId: 1, w: 2, h: 2 }, 0, 0);
-    expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, formId: 1, w: 2, h: 2 });
+    store().placeItem({ assetId: 5, variantId: 1, w: 2, h: 2 }, 0, 0);
+    expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, variantId: 1, w: 2, h: 2 });
     expect(store().cells.get('1,0')?.item).toBeUndefined();
     expect(store().cells.has('1,1')).toBe(true);
   });
 
   it('removes a multi-cell object footprint together with its placeholders', () => {
-    store().placeItem({ assetId: 2, formId: 1, w: 2, h: 2 }, 0, 0);
+    store().placeItem({ assetId: 2, variantId: 1, w: 2, h: 2 }, 0, 0);
     store().eraseAt(1, 1);
     expect(store().cells.size).toBe(0);
   });
@@ -62,10 +62,10 @@ describe('eraseAt', () => {
   // docs/v0.2.5.md BUG-406 — object layer first, background last.
   it('erases the object layer before the background layer', () => {
     store().placeBackground(1, 11, 0, 0);
-    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
+    store().placeItem({ assetId: 2, variantId: 1, w: 1, h: 1 }, 0, 0);
 
     store().eraseAt(0, 0);
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, variantId: 11 } });
 
     store().eraseAt(0, 0);
     expect(store().cells.has('0,0')).toBe(false);
@@ -73,11 +73,11 @@ describe('eraseAt', () => {
 
   it('ignores activeLayer', () => {
     store().placeBackground(1, 11, 0, 0);
-    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
+    store().placeItem({ assetId: 2, variantId: 1, w: 1, h: 1 }, 0, 0);
 
     store().setLayer('background');
     store().eraseAt(0, 0);
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, variantId: 11 } });
 
     store().setLayer('item');
     store().eraseAt(0, 0);
@@ -93,7 +93,7 @@ describe('eraseAt', () => {
 
   it('records two erases as two steps undone in reverse order', () => {
     store().placeBackground(1, 11, 0, 0);
-    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
+    store().placeItem({ assetId: 2, variantId: 1, w: 1, h: 1 }, 0, 0);
     const baseline = store().past.length;
 
     store().eraseAt(0, 0);
@@ -102,11 +102,11 @@ describe('eraseAt', () => {
     expect(store().cells.has('0,0')).toBe(false);
 
     store().undo();
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, variantId: 11 } });
     store().undo();
     expect(store().cells.get('0,0')).toEqual({
-      background: { assetId: 1, formId: 11 },
-      item: { assetId: 2, formId: 1, w: 1, h: 1 },
+      background: { assetId: 1, variantId: 11 },
+      item: { assetId: 2, variantId: 1, w: 1, h: 1 },
     });
   });
 });
@@ -117,7 +117,7 @@ describe('history', () => {
     store().undo();
     expect(store().cells.size).toBe(0);
     store().redo();
-    expect(store().cells.get('0,0')?.background).toEqual({ assetId: 1, formId: 11 });
+    expect(store().cells.get('0,0')?.background).toEqual({ assetId: 1, variantId: 11 });
   });
 
   it('clears the redo stack after a new action', () => {
@@ -217,9 +217,9 @@ describe('selection', () => {
 describe('cell clearing', () => {
   it('clears a cell object and then the whole cell', () => {
     store().placeBackground(1, 11, 0, 0);
-    store().placeItem({ assetId: 2, formId: 1, w: 1, h: 1 }, 0, 0);
+    store().placeItem({ assetId: 2, variantId: 1, w: 1, h: 1 }, 0, 0);
     store().clearItemAt(0, 0);
-    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, formId: 11 } });
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, variantId: 11 } });
     store().clearCell(0, 0);
     expect(store().cells.has('0,0')).toBe(false);
   });
@@ -263,12 +263,12 @@ describe('init', () => {
 
 describe('toDraft (FEAT-K14: MapDraft v3)', () => {
   it('serialises cells and regions — and carries no roster (SPEC-K12)', () => {
-    store().placeItem({ assetId: 5, formId: 1, w: 1, h: 1 }, 1, 1);
+    store().placeItem({ assetId: 5, variantId: 1, w: 1, h: 1 }, 1, 1);
     const output = store().toDraft();
     // the map JSON is v7 — regions carry only their style differences;
     // participants live in the puzzle.
-    expect(output.version).toBe(7);
-    expect(output.cells['1,1']?.item).toEqual({ assetId: 5, formId: 1, w: 1, h: 1 });
+    expect(output.version).toBe(MAP_JSON_VERSION);
+    expect(output.cells['1,1']?.item).toEqual({ assetId: 5, variantId: 1, w: 1, h: 1 });
     expect('characterSlots' in output).toBe(false);
     expect('placedCharacters' in output).toBe(false);
   });
@@ -494,10 +494,10 @@ describe('setItemTransform', () => {
   });
 
   it('drops the keys again when everything is back at the default', () => {
-    store().placeItem({ assetId: 5, formId: 7, w: 2, h: 1 }, 0, 0);
+    store().placeItem({ assetId: 5, variantId: 7, w: 2, h: 1 }, 0, 0);
     store().setItemTransform(0, 0, { scale: 2, offsetY: 1 });
     store().setItemTransform(0, 0, { scale: 1, offsetX: 0, offsetY: 0 });
-    expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, formId: 7, w: 2, h: 1 });
+    expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, variantId: 7, w: 2, h: 1 });
   });
 
   it('does not push a history step when the resolved value is unchanged', () => {

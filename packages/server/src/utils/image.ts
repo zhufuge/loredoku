@@ -65,16 +65,16 @@ export function detectImageType(buffer: Buffer): DetectedImage | null {
 }
 
 /**
- * v0.6.1: the form owns the appearance, so the file lands one level deeper —
- * `assets/<assetId>/forms/<formId>/` — and the directory stays owned by the
+ * v0.6.1: the variant owns the appearance, so the file lands one level deeper —
+ * `assets/<assetId>/variants/<variantId>/` — and the directory stays owned by the
  * asset (a hard delete of the asset still takes the whole subtree with it).
  */
-export async function processAssetFormImage(
+export async function processAssetVariantImage(
   assetId: number,
-  formId: number,
+  variantId: number,
   buffer: Buffer,
 ): Promise<ProcessedImage> {
-  return processImage(`assets/${assetId}/forms`, formId, buffer, THUMBNAIL_MAX_DIMENSION);
+  return processImage(`assets/${assetId}/variants`, variantId, buffer, THUMBNAIL_MAX_DIMENSION);
 }
 
 export async function processAvatarImage(characterId: number, buffer: Buffer): Promise<ProcessedImage> {

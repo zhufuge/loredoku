@@ -10,7 +10,7 @@ import {
   REGION_ID_MAX_LENGTH,
   REGION_ID_PATTERN,
   isIdentityItemTransform,
-  resolveAssetForm,
+  resolveAssetVariant,
   resolveItemTransform,
 } from '@loredoku/shared';
 import type {
@@ -112,7 +112,7 @@ function RegionEditBranch({
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Re-seed when the committed region changes **what the form shows**: another
+   * Re-seed when the committed region changes **what the variant shows**: another
    * region, a renamed one, or new committed style values (a save, an undo, a
    * changed map-level default). A pure **cell** edit does not re-seed —
    * shift+clicking more cells into the region must not drop the style the
@@ -310,12 +310,12 @@ function CellBranch({
   const backgroundAsset =
     cell?.background?.assetId !== undefined ? assetsById.get(cell.background.assetId) : undefined;
   const itemAsset = item?.assetId !== undefined ? assetsById.get(item.assetId) : undefined;
-  // v0.6.1: both layers show the form the cell was painted with; a missing or
-  // dangling `formId` falls back to the asset's first form.
+  // v0.6.1: both layers show the variant the cell was painted with; a missing or
+  // dangling `variantId` falls back to the asset's first variant.
   const backgroundLook = backgroundAsset
-    ? resolveAssetForm(backgroundAsset, cell?.background?.formId)
+    ? resolveAssetVariant(backgroundAsset, cell?.background?.variantId)
     : undefined;
-  const itemLook = itemAsset ? resolveAssetForm(itemAsset, item?.formId) : undefined;
+  const itemLook = itemAsset ? resolveAssetVariant(itemAsset, item?.variantId) : undefined;
   const transform = resolveItemTransform(item);
   const identity = isIdentityItemTransform(transform);
 
@@ -337,7 +337,7 @@ function CellBranch({
             ) : null}
             <span className="truncate text-sm">
               {backgroundAsset.name}
-              {backgroundLook && backgroundAsset.forms.length > 1 ? (
+              {backgroundLook && backgroundAsset.variants.length > 1 ? (
                 <span className="text-muted-foreground"> · {backgroundLook.name}</span>
               ) : null}
             </span>
@@ -373,7 +373,7 @@ function CellBranch({
             ) : null}
             <span className="truncate text-sm">
               {itemAsset.name}
-              {itemLook && itemAsset.forms.length > 1 ? (
+              {itemLook && itemAsset.variants.length > 1 ? (
                 <span className="text-muted-foreground"> · {itemLook.name}</span>
               ) : null}
             </span>

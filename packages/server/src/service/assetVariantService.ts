@@ -1,22 +1,22 @@
 import type {
   Asset,
-  AssetForm,
+  AssetVariant,
   AssetUsage,
-  CreateAssetFormInput,
-  UpdateAssetFormInput,
+  CreateAssetVariantInput,
+  UpdateAssetVariantInput,
 } from '@loredoku/shared';
 import { db } from '../db/knex';
 import * as assetRepo from '../repository/assetRepository';
-import * as formRepo from '../repository/assetFormRepository';
+import * as variantRepo from '../repository/assetVariantRepository';
 import { AppError } from '../utils/AppError';
-import { processAssetFormImage } from '../utils/image';
+import { processAssetVariantImage } from '../utils/image';
 import { getAsset } from './assetService';
 
 /**
- * v0.6.1 (docs/v0.6.1.md §4) — the form rules that need the sibling rows, so
+ * v0.6.1 (docs/v0.6.1.md §4) — the variant rules that need the sibling rows, so
  * they cannot live in zod:
- *   - an asset keeps at least one form;
- *   - a form may only be deleted while no draft canvas points at it.
+ *   - an asset keeps at least one variant;
+ *   - a variant may only be deleted while no draft canvas points at it.
  */
 
 async function requireAsset(assetId: number): Promise<Asset> {
@@ -27,106 +27,96 @@ async function requireAsset(assetId: number): Promise<Asset> {
   return asset;
 }
 
-export async function listForms(assetId: number): Promise<AssetForm[]> {
+export async function listVariants(assetId: number): Promise<AssetVariant[]> {
   await requireAsset(assetId);
-  return formRepo.listByAsset(assetId);
+  return variantRepo.listByAsset(assetId);
 }
 
-export async function createForm(
+export async function createVariant(
   assetId: number,
-  input: CreateAssetFormInput,
-): Promise<AssetForm> {
+  input: CreateAssetVariantInput,
+): Promise<AssetVariant> {
   await requireAsset(assetId);
-  if (await formRepo.findByAssetAndName(assetId, input.name)) {
+  if (await variantRepo.findByAssetAndName(assetId, input.name)) {
     throw AppError.conflict('同一资源下形态名称不能重复');
   }
-  const sortOrder = await formRepo.nextSortOrder(assetId);
-  const id = await formRepo.create(db, assetId, input, sortOrder);
-  const row = await formRepo.findById(assetId, id);
-  return formRepo.toAssetForm(row!);
+  const sortOrder = await variantRepo.nextSortOrder(assetId);
+  const id = await variantRepo.create(db, assetId, input, sortOrder);
+  const row = await variantRepo.findById(assetId, id);
+  return variantRepo.toAssetVariant(row!);
 }
 
-export async function updateForm(
+export async function updateVariant(
   assetId: number,
-  formId: number,
-  input: UpdateAssetFormInput,
-): Promise<AssetForm> {
-  const asset = await requireAsset(assetId);
-  const row = await formRepo.findById(assetId, formId);
+  variantId: number,
+  input: UpdateAssetVariantInput,
+): Promise<AssetVariant> {
+  await requireAsset(assetId);
+  const row = await variantRepo.findById(assetId, variantId);
   if (!row) {
     throw AppError.notFound('形态不存在');
   }
-  // 背景层的占格从不参与渲染，允许改它就是在撒谎。
-  if (asset.type === 'background' && (input.widthCells !== undefined || input.heightCells !== undefined)) {
-    throw AppError.validation('背景资源的形态占格恒为 1×1，不能修改');
-  }
   if (input.name !== undefined && input.name !== row.name) {
-    const clash = await formRepo.findByAssetAndName(assetId, input.name);
-    if (clash && Number(clash.id) !== formId) {
+    const clash = await variantRepo.findByAssetAndName(assetId, input.name);
+    if (clash && Number(clash.id) !== variantId) {
       throw AppError.conflict('同一资源下形态名称不能重复');
     }
   }
-  await formRepo.update(assetId, formId, input);
-  const updated = await formRepo.findById(assetId, formId);
-  return formRepo.toAssetForm(updated!);
+  await variantRepo.update(assetId, variantId, input);
+  const updated = await variantRepo.findById(assetId, variantId);
+  return variantRepo.toAssetVariant(updated!);
 }
 
-export async function deleteForm(assetId: number, formId: number): Promise<void> {
+export async function deleteVariant(assetId: number, variantId: number): Promise<void> {
   await requireAsset(assetId);
-  if (!(await formRepo.findById(assetId, formId))) {
+  if (!(await variantRepo.findById(assetId, variantId))) {
     throw AppError.notFound('形态不存在');
   }
-  if ((await formRepo.countByAsset(assetId)) <= 1) {
+  if ((await variantRepo.countByAsset(assetId)) <= 1) {
     throw AppError.conflict('资源至少要保留一个形态');
   }
-  const usages = await formRepo.getUsages(formId);
+  const usages = await variantRepo.getUsages(variantId);
   if (usages.length > 0) {
     const mapNames = usages.map((usage) => usage.mapName).join('、');
     throw AppError.conflict(`该形态已被地图使用（${mapNames}），请先在画布上移除`);
   }
-  await formRepo.remove(assetId, formId);
+  await variantRepo.remove(assetId, variantId);
 }
 
-export async function getFormUsages(assetId: number, formId: number): Promise<AssetUsage[]> {
+export async function getVariantUsages(assetId: number, variantId: number): Promise<AssetUsage[]> {
   await requireAsset(assetId);
-  if (!(await formRepo.findById(assetId, formId))) {
+  if (!(await variantRepo.findById(assetId, variantId))) {
     throw AppError.notFound('形态不存在');
   }
-  return formRepo.getUsages(formId);
+  return variantRepo.getUsages(variantId);
 }
 
 export async function uploadImage(
   assetId: number,
-  formId: number,
+  variantId: number,
   buffer: Buffer,
 ): Promise<Asset> {
   await requireAsset(assetId);
-  if (!(await formRepo.findById(assetId, formId))) {
+  if (!(await variantRepo.findById(assetId, variantId))) {
     throw AppError.notFound('形态不存在');
   }
-  const processed = await processAssetFormImage(assetId, formId, buffer);
-  await formRepo.setImage(assetId, formId, {
-    path: processed.relativePath,
-    mime: processed.mime,
-    size: processed.size,
-    width: processed.width,
-    height: processed.height,
-  });
+  const processed = await processAssetVariantImage(assetId, variantId, buffer);
+  await variantRepo.setImage(assetId, variantId, processed.relativePath);
   return getAsset(assetId);
 }
 
 /**
  * v0.6.1 (docs/v0.6.1.md §4.5): deleting the last look leaves nothing to render,
  * so the asset deactivates — the v0.5.1 rule, widened from "no image and no
- * colour" to "no form has either".
+ * colour" to "no variant has either".
  */
-export async function deleteImage(assetId: number, formId: number): Promise<Asset> {
+export async function deleteImage(assetId: number, variantId: number): Promise<Asset> {
   await requireAsset(assetId);
-  if (!(await formRepo.findById(assetId, formId))) {
+  if (!(await variantRepo.findById(assetId, variantId))) {
     throw AppError.notFound('形态不存在');
   }
-  await formRepo.clearImage(assetId, formId);
-  if (!(await formRepo.assetHasAppearance(assetId))) {
+  await variantRepo.clearImage(assetId, variantId);
+  if (!(await variantRepo.assetHasAppearance(assetId))) {
     await assetRepo.setActive(assetId, false);
   }
   return getAsset(assetId);

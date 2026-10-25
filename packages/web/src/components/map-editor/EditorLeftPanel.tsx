@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { BoxSelect } from 'lucide-react';
-import type { Asset, AssetForm, DraftRegion, EditorLayer, EditorTool } from '@loredoku/shared';
+import type { Asset, AssetVariant, DraftRegion, EditorLayer, EditorTool } from '@loredoku/shared';
 import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
 import { AssetPalette } from '@/components/map-editor/AssetPalette';
 import { RegionList } from '@/components/map-editor/RegionList';
@@ -25,13 +25,19 @@ interface EditorLeftPanelProps {
   assets: Asset[] | undefined;
   assetsLoading: boolean;
   assetsError: boolean;
+  /**
+   * v0.7.7: 资源列表来自共享查询，别处可能刚加过资源 —— 搜索框右侧给了个刷新
+   * 按钮，不用整页重载（重载会丢掉撤销栈与视口）。
+   */
+  assetsRefreshing: boolean;
+  onRefreshAssets: () => void;
   activeLayer: EditorLayer;
   selectedAssetId: number | null;
-  selectedFormId: number | null;
+  selectedVariantId: number | null;
   regions: DraftRegion[];
   selectedRegionId: string | null;
   onSetLayer: (layer: EditorLayer) => void;
-  onSelectAsset: (asset: Asset | null, form: AssetForm | null) => void;
+  onSelectAsset: (asset: Asset | null, variant: AssetVariant | null) => void;
   onSetTool: (tool: EditorTool) => void;
   onSelectRegion: (id: string | null) => void;
   onDeleteRegion: (region: DraftRegion) => void;
@@ -41,9 +47,11 @@ export function EditorLeftPanel({
   assets,
   assetsLoading,
   assetsError,
+  assetsRefreshing,
+  onRefreshAssets,
   activeLayer,
   selectedAssetId,
-  selectedFormId,
+  selectedVariantId,
   regions,
   selectedRegionId,
   onSetLayer,
@@ -57,7 +65,10 @@ export function EditorLeftPanel({
   return (
     <aside className="flex h-full w-[280px] shrink-0 flex-col border-r bg-background">
       {/* OPT-B06 §6.1: header aligns with the participant panel title bar */}
-      <div className="flex shrink-0 border-b" style={{ height: PARTICIPANT_HEADER_HEIGHT }}>
+      <div
+        className="flex shrink-0 items-stretch border-b"
+        style={{ height: PARTICIPANT_HEADER_HEIGHT }}
+      >
         {TABS.map((tabItem) => (
           <button
             key={tabItem.id}
@@ -103,8 +114,10 @@ export function EditorLeftPanel({
                 isError={assetsError}
                 activeLayer={activeLayer}
                 selectedAssetId={selectedAssetId}
-                selectedFormId={selectedFormId}
+                selectedVariantId={selectedVariantId}
                 onSelect={onSelectAsset}
+                refreshing={assetsRefreshing}
+                onRefresh={onRefreshAssets}
               />
             </div>
           </div>

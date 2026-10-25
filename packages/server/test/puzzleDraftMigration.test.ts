@@ -32,7 +32,7 @@ function storedCanvas(gridSize = 4): Record<string, unknown> {
   return {
     version: MAP_JSON_VERSION,
     gridSize,
-    cells: { '0,0': { background: { assetId: 3, formId: 9 } } },
+    cells: { '0,0': { background: { assetId: 3, variantId: 9 } } },
     regions: [],
   };
 }

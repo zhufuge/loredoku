@@ -1,7 +1,7 @@
 import type { Knex } from 'knex';
 import { blockingFor } from '@loredoku/shared';
 import { db } from '../db/knex';
-import * as formRepo from './assetFormRepository';
+import * as variantRepo from './assetVariantRepository';
 import type { Asset, AssetRow, AssetType, AssetUsage, MapDraft } from '@loredoku/shared';
 
 export interface ListAssetsParams {
@@ -20,8 +20,8 @@ export interface CreateAssetData {
    * appearance; omitted keeps the OPT-305 default (`false`).
    */
   isActive?: boolean;
-  /** v0.6.1: the initial form the create call writes alongside the asset. */
-  initialForm: formRepo.CreateAssetFormData;
+  /** v0.6.1: the initial variant the create call writes alongside the asset. */
+  initialVariant: variantRepo.CreateAssetVariantData;
 }
 
 export interface UpdateAssetData {
@@ -31,7 +31,7 @@ export interface UpdateAssetData {
   isActive?: boolean;
 }
 
-function toAsset(row: AssetRow, forms: Asset['forms']): Asset {
+function toAsset(row: AssetRow, variants: Asset['variants']): Asset {
   return {
     id: Number(row.id),
     code: row.code,
@@ -39,7 +39,7 @@ function toAsset(row: AssetRow, forms: Asset['forms']): Asset {
     type: row.type,
     blocking: row.blocking,
     isActive: row.is_active,
-    forms,
+    variants,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   };
@@ -58,8 +58,8 @@ export async function listAssets(params: ListAssetsParams): Promise<Asset[]> {
 
   const rows = await query.orderBy('updated_at', 'desc').select('*');
   // v0.6.1: 形态一次 `IN (…)` 取完，列表不做 N+1。
-  const formsByAsset = await formRepo.listByAssetIds(rows.map((row) => Number(row.id)));
-  return rows.map((row) => toAsset(row, formsByAsset.get(Number(row.id)) ?? []));
+  const variantsByAsset = await variantRepo.listByAssetIds(rows.map((row) => Number(row.id)));
+  return rows.map((row) => toAsset(row, variantsByAsset.get(Number(row.id)) ?? []));
 }
 
 export async function findById(id: number): Promise<AssetRow | undefined> {
@@ -73,11 +73,11 @@ export async function findByCode(code: string): Promise<AssetRow | undefined> {
 export async function getAsset(id: number): Promise<Asset | null> {
   const row = await findById(id);
   if (!row) return null;
-  return toAsset(row, await formRepo.listByAsset(id));
+  return toAsset(row, await variantRepo.listByAsset(id));
 }
 
 /**
- * v0.6.1: the asset and its first form are one step for the caller, two rows for
+ * v0.6.1: the asset and its first variant are one step for the caller, two rows for
  * the database — hence the transaction.
  */
 export async function create(data: CreateAssetData): Promise<number> {
@@ -95,7 +95,7 @@ export async function create(data: CreateAssetData): Promise<number> {
       })
       .returning('id');
     const assetId = Number((row as { id: number | string }).id);
-    await formRepo.create(trx, assetId, data.initialForm, 0);
+    await variantRepo.create(trx, assetId, data.initialVariant, 0);
     return assetId;
   });
 }

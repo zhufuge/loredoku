@@ -61,18 +61,16 @@ export const ASSET_CODE_MAX_LENGTH = 64;
 export const ASSET_CODE_PATTERN = /^[A-Za-z0-9_]+$/;
 export const ASSET_TYPES = ['background', 'item'] as const;
 export const DEFAULT_ASSET_TYPE = 'item';
-export const ASSET_SIZE_MIN = 1;
-export const ASSET_SIZE_MAX = 12;
-export const ASSET_SIZE_DEFAULT = 1;
 export const ASSET_TYPE_LABELS: Record<(typeof ASSET_TYPES)[number], string> = {
   background: '背景',
   item: '物品',
 };
 export const ASSET_FIT_MODES = ['cover', 'contain'] as const;
 export const DEFAULT_ASSET_FIT_MODE = 'cover';
-// v0.6.1: 形态（asset_forms）—— 一个资源的多种「样子 + 占位」。
-export const ASSET_FORM_NAME_MAX_LENGTH = 32;
-export const DEFAULT_ASSET_FORM_NAME = '默认';
+// v0.6.1: 形态（asset_variants，当时叫 asset_forms）—— 一个资源的多种「样子」。
+// v0.7.6: 占格搬到「每次放置」上（恒 1 格），形态只管长相。
+export const ASSET_VARIANT_NAME_MAX_LENGTH = 32;
+export const DEFAULT_ASSET_VARIANT_NAME = '默认';
 
 // ---- 历史迁移兼容常量（仅 v0.6.0 之前的迁移文件引用，值冻结为当时语义）----
 // v0.6.0 把 `category` 改名为 `type`、取值 `object` 改成 `item`。历史迁移
@@ -176,20 +174,26 @@ export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
  * moved to the puzzle). v2 added `style` (FEAT-D02); v1 stays valid because a
  * missing `style` resolves to `DEFAULT_MAP_STYLE`.
  *
- * v0.6.1: v5 — a canvas item anchor may carry `formId`, pointing at one of the
- * asset's forms (docs/v0.6.1.md §6). The field is optional, so v4 payloads keep
- * validating and fall back to the asset's first form.
+ * v0.6.1: v5 — a canvas item anchor may carry `variantId`, pointing at one of the
+ * asset's variants (docs/v0.6.1.md §6). The field is optional, so v4 payloads keep
+ * validating and fall back to the asset's first variant.
  *
- * v0.6.1 (background forms): v6 — a background cell may carry `formId` too, now
- * that a background asset may own several forms. Same deal: optional, and the
- * fallback is the asset's first form.
+ * v0.6.1 (background variants): v6 — a background cell may carry `variantId` too, now
+ * that a background asset may own several variants. Same deal: optional, and the
+ * fallback is the asset's first variant.
  *
  * v0.7.0: v7 — a region's own display style moved off `color` / `borderWidth` /
  * `fillOpacity` onto `style`, a deep partial over the map-level defaults (the
  * fill is gone entirely). Schemas are `.strict()`, so a v6 region payload is
  * rejected on write and rewritten on read by migration `20260101000030`.
+ *
+ * v0.7.6: v8 — the anchor key `formId` became `variantId` (the table went
+ * `asset_forms` → `asset_variants`). Only the key moved: `w` / `h` stay, because
+ * they describe **this placement** rather than the variant, and old drafts keep
+ * their multi-cell footprints. Migration `20260101000035` rewrites the key and
+ * bumps the number.
  */
-export const MAP_JSON_VERSION = 7;
+export const MAP_JSON_VERSION = 8;
 
 // ---- Trigger effects ----
 export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
@@ -728,7 +732,7 @@ export interface RegionStyle {
 }
 
 /**
- * 区域样式的**存储形态**：对地图级缺省的深 partial，只记差异。渲染时
+ * 区域样式的**存储变体**：对地图级缺省的深 partial，只记差异。渲染时
  * `resolveRegionStyle(地图级缺省, override)` 合成完整值；三者全等于缺省时
  * 整个 `style` 键不落盘（`regionStyleOverride` 助手负责这件事）。
  */

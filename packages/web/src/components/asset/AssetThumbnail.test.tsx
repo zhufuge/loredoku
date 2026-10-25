@@ -19,10 +19,6 @@ function appearance(overrides: Partial<AssetAppearance> = {}): AssetAppearance {
     imagePath: null,
     imageUrl: null,
     imageThumbUrl: null,
-    imageMime: null,
-    imageSize: null,
-    imageWidth: null,
-    imageHeight: null,
     bgColor: null,
     ...overrides,
   };

@@ -3,7 +3,7 @@ import { BG_COLOR_PATTERN, DEFAULT_BG_COLOR } from '../constants'
 import { appearanceModeSchema, bgColorSchema, hasAppearance } from './appearance'
 import { createCharacterSchema, updateCharacterSchema } from './character'
 import { createAssetSchema } from './asset'
-import { updateAssetFormSchema } from './assetForm'
+import { updateAssetVariantSchema } from './assetVariant'
 
 /**
  * v0.5.1 FEAT-L01 / FEAT-L02 — the colour-block field.
@@ -96,20 +96,20 @@ describe('create schemas — isActive (FEAT-N06)', () => {
   })
 })
 
-// v0.6.1: the colour block moved from the asset to its forms, so this is the
+// v0.6.1: the colour block moved from the asset to its variants, so this is the
 // update path that carries it now.
-describe('updateAssetFormSchema — bgColor (FEAT-L01)', () => {
+describe('updateAssetVariantSchema — bgColor (FEAT-L01)', () => {
   it('accepts null, which drops back to the image mode', () => {
-    expect(updateAssetFormSchema.parse({ bgColor: null }).bgColor).toBeNull()
+    expect(updateAssetVariantSchema.parse({ bgColor: null }).bgColor).toBeNull()
   })
 
   it('rejects a malformed colour', () => {
-    expect(updateAssetFormSchema.safeParse({ bgColor: 'white' }).success).toBe(false)
+    expect(updateAssetVariantSchema.safeParse({ bgColor: 'white' }).success).toBe(false)
   })
 
   it('rejects an empty patch — there would be nothing to write', () => {
-    expect(updateAssetFormSchema.safeParse({}).success).toBe(false)
-    expect(updateAssetFormSchema.safeParse({ name: '横放' }).success).toBe(true)
+    expect(updateAssetVariantSchema.safeParse({}).success).toBe(false)
+    expect(updateAssetVariantSchema.safeParse({ name: '横放' }).success).toBe(true)
   })
 })
 

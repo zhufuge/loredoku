@@ -28,7 +28,6 @@ export interface CreateCharacterData {
    * appearance; omitted keeps the OPT-305 default (`false`).
    */
   isActive?: boolean;
-  meta: Record<string, unknown>;
 }
 
 export interface UpdateCharacterData {
@@ -37,16 +36,7 @@ export interface UpdateCharacterData {
   description?: string | null;
   /** v0.5.1 FEAT-L02: `null` clears the colour block (back to image mode). */
   bgColor?: string | null;
-  meta?: Record<string, unknown>;
   isActive?: boolean;
-}
-
-export interface CharacterImageData {
-  path: string;
-  mime: string;
-  size: number;
-  width: number | null;
-  height: number | null;
 }
 
 function toCharacter(row: CharacterRow): Character {
@@ -59,12 +49,7 @@ function toCharacter(row: CharacterRow): Character {
     avatarPath: row.avatar_path,
     avatarUrl: row.avatar_path ? buildFileUrl(row.avatar_path) : null,
     avatarThumbUrl: row.avatar_path ? buildThumbUrl(row.avatar_path) : null,
-    avatarMime: row.avatar_mime,
-    avatarSize: row.avatar_size,
-    avatarWidth: row.avatar_width,
-    avatarHeight: row.avatar_height,
     bgColor: row.bg_color ?? null,
-    meta: row.meta ?? {},
     isActive: row.is_active,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
@@ -105,7 +90,6 @@ export async function create(data: CreateCharacterData): Promise<number> {
       gender: data.gender,
       description: data.description,
       bg_color: data.bgColor ?? null,
-      meta: data.meta,
       // OPT-305: 新建角色未上传头像，初始状态为停用。
       // v0.5.3 FEAT-N06: 上传了头像或选了纯色块 → 直接启用。
       is_active: data.isActive ?? false,
@@ -120,19 +104,14 @@ export async function update(id: number, data: UpdateCharacterData): Promise<boo
   if (data.gender !== undefined) patch.gender = data.gender;
   if (data.description !== undefined) patch.description = data.description;
   if (data.bgColor !== undefined) patch.bg_color = data.bgColor;
-  if (data.meta !== undefined) patch.meta = data.meta;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
   const affected = await db('characters').where({ id }).update(patch);
   return affected > 0;
 }
 
-export async function setAvatar(id: number, image: CharacterImageData): Promise<void> {
+export async function setAvatar(id: number, relativePath: string): Promise<void> {
   await db('characters').where({ id }).update({
-    avatar_path: image.path,
-    avatar_mime: image.mime,
-    avatar_size: image.size,
-    avatar_width: image.width,
-    avatar_height: image.height,
+    avatar_path: relativePath,
     updated_at: db.fn.now(),
   });
 }
@@ -140,10 +119,6 @@ export async function setAvatar(id: number, image: CharacterImageData): Promise<
 export async function clearAvatar(id: number): Promise<void> {
   await db('characters').where({ id }).update({
     avatar_path: null,
-    avatar_mime: null,
-    avatar_size: null,
-    avatar_width: null,
-    avatar_height: null,
     // OPT-305: 删除头像后自动停用（数据引用保留）。
     // v0.5.1 FEAT-L02 收窄：纯色块（有 bg_color）不依赖头像，删头像只是删头像。
     is_active: db.raw('CASE WHEN bg_color IS NULL THEN false ELSE is_active END'),

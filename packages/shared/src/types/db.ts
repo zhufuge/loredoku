@@ -37,8 +37,8 @@ export interface MapRow {
 /**
  * v0.6.0: the `assets` table (was `items`); `category` → `type`, `can_stand` → `blocking`.
  *
- * v0.6.1: the asset row keeps only identity + behaviour; the appearance and the
- * footprint live on {@link AssetFormRow} (docs/v0.6.1.md §3).
+ * v0.6.1: the asset row keeps only identity + behaviour; the appearance lives on
+ * {@link AssetVariantRow} (docs/v0.6.1.md §3).
  */
 export interface AssetRow {
   id: string | number;
@@ -53,21 +53,19 @@ export interface AssetRow {
 }
 
 /**
- * v0.6.1: one row of `asset_forms` — how an asset looks and how many cells it
- * covers. `asset_id` cascades, so deleting the asset deletes its forms.
+ * v0.6.1: one row of `asset_variants` (then `asset_forms`) — how an asset looks.
+ * `asset_id` cascades, so deleting the asset deletes its variants.
+ *
+ * v0.7.6: the table lost six columns (docs/v0.7.6.md §9): the footprint
+ * (`width_cells` / `height_cells`, now a per-placement constant of 1) and the
+ * upload receipt (`image_mime` / `image_size` / `image_width` / `image_height`).
  */
-export interface AssetFormRow {
+export interface AssetVariantRow {
   id: string | number;
   asset_id: string | number;
   name: string;
-  width_cells: number;
-  height_cells: number;
   fit_mode: AssetFitMode;
   image_path: string | null;
-  image_mime: string | null;
-  image_size: number | null;
-  image_width: number | null;
-  image_height: number | null;
   /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
   sort_order: number;
@@ -76,8 +74,12 @@ export interface AssetFormRow {
 }
 
 /**
+ * v0.7.6: the avatar is **one path and nothing else** (docs/v0.7.6.md).
+ * `avatar_mime` / `meta` went first (zero readers, zero information); the
+ * `avatar_size` / `avatar_width` / `avatar_height` trio followed — they only
+ * fed one line of uploader copy, and every cover in this repo (maps / games /
+ * puzzles) already stores nothing but `cover_path`.
  */
-
 export interface CharacterRow {
   id: string | number;
   code: string;
@@ -85,13 +87,8 @@ export interface CharacterRow {
   gender: CharacterGender;
   description: string | null;
   avatar_path: string | null;
-  avatar_mime: string | null;
-  avatar_size: number | null;
-  avatar_width: number | null;
-  avatar_height: number | null;
   /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
-  meta: Record<string, unknown>;
   is_active: boolean;
   created_at: Date | string;
   updated_at: Date | string;

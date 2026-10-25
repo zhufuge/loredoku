@@ -77,8 +77,8 @@ export interface EditorState {
   selection: Selection | null;
   selectedRegionId: string | null;
   selectedAssetId: number | null;
-  /** v0.6.1: the palette selects an asset **and** one of its forms. */
-  selectedFormId: number | null;
+  /** v0.6.1: the palette selects an asset **and** one of its variants. */
+  selectedVariantId: number | null;
   regionDraftSelection: Set<string>;
   zoom: number;
   pan: { x: number; y: number };
@@ -93,8 +93,8 @@ export interface EditorState {
   setLayer: (layer: EditorLayer) => void;
   setSelection: (selection: Selection | null) => void;
   setSelectedRegion: (id: string | null) => void;
-  /** v0.6.1: pass both, or neither — the selection is the (asset, form) pair. */
-  setSelectedItem: (assetId: number | null, formId?: number | null) => void;
+  /** v0.6.1: pass both, or neither — the selection is the (asset, variant) pair. */
+  setSelectedItem: (assetId: number | null, variantId?: number | null) => void;
 
   toggleDraftCell: (x: number, y: number) => void;
   addDraftCells: (cells: Array<[number, number]>) => void;
@@ -102,17 +102,18 @@ export interface EditorState {
   clearDraftSelection: () => void;
 
   /**
-   * v0.6.1: the background cell records which form was painted. `formId` is
+   * v0.6.1: the background cell records which variant was painted. `variantId` is
    * optional so a payload written before background assets could own several
-   * forms keeps loading — rendering falls back to the asset's first form.
+   * variants keeps loading — rendering falls back to the asset's first variant.
    */
-  placeBackground: (assetId: number, formId: number | undefined, x: number, y: number) => void;
+  placeBackground: (assetId: number, variantId: number | undefined, x: number, y: number) => void;
   /**
-   * v0.6.1: the caller hands over the chosen **form's** footprint and id; the
-   * anchor freezes all three, so later form edits never move placed items.
+   * v0.6.1: the caller hands over the chosen variant's id; the anchor freezes the
+   * footprint, so later variant edits never move placed items. v0.7.6: 新放置的
+   * `w` / `h` 恒为 1（调用方显式传 1，让老草稿的多格锚点仍是合法值）。
    */
   placeItem: (
-    item: { assetId: number; formId?: number; w: number; h: number },
+    item: { assetId: number; variantId?: number; w: number; h: number },
     x: number,
     y: number,
   ) => void;
@@ -181,7 +182,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
     selection: null,
     selectedRegionId: null,
     selectedAssetId: null,
-    selectedFormId: null,
+    selectedVariantId: null,
     regionDraftSelection: new Set<string>(),
     zoom: 1,
     pan: { x: 0, y: 0 },
@@ -208,7 +209,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         selection: null,
         selectedRegionId: null,
         selectedAssetId: null,
-        selectedFormId: null,
+        selectedVariantId: null,
         regionDraftSelection: new Set<string>(),
         zoom: 1,
         pan: { x: 0, y: 0 },
@@ -227,8 +228,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setLayer: (activeLayer) => set({ activeLayer }),
     setSelection: (selection) => set({ selection }),
     setSelectedRegion: (selectedRegionId) => set({ selectedRegionId }),
-    setSelectedItem: (selectedAssetId, formId = null) =>
-      set({ selectedAssetId, selectedFormId: selectedAssetId === null ? null : formId }),
+    setSelectedItem: (selectedAssetId, variantId = null) =>
+      set({ selectedAssetId, selectedVariantId: selectedAssetId === null ? null : variantId }),
 
     toggleDraftCell: (x, y) =>
       set((state) => {
@@ -255,14 +256,14 @@ export const useEditorStore = create<EditorState>((set, get) => {
 
     clearDraftSelection: () => set({ regionDraftSelection: new Set<string>() }),
 
-    placeBackground: (assetId, formId, x, y) =>
+    placeBackground: (assetId, variantId, x, y) =>
       commit((next) => {
         const key = cellKey(x, y);
         const cell: DraftCell = {
           ...(next.cells.get(key) ?? {}),
           background: {
             assetId,
-            ...(formId === undefined ? {} : { formId }),
+            ...(variantId === undefined ? {} : { variantId }),
           },
         };
         next.cells.set(key, cell);
@@ -278,7 +279,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
             if (dx === 0 && dy === 0) {
               cell.item = {
                 assetId: item.assetId,
-                ...(item.formId === undefined ? {} : { formId: item.formId }),
+                ...(item.variantId === undefined ? {} : { variantId: item.variantId }),
                 w: item.w,
                 h: item.h,
               };
@@ -310,7 +311,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
           ...cell,
           item: {
             assetId: cell.item.assetId,
-            ...(cell.item.formId === undefined ? {} : { formId: cell.item.formId }),
+            ...(cell.item.variantId === undefined ? {} : { variantId: cell.item.variantId }),
             w: cell.item.w,
             h: cell.item.h,
             ...(resolved.scale === DEFAULT_ITEM_SCALE ? {} : { scale: resolved.scale }),

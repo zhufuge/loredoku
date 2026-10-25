@@ -5,7 +5,7 @@ import type {
   ListAssetsQuery,
   UpdateAssetInput,
 } from '@loredoku/shared';
-import { DEFAULT_ASSET_FORM_NAME } from '@loredoku/shared';
+import { DEFAULT_ASSET_VARIANT_NAME } from '@loredoku/shared';
 import * as repo from '../repository/assetRepository';
 import { AppError } from '../utils/AppError';
 
@@ -22,9 +22,9 @@ export async function getAsset(id: number): Promise<Asset> {
 }
 
 /**
- * v0.6.1: creating an asset creates its first form in the same transaction
- * (docs/v0.6.1.md §5.2). Its footprint is fixed at 1×1 — a bigger one belongs to
- * the form and is edited afterwards in the detail pane.
+ * v0.6.1: creating an asset creates its first variant in the same transaction
+ * (docs/v0.6.1.md §5.2). v0.7.6: that variant says nothing about size — every
+ * placement is 1×1 and 「大小」 only changes how big it looks.
  */
 export async function createAsset(input: CreateAssetInput): Promise<Asset> {
   if (await repo.findByCode(input.code)) {
@@ -36,10 +36,8 @@ export async function createAsset(input: CreateAssetInput): Promise<Asset> {
     type: input.type,
     blocking: input.blocking,
     isActive: input.isActive,
-    initialForm: {
-      name: DEFAULT_ASSET_FORM_NAME,
-      widthCells: 1,
-      heightCells: 1,
+    initialVariant: {
+      name: DEFAULT_ASSET_VARIANT_NAME,
       fitMode: input.fitMode,
       bgColor: input.bgColor ?? null,
     },
@@ -48,10 +46,10 @@ export async function createAsset(input: CreateAssetInput): Promise<Asset> {
 }
 
 /**
- * v0.6.1: switching the type keeps every form — a background asset may own
- * several forms just like an item, so there is nothing to ask the caller to
- * drop first. What does change is what the forms are allowed to do: a
- * background form's footprint stays pinned at 1×1 (`assetFormService`).
+ * v0.6.1: switching the type keeps every variant — a background asset may own
+ * several variants just like an item, so there is nothing to ask the caller to
+ * drop first. (v0.7.6: the footprint clause is gone — no variant declares one
+ * any more, and every placement is 1×1.)
  */
 export async function updateAsset(id: number, input: UpdateAssetInput): Promise<Asset> {
   const row = await repo.findById(id);

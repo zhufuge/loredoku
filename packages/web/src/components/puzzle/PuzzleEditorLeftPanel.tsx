@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import type { Character, CharacterSlotEntry } from '@loredoku/shared';
 import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
+import { RefreshButton } from '@/components/common/RefreshButton';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 
@@ -10,6 +11,12 @@ interface PuzzleEditorLeftPanelProps {
   characters: Character[] | undefined;
   charactersLoading: boolean;
   charactersError: boolean;
+  /**
+   * v0.7.7: 角色列表来自共享查询，角色页可能刚加过角色 —— 头部给了个刷新按钮，
+   * 不用整页重载（重载会丢掉撤销栈与视口）。
+   */
+  charactersRefreshing: boolean;
+  onRefreshCharacters: () => void;
   characterSlots: Array<CharacterSlotEntry | null>;
   /** The character whose detail is currently shown in the info drawer. */
   selectedCharacterId: number | null;
@@ -40,6 +47,8 @@ export function PuzzleEditorLeftPanel({
   characters,
   charactersLoading,
   charactersError,
+  charactersRefreshing,
+  onRefreshCharacters,
   characterSlots,
   selectedCharacterId,
   onAssignSlot,
@@ -123,16 +132,25 @@ export function PuzzleEditorLeftPanel({
         style={{ height: PARTICIPANT_HEADER_HEIGHT }}
       >
         <span>角色</span>
-        <button
-          type="button"
-          title="收起角色列表"
-          aria-label="收起角色列表"
-          aria-expanded
-          onClick={() => takeOver(true)}
-          className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70"
-        >
-          <ChevronLeft className="h-4 w-4" />
-        </button>
+        {/* v0.7.7: 刷新只出现在展开态 —— 收起的 40px 细条放不下第二个按钮，
+            而细条出现的时机（参与者已满）本来也没有「再加入」的需求。 */}
+        <div className="flex items-center gap-1">
+          <RefreshButton
+            label="刷新角色"
+            refreshing={charactersRefreshing}
+            onRefresh={onRefreshCharacters}
+          />
+          <button
+            type="button"
+            title="收起角色列表"
+            aria-label="收起角色列表"
+            aria-expanded
+            onClick={() => takeOver(true)}
+            className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* FEAT-N08: the filter sits right under the header, above the grid. */}

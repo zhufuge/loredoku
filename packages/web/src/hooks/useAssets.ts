@@ -2,11 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   assetsApi,
-  assetFormsApi,
-  type CreateAssetFormPayload,
+  assetVariantsApi,
+  type CreateAssetVariantPayload,
   type CreateAssetPayload,
   type ListAssetsParams,
-  type UpdateAssetFormPayload,
+  type UpdateAssetVariantPayload,
   type UpdateAssetPayload,
 } from '@/api/assets';
 
@@ -104,13 +104,13 @@ export function useSetAssetActive() {
   });
 }
 
-// ---- v0.6.1: forms ----
+// ---- v0.6.1: variants ----
 
-export function useCreateAssetForm() {
+export function useCreateAssetVariant() {
   const invalidate = useInvalidateAssets();
   return useMutation({
-    mutationFn: ({ assetId, payload }: { assetId: number; payload: CreateAssetFormPayload }) =>
-      assetFormsApi.create(assetId, payload),
+    mutationFn: ({ assetId, payload }: { assetId: number; payload: CreateAssetVariantPayload }) =>
+      assetVariantsApi.create(assetId, payload),
     onSuccess: () => {
       toast.success('形态已添加');
       invalidate();
@@ -119,18 +119,18 @@ export function useCreateAssetForm() {
   });
 }
 
-export function useUpdateAssetForm() {
+export function useUpdateAssetVariant() {
   const invalidate = useInvalidateAssets();
   return useMutation({
     mutationFn: ({
       assetId,
-      formId,
+      variantId,
       payload,
     }: {
       assetId: number;
-      formId: number;
-      payload: UpdateAssetFormPayload;
-    }) => assetFormsApi.update(assetId, formId, payload),
+      variantId: number;
+      payload: UpdateAssetVariantPayload;
+    }) => assetVariantsApi.update(assetId, variantId, payload),
     onSuccess: () => {
       toast.success('形态已保存');
       invalidate();
@@ -139,11 +139,11 @@ export function useUpdateAssetForm() {
   });
 }
 
-export function useDeleteAssetForm() {
+export function useDeleteAssetVariant() {
   const invalidate = useInvalidateAssets();
   return useMutation({
-    mutationFn: ({ assetId, formId }: { assetId: number; formId: number }) =>
-      assetFormsApi.remove(assetId, formId),
+    mutationFn: ({ assetId, variantId }: { assetId: number; variantId: number }) =>
+      assetVariantsApi.remove(assetId, variantId),
     onSuccess: () => {
       toast.success('形态已删除');
       invalidate();
@@ -152,11 +152,11 @@ export function useDeleteAssetForm() {
   });
 }
 
-export function useUploadAssetFormImage() {
+export function useUploadAssetVariantImage() {
   const invalidate = useInvalidateAssets();
   return useMutation({
-    mutationFn: ({ assetId, formId, file }: { assetId: number; formId: number; file: File }) =>
-      assetFormsApi.uploadImage(assetId, formId, file),
+    mutationFn: ({ assetId, variantId, file }: { assetId: number; variantId: number; file: File }) =>
+      assetVariantsApi.uploadImage(assetId, variantId, file),
     onSuccess: () => {
       toast.success('图片已上传');
       invalidate();
@@ -165,11 +165,11 @@ export function useUploadAssetFormImage() {
   });
 }
 
-export function useDeleteAssetFormImage() {
+export function useDeleteAssetVariantImage() {
   const invalidate = useInvalidateAssets();
   return useMutation({
-    mutationFn: ({ assetId, formId }: { assetId: number; formId: number }) =>
-      assetFormsApi.deleteImage(assetId, formId),
+    mutationFn: ({ assetId, variantId }: { assetId: number; variantId: number }) =>
+      assetVariantsApi.deleteImage(assetId, variantId),
     onSuccess: () => {
       toast.success('图片已删除');
       invalidate();

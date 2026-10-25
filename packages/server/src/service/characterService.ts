@@ -34,7 +34,6 @@ export async function createCharacter(input: CreateCharacterInput): Promise<Char
     bgColor: input.bgColor ?? null,
     // v0.5.3 FEAT-N06: 带外观创建 → 直接启用。
     isActive: input.isActive,
-    meta: input.meta,
   });
   return getCharacter(id);
 }
@@ -77,13 +76,7 @@ export async function uploadAvatar(id: number, buffer: Buffer): Promise<Characte
     throw AppError.notFound('角色不存在');
   }
   const processed = await processAvatarImage(id, buffer);
-  await repo.setAvatar(id, {
-    path: processed.relativePath,
-    mime: processed.mime,
-    size: processed.size,
-    width: processed.width,
-    height: processed.height,
-  });
+  await repo.setAvatar(id, processed.relativePath);
   return getCharacter(id);
 }
 

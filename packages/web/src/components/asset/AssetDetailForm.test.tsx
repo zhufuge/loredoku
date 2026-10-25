@@ -2,36 +2,30 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Asset, AssetForm } from '@loredoku/shared';
+import type { Asset, AssetVariant } from '@loredoku/shared';
 import { AssetDetailForm } from './AssetDetailForm';
 
 /**
  * v0.6.1 (docs/v0.6.1.md §8.4): the detail pane splits into 资源区 and 形态区.
  * These are render-only assertions — what differs between an asset with one
- * form, an asset with several, and a background:
+ * variant, an asset with several, and a background:
  *
- * - one card per form;
+ * - one card per variant;
  * - 添加形态 / 删除 are offered to both types;
- * - 删除 disabled on the last form;
- * - the footprint inputs are hidden for a background's form.
+ * - 删除 disabled on the last variant;
+ * - no footprint inputs on any card (v0.7.6 removed them from the data too).
  */
 
-function form(id: number, assetId: number, overrides: Partial<AssetForm> = {}): AssetForm {
+function variant(id: number, assetId: number, overrides: Partial<AssetVariant> = {}): AssetVariant {
   return {
     id,
     assetId,
     name: '默认',
-    widthCells: 1,
-    heightCells: 1,
     sortOrder: 0,
     fitMode: 'cover',
     imagePath: null,
     imageUrl: null,
     imageThumbUrl: null,
-    imageMime: null,
-    imageSize: null,
-    imageWidth: null,
-    imageHeight: null,
     bgColor: '#CCCCCC',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -39,7 +33,7 @@ function form(id: number, assetId: number, overrides: Partial<AssetForm> = {}): 
   };
 }
 
-function asset(forms: AssetForm[], overrides: Partial<Asset> = {}): Asset {
+function asset(variants: AssetVariant[], overrides: Partial<Asset> = {}): Asset {
   return {
     id: 1,
     code: 'chest',
@@ -47,7 +41,7 @@ function asset(forms: AssetForm[], overrides: Partial<Asset> = {}): Asset {
     type: 'item',
     blocking: false,
     isActive: true,
-    forms,
+    variants,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...overrides,
@@ -92,31 +86,33 @@ describe('AssetDetailForm — 形态管理区（v0.6.1 §8.4）', () => {
     return buttons().find((button) => (button.textContent ?? '').includes(text));
   }
 
-  it('renders one card per form', () => {
-    render(asset([form(11, 1, { name: '关闭' }), form(12, 1, { name: '打开' })]));
+  it('renders one card per variant', () => {
+    render(asset([variant(11, 1, { name: '关闭' }), variant(12, 1, { name: '打开' })]));
     expect(container.textContent).toContain('形态 · 关闭');
     expect(container.textContent).toContain('形态 · 打开');
     expect(buttons().filter((button) => (button.textContent ?? '') === '保存形态')).toHaveLength(2);
   });
 
   it('offers 添加形态 to a background asset as well', () => {
-    render(asset([form(11, 1)], { type: 'background', blocking: false }));
+    render(asset([variant(11, 1)], { type: 'background', blocking: false }));
     expect(buttonByText('添加形态')).toBeDefined();
   });
 
-  it('disables 删除 on the last form and enables it once there are two', () => {
-    render(asset([form(11, 1)]));
+  it('disables 删除 on the last variant and enables it once there are two', () => {
+    render(asset([variant(11, 1)]));
     expect(buttonByText('删除')?.disabled).toBe(true);
 
     act(() => root.unmount());
     root = createRoot(container);
-    render(asset([form(11, 1), form(12, 1, { name: '打开' })]));
+    render(asset([variant(11, 1), variant(12, 1, { name: '打开' })]));
     expect(buttonByText('删除')?.disabled).toBe(false);
   });
 
-  it('hides the footprint inputs for a background form', () => {
-    render(asset([form(11, 1)], { type: 'background', blocking: false }));
+  it('has no footprint inputs at all any more (v0.7.6)', () => {
+    render(asset([variant(11, 1)], { type: 'background', blocking: false }));
     expect(container.textContent).not.toContain('占格宽');
-    expect(container.textContent).toContain('背景恒占 1 格');
+    expect(container.textContent).not.toContain('占格高');
+    // 形态卡片现在只说「这一层怎么铺」，占格是放置的事。
+    expect(container.textContent).toContain('背景层：每格铺满');
   });
 });

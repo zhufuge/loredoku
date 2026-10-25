@@ -12,8 +12,8 @@ import { resolveUploadPath } from '../src/utils/paths';
  * - deleting the media no longer deactivates an entry that is a colour block
  *   (the v0.3.5 OPT-305 rule is narrowed, not removed).
  *
- * 角色 carries the colour on the row itself. 资源 carries it on a **form** since
- * v0.6.1, so its contract runs through `/api/assets/:id/forms/:formId` — same
+ * 角色 carries the colour on the row itself. 资源 carries it on a **variant** since
+ * v0.6.1, so its contract runs through `/api/assets/:id/variants/:variantId` — same
  * rules, one level deeper.
  */
 
@@ -32,20 +32,20 @@ function uniqueCode(prefix: string): string {
 
 interface AssetFixture {
   id: number;
-  formId: number;
+  variantId: number;
   bgColor: string | null;
   imageUrl: string | null;
   isActive: boolean;
 }
 
 function readAsset(body: { data: Record<string, unknown> }): AssetFixture {
-  const forms = body.data.forms as Array<Record<string, unknown>>;
-  const form = forms[0]!;
+  const variants = body.data.variants as Array<Record<string, unknown>>;
+  const variant = variants[0]!;
   return {
     id: body.data.id as number,
-    formId: form.id as number,
-    bgColor: form.bgColor as string | null,
-    imageUrl: form.imageUrl as string | null,
+    variantId: variant.id as number,
+    bgColor: variant.bgColor as string | null,
+    imageUrl: variant.imageUrl as string | null,
     isActive: body.data.isActive as boolean,
   };
 }
@@ -63,10 +63,10 @@ describe('assets 纯色块（形态级）', () => {
 
   async function upload(asset: AssetFixture): Promise<void> {
     const res = await api
-      .post(`/api/assets/${asset.id}/forms/${asset.formId}/image`)
+      .post(`/api/assets/${asset.id}/variants/${asset.variantId}/image`)
       .attach('file', TINY_PNG, 'x.png');
     expect(res.status).toBe(200);
-    uploadedDirs.push(resolveUploadPath(`assets/${asset.id}/forms/${asset.formId}`));
+    uploadedDirs.push(resolveUploadPath(`assets/${asset.id}/variants/${asset.variantId}`));
   }
 
   async function setActive(asset: AssetFixture, isActive: boolean): Promise<AssetFixture> {
@@ -75,7 +75,7 @@ describe('assets 纯色块（形态级）', () => {
     return readAsset(res.body);
   }
 
-  it('creates with a colour and reads it back on the initial form', async () => {
+  it('creates with a colour and reads it back on the initial variant', async () => {
     const asset = await create({ bgColor: '#FF8800' });
     expect(asset.bgColor).toBe('#FF8800');
 
@@ -88,14 +88,14 @@ describe('assets 纯色块（形态级）', () => {
     expect(asset.bgColor).toBeNull();
   });
 
-  it('sets and clears the colour on the form', async () => {
+  it('sets and clears the colour on the variant', async () => {
     const asset = await create();
     const set = await api
-      .patch(`/api/assets/${asset.id}/forms/${asset.formId}`)
+      .patch(`/api/assets/${asset.id}/variants/${asset.variantId}`)
       .send({ bgColor: '#00AABB' });
     expect(set.body.data.bgColor).toBe('#00AABB');
     const cleared = await api
-      .patch(`/api/assets/${asset.id}/forms/${asset.formId}`)
+      .patch(`/api/assets/${asset.id}/variants/${asset.variantId}`)
       .send({ bgColor: null });
     expect(cleared.body.data.bgColor).toBeNull();
   });
@@ -109,7 +109,7 @@ describe('assets 纯色块（形态级）', () => {
 
     const asset = await create();
     const patched = await api
-      .patch(`/api/assets/${asset.id}/forms/${asset.formId}`)
+      .patch(`/api/assets/${asset.id}/variants/${asset.variantId}`)
       .send({ bgColor: 'white' });
     expect(patched.status).toBe(400);
   });
@@ -119,7 +119,7 @@ describe('assets 纯色块（形态级）', () => {
     await upload(asset);
     expect((await setActive(asset, true)).isActive).toBe(true);
 
-    const removed = await api.delete(`/api/assets/${asset.id}/forms/${asset.formId}/image`);
+    const removed = await api.delete(`/api/assets/${asset.id}/variants/${asset.variantId}/image`);
     expect(removed.status).toBe(200);
     const after = readAsset(removed.body);
     // A colour block does not depend on the media.
@@ -133,7 +133,7 @@ describe('assets 纯色块（形态级）', () => {
     await upload(asset);
     expect((await setActive(asset, true)).isActive).toBe(true);
 
-    const removed = await api.delete(`/api/assets/${asset.id}/forms/${asset.formId}/image`);
+    const removed = await api.delete(`/api/assets/${asset.id}/variants/${asset.variantId}/image`);
     expect(removed.status).toBe(200);
     const after = readAsset(removed.body);
     // OPT-305 unchanged for assets that are not colour blocks.

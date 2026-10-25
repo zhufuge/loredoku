@@ -446,7 +446,7 @@ export function PuzzleEditorPage(): JSX.Element {
   };
 
   /**
-   * SPEC-K05: the puzzle's 基本信息 drawer is a form, so leaving it with
+   * SPEC-K05: the puzzle's 基本信息 drawer is a variant, so leaving it with
    * unsaved edits has to be confirmed (v0.3.9 FEAT-E01 + BUG-G01, moved here
    * verbatim).
    */
@@ -844,6 +844,8 @@ export function PuzzleEditorPage(): JSX.Element {
           characters={charactersQuery.data}
           charactersLoading={charactersQuery.isLoading}
           charactersError={charactersQuery.isError}
+          charactersRefreshing={charactersQuery.isFetching}
+          onRefreshCharacters={() => void charactersQuery.refetch()}
           characterSlots={puzzle.characterSlots}
           selectedCharacterId={unplacedCharacterId}
           onAssignSlot={assignSlot}
@@ -911,7 +913,7 @@ export function PuzzleEditorPage(): JSX.Element {
             activeTool="select"
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
-            pendingForm={null}
+            pendingVariant={null}
             regionDraftSelection={new Set<string>()}
             highlight={highlight}
             highlightLeaving={highlightLeaving}
@@ -1095,7 +1097,7 @@ export function PuzzleEditorPage(): JSX.Element {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* SPEC-K05: leaving the 基本信息 form with unsaved edits */}
+      {/* SPEC-K05: leaving the 基本信息 variant with unsaved edits */}
       <EditorPendingInfoActionDialog
         open={pendingPuzzleInfoAction !== null}
         onOpenChange={(open) => !open && setPendingPuzzleInfoAction(null)}

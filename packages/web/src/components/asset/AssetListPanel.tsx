@@ -15,14 +15,16 @@ interface AssetListPanelProps {
 }
 
 /**
- * v0.6.1: one row per resource, so the size line has to summarise the forms —
- * a single form names its footprint, several forms just count themselves.
+ * v0.6.1: one row per resource, so the size line summarises the variants.
+ *
+ * v0.7.6: a variant no longer carries a footprint, so there is no size to print —
+ * the line names the look instead (a single variant by name, several by count).
  */
-function formSummary(asset: Asset): string {
-  const first = asset.forms[0];
+function variantSummary(asset: Asset): string {
+  const first = asset.variants[0];
   if (!first) return '无形态';
-  if (asset.forms.length === 1) return `${first.widthCells}×${first.heightCells}`;
-  return `${asset.forms.length} 个形态`;
+  if (asset.variants.length === 1) return first.name;
+  return `${asset.variants.length} 个形态`;
 }
 
 /**
@@ -45,7 +47,7 @@ export function AssetListPanel({ assets, selectedId, onSelect }: AssetListPanelP
         className="divide-y"
         renderRow={(index) => {
           const asset = assets[index];
-          const look = asset?.forms[0];
+          const look = asset?.variants[0];
           if (!asset || !look) return null;
           return (
             <button
@@ -70,7 +72,7 @@ export function AssetListPanel({ assets, selectedId, onSelect }: AssetListPanelP
                   ) : null}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">
-                  {asset.code} · {formSummary(asset)}
+                  {asset.code} · {variantSummary(asset)}
                   {asset.type === 'item' && asset.blocking ? ' · 阻挡' : ''}
                 </div>
               </div>

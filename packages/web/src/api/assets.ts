@@ -1,4 +1,4 @@
-import type { Asset, AssetForm, AssetType, AssetFitMode, AssetUsage } from '@loredoku/shared';
+import type { Asset, AssetVariant, AssetType, AssetFitMode, AssetUsage } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 export interface ListAssetsParams {
@@ -8,9 +8,10 @@ export interface ListAssetsParams {
 }
 
 /**
- * v0.6.1: the footprint and the look are no longer asset fields — what is left
- * here is identity, behaviour, and the **initial** form's look (docs/v0.6.1.md
- * §5.2). A larger footprint is a property of the form, edited after creation.
+ * v0.6.1: the look left the asset — what is left here is identity, behaviour,
+ * and the **initial** variant's look (docs/v0.6.1.md §5.2). v0.7.6: the
+ * footprint left too, so creating an asset says nothing about size — every
+ * placement is 1×1 and 「大小」 only changes how big it looks.
  */
 export interface CreateAssetPayload {
   code: string;
@@ -32,16 +33,12 @@ export interface UpdateAssetPayload {
   isActive?: boolean;
 }
 
-export interface CreateAssetFormPayload {
+export interface CreateAssetVariantPayload {
   name: string;
-  widthCells?: number;
-  heightCells?: number;
 }
 
-export interface UpdateAssetFormPayload {
+export interface UpdateAssetVariantPayload {
   name?: string;
-  widthCells?: number;
-  heightCells?: number;
   fitMode?: AssetFitMode;
   /** v0.5.1 FEAT-L01: `null` drops back to the image mode. */
   bgColor?: string | null;
@@ -76,29 +73,29 @@ export const assetsApi = {
   },
 };
 
-/** v0.6.1: forms live under their asset, one level below `assetsApi`. */
-export const assetFormsApi = {
-  list(assetId: number): Promise<AssetForm[]> {
-    return apiGet<AssetForm[]>(`/assets/${assetId}/forms`);
+/** v0.6.1: variants live under their asset, one level below `assetsApi`. */
+export const assetVariantsApi = {
+  list(assetId: number): Promise<AssetVariant[]> {
+    return apiGet<AssetVariant[]>(`/assets/${assetId}/variants`);
   },
-  create(assetId: number, payload: CreateAssetFormPayload): Promise<AssetForm> {
-    return apiPost<AssetForm>(`/assets/${assetId}/forms`, payload);
+  create(assetId: number, payload: CreateAssetVariantPayload): Promise<AssetVariant> {
+    return apiPost<AssetVariant>(`/assets/${assetId}/variants`, payload);
   },
-  update(assetId: number, formId: number, payload: UpdateAssetFormPayload): Promise<AssetForm> {
-    return apiPatch<AssetForm>(`/assets/${assetId}/forms/${formId}`, payload);
+  update(assetId: number, variantId: number, payload: UpdateAssetVariantPayload): Promise<AssetVariant> {
+    return apiPatch<AssetVariant>(`/assets/${assetId}/variants/${variantId}`, payload);
   },
-  remove(assetId: number, formId: number): Promise<null> {
-    return apiDelete<null>(`/assets/${assetId}/forms/${formId}`);
+  remove(assetId: number, variantId: number): Promise<null> {
+    return apiDelete<null>(`/assets/${assetId}/variants/${variantId}`);
   },
-  usages(assetId: number, formId: number): Promise<AssetUsage[]> {
-    return apiGet<AssetUsage[]>(`/assets/${assetId}/forms/${formId}/usages`);
+  usages(assetId: number, variantId: number): Promise<AssetUsage[]> {
+    return apiGet<AssetUsage[]>(`/assets/${assetId}/variants/${variantId}/usages`);
   },
-  uploadImage(assetId: number, formId: number, file: File): Promise<Asset> {
-    const form = new FormData();
-    form.append('file', file);
-    return apiPost<Asset>(`/assets/${assetId}/forms/${formId}/image`, form);
+  uploadImage(assetId: number, variantId: number, file: File): Promise<Asset> {
+    const variant = new FormData();
+    variant.append('file', file);
+    return apiPost<Asset>(`/assets/${assetId}/variants/${variantId}/image`, variant);
   },
-  deleteImage(assetId: number, formId: number): Promise<Asset> {
-    return apiDelete<Asset>(`/assets/${assetId}/forms/${formId}/image`);
+  deleteImage(assetId: number, variantId: number): Promise<Asset> {
+    return apiDelete<Asset>(`/assets/${assetId}/variants/${variantId}/image`);
   },
 };

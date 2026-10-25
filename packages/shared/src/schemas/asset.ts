@@ -6,8 +6,6 @@ import {
   ASSET_CODE_PATTERN,
   ASSET_FIT_MODES,
   ASSET_NAME_MAX_LENGTH,
-  ASSET_SIZE_MAX,
-  ASSET_SIZE_MIN,
   ASSET_TYPES,
   DEFAULT_ASSET_FIT_MODE,
   DEFAULT_ASSET_TYPE,
@@ -32,8 +30,6 @@ export const assetCodeSchema = z
 
 export const assetTypeSchema = z.enum(ASSET_TYPES);
 
-export const assetSizeSchema = z.number().int().min(ASSET_SIZE_MIN).max(ASSET_SIZE_MAX);
-
 /**
  * v0.5.2 FEAT-M03: the free-form `meta` blob and the whole trigger feature are
  * gone — §3.1 lists every symbol that went with them.
@@ -41,10 +37,11 @@ export const assetSizeSchema = z.number().int().min(ASSET_SIZE_MIN).max(ASSET_SI
  * v0.5.2 FEAT-M04: both schemas normalise `blocking` through `blockingFor`, so
  * a background asset never blocks no matter what the caller sent.
  *
- * v0.6.1: the footprint and the appearance belong to a **form**, so they left
- * the asset payload. Creating an asset still takes the initial form's
+ * v0.6.1: the footprint and the appearance belong to a **variant**, so they left
+ * the asset payload. Creating an asset still takes the initial variant's
  * appearance (`bgColor` / `fitMode`) — the server writes them into the single
- * 1×1 「默认」 form it creates alongside (docs/v0.6.1.md §5.2).
+ * 「默认」 variant it creates alongside (docs/v0.6.1.md §5.2; since v0.7.6 that
+ * variant carries no footprint at all — every placement is 1×1).
  */
 export const createAssetSchema = z
   .object({
@@ -52,7 +49,7 @@ export const createAssetSchema = z
     name: z.string().trim().min(1, '资源名称不能为空').max(ASSET_NAME_MAX_LENGTH),
     type: assetTypeSchema.default(DEFAULT_ASSET_TYPE),
     blocking: z.boolean().default(false),
-    /** The initial form's fill mode; the rest of its look is uploaded later. */
+    /** The initial variant's fill mode; the rest of its look is uploaded later. */
     fitMode: assetFitModeSchema.default(DEFAULT_ASSET_FIT_MODE),
     /** v0.5.1 FEAT-L01: colour-block colour; `null` keeps the image mode. */
     bgColor: bgColorSchema,
@@ -67,8 +64,8 @@ export const createAssetSchema = z
 
 /**
  * v0.6.1: `widthCells` / `heightCells` / `fitMode` / `bgColor` are gone — with
- * several forms per asset, "the asset's footprint" is no longer a thing. Use
- * `PATCH /api/assets/:id/forms/:formId` instead.
+ * several variants per asset, "the asset's footprint" is no longer a thing. Use
+ * `PATCH /api/assets/:id/variants/:variantId` instead.
  */
 export const updateAssetSchema = z
   .object({

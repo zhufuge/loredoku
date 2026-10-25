@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
-import type { Asset, AssetForm, EditorLayer } from '@loredoku/shared';
+import type { Asset, AssetVariant, EditorLayer } from '@loredoku/shared';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
+import { RefreshButton } from '@/components/common/RefreshButton';
 import { cn } from '@/lib/utils';
 
 interface AssetPaletteProps {
@@ -12,33 +13,42 @@ interface AssetPaletteProps {
   isError: boolean;
   activeLayer: EditorLayer;
   selectedAssetId: number | null;
-  selectedFormId: number | null;
-  onSelect: (asset: Asset | null, form: AssetForm | null) => void;
+  selectedVariantId: number | null;
+  onSelect: (asset: Asset | null, variant: AssetVariant | null) => void;
+  /** True while the asset query is fetching; spins the refresh icon. */
+  refreshing?: boolean;
+  /**
+   * v0.7.7: 搜索框右侧的刷新。**可选** —— 不传就不渲染按钮，调色板仍能单独用
+   * （它不认识 react-query，取数方式由调用方决定）。
+   */
+  onRefresh?: () => void;
 }
 
-/** One tile = one thing you can place: a form of the active layer's asset type. */
+/** One tile = one thing you can place: a variant of the active layer's asset type. */
 interface Tile {
   key: string;
   asset: Asset;
-  form: AssetForm;
-  formId: number;
+  variant: AssetVariant;
+  variantId: number;
   multi: boolean;
 }
 
 /**
- * v0.6.1 (docs/v0.6.1.md §8.5): the tiles are **forms**, not assets — you place
- * 「宝箱·打开 2×2」, not 「宝箱」. Both layers work the same way: a background
- * asset may own several forms too, and the tile says which look you are about
- * to paint. The footprint line stays honest either way — a background form is
- * pinned at 1×1, so it always reads 1×1.
+ * v0.6.1 (docs/v0.6.1.md §8.5): the tiles are **variants**, not assets — you place
+ * 「宝箱·打开」, not 「宝箱」. Both layers work the same way: a background asset
+ * may own several variants too, and the tile says which look you are about to
+ * paint.
+ *
+ * v0.7.6: the second line lost its footprint (a variant does not declare one):
+ * several variants → the variant name, a single variant → 「1 格」.
  */
 function buildTiles(assets: Asset[], layer: EditorLayer): Tile[] {
   const tiles: Tile[] = [];
   for (const asset of assets) {
     if (asset.type !== layer) continue;
-    const multi = asset.forms.length > 1;
-    for (const form of asset.forms) {
-      tiles.push({ key: `a${asset.id}f${form.id}`, asset, form, formId: form.id, multi });
+    const multi = asset.variants.length > 1;
+    for (const variant of asset.variants) {
+      tiles.push({ key: `a${asset.id}f${variant.id}`, asset, variant, variantId: variant.id, multi });
     }
   }
   return tiles;
@@ -50,8 +60,10 @@ export function AssetPalette({
   isError,
   activeLayer,
   selectedAssetId,
-  selectedFormId,
+  selectedVariantId,
   onSelect,
+  refreshing = false,
+  onRefresh,
 }: AssetPaletteProps): JSX.Element {
   const [keyword, setKeyword] = useState('');
 
@@ -59,29 +71,35 @@ export function AssetPalette({
     const tiles = buildTiles(assets ?? [], activeLayer);
     const query = keyword.trim().toLowerCase();
     if (!query) return tiles;
-    // A form's own name is searchable too — 「打开」 should find the open chest
+    // A variant's own name is searchable too — 「打开」 should find the open chest
     // even when the asset is called something else entirely.
     return tiles.filter(
       (tile) =>
         tile.asset.name.toLowerCase().includes(query) ||
         tile.asset.code.toLowerCase().includes(query) ||
-        tile.form.name.toLowerCase().includes(query),
+        tile.variant.name.toLowerCase().includes(query),
     );
   }, [assets, activeLayer, keyword]);
 
   const isSelected = (tile: Tile): boolean =>
-    tile.asset.id === selectedAssetId && tile.formId === selectedFormId;
+    tile.asset.id === selectedAssetId && tile.variantId === selectedVariantId;
 
   return (
     <div className="flex h-full flex-col gap-2">
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={keyword}
-          onChange={(event) => setKeyword(event.target.value)}
-          placeholder="搜索资源"
-          className="h-9 pl-9"
-        />
+      {/* v0.7.7: 刷新紧跟在搜索框右侧 —— 两者都是「对整份列表」的动作，同一行。 */}
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={keyword}
+            onChange={(event) => setKeyword(event.target.value)}
+            placeholder="搜索资源"
+            className="h-9 pl-9"
+          />
+        </div>
+        {onRefresh ? (
+          <RefreshButton label="刷新资源" refreshing={refreshing} onRefresh={onRefresh} />
+        ) : null}
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -109,8 +127,8 @@ export function AssetPalette({
                 <button
                   key={tile.key}
                   type="button"
-                  title={`${tile.asset.name} · ${tile.form.name} · ${tile.form.widthCells}×${tile.form.heightCells}`}
-                  onClick={() => onSelect(selected ? null : tile.asset, selected ? null : tile.form)}
+                  title={`${tile.asset.name} · ${tile.variant.name}`}
+                  onClick={() => onSelect(selected ? null : tile.asset, selected ? null : tile.variant)}
                   className={cn(
                     'group flex cursor-pointer flex-col items-center gap-1 rounded-md border p-1 text-center',
                     selected
@@ -119,7 +137,7 @@ export function AssetPalette({
                   )}
                 >
                   <AssetThumbnail
-                    appearance={tile.form}
+                    appearance={tile.variant}
                     name={tile.asset.name}
                     className="h-12 w-12"
                   />
@@ -127,9 +145,7 @@ export function AssetPalette({
                     {tile.asset.name}
                   </span>
                   <span className="w-full truncate text-[10px] leading-tight text-muted-foreground/80">
-                    {tile.multi
-                      ? `${tile.form.name} · ${tile.form.widthCells}×${tile.form.heightCells}`
-                      : `${tile.form.widthCells}×${tile.form.heightCells}`}
+                    {tile.multi ? tile.variant.name : '1 格'}
                   </span>
                 </button>
               );

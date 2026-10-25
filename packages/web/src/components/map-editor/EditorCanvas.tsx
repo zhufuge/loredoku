@@ -17,7 +17,7 @@ import {
   type DraftRegion,
   type EditorTool,
   type Asset,
-  type AssetForm,
+  type AssetVariant,
   type MapStyle,
 } from '@loredoku/shared';
 import { brushStrokeErases, coordKey, regionAt, type Coord } from '@/lib/region';
@@ -97,8 +97,8 @@ interface EditorCanvasProps {
   activeTool: EditorTool;
   spaceHeld: boolean;
   showRulers: boolean;
-  /** v0.6.1: the armed (asset, form) pair; the form supplies the footprint. */
-  pendingForm: { asset: Asset; form: AssetForm } | null;
+  /** v0.6.1: the armed (asset, variant) pair. v0.7.6: 占格恒 1，不再由形态给。 */
+  pendingVariant: { asset: Asset; variant: AssetVariant } | null;
   regionDraftSelection: Set<string>;
   /** Resolved participant highlight (shared with the work preview page). */
   highlight: HighlightState | null;
@@ -159,7 +159,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     activeTool,
     spaceHeld,
     showRulers,
-    pendingForm,
+    pendingVariant,
     regionDraftSelection,
     highlight,
     highlightLeaving = false,
@@ -384,13 +384,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     [cells, gridSize, onSelect, onSelectRegion, regions],
   );
 
-  const pendingFootprint = useMemo<{ w: number; h: number }>(() => {
-    if (pendingForm && pendingForm.asset.type === 'item') {
-      return { w: pendingForm.form.widthCells, h: pendingForm.form.heightCells };
-    }
-    return { w: 1, h: 1 };
-  }, [pendingForm]);
-
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {
     const node = containerRef.current;
     if (!node) return;
@@ -459,8 +452,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         onToggleRegionCell(coord);
         return;
       }
-      if (pendingForm) {
-        if (fits(coord.x, coord.y, pendingFootprint.w, pendingFootprint.h)) onPlaceItem(coord);
+      if (pendingVariant) {
+        // v0.7.6: 占格恒 1 —— 形态不再声明脚位，放大靠 scale（只影响显示）。
+        if (fits(coord.x, coord.y, 1, 1)) onPlaceItem(coord);
         return;
       }
       selectCellAt(coord);
@@ -552,7 +546,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       : 'grab';
 
   const showPreview =
-    activeTool === 'select' && hover !== null && pendingForm !== null;
+    activeTool === 'select' && hover !== null && pendingVariant !== null;
 
   // ---- OPT-901 §1.2.5: cells holding a non-standable object ----
   const blockingCells = useMemo(
@@ -575,7 +569,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   // Cell content is clickable (selection only) unless a brush item is armed or
   // the user is panning; it never carries drag handlers (BUG-405).
   const selectInteractive =
-    activeTool === 'select' && pendingForm === null && !spaceHeld;
+    activeTool === 'select' && pendingVariant === null && !spaceHeld;
 
   const selectionCell =
     selection?.type === 'cell'
@@ -622,8 +616,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={{
             left: hover.x * cellSize,
             top: hover.y * cellSize,
-            width: pendingFootprint.w * cellSize,
-            height: pendingFootprint.h * cellSize,
+            width: cellSize,
+            height: cellSize,
           }}
         />
       ) : null}

@@ -23,12 +23,7 @@ const CHARACTERS: Character[] = [
     avatarPath: null,
     avatarUrl: null,
     avatarThumbUrl: null,
-    avatarMime: null,
-    avatarSize: null,
-    avatarWidth: null,
-    avatarHeight: null,
     bgColor: null,
-    meta: {},
     isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -42,12 +37,7 @@ const CHARACTERS: Character[] = [
     avatarPath: null,
     avatarUrl: null,
     avatarThumbUrl: null,
-    avatarMime: null,
-    avatarSize: null,
-    avatarWidth: null,
-    avatarHeight: null,
     bgColor: null,
-    meta: {},
     isActive: true,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -72,6 +62,8 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
           characters={CHARACTERS}
           charactersLoading={false}
           charactersError={false}
+          charactersRefreshing={false}
+          onRefreshCharacters={vi.fn()}
           characterSlots={slots}
           selectedCharacterId={null}
           onAssignSlot={vi.fn()}
@@ -138,5 +130,71 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
     expect(expandButton()).not.toBeNull();
     render(roster(0));
     expect(expandButton()).not.toBeNull();
+  });
+});
+
+/**
+ * v0.7.7: 角色面板头部的刷新按钮。角色列表是共享查询，角色页刚加过角色时
+ * 不用整页重载（重载会丢撤销栈与视口）。
+ *
+ * 收起态没有按钮是有意的：40px 细条放不下第二个 28px 按钮，而细条出现的时机
+ * （参与者已满）本来也没法再加入角色。
+ */
+describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const onRefreshCharacters = vi.fn();
+
+  function render(slots: Array<CharacterSlotEntry | null>, refreshing = false): void {
+    act(() => {
+      root.render(
+        <PuzzleEditorLeftPanel
+          characters={CHARACTERS}
+          charactersLoading={false}
+          charactersError={false}
+          charactersRefreshing={refreshing}
+          onRefreshCharacters={onRefreshCharacters}
+          characterSlots={slots}
+          selectedCharacterId={null}
+          onAssignSlot={vi.fn()}
+          onSelectCharacter={vi.fn()}
+        />,
+      );
+    });
+  }
+
+  const refreshButton = (): HTMLButtonElement | null =>
+    container.querySelector<HTMLButtonElement>('[aria-label="刷新角色"]');
+
+  beforeEach(() => {
+    onRefreshCharacters.mockClear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('sits next to 收起 and calls back on click', () => {
+    render(roster(1));
+    const button = refreshButton();
+    expect(button).not.toBeNull();
+    act(() => button?.click());
+    expect(onRefreshCharacters).toHaveBeenCalledTimes(1);
+  });
+
+  it('is not rendered in the collapsed rail', () => {
+    render(roster(2));
+    expect(refreshButton()).toBeNull();
+  });
+
+  it('spins and blocks a second click while a fetch is in flight', () => {
+    render(roster(1), true);
+    const button = refreshButton();
+    expect(button?.disabled).toBe(true);
+    expect(button?.querySelector('svg')?.getAttribute('class')).toContain('animate-spin');
   });
 });

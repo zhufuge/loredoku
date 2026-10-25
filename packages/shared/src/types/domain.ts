@@ -77,33 +77,35 @@ export interface MapDetail extends MapEntry {
 /** `EffectType` stays — participant linkages still use it. */
 
 /**
- * v0.6.1: the appearance half of an asset. It lives on a **form**, never on the
+ * v0.6.1: the appearance half of an asset. It lives on a **variant**, never on the
  * asset itself (docs/v0.6.1.md §5.1) — one asset may carry several looks.
+ *
+ * v0.7.6: the four upload-receipt columns (`imageMime` / `imageSize` /
+ * `imageWidth` / `imageHeight`) are gone (docs/v0.7.6.md §9) — the mime is the
+ * path's extension, and the other three only fed one line of uploader copy.
  */
 export interface AssetAppearance {
   fitMode: AssetFitMode;
   imagePath: string | null;
   imageUrl: string | null;
   imageThumbUrl: string | null;
-  imageMime: string | null;
-  imageSize: number | null;
-  imageWidth: number | null;
-  imageHeight: number | null;
   /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bgColor: string | null;
 }
 
 /**
- * v0.6.1: one way an asset can look and sit on the canvas. An asset always has
- * at least one. A background form's footprint is never rendered — a background
- * cell is always one cell wide — so it stays pinned at 1×1.
+ * v0.6.1: one way an asset can look on the canvas. An asset always has at least
+ * one.
+ *
+ * v0.7.6: the **footprint is gone** — a variant no longer says how many cells it
+ * covers, because every newly placed item now occupies exactly one cell and
+ * draws itself bigger with `scale` (docs/v0.7.5.md §4). Old drafts keep their
+ * own `w` / `h`, so published maps render exactly as before.
  */
-export interface AssetForm extends AssetAppearance {
+export interface AssetVariant extends AssetAppearance {
   id: number;
   assetId: number;
   name: string;
-  widthCells: number;
-  heightCells: number;
   /** Palette order; the list response is sorted by `sortOrder, id`. */
   sortOrder: number;
   createdAt: string;
@@ -120,7 +122,7 @@ export interface Asset {
   blocking: boolean;
   isActive: boolean;
   /** v0.6.1: never empty; ordered by `sortOrder, id`. */
-  forms: AssetForm[];
+  variants: AssetVariant[];
   createdAt: string;
   updatedAt: string;
 }
@@ -134,13 +136,8 @@ export interface Character {
   avatarPath: string | null;
   avatarUrl: string | null;
   avatarThumbUrl: string | null;
-  avatarMime: string | null;
-  avatarSize: number | null;
-  avatarWidth: number | null;
-  avatarHeight: number | null;
   /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bgColor: string | null;
-  meta: Record<string, unknown>;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -150,26 +147,26 @@ export interface Character {
 /**
  * A background cell: one asset, no footprint (it fills the single cell).
  *
- * v0.6.1: `formId` names which of the asset's forms was painted. Optional so a
- * payload written before background assets could have several forms keeps
- * validating — rendering then falls back to the asset's first form
+ * v0.6.1: `variantId` names which of the asset's variants was painted. Optional so a
+ * payload written before background assets could have several variants keeps
+ * validating — rendering then falls back to the asset's first variant
  * (docs/v0.6.1.md §6.2).
  */
 export interface DraftAssetRef {
   assetId: number;
-  formId?: number;
+  variantId?: number;
 }
 
 /**
  * v0.6.0: the item layer. The anchor cell stores the footprint (`w` × `h`).
  *
- * v0.6.1: `formId` names the asset **form** that was placed. It is optional so a
- * v4 payload (written before forms existed) keeps validating — rendering then
- * falls back to the asset's first form (docs/v0.6.1.md §6.2).
+ * v0.6.1: `variantId` names the asset **variant** that was placed. It is optional so a
+ * v4 payload (written before variants existed) keeps validating — rendering then
+ * falls back to the asset's first variant (docs/v0.6.1.md §6.2).
  */
 export interface DraftAnchorItem {
   assetId: number;
-  formId?: number;
+  variantId?: number;
   w: number;
   h: number;
   /**

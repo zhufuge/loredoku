@@ -1,4 +1,4 @@
-import type { Asset, AssetForm, AssetType } from './types';
+import type { Asset, AssetVariant, AssetType } from './types';
 
 /**
  * v0.5.2 FEAT-M04 (docs/v0.5.2.md §4): a **background** asset never blocks —
@@ -14,26 +14,26 @@ export function blockingFor(type: AssetType, blocking: boolean): boolean {
 }
 
 /**
- * v0.6.1: which form a canvas anchor resolves to (docs/v0.6.1.md §6.2). The
+ * v0.6.1: which variant a canvas anchor resolves to (docs/v0.6.1.md §6.2). The
  * single place that decides, so the editor, the preview and the game can't drift.
  *
- * A missing or dangling `formId` falls back to the asset's first form: payloads
- * written before the field existed carry no `formId` at all, and a form deleted
+ * A missing or dangling `variantId` falls back to the asset's first variant: payloads
+ * written before the field existed carry no `variantId` at all, and a variant deleted
  * after a version was published leaves a dangling id behind.
  */
-export function resolveAssetForm(asset: Asset, formId?: number | null): AssetForm | undefined {
-  if (formId !== undefined && formId !== null) {
-    const match = asset.forms.find((form) => form.id === formId);
+export function resolveAssetVariant(asset: Asset, variantId?: number | null): AssetVariant | undefined {
+  if (variantId !== undefined && variantId !== null) {
+    const match = asset.variants.find((variant) => variant.id === variantId);
     if (match) return match;
   }
-  return asset.forms[0];
+  return asset.variants[0];
 }
 
 /**
- * v0.6.1: an asset can only be enabled once **some** form has a look (an image
+ * v0.6.1: an asset can only be enabled once **some** variant has a look (an image
  * or a colour block) — the same predicate v0.5.1 used when an image was deleted,
- * widened from one asset to one of its forms.
+ * widened from one asset to one of its variants.
  */
 export function assetHasAppearance(asset: Asset): boolean {
-  return asset.forms.some((form) => form.imageUrl !== null || form.bgColor !== null);
+  return asset.variants.some((variant) => variant.imageUrl !== null || variant.bgColor !== null);
 }

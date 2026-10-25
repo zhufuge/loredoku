@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Asset, AssetForm, DraftCell, MapStyle } from '@loredoku/shared';
+import type { Asset, AssetVariant, DraftCell, MapStyle } from '@loredoku/shared';
 import { EditorInfoDrawer } from './EditorInfoDrawer';
 import { resolveMapStyle } from '@/lib/mapStyle';
 
@@ -28,22 +28,16 @@ function typeInto(element: HTMLInputElement | null, value: string): void {
   element.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
 }
 
-function form(id: number, overrides: Partial<AssetForm> = {}): AssetForm {
+function variant(id: number, overrides: Partial<AssetVariant> = {}): AssetVariant {
   return {
     id,
     assetId: id,
     name: `形态${id}`,
-    widthCells: 1,
-    heightCells: 1,
     sortOrder: 0,
     fitMode: 'cover',
     imagePath: null,
     imageUrl: null,
     imageThumbUrl: null,
-    imageMime: null,
-    imageSize: null,
-    imageWidth: null,
-    imageHeight: null,
     bgColor: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
@@ -58,7 +52,7 @@ const tree: Asset = {
   type: 'item',
   blocking: true,
   isActive: true,
-  forms: [form(50, { assetId: 5, bgColor: '#336633' })],
+  variants: [variant(50, { assetId: 5, bgColor: '#336633' })],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-01T00:00:00.000Z',
 };

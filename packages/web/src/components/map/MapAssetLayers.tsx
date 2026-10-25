@@ -3,7 +3,7 @@ import {
   MAP_LAYER_Z,
   ITEM_HOVER_LIFT_PX,
   ITEM_HOVER_TRANSITION_MS,
-  resolveAssetForm,
+  resolveAssetVariant,
   type CellCoord,
   type Asset,
 } from '@loredoku/shared';
@@ -33,10 +33,10 @@ export function MapBackgroundLayer({
         .filter(([, cell]) => cell.background)
         .map(([key, cell]) => {
           const asset = assetsById.get(cell.background!.assetId);
-          // v0.6.1 §6.2: `formId` first, first form as the fallback for payloads
-          // written before background assets could own several forms, and for
-          // forms deleted after publication.
-          const look = asset ? resolveAssetForm(asset, cell.background!.formId) : undefined;
+          // v0.6.1 §6.2: `variantId` first, first variant as the fallback for payloads
+          // written before background assets could own several variants, and for
+          // variants deleted after publication.
+          const look = asset ? resolveAssetVariant(asset, cell.background!.variantId) : undefined;
           if (!look) return null;
           const [x, y] = parseKey(key);
           const src = look.imageThumbUrl ?? look.imageUrl;
@@ -118,9 +118,9 @@ export function MapItemLayer({
         .map(([key, cell]) => {
           const anchor = cell.item!;
           const asset = assetsById.get(anchor.assetId);
-          // v0.6.1 §6.2: `formId` first, first form as the fallback for v4
-          // payloads and for forms deleted after publication.
-          const look = asset ? resolveAssetForm(asset, anchor.formId) : undefined;
+          // v0.6.1 §6.2: `variantId` first, first variant as the fallback for v4
+          // payloads and for variants deleted after publication.
+          const look = asset ? resolveAssetVariant(asset, anchor.variantId) : undefined;
           const [x, y] = parseKey(key);
           const src = look?.imageThumbUrl ?? look?.imageUrl;
           const hovered =

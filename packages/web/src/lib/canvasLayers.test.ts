@@ -72,23 +72,17 @@ function item(overrides: Partial<Asset> = {}): Asset {
     blocking: true,
     isActive: true,
     // Only `blocking` matters to this module — the look and the footprint moved
-    // to asset forms, so an empty-looking form is enough.
-    forms: [
+    // to asset variants, so an empty-looking variant is enough.
+    variants: [
       {
         id: 11,
         assetId: 1,
         name: '默认',
-        widthCells: 1,
-        heightCells: 1,
         sortOrder: 0,
         fitMode: 'cover',
         imagePath: null,
         imageUrl: null,
         imageThumbUrl: null,
-        imageMime: null,
-        imageSize: null,
-        imageWidth: null,
-        imageHeight: null,
         bgColor: null,
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
