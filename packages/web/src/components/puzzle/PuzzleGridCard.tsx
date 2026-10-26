@@ -73,7 +73,7 @@ export function PuzzleGridCard({
               </span>
             ) : null}
             {entry.deployed ? (
-              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+              <span className="shrink-0 rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
                 已部署
               </span>
             ) : null}

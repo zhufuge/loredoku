@@ -3,6 +3,7 @@ import { ArrowRight, Map, Package, Puzzle, Rocket, Users } from 'lucide-react';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
+import { TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
 /**
@@ -27,7 +28,10 @@ export function AppShell(): JSX.Element {
   return (
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-6 px-6">
+        {/* v0.7.8 §10：`h-14` 写死高度 + 导航 `flex-wrap` 是一对矛盾 —— 窄屏
+            导航换到第二行时会被 56px 的框裁掉、压在正文上。改 `min-h-14`：
+            宽屏仍是 56px（36px 内容 + py-2 共 52 < 56，两者取大），窄屏自然长高。 */}
+        <div className="mx-auto flex min-h-14 w-full max-w-7xl items-center gap-6 px-6 py-2">
           <BrandLogo height={20} withWordmark suffix={WORKSHOP_SUFFIX} />
           {/* 五项时窄屏会挤，允许换行（不做折叠菜单）。 */}
           <nav className="flex flex-wrap items-center gap-1">
@@ -38,11 +42,15 @@ export function AppShell(): JSX.Element {
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    // `secondary` 与 `accent` 在浅色主题同值，选中与悬停分不出来
-                    // （v0.7.0 §8 的踩坑）—— 选中态统一下沉一档实心 slate-200。
+                    /*
+                     * v0.7.8：选中态从「中性灰实心」换成 primary 淡染 + primary 字。
+                     * 这里是全站唯一的「你在哪」提示 —— 冷蓝时代它是一片灰，整块
+                     * 顶栏没有任何颜色，导航等于没有反馈。工具条（`--toolbar*`）保持
+                     * 中性，因为画布上已经铺着 primary 的选框，两处都染色会打架。
+                     */
                     isActive
-                      ? 'bg-slate-200 text-foreground dark:bg-slate-700 dark:text-slate-100'
-                      : 'text-muted-foreground hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70',
+                      ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                      : cn('text-muted-foreground hover:text-foreground', TOOLBAR_ICON_HOVER_CLASS),
                   )
                 }
               >

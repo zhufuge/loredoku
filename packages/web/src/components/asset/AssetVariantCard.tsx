@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select } from '@/components/ui/select';
 import {
   useDeleteAssetVariantImage,
   useUpdateAssetVariant,
@@ -144,17 +145,17 @@ export function AssetVariantCard({
 
             <div className="grid gap-2">
               <Label>图片填充方式</Label>
-              <select
+              <Select
                 value={fitMode}
                 onChange={(event) => setFitMode(event.target.value as AssetFitMode)}
-                className="h-10 w-full max-w-xs rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="max-w-xs"
               >
                 {(['cover', 'contain'] as AssetFitMode[]).map((value) => (
                   <option key={value} value={value}>
                     {FIT_MODE_LABELS[value]}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
 
             <AppearanceField

@@ -43,7 +43,10 @@ export function EditorSaveMask({
       )}
       style={{
         zIndex: UI_Z.saveMask,
-        background: 'rgba(255,255,255,0.6)',
+        /* v0.7.8：原来是写死的 `rgba(255,255,255,0.6)` —— 深色模式下点保存会在
+           一整屏深色上糊一层白。改成跟着 `--background` 走：浅色是宣纸，深色是
+           夜墨，两层都是「把画布蒙住」而不是「打光」。 */
+        background: 'hsl(var(--background) / 0.7)',
         pointerEvents: 'auto',
       }}
       aria-hidden={!saving}

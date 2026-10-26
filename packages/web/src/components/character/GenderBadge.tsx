@@ -26,7 +26,7 @@ export function GenderBadge({ gender, withLabel = false }: GenderBadgeProps): JS
   const color = GENDER_SYMBOL_COLORS[key];
   return (
     <span
-      className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+      className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
       title={`性别：${label}`}
     >
       <span

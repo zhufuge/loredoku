@@ -18,7 +18,9 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AssetDetailForm } from '@/components/asset/AssetDetailForm';
 import { AssetListPanel } from '@/components/asset/AssetListPanel';
 import { CreateAssetDialog } from '@/components/asset/CreateAssetDialog';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
+import { Select } from '@/components/ui/select';
 import { useDeleteAsset, useAssetUsages, useAssets } from '@/hooks/useAssets';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
@@ -137,45 +139,52 @@ export function AssetsPage(): JSX.Element {
   }
 
   return (
-    <section className="space-y-5">
-      <div>
-          <h1 className="text-2xl font-semibold">资源</h1>
-        <p className="text-sm text-muted-foreground">维护背景 / 物品图案、占格尺寸与触发信息。</p>
-      </div>
+    <section className="space-y-6">
+      {/* v0.7.8 §10：主操作从搜索行搬到页头，五个工坊页共用同一个页头模板。 */}
+      <PageHeader
+        title="资源"
+        description="维护背景 / 物品图案与外观形态。"
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            新建资源
+          </Button>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         <div className="space-y-3">
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={keywordInput}
-                onChange={(event) => setKeywordInput(event.target.value)}
-                placeholder="搜索名称 / 业务 ID"
-                className="pl-9"
-              />
-            </div>
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus className="h-4 w-4" />
-            </Button>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              placeholder="搜索名称 / 业务 ID"
+              className="pl-9"
+            />
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {/* FEAT-O11 (docs/v0.5.4.md §5.4): 类型 is three buttons now. */}
+            {/* FEAT-O11 (docs/v0.5.4.md §5.4): 类型 is three buttons now.
+                v0.7.8 §10：`h-10` 把分段控件抬到和右边下拉一样高 —— 一行里两种
+                高度（32 / 40）会让下边缘差 4px，扫视时看得见。 */}
             <SegmentedRadio
               ariaLabel="类型筛选"
               value={type}
               options={TYPE_FILTER_OPTIONS}
               onChange={(next) => setType(next)}
+              className="h-10"
             />
-            <select
+            {/* v0.7.8 §3：`w-auto` 让它与分段控件并排；默认 `w-full` 会在
+                `flex-wrap` 里独占一整行，把类型按钮挤到上面去。 */}
+            <Select
               value={status}
               onChange={(event) => setStatus(event.target.value as StatusFilter)}
-              className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-auto"
             >
               <option value="all">全部状态</option>
               <option value="active">仅启用</option>
               <option value="inactive">仅停用</option>
-            </select>
+            </Select>
           </div>
           {renderList()}
         </div>

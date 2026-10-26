@@ -176,7 +176,7 @@ export function EditorBottomBar({
               title="取消选中资源"
               aria-label="取消选中资源"
               onClick={onClearSelection}
-              className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-slate-400/50 hover:text-foreground dark:hover:bg-slate-500/50"
+              className="mr-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-toolbar-hover hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -226,7 +226,8 @@ export function EditorBottomBar({
           title="重置查看比例为 100%（不修改方格大小）"
           className={cn(
             'h-9 min-w-[3.5rem] rounded-full px-2 text-xs tabular-nums text-muted-foreground',
-            'hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70',
+            TOOLBAR_ICON_HOVER_CLASS,
+            'hover:text-foreground',
           )}
         >
           {Math.round(zoom * 100)}%

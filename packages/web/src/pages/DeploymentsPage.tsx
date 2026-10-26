@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, Copy, ExternalLink, Loader2, Rocket, Trash2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Loader2, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   GAME_DIFFICULTY_COLORS,
@@ -20,6 +20,7 @@ import {
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { useCancelGame, useGames } from '@/hooks/useGames';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -88,8 +89,9 @@ export function DeploymentsPage(): JSX.Element {
 
     if (games.length === 0) {
       return (
+        // v0.7.8 §5：工坊五个列表页的空状态统一为「一句说明 + 一个主按钮」，
+        // 图标只留给玩家首页（那是欢迎页，另一套语言）。
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <Rocket className="h-6 w-6 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">还没有部署任何游戏</p>
           <Button onClick={() => navigate('/puzzles')}>前往谜题列表</Button>
         </Card>
@@ -105,7 +107,11 @@ export function DeploymentsPage(): JSX.Element {
               key={game.id}
               className="flex items-center gap-4 border-b px-4 py-3 last:border-b-0"
             >
-              <span className="h-12 w-20 shrink-0 overflow-hidden rounded border bg-muted/40">
+              {/* v0.7.8 §10：缩略图 64×40、行高 64，与 `MapListRow` 完全同档 ——
+                  两个「行列表」页面现在共用一套列语法（缩略图 / 名称 192 /
+                  弹性中列 / 时间 208 / 操作 160）。原来是 80×48 与 w-56 / w-44 /
+                  w-32，同一份 `formatDateTime` 在两页占两种宽度。 */}
+              <span className="h-10 w-16 shrink-0 overflow-hidden rounded border bg-muted/40">
                 {game.coverUrl ? (
                   <img
                     src={game.coverUrl}
@@ -120,7 +126,7 @@ export function DeploymentsPage(): JSX.Element {
                 )}
               </span>
 
-              <div className="w-56 shrink-0">
+              <div className="w-48 shrink-0">
                 <div className="truncate font-medium" title={game.name}>
                   {game.name}
                 </div>
@@ -152,11 +158,11 @@ export function DeploymentsPage(): JSX.Element {
                 /play/{game.slug}
               </button>
 
-              <span className="w-44 shrink-0 truncate text-right text-xs text-muted-foreground">
+              <span className="w-52 shrink-0 truncate text-right text-xs text-muted-foreground">
                 {formatDateTime(game.createdAt)}
               </span>
 
-              <div className="flex w-32 shrink-0 items-center justify-end gap-1">
+              <div className="flex w-40 shrink-0 items-center justify-end gap-1">
                 {/*
                  * 用 <a target="_blank"> 而不是 navigate：游戏是给玩家看的独立页面，
                  * 作者往往要一边对照工坊一边试玩，抢掉当前页签会丢掉列表的滚动位置。
@@ -177,7 +183,7 @@ export function DeploymentsPage(): JSX.Element {
                   onClick={() => copyPath(game)}
                 >
                   {copiedSlug === game.slug ? (
-                    <Check className="h-4 w-4 text-emerald-600" />
+                    <Check className="h-4 w-4 text-success" />
                   ) : (
                     <Copy className="h-4 w-4" />
                   )}
@@ -200,18 +206,18 @@ export function DeploymentsPage(): JSX.Element {
   }
 
   return (
-    <section className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">部署</h1>
-          <p className="text-sm text-muted-foreground">
-            {gamesQuery.isLoading ? '正在加载…' : `共 ${games.length} 个游戏在线。`}
-          </p>
-        </div>
-        <Button variant="outline" onClick={() => navigate('/puzzles')}>
-          前往谜题列表
-        </Button>
-      </div>
+    <section className="space-y-6">
+      <PageHeader
+        title="部署"
+        description={
+          gamesQuery.isLoading ? '正在加载…' : `共 ${games.length} 个游戏在线。`
+        }
+        actions={
+          <Button variant="outline" onClick={() => navigate('/puzzles')}>
+            前往谜题列表
+          </Button>
+        }
+      />
 
       {renderBody()}
 

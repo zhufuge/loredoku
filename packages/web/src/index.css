@@ -2,62 +2,190 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * 调色板（v0.7.8）：墨 · 宣 · 靛 · 绛
+ *
+ * 上一版是 shadcn 默认的冷蓝 SaaS 值（中性色落在 210–217 冷灰，primary 是
+ * 221 83% 的宝蓝），与 `.impeccable.md` 里的「古雅 · 东方 · 手作」差得最远。
+ * 这一版把三样东西换掉：
+ *
+ *   1. 中性色整体挪到 28–40 色相（暖纸 / 墨），不再发蓝。
+ *   2. primary 从宝蓝换成**石青 / 靛**（205 45%），饱和度砍掉近一半 ——
+ *      这是「墨线」而不是「品牌蓝」，在纸上不刺眼。
+ *   3. 语义色统一压成土色系：竹青（成功）、赭石（警示）、绛（危险）。
+ *
+ * 不动的：`--radius`、作品内容色（地图背景 / 资源色块 / 区域色 / 难度之外
+ * 的一切画布颜色）—— 那些属于作者的作品，不随皮肤变。
+ *
+ * 对比度：所有正文 / 说明文字 / 按钮文字组合都实测过 WCAG AA（≥4.5:1），
+ * 最低的一组是深色下「绛色文字 + 卡片底」4.86。
+ */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    /* 宣纸底 + 墨字。卡片刻意比底色亮一档（99 vs 96.5），纸叠纸，不靠阴影。 */
+    --background: 40 30% 96.5%;
+    --foreground: 28 14% 12%;
+    --card: 40 45% 99%;
+    --card-foreground: 28 14% 12%;
+    --popover: 40 45% 99%;
+    --popover-foreground: 28 14% 12%;
     /*
      * v0.7.2 §6：日间模式的按钮整体压深一档。原来 secondary / accent 都是
      * 96.1% 的近白色，按钮在浅底上几乎看不出边界，hover 更是没反应。
      * `*-hover` 单独给值：降透明度（旧写法 `bg-secondary/80`）在白底上是**变浅**，
      * 越 hover 越淡，与「悬停 = 加深」的直觉相反。
+     *
+     * v0.7.8：纸底本身是 96.5%，所以 secondary 跟着下沉到 89% —— 否则「次要按钮」
+     * 会和页面底同色。
      */
-    --primary: 221.2 83.2% 48%;
-    --primary-foreground: 210 40% 98%;
-    --primary-hover: 221.2 83.2% 42%;
-    --secondary: 210 40% 92%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --secondary-hover: 210 40% 85%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 90%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --destructive-hover: 0 84.2% 52%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --primary: 205 45% 36%;
+    --primary-foreground: 40 30% 98%;
+    --primary-hover: 205 45% 29%;
+    --secondary: 38 22% 89%;
+    --secondary-foreground: 28 14% 15%;
+    --secondary-hover: 38 22% 82%;
+    --muted: 40 24% 94%;
+    --muted-foreground: 30 9% 41%;
+    --accent: 38 26% 87%;
+    --accent-foreground: 28 14% 15%;
+    /*
+     * 绛（oxblood）。取值刻意压在 L46：这个 token 同时当**文字**（错误提示、
+     * 删除按钮的 ghost 文字，59 处）和**填充**（AlertDialog 的确认按钮）用，
+     * L46 是唯一两边都过 AA 的一档（纸底上 5.39，白字在它上面 5.56）。
+     * 旧值 0 84% 60% 作文字只有 3.76:1，深色模式更糟 —— 见 .dark 的注释。
+     */
+    --destructive: 2 58% 46%;
+    --destructive-foreground: 40 40% 98%;
+    --destructive-hover: 2 58% 39%;
+    /* 竹青 / 赭石。只用于状态（已启用、已发布、未保存…），不当装饰。 */
+    --success: 152 38% 30%;
+    --success-foreground: 40 30% 98%;
+    --warning: 28 72% 32%;
+    --warning-foreground: 40 30% 98%;
+    --border: 36 18% 86%;
+    --input: 36 18% 84%;
+    --ring: 205 45% 45%;
     --radius: 0.5rem;
+    /*
+     * v0.7.8 §1：工具栏图标按钮的「未选中悬停 / 选中」底色。
+     *
+     * 这两个值原来是组件里写死的 `slate-200 / slate-700`（见 lib/toolbarButtons.ts
+     * 的注释：secondary 与 accent 在浅色下同值，选中态分不出来）。定色的问题是
+     * 深色模式必须成对写 `dark:`，漏一处就在深色下留白疤。
+     *
+     * v0.7.8：跟着中性色一起转暖（38 色相），不再是 slate 的冷灰。
+     */
+    --toolbar: 38 22% 88%; /* 未选中悬停底 / 选中底 */
+    --toolbar-hover: 38 22% 81%; /* 选中后再悬停 */
+    --toolbar-foreground: 28 14% 14%; /* 选中态文字 */
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 210 40% 98%;
-    --primary-hover: 217.2 91.2% 54%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --secondary-hover: 217.2 32.6% 21%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --destructive-hover: 0 62.8% 26%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    /* 夜墨。底色 28 12% 9% 是暖黑，不是 #000 —— 纯黑会让所有暖色显得脏。 */
+    --background: 28 12% 9%;
+    --foreground: 38 20% 92%;
+    --card: 28 12% 12%;
+    --card-foreground: 38 20% 92%;
+    --popover: 28 12% 13%;
+    --popover-foreground: 38 20% 92%;
+    /* 深色下 primary 反相：浅靛底 + 墨字，与主按钮在浅色下的关系对称。 */
+    --primary: 202 42% 62%;
+    --primary-foreground: 28 20% 10%;
+    --primary-hover: 202 42% 70%;
+    --secondary: 30 9% 19%;
+    --secondary-foreground: 38 20% 92%;
+    --secondary-hover: 30 9% 24%;
+    --muted: 30 9% 16%;
+    --muted-foreground: 34 10% 62%;
+    --accent: 30 9% 22%;
+    --accent-foreground: 38 20% 92%;
+    /*
+     * 旧的深色 destructive 是 0 62.8% 30.6%，在 222 4.9% 的底上只有 **2.0:1** ——
+     * 也就是说深色模式下所有删除图标和表单错误提示几乎看不见。这是本轮修掉的
+     * 硬伤：抬到 L62（6.2 档），文字 5.27、填充按钮配墨字 5.12。
+     */
+    --destructive: 2 52% 62%;
+    --destructive-foreground: 28 20% 10%;
+    --destructive-hover: 2 52% 70%;
+    --success: 150 32% 62%;
+    --success-foreground: 28 20% 10%;
+    --warning: 34 65% 62%;
+    --warning-foreground: 28 20% 10%;
+    --border: 30 9% 24%;
+    --input: 30 9% 26%;
+    --ring: 202 42% 62%;
+    --toolbar: 30 9% 24%;
+    --toolbar-hover: 30 9% 31%;
+    --toolbar-foreground: 38 20% 94%;
+  }
+
+  /*
+   * 难度热力档（5 档，见 shared/constants.ts 的 GAME_DIFFICULTY_COLORS）。
+   *
+   * 原来是 5 个写死的浅色 hex（#DCFCE7 / #ECFCCB / #FEF9C3 / #FFEDD5 / #FEE2E2），
+   * 深色模式下会跳出 5 块亮色补丁。改成一对变量：`-bg` 是底色、`-fg` 是文字。
+   * 色相是「冷 → 暖 → 热」的单向坡（竹青 → 芽绿 → 赭黄 → 柿橙 → 绛），
+   * 不是五个互不相干的颜色 —— 它表达的是一根刻度尺，不是五个分类。
+   *
+   * shared 里那两条常量现在存的是 `var(--difficulty-*-bg/fg)`，所以两套主题
+   * 自动生效，调用处（GameCard / 部署行 / 部署对话框）不用写 `dark:`。
+   */
+  :root {
+    --difficulty-very-easy-bg: 150 34% 92%;
+    --difficulty-very-easy-fg: 152 40% 26%;
+    --difficulty-easy-bg: 110 34% 92%;
+    --difficulty-easy-fg: 118 34% 27%;
+    --difficulty-medium-bg: 42 62% 90%;
+    --difficulty-medium-fg: 36 64% 27%;
+    --difficulty-hard-bg: 26 62% 91%;
+    --difficulty-hard-fg: 20 60% 30%;
+    --difficulty-expert-bg: 2 55% 93%;
+    --difficulty-expert-fg: 2 52% 33%;
+  }
+
+  .dark {
+    --difficulty-very-easy-bg: 152 24% 18%;
+    --difficulty-very-easy-fg: 150 40% 72%;
+    --difficulty-easy-bg: 115 20% 18%;
+    --difficulty-easy-fg: 112 34% 70%;
+    --difficulty-medium-bg: 38 30% 18%;
+    --difficulty-medium-fg: 40 55% 72%;
+    --difficulty-hard-bg: 22 30% 18%;
+    --difficulty-hard-fg: 24 60% 72%;
+    --difficulty-expert-bg: 2 26% 19%;
+    --difficulty-expert-fg: 2 60% 74%;
+  }
+
+  /*
+   * toast（sonner）。
+   *
+   * `richColors` 用的是 sonner 自带的 5 组 Tailwind 淡色（成功 #ecfdf3、信息
+   * #f0f9ff…）—— 在宣纸 / 夜墨上都像贴上去的贴纸。这里把 5 组变量改指向本项目的
+   * token：**底色永远是卡片（纸），只有文字和描边带状态色**，和工坊里的徽标一致。
+   *
+   * 选择器要写成 `html [data-sonner-toaster][data-theme]`：sonner 在组件挂载时
+   * 把样式插到 `<head>` 末尾，同级选择器会被它压过去（它是 `[data-sonner-toaster][data-theme='light']`）。
+   */
+  html [data-sonner-toaster][data-theme] {
+    --normal-bg: hsl(var(--popover));
+    --normal-border: hsl(var(--border));
+    --normal-text: hsl(var(--popover-foreground));
+
+    --success-bg: hsl(var(--popover));
+    --success-border: hsl(var(--success) / 0.35);
+    --success-text: hsl(var(--success));
+
+    --error-bg: hsl(var(--popover));
+    --error-border: hsl(var(--destructive) / 0.35);
+    --error-text: hsl(var(--destructive));
+
+    --warning-bg: hsl(var(--popover));
+    --warning-border: hsl(var(--warning) / 0.35);
+    --warning-text: hsl(var(--warning));
+
+    --info-bg: hsl(var(--popover));
+    --info-border: hsl(var(--primary) / 0.35);
+    --info-text: hsl(var(--primary));
   }
 }
 

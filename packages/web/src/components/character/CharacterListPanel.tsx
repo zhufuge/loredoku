@@ -46,7 +46,7 @@ export function CharacterListPanel({
                   <span className="truncate font-medium">{character.name}</span>
                   <GenderBadge gender={character.gender} />
                   {!character.isActive ? (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                       {character.avatarUrl ? '已停用' : '未启用'}
                     </span>
                   ) : null}

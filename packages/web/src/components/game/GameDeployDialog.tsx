@@ -287,7 +287,7 @@ export function GameDeployDialog({
               {slugProblem ?? `/play/${slug}`}
             </p>
             {slugReplaced && !slugProblem ? (
-              <p className="text-xs text-amber-600 dark:text-amber-500">
+              <p className="text-xs text-warning">
                 原访问路径 /play/{existingGame.slug} 将失效。
               </p>
             ) : null}

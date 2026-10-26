@@ -1,4 +1,5 @@
 import { RefreshCw } from 'lucide-react';
+import { PANEL_ICON_BUTTON_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
 interface RefreshButtonProps {
@@ -38,9 +39,8 @@ export function RefreshButton({
       disabled={refreshing}
       onClick={onRefresh}
       className={cn(
-        'flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors',
-        'hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70',
-        'disabled:pointer-events-none disabled:opacity-60',
+        PANEL_ICON_BUTTON_CLASS,
+        'shrink-0 disabled:pointer-events-none disabled:opacity-60',
         className,
       )}
     >

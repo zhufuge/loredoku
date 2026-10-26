@@ -1228,10 +1228,13 @@ export function MapEditorPage(): JSX.Element {
                       style={{
                         width: previewCellSize,
                         height: previewCellSize,
+                        /* v0.7.8：原来是写死的红绿（`rgba(239,68,68/34,197,94,.25)`）
+                           —— 深色模式下两团高饱和色糊在墨底上，而且和调色板无关。
+                           现在走 `destructive` / `success`：要移除的格子是绛，留下的是竹青。 */
                         backgroundColor: removed
-                          ? 'rgba(239,68,68,0.25)'
-                          : 'rgba(34,197,94,0.25)',
-                        border: '1px solid rgba(0,0,0,0.12)',
+                          ? 'hsl(var(--destructive) / 0.22)'
+                          : 'hsl(var(--success) / 0.22)',
+                        border: '1px solid hsl(var(--border))',
                       }}
                     />
                   );

@@ -32,6 +32,20 @@ const config: Config = {
           foreground: 'hsl(var(--destructive-foreground))',
           hover: 'hsl(var(--destructive-hover))',
         },
+        /*
+         * v0.7.8：状态色。工坊里「已启用 / 已发布 / 未保存」这些状态原来全是
+         * `bg-secondary` 中性灰，或者散在组件里的 `amber-100` / `emerald-600`
+         * 定色。收成两个 token：文字用 `text-success`，徽标底用 `bg-success/12`。
+         * 只表达状态，不做装饰。
+         */
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
         muted: {
           DEFAULT: 'hsl(var(--muted))',
           foreground: 'hsl(var(--muted-foreground))',
@@ -47,6 +61,16 @@ const config: Config = {
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
+        },
+        /*
+         * v0.7.8 §1：工具栏图标按钮的底色。只有这三个值支持 `/透明度`
+         * （`<alpha-value>`），因为「未选中只是悬停」需要 `bg-toolbar/70`；
+         * 其余老 token 保持原样，不动。
+         */
+        toolbar: {
+          DEFAULT: 'hsl(var(--toolbar) / <alpha-value>)',
+          foreground: 'hsl(var(--toolbar-foreground))',
+          hover: 'hsl(var(--toolbar-hover) / <alpha-value>)',
         },
       },
       borderRadius: {

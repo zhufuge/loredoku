@@ -95,6 +95,7 @@ export function EditorToolbar({
           onClick={onBack}
           disabled={saving}
           title="返回地图列表"
+          aria-label="返回地图列表"
         >
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -103,7 +104,13 @@ export function EditorToolbar({
             {mapName}
           </span>
           {status === null ? null : (
-            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+            <span
+              className={
+                status === 'published'
+                  ? 'rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success'
+                  : 'rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground'
+              }
+            >
               {status === 'published' ? `已发布 v${currentVersionNo ?? ''}` : '草稿'}
             </span>
           )}
@@ -118,7 +125,9 @@ export function EditorToolbar({
               onClick={onSave}
               disabled={saving}
               title="有未保存的修改，点击立即保存"
-              className="cursor-pointer rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 disabled:cursor-not-allowed"
+              /* v0.7.8：`amber-100 / amber-700` 定色换成 `warning` token —— 深色
+                 配对不再靠手写 `dark:`，而且跟着调色板一起走（赭石，不是柠檬黄）。 */
+              className="cursor-pointer rounded bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning disabled:cursor-not-allowed"
             >
               未保存
             </button>

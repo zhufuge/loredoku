@@ -14,7 +14,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/layout/PageHeader';
 import {
   CreateMapDialog,
   EditMapDialog,
@@ -219,7 +221,7 @@ export function MapsPage(): JSX.Element {
   function renderContent(): JSX.Element {
     if (isLoading) {
       return (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-72 w-full" />
           ))}
@@ -261,6 +263,8 @@ export function MapsPage(): JSX.Element {
             <h2 className="text-sm font-semibold">
               草稿 <span className="ml-1 font-normal text-muted-foreground">{draftTotal}</span>
             </h2>
+            {/* v0.7.8 §10：网格最多 4 列 —— 撤掉了 `2xl:grid-cols-5`。正文上限是
+                `max-w-7xl`（1280），再加一列只会让卡片随窗口变宽而变窄（296 → 234）。 */}
             {view === 'list' ? (
               <Card className="overflow-hidden">
                 {drafts.map((entry) => (
@@ -277,7 +281,7 @@ export function MapsPage(): JSX.Element {
                 ))}
               </Card>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {drafts.map((entry) => (
                   <MapGridCard
                     key={`${entry.kind}-${entry.id}`}
@@ -323,61 +327,70 @@ export function MapsPage(): JSX.Element {
   }
 
   return (
-    <section className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">地图</h1>
-          <p className="text-sm text-muted-foreground">创建、管理并编辑你的地图。</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          新建地图
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={keywordInput}
-            onChange={(event) => setKeywordInput(event.target.value)}
-            placeholder="搜索地图名称"
-            className="pl-9"
-          />
-        </div>
-        <select
-          value={sort}
-          onChange={(event) => {
-            setSort(event.target.value as SortOption);
-            resetPages();
-          }}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="updatedAt">按更新时间</option>
-          <option value="name">按名称</option>
-        </select>
-        <div className="ml-auto flex items-center gap-1 rounded-md border p-1">
-          <Button
-            size="icon"
-            variant={view === 'grid' ? 'secondary' : 'ghost'}
-            title="网格视图"
-            onClick={() => setView('grid')}
-          >
-            <LayoutGrid className="h-4 w-4" />
+    <section className="space-y-6">
+      <PageHeader
+        title="地图"
+        description="创建、管理并编辑你的地图。"
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            新建地图
           </Button>
-          <Button
-            size="icon"
-            variant={view === 'list' ? 'secondary' : 'ghost'}
-            title="列表视图"
-            onClick={() => setView('list')}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>
-        {renderContent()}
+      {/* v0.7.8 §10：工具条从属于列表，所以和列表一起构成「正文」这一块 ——
+          页头到正文 24px，工具条到列表 16px。原来三块间距一样（都是 20px），
+          层级读不出来。 */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              placeholder="搜索地图名称"
+              className="pl-9"
+            />
+          </div>
+          <Select
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value as SortOption);
+              resetPages();
+            }}
+            className="w-auto"
+          >
+            <option value="updatedAt">按更新时间</option>
+            <option value="name">按名称</option>
+          </Select>
+          {/* v0.7.8 §4：外框 `h-10` 与搜索框、下拉同高；按钮 32px 居中在 40px 框内。
+              原来是 `size="icon"`（40px）+ `p-1`，整块比相邻控件高出 8px。 */}
+          <div className="ml-auto flex h-10 items-center gap-1 rounded-md border px-1">
+            <Button
+              size="icon"
+              className="h-8 w-8"
+              variant={view === 'grid' ? 'secondary' : 'ghost'}
+              title="网格视图"
+              onClick={() => setView('grid')}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              className="h-8 w-8"
+              variant={view === 'list' ? 'secondary' : 'ghost'}
+              title="列表视图"
+              onClick={() => setView('list')}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>
+          {renderContent()}
+        </div>
       </div>
 
       <CreateMapDialog open={createOpen} onOpenChange={setCreateOpen} />

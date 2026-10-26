@@ -806,25 +806,32 @@ export const GAME_DIFFICULTY_LABELS_ZH: Record<(typeof GAME_DIFFICULTY_LEVELS)[n
   expert: '专家',
 };
 
-/** FEAT-O01 (docs/v0.5.4.md §2): the badge is a **tint**, so cover + name stay the loudest thing. */
+/**
+ * FEAT-O01 (docs/v0.5.4.md §2): the badge is a **tint**, so cover + name stay the loudest thing.
+ *
+ * v0.7.8：值从 5 个写死的浅色 hex 换成 CSS 变量。原来是浅色专用 —— 深色界面里
+ * 会跳出 5 块亮色补丁。变量的两套取值定义在 `web/src/index.css`（竹青 → 芽绿 →
+ * 赭黄 → 柿橙 → 绛，一根单向热力坡，不是五个分类色）。调用处是内联 style，
+ * 所以这里只能是 `var(...)` 字符串，不参与任何服务端逻辑。
+ */
 export const GAME_DIFFICULTY_COLORS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
-  veryEasy: '#DCFCE7',
-  easy: '#ECFCCB',
-  medium: '#FEF9C3',
-  hard: '#FFEDD5',
-  expert: '#FEE2E2',
+  veryEasy: 'var(--difficulty-very-easy-bg)',
+  easy: 'var(--difficulty-easy-bg)',
+  medium: 'var(--difficulty-medium-bg)',
+  hard: 'var(--difficulty-hard-bg)',
+  expert: 'var(--difficulty-expert-bg)',
 };
 
-/** FEAT-O01 §2.2: a tint needs a dark label — white on `#FEF9C3` was unreadable. */
+/** FEAT-O01 §2.2: a tint needs a dark label — white on a tint was unreadable. */
 export const GAME_DIFFICULTY_TEXT_COLORS: Record<
   (typeof GAME_DIFFICULTY_LEVELS)[number],
   string
 > = {
-  veryEasy: '#166534',
-  easy: '#3F6212',
-  medium: '#854D0E',
-  hard: '#9A3412',
-  expert: '#991B1B',
+  veryEasy: 'var(--difficulty-very-easy-fg)',
+  easy: 'var(--difficulty-easy-fg)',
+  medium: 'var(--difficulty-medium-fg)',
+  hard: 'var(--difficulty-hard-fg)',
+  expert: 'var(--difficulty-expert-fg)',
 };
 
 /** FEAT-G02: the default tier pre-selected in the deploy dialog. */

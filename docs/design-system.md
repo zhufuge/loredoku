@@ -1,0 +1,364 @@
+# 界面设计系统（当前状态）
+
+> **这是什么**：工坊界面**现在有什么、怎么用**的清单。写代码前查这里，不要靠猜。
+>
+> **这不是什么**：不是需求，不是待办。设计意图（为谁做、要什么气质）在
+> [`.impeccable.md`](../.impeccable.md)；功能与控件含义在
+> [`map-management-and-editor.md`](./map-management-and-editor.md)；代码硬约定在 `AGENTS.md` §3.2。
+>
+> 数据来源：2026-10-26 对 `packages/web/src` 的全量盘点（`index.css`、`components/ui`、
+> `components/**`、`lib/toolbarButtons.ts`）。
+
+---
+
+## 0. 一页速览
+
+三层结构，越往下越不该越权：
+
+```
+① Token     index.css 的 HSL 变量 + tailwind.config.ts 的映射      ← 只覆盖「颜色 + 圆角」
+② 基础组件   components/ui/*（14 个，shadcn 体系）                  ← 变体由 cva 定义
+③ 组合模式   面板 / 抽屉 / 工具条 / 列表行 / 空状态                   ← 靠 className 拼，无组件封装
+```
+
+**七条必须记住的**
+
+1. 颜色只走语义类（`bg-background`、`text-muted-foreground`、`border-border`…）。定色是例外，
+   现在只剩弹窗遮罩的 `bg-black/60`。
+2. **状态用 `success` / `warning` / `destructive`，元信息用 `secondary`** —— 别写
+   `amber-100` / `emerald-600` 这类定色，也别给「v3」这种名词染状态色（§1.1）。
+3. **字号没有 token，也没有梯级** —— 实际是 10px / 11px / `text-xs`(12) / `text-sm`(14) 四档混用，见 §4.1。
+4. 想改观感：改 `index.css` 的两套变量，不要改组件。改一处漏一处，深色模式立刻留白疤。
+5. 作品内容（地图背景、资源色块、区域色、区域标签字体、画布高亮）**不随主题变**，它们不是皮肤。
+6. 浮层层级用 `UI_Z`（`shared/constants.ts`），别写 `z-*`；唯一例外是导航栏，见 §5.3。
+7. 五个工坊页共用 `PageHeader` + 24/16/12 三档间距（§3.1、§4.3）——
+   **版式一致是功能，不是偷懒**：同一件事在五页有五种写法，才是真正要修的 bug。
+
+---
+
+## 1. Token
+
+### 1.1 颜色
+
+全部定义在 `packages/web/src/index.css` 的 `:root` / `.dark`，以 **HSL 三元组**（无 `hsl()` 外壳）
+书写，由 `tailwind.config.ts` 映射成 `hsl(var(--x))`。
+
+**调色板是「墨 · 宣 · 靛 · 绛」**（v0.7.8 换的，原来那套是 shadcn 默认冷蓝）：
+
+| 语义名 | 浅色 `hsl()` | hex | 深色 `hsl()` | hex | 用在哪 |
+|---|---|---|---|---|---|
+| `background` | 40 30% 96.5% | `#F9F7F3` | 28 12% 9% | `#1A1714` | 页面底（宣纸 / 夜墨） |
+| `foreground` | 28 14% 12% | `#231E1A` | 38 20% 92% | `#EFECE7` | 正文、标题（墨） |
+| `card` / `popover` | 40 45% 99% | `#FEFDFB` | 28 12% 12% | `#221E1B` | 卡片、弹层（比底色亮一档，纸叠纸） |
+| `primary` | 205 45% 36% | `#326385` | 202 42% 62% | `#75A9C7` | 主按钮、链接、选中环（石青 / 靛） |
+| `primary-hover` | 205 45% 29% | — | 202 42% 70% | — | 主按钮悬停（**不要用 `/90` 降透明替代**） |
+| `secondary` | 38 22% 89% | `#E9E5DD` | 30 9% 19% | `#35302C` | 次级按钮、元信息徽标 |
+| `muted` | 40 24% 94% | `#F3F1EC` | 30 9% 16% | `#2C2925` | 弱底（缩略图占位、代码块） |
+| `muted-foreground` | 30 9% 41% | `#72695F` | 34 10% 62% | `#A89F94` | 说明文字、副标题、占位符 |
+| `accent` | 38 26% 87% | `#E6E0D5` | 30 9% 22% | `#3D3833` | ghost / outline 按钮悬停 |
+| `destructive` | 2 58% 46% | `#B93631` | 2 52% 62% | `#D06F6C` | 删除类操作（绛，同时当文字与填充） |
+| `success` | 152 38% 30% | `#2F6A4E` | 150 32% 62% | `#7FBD9E` | 已启用 / 已发布 / 已部署 / 复制成功（竹青） |
+| `warning` | 28 72% 32% | `#8C4E17` | 34 65% 62% | `#DDA65F` | 未保存 / 路径失效（赭石） |
+| `border` / `input` | 36 18% 86% | `#E2DDD5` | 30 9% 24% | `#433D38` | 所有描边 |
+| `ring` | 205 45% 45% | `#3F7BA6` | 202 42% 62% | `#75A9C7` | `focus-visible` 焦点环 |
+
+**状态色只表达状态**：文字用 `text-success` / `text-warning`，徽标底用
+`bg-success/10` / `bg-warning/10`。元信息徽标（`v3`、`12 × 12`、`背景 / 物品`）
+保持 `bg-secondary` —— 它们是名词，不是状态，染色就变成装饰。
+
+**难度热力档**（`--difficulty-{very-easy,easy,medium,hard,expert}-{bg,fg}`，明暗两套）：
+5 档是「竹青 → 芽绿 → 赭黄 → 柿橙 → 绛」的单向坡，表达一根刻度尺。`shared/constants.ts`
+的 `GAME_DIFFICULTY_*_COLORS` 存的是 `var(...)` 字符串，调用处是内联 style，所以自动跟随主题。
+
+两个历史坑，写在 `index.css` 注释里，别重新踩：
+
+- 浅色下 `secondary` 与 `accent` 曾经同值（96.1% 近白），选中与悬停分不出来（v0.7.0）。
+  现在两者差 2 个亮度点，并且有独立的 `*-hover` 变量。
+- `hover:bg-x/90` 在白底上是**变浅**，与「悬停=加深」相反。v0.7.2 起一律用 `*-hover` token。
+- **透明度的值必须在刻度里**（0/5/10/20/…/100）。`bg-success/12` 会被 Tailwind
+  **静默丢弃**，徽标变成没底色的一行字（v0.7.8 踩过）。非标准值要写 `/[0.12]`。
+
+**工具栏底色**：`--toolbar` / `--toolbar-hover` / `--toolbar-foreground`，v0.7.8 起存在，
+随调色板一起转暖（38 色相）。**只有这一组**在 `tailwind.config.ts` 里映射成
+`hsl(var(--x) / <alpha-value>)`，所以 `bg-toolbar/70` 可用 ——「未选中只是悬停」
+要的就是半透明那一档。用途见 §3.4。
+
+**导航选中态**是全站唯一的彩色 chrome：`bg-primary/10 text-primary`（v0.7.8）。
+工具条不跟 —— 画布上已经有 primary 的选框，两处都染色会打架。
+
+**作品内容色不在这里**：地图背景、资源色块、区域色、画布上的搜索高亮（`HIGHLIGHT_BLUE`）、
+按亮度选的黑/白文字，都属于作者的作品，**不随主题变**。判据 §0 第 4 条。
+
+### 1.2 圆角
+
+```css
+--radius: 0.5rem;   /* lg = 8px · md = 6px · sm = 4px */
+```
+
+代码里实际出现四档：`rounded-lg`（卡片、对话框）、`rounded-md`（按钮、输入、tab）、
+`rounded`（4px，图标按钮、小徽标）、`rounded-full`（芯片、圆点、头像）。
+
+### 1.3 字体
+
+**界面字体**：`tailwind.config.ts` **没有配置 `fontFamily`**，所以走 Tailwind 默认
+`ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto …`。也就是说，工坊界面目前
+**没有任何自定义字体**，完全依赖系统中文字体（Windows 上落微软雅黑 / macOS 上苹方）。
+
+**作品字体**（只作用于地图上的区域标签，不进界面皮肤）：
+
+- 自带：`霞鹜文楷-Regular.woff2`，925 KB，4705 字（GB2312 一级 + 补字清单）。构建期由
+  `scripts/build-fonts.mjs` 裁字集，运行时由 `import.meta.glob` 扫目录发现。
+- 系统栈：`system` / `sans` / `serif` / `kai` / `mono`，只有 `system` 还在选择器里，
+  另四个保留是为了老草稿还能画。
+- 加字 / 加字体的操作见 `packages/web/src/assets/fonts/README.md`。
+
+### 1.4 阴影
+
+有一套**四级梯级**，按「离地高度」用，不是随手挑的：
+
+| 级别 | 用在哪 |
+|---|---|
+| `shadow-sm` | `Card`、资源瓦片悬停、参与人头像徽标（贴地的一层） |
+| `shadow-md` | `EntryActionsMenu` 下拉、`GameCard` 悬停（可点、浮起一格） |
+| `shadow-lg` | `Dialog` / `AlertDialog` 本体；编辑器底部的**浮动胶囊工具条**（`EditorBottomBar` / `PuzzleBottomBar` / `RegionSelectionBar`） |
+| `shadow-xl` | 三个右侧抽屉（`EditorInfoDrawer` / `PuzzleInfoDrawer` / `ParticipantDrawer`），配 `bg-background/95` + `backdrop-blur` |
+
+规律：**整块面板不浮（靠 `border`），只有「临时浮在画布上/模态之上」的东西才给阴影**。
+新加面板/分区时不要顺手 `shadow-md`，那会破坏这条「越临时越浮」的语义。
+
+### 1.5 层级（z-index）
+
+唯一来源 `shared/constants.ts`：
+
+```ts
+UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
+```
+
+`dialog` / `alert-dialog` 的遮罩在组件内部写 `z-50`（shadcn 原样，属于 Radix portal 层，
+不参与画布层级）。导航栏 `AppShell` 写的是 `z-30` —— 见 §5.3。
+
+---
+
+## 2. 基础组件（`components/ui/`，14 个）
+
+| 组件 | 变体 / 尺寸 | 要点 |
+|---|---|---|
+| `button` | variant ×6：`default` `destructive` `outline` `secondary` `ghost` `link`；size ×4：`default`(h-10) `sm`(h-9) `lg`(h-11) `icon`(40×40) | 悬停走 `*-hover` token；要 28px 图标按钮时**别用 `size="icon"`**，手写 `<button>` 或 `className="h-7 w-7"`（§3.4） |
+| `card` | `Card` `CardHeader` `CardTitle` `CardDescription` `CardContent` `CardFooter` | 原版 shadcn：`rounded-lg border bg-card shadow-sm` + `p-6`。**`p-6` 对工坊偏大**，实际使用常被 `p-4` 覆盖 |
+| `input` | — | `h-10`、`text-sm`、`rounded-md`、`focus-visible:ring-2` |
+| `textarea` | — | 与 Input 同族 |
+| `label` | — | `text-sm font-medium`，表单里一律配 `<Label>` |
+| `select` | — | **原生 `<select>`** 薄封装，`h-10` + `ring-2`（v0.7.8 起与 Input 逐项对齐）。默认 `w-full`，要按内容收窄加 `w-auto`。**不要再手写 `<select>`** |
+| `segmented-radio` | — | 真 radio group（`role="radiogroup"` + `aria-checked`）。两个选项时**不要用下拉**，用它 |
+| `color-input` / `color-palette` | — | 颜色选择，走 `shared/color.ts` 的 hex/HSV 工具 |
+| `dialog` | — | **禁止点遮罩关闭**（`AGENTS.md` §3.2 硬约定） |
+| `alert-dialog` | — | 破坏性操作专用，二段式确认 |
+| `skeleton` | — | 加载占位，列表页在 `isLoading` 时铺 |
+| `sonner` | — | toast，`toast.success('图片已上传')` 这类句式 |
+| `virtual-list` | — | 长列表虚拟化（资源 / 角色面板） |
+
+---
+
+## 3. 组合模式
+
+### 3.1 页面骨架
+
+`AppShell`：`sticky` 顶栏 **`min-h-14`**（宽屏即 56px）+ `max-w-7xl` 居中 + `px-6 py-6` 正文。
+导航五项固定顺序（资源 → 地图 → 角色 → 谜题 → 部署），窄屏只换行、不折叠成菜单 ——
+顶栏用 `min-h-14` 而非 `h-14` 就是为了让换行后的第二行把顶栏撑高，而不是溢出到正文上。
+
+**页头模板**：五个工坊页一律用 `components/layout/PageHeader.tsx` ——
+`标题（h1）+ 一句话副标题 + 右侧主操作`。不要再手写 `<h1>` 页头，也不要把页级主操作
+塞进某一行控件里。
+
+```
+页头  ──24px──  工具条  ──16px──  列表/网格      ← 地图 / 谜题
+页头  ──24px──  主从两栏                        ← 资源 / 角色
+页头  ──24px──  行列表                          ← 部署
+```
+
+页根是 `space-y-6`；工具条属于列表，与列表一起包在 `space-y-4` 里。三档间距
+（24 页面级 / 16 块级 / 12 控件级）是这一版定下来的节奏，见 §4.3。
+
+页面标题惯例：`document.title = '地图 · 格物'`（`useEffect` 里设）。
+
+### 3.2 页面版式
+
+- **资源 / 角色**：同页主从，两页共用同一句 `grid gap-6 lg:grid-cols-[340px_1fr]` ——
+  左 340px 列表（`space-y-3`：搜索 → 筛选 → 列表），右侧自适应详情（`Card p-6`，唯一
+  用 `p-6` 的卡片，因为它是表单页），窄屏自动堆叠。两页左栏的筛选控件都是 `w-auto`。
+- **地图 / 谜题**：列表页（网格或行）+ 进入编辑器 / 预览页；没有同页详情。
+  网格最多 **4 列**（`sm:2 lg:3 xl:4`）—— 正文上限 `max-w-7xl`，再加列只会让卡片变小。
+- **部署**：单块行列表，无主从、无工具条。
+- **游戏 / 预览 / 编辑器**：整版 `h-screen` 或独立顶栏，不走 `AppShell`。
+
+### 3.3 编辑器面板
+
+地图 / 谜题编辑器的四块：左面板（列表）、画布、右侧信息抽屉、底部工具条。
+
+- 左面板宽度 `280px`，收起态 `40px` 细条。
+- 右抽屉宽度 `320px`（`w-80`），两种贴法：**内联**（画布旁边推挤布局，`max-w-[50vw]`，
+  无阴影）与**覆盖**（浮在画布之上，`max-w-[85vw]` + `shadow-xl` + `backdrop-blur`）。
+  同一份内容两套贴法，选哪个由画布宽度决定。
+- 面板头高统一 `PARTICIPANT_HEADER_HEIGHT = 40`（shared 常量），左面板、参与面板、
+  抽屉标题栏共用同一个高度值，保证横向对齐。
+- 抽屉用 `UI_Z.drawer`，信息框用 `UI_Z.infoDrawer`。
+
+### 3.4 工具条图标按钮（三态）
+
+`lib/toolbarButtons.ts` 集中了工具条 / 面板按钮的三个常量（v0.7.8 起全部走语义 token，
+调用处不再出现 `dark:`）：
+
+```ts
+TOOLBAR_ICON_ACTIVE_CLASS = 'bg-toolbar text-toolbar-foreground hover:bg-toolbar-hover'
+TOOLBAR_ICON_HOVER_CLASS  = 'hover:bg-toolbar/70'
+PANEL_ICON_BUTTON_CLASS   = 'flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-toolbar/70 hover:text-foreground'
+```
+
+- **ACTIVE**：选中态（实心底）。用于工具条按钮、tab、导航选中项、芯片外壳。
+- **HOVER**：未选中态的悬停（半透明底）。给已经是 `<Button>` 的元素补底色时用。
+- **PANEL_ICON**：面板 / 抽屉里的 28px 图标按钮成套 class（刷新、收起、展开…），
+  调用处只补 `shrink-0` 之类的宽度。
+
+尺寸：28×28（`h-7 w-7`）是工具条与面板的标准图标按钮档；`h-6 w-6`（24）只出现在芯片上的
+小 `×`；玩家端右栏用 48px（`h-12`）——触屏尺寸，属于另一套。
+
+地图工具条、谜题底栏、游戏页右栏共用同一套，**新增面板按钮不要再手写这串 class**。
+导航栏自 v0.7.8 起不在这套里 —— 它用 `bg-primary/10 text-primary` 表示「你在哪」（§1.1）。
+
+### 3.5 列表的两种形态
+
+- **网格卡**（`MapGridCard` / `PuzzleGridCard`）：缩略图 + 标题 + 元信息，用于视觉优先的浏览。
+  封面 4:3；网格最多 4 列（§3.2）。
+- **列表行**（`MapListRow` / `PuzzleListRow` / 部署行的内联实现）：左缩略图 + 中标题/副标题 +
+  右操作菜单，`border-b` 分隔，用于扫读与批量操作。
+
+**行列表共用一套列语法**（v0.7.8 §10 统一，行高 64）：
+
+| 列 | 宽度 |
+|---|---|
+| 缩略图 | 64×40（`h-10 w-16`） |
+| 名称 | `w-48`（`shrink-0`，内部 `truncate`） |
+| 弹性中列 | `flex-1` 描述 / 访问路径 |
+| 时间 | `w-52`（`formatDateTime` 唯一档） |
+| 操作 | `w-40` |
+
+两个页面之间来回切，右边缘应该落在同一列上。新增第三种行列表时先套这张表。
+
+两种形态由 `localStorage` 记住，键名分别是 `loredoku.maps.view` 与 `loredoku.puzzles.view`，
+默认网格。
+
+### 3.6 空状态
+
+空状态固定三种句式，`text-muted-foreground` 居中（列表页 `text-sm`，面板内 `text-xs`）：
+
+```
+还没有资源，先创建一个吧          ← 无数据
+没有匹配的资源                    ← 有数据但搜索无果
+暂无角色                          ← 面板内的短句（空间小，去掉「先…吧」）
+```
+
+搜索无果与真的没数据**必须分开说** —— 前者要提示「换个关键词」，后者要提示「去创建」。
+
+结构（v0.7.8 统一）：工坊五个列表页都是 **一句说明 + 一个主按钮**，不配图标；
+容器内边距按宽度分两档 —— 340px 窄栏 `p-8`，全宽页 `p-12`。
+**图标只出现在玩家首页**（`GamesPage`）：那是欢迎页，用大图标 + 两行说明 + 描边按钮，
+与工坊的空状态是两套语言。
+
+### 3.7 危险操作
+
+一律 `AlertDialog` 二段式：标题是问句（`删除形态「关闭」？`），描述说清**后果与兜底**
+（「画布上已放置的占位不受影响；若该形态正被地图使用，服务端会拒绝删除」），
+按钮 `variant="destructive"`，进行中文案变「删除中…」并禁用。
+
+---
+
+## 4. 事实上的梯级
+
+这部分**不是设计出来的，是被用出来的** —— 记录下来是为了改动时有据可依，不是背书。
+
+### 4.1 字号
+
+| 值 | 命中行数 | 典型用途 |
+|---|---|---|
+| `text-[11px]` | **53** | 面板小标签、元信息、抽屉里的紧凑行 |
+| `text-[10px]` | **27** | 徽标、角标、`xx · yy` 这类极小的分隔信息 |
+| `text-xs`（12） | 大量 | 说明文字、次要信息 |
+| `text-sm`（14） | 大量 | 正文、表单、按钮 |
+| `text-base` / `lg` / `xl` / `2xl` | 少量 | 页面标题、卡片标题 |
+
+11px 是**事实上最常用的微文字档**，但它既不是 `text-xs` 也不是 `text-sm` —— 也就是说
+设计系统里存在一个真实档位却没有 token。改动前请先决定「11px 要不要收编成 `text-2xs`」，
+不要在新增代码里再随手写 px。
+
+**徽标（圆角底色小标签）从 v0.7.8 起统一为 `px-1.5 py-0.5 text-[11px]`** —— 列表行、
+网格卡、页面头、版本对话框都按这一档，不再有 10px 的徽标。`10px` 现在只剩零星角标。
+
+### 4.2 控件高度
+
+| 高度 | 用途 |
+|---|---|
+| 24（`h-6`） | 芯片上的小 `×` |
+| 28（`h-7`） | 工具条 / 面板图标按钮（**标准档**） |
+| 32（`h-8`） | 搜索框、紧凑输入 |
+| 36（`h-9`） | `Button size="sm"`、`Select`、主题切换 |
+| 40（`h-10`） | `Button` 默认、`Input`、`Button size="icon"` |
+
+### 4.3 间距
+
+三档职责分明（v0.7.8 §10 定下来的）：
+
+| 档 | 值 | 用在哪 |
+|---|---|---|
+| 页面级 | 24（`space-y-6`） | 页头 → 正文 |
+| 块级 | 16（`space-y-4`） | 工具条 → 列表；页面内的分区之间 |
+| 控件级 | 12（`space-y-3`） / 8（`gap-2`） / 4（`gap-1`） | 表单字段之间 / 按钮组 / 图标与文字 |
+
+`gap-1.5`（6）偶见于按钮内图标与文字之间。卡片内 `p-4`，主从页右侧表单 `p-6`。
+没有 24px 以上的页面内留白 —— 地图 / 谜题的「草稿」「版本」两块之间是唯一的 32px
+（`space-y-8`），因为那是两个独立数据集，不是同一块里的分区。
+
+---
+
+## 5. 债务清单（动之前先看）
+
+| # | 项 | 位置 | 为什么算债 | 改的代价 |
+|---|---|---|---|---|
+| 5.1 | **约 80 行魔法字号** `text-[10px]` / `text-[11px]` | 30 个文件 | 上面 §4.1：有档位无 token，新增代码会继续发散 | 中：可先在 `index.css` 加 `--fs-2xs` 工具类，再批量替换 |
+| ~~5.2~~ | ~~slate 定色~~ | — | **已解决（v0.7.8 §1）**：改为 `--toolbar*` token，调用处不再出现 `dark:` | — |
+| 5.3 | **导航栏 `z-30`** | `AppShell.tsx` | 绕过 `UI_Z`，且数值与 `UI_Z.drawer` 相同 | 中（v0.7.8 评估后上调）：改错会真盖住抽屉，需先理清堆叠上下文 |
+| ~~5.4~~ | ~~Input 40px vs Select 36px~~ | — | **已解决（v0.7.8 §3）**：`Select` 改为 `h-10` + `ring-2`，与 `Input` 逐项对齐 | — |
+| ~~5.5~~ | ~~冷蓝调色板~~ | — | **已解决（v0.7.8 §11）**：换成「墨 · 宣 · 靛 · 绛」，中性色转暖、primary 改石青、新增强度合适的 `success` / `warning` | — |
+| 5.6 | **卡片与分隔线两套并存** | 卡片 4 处、`border p-*` 12 处、`border-b` 为主 | 观感不统一（少量圆角卡片浮在边线分隔的版式里） | 低：先约定「列表行用分隔线、对话框内分组用卡片」 |
+| 5.7 | **表单 `Label` 没有 `htmlFor`** | `<Label>名称</Label>` + 相邻 `<Input>` 的写法遍布所有表单 | 标签与输入框没有程序化关联：点标签不能聚焦，屏幕阅读器读不出「这是哪个字段」 | 中大：30+ 处，需逐个加 `useId` + `htmlFor`（或改成把控件包进 `Label`） |
+| 5.8 | **`--radius: 0.5rem` 偏软** | `index.css` | 8px 圆角是 SaaS 的默认值，与「纸 / 木」的手感不一致；`.impeccable.md` 记着可压到 0.25–0.375 | 低-中：只改一个变量，但等于改所有组件的观感，需要逐页目检 |
+
+> 5.6 容易被高估：初稿曾记为「大量卡片层层嵌套」，实测 `rounded-lg border` 只有 4 处，
+> 主力是 `border-b` 分隔的面板与行。所以这条债的真实分量是**版式语言不统一**，
+> 而不是「卡片泛滥」—— 优先级排在最后。
+
+---
+
+## 6. 改动检查清单
+
+改任何界面之前：
+
+- [ ] 颜色用的是语义类吗？新增了定色吗？（`AGENTS.md` §3.2）
+- [ ] 状态用的是 `success` / `warning` / `destructive` 吗？有没有又写 `amber-*` / `emerald-*`？
+- [ ] 透明度是刻度内的值吗（10/20/30…）？`/12` 这类会被静默丢弃（§1.1）
+- [ ] 深色模式看了吗？—— 用定色就必须写 `dark:`，用 token 就不用
+- [ ] 页头用的是 `PageHeader` 吗？页级主操作在右上，而不是塞进某一行控件？
+- [ ] 页面根是 `space-y-6` 吗？工具条与列表有没有包进 `space-y-4`？
+- [ ] 网格列数超过 4 了吗？（正文上限 1280，再多列只会压窄卡片）
+- [ ] 新增「行列表」时，列宽套的是 §3.5 那张表吗？
+- [ ] 字号是从 §4.1 的既有档位里挑的，还是又写了一个新 px？
+- [ ] 徽标是 `px-1.5 py-0.5 text-[11px]` 吗？（§4.1 的统一档）
+- [ ] 下拉用的是 `<Select>` 吗？有没有又手写 `<select>`？（§2）
+- [ ] 面板图标按钮用的是 `PANEL_ICON_BUTTON_CLASS` 吗？（§3.4）
+- [ ] 图标按钮是 28px 档吗？有没有误用 `size="icon"`（40px）顶破 40px 高的面板头？
+- [ ] 同一行里的控件高度一致吗？（搜索框 / 下拉 / 按钮都是 40px 档）
+- [ ] 破坏性操作走 `AlertDialog` 了吗？遮罩点击是否被禁用？
+- [ ] 这个颜色属于**皮肤**还是**作品内容**？作品内容不该跟着主题变
+- [ ] 空状态是「没数据」还是「搜索无果」？文案分开了吗？
+- [ ] 浮层层级用 `UI_Z` 了吗？
+- [ ] 跑过 `npm run typecheck` + `bash scripts/run-tests.sh packages/web` 吗？

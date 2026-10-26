@@ -4,6 +4,8 @@ import type { Asset, AssetVariant, DraftRegion, EditorLayer, EditorTool } from '
 import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
 import { AssetPalette } from '@/components/map-editor/AssetPalette';
 import { RegionList } from '@/components/map-editor/RegionList';
+import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
+import { cn } from '@/lib/utils';
 
 /**
  * v0.5.0 SPEC-K12 (docs/v0.5.0.md §4.1 / §9.1): the map editor is 只编辑地图 —
@@ -97,11 +99,12 @@ export function EditorLeftPanel({
                     onSetLayer(layer);
                     onSelectAsset(null, null);
                   }}
-                  className={
+                  className={cn(
+                    'flex-1 rounded px-2 py-1 text-xs font-medium',
                     activeLayer === layer
-                      ? 'flex-1 rounded bg-slate-200 px-2 py-1 text-xs font-medium text-slate-900 dark:bg-slate-700 dark:text-slate-100'
-                      : 'flex-1 rounded px-2 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-slate-200/70 dark:hover:bg-slate-700/70'
-                  }
+                      ? TOOLBAR_ICON_ACTIVE_CLASS
+                      : cn('text-muted-foreground transition-colors', TOOLBAR_ICON_HOVER_CLASS),
+                  )}
                 >
                   {LAYER_LABELS[layer]}
                 </button>

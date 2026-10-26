@@ -84,7 +84,7 @@ export function VersionHistoryDialog({
                   <div className="flex items-center gap-2">
                     <span className="font-medium">v{version.versionNo}</span>
                     {version.versionNo === currentVersionNo ? (
-                      <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
                         当前
                       </span>
                     ) : null}

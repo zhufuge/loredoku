@@ -88,7 +88,8 @@ export function PuzzleBottomBar({
           title="重置查看比例为 100%（不修改方格大小）"
           className={cn(
             'h-9 min-w-[3.5rem] rounded-full px-2 text-xs tabular-nums text-muted-foreground',
-            'hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70',
+            TOOLBAR_ICON_HOVER_CLASS,
+            'hover:text-foreground',
           )}
         >
           {Math.round(zoom * 100)}%

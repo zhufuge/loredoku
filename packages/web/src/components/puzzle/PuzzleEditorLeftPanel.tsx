@@ -5,6 +5,7 @@ import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { RefreshButton } from '@/components/common/RefreshButton';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PANEL_ICON_BUTTON_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
 interface PuzzleEditorLeftPanelProps {
@@ -107,7 +108,7 @@ export function PuzzleEditorLeftPanel({
             aria-label="展开角色列表"
             aria-expanded={false}
             onClick={() => takeOver(false)}
-            className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70"
+            className={PANEL_ICON_BUTTON_CLASS}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -146,7 +147,7 @@ export function PuzzleEditorLeftPanel({
             aria-label="收起角色列表"
             aria-expanded
             onClick={() => takeOver(true)}
-            className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-slate-200/70 hover:text-foreground dark:hover:bg-slate-700/70"
+            className={PANEL_ICON_BUTTON_CLASS}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>

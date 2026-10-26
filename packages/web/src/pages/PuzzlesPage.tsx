@@ -14,8 +14,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { entryPreviewable } from '@/components/common/EntryActionsMenu';
+import { PageHeader } from '@/components/layout/PageHeader';
 import { CreatePuzzleDialog } from '@/components/puzzle/CreatePuzzleDialog';
 import { EditPuzzleDialog } from '@/components/puzzle/EditPuzzleDialog';
 import { PuzzleGridCard } from '@/components/puzzle/PuzzleGridCard';
@@ -237,7 +239,7 @@ export function PuzzlesPage(): JSX.Element {
   function renderContent(): JSX.Element {
     if (isLoading) {
       return (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, index) => (
             <Skeleton key={index} className="h-72 w-full" />
           ))}
@@ -286,7 +288,7 @@ export function PuzzlesPage(): JSX.Element {
                 ))}
               </Card>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
                 {drafts.map((entry) => (
                   <PuzzleGridCard key={`draft-${entry.id}`} entry={entry} {...rowProps} />
                 ))}
@@ -314,61 +316,67 @@ export function PuzzlesPage(): JSX.Element {
   }
 
   return (
-    <section className="space-y-5">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">谜题</h1>
-          <p className="text-sm text-muted-foreground">创建、发布并部署你的谜题。</p>
-        </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1 h-4 w-4" />
-          新建谜题
-        </Button>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative w-full max-w-xs">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={keywordInput}
-            onChange={(event) => setKeywordInput(event.target.value)}
-            placeholder="搜索谜题名称"
-            className="pl-9"
-          />
-        </div>
-        <select
-          value={sort}
-          onChange={(event) => {
-            setSort(event.target.value as SortOption);
-            resetPages();
-          }}
-          className="h-10 rounded-md border border-input bg-background px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <option value="updatedAt">按更新时间</option>
-          <option value="name">按名称</option>
-        </select>
-        <div className="ml-auto flex items-center gap-1 rounded-md border p-1">
-          <Button
-            size="icon"
-            variant={view === 'grid' ? 'secondary' : 'ghost'}
-            title="网格视图"
-            onClick={() => setView('grid')}
-          >
-            <LayoutGrid className="h-4 w-4" />
+    <section className="space-y-6">
+      <PageHeader
+        title="谜题"
+        description="创建、发布并部署你的谜题。"
+        actions={
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-1 h-4 w-4" />
+            新建谜题
           </Button>
-          <Button
-            size="icon"
-            variant={view === 'list' ? 'secondary' : 'ghost'}
-            title="列表视图"
-            onClick={() => setView('list')}
-          >
-            <List className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
-      <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>
-        {renderContent()}
+      {/* v0.7.8 §10：与地图页同构 —— 页头 24px，工具条到列表 16px。 */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative w-full max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={keywordInput}
+              onChange={(event) => setKeywordInput(event.target.value)}
+              placeholder="搜索谜题名称"
+              className="pl-9"
+            />
+          </div>
+          <Select
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value as SortOption);
+              resetPages();
+            }}
+            className="w-auto"
+          >
+            <option value="updatedAt">按更新时间</option>
+            <option value="name">按名称</option>
+          </Select>
+          {/* v0.7.8 §4：与地图页同一套对齐 —— 外框 40px，按钮 32px 居中。 */}
+          <div className="ml-auto flex h-10 items-center gap-1 rounded-md border px-1">
+            <Button
+              size="icon"
+              className="h-8 w-8"
+              variant={view === 'grid' ? 'secondary' : 'ghost'}
+              title="网格视图"
+              onClick={() => setView('grid')}
+            >
+              <LayoutGrid className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              className="h-8 w-8"
+              variant={view === 'list' ? 'secondary' : 'ghost'}
+              title="列表视图"
+              onClick={() => setView('list')}
+            >
+              <List className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>
+          {renderContent()}
+        </div>
       </div>
 
       <CreatePuzzleDialog open={createOpen} onOpenChange={setCreateOpen} />

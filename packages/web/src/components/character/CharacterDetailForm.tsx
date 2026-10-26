@@ -94,7 +94,7 @@ export function CharacterDetailForm({
         <div className="flex items-center gap-2">
           {character.isActive ? (
             <>
-              <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground">
+              <span className="rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
                 启用中
               </span>
               <Button
@@ -107,7 +107,7 @@ export function CharacterDetailForm({
             </>
           ) : (
             <>
-              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {activatable ? '已停用' : '未启用'}
               </span>
               <Button

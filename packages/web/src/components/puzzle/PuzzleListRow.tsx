@@ -89,7 +89,7 @@ export function PuzzleListRow({
       {/* 部署列：固定宽度，两块都占位，行宽才对得上。 */}
       <span className="w-16 shrink-0">
         {entry.deployed ? (
-          <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+          <span className="rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
             已部署
           </span>
         ) : null}

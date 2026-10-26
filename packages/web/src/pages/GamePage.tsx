@@ -1009,7 +1009,7 @@ export function GamePage(): JSX.Element {
             title="禁止符号：标记该格为排除项"
             onClick={() => toggleTool('forbidden')}
           >
-            <X className="h-5 w-5 text-red-500" />
+            <X className="h-5 w-5 text-destructive" />
           </Button>
           <Button
             variant="ghost"
@@ -1120,7 +1120,7 @@ export function GamePage(): JSX.Element {
           <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
             {validationIssues?.map((issue, index) => (
               <li key={`${issue.participantId}-${issue.code}-${index}`} className="flex gap-2">
-                <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[10px] text-secondary-foreground">
+                <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive">
                   {issue.code === 'unplaced'
                     ? '未放置'
                     : issue.code === 'row'

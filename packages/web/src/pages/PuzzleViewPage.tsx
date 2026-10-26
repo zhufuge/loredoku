@@ -356,7 +356,13 @@ export function PuzzleViewPage(): JSX.Element {
     <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/puzzles')} title="返回谜题列表">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/puzzles')}
+            title="返回谜题列表"
+            aria-label="返回谜题列表"
+          >
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex min-w-0 items-center gap-2">
