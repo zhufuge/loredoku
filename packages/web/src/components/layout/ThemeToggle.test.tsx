@@ -52,7 +52,7 @@ describe('ThemeToggle', () => {
   it('starts on system — the documented default', () => {
     expect(button().getAttribute('data-theme-mode')).toBe('system');
     expect(button().getAttribute('data-theme-resolved')).toBe('light');
-    expect(button().getAttribute('title')).toContain('跟随系统');
+    expect(button().getAttribute('aria-label')).toContain('跟随系统');
   });
 
   it('walks the ring system → light → dark → system on repeated clicks', () => {

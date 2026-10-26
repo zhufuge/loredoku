@@ -62,11 +62,11 @@ export function AssetListPanel({ assets, selectedId, onSelect }: AssetListPanelP
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="truncate font-medium">{asset.name}</span>
-                  <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+                  <span className="rounded bg-secondary px-1.5 py-0.5 text-2xs text-secondary-foreground">
                     {ASSET_TYPE_LABELS[asset.type]}
                   </span>
                   {!asset.isActive ? (
-                    <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
+                    <span className="rounded bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground">
                       {assetHasAppearance(asset) ? '已停用' : '未启用'}
                     </span>
                   ) : null}

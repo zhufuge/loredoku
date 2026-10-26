@@ -168,13 +168,13 @@ function RegionEditBranch({
     <section className="space-y-3">
       <div className="flex items-center gap-2">
         <h3 className="text-xs font-medium text-muted-foreground">区域信息</h3>
-        <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+        <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-2xs tabular-nums text-muted-foreground">
           包含 {region.cells.length} 格
         </span>
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="region-info-name" className="text-[11px] font-normal text-muted-foreground">
+        <Label htmlFor="region-info-name" className="text-2xs font-normal text-muted-foreground">
           名称
         </Label>
         <Input
@@ -187,7 +187,7 @@ function RegionEditBranch({
       </div>
 
       <div className="grid gap-1.5">
-        <Label htmlFor="region-info-id" className="text-[11px] font-normal text-muted-foreground">
+        <Label htmlFor="region-info-id" className="text-2xs font-normal text-muted-foreground">
           区域 ID
         </Label>
         <Input
@@ -197,7 +197,7 @@ function RegionEditBranch({
           onChange={(event) => setRegionId(event.target.value)}
           className="h-7 font-mono text-xs"
         />
-        <span className="text-[10px] text-muted-foreground">仅字母、数字与下划线</span>
+        <span className="text-2xs text-muted-foreground">仅字母、数字与下划线</span>
       </div>
 
       <RegionStyleEditor
@@ -206,13 +206,13 @@ function RegionEditBranch({
         onChange={(next) => setDraft(next)}
       />
 
-      {error ? <p className="text-[11px] text-destructive">{error}</p> : null}
+      {error ? <p className="text-2xs text-destructive">{error}</p> : null}
 
       <div className="flex gap-1">
         <Button
           size="sm"
           variant="default"
-          className="h-7 flex-1 text-[11px]"
+          className="h-7 flex-1 text-2xs"
           disabled={!dirty}
           onClick={save}
         >
@@ -221,7 +221,7 @@ function RegionEditBranch({
         <Button
           size="sm"
           variant="outline"
-          className="h-7 flex-1 text-[11px] text-destructive hover:text-destructive"
+          className="h-7 flex-1 text-2xs text-destructive hover:text-destructive"
           onClick={() => onDeleteRegion(region)}
         >
           删除
@@ -259,11 +259,11 @@ function RegionSummary({
           <span className="truncate text-sm" title={region.name}>
             {region.name}
           </span>
-          <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-[10px] tabular-nums text-muted-foreground">
+          <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-2xs tabular-nums text-muted-foreground">
             包含 {region.cells.length} 格
           </span>
         </div>
-        <dl className="mt-1.5 flex flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+        <dl className="mt-1.5 flex flex-wrap items-center gap-1 text-2xs text-muted-foreground">
           <div className="flex items-center gap-1">
             <dt>轮廓线宽</dt>
             <dd className="text-foreground">{resolved.outline.width}</dd>
@@ -341,7 +341,7 @@ function CellBranch({
                 <span className="text-muted-foreground"> · {backgroundLook.name}</span>
               ) : null}
             </span>
-            <span className="ml-auto font-mono text-[10px] text-muted-foreground">
+            <span className="ml-auto font-mono text-2xs text-muted-foreground">
               #{backgroundAsset.id}
             </span>
           </div>
@@ -357,7 +357,7 @@ function CellBranch({
           {item && !readOnly && onItemTransform && !identity ? (
             <button
               type="button"
-              className="text-[10px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              className="text-2xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               onClick={() =>
                 onItemTransform(selection.x, selection.y, { scale: 1, offsetX: 0, offsetY: 0 })
               }
@@ -377,7 +377,7 @@ function CellBranch({
                 <span className="text-muted-foreground"> · {itemLook.name}</span>
               ) : null}
             </span>
-            <span className="ml-auto text-[10px] text-muted-foreground">
+            <span className="ml-auto text-2xs text-muted-foreground">
               {item?.w}×{item?.h}
             </span>
           </div>
@@ -389,7 +389,7 @@ function CellBranch({
         {item ? (
           readOnly ? (
             identity ? null : (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 展示 {Math.round(transform.scale * 100)}% · 偏移 ({transform.offsetX},{' '}
                 {transform.offsetY}) 格
               </p>
@@ -457,7 +457,7 @@ function CellBranch({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 flex-1 text-[11px]"
+              className="h-7 flex-1 text-2xs"
               onClick={() => onClearCell(selection.x, selection.y)}
             >
               清空本格
@@ -465,7 +465,7 @@ function CellBranch({
             <Button
               size="sm"
               variant="outline"
-              className="h-7 flex-1 text-[11px]"
+              className="h-7 flex-1 text-2xs"
               onClick={() => onClearItem(selection.x, selection.y)}
             >
               清空物品层
@@ -585,7 +585,7 @@ export function EditorInfoDrawer({
         {!open ? reopenTab : null}
         <aside
           className={
-            'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200 ' +
+            'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-lifted backdrop-blur transition-transform duration-200 ' +
             (open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full')
           }
           // FIX-N11 (docs/v0.5.3.md §6.4): above the ruler strips, below the

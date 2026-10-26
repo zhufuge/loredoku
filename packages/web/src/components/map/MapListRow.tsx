@@ -1,6 +1,6 @@
 import { Copy, Eye, Pencil, SquarePen, Trash2 } from 'lucide-react';
 import type { MapEntrySummary } from '@loredoku/shared';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { formatDateTime } from '@/lib/format';
 import { entryPreviewable, entryPreviewTitle } from '@/components/common/EntryActionsMenu';
 
@@ -96,38 +96,43 @@ export function MapListRow({
         {/* v0.5.8 第三阶段（设计 §11 第 9 条）：版本条目的快照列不可改 ——
             改名 / 改描述会破坏「版本不可变」，所以这块只给工作条目。 */}
         {!isVersion ? (
-          <Button size="icon" variant="ghost" title="编辑信息" onClick={() => onRename(entry)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
+          <IconButton
+            variant="ghost"
+            icon={<Pencil className="h-4 w-4" />}
+            label="编辑信息"
+            onClick={() => onRename(entry)}
+          />
         ) : null}
-        <Button
-          size="icon"
+        <IconButton
           variant="ghost"
-          title={entryPreviewTitle(entry)}
+          icon={<Eye className="h-4 w-4" />}
+          label={entryPreviewTitle(entry)}
           disabled={!previewable}
           onClick={() => onPreview(entry)}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
+        />
         {isVersion ? (
-          <Button size="icon" variant="ghost" title="编辑此版本" onClick={() => onEdit(entry)}>
-            <SquarePen className="h-4 w-4" />
-          </Button>
+          <IconButton
+            variant="ghost"
+            icon={<SquarePen className="h-4 w-4" />}
+            label="编辑此版本"
+            onClick={() => onEdit(entry)}
+          />
         ) : null}
         {!isVersion ? (
-          <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(entry)}>
-            <Copy className="h-4 w-4" />
-          </Button>
+          <IconButton
+            variant="ghost"
+            icon={<Copy className="h-4 w-4" />}
+            label="复制"
+            onClick={() => onDuplicate(entry)}
+          />
         ) : null}
-        <Button
-          size="icon"
+        <IconButton
           variant="ghost"
-          title="删除"
+          icon={<Trash2 className="h-4 w-4" />}
+          label="删除"
           className="text-destructive hover:text-destructive"
           onClick={() => onDelete(entry)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        />
       </div>
     </div>
   );

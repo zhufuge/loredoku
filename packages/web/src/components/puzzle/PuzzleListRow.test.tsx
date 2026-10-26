@@ -68,9 +68,11 @@ describe('PuzzleListRow (v0.7.1 §6.2)', () => {
     });
   }
 
-  const button = (title: string): HTMLButtonElement | undefined =>
+  // v0.7.9 §5：图标按钮的「唯一真源」是 aria-label（提示文本由 Tooltip 负责），
+  // 所以定位也走 aria-label —— 它同时就是屏幕阅读器读到的那句话。
+  const button = (label: string): HTMLButtonElement | undefined =>
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
-      (node) => node.getAttribute('title') === title,
+      (node) => node.getAttribute('aria-label') === label,
     );
 
   beforeEach(() => {

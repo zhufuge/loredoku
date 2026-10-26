@@ -2,6 +2,7 @@ import { SquarePen, Trash2 } from 'lucide-react';
 import type { PuzzleEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { IconButton } from '@/components/ui/icon-button';
 import { EntryActionsMenu } from '@/components/common/EntryActionsMenu';
 import { formatDateTime } from '@/lib/format';
 import { formatRelativeTime } from '@/lib/relativeTime';
@@ -68,12 +69,12 @@ export function PuzzleGridCard({
           <h3 className="flex items-center gap-1.5 truncate font-medium" title={entry.name}>
             <span className="truncate">{entry.name}</span>
             {entry.versionNo !== null ? (
-              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground tabular-nums">
+              <span className="shrink-0 rounded bg-secondary px-1.5 py-0.5 text-2xs text-secondary-foreground tabular-nums">
                 v{entry.versionNo}
               </span>
             ) : null}
             {entry.deployed ? (
-              <span className="shrink-0 rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
+              <span className="shrink-0 rounded bg-success/10 px-1.5 py-0.5 text-2xs text-success">
                 已部署
               </span>
             ) : null}
@@ -99,9 +100,12 @@ export function PuzzleGridCard({
           </Button>
           <div className="ml-auto flex items-center gap-1">
             {isVersion ? (
-              <Button size="icon" variant="ghost" title="编辑此版本" onClick={() => onEdit(entry)}>
-                <SquarePen className="h-4 w-4" />
-              </Button>
+              <IconButton
+                variant="ghost"
+                icon={<SquarePen className="h-4 w-4" />}
+                label="编辑此版本"
+                onClick={() => onEdit(entry)}
+              />
             ) : null}
             <EntryActionsMenu
               entry={entry}
@@ -110,15 +114,13 @@ export function PuzzleGridCard({
               onDuplicate={onDuplicate}
               onDeploy={onDeploy}
             />
-            <Button
-              size="icon"
+            <IconButton
               variant="ghost"
-              title="删除"
+              icon={<Trash2 className="h-4 w-4" />}
+              label="删除"
               className="text-destructive hover:text-destructive"
               onClick={() => onDelete(entry)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            />
           </div>
         </div>
       </div>

@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button, buttonVariants } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -69,8 +70,9 @@ export function DeploymentsPage(): JSX.Element {
     if (gamesQuery.isLoading) {
       return (
         <div className="space-y-2">
+          {/* v0.7.9：骨架高 64（= 行高），原来是 80 —— 加载完成后整页会往上跳 16px。 */}
           {Array.from({ length: 4 }).map((_, index) => (
-            <Skeleton key={index} className="h-20 w-full" />
+            <Skeleton key={index} className="h-16 w-full" />
           ))}
         </div>
       );
@@ -79,7 +81,10 @@ export function DeploymentsPage(): JSX.Element {
     if (gamesQuery.isError) {
       return (
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <p className="text-sm text-muted-foreground">部署列表加载失败</p>
+          {/* v0.7.9：与其余四页统一 —— 给出真正的原因，而不是只有「加载失败」。 */}
+          <p className="text-sm text-muted-foreground">
+            {gamesQuery.error instanceof Error ? gamesQuery.error.message : '部署列表加载失败'}
+          </p>
           <Button variant="outline" onClick={() => void gamesQuery.refetch()}>
             重试
           </Button>
@@ -136,7 +141,7 @@ export function DeploymentsPage(): JSX.Element {
               </div>
 
               <span
-                className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                className="shrink-0 rounded-full px-2 py-0.5 text-2xs font-medium"
                 style={{
                   backgroundColor: GAME_DIFFICULTY_COLORS[game.difficulty],
                   color: GAME_DIFFICULTY_TEXT_COLORS[game.difficulty],
@@ -176,27 +181,25 @@ export function DeploymentsPage(): JSX.Element {
                 >
                   <ExternalLink className="h-4 w-4" />
                 </a>
-                <Button
-                  size="icon"
+                <IconButton
                   variant="ghost"
-                  title="复制访问路径"
+                  icon={
+                    copiedSlug === game.slug ? (
+                      <Check className="h-4 w-4 text-success" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )
+                  }
+                  label="复制访问路径"
                   onClick={() => copyPath(game)}
-                >
-                  {copiedSlug === game.slug ? (
-                    <Check className="h-4 w-4 text-success" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-                <Button
-                  size="icon"
+                />
+                <IconButton
                   variant="ghost"
-                  title="取消部署"
+                  icon={<Trash2 className="h-4 w-4" />}
+                  label="取消部署"
                   className="text-destructive hover:text-destructive"
                   onClick={() => setCancelTarget(game)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                />
               </div>
             </div>
           );

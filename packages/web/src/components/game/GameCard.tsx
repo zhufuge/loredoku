@@ -31,7 +31,7 @@ export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
         }
       }}
       className={cn(
-        'group cursor-pointer overflow-hidden transition-shadow hover:shadow-md',
+        'group cursor-pointer overflow-hidden transition-shadow hover:shadow-lifted',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
       )}
     >

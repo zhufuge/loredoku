@@ -259,7 +259,7 @@ export function ParticipantPanel({
         style={{ paddingLeft: ROSTER_PANEL_PADDING, paddingRight: ROSTER_PANEL_PADDING }}
       >
         {slots.length === 0 ? (
-          <p className="px-2 py-6 text-center text-[10px] text-muted-foreground">
+          <p className="px-2 py-6 text-center text-2xs text-muted-foreground">
             {readOnly ? '该谜题暂无参与者' : '从角色列表拖拽到参与者区'}
           </p>
         ) : (
@@ -490,13 +490,13 @@ export function ParticipantPanel({
                             className="h-full w-full text-2xl"
                           />
                         ) : (
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-2xs text-muted-foreground">
                             #{slot.characterId}
                           </span>
                         )}
                       </span>
                     ) : (
-                      <span className="text-[10px] text-muted-foreground">空</span>
+                      <span className="text-2xs text-muted-foreground">空</span>
                     )}
                   </div>
 
@@ -555,7 +555,7 @@ export function ParticipantPanel({
                       }}
                       className={cn(
                         'absolute -right-1 -top-1 flex h-4 w-4 cursor-pointer items-center justify-center',
-                        'rounded-full border bg-background text-muted-foreground shadow-sm',
+                        'rounded-full border bg-background text-muted-foreground shadow-paper',
                         'transition-opacity hover:text-destructive',
                         isHovered ? 'opacity-100' : 'opacity-0',
                       )}

@@ -313,7 +313,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
             <div className="grid gap-1.5">
               <Label
                 htmlFor="map-info-name"
-                className="text-[11px] font-normal text-muted-foreground"
+                className="text-2xs font-normal text-muted-foreground"
               >
                 名称
               </Label>
@@ -324,12 +324,12 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 onChange={(event) => setDraftName(event.target.value)}
                 className="h-7 text-xs"
               />
-              {nameError ? <p className="text-[11px] text-destructive">{nameError}</p> : null}
+              {nameError ? <p className="text-2xs text-destructive">{nameError}</p> : null}
             </div>
             <div className="grid gap-1.5">
               <Label
                 htmlFor="map-info-description"
-                className="text-[11px] font-normal text-muted-foreground"
+                className="text-2xs font-normal text-muted-foreground"
               >
                 描述
               </Label>
@@ -475,7 +475,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
             </Row>
 
             <div className="space-y-1.5 rounded-md border p-2">
-              <span className="flex items-center text-[11px] font-medium">
+              <span className="flex items-center text-2xs font-medium">
                 <span>鼠标光标框</span>
                 <Hint text="Mouse Cursor Box — 跟随指针移动的方格提示框，是画布的最高层，任何内容都盖不住它。" />
               </span>
@@ -546,14 +546,14 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                         mouseCursorBox: { ...current.mouseCursorBox, shadowColor: value },
                       }));
                     }}
-                    className="h-7 w-24 font-mono text-[11px]"
+                    className="h-7 w-24 font-mono text-2xs"
                   />
                 </div>
               </Row>
             </div>
 
             <div className="space-y-1.5 rounded-md border p-2">
-              <span className="flex items-center text-[11px] font-medium">
+              <span className="flex items-center text-2xs font-medium">
                 <span>操作光标框</span>
                 <Hint text="Operation Cursor Box — 固定在「当前操作方格」上的提示框，以外描边形式画在网格分隔线外侧，不参与布局。" />
               </span>

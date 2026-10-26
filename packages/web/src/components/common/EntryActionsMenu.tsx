@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Copy, Eye, MoreHorizontal, Pencil, Rocket } from 'lucide-react';
 import { UI_Z } from '@loredoku/shared';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { cn } from '@/lib/utils';
 
 /**
@@ -122,7 +122,7 @@ export function EntryActionsMenu<E extends EntryLike>({
       ref={menuRef}
       role="menu"
       style={{ position: 'fixed', top: position?.top ?? 0, left: position?.left ?? 0, zIndex: UI_Z.drawer }}
-      className="w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+      className="w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lifted"
     >
       {!isVersion ? (
         <button type="button" role="menuitem" className={itemClass} onClick={() => run(onEditInfo)}>
@@ -158,16 +158,13 @@ export function EntryActionsMenu<E extends EntryLike>({
 
   return (
     <div ref={containerRef} className="relative shrink-0">
-      <Button
-        size="icon"
+      <IconButton
         variant="ghost"
-        title="更多操作"
-        aria-label="更多操作"
+        icon={<MoreHorizontal className="h-4 w-4" />}
+        label="更多操作"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </Button>
+      />
       {open && position ? createPortal(menu, document.body) : null}
     </div>
   );

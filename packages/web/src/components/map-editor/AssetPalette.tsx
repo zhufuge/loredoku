@@ -133,7 +133,7 @@ export function AssetPalette({
                     'group flex cursor-pointer flex-col items-center gap-1 rounded-md border p-1 text-center',
                     selected
                       ? 'border-primary bg-accent'
-                      : 'hover:border-primary hover:shadow-sm',
+                      : 'hover:border-primary hover:shadow-paper',
                   )}
                 >
                   <AssetThumbnail
@@ -141,10 +141,10 @@ export function AssetPalette({
                     name={tile.asset.name}
                     className="h-12 w-12"
                   />
-                  <span className="w-full truncate text-[11px] leading-tight text-muted-foreground group-hover:text-foreground">
+                  <span className="w-full truncate text-2xs leading-tight text-muted-foreground group-hover:text-foreground">
                     {tile.asset.name}
                   </span>
-                  <span className="w-full truncate text-[10px] leading-tight text-muted-foreground/80">
+                  <span className="w-full truncate text-2xs leading-tight text-muted-foreground/80">
                     {tile.multi ? tile.variant.name : '1 格'}
                   </span>
                 </button>
@@ -155,7 +155,7 @@ export function AssetPalette({
       </div>
 
       {selectedAssetId !== null ? (
-        <p className="shrink-0 rounded-md bg-secondary px-2 py-1 text-[11px] text-secondary-foreground">
+        <p className="shrink-0 rounded-md bg-secondary px-2 py-1 text-2xs text-secondary-foreground">
           已选中资源，点击画布放置；再次点击可取消。
         </p>
       ) : null}

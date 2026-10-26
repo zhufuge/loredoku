@@ -1,4 +1,5 @@
 import { RefreshCw } from 'lucide-react';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { PANEL_ICON_BUTTON_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
@@ -23,6 +24,8 @@ interface RefreshButtonProps {
  * A plain `<button>`, not `<Button size="icon">`: the panel headers are 40px
  * tall and every other control there is a 28px hit box, which the shared sizes
  * (`icon` = 40px) would overflow.
+ *
+ * v0.7.9 §5：`title` 换成统一的 Tooltip —— 同一个提示在工坊里只该有一种长相。
  */
 export function RefreshButton({
   onRefresh,
@@ -31,20 +34,24 @@ export function RefreshButton({
   className,
 }: RefreshButtonProps): JSX.Element {
   return (
-    <button
-      type="button"
-      title={refreshing ? `${label}中…` : label}
-      aria-label={label}
-      aria-busy={refreshing || undefined}
-      disabled={refreshing}
-      onClick={onRefresh}
-      className={cn(
-        PANEL_ICON_BUTTON_CLASS,
-        'shrink-0 disabled:pointer-events-none disabled:opacity-60',
-        className,
-      )}
-    >
-      <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          aria-busy={refreshing || undefined}
+          disabled={refreshing}
+          onClick={onRefresh}
+          className={cn(
+            PANEL_ICON_BUTTON_CLASS,
+            'shrink-0 disabled:pointer-events-none disabled:opacity-60',
+            className,
+          )}
+        >
+          <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom">{refreshing ? `${label}中…` : label}</TooltipContent>
+    </Tooltip>
   );
 }

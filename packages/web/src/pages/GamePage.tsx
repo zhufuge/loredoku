@@ -27,6 +27,7 @@ import {
   type MapDraft,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import {
   Dialog,
   DialogContent,
@@ -762,15 +763,14 @@ export function GamePage(): JSX.Element {
             {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
                 v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
             <div className="flex items-center gap-1">
-              <Button
+              <IconButton
                 variant="ghost"
-                size="icon"
+                icon={<ArrowLeft className="h-4 w-4" />}
+                label="返回游戏列表"
+                side="right"
                 className={TOOLBAR_ICON_HOVER_CLASS}
                 onClick={() => navigate('/play')}
-                title="返回游戏列表"
-              >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
+              />
               <BrandLogo height={16} />
               {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
               <ThemeToggle className="ml-auto" />
@@ -1047,55 +1047,47 @@ export function GamePage(): JSX.Element {
 
           {/* v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。 */}
           <div className="mt-1 flex w-full flex-col items-center gap-1 border-t pt-2">
-            <Button
+            <IconButton
               variant="ghost"
-              size="icon"
+              icon={<Plus className="h-4 w-4" />}
+              label="放大"
+              side="right"
               className={TOOLBAR_ICON_HOVER_CLASS}
-              title="放大"
-              aria-label="放大"
               disabled={zoom >= ZOOM_MAX}
               onClick={() => zoomBy(1)}
-            >
-              <Plus className="h-4 w-4" />
-            </Button>
-            <span className="w-full text-center text-[10px] tabular-nums text-muted-foreground">
+            />
+            <span className="w-full text-center text-2xs tabular-nums text-muted-foreground">
               {Math.round(zoom * 100)}%
             </span>
-            <Button
+            <IconButton
               variant="ghost"
-              size="icon"
+              icon={<Minus className="h-4 w-4" />}
+              label="缩小"
+              side="right"
               className={TOOLBAR_ICON_HOVER_CLASS}
-              title="缩小"
-              aria-label="缩小"
               disabled={zoom <= ZOOM_MIN}
               onClick={() => zoomBy(-1)}
-            >
-              <Minus className="h-4 w-4" />
-            </Button>
-            <Button
+            />
+            <IconButton
               variant="ghost"
-              size="icon"
+              icon={<RotateCcw className="h-4 w-4" />}
+              label="重置视图"
+              side="right"
               className={TOOLBAR_ICON_HOVER_CLASS}
-              title="重置视图"
-              aria-label="重置视图"
               onClick={fit}
-            >
-              <RotateCcw className="h-4 w-4" />
-            </Button>
-            <Button
+            />
+            <IconButton
               variant="ghost"
-              size="icon"
+              icon={<Ruler className="h-4 w-4" />}
+              label="显示 / 隐藏标尺"
+              side="right"
               className={cn(showRulers ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS)}
-              title="显示 / 隐藏标尺"
-              aria-label="显示 / 隐藏标尺"
               onClick={() => setShowRulers((current) => !current)}
-            >
-              <Ruler className="h-4 w-4" />
-            </Button>
+            />
           </div>
 
           {/* SPEC-G04 §6.4: step counter */}
-          <div className="mt-auto w-full border-t pt-2 text-center text-[10px] leading-relaxed text-muted-foreground">
+          <div className="mt-auto w-full border-t pt-2 text-center text-2xs leading-relaxed text-muted-foreground">
             已放置 {countPlacements(placementState.board)} 个
             <br />
             可回退 {undoSteps} 步
@@ -1120,7 +1112,7 @@ export function GamePage(): JSX.Element {
           <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
             {validationIssues?.map((issue, index) => (
               <li key={`${issue.participantId}-${issue.code}-${index}`} className="flex gap-2">
-                <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-[10px] text-destructive">
+                <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-2xs text-destructive">
                   {issue.code === 'unplaced'
                     ? '未放置'
                     : issue.code === 'row'

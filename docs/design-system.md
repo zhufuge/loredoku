@@ -16,8 +16,8 @@
 三层结构，越往下越不该越权：
 
 ```
-① Token     index.css 的 HSL 变量 + tailwind.config.ts 的映射      ← 只覆盖「颜色 + 圆角」
-② 基础组件   components/ui/*（14 个，shadcn 体系）                  ← 变体由 cva 定义
+① Token     index.css 的 HSL 变量 + tailwind.config.ts 的映射      ← 颜色 / 圆角 / 两层阴影 / 字号
+② 基础组件   components/ui/*（16 个，shadcn 体系）                  ← 变体由 cva 定义
 ③ 组合模式   面板 / 抽屉 / 工具条 / 列表行 / 空状态                   ← 靠 className 拼，无组件封装
 ```
 
@@ -27,7 +27,8 @@
    现在只剩弹窗遮罩的 `bg-black/60`。
 2. **状态用 `success` / `warning` / `destructive`，元信息用 `secondary`** —— 别写
    `amber-100` / `emerald-600` 这类定色，也别给「v3」这种名词染状态色（§1.1）。
-3. **字号没有 token，也没有梯级** —— 实际是 10px / 11px / `text-xs`(12) / `text-sm`(14) 四档混用，见 §4.1。
+3. **字号有六档**（11 / 12 / 14 / 16 / 18 / 24）：微文字用 `text-2xs`，正文只有 `text-sm`，
+   **不要再写 `text-[Npx]`**（§4.1）。
 4. 想改观感：改 `index.css` 的两套变量，不要改组件。改一处漏一处，深色模式立刻留白疤。
 5. 作品内容（地图背景、资源色块、区域色、区域标签字体、画布高亮）**不随主题变**，它们不是皮肤。
 6. 浮层层级用 `UI_Z`（`shared/constants.ts`），别写 `z-*`；唯一例外是导航栏，见 §5.3。
@@ -43,19 +44,20 @@
 全部定义在 `packages/web/src/index.css` 的 `:root` / `.dark`，以 **HSL 三元组**（无 `hsl()` 外壳）
 书写，由 `tailwind.config.ts` 映射成 `hsl(var(--x))`。
 
-**调色板是「墨 · 宣 · 靛 · 绛」**（v0.7.8 换的，原来那套是 shadcn 默认冷蓝）：
+**调色板是「墨 · 宣 · 靛 · 绛」**（v0.7.8 换的，原来那套是 shadcn 默认冷蓝；v0.7.9 把凹面与
+说明文字各压深一档 —— 见下面带 v0.7.9 标记的三行）：
 
 | 语义名 | 浅色 `hsl()` | hex | 深色 `hsl()` | hex | 用在哪 |
 |---|---|---|---|---|---|
-| `background` | 40 30% 96.5% | `#F9F7F3` | 28 12% 9% | `#1A1714` | 页面底（宣纸 / 夜墨） |
+| `background` | 40 30% 96% | `#F8F6F2` | 28 12% 9% | `#1A1714` | 页面底（宣纸 / 夜墨） |
 | `foreground` | 28 14% 12% | `#231E1A` | 38 20% 92% | `#EFECE7` | 正文、标题（墨） |
 | `card` / `popover` | 40 45% 99% | `#FEFDFB` | 28 12% 12% | `#221E1B` | 卡片、弹层（比底色亮一档，纸叠纸） |
 | `primary` | 205 45% 36% | `#326385` | 202 42% 62% | `#75A9C7` | 主按钮、链接、选中环（石青 / 靛） |
 | `primary-hover` | 205 45% 29% | — | 202 42% 70% | — | 主按钮悬停（**不要用 `/90` 降透明替代**） |
 | `secondary` | 38 22% 89% | `#E9E5DD` | 30 9% 19% | `#35302C` | 次级按钮、元信息徽标 |
-| `muted` | 40 24% 94% | `#F3F1EC` | 30 9% 16% | `#2C2925` | 弱底（缩略图占位、代码块） |
-| `muted-foreground` | 30 9% 41% | `#72695F` | 34 10% 62% | `#A89F94` | 说明文字、副标题、占位符 |
-| `accent` | 38 26% 87% | `#E6E0D5` | 30 9% 22% | `#3D3833` | ghost / outline 按钮悬停 |
+| `muted` | 40 24% 92% | `#EFECE6` | 30 9% 16% | `#2C2925` | 弱底（缩略图占位、代码块）——**凹面**，必须比纸底深得看得出来 |
+| `muted-foreground` | 30 9% 37% | `#675E56` | 34 10% 64% | `#ACA49A` | 说明文字、副标题、占位符（v0.7.9 抬到 4.67 起，见 §1.1 末） |
+| `accent` | 38 26% 85.5% | `#E4DDD0` | 30 9% 22% | `#3D3833` | ghost / outline 按钮悬停、列表行悬停 |
 | `destructive` | 2 58% 46% | `#B93631` | 2 52% 62% | `#D06F6C` | 删除类操作（绛，同时当文字与填充） |
 | `success` | 152 38% 30% | `#2F6A4E` | 150 32% 62% | `#7FBD9E` | 已启用 / 已发布 / 已部署 / 复制成功（竹青） |
 | `warning` | 28 72% 32% | `#8C4E17` | 34 65% 62% | `#DDA65F` | 未保存 / 路径失效（赭石） |
@@ -86,23 +88,39 @@
 **导航选中态**是全站唯一的彩色 chrome：`bg-primary/10 text-primary`（v0.7.8）。
 工具条不跟 —— 画布上已经有 primary 的选框，两处都染色会打架。
 
+**说明文字的对比度下限**（v0.7.9 §3）：`text-muted-foreground` 在**悬停底**（`hover:bg-accent`）
+上是最苛刻的一格 —— 列表行悬停时描述文字就落在那里。调 `accent` / `muted` 之前先量这一格，
+当前 4.67（浅）/ 4.72（深）；纸底 5.85、卡片 6.21。
+
 **作品内容色不在这里**：地图背景、资源色块、区域色、画布上的搜索高亮（`HIGHLIGHT_BLUE`）、
 按亮度选的黑/白文字，都属于作者的作品，**不随主题变**。判据 §0 第 4 条。
 
 ### 1.2 圆角
 
 ```css
---radius: 0.5rem;   /* lg = 8px · md = 6px · sm = 4px */
+--radius: 0.375rem;   /* lg = 6px · md = 4px · sm = 2px */
 ```
 
+v0.7.9 §3：从 8px 压到 6px —— 8px 圆角配通用投影是 SaaS 卡片的配方。三级台阶各差 2px，
+形状开始像「切出来的纸边」。
+
 代码里实际出现四档：`rounded-lg`（卡片、对话框）、`rounded-md`（按钮、输入、tab）、
-`rounded`（4px，图标按钮、小徽标）、`rounded-full`（芯片、圆点、头像）。
+`rounded`（4px，图标按钮、小徽标 —— 不随 `--radius` 变）、`rounded-full`（芯片、圆点、头像）。
 
 ### 1.3 字体
 
-**界面字体**：`tailwind.config.ts` **没有配置 `fontFamily`**，所以走 Tailwind 默认
-`ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto …`。也就是说，工坊界面目前
-**没有任何自定义字体**，完全依赖系统中文字体（Windows 上落微软雅黑 / macOS 上苹方）。
+**界面字体**：`tailwind.config.ts` 没有配置 `fontFamily`，正文走 Tailwind 默认的
+`ui-sans-serif, system-ui …`（Windows 落微软雅黑 / macOS 落苹方）。
+
+**唯一的例外是 `.font-kai`**（v0.7.9 §4）：`PageHeader` 的 `h1` 与 404 的 `h1` 用霞鹜文楷。
+
+```css
+.font-kai { font-family: '霞鹜文楷', 'Kaiti SC', … , ui-serif, serif; font-synthesis-weight: none; }
+```
+
+`font-synthesis-weight: none` 是必须的 —— 文楷只有 400 一档，浏览器给粗体做的「糊边加粗」
+会让楷体笔画糊成一团。标题的重量交给字号（24px），不交给字重。**别再往正文上铺楷体**：
+那是「廉价国风」那一端。
 
 **作品字体**（只作用于地图上的区域标签，不进界面皮肤）：
 
@@ -114,17 +132,20 @@
 
 ### 1.4 阴影
 
-有一套**四级梯级**，按「离地高度」用，不是随手挑的：
+**两层，都是暖色**（v0.7.9 §3）：Tailwind 的 `shadow-sm/md/lg/xl` 用的是 `rgb(0 0 0 / α)`，
+黑影子落在米黄纸上会发灰发脏。取值在 `index.css` 的变量里，明暗各一套：
 
-| 级别 | 用在哪 |
-|---|---|
-| `shadow-sm` | `Card`、资源瓦片悬停、参与人头像徽标（贴地的一层） |
-| `shadow-md` | `EntryActionsMenu` 下拉、`GameCard` 悬停（可点、浮起一格） |
-| `shadow-lg` | `Dialog` / `AlertDialog` 本体；编辑器底部的**浮动胶囊工具条**（`EditorBottomBar` / `PuzzleBottomBar` / `RegionSelectionBar`） |
-| `shadow-xl` | 三个右侧抽屉（`EditorInfoDrawer` / `PuzzleInfoDrawer` / `ParticipantDrawer`），配 `bg-background/95` + `backdrop-blur` |
+| Token | CSS 变量 | 语义 | 用在哪 |
+|---|---|---|---|
+| `shadow-paper` | `--shadow-card` | 静置的纸：一条贴边接触影 | `Card`、资源瓦片悬停、参与人头像 |
+| `shadow-lifted` | `--shadow-float` | 离开纸面：接触影 + 大范围扩散 | `Dialog` / `AlertDialog`、三个右侧抽屉、底部胶囊工具条、`EntryActionsMenu`、`GameCard` 悬停 |
 
-规律：**整块面板不浮（靠 `border`），只有「临时浮在画布上/模态之上」的东西才给阴影**。
-新加面板/分区时不要顺手 `shadow-md`，那会破坏这条「越临时越浮」的语义。
+规律没变：**整块面板不浮（靠 `border` + 底色差），只有「临时浮在画布上 / 模态之上」的东西才给
+阴影**。新加面板时不要顺手 `shadow-paper`，那会破坏「越临时越浮」的语义。
+
+> 不要写 `shadow-[var(--shadow-card)]`：Tailwind 的任意值阴影**先判断是不是颜色**，`var(...)`
+> 分不出来，会编译成 `--tw-shadow-color` —— 类存在、产物里查得到、页面上没有阴影。
+> 必须走 `theme.boxShadow`（与 `/12` 同一种静默失败，见 §1.1）。
 
 ### 1.5 层级（z-index）
 
@@ -139,7 +160,7 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 
 ---
 
-## 2. 基础组件（`components/ui/`，14 个）
+## 2. 基础组件（`components/ui/`，16 个）
 
 | 组件 | 变体 / 尺寸 | 要点 |
 |---|---|---|
@@ -154,6 +175,8 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 | `dialog` | — | **禁止点遮罩关闭**（`AGENTS.md` §3.2 硬约定） |
 | `alert-dialog` | — | 破坏性操作专用，二段式确认 |
 | `skeleton` | — | 加载占位，列表页在 `isLoading` 时铺 |
+| `icon-button` | — | **纯图标按钮的唯一写法**（v0.7.9 §5）。`label` 同时当悬浮提示和 `aria-label`，`shortcut` 挂在提示右侧，`side` 决定方向（底栏用 `top`） |
+| `tooltip` | — | Radix Tooltip，**自带 Provider**（缺 Provider 会抛错）。portal 到 body，因此能穿过 `overflow-hidden` 的面板；`z-[60]`（压在 `z-50` 的对话框之上，不靠挂载顺序）；提示文案是 `text-2xs` + `shadow-lifted` |
 | `sonner` | — | toast，`toast.success('图片已上传')` 这类句式 |
 | `virtual-list` | — | 长列表虚拟化（资源 / 角色面板） |
 
@@ -205,6 +228,14 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 - 抽屉用 `UI_Z.drawer`，信息框用 `UI_Z.infoDrawer`。
 
 ### 3.4 工具条图标按钮（三态）
+
+> v0.7.9 §5：图标按钮一律走 `<IconButton>`（`components/ui/icon-button.tsx`），
+> 不再手写 `title` + `<Button size="icon">`。下面这组底色常量仍然由 `IconButton` 的
+> `className` 传进去。
+>
+> **三条例外**（此时回到 `<Button size="icon">` + `title`/`aria-label`）：
+> 24px 行内微按钮（抽屉 / 对话框列表行里、且多数只在 hover 时出现——提示会跟着按钮一起闪）、
+> 分段控件（互斥且状态即信息，用 `aria-pressed`，不套提示）、分页箭头（`‹ ›` 只有一义）。
 
 `lib/toolbarButtons.ts` 集中了工具条 / 面板按钮的三个常量（v0.7.8 起全部走语义 token，
 调用处不再出现 `dark:`）：
@@ -279,30 +310,37 @@ PANEL_ICON_BUTTON_CLASS   = 'flex h-7 w-7 items-center justify-center rounded te
 
 ### 4.1 字号
 
-| 值 | 命中行数 | 典型用途 |
+**六档，v0.7.9 §4 定下来的**。这一栏以前记的是「事实上 4 档混用、没有 token」，现在反过来：
+token 是唯一入口。
+
+| Token | 字号 / 行高 | 用途 |
 |---|---|---|
-| `text-[11px]` | **53** | 面板小标签、元信息、抽屉里的紧凑行 |
-| `text-[10px]` | **27** | 徽标、角标、`xx · yy` 这类极小的分隔信息 |
-| `text-xs`（12） | 大量 | 说明文字、次要信息 |
-| `text-sm`（14） | 大量 | 正文、表单、按钮 |
-| `text-base` / `lg` / `xl` / `2xl` | 少量 | 页面标题、卡片标题 |
+| `text-2xs` | 11 / 16 | 徽标、计数（`草稿 12`）、`格`、快捷键提示 |
+| `text-xs` | 12 / 16 | 元信息：时间、尺寸、描述、卡片副标题 |
+| `text-sm` | 14 / 20 | **正文、按钮、表单、列表主行**（唯一正文档） |
+| `text-base` | 16 / 24 | 列表页的 section 标题 |
+| `text-lg` | 18 / 28 | 对话框标题 |
+| `text-2xl` | 24 / 32 | 页标题（`PageHeader` 的 `h1`，用 `.font-kai`） |
 
-11px 是**事实上最常用的微文字档**，但它既不是 `text-xs` 也不是 `text-sm` —— 也就是说
-设计系统里存在一个真实档位却没有 token。改动前请先决定「11px 要不要收编成 `text-2xs`」，
-不要在新增代码里再随手写 px。
-
-**徽标（圆角底色小标签）从 v0.7.8 起统一为 `px-1.5 py-0.5 text-[11px]`** —— 列表行、
-网格卡、页面头、版本对话框都按这一档，不再有 10px 的徽标。`10px` 现在只剩零星角标。
+- **不再写 `text-[Npx]`**。10px 已全部并入 11px（中文 10px 在 1x 屏上已经在糊，而 10 与 11
+  之间从来没有语义分工）。
+- 唯一在梯级外的是 `GenderBadge` 的 ♂/♀ **符号** 13px —— 12 会缩成小点、14 会抢过徽标文字，
+  代码注释里标了它是「光学尺寸，不是文字档位」。
+- 徽标是 `px-1.5 py-0.5 text-2xs`。
 
 ### 4.2 控件高度
 
-| 高度 | 用途 |
-|---|---|
-| 24（`h-6`） | 芯片上的小 `×` |
-| 28（`h-7`） | 工具条 / 面板图标按钮（**标准档**） |
-| 32（`h-8`） | 搜索框、紧凑输入 |
-| 36（`h-9`） | `Button size="sm"`、`Select`、主题切换 |
-| 40（`h-10`） | `Button` 默认、`Input`、`Button size="icon"` |
+**四档，且只允许四档**（v0.7.9 §1.3）：
+
+| 档 | 值 | 用途 |
+|---|---|---|
+| T1 | 28（`h-7`） | 面板 / 抽屉里的图标按钮（`PANEL_ICON_BUTTON_CLASS`） |
+| T2 | 32（`h-8`） | 工具条图标按钮、分段控件内的按钮、分页箭头 |
+| T3 | 36（`h-9`） | 紧凑文字按钮（`size="sm"`）、底栏胶囊按钮、主题切换 |
+| T4 | 40（`h-10`） | 标准控件：`Input`、`Select`、主按钮、`size="icon"` |
+
+24px（`h-6`）只允许出现在**底栏芯片内的 `×`** 这类附在别的东西上的小符号，不作为独立控件；
+`LinkageDialog` 里那 6 个 24px 片段按钮已经在 v0.7.9 升到 T1。
 
 ### 4.3 间距
 
@@ -324,14 +362,17 @@ PANEL_ICON_BUTTON_CLASS   = 'flex h-7 w-7 items-center justify-center rounded te
 
 | # | 项 | 位置 | 为什么算债 | 改的代价 |
 |---|---|---|---|---|
-| 5.1 | **约 80 行魔法字号** `text-[10px]` / `text-[11px]` | 30 个文件 | 上面 §4.1：有档位无 token，新增代码会继续发散 | 中：可先在 `index.css` 加 `--fs-2xs` 工具类，再批量替换 |
+| ~~5.1~~ | ~~约 80 行魔法字号~~ | — | **已解决（v0.7.9 §4）**：`text-2xs` token 收编 81 处，10px 并入 11px，六档梯级见 §4.1 | — |
 | ~~5.2~~ | ~~slate 定色~~ | — | **已解决（v0.7.8 §1）**：改为 `--toolbar*` token，调用处不再出现 `dark:` | — |
 | 5.3 | **导航栏 `z-30`** | `AppShell.tsx` | 绕过 `UI_Z`，且数值与 `UI_Z.drawer` 相同 | 中（v0.7.8 评估后上调）：改错会真盖住抽屉，需先理清堆叠上下文 |
 | ~~5.4~~ | ~~Input 40px vs Select 36px~~ | — | **已解决（v0.7.8 §3）**：`Select` 改为 `h-10` + `ring-2`，与 `Input` 逐项对齐 | — |
 | ~~5.5~~ | ~~冷蓝调色板~~ | — | **已解决（v0.7.8 §11）**：换成「墨 · 宣 · 靛 · 绛」，中性色转暖、primary 改石青、新增强度合适的 `success` / `warning` | — |
 | 5.6 | **卡片与分隔线两套并存** | 卡片 4 处、`border p-*` 12 处、`border-b` 为主 | 观感不统一（少量圆角卡片浮在边线分隔的版式里） | 低：先约定「列表行用分隔线、对话框内分组用卡片」 |
 | 5.7 | **表单 `Label` 没有 `htmlFor`** | `<Label>名称</Label>` + 相邻 `<Input>` 的写法遍布所有表单 | 标签与输入框没有程序化关联：点标签不能聚焦，屏幕阅读器读不出「这是哪个字段」 | 中大：30+ 处，需逐个加 `useId` + `htmlFor`（或改成把控件包进 `Label`） |
-| 5.8 | **`--radius: 0.5rem` 偏软** | `index.css` | 8px 圆角是 SaaS 的默认值，与「纸 / 木」的手感不一致；`.impeccable.md` 记着可压到 0.25–0.375 | 低-中：只改一个变量，但等于改所有组件的观感，需要逐页目检 |
+| ~~5.8~~ | ~~`--radius: 0.5rem` 偏软~~ | — | **已解决（v0.7.9 §3）**：压到 `0.375rem`（6px），三级台阶各差 2px | — |
+| 5.9 | **剩余 `title=` 96 处** | 列表行、部署页、若干截断文本 | 大多数是「被截断文本的补全」，合理的；`IconButton` 已覆盖 54 处，余下 17 个图标按钮按 §3.4 的三条例外保留 | 低：外链那枚是 `<a target="_blank">`，换掉要先定「中键新标签页」怎么保留 |
+| 5.10 | **编辑器零响应式** | `EditorLeftPanel` 280 + 画布 + 抽屉 320 | 1024 宽时画布只剩 424px，窄屏没有降级提示 | 中：要先决定「窄屏收起左面板，还是干脆给一句提示」 |
+| 5.11 | **`VirtualList` 固定 480px** | `components/ui/virtual-list.tsx` | 1366×768 上左栏底部落在折线以下；主从页在窄屏堆叠时，详情表单排在 480px 滚动区之后 | 中：改成视口自适应会牵动主从页的高度契约 |
 
 > 5.6 容易被高估：初稿曾记为「大量卡片层层嵌套」，实测 `rounded-lg border` 只有 4 处，
 > 主力是 `border-b` 分隔的面板与行。所以这条债的真实分量是**版式语言不统一**，
@@ -351,8 +392,11 @@ PANEL_ICON_BUTTON_CLASS   = 'flex h-7 w-7 items-center justify-center rounded te
 - [ ] 页面根是 `space-y-6` 吗？工具条与列表有没有包进 `space-y-4`？
 - [ ] 网格列数超过 4 了吗？（正文上限 1280，再多列只会压窄卡片）
 - [ ] 新增「行列表」时，列宽套的是 §3.5 那张表吗？
-- [ ] 字号是从 §4.1 的既有档位里挑的，还是又写了一个新 px？
-- [ ] 徽标是 `px-1.5 py-0.5 text-[11px]` 吗？（§4.1 的统一档）
+- [ ] 字号是从 §4.1 的六档里挑的吗？有没有又写 `text-[Npx]`？
+- [ ] 徽标是 `px-1.5 py-0.5 text-2xs` 吗？
+- [ ] 纯图标按钮用的是 `<IconButton>`（`label` 一个真源）吗？还在手写 `title` 吗？（§3.4）
+- [ ] 新的浮层给的是 `shadow-paper` 还是 `shadow-lifted`？面板不该浮起来（§1.4）
+- [ ] 控件高度落在 28 / 32 / 36 / 40 四档里吗？（§4.2）
 - [ ] 下拉用的是 `<Select>` 吗？有没有又手写 `<select>`？（§2）
 - [ ] 面板图标按钮用的是 `PANEL_ICON_BUTTON_CLASS` 吗？（§3.4）
 - [ ] 图标按钮是 28px 档吗？有没有误用 `size="icon"`（40px）顶破 40px 高的面板头？

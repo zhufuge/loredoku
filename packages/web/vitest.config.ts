@@ -10,6 +10,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
+    setupFiles: ['./src/testing/actEnvironment.ts'],
     alias: {
       '@': path.resolve(__dirname, './src'),
       '@loredoku/shared': path.resolve(__dirname, '../shared/src'),

@@ -121,7 +121,7 @@ export function RegionStyleEditor({
       </Row>
 
       <div className="space-y-1.5 rounded-md border p-2">
-        <span className="flex items-center text-[11px] font-medium">
+        <span className="flex items-center text-2xs font-medium">
           <span>区域标签</span>
           <Hint text="Region Label — 区域名称文字，采用「描边 + 填充」绘制，在深浅背景上都可读。" />
         </span>

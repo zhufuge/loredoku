@@ -26,11 +26,14 @@ export function GenderBadge({ gender, withLabel = false }: GenderBadgeProps): JS
   const color = GENDER_SYMBOL_COLORS[key];
   return (
     <span
-      className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+      className="inline-flex items-center gap-1 rounded bg-muted px-1.5 py-0.5 text-2xs text-muted-foreground"
       title={`性别：${label}`}
     >
       <span
         aria-hidden
+        /* v0.7.9 §4：这是**符号的光学尺寸**，不是文字档位 —— 全站字号梯级里
+           没有 13px，但 ♂ / ♀ 的字面高度比同号汉字矮一大截，12px 会缩成一个小点，
+           14px 又会比旁边的徽标文字还抢眼。图钉在 13px + 700，等宽不参与梯级。 */
         className="text-[13px] leading-none"
         // v0.3.10 FIX-F06: the ♂ / ♀ glyph is drawn thin by default and reads
         // blurry at 13px, so it is explicitly bolded (colour unchanged).

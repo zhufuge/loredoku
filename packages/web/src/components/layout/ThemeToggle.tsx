@@ -1,5 +1,5 @@
 import { Monitor, Moon, Sun } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 import type { ThemeMode } from '@/lib/theme';
@@ -27,19 +27,16 @@ export function ThemeToggle({ className }: ThemeToggleProps): JSX.Element {
   const label = `主题：${MODE_LABEL[mode]}（点击切换）`;
 
   return (
-    <Button
+    <IconButton
       type="button"
       variant="ghost"
-      size="icon"
+      icon={<Icon className="h-4 w-4" />}
+      label={label}
       className={cn('shrink-0', className)}
       onClick={cycle}
-      title={label}
-      aria-label={label}
       data-testid="theme-toggle"
       data-theme-mode={mode}
       data-theme-resolved={resolved}
-    >
-      <Icon className="h-4 w-4" />
-    </Button>
+    />
   );
 }

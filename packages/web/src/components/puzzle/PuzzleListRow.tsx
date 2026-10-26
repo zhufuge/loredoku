@@ -1,6 +1,6 @@
 import { Copy, Eye, Pencil, Rocket, SquarePen, Trash2 } from 'lucide-react';
 import type { PuzzleEntrySummary } from '@loredoku/shared';
-import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { entryPreviewable, entryPreviewTitle } from '@/components/common/EntryActionsMenu';
 import { formatDateTime } from '@/lib/format';
 
@@ -89,7 +89,7 @@ export function PuzzleListRow({
       {/* 部署列：固定宽度，两块都占位，行宽才对得上。 */}
       <span className="w-16 shrink-0">
         {entry.deployed ? (
-          <span className="rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
+          <span className="rounded bg-success/10 px-1.5 py-0.5 text-2xs text-success">
             已部署
           </span>
         ) : null}
@@ -109,48 +109,51 @@ export function PuzzleListRow({
       </span>
       <div className="flex w-40 shrink-0 items-center justify-end gap-1">
         {!isVersion ? (
-          <Button size="icon" variant="ghost" title="编辑信息" onClick={() => onRename(entry)}>
-            <Pencil className="h-4 w-4" />
-          </Button>
+          <IconButton
+            variant="ghost"
+            icon={<Pencil className="h-4 w-4" />}
+            label="编辑信息"
+            onClick={() => onRename(entry)}
+          />
         ) : null}
-        <Button
-          size="icon"
+        <IconButton
           variant="ghost"
-          title={entryPreviewTitle(entry)}
+          icon={<Eye className="h-4 w-4" />}
+          label={entryPreviewTitle(entry)}
           disabled={!previewable}
           onClick={() => onPreview(entry)}
-        >
-          <Eye className="h-4 w-4" />
-        </Button>
+        />
         {isVersion ? (
-          <Button size="icon" variant="ghost" title="编辑此版本" onClick={() => onEdit(entry)}>
-            <SquarePen className="h-4 w-4" />
-          </Button>
+          <IconButton
+            variant="ghost"
+            icon={<SquarePen className="h-4 w-4" />}
+            label="编辑此版本"
+            onClick={() => onEdit(entry)}
+          />
         ) : null}
         {!isVersion ? (
-          <Button size="icon" variant="ghost" title="复制" onClick={() => onDuplicate(entry)}>
-            <Copy className="h-4 w-4" />
-          </Button>
+          <IconButton
+            variant="ghost"
+            icon={<Copy className="h-4 w-4" />}
+            label="复制"
+            onClick={() => onDuplicate(entry)}
+          />
         ) : null}
         {isVersion ? (
-          <Button
-            size="icon"
+          <IconButton
             variant="ghost"
-            title={entry.deployed ? '重新部署为游戏' : '部署为游戏'}
+            icon={<Rocket className="h-4 w-4" />}
+            label={entry.deployed ? '重新部署为游戏' : '部署为游戏'}
             onClick={() => onDeploy(entry)}
-          >
-            <Rocket className="h-4 w-4" />
-          </Button>
+          />
         ) : null}
-        <Button
-          size="icon"
+        <IconButton
           variant="ghost"
-          title="删除"
+          icon={<Trash2 className="h-4 w-4" />}
+          label="删除"
           className="text-destructive hover:text-destructive"
           onClick={() => onDelete(entry)}
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        />
       </div>
     </div>
   );

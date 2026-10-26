@@ -55,9 +55,10 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
   /** 确认弹窗（Radix AlertDialog）portal 到 `document.body`，所以读整页文本。 */
   const text = (): string => document.body.textContent ?? '';
 
-  const clickButton = (title: string): void => {
+  // v0.7.9 §5：图标按钮的唯一真源是 aria-label（提示由 Tooltip 呈现），定位随之改。
+  const clickButton = (label: string): void => {
     const found = Array.from(container.ownerDocument.querySelectorAll<HTMLButtonElement>('button'))
-      .find((node) => node.getAttribute('title') === title);
+      .find((node) => node.getAttribute('aria-label') === label);
     act(() => found?.click());
   };
 

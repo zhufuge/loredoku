@@ -100,7 +100,7 @@ export function NumberField({
         }}
         className="h-7 w-16 text-xs tabular-nums"
       />
-      {suffix ? <span className="text-[10px] text-muted-foreground">{suffix}</span> : null}
+      {suffix ? <span className="text-2xs text-muted-foreground">{suffix}</span> : null}
     </div>
   );
 }
@@ -147,7 +147,7 @@ export function ColorField({
             flush();
           }
         }}
-        className="h-7 w-24 font-mono text-[11px]"
+        className="h-7 w-24 font-mono text-2xs"
       />
     </div>
   );
@@ -182,7 +182,7 @@ export function Row({
 }): JSX.Element {
   return (
     <div className="flex items-center justify-between gap-2">
-      <Label className="flex items-center text-[11px] font-normal text-muted-foreground">
+      <Label className="flex items-center text-2xs font-normal text-muted-foreground">
         <span>{label}</span>
         {hint ? <Hint text={hint} /> : null}
       </Label>

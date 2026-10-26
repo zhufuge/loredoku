@@ -76,18 +76,18 @@ export function PuzzleVersionHistoryDialog({
                   <div className="flex items-center gap-2">
                     <span className="font-medium tabular-nums">v{version.versionNo}</span>
                     {version.versionNo === currentVersionNo ? (
-                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary">
+                      <span className="rounded bg-primary/10 px-1.5 py-0.5 text-2xs text-primary">
                         当前
                       </span>
                     ) : null}
                     {version.deployed ? (
-                      <span className="rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success">
+                      <span className="rounded bg-success/10 px-1.5 py-0.5 text-2xs text-success">
                         已部署
                       </span>
                     ) : null}
                   </div>
                   <div className="truncate text-xs text-muted-foreground">{version.name}</div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-2xs text-muted-foreground">
                     {formatDateTime(version.publishedAt ?? version.createdAt)} ·{' '}
                     {version.gridSize} × {version.gridSize}
                   </div>

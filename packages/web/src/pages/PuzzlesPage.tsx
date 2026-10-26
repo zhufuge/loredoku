@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { LayoutGrid, List, Loader2, Plus, Search } from 'lucide-react';
+import { Loader2, Plus, Search } from 'lucide-react';
 import type { MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -17,9 +17,11 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { entryPreviewable } from '@/components/common/EntryActionsMenu';
+import { ListPager } from '@/components/common/ListPager';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { CreatePuzzleDialog } from '@/components/puzzle/CreatePuzzleDialog';
 import { EditPuzzleDialog } from '@/components/puzzle/EditPuzzleDialog';
+import { ViewToggle } from '@/components/common/ViewToggle';
 import { PuzzleGridCard } from '@/components/puzzle/PuzzleGridCard';
 import { PuzzleListRow } from '@/components/puzzle/PuzzleListRow';
 import { GameDeployDialog } from '@/components/game/GameDeployDialog';
@@ -30,18 +32,12 @@ import {
   useDuplicatePuzzle,
   usePuzzles,
 } from '@/hooks/usePuzzles';
+import { useStoredView, type ViewMode } from '@/hooks/useStoredView';
 
 const PAGE_SIZE = 12;
 
 /** 视图选择持久化 —— 纯展示偏好，与地图列表各记各的。 */
 const VIEW_STORAGE_KEY = 'loredoku.puzzles.view';
-
-type ViewMode = 'grid' | 'list';
-
-function readStoredView(): ViewMode {
-  if (typeof window === 'undefined') return 'grid';
-  return window.localStorage.getItem(VIEW_STORAGE_KEY) === 'list' ? 'list' : 'grid';
-}
 
 type SortOption = 'updatedAt' | 'name';
 
@@ -63,7 +59,7 @@ export function PuzzlesPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState<SortOption>('updatedAt');
-  const [view, setView] = useState<ViewMode>(readStoredView);
+  const [view, setView] = useStoredView(VIEW_STORAGE_KEY);
   /** `?new={mapId}:{versionNo}` —— 从地图列表「以此版本新建谜题」过来。 */
   const [createOpen, setCreateOpen] = useState(() => searchParams.get('new') !== null);
   const [editTarget, setEditTarget] = useState<PuzzleEntrySummary | null>(null);
@@ -74,12 +70,6 @@ export function PuzzlesPage(): JSX.Element {
   useEffect(() => {
     document.title = '谜题 · 格物';
   }, []);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(VIEW_STORAGE_KEY, view);
-    }
-  }, [view]);
 
   const resetPages = (): void => {
     setDraftPage(1);
@@ -194,38 +184,6 @@ export function PuzzlesPage(): JSX.Element {
 
   const deleting = deleteMutation.isPending || deleteVersionMutation.isPending;
 
-  function renderPager(
-    page: number,
-    totalPages: number,
-    total: number,
-    onPage: (next: number) => void,
-  ): JSX.Element | null {
-    if (totalPages <= 1) return null;
-    return (
-      <div className="flex items-center justify-end gap-3 text-sm text-muted-foreground">
-        <span>
-          第 {page} / {totalPages} 页 · 共 {total} 个
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => onPage(Math.max(1, page - 1))}
-        >
-          上一页
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= totalPages}
-          onClick={() => onPage(Math.min(totalPages, page + 1))}
-        >
-          下一页
-        </Button>
-      </div>
-    );
-  }
-
   const rowProps = {
     onOpen: handleOpen,
     onEdit: handleEdit,
@@ -235,6 +193,38 @@ export function PuzzlesPage(): JSX.Element {
     onPreview: handlePreview,
     onDeploy: handleDeploy,
   };
+
+  /**
+   * v0.7.9 §1.1（修正）：两块共用一套渲染，但**视图不同** —— 草稿跟着开关走，
+   * 版本恒为列表（与地图页同构）。
+   */
+  function renderOrderBlock(
+    entries: PuzzleEntrySummary[],
+    page: number,
+    totalPages: number,
+    onPage: (next: number) => void,
+    keyPrefix: 'draft' | 'version',
+    viewMode: ViewMode,
+  ): JSX.Element {
+    return (
+      <>
+        {viewMode === 'list' ? (
+          <Card className="overflow-hidden">
+            {entries.map((entry) => (
+              <PuzzleListRow key={`${keyPrefix}-${entry.id}`} entry={entry} {...rowProps} />
+            ))}
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {entries.map((entry) => (
+              <PuzzleGridCard key={`${keyPrefix}-${entry.id}`} entry={entry} {...rowProps} />
+            ))}
+          </div>
+        )}
+        <ListPager page={page} totalPages={totalPages} onPage={onPage} />
+      </>
+    );
+  }
 
   function renderContent(): JSX.Element {
     if (isLoading) {
@@ -278,37 +268,24 @@ export function PuzzlesPage(): JSX.Element {
       <div className="space-y-8">
         {draftTotal > 0 ? (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold">
-              草稿 <span className="ml-1 font-normal text-muted-foreground">{draftTotal}</span>
-            </h2>
-            {view === 'list' ? (
-              <Card className="overflow-hidden">
-                {drafts.map((entry) => (
-                  <PuzzleListRow key={`draft-${entry.id}`} entry={entry} {...rowProps} />
-                ))}
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {drafts.map((entry) => (
-                  <PuzzleGridCard key={`draft-${entry.id}`} entry={entry} {...rowProps} />
-                ))}
-              </div>
-            )}
-            {renderPager(draftPage, draftPages, draftTotal, setDraftPage)}
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold">
+                草稿 <span className="ml-1 text-sm font-normal tabular-nums text-muted-foreground">{draftTotal}</span>
+              </h2>
+              {/* v0.7.9 §1.1（修正）：开关长在它管的那个标题旁边 —— 只影响草稿块。 */}
+              <ViewToggle value={view} onChange={setView} />
+            </div>
+            {renderOrderBlock(drafts, draftPage, draftPages, setDraftPage, 'draft', view)}
           </section>
         ) : null}
 
         {versionTotal > 0 ? (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold">
-              版本 <span className="ml-1 font-normal text-muted-foreground">{versionTotal}</span>
+            <h2 className="text-base font-semibold">
+              版本 <span className="ml-1 text-sm font-normal tabular-nums text-muted-foreground">{versionTotal}</span>
             </h2>
-            <Card className="overflow-hidden">
-              {versions.map((entry) => (
-                <PuzzleListRow key={`version-${entry.id}`} entry={entry} {...rowProps} />
-              ))}
-            </Card>
-            {renderPager(versionPage, versionPages, versionTotal, setVersionPage)}
+            {/* v0.7.9 §1.1（修正）：版本恒为列表 —— 冻结快照不需要封面大图。 */}
+            {renderOrderBlock(versions, versionPage, versionPages, setVersionPage, 'version', 'list')}
           </section>
         ) : null}
       </div>
@@ -351,27 +328,6 @@ export function PuzzlesPage(): JSX.Element {
             <option value="updatedAt">按更新时间</option>
             <option value="name">按名称</option>
           </Select>
-          {/* v0.7.8 §4：与地图页同一套对齐 —— 外框 40px，按钮 32px 居中。 */}
-          <div className="ml-auto flex h-10 items-center gap-1 rounded-md border px-1">
-            <Button
-              size="icon"
-              className="h-8 w-8"
-              variant={view === 'grid' ? 'secondary' : 'ghost'}
-              title="网格视图"
-              onClick={() => setView('grid')}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              className="h-8 w-8"
-              variant={view === 'list' ? 'secondary' : 'ghost'}
-              title="列表视图"
-              onClick={() => setView('list')}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
 
         <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>

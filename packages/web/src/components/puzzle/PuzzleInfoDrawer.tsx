@@ -368,7 +368,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         aria-hidden={!open}
         data-testid="puzzle-info-drawer"
         className={cn(
-          'absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l bg-background/95 shadow-xl backdrop-blur transition-transform duration-200',
+          'absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l bg-background/95 shadow-lifted backdrop-blur transition-transform duration-200',
           open ? 'translate-x-0' : 'pointer-events-none translate-x-full',
         )}
         // FIX-N11 (docs/v0.5.3.md §6.4): shared layer constant.
@@ -398,7 +398,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             hint="Info — 名称、描述与封面。封面图片在点「保存」后上传。"
           >
             <div className="grid gap-1.5">
-              <Label htmlFor="puzzle-info-name" className="text-[11px] font-normal text-muted-foreground">
+              <Label htmlFor="puzzle-info-name" className="text-2xs font-normal text-muted-foreground">
                 名称
               </Label>
               <Input
@@ -409,13 +409,13 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 className={cn('h-7 text-xs', nameBlank ? 'border-destructive' : undefined)}
                 onChange={(event) => setDraftName(event.target.value)}
               />
-              {nameBlank ? <p className="text-[11px] text-destructive">谜题名称必填。</p> : null}
+              {nameBlank ? <p className="text-2xs text-destructive">谜题名称必填。</p> : null}
             </div>
 
             <div className="grid gap-1.5">
               <Label
                 htmlFor="puzzle-info-description"
-                className="text-[11px] font-normal text-muted-foreground"
+                className="text-2xs font-normal text-muted-foreground"
               >
                 描述
               </Label>
@@ -428,7 +428,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 className={descriptionOverLimit ? 'border-destructive' : undefined}
                 onChange={(event) => setDraftDescription(event.target.value)}
               />
-              <div className="flex justify-end text-[11px] text-muted-foreground">
+              <div className="flex justify-end text-2xs text-muted-foreground">
                 <span className={descriptionOverLimit ? 'font-medium text-destructive' : ''}>
                   {draftDescription.length} / {PUZZLE_DESCRIPTION_MAX_LENGTH}
                 </span>
@@ -511,7 +511,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                         if (!isValidStyleColor(value)) return;
                         patchEntry(index, { color: value });
                       }}
-                      className="h-7 w-24 font-mono text-[11px]"
+                      className="h-7 w-24 font-mono text-2xs"
                       aria-label="颜色值"
                     />
                     <Button
@@ -531,7 +531,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                     </Button>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Label className="w-8 shrink-0 text-[10px] font-normal text-muted-foreground">
+                    <Label className="w-8 shrink-0 text-2xs font-normal text-muted-foreground">
                       名称
                     </Label>
                     <Input
@@ -547,16 +547,16 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                       palette belongs to the participant's theme colour only.
                       The `ColorInput` above plus the hex field stay. */}
                   <div className="flex items-center gap-1">
-                    <Label className="w-8 shrink-0 text-[10px] font-normal text-muted-foreground">
+                    <Label className="w-8 shrink-0 text-2xs font-normal text-muted-foreground">
                       key
                     </Label>
                     <Input
                       value={entry.key}
                       onChange={(event) => renameKey(index, event.target.value)}
-                      className="h-7 flex-1 font-mono text-[11px]"
+                      className="h-7 flex-1 font-mono text-2xs"
                       aria-label="颜色标识"
                     />
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                    <span className="shrink-0 text-2xs text-muted-foreground">
                       被引用 {countLinkageColorUsage(draftSlots, entry.key)}
                     </span>
                   </div>

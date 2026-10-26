@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LayoutGrid, List, Loader2, Plus, Search } from 'lucide-react';
+import { Loader2, Plus, Search } from 'lucide-react';
 import type { MapEntrySummary } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ListPager } from '@/components/common/ListPager';
 import {
   CreateMapDialog,
   EditMapDialog,
@@ -24,6 +25,8 @@ import {
 import { MapGridCard } from '@/components/map/MapGridCard';
 import { MapListRow } from '@/components/map/MapListRow';
 import { entryPreviewable } from '@/components/common/EntryActionsMenu';
+import { ViewToggle } from '@/components/common/ViewToggle';
+import { useStoredView, type ViewMode } from '@/hooks/useStoredView';
 import { useDeleteMap, useDuplicateMap, useMaps } from '@/hooks/useMaps';
 import { useDeleteVersion } from '@/hooks/useVersions';
 
@@ -35,12 +38,6 @@ const PAGE_SIZE = 12;
  */
 const VIEW_STORAGE_KEY = 'loredoku.maps.view';
 
-type ViewMode = 'grid' | 'list';
-
-function readStoredView(): ViewMode {
-  if (typeof window === 'undefined') return 'grid';
-  return window.localStorage.getItem(VIEW_STORAGE_KEY) === 'list' ? 'list' : 'grid';
-}
 type SortOption = 'updatedAt' | 'name';
 
 /**
@@ -64,7 +61,7 @@ export function MapsPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState<SortOption>('updatedAt');
-  const [view, setView] = useState<ViewMode>(readStoredView);
+  const [view, setView] = useStoredView(VIEW_STORAGE_KEY);
   const [createOpen, setCreateOpen] = useState(false);
   /** A work entry being renamed / re-covered (`EditMapDialog` needs a `MapEntry`). */
   const [editMapEntry, setEditMapEntry] = useState<MapEntrySummary | null>(null);
@@ -73,13 +70,6 @@ export function MapsPage(): JSX.Element {
   useEffect(() => {
     document.title = '地图 · 格物';
   }, []);
-
-  useEffect(() => {
-    // 视图偏好落 localStorage，下次进页面还是它。
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(VIEW_STORAGE_KEY, view);
-    }
-  }, [view]);
 
   const resetPages = (): void => {
     setDraftPage(1);
@@ -186,35 +176,53 @@ export function MapsPage(): JSX.Element {
 
   const deleting = deleteMutation.isPending || deleteVersionMutation.isPending;
 
-  function renderPager(
+  /**
+   * v0.7.9 §1.1（修正）：草稿块与版本块共用一套渲染，但**视图不同** ——
+   * 草稿跟着开关走，版本恒为列表（冻结快照不需要封面大图，「以此为底稿新建」
+   * 这种做法在列表里读起来更省地方）。两块只差数据来源与 `viewMode`。
+   */
+  function renderOrderBlock(
+    entries: MapEntrySummary[],
     page: number,
     totalPages: number,
-    total: number,
     onPage: (next: number) => void,
-  ): JSX.Element | null {
-    if (totalPages <= 1) return null;
+    viewMode: ViewMode,
+  ): JSX.Element {
     return (
-      <div className="flex items-center justify-end gap-3 text-sm text-muted-foreground">
-        <span>
-          第 {page} / {totalPages} 页 · 共 {total} 个
-        </span>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page <= 1}
-          onClick={() => onPage(Math.max(1, page - 1))}
-        >
-          上一页
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={page >= totalPages}
-          onClick={() => onPage(Math.min(totalPages, page + 1))}
-        >
-          下一页
-        </Button>
-      </div>
+      <>
+        {viewMode === 'list' ? (
+          <Card className="overflow-hidden">
+            {entries.map((entry) => (
+              <MapListRow
+                key={`${entry.kind}-${entry.id}`}
+                entry={entry}
+                onOpen={handleOpen}
+                onEdit={handleEdit}
+                onRename={setEditMapEntry}
+                onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
+                onDelete={setDeleteTarget}
+                onPreview={handlePreview}
+              />
+            ))}
+          </Card>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {entries.map((entry) => (
+              <MapGridCard
+                key={`${entry.kind}-${entry.id}`}
+                entry={entry}
+                onOpen={handleOpen}
+                onEdit={handleEdit}
+                onRename={setEditMapEntry}
+                onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
+                onDelete={setDeleteTarget}
+                onPreview={handlePreview}
+              />
+            ))}
+          </div>
+        )}
+        <ListPager page={page} totalPages={totalPages} onPage={onPage} />
+      </>
     );
   }
 
@@ -260,66 +268,31 @@ export function MapsPage(): JSX.Element {
       <div className="space-y-8">
         {draftTotal > 0 ? (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold">
-              草稿 <span className="ml-1 font-normal text-muted-foreground">{draftTotal}</span>
-            </h2>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-base font-semibold">
+                草稿 <span className="ml-1 text-sm font-normal tabular-nums text-muted-foreground">{draftTotal}</span>
+              </h2>
+              {/* v0.7.9 §1.1（修正）：开关长在它管的那个标题旁边 —— 只影响草稿块的
+                  显示方式，版本块恒为列表。 */}
+              <ViewToggle value={view} onChange={setView} />
+            </div>
             {/* v0.7.8 §10：网格最多 4 列 —— 撤掉了 `2xl:grid-cols-5`。正文上限是
                 `max-w-7xl`（1280），再加一列只会让卡片随窗口变宽而变窄（296 → 234）。 */}
-            {view === 'list' ? (
-              <Card className="overflow-hidden">
-                {drafts.map((entry) => (
-                  <MapListRow
-                    key={`${entry.kind}-${entry.id}`}
-                    entry={entry}
-                    onOpen={handleOpen}
-                    onEdit={handleEdit}
-                    onRename={setEditMapEntry}
-                    onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
-                    onDelete={setDeleteTarget}
-                    onPreview={handlePreview}
-                  />
-                ))}
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {drafts.map((entry) => (
-                  <MapGridCard
-                    key={`${entry.kind}-${entry.id}`}
-                    entry={entry}
-                    onOpen={handleOpen}
-                    onEdit={handleEdit}
-                    onRename={setEditMapEntry}
-                    onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
-                    onDelete={setDeleteTarget}
-                    onPreview={handlePreview}
-                  />
-                ))}
-              </div>
-            )}
-            {renderPager(draftPage, draftPages, draftTotal, setDraftPage)}
+            {renderOrderBlock(drafts, draftPage, draftPages, setDraftPage, view)}
           </section>
         ) : null}
 
         {versionTotal > 0 ? (
           <section className="space-y-3">
-            <h2 className="text-sm font-semibold">
-              版本 <span className="ml-1 font-normal text-muted-foreground">{versionTotal}</span>
+            <h2 className="text-base font-semibold">
+              版本 <span className="ml-1 text-sm font-normal tabular-nums text-muted-foreground">{versionTotal}</span>
             </h2>
-            <Card className="overflow-hidden">
-              {versions.map((entry) => (
-                <MapListRow
-                  key={`${entry.kind}-${entry.id}`}
-                  entry={entry}
-                  onOpen={handleOpen}
-                  onEdit={handleEdit}
-                  onRename={setEditMapEntry}
-                  onDuplicate={(item) => duplicateMutation.mutate(item.mapId)}
-                  onDelete={setDeleteTarget}
-                  onPreview={handlePreview}
-                />
-              ))}
-            </Card>
-            {renderPager(versionPage, versionPages, versionTotal, setVersionPage)}
+            {/*
+             * v0.7.9 §1.1（修正）：版本块恒为列表。它曾经也跟着开关变成网格，
+             * 但版本是冻结快照：`v{n}` 徽标 + 「以此为底稿新建」在列表里一行读完，
+             * 做成大卡片反而像一件可选的作品，主按钮落在最显眼处也更容易误触。
+             */}
+            {renderOrderBlock(versions, versionPage, versionPages, setVersionPage, 'list')}
           </section>
         ) : null}
       </div>
@@ -364,28 +337,6 @@ export function MapsPage(): JSX.Element {
             <option value="updatedAt">按更新时间</option>
             <option value="name">按名称</option>
           </Select>
-          {/* v0.7.8 §4：外框 `h-10` 与搜索框、下拉同高；按钮 32px 居中在 40px 框内。
-              原来是 `size="icon"`（40px）+ `p-1`，整块比相邻控件高出 8px。 */}
-          <div className="ml-auto flex h-10 items-center gap-1 rounded-md border px-1">
-            <Button
-              size="icon"
-              className="h-8 w-8"
-              variant={view === 'grid' ? 'secondary' : 'ghost'}
-              title="网格视图"
-              onClick={() => setView('grid')}
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </Button>
-            <Button
-              size="icon"
-              className="h-8 w-8"
-              variant={view === 'list' ? 'secondary' : 'ghost'}
-              title="列表视图"
-              onClick={() => setView('list')}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
 
         <div className={isFetching && !isLoading ? 'opacity-60 transition-opacity' : undefined}>

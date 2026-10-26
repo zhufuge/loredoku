@@ -16,6 +16,7 @@ import {
 import type { Asset, AssetVariant, EditorTool } from '@loredoku/shared';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
@@ -98,24 +99,21 @@ export function EditorBottomBar({
 }: EditorBottomBarProps): JSX.Element {
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-20 flex justify-center px-4">
-      <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-full border bg-background px-4 py-2 shadow-lg">
+      <div className="pointer-events-auto flex flex-wrap items-center gap-1 rounded-full border bg-background px-4 py-2 shadow-lifted">
         {TOOLS.map((tool) => {
           const Icon = tool.icon;
           const active = activeTool === tool.id;
           return (
-            <Button
+            <IconButton
               key={tool.id}
               variant="ghost"
-              size="icon"
-              className={cn(
-                'h-9 w-9 rounded-full',
-                active && TOOLBAR_ICON_ACTIVE_CLASS,
-              )}
-              title={[`${tool.label} (${tool.hint})`, tool.tip].filter(Boolean).join(' · ')}
+              icon={<Icon className="h-4 w-4" />}
+              label={[tool.label, tool.tip].filter(Boolean).join(' · ')}
+              shortcut={tool.hint}
+              side="top"
+              className={cn('h-9 w-9 rounded-full', active && TOOLBAR_ICON_ACTIVE_CLASS)}
               onClick={() => onSetTool(tool.id)}
-            >
-              <Icon className="h-4 w-4" />
-            </Button>
+            />
           );
         })}
 
@@ -166,7 +164,7 @@ export function EditorBottomBar({
               />
               <span className="min-w-0 truncate">{selectedAsset.name}</span>
               {selectedAsset.variants.length > 1 ? (
-                <span className="shrink-0 text-[11px] text-muted-foreground">
+                <span className="shrink-0 text-2xs text-muted-foreground">
                   {selectedVariant.name}
                 </span>
               ) : null}
@@ -185,18 +183,17 @@ export function EditorBottomBar({
 
         <span className="mx-1 h-6 w-px bg-border" />
 
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<Ruler className="h-4 w-4" />}
+          label="显示 / 隐藏标尺"
+          side="top"
           className={cn(
             'h-9 w-9 rounded-full',
             rulerVisible ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
           )}
-          title="显示 / 隐藏标尺"
           onClick={onToggleRuler}
-        >
-          <Ruler className="h-4 w-4" />
-        </Button>
+        />
 
         <Button
           variant="ghost"
@@ -211,15 +208,15 @@ export function EditorBottomBar({
 
         <span className="mx-1 h-6 w-px bg-border" />
 
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<ZoomOut className="h-4 w-4" />}
+          label="缩小查看"
+          shortcut="不改方格大小"
+          side="top"
           className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
-          title="整体缩小查看（不修改方格大小）"
           onClick={onZoomOut}
-        >
-          <ZoomOut className="h-4 w-4" />
-        </Button>
+        />
         <button
           type="button"
           onClick={onZoomReset}
@@ -232,47 +229,47 @@ export function EditorBottomBar({
         >
           {Math.round(zoom * 100)}%
         </button>
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<ZoomIn className="h-4 w-4" />}
+          label="放大查看"
+          shortcut="不改方格大小"
+          side="top"
           className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
-          title="整体放大查看（不修改方格大小）"
           onClick={onZoomIn}
-        >
-          <ZoomIn className="h-4 w-4" />
-        </Button>
-        <Button
+        />
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<Maximize className="h-4 w-4" />}
+          label="适应画布"
+          shortcut="重算方格大小"
+          side="top"
           className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
-          title="适应画布（重算自适应方格大小并重置查看比例）"
           onClick={onFit}
-        >
-          <Maximize className="h-4 w-4" />
-        </Button>
+        />
 
         <span className="mx-1 h-6 w-px bg-border" />
 
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<Undo2 className="h-4 w-4" />}
+          label="撤销"
+          shortcut="Ctrl+Z"
+          side="top"
           className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
-          title="撤销 (Ctrl+Z)"
           disabled={!canUndo}
           onClick={onUndo}
-        >
-          <Undo2 className="h-4 w-4" />
-        </Button>
-        <Button
+        />
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<Redo2 className="h-4 w-4" />}
+          label="重做"
+          shortcut="Ctrl+Shift+Z"
+          side="top"
           className={cn('h-9 w-9 rounded-full', TOOLBAR_ICON_HOVER_CLASS)}
-          title="重做 (Ctrl+Shift+Z)"
           disabled={!canRedo}
           onClick={onRedo}
-        >
-          <Redo2 className="h-4 w-4" />
-        </Button>
+        />
       </div>
     </div>
   );

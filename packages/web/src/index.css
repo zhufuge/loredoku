@@ -22,8 +22,8 @@
  */
 @layer base {
   :root {
-    /* 宣纸底 + 墨字。卡片刻意比底色亮一档（99 vs 96.5），纸叠纸，不靠阴影。 */
-    --background: 40 30% 96.5%;
+    /* 宣纸底 + 墨字。卡片刻意比底色亮一档（99 vs 96），纸叠纸，不靠阴影。 */
+    --background: 40 30% 96%;
     --foreground: 28 14% 12%;
     --card: 40 45% 99%;
     --card-foreground: 28 14% 12%;
@@ -37,6 +37,10 @@
      *
      * v0.7.8：纸底本身是 96.5%，所以 secondary 跟着下沉到 89% —— 否则「次要按钮」
      * 会和页面底同色。
+     *
+     * v0.7.9 §3：`muted` / `accent` 再各压深一档（94→92 / 87→85.5）。纸底与卡片
+     * 只差 3 个亮度点时，「凹进去的表面」（缩略图占位、代码块、ghost 悬停）如果
+     * 还贴着底色，三层就只剩两层可读 —— 凹面必须有可见的下沉，纸才立得住。
      */
     --primary: 205 45% 36%;
     --primary-foreground: 40 30% 98%;
@@ -44,9 +48,14 @@
     --secondary: 38 22% 89%;
     --secondary-foreground: 28 14% 15%;
     --secondary-hover: 38 22% 82%;
-    --muted: 40 24% 94%;
-    --muted-foreground: 30 9% 41%;
-    --accent: 38 26% 87%;
+    --muted: 40 24% 92%;
+    /*
+     * v0.7.9 §3：41 → 37。凹面压深之后，「次级文字落在悬停底上」这一格只有
+     * 3.99（`text-muted-foreground` + `hover:bg-accent` 的列表行）。37 是让这
+     * 一格过 AA 的最小改动（4.67），顺带把全站 226 处说明文字从 5.00 抬到 5.85。
+     */
+    --muted-foreground: 30 9% 37%;
+    --accent: 38 26% 85.5%;
     --accent-foreground: 28 14% 15%;
     /*
      * 绛（oxblood）。取值刻意压在 L46：这个 token 同时当**文字**（错误提示、
@@ -65,7 +74,28 @@
     --border: 36 18% 86%;
     --input: 36 18% 84%;
     --ring: 205 45% 45%;
-    --radius: 0.5rem;
+    /*
+     * v0.7.9 §3：圆角从 8px 压到 6px（`--radius` 0.5 → 0.375rem）。
+     *
+     * 8px 加上通用投影是 SaaS 卡片的标准配方，与「书斋里的工具」差得最远。压到
+     * 6px 之后，`rounded-lg`（卡片/对话框）= 6、`rounded-md`（按钮/输入）= 4、
+     * `sm` = 2，三级台阶各差 2px —— 形状开始像「切出来的纸边」而不是「模压塑料」。
+     * 徽标的 `rounded`（4px）不变，它本来就在最小档。
+     */
+    --radius: 0.375rem;
+    /*
+     * v0.7.9 §3：两层阴影，都是**暖色**而不是黑色。
+     *
+     * Tailwind 的 `shadow-sm/md/lg` 用的是 `rgb(0 0 0 / α)` —— 黑影子落在米黄纸上
+     * 会发灰发脏，这正是「皮肤换了、质感没换」的最后一处。这里把阴影写进变量：
+     * 色相跟着墨色（28），透明度压到个位数。
+     *
+     * `--shadow-card`  ：静置的纸（卡片、浮层底）—— 几乎只有一条贴边的接触影。
+     * `--shadow-float` ：离开纸面的东西（对话框、抽屉、底部工具条、下拉菜单）——
+     *                    一条接触影 + 一层大范围扩散，才有「被举起来」的感觉。
+     */
+    --shadow-card: 0 1px 1px hsl(28 30% 20% / 0.04), 0 2px 6px hsl(28 30% 20% / 0.045);
+    --shadow-float: 0 2px 4px hsl(28 30% 20% / 0.05), 0 10px 28px hsl(28 30% 20% / 0.1);
     /*
      * v0.7.8 §1：工具栏图标按钮的「未选中悬停 / 选中」底色。
      *
@@ -96,7 +126,7 @@
     --secondary-foreground: 38 20% 92%;
     --secondary-hover: 30 9% 24%;
     --muted: 30 9% 16%;
-    --muted-foreground: 34 10% 62%;
+    --muted-foreground: 34 10% 64%;
     --accent: 30 9% 22%;
     --accent-foreground: 38 20% 92%;
     /*
@@ -117,6 +147,12 @@
     --toolbar: 30 9% 24%;
     --toolbar-hover: 30 9% 31%;
     --toolbar-foreground: 38 20% 94%;
+    /*
+     * 夜墨的阴影反过来：浅色下影子是「暖墨淡染」，深色下只能是「更黑」——
+     * 但用纯黑会让纸张边缘发绿，所以取 28 色相的极暗值，靠大范围扩散把浮层顶起来。
+     */
+    --shadow-card: 0 1px 1px hsl(28 20% 3% / 0.4), 0 2px 8px hsl(28 20% 3% / 0.3);
+    --shadow-float: 0 4px 10px hsl(28 20% 3% / 0.45), 0 16px 40px hsl(28 20% 3% / 0.45);
   }
 
   /*
@@ -210,6 +246,23 @@
 }
 
 @layer utilities {
+  /*
+   * v0.7.9 §4：霞鹜文楷第一次进**界面**。
+   *
+   * 字体本身早就随构建走了（`assets/fonts/霞鹜文楷-Regular.woff2`，925 KB，
+   * `registerBundledFonts()` 在 main.tsx 注册），但过去只服务画布里的区域标签 ——
+   * 界面本体是系统 sans，`.impeccable.md` 写的「东方 · 手作」全压在一个看不见的
+   * 下拉里。现在只给**页标题**和 404 用：kaiti 的笔锋在 24px 上认得出，在正文
+   * 尺寸上只会显得软。
+   *
+   * `font-synthesis-weight: none`：文楷只有 400 一档，浏览器默认会给粗体做「糊边
+   * 加粗」，楷体的笔画一糊就成了劣质国风。宁可不加粗。
+   */
+  .font-kai {
+    font-family: '霞鹜文楷', 'Kaiti SC', 'STKaiti', 'KaiTi', ui-serif, serif;
+    font-synthesis-weight: none;
+  }
+
   .highlight-fade {
     animation: highlight-fade 1s linear forwards;
   }

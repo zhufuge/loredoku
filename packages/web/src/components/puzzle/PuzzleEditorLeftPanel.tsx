@@ -201,7 +201,7 @@ export function PuzzleEditorLeftPanel({
                   >
                     <CharacterThumbnail character={character} className="h-12 w-12" />
                   </button>
-                  <span className="w-full truncate text-center text-[11px] text-muted-foreground">
+                  <span className="w-full truncate text-center text-2xs text-muted-foreground">
                     {character.name}
                   </span>
                   <button
@@ -210,8 +210,8 @@ export function PuzzleEditorLeftPanel({
                     onClick={() => onAssignSlot(character.id)}
                     className={
                       rosterIds.has(character.id)
-                        ? 'h-6 w-full rounded border bg-secondary px-2 text-[11px] text-muted-foreground'
-                        : 'h-6 w-full rounded border px-2 text-[11px] hover:border-primary'
+                        ? 'h-6 w-full rounded border bg-secondary px-2 text-2xs text-muted-foreground'
+                        : 'h-6 w-full rounded border px-2 text-2xs hover:border-primary'
                     }
                   >
                     {rosterIds.has(character.id) ? '已加入' : '加入'}
@@ -221,7 +221,7 @@ export function PuzzleEditorLeftPanel({
             </div>
           )}
           {filtered && visible.length > 0 ? (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               匹配 {visible.length} / {characters?.length ?? 0} 个角色
             </p>
           ) : null}

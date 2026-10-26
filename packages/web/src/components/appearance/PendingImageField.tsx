@@ -50,7 +50,7 @@ export function PendingImageField({
           {preview ? (
             <img src={preview} alt="预览" className="h-full w-full object-cover" />
           ) : (
-            <span className="text-[10px] text-muted-foreground">未选择</span>
+            <span className="text-2xs text-muted-foreground">未选择</span>
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-1">

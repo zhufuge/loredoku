@@ -141,11 +141,11 @@ export function PuzzleMapSwapDialog({
                     >
                       <span className="flex items-center gap-1.5">
                         <span className="truncate font-medium">{version.mapName}</span>
-                        <span className="shrink-0 rounded bg-background px-1.5 py-0.5 text-[11px] tabular-nums">
+                        <span className="shrink-0 rounded bg-background px-1.5 py-0.5 text-2xs tabular-nums">
                           v{version.versionNo}
                         </span>
                       </span>
-                      <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                      <span className="mt-0.5 block truncate text-2xs text-muted-foreground">
                         {version.gridSize}×{version.gridSize} · 发布于{' '}
                         {formatDateTimeMinute(version.publishedAt)}
                       </span>

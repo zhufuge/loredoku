@@ -13,6 +13,7 @@ import {
 import type { MapStatus } from '@loredoku/shared';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 
 interface EditorToolbarProps {
   mapName: string;
@@ -89,16 +90,14 @@ export function EditorToolbar({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
       <div className="flex min-w-0 items-center gap-3">
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<ArrowLeft className="h-4 w-4" />}
+          label="返回地图列表"
+          side="bottom"
           onClick={onBack}
           disabled={saving}
-          title="返回地图列表"
-          aria-label="返回地图列表"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        />
         <div className="flex min-w-0 items-center gap-2">
           <span className="truncate font-semibold" title={mapName}>
             {mapName}
@@ -107,8 +106,8 @@ export function EditorToolbar({
             <span
               className={
                 status === 'published'
-                  ? 'rounded bg-success/10 px-1.5 py-0.5 text-[11px] text-success'
-                  : 'rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground'
+                  ? 'rounded bg-success/10 px-1.5 py-0.5 text-2xs text-success'
+                  : 'rounded bg-secondary px-1.5 py-0.5 text-2xs text-secondary-foreground'
               }
             >
               {status === 'published' ? `已发布 v${currentVersionNo ?? ''}` : '草稿'}
@@ -127,7 +126,7 @@ export function EditorToolbar({
               title="有未保存的修改，点击立即保存"
               /* v0.7.8：`amber-100 / amber-700` 定色换成 `warning` token —— 深色
                  配对不再靠手写 `dark:`，而且跟着调色板一起走（赭石，不是柠檬黄）。 */
-              className="cursor-pointer rounded bg-warning/10 px-1.5 py-0.5 text-[11px] font-medium text-warning disabled:cursor-not-allowed"
+              className="cursor-pointer rounded bg-warning/10 px-1.5 py-0.5 text-2xs font-medium text-warning disabled:cursor-not-allowed"
             >
               未保存
             </button>
@@ -140,23 +139,29 @@ export function EditorToolbar({
             三组用分隔线断开：环境设置 | 文档操作 | 保存/发布。 */}
         <ThemeToggle />
         <div className="mx-1 h-5 w-px bg-border" />
-        <Button variant="ghost" size="icon" onClick={onImport} disabled={saving} title="导入 JSON">
-          <Upload className="h-4 w-4" />
-        </Button>
-        <Button variant="ghost" size="icon" onClick={onExport} disabled={saving} title="导出 JSON">
-          <Download className="h-4 w-4" />
-        </Button>
+        <IconButton
+          variant="ghost"
+          icon={<Upload className="h-4 w-4" />}
+          label="导入 JSON"
+          onClick={onImport}
+          disabled={saving}
+        />
+        <IconButton
+          variant="ghost"
+          icon={<Download className="h-4 w-4" />}
+          label="导出 JSON"
+          onClick={onExport}
+          disabled={saving}
+        />
         {onImportMap ? (
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon"
+            icon={<MapIcon className="h-4 w-4" />}
+            label="引入新地图"
+            shortcut="只替换底图画布"
             onClick={onImportMap}
             disabled={saving}
-            title="引入新地图（只替换底图画布）"
-            aria-label="引入新地图"
-          >
-            <MapIcon className="h-4 w-4" />
-          </Button>
+          />
         ) : null}
         <Button
           variant={mapInfoOpen ? 'secondary' : 'ghost'}
@@ -169,27 +174,23 @@ export function EditorToolbar({
           <Settings2 className="h-4 w-4" />
           基本信息
         </Button>
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
+          icon={<History className="h-4 w-4" />}
+          label="版本历史"
           onClick={onOpenVersions}
           disabled={saving || !onOpenVersions}
-          title="版本历史"
           style={onOpenVersions ? undefined : { display: 'none' }}
-        >
-          <History className="h-4 w-4" />
-        </Button>
+        />
         {onPreview ? (
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon"
+            icon={<Eye className="h-4 w-4" />}
+            label="预览"
+            shortcut="只读 · 先保存当前修改"
             onClick={onPreview}
             disabled={saving}
-            title="预览（只读，先保存当前修改）"
-            aria-label="预览"
-          >
-            <Eye className="h-4 w-4" />
-          </Button>
+          />
         ) : null}
 
         <div className="mx-1 h-5 w-px bg-border" />

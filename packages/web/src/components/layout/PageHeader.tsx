@@ -25,7 +25,10 @@ export function PageHeader({ title, description, actions }: PageHeaderProps): JS
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="min-w-0 space-y-1">
-        <h1 className="text-2xl font-semibold">{title}</h1>
+        {/* v0.7.9 §4：页标题用霞鹜文楷。24px 是楷体笔锋还能认出来的最小档；
+            再小就只剩「字体不一样」而看不出「写了什么」。粗体交给字号，不交给
+            `font-synthesis`（见 index.css 的 `.font-kai`）。 */}
+        <h1 className="font-kai text-2xl leading-tight tracking-tight">{title}</h1>
         <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

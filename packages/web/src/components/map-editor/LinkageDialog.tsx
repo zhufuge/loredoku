@@ -375,7 +375,7 @@ export function LinkageDialog({
                         type="button"
                         size="sm"
                         variant={draft.assetScope === 'all' ? 'secondary' : 'ghost'}
-                        className="h-6 text-xs"
+                        className="h-7 text-xs"
                         onClick={() => patch({ assetScope: 'all' })}
                       >
                         全部实例
@@ -384,7 +384,7 @@ export function LinkageDialog({
                         type="button"
                         size="sm"
                         variant={draft.assetScope === 'instances' ? 'secondary' : 'ghost'}
-                        className="h-6 text-xs"
+                        className="h-7 text-xs"
                         onClick={() => patch({ assetScope: 'instances' })}
                       >
                         指定实例（{draft.assetInstances.length}）
@@ -400,7 +400,7 @@ export function LinkageDialog({
                           return (
                             <label
                               key={key}
-                              className="flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-[11px] hover:bg-accent"
+                              className="flex cursor-pointer items-center gap-1 rounded px-1 py-0.5 text-2xs hover:bg-accent"
                             >
                               <input
                                 type="checkbox"
@@ -454,7 +454,7 @@ export function LinkageDialog({
                       type="button"
                       size="sm"
                       variant={quickMode === mode ? 'secondary' : 'outline'}
-                      className="h-6 text-xs"
+                      className="h-7 text-xs"
                       onClick={() => {
                         setQuickMode(quickMode === mode ? null : mode);
                         setRectAnchor(null);
@@ -509,7 +509,7 @@ export function LinkageDialog({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-6 text-xs"
+                    className="h-7 text-xs"
                     onClick={() => {
                       patch({ cells: [] });
                       setRectAnchor(null);
@@ -521,7 +521,7 @@ export function LinkageDialog({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-6 text-xs"
+                    className="h-7 text-xs"
                     onClick={() => patch({ cells: selectionToCoords(selectAllCells(gridSize)) })}
                   >
                     全选
@@ -530,7 +530,7 @@ export function LinkageDialog({
                     type="button"
                     size="sm"
                     variant="outline"
-                    className="h-6 text-xs"
+                    className="h-7 text-xs"
                     onClick={() =>
                       patch({
                         cells: selectionToCoords(

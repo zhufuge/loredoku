@@ -11,6 +11,7 @@ import {
   type Asset,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { IconButton } from '@/components/ui/icon-button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
@@ -356,24 +357,21 @@ export function PuzzleViewPage(): JSX.Element {
     <div className="flex h-screen flex-col overflow-hidden">
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon"
+            icon={<ArrowLeft className="h-4 w-4" />}
+            label="返回谜题列表"
             onClick={() => navigate('/puzzles')}
-            title="返回谜题列表"
-            aria-label="返回谜题列表"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
+          />
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold">{detailQuery.data?.name ?? '谜题'}</span>
             {/* `v{n}` 是**这一行谜题自己**的版本号；草稿行看草稿，标「草稿」。 */}
-            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] tabular-nums text-secondary-foreground">
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-2xs tabular-nums text-secondary-foreground">
               {viewed?.versionNo !== null && viewed?.versionNo !== undefined
                 ? `v${viewed.versionNo}`
                 : '草稿'}
             </span>
-            <span className="rounded bg-secondary px-1.5 py-0.5 text-[11px] text-secondary-foreground">
+            <span className="rounded bg-secondary px-1.5 py-0.5 text-2xs text-secondary-foreground">
               {gridSize} × {gridSize}
             </span>
             <span className="text-xs text-muted-foreground">只读预览</span>
@@ -386,28 +384,34 @@ export function PuzzleViewPage(): JSX.Element {
         </div>
         <div className="flex items-center gap-1">
           {/* FEAT-F01: the reader can hide the strips; the choice is persisted. */}
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon"
+            icon={<Ruler className="h-4 w-4" />}
+            label="显示 / 隐藏标尺"
             className={showRulers ? 'bg-accent text-accent-foreground' : undefined}
-            title="显示 / 隐藏标尺"
-            aria-label="显示 / 隐藏标尺"
             onClick={() => setShowRulers((current) => !current)}
-          >
-            <Ruler className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" title="缩小" onClick={() => zoomBy(-1)}>
-            <Minus className="h-4 w-4" />
-          </Button>
+          />
+          <IconButton
+            variant="ghost"
+            icon={<Minus className="h-4 w-4" />}
+            label="缩小"
+            onClick={() => zoomBy(-1)}
+          />
           <span className="w-12 text-center text-xs tabular-nums text-muted-foreground">
             {Math.round(zoom * 100)}%
           </span>
-          <Button variant="ghost" size="icon" title="放大" onClick={() => zoomBy(1)}>
-            <Plus className="h-4 w-4" />
-          </Button>
-          <Button variant="ghost" size="icon" title="重置视图" onClick={fit}>
-            <RotateCcw className="h-4 w-4" />
-          </Button>
+          <IconButton
+            variant="ghost"
+            icon={<Plus className="h-4 w-4" />}
+            label="放大"
+            onClick={() => zoomBy(1)}
+          />
+          <IconButton
+            variant="ghost"
+            icon={<RotateCcw className="h-4 w-4" />}
+            label="重置视图"
+            onClick={fit}
+          />
           {/* v0.5.7: 视图控件与主题分开，别让主题混进缩放组。 */}
           <span className="mx-1 h-5 w-px bg-border" />
           <ThemeToggle />

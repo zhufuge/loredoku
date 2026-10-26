@@ -73,6 +73,32 @@ const config: Config = {
           hover: 'hsl(var(--toolbar-hover) / <alpha-value>)',
         },
       },
+      /*
+       * v0.7.9 §4：字号梯级补上最小一档。
+       *
+       * 原来 10px 与 11px 都用方括号直接写（10px 19 处、11px 62 处），两者相差
+       * 1px 却没有各自的语义 —— 谁写哪个全看当时手边是哪个。定成 `2xs = 11px`
+       * 之后，徽标 / 计数 / 「格」这类附注只有一个去处；10px 全部并入 11px
+       * （中文 10px 在 1x 屏上已经在糊）。
+       */
+      /*
+       * v0.7.9 §3：两层暖色阴影，取值在 `index.css` 的 `--shadow-card` /
+       * `--shadow-float`（明暗各一套）。
+       *
+       * 为什么写进 theme 而不是用 `shadow-[var(--shadow-card)]`：Tailwind 的
+       * 任意值阴影**先判断是不是颜色**，`var(...)` 分不出来，于是被编译成
+       * `--tw-shadow-color: var(--shadow-card)` —— 类存在、产物里查得到、页面上
+       * 一点阴影都没有。`/12` 那次是同一个教训：静默失败。
+       */
+      boxShadow: {
+        /* 名字避开 `card` —— 调色板里已有 `card`，`shadow-card` 会同时命中
+           「阴影」和「阴影颜色」两条工具类（后者把 box-shadow 覆盖成纯色）。 */
+        paper: 'var(--shadow-card)',
+        lifted: 'var(--shadow-float)',
+      },
+      fontSize: {
+        '2xs': ['0.6875rem', { lineHeight: '1rem' }],
+      },
       borderRadius: {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
