@@ -10,7 +10,7 @@
 ## 别直接丢 `.ttf`
 
 霞鹜文楷 Regular 的 TTF 是 **24.7 MB**。原样放进来会原封不动进 `dist/`、进 git、
-进每个付费玩家的首屏。同款字体按 GB2312 一级裁字后是 **924 KB**，整款只转 woff2
+进每个付费玩家的首屏。同款字体按 GB2312 一级裁字后是 **925 KB**，整款只转 woff2
 不裁字是 7.7 MB —— 裁字才是数量级上的那一刀。
 
 所以分成两个目录：
@@ -40,14 +40,16 @@ npm run build
 脚本会打印体积对比：
 
 ```
-霞鹜文楷-Regular.woff2   4704 字          24.7 MB → 924 KB    3.5s
+charset=common + 补字 1
+
+霞鹜文楷-Regular.woff2   4705 字          24.7 MB → 925 KB    3.1s
 ```
 
 ### 字集怎么选
 
 | `--charset` | 字数量级 | 体积 | 用在哪 |
 |---|---|---|---|
-| `common`（默认） | 3755 汉字 + 符号 + ASCII | ~0.9 MB | 绝大多数情况。覆盖 GB2312 一级，日常地名 / 关卡名够用 |
+| `common`（默认） | 3755 汉字 + 符号 + ASCII（+ 补字清单） | ~0.9 MB | 绝大多数情况。覆盖 GB2312 一级，日常地名 / 关卡名够用；一级之外的零散缺字走补字 |
 | `gb2312` | 6763 汉字（含符号 7712 字） | ~1.6 MB | 有大量生僻地名的成品；再加就接近「整款字体」了 |
 | `full` | 全部字形 | ~7.7 MB | 只换容器不裁字，30 秒级。除非确定要，别用 |
 | `file:chars.txt` | 你给的字 | 几十 KB | 内容集合已经固定（比如一套放出后不再改的地图） |
@@ -62,6 +64,24 @@ npm run fonts --workspace @loredoku/web -- --budget 600 --strict   # 超 600 KB 
 （`"霞鹜文楷", ui-sans-serif, …, "Microsoft YaHei", sans-serif`），缺的字由下一款
 字体补上，只是那一个字不是手写体。所以「裁得狠一点」的代价是局部字形不一致，
 不是空白。
+
+### 补字（推荐，别为此换整档）
+
+`common` 只覆盖 GB2312 **一级**（3755 字），一级之外的字一律被裁掉 —— 「薇」就是这么
+丢的（`薇` 在二级）。这类零散缺字的正确解法是往 **`packages/web/scripts/font-extra-chars.txt`**
+里加一行，然后重跑：
+
+```bash
+npm run fonts --workspace @loredoku/web
+```
+
+- 那份清单**跟着仓库走**，每次裁字都会自动并进 `common` 与 `gb2312`，所以重跑不会把字丢掉。
+- 一个字只加 **几百字节**（「薇」让产物从 946540 涨到 946964），比把整档换成 `gb2312`
+  （约 1.6 MB，+70%）便宜得多。
+- 只想试一下、不想动清单：`npm run fonts --workspace @loredoku/web -- --extra 薇倩`；
+  想复现「纯一级」的老产物：加 `--no-extra`。
+- 裁完确认某字进没进去：`woff2` 解压后看 cmap 太麻烦，直接看脚本打印的字数
+  （加一个字 +1），或者在浏览器 devtools 里看 `document.fonts.check('16px "霞鹜文楷"', '薇')`。
 
 ## 命名
 
@@ -93,7 +113,7 @@ npm run fonts --workspace @loredoku/web -- --budget 600 --strict   # 超 600 KB 
 - 启动时只 `document.fonts.add(new FontFace(...))` **注册**，不 `load()`：没有地图用到
   这款字体，一个字节都不下。
 - 产物在 `dist/assets/` 里带 hash，服务端对 `/assets` 是 `immutable` + 一年缓存
-  （`packages/server/src/app.ts`），所以这 924 KB 只在第一次用到时付一次。
+  （`packages/server/src/app.ts`），所以这 925 KB 只在第一次用到时付一次。
 - `font-display: swap`：字体没到之前先用回退链画，到了再换。
 
 ## 放之前先看两条

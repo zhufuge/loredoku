@@ -31,6 +31,14 @@ describe('build-fonts CLI', () => {
     const { code, stdout } = await cli(['--help']);
     expect(code).toBe(0);
     expect(stdout).toContain('--charset');
+    // v0.7.7: 补字是「缺字怎么办」的正解，用法里得能看见。
+    expect(stdout).toContain('--extra');
+  });
+
+  it('rejects --extra without a value instead of silently ignoring it', async () => {
+    const { code, stderr } = await cli(['--extra']);
+    expect(code).toBe(1);
+    expect(stderr).toContain('缺少取值');
   });
 
   it('says where to put sources when there are none', async () => {

@@ -10,10 +10,11 @@
  *
  * 用法：
  *
- *   npm run fonts                       # 默认 charset=common
+ *   npm run fonts                       # 默认 charset=common（+ 补充字表）
  *   npm run fonts -- --charset gb2312   # 6763 字，约 1.4 MB
  *   npm run fonts -- --charset full     # 只转 woff2，不裁字（慢，30s 级）
  *   npm run fonts -- --charset file:chars.txt
+ *   npm run fonts -- --extra 薇倩      # 临时补几个字，不进字表
  *   npm run fonts -- --budget 600       # 超过 600 KB 时标出来
  */
 
@@ -28,6 +29,17 @@ const WEB_ROOT = resolve(HERE, '..');
 
 const DEFAULT_SRC = resolve(WEB_ROOT, 'fonts-source');
 const DEFAULT_OUT = resolve(WEB_ROOT, 'src/assets/fonts');
+
+/**
+ * v0.7.7：`common` 只覆盖 GB2312 **一级**（3755 字），一级之外的字会被裁掉 ——
+ * 渲染时靠回退链顶上，代价是那一个字不是手写体。「薇」就是这么丢的。
+ *
+ * 这份表是**跟着仓库走**的补字清单（不是运行时数据）：谁遇到缺字就往里加一行，
+ * 重跑一次 `npm run fonts` 即可；字号只有几 KB，比把整档换成 `gb2312`（约 1.6 MB）
+ * 便宜得多。
+ */
+const SUPPLEMENT_FILE = resolve(HERE, 'font-extra-chars.txt');
+
 
 /** 只把这两种当「源」：woff2 已经是目标格式，再放一遍没有意义。 */
 const SOURCE_EXTS = new Set(['.ttf', '.otf']);
@@ -77,16 +89,49 @@ export function gb2312Charset({ level2 }) {
   return chars.join('');
 }
 
-export async function resolveCharset(spec) {
+export async function resolveCharset(spec, extra = '') {
   if (spec === 'full') return null;
-  if (spec === 'common') return ASCII + EXTRA_PUNCT + gb2312Charset({ level2: false });
-  if (spec === 'gb2312') return ASCII + EXTRA_PUNCT + gb2312Charset({ level2: true });
+  if (spec === 'common') {
+    return ASCII + EXTRA_PUNCT + gb2312Charset({ level2: false }) + extra;
+  }
+  if (spec === 'gb2312') {
+    return ASCII + EXTRA_PUNCT + gb2312Charset({ level2: true }) + extra;
+  }
   if (spec.startsWith('file:')) {
     const path = resolve(WEB_ROOT, spec.slice('file:'.length));
     if (!existsSync(path)) throw new Error(`字表文件不存在：${path}`);
-    return await readFile(path, 'utf8');
+    return (await readFile(path, 'utf8')) + extra;
   }
   throw new Error(`未知 charset：${spec}（可选 common / gb2312 / full / file:<path>）`);
+}
+
+/**
+ * 读仓库里的补字清单：每行若干字，`#` 之后是注释，空白一律丢掉。
+ * 文件不存在就当没有 —— 这是「可选增强」，不该让缺文件变成构建失败。
+ */
+export async function readSupplement() {
+  if (!existsSync(SUPPLEMENT_FILE)) return '';
+  const raw = await readFile(SUPPLEMENT_FILE, 'utf8');
+  return raw
+    .split('\n')
+    .map((line) => line.replace(/#.*$/, ''))
+    .join('')
+    .replace(/\s+/g, '');
+}
+
+/** `--extra` 的取值：字面字符，或 `file:<path>`（相对 packages/web）。 */
+async function resolveExtraArg(values) {
+  const parts = [];
+  for (const value of values) {
+    if (value.startsWith('file:')) {
+      const path = resolve(WEB_ROOT, value.slice('file:'.length));
+      if (!existsSync(path)) throw new Error(`补字文件不存在：${path}`);
+      parts.push(await readFile(path, 'utf8'));
+      continue;
+    }
+    parts.push(value);
+  }
+  return parts.join('');
 }
 
 // ---- 参数 ------------------------------------------------------------------
@@ -98,6 +143,10 @@ export function parseArgs(argv) {
     charset: 'common',
     budgetKb: DEFAULT_BUDGET_KB,
     strict: false,
+    /** v0.7.7：额外补的字（字符串），可重复。 */
+    extra: [],
+    /** 不加仓库里的补字清单（想复现纯 common 时用）。 */
+    noExtra: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
@@ -109,6 +158,8 @@ export function parseArgs(argv) {
     };
     if (arg === '--charset') options.charset = next();
     else if (arg === '--budget') options.budgetKb = Number(next());
+    else if (arg === '--extra') options.extra.push(next());
+    else if (arg === '--no-extra') options.noExtra = true;
     else if (arg === '--src') options.src = resolve(process.cwd(), next());
     else if (arg === '--out') options.out = resolve(process.cwd(), next());
     else if (arg === '--strict') options.strict = true;
@@ -123,6 +174,8 @@ function usage() {
     '把 fonts-source/ 里的字体裁成 woff2，输出到 src/assets/fonts/',
     '',
     '  --charset common|gb2312|full|file:<path>   字集，默认 common（约 3755 汉字）',
+    '  --extra <chars|file:<path>>                追加字（可重复），如 --extra 薇',
+    '  --no-extra                                 不并入 scripts/font-extra-chars.txt',
     '  --budget <KB>                              单款体积预警线，默认 1200',
     '  --strict                                   有文件超预算时以非零码退出',
     '  --src <dir> / --out <dir>                  换目录',
@@ -165,7 +218,9 @@ async function main() {
     return 0;
   }
 
-  const text = await resolveCharset(options.charset);
+  const supplement = options.noExtra ? '' : await readSupplement();
+  const extra = supplement + (await resolveExtraArg(options.extra));
+  const text = await resolveCharset(options.charset, extra);
   await mkdir(options.out, { recursive: true });
 
   const started = Date.now();
@@ -203,7 +258,9 @@ async function main() {
   }
 
   const width = Math.max(...rows.map((row) => row.file.length), 4);
-  process.stdout.write(`\ncharset=${options.charset}\n\n`);
+  const supplementNote =
+    text === null || extra.length === 0 ? '' : ` + 补字 ${new Set(extra).size}`;
+  process.stdout.write(`\ncharset=${options.charset}${supplementNote}\n\n`);
   for (const row of rows) {
     process.stdout.write(
       `${row.file.padEnd(width)}  ${row.chars.padStart(5)} 字  ` +

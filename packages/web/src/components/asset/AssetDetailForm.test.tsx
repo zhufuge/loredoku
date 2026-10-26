@@ -108,11 +108,26 @@ describe('AssetDetailForm — 形态管理区（v0.6.1 §8.4）', () => {
     expect(buttonByText('删除')?.disabled).toBe(false);
   });
 
-  it('has no footprint inputs at all any more (v0.7.6)', () => {
+  it('has no footprint inputs and no layer subtitle any more (v0.7.6 / v0.7.7)', () => {
     render(asset([variant(11, 1)], { type: 'background', blocking: false }));
     expect(container.textContent).not.toContain('占格宽');
     expect(container.textContent).not.toContain('占格高');
-    // 形态卡片现在只说「这一层怎么铺」，占格是放置的事。
-    expect(container.textContent).toContain('背景层：每格铺满');
+    // v0.7.7: 层类型在页面顶部说一次就够了，卡片上不再重复。
+    expect(container.textContent).not.toContain('背景层：每格铺满');
+    expect(container.textContent).not.toContain('物品层：放置后占');
+  });
+
+  it('folds a variant card down to its title (v0.7.7)', () => {
+    render(asset([variant(11, 1, { name: '关闭' })]));
+    expect(container.querySelector('[aria-label="收起形态"]')).not.toBeNull();
+    expect(container.textContent).toContain('形态名称');
+
+    act(() => container.querySelector<HTMLButtonElement>('[aria-label="收起形态"]')?.click());
+
+    // 收起态只剩标题：表单字段与保存都不在。
+    expect(container.textContent).toContain('形态 · 关闭');
+    expect(container.textContent).not.toContain('形态名称');
+    expect(buttonByText('保存形态')).toBeUndefined();
+    expect(container.querySelector('[aria-label="展开形态"]')).not.toBeNull();
   });
 });

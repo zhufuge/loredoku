@@ -150,7 +150,7 @@ export function parseFontFileName(
  *
  * 只收 `woff2` / `woff`：`ttf` / `otf` 会让 `dist/` 直接背上一份未压缩的源文件
  * （霞鹜文楷的 TTF 是 24.7 MB）。它们该走 `npm run fonts`（`scripts/build-fonts.mjs`），
- * 裁完字再以 woff2 落进这里 —— 同款字体裁到 GB2312 一级是 924 KB。
+ * 裁完字再以 woff2 落进这里 —— 同款字体裁到 GB2312 一级是 925 KB。
  */
 const FONT_URLS = import.meta.glob('../assets/fonts/*.{woff2,woff}', {
   eager: true,
