@@ -95,6 +95,12 @@
 **作品内容色不在这里**：地图背景、资源色块、区域色、画布上的搜索高亮（`HIGHLIGHT_BLUE`）、
 按亮度选的黑/白文字，都属于作者的作品，**不随主题变**。判据 §0 第 4 条。
 
+**UI 的文字与图标一律走 token，不内联写 hex**（v0.7.12 §14）。一个十六进制只能服务
+一个主题 —— 谜题编辑器那行「参与者 4/4」写死 `#1F2937`，日间 13.60:1、夜间 **1.22:1**，
+从 v0.6.x 起在夜里一直是不可读的。而且内联 `color` 的优先级高于类选择器：只补一个
+`text-foreground`，旧值仍然赢，症状不变、代码却看着像修好了。改这种地方要先**删**
+inline，再加类。`grep "color: '#"` / `text-[#` 在 `src/**/*.tsx` 里应当只剩数据默认值。
+
 ### 1.2 圆角
 
 ```css
@@ -169,7 +175,7 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 | `duration-slow` | 260ms | 结构：整块位移（320px 抽屉全滑） |
 | `duration-image` | 360ms | 画面：卡片封面缩放归位 |
 | `--motion-glow` | 700ms | 光进来：纸背光光圈漫开（只在 CSS 里用，未映射到 Tailwind） |
-| `--motion-retract` | 340ms | 光出去：同一个光圈收回，比进来短一半 |
+| `--motion-retract` | 520ms | 光出去：同一个光圈收回，仍比进来（700ms）短 |
 
 | Token | 值 | 语义 |
 |---|---|---|
@@ -200,7 +206,14 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 
 `prefers-reduced-motion` 在 `index.css` 末尾统一兜底；只要往仓库里加新动画，就该确认它落进
 了那条规则（尤其是带属性选择器、特异性较高的新规则）。保留项：`.animate-spin`（放慢）、
-`.animate-pulse`（放慢）、`.highlight-fade`（原样）、`.press-ring-arc`（原样，功能性的时间刻度）。
+`.animate-pulse`（放慢）、`.highlight-fade`（原样）、`.press-ring-arc`（原样，功能性的时间刻度）、
+`.loredoku-word__l`（v0.7.12：换成静态全亮 —— 压成 `0.01ms` 会停在关键帧最后一帧、
+也就是 `opacity: .3`，整串字几乎看不见）、`.loredoku-tick`（v0.7.12：整个收起，
+一个不动的单字没有意义）。
+
+> 加载字标另有一档时长不在上表：**周期**（不是过渡）。1500ms 走完一遍八个字母、
+> 每字错开 100ms；按钮里的翻牌格 1440ms / 8 帧，`linear`。周期不是「变化」，
+> 归不到 `duration-*` 那六档里，见 §3.8。
 
 ---
 
@@ -218,7 +231,7 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 | `color-input` / `color-palette` | — | 颜色选择，走 `shared/color.ts` 的 hex/HSV 工具 |
 | `dialog` | — | **禁止点遮罩关闭**（`AGENTS.md` §3.2 硬约定） |
 | `alert-dialog` | — | 破坏性操作专用，二段式确认 |
-| `skeleton` | — | 加载占位，列表页在 `isLoading` 时铺 |
+| `skeleton` | — | 加载占位，列表页在 `isLoading` 时铺。**不要自己写 `animate-pulse`**：组件里的 `load-skeleton` 已经带了「迟到 200ms + 呼吸」（v0.7.12 §9） |
 | `icon-button` | — | **纯图标按钮的唯一写法**（v0.7.9 §5）。`label` 同时当悬浮提示和 `aria-label`，`shortcut` 挂在提示右侧，`side` 决定方向（底栏用 `top`） |
 | `tooltip` | — | Radix Tooltip，**自带 Provider**（缺 Provider 会抛错）。portal 到 body，因此能穿过 `overflow-hidden` 的面板；`z-[60]`（压在 `z-50` 的对话框之上，不靠挂载顺序）；提示文案是 `text-2xs` + `shadow-lifted` |
 | `sonner` | — | toast，`toast.success('图片已上传')` 这类句式 |
@@ -263,7 +276,10 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 
 地图 / 谜题编辑器的四块：左面板（列表）、画布、右侧信息抽屉、底部工具条。
 
-- 左面板宽度 `280px`，收起态 `40px` 细条。
+- 左面板宽度 `280px`，收起态 `40px` 细条（**谜题编辑器例外**：v0.7.13 起收起后整列
+  不渲染，「展开」的箭头挪到参与者标题行左侧 —— 那条细条只为「把自己展开」而活，
+  却常驻占着一条边）。按钮挂法见 `ParticipantPanel` 的 `headerLeading`：绝对定位，
+  标题仍按 `text-center` 居中于整块面板（分一格会让标题往右偏 14px）。
 - 右抽屉宽度 `320px`（`w-80`），两种贴法：**内联**（画布旁边推挤布局，`max-w-[50vw]`，
   无阴影）与**覆盖**（浮在画布之上，`max-w-[85vw]` + `shadow-xl` + `backdrop-blur`）。
   同一份内容两套贴法，选哪个由画布宽度决定。
@@ -347,6 +363,40 @@ PANEL_ICON_BUTTON_CLASS   = 'flex h-7 w-7 items-center justify-center rounded te
 按钮 `variant="destructive"`，进行中文案变「删除中…」并禁用。
 
 ---
+
+### 3.8 加载态（v0.7.12）
+
+**一个来源**：`components/common/LoredokuLoader.tsx`，五个出口。不要再往页面里写
+`<Loader2>` —— 那是 Lucide 的通用圈，v0.7.12 之前散落 25 处，是全站最像模板的一笔。
+
+| 处境 | 组件 | 说明 |
+|---|---|---|
+| 整屏（查看页 / 编辑器） | `LoadingScreen` | 字标 22px + 一句「正在加载画布…」 |
+| 弹窗正文、面板里的大块空白 | `LoadingBlock` | 字标 14px + 可选说明；**说明只在能说得更具体时才给** |
+| 保存蒙版 | `LoredokuLoader size="sm"` | 字标 11px + 「保存中…」并排 |
+| 一行文字里的状态位（页头、`busy` 行） | `InlineLoading` | 一格翻牌 + 一句话 |
+| 按钮 pending | `LoredokuTick` | 一格翻牌 + 按钮自己的文案（「保存中…」），**不要**再挂 `role="status"` |
+
+五条约定：
+
+1. **骨架屏不加字标**。骨架的职责是预告**内容的形状**，比「正在加载」具体得多；
+   叠上去是同一句话说两遍，还会把形状盖掉。
+2. **文案不重复动效已经说完的话**。「正在加载…」四个字配一个字标是废话；要说就说
+   「正在加载已发布的地图版本…」。说不出来就留白。
+3. **字标只给「区域」，翻牌格才给「行内」**。字标插进一行文字会把一行读成两行。
+4. **短加载不出现**（v0.7.12 §9）。四个出口的根节点都挂 `load-delayed`：200ms 内
+   结束的加载一帧都不画，超过才用 160ms 淡上来。翻牌格**不挂**（它和按钮文案同时
+   出现，晚到会让标签跳一下）；骨架屏走 `load-skeleton`（迟到 + 呼吸，两条动画写成一串）。
+   自己写新加载块时挂 `load-delayed`，别直接写 `opacity` 过渡。
+5. **两道门要是同一张脸**（v0.7.12 §10）。整屏路由（编辑器 / 查看页 / 游戏）先等分包、
+   再等数据，两屏都必须是 `LoadingScreen` + **同一句文案**（`router.tsx` 的
+   `screenFallback`），否则同一段等待会被讲成两遍、还换个位置。第二道门由
+   `useLoadDelayed` 判定「接力」（800ms 内不重新迟到），别自己给加载块写死延迟。
+
+**字标里的 R-E-D 是品牌朱**（v0.7.12 §8）：LOREDOKU 第 3–5 个字母正好拼出 RED，
+用与图标**同一支墨** —— 日间 `#5C2223`；夜间不另配近似值，照抄图标那条
+`invert(1) hue-rotate(180deg)`（`.dark .loredoku-ink-red`），同一支墨过同一条工序，
+色值必然一致。翻牌格**不染**：它落在按钮里吃 `currentColor`，实底按钮上朱墨会消失。
 
 ## 4. 事实上的梯级
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { X } from 'lucide-react';
 import {
   GAME_PLACED_OPACITY,
@@ -95,6 +95,16 @@ interface ParticipantPanelProps {
    * 两行标题叠在一起，真正有用的那行反而被压下去。
    */
   hideHeader?: boolean;
+  /**
+   * v0.7.13：标题行**左侧**可以挂一颗按钮。
+   *
+   * 谜题编辑器把「角色」列整列收起（连 40px 细条也不留）之后，「展开角色列表」
+   * 就只剩这一个落点 —— 那一列原来自己带着的 40px 细条被整段删掉了，入口必须
+   * 挪到还站着的那一列上（参与者面板紧贴它原来的位置）。
+   *
+   * 只有谜题编辑器会传；地图编辑器与作品预览不传，那两处的标题行与以前逐像素一样。
+   */
+  headerLeading?: ReactNode;
   onSelect?: (slotIndex: number | null) => void;
   /** MOD-802: pointer entered a slot → hover-activate its linkages. */
   onActivateHover?: (slotIndex: number) => void;
@@ -165,6 +175,7 @@ export function ParticipantPanel({
   readOnly = false,
   placedSlotIndices,
   hideHeader = false,
+  headerLeading,
   onSelect,
   onActivateHover,
   onDeactivateHover,
@@ -265,19 +276,37 @@ export function ParticipantPanel({
       style={{ width: panelBoxWidth }}
     >
       {/* OPT-B06 §6.1: title bar 40px, aligned with the item panel header.
-          v0.7.11：游戏页不用（`hideHeader`）—— 玩家端名册头上已经有一行了。 */}
+          v0.7.11：游戏页不用（`hideHeader`）—— 玩家端名册头上已经有一行了。
+
+          v0.7.13：颜色从写死的 `#1F2937` 换成 `text-foreground`。那个值是
+          为纸底挑的深灰（slate-800），落在夜墨 `28 12% 9%` 上只剩 1.22:1 ——
+          夜间模式里这行标题几乎是黑的。标题属于「前景」这一层，跟着主题走。 */}
       {hideHeader ? null : (
         <div
-          className="shrink-0 border-b px-3 text-center"
+          data-testid="participant-header"
+          className="relative shrink-0 border-b px-3 text-center text-foreground"
           style={{
             height: PARTICIPANT_HEADER_HEIGHT,
             lineHeight: `${PARTICIPANT_HEADER_HEIGHT}px`,
             fontSize: 13,
             fontWeight: 600,
-            color: '#1F2937',
           }}
         >
-          参与者 {placedCount}/{slots.length}
+          {/*
+            v0.7.13：`headerLeading` 用**绝对定位**挂，而不是在标题行里分一格。
+            分了格，标题就会在「面板宽 − 28px」里居中 —— 往右偏 14px，而这一行
+            只有「参与者」三个字加一个分数，偏一点点就看得出来。绝对定位让按钮
+            浮在左侧，文本仍按 `text-center` 居中于整块面板。
+          */}
+          {headerLeading ? (
+            <span className="absolute left-0.5 top-1/2 flex -translate-y-1/2 leading-none">
+              {headerLeading}
+            </span>
+          ) : null}
+          参与者{' '}
+          <span className="tabular-nums">
+            {placedCount}/{slots.length}
+          </span>
         </div>
       )}
       {/*

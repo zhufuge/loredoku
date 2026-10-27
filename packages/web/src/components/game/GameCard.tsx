@@ -123,8 +123,6 @@ export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
           {game.name}
         </h3>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          {/* FEAT-O01 (docs/v0.5.4.md §2): a tint background with a dark
-              label — the badge no longer shouts over the cover. */}
           <span
             className="rounded px-2 py-0.5 font-medium"
             style={{

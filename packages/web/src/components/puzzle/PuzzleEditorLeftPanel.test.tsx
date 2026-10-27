@@ -1,8 +1,12 @@
-import { act } from 'react';
+import { act, createRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Character, CharacterSlotEntry } from '@loredoku/shared';
-import { PuzzleEditorLeftPanel } from './PuzzleEditorLeftPanel';
+import {
+  PuzzleEditorLeftPanel,
+  RosterExpandButton,
+  type PuzzleEditorLeftPanelHandle,
+} from './PuzzleEditorLeftPanel';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -11,6 +15,11 @@ import { PuzzleEditorLeftPanel } from './PuzzleEditorLeftPanel';
  * 加入 button is disabled at that point, so the list has nothing left to offer
  * and the canvas deserves the width. It is a default, not a lock: the first
  * manual 展开 / 收起 takes over for the rest of the session.
+ *
+ * v0.7.13: 收起 = **整列不渲染**。原来那条 40px 的竖排细条（一个箭头 + 竖排
+ * 「角色」）被删掉了，箭头搬到参与者面板的标题行上。所以这一组用例里
+ * 「是否收起」的观察点从「细条在不在」换成了「容器里有没有 `aside`」，
+ * 展开动作也从「点细条里的箭头」换成了 `ref.expand()`。
  */
 
 const CHARACTERS: Character[] = [
@@ -54,11 +63,15 @@ function roster(filled: number): Array<CharacterSlotEntry | null> {
 describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）', () => {
   let container: HTMLDivElement;
   let root: Root;
+  let panelRef: { current: PuzzleEditorLeftPanelHandle | null };
+  let onCollapsedChange: ReturnType<typeof vi.fn>;
 
   function render(slots: Array<CharacterSlotEntry | null>): void {
     act(() => {
       root.render(
         <PuzzleEditorLeftPanel
+          ref={panelRef}
+          onCollapsedChange={onCollapsedChange}
           characters={CHARACTERS}
           charactersLoading={false}
           charactersError={false}
@@ -74,6 +87,8 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
   }
 
   beforeEach(() => {
+    panelRef = createRef<PuzzleEditorLeftPanelHandle>();
+    onCollapsedChange = vi.fn();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
@@ -84,42 +99,46 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
     container.remove();
   });
 
-  const expandButton = (): HTMLButtonElement | null =>
-    container.querySelector<HTMLButtonElement>('[aria-label="展开角色列表"]');
+  const aside = (): HTMLElement | null => container.querySelector('aside');
   const collapseButton = (): HTMLButtonElement | null =>
     container.querySelector<HTMLButtonElement>('[aria-label="收起角色列表"]');
 
   it('stays expanded while the roster still has room', () => {
     render(roster(1));
+    expect(aside()).not.toBeNull();
     expect(collapseButton()).not.toBeNull();
-    expect(expandButton()).toBeNull();
+    expect(onCollapsedChange).toHaveBeenLastCalledWith(false);
   });
 
   it('collapses by default once every slot is taken', () => {
     render(roster(2));
-    expect(expandButton()).not.toBeNull();
-    expect(collapseButton()).toBeNull();
+    // v0.7.13: 整列不渲染 —— 不是「留一条细条」，是这块地方整个还给画布。
+    expect(aside()).toBeNull();
+    // 页面靠这个回调决定要不要在参与者标题行上挂那颗箭头。
+    expect(onCollapsedChange).toHaveBeenLastCalledWith(true);
   });
 
   it('collapses when the last slot is filled mid-session', () => {
     render(roster(1));
-    expect(collapseButton()).not.toBeNull();
+    expect(aside()).not.toBeNull();
     render(roster(2));
-    expect(expandButton()).not.toBeNull();
+    expect(aside()).toBeNull();
   });
 
   it('leaves the state alone once the user has taken over', () => {
     render(roster(2));
-    expect(expandButton()).not.toBeNull();
+    expect(aside()).toBeNull();
+    // v0.7.13: 箭头长在参与者标题行上，通过 ref 叫回来（与点它等价）。
     act(() => {
-      expandButton()?.click();
+      panelRef.current?.expand();
     });
     expect(collapseButton()).not.toBeNull();
+    expect(onCollapsedChange).toHaveBeenLastCalledWith(false);
     // Empty a slot and fill it again — the manual 展开 stands.
     render(roster(1));
     render(roster(2));
     expect(collapseButton()).not.toBeNull();
-    expect(expandButton()).toBeNull();
+    expect(aside()).not.toBeNull();
   });
 
   it('keeps a manual collapse across roster changes', () => {
@@ -127,9 +146,41 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
     act(() => {
       collapseButton()?.click();
     });
-    expect(expandButton()).not.toBeNull();
+    expect(aside()).toBeNull();
     render(roster(0));
-    expect(expandButton()).not.toBeNull();
+    expect(aside()).toBeNull();
+  });
+});
+
+/**
+ * v0.7.13：收起之后那颗箭头已经不在这个组件里了，它由参与者面板的标题行渲染。
+ * 这里只验它自己：标签、折叠语义、点击回传。
+ */
+describe('RosterExpandButton（v0.7.13）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('announces 「展开角色列表」 and calls back', () => {
+    const onClick = vi.fn();
+    act(() => {
+      root.render(<RosterExpandButton onClick={onClick} />);
+    });
+    const button = container.querySelector<HTMLButtonElement>('button');
+    expect(button?.getAttribute('aria-label')).toBe('展开角色列表');
+    expect(button?.getAttribute('aria-expanded')).toBe('false');
+    act(() => button?.click());
+    expect(onClick).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -137,8 +188,8 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
  * v0.7.7: 角色面板头部的刷新按钮。角色列表是共享查询，角色页刚加过角色时
  * 不用整页重载（重载会丢撤销栈与视口）。
  *
- * 收起态没有按钮是有意的：40px 细条放不下第二个 28px 按钮，而细条出现的时机
- * （参与者已满）本来也没法再加入角色。
+ * 收起后整个面板不渲染，刷新按钮自然也不在 —— 而收起出现的时机（参与者已满）
+ * 本来也没法再加入角色。
  */
 describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
   let container: HTMLDivElement;
@@ -186,9 +237,10 @@ describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
     expect(onRefreshCharacters).toHaveBeenCalledTimes(1);
   });
 
-  it('is not rendered in the collapsed rail', () => {
+  it('is gone with the whole column once the panel collapses', () => {
     render(roster(2));
-    expect(refreshButton()).toBeNull();
+    // v0.7.13: 不是「按钮藏起来」，是这一列根本不渲染。
+    expect(container.firstElementChild).toBeNull();
   });
 
   it('spins and blocks a second click while a fetch is in flight', () => {

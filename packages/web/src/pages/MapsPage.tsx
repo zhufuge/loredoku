@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import type { MapEntrySummary } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ import { ViewToggle } from '@/components/common/ViewToggle';
 import { useStoredView, type ViewMode } from '@/hooks/useStoredView';
 import { useDeleteMap, useDuplicateMap, useMaps } from '@/hooks/useMaps';
 import { useDeleteVersion } from '@/hooks/useVersions';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 const PAGE_SIZE = 12;
 
@@ -375,7 +376,7 @@ export function MapsPage(): JSX.Element {
             <Button variant="destructive" disabled={deleting} onClick={confirmDelete}>
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   删除中…
                 </>
               ) : (

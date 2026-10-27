@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
@@ -77,6 +77,7 @@ import { resolveEditorInit } from '@/lib/editorInit';
 import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 interface RegionDialogState {
   open: boolean;
@@ -1265,7 +1266,7 @@ export function MapEditorPage(): JSX.Element {
             <Button type="button" disabled={resizePending} onClick={confirmResize}>
               {resizePending ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   调整中…
                 </>
               ) : (
@@ -1348,7 +1349,7 @@ export function MapEditorPage(): JSX.Element {
             >
               {publishMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   发布中…
                 </>
               ) : editor.dirty ? (

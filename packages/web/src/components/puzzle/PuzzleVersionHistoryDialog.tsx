@@ -1,4 +1,4 @@
-import { Loader2, Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { PuzzleEntrySummary } from '@loredoku/shared';
 import {
@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useDeletePuzzleVersion, usePuzzleVersions } from '@/hooks/usePuzzles';
 import { formatDateTime } from '@/lib/format';
+import { InlineLoading, LoadingBlock } from '@/components/common/LoredokuLoader';
 
 interface PuzzleVersionHistoryDialogProps {
   puzzleId: number | null;
@@ -55,10 +56,7 @@ export function PuzzleVersionHistoryDialog({
         </DialogHeader>
 
         {versionsQuery.isLoading ? (
-          <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            正在加载…
-          </div>
+          <LoadingBlock caption="正在加载版本记录…" className="py-10" />
         ) : versionsQuery.isError ? (
           <p className="py-10 text-center text-sm text-muted-foreground">版本加载失败</p>
         ) : versions.length === 0 ? (
@@ -135,10 +133,9 @@ export function PuzzleVersionHistoryDialog({
         )}
 
         {busy ? (
-          <p className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            正在处理…
-          </p>
+          <div className="flex justify-center">
+            <InlineLoading caption="正在处理…" />
+          </div>
         ) : null}
       </DialogContent>
     </Dialog>

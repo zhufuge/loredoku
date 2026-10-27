@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Loader2, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import type { MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -33,6 +33,7 @@ import {
   usePuzzles,
 } from '@/hooks/usePuzzles';
 import { useStoredView, type ViewMode } from '@/hooks/useStoredView';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 const PAGE_SIZE = 12;
 
@@ -371,7 +372,7 @@ export function PuzzlesPage(): JSX.Element {
             <Button variant="destructive" disabled={deleting} onClick={confirmDelete}>
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   删除中…
                 </>
               ) : (

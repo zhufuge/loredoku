@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
+import { LoadingScreen } from '@/components/common/LoredokuLoader';
 import {
   DEFAULT_CELL_SIZE,
   MAP_LAYER_Z,
@@ -332,12 +333,7 @@ export function PuzzleViewPage(): JSX.Element {
     setActivation((state) => reduceLinkageActivation(state, event));
 
   if (detailQuery.isLoading || mapQuery.isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载谜题…
-      </div>
-    );
+    return <LoadingScreen caption="正在加载谜题…" />;
   }
 
   if (!draft || !mapContext || detailQuery.isError || mapQuery.isError) {

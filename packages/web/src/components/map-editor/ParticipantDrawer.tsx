@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Loader2, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import {
   DEFAULT_THEME_COLOR,
   PARTICIPANT_DISPLAY_NUMBER_MAX,
@@ -34,6 +34,7 @@ import {
   type LinkageAssetOption,
 } from './LinkageDialog';
 import { ThemeColorDialog } from './ThemeColorDialog';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 /** MOD-702: max clue length. */
 const CLUE_MAX = 200;
@@ -625,7 +626,7 @@ export function ParticipantDrawer({
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   删除中…
                 </>
               ) : (

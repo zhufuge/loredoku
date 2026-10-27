@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2 } from 'lucide-react';
+
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
@@ -47,7 +47,11 @@ import { Input } from '@/components/ui/input';
 import { PuzzleBottomBar } from '@/components/puzzle/PuzzleBottomBar';
 import { PuzzleMapSwapDialog } from '@/components/puzzle/PuzzleMapSwapDialog';
 import { PuzzleVersionHistoryDialog } from '@/components/puzzle/PuzzleVersionHistoryDialog';
-import { PuzzleEditorLeftPanel } from '@/components/puzzle/PuzzleEditorLeftPanel';
+import {
+  PuzzleEditorLeftPanel,
+  RosterExpandButton,
+  type PuzzleEditorLeftPanelHandle,
+} from '@/components/puzzle/PuzzleEditorLeftPanel';
 import {
   PuzzleInfoDrawer,
   type PuzzleBasicInfo,
@@ -75,6 +79,7 @@ import { versionsApi } from '@/api/versions';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
 import { resolveMapStyle } from '@/lib/mapStyle';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 import {
   mapContextCells,
   mapContextRegions,
@@ -160,6 +165,13 @@ export function PuzzleEditorPage(): JSX.Element {
   const canvasRef = useRef<EditorCanvasHandle | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const puzzleInfoRef = useRef<PuzzleInfoDrawerHandle | null>(null);
+  /**
+   * v0.7.13：角色列收起后整列都不渲染，「展开」的按钮搬到参与者标题行上。
+   * 面板自己是这条状态的 owner（自动收起的记忆在里面），页面只拿一个镜像，
+   * 用来决定那颗箭头要不要出现；真的展开还是叫面板自己做（`expand()`）。
+   */
+  const leftPanelRef = useRef<PuzzleEditorLeftPanelHandle | null>(null);
+  const [rosterCollapsed, setRosterCollapsed] = useState(false);
 
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -839,8 +851,12 @@ export function PuzzleEditorPage(): JSX.Element {
       <div className="relative flex min-h-0 flex-1">
         <EditorSaveMask saving={saving} visible={saveMaskVisible} />
 
-        {/* SPEC-K04: only the 角色 tab survives on this side. */}
+        {/* SPEC-K04: only the 角色 tab survives on this side.
+            v0.7.13：收起时它渲染 `null`（不再留一条竖排细条），展开入口挪到下面
+            参与者面板的标题行上。 */}
         <PuzzleEditorLeftPanel
+          ref={leftPanelRef}
+          onCollapsedChange={setRosterCollapsed}
           characters={charactersQuery.data}
           charactersLoading={charactersQuery.isLoading}
           charactersError={charactersQuery.isError}
@@ -860,6 +876,15 @@ export function PuzzleEditorPage(): JSX.Element {
         />
 
         <ParticipantPanel
+          /*
+           * v0.7.13：角色列收起之后，「展开角色列表」只剩这一个落点 —— 那颗
+           * 箭头挂在「参与者 n/n」标题行的左侧（绝对定位，标题仍然居中）。
+           */
+          headerLeading={
+            rosterCollapsed ? (
+              <RosterExpandButton onClick={() => leftPanelRef.current?.expand()} />
+            ) : undefined
+          }
           slots={puzzle.characterSlots}
           charactersById={charactersById}
           cols={puzzle.rosterCols}
@@ -1156,7 +1181,7 @@ export function PuzzleEditorPage(): JSX.Element {
             >
               {publishMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   发布中…
                 </>
               ) : puzzle.dirty ? (

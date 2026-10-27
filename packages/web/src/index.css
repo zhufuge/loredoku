@@ -141,7 +141,7 @@
      *   slow 260ms —— 结构。整块位移（抽屉全滑、面板展开）。只在真正换布局时用。
      *   image 360ms —— 画面。卡片封面的缩放归位。
      *   glow 700ms —— 光进来。纸背光的光圈漫开。
-     *   retract 340ms —— 光出去。同一个光圈收回（退出方向比进入短一半）。
+     *   retract 520ms —— 光出去。同一个光圈收回（仍比进入短，但不必短一半）。
      *
      * `image` / `glow` / `retract` 是全套里**按用途命名**的几档，因为它们管的
      * 不是「控件的动效」而是「内容的动效」：前三档讲界面如何响应你，这三档讲
@@ -172,13 +172,17 @@
      */
     --motion-glow: 700ms;
     /*
-     * retract 340ms —— 光收回。同一个光圈的**退出方向**（§10.11）。
+     * retract 520ms —— 光收回。同一个光圈的**退出方向**（§10.11）。
      *
-     * 不和 `glow` 共用一个值，因为两件事的读法不同：铺开是「慢慢发生」，收回
-     * 是「撤走」—— 前者可以拖到 700ms，后者超过半秒就像页面卡住了。340ms 是
-     * 「看得出在收，但不让你等」的那一档。
+     * 不和 `glow` 共用一个值：铺开是「慢慢发生」，收回是「撤走」，后者该更短 ——
+     * 但**短多少**换过一次。原来是 340ms（约等于进入的一半），依据是「退出不该
+     * 让人等」；实际观感是光还没收拢就没了，像被掐掉，而不是缩回光心（v0.7.12
+     * §12）。520ms 是 74% 的进入时长：仍是离开更快，但整套收缩动作（半径 + 取景
+     * 框 + 最后那一下熄灭）都走完了。
+     *
+     * 上限是 `glow` 的 700ms —— 超过它，退出就比进入还隆重，那读成「卡住」。
      */
-    --motion-retract: 340ms;
+    --motion-retract: 520ms;
     /* 指数减速：起步快、收尾长。默认出场曲线。 */
     --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     /*
@@ -564,6 +568,244 @@
   }
 
   /*
+   * 短加载不出现（v0.7.12 §9）。
+   *
+   * 本地接口大多 20–80ms 就回来了，而「加载中」是**在等待时才有意义**的提示：
+   * 80ms 的加载画出来只会是一帧闪现 —— 用户看到的不是「正在取」，是「画面抖了
+   * 一下」。这种闪烁比不给提示更糟：每一次都让人以为是自己点错了。
+   *
+   * 做法是**迟到的淡入**。`animation-fill-mode: both` 让元素在延迟期间就停在
+   * 第一个关键帧（`opacity: 0`），所以 200ms 内结束的加载，这个元素一帧都没被
+   * 画出来过；超过 200ms 才用 160ms 淡上来。不是「半透明地先露个脸」，是真的
+   * 一次都不出现。
+   *
+   * 两个数字的来历：
+   *   200ms 门槛 —— 低于它，人基本还没意识到「在等」。不取 300ms（业界常用
+   *                 上限）：这里多数请求本来就快，门槛再高等于白加延迟。
+   *   160ms 淡入 —— 掐掉「一帧闪过」之后，剩下的边缘是「200–400ms 之间到达」
+   *                 的加载。这段时间里字标只淡到四五成，读起来是「刚浮上来又
+   *                 走了」，不是「闪了一下」。淡入再快就成了硬切。
+   *
+   * 为什么不做「最短展示时长」（露脸至少 300ms 再撤）：那需要知道**卸载时刻**，
+   * 而组件被父级 unmount 之后已无从干预 —— 得在数据层（`isLoading`）配一个
+   * hook，19 个调用点各改一遍。CSS 这一层能拿走的，就是「短加载一次都不画」。
+   */
+  @keyframes load-appear {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .load-delayed {
+    animation: load-appear 160ms var(--motion-ease-out) 200ms both;
+  }
+
+  /*
+   * 嵌套时只留最外层那一次淡入（`LoadingScreen` → `LoadingBlock` →
+   * `LoredokuLoader` 三层都挂这个类）。内层自己不淡，由外层一起带出来 ——
+   * 两层同节奏的 opacity 相乘会让中段明显偏慢，看着像没对齐。
+   */
+  .load-delayed .load-delayed {
+    animation: none;
+  }
+
+  /*
+   * 骨架屏同样要迟到（`ui/skeleton.tsx`）。它不能直接叠 `.load-delayed`：呼吸
+   * 也占着 `animation` 这一条属性，后写的会整个顶掉前一条。于是把「淡入」和
+   * 「呼吸」写成一串两条动画，顺序不能换 —— 前一条只播一次且带延迟，后一条
+   * 无限循环。
+   *
+   * 呼吸照抄 Tailwind 的 `animate-pulse`（2s / `cubic-bezier(.4,0,.6,1)` / 中点
+   * 半透明），只是换成本地关键帧：这样不依赖 `animate-pulse` 这个工具类是否还
+   * 在别处被用到（Tailwind 只生成真正被引用的关键帧，删了最后一处 `animate-pulse`
+   * 就会连 `@keyframes pulse` 一起消失，而这里静默失效是看不出来的）。
+   */
+  @keyframes load-skeleton-pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+
+  .load-skeleton {
+    animation:
+      load-appear 160ms var(--motion-ease-out) 200ms both,
+      load-skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /*
+   * LOREDOKU 加载字标（v0.7.12，`components/common/LoredokuLoader.tsx`）。
+   *
+   * 界面里出现次数最多的「等待」此前是 Lucide 的 `Loader2` 转圈 —— 十个地方画
+   * 同一个圈，是这套界面辨识度最低、也最像模板的一笔。现在换成产品自己的名字：
+   * 字形走霞鹜文楷的拉丁（与页标题同一支笔），动作是**逐字盖上再退下去**，
+   * 用的是 `place-pop` 那一套（0.97 → 1.05 → 1）—— 与游戏里落子是同一支动作。
+   *
+   * 为什么用 `translate` / `scale` 这两个独立属性而不是 `transform`：与
+   * v0.7.10 §6.3 记的 SVG 那个坑同源 —— 一旦别处有 `transform` 规则，两者会
+   * 互相覆盖而不是叠加。这里虽然没有 SVG 坐标，但同一套写法省得下次再踩。
+   *
+   * 幅度刻意小（1px、5%、4% 透明度以上的暗底）：这条动效要在一屏上看几十次，
+   * 前三次是「活泼」，第三十次就是「抖」。真正常变的只有**暗的那三四个字母**，
+   * 边界从左往右走 —— 看得出在动，但不会催人。
+   */
+  .loredoku-word {
+    display: inline-flex;
+    align-items: baseline;
+    font-family: '霞鹜文楷', 'Kaiti SC', 'STKaiti', 'KaiTi', ui-serif, serif;
+    font-synthesis-weight: none;
+    line-height: 1;
+    letter-spacing: 0.16em;
+    /* 字距会在最后一个字母后面多留一份 —— 居中时整串会偏左半个字距，减掉它。 */
+    margin-inline-end: -0.16em;
+    color: hsl(var(--muted-foreground));
+    vertical-align: middle;
+    user-select: none;
+  }
+
+  /* 三档：弹窗 / 面板里 11px，常规 14px，整屏 22px（与页标题同一量级的下方一档）。 */
+  .loredoku-word--sm {
+    font-size: 11px;
+  }
+
+  .loredoku-word--md {
+    font-size: 14px;
+  }
+
+  .loredoku-word--lg {
+    font-size: 22px;
+  }
+
+  .loredoku-word__l {
+    display: inline-block;
+    animation: loredoku-word-stamp 1500ms var(--motion-ease-out) infinite;
+    animation-delay: calc(var(--i) * 100ms);
+  }
+
+  @keyframes loredoku-word-stamp {
+    0% {
+      opacity: 0.3;
+      translate: 0 1px;
+      scale: 0.97;
+    }
+    7% {
+      opacity: 1;
+      translate: 0 -1px;
+      scale: 1.05;
+    }
+    14% {
+      opacity: 1;
+      translate: 0 0;
+      scale: 1;
+    }
+    64% {
+      opacity: 1;
+      translate: 0 0;
+      scale: 1;
+    }
+    74% {
+      opacity: 0.3;
+      translate: 0 1px;
+      scale: 0.97;
+    }
+    100% {
+      opacity: 0.3;
+      translate: 0 1px;
+      scale: 0.97;
+    }
+  }
+
+  /*
+   * 字标里的 R-E-D 三个字母（v0.7.12 §8，`LoredokuLoader` 里按 `indexOf('RED')`
+   * 挂上来的那三个 `span`）。
+   *
+   * LOREDOKU 第 3–5 个字母正好拼出 RED。品牌资产是**黑 + 朱双色墨迹**
+   * （`#5C2223`），左上角的图标就是这两色画的 —— 于是这三个字母也上这支朱：
+   * 一串灰字里多一个落点，字标与图标对得上。
+   *
+   * **深色下不写一个「差不多」的浅红**。图标在深色里从来不是一个色值，而是一道
+   * 工序：`invert(1) hue-rotate(180deg)`（`BrandLogo` 的 `dark:invert
+   * dark:hue-rotate-180`，来历见 v0.5.7 §2 —— 黑翻成白、深朱转一圈变亮红）。
+   * 这里照抄同一道工序，连顺序都一样：同一支墨过同一条流水线，结果必然一致。
+   * 抄一个 `#FEC4C5` 进来当下也对得上，但图标哪天调了色，字标就会先走散 ——
+   * 而走散的地方没人会去 grep 一个十六进制值。
+   *
+   * 用后代选择器而不是 `dark:` 变体：`.dark` 挂在 `documentElement` 上
+   * （`tailwind.config.ts` 的 `darkMode: ['class']`），这一处够用，也省得
+   * `loredoku-*` 这组手写样式突然依赖 Tailwind 的 `@apply`。
+   *
+   * 注意 `filter` 会自建层叠上下文：字母的 `opacity` / `translate` / `scale`
+   * 动画不受影响（filter 先作用于绘制结果，再做变换），但它会临时多一层合成。
+   * 一整串只有三个字母带它，代价可以忽略。
+   */
+  .loredoku-ink-red {
+    color: #5c2223;
+  }
+
+  .dark .loredoku-ink-red {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
+  /*
+   * 按钮里的那一格（同一个组件的 `LoredokuTick`）。
+   *
+   * 八个字母塞不进按钮的图标位，于是把同一个动作压成一格**翻牌**：L→O→R→…
+   * 每 180ms 换一个，八个字正好走完一轮（1440ms）。宽度用 `em`，跟着按钮字号走 ——
+   * 它替换掉的那枚图标是 `h-4 w-4`，所以 pending 前后按钮不会横向跳一下。
+   *
+   * `linear` 是对的：这个动作要读成「咔、咔、咔」的机械翻牌，缓动会让它变成
+   * 融化。每一段都短（35ms 进出），曲线本来也看不出来。
+   */
+  .loredoku-tick {
+    display: inline-grid;
+    place-items: center;
+    width: 1.15em;
+    height: 1.15em;
+    font-family: '霞鹜文楷', 'Kaiti SC', 'STKaiti', 'KaiTi', ui-serif, serif;
+    line-height: 1;
+    vertical-align: middle;
+    user-select: none;
+  }
+
+  .loredoku-tick__l {
+    grid-area: 1 / 1;
+    display: block;
+    font-size: 0.92em;
+    opacity: 0;
+    animation: loredoku-tick-slot 1440ms linear infinite;
+    animation-delay: calc(var(--i) * 180ms);
+  }
+
+  @keyframes loredoku-tick-slot {
+    0% {
+      opacity: 0;
+      scale: 0.6;
+    }
+    3% {
+      opacity: 1;
+      scale: 1.08;
+    }
+    8% {
+      opacity: 1;
+      scale: 1;
+    }
+    11% {
+      opacity: 1;
+      scale: 1;
+    }
+    13% {
+      opacity: 0;
+      scale: 0.88;
+    }
+    100% {
+      opacity: 0;
+      scale: 0.88;
+    }
+  }
+
+  /*
    * 纸背光（v0.7.10 §10，`components/game/GameCard.tsx`）—— 两层，一减一加。
    *
    * 位置来自组件写进 `--glow-x / --glow-y` 的指针坐标；两层共用这一组值，
@@ -578,8 +820,9 @@
    * 唯一的办法是**把周围压下去**：对比度，不是亮度。这一版之前试过「亮中心 +
    * 一层大光晕」，结果整张封面被均匀抬亮、红色斜带褪成粉色，反而更糊。
    *
-   * 减光用暖褐（`26 46% 26%`）而不是纯黑：纯黑乘上去会发灰，暖褐乘上去像纸在
-   * 自家影子里。加光用近白偏暖（`44 100% 97%`），不偏青 —— 偏青会把纸染成蓝。
+   * 减光用暖褐（`26 46% 30%`，v0.7.12 §11 起；原 `25%`）而不是纯黑：纯黑乘上去
+   * 会发灰，暖褐乘上去像纸在自家影子里。加光用近白偏暖（`44 100% 97%`），不偏青
+   * —— 偏青会把纸染成蓝。
    * 这两个是**光照的两端**，不是配色（与 `--shadow-*` 里那些 hsl 同性质）；
    * 换成任何主题 token 都会让方向随主题反转：夜间 `--background` 是墨色，
    * 「加光」会变成「加阴影」。
@@ -642,8 +885,9 @@
      * 不收那版几乎看不出在动。
      *
      * `opacity` 那一行是「拖到最后再撒手」：1ms 时长 + 整个 retract 的延迟 ——
-     * 340ms 里一直保持 1（否则光还没收完就淡没了，收回等于白做），等窗口关完
-     * 才落到 0。落到 0 时画面里已经没东西了，所以这一步看不见。
+     * 收回的全程里一直保持 1（否则光还没收完就淡没了，收回等于白做），等窗口
+     * 关完才落到 0。落到 0 时画面里已经没东西了，所以这一步看不见。
+     * 那一行的延迟与半径共用 `--motion-retract`：其中一处改时长，这条会跟着走。
      */
     --glow-w: 0;
     transition:
@@ -665,14 +909,43 @@
   }
 
   .paper-shade {
-    /* 圆的半径 = 146% × 光圈。146% 是定稿时的取景：结束形状比封面大一圈，
-       四角才刚刚吃到满强度，所以 `--glow-r: 1` 的终态与上一版逐像素一致。
-       封面是正方形容器，椭圆两支相等的百分数就是正圆。 */
+    /*
+     * 圆的半径 = 200% × 光圈。封面是正方形容器，椭圆两支相等的百分数就是正圆。
+     *
+     * v0.7.12 §13：146% → 200%，透明芯 18% → 12%。反馈是「向外扩散更大、过渡
+     * 更多一点」——两件事其实是同一个动作：把渐变场放大，同一段像素上分到的
+     * α 就更少，影子自然铺得更开、也更薄。
+     *
+     * 透明芯的百分数跟着降，是为了让**被照亮的芯**（像素半径）几乎不变：
+     * `0.12 × 200% ≈ 0.18 × 146%`（72px vs 79px，300px 见方时）。所以变长的
+     * 是中间那条过渡带：从 359px 拉到 528px。**芯不动、坡变长**，读起来才是
+     * 「光还是那一盏，纸往外更暗得慢」。
+     *
+     * 代价要说清楚：半径 200% 之后，满强度落在 600px 处 —— 已经在封面之外，
+     * 四角（212px）只走到全程的 35%，那一段的 α 是 `0.55 × 0.27 ≈ 0.15`，
+     * 实测 L* 85.7 → 88.7。也就是说静止时**这张卡上不存在「满强度」的暗角**，
+     * 最深的地方也很浅。这正是「扩散更大」想要的：影子不再是一圈压边，是一层
+     * 摊开的薄雾。
+     */
     background-image: radial-gradient(
-      ellipse calc(var(--glow-r) * 146%) calc(var(--glow-r) * 146%)
+      ellipse calc(var(--glow-r) * 200%) calc(var(--glow-r) * 200%)
         at var(--glow-x, 50%) var(--glow-y, 50%),
-      transparent 18%,
-      hsl(26 46% 25% / 0.72)
+      transparent 12%,
+      /*
+       * v0.7.12 §11：`.72 / L25` 被反馈「颜色太深」，压到 `.55 / L30`。
+       *
+       * 深的那一帧不在静止时，而在**光圈还没张开**的头一百毫秒：此时圆的
+       * 半径只有终态的 32%，整张封面都落在渐变的**满强度**那一端 —— 实测
+       * 奶油纸四角从 `248,246,242` 掉到 `134,110,90`（L* 96.9 → 47.6），
+       * 一张浅封面上盖了一块深褐。静止时反而很轻（L* 80.8），所以此前几版
+       * 静态截图比对都没抓到它。
+       *
+       * 抗深锈靠减墨，不靠减范围：`S` 与透明芯都不动（那决定暗角的形状与
+       * 「影子该有的温度」），只把 L 抬到 30、α 收到 .55 —— 同一支暖褐、
+       * 更薄的一层。§13 放大半径之后，进场那一帧的中段也从 L* 66 抬到 73
+       * （四角因为仍在满强度区，停在 L* 63 不动）。
+       */
+      hsl(26 46% 30% / 0.55)
     );
     mix-blend-mode: multiply;
   }
@@ -756,6 +1029,39 @@ html[data-theme-transition] *::after {
   .animate-pulse {
     animation-duration: 2.4s !important;
     animation-iteration-count: infinite !important;
+  }
+
+  /*
+   * 迟到淡入（§9）在「减少动态」下只剩「迟到」：上面 `*` 那条已经把时长压到
+   * 0.01ms，于是元素在 200ms 处**直接**出现 —— 这正是想要的（别闪），只是不再
+   * 淡。骨架屏要单独把第二条动画（呼吸）恢复到 2.4s / 无限：`*` 那条给两条动画
+   * 都写了 `0.01ms` 和「只播一次」，不覆盖的话骨架会停在半透明处一动不动，
+   * 比不动更糟 —— 那是「坏了」的样子。
+   */
+  .load-skeleton {
+    animation-duration: 0.01ms, 2.4s !important;
+    animation-iteration-count: 1, infinite !important;
+  }
+
+  /*
+   * LOREDOKU 字标（v0.7.12）。这一条**必须写**，否则「减少动态」的用户会看到
+   * 一串几乎看不见的字：上面 `*` 那条把动画压成 0.01ms 且只播一次，于是每个
+   * 字母都停在关键帧的最后一帧 —— `opacity: .3`。翻牌格更糟，八格全停在
+   * `opacity: 0`，按钮里剩下一个空洞。
+   *
+   * 静态替代不是「把动效调慢」，而是**换一种静态的表达**：字标全亮静止（它本来
+   * 就是品牌名，静止也说得通），翻牌格整个收起（一个不动的单字没有意义，而它
+   * 旁边的「保存中…」已经把状态说完了）。
+   */
+  .loredoku-word__l {
+    animation: none !important;
+    opacity: 1 !important;
+    translate: none !important;
+    scale: none !important;
+  }
+
+  .loredoku-tick {
+    display: none !important;
   }
 
   .highlight-fade {

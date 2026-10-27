@@ -1,17 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Eraser,
-  Loader2,
-  Minus,
-  Plus,
-  RotateCcw,
-  Ruler,
-  Send,
-  Undo2,
-  X,
-} from 'lucide-react';
+import { ArrowLeft, Eraser, Minus, Plus, RotateCcw, Ruler, Send, Undo2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
@@ -92,6 +81,7 @@ import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import { rulerStripSize } from '@/lib/ruler';
+import { LoadingScreen } from '@/components/common/LoredokuLoader';
 import {
   INACTIVE_ACTIVATION,
   reduceLinkageActivation,
@@ -1068,12 +1058,7 @@ export function GamePage(): JSX.Element {
   const undoSteps = placementState.past.length;
 
   if (gameQuery.isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载游戏…
-      </div>
-    );
+    return <LoadingScreen caption="正在加载游戏…" />;
   }
 
   if (!gameQuery.data || gameQuery.isError) {

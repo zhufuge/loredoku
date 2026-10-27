@@ -1,4 +1,4 @@
-import { act } from 'react';
+import { act, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ParticipantPanel } from './ParticipantPanel';
@@ -23,6 +23,7 @@ describe('ParticipantPanel — 选中态与隐藏标题（v0.7.11）', () => {
     activeSlotIndex?: number | null;
     hideHeader?: boolean;
     highlightedSlots?: Set<number>;
+    headerLeading?: ReactNode;
   }): void {
     act(() => {
       root.render(
@@ -33,6 +34,7 @@ describe('ParticipantPanel — 选中态与隐藏标题（v0.7.11）', () => {
           draggingIndex={null}
           activeSlotIndex={props.activeSlotIndex ?? null}
           highlightedSlots={props.highlightedSlots}
+          headerLeading={props.headerLeading}
           hideHeader={props.hideHeader}
           readOnly
           onActivateClick={vi.fn()}
@@ -54,6 +56,13 @@ describe('ParticipantPanel — 选中态与隐藏标题（v0.7.11）', () => {
 
   const card = (index: number): HTMLElement =>
     container.querySelector<HTMLElement>(`[data-slot-index="${index}"]`) as HTMLElement;
+
+  /**
+   * 「参与者 n/n」那一行。带 `headerLeading` 的时候它的 `textContent` 里会多出
+   * 按钮的字，靠文本查不稳（v0.7.13 起组件挂了 `data-testid`）。
+   */
+  const headerRow = (): HTMLElement =>
+    container.querySelector<HTMLElement>('[data-testid="participant-header"]') as HTMLElement;
 
   it('draws a double ring (paper gap + primary) on the selected card', () => {
     render({ selectedSlotIndex: 0 });
@@ -129,5 +138,42 @@ describe('ParticipantPanel — 选中态与隐藏标题（v0.7.11）', () => {
   it('still renders the header for the editor and the work preview', () => {
     render({});
     expect(container.textContent ?? '').toContain('参与者 2/2');
+  });
+
+  /*
+   * v0.7.13：这行标题的颜色曾经写死成 `#1F2937`（为纸底挑的 slate-800）——
+   * 夜间落在夜墨 `28 12% 9%` 上只剩 1.22:1，等于看不见。
+   *
+   * 断言的是「跟着主题走」这件事，不是某个色值：色值在 `index.css` 的
+   * `--foreground` 里，两套主题各一份。写死 inline `color` 会让
+   * `text-foreground` 静默失效（内联优先），所以那一半也要一起断言。
+   */
+  it('标题的颜色跟着主题走，不写死', () => {
+    render({});
+    const header = headerRow();
+    expect(header).toBeTruthy();
+    expect(header?.className).toContain('text-foreground');
+    expect(header?.style.color).toBe('');
+  });
+
+  /*
+   * v0.7.13：谜题编辑页把「角色」列整列收掉之后，「展开角色列表」挂在这一行的
+   * 左侧。它必须是**绝对定位**的：用 flex 分一格，标题就只在「面板宽 − 28px」
+   * 里居中，往右偏 14px —— 这一行只有三个字加一个分数，偏一点点都看得出来。
+   */
+  it('headerLeading 挂在标题行左侧，标题仍居中', () => {
+    render({ headerLeading: <button aria-label="展开角色列表">›</button> });
+    const row = headerRow();
+    const lead = row.querySelector('[aria-label="展开角色列表"]');
+    expect(lead).not.toBeNull();
+    // 按钮的容器是绝对定位的那一层，不参与标题的排布。
+    expect(lead?.parentElement?.className).toContain('absolute');
+    expect(row.className).toContain('relative');
+    expect(row.className).toContain('text-center');
+  });
+
+  it('不传 headerLeading 时，标题行里没有多余的按钮', () => {
+    render({});
+    expect(headerRow().querySelector('[aria-label]')).toBeNull();
   });
 });

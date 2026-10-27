@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { ASSET_TYPES, ASSET_TYPE_LABELS, type Asset, type AssetType } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -22,6 +22,7 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
 import { Select } from '@/components/ui/select';
 import { useDeleteAsset, useAssetUsages, useAssets } from '@/hooks/useAssets';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 type TypeFilter = 'all' | AssetType;
@@ -251,7 +252,7 @@ export function AssetsPage(): JSX.Element {
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   删除中…
                 </>
               ) : (

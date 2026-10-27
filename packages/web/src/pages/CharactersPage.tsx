@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Loader2, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import type { Character } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import { CharacterListPanel } from '@/components/character/CharacterListPanel';
 import { CreateCharacterDialog } from '@/components/character/CreateCharacterDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useCharacterUsages, useCharacters, useDeleteCharacter } from '@/hooks/useCharacters';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
@@ -238,7 +239,7 @@ export function CharactersPage(): JSX.Element {
             >
               {deleting ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   删除中…
                 </>
               ) : (

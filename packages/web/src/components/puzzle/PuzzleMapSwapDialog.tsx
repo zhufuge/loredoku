@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Map as MapIcon } from 'lucide-react';
+import { Map as MapIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import type { PublishedMapVersion } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,8 @@ import {
 import { usePublishedVersions } from '@/hooks/useMaps';
 import { formatDateTimeMinute } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { LoadingBlock } from '@/components/common/LoredokuLoader';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 /**
  * v0.7.3 §3：「引入新地图」。
@@ -100,10 +102,7 @@ export function PuzzleMapSwapDialog({
           </div>
 
           {versionsQuery.isLoading ? (
-            <div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              正在加载已发布的地图版本…
-            </div>
+            <LoadingBlock caption="正在加载已发布的地图版本…" className="py-6" />
           ) : candidates.length === 0 ? (
             <div className="space-y-2 rounded-md border border-dashed bg-muted/40 p-3">
               <p className="text-xs text-muted-foreground">
@@ -173,7 +172,7 @@ export function PuzzleMapSwapDialog({
           >
             {busy ? (
               <>
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                <LoredokuTick className="mr-1" />
                 引入中…
               </>
             ) : (

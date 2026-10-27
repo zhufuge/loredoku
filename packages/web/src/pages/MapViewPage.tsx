@@ -1,6 +1,7 @@
 import { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate, useLocation, useParams } from 'react-router-dom';
-import { ArrowLeft, Hand, Loader2, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
+import { ArrowLeft, Hand, Minus, Plus, RotateCcw, Ruler } from 'lucide-react';
+import { LoadingScreen } from '@/components/common/LoredokuLoader';
 import {
   DEFAULT_CELL_SIZE,
   MAP_LAYER_Z,
@@ -261,12 +262,7 @@ export function MapViewPage(): JSX.Element {
   };
 
   if (mapQuery.isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        正在加载地图…
-      </div>
-    );
+    return <LoadingScreen caption="正在加载地图…" />;
   }
 
   if (!valid || mapQuery.isError || !entry) {

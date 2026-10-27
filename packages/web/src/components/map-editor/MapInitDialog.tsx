@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FileUp, Loader2, Ruler } from 'lucide-react';
+import { FileUp, Ruler } from 'lucide-react';
 import { GRID_SIZE_DEFAULT, GRID_SIZE_MAX, GRID_SIZE_MIN } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 /**
  * 第一次进入编辑器时的「初始化地图」弹窗。
@@ -89,7 +90,7 @@ export function MapInitDialog({
             导入地图
           </Button>
           <Button type="button" disabled={!valid || pending} onClick={() => onInitSize(parsed)}>
-            {pending ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : null}
+            {pending ? <LoredokuTick className="mr-1" /> : null}
             {pending ? '初始化中…' : '开始编辑'}
           </Button>
         </DialogFooter>

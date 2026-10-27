@@ -1,6 +1,6 @@
 import type { ChangeEvent, RefObject } from 'react';
-import { Loader2 } from 'lucide-react';
 import { UI_Z } from '@loredoku/shared';
+import { LoadingScreen, LoredokuLoader } from '@/components/common/LoredokuLoader';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -51,7 +51,8 @@ export function EditorSaveMask({
       }}
       aria-hidden={!saving}
     >
-      <Loader2 className="h-5 w-5 animate-spin" />
+      {/* v0.7.12：保存是全站唯一会**挡住画布**的等待，值得用整串字标。 */}
+      <LoredokuLoader size="sm" />
       保存中…
     </div>
   );
@@ -122,14 +123,14 @@ export function EditorPendingInfoActionDialog({
   );
 }
 
-/** Both editors show the same spinner while the map / puzzle pair lands. */
+/**
+ * Both editors show the same loading mark while the map / puzzle pair lands.
+ *
+ * v0.7.12：整屏等待统一走 `LoadingScreen` —— 地图 / 谜题 / 游戏的查看页此前
+ * 各写了一遍同样的「转圈 + 一句话」，现在只剩一处定义。
+ */
 export function EditorLoadingState(): JSX.Element {
-  return (
-    <div className="flex h-screen items-center justify-center gap-2 text-sm text-muted-foreground">
-      <Loader2 className="h-4 w-4 animate-spin" />
-      正在加载画布…
-    </div>
-  );
+  return <LoadingScreen caption="正在加载画布…" />;
 }
 
 /** The id is unreadable (or the query failed): one message, one way back. */

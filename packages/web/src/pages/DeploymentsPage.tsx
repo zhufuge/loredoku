@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, ExternalLink, Loader2, Rocket, Trash2 } from 'lucide-react';
+import { Check, Copy, ExternalLink, Rocket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   GAME_DIFFICULTY_COLORS,
@@ -27,6 +27,7 @@ import { useCancelGame, useGames } from '@/hooks/useGames';
 import { usePuzzles } from '@/hooks/usePuzzles';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { InlineLoading, LoredokuTick } from '@/components/common/LoredokuLoader';
 
 /**
  * 部署模块（v0.7.1 §7.4）：一行 = 一条在线的游戏。
@@ -244,7 +245,11 @@ export function DeploymentsPage(): JSX.Element {
       <PageHeader
         title="部署"
         description={
-          gamesQuery.isLoading ? '正在加载…' : `共 ${games.length} 个游戏在线。`
+          gamesQuery.isLoading ? (
+            <InlineLoading caption="正在加载部署…" />
+          ) : (
+            `共 ${games.length} 个游戏在线。`
+          )
         }
         actions={
           <Button onClick={() => setDeployOpen(true)}>
@@ -292,7 +297,7 @@ export function DeploymentsPage(): JSX.Element {
             >
               {cancelMutation.isPending ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   处理中…
                 </>
               ) : (

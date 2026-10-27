@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, Loader2, RefreshCw, Rocket, Trash2, Upload } from 'lucide-react';
+import { ImagePlus, RefreshCw, Rocket, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   GAME_DIFFICULTY_COLORS,
@@ -45,6 +45,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useDeployGame } from '@/hooks/useGames';
 import { cn } from '@/lib/utils';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
 
@@ -607,7 +608,7 @@ export function GameDeployDialog({
             <Button variant="destructive" disabled={deploy.isPending} onClick={overwrite}>
               {deploy.isPending ? (
                 <>
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  <LoredokuTick className="mr-1" />
                   处理中…
                 </>
               ) : (

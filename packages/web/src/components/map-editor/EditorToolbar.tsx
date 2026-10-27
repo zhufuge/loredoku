@@ -1,19 +1,9 @@
-import {
-  ArrowLeft,
-  Download,
-  Eye,
-  History,
-  Loader2,
-  Map as MapIcon,
-  Save,
-  Send,
-  Settings2,
-  Upload,
-} from 'lucide-react';
+import { ArrowLeft, Download, Eye, History, Map as MapIcon, Save, Send, Settings2, Upload } from 'lucide-react';
 import type { MapStatus } from '@loredoku/shared';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
+import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 interface EditorToolbarProps {
   mapName: string;
@@ -205,7 +195,7 @@ export function EditorToolbar({
          */}
         <Button size="sm" onClick={onSave} disabled={saving || !(canSave ?? dirty)}>
           {saving ? (
-            <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+            <LoredokuTick className="mr-1" />
           ) : (
             <Save className="mr-1 h-4 w-4" />
           )}
@@ -214,7 +204,7 @@ export function EditorToolbar({
         {onPublish ? (
           <Button variant="outline" size="sm" onClick={onPublish} disabled={saving || publishing}>
             {publishing ? (
-              <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+              <LoredokuTick className="mr-1" />
             ) : (
               <Send className="mr-1 h-4 w-4" />
             )}
