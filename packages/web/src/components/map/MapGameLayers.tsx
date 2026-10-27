@@ -201,8 +201,15 @@ export function MapGamePressRing({
 }
 
 /**
+ * v0.7.11：「刚放下的东西」按格子索引 —— 值是该格的参与者编号，`null` 是那个 `×`。
+ * 只用来挂一次性的缩放动效，过期就由页面摘掉（见 `GamePage` 的 `markPulse`）。
+ */
+export type GamePlacementPulse = Readonly<Record<string, number | null>>;
+
+const EMPTY_PULSE: GamePlacementPulse = {};
+
+/**
  * 层 5 · 游戏放置层（Game Placement Layer）— SPEC-G01 (docs/v0.4.0.md §7).
- *
  * What the player has placed: participant avatars, the 3×3 number grid, and
  * the forbidden `×`. One cell holds exactly one of the three forms (or
  * nothing); a cell with two or more participants hides its avatar and shows
@@ -227,6 +234,7 @@ export function MapGamePlacementLayer({
   cellSize,
   activeParticipantId = null,
   settleKey = null,
+  pulse = EMPTY_PULSE,
 }: {
   board: GamePlacementBoard;
   slots: Array<CharacterSlotEntry | null>;
@@ -241,6 +249,14 @@ export function MapGamePlacementLayer({
    * 同时弹一下，会读成「刚刚发生了一连串操作」。只有这一格是真的刚放下的。
    */
   settleKey?: string | null;
+  /**
+   * v0.7.11：刚放下的**编号 / 禁止符号**，按格子键索引 —— 值是参与者编号，
+   * `null` 表示那个 `×`。命中的那一个字形播一次「盖章」缩放。
+   *
+   * 用表而不是单个「最后一格」：按住滑动会连着放好几格，单值会让前一格的字形
+   * 在动画播到一半时被摘掉类，缩放立刻弹回原尺寸 —— 看起来像闪了一下。
+   */
+  pulse?: GamePlacementPulse;
 }): JSX.Element | null {
   const entries = Object.entries(board).filter(([, placement]) => placement !== null && placement !== undefined);
   if (entries.length === 0) return null;
@@ -326,6 +342,8 @@ export function MapGamePlacementLayer({
                       fontWeight={700}
                       textAnchor="middle"
                       dominantBaseline="central"
+                      // v0.7.11：刚放下的这个编号「盖章」一次（180ms 缩放）。
+                      className={pulse[key] === participantId ? 'place-pop' : undefined}
                     >
                       {label}
                     </text>
@@ -344,6 +362,11 @@ export function MapGamePlacementLayer({
                   fontWeight={800}
                   textAnchor="middle"
                   dominantBaseline="central"
+                  data-testid={`forbidden-${key}`}
+                  // v0.7.12：`×` 有自己的一支动效 —— 从 0.35 倍弹到 1.16 倍再落定，
+                  // 带一点回正的轻微旋转。编号的 `place-pop` 是「盖章」，这个更像
+                  // 「划掉」，两者不该长得一模一样。
+                  className={pulse[key] === null ? 'forbidden-pop' : undefined}
                 >
                   ×
                 </text>

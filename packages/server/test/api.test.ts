@@ -1422,6 +1422,40 @@ describe('games API slug (OPT-W04)', () => {
     expect(rows).toHaveLength(0);
   });
 
+  it('reports the occupying game in the conflict, then lets overwriteSlug take the path', async () => {
+    const slug = `takeover-${token()}`;
+    const owner = await deployablePuzzle(`Owner ${token()}`);
+    const kept = await api
+      .post(`/api/puzzles/${owner.versionId}/games`)
+      .send({ name: '被顶掉的那一个', slug, difficulty: 'easy' });
+    expect(kept.status).toBe(200);
+
+    // v0.7.11：冲突除了说「被占用」，还要说清占位的是谁 —— 覆盖弹窗要问
+    // 「覆盖它吗」，光有一条路径回答不了这句话。
+    const claimant = await deployablePuzzle(`Claimant ${token()}`);
+    const clash = await api
+      .post(`/api/puzzles/${claimant.versionId}/games`)
+      .send({ slug, difficulty: 'hard' });
+    expect(clash.status).toBe(400);
+    expect(clash.body.data).toMatchObject({ kind: 'slug-taken', slug, name: '被顶掉的那一个' });
+
+    const takeover = await api
+      .post(`/api/puzzles/${claimant.versionId}/games`)
+      .send({ name: '新的主人', slug, difficulty: 'hard', overwriteSlug: true });
+    expect(takeover.status).toBe(200);
+    expect(takeover.body.data.slug).toBe(slug);
+
+    // 旧的部署被假删：slug 归新主人，原谜题回到「未部署」。
+    const detail = await api.get(`/api/games/slug/${slug}`);
+    expect(detail.body.data.id).toBe(takeover.body.data.id);
+    expect(detail.body.data.puzzleId).toBe(claimant.versionId);
+
+    const list = await api.get('/api/games');
+    const rows = list.body.data as Array<{ puzzleId: number | null; slug: string }>;
+    expect(rows.some((entry) => entry.puzzleId === owner.versionId)).toBe(false);
+    expect(rows.filter((entry) => entry.slug === slug)).toHaveLength(1);
+  });
+
   it('lets the same puzzle re-deploy its own path — an overwrite is not a conflict', async () => {
     const slug = `mine-${token()}`;
     const { versionId } = await deployablePuzzle(`Mine ${token()}`);

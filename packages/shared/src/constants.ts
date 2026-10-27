@@ -872,6 +872,17 @@ export const GAME_TOOL_HINT_ERASER_COLOR = '#374151';
 
 /** SPEC-G04: long-pressing the clear button wipes the whole board. */
 export const GAME_LONG_PRESS_MS = 500;
+/**
+ * v0.7.11：长按进度环的**出场延迟**。
+ *
+ * 环此前在 pointerdown 的第一帧就画出来，于是「点一下放编号」也会闪一下环 ——
+ * 单点根本不会长按，闪出来的环只是在说一件不会发生的事。延迟到 160ms 之后再
+ * 挂载，单点（绝大多数点击都在 120ms 内抬手）就什么都看不见。
+ *
+ * 环因此只画**剩下的** `GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS`，
+ * 画满的那一帧仍是动作发生的那一帧（见 `PressRing`）。
+ */
+export const GAME_PRESS_RING_DELAY_MS = 160;
 /** SPEC-G04: the undo stack keeps at most this many placement steps. */
 export const GAME_PLACEMENT_HISTORY_MAX = 200;
 

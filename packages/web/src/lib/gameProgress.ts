@@ -12,10 +12,14 @@ import {
  * 存档带**指纹**（`gridSize` + `participantCount`）。同一 slug 重新部署后网格或
  * 名单可能变了，此时旧坐标与新编号都不再有意义，整条存档按失效处理，不尝试
  * 「尽量恢复」——恢复出来的半截棋盘比空白更让人困惑。
+ *
+ * v0.7.11：**提交状态不再落盘**。棋盘是进度，提交是一次核对 —— 把「核对过」
+ * 写进存档，只会让玩家下次进来看到一个自己没做过的勾。存档因此只剩棋盘
+ * （`GAME_PROGRESS_VERSION` 跟着 +1，旧存档整体作废）。
  */
 
 /** 存档结构变了就 +1；旧版本的存档一律丢弃（宁可空白，不可错乱）。 */
-export const GAME_PROGRESS_VERSION = 1;
+export const GAME_PROGRESS_VERSION = 2;
 export const GAME_PROGRESS_PREFIX = 'loredoku.game.progress.';
 
 export interface GameProgressMeta {
@@ -27,8 +31,6 @@ export interface GameProgressMeta {
 
 export interface StoredGameProgress extends GameProgressMeta {
   board: GamePlacementBoard;
-  /** 「已提交」的勾要保持住，否则玩家回来看到勾没了会以为进度丢了。 */
-  submitted: boolean;
 }
 
 export function gameProgressKey(slug: string): string {
@@ -104,14 +106,12 @@ export function parseStoredProgress(
   if (!parsed.success) return null;
 
   const board = sanitizeBoard(parsed.data as GamePlacementBoard, meta);
-  const submitted = value.submitted === true;
-  // 空盘且没提交过 = 没有可恢复的东西。返回 null 而不是空存档，调用方据此
-  // 走「新开一局」分支，连提示都不用给。
-  if (!submitted && Object.keys(board).length === 0) return null;
+  // 空盘 = 没有可恢复的东西。返回 null 而不是空存档，调用方据此走「新开一局」
+  // 分支，连提示都不用给。
+  if (Object.keys(board).length === 0) return null;
 
   return {
     board,
-    submitted,
     gridSize: meta.gridSize,
     participantCount: meta.participantCount,
   };
@@ -138,8 +138,8 @@ export function readGameProgress(
 }
 
 /**
- * 写存档。空盘且没提交过 → 删掉整条键：玩家清空棋盘后不该在 localStorage
- * 里留一条空记录（下次读到它还得再判一次空）。
+ * 写存档。空盘 → 删掉整条键：玩家清空棋盘后不该在 localStorage 里留一条空
+ * 记录（下次读到它还得再判一次空）。
  *
  * 写失败（配额满、隐私模式）静默吞掉：**玩得下去**比存得下来重要。
  */
@@ -147,9 +147,8 @@ export function writeGameProgress(slug: string, progress: StoredGameProgress): v
   if (typeof window === 'undefined' || slug.length === 0) return;
   const key = gameProgressKey(slug);
   const board = sanitizeBoard(progress.board, progress);
-  const empty = Object.keys(board).length === 0;
   try {
-    if (empty && !progress.submitted) {
+    if (Object.keys(board).length === 0) {
       window.localStorage.removeItem(key);
       return;
     }
@@ -159,7 +158,6 @@ export function writeGameProgress(slug: string, progress: StoredGameProgress): v
         v: GAME_PROGRESS_VERSION,
         gridSize: progress.gridSize,
         participantCount: progress.participantCount,
-        submitted: progress.submitted,
         board,
       }),
     );

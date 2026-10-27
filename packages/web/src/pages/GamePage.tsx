@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
-  Check,
   Eraser,
   Loader2,
   Minus,
@@ -17,6 +16,7 @@ import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
   GAME_LONG_PRESS_MS,
+  GAME_PRESS_RING_DELAY_MS,
   MAP_LAYER_Z,
   RULER_ACTIVE_FONT_DELTA,
   type CellCoord,
@@ -46,6 +46,7 @@ import {
   MapGamePlacementLayer,
   MapGamePressRing,
   MapGameToolHintLayer,
+  type GamePlacementPulse,
 } from '@/components/map/MapGameLayers';
 import {
   MapRegionHighlightLayer,
@@ -72,6 +73,12 @@ import {
   ZOOM_STEP,
 } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
+import {
+  clearGameTimer,
+  formatElapsed,
+  readGameTimer,
+  writeGameTimer,
+} from '@/lib/gameTimer';
 import { rosterPanelWidthFor } from '@/lib/participantLayout';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
@@ -92,27 +99,29 @@ import {
   type LinkageActivationState,
 } from '@/lib/linkageActivation';
 import {
+  allParticipantsPlaced,
   canUndo,
+  canPlaceForbidden,
   cellKey,
   clearAll,
   clearCell,
   countPlacements,
   createGamePlacementState,
   forbiddenCells,
-  formatCellLabel,
-  participantPlacementAt,
+  avatarPlacedParticipantIds,
   placeForbidden,
   placeParticipant,
-  avatarPlacedParticipantIds,
   placementAt,
   placementBlockReason,
   resolveToolHint,
-  submitPlacement,
+  summarizeIssues,
+  toggleForbidden,
   undo,
   validatePlacement,
   type GameOperationMode,
   type GamePlacementState,
   type ParticipantPlacementVariant,
+  type PlacementBlame,
   type PlacementIssue,
 } from '@/lib/gamePlacement';
 
@@ -128,6 +137,15 @@ import {
 /** FEAT-G03 §6.3: the ruler toggle, persisted per reader like the preview's. */
 const RULER_STORAGE_KEY = 'loredoku.gameview.ruler';
 
+/**
+ * v0.7.11：刚放下的编号 / 禁止符号挂多久的 `place-pop` 类。
+ *
+ * 动画本身只有 180ms；多留一段是为了让**同一帧里放下的另一格**（按住滑动）也
+ * 各自挂着自己的类，而不是互相顶掉。过了这个窗口就摘掉，免得以后任何一次重挂载
+ * 把旧格子再「盖章」一遍。
+ */
+const GAME_PLACE_PULSE_MS = 400;
+
 function readStoredRulerVisible(): boolean {
   if (typeof window === 'undefined') return true;
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
@@ -139,30 +157,25 @@ function readStoredRulerVisible(): boolean {
  * says **编号** wherever the cell's content is meant — the participant themselves
  * never enters the map.
  *
- * The `'elsewhere'` case is about the **avatar** only: candidate 编号 may sit on
- * several cells, so "you already put this one somewhere" is only worth saying
- * when a cell was *confirmed* — and then the player needs to be told which.
+ * v0.7.11：`'avatar'`（长按的正是这位头像自己所在的那一格）返回 `null` ——
+ * 什么都不做已经是最正确的回应，再弹一句「这里已经有他的头像了」纯属噪音。
+ * 原先那条「已经放在别处」的拒绝也随**搬家**一起消失了。
+ *
+ * v0.7.12：`'forbidden'` 也返回 `null` —— `×` 格在放置态下是**静默的无效果**
+ * （需求：「参与者编号点击时无效果」）。提示层在这种格子上已经不再画编号，
+ * 点下去再弹一句「请先清除」就成了一次自相矛盾的对话。
  */
 function describeBlock(
   block: NonNullable<ReturnType<typeof placementBlockReason>>,
   participantId: number,
-  board: ReturnType<typeof createGamePlacementState>['board'],
-): string {
+): string | null {
   switch (block) {
-    case 'elsewhere': {
-      // SPEC-J05 §3.6：编号可以多处，唯一的是头像 —— 这条拒绝只在「该参与者的头像
-      // 已经确认在别的格子」时出现，所以文案讲头像。
-      const at = participantPlacementAt(board, participantId);
-      return at
-        ? `该参与者的头像已放置在 ${formatCellLabel(at)}，请先清除那一格`
-        : '该参与者的头像已放置';
-    }
     case 'non-standable':
       return '该格有不可站立的物品，不能放置';
     case 'forbidden':
-      return '该格已标记为排除项，请先清除';
+      return null;
     case 'avatar':
-      return '该格已放置该参与者的头像';
+      return null;
     // SPEC-J03 §9 Q6：短按点「该格已有该编号」是 **toggle 删除**，不走拒绝
     // 路径。这个 case 保留只为 `PlacementBlock` 的成员完整性（它不会被返回）。
     case 'duplicate':
@@ -198,9 +211,18 @@ export function GamePage(): JSX.Element {
   const [placementState, setPlacementState] = useState<GamePlacementState>(
     createGamePlacementState,
   );
-  const [hasSubmitted, setHasSubmitted] = useState(false);
-  /** FEAT-V01 §8.2: non-null while the "submission rejected" dialog is open. */
-  const [validationIssues, setValidationIssues] = useState<PlacementIssue[] | null>(null);
+  /**
+   * v0.7.11：提交的结果。`null` = 弹窗关着。
+   *
+   * 通过 / 未通过共用同一个弹窗：两者都是「这一局到这里有个结论」，只是下一个
+   * 动作不同（再玩一次 / 继续游戏）。未通过时只带**谁不对**，不带行列坐标 ——
+   * 详细清单像一张调试报告，玩家真正要做的是回去看那几个人。
+   */
+  const [result, setResult] = useState<
+    | { kind: 'passed'; elapsedMs: number }
+    | { kind: 'failed'; blame: PlacementBlame[] }
+    | null
+  >(null);
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hover, setHover] = useState<CellCoord | null>(null);
@@ -219,14 +241,34 @@ export function GamePage(): JSX.Element {
   const pressSeqRef = useRef(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   /** Long-press on the clear button wipes the whole board (SPEC-G04 §10.2). */
-  const clearPressRef = useRef<{ timer: number; fired: boolean } | null>(null);
+  const clearPressRef = useRef<{ timer: number; ringTimer: number; fired: boolean } | null>(null);
   /**
    * v0.4.0 验收补充 + v0.4.3 CLAR-J01 / SPEC-J02：放置态下在格子上长按 → 放置
    * **参与者头像**（这才是「把参与者放到格子上」，也只有它补同行同列的 ×）；
    * 短按放的是**编号**。与工具栏清除按钮同一模式：定时器触发即生效，随后到来的
    * click 必须被吞掉，否则同一手势会既放头像又放编号。
+   *
+   * v0.7.11：两个长按都多一个 `ringTimer` —— 进度环延迟 160ms 才挂载，单点
+   * （抬手早于 160ms）就什么都不闪。
    */
-  const cellPressRef = useRef<{ timer: number; fired: boolean } | null>(null);
+  const cellPressRef = useRef<{ timer: number; ringTimer: number; fired: boolean } | null>(null);
+
+  /**
+   * v0.7.11：按住滑动连续操作。
+   *
+   * `lastKey` 是这一笔最后落过的格子；`painted` 一旦为真，这一笔就不再是「点击」，
+   * 抬手后的 `click` 必须吞掉。`start` 记着按下的那一格 —— 滑动时第一格也要落，
+   * 但按下那一刻**不能**直接落（放置态下它还是长按的头像入口，先落编号会让长按
+   * 从「编号格」开始，画面上先闪一个编号再变成头像）。
+   */
+  const paintRef = useRef<{
+    start: CellCoord;
+    lastKey: string;
+    painted: boolean;
+  } | null>(null);
+  /** 刚放下的编号 / 禁止符号，按格子键索引；见 `MapGamePlacementLayer` 的 `pulse`。 */
+  const [pulse, setPulse] = useState<GamePlacementPulse>({});
+  const pulseTimersRef = useRef<Map<string, number>>(new Map());
 
   /**
    * v0.6.2：视图缩放与拖拽平移，与只读预览页同一套手感 ——
@@ -237,17 +279,23 @@ export function GamePage(): JSX.Element {
   const panRef = useRef<{ x: number; y: number } | null>(null);
   /** 本次指针手势有没有真的拖过画布 —— 拖完那次 click 要吞掉。 */
   const pannedRef = useRef(false);
+  /**
+   * v0.7.11：本次手势有没有**按住滑过格子**（连续放置 / 连续擦除）。有的话，
+   * 抬手时那一记 `click` 是手势的尾巴，已经处理过了 —— 必须吞掉，否则同一格会
+   * 被切换两次（放上又取消）。
+   */
+  const paintedRef = useRef(false);
   /** 用户手动调过视图后，容器尺寸变化不再强制重排（预览页同款豁免）。 */
   const userAdjustedRef = useRef(false);
 
   /**
-   * 存档的两个镜像。事件处理器读「此刻」的值，而不是渲染闭包里的那份 ——
-   * 长按定时器与连续点击都在下一次渲染之外触发，闭包可能已经过期。
+   * 存档的镜像。事件处理器读「此刻」的值，而不是渲染闭包里的那份 ——
+   * 长按定时器、按住滑动、连续点击都在下一次渲染之外触发，闭包可能已经过期。
+   * 滑动一次会连着放好几格，`dispatchCell` 必须基于**最新**棋盘计算，
+   * 否则同一帧里的第二次放置会拿着旧棋盘把第一次覆盖掉。
    */
   const placementRef = useRef(placementState);
   placementRef.current = placementState;
-  const submittedRef = useRef(hasSubmitted);
-  submittedRef.current = hasSubmitted;
 
   /**
    * v0.7.1 §7.3: 游戏直接读**谜题版本行**，不再有快照拷贝 —— 画布来自
@@ -317,11 +365,11 @@ export function GamePage(): JSX.Element {
     [gridSize, slots.length],
   );
 
-  /** 写存档的唯一出口；空盘且没提交过时由 `writeGameProgress` 删键。 */
+  /** 写存档的唯一出口；空盘时由 `writeGameProgress` 删键。 */
   const saveProgress = useCallback(
-    (board: GamePlacementBoard, submitted: boolean): void => {
+    (board: GamePlacementBoard): void => {
       if (!gameSlug) return;
-      writeGameProgress(gameSlug, { board, submitted, ...progressMeta });
+      writeGameProgress(gameSlug, { board, ...progressMeta });
     },
     [gameSlug, progressMeta],
   );
@@ -329,21 +377,15 @@ export function GamePage(): JSX.Element {
   /**
    * **所有改变棋盘的操作都从这里走**：算新状态 → 更新 → 顺手把结果落进
    * 本地存档。集中一处，「哪个入口忘了存」就不会变成一个需要逐个排查的问题。
-   *
-   * `submitted` 只在提交那一步显式传，其余操作沿用当前值。
    */
   const updatePlacement = useCallback(
-    (updater: (state: GamePlacementState) => GamePlacementState, submitted?: boolean): void => {
+    (updater: (state: GamePlacementState) => GamePlacementState): void => {
       const current = placementRef.current;
       const next = updater(current);
       if (next === current) return;
       placementRef.current = next;
       setPlacementState(next);
-      if (submitted !== undefined) {
-        submittedRef.current = submitted;
-        setHasSubmitted(submitted);
-      }
-      saveProgress(next.board, submitted ?? submittedRef.current);
+      saveProgress(next.board);
     },
     [saveProgress],
   );
@@ -478,11 +520,104 @@ export function GamePage(): JSX.Element {
   }, []);
 
   /**
+   * v0.7.11：计时（秒级）。
+   *
+   * 需求是「打开游戏时开始、关掉页面记到本地、下次进来接着走、点提交为止」。
+   * 这里存的是**累计用时**而不是开始时间戳：两次会话之间的墙钟差里混着吃饭、
+   * 睡觉、关电脑的时间，那不是玩家在想的时长。每秒 tick 一次只为刷新显示，
+   * 落盘则是每 5 秒 + 页面隐藏 / 卸载时各一次。
+   *
+   * 三个 ref 分工：`elapsedRef` 是已累计的毫秒，`runningSinceRef` 是当前这一段
+   * 的起点（`null` = 停表）。显示值 `elapsedMs` 只是它们的一次投影。
+   */
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [timerRunning, setTimerRunning] = useState(true);
+  const elapsedRef = useRef(0);
+  const runningSinceRef = useRef<number | null>(null);
+
+  const currentElapsed = useCallback((): number => {
+    const since = runningSinceRef.current;
+    return since === null ? elapsedRef.current : elapsedRef.current + (Date.now() - since);
+  }, []);
+
+  /** 停表：把当前这一段并进累计值，并立刻落盘。返回停在第几毫秒。 */
+  const pauseTimer = useCallback((): number => {
+    const value = currentElapsed();
+    elapsedRef.current = value;
+    runningSinceRef.current = null;
+    setElapsedMs(value);
+    setTimerRunning(false);
+    if (gameSlug) writeGameTimer(gameSlug, progressMeta, value);
+    return value;
+  }, [currentElapsed, gameSlug, progressMeta]);
+
+  const resumeTimer = useCallback((): void => {
+    if (runningSinceRef.current !== null) return;
+    runningSinceRef.current = Date.now();
+    setElapsedMs(elapsedRef.current);
+    setTimerRunning(true);
+  }, []);
+
+  /** 重新计时：清零、清掉本地记录、从这一帧重新走。 */
+  const resetTimer = useCallback((): void => {
+    elapsedRef.current = 0;
+    runningSinceRef.current = Date.now();
+    setElapsedMs(0);
+    setTimerRunning(true);
+    if (gameSlug) clearGameTimer(gameSlug);
+  }, [gameSlug]);
+
+  useEffect(() => {
+    if (!timerRunning) return;
+    const interval = window.setInterval(() => {
+      const since = runningSinceRef.current;
+      if (since === null) return;
+      setElapsedMs(elapsedRef.current + (Date.now() - since));
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [timerRunning]);
+
+  /**
+   * 落盘的时机：每 5 秒一次（意外关闭最多丢 5 秒），页面隐藏 / 卸载时各补一次。
+   * 为什么不是每秒：localStorage 是同步写，秒针每跳一次就写一条 JSON 没必要。
+   */
+  useEffect(() => {
+    if (!gameSlug) return;
+    const persist = (): void => {
+      writeGameTimer(gameSlug, progressMeta, currentElapsed());
+    };
+    const onVisibilityChange = (): void => {
+      if (document.visibilityState === 'hidden') persist();
+    };
+    const interval = window.setInterval(persist, 5000);
+    window.addEventListener('pagehide', persist);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('pagehide', persist);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      persist();
+    };
+  }, [gameSlug, progressMeta, currentElapsed]);
+
+  /** 刚放下的字形动效过期清理（`place-pop` 只在这一小段时间里挂着）。 */
+  useEffect(
+    () => () => {
+      for (const timer of pulseTimersRef.current.values()) window.clearTimeout(timer);
+      pulseTimersRef.current.clear();
+    },
+    [],
+  );
+
+  /**
    * 换一局 / 首次加载：不继承上一局的激活、悬停与棋盘。
    *
    * v0.6.2 §3：棋盘优先从本地存档恢复（同 slug、同网格、同名单才认）。
    * `hydratedKeyRef` 记住已经水合过哪一局 —— StrictMode 的双调用和后续重渲染
    * 都不会把玩家刚摆的东西盖回存档里的那一版。
+   *
+   * v0.7.11：计时也在这里接上（同一条指纹），并且**不再提示**「已恢复上次的
+   * 摆放」—— 棋盘回来了是默认行为，不是一条需要读的新闻。
    */
   const hydratedKeyRef = useRef<string | null>(null);
   useEffect(() => {
@@ -495,22 +630,22 @@ export function GamePage(): JSX.Element {
     setHover(null);
     setLabelRegionId(null);
     setMode({ kind: 'idle' });
-    setValidationIssues(null);
+    setResult(null);
     if (!firstLoad) return;
 
     const saved = gameSlug ? readGameProgress(gameSlug, progressMeta) : null;
     // 历史栈不落盘：回来时从「当前这一版棋盘」重新开始记，撤销不会跨会话。
     const restored: GamePlacementState = saved
-      ? { board: saved.board, past: [], future: [], submittedPastLength: 0 }
+      ? { board: saved.board, past: [], future: [] }
       : createGamePlacementState();
     placementRef.current = restored;
     setPlacementState(restored);
-    submittedRef.current = saved?.submitted ?? false;
-    setHasSubmitted(submittedRef.current);
-    // 只有棋盘上真有东西才提示；空盘提交过的存档只恢复那个勾。
-    if (saved && Object.keys(saved.board).length > 0) {
-      toast.success('已恢复上次的摆放');
-    }
+
+    const savedElapsed = gameSlug ? readGameTimer(gameSlug, progressMeta) : 0;
+    elapsedRef.current = savedElapsed;
+    runningSinceRef.current = Date.now();
+    setElapsedMs(savedElapsed);
+    setTimerRunning(true);
   }, [draft, gameSlug, gridSize, slots.length, progressMeta]);
 
   /**
@@ -533,6 +668,20 @@ export function GamePage(): JSX.Element {
     activation.activeParticipantId === null
       ? null
       : slots[activation.activeParticipantId] ?? null;
+
+  /**
+   * v0.7.12：提交的前置条件 —— 名单上每位都**已经有头像**。
+   *
+   * 没放完就允许提交，只能得到一份「谁还没放」的清单，而这份清单在棋盘上本来
+   * 就看得见（名册里淡掉的是已放的，亮着的就是还没放的）。禁掉这个按钮，把
+   * 「还差谁」提前到按下之前回答，而不是按下之后再数一遍。
+   *
+   * 编号不算数：它是草稿（见 `allParticipantsPlaced`）。
+   */
+  const readyToSubmit = useMemo(
+    () => allParticipantsPlaced(placementState.board, slots),
+    [placementState.board, slots],
+  );
 
   useEffect(() => {
     if (!activeSlot) {
@@ -601,26 +750,101 @@ export function GamePage(): JSX.Element {
     applyMode(mode.kind === tool ? { kind: 'idle' } : { kind: tool });
   };
 
+  const nameOf = useCallback(
+    (participantId: number): string | undefined => {
+      const slot = slots[participantId - 1];
+      return slot ? charactersById.get(slot.characterId)?.name : undefined;
+    },
+    [slots, charactersById],
+  );
+
   /**
-   * FEAT-V01 §8: the submit button validates before it submits. Passing opens a
-   * "校验通过" dialog and only then sets the undo barrier; failing lists every
-   * problem and leaves the barrier alone, so the player can keep working.
+   * v0.7.11：提交 = **结算**，不是打勾。
+   *
+   * - 停表：点下提交这一刻的用时就是这一局的成绩（读弹窗的时间不算）；
+   * - 通过 → 弹窗给出用时与「再玩一次」；
+   * - 未通过 → 弹窗只说**谁不对**（`summarizeIssues` 归并过的名单），给
+   *   「继续游戏 / 重新开始」。继续游戏会重新走表 —— 玩家要接着想。
+   *
+   * 提交状态不再落盘、按钮也不再变成勾：那是上一版把「核对过」当成进度的做法，
+   * 而进度本来就是棋盘本身。
    */
   const submit = (): void => {
-    const result = validatePlacement({
-      board: placementState.board,
+    // v0.7.12：按钮已经禁用，这里再做一次守卫 —— 快捷键 / 测试 / 旧闭包都可能绕过。
+    if (!readyToSubmit) return;
+    const elapsed = pauseTimer();
+    const validation = validatePlacement({
+      board: placementRef.current.board,
       slots,
-      nameOf: (participantId) => {
-        const slot = slots[participantId - 1];
-        return slot ? charactersById.get(slot.characterId)?.name : undefined;
-      },
+      nameOf,
     });
-    if (!result.passed) {
-      setValidationIssues(result.issues);
+    if (!validation.passed) {
+      setResult({ kind: 'failed', blame: summarizeIssues(validation.issues, nameOf) });
       return;
     }
-    updatePlacement(submitPlacement, true);
-    toast.success('校验通过，已提交');
+    setResult({ kind: 'passed', elapsedMs: elapsed });
+  };
+
+  /**
+   * v0.7.11：重新开始 / 再玩一次 —— 棋盘、历史、计时一起归零。
+   *
+   * 「清空历史记录」是字面意义上的：`past` / `future` 都丢掉，所以重开这一局
+   * 之后撤销不会把上一局的摆放捞回来。
+   */
+  const restart = useCallback((): void => {
+    const fresh = createGamePlacementState();
+    placementRef.current = fresh;
+    setPlacementState(fresh);
+    setResult(null);
+    setMode({ kind: 'idle' });
+    setActivation(INACTIVE_ACTIVATION);
+    setPulse({});
+    saveProgress(fresh.board);
+    resetTimer();
+  }, [saveProgress, resetTimer]);
+
+  /**
+   * v0.7.12：关上未通过的弹窗 = 继续这一局，秒表也要接着走。
+   *
+   * 之前只有「继续游戏」按钮会重启计时；点右上角的 × 或按 Esc 关掉，秒表就
+   * 停在那里 —— 同一个动作两条路径，其中一条把玩家的成绩冻住了。通过的弹窗
+   * 不受此影响：那一局已经结算，表就该停着。
+   */
+  const closeResult = (): void => {
+    if (result?.kind === 'failed') resumeTimer();
+    setResult(null);
+  };
+
+  /** 未通过时「继续游戏」：关上弹窗，接着走表、接着摆。 */
+  const continueGame = (): void => {
+    setResult(null);
+    resumeTimer();
+  };
+
+  /**
+   * v0.7.11：给刚放下的编号 / 禁止符号挂一次「盖章」动效。
+   *
+   * 用一张「格子键 → 参与者编号」的表而不是单个「最后一格」：按住滑动会连着
+   * 放好几格，单值会让前一格的字形在动画播到一半时被摘掉类，缩放猛地弹回原样。
+   * 每一格 400ms 后自己过期（动画只有 180ms），表不会越积越大。
+   */
+  const markPulse = (key: string, participantId: number | null): void => {
+    setPulse((previous) => ({ ...previous, [key]: participantId }));
+    const timers = pulseTimersRef.current;
+    const existing = timers.get(key);
+    if (existing !== undefined) window.clearTimeout(existing);
+    timers.set(
+      key,
+      window.setTimeout(() => {
+        timers.delete(key);
+        setPulse((previous) => {
+          if (!(key in previous)) return previous;
+          const next = { ...previous };
+          delete next[key];
+          return next;
+        });
+      }, GAME_PLACE_PULSE_MS),
+    );
   };
 
   /**
@@ -628,18 +852,24 @@ export function GamePage(): JSX.Element {
    * SPEC-J05: one cell interaction, dispatched by mode. 放置态下 `variant` 区分
    * **短按（切换编号）**与**长按（放头像）**；其余工具态忽略它。
    *
-   * 被规则拒绝时给出说明——长按的那条唯一性是「该参与者的头像已经在别的格子
-   * 上」（编号可以多处，所以短按不会再被唯一性挡住），toast 指出头像在哪里，
-   * 而不是静默无反应。
-   *
-   * v0.7.11：返回**是否真的执行了**。长按的进度环靠它决定收场 —— 环画满却什么
-   * 都没发生，会读成「按成功了但没反应」，比不画环更糟。被拒时环立刻收回，
-   * 由 toast 说明原因。
+   * v0.7.11：
+   * - 棋盘一律读 `placementRef.current`。按住滑动会在**同一个事件循环**里连着
+   *   调用好几次，读渲染闭包里的 `placementState` 会让后一次把前一次覆盖掉。
+   * - `quiet` 让滑动经过的不可放置格**不出 toast**：划过一行十来格，弹十几个
+   *   错误提示既挡住棋盘又说不清是哪一格。单点仍然照常说明原因。
+   * - 返回**是否真的执行了**：长按的进度环靠它决定收场 —— 环画满却什么都没发生，
+   *   会读成「按成功了但没反应」，比不画环更糟。
    */
-  const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): boolean => {
+  const dispatchCell = (
+    x: number,
+    y: number,
+    variant: ParticipantPlacementVariant,
+    options?: { quiet?: boolean },
+  ): boolean => {
+    const board = placementRef.current.board;
     if (mode.kind === 'placing') {
       const block = placementBlockReason({
-        board: placementState.board,
+        board,
         x,
         y,
         participantId: mode.participantId,
@@ -647,7 +877,8 @@ export function GamePage(): JSX.Element {
         variant,
       });
       if (block) {
-        toast.error(describeBlock(block, mode.participantId, placementState.board));
+        const message = describeBlock(block, mode.participantId);
+        if (message && !options?.quiet) toast.error(message);
         return false;
       }
       updatePlacement((state) =>
@@ -660,10 +891,27 @@ export function GamePage(): JSX.Element {
           variant,
         }),
       );
+      if (variant === 'number') markPulse(cellKey(x, y), mode.participantId);
       return true;
     }
     if (mode.kind === 'forbidden') {
+      const key = cellKey(x, y);
+      const before = placementRef.current.board[key] ?? null;
+      /**
+       * v0.7.12：`×` 是一支开关 —— 已经有 `×` 的格子再点一下就收回它
+       * （`toggleForbidden`）。这一支要求来自「点错了只好切橡皮」的绕路。
+       */
+      if (before?.kind === 'forbidden') {
+        updatePlacement((state) => toggleForbidden(state, { x, y, blockingCells }));
+        return true;
+      }
+      // v0.7.12：放不进去（不可站立 / 头像格）时不播「刚放下」的动效 ——
+      // 那一格本来就没有 `×` 可放。
+      if (!canPlaceForbidden({ board: placementRef.current.board, x, y, blockingCells })) {
+        return false;
+      }
       updatePlacement((state) => placeForbidden(state, { x, y, blockingCells }));
+      markPulse(key, null);
       return true;
     }
     if (mode.kind === 'clearing') {
@@ -674,20 +922,52 @@ export function GamePage(): JSX.Element {
   };
 
   /**
-   * 放置态下在格子上按下：启动长按定时器（到点放**头像**），同时画上进度环。
-   * 没到点就抬手的短按由随后到来的 `click` 收尾 —— 那一路走 SPEC-J03 的
-   * **编号切换**。
+   * 放置态下在格子上按下：启动长按定时器（到点放**头像**）。没到点就抬手的
+   * 短按由随后到来的 `click` 收尾 —— 那一路走 SPEC-J03 的**编号切换**。
    *
-   * v0.7.11：环与定时器同源（都用 `GAME_LONG_PRESS_MS`），环画满的那一帧就是
-   * 头像落下的那一帧。动作被规则拒绝时 `dispatchCell` 返回 false，环立刻收回 ——
-   * 不能让一个满环停在那里，那读起来像「已经放好了」。
+   * v0.7.11 两件事：
+   * - 环**延迟** 160ms 才挂载。单点根本不会长按，之前它却会在按下的第一帧就
+   *   闪出来 —— 那是在预告一件不会发生的事。因此环只画剩下的 340ms，画满的
+   *   那一帧仍然是头像落下的那一帧。
+   * - 动作被规则拒绝时 `dispatchCell` 返回 false，环立刻收回：不能让一个满环
+   *   停在那里冒充「已经放好了」。
    */
-  const startCellPress = (x: number, y: number): void => {
+  const startCellPress = (x: number, y: number, participantId: number): void => {
+    /**
+     * v0.7.12：这一格根本放不进去 —— 整段手势都不开始。
+     *
+     * 不可站立的格子、已经标了 `×` 的格子、以及这位参与者自己的头像格：长按
+     * 500ms 的**结果**是不存在的（`placeParticipant` 会原样返回）。但环会照画
+     * 一圈满的，画满那一刻却什么都没发生 —— 那是界面在替玩家宣布一件没做成的事。
+     * 需求给的说法是「不出现圆圈，不提示，就是无效果」，所以这里在按下的一刻就
+     * 退回，连定时器都不挂。
+     *
+     * 这条判断只针对**长按（头像）**。短按（编号）走的是另一套：非站立格仍会
+     * 说明原因，`×` 格与头像格则同样静默 —— 见 `describeBlock`。
+     */
+    const refused = placementBlockReason({
+      board: placementRef.current.board,
+      x,
+      y,
+      participantId,
+      blockingCells,
+      variant: 'image',
+    });
+    if (refused) return;
+
     const stale = cellPressRef.current;
-    if (stale) window.clearTimeout(stale.timer);
-    const press = { timer: 0, fired: false };
+    if (stale) {
+      window.clearTimeout(stale.timer);
+      window.clearTimeout(stale.ringTimer);
+    }
+    const press = { timer: 0, ringTimer: 0, fired: false };
     pressSeqRef.current += 1;
-    setPressCell({ x, y, seq: pressSeqRef.current });
+    const seq = pressSeqRef.current;
+    press.ringTimer = window.setTimeout(() => {
+      // 已经抬手 / 换了手势：这一圈不该再出现。
+      if (cellPressRef.current !== press) return;
+      setPressCell({ x, y, seq });
+    }, GAME_PRESS_RING_DELAY_MS);
     press.timer = window.setTimeout(() => {
       press.fired = true;
       if (!dispatchCell(x, y, 'image')) setPressCell(null);
@@ -696,8 +976,8 @@ export function GamePage(): JSX.Element {
   };
 
   /**
-   * 抬手：定时器作废；长按已生效时**保留** `fired`——紧随其后的 click 还要
-   * 靠它识别「这一手是长按」并把 click 吞掉。
+   * 抬手：两个定时器都作废；长按已生效时**保留** `fired`——紧随其后的 click
+   * 还要靠它识别「这一手是长按」并把 click 吞掉。
    *
    * 环在抬手时一律收掉：长按已生效的话，满环套在刚放下的头像上只会挡住它。
    */
@@ -706,6 +986,7 @@ export function GamePage(): JSX.Element {
     const press = cellPressRef.current;
     if (!press) return;
     window.clearTimeout(press.timer);
+    window.clearTimeout(press.ringTimer);
     if (!press.fired) cellPressRef.current = null;
   };
 
@@ -715,13 +996,32 @@ export function GamePage(): JSX.Element {
     const press = cellPressRef.current;
     if (!press) return;
     window.clearTimeout(press.timer);
+    window.clearTimeout(press.ringTimer);
+    cellPressRef.current = null;
+  };
+
+  /**
+   * v0.7.11：按住滑动 = 不是长按。定时器与环一起作废，`fired` 也不需要保留 ——
+   * 这一笔后面的 click 由 `paintedRef` 吞掉，不靠 `fired`。
+   */
+  const cancelCellPress = (): void => {
+    setPressCell(null);
+    const press = cellPressRef.current;
+    if (!press) return;
+    window.clearTimeout(press.timer);
+    window.clearTimeout(press.ringTimer);
     cellPressRef.current = null;
   };
 
   const startClearPress = (): void => {
-    const press = { timer: 0, fired: false };
+    const press = { timer: 0, ringTimer: 0, fired: false };
     pressSeqRef.current += 1;
-    setClearPress(pressSeqRef.current);
+    const seq = pressSeqRef.current;
+    // 与格子上的环同一个延迟：单点（切换清除工具）不该闪一圈。
+    press.ringTimer = window.setTimeout(() => {
+      if (clearPressRef.current !== press) return;
+      setClearPress(seq);
+    }, GAME_PRESS_RING_DELAY_MS);
     press.timer = window.setTimeout(() => {
       press.fired = true;
       // 清空是一次性的，棋盘随即变空 —— 满环留在空棋盘上没有意义，立即收。
@@ -738,6 +1038,7 @@ export function GamePage(): JSX.Element {
     const press = clearPressRef.current;
     if (!press) return;
     window.clearTimeout(press.timer);
+    window.clearTimeout(press.ringTimer);
     clearPressRef.current = null;
     // A completed long-press already acted; only a short tap toggles the mode.
     if (press.fired) return;
@@ -764,7 +1065,7 @@ export function GamePage(): JSX.Element {
     setZoom(next);
   };
 
-  const undoSteps = Math.max(0, placementState.past.length - placementState.submittedPastLength);
+  const undoSteps = placementState.past.length;
 
   if (gameQuery.isLoading) {
     return (
@@ -814,21 +1115,42 @@ export function GamePage(): JSX.Element {
               {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
               <ThemeToggle className="ml-auto" />
             </div>
-            <p className="truncate pl-1 text-sm font-semibold" title={game.name}>
-              {game.name} {gridSize}x{gridSize}
-            </p>
+            {/*
+              * v0.7.12：计时挪到标题行最右边 —— 它是「这一局」的元信息，与名字、
+              * 尺寸同一行；放在右栏底部被步数挤着，反而像第三条统计。不要图标，
+              * 只留粗体淡色的 `mm:ss`。
+              */}
+            <div className="flex items-baseline gap-2 pl-1">
+              <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={game.name}>
+                {game.name} {gridSize}x{gridSize}
+              </p>
+              <span
+                data-testid="game-timer"
+                className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground"
+                title="本局用时（提交后停止）"
+              >
+                {formatElapsed(elapsedMs)}
+              </span>
+            </div>
           </div>
           <div className="flex min-h-0 flex-1">
             <ParticipantPanel
               slots={slots}
               charactersById={charactersById}
               cols={rosterCols}
-              selectedSlotIndex={null}
+              /*
+               * v0.7.11：游戏页的名册也有「选中」—— 手上正拿着的那位（放置态），
+               * 不是鼠标碰巧路过的那位。选中态比预览态多一圈纸色缝隙（见
+               * `PARTICIPANT_SELECTED_RING`），并带一次 180ms 的鼓起。
+               */
+              selectedSlotIndex={mode.kind === 'placing' ? mode.participantId - 1 : null}
               draggingIndex={null}
               activeSlotIndex={activation.activeParticipantId}
               highlightedSlots={highlightedSlots}
               highlightColors={highlightColors}
               readOnly
+              // v0.7.11：去掉「参与者 5/5」那行标题 —— 玩家端上面已经有一行。
+              hideHeader
               placedSlotIndices={placedSlotIndices}
               onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
               onDeactivateHover={(index) => {
@@ -872,10 +1194,21 @@ export function GamePage(): JSX.Element {
               return;
             }
             if (event.button !== 0) return;
-            if (mode.kind !== 'placing') return;
+            if (mode.kind === 'idle') return;
             const cell = toCell(event.clientX, event.clientY);
             if (!cell) return;
-            startCellPress(cell.x, cell.y);
+            /**
+             * v0.7.11：按住滑动连续操作。按下这一刻**不落任何东西** ——
+             * 放置态下它还可能是长按（放头像）的起点，先落编号会让同一手势
+             * 先闪一个编号再变成头像。真正落笔发生在指针进入第二个格子时。
+             */
+            paintedRef.current = false;
+            paintRef.current = {
+              start: cell,
+              lastKey: cellKey(cell.x, cell.y),
+              painted: false,
+            };
+            if (mode.kind === 'placing') startCellPress(cell.x, cell.y, mode.participantId);
           }}
           onPointerMove={(event) => {
             if (panRef.current) {
@@ -886,18 +1219,53 @@ export function GamePage(): JSX.Element {
               });
               return;
             }
-            setHover(toCell(event.clientX, event.clientY));
+            const cell = toCell(event.clientX, event.clientY);
+            setHover(cell);
+
+            const paint = paintRef.current;
+            if (!paint || !cell) return;
+            // 长按已经放了头像：这一笔到此为止，不再往别的格子刷编号。
+            if (cellPressRef.current?.fired) return;
+            const key = cellKey(cell.x, cell.y);
+            if (key === paint.lastKey) return;
+            if (!paint.painted) {
+              paint.painted = true;
+              // 滑出了第一格 = 拖动，不是长按。
+              cancelCellPress();
+              // 起点那一格也要落：它同样是「划过的格子」。
+              dispatchCell(paint.start.x, paint.start.y, 'number', { quiet: true });
+            }
+            paint.lastKey = key;
+            dispatchCell(cell.x, cell.y, 'number', { quiet: true });
           }}
-          onPointerUp={() => {
+          onPointerUp={(event) => {
             panRef.current = null;
+            const paint = paintRef.current;
+            paintRef.current = null;
+            if (paint && !paint.painted && !cellPressRef.current?.fired) {
+              /**
+               * 划得太快时浏览器可能一个 `pointermove` 都没给（按下与抬手之间
+               * 直接换了格子）。抬手时才发现的话，补上起点与落点这两格。
+               */
+              const cell = toCell(event.clientX, event.clientY);
+              if (cell && cellKey(cell.x, cell.y) !== paint.lastKey) {
+                paint.painted = true;
+                cancelCellPress();
+                dispatchCell(paint.start.x, paint.start.y, 'number', { quiet: true });
+                dispatchCell(cell.x, cell.y, 'number', { quiet: true });
+              }
+            }
+            if (paint?.painted) paintedRef.current = true;
             endCellPress();
           }}
           onPointerCancel={() => {
             panRef.current = null;
+            paintRef.current = null;
             dropCellPress();
           }}
           onPointerLeave={() => {
             panRef.current = null;
+            paintRef.current = null;
             dropCellPress();
             setHover(null);
           }}
@@ -918,6 +1286,11 @@ export function GamePage(): JSX.Element {
             // 刚拖过画布：这一下 click 是拖拽手势的尾巴，不是放东西。
             if (pannedRef.current) {
               pannedRef.current = false;
+              return;
+            }
+            // 刚按住滑过格子：已经落过笔了，这一下也是尾巴。
+            if (paintedRef.current) {
+              paintedRef.current = false;
               return;
             }
             const press = cellPressRef.current;
@@ -989,11 +1362,12 @@ export function GamePage(): JSX.Element {
               slots={slots}
             />
 
-            {/* v0.7.11：长按进度环 —— 按住 500ms 的等待可见化（SPEC-J02） */}
+            {/* v0.7.11：长按进度环 —— 按住 500ms 的等待可见化（SPEC-J02）。
+                环延迟 160ms 才挂载，所以只画剩下的 340ms。 */}
             <MapGamePressRing
               cell={pressCell}
               cellSize={cellSize}
-              durationMs={GAME_LONG_PRESS_MS}
+              durationMs={GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
               seq={pressCell?.seq ?? 0}
             />
 
@@ -1020,6 +1394,8 @@ export function GamePage(): JSX.Element {
                * 时间戳：抬手即清环，窗口自然结束。
                */
               settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
+              /* v0.7.11：刚放下的编号 / 禁止符号各「盖章」一次。 */
+              pulse={pulse}
             />
 
             <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
@@ -1084,7 +1460,7 @@ export function GamePage(): JSX.Element {
             {clearPress !== null ? (
               <PressRing
                 size={40}
-                durationMs={GAME_LONG_PRESS_MS}
+                durationMs={GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
                 seq={`clear-${clearPress}`}
                 strokeWidth={2.5}
                 radiusRatio={0.46}
@@ -1102,16 +1478,21 @@ export function GamePage(): JSX.Element {
           >
             <Undo2 className="h-5 w-5" />
           </Button>
+          {/*
+            * v0.7.11：提交按钮不再变成勾 —— 提交是一次**结算**，不是一个要记住
+            * 的状态。勾只会在下一次进来时变成一句谎话（玩家看到自己没做过的勾）。
+            * v0.7.12：没放完不能提交（编号不算放置）。
+            */}
           <Button
             variant="ghost"
-            className={cn(
-              'h-12 w-full',
-              hasSubmitted ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
-            )}
-            title={hasSubmitted ? '已提交，可继续摆放后再次提交' : '提交当前摆放（先校验）'}
+            className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
+            title={
+              readyToSubmit ? '提交当前摆放（先校验）' : '还有参与者没放好，放完才能提交'
+            }
+            disabled={!readyToSubmit}
             onClick={submit}
           >
-            {hasSubmitted ? <Check className="h-5 w-5" /> : <Send className="h-5 w-5" />}
+            <Send className="h-5 w-5" />
           </Button>
 
           {/* v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。 */}
@@ -1155,7 +1536,7 @@ export function GamePage(): JSX.Element {
             />
           </div>
 
-          {/* SPEC-G04 §6.4: step counter */}
+          {/* SPEC-G04 §6.4: step counter —— v0.7.12 起计时不再在这里（见标题行） */}
           <div className="mt-auto w-full border-t pt-2 text-center text-2xs leading-relaxed text-muted-foreground">
             已放置 {countPlacements(placementState.board)} 个
             <br />
@@ -1164,40 +1545,60 @@ export function GamePage(): JSX.Element {
         </aside>
       </div>
 
-      {/* FEAT-V01 §8.2: 校验未通过 → 列出全部问题（按编号排序），关闭后继续摆放 */}
+      {/*
+        v0.7.11：提交的两种结局共用一个弹窗。
+        - 通过：用时 + 再玩一次；
+        - 未通过：只说谁不对（不展开行列坐标）+ 继续游戏 / 重新开始。
+        两种都用 `Dialog`，不是 `AlertDialog` —— 这里不是「要不要删除」那种确认，
+        而是一局结束后的结算。
+      */}
       <Dialog
-        open={validationIssues !== null}
+        open={result !== null}
         onOpenChange={(open) => {
-          if (!open) setValidationIssues(null);
+          if (!open) closeResult();
         }}
       >
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>提交未通过</DialogTitle>
+            <DialogTitle>
+              {result?.kind === 'passed' ? '提交通过' : '提交未通过'}
+            </DialogTitle>
             <DialogDescription>
-              共 {validationIssues?.length ?? 0} 项问题，修正后可以再次提交。
+              {result?.kind === 'passed'
+                ? `用时 ${formatElapsed(result.elapsedMs)}。`
+                : '下面这些参与者的位置还不对，改完可以再提交一次。'}
             </DialogDescription>
           </DialogHeader>
-          <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
-            {validationIssues?.map((issue, index) => (
-              <li key={`${issue.participantId}-${issue.code}-${index}`} className="flex gap-2">
-                <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-2xs text-destructive">
-                  {issue.code === 'unplaced'
-                    ? '未放置'
-                    : issue.code === 'row'
-                      ? '同行'
-                      : issue.code === 'column'
-                        ? '同列'
-                        : '位置条件'}
-                </span>
-                <span>{issue.message}</span>
-              </li>
-            ))}
-          </ul>
+
+          {result?.kind === 'failed' ? (
+            <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
+              {result.blame.map((entry) => (
+                <li key={entry.participantId} className="flex items-center gap-2">
+                  <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-2xs text-destructive">
+                    {entry.reason === 'unplaced' ? '未放置' : '位置不对'}
+                  </span>
+                  <span>{entry.label}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+
           <DialogFooter>
-            <Button variant="outline" onClick={() => setValidationIssues(null)}>
-              关闭
-            </Button>
+            {result?.kind === 'passed' ? (
+              <>
+                <Button variant="outline" onClick={closeResult}>
+                  关闭
+                </Button>
+                <Button onClick={restart}>再玩一次</Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={continueGame}>
+                  继续游戏
+                </Button>
+                <Button onClick={restart}>重新开始</Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

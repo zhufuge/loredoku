@@ -3,6 +3,7 @@ import type { PuzzleEntrySummary } from '@loredoku/shared';
 import { IconButton } from '@/components/ui/icon-button';
 import { entryPreviewable, entryPreviewTitle } from '@/components/common/EntryActionsMenu';
 import { formatDateTime } from '@/lib/format';
+import { ClampedText } from '@/components/common/ClampedText';
 
 /**
  * 谜题列表行：缩略图 + 名称 +（版本号）+ 部署 + 尺寸 + 底图 + 描述 + 时间 +
@@ -101,9 +102,15 @@ export function PuzzleListRow({
       <span className="w-36 shrink-0 truncate text-xs text-muted-foreground" title={entry.mapName}>
         {entry.mapName ? `${entry.mapName} v${entry.mapVersionNo}` : '—'}
       </span>
-      <span className="flex-1 truncate text-sm text-muted-foreground">
-        {entry.description ?? ''}
-      </span>
+      {entry.description ? (
+        <ClampedText
+          text={entry.description}
+          lines={1}
+          className="flex-1 text-sm text-muted-foreground"
+        />
+      ) : (
+        <span className="flex-1" />
+      )}
       <span className="w-52 shrink-0 truncate text-right text-xs text-muted-foreground">
         {formatDateTime(entry.publishedAt ?? entry.updatedAt)}
       </span>

@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { toast } from 'sonner';
+import { asGameSlugConflict, type GameSlugConflict } from '@loredoku/shared';
 import { gamesApi, type DeployGamePayload } from '@/api/games';
 import { ApiError } from '@/api/client';
 import { fileFromImageUrl } from '@/lib/fileFromImageUrl';
@@ -62,9 +64,21 @@ function errorMessage(error: unknown, fallback: string): string {
  *
  * v0.7.2 §4：`coverFromPuzzleUrl` = 作者没选文件、游戏也还没有封面，于是把
  * **谜题自己的封面**复制成游戏封面（读成 File 再走同一条上传端点）。
+ *
+ * v0.7.11：路径冲突不再只是一条 toast。传了 `onSlugConflict` 的调用方（部署
+ * 弹窗）会收到一份结构化说明，由它弹出「覆盖 / 取消」；没传的调用方保持原样
+ * —— 直接 toast 报错。冲突本身不会被这条 hook 吞掉，`isError` 仍然成立。
  */
-export function useDeployGame() {
+export interface SlugConflictHandler {
+  /** 冲突说明 + 触发这次冲突的负载，交给弹窗去问。 */
+  (conflict: GameSlugConflict): void;
+}
+
+export function useDeployGame(options: { onSlugConflict?: SlugConflictHandler } = {}) {
   const queryClient = useQueryClient();
+  const conflictHandler = useRef(options.onSlugConflict);
+  conflictHandler.current = options.onSlugConflict;
+
   return useMutation({
     mutationFn: async ({
       puzzleId,
@@ -72,6 +86,7 @@ export function useDeployGame() {
       slug,
       difficulty,
       clearCover,
+      overwriteSlug,
       cover,
       coverFromPuzzleUrl,
     }: DeployGamePayload & {
@@ -84,6 +99,7 @@ export function useDeployGame() {
         slug,
         difficulty,
         clearCover,
+        overwriteSlug,
       });
       if (cover) {
         await gamesApi.uploadCover(game.id, cover);
@@ -102,6 +118,12 @@ export function useDeployGame() {
     },
     onError: (error) => {
       if (error instanceof ApiError) {
+        const conflict = asGameSlugConflict(error.details);
+        const handler = conflictHandler.current;
+        if (conflict && handler) {
+          handler(conflict);
+          return;
+        }
         toast.error(error.message);
         return;
       }

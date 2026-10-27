@@ -18,6 +18,11 @@ export interface DeployGamePayload {
    * cover keeps the existing artwork.
    */
   clearCover?: boolean;
+  /**
+   * v0.7.11：路径被别的谜题版本占着时覆盖它（占位那条部署被假删）。
+   * 只应由「覆盖」弹窗的确认按钮传 —— 默认 `false`，冲突仍然是错误。
+   */
+  overwriteSlug?: boolean;
   difficulty?: GameDifficulty;
 }
 

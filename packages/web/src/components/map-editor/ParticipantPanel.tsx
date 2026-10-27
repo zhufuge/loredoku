@@ -87,6 +87,14 @@ interface ParticipantPanelProps {
    * unaffected (and the editor has no board to derive it from).
    */
   placedSlotIndices?: Set<number>;
+  /**
+   * v0.7.11：游戏页不要「参与者 5/5」那行标题。
+   *
+   * 那一行是编辑器的语法（这块面板是「参与者」这个资源本身，标题在说它有多少
+   * 格）；玩家端的名册只是工具栏的一部分，上面已经有一行「游戏名 + 尺寸」。
+   * 两行标题叠在一起，真正有用的那行反而被压下去。
+   */
+  hideHeader?: boolean;
   onSelect?: (slotIndex: number | null) => void;
   /** MOD-802: pointer entered a slot → hover-activate its linkages. */
   onActivateHover?: (slotIndex: number) => void;
@@ -125,6 +133,26 @@ const AVATAR_MIN_SIZE = PARTICIPANT_AVATAR_MIN;
 /** MOD-802: don't hover-activate while a slot is being dragged. */
 const DRAG_HOVER_LOCK = true;
 
+/**
+ * v0.7.11 / v0.7.12：**选中**的双环 —— 里圈 2px 纸色，把卡片与环隔开；外圈 2px 主色。
+ *
+ * 与「预览激活」的单环（FIX-E04 那圈 2px）区分开：预览是鼠标路过时的临时状态，
+ * 选中是玩家接下来要操作的那一位。差别不能只靠颜色深浅（两者都是主色），所以
+ * 靠**层数**：多一圈纸色缝隙，读起来就是「被拎起来了」。
+ *
+ * v0.7.12 又补了两笔（`/impeccable overdrive`）：
+ * - **第三层是投影，不是光圈**。主色的一层淡影落在卡片**下方**（负 spread、向下
+ *   偏移 12px），读的是「这张纸被抽起来了一点」，而不是发光描边 —— 后者是
+ *   `.impeccable.md` 明令避开的 AI 味。
+ * - 卡片本身 `translate` 上移 2px、序号徽标反色（主色底 + 纸色字）。看清「是谁」
+ *   靠的是徽标，而徽标本来就在左上角最显眼的位置 —— 不需要再添一条边。
+ *
+ * 环在卡片外 4px。名册容器的内边距是 8px、格间距 14px，最边上的卡片也不会被
+ * `overflow-auto` 切掉。
+ */
+const PARTICIPANT_SELECTED_RING =
+  '0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary)), 0 14px 22px -16px hsl(var(--primary) / 0.65)';
+
 export function ParticipantPanel({
   slots,
   charactersById,
@@ -136,6 +164,7 @@ export function ParticipantPanel({
   highlightColors,
   readOnly = false,
   placedSlotIndices,
+  hideHeader = false,
   onSelect,
   onActivateHover,
   onDeactivateHover,
@@ -235,19 +264,22 @@ export function ParticipantPanel({
       className="flex shrink-0 flex-col border-r bg-background"
       style={{ width: panelBoxWidth }}
     >
-      {/* OPT-B06 §6.1: title bar 40px, aligned with the item panel header */}
-      <div
-        className="shrink-0 border-b px-3 text-center"
-        style={{
-          height: PARTICIPANT_HEADER_HEIGHT,
-          lineHeight: `${PARTICIPANT_HEADER_HEIGHT}px`,
-          fontSize: 13,
-          fontWeight: 600,
-          color: '#1F2937',
-        }}
-      >
-        参与者 {placedCount}/{slots.length}
-      </div>
+      {/* OPT-B06 §6.1: title bar 40px, aligned with the item panel header.
+          v0.7.11：游戏页不用（`hideHeader`）—— 玩家端名册头上已经有一行了。 */}
+      {hideHeader ? null : (
+        <div
+          className="shrink-0 border-b px-3 text-center"
+          style={{
+            height: PARTICIPANT_HEADER_HEIGHT,
+            lineHeight: `${PARTICIPANT_HEADER_HEIGHT}px`,
+            fontSize: 13,
+            fontWeight: 600,
+            color: '#1F2937',
+          }}
+        >
+          参与者 {placedCount}/{slots.length}
+        </div>
+      )}
       {/*
         v0.6.3 §3.3: the horizontal padding is a constant, not a Tailwind class,
         because the panel's width is computed from it — a drift between the two
@@ -296,12 +328,19 @@ export function ParticipantPanel({
                * its linkage colour; the previewed slot falls back to the primary
                * colour. Implemented as a single `box-shadow` ring (no
                * `ring-offset`) so it hugs the border and reads as one frame.
+               *
+               * v0.7.11：**选中**不再和「预览」共用同一圈 —— 选中是玩家要持续
+               * 操作的那一格（编辑器里抽屉开着，游戏里是手上这位），预览只是
+               * 指针路过。选中的框因此加粗到 2px、并在卡片外留 2px 纸色空隙
+               * （双环）：一眼能分出「点住了」与「碰了一下」。
                */
-              const focusRingStyle: CSSProperties = isHighlighted
-                ? { boxShadow: `0 0 0 2px ${highlightColor ?? HIGHLIGHT_BLUE}` }
-                : isActive
-                  ? { boxShadow: '0 0 0 2px hsl(var(--primary))' }
-                  : {};
+              const focusRingStyle: CSSProperties = isSelected
+                ? { boxShadow: PARTICIPANT_SELECTED_RING }
+                : isHighlighted
+                  ? { boxShadow: `0 0 0 2px ${highlightColor ?? HIGHLIGHT_BLUE}` }
+                  : isActive
+                    ? { boxShadow: '0 0 0 2px hsl(var(--primary))' }
+                    : {};
               const themeColor = slot?.themeColor ?? '#FFFFFF';
               const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
               const clueSegments = slot?.clue ? parseClue(slot.clue) : [];
@@ -320,10 +359,18 @@ export function ParticipantPanel({
                     borderRadius: PARTICIPANT_SLOT_RADIUS,
                     // FIX-E04: the slot's single highlight frame.
                     ...focusRingStyle,
+                    // v0.7.12：选中 = 从纸页上抽起来的卡片 —— 抬起 2px，
+                    // 投影落在下方（见 `PARTICIPANT_SELECTED_RING` 第三层）。
+                    translate: isSelected ? '0 -2px' : undefined,
+                    zIndex: isSelected ? 1 : undefined,
                     // SPEC-H14 §1.3: placed → the **whole** card dims (frame +
                     // badge + avatar + clue). One opacity, on the root only, so
                     // nothing multiplies down to 0.45 × 0.45.
-                    opacity: isPlaced ? GAME_PLACED_OPACITY : undefined,
+                    //
+                    // v0.7.12：**选中的那张不淡**。玩家把一位已经落子的参与者
+                    // 重新拿在手上（要给他搬家）时，淡掉的卡片会把双环、抬起和
+                    // 反色徽标一起压暗 —— 那正是此刻最该看清的一格。
+                    opacity: isPlaced && !isSelected ? GAME_PLACED_OPACITY : undefined,
                   }}
                   onPointerDown={(event) => {
                     if (readOnly) return;
@@ -412,7 +459,7 @@ export function ParticipantPanel({
                           : undefined,
                     slot
                       ? isSelected
-                        ? 'border-primary bg-accent'
+                        ? 'border-primary bg-primary/10 roster-select-pop'
                         : 'border-border bg-background hover:border-primary'
                       : 'border-dashed border-muted-foreground/40 bg-muted/30',
                     isDragging ? 'opacity-40' : undefined,
@@ -441,9 +488,12 @@ export function ParticipantPanel({
                       fontSize: PARTICIPANT_SEQ_FONT_SIZE,
                       fontWeight: 700,
                       lineHeight: `${PARTICIPANT_SEQ_SIZE - 1}px`,
-                      color: PARTICIPANT_SEQ_COLOR,
-                      background: PARTICIPANT_SEQ_BACKGROUND,
+                      // v0.7.12：选中时徽标反色（主色底 + 纸色字）。这是「是谁」
+                      // 的那一笔 —— 位置固定、对比最高，扫一眼就知道手上是哪位。
+                      color: isSelected ? 'hsl(var(--primary-foreground))' : PARTICIPANT_SEQ_COLOR,
+                      background: isSelected ? 'hsl(var(--primary))' : PARTICIPANT_SEQ_BACKGROUND,
                       border: PARTICIPANT_SEQ_BORDER,
+                      borderColor: isSelected ? 'hsl(var(--primary))' : undefined,
                       borderTopWidth: 0,
                       borderLeftWidth: 0,
                     }}

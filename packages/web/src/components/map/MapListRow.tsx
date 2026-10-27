@@ -2,6 +2,7 @@ import { Copy, Eye, Pencil, SquarePen, Trash2 } from 'lucide-react';
 import type { MapEntrySummary } from '@loredoku/shared';
 import { IconButton } from '@/components/ui/icon-button';
 import { formatDateTime } from '@/lib/format';
+import { ClampedText } from '@/components/common/ClampedText';
 import { entryPreviewable, entryPreviewTitle } from '@/components/common/EntryActionsMenu';
 
 /**
@@ -85,9 +86,15 @@ export function MapListRow({
       <span className="w-16 shrink-0 tabular-nums text-sm text-muted-foreground">
         {entry.gridSize !== null ? `${entry.gridSize} × ${entry.gridSize}` : '—'}
       </span>
-      <span className="flex-1 truncate text-sm text-muted-foreground">
-        {entry.description ?? ''}
-      </span>
+      {entry.description ? (
+        <ClampedText
+          text={entry.description}
+          lines={1}
+          className="flex-1 text-sm text-muted-foreground"
+        />
+      ) : (
+        <span className="flex-1" />
+      )}
       {/* 时间：右对齐、固定宽度，两行条目的小数秒也不会把操作列推走。 */}
       <span className="w-52 shrink-0 truncate text-right text-xs text-muted-foreground">
         {formatDateTime(entry.publishedAt ?? entry.updatedAt)}

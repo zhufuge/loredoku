@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
+import type { GameSlugConflict, MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
 import { GameDeployDialog } from './GameDeployDialog';
 
 /**
@@ -14,9 +14,16 @@ import { GameDeployDialog } from './GameDeployDialog';
  * Radix 把面板 portal 到 `document.body`，所以查询走 `document`。
  */
 const deployMutate = vi.fn();
+/** 弹窗交给 hook 的冲突回调 —— 测试里手动触发一次「路径被占」。 */
+const hook = vi.hoisted(() => ({
+  onSlugConflict: undefined as ((conflict: GameSlugConflict) => void) | undefined,
+}));
 
 vi.mock('@/hooks/useGames', () => ({
-  useDeployGame: () => ({ mutate: deployMutate, isPending: false }),
+  useDeployGame: (options?: { onSlugConflict?: (conflict: GameSlugConflict) => void }) => {
+    hook.onSlugConflict = options?.onSlugConflict;
+    return { mutate: deployMutate, isPending: false };
+  },
 }));
 
 function puzzle(overrides: Partial<PuzzleEntrySummary> = {}): PuzzleEntrySummary {
@@ -210,5 +217,35 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
       expect.objectContaining({ coverFromPuzzleUrl: null }),
       expect.anything(),
     );
+  });
+
+  /**
+   * v0.7.11：路径撞车不再只是「一句 toast 请更换」。弹窗问一次要不要**覆盖**，
+   * 说清被占的是哪条路径、占位的是谁；确认后原样重发，只多一个 `overwriteSlug`。
+   */
+  it('路径被占时弹窗问「覆盖」，确认后原样重发并带上 overwriteSlug', () => {
+    render({ puzzle: puzzle() });
+    clickButton('部署');
+    expect(deployMutate).toHaveBeenCalledTimes(1);
+
+    act(() =>
+      hook.onSlugConflict?.({
+        kind: 'slug-taken',
+        slug: 'puzzle-midnight-garden-medium',
+        name: '旧的那一个',
+        puzzleName: '旧谜题',
+      }),
+    );
+    expect(text()).toContain('访问路径已被占用');
+    expect(text()).toContain('旧的那一个');
+
+    clickButton('覆盖');
+    expect(deployMutate).toHaveBeenCalledTimes(2);
+    const [payload] = deployMutate.mock.calls[1] as [Record<string, unknown>];
+    expect(payload).toMatchObject({
+      puzzleId: 9,
+      slug: 'puzzle-midnight-garden-medium',
+      overwriteSlug: true,
+    });
   });
 });

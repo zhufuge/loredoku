@@ -25,7 +25,6 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
     v: GAME_PROGRESS_VERSION,
     gridSize: meta.gridSize,
     participantCount: meta.participantCount,
-    submitted: false,
     board: {},
     ...overrides,
   };
@@ -34,7 +33,6 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
 function stored(overrides: Partial<StoredGameProgress> = {}): StoredGameProgress {
   return {
     board: { '1,1': { kind: 'participant', index: 2 }, '2,2': { kind: 'forbidden' } },
-    submitted: false,
     gridSize: meta.gridSize,
     participantCount: meta.participantCount,
     ...overrides,
@@ -89,7 +87,6 @@ describe('parseStoredProgress', () => {
     const board = { '4,4': { kind: 'numbers', entries: [2, 3] } };
     expect(parseStoredProgress(payload({ board }), meta)).toEqual({
       board,
-      submitted: false,
       gridSize: 9,
       participantCount: 4,
     });
@@ -115,19 +112,11 @@ describe('parseStoredProgress', () => {
     }
   });
 
-  it('treats an empty unsubmitted board as "nothing to restore"', () => {
+  it('treats an empty board as "nothing to restore"', () => {
+    // v0.7.11：存档里只剩棋盘，「提交过」不再是一条能独立存在的记录 ——
+    // 空盘就是空盘，没什么可恢复的。
     expect(parseStoredProgress(payload(), meta)).toBeNull();
-  });
-
-  it('keeps an empty board that was already submitted', () => {
-    // 玩家清空后提交过：棋盘没东西可恢复，但勾要留着。
-    const parsed = parseStoredProgress(payload({ submitted: true }), meta);
-    expect(parsed).toEqual({
-      board: {},
-      submitted: true,
-      gridSize: 9,
-      participantCount: 4,
-    });
+    expect(parseStoredProgress(payload({ submitted: true }), meta)).toBeNull();
   });
 
   it('prunes stale cells instead of dropping the whole save', () => {
@@ -154,15 +143,18 @@ describe('localStorage round-trip', () => {
     expect(readGameProgress('other-game', meta)).toBeNull();
   });
 
-  it('removes the key when the board is empty and nothing was submitted', () => {
+  it('removes the key when the board is empty', () => {
     writeGameProgress('night-train', stored());
-    writeGameProgress('night-train', stored({ board: {}, submitted: false }));
+    writeGameProgress('night-train', stored({ board: {} }));
     expect(window.localStorage.getItem(gameProgressKey('night-train'))).toBeNull();
   });
 
-  it('keeps an empty submitted board on disk', () => {
-    writeGameProgress('night-train', stored({ board: {}, submitted: true }));
-    expect(readGameProgress('night-train', meta)?.submitted).toBe(true);
+  it('keeps the auto flag of a swept forbidden cell (v0.7.11)', () => {
+    // 自动 `×` 的标记必须活着回读：头像搬家时靠它决定哪些 `×` 可以回滚。
+    writeGameProgress('night-train', stored({ board: { '2,2': { kind: 'forbidden', auto: true } } }));
+    expect(readGameProgress('night-train', meta)?.board).toEqual({
+      '2,2': { kind: 'forbidden', auto: true },
+    });
   });
 
   it('ignores a corrupted or hand-edited string', () => {

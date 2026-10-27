@@ -467,6 +467,103 @@
   }
 
   /*
+   * 放下的一刻（v0.7.11）——编号与禁止符号的「盖章」。
+   *
+   * 头像有 `place-settle`（长按那半秒的过程刚结束，需要一点落定感）；短按放下的
+   * 编号和禁止符号此前是**直接出现**的，连续点几格会读成「屏幕刷新了几次」。
+   * 这里给它们 180ms 的放大 + 淡入，过冲 8% 再收回 —— 像把一枚印章按下去。
+   *
+   * 为什么不用 `transform`：这一层里的 `<text>` 身上已经有 SVG 自己的坐标
+   * （`x` / `y` 属性），`transform` 关键帧会整条覆盖元素上的 transform，
+   * 而 `scale` 是与之正交的独立属性（同一个坑在 v0.7.10 §6.3 记过两次）。
+   * `transform-box: fill-box` 让缩放以**字形自己**的中心为原点，而不是整张
+   * SVG 的原点 —— 否则第 1 格的数字会绕着格子左上角飞出去。
+   */
+  .place-pop {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: place-pop var(--motion-base) var(--motion-ease-out);
+  }
+
+  @keyframes place-pop {
+    from {
+      opacity: 0;
+      scale: 0.5;
+    }
+    60% {
+      opacity: 1;
+      scale: 1.08;
+    }
+    to {
+      scale: 1;
+    }
+  }
+
+  /*
+   * 划掉的一刻（v0.7.12）—— 禁止符号自己的那一支。
+   *
+   * 与编号的 `place-pop`（0.5 → 1.08，像盖章）分开：`×` 在语义上是「划掉」，
+   * 动作从很小开始、弹出到位再回正几度，读起来才是「一笔划下去」而不是「按了
+   * 一枚章」。旋转用独立的 `rotate` 属性 —— 和 `scale` 一样，它与 SVG 自己的
+   * 坐标（`x` / `y`）正交，不会像 `transform` 那样把元素的坐标整条覆盖。
+   */
+  .forbidden-pop {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: forbidden-pop var(--motion-base) var(--motion-ease-out);
+  }
+
+  @keyframes forbidden-pop {
+    from {
+      opacity: 0;
+      scale: 0.35;
+      rotate: -18deg;
+    }
+    60% {
+      opacity: 1;
+      scale: 1.16;
+      rotate: 4deg;
+    }
+    to {
+      scale: 1;
+      rotate: 0deg;
+    }
+  }
+
+  /*
+   * 名册卡片的「选中」瞬间（v0.7.11）。
+   *
+   * 选中态本身是一圈双环（见 `ParticipantPanel` 的 `PARTICIPANT_SELECTED_RING`），
+   * 静态的环足够说明「是这张」，但点下去的那一下没有回应 —— 环是**跳出来**的。
+   * 给卡片 180ms 的一次轻微鼓起（4.5%），环与鼓包同时发生，读成「拎起来了」。
+   *
+   * 幅度刻意小：这张卡在 110px 的格子里，一格挨着一格，超过 6% 就会顶到邻居。
+   */
+  .roster-select-pop {
+    animation: roster-select-pop var(--motion-base) var(--motion-ease-out);
+  }
+
+  /*
+   * v0.7.12：鼓包里多一条 `translate` —— 卡片不是「胀大」，是**被抽起来**：
+   * 抬起 4px 再落到 2px（静态值），与下方那层投影一起完成「拎起一张纸」。
+   * 只做 `scale` 会读成「贴纸膨胀」，那是另一件事。
+   */
+  @keyframes roster-select-pop {
+    0% {
+      scale: 1;
+      translate: 0 0;
+    }
+    45% {
+      scale: 1.045;
+      translate: 0 -4px;
+    }
+    100% {
+      scale: 1;
+      translate: 0 -2px;
+    }
+  }
+
+  /*
    * 纸背光（v0.7.10 §10，`components/game/GameCard.tsx`）—— 两层，一减一加。
    *
    * 位置来自组件写进 `--glow-x / --glow-y` 的指针坐标；两层共用这一组值，

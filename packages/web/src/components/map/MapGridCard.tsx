@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { formatDateTime } from '@/lib/format';
 import { formatRelativeTime } from '@/lib/relativeTime';
 import { EntryActionsMenu } from '@/components/common/EntryActionsMenu';
+import { ClampedText } from '@/components/common/ClampedText';
 
 /**
  * 卡片：封面 + 名称 + 描述 + 「尺寸 … 时间」一行。
@@ -83,7 +84,8 @@ export function MapGridCard({
             ) : null}
           </h3>
           {entry.description ? (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{entry.description}</p>
+            /* v0.7.12：描述被截断时，悬停 / 触碰可看全文。 */
+            <ClampedText text={entry.description} lines={2} className="text-xs text-muted-foreground" />
           ) : null}
         </div>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

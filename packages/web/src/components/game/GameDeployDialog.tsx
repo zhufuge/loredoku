@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ImagePlus, RefreshCw, Rocket, Trash2, Upload } from 'lucide-react';
+import { ImagePlus, Loader2, RefreshCw, Rocket, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   GAME_DIFFICULTY_COLORS,
@@ -17,7 +17,12 @@ import {
   slugify,
   splitSlug,
 } from '@loredoku/shared';
-import type { GameDifficulty, MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
+import type {
+  GameDifficulty,
+  GameSlugConflict,
+  MapGameSummary,
+  PuzzleEntrySummary,
+} from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -28,6 +33,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useDeployGame } from '@/hooks/useGames';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +60,8 @@ const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
  */
 export function GameDeployDialog({
   puzzle,
+  versions = null,
+  resolveExistingGame,
   existingGame,
   open,
   onOpenChange,
@@ -52,14 +69,49 @@ export function GameDeployDialog({
   /**
    * 第 2 层拦截（v0.7.1 §7.1）：只有**版本条目**能进来 —— 草稿行不满足「已发布」，
    * 部署单元就是一个谜题版本行。
+   *
+   * v0.7.11：部署页从「自己挑一个版本」出发，所以这里允许传 `null`，由
+   * `versions` 在弹窗里选（见下）。
    */
   puzzle: PuzzleEntrySummary | null;
+  /**
+   * v0.7.11：可选版本列表 —— 只有部署页会传。
+   *
+   * 它一在场，弹窗顶部就多一个「谜题版本」下拉；选中之后名称 / 路径 / 封面 /
+   * 难度全部按那个版本回填（作者在部署页并不先选谜题，是先按「部署」）。
+   */
+  versions?: PuzzleEntrySummary[] | null;
+  /** 某个版本已经部署过时，用那条部署回填（同一个版本再部署 = 覆盖它）。 */
+  resolveExistingGame?: (puzzle: PuzzleEntrySummary) => MapGameSummary | null;
   /** OPT-W03: the puzzle's current game, used to prefill the re-deploy. */
   existingGame?: MapGameSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
-  const deploy = useDeployGame();
+  const chooseable = versions !== null && versions.length > 0;
+  const [choiceId, setChoiceId] = useState<number | null>(null);
+
+  /** 实际要部署的那个版本：外部指定优先，其次弹窗里选的。 */
+  const activePuzzle = useMemo<PuzzleEntrySummary | null>(() => {
+    if (puzzle) return puzzle;
+    if (!chooseable) return null;
+    return versions.find((entry) => entry.id === choiceId) ?? null;
+  }, [puzzle, chooseable, versions, choiceId]);
+
+  /**
+   * 已经部署过的那个版本 → 用它回填。
+   *
+   * 解析函数放进 ref：调用方多半写成内联箭头，把它塞进 `useMemo` 的依赖会让
+   * 回填 effect 每次渲染都重跑，作者刚打的字瞬间被冲掉。
+   */
+  const resolverRef = useRef(resolveExistingGame);
+  resolverRef.current = resolveExistingGame;
+  const activeExisting = useMemo<MapGameSummary | null>(() => {
+    if (existingGame !== undefined && existingGame !== null) return existingGame;
+    if (!puzzle && activePuzzle) return resolverRef.current?.(activePuzzle) ?? null;
+    return existingGame ?? null;
+  }, [existingGame, puzzle, activePuzzle]);
+
   const [name, setName] = useState('');
   /**
    * v0.7.1 §7.6.1：访问路径拆成「前缀 + 可编辑中段 + 难度后缀」。前缀（`puzzle-`）
@@ -76,27 +128,44 @@ export function GameDeployDialog({
   const [coverRemoved, setCoverRemoved] = useState(false);
   const [middleTouched, setMiddleTouched] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  /**
+   * v0.7.11：路径撞车时不再是「一句 toast 报错」，而是问一次要不要**覆盖**。
+   * 存的是服务端给的冲突说明（被占的路径 + 占位的那条部署），`null` = 没冲突。
+   */
+  const [conflict, setConflict] = useState<GameSlugConflict | null>(null);
+  /** 冲突那一刻的提交内容 —— 确认覆盖时原样重发，只多一个 `overwriteSlug`。 */
+  const pendingDeployRef = useRef<DeployRequest | null>(null);
+
+  const deploy = useDeployGame({ onSlugConflict: (info) => setConflict(info) });
 
   // Every open starts from the puzzle's own defaults, or from the game's stored
   // values when this version row was deployed before (OPT-W03).
   useEffect(() => {
-    if (!open || !puzzle) return;
-    const startName = puzzle.name;
-    const startDifficulty = existingGame?.difficulty ?? GAME_DIFFICULTY_DEFAULT;
+    if (!open || !activePuzzle) return;
+    const startName = activePuzzle.name;
+    const startDifficulty = activeExisting?.difficulty ?? GAME_DIFFICULTY_DEFAULT;
     setName(startName);
     setDifficulty(startDifficulty);
     setCover(null);
     setCoverRemoved(false);
-    if (existingGame) {
+    if (activeExisting) {
       // 已发布的路径是给持链接的人的承诺：回填并当作「已经改过」，改名字或难度
       // 都不会悄悄重写它，只会在下面显式提示「原路径将失效」。
-      setMiddle(splitSlug(existingGame.slug, existingGame.difficulty));
+      setMiddle(splitSlug(activeExisting.slug, activeExisting.difficulty));
       setMiddleTouched(true);
     } else {
       setMiddle(slugify(startName));
       setMiddleTouched(false);
     }
-  }, [open, puzzle, existingGame]);
+  }, [open, activePuzzle, activeExisting]);
+
+  /** 关掉弹窗时把冲突与已选版本都收掉 —— 下次打开不该还停在「要覆盖吗」。 */
+  useEffect(() => {
+    if (open) return;
+    setConflict(null);
+    pendingDeployRef.current = null;
+    setChoiceId(null);
+  }, [open]);
 
   /**
    * 作者没手动改过中段时，它跟着名称走 —— 直接写在名称输入的 onChange 里，而不是
@@ -128,12 +197,12 @@ export function GameDeployDialog({
    * 谜题封面是「默认值」：作者不选文件，就把谜题那张复制成游戏封面，省掉每次
    * 部署都重选一次图。
    */
-  const puzzleCoverUrl = puzzle?.coverUrl ?? null;
+  const puzzleCoverUrl = activePuzzle?.coverUrl ?? null;
   const coverSource: 'picked' | 'game' | 'puzzle' | 'none' = cover
     ? 'picked'
     : coverRemoved
       ? 'none'
-      : existingGame?.coverUrl
+      : activeExisting?.coverUrl
         ? 'game'
         : puzzleCoverUrl
           ? 'puzzle'
@@ -141,7 +210,7 @@ export function GameDeployDialog({
   /** 此刻封面框里画的那张图（选了新文件时由 `coverPreview` 顶替）。 */
   const inheritedCover =
     coverSource === 'game'
-      ? existingGame?.coverUrl ?? null
+      ? activeExisting?.coverUrl ?? null
       : coverSource === 'puzzle'
         ? puzzleCoverUrl
         : null;
@@ -160,10 +229,30 @@ export function GameDeployDialog({
         : '无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）';
 
   /** 已部署过的路径被改掉了 —— 明写出来，别让作者以为旧链接还有效。 */
-  const slugReplaced = existingGame != null && slug.length > 0 && slug !== existingGame.slug;
+  const slugReplaced =
+    activeExisting != null && slug.length > 0 && slug !== activeExisting.slug;
+
+  /**
+   * v0.7.11：一次部署请求的完整形状。抽成类型是因为冲突时要用**同一份**内容
+   * 重发一遍（只多一个 `overwriteSlug`）—— 让作者只回答「覆盖吗」，而不是
+   * 重新填一遍表单。
+   */
+  interface DeployRequest {
+    puzzleId: number;
+    name: string;
+    slug: string;
+    difficulty: GameDifficulty;
+    clearCover: boolean;
+    cover: File | null;
+    coverFromPuzzleUrl: string | null;
+    overwriteSlug?: boolean;
+  }
 
   const submit = (): void => {
-    if (!puzzle) return;
+    if (!activePuzzle) {
+      toast.error('请选择要部署的谜题版本');
+      return;
+    }
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       toast.error('请填写游戏名称');
@@ -185,22 +274,38 @@ export function GameDeployDialog({
       toast.error(problem);
       return;
     }
+    const request: DeployRequest = {
+      // CONS-K16: the game belongs to the puzzle, not to the map version.
+      puzzleId: activePuzzle.id,
+      name: trimmed,
+      slug: trimmedSlug,
+      difficulty,
+      // Only an explicit removal clears the stored cover (OPT-W03 §3).
+      clearCover: coverRemoved && !cover,
+      cover,
+      // v0.7.2 §4：没有自己的封面时，把谜题封面复制一份过来。
+      coverFromPuzzleUrl: coverSource === 'puzzle' ? puzzleCoverUrl : null,
+    };
+    pendingDeployRef.current = request;
+    deploy.mutate(request, { onSuccess: () => onOpenChange(false) });
+  };
+
+  /** 「覆盖」= 原样重发 + `overwriteSlug`，服务端把占位那条部署假删。 */
+  const overwrite = (): void => {
+    const request = pendingDeployRef.current;
+    if (!request) return;
+    setConflict(null);
     deploy.mutate(
-      {
-        // CONS-K16: the game belongs to the puzzle, not to the map version.
-        puzzleId: puzzle.id,
-        name: trimmed,
-        slug: trimmedSlug,
-        difficulty,
-        // Only an explicit removal clears the stored cover (OPT-W03 §3).
-        clearCover: coverRemoved && !cover,
-        cover,
-        // v0.7.2 §4：没有自己的封面时，把谜题封面复制一份过来。
-        coverFromPuzzleUrl: coverSource === 'puzzle' ? puzzleCoverUrl : null,
-      },
+      { ...request, overwriteSlug: true },
       { onSuccess: () => onOpenChange(false) },
     );
   };
+
+  /**
+   * 还没选版本时，整张表单都是「还没轮到它」—— 禁用而不是只让提交失败，
+   * 免得作者填完名称才发现上面那格是空的。
+   */
+  const busy = deploy.isPending || activePuzzle === null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -208,13 +313,49 @@ export function GameDeployDialog({
         <DialogHeader>
           <DialogTitle>部署为游戏</DialogTitle>
           <DialogDescription>
-            {puzzle
-              ? `把谜题「${puzzle.name} v${puzzle.versionNo ?? ''}」部署为可玩的游戏。每个谜题版本可以部署一个游戏；再次部署同一版本将覆盖此前的游戏。`
-              : '把谜题部署为可玩的游戏。'}
+            {activePuzzle
+              ? `把谜题「${activePuzzle.name} v${activePuzzle.versionNo ?? ''}」部署为可玩的游戏。每个谜题版本可以部署一个游戏；再次部署同一版本将覆盖此前的游戏。`
+              : '选择要部署的谜题版本，再确认名称、访问路径、封面与难度。'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
+          {/*
+            v0.7.11：部署页不先挑谜题，而是先按「部署」—— 版本选择因此搬进
+            弹窗第一位。选中之后下面四项（名称 / 路径 / 封面 / 难度）全部按那个
+            版本回填：作者改的永远是「这一次部署」，不是重新描述一遍谜题。
+          */}
+          {chooseable ? (
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium" htmlFor="game-deploy-version">
+                谜题版本
+              </label>
+              <Select
+                id="game-deploy-version"
+                value={choiceId === null ? '' : String(choiceId)}
+                // 选择器自己永远可用（除非在提交中），否则一进来就被自己锁住了。
+                disabled={deploy.isPending}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  setChoiceId(next === '' ? null : Number(next));
+                }}
+              >
+                <option value="">选择要部署的谜题版本…</option>
+                {versions?.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.name} v{entry.versionNo ?? ''} · {entry.gridSize}×{entry.gridSize}
+                    {entry.deployed ? '（已部署，将覆盖）' : ''}
+                  </option>
+                ))}
+              </Select>
+              {activePuzzle ? null : (
+                <p className="text-xs text-muted-foreground">
+                  只有已发布的谜题版本可以部署。
+                </p>
+              )}
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="game-deploy-name">
               游戏名称
@@ -225,7 +366,7 @@ export function GameDeployDialog({
               maxLength={GAME_NAME_MAX_LENGTH}
               placeholder="默认为谜题名称"
               onChange={(event) => changeName(event.target.value)}
-              disabled={deploy.isPending}
+              disabled={busy}
             />
           </div>
 
@@ -251,7 +392,7 @@ export function GameDeployDialog({
                   value={middle}
                   maxLength={GAME_SLUG_MAX_LENGTH}
                   placeholder="my-map"
-                  disabled={deploy.isPending}
+                  disabled={busy}
                   className="min-w-0 flex-1 bg-transparent px-0.5 font-mono text-xs outline-none placeholder:text-muted-foreground/60 disabled:cursor-not-allowed"
                   onChange={(event) => {
                     setMiddleTouched(true);
@@ -268,7 +409,7 @@ export function GameDeployDialog({
                 variant="outline"
                 className="h-10 shrink-0"
                 title="按当前名称重新生成中段"
-                disabled={deploy.isPending}
+                disabled={busy}
                 onClick={() => {
                   setMiddle(slugify(name));
                   setMiddleTouched(true);
@@ -288,7 +429,7 @@ export function GameDeployDialog({
             </p>
             {slugReplaced && !slugProblem ? (
               <p className="text-xs text-warning">
-                原访问路径 /play/{existingGame.slug} 将失效。
+                原访问路径 /play/{activeExisting?.slug} 将失效。
               </p>
             ) : null}
           </div>
@@ -340,7 +481,7 @@ export function GameDeployDialog({
                     type="button"
                     size="sm"
                     variant="outline"
-                    disabled={deploy.isPending}
+                    disabled={busy}
                     onClick={() => fileInputRef.current?.click()}
                   >
                     <Upload className="mr-1 h-3.5 w-3.5" />
@@ -352,7 +493,7 @@ export function GameDeployDialog({
                       size="sm"
                       variant="outline"
                       className="text-destructive hover:text-destructive"
-                      disabled={deploy.isPending}
+                      disabled={busy}
                       onClick={() => {
                         // Dropping a freshly picked file falls back to the
                         // stored cover; it only counts as "remove" afterwards.
@@ -368,7 +509,7 @@ export function GameDeployDialog({
                       size="sm"
                       variant="outline"
                       className="text-destructive hover:text-destructive"
-                      disabled={deploy.isPending}
+                      disabled={busy}
                       onClick={() => setCoverRemoved(true)}
                     >
                       <Trash2 className="mr-1 h-3.5 w-3.5" />
@@ -426,17 +567,56 @@ export function GameDeployDialog({
         <DialogFooter>
           <Button
             variant="outline"
+            // 取消永远可点（只在提交中禁用）—— 没选版本时它是最该按的那一个。
             disabled={deploy.isPending}
             onClick={() => onOpenChange(false)}
           >
             取消
           </Button>
-          <Button disabled={deploy.isPending} onClick={submit}>
+          <Button disabled={busy} onClick={submit}>
             <Rocket className="mr-1 h-3.5 w-3.5" />
             {deploy.isPending ? '部署中…' : '部署'}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {/*
+        v0.7.11：路径撞车的第二个问题 —— 「覆盖」。
+        以前这里只有一句 toast「访问路径已被占用，请更换」，作者得先去部署页把
+        对方撤掉再回来重填一遍。现在冲突是一个**选择**：说清是谁占着，给出
+        「覆盖」；确认后原样重发（只多 `overwriteSlug`），占位那条被假删。
+        用 AlertDialog 而不是又把主弹窗换一套表单：这不是编辑，是一次确认。
+      */}
+      <AlertDialog
+        open={conflict !== null}
+        onOpenChange={(next) => {
+          if (!next) setConflict(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>访问路径已被占用</AlertDialogTitle>
+            <AlertDialogDescription>
+              /play/{conflict?.slug} 现在是「{conflict?.name}」
+              {conflict?.puzzleName ? `（来自谜题「${conflict.puzzleName}」）` : ''}
+              的访问路径。覆盖后那条部署会立即下线，这条链接转给当前谜题版本。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deploy.isPending}>取消</AlertDialogCancel>
+            <Button variant="destructive" disabled={deploy.isPending} onClick={overwrite}>
+              {deploy.isPending ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                  处理中…
+                </>
+              ) : (
+                '覆盖'
+              )}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

@@ -1,5 +1,5 @@
 import { ErrorCode, absorbLegacyPuzzleDraft, buildDefaultSlug, gameDeploySchema, slugError } from '@loredoku/shared';
-import type { MapGameDetail, MapGameSummary } from '@loredoku/shared';
+import type { GameSlugConflict, MapGameDetail, MapGameSummary } from '@loredoku/shared';
 import * as puzzleRepo from '../repository/puzzleRepository';
 import * as gameRepo from '../repository/gameRepository';
 import { AppError } from '../utils/AppError';
@@ -17,6 +17,8 @@ export interface DeployGameInput {
   slug?: string;
   /** OPT-W03 §3: 显式「移除已存封面」。 */
   clearCover?: boolean;
+  /** v0.7.11：路径被别的谜题版本占着时，覆盖它（把占位那条假删）。 */
+  overwriteSlug?: boolean;
   difficulty?: MapGameSummary['difficulty'];
 }
 
@@ -29,6 +31,9 @@ export interface DeployGameInput {
  *
  * 再次部署**同一版本** = 覆盖那一行（`upsertGame` 的 delete-then-insert），
  * 不同版本各有一个游戏、各有一个访问路径，可以同时在线。
+ *
+ * v0.7.11：路径撞车从「直接 400」变成可覆盖 —— `overwriteSlug` 为真时把占位
+ * 的那条部署假删（`deleted_at`），slug 随之释放，再落自己的行。
  */
 export async function deployGame(puzzleId: number, input: DeployGameInput): Promise<MapGameSummary> {
   const body = parseOrThrow(gameDeploySchema, input);
@@ -50,7 +55,13 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
     throw AppError.validation('游戏名称必填');
   }
   const name = trimmed.length > 0 ? trimmed : puzzle.name;
-  const slug = await resolveSlug(puzzleId, body.slug, name, body.difficulty);
+  const { slug, replaceGameId } = await resolveSlug(
+    puzzleId,
+    body.slug,
+    name,
+    body.difficulty,
+    body.overwriteSlug === true,
+  );
 
   return gameRepo.upsertGame({
     puzzleId,
@@ -59,6 +70,7 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
     coverPath: null,
     clearCover: body.clearCover === true,
     difficulty: body.difficulty,
+    replaceGameId,
   });
 }
 
@@ -68,13 +80,18 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
  *
  * 路径由前端按「前缀 + 中段 + 难度后缀」拼好再提交（§7.6.1），这里只做最后
  * 一道格式与占用检查 —— 服务端不再二次加工。
+ *
+ * v0.7.11：撞车时返回 `replaceGameId`（要被覆盖的那条部署），而不是只抛错。
+ * 抛出来的错的 `details` 是一份 {@link GameSlugConflict} —— 前端的覆盖弹窗
+ * 靠它说明「覆盖谁」，不靠正则去猜中文消息。
  */
 async function resolveSlug(
   puzzleId: number,
   rawSlug: string | undefined,
   name: string,
   difficulty: MapGameSummary['difficulty'],
-): Promise<string> {
+  overwriteSlug: boolean,
+): Promise<{ slug: string; replaceGameId: number | null }> {
   const typed = (rawSlug ?? '').trim();
   if (rawSlug !== undefined && typed.length === 0) {
     throw AppError.validation('访问路径必填');
@@ -92,10 +109,22 @@ async function resolveSlug(
   }
 
   const owner = await gameRepo.findGameBySlug(slug);
-  if (owner && Number(owner.puzzle_id) !== puzzleId) {
-    throw AppError.validation(`访问路径「${slug}」已被占用，请更换`);
+  // 同一版本行自己占着这条路径是正常情况（覆盖部署），不是冲突。
+  if (!owner || Number(owner.puzzle_id) === puzzleId) {
+    return { slug, replaceGameId: null };
   }
-  return slug;
+
+  if (!overwriteSlug) {
+    const ownerName = await gameRepo.getGameRow(Number(owner.id));
+    throw AppError.validation(`访问路径「${slug}」已被占用，请更换`, {
+      kind: 'slug-taken',
+      slug,
+      name: ownerName?.name ?? slug,
+      puzzleName: ownerName?.puzzle_name ?? '',
+    } satisfies GameSlugConflict);
+  }
+
+  return { slug, replaceGameId: Number(owner.id) };
 }
 
 export async function listGames(): Promise<MapGameSummary[]> {

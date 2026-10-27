@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { IconButton } from '@/components/ui/icon-button';
 import { EntryActionsMenu } from '@/components/common/EntryActionsMenu';
+import { ClampedText } from '@/components/common/ClampedText';
 import { formatDateTime } from '@/lib/format';
 import { formatRelativeTime } from '@/lib/relativeTime';
 
@@ -80,7 +81,8 @@ export function PuzzleGridCard({
             ) : null}
           </h3>
           {entry.description ? (
-            <p className="line-clamp-2 text-xs text-muted-foreground">{entry.description}</p>
+            /* v0.7.12：描述被截断时，悬停 / 触碰可看全文。 */
+            <ClampedText text={entry.description} lines={2} className="text-xs text-muted-foreground" />
           ) : null}
         </div>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">

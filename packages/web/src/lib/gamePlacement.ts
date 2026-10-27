@@ -31,12 +31,6 @@ export interface GamePlacementState {
   /** Older boards, newest last. Capped at `GAME_PLACEMENT_HISTORY_MAX`. */
   past: GamePlacementBoard[];
   future: GamePlacementBoard[];
-  /**
-   * SPEC-G04 §10.4: how many entries of `past` existed when the player last
-   * submitted. Undo stops there — the player may not step back past their own
-   * submission. `0` means nothing was ever submitted.
-   */
-  submittedPastLength: number;
 }
 
 /** What the tool-hint layer draws over the hovered cell (SPEC-G02). */
@@ -60,7 +54,7 @@ export function cellKey(x: number, y: number): string {
 }
 
 export function createGamePlacementState(): GamePlacementState {
-  return { board: {}, past: [], future: [], submittedPastLength: 0 };
+  return { board: {}, past: [], future: [] };
 }
 
 export function placementAt(
@@ -100,7 +94,13 @@ export function showsAvatar(placement: CellPlacement | null): boolean {
  * 2. with no avatar, the participant's 编号 must sit on **exactly one** cell —
  *    the v0.4.1 leniency: a lone mark still answers the question;
  * 3. several candidate marks and no avatar → `null`: nothing is confirmed, so
- *    `validatePlacement` says "unplaced" instead of picking a candidate at random.
+ *    the caller can tell "never touched" from "marked candidates but never
+ *    confirmed".
+ *
+ * v0.7.12：**提交校验不再用它**。判卷只认头像（`avatarCellOf`）—— 见
+ * `validatePlacement` 的注释。这个函数保留下来，是因为「编号也算一个位置」
+ * 在**画面上**仍然成立（提示层、联动高亮都按它指的地方画），只是不再决定
+ * 交卷的结果。
  */
 export function participantPlacementAt(
   board: GamePlacementBoard,
@@ -168,6 +168,20 @@ export function avatarPlacedParticipantIds(board: GamePlacementBoard): Set<numbe
   return placed;
 }
 
+/**
+ * v0.7.12：名单上的每一位都**已经有头像**了吗？—— 提交按钮的可用条件。
+ *
+ * 只数头像（`avatarPlacedParticipantIds`），编号不算：编号是草稿，草稿不是交卷。
+ * 空槽（`null`）不参与判断，一份 3 人名单里的第 4 格是空格时不该拦着玩家提交。
+ */
+export function allParticipantsPlaced(
+  board: GamePlacementBoard,
+  slots: Array<CharacterSlotEntry | null>,
+): boolean {
+  const placed = avatarPlacedParticipantIds(board);
+  return slots.every((slot, index) => !slot || placed.has(index + 1));
+}
+
 /** SPEC-G05 §5.2 / §8.1: 1-based `R{row} C{col}` label used in toasts. */
 export function formatCellLabel(coord: CellCoord): string {
   return `R${coord.y + 1} C${coord.x + 1}`;
@@ -176,22 +190,16 @@ export function formatCellLabel(coord: CellCoord): string {
 /**
  * SPEC-G05 §5.2: why a participant placement was refused, for the toast.
  *
- * SPEC-J05 §3.6: `'elsewhere'` now means **"this participant's avatar is already
- * confirmed on another cell"** — a mere candidate 编号 elsewhere is not a reason
- * to refuse any more, so the old 「编号 N 已放置在 R{r} C{c}」 toast is gone.
+ * v0.7.11: `'elsewhere'` 不再存在 —— 长按另一个格子不会因为「已经放在别处」
+ * 被拒，而是**把头像搬过去**（旧格释放，见 `placeParticipant`）。玩家改主意
+ * 不是错误。
  *
  * SPEC-J03 §9 Q6 (docs/v0.4.3.md): `'duplicate'` stays in the union even though
  * no path returns it any more — tapping a cell that already carries this number
  * is the **toggle-off** case now (allowed), not a refusal. Keeping the member
  * avoids churning the union / the page's `switch` for a purely cosmetic win.
  */
-export type PlacementBlock =
-  | 'non-standable'
-  | 'forbidden'
-  | 'avatar'
-  | 'duplicate'
-  | 'grid-full'
-  | 'elsewhere';
+export type PlacementBlock = 'non-standable' | 'forbidden' | 'avatar' | 'duplicate' | 'grid-full';
 
 /**
  * SPEC-G01 §7.2 + SPEC-G03 §9.2 + SPEC-G05 §5.2 + SPEC-J03 §3.2 + SPEC-J05 §3.6:
@@ -212,30 +220,30 @@ export function placementBlockReason(input: {
 
   // SPEC-J05 §3.6 (docs/v0.4.3.md): a 编号 is a **candidate** mark and one
   // participant may carry it on many cells at once — so a short press is never
-  // blocked by uniqueness, and never reports "already elsewhere".
+  // blocked by uniqueness.
   //
-  // The **avatar** is the unique thing. A long press confirms a cell, so it is
-  // refused only when the participant has already confirmed *another* cell —
-  // `participantPlacementAt` prefers the avatar cell, and returns a lone
-  // candidate otherwise (or `null` when there are several). A long press on a
-  // cell while the participant's other marks are mere candidates is exactly the
-  // confirmation step: it is allowed, and SPEC-H01 then clears those candidates.
-  const confirmed = participantPlacementAt(board, participantId);
-  if (variant === 'image' && confirmed && (confirmed.x !== x || confirmed.y !== y)) {
-    return 'elsewhere';
-  }
-
+  // The **avatar** is unique too, but v0.7.11 不再拒绝：长按另一格就是**搬家**
+  // （旧格释放、同行同列的自动 `×` 跟着回滚）。唯一性因此由「搬家」满足，
+  // 而不是由「报错」满足。
   const placement = placementAt(board, x, y);
   if (!placement) return null;
   if (placement.kind === 'forbidden') return 'forbidden';
-  if (hasParticipant(placement, participantId)) {
-    // The cell already belongs to this participant:
-    // - `participant` (avatar): a long-press there changes nothing and a tap is
-    // not a number to remove — refused either way;
-    // - `numbers`: a long-press promotes it to the avatar, a tap removes the
-    //   number (SPEC-J03 §3.2 toggle). Both are allowed.
-    return placement.kind === 'participant' ? 'avatar' : null;
+  if (placement.kind === 'participant') {
+    /**
+     * v0.7.12：头像格上**短按无效果**。
+     *
+     * 之前只有「这一格已经是自己的头像」会被拒；点别人的头像格仍会走九宫格
+     * 追加，于是那张脸被编号顶掉（`placeParticipant` 的 numbers 分支整格替换）。
+     * 需求要的是：已放置参与者的格子，编号点上去什么都不发生。
+     *
+     * 长按（`variant: 'image'`）仍允许落在**别人**的头像格上 —— 那是「换人站
+     * 这里」，与「编号盖掉头像」不是一回事；自己的头像格一律无效果。
+     */
+    if (hasParticipant(placement, participantId)) return 'avatar';
+    return variant === 'image' ? null : 'avatar';
   }
+  // `numbers`：短按删掉自己那一个编号（toggle），长按升级成头像，都允许。
+  if (hasParticipant(placement, participantId)) return null;
   // A long-press replaces the cell wholesale, so a full grid is no obstacle.
   if (variant === 'image') return null;
   return numbersIn(placement).length < GAME_NUMBER_GRID_CELLS ? null : 'grid-full';
@@ -276,13 +284,11 @@ function commit(
 ): GamePlacementState {
   if (boardEquals(state.board, board)) return state;
   let past = [...state.past, state.board];
-  // The oldest entry is dropped first; the submit barrier follows it down.
-  let submittedPastLength = state.submittedPastLength;
+  // The oldest entry is dropped first.
   if (past.length > GAME_PLACEMENT_HISTORY_MAX) {
     past = past.slice(past.length - GAME_PLACEMENT_HISTORY_MAX);
-    if (submittedPastLength > 0) submittedPastLength -= 1;
   }
-  return { board, past, future: [], submittedPastLength };
+  return { board, past, future: [] };
 }
 
 /**
@@ -316,6 +322,56 @@ export function autoForbiddenCells(input: {
   for (let column = 0; column < gridSize; column += 1) consider(column, y);
   for (let row = 0; row < gridSize; row += 1) consider(x, row);
   return keys;
+}
+
+/**
+ * 同行同列自动补出来的 `×` 的清理（v0.7.11）。
+ *
+ * 自动 `×` 是**派生**的：某位头像站在那里，它的整行整列就不许放东西。头像一旦
+ * 搬走，那些 `×` 就没有依据了 —— 留在棋盘上等于告诉玩家「这一行还是不能放」。
+ *
+ * 只删**带 `auto` 标记**且**不在任何头像的行列上**的格子。玩家自己点的 `×`
+ * 不带标记，一条都不动；另一位头像仍然占着的行 / 列也照旧保留（那些格子的
+ * 「不能放」依然成立）。
+ */
+export function pruneAutoForbidden(board: GamePlacementBoard): GamePlacementBoard {
+  const rows = new Set<number>();
+  const columns = new Set<number>();
+  for (const [key, placement] of Object.entries(board)) {
+    if (placement?.kind !== 'participant') continue;
+    const [x, y] = key.split(',').map(Number) as [number, number];
+    columns.add(x);
+    rows.add(y);
+  }
+
+  const next: GamePlacementBoard = {};
+  let changed = false;
+  for (const [key, placement] of Object.entries(board)) {
+    if (!placement) continue;
+    if (placement.kind === 'forbidden' && placement.auto) {
+      const [x, y] = key.split(',').map(Number) as [number, number];
+      if (!rows.has(y) && !columns.has(x)) {
+        changed = true;
+        continue;
+      }
+    }
+    next[key] = placement;
+  }
+  return changed ? next : board;
+}
+
+/** 这位参与者**头像**所在的格子（编号不算）；没有就是 `null`。 */
+export function avatarCellOf(
+  board: GamePlacementBoard,
+  participantId: number,
+): CellCoord | null {
+  for (const [key, placement] of Object.entries(board)) {
+    if (placement?.kind !== 'participant') continue;
+    if (placement.index !== participantId) continue;
+    const [x, y] = key.split(',').map(Number) as [number, number];
+    return { x, y };
+  }
+  return null;
 }
 
 /**
@@ -405,10 +461,14 @@ export function placeParticipant(
 
   let board: GamePlacementBoard;
   if (variant === 'image') {
-    board = {
-      ...state.board,
-      [key]: { kind: 'participant', index: input.participantId },
-    };
+    board = { ...state.board };
+    /**
+     * v0.7.11：长按另一格 = **搬家**。旧格先释放，否则同一个人的两个头像会同时
+     * 站在棋盘上（唯一性是画出来的，不是拒绝出来的）。
+     */
+    const previousAvatar = avatarCellOf(state.board, input.participantId);
+    if (previousAvatar) delete board[cellKey(previousAvatar.x, previousAvatar.y)];
+    board[key] = { kind: 'participant', index: input.participantId };
   } else {
     // SPEC-J05 §3.6: the number is a candidate mark — it stacks onto whatever the
     // cell already carries and stays on every cell it was tapped on.
@@ -429,7 +489,7 @@ export function placeParticipant(
       gridSize: input.gridSize,
       blockingCells: input.blockingCells,
     })) {
-      board[swept] = { kind: 'forbidden' };
+      board[swept] = { kind: 'forbidden', auto: true };
     }
 
     // SPEC-H01: the confirmed avatar is now the participant's only cell — the
@@ -438,6 +498,9 @@ export function placeParticipant(
       participantId: input.participantId,
       except: { x: input.x, y: input.y },
     });
+
+    // v0.7.11：搬家之后，旧行旧列的自动 `×` 失去依据 —— 这里一并收回。
+    board = pruneAutoForbidden(board);
   }
 
   return commit(state, board);
@@ -454,7 +517,38 @@ export function placeForbidden(
   return commit(state, { ...state.board, [key]: { kind: 'forbidden' } });
 }
 
-/** SPEC-G04 §10.2: clearing one cell; a cell with nothing is a no-op. */
+/**
+ * v0.7.12：`×` 工具是一支**开关** —— 同一格再点一次就把那个 `×` 收回去。
+ *
+ * 此前这一下什么都不做，想撤销一个点错的 `×` 得先切到橡皮、再切回来：两次工具
+ * 切换只为了一个单格动作，而橡皮擦的是**整格**（这一步本身也多了一层心理成本）。
+ * 允许在同一个工具里反向操作，是因为 `×` 是唯一「只代表自己」的格子内容：擦掉它
+ * 不会伤到任何别的标记（编号要留、头像要留，`×` 不留）。
+ *
+ * 自动补的 `×`（`auto: true`）同样可以这样收回。玩家手动取消一个排除项是明确的
+ * 意思表示；等下一次有头像落下，`placeParticipant` 会按**当时**的行列重新补。
+ *
+ * 这里不做 `pruneAutoForbidden`：删掉一格不会让任何别的格子「失去依据」，与擦
+ * 头像不同，没有需要连带回滚的东西。
+ */
+export function toggleForbidden(
+  state: GamePlacementState,
+  input: { x: number; y: number; blockingCells: Set<string> },
+): GamePlacementState {
+  if (placementAt(state.board, input.x, input.y)?.kind === 'forbidden') {
+    const board = { ...state.board };
+    delete board[cellKey(input.x, input.y)];
+    return commit(state, board);
+  }
+  return placeForbidden(state, input);
+}
+
+/**
+ * SPEC-G04 §10.2: clearing one cell; a cell with nothing is a no-op.
+ *
+ * v0.7.11：擦掉一个头像之后，它的自动 `×` 也跟着走（`pruneAutoForbidden`）——
+ * 否则棋盘上会留下「这一行仍然不能放」的假提示。玩家的手放 `×` 不受影响。
+ */
 export function clearCell(
   state: GamePlacementState,
   input: { x: number; y: number },
@@ -463,7 +557,7 @@ export function clearCell(
   if (!placementAt(state.board, input.x, input.y)) return state;
   const board = { ...state.board };
   delete board[key];
-  return commit(state, board);
+  return commit(state, pruneAutoForbidden(board));
 }
 
 /** SPEC-G04 §10.2 §5: the long-press wipe — recorded as a single undo step. */
@@ -472,7 +566,7 @@ export function clearAll(state: GamePlacementState): GamePlacementState {
 }
 
 export function canUndo(state: GamePlacementState): boolean {
-  return state.past.length > state.submittedPastLength;
+  return state.past.length > 0;
 }
 
 export function canRedo(state: GamePlacementState): boolean {
@@ -486,7 +580,6 @@ export function undo(state: GamePlacementState): GamePlacementState {
     board: previous,
     past: state.past.slice(0, -1),
     future: [state.board, ...state.future],
-    submittedPastLength: Math.min(state.submittedPastLength, state.past.length - 1),
   };
 }
 
@@ -497,17 +590,7 @@ export function redo(state: GamePlacementState): GamePlacementState {
     board: next,
     past: [...state.past, state.board],
     future: state.future.slice(1),
-    submittedPastLength: state.submittedPastLength,
   };
-}
-
-/**
- * SPEC-G04 §10.4: submitting marks the current history depth as the wall the
- * undo stack may not cross. The board itself is untouched — the player keeps
- * playing afterwards and may submit again.
- */
-export function submitPlacement(state: GamePlacementState): GamePlacementState {
-  return { ...state, submittedPastLength: state.past.length };
 }
 
 /** SPEC-G01 §7.1: a placed `×` also activates the cell's non-standable mask. */
@@ -545,10 +628,26 @@ export function resolveToolHint(input: {
   if (mode.kind === 'clearing') return { kind: 'eraser' };
   if (mode.kind === 'placing') {
     if (nonStandable) return null;
+    /**
+     * v0.7.12：头像格与 `×` 格**不预览编号**。
+     *
+     * 这两种格子点击是**无效果**的（头像格属于别人，`×` 格是排除项），却曾经
+     * 在悬停时画出一个编号 —— 预告了一件不会发生的事。提示层的职责是「松手会
+     * 发生什么」，既然什么都不会发生，就不该有那一格字。
+     */
+    if (placement?.kind === 'forbidden' || placement?.kind === 'participant') return null;
     return { kind: 'number', participantId: mode.participantId };
   }
   if (nonStandable) return null;
   if (placement?.kind === 'participant') return null;
+  /**
+   * v0.7.12：`×` 工具在**已经有 `×`** 的格子上，预告仍然是 `×`。
+   *
+   * 那一格再点一次确实是**收回**（见 `toggleForbidden`），但提示层的字形不该
+   * 跟着换成橡皮 —— 换字形等于在指针底下改变这支工具的**身份**：同一支笔，压到
+   * 这一格就变成另一支笔，比「同一个箭头按下去方向会反过来」更难解释。工具是
+   * 玩家选定的，提示只说明「这一格归这支工具管」。
+   */
   return { kind: 'forbidden' };
 }
 
@@ -643,8 +742,8 @@ export interface ValidatePlacementInput {
  * SPEC-FEAT-V01 §8.1: walk the participants in number order and collect **every**
  * problem (the dialog lists them all, so no early exit):
  *
- * 1. the participant must be on the board — `participantPlacementAt` decides what
- *    that means (SPEC-J05 §3.6: a confirmed avatar, or a lone candidate 编号);
+ * 1. the participant must be on the board — **only an avatar counts** (v0.7.12；
+ *    编号是候选标记，`avatarCellOf` 才是判据，见下）；
  * 2. nobody else may share its row;
  * 3. nobody else may share its column;
  * 4. if the participant carries position conditions, its cell must be one of
@@ -652,22 +751,24 @@ export interface ValidatePlacementInput {
  *
  * Rows/columns are reported from both sides of a clash (each participant gets
  * its own issue), which keeps the list a straight projection of the roster.
+ *
+ * v0.7.12（"提交校验时，参与者标号不能代表参与者"）：这里从
+ * `participantPlacementAt`（没有头像时，唯一的候选编号也认）换成
+ * `avatarCellOf`（只认头像）。标号的作用是**自己数格子时的草稿**，它可能只是
+ * 玩家随手点过的一格；把草稿当交卷，等于替玩家宣布「我确定了」。
  */
 export function validatePlacement(input: ValidatePlacementInput): PlacementValidation {
   const { board, slots } = input;
   const issues: PlacementIssue[] = [];
 
-  const label = (participantId: number): string => {
-    const name = input.nameOf?.(participantId);
-    return name && name.length > 0 ? `编号 ${participantId}（${name}）` : `编号 ${participantId}`;
-  };
+  const label = (participantId: number): string => participantLabel(participantId, input.nameOf);
 
   /** occupant map: cellKey → participant numbers, restricted to the roster. */
   const occupants = new Map<string, number[]>();
   slots.forEach((slot, index) => {
     if (!slot) return;
     const participantId = index + 1;
-    const coord = participantPlacementAt(board, participantId);
+    const coord = avatarCellOf(board, participantId);
     if (!coord) return;
     const key = cellKey(coord.x, coord.y);
     occupants.set(key, [...(occupants.get(key) ?? []), participantId]);
@@ -676,7 +777,7 @@ export function validatePlacement(input: ValidatePlacementInput): PlacementValid
   slots.forEach((slot, index) => {
     if (!slot) return;
     const participantId = index + 1;
-    const coord = participantPlacementAt(board, participantId);
+    const coord = avatarCellOf(board, participantId);
 
     if (!coord) {
       // SPEC-J05 §3.6: a participant with several candidate 编号 and no avatar has
@@ -736,6 +837,51 @@ export function validatePlacement(input: ValidatePlacementInput): PlacementValid
 
   issues.sort((a, b) => a.participantId - b.participantId);
   return { passed: issues.length === 0, issues };
+}
+
+/**
+ * v0.7.11：提交未通过时，弹窗只回答**谁不对**，不回答**为什么**。
+ *
+ * 原来的清单把每一处同类 / 同列 / 位置条件都摊开写（十几条），像一张调试报告；
+ * 玩家真正需要的是「回去看哪几位」。这里按参与者归并：同一个人有多条问题时
+ * 只留一句 —— 没上场的说「未放置」，其余一律说「位置不对」。
+ *
+ * 归并规则：`unplaced` 优先（一个还没放下的人，谈位置没有意义）。
+ */
+export interface PlacementBlame {
+  participantId: number;
+  /** 展示用：「编号 3（张三）」。 */
+  label: string;
+  reason: 'unplaced' | 'wrong';
+}
+
+export function participantLabel(
+  participantId: number,
+  nameOf?: (participantId: number) => string | undefined,
+): string {
+  const name = nameOf?.(participantId);
+  return name && name.length > 0 ? `编号 ${participantId}（${name}）` : `编号 ${participantId}`;
+}
+
+export function summarizeIssues(
+  issues: PlacementIssue[],
+  nameOf?: (participantId: number) => string | undefined,
+): PlacementBlame[] {
+  const byParticipant = new Map<number, PlacementBlame>();
+  for (const issue of issues) {
+    const existing = byParticipant.get(issue.participantId);
+    const reason: PlacementBlame['reason'] = issue.code === 'unplaced' ? 'unplaced' : 'wrong';
+    if (!existing) {
+      byParticipant.set(issue.participantId, {
+        participantId: issue.participantId,
+        label: participantLabel(issue.participantId, nameOf),
+        reason,
+      });
+      continue;
+    }
+    if (reason === 'unplaced') existing.reason = 'unplaced';
+  }
+  return [...byParticipant.values()].sort((a, b) => a.participantId - b.participantId);
 }
 
 function dedupeSorted(values: number[]): number[] {

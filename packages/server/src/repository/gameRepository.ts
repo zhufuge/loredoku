@@ -85,14 +85,30 @@ export interface UpsertGameData {
   coverPath: string | null;
   clearCover: boolean;
   difficulty: GameDifficulty;
+  /**
+   * v0.7.11：这条 slug 原本归另一条部署所有，作者选择了**覆盖**。
+   *
+   * 覆盖 = 把对方假删（`deleted_at`），部分唯一索引随即释放 —— 与「取消部署」
+   * 同一种退场方式，只是由一次部署顺带完成。硬删会让对方连审计记录都不剩。
+   */
+  replaceGameId?: number | null;
 }
 
 /**
  * 同一版本行再次部署 = **覆盖**（delete-then-insert，行换新 id）；取消部署后
  * 再部署是新增行（旧行已假删，`puzzle_id` 唯一约束不拦）。
+ *
+ * v0.7.11：`replaceGameId` 在场时先让出那条被占用的部署（假删），再把新行插进去。
  */
 export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> {
   const id = await db.transaction(async (trx) => {
+    if (data.replaceGameId != null) {
+      await trx('games')
+        .where({ id: data.replaceGameId })
+        .whereNull('deleted_at')
+        .update({ deleted_at: trx.fn.now() });
+    }
+
     const previous = (await trx<MapGameRow>('games')
       .where({ puzzle_id: data.puzzleId })
       .first()) as MapGameRow | undefined;

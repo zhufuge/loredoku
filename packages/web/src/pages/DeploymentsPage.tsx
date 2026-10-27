@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Check, Copy, ExternalLink, Loader2, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, Copy, ExternalLink, Loader2, Rocket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   GAME_DIFFICULTY_COLORS,
   GAME_DIFFICULTY_LABELS,
   GAME_DIFFICULTY_TEXT_COLORS,
   type MapGameSummary,
+  type PuzzleEntrySummary,
 } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -22,7 +22,9 @@ import { IconButton } from '@/components/ui/icon-button';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { GameDeployDialog } from '@/components/game/GameDeployDialog';
 import { useCancelGame, useGames } from '@/hooks/useGames';
+import { usePuzzles } from '@/hooks/usePuzzles';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 
@@ -32,14 +34,32 @@ import { cn } from '@/lib/utils';
  * 取消部署是**假删**（`deleted_at`）：玩家的 `/play/{slug}` 立刻打不开，
  * 谜题列表的「已部署」徽标随之消失，但同一个访问路径可以再用 —— 所以弹窗里
  * 把这两件事都写清楚，别让作者以为删了就找不回来。
+ *
+ * v0.7.11：这一页自己就能**发起部署**。
+ *
+ * 以前它只能「看」——要部署得先跳到谜题列表找到那一版再点部署，回来核对结果。
+ * 现在页头有一个「部署」按钮，弹窗里第一步就选谜题版本，选完用该版本的信息回填
+ * 名称 / 路径 / 封面 / 难度。「前往谜题列表」那个按钮随之删掉：它唯一的用处
+ * 就是绕路去做这件事。
  */
 export function DeploymentsPage(): JSX.Element {
-  const navigate = useNavigate();
   const gamesQuery = useGames();
   const cancelMutation = useCancelGame();
   const [cancelTarget, setCancelTarget] = useState<MapGameSummary | null>(null);
   /** 刚复制成功的那一行的 slug —— 让勾号只出现在被点的那一行。 */
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+  const [deployOpen, setDeployOpen] = useState(false);
+
+  /**
+   * 部署弹窗要的版本列表。只取已发布的版本行（`kind: 'version'`）——草稿行
+   * 部署不了，列出来只会让人点了才发现。100 条足够覆盖任何真实工坊。
+   */
+  const versionsQuery = usePuzzles({
+    kind: 'version',
+    pageSize: 100,
+    sort: 'updatedAt',
+    order: 'desc',
+  });
 
   useEffect(() => {
     document.title = '部署 · 格物';
@@ -51,7 +71,15 @@ export function DeploymentsPage(): JSX.Element {
     return () => clearTimeout(timer);
   }, [copiedSlug]);
 
-  const games = gamesQuery.data ?? [];
+  const games = useMemo(() => gamesQuery.data ?? [], [gamesQuery.data]);
+  const versions = versionsQuery.data?.list ?? null;
+
+  /**
+   * 某个版本已经部署过 → 用那条部署回填（同一个版本再部署就是覆盖它）。
+   * 传函数而不是预先算一张表：列表和版本列表各自刷新时，弹窗永远读到最新的那份。
+   */
+  const existingGameFor = (entry: PuzzleEntrySummary): MapGameSummary | null =>
+    games.find((game) => game.puzzleId === entry.id) ?? null;
 
   const copyPath = (game: MapGameSummary): void => {
     const path = `${window.location.origin}/play/${game.slug}`;
@@ -94,11 +122,14 @@ export function DeploymentsPage(): JSX.Element {
 
     if (games.length === 0) {
       return (
-        // v0.7.8 §5：工坊五个列表页的空状态统一为「一句说明 + 一个主按钮」，
-        // 图标只留给玩家首页（那是欢迎页，另一套语言）。
+        // v0.7.8 §5：工坊五个列表页的空状态统一为「一句说明 + 一个主按钮」。
+        // v0.7.11：按钮就是「部署」—— 空状态下一步要做的事，不再让人先去别处。
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <p className="text-sm text-muted-foreground">还没有部署任何游戏</p>
-          <Button onClick={() => navigate('/puzzles')}>前往谜题列表</Button>
+          <Button onClick={() => setDeployOpen(true)}>
+            <Rocket className="mr-1 h-3.5 w-3.5" />
+            部署
+          </Button>
         </Card>
       );
     }
@@ -216,13 +247,23 @@ export function DeploymentsPage(): JSX.Element {
           gamesQuery.isLoading ? '正在加载…' : `共 ${games.length} 个游戏在线。`
         }
         actions={
-          <Button variant="outline" onClick={() => navigate('/puzzles')}>
-            前往谜题列表
+          <Button onClick={() => setDeployOpen(true)}>
+            <Rocket className="mr-1 h-3.5 w-3.5" />
+            部署
           </Button>
         }
       />
 
       {renderBody()}
+
+      {/* v0.7.11：部署弹窗挂在这一页 —— 版本选择、回填与路径覆盖都在里面。 */}
+      <GameDeployDialog
+        puzzle={null}
+        versions={versions}
+        resolveExistingGame={existingGameFor}
+        open={deployOpen}
+        onOpenChange={setDeployOpen}
+      />
 
       <AlertDialog
         open={cancelTarget !== null}
