@@ -122,7 +122,19 @@ export function EntryActionsMenu<E extends EntryLike>({
       ref={menuRef}
       role="menu"
       style={{ position: 'fixed', top: position?.top ?? 0, left: position?.left ?? 0, zIndex: UI_Z.drawer }}
-      className="w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lifted"
+      /*
+       * v0.7.10：入场 120ms 淡入 + 从右上角轻微放大。
+       *
+       * 这是列表行上最常点的浮层（每行一枚「更多操作」），此前是「啪」地整块
+       * 出现在鼠标边 —— 眼睛还没从按钮上移开，一列菜单已经压在那儿了。
+       * `origin-top-right` 对齐它的定位方式：菜单右边缘贴着按钮右边缘、向下展开，
+       * 所以放大要从那个角长出来，否则会像被别人推过来。
+       *
+       * **没有出场动画**：关闭时这个节点直接卸载（`open && position ? ... : null`），
+       * 要做退场就得按住卸载 100ms 左右，而菜单项点下即执行 —— 让人等它消失
+       * 是净损失。退场本来就该比入场快。
+       */
+      className="w-32 origin-top-right overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lifted animate-in fade-in-0 zoom-in-95 duration-fast"
     >
       {!isVersion ? (
         <button type="button" role="menuitem" className={itemClass} onClick={() => run(onEditInfo)}>

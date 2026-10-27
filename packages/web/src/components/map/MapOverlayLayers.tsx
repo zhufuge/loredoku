@@ -188,7 +188,7 @@ export function MapRegionLabelLayer({
                 }`,
                 paintOrder: 'stroke fill',
                 transition:
-                  'font-size 120ms ease-out, -webkit-text-stroke-color 120ms ease-out',
+                  'font-size var(--motion-fast) var(--motion-ease-out), -webkit-text-stroke-color var(--motion-fast) var(--motion-ease-out)',
               } as CSSProperties
             }
             onMouseEnter={() => onHover?.(region.id)}

@@ -16,6 +16,7 @@ import type { GamePlacementBoard } from '@loredoku/shared';
 import { itemPadding } from '@/lib/canvasScale';
 import { glyphFontSize, numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
 import { participantBadgeText } from '@/lib/participantLayout';
+import { PressRing } from '@/components/common/PressRing';
 import { parseKey } from './layerGeometry';
 
 /**
@@ -142,6 +143,64 @@ export function MapGameToolHintLayer({
 }
 
 /**
+ * 长按进度环（v0.7.11）。
+ *
+ * 棋格上按住 500ms 放头像（SPEC-J02）—— 在这之前那 500ms 里界面毫无变化，
+ * 玩家只能靠数秒判断「按够了没有」，松早了就白按一次。环把等待画出来：
+ * 从 12 点顺时针画满，画满的那一刻头像落下。
+ *
+ * 与工具提示层同属「这一格将发生什么」的预告，但预告的东西不同 —— 提示层说
+ * **内容**（会放上几号），这一层说**时间**（还要多久）。分开的理由是它们可以
+ * 各自独立存在：长按期间指针可能已经移到别的格子，提示跟着指针走，环留在
+ * 按下的那一格。
+ *
+ * z 取 `regionLabel + 1`（= 43），不新增图层：《画布图层优先级规范》§2 末段
+ * 给临时 affordance 留了口子（编辑器反馈挂 `operationCursorBox − 1 / − 2`），
+ * 一个手势反馈不值得把 15 层的公共契约重排成 16 层。压在区域标签之上，是因为
+ * 环被地图上的文字截断会读成「画错了」。
+ */
+export function MapGamePressRing({
+  cell,
+  cellSize,
+  durationMs,
+  seq,
+}: {
+  /** 正在被按住的那一格；`null` 表示没有进行中的长按。 */
+  cell: CellCoord | null;
+  cellSize: number;
+  /** 与页面上的长按定时器同一个值（`GAME_LONG_PRESS_MS`）。 */
+  durationMs: number;
+  /** 每次按下递增 —— 同一格连按两次也要从头画。 */
+  seq: number;
+}): JSX.Element | null {
+  if (!cell) return null;
+  return (
+    <div
+      className="pointer-events-none absolute left-0 top-0"
+      style={{ zIndex: MAP_LAYER_Z.regionLabel + 1 }}
+    >
+      <div
+        className="absolute"
+        style={{
+          left: cell.x * cellSize,
+          top: cell.y * cellSize,
+          width: cellSize,
+          height: cellSize,
+        }}
+      >
+        <PressRing
+          size={cellSize}
+          durationMs={durationMs}
+          seq={`${cell.x},${cell.y},${seq}`}
+          // 地图是玩家上传的照片，什么底色都有 —— 深色底轨同时充当白弧的描边。
+          trackColor="rgba(15, 23, 42, 0.4)"
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
  * 层 5 · 游戏放置层（Game Placement Layer）— SPEC-G01 (docs/v0.4.0.md §7).
  *
  * What the player has placed: participant avatars, the 3×3 number grid, and
@@ -167,6 +226,7 @@ export function MapGamePlacementLayer({
   charactersById,
   cellSize,
   activeParticipantId = null,
+  settleKey = null,
 }: {
   board: GamePlacementBoard;
   slots: Array<CharacterSlotEntry | null>;
@@ -174,6 +234,13 @@ export function MapGamePlacementLayer({
   cellSize: number;
   /** 1-based participant id (the board's numbering); `null` = nobody active. */
   activeParticipantId?: number | null;
+  /**
+   * v0.7.11：刚刚由「长按落下」的那一格（`x,y`）。命中的头像播一次落定。
+   *
+   * 为什么不给所有头像都挂入场动画：进页面时棋盘是从存档恢复的，十几个头像
+   * 同时弹一下，会读成「刚刚发生了一连串操作」。只有这一格是真的刚放下的。
+   */
+  settleKey?: string | null;
 }): JSX.Element | null {
   const entries = Object.entries(board).filter(([, placement]) => placement !== null && placement !== undefined);
   if (entries.length === 0) return null;
@@ -202,23 +269,20 @@ export function MapGamePlacementLayer({
           >
             {placement.kind === 'participant' ? (
               <div
-                className="absolute"
+                className={settleKey === key ? 'place-settle absolute' : 'absolute'}
                 style={{
                   inset: 0,
                   // v0.6.4 §3: the active participant's avatar magnifies around
-                  // the cell centre, with a ring so it reads as "this one" even
-                  // at a glance. Inactive avatars are untouched.
+                  // the cell centre so it reads as "this one" at a glance.
+                  // v0.7.12: the magnification is the **only** cue now — the
+                  // 2px `--primary` ring was dropped (it collided with each
+                  // character's own theme colour and read as a second badge).
                   transform:
                     placement.index === activeParticipantId
                       ? `scale(${GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE})`
                       : undefined,
                   transformOrigin: 'center',
-                  transition: 'transform 150ms ease-out',
-                  borderRadius: '50%',
-                  boxShadow:
-                    placement.index === activeParticipantId
-                      ? '0 0 0 2px hsl(var(--primary))'
-                      : undefined,
+                  transition: 'transform var(--motion-fast) var(--motion-ease-out)',
                 }}
               >
                 <ParticipantAvatar

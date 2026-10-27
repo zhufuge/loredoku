@@ -158,6 +158,50 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 `dialog` / `alert-dialog` 的遮罩在组件内部写 `z-50`（shadcn 原样，属于 Radix portal 层，
 不参与画布层级）。导航栏 `AppShell` 写的是 `z-30` —— 见 §5.3。
 
+### 1.6 动效（v0.7.10）
+
+取值在 `index.css` 的 `:root`，映射在 `tailwind.config.ts`。**时长按用途分，不是按数值分**（`glow` / `retract` 是 v0.7.13 补的第五、六档）：
+
+| Token | 值 | 用途 |
+|---|---|---|
+| `duration-fast` | 120ms | 反馈：按下、悬停变色、图标 |
+| `duration-base` | 180ms | 状态：弹层进出、抽屉、交叉淡入 |
+| `duration-slow` | 260ms | 结构：整块位移（320px 抽屉全滑） |
+| `duration-image` | 360ms | 画面：卡片封面缩放归位 |
+| `--motion-glow` | 700ms | 光进来：纸背光光圈漫开（只在 CSS 里用，未映射到 Tailwind） |
+| `--motion-retract` | 340ms | 光出去：同一个光圈收回，比进来短一半 |
+
+| Token | 值 | 语义 |
+|---|---|---|
+| `ease-out` | `cubic-bezier(0.22, 1, 0.36, 1)` | 默认出场（指数减速） |
+| `ease-in-out` | `cubic-bezier(0.65, 0, 0.35, 1)` | 来回切换、封面缩放（两头均速） |
+| `ease-in` | `cubic-bezier(0.7, 0, 0.84, 0)` | 离场（加速离开） |
+| `--motion-ease-spread` | `cubic-bezier(0.33, 0, 0.25, 1)` | 扩散：从一点摊开成一整片（起手匀、收尾长），只给光圈用 |
+| `--motion-ease-retract` | `cubic-bezier(0.4, 0, 0.7, 1)` | 收回：起步轻、收尾缓慢停住，只给光圈用（不用「到终点仍全速」的加速曲线，那看起来像被剪断） |
+
+三条硬约定：
+
+1. **裸写 `transition-colors` 就是对的**。`transitionDuration.DEFAULT` 与
+   `transitionTimingFunction.DEFAULT` 都指向 token，全站 41 处裸写因此自动统一。
+   只有需要别的节奏时才写 `duration-*`；**不要再写 `duration-[0-9]+`**（已清零）。
+2. **弹层用 `.sheet-fade`，不要用 `animate-in`**。`animate-in` 把 `animation-duration` 写进了
+   变体选择器（特异性 0,2,0），`duration-*`（0,1,0）压不动 —— 写了也不生效。`.sheet-fade`
+   还额外给退场 75% 的时长。
+3. **居中元素不做 transform 动画**。`-translate-x-1/2 -translate-y-1/2` 会被关键帧里的
+   `transform` 整条覆盖，动画期间面板偏离中心半屏。居中弹层只动透明度。
+4. **进度类动画必须 `linear`**（v0.7.10 §3.3）。长按进度环（`.press-ring-arc`）的长度就是
+   「还剩多少时间」，全站其他动画都走指数减速，唯独这里缓动会说谎：前段飞跑、后段拖住，
+   用户读到的时间比实际短，松手就白按。同理，它**不能被 `prefers-reduced-motion` 压掉** ——
+   压到 0.01ms 会让环瞬间画满，用户以为按一下就够了。
+5. **想让一块画面「亮起来」，加影不加光**（v0.7.10 §10）。`soft-light` / `screen` 在亮底上
+   都有算术天花板（`soft-light` 最亮只到 `sqrt(Cb)`，93% 亮的纸最多抬 3 个色阶），
+   往里叠白光只会得到一层灰纱。正确做法是 `multiply` 一层暖色暗角把周围压下去，
+   再用一个小半径的近白热斑点住光心 —— **对比度给出「光」，白光本身给不出**。
+
+`prefers-reduced-motion` 在 `index.css` 末尾统一兜底；只要往仓库里加新动画，就该确认它落进
+了那条规则（尤其是带属性选择器、特异性较高的新规则）。保留项：`.animate-spin`（放慢）、
+`.animate-pulse`（放慢）、`.highlight-fade`（原样）、`.press-ring-arc`（原样，功能性的时间刻度）。
+
 ---
 
 ## 2. 基础组件（`components/ui/`，16 个）
@@ -373,6 +417,9 @@ token 是唯一入口。
 | 5.9 | **剩余 `title=` 96 处** | 列表行、部署页、若干截断文本 | 大多数是「被截断文本的补全」，合理的；`IconButton` 已覆盖 54 处，余下 17 个图标按钮按 §3.4 的三条例外保留 | 低：外链那枚是 `<a target="_blank">`，换掉要先定「中键新标签页」怎么保留 |
 | 5.10 | **编辑器零响应式** | `EditorLeftPanel` 280 + 画布 + 抽屉 320 | 1024 宽时画布只剩 424px，窄屏没有降级提示 | 中：要先决定「窄屏收起左面板，还是干脆给一句提示」 |
 | 5.11 | **`VirtualList` 固定 480px** | `components/ui/virtual-list.tsx` | 1366×768 上左栏底部落在折线以下；主从页在窄屏堆叠时，详情表单排在 480px 滚动区之后 | 中：改成视口自适应会牵动主从页的高度契约 |
+| 5.12 | **重新取数时变淡只在 2 个页面上有** | `MapsPage` / `PuzzlesPage` 有 `isFetching && !isLoading` 的 `opacity-60`；`AssetsPage` / `CharactersPage` / `DeploymentsPage` / `GamesPage` 没有 | 同一个「后台在取数」的状态，四个页面毫无表示 | 低：包一层容器即可；但这属于**状态反馈**（v0.7.9 §1 那条线），不是动效，别混进来 |
+| 5.13 | **游戏页棋盘只能用指针操作** | `pages/GamePage.tsx` | `keydown` 只处理 Escape（退出模式）与空格（平移）；放编号 / 放头像 / 禁止符号 / 清除全部只由 pointer 触发，键盘用户无法完成任何摆放 | 高（无障碍）：要先把棋盘做成可聚焦的格子网格（`role="grid"` + 方向键导航），牵动渲染结构 |
+| 5.14 | **棋盘没拦 `contextmenu`** | 同上 | 触摸设备按住约 500ms 会弹系统菜单，与长按阈值撞在同一段时间上 —— v0.7.10 §3 的进度环会被打断 | 低：桌面端（主场景）不受影响；「要不要禁掉右键菜单」是新的交互决定，不该夹在动效改动里做 |
 
 > 5.6 容易被高估：初稿曾记为「大量卡片层层嵌套」，实测 `rounded-lg border` 只有 4 处，
 > 主力是 `border-b` 分隔的面板与行。所以这条债的真实分量是**版式语言不统一**，

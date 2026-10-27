@@ -38,7 +38,7 @@ export function EditorSaveMask({
   return (
     <div
       className={cn(
-        'absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground transition-opacity duration-150',
+        'absolute inset-0 flex items-center justify-center gap-2 text-sm text-muted-foreground transition-opacity duration-base',
         saving ? 'opacity-100' : 'opacity-0',
       )}
       style={{

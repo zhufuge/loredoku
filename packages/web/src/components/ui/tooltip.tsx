@@ -52,7 +52,10 @@ export const TooltipContent = forwardRef<
         // `z-[60]`：对话框/弹层是 `z-50`，抽屉是 `UI_Z` 的 20/30。提示必须永远在最上面，
         // 不能指望「后挂载所以压得住」—— 同一个对话框里再开一个浮层就会翻车。
         'z-[60] max-w-xs rounded-sm border bg-popover px-2 py-1 text-2xs text-popover-foreground shadow-lifted',
-        'animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0',
+        // v0.7.10：`zoom-in-95` 保留（提示是「贴上来的一小片纸」，缩放比纯淡入
+        // 更像被推到你面前），但把时长显式钉成 `duration-fast` —— 之前吃的是
+        // tailwindcss-animate 的默认值，与全站的 120/180/260 三档无对应关系。
+        'animate-in fade-in-0 zoom-in-95 duration-fast data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-fast',
         className,
       )}
       {...props}

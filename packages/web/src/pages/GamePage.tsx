@@ -28,6 +28,7 @@ import {
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
+import { PressRing } from '@/components/common/PressRing';
 import {
   Dialog,
   DialogContent,
@@ -41,7 +42,11 @@ import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
 import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
-import { MapGamePlacementLayer, MapGameToolHintLayer } from '@/components/map/MapGameLayers';
+import {
+  MapGamePlacementLayer,
+  MapGamePressRing,
+  MapGameToolHintLayer,
+} from '@/components/map/MapGameLayers';
 import {
   MapRegionHighlightLayer,
   MapRegionOutlineLayer,
@@ -200,6 +205,18 @@ export function GamePage(): JSX.Element {
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hover, setHover] = useState<CellCoord | null>(null);
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
+  /**
+   * v0.7.11：正在被长按的格子 —— 有值时棋盘上画一圈进度环，抬手 / 移出 /
+   * 中断即清。`seq` 每次按下递增，环靠它重新挂载、从头画（同一格连按两次
+   * 也要重来，不能接着上一轮的满环）。
+   */
+  const [pressCell, setPressCell] = useState<{ x: number; y: number; seq: number } | null>(null);
+  /**
+   * v0.7.11：清除按钮上的长按进度环。存的是轮次号（非空 = 环在画），
+   * 与格子环共用 `pressSeqRef` —— 两个环不会同时出现，共用一个递增器足够。
+   */
+  const [clearPress, setClearPress] = useState<number | null>(null);
+  const pressSeqRef = useRef(0);
   const containerRef = useRef<HTMLDivElement | null>(null);
   /** Long-press on the clear button wipes the whole board (SPEC-G04 §10.2). */
   const clearPressRef = useRef<{ timer: number; fired: boolean } | null>(null);
@@ -614,8 +631,12 @@ export function GamePage(): JSX.Element {
    * 被规则拒绝时给出说明——长按的那条唯一性是「该参与者的头像已经在别的格子
    * 上」（编号可以多处，所以短按不会再被唯一性挡住），toast 指出头像在哪里，
    * 而不是静默无反应。
+   *
+   * v0.7.11：返回**是否真的执行了**。长按的进度环靠它决定收场 —— 环画满却什么
+   * 都没发生，会读成「按成功了但没反应」，比不画环更糟。被拒时环立刻收回，
+   * 由 toast 说明原因。
    */
-  const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): void => {
+  const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): boolean => {
     if (mode.kind === 'placing') {
       const block = placementBlockReason({
         board: placementState.board,
@@ -627,7 +648,7 @@ export function GamePage(): JSX.Element {
       });
       if (block) {
         toast.error(describeBlock(block, mode.participantId, placementState.board));
-        return;
+        return false;
       }
       updatePlacement((state) =>
         placeParticipant(state, {
@@ -639,28 +660,37 @@ export function GamePage(): JSX.Element {
           variant,
         }),
       );
-      return;
+      return true;
     }
     if (mode.kind === 'forbidden') {
       updatePlacement((state) => placeForbidden(state, { x, y, blockingCells }));
-      return;
+      return true;
     }
     if (mode.kind === 'clearing') {
       updatePlacement((state) => clearCell(state, { x, y }));
+      return true;
     }
+    return false;
   };
 
   /**
-   * 放置态下在格子上按下：启动长按定时器（到点放**头像**）。没到点就抬手的
-   * 短按由随后到来的 `click` 收尾 —— 那一路走 SPEC-J03 的**编号切换**。
+   * 放置态下在格子上按下：启动长按定时器（到点放**头像**），同时画上进度环。
+   * 没到点就抬手的短按由随后到来的 `click` 收尾 —— 那一路走 SPEC-J03 的
+   * **编号切换**。
+   *
+   * v0.7.11：环与定时器同源（都用 `GAME_LONG_PRESS_MS`），环画满的那一帧就是
+   * 头像落下的那一帧。动作被规则拒绝时 `dispatchCell` 返回 false，环立刻收回 ——
+   * 不能让一个满环停在那里，那读起来像「已经放好了」。
    */
   const startCellPress = (x: number, y: number): void => {
     const stale = cellPressRef.current;
     if (stale) window.clearTimeout(stale.timer);
     const press = { timer: 0, fired: false };
+    pressSeqRef.current += 1;
+    setPressCell({ x, y, seq: pressSeqRef.current });
     press.timer = window.setTimeout(() => {
       press.fired = true;
-      dispatchCell(x, y, 'image');
+      if (!dispatchCell(x, y, 'image')) setPressCell(null);
     }, GAME_LONG_PRESS_MS);
     cellPressRef.current = press;
   };
@@ -668,8 +698,11 @@ export function GamePage(): JSX.Element {
   /**
    * 抬手：定时器作废；长按已生效时**保留** `fired`——紧随其后的 click 还要
    * 靠它识别「这一手是长按」并把 click 吞掉。
+   *
+   * 环在抬手时一律收掉：长按已生效的话，满环套在刚放下的头像上只会挡住它。
    */
   const endCellPress = (): void => {
+    setPressCell(null);
     const press = cellPressRef.current;
     if (!press) return;
     window.clearTimeout(press.timer);
@@ -678,6 +711,7 @@ export function GamePage(): JSX.Element {
 
   /** 移出画布 / 指针中断：连 `fired` 一起丢——不会再有 click 来收尾。 */
   const dropCellPress = (): void => {
+    setPressCell(null);
     const press = cellPressRef.current;
     if (!press) return;
     window.clearTimeout(press.timer);
@@ -686,8 +720,12 @@ export function GamePage(): JSX.Element {
 
   const startClearPress = (): void => {
     const press = { timer: 0, fired: false };
+    pressSeqRef.current += 1;
+    setClearPress(pressSeqRef.current);
     press.timer = window.setTimeout(() => {
       press.fired = true;
+      // 清空是一次性的，棋盘随即变空 —— 满环留在空棋盘上没有意义，立即收。
+      setClearPress(null);
       applyMode({ kind: 'clearing' });
       updatePlacement(clearAll);
       toast.success('已清空全部放置');
@@ -696,6 +734,7 @@ export function GamePage(): JSX.Element {
   };
 
   const endClearPress = (): void => {
+    setClearPress(null);
     const press = clearPressRef.current;
     if (!press) return;
     window.clearTimeout(press.timer);
@@ -950,6 +989,14 @@ export function GamePage(): JSX.Element {
               slots={slots}
             />
 
+            {/* v0.7.11：长按进度环 —— 按住 500ms 的等待可见化（SPEC-J02） */}
+            <MapGamePressRing
+              cell={pressCell}
+              cellSize={cellSize}
+              durationMs={GAME_LONG_PRESS_MS}
+              seq={pressCell?.seq ?? 0}
+            />
+
             {/* 层 5 · 游戏放置层 — SPEC-G01 */}
             <MapGamePlacementLayer
               board={placementState.board}
@@ -967,6 +1014,12 @@ export function GamePage(): JSX.Element {
                   ? null
                   : activation.activeParticipantId + 1
               }
+              /*
+               * v0.7.11：正在长按的那一格 —— 长按落地后头像在这里落定。
+               * 环还在（抬手前）就说明这一格是「刚刚」放下的，不需要再记一个
+               * 时间戳：抬手即清环，窗口自然结束。
+               */
+              settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
             />
 
             <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
@@ -1014,7 +1067,7 @@ export function GamePage(): JSX.Element {
           <Button
             variant="ghost"
             className={cn(
-              'h-12 w-full',
+              'relative h-12 w-full',
               mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
             title="清除工具：清除该格放置；长按清空全部"
@@ -1023,6 +1076,22 @@ export function GamePage(): JSX.Element {
             onPointerLeave={endClearPress}
           >
             <Eraser className="h-5 w-5" />
+            {/*
+             * v0.7.11：长按 500ms 清空全部 —— 与棋格长按画同一圈进度环。
+             * 两个长按此前都没有过程反馈，用户只能猜「按住够不够久」；
+             * 一致的环让「按住 500ms」这件事在界面上只有一种样子。
+             */}
+            {clearPress !== null ? (
+              <PressRing
+                size={40}
+                durationMs={GAME_LONG_PRESS_MS}
+                seq={`clear-${clearPress}`}
+                strokeWidth={2.5}
+                radiusRatio={0.46}
+                color="hsl(var(--primary))"
+                className="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
+              />
+            ) : null}
           </Button>
           <Button
             variant="ghost"

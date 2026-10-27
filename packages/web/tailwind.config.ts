@@ -74,6 +74,28 @@ const config: Config = {
         },
       },
       /*
+       * v0.7.10：动效 token（取值在 `index.css` 的 `--motion-*`）。
+       *
+       * 两个 `DEFAULT` 是这一步的关键：它们决定了**不带修饰**的
+       * `transition-colors` 用什么时长与曲线。全仓 41 处写着裸 `transition-colors`，
+       * 原本各自吃 Tailwind 的 150ms + `cubic-bezier(0.4, 0, 0.2, 1)`；把
+       * DEFAULT 指过来之后这 41 处不改一个字就统一了 —— 而需要别的节奏的地方
+       * 才显式写 `duration-base` / `duration-slow`。
+       */
+      transitionDuration: {
+        DEFAULT: 'var(--motion-fast)',
+        fast: 'var(--motion-fast)',
+        base: 'var(--motion-base)',
+        slow: 'var(--motion-slow)',
+        image: 'var(--motion-image)',
+      },
+      transitionTimingFunction: {
+        DEFAULT: 'var(--motion-ease-out)',
+        out: 'var(--motion-ease-out)',
+        'in-out': 'var(--motion-ease-in-out)',
+        in: 'var(--motion-ease-in)',
+      },
+      /*
        * v0.7.9 §4：字号梯级补上最小一档。
        *
        * 原来 10px 与 11px 都用方括号直接写（10px 19 处、11px 62 处），两者相差
@@ -104,15 +126,16 @@ const config: Config = {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      /*
+       * v0.7.10：`accordion-down` / `accordion-up` 删掉了 —— 仓库里没有
+       * accordion 组件，这两条是 shadcn 脚手架带进来的残留关键帧。
+       *
+       * `blink` / `glow` 保留：它们与 shared 的 `EFFECT_TYPES`
+       * （`highlight | glow | blink | tooltip`）逐字对应，是联动效果的状态提示，
+       * 与 `.impeccable.md` 原则 6 里点名的「既有状态提示」是同一件事 ——
+       * 目前还没有调用点，但删掉会让那组枚举失去后半截。
+       */
       keyframes: {
-        'accordion-down': {
-          from: { height: '0' },
-          to: { height: 'var(--radix-accordion-content-height)' },
-        },
-        'accordion-up': {
-          from: { height: 'var(--radix-accordion-content-height)' },
-          to: { height: '0' },
-        },
         blink: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.4' },
@@ -123,8 +146,6 @@ const config: Config = {
         },
       },
       animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
         blink: 'blink 1s steps(2, start) infinite',
         glow: 'glow 1.2s ease-in-out infinite',
       },

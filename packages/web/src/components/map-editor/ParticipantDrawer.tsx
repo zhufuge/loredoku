@@ -259,7 +259,7 @@ export function ParticipantDrawer({
   return (
     <aside
       className={
-        'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-lifted backdrop-blur transition-transform duration-200 ' +
+        'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-lifted backdrop-blur transition-transform duration-slow ' +
         (open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full')
       }
       /**

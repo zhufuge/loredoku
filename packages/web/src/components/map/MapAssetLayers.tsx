@@ -149,7 +149,7 @@ export function MapItemLayer({
                 // OPT-C06: the item's own fitMode is preserved, never forced.
                 objectFit: look?.fitMode === 'contain' ? 'contain' : 'cover',
                 transform: lifted ? `translateY(-${ITEM_HOVER_LIFT_PX}px)` : undefined,
-                transition: `transform ${ITEM_HOVER_TRANSITION_MS}ms ease-out`,
+                transition: `transform ${ITEM_HOVER_TRANSITION_MS}ms var(--motion-ease-out)`,
               }}
             />
           ) : null;

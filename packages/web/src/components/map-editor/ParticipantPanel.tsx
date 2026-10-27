@@ -476,7 +476,7 @@ export function ParticipantPanel({
                           // the slot's single outline + this subtle scale-up;
                           // the avatar no longer draws a second ring.
                           transform: isHighlighted ? 'scale(1.08)' : undefined,
-                          transition: 'transform 150ms linear',
+                          transition: 'transform var(--motion-fast) var(--motion-ease-out)',
                           // MOD-703: a white theme needs its 1 px grey edge, the
                           // only stroke the spec allows, on this disc alone.
                           border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',

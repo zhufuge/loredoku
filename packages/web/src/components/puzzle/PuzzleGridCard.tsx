@@ -56,7 +56,7 @@ export function PuzzleGridCard({
             src={entry.coverUrl}
             alt={entry.name}
             draggable={false}
-            className="h-full w-full object-cover transition-transform duration-200 ease-out scale-[1.2] group-hover:scale-100"
+            className="h-full w-full object-cover transition-transform duration-image ease-in-out scale-[1.2] group-hover:scale-100"
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center bg-secondary/40 text-3xl font-semibold text-muted-foreground/60">

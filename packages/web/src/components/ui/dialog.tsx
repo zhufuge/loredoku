@@ -15,7 +15,7 @@ export const DialogOverlay = forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'fixed inset-0 z-50 bg-black/60 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
+      'sheet-fade fixed inset-0 z-50 bg-black/60',
       className,
     )}
     {...props}
@@ -37,7 +37,9 @@ export const DialogContent = forwardRef<
       // below wins over this default).
       onInteractOutside={(event) => event.preventDefault()}
       className={cn(
-        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lifted duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-lg',
+        // v0.7.10：`sheet-fade` 见 `index.css` —— 180ms 淡入、135ms 淡出，
+        // 只动透明度（面板是居中定位的，动 transform 会把它顶偏）。
+        'sheet-fade fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 border bg-background p-6 shadow-lifted sm:rounded-lg',
         className,
       )}
       {...props}

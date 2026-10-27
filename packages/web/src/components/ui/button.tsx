@@ -4,7 +4,15 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react';
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  /*
+   * v0.7.10：`active:translate-y-px`。
+   *
+   * 之前按钮按下去只有颜色变化，在 ghost / outline 这两种「背景本来就是纸色」
+   * 的变体上几乎看不出来 —— 点了没反应，用户会再点一次。1px 的下沉是这套
+   * 「纸与墨」里最贴切的按压语汇：不是缩放（文字会跟着糊），是把纸按进桌面。
+   * 只动 transform，不参与 `transition`（按下应当立刻发生，回弹也立刻）。
+   */
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {

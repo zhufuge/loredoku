@@ -19,9 +19,12 @@ import type { GameToolHint } from '@/lib/gamePlacement';
  * 头像与编号。
  *
  * The layer is pure rendering, so these are the only assertions worth making:
- * the **active** participant's avatar and their **own** 编号 glyphs grow (and
- * their avatar gains a ring), while everybody else's glyphs — including the
- * ones sharing a cell with the active participant — keep the normal size.
+ * the **active** participant's avatar and their **own** 编号 glyphs grow, while
+ * everybody else's glyphs — including the ones sharing a cell with the active
+ * participant — keep the normal size.
+ *
+ * v0.7.12 removed the `--primary` ring that used to accompany the avatar's
+ * magnification; these tests now pin its absence so it cannot creep back in.
  */
 
 const CELL = 40;
@@ -101,13 +104,14 @@ describe('MapGamePlacementLayer — 激活参与者放大（v0.6.4 §3）', () =
     container.remove();
   });
 
-  it('magnifies the active participant’s avatar and rings it', () => {
+  it('magnifies the active participant’s avatar, and only that', () => {
     render(1);
     expect(avatarWrapper().style.transform).toBe(
       `scale(${GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE})`,
     );
-    expect(avatarWrapper().style.boxShadow).toContain('hsl(var(--primary))');
     expect(avatarWrapper().style.transition).toContain('transform');
+    // v0.7.12: no ring. The magnification carries the whole cue on its own.
+    expect(avatarWrapper().style.boxShadow).toBe('');
   });
 
   it('leaves another participant’s avatar untouched', () => {

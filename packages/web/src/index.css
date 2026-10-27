@@ -3,6 +3,36 @@
 @tailwind utilities;
 
 /*
+ * 纸背光的光圈半径（v0.7.13 §10.7，用法见下面的 `.paper-shade`）。
+ *
+ * 注册成 `<number>` 是为了让它**能过渡**：自定义属性默认只是一串 token，
+ * 浏览器不会插值，`transition` 写了也等于瞬间跳变。注册之后它变成一个真正的
+ * 数值，于是「光的范围从 32% 长到 100%」这件事可以交给 CSS 补间，
+ * 而且补的是**半径**——圆的边界，不是一层方形贴纸的边界。
+ *
+ * 必须在顶层声明（不能写进 `@layer`）：`@property` 是描述符规则，
+ * 放进层里在部分引擎里不生效。
+ */
+@property --glow-r {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0.32;
+}
+
+/*
+ * 收回的取景框（v0.7.13 §10.11，用法见 `.paper-light` 的 `mask-image`）。
+ *
+ * 和 `--glow-r` 一样必须注册成 `<number>` 才能补间。初值给 1 而不是 0：万一
+ * 某处只写了这一层的 class、没有基线规则，遮罩必须是**开着**的 —— 给 0 会让
+ * 整层直接消失，而且没有任何报错。
+ */
+@property --glow-w {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 1;
+}
+
+/*
  * 调色板（v0.7.8）：墨 · 宣 · 靛 · 绛
  *
  * 上一版是 shadcn 默认的冷蓝 SaaS 值（中性色落在 210–217 冷灰，primary 是
@@ -96,6 +126,81 @@
      */
     --shadow-card: 0 1px 1px hsl(28 30% 20% / 0.04), 0 2px 6px hsl(28 30% 20% / 0.045);
     --shadow-float: 0 2px 4px hsl(28 30% 20% / 0.05), 0 10px 28px hsl(28 30% 20% / 0.1);
+    /*
+     * 动效（v0.7.10）。
+     *
+     * 在这之前全仓只有一条 `highlight-fade` 关键帧，时长靠手写 `duration-200`
+     * 与 `duration-150`（共 7 处），缓动全部是 Tailwind 默认曲线 —— 也就是说
+     * 「动效」在代码里从来没有被当成一套东西看待。四档时长按用途分，不是按
+     * 数值分（`glow` / `retract` 是 v0.7.13 补的第五、六档，理由见各自那一行）：
+     *
+     *   fast 120ms —— 反馈。按下、悬停变色、图标转场。低于 80ms 感觉不到，
+     *                 高于 150ms 就成了「等」。
+     *   base 180ms —— 状态。弹层进出、抽屉、交叉淡入。这里刻意比 300ms 短：
+     *                 工坊里一天要开关几十次对话框，200ms 以上会累积成拖沓。
+     *   slow 260ms —— 结构。整块位移（抽屉全滑、面板展开）。只在真正换布局时用。
+     *   image 360ms —— 画面。卡片封面的缩放归位。
+     *   glow 700ms —— 光进来。纸背光的光圈漫开。
+     *   retract 340ms —— 光出去。同一个光圈收回（退出方向比进入短一半）。
+     *
+     * `image` / `glow` / `retract` 是全套里**按用途命名**的几档，因为它们管的
+     * 不是「控件的动效」而是「内容的动效」：前三档讲界面如何响应你，这三档讲
+     * 画面如何展开与退场。20% 的缩放在 180ms 里前 70ms 就走完过半（`ease-out`
+     * 起步接近垂直），看起来像被拽回去；360ms 配合两头匀的曲线才有「摊开」的
+     * 观感。它们也不必担心延迟感 —— 卡片的边框变色在 120ms 内已经把「选中了」
+     * 说清楚了，封面和光都不承担即时反馈的责任。
+     *
+     * 缓动曲线不用 CSS 的 `ease`（它是折中值，两头都不像）。出场的三条都取
+     * 指数减速 —— 物体停下来的样子是减速，不是弹跳；本仓库**不用**回弹与弹性
+     * 曲线（`cubic-bezier(0.34, 1.56, 0.64, 1)` 那类），它们会让注意力跑到动画
+     * 本身而不是内容上，与「书斋里的工具」也最远。
+     */
+    --motion-fast: 120ms;
+    --motion-base: 180ms;
+    --motion-slow: 260ms;
+    --motion-image: 360ms;
+    /*
+     * glow 700ms —— 光。纸背光的光圈向外漫开（v0.7.13 §10.7）。
+     *
+     * 第五档是补上的，不是加着玩：前四档量的都是**界面如何响应你**，光圈量的
+     * 是**一个物理过程**（光扩散），和封面缩放同属「内容」那一类，但比它慢得多。
+     * 原来借用 260ms，用户判「可以慢一点」—— 一半是因为时长，另一半在曲线：
+     * `--motion-ease-out` 在 15% 处已经走完 55%，260ms 的动画在 100ms 内就
+     * 看起来收尾了，剩下 160ms 只有像素级的余量。所以这一档配了另一条曲线
+     * （见 `--motion-ease-spread`），单加时长解决不了。之后又从 480ms 提到
+     * 700ms：光铺得比界面慢，是这张卡唯一的「非控件」气质。
+     */
+    --motion-glow: 700ms;
+    /*
+     * retract 340ms —— 光收回。同一个光圈的**退出方向**（§10.11）。
+     *
+     * 不和 `glow` 共用一个值，因为两件事的读法不同：铺开是「慢慢发生」，收回
+     * 是「撤走」—— 前者可以拖到 700ms，后者超过半秒就像页面卡住了。340ms 是
+     * 「看得出在收，但不让你等」的那一档。
+     */
+    --motion-retract: 340ms;
+    /* 指数减速：起步快、收尾长。默认出场曲线。 */
+    --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    /*
+     * 扩散：起步匀、中段快、收尾长。给「从一点摊开成一整片」用（只此一处）。
+     *
+     * 与 `--motion-ease-out` 的差别在**起手**：后者是 0.22 / 1（控制点几乎垂直
+     * 冲天），15% 处已走 55%，观感是「啪地铺满」；这条 0.33 / 0 有真正的起手段，
+     * 15% 处只走 9%。慢起手不会显得迟钝 —— 光层的**不透明度**是另一条 120ms
+     * 的轨，先亮起来；观众看到的是「灯已经开了，光还在往外铺」，正是想要的顺序。
+     */
+    --motion-ease-spread: cubic-bezier(0.33, 0, 0.25, 1);
+    /*
+     * 收回：起步轻、中段匀、收尾缓慢停住。给光圈缩回用（只此一处）。
+     *
+     * 不收成「加速冲回去」（`cubic-bezier(0.4, 0, 1, 1)` 那种）：光圈最后是要
+     * 熄灭的，用一条到终点仍在全速的曲线，看起来像被剪断而不是收起来。
+     */
+    --motion-ease-retract: cubic-bezier(0.4, 0, 0.7, 1);
+    /* 来回切换（展开 / 收起、选中移出）：两头对称。 */
+    --motion-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    /* 离场：加速离开，比出场快（约 75%），不让人等它消失。 */
+    --motion-ease-in: cubic-bezier(0.7, 0, 0.84, 0);
     /*
      * v0.7.8 §1：工具栏图标按钮的「未选中悬停 / 选中」底色。
      *
@@ -275,5 +380,333 @@
     100% {
       opacity: 0;
     }
+  }
+
+  /*
+   * 弹层淡入淡出（v0.7.10）。
+   *
+   * 为什么不用 tailwindcss-animate 的 `animate-in fade-in-0`：
+   *   1. **时长压不动**。插件把 `animation-duration` 一起写进了变体选择器，
+   *      而 `.data-[state=open]:animate-in[data-state=open]` 的特异性是 0,2,0，
+   *      比 `.duration-base`（0,1,0）高 —— 写了也不生效，是又一处静默失败
+   *      （和 v0.7.9 的 `shadow-[var(--x)]` 同一类坑）。
+   *   2. **进出同长**。退场该约为入场的 75%，插件给不了。
+   *
+   * 只动透明度，不做位移与缩放：面板靠 `-translate-x-1/2 -translate-y-1/2` 居中，
+   * 任何 transform 关键帧都会把整条 `transform` 覆盖掉，动画期间面板会偏离中心
+   * 半屏 —— 200ms 内斜着滑进来再跳回中心，比不动更糟。
+   */
+  .sheet-fade[data-state='open'] {
+    animation: sheet-in var(--motion-base) var(--motion-ease-out);
+  }
+
+  .sheet-fade[data-state='closed'] {
+    animation: sheet-out calc(var(--motion-base) * 0.75) var(--motion-ease-in) forwards;
+  }
+
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes sheet-out {
+    to {
+      opacity: 0;
+    }
+  }
+
+  /*
+   * 长按进度环（v0.7.11，`components/common/PressRing.tsx`）。
+   *
+   * 弧长由 `stroke-dasharray` 定，这里只把 `stroke-dashoffset` 从整条周长推到 0 ——
+   * 纯 SVG 呈现属性动画，不触发重排，也不碰 React 的渲染。
+   *
+   * **必须 `linear`**：环的长度就是「剩余等待时间」。全站其他动效都用指数减速，
+   * 唯独这里缓动会说谎 —— 前段飞跑、后段拖住，用户读到的时间比实际短。
+   *
+   * 两个值都从组件的内联 CSS 变量来：`--press-ring-length`（周长）与
+   * `--press-ring-duration`（与页面上 `GAME_LONG_PRESS_MS` 同源），这样环画满
+   * 与动作发生是同一时刻，不需要各自维护一个魔法数。
+   */
+  .press-ring-arc {
+    animation: press-ring-fill var(--press-ring-duration, 500ms) linear forwards;
+  }
+
+  @keyframes press-ring-fill {
+    from {
+      stroke-dashoffset: var(--press-ring-length, 0);
+    }
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /*
+   * 头像落定（v0.7.11）。
+   *
+   * 环画满、头像顶上来 —— 直接出现会读成「画面刷新了一下」。给它 180ms 的
+   * 淡入 + 轻微放大（0.86 → 1），读成「放下去了」，与按钮的
+   * `active:translate-y-px`（按进纸里）是同一套物理直觉。
+   *
+   * 用独立的 `scale` 属性而不是 `transform`：这个元素身上还挂着激活态的
+   * `transform: scale(1.3)`（v0.6.4 §3，摸名册卡片时放大该参与者的头像）。
+   * transform 关键帧会把整条 transform 覆盖掉，动画期间头像会先跳回原尺寸
+   * 再弹起来 —— 这正是 v0.7.10 里居中弹层不能用 transform 动画的同一个理由。
+   * `scale` 是与 transform 正交的独立属性，两者可以叠加。
+   */
+  .place-settle {
+    animation: place-settle var(--motion-base) var(--motion-ease-out);
+  }
+
+  @keyframes place-settle {
+    from {
+      opacity: 0;
+      scale: 0.86;
+    }
+  }
+
+  /*
+   * 纸背光（v0.7.10 §10，`components/game/GameCard.tsx`）—— 两层，一减一加。
+   *
+   * 位置来自组件写进 `--glow-x / --glow-y` 的指针坐标；两层共用这一组值，
+   * 所以它们是一团光，不是两张各自跑的光斑。
+   *
+   *   ① `.paper-shade`  `multiply`    暖色暗角：把灯照不到的地方压下去。
+   *   ② `.paper-core`   `normal`      近白热斑：在光心点一下，让眼睛有个落点。
+   *
+   * **为什么重心在「暗」而不在「亮」**：奶油色封面本身已经 93% 亮，`soft-light`
+   * 的白光在它上面的数学天花板是 `sqrt(0.93) = 0.964` —— 不透明度拉满也只抬
+   * 3 个色阶（六个配方并排截图 + 取样像素实测，见 §10.2）。想让纸上出现一盏灯，
+   * 唯一的办法是**把周围压下去**：对比度，不是亮度。这一版之前试过「亮中心 +
+   * 一层大光晕」，结果整张封面被均匀抬亮、红色斜带褪成粉色，反而更糊。
+   *
+   * 减光用暖褐（`26 46% 26%`）而不是纯黑：纯黑乘上去会发灰，暖褐乘上去像纸在
+   * 自家影子里。加光用近白偏暖（`44 100% 97%`），不偏青 —— 偏青会把纸染成蓝。
+   * 这两个是**光照的两端**，不是配色（与 `--shadow-*` 里那些 hsl 同性质）；
+   * 换成任何主题 token 都会让方向随主题反转：夜间 `--background` 是墨色，
+   * 「加光」会变成「加阴影」。
+   *
+   * 混合模式要落在封面这一层里（组件在封面容器上加了 `isolate`），否则它们会
+   * 一直混到页面底色上 —— 卡片浮在米色页面上和在白色对话框里会长得不一样。
+   */
+  .paper-light {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    /* 光的范围由 `--glow-r` 决定，从 0.32 长到 1（见 `@property`）。
+       早期版本用的是 `transform: scale(0.62)`：那会把**这一层的矩形**一起缩放，
+       而 gradient 在元素边界处还没走完，于是边界上出现一条直角硬边 —— 阴影
+       以一块方纸的形状张开。改成缩半径之后，边界从方变成圆，而且光心
+       （gradient 的 `at`）从头到尾没动过。 */
+    --glow-r: 0.32;
+    /*
+     * 收回的取景框（v0.7.13 §10.11）。一个以光心为圆心的**圆形取景框**：里面的
+     * 光与影原样保留，外面的整层被裁掉。`--glow-w: 1` 时取景框的不透明边界正好
+     * 落在封面最远的那个角上 —— 所以静止悬停的样子与没有这层遮罩时**逐像素
+     * 一致**；离开时它缩到 0，光和影就一路收进光心里。
+     *
+     * 半径不能写死。封面四角到光心的距离随指针走（指针在正中时约 0.71 倍边长，
+     * 在角上时 1.41 倍），写死一个值只有两种结局：给小了，静止时最远那个角落进
+     * 羽化区，暗角被打薄；给大了，收回的前半段在封面之外空转，看起来没反应。
+     * 所以 `--glow-reach` 由组件算（`GameCard` 里五个数的叉积），CSS 只管缩放。
+     *
+     * 70px 的羽化不能省：`clip-path: circle()` 也能做同样的收缩，但边界是一条
+     * 硬边，收的过程中会露出一圈清清楚楚的圆弧 —— 那是「擦除」，不是「光收回
+     * 去」。羽化用 `calc(100% - var(--glow-feather))` 写成定宽，这样缩小过程中
+     * 边缘的软硬程度不变。
+     */
+    -webkit-mask-image: radial-gradient(
+      circle calc(var(--glow-w) * var(--glow-reach, 1000px))
+        at var(--glow-x, 50%) var(--glow-y, 50%),
+      #000 calc(100% - var(--glow-feather, 70px)),
+      transparent 100%
+    );
+    mask-image: radial-gradient(
+      circle calc(var(--glow-w) * var(--glow-reach, 1000px))
+        at var(--glow-x, 50%) var(--glow-y, 50%),
+      #000 calc(100% - var(--glow-feather, 70px)),
+      transparent 100%
+    );
+    /*
+     * 退出方向（v0.7.13 §10.11）。CSS 的规矩：过渡用「变化之后」那一侧的声明，
+     * 所以基线规则管离开、`:hover` 那条管进入 —— 两个方向可以有完全不同的时长
+     * 与曲线，不必用一条曲线将就。
+     *
+     * **单靠缩半径不像「收回」。** 半径 1 → 0.32 确实是「圆的边界往回退」，
+     * 但 `--glow-r` 越小，暗角覆盖得越满 —— 四角的暗度会从 15% 一路涨到 46%
+     * （实测像素），光池收紧的同时整张封面在变暗，读成眨眼。单靠遮罩也不像：
+     * 遮罩先切掉的是外圈，而外圈正是暗角最深的地方，所以看起来只是「影子从
+     * 边上淡掉」，缺一口气。
+     *
+     * 两个一起用才对：`--glow-r` 负责把光池收紧（看得见的那件事），`--glow-w`
+     * 负责把泛起来的外圈裁掉（别让封面整体变暗）。A/B 两版同帧对照过，只裁
+     * 不收那版几乎看不出在动。
+     *
+     * `opacity` 那一行是「拖到最后再撒手」：1ms 时长 + 整个 retract 的延迟 ——
+     * 340ms 里一直保持 1（否则光还没收完就淡没了，收回等于白做），等窗口关完
+     * 才落到 0。落到 0 时画面里已经没东西了，所以这一步看不见。
+     */
+    --glow-w: 0;
+    transition:
+      opacity 1ms linear var(--motion-retract),
+      --glow-r var(--motion-retract) var(--motion-ease-retract),
+      --glow-w var(--motion-retract) var(--motion-ease-retract);
+  }
+
+  .group:hover .paper-light,
+  .group:focus-visible .paper-light {
+    opacity: 1;
+    --glow-r: 1;
+    /* 窗口在这一侧**不写进过渡**：进场没有「擦除」这回事，它必须瞬间全开
+       （0 → 1 一步到位），把漫开交给半径；过渡只给 opacity 与半径。 */
+    --glow-w: 1;
+    transition:
+      opacity var(--motion-fast) var(--motion-ease-out),
+      --glow-r var(--motion-glow) var(--motion-ease-spread);
+  }
+
+  .paper-shade {
+    /* 圆的半径 = 146% × 光圈。146% 是定稿时的取景：结束形状比封面大一圈，
+       四角才刚刚吃到满强度，所以 `--glow-r: 1` 的终态与上一版逐像素一致。
+       封面是正方形容器，椭圆两支相等的百分数就是正圆。 */
+    background-image: radial-gradient(
+      ellipse calc(var(--glow-r) * 146%) calc(var(--glow-r) * 146%)
+        at var(--glow-x, 50%) var(--glow-y, 50%),
+      transparent 18%,
+      hsl(26 46% 25% / 0.72)
+    );
+    mix-blend-mode: multiply;
+  }
+
+  .paper-core {
+    background-image: radial-gradient(
+      circle calc(var(--glow-r) * 150px) at var(--glow-x, 50%) var(--glow-y, 50%),
+      hsl(42 100% 95% / 0.42),
+      transparent 100%
+    );
+  }
+}
+
+/*
+ * 主题切换的过渡窗口（v0.7.10）。
+ *
+ * 点一下主题按钮，整站颜色是「啪」地换掉的：一屏米黄瞬间变成夜墨，夜里看着
+ * 刺眼。这里给 <html> 临时挂 180ms 的窗口，让背景 / 描边 / 文字 / 填充在窗口
+ * 内渐变，像熄灯 —— 窗口过了就摘掉，全站不常驻 `transition`。
+ *
+ * 为什么是「临时属性」而不是给 `*` 常驻过渡：
+ *   1. 常驻 `transition` 会让每一次渲染都付出过渡计算的开销，画布上有成百上千
+ *      个节点；
+ *   2. 更重要的是语义 —— 颜色本来就该瞬间换（悬停、选中），只有「整体换主题」
+ *      这一件事需要过程。
+ *
+ * 用属性而不是类：`<html>` 的 `class` 只有 `dark` 一个语义（`index.html` 的
+ * 内联脚本与 `theme.test.ts` 都依赖这一条），瞬时状态不该混进去。挂 / 摘由
+ * `lib/theme.ts` 的 `applyThemeTransitioned` 负责，值必须与 `--motion-base` 对齐。
+ *
+ * 三条 `!important`：要压过各组件自己的 `transition-colors`（120ms）与
+ * `transition-transform`，否则窗口内一半元素快一半元素慢，看着像闪烁。
+ * 代价窗口内 180ms 不做 transform 过渡 —— 那个瞬间没人会去拖抽屉。
+ */
+html[data-theme-transition],
+html[data-theme-transition] *,
+html[data-theme-transition] *::before,
+html[data-theme-transition] *::after {
+  transition:
+    background-color var(--motion-base) var(--motion-ease-in-out),
+    border-color var(--motion-base) var(--motion-ease-in-out),
+    color var(--motion-base) var(--motion-ease-in-out),
+    fill var(--motion-base) var(--motion-ease-in-out),
+    stroke var(--motion-base) var(--motion-ease-in-out),
+    box-shadow var(--motion-base) var(--motion-ease-in-out) !important;
+}
+
+/*
+ * 减少动态偏好（v0.7.10）。
+ *
+ * 前庭功能障碍影响约三分之一的中年以上人群，这不是可选项。全仓此前**一条
+ * `prefers-reduced-motion` 都没有** —— 也就是说系统里开着「减少动态效果」的
+ * 用户，进这个工坊仍然会被抽屉滑动、对话框淡入、卡片缩放推一遍。
+ *
+ * 用法是把时长压到接近 0 而不是 `display: none`：状态变化本身不能取消
+ * （否则点了没反应更糟），只是不再「演」。
+ *
+ * 三类必须保留：
+ *   - 加载中的转圈（`.animate-spin`）与骨架呼吸（`.animate-pulse`）—— 静止
+ *     等于告诉用户「卡死了」，反而更焦虑。放慢即可。
+ *   - 搜索命中高亮（`.highlight-fade`）—— 纯透明度、零位移，它是「匹配在哪」
+ *     的唯一信号。
+ *
+ * 这段必须留在 `.theme-transition` 之后：两者都带 `!important`，同权重时
+ * 后写的赢。
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .animate-spin {
+    animation-duration: 1.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .animate-pulse {
+    animation-duration: 2.4s !important;
+    animation-iteration-count: infinite !important;
+  }
+
+  .highlight-fade {
+    animation-duration: 1s !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  /*
+   * 长按进度环也保留（v0.7.11）：它不是装饰，是「还要按多久」的唯一信息来源。
+   * 压到 0.01ms 会让弧瞬间画满 —— 用户以为按一下就够了，实际松手就取消，
+   * 这个手势等于废掉。和转圈、骨架同理：静止不等于安静，等于坏了。
+   */
+  .press-ring-arc {
+    animation-duration: var(--press-ring-duration, 500ms) !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  /*
+   * 纸背光钉在正中（v0.7.10 §10）：跟随指针是运动，光圈长大也是运动，两样都收掉。
+   * 但**不能把光拿掉** —— 一张有光的静止封面是这张卡悬停时唯一的气质，删掉就
+   * 只剩一档阴影。这是静态替代，不是减法。
+   *
+   * 三种写法的区别：`--glow-x/--glow-y` 是组件写在**封面上**的内联变量，这里
+   * 在光层自己身上重新声明（且 `!important`），声明值永远胜过继承值，所以不必
+   * 去动那一行 JS。`--glow-r: 1` 让光圈一步到位（不再补间）。
+   * `--glow-w: 1 !important` 是 v0.7.13 加的，**不能漏**：基线规则里它是 0（收回
+   * 之后的状态），漏了它，减少动态的用户永远看不到这张卡的悬停光 —— 遮罩一直
+   * 关着，而且不会有任何报错。这里把它钉死在「全开」，进退都只走 opacity。
+   */
+  .paper-light {
+    --glow-x: 50% !important;
+    --glow-y: 50% !important;
+    --glow-r: 1 !important;
+    --glow-w: 1 !important;
+    /* 时长 / 曲线必须重写：基线规则里 opacity 那条带着 340ms 的延迟
+       （为了让收回看得见），在「减少动态」下会变成「等 340ms 再瞬间消失」。 */
+    transition: opacity var(--motion-fast) linear;
+  }
+
+  /*
+   * 主题过渡窗口那条规则带属性选择器，特异性高于上面的 `*` —— 同为
+   * `!important` 时它会赢，于是「减少动态」的用户反而会看到 180ms 的整站渐变。
+   * 这里显式压掉。
+   */
+  html[data-theme-transition],
+  html[data-theme-transition] *,
+  html[data-theme-transition] *::before,
+  html[data-theme-transition] *::after {
+    transition-duration: 0.01ms !important;
   }
 }

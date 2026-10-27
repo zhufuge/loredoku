@@ -368,7 +368,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         aria-hidden={!open}
         data-testid="puzzle-info-drawer"
         className={cn(
-          'absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l bg-background/95 shadow-lifted backdrop-blur transition-transform duration-200',
+          'absolute inset-y-0 right-0 flex w-80 max-w-[85vw] flex-col border-l bg-background/95 shadow-lifted backdrop-blur transition-transform duration-slow',
           open ? 'translate-x-0' : 'pointer-events-none translate-x-full',
         )}
         // FIX-N11 (docs/v0.5.3.md §6.4): shared layer constant.

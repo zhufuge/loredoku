@@ -813,13 +813,19 @@ export const GAME_DIFFICULTY_LABELS_ZH: Record<(typeof GAME_DIFFICULTY_LEVELS)[n
  * 会跳出 5 块亮色补丁。变量的两套取值定义在 `web/src/index.css`（竹青 → 芽绿 →
  * 赭黄 → 柿橙 → 绛，一根单向热力坡，不是五个分类色）。调用处是内联 style，
  * 所以这里只能是 `var(...)` 字符串，不参与任何服务端逻辑。
+ *
+ * v0.7.13：外面必须补一层 `hsl(...)`。`index.css` 里存的是 HSL **三元组**
+ * （`150 34% 92%`，与 `--background` 等所有 token 同一约定），而内联
+ * `background-color: var(--difficulty-*-bg)` 展开后是 `background-color: 150 34% 92%`
+ * —— 不是合法颜色值，浏览器整条丢弃，徽章就只剩文字、没有底色。`hsl()` 写在
+ * 这里而不是变量里，是为了不破坏「三元组供 `hsl(var(--x) / <alpha>)` 复用」的约定。
  */
 export const GAME_DIFFICULTY_COLORS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
-  veryEasy: 'var(--difficulty-very-easy-bg)',
-  easy: 'var(--difficulty-easy-bg)',
-  medium: 'var(--difficulty-medium-bg)',
-  hard: 'var(--difficulty-hard-bg)',
-  expert: 'var(--difficulty-expert-bg)',
+  veryEasy: 'hsl(var(--difficulty-very-easy-bg))',
+  easy: 'hsl(var(--difficulty-easy-bg))',
+  medium: 'hsl(var(--difficulty-medium-bg))',
+  hard: 'hsl(var(--difficulty-hard-bg))',
+  expert: 'hsl(var(--difficulty-expert-bg))',
 };
 
 /** FEAT-O01 §2.2: a tint needs a dark label — white on a tint was unreadable. */
@@ -827,11 +833,11 @@ export const GAME_DIFFICULTY_TEXT_COLORS: Record<
   (typeof GAME_DIFFICULTY_LEVELS)[number],
   string
 > = {
-  veryEasy: 'var(--difficulty-very-easy-fg)',
-  easy: 'var(--difficulty-easy-fg)',
-  medium: 'var(--difficulty-medium-fg)',
-  hard: 'var(--difficulty-hard-fg)',
-  expert: 'var(--difficulty-expert-fg)',
+  veryEasy: 'hsl(var(--difficulty-very-easy-fg))',
+  easy: 'hsl(var(--difficulty-easy-fg))',
+  medium: 'hsl(var(--difficulty-medium-fg))',
+  hard: 'hsl(var(--difficulty-hard-fg))',
+  expert: 'hsl(var(--difficulty-expert-fg))',
 };
 
 /** FEAT-G02: the default tier pre-selected in the deploy dialog. */

@@ -1,4 +1,4 @@
-import { Monitor, Moon, Sun } from 'lucide-react';
+import { Moon, Sun, SunMoon } from 'lucide-react';
 import { IconButton } from '@/components/ui/icon-button';
 import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
@@ -7,7 +7,7 @@ import type { ThemeMode } from '@/lib/theme';
 /**
  * 三态循环按钮 —— 浅色 → 深色 → 跟随系统 → 浅色。
  *
- * 图标表示**当前模式**（不是「点完会变成什么」）：跟随系统是 Monitor，手动选定
+ * 图标表示**当前模式**（不是「点完会变成什么」）：跟随系统是 SunMoon，手动选定
  * 的是太阳/月亮。这样扫一眼就知道自己是「跟着系统」还是「钉死了」，否则用户
  * 会在系统切外观时怀疑页面坏了。
  */
@@ -23,7 +23,7 @@ export interface ThemeToggleProps {
 
 export function ThemeToggle({ className }: ThemeToggleProps): JSX.Element {
   const { mode, resolved, cycle } = useTheme();
-  const Icon = mode === 'system' ? Monitor : resolved === 'dark' ? Moon : Sun;
+  const Icon = mode === 'system' ? SunMoon : resolved === 'dark' ? Moon : Sun;
   const label = `主题：${MODE_LABEL[mode]}（点击切换）`;
 
   return (
