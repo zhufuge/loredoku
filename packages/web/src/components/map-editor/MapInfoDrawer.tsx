@@ -30,7 +30,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { CoverPicker } from '@/components/common/CoverPicker';
-import { ColorField, Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
+import { ColorField } from '@/components/ui/color-input';
+import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
 import {
   clampCellSize,

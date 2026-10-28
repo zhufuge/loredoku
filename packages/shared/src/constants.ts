@@ -142,6 +142,18 @@ export const APPEARANCE_MODE_LABELS: Record<(typeof APPEARANCE_MODES)[number], s
 export const BG_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 /** Default colour of a freshly created colour block. */
 export const DEFAULT_BG_COLOR = '#FFFFFF';
+/**
+ * v0.7.13 (docs/v0.7.13.md §11): a character's **default participant colour**
+ * (`characters.color`). Distinct from `bgColor`: that one is how the character
+ * *looks* as a colour block, this one is the 主题色 it hands to a roster slot
+ * when it is 加入'd as a participant.
+ *
+ * `null` = no default, the slot keeps `DEFAULT_THEME_COLOR`. **白 = 未指定**
+ * （§11.4）：取色器常驻，没有复选框，白色就是它显示「没指定」的那个颜色，
+ * 于是白色不落库 —— 代价是一个角色无法要求「白色槽位」，而它本来也区分不出
+ * 「指定白」和「没指定」。
+ */
+export const CHARACTER_COLOR_PATTERN = BG_COLOR_PATTERN;
 
 // ---- MapEntry ----
 export const MAP_NAME_MAX_LENGTH = 100;
@@ -495,6 +507,16 @@ export const ITEM_PADDING_MAX = 12;
 export const ITEM_HOVER_LIFT_PX = 4;
 export const ITEM_HOVER_TRANSITION_MS = 120;
 
+// ---- v0.7.13 物品名称提示（docs/v0.7.13.md §2） ----
+/**
+ * 悬停多久之后报出物品名称。
+ *
+ * 比全站 Tooltip 的 320ms 慢三倍多，这是**故意的**：墙面上的物品是按格密排的，
+ * 320ms 会让扫过去一眼变成「提示雨」；而这里要回答的是「这个画的是什么东西」，
+ * 是一个停下来的动作，不是在找按钮。1s 恰好把「路过」和「在看」分开。
+ */
+export const ITEM_NAME_TIP_DELAY_MS = 1000;
+
 // ---- v0.7.5 物品展示变换（docs/v0.7.5.md §3） ----
 /**
  * 已放置物品的**展示**变换：等比例缩放 + 按格偏移。
@@ -617,6 +639,13 @@ export const PARTICIPANT_SEQ_INSET = 0;
  * taking over the slot's corner.
  */
 export const PARTICIPANT_DISPLAY_NUMBER_MAX = 6;
+/**
+ * v0.7.13 (docs/v0.7.13.md §11): `characters.display_name` — the 编号 a
+ * character brings into a roster slot. Same bound as
+ * {@link PARTICIPANT_DISPLAY_NUMBER_MAX} because it lands on the same badge;
+ * the two must never drift apart or a saved default would be rejected on save.
+ */
+export const CHARACTER_DISPLAY_NAME_MAX = PARTICIPANT_DISPLAY_NUMBER_MAX;
 
 // ---- v0.6.3 参与者布局（docs/v0.6.3.md §3） ----
 /**

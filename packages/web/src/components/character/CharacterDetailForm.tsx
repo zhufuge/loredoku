@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import type { AppearanceMode, Character, CharacterGender } from '@loredoku/shared';
 import {
   CHARACTER_AVATAR_MAX_DIMENSION,
+  CHARACTER_DISPLAY_NAME_MAX,
   CHARACTER_GENDERS,
   CHARACTER_GENDER_GLYPHS,
   CHARACTER_GENDER_LABELS,
   DEFAULT_BG_COLOR,
+  DEFAULT_THEME_COLOR,
   GENDER_SYMBOL_COLORS,
   hasAppearance,
 } from '@loredoku/shared';
@@ -20,6 +22,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
+import { ColorField } from '@/components/ui/color-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,6 +53,15 @@ export function CharacterDetailForm({
     character.bgColor ? 'color' : 'image',
   );
   const [bgColor, setBgColor] = useState(character.bgColor ?? DEFAULT_BG_COLOR);
+  /**
+   * v0.7.13：参与者默认值。这两项和 `bgColor` 没关系 —— 那个是角色自己的长相。
+   *
+   * 主题色**不是一个开关**：取色器常驻，白色就是「没指定」（§11.4），所以初值
+   * 是 `character.color ?? DEFAULT_THEME_COLOR`，而白色会在 schema 那一层塌成
+   * `null`、不落库。这里只管显示，不重复那条规则。
+   */
+  const [color, setColor] = useState(character.color ?? DEFAULT_THEME_COLOR);
+  const [displayName, setDisplayName] = useState(character.displayName ?? '');
   const [confirmDeleteAvatar, setConfirmDeleteAvatar] = useState(false);
 
   const updateMutation = useUpdateCharacter();
@@ -57,13 +69,27 @@ export function CharacterDetailForm({
   const deleteAvatarMutation = useDeleteCharacterAvatar();
   const activeMutation = useSetCharacterActive();
 
+  /**
+   * 只在**换了一个角色**时用服务器值重置表单。
+   *
+   * v0.7.13 fix：这里原本还依赖 `character.updatedAt`，本意是「保存后以服务器
+   * 为准」，副作用却是**任何一次重取都会把用户没保存的输入冲掉**：上传头像、
+   * 启用、停用都会 `invalidate`，`updatedAt` 一变，纯色角色的 `appearanceMode`
+   * 就被按回 `character.bgColor ? 'color' : 'image'` —— 于是「传完图片提示成功、
+   * 外观却跳回纯色块」。改名后点「停用」，名字同样会悄悄回滚。
+   *
+   * 表单是**用户正在编辑的草稿**，不该被后台刷新覆盖；以记录 id 为界更符合它的
+   * 语义（换记录 = 换内容，同一条记录的刷新 = 别的按钮干的活）。
+   */
   useEffect(() => {
     setName(character.name);
     setGender(character.gender ?? 'male');
     setDescription(character.description ?? '');
     setAppearanceMode(character.bgColor ? 'color' : 'image');
     setBgColor(character.bgColor ?? DEFAULT_BG_COLOR);
-  }, [character.id, character.updatedAt]);
+    setColor(character.color ?? DEFAULT_THEME_COLOR);
+    setDisplayName(character.displayName ?? '');
+  }, [character.id]);
 
   // v0.5.1 FEAT-L02: an uploaded avatar **or** a colour block can be activated.
   const activatable = hasAppearance(Boolean(character.avatarUrl), character.bgColor);
@@ -77,6 +103,10 @@ export function CharacterDetailForm({
         description: description.trim() || null,
         // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
         bgColor: appearanceMode === 'color' ? bgColor : null,
+        // v0.7.13: 参与者默认值。白色 = 没有默认（schema 那一层塌成 null），
+        // 编号留空同理 —— 清掉就是真的清掉，不是「留空表示不改」。
+        color,
+        displayName: displayName.trim() || null,
       },
     });
   };
@@ -186,6 +216,33 @@ export function CharacterDetailForm({
           />
         </div>
 
+        {/*
+         * v0.7.13：参与者默认值。
+         *
+         * 这两项不描述角色长什么样，而是「这个角色被 加入 到谜题参与者区时，
+         * 槽位的主题色 / 编号该是什么」。
+         *
+         * 主题色**没有开关**：取色器常驻，白色表示「没指定」—— 槽位本来就是
+         * 白的，把白色当成未指定，界面上少一个「勾不勾」的判断，库里也少存
+         * 一行默认值（§11.4）。
+         */}
+        <div className="grid gap-2">
+          <Label>默认主题色</Label>
+          <ColorField value={color} commit={setColor} label="默认主题色" />
+        </div>
+
+        <div className="grid gap-2">
+          <Label htmlFor="character-display-name">默认编号</Label>
+          <Input
+            id="character-display-name"
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            maxLength={CHARACTER_DISPLAY_NAME_MAX}
+            className="max-w-sm"
+            data-testid="default-display-name-input"
+          />
+        </div>
+
         {/* v0.5.1 FEAT-L02 / SPEC-L03: 「头像」区升级为「外观」区。 */}
         <AppearanceField
           mode={appearanceMode}
@@ -199,7 +256,15 @@ export function CharacterDetailForm({
             maxDimension={CHARACTER_AVATAR_MAX_DIMENSION}
             uploading={uploadMutation.isPending}
             deleting={deleteAvatarMutation.isPending}
-            onUpload={(file) => uploadMutation.mutate({ id: character.id, file })}
+            onUpload={(file) =>
+              uploadMutation.mutate(
+                { id: character.id, file },
+                // v0.7.13 fix: 传完就站在图片这一侧。角色可能原本是纯色块，
+                // 用户切到「图片」+ 上传就是想把外观换成图 —— 上传成功后再让
+                // 他把模式手动点一遍是多余的一步。真正的落库仍等他按「保存」。
+                { onSuccess: () => setAppearanceMode('image') },
+              )
+            }
             onDelete={() => setConfirmDeleteAvatar(true)}
           />
         </AppearanceField>

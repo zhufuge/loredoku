@@ -74,12 +74,17 @@ export function AssetVariantCard({
   const uploadMutation = useUploadAssetVariantImage();
   const deleteImageMutation = useDeleteAssetVariantImage();
 
+  /**
+   * 只在换成**另一个形态**时用服务器值重置表单 —— 理由同 `CharacterDetailForm`
+   * （v0.7.13 fix）：上传图片会让 query 失效重取，若跟着 `updatedAt` 重置，
+   * 纯色形态会立刻被按回 `bgColor ? 'color' : 'image'`，刚传上去的图看不见。
+   */
   useEffect(() => {
     setName(variant.name);
     setFitMode(variant.fitMode);
     setAppearanceMode(variant.bgColor ? 'color' : 'image');
     setBgColor(variant.bgColor ?? DEFAULT_BG_COLOR);
-  }, [variant.id, variant.updatedAt]);
+  }, [variant.id]);
 
   const saving = updateMutation.isPending;
 
@@ -170,7 +175,11 @@ export function AssetVariantCard({
                 uploading={uploadMutation.isPending}
                 deleting={deleteImageMutation.isPending}
                 onUpload={(file) =>
-                  uploadMutation.mutate({ assetId: asset.id, variantId: variant.id, file })
+                  uploadMutation.mutate(
+                    { assetId: asset.id, variantId: variant.id, file },
+                    // v0.7.13 fix: 传完就站在图片这一侧，别把纯色形态又切回去。
+                    { onSuccess: () => setAppearanceMode('image') },
+                  )
                 }
                 onDelete={() => setConfirmDeleteImage(true)}
               />

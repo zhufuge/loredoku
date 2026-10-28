@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ColorInput } from '@/components/ui/color-input';
-import { isValidStyleColor } from '@/lib/mapStyle';
+/** v0.7.13: `ColorField` 搬到 `@/components/ui/color-input`，两处抽屉改从那儿取。 */
 
 /**
  * v0.7.0: the number / colour controls the two info drawers share.
@@ -101,54 +100,6 @@ export function NumberField({
         className="h-7 w-16 text-xs tabular-nums"
       />
       {suffix ? <span className="text-2xs text-muted-foreground">{suffix}</span> : null}
-    </div>
-  );
-}
-
-/**
- * v0.3.10 FIX-F04: the colour swatch is the shared `ColorInput` — borderless,
- * with only a hairline ring so light swatches stay visible.
- */
-export function ColorField({
-  id,
-  value,
-  commit,
-}: {
-  id: string;
-  value: string;
-  commit: (value: string) => void;
-}): JSX.Element {
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  const flush = (): void => {
-    if (isValidStyleColor(draft)) commit(draft.trim().toUpperCase());
-    else setDraft(value);
-  };
-
-  return (
-    <div className="flex items-center gap-1">
-      <ColorInput
-        id={id}
-        value={isValidStyleColor(value) ? value : '#000000'}
-        onChange={(next) => {
-          setDraft(next);
-          commit(next);
-        }}
-        aria-label="选择颜色"
-      />
-      <Input
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={flush}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter') {
-            event.preventDefault();
-            flush();
-          }
-        }}
-        className="h-7 w-24 font-mono text-2xs"
-      />
     </div>
   );
 }

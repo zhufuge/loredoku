@@ -166,7 +166,7 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 
 ### 1.6 动效（v0.7.10）
 
-取值在 `index.css` 的 `:root`，映射在 `tailwind.config.ts`。**时长按用途分，不是按数值分**（`glow` / `retract` 是 v0.7.13 补的第五、六档）：
+取值在 `index.css` 的 `:root`，映射在 `tailwind.config.ts`。**时长按用途分，不是按数值分**（`glow` / `retract` 是 v0.7.12 补的第五、六档）：
 
 | Token | 值 | 用途 |
 |---|---|---|
@@ -185,7 +185,7 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 | `--motion-ease-spread` | `cubic-bezier(0.33, 0, 0.25, 1)` | 扩散：从一点摊开成一整片（起手匀、收尾长），只给光圈用 |
 | `--motion-ease-retract` | `cubic-bezier(0.4, 0, 0.7, 1)` | 收回：起步轻、收尾缓慢停住，只给光圈用（不用「到终点仍全速」的加速曲线，那看起来像被剪断） |
 
-三条硬约定：
+硬约定：
 
 1. **裸写 `transition-colors` 就是对的**。`transitionDuration.DEFAULT` 与
    `transitionTimingFunction.DEFAULT` 都指向 token，全站 41 处裸写因此自动统一。
@@ -203,6 +203,10 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
    都有算术天花板（`soft-light` 最亮只到 `sqrt(Cb)`，93% 亮的纸最多抬 3 个色阶），
    往里叠白光只会得到一层灰纱。正确做法是 `multiply` 一层暖色暗角把周围压下去，
    再用一个小半径的近白热斑点住光心 —— **对比度给出「光」，白光本身给不出**。
+6. **提示的等待分两档，按「在找」还是「在看」分**（v0.7.13 §2）。找按钮是 320ms
+   （`tooltip.tsx` 的 `delayDuration`）；看画面上那件东西是什么是 1000ms
+   （`ITEM_NAME_TIP_DELAY_MS`）。密排的目标不能用找按钮的节奏 —— 鼠标扫过去会下起
+   提示雨，每一张都在你走开之后才长出来。
 
 `prefers-reduced-motion` 在 `index.css` 末尾统一兜底；只要往仓库里加新动画，就该确认它落进
 了那条规则（尤其是带属性选择器、特异性较高的新规则）。保留项：`.animate-spin`（放慢）、
@@ -233,7 +237,7 @@ UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }
 | `alert-dialog` | — | 破坏性操作专用，二段式确认 |
 | `skeleton` | — | 加载占位，列表页在 `isLoading` 时铺。**不要自己写 `animate-pulse`**：组件里的 `load-skeleton` 已经带了「迟到 200ms + 呼吸」（v0.7.12 §9） |
 | `icon-button` | — | **纯图标按钮的唯一写法**（v0.7.9 §5）。`label` 同时当悬浮提示和 `aria-label`，`shortcut` 挂在提示右侧，`side` 决定方向（底栏用 `top`） |
-| `tooltip` | — | Radix Tooltip，**自带 Provider**（缺 Provider 会抛错）。portal 到 body，因此能穿过 `overflow-hidden` 的面板；`z-[60]`（压在 `z-50` 的对话框之上，不靠挂载顺序）；提示文案是 `text-2xs` + `shadow-lifted` |
+| `tooltip` | — | Radix Tooltip，**自带 Provider**（缺 Provider 会抛错）。portal 到 body，因此能穿过 `overflow-hidden` 的面板；`z-[60]`（压在 `z-50` 的对话框之上，不靠挂载顺序）；提示文案是 `text-2xs` + `shadow-lifted`。那张纸片的类名是导出的 `TOOLTIP_SURFACE_CLASS` —— 画布上的物品名称提示不走 Radix（物品层在多数页面是 `pointer-events: none`），但取同一层皮，改提示长相只改这一处（v0.7.13 §3） |
 | `sonner` | — | toast，`toast.success('图片已上传')` 这类句式 |
 | `virtual-list` | — | 长列表虚拟化（资源 / 角色面板） |
 

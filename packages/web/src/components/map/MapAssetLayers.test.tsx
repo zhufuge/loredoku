@@ -1,6 +1,6 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Asset, AssetVariant } from '@loredoku/shared';
 import type { CellMap } from '@/lib/canvasLayers';
 import { MapBackgroundLayer, MapItemLayer } from './MapAssetLayers';
@@ -334,5 +334,191 @@ describe('层 4 · 物品层 — 展示变换（v0.7.5）', () => {
     const box = paint(new Map([['2,0', { item: { assetId: 1, w: 1, h: 1, scale: 0.5 } }]]));
     expect(box?.style.left).toBe('225px');
     expect(box?.style.width).toBe('50px');
+  });
+});
+
+/**
+ * v0.7.13 (docs/v0.7.13.md §2) — 悬停 1s 报出物品名称。
+ *
+ * 三件事要分开验：**等够 1s 才出现**（快扫过不弹）、**换了物品就立刻收**（名字
+ * 不能错挂在邻居头上）、**贴着画布边也不被切**（第一行翻到下方，最左/最右列贴边）。
+ */
+describe('层 4 · 物品层 — 名称提示（v0.7.13 §2）', () => {
+  const lamp: Asset = { ...item(7, { imageUrl: '/uploads/lamp.png' }), name: '油灯' };
+  const barrel: Asset = { ...item(8, { imageUrl: '/uploads/barrel.png' }), name: '木桶' };
+  const byId = new Map<number, Asset>([
+    [7, lamp],
+    [8, barrel],
+  ]);
+
+  /** 6×6 的画布，两件物品分置左右，中间留空。 */
+  const cells: CellMap = new Map([
+    ['1,1', { item: { assetId: 7, w: 1, h: 1 } }],
+    ['3,1', { item: { assetId: 8, w: 1, h: 1 } }],
+  ]);
+
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    vi.useRealTimers();
+  });
+
+  function paint(
+    options: {
+      hover?: { x: number; y: number } | null;
+      gridSize?: number;
+      showNameOnHover?: boolean;
+      map?: CellMap;
+    } = {},
+  ): void {
+    act(() => {
+      root.render(
+        <MapItemLayer
+          cells={options.map ?? cells}
+          assetsById={byId}
+          cellSize={100}
+          gridSize={options.gridSize ?? 6}
+          hover={options.hover ?? null}
+          showNameOnHover={options.showNameOnHover}
+        />,
+      );
+    });
+  }
+
+  function wait(ms: number): void {
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+  }
+
+  function tip(): HTMLElement | null {
+    return container.querySelector<HTMLElement>('[data-testid="item-name-tip"]');
+  }
+
+  it('stays silent until a full second has passed', () => {
+    paint({ hover: { x: 1, y: 1 } });
+    expect(tip()).toBeNull();
+    wait(999);
+    expect(tip()).toBeNull();
+    wait(1);
+    expect(tip()?.textContent).toBe('油灯');
+  });
+
+  it('reports the item under the pointer, not its neighbour', () => {
+    paint({ hover: { x: 3, y: 1 } });
+    wait(1000);
+    expect(tip()?.textContent).toBe('木桶');
+  });
+
+  it('drops the old name the moment the pointer moves to another item', () => {
+    paint({ hover: { x: 1, y: 1 } });
+    wait(1000);
+    expect(tip()?.textContent).toBe('油灯');
+
+    paint({ hover: { x: 3, y: 1 } });
+    // 不推进时间：上一件的名字必须当场消失，不能挂在新物品头上蹭一秒。
+    expect(tip()).toBeNull();
+    wait(1000);
+    expect(tip()?.textContent).toBe('木桶');
+  });
+
+  it('does not restart from a stale timer after leaving and coming back', () => {
+    paint({ hover: { x: 1, y: 1 } });
+    wait(800);
+    paint({ hover: null });
+    wait(500);
+    expect(tip()).toBeNull();
+    // 回来要重新数满 1s，不是把上次剩下的 200ms 接着用。
+    paint({ hover: { x: 1, y: 1 } });
+    wait(800);
+    expect(tip()).toBeNull();
+    wait(200);
+    expect(tip()?.textContent).toBe('油灯');
+  });
+
+  it('says nothing over an empty cell', () => {
+    paint({ hover: { x: 2, y: 2 } });
+    wait(3000);
+    expect(tip()).toBeNull();
+  });
+
+  it('can be switched off', () => {
+    paint({ hover: { x: 1, y: 1 }, showNameOnHover: false });
+    wait(3000);
+    expect(tip()).toBeNull();
+  });
+
+  it('floats above the item, and below it on the top row', () => {
+    paint({ hover: { x: 1, y: 1 } });
+    wait(1000);
+    expect(tip()?.style.bottom).toBe('calc(100% + 6px)');
+    expect(tip()?.style.top).toBe('');
+
+    paint({ hover: { x: 1, y: 0 }, map: new Map([['1,0', { item: { assetId: 7, w: 1, h: 1 } }]]) });
+    wait(1000);
+    expect(tip()?.style.top).toBe('calc(100% + 6px)');
+    expect(tip()?.style.bottom).toBe('');
+  });
+
+  it('centres the tip, and hugs the canvas edge in the first / last column', () => {
+    paint({ hover: { x: 1, y: 1 } });
+    wait(1000);
+    // 百分比而不是像素：绝对定位贴着 padding box，用 rect.width / 2 会差一个 padding。
+    expect(tip()?.style.transform).toBe('translateX(-50%)');
+    expect(tip()?.style.left).toBe('50%');
+
+    paint({ hover: { x: 0, y: 1 }, map: new Map([['0,1', { item: { assetId: 7, w: 1, h: 1 } }]]) });
+    wait(1000);
+    // 贴着左边：不位移，左边缘对齐物品（也就是画布）左边缘。
+    expect(tip()?.style.transform).toBe('');
+    expect(tip()?.style.left).toBe('0px');
+
+    paint({ hover: { x: 5, y: 1 }, map: new Map([['5,1', { item: { assetId: 7, w: 1, h: 1 } }]]) });
+    wait(1000);
+    // 贴着右边：以右边缘为准往左长；物品没越界，所以不退。
+    expect(tip()?.style.transform).toBe('translateX(-100%)');
+    expect(tip()?.style.left).toBe('calc(100% - 0px)');
+  });
+
+  it('pulls the tip back inside when a transform pushed the item past the edge', () => {
+    // offsetX 以格为单位：左移一格后，物品左边缘已经在画布之外（-100px）。
+    paint({
+      hover: { x: 0, y: 1 },
+      map: new Map([['0,1', { item: { assetId: 7, w: 1, h: 1, offsetX: -1 } }]]),
+    });
+    wait(1000);
+    expect(tip()?.style.left).toBe('100px');
+
+    // 右移两格后右边缘越界 200px，纸片整体往左让。
+    paint({
+      hover: { x: 5, y: 1 },
+      map: new Map([['5,1', { item: { assetId: 7, w: 1, h: 1, offsetX: 2 } }]]),
+    });
+    wait(1000);
+    expect(tip()?.style.transform).toBe('translateX(-100%)');
+    expect(tip()?.style.left).toBe('calc(100% - 200px)');
+  });
+
+  it('is a tip, not a target: it never eats pointer events', () => {
+    paint({ hover: { x: 1, y: 1 } });
+    wait(1000);
+    // 提示压在物品自己身上，能吃掉指针事件就等于把物品的点击挡了。
+    expect(tip()?.classList.contains('pointer-events-none')).toBe(true);
+    expect(tip()?.getAttribute('role')).toBe('tooltip');
+  });
+
+  it('no longer leans on the browser title', () => {
+    paint({ hover: { x: 1, y: 1 } });
+    expect(container.querySelector('[title]')).toBeNull();
   });
 });

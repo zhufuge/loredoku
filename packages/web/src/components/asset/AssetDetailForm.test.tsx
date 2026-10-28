@@ -130,4 +130,21 @@ describe('AssetDetailForm — 形态管理区（v0.6.1 §8.4）', () => {
     expect(buttonByText('保存形态')).toBeUndefined();
     expect(container.querySelector('[aria-label="展开形态"]')).not.toBeNull();
   });
+
+  /**
+   * v0.7.13 fix：启用 / 停用、增删形态都会让资源重取（`updatedAt` 变），
+   * 表单不该跟着回滚 —— 否则「改完名字点了停用，名字自己变回去」。
+   */
+  it('keeps an unsaved rename when the asset refreshes', () => {
+    render(asset([variant(11, 1)]));
+    const input = container.querySelector<HTMLInputElement>('input');
+    // React 的 value tracker 会吞掉直接赋值，要走原型上的 setter。
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    setter?.call(input, '改名之后');
+    act(() => input?.dispatchEvent(new Event('input', { bubbles: true })));
+
+    render(asset([variant(11, 1)], { updatedAt: '2026-01-02T00:00:00.000Z' }));
+
+    expect(container.querySelector<HTMLInputElement>('input')?.value).toBe('改名之后');
+  });
 });

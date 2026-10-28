@@ -138,6 +138,19 @@ export interface Character {
   avatarThumbUrl: string | null;
   /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bgColor: string | null;
+  /**
+   * v0.7.13 (docs/v0.7.13.md §11): the 主题色 this character brings into a
+   * roster slot when it is 加入'd as a participant; `null` = no default, the
+   * slot falls back to `DEFAULT_THEME_COLOR`. It is **not** the character's
+   * own look — that is `bgColor`.
+   */
+  color: string | null;
+  /**
+   * v0.7.13 (docs/v0.7.13.md §11): the 编号 shown in the slot badge instead of
+   * the sequence number; `null` = no default. Bounded by
+   * {@link CHARACTER_DISPLAY_NAME_MAX}.
+   */
+  displayName: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

@@ -331,6 +331,65 @@ describe('character roster', () => {
   });
 });
 
+/**
+ * v0.7.13（docs/v0.7.13.md §11）—— 角色的 `color` / `displayName` 在「加入」
+ * 这一刻抄进槽位。
+ *
+ * 关键在于**只在有值时覆盖**：绝大多数角色两个字段都是 `null`，那必须得到和
+ * 今天完全一样的槽位（白色 + 无 `displayNumber` 键），否则老谜题的存档会变。
+ */
+describe('assignSlot 套用角色默认值（v0.7.13 §11）', () => {
+  it('不传默认值 = 今天的行为：白色主题色，没有 displayNumber 键', () => {
+    store().assignSlot(9);
+    const slot = store().characterSlots[0]!;
+    expect(slot.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(slot).not.toHaveProperty('displayNumber');
+  });
+
+  it('两个 null 与不传等价', () => {
+    store().assignSlot(9, { themeColor: null, displayNumber: null });
+    expect(store().characterSlots[0]!.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(store().characterSlots[0]!).not.toHaveProperty('displayNumber');
+  });
+
+  it('有值的两项都抄进槽位', () => {
+    store().assignSlot(9, { themeColor: '#AABBCC', displayNumber: '甲' });
+    const slot = store().characterSlots[0]!;
+    expect(slot.themeColor).toBe('#AABBCC');
+    expect(slot.displayNumber).toBe('甲');
+  });
+
+  it('只给主题色，编号照旧缺席；只给编号，主题色照旧是白', () => {
+    store().assignSlot(9, { themeColor: '#AABBCC' });
+    expect(store().characterSlots[0]!.displayNumber).toBeUndefined();
+
+    store().assignSlot(4, { displayNumber: '乙' });
+    expect(store().characterSlots[1]!.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(store().characterSlots[1]!.displayNumber).toBe('乙');
+  });
+
+  it('空白字符串当作「没有默认」，不落一个空角标', () => {
+    store().assignSlot(9, { themeColor: '   ', displayNumber: '   ' });
+    expect(store().characterSlots[0]!.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(store().characterSlots[0]!).not.toHaveProperty('displayNumber');
+  });
+
+  it('默认值是副本：加入之后改角色不再影响槽位', () => {
+    store().assignSlot(9, { themeColor: '#AABBCC', displayNumber: '甲' });
+    // 参与者抽屉里改掉 —— 槽位自己的值，改完就是改完。
+    store().setParticipantConfig(0, {
+      themeColor: '#000000',
+      clue: '',
+      linkages: [],
+      positionConditions: [],
+      displayNumber: '',
+    });
+    const slot = store().characterSlots[0]!;
+    expect(slot.themeColor).toBe('#000000');
+    expect(slot).not.toHaveProperty('displayNumber');
+  });
+});
+
 describe('linkage palette (Q16: the puzzle owns it now)', () => {
   it('setLinkageColors replaces the palette in one undoable step', () => {
     const baseline = store().past.length;

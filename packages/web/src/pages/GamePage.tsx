@@ -1327,6 +1327,7 @@ export function GamePage(): JSX.Element {
               cells={cells}
               assetsById={assetsById}
               cellSize={cellSize}
+              gridSize={gridSize}
               padding={itemPadding(cellSize)}
               hover={hover}
             />

@@ -23,6 +23,10 @@ export interface CreateCharacterData {
   description: string | null;
   /** v0.5.1 FEAT-L02: colour-block colour; `null` / omitted = image mode. */
   bgColor?: string | null;
+  /** v0.7.13: 主题色 handed to a roster slot; `null` / omitted = no default. */
+  color?: string | null;
+  /** v0.7.13: 编号 handed to a roster slot; `null` / omitted = no default. */
+  displayName?: string | null;
   /**
    * v0.5.3 FEAT-N06: create enabled when the caller already supplied an
    * appearance; omitted keeps the OPT-305 default (`false`).
@@ -36,6 +40,10 @@ export interface UpdateCharacterData {
   description?: string | null;
   /** v0.5.1 FEAT-L02: `null` clears the colour block (back to image mode). */
   bgColor?: string | null;
+  /** v0.7.13: `null` clears the participant 主题色 default. */
+  color?: string | null;
+  /** v0.7.13: `null` clears the participant 编号 default. */
+  displayName?: string | null;
   isActive?: boolean;
 }
 
@@ -50,6 +58,11 @@ function toCharacter(row: CharacterRow): Character {
     avatarUrl: row.avatar_path ? buildFileUrl(row.avatar_path) : null,
     avatarThumbUrl: row.avatar_path ? buildThumbUrl(row.avatar_path) : null,
     bgColor: row.bg_color ?? null,
+    // v0.7.13: the participant defaults. `?? null` also covers rows written
+    // before the columns existed — a `select('*')` on an old row simply has no
+    // such key, and "no default" is exactly the pre-v0.7.13 behaviour.
+    color: row.color ?? null,
+    displayName: row.display_name ?? null,
     isActive: row.is_active,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
@@ -90,6 +103,9 @@ export async function create(data: CreateCharacterData): Promise<number> {
       gender: data.gender,
       description: data.description,
       bg_color: data.bgColor ?? null,
+      // v0.7.13: participant defaults; omitted = `null` = "no default".
+      color: data.color ?? null,
+      display_name: data.displayName ?? null,
       // OPT-305: 新建角色未上传头像，初始状态为停用。
       // v0.5.3 FEAT-N06: 上传了头像或选了纯色块 → 直接启用。
       is_active: data.isActive ?? false,
@@ -104,6 +120,8 @@ export async function update(id: number, data: UpdateCharacterData): Promise<boo
   if (data.gender !== undefined) patch.gender = data.gender;
   if (data.description !== undefined) patch.description = data.description;
   if (data.bgColor !== undefined) patch.bg_color = data.bgColor;
+  if (data.color !== undefined) patch.color = data.color;
+  if (data.displayName !== undefined) patch.display_name = data.displayName;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
   const affected = await db('characters').where({ id }).update(patch);
   return affected > 0;

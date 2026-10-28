@@ -81,6 +81,7 @@ npm run build && npm start # 生产模式：后端 3000 直接托管前端构建
 ## 相关文档
 
 - [`docs/`](./docs) —— 逐版需求文档
+- [`docs/data-json.md`](./docs/data-json.md) —— 地图 / 谜题 `data` JSON 的结构参考（字段、取值、默认值、校验、导入导出）。
 - [`docs/map-management-and-editor.md`](./docs/map-management-and-editor.md) —— 地图管理页与地图编辑器的功能说明（页面结构、每个控件的含义与取值范围、发布校验、快捷键）。
 - [`docs/layer-priority.md`](./docs/layer-priority.md) —— 画布图层命名与 z-index 次序的唯一权威。
 - [`AGENTS.md`](./AGENTS.md) —— 给本仓库写代码（人或 AI Agent）的操作手册：常用命令、测试手法、代码约定与踩过的坑。

@@ -15,7 +15,8 @@ import {
   clampRegionLabelFont,
   clampRegionLabelStroke,
 } from '@/lib/mapStyle';
-import { ColorField, Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
+import { ColorField } from '@/components/ui/color-input';
+import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import { fontFamilyOptions, hasBundledFonts } from '@/lib/fonts';
 import { Select } from '@/components/ui/select';
 

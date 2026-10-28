@@ -513,6 +513,7 @@ export function PuzzleViewPage(): JSX.Element {
               cells={cells}
               assetsById={assetsById}
               cellSize={cellSize}
+              gridSize={gridSize}
               // OPT-C06: object artwork is inset inside its footprint.
               padding={itemPadding(cellSize)}
               hover={hover}

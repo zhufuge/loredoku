@@ -13,6 +13,7 @@
 - `packages/web`：Vite + React 18 + Zustand + TanStack Query + shadcn/ui。
 - `docs/`：逐版需求文档（`v0.1.0` ~ `v0.5.9`），**每版文档最后一节是落点表 / 实现期裁定 / 验证证据 / 交付标准对照** —— 动手前先读对应版本的文档。
 - `docs/map-management-and-editor.md`：地图管理页与地图编辑器的**功能说明**（当前状态，不是需求）。要确认某个控件 / 规则的现状看它，别从旧版需求文档里推断。
+- `docs/data-json.md`：`maps.data` / `puzzles.data` 的 **JSON 结构参考**（字段、范围、默认值、版本史、导入导出行为）。手写或解析这份 JSON 前先看它。
 - `docs/layer-priority.md`：画布图层命名与次序的**唯一权威**。
 
 ---

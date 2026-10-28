@@ -89,6 +89,10 @@ export interface CharacterRow {
   avatar_path: string | null;
   /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
+  /** v0.7.13: default 主题色 handed to a roster slot; `null` = no default. */
+  color: string | null;
+  /** v0.7.13: default 编号 handed to a roster slot; `null` = no default. */
+  display_name: string | null;
   is_active: boolean;
   created_at: Date | string;
   updated_at: Date | string;

@@ -1,4 +1,6 @@
-import { forwardRef } from 'react';
+import { forwardRef, useEffect, useState } from 'react';
+import { BG_COLOR_PATTERN } from '@loredoku/shared';
+import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 /**
@@ -46,3 +48,61 @@ export const ColorInput = forwardRef<HTMLInputElement, ColorInputProps>(function
     />
   );
 });
+
+/**
+ * 取色器 + hex 文本框，成对出现。
+ *
+ * v0.7.13：从 `components/map-editor/StyleFields` 搬到这里 —— 角色页的「默认
+ * 主题色」要同一副面孔，而角色页不该从 map-editor 里借控件。
+ *
+ * 文本框是**草稿**：一边打字一边要把非法中间态留在框里（`#f`、`#ff00`），
+ * 只在失焦 / 回车时提交；提交不合法就回滚到当前值。取色器则即时生效，它给的
+ * 一定是一个完整颜色。
+ */
+export function ColorField({
+  id,
+  value,
+  commit,
+  label = '选择颜色',
+}: {
+  id?: string;
+  value: string;
+  commit: (value: string) => void;
+  /** 取色器的无障碍名 —— 一个表单里可能有两个取色器。 */
+  label?: string;
+}): JSX.Element {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+
+  const flush = (): void => {
+    if (BG_COLOR_PATTERN.test(draft.trim())) commit(draft.trim().toUpperCase());
+    else setDraft(value);
+  };
+
+  return (
+    <div className="flex items-center gap-1">
+      <ColorInput
+        id={id}
+        value={BG_COLOR_PATTERN.test(value) ? value : '#000000'}
+        onChange={(next) => {
+          setDraft(next);
+          commit(next);
+        }}
+        aria-label={label}
+      />
+      <Input
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={flush}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            flush();
+          }
+        }}
+        className="h-7 w-24 font-mono text-2xs"
+        aria-label={`${label}（hex）`}
+      />
+    </div>
+  );
+}

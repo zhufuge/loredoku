@@ -43,6 +43,20 @@ export type PuzzleSelection =
   | { type: 'cell'; x: number; y: number }
   | { type: 'region'; regionId: string };
 
+/**
+ * v0.7.13 (docs/v0.7.13.md §11): what a character carries into a roster slot.
+ *
+ * Both fields are nullable and both mean "no default" when null — the slot then
+ * falls back to `DEFAULT_THEME_COLOR` / the sequence number, which is exactly
+ * the pre-v0.7.13 behaviour for every character created before today.
+ */
+export interface ParticipantDefaults {
+  /** `characters.color` — the participant 主题色. */
+  themeColor?: string | null;
+  /** `characters.displayName` — the badge text instead of the sequence number. */
+  displayNumber?: string | null;
+}
+
 /** Builds a roster sized to `size`, preserving whatever is already there. */
 export function genSlotArray(
   size: number,
@@ -171,7 +185,18 @@ export interface PuzzleState {
       displayNumber?: string | null;
     },
   ) => void;
-  assignSlot: (characterId: number) => number | null;
+  /**
+   * Puts the character in the first free slot.
+   *
+   * v0.7.13 (docs/v0.7.13.md §11): `defaults` carries the character's own
+   * 主题色 / 编号 (`characters.color` / `characters.displayName`). They are
+   * applied **at assignment time only** — later edits to either side never
+   * reach across: the slot owns a *copy*, exactly like it already owns a copy
+   * of nothing else about the character (its name / avatar are still read from
+   * `characters` at render time, on purpose — those are not participant
+   * configuration).
+   */
+  assignSlot: (characterId: number, defaults?: ParticipantDefaults) => number | null;
   clearCharacterSlot: (index: number) => void;
   swapSlots: (from: number, to: number) => void;
   setSelectedSlot: (index: number | null) => void;
@@ -378,12 +403,27 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     },
 
     /** Puts the character in the first free slot; `null` when the roster is full. */
-    assignSlot: (characterId) => {
+    assignSlot: (characterId, defaults) => {
       const index = get().characterSlots.findIndex((slot) => slot === null);
       if (index === -1) return null;
+      // v0.7.13 §11: 角色的默认值只在加入这一刻读一次。之后改角色、改槽位
+      // 互不影响 —— 槽位存的是副本，跟它本来就存 `themeColor` / `displayNumber`
+      // 自己的值是一个道理。
+      const themeColor = defaults?.themeColor?.trim() || DEFAULT_THEME_COLOR;
+      const displayNumber = defaults?.displayNumber?.trim() ?? '';
       commit((next) => {
         next.characterSlots = next.characterSlots.map((slot, i) =>
-          i === index ? { characterId, themeColor: DEFAULT_THEME_COLOR, clue: '', linkages: [] } : slot,
+          i === index
+            ? {
+                characterId,
+                themeColor,
+                clue: '',
+                linkages: [],
+                // 空串不落键：与 `setParticipantConfig` 同一条规矩，
+                // 「没有编号展示」= 缺席的字段。
+                ...(displayNumber ? { displayNumber } : {}),
+              }
+            : slot,
         );
       });
       return index;

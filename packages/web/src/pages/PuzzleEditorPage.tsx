@@ -570,7 +570,13 @@ export function PuzzleEditorPage(): JSX.Element {
       toast.error('参与者区已满，请先移出角色');
       return;
     }
-    puzzle.assignSlot(characterId);
+    // v0.7.13 §11：角色自带的参与者默认值在「加入」这一刻抄进槽位。角色没配
+    // 就是两个 `null`，槽位照旧是白色 + 序号。
+    const character = charactersById.get(characterId);
+    puzzle.assignSlot(characterId, {
+      themeColor: character?.color ?? null,
+      displayNumber: character?.displayName ?? null,
+    });
   };
 
   // ---- Slot → slot reorder (never drops onto the read-only canvas) ----

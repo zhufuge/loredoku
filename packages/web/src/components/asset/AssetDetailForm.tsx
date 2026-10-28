@@ -62,11 +62,18 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
   const createVariantMutation = useCreateAssetVariant();
   const deleteVariantMutation = useDeleteAssetVariant();
 
+  /**
+   * 只在换成**另一个资源**时用服务器值重置表单（v0.7.13 fix）。
+   *
+   * 原来还依赖 `asset.updatedAt`，于是「启用 / 停用」「添加形态」「删除形态」
+   * 这些同样会重取的动作，都能把用户改了一半的名字 / 类型按回服务器值。
+   * 表单是草稿，后台刷新不该写它。
+   */
   useEffect(() => {
     setName(asset.name);
     setType(asset.type);
     setBlocking(asset.blocking);
-  }, [asset.id, asset.updatedAt]);
+  }, [asset.id]);
 
   const saving = updateMutation.isPending;
   // v0.6.1: an asset needs a look somewhere before it can be enabled.
