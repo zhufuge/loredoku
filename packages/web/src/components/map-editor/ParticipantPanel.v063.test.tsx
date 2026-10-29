@@ -142,15 +142,20 @@ describe('ParticipantPanel — 参与者布局（v0.6.3 §3）', () => {
     render(3);
     const card = container.querySelector<HTMLElement>('[data-slot-index="0"]');
     const badge = container.querySelector<HTMLElement>('[data-testid="slot-seq-0"]');
-    // The badge is flush in the card's top-left corner (inset 0, no top / left
-    // edge of its own), so its top-left has to follow the card's rounded
-    // frame — a square corner there pokes outside the slot. Both radii come
-    // from the same constant.
+    /*
+     * The badge is flush in the card's top-left corner (inset 0, no top / left
+     * edge of its own), so its top-left has to follow the card's rounded
+     * frame — a square corner there pokes outside the slot.
+     *
+     * v0.7.14：而且必须是**内**圆角（卡片半径 − 1px 描边）。徽标贴在 padding
+     * box 的角上，用外圆角时它的弧比卡片内弧切得更深，中间露出一道月牙形的
+     * 卡纸 —— 选中时徽标与描边都是主色，那道纸白就格外显眼。
+     */
     expect(card?.style.borderRadius).toBe(`${PARTICIPANT_SLOT_RADIUS}px`);
     expect(badge?.style.borderRadius).toBe(PARTICIPANT_SEQ_BORDER_RADIUS);
-    expect(
-      PARTICIPANT_SEQ_BORDER_RADIUS.startsWith(`${PARTICIPANT_SLOT_RADIUS}px`),
-    ).toBe(true);
+    expect(PARTICIPANT_SEQ_BORDER_RADIUS).toBe(
+      `${PARTICIPANT_SLOT_RADIUS - 1}px 0 6px 0`,
+    );
   });
 
   it('renders every slot exactly once, whatever the column count', () => {

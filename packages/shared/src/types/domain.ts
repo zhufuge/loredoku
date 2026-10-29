@@ -344,6 +344,17 @@ export interface PuzzleDraft {
    * before this version does, which is why the field is optional.
    */
   rosterCols?: number | null;
+  /**
+   * v0.7.14（docs/v0.7.14.md §2）：**全局线索** —— 整个谜题共享的几条条件，
+   * 与参与者各自的 `characterSlots[].clue` 分属两层：那条讲「这位住在哪」，
+   * 这条讲「这盘按什么规则摆」。玩家侧把它们和描述一起贴在盘面左上角。
+   *
+   * **可选**：v0.7.14 之前发布的游戏行是一份冻住的 JSON，没有这个键。
+   * 读的地方一律 `?? []`，不假设服务端补过默认值。
+   */
+  clues?: string[];
+  /** v0.7.14：结束语 —— 玩家通过时出现在结算弹窗里的一句话。缺失 = 不显示。 */
+  ending?: string;
 }
 
 export interface MapResponse {

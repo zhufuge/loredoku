@@ -43,7 +43,10 @@ const fixture = vi.hoisted(() => ({
         data: { version: 7, gridSize: 9, cells: {}, regions: [] },
       },
       name: '夜车',
-      description: '',
+      description: '三人三行，各归其位。',
+      // v0.7.14：题面（全局线索 + 结束语）随谜题版本行一起下发。
+      clues: ['同一行里没有重复编号', '阴影里没有编号'],
+      ending: '灯灭了，花园还在。',
       characterSlots: [
         { characterId: 11, themeColor: '#AA0000' },
         { characterId: 12, themeColor: '#00AA00' },
@@ -365,6 +368,61 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(raw).not.toBeNull();
     const stored = JSON.parse(raw ?? '{}');
     expect(Object.values(stored.board ?? {})).toEqual([{ kind: 'forbidden' }]);
+  });
+
+  /**
+   * v0.7.14（docs/v0.7.14.md §4）：题面与结束语。
+   *
+   * 第一半是「进来就看得见、而且排在该在的地方」：左栏里从标题读到名册，中间
+   * 依次是描述、线索、参与者 —— 三样同时在视野里，谁也不用滚动去换另一个。
+   * 第二半是「结束语只在通过时说话」：没提交之前，那句话一个字都不该出现在页面里。
+   */
+  it('stacks the 题面 between the title and the roster in the left column, but not the ending', () => {
+    render();
+    const aside = container.querySelector('aside');
+    const brief = container.querySelector<HTMLElement>('[data-testid="game-brief"]');
+    const roster = container.querySelector<HTMLElement>('[data-testid="roster-matrix"]');
+    expect(aside && brief && roster).not.toBeNull();
+
+    expect(brief?.textContent).toContain('三人三行，各归其位。');
+    expect(brief?.textContent).toContain('同一行里没有重复编号');
+    expect(brief?.textContent).toContain('阴影里没有编号');
+
+    // 它属于左栏，不再压在盘面上。
+    expect(aside?.contains(brief)).toBe(true);
+    expect(container.querySelector('main')?.contains(brief)).toBe(false);
+
+    // 顺序：标题 → 题面 → 名册（文档顺序就是屏幕上的上下顺序）。
+    const title = aside?.querySelector('p');
+    expect(title?.textContent).toContain('夜车');
+    const precedes = (first: Element | null | undefined, second: Element): boolean =>
+      Boolean(first && first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(precedes(title, brief as Element)).toBe(true);
+    expect(precedes(brief, roster as Element)).toBe(true);
+
+    // 结束语是过关后的一句话 —— 开局就摆在页面上，等于剧透。
+    expect(document.body.textContent).not.toContain('灯灭了');
+  });
+
+  it('gives the author’s 结束语 in the dialog that says the submit passed', () => {
+    // 三位各在一条互不相同的行与列上 —— 客户端校验通过。
+    seedSave({
+      board: {
+        '0,0': { kind: 'participant', index: 1 },
+        '1,1': { kind: 'participant', index: 2 },
+        '2,2': { kind: 'participant', index: 3 },
+      },
+    });
+    render();
+    act(() =>
+      container.querySelector<HTMLButtonElement>('button[title="提交当前摆放（先校验）"]')?.click(),
+    );
+
+    const dialog = document.body.textContent ?? '';
+    expect(dialog).toContain('提交通过');
+    expect(dialog).toContain('灯灭了，花园还在。');
+    // 结束语没有「结束语：」这样的标签 —— 它是作者的话，不是界面在解说。
+    expect(dialog).not.toContain('结束语：');
   });
 
   it('zooms in and out by one step and resets to 100%', () => {

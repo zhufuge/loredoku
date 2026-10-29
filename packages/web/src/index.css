@@ -33,6 +33,22 @@
 }
 
 /*
+ * 参与者卡片的主题色半径（v0.7.14，用法见 `.participant-tint`）。
+ *
+ * 同样注册成 `<number>` 才能补间 —— 悬停时那层颜色要从**头像那枚圆**长到整张卡，
+ * 长的是**半径**而不是整层的 `scale`：缩放会让渐变的软边跟着放大，中途扫出一圈
+ * 生硬的暗环（v0.7.13 §10.4 在纸背光上踩过同一个坑）。
+ *
+ * 初值 0.5 而不是 0：`radial-gradient` 的半径不会因为 0 而「更安静」，它会让
+ * 整条渐变退化成一个点，某些引擎干脆不画 —— 半像素是安全的「什么都不显示」。
+ */
+@property --tint-r {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 0.5;
+}
+
+/*
  * 调色板（v0.7.8）：墨 · 宣 · 靛 · 绛
  *
  * 上一版是 shadcn 默认的冷蓝 SaaS 值（中性色落在 210–217 冷灰，primary 是
@@ -127,6 +143,14 @@
     --shadow-card: 0 1px 1px hsl(28 30% 20% / 0.04), 0 2px 6px hsl(28 30% 20% / 0.045);
     --shadow-float: 0 2px 4px hsl(28 30% 20% / 0.05), 0 10px 28px hsl(28 30% 20% / 0.1);
     /*
+     * `--shadow-hover`（v0.7.14）：**手指碰上去**那一下的影。名册卡片抬 2px 时用它。
+     *
+     * 为什么不直接用 `--shadow-float`：那一档配 28px 的扩散，是为对话框 / 抽屉写的 ——
+     * 落在 110px 宽、格间距 14px 的名册里，影子会漫到左右邻居的缝里，看着像整片
+     * 都脏了。这一档只把影子「推下来」4–8px，够说明卡片离了纸面，又不出自己那一格。
+     */
+    --shadow-hover: 0 2px 4px hsl(28 30% 20% / 0.06), 0 8px 18px -8px hsl(28 30% 20% / 0.18);
+    /*
      * 动效（v0.7.10）。
      *
      * 在这之前全仓只有一条 `highlight-fade` 关键帧，时长靠手写 `duration-200`
@@ -142,6 +166,7 @@
      *   image 360ms —— 画面。卡片封面的缩放归位。
      *   glow 700ms —— 光进来。纸背光的光圈漫开。
      *   retract 520ms —— 光出去。同一个光圈收回（仍比进入短，但不必短一半）。
+     *   tint 560ms —— 色铺开。参与者卡片里的主题色从头像那枚圆长到整张卡（v0.7.14）。
      *
      * `image` / `glow` / `retract` 是全套里**按用途命名**的几档，因为它们管的
      * 不是「控件的动效」而是「内容的动效」：前三档讲界面如何响应你，这三档讲
@@ -183,6 +208,18 @@
      * 上限是 `glow` 的 700ms —— 超过它，退出就比进入还隆重，那读成「卡住」。
      */
     --motion-retract: 520ms;
+    /*
+     * tint 560ms —— 参与者卡片里的主题色铺开（v0.7.14）。
+     *
+     * 量的是**一个物理过程**的第三件：光和文字的影都在「漫开」，这一件是「色漫开」。
+     * 头像那枚圆是起点，卡片的对角是终点（半对角约 151px），走得比界面响应慢得多 ——
+     * 手指还在卡上方的时候它就已经开始了，等看清楚了，颜色也铺满了。
+     *
+     * 为什么不是 `glow` 的 700ms：那张卡是 500px 的封面，这张只有 110×196；同样
+     * 的速度感，行程短了就该更短。560ms 是「比 260ms 的界面慢半拍、比 700ms 的光
+     * 快一点」，正好读成「颜色自己在往外渗」。
+     */
+    --motion-tint: 560ms;
     /* 指数减速：起步快、收尾长。默认出场曲线。 */
     --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
     /*
@@ -262,6 +299,8 @@
      */
     --shadow-card: 0 1px 1px hsl(28 20% 3% / 0.4), 0 2px 8px hsl(28 20% 3% / 0.3);
     --shadow-float: 0 4px 10px hsl(28 20% 3% / 0.45), 0 16px 40px hsl(28 20% 3% / 0.45);
+    /* 与浅色同一个用法，只是夜墨上的影子只能是「更黑」—— 见 `--shadow-hover` 那一行。 */
+    --shadow-hover: 0 2px 4px hsl(28 20% 3% / 0.5), 0 8px 18px -8px hsl(28 20% 3% / 0.55);
   }
 
   /*
@@ -957,6 +996,82 @@
       transparent 100%
     );
   }
+
+  /*
+   * 线索纸条落下（v0.7.14 §4.3，`components/game/GameBrief.tsx`）。
+   *
+   * 线索从「一段带序号的文字」变成门口那一叠纸条之后，一次全冒出来是「页面
+   * 加载完了」；错开落下才是「一条一条摆出来的」。260ms 的淡入 + 4px 上浮，
+   * 每条错 45ms —— 上下叠着的东西同时出现，眼睛分不清有几条。
+   *
+   * 用 `translate` 而不是 `transform`：这条与 v0.7.11 的 `place-settle`（`scale`）
+   * 是同一个理由 —— `transform` 关键帧会把整条 transform 覆盖掉，将来往纸条上
+   * 加任何 `hover:` 位移都会在入场那 260ms 里被抹平。v0.7.14 §4.3 的悬停抬起
+   * 正是靠这条留出来的缝：它动的是 `transform`，与这里的 `translate` 互不相干。
+   *
+   * `both` 必须写：延迟期间要保持在 `from`（透明），否则第一条之后的每一条都
+   * 会**先闪一下**再重新淡入。
+   */
+  .clue-note {
+    animation: clue-note-in var(--motion-slow) var(--motion-ease-out) both;
+  }
+
+  @keyframes clue-note-in {
+    from {
+      opacity: 0;
+      translate: 0 4px;
+    }
+  }
+
+  /*
+   * 参与者卡片的主题色铺开（v0.7.14，`components/map-editor/ParticipantPanel.tsx`）。
+   *
+   * 手指碰上去（或点住）时，卡片里浮起一层**主人自己的颜色**：起点是头像那枚圆，
+   * 半径 `--tint-r` 从半像素长到 320px —— 卡片是 110×196，从头像中心到最远那个
+   * 角约 151px，渐变在 55% 处仍是实色（176px），所以铺到最后整张卡是均一的一层，
+   * 不会在右下角留一个没染到的淡角。
+   *
+   * 为什么是「半径变大」而不是「整层淡入」或「整层 scale」：
+   *   - 淡入是「颜色本来就在，只是刚才透明的」，读成闪烁；
+   *   - 「整层 scale」会把渐变的软边一起放大，中途扫出一圈生硬的边（纸背光踩过）；
+   *   - 只有半径是从**圆心**往外长的，看得见「从哪儿开始」—— 而这正是要说的：
+   *     这层色属于这枚头像。
+   *
+   * 基线规则（无 `data-tint`）= **收回方向**，用 `--motion-retract`；`:hover` / 选中
+   * 那一侧写 `--motion-tint`。这是本仓一贯的写法：过渡取「变化之后」那一侧的声明，
+   * 两个方向因此能有各自的时长。收回比铺开短，和光圈的规矩一致。
+   */
+  .participant-tint {
+    --tint-r: 0.5;
+    position: absolute;
+    inset: 0;
+    /*
+     * **负层级 = 底色，不是膜**（v0.7.14）。
+     *
+     * 绝对定位的兄弟在绘制顺序里排在普通流内容之上，所以没有这一行时，那层颜色
+     * 会盖在头像、名字和线索上 —— 头像被染成一片主题色，看着像换了图。`-1` 让
+     * 它沉到内容下面、卡片底色上面：只染卡片这块纸。
+     *
+     * 负层级要有人接住：卡片根节点带 `isolate`。少了它，`-1` 的子节点会穿透到
+     * 最近的祖先 stacking context，沉到卡片自己的 `bg-background` 底下 —— 那就
+     * 什么都看不见了。
+     */
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: radial-gradient(
+      circle calc(var(--tint-r) * 1px) at 50% var(--tint-y, 55px),
+      var(--tint-color) 0%,
+      var(--tint-color) 55%,
+      transparent 100%
+    );
+    transition: --tint-r var(--motion-retract) var(--motion-ease-retract);
+  }
+
+  [data-tint='on'] .participant-tint {
+    --tint-r: 320;
+    transition: --tint-r var(--motion-tint) var(--motion-ease-spread);
+  }
 }
 
 /*
@@ -1077,6 +1192,15 @@ html[data-theme-transition] *::after {
   .press-ring-arc {
     animation-duration: var(--press-ring-duration, 500ms) !important;
     animation-iteration-count: 1 !important;
+  }
+
+  /*
+   * 线索纸条的错峰（v0.7.14 §4.3）。上面 `*` 那条只压了**时长**，`animation-delay`
+   * 还在：每条错开 45ms，八条就是 270ms 的白等 —— 而 `both` 让它们在延迟期间
+   * 停在 `opacity: 0`，等于「点了进来看不到线索」。延迟清零，纸条同时出现。
+   */
+  .clue-note {
+    animation-delay: 0ms !important;
   }
 
   /*

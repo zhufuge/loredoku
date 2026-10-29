@@ -6,7 +6,10 @@ import {
   LINKAGE_COLOR_MAX_COUNT,
   LINKAGE_COLOR_MIN_COUNT,
   MAP_NAME_MAX_LENGTH,
+  PUZZLE_CLUE_MAX_LENGTH,
+  PUZZLE_CLUES_MAX_COUNT,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
+  PUZZLE_ENDING_MAX_LENGTH,
   PUZZLE_JSON_VERSION,
   PUZZLE_NAME_MAX_LENGTH,
 } from '../constants';
@@ -77,6 +80,31 @@ export const puzzleDescriptionSchema = z
   .string()
   .trim()
   .max(PUZZLE_DESCRIPTION_MAX_LENGTH, `描述不能超过 ${PUZZLE_DESCRIPTION_MAX_LENGTH} 字`);
+
+/**
+ * v0.7.14（docs/v0.7.14.md §2）：「题面」的两段文字，属于**整个谜题**。
+ *
+ * 与参与者各自的 `characterSlots[].clue` 是两回事 —— 那条讲「这位住在哪」，
+ * 是给单个头像的条件；这里的线索讲**全局规则**（「每条斜线上的编号都不同」），
+ * 玩家必须同时看着盘面和它们。所以它不进名册，进草稿顶层。
+ *
+ * 空串是允许的：作者可能先加一条空行再写。空行在**落库前**由 store 过滤掉
+ * （`PuzzleInfoDrawer` 提交时 trim + 去空），schema 不替作者删内容 ——
+ * 导入一份带空行的文件也不该整个失败。
+ */
+export const puzzleClueSchema = z
+  .string()
+  .trim()
+  .max(PUZZLE_CLUE_MAX_LENGTH, `单条线索不能超过 ${PUZZLE_CLUE_MAX_LENGTH} 字`);
+
+export const puzzleCluesSchema = z
+  .array(puzzleClueSchema)
+  .max(PUZZLE_CLUES_MAX_COUNT, `全局线索最多 ${PUZZLE_CLUES_MAX_COUNT} 条`);
+
+export const puzzleEndingSchema = z
+  .string()
+  .trim()
+  .max(PUZZLE_ENDING_MAX_LENGTH, `结束语不能超过 ${PUZZLE_ENDING_MAX_LENGTH} 字`);
 
 /**
  * The palette is the map's old `style.linkageColors`, so it keeps the same
@@ -170,6 +198,13 @@ const puzzleDraftBaseSchema = z
     map: puzzleMapSnapshotSchema,
     name: puzzleNameSchema,
     description: puzzleDescriptionSchema.default(''),
+    /**
+     * v0.7.14：全局线索。**默认 `[]`**，因为 v0.7.14 之前发布出去的谜题版本行
+     * 是一份冻住的 JSON，里面没有这两个键 —— 解析时补齐，读取方不必到处判空。
+     */
+    clues: puzzleCluesSchema.default([]),
+    /** v0.7.14：结束语，默认空串（= 不显示）。 */
+    ending: puzzleEndingSchema.default(''),
     linkageColors: puzzleLinkageColorsSchema,
     /**
      * Roster slots. The length is **not** constrained here: the create path

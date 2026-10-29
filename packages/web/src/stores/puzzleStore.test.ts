@@ -449,6 +449,9 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
     store().setBasicInfo({
       name: '午夜花园',
       description: '改过的描述',
+      // v0.7.14：题面随「基本信息」一起提交，空值也要显式写出来。
+      clues: [],
+      ending: '',
       linkageColors: [
         { key: 'red', label: '红', color: '#EF9A9A' },
         { key: 'blue', label: '蓝', color: '#90CAF9' },
@@ -516,6 +519,8 @@ describe('replaceMapContext (v0.7.3 §3.3)', () => {
     store().setBasicInfo({
       name: '改过的名字',
       description: '改过的描述',
+      clues: [],
+      ending: '',
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: 2,
@@ -835,6 +840,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     store().setBasicInfo({
       name: '午夜花园',
       description: '六人六格，注意花丛的位置条件。',
+      clues: [],
+      ending: '',
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: 2,
@@ -844,11 +851,52 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     store().setBasicInfo({
       name: '午夜花园',
       description: '六人六格，注意花丛的位置条件。',
+      clues: [],
+      ending: '',
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: null,
     });
     expect(store().toDraft().rosterCols).toBeNull();
+  });
+
+  /**
+   * v0.7.14：题面必须跟着草稿走 —— 全局线索与结束语不到服务端，游戏页拿到的
+   * 就永远是一张只有描述的纸片，玩家侧的结束语也无从出现。
+   */
+  it('carries the 题面 to the server (全局线索 + 结束语)', () => {
+    store().setBasicInfo({
+      name: '午夜花园',
+      description: '六人六格。',
+      clues: ['同一行里没有重复编号', '阴影里没有编号'],
+      ending: '灯灭了，花园还在。',
+      linkageColors: store().linkageColors,
+      characterSlots: store().characterSlots,
+      rosterCols: null,
+    });
+    const draft = store().toDraft();
+    expect(draft.clues).toEqual(['同一行里没有重复编号', '阴影里没有编号']);
+    expect(draft.ending).toBe('灯灭了，花园还在。');
+  });
+
+  /**
+   * 旧数据没有这两个键（v0.7.14 之前保存的草稿、已发布的版本行）。导入或恢复
+   * 之后 store 里必须是「空」而不是 `undefined` —— 抽屉的草稿与 dirty 比较都
+   * 假设它们是 `string[]` / `string`。
+   */
+  it('absorbs a v0.7.14-less draft as empty 题面', () => {
+    const legacy: PuzzleDraft = {
+      version: PUZZLE_JSON_VERSION,
+      map: mapSnapshot(),
+      name: '旧谜题',
+      description: '没有题面字段',
+      linkageColors: store().linkageColors,
+      characterSlots: store().characterSlots,
+      rosterCols: null,
+    };
+    store().applyDraft(legacy);
+    expect(store().clues).toEqual([]);
+    expect(store().ending).toBe('');
   });
 
   it('round-trips through applyDraft', () => {

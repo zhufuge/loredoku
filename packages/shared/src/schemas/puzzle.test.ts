@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest';
 import {
   GRID_SIZE_MAX,
   PARTICIPANT_DISPLAY_NUMBER_MAX,
+  PUZZLE_CLUE_MAX_LENGTH,
+  PUZZLE_CLUES_MAX_COUNT,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
+  PUZZLE_ENDING_MAX_LENGTH,
   PUZZLE_NAME_MAX_LENGTH,
 } from '../constants';
 import {
@@ -307,5 +310,51 @@ describe('谜题的三个写入 schema', () => {
     for (const bad of [{ mapId: 217 }, { mapId: 0, versionNo: 1 }, { mapId: 1, versionNo: 1, data: {} }]) {
       expect(savePuzzleDraftSchema.safeParse({ data: draft(), mapSource: bad }).success).toBe(false);
     }
+  });
+});
+
+/**
+ * v0.7.14（docs/v0.7.14.md §2）：题面 —— 全局线索与结束语。
+ *
+ * 两个都是**缺键即默认**：v0.7.14 之前发布出去的谜题版本行是一份冻住的 JSON，
+ * 里面没有这两个键，读的时候必须能过（`clues` → `[]`、`ending` → `''`）。
+ * 上限拦在解析这一层，因为导入的文件可以绕过界面。
+ */
+describe('puzzleDraftSchema —— 题面（v0.7.14）', () => {
+  it('a payload written before this version parses with an empty 题面', () => {
+    const parsed = puzzleDraftSchema.parse(draft());
+    expect(parsed.clues).toEqual([]);
+    expect(parsed.ending).toBe('');
+  });
+
+  it('keeps the clue order and trims each line, and trims the ending', () => {
+    const parsed = puzzleDraftSchema.parse(
+      draft({
+        clues: ['  同一行里没有重复编号  ', '阴影里没有编号'],
+        ending: '  灯灭了，花园还在。  ',
+      }),
+    );
+    expect(parsed.clues).toEqual(['同一行里没有重复编号', '阴影里没有编号']);
+    expect(parsed.ending).toBe('灯灭了，花园还在。');
+  });
+
+  it('caps the list at eight clues and each clue at its own limit', () => {
+    const full = Array.from({ length: PUZZLE_CLUES_MAX_COUNT }, (_, index) => `线索 ${index + 1}`);
+    expect(puzzleDraftSchema.safeParse(draft({ clues: full })).success).toBe(true);
+    expect(puzzleDraftSchema.safeParse(draft({ clues: [...full, '第九条'] })).success).toBe(false);
+    expect(
+      puzzleDraftSchema.safeParse(draft({ clues: ['x'.repeat(PUZZLE_CLUE_MAX_LENGTH + 1)] }))
+        .success,
+    ).toBe(false);
+  });
+
+  it('caps the ending at 200 characters', () => {
+    expect(
+      puzzleDraftSchema.safeParse(draft({ ending: 'x'.repeat(PUZZLE_ENDING_MAX_LENGTH) })).success,
+    ).toBe(true);
+    expect(
+      puzzleDraftSchema.safeParse(draft({ ending: 'x'.repeat(PUZZLE_ENDING_MAX_LENGTH + 1) }))
+        .success,
+    ).toBe(false);
   });
 });

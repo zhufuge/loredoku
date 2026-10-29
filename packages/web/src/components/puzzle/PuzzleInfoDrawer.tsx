@@ -13,7 +13,10 @@ import {
   LINKAGE_COLOR_LABEL_MAX_LENGTH,
   LINKAGE_COLOR_MAX_COUNT,
   LINKAGE_COLOR_MIN_COUNT,
+  PUZZLE_CLUE_MAX_LENGTH,
+  PUZZLE_CLUES_MAX_COUNT,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
+  PUZZLE_ENDING_MAX_LENGTH,
   PUZZLE_NAME_MAX_LENGTH,
   ROSTER_COLS_MAX,
   UI_Z,
@@ -44,8 +47,9 @@ import { cn } from '@/lib/utils';
  * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 drawer.
  *
  * It holds what the puzzle owns — **名称 / 封面**（v0.7.3）、the **description**,
- * the **联动主题色 palette** and (v0.6.3 §3) the **参与者布局** column count —
- * and nothing else. Everything the map drawer carries (画布尺寸 / `cellSize` /
+ * the **题面**（v0.7.14：全局线索 + 结束语）, the **联动主题色 palette** and
+ * (v0.6.3 §3) the **参与者布局** column count — and nothing else. Everything the
+ * map drawer carries (画布尺寸 / `cellSize` /
  * `canvasFrame` / `gridSeparator` / `mouseCursorBox` / `operationCursorBox` /
  * `regionLabel` / `regionOutline` / `regionHighlight` / `ruler`) belongs to the
  * map and is deliberately absent: the puzzle only **references** a map version
@@ -72,6 +76,10 @@ export interface PuzzleBasicInfo {
   /** v0.7.3 §2: the puzzle's own name (required). */
   name: string;
   description: string;
+  /** v0.7.14：全局线索（已 trim、已去空行）。 */
+  clues: string[];
+  /** v0.7.14：结束语（已 trim；空串 = 不显示）。 */
+  ending: string;
   linkageColors: MapLinkageColor[];
   /** The roster, re-pointed at surviving palette keys (FEAT-D04 §UI 规则). */
   characterSlots: Array<CharacterSlotEntry | null>;
@@ -88,6 +96,9 @@ interface PuzzleInfoDrawerProps {
   /** The committed values — the drawer edits a copy of them. */
   name: string;
   description: string;
+  /** v0.7.14：已提交的全局线索 / 结束语。 */
+  clues: string[];
+  ending: string;
   linkageColors: MapLinkageColor[];
   /** Needed only to re-point (and to preview) palette deletions. */
   characterSlots: Array<CharacterSlotEntry | null>;
@@ -158,12 +169,30 @@ function paletteEquals(a: MapLinkageColor[], b: MapLinkageColor[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+/**
+ * v0.7.14：线索按**落库后的样子**比较 —— trim 掉首尾空格、丢掉空行。
+ *
+ * 少了这一步会有一种很别扭的状态：作者点「新增线索」又什么都没写就点保存，
+ * 数组长度变了、dirty 为真，于是白白多一个撤销步；而落库时那行又会被过滤掉，
+ * 撤销按下去看不出任何变化。比较用归一化后的值，保存时也交归一化后的值，
+ * 两边才是同一件事。
+ */
+function normalizeClues(list: readonly string[]): string[] {
+  return list.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+}
+
+function cluesEqual(a: readonly string[], b: readonly string[]): boolean {
+  return JSON.stringify(normalizeClues(a)) === JSON.stringify(normalizeClues(b));
+}
+
 export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDrawerProps>(
   function PuzzleInfoDrawer(
     {
       open,
       name,
       description,
+      clues,
+      ending,
       linkageColors,
       characterSlots,
       rosterCols,
@@ -178,6 +207,9 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
   ): JSX.Element {
     const [draftName, setDraftName] = useDraft<string>(name, open);
     const [draftDescription, setDraftDescription] = useDraft<string>(description, open);
+    /** v0.7.14：题面两段文字也走草稿 —— 与描述同一套提交时机。 */
+    const [draftClues, setDraftClues] = useDraft<string[]>(clues, open);
+    const [draftEnding, setDraftEnding] = useDraft<string>(ending, open);
     const [draftPalette, setDraftPalette] = useDraft<MapLinkageColor[]>(linkageColors, open);
     /** v0.6.3 §3: the column count is drafted like everything else here. */
     const [draftCols, setDraftCols] = useDraft<number | null>(rosterCols, open);
@@ -200,6 +232,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     const dirty =
       draftName !== name ||
       draftDescription !== description ||
+      !cluesEqual(draftClues, clues) ||
+      draftEnding.trim() !== ending.trim() ||
       !paletteEquals(draftPalette, linkageColors) ||
       draftCols !== rosterCols ||
       draftCoverFile !== coverFile ||
@@ -207,6 +241,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     const latest = useRef({
       draftName,
       draftDescription,
+      draftClues,
+      draftEnding,
       draftPalette,
       draftSlots,
       draftCols,
@@ -218,6 +254,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     latest.current = {
       draftName,
       draftDescription,
+      draftClues,
+      draftEnding,
       draftPalette,
       draftSlots,
       draftCols,
@@ -248,6 +286,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             onCommit({
               name: current.draftName.trim(),
               description: current.draftDescription,
+              clues: normalizeClues(current.draftClues),
+              ending: current.draftEnding.trim(),
               linkageColors: current.draftPalette,
               characterSlots: current.draftSlots,
               rosterCols: current.draftCols,
@@ -261,6 +301,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           settledRef.current = true;
           setDraftName(name);
           setDraftDescription(description);
+          setDraftClues(clues);
+          setDraftEnding(ending);
           setDraftPalette(linkageColors);
           setDraftSlots(characterSlots);
           setDraftCols(rosterCols);
@@ -270,16 +312,20 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       }),
       [
         characterSlots,
+        clues,
         coverFile,
         coverRemoved,
         name,
         description,
+        ending,
         linkageColors,
         rosterCols,
         onCommit,
         onRequestClose,
         setDraftName,
         setDraftDescription,
+        setDraftClues,
+        setDraftEnding,
         setDraftPalette,
         setDraftSlots,
         setDraftCols,
@@ -332,6 +378,24 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     };
 
     const descriptionOverLimit = draftDescription.length > PUZZLE_DESCRIPTION_MAX_LENGTH;
+
+    /**
+     * v0.7.14：线索的增删改都只动草稿。**新增**会先插一条空行 —— 作者点一下
+     * 就有地方写，不必先想好措辞再找入口。空行在提交时消失（见 `normalizeClues`），
+     * 所以「点错了又没写」不会在数据里留下一条空线索。
+     */
+    const patchClue = (index: number, text: string): void => {
+      setDraftClues(draftClues.map((entry, i) => (i === index ? text : entry)));
+    };
+
+    const addClue = (): void => {
+      if (draftClues.length >= PUZZLE_CLUES_MAX_COUNT) return;
+      setDraftClues([...draftClues, '']);
+    };
+
+    const removeClue = (index: number): void => {
+      setDraftClues(draftClues.filter((_, i) => i !== index));
+    };
 
     /**
      * v0.6.3 §3.2: the row count is never typed, only shown — it is
@@ -452,6 +516,98 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               }}
               onRestore={() => setDraftCoverRemoved(false)}
             />
+          </Section>
+
+          <Section
+            title="题面"
+            hint="Brief — 玩家侧这张纸片贴在盘面左上角：描述在上，全局线索在下。全局线索讲整盘的规则（「每条斜线不同」），参与者各自的线索讲「这位住在哪」，两处分开写。结束语只在玩家通过时出现。"
+          >
+            <div className="grid gap-1.5">
+              <div className="flex items-center justify-between">
+                <Label
+                  htmlFor="puzzle-info-clue-0"
+                  className="text-2xs font-normal text-muted-foreground"
+                >
+                  全局线索
+                </Label>
+                <span className="text-2xs tabular-nums text-muted-foreground">
+                  {draftClues.length} / {PUZZLE_CLUES_MAX_COUNT}
+                </span>
+              </div>
+              {draftClues.length === 0 ? (
+                <p className="text-2xs leading-relaxed text-muted-foreground">
+                  还没有线索。玩家侧会只显示描述。
+                </p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {draftClues.map((clue, index) => (
+                    <li key={index} className="flex items-center gap-1">
+                      {/* 序号只是一枚小小的数字刻度，不是装饰 —— 玩家侧也是同一列。 */}
+                      <span className="w-3 shrink-0 text-2xs tabular-nums text-muted-foreground/70">
+                        {index + 1}
+                      </span>
+                      <Input
+                        id={index === 0 ? 'puzzle-info-clue-0' : undefined}
+                        value={clue}
+                        maxLength={PUZZLE_CLUE_MAX_LENGTH}
+                        placeholder={index === 0 ? '例如：同一行里没有重复编号' : '再写一条'}
+                        onChange={(event) => patchClue(index, event.target.value)}
+                        className="h-7 flex-1 text-xs"
+                        aria-label={`第 ${index + 1} 条全局线索`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                        title="删除该条线索"
+                        onClick={() => removeClue(index)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                disabled={draftClues.length >= PUZZLE_CLUES_MAX_COUNT}
+                title={
+                  draftClues.length >= PUZZLE_CLUES_MAX_COUNT
+                    ? `最多 ${PUZZLE_CLUES_MAX_COUNT} 条`
+                    : '新增一条全局线索'
+                }
+                onClick={addClue}
+              >
+                <Plus className="mr-1 h-3.5 w-3.5" />
+                新增线索
+              </Button>
+            </div>
+
+            <div className="grid gap-1.5 pt-1">
+              <Label
+                htmlFor="puzzle-info-ending"
+                className="text-2xs font-normal text-muted-foreground"
+              >
+                结束语
+              </Label>
+              <Textarea
+                id="puzzle-info-ending"
+                value={draftEnding}
+                rows={3}
+                maxLength={PUZZLE_ENDING_MAX_LENGTH}
+                placeholder="例如：灯灭了，花园还在。"
+                onChange={(event) => setDraftEnding(event.target.value)}
+              />
+              <div className="flex justify-end text-2xs text-muted-foreground">
+                <span className={draftEnding.length > PUZZLE_ENDING_MAX_LENGTH ? 'font-medium text-destructive' : ''}>
+                  {draftEnding.length} / {PUZZLE_ENDING_MAX_LENGTH}
+                </span>
+              </div>
+            </div>
           </Section>
 
           <Section
@@ -590,6 +746,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               onCommit({
                 name: draftName.trim(),
                 description: draftDescription,
+                clues: normalizeClues(draftClues),
+                ending: draftEnding.trim(),
                 linkageColors: draftPalette,
                 characterSlots: draftSlots,
                 rosterCols: draftCols,

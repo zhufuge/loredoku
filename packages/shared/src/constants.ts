@@ -174,6 +174,24 @@ export const PUZZLE_JSON_VERSION = 2;
 export const PUZZLE_NAME_MAX_LENGTH = 100;
 export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
 
+// ---- v0.7.14 题面：全局线索与结束语 ----
+/**
+ * 全局线索**最多 8 条**（docs/v0.7.14.md §2）。
+ *
+ * 这个数字不是随手定的：题面纸片贴在画布左上角，玩家一边看盘一边扫它。
+ * 八条已经是一屏能一眼扫完的上限（每条一行、行距 1.7，加描述合计约 300px），
+ * 再多就得滚动 —— 一张需要滚动才能读完的线索表，会逼玩家把视线从盘面挪开
+ * 去做「找线索」这件事。真要写第九条，说明这条线索该并进描述里。
+ */
+export const PUZZLE_CLUES_MAX_COUNT = 8;
+/** 单条线索 120 字：够写两句条件，再长就不像线索、像段落。 */
+export const PUZZLE_CLUE_MAX_LENGTH = 120;
+/**
+ * 结束语 200 字。它是**过关后的一句话**，不是后记 —— 弹窗只有 448px 宽，
+ * 200 字已经占满八行。
+ */
+export const PUZZLE_ENDING_MAX_LENGTH = 200;
+
 // ---- Map draft JSON ----
 /**
  * v0.6.0: v4 — a cell's object layer is `item` (was `object`) and every asset
@@ -626,11 +644,17 @@ export const PARTICIPANT_SEQ_BACKGROUND = 'rgba(255,255,255,0.85)';
 export const PARTICIPANT_SEQ_BORDER = '1px solid rgba(0,0,0,0.1)';
 /**
  * FEAT-O13: no top / left edge of its own — the card's frame is those two
- * lines; only BR rounds. The top-left rounds with the **card's** radius: the
- * badge sits flush in the corner (inset 0), so a square corner there would
+ * lines; only BR rounds. The top-left rounds with the **card's inner** radius:
+ * the badge sits flush in the corner (inset 0), so a square corner there would
  * poke past the card's rounded frame.
+ *
+ * v0.7.14：TL 是 `卡片半径 − 描边`（6 − 1 = 5），不是卡片半径本身。
+ * 徽标贴在**padding box** 的角上（`position:absolute; top/left: 0`，也就是描边
+ * 内侧 1px），那一圈内圆角的半径比外圆角小 1px。徽标用外圆角时弧比内弧「切得
+ * 更深」，两者之间露出一道月牙形的卡纸 —— 选中时徽标是主色、描边也是主色，
+ * 中间那道纸白就像「高亮环和序号之间漏了缝」。
  */
-export const PARTICIPANT_SEQ_BORDER_RADIUS = `${PARTICIPANT_SLOT_RADIUS}px 0 6px 0`;
+export const PARTICIPANT_SEQ_BORDER_RADIUS = `${PARTICIPANT_SLOT_RADIUS - 1}px 0 6px 0`;
 /** Kept for the callers that still inset the badge (0 = corner, see §6.2). */
 export const PARTICIPANT_SEQ_INSET = 0;
 /**

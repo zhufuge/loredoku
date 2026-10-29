@@ -144,24 +144,49 @@ const AVATAR_MIN_SIZE = PARTICIPANT_AVATAR_MIN;
 const DRAG_HOVER_LOCK = true;
 
 /**
- * v0.7.11 / v0.7.12：**选中**的双环 —— 里圈 2px 纸色，把卡片与环隔开；外圈 2px 主色。
+ * **选中**的框：一条**连续**的主色边（1px 描边 + 2px 外扩，中间不留纸色）。
  *
- * 与「预览激活」的单环（FIX-E04 那圈 2px）区分开：预览是鼠标路过时的临时状态，
- * 选中是玩家接下来要操作的那一位。差别不能只靠颜色深浅（两者都是主色），所以
- * 靠**层数**：多一圈纸色缝隙，读起来就是「被拎起来了」。
+ * 演变：v0.7.11 是双环（里圈 2px 纸色把卡片与外环隔开），因此与「预览激活」的
+ * 单环能靠**层数**区分；v0.7.14 拿掉双环里那圈纸色（用户说「中间不要有空白」），
+ * 描边也跟着改回主色 —— 两段同色相接，读作一条 3px 的粗边，而不是两条线。
  *
- * v0.7.12 又补了两笔（`/impeccable overdrive`）：
- * - **第三层是投影，不是光圈**。主色的一层淡影落在卡片**下方**（负 spread、向下
- *   偏移 12px），读的是「这张纸被抽起来了一点」，而不是发光描边 —— 后者是
- *   `.impeccable.md` 明令避开的 AI 味。
- * - 卡片本身 `translate` 上移 2px、序号徽标反色（主色底 + 纸色字）。看清「是谁」
- *   靠的是徽标，而徽标本来就在左上角最显眼的位置 —— 不需要再添一条边。
+ * 与预览（2px）的区分因此落在**别的维度**上，而且不靠数层数：
+ * - 边更粗（3px vs 2px）；
+ * - 卡片 `translate` 上移 2px，影子落在下方（负 spread、向下 14px）—— 这一层是
+ *   **投影**，不是又一道光圈；发光描边是 `.impeccable.md` 明令避开的 AI 味。
+ * - 序号徽标反色（主色底 + 纸色字）。看清「是谁」靠徽标，它本来就在最显眼的位置。
  *
- * 环在卡片外 4px。名册容器的内边距是 8px、格间距 14px，最边上的卡片也不会被
- * `overflow-auto` 切掉。
+ * 边框自己占最里面 1px、阴影从 border-box 外沿起算 2px，所以合起来是 `0 → 3px`
+ * 一整条，没有缝。名册内边距 8px、格间距 14px，最边上的卡片也不会被 `overflow-auto`
+ * 切掉。
  */
 const PARTICIPANT_SELECTED_RING =
-  '0 0 0 2px hsl(var(--background)), 0 0 0 4px hsl(var(--primary)), 0 14px 22px -16px hsl(var(--primary) / 0.65)';
+  '0 0 0 2px hsl(var(--primary)), 0 14px 22px -16px hsl(var(--primary) / 0.65)';
+
+/**
+ * 卡片里铺的那层「主题色的淡透明色」（v0.7.14）。
+ *
+ * 0.12 / 0.16 / 0.20 三档并排看过（1440×900，无头 Chrome 截图逐格比对）：
+ * 0.12 与纸底（`248,246,242`）只差 15 个色阶，一屏并排才看得出来；0.20 开始
+ * 读成「一块色卡」，11px 的线索文字被压下去。0.16 落在中间：一眼能看出这张卡
+ * 是谁的颜色，又还是纸。
+ *
+ * **白色退回主色**：白主题的头像本来就是一碟宣纸，白上加白等于什么都没发生，
+ * 而这张卡片此刻最该说的是「它被点亮了」，不是「它是什么颜色」。
+ * 解不出来的色值（旧数据里可能的 `red` / `transparent`）走同一条退路。
+ */
+function themeTint(themeColor: string, isWhite: boolean): string {
+  const FALLBACK = 'hsl(var(--primary) / 0.16)';
+  if (isWhite) return FALLBACK;
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(themeColor.trim());
+  const raw = match?.[1] ?? '';
+  if (raw.length !== 3 && raw.length !== 6) return FALLBACK;
+  const full = raw.length === 3 ? raw.split('').map((ch) => ch + ch).join('') : raw;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, 0.16)`;
+}
 
 export function ParticipantPanel({
   slots,
@@ -360,23 +385,49 @@ export function ParticipantPanel({
                *
                * v0.7.11：**选中**不再和「预览」共用同一圈 —— 选中是玩家要持续
                * 操作的那一格（编辑器里抽屉开着，游戏里是手上这位），预览只是
-               * 指针路过。选中的框因此加粗到 2px、并在卡片外留 2px 纸色空隙
-               * （双环）：一眼能分出「点住了」与「碰了一下」。
+               * 指针路过。v0.7.14 起两者靠粗细（3px / 2px）与抬起、反色徽标区分，
+               * 不再靠「中间那圈纸色缝隙」。
                */
-              const focusRingStyle: CSSProperties = isSelected
-                ? { boxShadow: PARTICIPANT_SELECTED_RING }
-                : isHighlighted
-                  ? { boxShadow: `0 0 0 2px ${highlightColor ?? HIGHLIGHT_BLUE}` }
-                  : isActive
-                    ? { boxShadow: '0 0 0 2px hsl(var(--primary))' }
-                    : {};
               const themeColor = slot?.themeColor ?? '#FFFFFF';
               const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
               const clueSegments = slot?.clue ? parseClue(slot.clue) : [];
+              /**
+               * v0.7.14「触碰悬浮」：指针压上去 = 这张卡片被拎起来。
+               *
+               * 抬起 2px、影子换成 `--shadow-hover`（`--shadow-float` 的 28px 扩散
+               * 在 110px 宽、格间距 14px 的名册里会漫到邻居的缝里，看着像整片脏了）。
+               * 选中那张本来就抬着，不再叠一次 —— 它的影子在 `PARTICIPANT_SELECTED_RING`
+               * 的第三层里，再叠就糊成一块。
+               */
+              const lifted = isHovered || isSelected;
+              const hoverShadow = isHovered && !isSelected ? 'var(--shadow-hover)' : null;
+              /**
+               * 一圈**或者**不画。高亮的三档（选中 / 联动预览 / 指针激活）互斥，
+               * 选中优先，所以至多一条线；`hover` 不再给描边上色（v0.7.14）——
+               * 那条 1px 主色边框紧贴外面的 2px 环，正是「两层高亮线」的来源。
+               */
+              const ringLayers: string[] = isSelected
+                ? [PARTICIPANT_SELECTED_RING]
+                : isHighlighted
+                  ? [`0 0 0 2px ${highlightColor ?? HIGHLIGHT_BLUE}`]
+                  : isActive
+                    ? ['0 0 0 2px hsl(var(--primary))']
+                    : [];
+              if (hoverShadow) ringLayers.push(hoverShadow);
+              const focusRingStyle: CSSProperties = ringLayers.length
+                ? { boxShadow: ringLayers.join(', ') }
+                : {};
               return (
                 <div
                   key={index}
                   data-slot-index={index}
+                  /*
+                    v0.7.14：`data-tint` 是那层主题色的开关。悬停与选中都算「点亮」，
+                    收回交给 CSS 的基线规则（`.participant-tint` 的 `--tint-r`）——
+                    属性一撤，颜色自己慢慢缩回头像那枚圆，不必在 React 里留一个
+                    「正在收回」的状态。
+                  */
+                  data-tint={slot && (isHovered || isSelected) ? 'on' : undefined}
                   style={{
                     touchAction: 'none',
                     width: PANEL_CELL_WIDTH,
@@ -388,10 +439,22 @@ export function ParticipantPanel({
                     borderRadius: PARTICIPANT_SLOT_RADIUS,
                     // FIX-E04: the slot's single highlight frame.
                     ...focusRingStyle,
-                    // v0.7.12：选中 = 从纸页上抽起来的卡片 —— 抬起 2px，
-                    // 投影落在下方（见 `PARTICIPANT_SELECTED_RING` 第三层）。
-                    translate: isSelected ? '0 -2px' : undefined,
-                    zIndex: isSelected ? 1 : undefined,
+                    /*
+                      v0.7.12：选中 = 从纸页上抽起来的卡片 —— 抬起 2px，投影落在下方
+                      （见 `PARTICIPANT_SELECTED_RING` 第三层）。
+
+                      v0.7.14：**悬停也抬**。用 `translate` 不用 `transform`：选中时的
+                      鼓起（`roster-select-pop`）动的是 `translate`，两者同一条轨才能
+                      接着走 —— 抬起不会在动画开头被抹平，落下也不会跳。
+                    */
+                    translate: lifted ? '0 -2px' : undefined,
+                    zIndex: lifted ? 1 : undefined,
+                    /*
+                      影子与位移都要补间：指针扫过一排卡片时，影子是「慢慢落下来」，
+                      不是三格里两张有影、一张没有。180ms 与 `roster-select-pop` 同档。
+                    */
+                    transition:
+                      'translate var(--motion-base) var(--motion-ease-out), box-shadow var(--motion-base) var(--motion-ease-out)',
                     // SPEC-H14 §1.3: placed → the **whole** card dims (frame +
                     // badge + avatar + clue). One opacity, on the root only, so
                     // nothing multiplies down to 0.45 × 0.45.
@@ -476,7 +539,16 @@ export function ParticipantPanel({
                       : `空参与者框 ${index + 1}`
                   }
                   className={cn(
-                    'relative flex flex-col items-center justify-start border',
+                    /*
+                     * v0.7.14：`isolate` 是主题色那层能待在内容**下面**的前提。
+                     *
+                     * `.participant-tint` 是绝对定位的，绝对定位的兄弟在绘制顺序里
+                     * 排在普通流内容（头像 / 名字 / 线索）之上 —— 不隔离的话，那层
+                     * 颜色会糊在头像上。给了 `isolate`（建一个 stacking context），
+                     * 再让色层 `z-index: -1`，它就只盖过卡片自己的底色，头像仍是
+                     * 干净的一枚圆。
+                     */
+                    'relative isolate flex flex-col items-center justify-start border',
                     readOnly
                       ? slot
                         ? 'cursor-pointer'
@@ -488,12 +560,44 @@ export function ParticipantPanel({
                           : undefined,
                     slot
                       ? isSelected
-                        ? 'border-primary bg-primary/10 roster-select-pop'
-                        : 'border-border bg-background hover:border-primary'
+                        ? /*
+                            选中：**一条连续的主色边**。描边与外面的 2px 同色相接
+                            （1px + 2px = 3px 一整条），中间不留纸色 —— 用户说的
+                            「外出蓝色高亮线和内部中间不要有空白」。粗细与预览的
+                            2px 单环区分开，另外还有抬起 2px 与反色徽标。
+                            底色不用 `bg-primary/10`，用下面那层**主人自己的**颜色。
+                          */
+                          'border-primary bg-background roster-select-pop'
+                        : /*
+                            悬停不再给描边上色。那条 `hover:border-primary` 与「指针激活」
+                            的 2px 环叠在同一条边上，正是用户说的「两层高亮线」；现在悬停
+                            的反馈交给抬起 + 影子 + 主题色铺开（v0.7.14）。
+                          */
+                          'border-border bg-background'
                       : 'border-dashed border-muted-foreground/40 bg-muted/30',
                     isDragging ? 'opacity-40' : undefined,
                   )}
                 >
+                  {/*
+                    v0.7.14：卡片里那层「主题色的淡透明色」。它是一层**底色**，
+                    不是盖在卡片上的一层膜 —— `.participant-tint` 用 `z-index: -1`
+                    躲在所有兄弟下面（卡片根节点有 `isolate` 兜住这个负层级）。
+                    半径从头像圆心长出来（`--tint-y` 由组件按头像实际中心算），
+                    铺满整张卡时是均一的一层（`.participant-tint` 的注释里有算式）。
+                  */}
+                  {slot ? (
+                    <span
+                      aria-hidden="true"
+                      data-testid={`slot-tint-${index}`}
+                      className="participant-tint"
+                      style={
+                        {
+                          '--tint-color': themeTint(themeColor, isWhiteTheme),
+                          '--tint-y': `${AVATAR_PADDING + avatarSize / 2}px`,
+                        } as CSSProperties
+                      }
+                    />
+                  ) : null}
                   {/* OPT-B06 §6.3: 1-based sequence, top-left corner.
                       FEAT-O13 (docs/v0.5.4.md §6.2): bigger, and pushed into
                       the corner — its top / left edges are dropped so the
@@ -525,6 +629,16 @@ export function ParticipantPanel({
                       borderColor: isSelected ? 'hsl(var(--primary))' : undefined,
                       borderTopWidth: 0,
                       borderLeftWidth: 0,
+                      /*
+                        v0.7.14：选中时徽标填的是主色，卡片描边也是主色 —— 两段弧
+                        紧挨着（内圆角 5px 与外圆角 6px 同心），但各自都要抗锯齿，
+                        交界那一像素两边都只盖了一半，纸白就漏成一道细弧。用户看到
+                        的「高亮环和序号之间有白色区」正是它。
+                        给徽标加 1px 同色外扩：圆弧半径从 5 长到 6，正好与卡片的外弧
+                        重合 —— 两条边合成一条，抗锯齿只发生在外轮廓上（和卡片其它三
+                        个角一样）。只在填色时加，纸白徽标上加了会盖住卡片描边。
+                      */
+                      boxShadow: isSelected ? '0 0 0 1px hsl(var(--primary))' : undefined,
                     }}
                   >
                     {participantBadgeText(slot, index)}

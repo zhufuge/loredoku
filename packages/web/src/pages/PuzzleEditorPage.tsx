@@ -483,6 +483,8 @@ export function PuzzleEditorPage(): JSX.Element {
     puzzle.setBasicInfo({
       name: next.name,
       description: next.description,
+      clues: next.clues,
+      ending: next.ending,
       linkageColors: next.linkageColors,
       characterSlots: next.characterSlots,
       rosterCols: next.rosterCols,
@@ -1036,6 +1038,8 @@ export function PuzzleEditorPage(): JSX.Element {
             open={puzzleInfoOpen}
             name={puzzle.name}
             description={puzzle.description}
+            clues={puzzle.clues}
+            ending={puzzle.ending}
             linkageColors={puzzle.linkageColors}
             characterSlots={puzzle.characterSlots}
             rosterCols={puzzle.rosterCols}

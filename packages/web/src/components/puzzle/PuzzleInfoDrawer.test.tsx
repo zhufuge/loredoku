@@ -62,6 +62,8 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
           open
           name={options.name ?? '午夜花园'}
           description="旧描述"
+          clues={[]}
+          ending=""
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={rosterCols}
@@ -267,6 +269,8 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
           open
           name={options.name ?? '午夜花园'}
           description="旧描述"
+          clues={[]}
+          ending=""
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={null}
@@ -379,5 +383,153 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
     act(() => handle?.discard());
     expect(nameInput().value).toBe('午夜花园');
     expect(handle?.isDirty()).toBe(false);
+  });
+});
+
+/**
+ * v0.7.14（docs/v0.7.14.md §2）：题面 —— 全局线索（多条）与结束语。
+ *
+ * 钉的是**落库后的形状**：空行绝不进数据（否则游戏页会渲染出一行空白），
+ * 顺序不能被打乱，结束语要 trim。增长上限在数据侧（`PUZZLE_CLUES_MAX_COUNT`），
+ * 界面上表现为「新增」按不动而不是弹一句错。
+ */
+describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let handle: PuzzleInfoDrawerHandle | null;
+
+  const palette: MapLinkageColor[] = DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry }));
+  const onCommit = vi.fn();
+  const onRequestClose = vi.fn();
+  const slots: Array<CharacterSlotEntry | null> = [
+    { characterId: 7, themeColor: '#FFFFFF', clue: '我不在中央', linkages: [] },
+  ];
+
+  function render(committed: { clues?: string[]; ending?: string } = {}): void {
+    act(() => {
+      root.render(
+        <PuzzleInfoDrawer
+          ref={(instance) => {
+            handle = instance;
+          }}
+          open
+          name="午夜花园"
+          description="旧描述"
+          clues={committed.clues ?? []}
+          ending={committed.ending ?? ''}
+          linkageColors={palette}
+          characterSlots={slots}
+          rosterCols={null}
+          coverUrl={null}
+          coverFile={null}
+          coverRemoved={false}
+          onRequestClose={onRequestClose}
+          onCommit={onCommit}
+        />,
+      );
+    });
+  }
+
+  function rerender(committed: { clues?: string[]; ending?: string } = {}): void {
+    act(() => root.unmount());
+    container.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    render(committed);
+  }
+
+  const clueInputs = (): HTMLInputElement[] =>
+    Array.from(container.querySelectorAll<HTMLInputElement>('input[aria-label^="第 "]'));
+  const endingInput = (): HTMLTextAreaElement =>
+    container.querySelector<HTMLTextAreaElement>('#puzzle-info-ending') as HTMLTextAreaElement;
+  const addButton = (): HTMLButtonElement =>
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.trim() === '新增线索',
+    ) as HTMLButtonElement;
+  const removeButtons = (): HTMLButtonElement[] =>
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).filter(
+      (button) => button.title === '删除该条线索',
+    );
+  const save = (): HTMLButtonElement =>
+    container.querySelector<HTMLButtonElement>('footer button:last-child') as HTMLButtonElement;
+
+  beforeEach(() => {
+    handle = null;
+    onCommit.mockClear();
+    onRequestClose.mockClear();
+    URL.createObjectURL = vi.fn(() => 'blob:preview');
+    URL.revokeObjectURL = vi.fn();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    render({ clues: ['同一行里没有重复编号', '阴影里没有编号'], ending: '灯灭了，花园还在。' });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('seeds the committed clues and ending', () => {
+    expect(clueInputs().map((input) => input.value)).toEqual([
+      '同一行里没有重复编号',
+      '阴影里没有编号',
+    ]);
+    expect(endingInput().value).toBe('灯灭了，花园还在。');
+    expect(handle?.isDirty()).toBe(false);
+  });
+
+  it('adds a row, and the committed list keeps the order', () => {
+    act(() => addButton().click());
+    expect(clueInputs()).toHaveLength(3);
+    act(() => setValue(clueInputs()[2]!, '每条斜线上的编号都不同'));
+    act(() => save().click());
+    const committed = onCommit.mock.calls[0]![0] as { clues: string[]; ending: string };
+    expect(committed.clues).toEqual([
+      '同一行里没有重复编号',
+      '阴影里没有编号',
+      '每条斜线上的编号都不同',
+    ]);
+    // 没动过的结束语原样带过去。
+    expect(committed.ending).toBe('灯灭了，花园还在。');
+  });
+
+  it('removes the row that was clicked, not the last one', () => {
+    act(() => removeButtons()[0]?.click());
+    act(() => save().click());
+    const committed = onCommit.mock.calls[0]![0] as { clues: string[] };
+    expect(committed.clues).toEqual(['阴影里没有编号']);
+  });
+
+  it('a freshly added but empty row is not an edit', () => {
+    act(() => addButton().click());
+    // 归一化之后两边都是同样两条 —— 不该凭空多出一个撤销步。
+    expect(handle?.isDirty()).toBe(false);
+    expect(save().disabled).toBe(true);
+  });
+
+  it('commits clues trimmed, and drops rows left blank', () => {
+    act(() => addButton().click());
+    act(() => setValue(clueInputs()[2]!, '   '));
+    act(() => setValue(clueInputs()[0]!, '  改过的第一条  '));
+    act(() => save().click());
+    const committed = onCommit.mock.calls[0]![0] as { clues: string[] };
+    expect(committed.clues).toEqual(['改过的第一条', '阴影里没有编号']);
+  });
+
+  it('stops at the eight-clue ceiling instead of failing on save', () => {
+    rerender({ clues: Array.from({ length: 8 }, (_, index) => `线索 ${index + 1}`), ending: '' });
+    expect(clueInputs()).toHaveLength(8);
+    expect(addButton().disabled).toBe(true);
+    expect(addButton().title).toContain('最多 8 条');
+  });
+
+  it('trims the ending before it leaves the drawer', () => {
+    act(() => setValue(endingInput(), '  灯灭了，花园还在。  '));
+    expect(handle?.isDirty()).toBe(false);
+    act(() => setValue(endingInput(), '  灯灭了。  '));
+    act(() => save().click());
+    expect((onCommit.mock.calls[0]![0] as { ending: string }).ending).toBe('灯灭了。');
   });
 });

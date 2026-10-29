@@ -48,6 +48,7 @@ import {
   MapRegionLabelLayer,
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
+import { GameBrief } from '@/components/game/GameBrief';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
 import { useHighlight } from '@/hooks/useHighlight';
@@ -306,6 +307,16 @@ export function GamePage(): JSX.Element {
    * move a board that is already online.
    */
   const rosterCols = detail?.puzzle?.rosterCols ?? null;
+  /**
+   * v0.7.14（docs/v0.7.14.md §3）：题面的两段文字。
+   *
+   * **旧版本行没有这两个键** —— 已发布的游戏是一份冻住的 JSON，v0.7.14 之前
+   * 发布的那批里既没有 `clues` 也没有 `ending`。所以这里一律按「没有」处理：
+   * 绝不假设服务端补过默认值（`absorbLegacyPuzzleDraft` 只归一层级，不补字段）。
+   */
+  const puzzleDescription = detail?.puzzle?.description ?? '';
+  const puzzleClues = useMemo(() => detail?.puzzle?.clues ?? [], [detail]);
+  const puzzleEnding = (detail?.puzzle?.ending ?? '').trim();
   const rosterWidth = useMemo(
     () => rosterPanelWidthFor(rosterCols, slots.length),
     [rosterCols, slots.length],
@@ -1079,12 +1090,17 @@ export function GamePage(): JSX.Element {
     <div className="flex h-screen flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1">
         {/* 左列：上 = 品牌 + 游戏名（v0.5.1 SPEC-L06~L09 精简后的两行），
-            下 = 参与者面板（与预览页同一个组件） */}
+            中 = 题面（描述 + 全局线索），下 = 参与者面板（与预览页同一个组件）。
+
+            v0.7.14：这三段之间**不画线**。它们读起来是同一段话的段落 —— 哪一局、
+            要做什么、多出什么条件、这些人怎么站；一条横线会把「条件」和「人」切成
+            两个互不相干的区域，而线索说的正是这些人。
+            （原本标题区有 `border-b`，那条线正好压在参与者框头顶。） */}
         <aside
           className="flex shrink-0 flex-col border-r bg-background"
           style={{ width: rosterWidth }}
         >
-          <div className="shrink-0 space-y-1 border-b p-3">
+          <div className="shrink-0 space-y-1 p-3">
             {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
                 v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
             <div className="flex items-center gap-1">
@@ -1118,6 +1134,14 @@ export function GamePage(): JSX.Element {
               </span>
             </div>
           </div>
+
+          {/*
+            v0.7.14（docs/v0.7.14.md §4）：题面。描述在上、全局线索在下，钉在标题
+            与名册之间 —— 三样东西同时在视野里，谁也不用滚动去换另一个。
+            没有内容时组件自己返回 `null`，所以这里不必先判空。
+          */}
+          <GameBrief description={puzzleDescription} clues={puzzleClues} />
+
           <div className="flex min-h-0 flex-1">
             <ParticipantPanel
               slots={slots}
@@ -1125,8 +1149,9 @@ export function GamePage(): JSX.Element {
               cols={rosterCols}
               /*
                * v0.7.11：游戏页的名册也有「选中」—— 手上正拿着的那位（放置态），
-               * 不是鼠标碰巧路过的那位。选中态比预览态多一圈纸色缝隙（见
-               * `PARTICIPANT_SELECTED_RING`），并带一次 180ms 的鼓起。
+               * 不是鼠标碰巧路过的那位。选中态是一道 3px 的连续主色边（描边 +
+               * 外扩同色，中间不留缝，见 `PARTICIPANT_SELECTED_RING`），带一次
+               * 180ms 的鼓起。
                */
               selectedSlotIndex={mode.kind === 'placing' ? mode.participantId - 1 : null}
               draggingIndex={null}
@@ -1555,6 +1580,17 @@ export function GamePage(): JSX.Element {
                 : '下面这些参与者的位置还不对，改完可以再提交一次。'}
             </DialogDescription>
           </DialogHeader>
+
+          {/*
+            v0.7.14（docs/v0.7.14.md §4）：结束语。作者的一句话，通过时才出现。
+            **不给它加标签**（不写「结束语：」）—— 那是作者的声音，不是界面在说话；
+            换成楷体、和上面的用时之间隔一条细线，就够把「这是另一件事」说清楚。
+          */}
+          {result?.kind === 'passed' && puzzleEnding.length > 0 ? (
+            <p className="whitespace-pre-wrap border-t pt-3 font-kai text-sm leading-[1.9] text-foreground/90">
+              {puzzleEnding}
+            </p>
+          ) : null}
 
           {result?.kind === 'failed' ? (
             <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
