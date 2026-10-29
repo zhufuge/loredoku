@@ -3,7 +3,7 @@
  *
  * ```
  * /hlm/maps      红楼梦 · 地图
- * /hlm/basic     红楼梦 · 概览（这个空间自己的那页）
+ * /hlm/overview  红楼梦 · 概览（这个空间自己的那页）
  * /settings/themes   系统配置 · 主题列表
  * ```
  *
@@ -17,7 +17,7 @@
  */
 
 export const WORKSHOP_MODULES = [
-  { key: 'basic', label: '概览' },
+  { key: 'overview', label: '概览' },
   { key: 'assets', label: '资源' },
   { key: 'maps', label: '地图' },
   { key: 'characters', label: '角色' },
@@ -33,8 +33,13 @@ export type ContentModuleKey = (typeof CONTENT_MODULES)[number];
 
 export const SETTINGS_THEMES_PATH = '/settings/themes';
 
-/** `loredoku.theme` 存的是**编码**，不是 id：id 只在库里唯一，编码才在地址里唯一。 */
-const LAST_THEME_KEY = 'loredoku.theme';
+/**
+ * 记住最后一个工作空间。键是 `loredoku.lastTheme`，**不是** `loredoku.theme` ——
+ * 后者是日夜模式的（`lib/theme.ts` 的 `THEME_STORAGE_KEY`）。v0.8.1 之前两个键
+ * 撞在一起：这里把主题编码写进去，日夜模式读到 `hlm` 这种非法值就回退
+ * 「跟随系统」，于是「在设置里改成日间、回到工坊又变回夜间」。
+ */
+const LAST_THEME_KEY = 'loredoku.lastTheme';
 
 export function readLastThemeCode(): string | null {
   try {
@@ -62,4 +67,14 @@ export function rememberThemeCode(code: string): void {
 export function workshopPath(module: ModuleKey, code?: string | null): string {
   const target = code ?? readLastThemeCode();
   return target ? `/${encodeURIComponent(target)}/${module}` : '/';
+}
+
+/**
+ * 工作空间里拼一条**整屏页**（编辑器 / 预览）的地址。`code` 缺席（单测、
+ * 没有上下文的渲染）时退回不带主题段的旧地址 —— 路由表里的重定向会把它
+ * 落回记住的工作空间，链接仍然能用。
+ */
+export function fullscreenPath(code: string | null | undefined, kind: 'maps' | 'puzzles', id: number | string, action: 'edit' | 'view', query = ''): string {
+  const suffix = query.length > 0 ? `?${query}` : '';
+  return code ? `/${code}/${kind}/${id}/${action}${suffix}` : `/${kind}/${id}/${action}${suffix}`;
 }

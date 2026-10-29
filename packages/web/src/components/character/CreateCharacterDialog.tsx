@@ -67,6 +67,13 @@ const DEFAULTS: FormValues = {
   bgColor: DEFAULT_BG_COLOR,
 };
 
+/**
+ * v0.8.1：业务 ID 预填 `主题编码_` —— 作者只敲后半段，前缀替他写好。
+ */
+function defaultsFor(themeCode: string | null): FormValues {
+  return { ...DEFAULTS, code: themeCode ? `${themeCode}_` : '' };
+}
+
 interface CreateCharacterDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -81,6 +88,10 @@ export function CreateCharacterDialog({
   onCreated,
   defaultThemeCode = null,
 }: CreateCharacterDialogProps): JSX.Element {
+  const workspace = useWorkspace();
+  const boundaryThemeCode = workspace?.themeCode ?? defaultThemeCode;
+  const [themeCode, setThemeCode] = useState<string | null>(boundaryThemeCode);
+
   const {
     register,
     handleSubmit,
@@ -88,7 +99,10 @@ export function CreateCharacterDialog({
     setValue,
     reset,
     formState: { errors },
-  } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: DEFAULTS });
+  } = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: defaultsFor(boundaryThemeCode),
+  });
 
   const createMutation = useCreateCharacter();
   const uploadMutation = useUploadCharacterAvatar();
@@ -100,13 +114,9 @@ export function CreateCharacterDialog({
    * v0.8.0 §18：在工作空间里主题已由地址定了（`/hlm/characters`），对话框不再让人换
    * —— 换了就等于建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。
    */
-  const workspace = useWorkspace();
-  const boundaryThemeCode = workspace?.themeCode ?? defaultThemeCode;
-  const [themeCode, setThemeCode] = useState<string | null>(boundaryThemeCode);
-
   useEffect(() => {
     if (!open) {
-      reset(DEFAULTS);
+      reset(defaultsFor(boundaryThemeCode));
       setFile(null);
       setThemeCode(boundaryThemeCode);
     }
@@ -179,7 +189,7 @@ export function CreateCharacterDialog({
           )}
           <div className="grid gap-2">
             <Label htmlFor="character-code">业务 ID</Label>
-            <Input id="character-code" placeholder="detective" {...register('code')} />
+            <Input id="character-code" placeholder={`例如：${themeCode ?? 'theme'}_detective`} {...register('code')} />
             {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
           </div>
           <div className="grid gap-2">

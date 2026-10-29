@@ -118,7 +118,7 @@ describe('ThemeSwitcher（v0.8.0 §18）', () => {
 
     expect(path()).toBe('/default/puzzles');
     // 记住了：旧地址 `/maps` 与全屏页面（编辑器）靠它回到同一个世界。
-    expect(window.localStorage.getItem('loredoku.theme')).toBe('default');
+    expect(window.localStorage.getItem('loredoku.lastTheme')).toBe('default');
   });
 
   it('【主题配置】是出口 —— 通向系统配置页，不是第三个主题', () => {

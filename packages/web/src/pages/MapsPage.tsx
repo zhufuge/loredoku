@@ -18,6 +18,7 @@ import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
+import { fullscreenPath } from '@/lib/workspace';
 import { ScopedEmpty } from '@/components/theme/ScopedEmpty';
 import { ListPager } from '@/components/common/ListPager';
 import {
@@ -145,7 +146,7 @@ export function MapsPage(): JSX.Element {
    * 按钮（{@link handleEdit}）。
    */
   const handleOpen = (entry: MapEntrySummary): void => {
-    navigate(`/maps/${entry.mapId}/edit`);
+    navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'edit'));
   };
 
   /**
@@ -154,10 +155,10 @@ export function MapsPage(): JSX.Element {
    */
   const handleEdit = (entry: MapEntrySummary): void => {
     if (entry.kind === 'version' && entry.versionNo !== null) {
-      navigate(`/maps/${entry.mapId}/edit?v=${entry.versionNo}`);
+      navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'edit', `v=${entry.versionNo}`));
       return;
     }
-    navigate(`/maps/${entry.mapId}/edit`);
+    navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'edit'));
   };
 
   /**
@@ -166,7 +167,7 @@ export function MapsPage(): JSX.Element {
    */
   const handlePreview = (entry: MapEntrySummary): void => {
     if (!entryPreviewable(entry)) return;
-    navigate(`/maps/${entry.mapId}/views`);
+    navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'view'));
   };
 
   const confirmDelete = (): void => {

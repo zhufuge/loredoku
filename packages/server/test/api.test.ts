@@ -1368,7 +1368,8 @@ describe('games API slug (OPT-W04)', () => {
     return Math.random().toString(16).slice(2, 10);
   }
 
-  it('derives puzzle-{name}-{difficulty} when the path is left untouched', async () => {
+  // v0.8.1：难度不进路径 —— 兜底派生只看名称。
+  it('derives puzzle-{name} when the path is left untouched', async () => {
     const hex = token();
     const { versionId } = await deployablePuzzle(`Flower Garden ${hex}`);
 
@@ -1376,20 +1377,21 @@ describe('games API slug (OPT-W04)', () => {
       .post(`/api/puzzles/${versionId}/games`)
       .send({ name: `Flower Garden ${hex}`, difficulty: 'veryEasy' });
     expect(deploy.status).toBe(200);
-    expect(deploy.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
+    expect(deploy.body.data.slug).toBe(`puzzle-flower-garden-${hex}`);
+    expect(deploy.body.data.difficulty).toBe('veryEasy');
 
     // The list carries the slug so the card can link straight to it.
     const list = await api.get('/api/games');
     const row = (list.body.data as Array<{ puzzleId: number | null; slug: string }>).find(
       (entry) => entry.puzzleId === versionId,
     );
-    expect(row?.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
+    expect(row?.slug).toBe(`puzzle-flower-garden-${hex}`);
 
     // OPT-W04 §4.6: the game page resolves its game by path.
-    const detail = await api.get(`/api/games/slug/puzzle-flower-garden-${hex}-very-easy`);
+    const detail = await api.get(`/api/games/slug/puzzle-flower-garden-${hex}`);
     expect(detail.status).toBe(200);
     expect(detail.body.data.id).toBe(deploy.body.data.id);
-    expect(detail.body.data.slug).toBe(`puzzle-flower-garden-${hex}-very-easy`);
+    expect(detail.body.data.slug).toBe(`puzzle-flower-garden-${hex}`);
     expect(detail.body.data.puzzle.characterSlots[0]).not.toBeNull();
 
     // The by-id route still works (cover upload and internal callers).

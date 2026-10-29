@@ -11,8 +11,11 @@ import type {
 import { DeploymentsPage } from './DeploymentsPage';
 
 /**
- * 部署模块（v0.7.1 §7.4）：一行 = 一条在线游戏；取消部署走二次确认，弹窗里
+ * 部署模块（v0.7.1 §7.4）：一行 = 一条在线的东西；取消部署走二次确认，弹窗里
  * 明写「玩家立刻无法访问 / 同一路径可以再用」两件事。
+ *
+ * v0.8.1：列表恢复 v0.8 之前的**平铺**样式 —— 合辑一段、单局一段，一张卡；
+ * 「导出包」挪到页头（它是主题级动作）。工作空间里只列当前主题的行。
  *
  * v0.7.11：这一页有了自己的「部署」按钮 —— 空状态里也是它。原先那个
  * 「前往谜题列表」的出口随之删掉：它唯一的用处是绕路去做同一件事。
@@ -38,9 +41,8 @@ vi.mock('@/hooks/usePuzzles', () => ({
 }));
 
 /**
- * v0.8.0 §16.4：这一页按主题分组，所以要主题列表与合辑列表。两者都 mock 掉 ——
- * 它们走 react-query，而这套测试没有 `QueryClientProvider`（也不需要：
- * 分组逻辑是纯展示）。
+ * 合辑列表也 mock 掉 —— 它走 react-query，而这套测试没有 `QueryClientProvider`
+ * （也不需要：平铺逻辑是纯展示）。
  */
 const themesRef: { data: Theme[]; isLoading: boolean } = { data: [], isLoading: false };
 const deploymentsRef: { data: ThemeDeploymentSummary[] } = { data: [] };
@@ -52,10 +54,8 @@ vi.mock('@/hooks/useThemes', () => ({
   useRemoveDeployment: () => ({ mutate: removeDeploymentMutate, isPending: false }),
 }));
 
-/**
- * v0.8.0 §19：没有上下文时页面退回「按主题分组」的老行为，所以默认给 `null`；
- * 需要验「工作空间视角」的用例自己塞一个值进去。
- */
+/** 没有上下文时页面退回「全部行平铺」的老行为，所以默认给 `null`；
+ *  需要验「工作空间视角」的用例自己塞一个值进去。 */
 const workspaceRef: { value: unknown } = { value: null };
 vi.mock('@/components/layout/WorkspaceContext', () => ({
   useWorkspace: () => workspaceRef.value,
@@ -88,6 +88,30 @@ function game(overrides: Partial<MapGameSummary> = {}): MapGameSummary {
     gridSize: 6,
     participantCount: 6,
     createdAt: '2026-01-04T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+/** 一条主题合辑 —— 目录，不是内容（§9）。 */
+function deployment(overrides: Partial<ThemeDeploymentSummary> = {}): ThemeDeploymentSummary {
+  return {
+    id: 7,
+    themeCode: 'default',
+    themeName: '默认主题',
+    slug: 'hlm-collection',
+    name: '默认合辑',
+    description: null,
+    coverUrl: null,
+    entries: [
+      {
+        puzzleId: 9,
+        puzzleName: '午夜花园',
+        sortOrder: 0,
+        game: game(),
+      },
+    ],
+    createdAt: '2026-01-05T00:00:00.000Z',
+    updatedAt: '2026-01-05T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -199,26 +223,24 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
   });
 
   /**
-   * v0.8.0 §19：**认不出主题的部署不展示**。
-   *
-   * 以前会多出一个「未归入主题」的组，把主题被删掉之后留下的行摊在屏幕上 ——
-   * 作者既看不懂也处理不了。这一页是工作空间视角，不属于任何工作空间的行没有位置。
+   * v0.8.1：平铺列表里合辑也是一行，摆在单局上面；已经进了合辑的单局不再
+   * 重复列一遍 —— 合辑行已经把它算进去了。
    */
-  it('认不出主题的部署不展示 —— 没有「未归入主题」这一组', () => {
-    gamesRef.data = [game(), game({ id: 4, themeCode: 'gone', name: '上个世纪的一关' })];
+  it('合辑平铺在单局上面，进了合辑的单局不重复列', () => {
+    deploymentsRef.data = [deployment()];
     render();
 
-    expect(text()).not.toContain('未归入主题');
-    expect(text()).not.toContain('上个世纪的一关');
-    expect(text()).toContain('午夜花园');
-    // 页头数字和屏幕上的行对得上：藏起来的那个不算「在线」。
-    expect(text()).toContain('共 1 个游戏在线。');
+    expect(text()).toContain('合辑「默认合辑」');
+    expect(text()).toContain('/play/theme/hlm-collection');
+    // 成员「午夜花园」的单局行不再重复 —— 合辑行已经把它算进去了。
+    expect(text()).not.toContain('/play/puzzle-midnight-garden-medium');
+    // 页头数字 = 单局行数，不含合辑成员。
+    expect(text()).toContain('共 0 个游戏在线。');
   });
 
   /** 工作空间里只列**这个主题**的关，别的主题一行都不混进来（§18）。 */
   it('在工作空间里只列当前主题的关 —— 别的主题既不分组也不并进「未归入」', () => {
     const hlm = theme({ code: 'hlm', name: '红楼梦' });
-    themesRef.data = [theme(), hlm];
     workspaceRef.value = {
       theme: hlm,
       themes: [theme(), hlm],

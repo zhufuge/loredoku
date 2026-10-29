@@ -59,7 +59,6 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
     puzzleId,
     body.slug,
     name,
-    body.difficulty,
     body.overwriteSlug === true,
   );
 
@@ -78,8 +77,8 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
  * OPT-W04 §4.3 / §4.4: 空就推导、填了就校验，再确认没有别的谜题版本占着这条
  * 路径。Q13（v0.4.1）：名称 slug 化之后什么都不剩时**不发明**路径，让作者自己填。
  *
- * 路径由前端按「前缀 + 中段 + 难度后缀」拼好再提交（§7.6.1），这里只做最后
- * 一道格式与占用检查 —— 服务端不再二次加工。
+ * 路径由前端按「前缀 + 中段」拼好再提交（§7.6.1；v0.8.1 起难度不进路径），
+ * 这里只做最后一道格式与占用检查 —— 服务端不再二次加工。
  *
  * v0.7.11：撞车时返回 `replaceGameId`（要被覆盖的那条部署），而不是只抛错。
  * 抛出来的错的 `details` 是一份 {@link GameSlugConflict} —— 前端的覆盖弹窗
@@ -89,7 +88,6 @@ async function resolveSlug(
   puzzleId: number,
   rawSlug: string | undefined,
   name: string,
-  difficulty: MapGameSummary['difficulty'],
   overwriteSlug: boolean,
 ): Promise<{ slug: string; replaceGameId: number | null }> {
   const typed = (rawSlug ?? '').trim();
@@ -97,7 +95,8 @@ async function resolveSlug(
     throw AppError.validation('访问路径必填');
   }
 
-  const slug = typed.length > 0 ? typed.toLowerCase() : buildDefaultSlug({ name, difficulty });
+  // v0.8.1：难度不进路径 —— 部署兜底也只从名称派生。
+  const slug = typed.length > 0 ? typed.toLowerCase() : buildDefaultSlug({ name });
 
   const problem = slugError(slug);
   if (problem) {

@@ -85,7 +85,7 @@ function ThemeCard({ theme }: { theme: Theme }): JSX.Element {
   return (
     <Link
       // v0.8.0 §18：点卡片 = 进这间工作台，落在它的概览（四扇门都在那儿）。
-      to={`/${theme.code}/basic`}
+      to={`/${theme.code}/overview`}
       className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:bg-accent/40"
     >
       <div className="flex h-2">

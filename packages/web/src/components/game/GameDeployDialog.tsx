@@ -6,7 +6,6 @@ import {
   GAME_DIFFICULTY_DEFAULT,
   GAME_DIFFICULTY_LABELS,
   GAME_DIFFICULTY_LEVELS,
-  GAME_DIFFICULTY_SLUGS,
   GAME_DIFFICULTY_TEXT_COLORS,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
@@ -56,8 +55,8 @@ const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
  * - OPT-W03：重新部署时回填难度并展示现有封面，三态（保留 / 替换 / 移除）；
  * - **部署单元是一个谜题版本行**（§7.1 第 2 层拦截）：草稿行进不来，因为
  *   `puzzle` prop 的形状就是版本条目；
- * - 访问路径拆成「只读前缀 `puzzle-` + 可编辑中段 + 只读难度后缀」：难度永远
- *   实时参与拼接，已部署过的路径被改掉时明写「原访问路径将失效」。
+ * - 访问路径拆成「只读前缀 `puzzle-` + 可编辑中段」（v0.8.1 起难度不进路径）：
+ *   已部署过的路径被改掉时明写「原访问路径将失效」。
  */
 export function GameDeployDialog({
   puzzle,
@@ -115,9 +114,9 @@ export function GameDeployDialog({
 
   const [name, setName] = useState('');
   /**
-   * v0.7.1 §7.6.1：访问路径拆成「前缀 + 可编辑中段 + 难度后缀」。前缀（`puzzle-`）
-   * 与后缀（`-medium` 之类）是只读文本，唯一可编辑的是中段 —— 作者要对外公布
-   * 的是整条路径，但只有中段需要他操心。
+   * v0.7.1 §7.6.1：访问路径拆成「前缀 + 可编辑中段」。前缀（`puzzle-`）是只读
+   * 文本，唯一可编辑的是中段。v0.8.1：**难度不再是后缀** —— 改难度不该把
+   * 对外的地址改掉，路径只表达「这是哪一关」。
    */
   const [middle, setMiddle] = useState('');
   const [difficulty, setDifficulty] = useState<GameDifficulty>(GAME_DIFFICULTY_DEFAULT);
@@ -152,7 +151,8 @@ export function GameDeployDialog({
     if (activeExisting) {
       // 已发布的路径是给持链接的人的承诺：回填并当作「已经改过」，改名字或难度
       // 都不会悄悄重写它，只会在下面显式提示「原路径将失效」。
-      setMiddle(splitSlug(activeExisting.slug, activeExisting.difficulty));
+      // v0.8.1：存量路径可能带着难度后缀，反解时剥掉（splitSlug）。
+      setMiddle(splitSlug(activeExisting.slug));
       setMiddleTouched(true);
     } else {
       setMiddle(slugify(startName));
@@ -178,11 +178,8 @@ export function GameDeployDialog({
     if (!middleTouched) setMiddle(slugify(next));
   };
 
-  /**
-   * 难度**永远**实时参与拼接（v0.7.1 起不再冻结）—— 改难度就改后缀，
-   * 路径跟着变，`existingGame` 在场时下面会提示原路径失效。
-   */
-  const slug = middle.trim().length > 0 ? composeSlug(middle, difficulty) : '';
+  // v0.8.1：难度不参与拼接 —— 路径只由中段决定。
+  const slug = middle.trim().length > 0 ? composeSlug(middle) : '';
 
   const coverPreview = useMemo(
     () => (cover ? URL.createObjectURL(cover) : null),
@@ -259,8 +256,7 @@ export function GameDeployDialog({
       toast.error('请填写游戏名称');
       return;
     }
-    // 中段为空时不要拼 —— `composeSlug('')` 会退化成 `puzzle-medium`，
-    // 看着合法其实丢了名称。
+    // 中段为空时不要拼 —— 空中段拼出来是光杆 `puzzle`，看着合法其实丢了名称。
     if (middle.trim().length === 0) {
       toast.error(
         middleTouched
@@ -372,7 +368,7 @@ export function GameDeployDialog({
           </div>
 
           {/* OPT-W04 §4.2 + v0.7.1 §7.6.1: the access path is the game's public
-              URL — the author edits only its middle segment. */}
+              URL — the author edits only its middle segment. v0.8.1：没有难度后缀。 */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="game-deploy-slug">
               访问路径
@@ -400,9 +396,6 @@ export function GameDeployDialog({
                     setMiddle(normalizeSlugInput(event.target.value));
                   }}
                 />
-                <span className="shrink-0 select-none text-muted-foreground">
-                  -{GAME_DIFFICULTY_SLUGS[difficulty]}
-                </span>
               </div>
               <Button
                 type="button"

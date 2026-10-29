@@ -54,16 +54,13 @@ describe('slugify (OPT-W04 §4.3)', () => {
 });
 
 describe('buildDefaultSlug (OPT-W04 §4.3)', () => {
-  it('builds puzzle-{name}-{difficulty} for the two documented examples', () => {
-    expect(buildDefaultSlug({ name: 'Flower Garden', difficulty: 'veryEasy' })).toBe(
-      'puzzle-flower-garden-very-easy',
-    );
-    expect(buildDefaultSlug({ name: 'Fireside Beach', difficulty: 'medium' })).toBe(
-      'puzzle-fireside-beach-medium',
-    );
+  // v0.8.1：难度不进路径 —— 两个文档用例只由名称决定。
+  it('builds puzzle-{name} for the two documented examples', () => {
+    expect(buildDefaultSlug({ name: 'Flower Garden' })).toBe('puzzle-flower-garden');
+    expect(buildDefaultSlug({ name: 'Fireside Beach' })).toBe('puzzle-fireside-beach');
   });
 
-  it('covers all five difficulty tiers', () => {
+  it('keeps every known difficulty suffix strippable (splitSlug pairs with it)', () => {
     expect(GAME_DIFFICULTY_LEVELS.map((tier) => GAME_DIFFICULTY_SLUGS[tier])).toEqual([
       'very-easy',
       'easy',
@@ -71,27 +68,22 @@ describe('buildDefaultSlug (OPT-W04 §4.3)', () => {
       'hard',
       'expert',
     ]);
-    for (const tier of GAME_DIFFICULTY_LEVELS) {
-      expect(buildDefaultSlug({ name: 'Flower Garden', difficulty: tier })).toBe(
-        `${GAME_SLUG_PREFIX}-flower-garden-${GAME_DIFFICULTY_SLUGS[tier]}`,
-      );
-    }
   });
 
   it('returns "" when the name has no usable characters (Q13)', () => {
     // Nothing to derive — the author must type a path; "puzzle-medium" would be
     // an invented path, which Q13 forbids.
-    expect(buildDefaultSlug({ name: '神秘古堡', difficulty: 'easy' })).toBe('');
-    expect(buildDefaultSlug({ name: '城堡', difficulty: 'expert' })).toBe('');
-    expect(buildDefaultSlug({ name: '！？…', difficulty: 'medium' })).toBe('');
+    expect(buildDefaultSlug({ name: '神秘古堡' })).toBe('');
+    expect(buildDefaultSlug({ name: '城堡' })).toBe('');
+    expect(buildDefaultSlug({ name: '！？…' })).toBe('');
   });
 
   it('keeps a partially-ASCII name (the ASCII part still derives a path)', () => {
-    expect(buildDefaultSlug({ name: '古堡 Castle!', difficulty: 'hard' })).toBe('puzzle-castle-hard');
+    expect(buildDefaultSlug({ name: '古堡 Castle!' })).toBe('puzzle-castle');
   });
 
   it('truncates a very long name without leaving a trailing hyphen', () => {
-    const slug = buildDefaultSlug({ name: 'x'.repeat(200), difficulty: 'medium' });
+    const slug = buildDefaultSlug({ name: 'x'.repeat(200) });
     expect(slug.length).toBeLessThanOrEqual(GAME_SLUG_MAX_LENGTH);
     expect(slug.endsWith('-')).toBe(false);
   });
@@ -163,55 +155,55 @@ describe('truncateSlug (OPT-W04 §4.3)', () => {
 });
 
 /**
- * v0.7.1 §7.6.1: the deploy dialog edits only the **middle** — `puzzle-` and the
- * difficulty suffix are read-only text around the input, composed on save and
- * split back on prefill.
+ * v0.7.1 §7.6.1: the deploy dialog edits only the **middle** — the `puzzle-`
+ * prefix is read-only text around the input, composed on save and split back on
+ * prefill. v0.8.1：难度不再参与拼接。
  */
-describe('composeSlug (v0.7.1 §7.6.1)', () => {
-  it('wraps the middle with the fixed prefix and the difficulty segment', () => {
-    expect(composeSlug('flower-garden', 'medium')).toBe('puzzle-flower-garden-medium');
-    expect(composeSlug('flower-garden', 'veryEasy')).toBe('puzzle-flower-garden-very-easy');
+describe('composeSlug (v0.7.1 §7.6.1, v0.8.1 无难度后缀)', () => {
+  it('wraps the middle with the fixed prefix, and nothing else', () => {
+    expect(composeSlug('flower-garden')).toBe('puzzle-flower-garden');
   });
 
   it('slugifies the middle so an author cannot type an illegal character', () => {
-    expect(composeSlug('Flower Garden!', 'hard')).toBe('puzzle-flower-garden-hard');
-    expect(composeSlug('古堡 Castle', 'easy')).toBe('puzzle-castle-easy');
+    expect(composeSlug('Flower Garden!')).toBe('puzzle-flower-garden');
+    expect(composeSlug('古堡 Castle')).toBe('puzzle-castle');
   });
 
   it('eats leading / trailing hyphens so the join never doubles them', () => {
-    expect(composeSlug('-castle-', 'medium')).toBe('puzzle-castle-medium');
-    expect(composeSlug('a--b', 'medium')).toBe('puzzle-a-b-medium');
+    expect(composeSlug('-castle-')).toBe('puzzle-castle');
+    expect(composeSlug('a--b')).toBe('puzzle-a-b');
   });
 
   it('keeps the result inside the column width without a trailing hyphen', () => {
-    const slug = composeSlug('x'.repeat(GAME_SLUG_MAX_LENGTH + 20), 'expert');
+    const slug = composeSlug('x'.repeat(GAME_SLUG_MAX_LENGTH + 20));
     expect(slug.length).toBeLessThanOrEqual(GAME_SLUG_MAX_LENGTH);
     expect(slug.endsWith('-')).toBe(false);
   });
 
   it('agrees with buildDefaultSlug for a plain name', () => {
-    for (const difficulty of GAME_DIFFICULTY_LEVELS) {
-      expect(buildDefaultSlug({ name: 'Flower Garden', difficulty })).toBe(
-        composeSlug(slugify('Flower Garden'), difficulty),
-      );
-    }
+    expect(buildDefaultSlug({ name: 'Flower Garden' })).toBe(
+      composeSlug(slugify('Flower Garden')),
+    );
   });
 });
 
-describe('splitSlug (v0.7.1 §7.6.1)', () => {
+describe('splitSlug (v0.7.1 §7.6.1, v0.8.1 兼容存量后缀)', () => {
   it('round-trips a composed slug back to its middle', () => {
     const middle = 'flower-garden-2019';
-    expect(splitSlug(composeSlug(middle, 'hard'), 'hard')).toBe(middle);
+    expect(splitSlug(composeSlug(middle))).toBe(middle);
   });
 
-  it('strips only the prefix when the suffix belongs to another difficulty', () => {
-    // The author switched the difficulty: the stored path still ends in the old
-    // segment, which is not part of the middle.
-    expect(splitSlug('puzzle-flower-garden-medium', 'hard')).toBe('flower-garden-medium');
+  it('strips a legacy difficulty suffix from paths published before v0.8.1', () => {
+    // 存量路径是带 `-hard` 这类后缀发布的；回填时把后缀剥掉，重新部署才不会
+    // 把它写死进新路径。
+    expect(splitSlug('puzzle-flower-garden-hard')).toBe('flower-garden');
+    expect(splitSlug('puzzle-flower-garden-very-easy')).toBe('flower-garden');
+    // 后缀不是「属于谁的」概念了 —— 任何一个已知难度词都剥。
+    expect(splitSlug('puzzle-flower-garden-medium')).toBe('flower-garden');
   });
 
   it('leaves a path without the prefix alone', () => {
-    expect(splitSlug('castle-hard', 'hard')).toBe('castle');
-    expect(splitSlug('flower-garden', 'hard')).toBe('flower-garden');
+    expect(splitSlug('castle-hard')).toBe('castle');
+    expect(splitSlug('flower-garden')).toBe('flower-garden');
   });
 });

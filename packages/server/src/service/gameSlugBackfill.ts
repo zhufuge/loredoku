@@ -39,7 +39,7 @@ export function backfillGameSlugs(rows: SlugBackfillRow[]): Map<string | number,
   const taken = new Set<string>();
   const result = new Map<string | number, string>();
   for (const row of rows) {
-    const derived = buildDefaultSlug({ name: row.name, difficulty: row.difficulty });
+    const derived = buildDefaultSlug({ name: row.name });
     // Q13: a name with no ASCII alphanumerics derives nothing, and the
     // migration cannot ask an author — fall back to the row id so the column
     // never ends up NULL.

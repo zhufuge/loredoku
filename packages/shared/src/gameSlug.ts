@@ -6,7 +6,6 @@ import {
   GAME_SLUG_PREFIX,
   GAME_SLUG_RESERVED,
 } from './constants';
-import type { GameDifficulty } from './types/domain';
 
 /**
  * OPT-W04 (docs/v0.4.1.md §4): a game is reachable at `/play/{slug}` instead of
@@ -30,29 +29,33 @@ export function slugify(input: string): string {
 }
 
 /**
- * §4.3: `puzzle-` + slugified name + `-` + slugified difficulty. Q13: a name that
- * slugifies to nothing returns `''` rather than inventing `puzzle-medium`.
+ * §4.3: `puzzle-` + slugified name. Q13: a name that slugifies to nothing
+ * returns `''` rather than inventing something.
  *
- * v0.7.1 §7.6.1: the deploy dialog edits the **middle** only (prefix `puzzle-`
- * and the difficulty suffix are read-only text around the input), so the three
- * pieces are composed by {@link composeSlug}. This stays the one derivation used
- * by the dialog default, 「重新生成」 and the server's fallback.
+ * v0.7.1 §7.6.1: the deploy dialog edits the **middle** only (the `puzzle-`
+ * prefix is read-only text around the input), so the pieces are composed by
+ * {@link composeSlug}. This stays the one derivation used by the dialog default,
+ * 「重新生成」 and the server's fallback.
+ *
+ * v0.8.1：**难度不再进路径**。路径是给持链接的人的承诺，改个难度不该把地址改掉
+ * —— 难度是这关的属性，不是它的地址。老路径（带 `-hard` 这类后缀）仍然有效，
+ * {@link splitSlug} 反解时会把它剥掉。
  */
-export function buildDefaultSlug(input: { name: string; difficulty: GameDifficulty }): string {
+export function buildDefaultSlug(input: { name: string }): string {
   const middle = slugify(input.name);
   if (middle.length === 0) return '';
-  return composeSlug(middle, input.difficulty);
+  return composeSlug(middle);
 }
 
 /**
- * v0.7.1 §7.6.1: `puzzle-{middle}-{difficulty}`. The middle is slugified and
- * stripped of edge dashes (a trailing `-` while typing would otherwise produce
- * `puzzle-x--hard`), and the whole thing is truncated to the column width.
+ * v0.7.1 §7.6.1: `puzzle-{middle}`（v0.8.1 起没有难度后缀）。The middle is
+ * slugified and stripped of edge dashes (a trailing `-` while typing would
+ * otherwise produce `puzzle-x-`), and the whole thing is truncated to the
+ * column width.
  */
-export function composeSlug(middle: string, difficulty: GameDifficulty): string {
+export function composeSlug(middle: string): string {
   const body = slugify(middle).replace(/^-+|-+$/g, '');
-  const suffix = GAME_DIFFICULTY_SLUGS[difficulty];
-  const parts = [GAME_SLUG_PREFIX, body, suffix].filter((part) => part.length > 0);
+  const parts = [GAME_SLUG_PREFIX, body].filter((part) => part.length > 0);
   return truncateSlug(parts.join('-'));
 }
 
@@ -60,18 +63,20 @@ export function composeSlug(middle: string, difficulty: GameDifficulty): string 
  * v0.7.1 §7.6.1: the inverse for the deploy dialog's prefill — an already
  * published slug back to the editable middle.
  *
- * Strips the prefix and the **current** difficulty suffix when both are present;
- * a slug that does not end with that suffix (a legacy path, or one whose
- * difficulty the author is about to change) keeps everything after the prefix,
- * which is the closest truthful answer.
+ * v0.8.1：剥掉前缀之后，再把**任何**已知难度后缀剥掉 —— 存量路径是带
+ * `-hard` 这类后缀发布的，回填中段时应当把后缀留给「剥掉」而不是当成名字
+ * 的一部分，否则重新部署会把后缀写死进新路径。
  */
-export function splitSlug(slug: string, difficulty: GameDifficulty): string {
+export function splitSlug(slug: string): string {
   let middle = slug;
   const prefix = `${GAME_SLUG_PREFIX}-`;
   if (middle.startsWith(prefix)) middle = middle.slice(prefix.length);
-  const suffix = `-${GAME_DIFFICULTY_SLUGS[difficulty]}`;
-  if (suffix.length > 1 && middle.endsWith(suffix)) {
-    middle = middle.slice(0, middle.length - suffix.length);
+  for (const suffix of Object.values(GAME_DIFFICULTY_SLUGS)) {
+    const tail = `-${suffix}`;
+    if (tail.length > 1 && middle.endsWith(tail)) {
+      middle = middle.slice(0, middle.length - tail.length);
+      break;
+    }
   }
   return middle;
 }

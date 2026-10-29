@@ -54,7 +54,7 @@ describe('WorkspaceLayout（v0.8.0 §18）', () => {
           <Routes>
             <Route path="/:themeCode" element={<WorkspaceLayout />}>
               <Route path="maps" element={<p>地图正文</p>} />
-              <Route path="basic" element={<p>概览正文</p>} />
+              <Route path="overview" element={<p>概览正文</p>} />
             </Route>
           </Routes>
         </MemoryRouter>,
@@ -86,7 +86,7 @@ describe('WorkspaceLayout（v0.8.0 §18）', () => {
     // 六个模块全都指向 `/hlm/*`；没有一条还在老地址上。
     expect(hrefs()).toEqual(
       expect.arrayContaining([
-        '/hlm/basic',
+        '/hlm/overview',
         '/hlm/assets',
         '/hlm/maps',
         '/hlm/characters',
@@ -101,7 +101,7 @@ describe('WorkspaceLayout（v0.8.0 §18）', () => {
     render('/hlm/maps');
 
     expect(text()).toContain('红楼梦');
-    expect(window.localStorage.getItem('loredoku.theme')).toBe('hlm');
+    expect(window.localStorage.getItem('loredoku.lastTheme')).toBe('hlm');
   });
 
   it('编码不存在时点名那个编码，并给出两条能走的路', () => {
@@ -115,13 +115,13 @@ describe('WorkspaceLayout（v0.8.0 §18）', () => {
   });
 
   it('概览页也在同一个外壳里，导航第一项是它', () => {
-    render('/hlm/basic');
+    render('/hlm/overview');
 
     expect(text()).toContain('概览正文');
     // 概览不是「第六个内容模块」，而是这个空间自己的首页 —— 排在最前。
     const first = document.querySelector('nav a');
     expect(first?.textContent).toContain('概览');
-    expect(first?.getAttribute('href')).toBe('/hlm/basic');
+    expect(first?.getAttribute('href')).toBe('/hlm/overview');
   });
 });
 

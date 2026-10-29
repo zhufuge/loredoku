@@ -26,6 +26,8 @@ import { usePublishedVersions } from '@/hooks/useMaps';
 import { formatDateTimeMinute } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { LoadingBlock } from '@/components/common/LoredokuLoader';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
+import { fullscreenPath } from '@/lib/workspace';
 import { workshopPath } from '@/lib/workspace';
 
 /**
@@ -48,11 +50,13 @@ export function CreatePuzzleDialog({
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
   const navigate = useNavigate();
+  const workspace = useWorkspace();
   const [searchParams] = useSearchParams();
   const versionsQuery = usePublishedVersions();
   const create = useCreatePuzzle((id) => {
     onOpenChange(false);
-    navigate(`/puzzles/${id}/edit`);
+    // v0.8.1：编辑器在同一个工作空间里（`/:themeCode/puzzles/:id/edit`）。
+    navigate(fullscreenPath(workspace?.themeCode, 'puzzles', id, 'edit'));
   });
 
   const [name, setName] = useState('');

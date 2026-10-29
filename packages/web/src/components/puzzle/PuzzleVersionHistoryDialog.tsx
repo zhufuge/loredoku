@@ -14,6 +14,8 @@ import { formatDateTime } from '@/lib/format';
 import { InlineLoading, LoadingBlock } from '@/components/common/LoredokuLoader';
 
 interface PuzzleVersionHistoryDialogProps {
+  /** 「编辑此版本」的目标地址要落在同一个工作空间里（v0.8.1 起编辑器带主题段）。 */
+  themeCode: string;
   puzzleId: number | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -31,6 +33,7 @@ interface PuzzleVersionHistoryDialogProps {
  * 部署的游戏时返回 400「该版本已部署为游戏，请先取消部署」。
  */
 export function PuzzleVersionHistoryDialog({
+  themeCode,
   puzzleId,
   open,
   onOpenChange,
@@ -108,7 +111,7 @@ export function PuzzleVersionHistoryDialog({
                       // v0.7.2 §3.5：和列表的「编辑」同一个副作用 —— 只进 `?v=`
                       // fork 态，不在这里提前建行。
                       onOpenChange(false);
-                      navigate(`/puzzles/${version.id}/edit?v=${version.versionNo ?? 0}`);
+                      navigate(`/${themeCode}/puzzles/${version.id}/edit?v=${version.versionNo ?? 0}`);
                     }}
                   >
                     <Pencil className="mr-1 h-3.5 w-3.5" />

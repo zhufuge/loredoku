@@ -3,10 +3,10 @@ import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapGameSummary, Theme, ThemeDeploymentSummary } from '@loredoku/shared';
-import { ThemeBasicPage } from './ThemeBasicPage';
+import { ThemeOverviewPage } from './ThemeOverviewPage';
 
 /**
- * v0.8.0 §18：`/:code/basic` —— 工作空间的概览。
+ * v0.8.0 §18：`/:code/overview` —— 工作空间的概览。
  *
  * 这一屏只回答「这个空间是什么」，所以钉四件事：
  *
@@ -59,7 +59,7 @@ function game(id: number, themeCode: string, name: string): MapGameSummary {
   };
 }
 
-describe('ThemeBasicPage（v0.8.0 §18）', () => {
+describe('ThemeOverviewPage（v0.8.0 §18）', () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -76,8 +76,8 @@ describe('ThemeBasicPage（v0.8.0 §18）', () => {
   function render(): void {
     act(() => {
       root.render(
-        <MemoryRouter initialEntries={['/hlm/basic']}>
-          <ThemeBasicPage />
+        <MemoryRouter initialEntries={['/hlm/overview']}>
+          <ThemeOverviewPage />
         </MemoryRouter>,
       );
     });

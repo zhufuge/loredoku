@@ -86,7 +86,7 @@ function MissingWorkspace({ code, reason }: { code: string; reason: string | nul
       )}
       <div className="flex items-center gap-2">
         <Button variant="outline" asChild>
-          <Link to={workshopPath('basic')}>
+          <Link to={workshopPath('overview')}>
             <LayoutGrid className="mr-1.5 h-4 w-4" />
             回到工坊
           </Link>
@@ -123,5 +123,5 @@ export function ThemeEntryRedirect({ module }: { module?: ModuleKey } = {}): JSX
   // 一个主题都没有（还没建过）→ 去配置页。这是唯一该去那儿的情形。
   if (!target) return <Navigate to={SETTINGS_THEMES_PATH} replace />;
 
-  return <Navigate to={`/${target.code}/${module ?? 'basic'}`} replace />;
+  return <Navigate to={`/${target.code}/${module ?? 'overview'}`} replace />;
 }

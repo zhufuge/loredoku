@@ -77,7 +77,8 @@ function readStoredRulerVisible(): boolean {
  * so the preview stays pixel-identical to the editor's canvas.
  */
 export function PuzzleViewPage(): JSX.Element {
-  const { puzzleId } = useParams<{ puzzleId: string }>();
+  // v0.8.1：主题段在地址里，资源 / 角色列表按它隔离。
+  const { puzzleId, themeCode = '' } = useParams<{ puzzleId: string; themeCode: string }>();
   const navigate = useNavigate();
 
   const id = Number(puzzleId);
@@ -86,8 +87,9 @@ export function PuzzleViewPage(): JSX.Element {
   const detailQuery = usePuzzle(valid ? id : null);
   const mapQuery = usePuzzleMapContext(valid ? id : null);
   // A referenced version may point at items/characters that are now inactive.
-  const assetsQuery = useAssets({});
-  const charactersQuery = useCharacters({});
+  // v0.8.1：只取这个主题的资源与角色。
+  const assetsQuery = useAssets({ themeCode });
+  const charactersQuery = useCharacters({ themeCode });
 
   const {
     highlight,

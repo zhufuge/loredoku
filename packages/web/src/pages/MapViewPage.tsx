@@ -51,7 +51,7 @@ function readStoredRulerVisible(): boolean {
 }
 
 /**
- * 只读画布预览，路由 `/maps/:mapId/views`。
+ * 只读画布预览，路由 `/:themeCode/maps/:mapId/view`（v0.8.1 起带主题段）。
  *
  * v0.7.1：**一条 URL 只由 `:mapId` 决定看什么**。`maps` 合并后草稿行与版本行
  * 都自带 `data`，所以不再有「草稿行 → 去血统里找最新版本号」这一步，`?v=`
@@ -70,7 +70,8 @@ function readStoredRulerVisible(): boolean {
  * adaptive fit) is unchanged from the page this replaced.
  */
 export function MapViewPage(): JSX.Element {
-  const { mapId: mapIdParam } = useParams<{ mapId: string }>();
+  // v0.8.1：主题段在地址里，资源列表按它隔离。
+  const { mapId: mapIdParam, themeCode = '' } = useParams<{ mapId: string; themeCode: string }>();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -83,12 +84,13 @@ export function MapViewPage(): JSX.Element {
    * 把作者丢出去。直接打开这条 URL 的读者仍回列表。
    */
   const fromEditor = (location.state as { from?: string } | null)?.from === 'editor';
-  const backTarget = fromEditor ? `/maps/${mapId}/edit` : '/maps';
+  const backTarget = fromEditor ? `/${themeCode}/maps/${mapId}/edit` : `/${themeCode}/maps`;
   const backTitle = fromEditor ? '返回编辑器' : '返回地图列表';
 
   const mapQuery = useMapCanvas(valid ? mapId : Number.NaN);
   // A published snapshot may reference items that are now inactive.
-  const assetsQuery = useAssets({});
+  // v0.8.1：只取这个主题的资源 —— 别的世界的料画进这一张图才是事故。
+  const assetsQuery = useAssets({ themeCode });
 
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [zoom, setZoom] = useState(1);

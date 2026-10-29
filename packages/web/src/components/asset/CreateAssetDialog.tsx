@@ -67,6 +67,14 @@ const DEFAULTS: FormValues = {
   bgColor: DEFAULT_BG_COLOR,
 };
 
+/**
+ * v0.8.1：业务 ID 预填 `主题编码_`。同一个编码在不同主题里各自存在，作者敲的
+ * 其实只有后半段 —— 前缀替他写好，顺手就把「这东西属于哪个世界」带进了 ID。
+ */
+function defaultsFor(themeCode: string | null): FormValues {
+  return { ...DEFAULTS, code: themeCode ? `${themeCode}_` : '' };
+}
+
 interface CreateAssetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -81,6 +89,11 @@ export function CreateAssetDialog({
   onCreated,
   defaultThemeCode = null,
 }: CreateAssetDialogProps): JSX.Element {
+  const workspace = useWorkspace();
+  const boundaryThemeCode = workspace?.themeCode ?? defaultThemeCode;
+  /** 没有工作空间时才可改。`null` = 还没选，胶囊会同步成列表第一个。 */
+  const [themeCode, setThemeCode] = useState<string | null>(boundaryThemeCode);
+
   const {
     register,
     handleSubmit,
@@ -91,7 +104,7 @@ export function CreateAssetDialog({
     watch,
   } = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: DEFAULTS,
+    defaultValues: defaultsFor(boundaryThemeCode),
   });
   const appearanceMode = watch('appearanceMode');
   const type = watch('type');
@@ -102,11 +115,6 @@ export function CreateAssetDialog({
    * v0.8.0 §18：在工作空间里主题已经由地址定了（`/hlm/assets`），对话框里不再让人换
    * —— 换了就等于把东西建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。
    */
-  const workspace = useWorkspace();
-  const boundaryThemeCode = workspace?.themeCode ?? defaultThemeCode;
-  /** 没有工作空间时才可改。`null` = 还没选，胶囊会同步成列表第一个。 */
-  const [themeCode, setThemeCode] = useState<string | null>(boundaryThemeCode);
-
   const createMutation = useCreateAsset();
   const uploadMutation = useUploadAssetVariantImage();
   /** FEAT-N06 §5.4: reverts an auto-enable whose image never landed. */
@@ -114,7 +122,7 @@ export function CreateAssetDialog({
 
   useEffect(() => {
     if (!open) {
-      reset(DEFAULTS);
+      reset(defaultsFor(boundaryThemeCode));
       setFile(null);
       setThemeCode(boundaryThemeCode);
     }
@@ -191,7 +199,7 @@ export function CreateAssetDialog({
           )}
           <div className="grid gap-2">
             <Label htmlFor="asset-code">业务 ID</Label>
-            <Input id="asset-code" placeholder="big_tree" {...register('code')} />
+            <Input id="asset-code" placeholder={`例如：${themeCode ?? 'theme'}_big_tree`} {...register('code')} />
             {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
           </div>
           <div className="grid gap-2">

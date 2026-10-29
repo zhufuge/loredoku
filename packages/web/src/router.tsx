@@ -1,10 +1,31 @@
 import { lazy, Suspense, type ComponentType } from 'react';
-import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom';
+import { Navigate, createBrowserRouter, useParams, type RouteObject } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
 import { ThemeEntryRedirect, WorkspaceLayout } from '@/components/layout/WorkspaceLayout';
 import { LoadingBlock, LoadingScreen } from '@/components/common/LoredokuLoader';
-import { SETTINGS_THEMES_PATH } from '@/lib/workspace';
+import { readLastThemeCode, SETTINGS_THEMES_PATH } from '@/lib/workspace';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+
+/**
+ * v0.8.1：编辑 / 预览这些整屏页搬进了 `/:themeCode` 前缀，但书签里的旧地址
+ * （`/maps/12/edit`）没有主题段。先落到**记住的**工作空间，让链接至少还能用；
+ * 记不住（换了浏览器、清了存储）就去挑主题的入口，地图 id 保不住 —— 宁可
+ * 多一跳，也不编一个不存在的编码出来。
+ */
+function FullscreenLegacyRedirect({
+  kind,
+  view,
+}: {
+  kind: 'map' | 'puzzle';
+  view: boolean;
+}): JSX.Element {
+  const params = useParams<{ mapId?: string; puzzleId?: string }>();
+  const id = params.mapId ?? params.puzzleId ?? '';
+  const code = readLastThemeCode();
+  if (!code) return <Navigate to="/" replace />;
+  const suffix = view ? 'view' : 'edit';
+  return <Navigate to={`/${code}/${kind}s/${id}/${suffix}`} replace />;
+}
 
 /**
  * v0.7.12：分包还没到位时的那一屏从「转圈 + 正在加载…」换成品牌字标。
@@ -92,9 +113,9 @@ const PuzzleViewPage = lazyPage(
 const DeploymentsPage = lazyPage(() =>
   import('@/pages/DeploymentsPage').then((m) => ({ default: m.DeploymentsPage })),
 );
-/** v0.8.0 v0.8.0 §18：工作空间自己的那页（`/:code/basic`）。 */
-const ThemeBasicPage = lazyPage(() =>
-  import('@/pages/ThemeBasicPage').then((m) => ({ default: m.ThemeBasicPage })),
+/** v0.8.1：工作空间自己的那页（`/:code/overview`）。 */
+const ThemeOverviewPage = lazyPage(() =>
+  import('@/pages/ThemeOverviewPage').then((m) => ({ default: m.ThemeOverviewPage })),
 );
 /** v0.8.0 v0.8.0 §18：系统配置 —— 主题列表搬到这里，它是「换工作空间」的唯一入口。 */
 const ThemesPage = lazyPage(() => import('@/pages/ThemesPage').then((m) => ({ default: m.ThemesPage })));
@@ -103,11 +124,11 @@ const ThemesPage = lazyPage(() => import('@/pages/ThemesPage').then((m) => ({ de
  * 路由表（v0.8.0 §18）。
  *
  * ```
- * /                              → 记住的主题（或默认主题）· 概览
- * /hlm/basic                     工作空间 · 概览（索引也落这里）
+ * /                              → 记住的主题 · 概览
+ * /hlm/overview                  工作空间 · 概览（索引也落这里）
  * /hlm/maps                      工作空间 · 地图
  * /settings/themes               系统配置 · 主题
- * /maps/:mapId/edit              整屏：编辑器（主题无关，一条地址只认一张图）
+ * /hlm/maps/:mapId/edit          整屏：编辑器（v0.8.1 起带主题段）
  * /play[/:slug]                  玩家侧
  * ```
  *
@@ -140,8 +161,8 @@ export const routes: RouteObject[] = [
     element: <WorkspaceLayout />,
     children: [
       // 工作空间有自己的首页（概览），不替作者决定「进来就要画地图」。
-      { index: true, element: <Navigate to="basic" replace /> },
-      { path: 'basic', element: <ThemeBasicPage /> },
+      { index: true, element: <Navigate to="overview" replace /> },
+      { path: 'overview', element: <ThemeOverviewPage /> },
       { path: 'assets', element: <AssetsPage /> },
       { path: 'maps', element: <MapsPage /> },
       { path: 'characters', element: <CharactersPage /> },
@@ -162,11 +183,19 @@ export const routes: RouteObject[] = [
     ],
   },
 
-  // ---- 整屏页：外壳之外 ----
-  { path: '/maps/:mapId/edit', element: <MapEditorPage /> },
-  { path: '/maps/:mapId/views', element: <MapViewPage /> },
-  { path: '/puzzles/:puzzleId/edit', element: <PuzzleEditorPage /> },
-  { path: '/puzzles/:puzzleId/view', element: <PuzzleViewPage /> },
+  // ---- 整屏页：外壳之外，但**主题进地址**（v0.8.1）----
+  // 一条地址 = 一个世界里的那张图。`themeCode` 同时是资源 / 角色列表的筛选值
+  // （编辑器的选料只属于这个工作空间），不再是一段可有可无的装饰。
+  { path: '/:themeCode/maps/:mapId/edit', element: <MapEditorPage /> },
+  { path: '/:themeCode/maps/:mapId/view', element: <MapViewPage /> },
+  { path: '/:themeCode/puzzles/:puzzleId/edit', element: <PuzzleEditorPage /> },
+  { path: '/:themeCode/puzzles/:puzzleId/view', element: <PuzzleViewPage /> },
+  // 旧地址（没有主题段）先落回记住的工作空间 —— 书签不至于 404；地图不属于
+  // 那个主题时由列表页自己纠偏，这里不做数据查询。
+  { path: '/maps/:mapId/edit', element: <FullscreenLegacyRedirect kind="map" view={false} /> },
+  { path: '/maps/:mapId/view', element: <FullscreenLegacyRedirect kind="map" view /> },
+  { path: '/puzzles/:puzzleId/edit', element: <FullscreenLegacyRedirect kind="puzzle" view={false} /> },
+  { path: '/puzzles/:puzzleId/view', element: <FullscreenLegacyRedirect kind="puzzle" view /> },
   { path: '/play', element: <GamesPage /> },
   { path: '/play/:slug', element: <GamePage /> },
   /**

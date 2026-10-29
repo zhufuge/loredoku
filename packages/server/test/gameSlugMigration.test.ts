@@ -9,15 +9,16 @@ import { backfillGameSlugs, uniqueSlugFor } from '../src/service/gameSlugBackfil
  */
 
 describe('backfillGameSlugs (OPT-W04 §4.5)', () => {
-  it('derives puzzle-{name}-{difficulty} for every existing row', () => {
+  // v0.8.1：难度不进路径，回填只看名称。
+  it('derives puzzle-{name} for every existing row', () => {
     const slugs = backfillGameSlugs([
       { id: 1, name: 'Flower Garden', difficulty: 'veryEasy' },
       { id: 2, name: 'Fireside Beach', difficulty: 'medium' },
       { id: 3, name: '  Ancient Ruins  ', difficulty: 'hard' },
     ]);
-    expect(slugs.get(1)).toBe('puzzle-flower-garden-very-easy');
-    expect(slugs.get(2)).toBe('puzzle-fireside-beach-medium');
-    expect(slugs.get(3)).toBe('puzzle-ancient-ruins-hard');
+    expect(slugs.get(1)).toBe('puzzle-flower-garden');
+    expect(slugs.get(2)).toBe('puzzle-fireside-beach');
+    expect(slugs.get(3)).toBe('puzzle-ancient-ruins');
   });
 
   it('appends -2, -3 … to rows that derive the same path, in id order', () => {
@@ -26,9 +27,9 @@ describe('backfillGameSlugs (OPT-W04 §4.5)', () => {
       { id: 11, name: 'Twin Map', difficulty: 'easy' },
       { id: 12, name: 'Twin  Map!!', difficulty: 'easy' },
     ]);
-    expect(slugs.get(10)).toBe('puzzle-twin-map-easy');
-    expect(slugs.get(11)).toBe('puzzle-twin-map-easy-2');
-    expect(slugs.get(12)).toBe('puzzle-twin-map-easy-3');
+    expect(slugs.get(10)).toBe('puzzle-twin-map');
+    expect(slugs.get(11)).toBe('puzzle-twin-map-2');
+    expect(slugs.get(12)).toBe('puzzle-twin-map-3');
   });
 
   it('falls back to the row id when the name derives nothing (Q13)', () => {
@@ -61,8 +62,8 @@ describe('backfillGameSlugs (OPT-W04 §4.5)', () => {
     }
     expect(new Set(values).size).toBe(values.length);
     // The two ASCII-surviving names differ only in case → they must not collide.
-    expect(slugs.get(2)).toBe('puzzle-flower-garden-very-easy');
-    expect(slugs.get(3)).toBe('puzzle-flower-garden-very-easy-2');
+    expect(slugs.get(2)).toBe('puzzle-flower-garden');
+    expect(slugs.get(3)).toBe('puzzle-flower-garden-2');
   });
 });
 

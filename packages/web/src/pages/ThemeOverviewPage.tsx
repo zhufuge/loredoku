@@ -38,7 +38,7 @@ const COUNT_LINKS = [
 ] as const;
 
 /**
- * v0.8.0 §18：`/:code/basic` —— 一个工作空间自己的那页（导航第一项「概览」）。
+ * v0.8.0 §18：`/:code/overview` —— 一个工作空间自己的那页（导航第一项「概览」）。
  *
  * 上一版这一屏是「主题工作台」：顶栏里一条面包屑 + 四个带计数的 tab + 一列平铺
  * 内容。有了工作空间之后，那四个 tab 就是顶栏的四个模块 —— 同一件事说两遍，
@@ -50,7 +50,7 @@ const COUNT_LINKS = [
  * - **几行事实**：编码、缺省风格、上线状态 —— 都是「别处改不了、但需要随时知道」的；
  * - **动作**：上线（唯一有外部结果的事）在页头，导出 / 改名 / 删除在 `⋯` 里（§16.2）。
  */
-export function ThemeBasicPage(): JSX.Element {
+export function ThemeOverviewPage(): JSX.Element {
   const workspace = useWorkspace();
   const theme = workspace?.theme ?? null;
   const [deployOpen, setDeployOpen] = useState(false);

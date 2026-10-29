@@ -11,7 +11,7 @@ import { apiDelete, apiGet, apiPost } from './client';
 export interface DeployGamePayload {
   /** Omitted or empty → the backend falls back to the puzzle name. */
   name?: string;
-  /** OPT-W04: omitted or empty → `puzzle-{name}-{difficulty}`. */
+  /** OPT-W04: omitted or empty → `puzzle-{name}`（v0.8.1 起难度不进路径）. */
   slug?: string;
   /**
    * OPT-W03 §3: `true` drops the stored cover. Omitting both this and a new

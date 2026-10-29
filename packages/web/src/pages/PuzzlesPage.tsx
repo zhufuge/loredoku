@@ -20,6 +20,7 @@ import { entryPreviewable } from '@/components/common/EntryActionsMenu';
 import { ListPager } from '@/components/common/ListPager';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
+import { fullscreenPath } from '@/lib/workspace';
 import { ScopedEmpty } from '@/components/theme/ScopedEmpty';
 import { CreatePuzzleDialog } from '@/components/puzzle/CreatePuzzleDialog';
 import { EditPuzzleDialog } from '@/components/puzzle/EditPuzzleDialog';
@@ -152,7 +153,7 @@ export function PuzzlesPage(): JSX.Element {
    * 「编辑」按钮（{@link handleEdit}），不再「点一下就在库里多一条草稿」。
    */
   const handleOpen = (entry: PuzzleEntrySummary): void => {
-    navigate(`/puzzles/${entry.id}/edit`);
+    navigate(fullscreenPath(workspace?.themeCode, 'puzzles', entry.id, 'edit'));
   };
 
   /**
@@ -161,16 +162,16 @@ export function PuzzlesPage(): JSX.Element {
    */
   const handleEdit = (entry: PuzzleEntrySummary): void => {
     if (isVersionEntry(entry) && entry.versionNo !== null) {
-      navigate(`/puzzles/${entry.id}/edit?v=${entry.versionNo}`);
+      navigate(fullscreenPath(workspace?.themeCode, 'puzzles', entry.id, 'edit', `v=${entry.versionNo}`));
       return;
     }
-    navigate(`/puzzles/${entry.id}/edit`);
+    navigate(fullscreenPath(workspace?.themeCode, 'puzzles', entry.id, 'edit'));
   };
 
   /** 预览一条 URL 只由 `:puzzleId` 决定看哪一行 —— 草稿看草稿自己，版本看自己。 */
   const handlePreview = (entry: PuzzleEntrySummary): void => {
     if (!entryPreviewable(entry)) return;
-    navigate(`/puzzles/${entry.id}/view`);
+    navigate(fullscreenPath(workspace?.themeCode, 'puzzles', entry.id, 'view'));
   };
 
   const handleDeploy = (entry: PuzzleEntrySummary): void => {

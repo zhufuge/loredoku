@@ -94,7 +94,8 @@ interface RegionDialogState {
  * canvas state only.
  */
 export function MapEditorPage(): JSX.Element {
-  const { mapId } = useParams<{ mapId: string }>();
+  // v0.8.1：主题段在地址里 —— 它同时是资源选板的筛选值（只看本工作空间的料）。
+  const { mapId, themeCode = '' } = useParams<{ mapId: string; themeCode: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const id = Number(mapId);
@@ -113,7 +114,7 @@ export function MapEditorPage(): JSX.Element {
   const editor = useEditorStore();
 
   const mapQuery = useMapCanvas(id);
-  const assetsQuery = useAssets({ isActive: true });
+  const assetsQuery = useAssets({ isActive: true, themeCode });
   const versionsQuery = useVersions(Number.isFinite(id) ? id : null);
   /**
    * fork 态的数据源是**版本快照**，不是工作条目草稿 —— 草稿可能
@@ -272,7 +273,7 @@ export function MapEditorPage(): JSX.Element {
       // 换 URL 必须等 React 把 dirty=false flush 掉：`useBlocker` 的判定读的是
       // 渲染闭包里的 dirty，同一 continuation 里 navigate 会拿旧值把自己拦下
       // （弹「有未保存更改」）。setTimeout(0) 落在 flush 之后。
-      window.setTimeout(() => navigate(`/maps/${mapEntry.id}/edit`, { replace: true }), 0);
+      window.setTimeout(() => navigate(`/${themeCode}/maps/${mapEntry.id}/edit`, { replace: true }), 0);
       return mapEntry.id;
     } catch {
       /* errors surfaced via mutation toasts */
@@ -408,7 +409,7 @@ export function MapEditorPage(): JSX.Element {
     // 与 `forkAndSave` 同一个理由：`useBlocker` 读的是渲染闭包里的 dirty，
     // 同一 continuation 里 navigate 会拿旧值把自己拦下。setTimeout(0) 落在
     // React flush 之后。
-    window.setTimeout(() => navigate(`/maps/${id}/views`, { state: { from: 'editor' } }), 0);
+    window.setTimeout(() => navigate(`/${themeCode}/maps/${id}/view`, { state: { from: 'editor' } }), 0);
   };
 
   /**
@@ -1145,7 +1146,7 @@ export function MapEditorPage(): JSX.Element {
         open={versionsOpen}
         onOpenChange={setVersionsOpen}
         currentVersionNo={editor.currentVersionNo}
-        onPreview={(version) => navigate(`/maps/${version.id}/views`)}
+        onPreview={(version) => navigate(`/${themeCode}/maps/${version.id}/view`)}
       />
 
       <AlertDialog

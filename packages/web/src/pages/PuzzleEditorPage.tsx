@@ -117,7 +117,8 @@ function readStoredRulerVisible(): boolean {
  * 新行的 URL。没落库之前没有发布按钮 —— 这一屏既不是草稿也不是版本。
  */
 export function PuzzleEditorPage(): JSX.Element {
-  const { puzzleId } = useParams<{ puzzleId: string }>();
+  // v0.8.1：主题段在地址里 —— 角色 / 资源列表按它隔离（选料只属于这个工作空间）。
+  const { puzzleId, themeCode = '' } = useParams<{ puzzleId: string; themeCode: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const id = Number(puzzleId);
@@ -139,9 +140,10 @@ export function PuzzleEditorPage(): JSX.Element {
   const detailQuery = usePuzzle(valid ? id : null);
   const mapQuery = usePuzzleMapContext(valid ? id : null);
   // The referenced snapshot may point at items / characters that are inactive
-  // now, so both lists are unfiltered (same rule as the work preview page).
-  const assetsQuery = useAssets({});
-  const charactersQuery = useCharacters({});
+  // now, so both lists only drop the inactive ones (same rule as the work
+  // preview page). v0.8.1：主题段在地址里，两个列表都只取这个工作空间的。
+  const assetsQuery = useAssets({ themeCode });
+  const charactersQuery = useCharacters({ themeCode });
   const saveMutation = useSavePuzzle();
   /** fork 态的保存 mutation：不自己跳转，由下面的 persist 收尾。 */
   const forkSaveMutation = useForkPuzzleVersion({ navigate: false });
@@ -313,7 +315,7 @@ export function PuzzleEditorPage(): JSX.Element {
          * 读的是渲染闭包里的 dirty，同一 continuation 里 navigate 会拿旧值把
          * 自己拦下。setTimeout(0) 落在 flush 之后；replace 不留中间态。
          */
-        window.setTimeout(() => navigate(`/puzzles/${data.id}/edit`, { replace: true }), 0);
+        window.setTimeout(() => navigate(`/${themeCode}/puzzles/${data.id}/edit`, { replace: true }), 0);
         return;
       }
       puzzle.markSaved(savedAt);
@@ -1223,13 +1225,14 @@ export function PuzzleEditorPage(): JSX.Element {
       </AlertDialog>
 
       <PuzzleVersionHistoryDialog
+        themeCode={themeCode}
         puzzleId={valid ? id : null}
         open={versionsOpen}
         onOpenChange={setVersionsOpen}
         currentVersionNo={detail?.currentVersionNo ?? null}
         onPreview={(version) => {
           setVersionsOpen(false);
-          navigate(`/puzzles/${version.id}/view`);
+          navigate(`/${themeCode}/puzzles/${version.id}/view`);
         }}
       />
 

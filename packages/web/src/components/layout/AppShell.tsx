@@ -24,7 +24,7 @@ const navItems: ReadonlyArray<{ key: ModuleKey; label: string; icon: typeof Pack
    *
    * 图标仍是 `Layers`：一排叠起来的作品，正好是「这个世界」的形状。
    */
-  { key: 'basic', label: '概览', icon: Layers },
+  { key: 'overview', label: '概览', icon: Layers },
   { key: 'assets', label: '资源', icon: Package },
   { key: 'maps', label: '地图', icon: Map },
   { key: 'characters', label: '角色', icon: Users },
@@ -99,7 +99,7 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
           <div className="ml-auto flex items-center gap-2">
             {config ? (
               <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                <Link to={workshopPath('basic')}>返回工坊</Link>
+                <Link to={workshopPath('overview')}>返回工坊</Link>
               </Button>
             ) : (
               /* v0.8.0 §18：主题切换器紧挨日夜开关 —— 两者都是「外壳的开关」，

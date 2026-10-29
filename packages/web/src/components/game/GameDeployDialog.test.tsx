@@ -7,9 +7,9 @@ import { GameDeployDialog } from './GameDeployDialog';
 /**
  * 部署弹窗的访问路径输入组（v0.7.1 §7.6.1）。
  *
- * 路径拆成「只读前缀 `puzzle-` + 可编辑中段 + 只读难度后缀」：中段是唯一可编辑
- * 的部分，难度**永远**实时参与拼接；已部署过的游戏回填时反解出中段，改掉之后
- * 明写「原访问路径将失效」。
+ * 路径拆成「只读前缀 `puzzle-` + 可编辑中段」：中段是唯一可编辑的部分。
+ * v0.8.1：难度不进路径 —— 改难度不改地址；已部署过的游戏回填时反解出中段
+ * （存量路径的难度后缀被剥掉），改掉之后明写「原访问路径将失效」。
  *
  * Radix 把面板 portal 到 `document.body`，所以查询走 `document`。
  */
@@ -124,27 +124,26 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     container.remove();
   });
 
-  it('前缀与难度后缀是只读文本，中段默认取名称的 slug', () => {
+  it('前缀是只读文本，中段默认取名称的 slug，路径没有难度后缀', () => {
     render({ puzzle: puzzle() });
     expect(text()).toContain('puzzle-');
-    expect(text()).toContain('-medium');
     expect(middleInput().value).toBe('midnight-garden');
     // 默认路径不带版本号 —— 路径是对外公布的，不掺内部实现细节。
     expect(middleInput().value).not.toContain('2');
-    expect(text()).toContain('/play/puzzle-midnight-garden-medium');
+    expect(text()).toContain('/play/puzzle-midnight-garden');
+    expect(text()).not.toContain('-medium');
   });
 
-  it('改难度时后缀与预览路径实时跟着变', () => {
+  it('改难度不改预览路径（v0.8.1：难度是属性，不是地址）', () => {
     render({ puzzle: puzzle() });
     clickButton('Hard');
-    expect(text()).toContain('-hard');
-    expect(text()).toContain('/play/puzzle-midnight-garden-hard');
+    expect(text()).toContain('/play/puzzle-midnight-garden');
   });
 
   it('中段可改，预览行同步', () => {
     render({ puzzle: puzzle() });
     setMiddle('flower-garden');
-    expect(text()).toContain('/play/puzzle-flower-garden-medium');
+    expect(text()).toContain('/play/puzzle-flower-garden');
   });
 
   it('已部署的游戏回填时把中段反解出来', () => {
@@ -152,14 +151,26 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     expect(middleInput().value).toBe('night-train');
   });
 
-  it('已部署的路径被改掉时明写「原访问路径将失效」', () => {
+  it('存量路径（带难度后缀）重新部署时明写「原访问路径将失效」', () => {
     render({ puzzle: puzzle(), existingGame: existingGame() });
-    expect(text()).not.toContain('将失效');
-    clickButton('Hard');
+    // v0.8.1：存量路径 `puzzle-night-train-easy` 的后缀被剥掉，新路径是
+    // `puzzle-night-train` —— 从弹窗打开那一刻起旧链接就要失效，明说。
+    expect(text()).toContain('原访问路径 /play/puzzle-night-train-easy 将失效');
+    setMiddle('night-train-2');
     expect(text()).toContain('原访问路径 /play/puzzle-night-train-easy 将失效');
   });
 
-  it('中段为空不提交（中段空着拼出来会是 puzzle-medium，看着合法其实丢了名称）', () => {
+  it('新路径（无难度后缀）重新部署时不说「将失效」', () => {
+    render({
+      puzzle: puzzle(),
+      existingGame: existingGame({ slug: 'puzzle-night-train' }),
+    });
+    expect(text()).not.toContain('将失效');
+    setMiddle('night-train-2');
+    expect(text()).toContain('原访问路径 /play/puzzle-night-train 将失效');
+  });
+
+  it('中段为空不提交（空着拼出来是光杆 puzzle，看着合法其实丢了名称）', () => {
     render({ puzzle: puzzle() });
     setMiddle('');
     clickButton('部署');
@@ -167,14 +178,14 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     expect(text()).toContain('请填写访问路径');
   });
 
-  it('提交时把三段拼成一条 slug 交出去', () => {
+  it('提交时把前缀与中段拼成一条 slug 交出去', () => {
     render({ puzzle: puzzle() });
     setMiddle('flower-garden');
     clickButton('部署');
     expect(deployMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         puzzleId: 9,
-        slug: 'puzzle-flower-garden-medium',
+        slug: 'puzzle-flower-garden',
         difficulty: 'medium',
       }),
       expect.anything(),
@@ -232,7 +243,7 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     act(() =>
       hook.onSlugConflict?.({
         kind: 'slug-taken',
-        slug: 'puzzle-midnight-garden-medium',
+        slug: 'puzzle-midnight-garden',
         name: '旧的那一个',
         puzzleName: '旧谜题',
       }),
@@ -245,7 +256,7 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     const [payload] = deployMutate.mock.calls[1] as [Record<string, unknown>];
     expect(payload).toMatchObject({
       puzzleId: 9,
-      slug: 'puzzle-midnight-garden-medium',
+      slug: 'puzzle-midnight-garden',
       overwriteSlug: true,
     });
   });
