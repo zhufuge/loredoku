@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { ErrorCode, MAP_JSON_VERSION } from '@loredoku/shared';
 import type { MapDraft } from '@loredoku/shared';
-import { api } from './helpers';
+import { api, fixtureTheme } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
 
 const createdMapEntries: number[] = [];
@@ -65,7 +65,8 @@ async function saveCanvas(mapId: number, draft: MapDraft): Promise<ApiResponse> 
 }
 
 async function createMap(body: Record<string, unknown> = {}): Promise<number> {
-  const res = await api.post('/api/maps').send(body);
+  // §19：主题必须指名 —— 这些用例只想要一个落点，默认给夹具主题。
+  const res = await api.post('/api/maps').send({ themeCode: await fixtureTheme(), ...body });
   expect(res.status).toBe(200);
   expect(res.body.code).toBe(ErrorCode.OK);
   const id = res.body.data.id as number;
@@ -79,7 +80,7 @@ async function createMap(body: Record<string, unknown> = {}): Promise<number> {
 async function createAsset(body: Record<string, unknown> = {}): Promise<number> {
   const res = await api
     .post('/api/assets')
-    .send({ code: uniqueCode('item'), name: 'Asset', ...body });
+    .send({ code: uniqueCode('item'), name: 'Asset', themeCode: await fixtureTheme(), ...body });
   expect(res.status).toBe(200);
   const id = res.body.data.id as number;
   createdAssets.push(id);
@@ -89,7 +90,7 @@ async function createAsset(body: Record<string, unknown> = {}): Promise<number> 
 async function createCharacter(body: Record<string, unknown> = {}): Promise<number> {
   const res = await api
     .post('/api/characters')
-    .send({ code: uniqueCode('char'), name: 'Character', ...body });
+    .send({ code: uniqueCode('char'), name: 'Character', themeCode: await fixtureTheme(), ...body });
   expect(res.status).toBe(200);
   const id = res.body.data.id as number;
   createdCharacters.push(id);
@@ -225,7 +226,9 @@ describe('旧接口前缀', () => {
 
 describe('maps API', () => {
   it('v0.5.8 §1: creates a map with no canvas size at all', async () => {
-    const res = await api.post('/api/maps').send({ name: `Smoke ${uniqueCode('p')}` });
+    const res = await api
+      .post('/api/maps')
+      .send({ name: `Smoke ${uniqueCode('p')}`, themeCode: await fixtureTheme() });
     expect(res.status).toBe(200);
     // 创建时不再写尺寸 —— 第一次进编辑器时才由初始化弹窗写入草稿。
     expect(res.body.data.gridSize).toBeNull();
@@ -233,7 +236,9 @@ describe('maps API', () => {
   });
 
   it('v0.5.8 §1: ignores a legacy gridSize field instead of validating it', async () => {
-    const res = await api.post('/api/maps').send({ name: `Bad ${uniqueCode('p')}`, gridSize: 1 });
+    const res = await api
+      .post('/api/maps')
+      .send({ name: `Bad ${uniqueCode('p')}`, gridSize: 1, themeCode: await fixtureTheme() });
     // schema 不再认识这个字段（非 strict，直接忽略），尺寸仍为空。
     expect(res.status).toBe(200);
     expect(res.body.data.gridSize).toBeNull();
@@ -243,8 +248,9 @@ describe('maps API', () => {
   it('v0.5.8 第六阶段: 允许同名创建与同名改名，但复制仍自动避开重名', async () => {
     const name = `Twin ${uniqueCode('p')}`;
 
-    const first = await api.post('/api/maps').send({ name });
-    const second = await api.post('/api/maps').send({ name });
+    const themeCode = await fixtureTheme();
+    const first = await api.post('/api/maps').send({ name, themeCode });
+    const second = await api.post('/api/maps').send({ name, themeCode });
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
     expect(second.body.data.id).not.toBe(first.body.data.id);
@@ -439,6 +445,7 @@ describe('maps API', () => {
 describe('assets API', () => {
   it('creates an asset and manages its lifecycle (v0.5.2 FEAT-M03: no triggers)', async () => {
     const res = await api.post('/api/assets').send({
+      themeCode: await fixtureTheme(),
       code: uniqueCode('candlestick'),
       name: 'Candlestick',
       type: 'item',
@@ -470,6 +477,7 @@ describe('assets API', () => {
 
   it('v0.5.2 FEAT-M03: the triggers endpoint is gone', async () => {
     const res = await api.post('/api/assets').send({
+      themeCode: await fixtureTheme(),
       code: uniqueCode('notriggers'),
       name: 'No Triggers',
       type: 'item',
@@ -482,6 +490,7 @@ describe('assets API', () => {
 
   it('v0.5.2 FEAT-M04: a background asset never blocks', async () => {
     const created = await api.post('/api/assets').send({
+      themeCode: await fixtureTheme(),
       code: uniqueCode('wallpaper'),
       name: 'Wallpaper',
       type: 'background',
@@ -494,6 +503,7 @@ describe('assets API', () => {
 
     // Flipping an item asset to 背景 makes it non-blocking too.
     const itemAsset = await api.post('/api/assets').send({
+      themeCode: await fixtureTheme(),
       code: uniqueCode('lamp'),
       name: 'Lamp',
       type: 'item',
@@ -515,6 +525,7 @@ describe('assets API', () => {
 
   it('v0.5.3 FEAT-N06: a create can land enabled, and defaults to 停用', async () => {
     const plain = await api.post('/api/assets').send({
+      themeCode: await fixtureTheme(),
       code: uniqueCode('inactive'),
       name: 'Inactive Item',
       type: 'item',
@@ -525,6 +536,7 @@ describe('assets API', () => {
     expect(plain.body.data.isActive).toBe(false);
 
     const enabled = await api.post('/api/assets').send({
+      themeCode: await fixtureTheme(),
       code: uniqueCode('active'),
       name: 'Active Item',
       type: 'item',
@@ -536,7 +548,9 @@ describe('assets API', () => {
   });
 
   it('rejects an invalid asset code', async () => {
-    const res = await api.post('/api/assets').send({ code: 'bad code', name: 'Bad' });
+    const res = await api
+      .post('/api/assets')
+      .send({ code: 'bad code', name: 'Bad', themeCode: await fixtureTheme() });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
@@ -558,7 +572,9 @@ describe('characters API', () => {
   });
 
   it('rejects an invalid character code', async () => {
-    const res = await api.post('/api/characters').send({ code: 'bad code', name: 'Bad' });
+    const res = await api
+      .post('/api/characters')
+      .send({ code: 'bad code', name: 'Bad', themeCode: await fixtureTheme() });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });

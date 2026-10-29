@@ -2,7 +2,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
+import type {
+  MapGameSummary,
+  PuzzleEntrySummary,
+  Theme,
+  ThemeDeploymentSummary,
+} from '@loredoku/shared';
 import { DeploymentsPage } from './DeploymentsPage';
 
 /**
@@ -32,10 +37,48 @@ vi.mock('@/hooks/usePuzzles', () => ({
   usePuzzles: () => ({ data: versionsRef.data, isLoading: false, isError: false }),
 }));
 
+/**
+ * v0.8.0 §16.4：这一页按主题分组，所以要主题列表与合辑列表。两者都 mock 掉 ——
+ * 它们走 react-query，而这套测试没有 `QueryClientProvider`（也不需要：
+ * 分组逻辑是纯展示）。
+ */
+const themesRef: { data: Theme[]; isLoading: boolean } = { data: [], isLoading: false };
+const deploymentsRef: { data: ThemeDeploymentSummary[] } = { data: [] };
+const removeDeploymentMutate = vi.fn();
+
+vi.mock('@/hooks/useThemes', () => ({
+  useThemes: () => themesRef,
+  useThemeDeployments: () => deploymentsRef,
+  useRemoveDeployment: () => ({ mutate: removeDeploymentMutate, isPending: false }),
+}));
+
+/**
+ * v0.8.0 §19：没有上下文时页面退回「按主题分组」的老行为，所以默认给 `null`；
+ * 需要验「工作空间视角」的用例自己塞一个值进去。
+ */
+const workspaceRef: { value: unknown } = { value: null };
+vi.mock('@/components/layout/WorkspaceContext', () => ({
+  useWorkspace: () => workspaceRef.value,
+}));
+
+function theme(overrides: Partial<Theme> = {}): Theme {
+  return {
+    code: 'default',
+    name: '默认主题',
+    description: null,
+    data: { version: 1 },
+    counts: { assets: 0, maps: 0, characters: 0, puzzles: 0, games: 0 },
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
 function game(overrides: Partial<MapGameSummary> = {}): MapGameSummary {
   return {
     id: 3,
     puzzleId: 9,
+    themeCode: 'default',
     puzzleName: '午夜花园',
     puzzleVersionNo: 2,
     name: '午夜花园',
@@ -101,6 +144,11 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
   beforeEach(() => {
     cancelMutate.mockClear();
     deployMutate.mockClear();
+    removeDeploymentMutate.mockClear();
+    workspaceRef.value = null;
+    themesRef.data = [theme()];
+    themesRef.isLoading = false;
+    deploymentsRef.data = [];
     gamesRef.data = [game()];
     gamesRef.isLoading = false;
     gamesRef.isError = false;
@@ -148,6 +196,46 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     const buttons = Array.from(container.querySelectorAll('button'));
     expect(buttons.some((node) => node.textContent?.trim() === '部署')).toBe(true);
     expect(buttons.some((node) => node.textContent?.includes('前往谜题列表'))).toBe(false);
+  });
+
+  /**
+   * v0.8.0 §19：**认不出主题的部署不展示**。
+   *
+   * 以前会多出一个「未归入主题」的组，把主题被删掉之后留下的行摊在屏幕上 ——
+   * 作者既看不懂也处理不了。这一页是工作空间视角，不属于任何工作空间的行没有位置。
+   */
+  it('认不出主题的部署不展示 —— 没有「未归入主题」这一组', () => {
+    gamesRef.data = [game(), game({ id: 4, themeCode: 'gone', name: '上个世纪的一关' })];
+    render();
+
+    expect(text()).not.toContain('未归入主题');
+    expect(text()).not.toContain('上个世纪的一关');
+    expect(text()).toContain('午夜花园');
+    // 页头数字和屏幕上的行对得上：藏起来的那个不算「在线」。
+    expect(text()).toContain('共 1 个游戏在线。');
+  });
+
+  /** 工作空间里只列**这个主题**的关，别的主题一行都不混进来（§18）。 */
+  it('在工作空间里只列当前主题的关 —— 别的主题既不分组也不并进「未归入」', () => {
+    const hlm = theme({ code: 'hlm', name: '红楼梦' });
+    themesRef.data = [theme(), hlm];
+    workspaceRef.value = {
+      theme: hlm,
+      themes: [theme(), hlm],
+      themeCode: 'hlm',
+      href: (module: string) => `/hlm/${module}`,
+    };
+    gamesRef.data = [
+      game(),
+      game({ id: 4, themeCode: 'hlm', name: '撕扇', puzzleName: '撕扇', slug: 'puzzle-hlm-sishan' }),
+    ];
+    render();
+
+    expect(text()).toContain('撕扇');
+    expect(text()).not.toContain('午夜花园');
+    expect(text()).not.toContain('默认主题');
+    expect(text()).not.toContain('未归入主题');
+    expect(text()).toContain('共 1 个游戏在线。');
   });
 
   it('页头也有「部署」按钮，点开就是部署弹窗（v0.7.11）', () => {

@@ -42,6 +42,7 @@ import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canva
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
+import { workshopPath } from '@/lib/workspace';
 import { rulerStripSize } from '@/lib/ruler';
 import {
   INACTIVE_ACTIVATION,
@@ -340,7 +341,7 @@ export function PuzzleViewPage(): JSX.Element {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">谜题不存在或加载失败。</p>
-        <Button variant="outline" onClick={() => navigate('/puzzles')}>
+        <Button variant="outline" onClick={() => navigate(workshopPath('puzzles'))}>
           返回谜题列表
         </Button>
       </div>
@@ -357,7 +358,7 @@ export function PuzzleViewPage(): JSX.Element {
             variant="ghost"
             icon={<ArrowLeft className="h-4 w-4" />}
             label="返回谜题列表"
-            onClick={() => navigate('/puzzles')}
+            onClick={() => navigate(workshopPath('puzzles'))}
           />
           <div className="flex min-w-0 items-center gap-2">
             <span className="truncate font-semibold">{detailQuery.data?.name ?? '谜题'}</span>

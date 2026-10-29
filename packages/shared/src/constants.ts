@@ -1048,3 +1048,43 @@ export const HTTP_STATUS_BY_ERROR_CODE: Record<ErrorCodeValue, number> = {
   [ErrorCode.UNSUPPORTED_MEDIA_TYPE]: 415,
   [ErrorCode.INTERNAL_ERROR]: 500,
 };
+
+// ---- 主题（v0.8.0，docs/v0.8.0.md §4） ----
+/**
+ * `themes.code` 是**稳定标识**：进 URL、进资源包 manifest、将来导入时对账。
+ * 与地图 / 谜题的 slug 同理 —— 显示名可以改，`code` 不能。
+ */
+export const THEME_CODE_MAX_LENGTH = 64;
+export const THEME_CODE_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
+export const THEME_NAME_MAX_LENGTH = 100;
+export const THEME_DESCRIPTION_MAX_LENGTH = 500;
+/** `themes.data` 的形状版本；缺键按 `DEFAULT_MAP_STYLE` 补齐，所以只在结构变化时 +1。 */
+export const THEME_DATA_VERSION = 1;
+/** 恰好一个默认主题，`code` 固定。迁移里写死这两条（§12）。 */
+export const DEFAULT_THEME_CODE = 'default';
+export const DEFAULT_THEME_NAME = '默认';
+/**
+ * v0.8.0 §9：`/play/theme/:slug` 与 `/play/:slug` 是两个命名空间，但 `theme`
+ * 这一段被路由占了。slug 允许它（`GAME_SLUG_PATTERN` 只认字符集），所以必须
+ * 在 `slugError` 里显式拦 —— 否则某个作者把自己那关命名成 `theme` 就撞了。
+ */
+export const GAME_SLUG_RESERVED: readonly string[] = ['theme'];
+/**
+ * v0.8.0 §18：主题编码成了 URL 的**第一段**（`/hlm/maps`），于是顶层那些静态路径
+ * 都成了保留字 —— 一个叫 `settings` 的主题，自己的工作台永远打不开（前端会先
+ * 匹配到系统配置）。列在创建时拦下，比事后让作者对着 404 猜要好。
+ */
+export const THEME_CODE_RESERVED: readonly string[] = [
+  'settings',
+  'play',
+  'themes',
+  'assets',
+  'maps',
+  'characters',
+  'puzzles',
+  'deployments',
+];
+
+/** 资源包（docs/v0.8.0.md §11.4）：外壳标识，与 `formatVersion` 一起做兼容判断。 */
+export const BUNDLE_FORMAT = 'loredoku-theme';
+export const BUNDLE_FORMAT_VERSION = 1;

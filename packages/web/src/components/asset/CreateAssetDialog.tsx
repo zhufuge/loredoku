@@ -31,6 +31,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
+import { ThemeScopePill } from '@/components/theme/ThemeScopePill';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { useCreateAsset, useUpdateAsset, useUploadAssetVariantImage } from '@/hooks/useAssets';
 
 /** FEAT-O11: the type as radio buttons (背景 / 物品). */
@@ -69,12 +71,15 @@ interface CreateAssetDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (id: number) => void;
+  /** 没有工作空间上下文时（单测、整屏入口）的兜底主题**编码**（§19）。 */
+  defaultThemeCode?: string | null;
 }
 
 export function CreateAssetDialog({
   open,
   onOpenChange,
   onCreated,
+  defaultThemeCode = null,
 }: CreateAssetDialogProps): JSX.Element {
   const {
     register,
@@ -93,6 +98,14 @@ export function CreateAssetDialog({
   // v0.5.2 FEAT-M05: the picked file waits for the create call to hand back an
   // id; a colour block needs no image at all.
   const [file, setFile] = useState<File | null>(null);
+  /**
+   * v0.8.0 §18：在工作空间里主题已经由地址定了（`/hlm/assets`），对话框里不再让人换
+   * —— 换了就等于把东西建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。
+   */
+  const workspace = useWorkspace();
+  const boundaryThemeCode = workspace?.themeCode ?? defaultThemeCode;
+  /** 没有工作空间时才可改。`null` = 还没选，胶囊会同步成列表第一个。 */
+  const [themeCode, setThemeCode] = useState<string | null>(boundaryThemeCode);
 
   const createMutation = useCreateAsset();
   const uploadMutation = useUploadAssetVariantImage();
@@ -103,8 +116,9 @@ export function CreateAssetDialog({
     if (!open) {
       reset(DEFAULTS);
       setFile(null);
+      setThemeCode(boundaryThemeCode);
     }
-  }, [open, reset]);
+  }, [open, reset, boundaryThemeCode]);
 
   const busy = createMutation.isPending || uploadMutation.isPending || updateMutation.isPending;
 
@@ -123,6 +137,9 @@ export function CreateAssetDialog({
       asset = await createMutation.mutateAsync({
         name: values.name,
         code: values.code,
+        // 服务端必填（§19）：空字符串会被 schema 拒绝 —— 一个主题都没有时本来就
+        // 不该建内容，让它 400 比悄悄落进某个世界好。
+        themeCode: themeCode ?? '',
         type: values.type,
         blocking: blockingFor(values.type, values.blocking),
         bgColor,
@@ -165,6 +182,13 @@ export function CreateAssetDialog({
             <Input id="asset-name" placeholder="例如：大树" {...register('name')} />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
+          {/* v0.8.0 §16.7：名称 → 主题。先说要建什么，再说它建在哪个世界里。
+              v0.8.0 §18：在工作空间里这一格只读（地址已经说明白了）。 */}
+          {workspace ? (
+            <ThemeScopePill value={themeCode} locked lockedHint="当前工作空间" />
+          ) : (
+            <ThemeScopePill value={themeCode} onChange={setThemeCode} />
+          )}
           <div className="grid gap-2">
             <Label htmlFor="asset-code">业务 ID</Label>
             <Input id="asset-code" placeholder="big_tree" {...register('code')} />

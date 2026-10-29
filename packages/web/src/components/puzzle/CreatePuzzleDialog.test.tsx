@@ -27,6 +27,21 @@ vi.mock('@/hooks/useMaps', () => ({
   usePublishedVersions: () => versionsRef,
 }));
 
+/**
+ * v0.8.0 §16.7：底图选中后，对话框里会出现一枚**只读**的主题胶囊。它要拿主题
+ * 名字才写得出来，所以这里给一份最小列表 —— 两个主题就够了（只有一个时胶囊
+ * 自我隐藏，那样就测不到「锁定」这条路径了）。
+ */
+vi.mock('@/hooks/useThemes', () => ({
+  useThemes: () => ({
+    data: [
+      { code: 'default', name: '默认' },
+      { code: 'hlm', name: '红楼梦' },
+    ],
+    isLoading: false,
+  }),
+}));
+
 vi.mock('@/hooks/usePuzzles', () => ({
   useCreatePuzzle: (onSuccess?: (id: number) => void) => ({
     mutate: (payload: unknown) => {
@@ -45,6 +60,7 @@ const published: PublishedMapVersion[] = [
     mapName: '古堡之谜',
     gridSize: 6,
     publishedAt: '2026-10-01T09:30:00.000Z',
+    themeCode: 'default',
   },
   {
     mapId: 219,
@@ -53,6 +69,7 @@ const published: PublishedMapVersion[] = [
     mapName: '午夜花园',
     gridSize: 8,
     publishedAt: '2026-10-02T09:30:00.000Z',
+    themeCode: 'hlm',
   },
 ];
 

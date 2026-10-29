@@ -7,10 +7,13 @@ import type {
 } from '@loredoku/shared';
 import { DEFAULT_ASSET_VARIANT_NAME } from '@loredoku/shared';
 import * as repo from '../repository/assetRepository';
+import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 
 export async function listAssets(query: ListAssetsQuery): Promise<Asset[]> {
-  return repo.listAssets(query);
+  // §19：接口按编码筛，仓储按 `theme_id` 筛 —— 翻译只发生在这一层。
+  const { themeCode, ...rest } = query;
+  return repo.listAssets({ ...rest, themeId: await themeService.filterThemeId(themeCode) });
 }
 
 export async function getAsset(id: number): Promise<Asset> {
@@ -27,10 +30,14 @@ export async function getAsset(id: number): Promise<Asset> {
  * placement is 1×1 and 「大小」 only changes how big it looks.
  */
 export async function createAsset(input: CreateAssetInput): Promise<Asset> {
-  if (await repo.findByCode(input.code)) {
+  // v0.8.0：`code` 只在主题内唯一（docs/v0.8.0.md §3.2），所以查重带主题。
+  // §19：主题必填且用编码 —— 没有默认主题可落。
+  const themeId = await themeService.requireThemeId(input.themeCode);
+  if (await repo.findByCode(input.code, themeId)) {
     throw AppError.conflict('业务 ID 已存在');
   }
   const id = await repo.create({
+    themeId,
     code: input.code,
     name: input.name,
     type: input.type,

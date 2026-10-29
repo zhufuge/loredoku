@@ -9,6 +9,7 @@ import type {
 } from '@loredoku/shared';
 import * as repo from '../repository/mapRepository';
 import * as versionRepo from '../repository/versionRepository';
+import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 import { processMapCover } from '../utils/image';
 
@@ -24,7 +25,8 @@ export function coverRequired(): AppError {
 export async function listMapEntries(
   query: ListMapsQuery & { page: number; pageSize: number },
 ): Promise<{ list: MapEntrySummary[]; total: number }> {
-  return repo.listMapEntries(query);
+  const { themeCode, ...rest } = query;
+  return repo.listMapEntries({ ...rest, themeId: await themeService.filterThemeId(themeCode) });
 }
 
 /** FEAT-K03 §2.4: every published map version, for the puzzle picker. */
@@ -62,6 +64,8 @@ async function findWritable(id: number): Promise<repo.MapRowWithLineage> {
  */
 export async function createMap(input: CreateMapInput): Promise<MapEntry> {
   return repo.createMap({
+    // v0.8.0：地图是边界的第二公民。§19：主题必填且用编码。
+    themeId: await themeService.requireThemeId(input.themeCode),
     name: input.name,
     description: input.description ?? null,
   });

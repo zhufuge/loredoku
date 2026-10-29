@@ -47,6 +47,14 @@ export interface MapEntry {
   name: string;
   description: string | null;
   /**
+   * v0.8.0（docs/v0.8.0.md §5 / §16.8）：这一行属于哪个主题。编辑器的「基本信息」
+   * 抽屉要拿它去读主题的缺省风格，才知道「这张图还吃着主题风格吗、差在哪」。
+   *
+   * v0.8.0 §19：接口上**只给编码**。`theme_id` 是数据库的主键，不出接口 —— 主题在
+   * 地址（`/hlm/maps`）与资源包 manifest 里都是编码，两套标识并存只会让调用方各挑一个。
+   */
+  themeCode: string;
+  /**
    * 画布尺寸不是列，真源是草稿里的 `data.gridSize`。`null` = 尚未初始化
    * （创建时不填尺寸，第一次进编辑器时由初始化弹窗写入）。
    */
@@ -417,6 +425,12 @@ export interface PublishedMapVersion {
   /** v0.5.8: 列删了，从快照 `data.gridSize` 派生。 */
   gridSize: number;
   publishedAt: string;
+  /**
+   * v0.8.0（docs/v0.8.0.md §16.7）：这张图属于哪个主题 —— `新建谜题` 对话框里
+   * 那枚**只读**胶囊就靠它说话（谜题的主题由底图决定，作者在这一步选不了）。
+   * §19 起是编码，不是主键。
+   */
+  themeCode: string;
 }
 
 /**
@@ -440,6 +454,8 @@ export interface MapEntrySummary {
   versionNo: number | null;
   name: string;
   description: string | null;
+  /** v0.8.0：同上，作用域与「风格来自主题」那一行都要它（§19 起是编码）。 */
+  themeCode: string;
   /** v0.5.8: 取自草稿 `gridSize`；未初始化的地图为 `null`。 */
   gridSize: number | null;
   coverPath: string | null;
@@ -524,6 +540,14 @@ export interface MapGameSummary {
   id: number;
   /** The puzzle row this game was deployed from (always a version row). */
   puzzleId: number;
+  /**
+   * v0.8.0（docs/v0.8.0.md §16.4）：这个游戏属于哪个主题 —— 部署页按主题分组，
+   * 免得同一主题的合辑和它的单局被劈到两大块里。
+   *
+   * `games` 自己不存 `theme_id`（§3.1），这个值是顺着 `puzzles.theme_id` 查出来的；
+   * §19 起接口给的是**编码**。
+   */
+  themeCode: string;
   /** 谜题名（来自 puzzle 行）。 */
   puzzleName: string;
   /** 谜题自己的版本号（`'draft'` 不可能出现）。 */
@@ -612,4 +636,86 @@ export interface PaginatedData<T> {
   total: number;
   page: number;
   pageSize: number;
+}
+
+// ---- 主题（v0.8.0，docs/v0.8.0.md §2 / §4） ----
+/**
+ * 一个主题里各有几样东西。`games` 只数**活跃**的已上线游戏（`deleted_at IS NULL`）——
+ * 卡片上要回答的是「这个主题现在能玩几关」，不是「历史上部署过几次」。
+ */
+export interface ThemeCounts {
+  assets: number;
+  maps: number;
+  characters: number;
+  puzzles: number;
+  games: number;
+}
+
+/**
+ * `themes.data`：主题级**缺省**，不是主题级真相（§5 的 S3 快照式）。
+ *
+ * - `style`：新建地图那一刻深拷贝进 `MapDraft.style`，之后与主题无关；
+ * - `linkageColors`：新建谜题那一刻拷贝进 `PuzzleDraft.linkageColors`，同理。
+ *
+ * 两个键都可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE` 补齐，缺 `linkageColors`
+ * 沿用谜题 schema 的默认调色板。所以老的 `{}` 与「全默认」是等价的。
+ */
+export interface ThemeData {
+  version: number;
+  style?: MapStyle;
+  linkageColors?: MapLinkageColor[];
+}
+
+/**
+ * 一个主题（docs/v0.8.0.md §4 / §19）。
+ *
+ * **没有 `id`**：主题在接口上只以编码标识 —— 它进地址（`/hlm/maps`）、进资源包
+ * manifest，将来导入时也靠它对账。数字主键是数据库的内部事务号，`themes.id` 只出现
+ * 在仓储层与 `theme_id` 列上。少了它，调用方也没法两套并用。
+ */
+export interface Theme {
+  code: string;
+  name: string;
+  description: string | null;
+  data: ThemeData;
+  counts: ThemeCounts;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * 列表页作用域条与新建对话框要的最小形状（docs/v0.8.0.md §16.1 / §16.7）。
+ * 单独给一个类型是为了让「换主题」的下拉不必去拿 90 个资源的计数。
+ */
+export interface ThemeOption {
+  code: string;
+  name: string;
+}
+
+/** 合辑里的一关：成员挂 `puzzle_id`，`game` 是它此刻活跃的那条部署（可能没有）。 */
+export interface ThemeDeploymentEntry {
+  puzzleId: number;
+  puzzleName: string;
+  sortOrder: number;
+  /** `null` = 这一关撤了部署。玩家页据此把它从列表里去掉，成员行仍然留着。 */
+  game: MapGameSummary | null;
+}
+
+/**
+ * 主题合辑（docs/v0.8.0.md §9）。**它是目录，不是内容**：成员指向已有的谜题版本行，
+ * 所以「冻结」仍然只有一处真相。`games` 只放还有活跃部署的成员，按 `sortOrder` 排好。
+ */
+export interface ThemeDeploymentSummary {
+  /** 合辑自己的 id（不等于主题 id）；下线 / 改名走 `/api/theme-deployments/:id`。 */
+  id: number;
+  /** 它属于哪个主题 —— 编码（§19），与 `/api/themes/:code` 同一套说法。 */
+  themeCode: string;
+  themeName: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  coverUrl: string | null;
+  entries: ThemeDeploymentEntry[];
+  createdAt: string;
+  updatedAt: string;
 }

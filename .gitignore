@@ -8,6 +8,8 @@ build/
 
 # vitest 用 ts 配置时生成的临时产物
 *.timestamp-*.mjs
+# 排查 vitest 并发写入被拦时临时指过的 TMPDIR（`TMPDIR=./.vitest-tmp`）
+.vitest-tmp/
 
 # env
 .env

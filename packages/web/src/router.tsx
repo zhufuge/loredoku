@@ -1,7 +1,9 @@
 import { lazy, Suspense, type ComponentType } from 'react';
-import { Navigate, createBrowserRouter } from 'react-router-dom';
+import { Navigate, createBrowserRouter, type RouteObject } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
+import { ThemeEntryRedirect, WorkspaceLayout } from '@/components/layout/WorkspaceLayout';
 import { LoadingBlock, LoadingScreen } from '@/components/common/LoredokuLoader';
+import { SETTINGS_THEMES_PATH } from '@/lib/workspace';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 /**
@@ -65,6 +67,11 @@ const GamePage = lazyPage(
 const GamesPage = lazyPage(() =>
   import('@/pages/GamesPage').then((m) => ({ default: m.GamesPage })),
 );
+// v0.8.0 §10：主题播放页 —— 玩家从 `/play` 的大卡进来，挑一关。
+const ThemePlayPage = lazyPage(
+  () => import('@/pages/ThemePlayPage').then((m) => ({ default: m.ThemePlayPage })),
+  screenFallback('正在加载主题…'),
+);
 const AssetsPage = lazyPage(() => import('@/pages/AssetsPage').then((m) => ({ default: m.AssetsPage })));
 const MapViewPage = lazyPage(
   () => import('@/pages/MapViewPage').then((m) => ({ default: m.MapViewPage })),
@@ -85,46 +92,90 @@ const PuzzleViewPage = lazyPage(
 const DeploymentsPage = lazyPage(() =>
   import('@/pages/DeploymentsPage').then((m) => ({ default: m.DeploymentsPage })),
 );
+/** v0.8.0 v0.8.0 §18：工作空间自己的那页（`/:code/basic`）。 */
+const ThemeBasicPage = lazyPage(() =>
+  import('@/pages/ThemeBasicPage').then((m) => ({ default: m.ThemeBasicPage })),
+);
+/** v0.8.0 v0.8.0 §18：系统配置 —— 主题列表搬到这里，它是「换工作空间」的唯一入口。 */
+const ThemesPage = lazyPage(() => import('@/pages/ThemesPage').then((m) => ({ default: m.ThemesPage })));
 
-export const router = createBrowserRouter([
+/**
+ * 路由表（v0.8.0 §18）。
+ *
+ * ```
+ * /                              → 记住的主题（或默认主题）· 概览
+ * /hlm/basic                     工作空间 · 概览（索引也落这里）
+ * /hlm/maps                      工作空间 · 地图
+ * /settings/themes               系统配置 · 主题
+ * /maps/:mapId/edit              整屏：编辑器（主题无关，一条地址只认一张图）
+ * /play[/:slug]                  玩家侧
+ * ```
+ *
+ * **为什么主题进了地址**：上一版主题只存在 `localStorage` 里，`/maps` 换台机器
+ * 打开就是另一批数据，链接也发不出去。主题是工作空间，不是个人偏好（见
+ * `lib/workspace.ts`）。
+ *
+ * **静态段永远压过动态段**：`/settings` 与 `/play` 都比 `/:themeCode` 更「具体」，
+ * 所以不会被当成主题编码。旧地址（`/maps`、`/assets` …）也靠这一点留在最外层做
+ * 重定向 —— 书签不至于 404。
+ *
+ * 导出成数组是为了测试能用 `createMemoryRouter(routes)` 走**同一张表**：路由表
+ * 与生产不一致的测试，测的是测试自己。
+ */
+export const routes: RouteObject[] = [
+  // ---- 入口与旧地址：都先挑一个主题，再换成带编码的地址 ----
+  { path: '/', element: <ThemeEntryRedirect /> },
+  { path: '/themes', element: <Navigate to={SETTINGS_THEMES_PATH} replace /> },
+  { path: '/assets', element: <ThemeEntryRedirect module="assets" /> },
+  { path: '/maps', element: <ThemeEntryRedirect module="maps" /> },
+  { path: '/characters', element: <ThemeEntryRedirect module="characters" /> },
+  { path: '/puzzles', element: <ThemeEntryRedirect module="puzzles" /> },
+  { path: '/deployments', element: <ThemeEntryRedirect module="deployments" /> },
+  { path: '/items', element: <ThemeEntryRedirect module="assets" /> },
+  { path: '/cards', element: <ThemeEntryRedirect module="assets" /> },
+
+  // ---- 工作空间：一个主题 = 一个 `/:themeCode` 前缀 ----
   {
-    path: '/',
-    element: <AppShell />,
+    path: '/:themeCode',
+    element: <WorkspaceLayout />,
     children: [
-      // v0.7.1 §3：根路径落到「地图」，从首页进来默认就是地图 Tab 高亮。
-      { index: true, element: <Navigate to="/maps" replace /> },
-      { path: 'maps', element: <MapsPage /> },
+      // 工作空间有自己的首页（概览），不替作者决定「进来就要画地图」。
+      { index: true, element: <Navigate to="basic" replace /> },
+      { path: 'basic', element: <ThemeBasicPage /> },
       { path: 'assets', element: <AssetsPage /> },
+      { path: 'maps', element: <MapsPage /> },
       { path: 'characters', element: <CharactersPage /> },
       { path: 'puzzles', element: <PuzzlesPage /> },
       { path: 'deployments', element: <DeploymentsPage /> },
-      { path: 'items', element: <Navigate to="/assets" replace /> },
-      { path: 'cards', element: <Navigate to="/assets" replace /> },
       { path: '*', element: <NotFoundPage /> },
     ],
   },
+
+  // ---- 系统配置：头部没有模块 ----
   {
-    path: '/maps/:mapId/edit',
-    element: <MapEditorPage />,
+    path: '/settings',
+    element: <AppShell variant="config" />,
+    children: [
+      { index: true, element: <Navigate to={SETTINGS_THEMES_PATH} replace /> },
+      { path: 'themes', element: <ThemesPage /> },
+      { path: '*', element: <NotFoundPage /> },
+    ],
   },
-  {
-    path: '/puzzles/:puzzleId/edit',
-    element: <PuzzleEditorPage />,
-  },
-  {
-    path: '/puzzles/:puzzleId/view',
-    element: <PuzzleViewPage />,
-  },
-  {
-    path: '/maps/:mapId/views',
-    element: <MapViewPage />,
-  },
-  {
-    path: '/play',
-    element: <GamesPage />,
-  },
-  {
-    path: '/play/:slug',
-    element: <GamePage />,
-  },
-]);
+
+  // ---- 整屏页：外壳之外 ----
+  { path: '/maps/:mapId/edit', element: <MapEditorPage /> },
+  { path: '/maps/:mapId/views', element: <MapViewPage /> },
+  { path: '/puzzles/:puzzleId/edit', element: <PuzzleEditorPage /> },
+  { path: '/puzzles/:puzzleId/view', element: <PuzzleViewPage /> },
+  { path: '/play', element: <GamesPage /> },
+  { path: '/play/:slug', element: <GamePage /> },
+  /**
+   * v0.8.0 §16.6：主题里的那一关走这条地址（`key` = 游戏的 slug），游戏页据此
+   * 给出「回到红楼梦」的入口。**存档键仍是游戏的 slug**（§10），两条路玩同一关
+   * 是同一份进度 —— 路由参数只用于寻址。
+   */
+  { path: '/play/theme/:themeSlug', element: <ThemePlayPage /> },
+  { path: '/play/theme/:themeSlug/:slug', element: <GamePage /> },
+];
+
+export const router = createBrowserRouter(routes);

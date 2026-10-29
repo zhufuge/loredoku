@@ -14,6 +14,7 @@ import {
   PUZZLE_NAME_MAX_LENGTH,
 } from '../constants';
 import { characterSlotEntrySchema, mapDraftSchema, mapLinkageColorSchema } from './mapDraft';
+import { themeCodeSchema } from './theme';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 
@@ -286,6 +287,11 @@ export const listPuzzlesQuerySchema = z.object({
   kind: z.enum(['draft', 'version']).optional(),
   sort: z.enum(['updatedAt', 'name', 'createdAt']).default('updatedAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
+  /**
+   * §19：按主题编码筛。**谜题的主题不在这里选** —— 它由底图决定（§7.1），
+   * 所以 `createPuzzleSchema` 没有主题字段，服务端从 `mapId` 那一行读。
+   */
+  themeCode: themeCodeSchema.optional(),
 });
 
 export type PuzzleMapRefInput = z.infer<typeof puzzleMapRefSchema>;

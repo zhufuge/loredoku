@@ -20,6 +20,8 @@ import { CharacterDetailForm } from '@/components/character/CharacterDetailForm'
 import { CharacterListPanel } from '@/components/character/CharacterListPanel';
 import { CreateCharacterDialog } from '@/components/character/CreateCharacterDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
+import { ScopedEmpty } from '@/components/theme/ScopedEmpty';
 import { useCharacterUsages, useCharacters, useDeleteCharacter } from '@/hooks/useCharacters';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
@@ -29,6 +31,9 @@ export function CharactersPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [status, setStatus] = useState<StatusFilter>('all');
+  /** v0.8.0 §18：主题来自地址（`/:code/characters`）。 */
+  const workspace = useWorkspace();
+  const themeCode = workspace?.themeCode ?? null;
   const [searchParams, setSearchParams] = useSearchParams();
   const initialId = searchParams.get('id');
   const [selectedId, setSelectedId] = useState<number | null>(initialId ? Number(initialId) : null);
@@ -44,8 +49,9 @@ export function CharactersPage(): JSX.Element {
     () => ({
       keyword: keyword || undefined,
       isActive: status === 'all' ? undefined : status === 'active',
+      themeCode: themeCode ?? undefined,
     }),
-    [keyword, status],
+    [keyword, status, themeCode],
   );
 
   const { data: characters, isLoading, isError, error, refetch } = useCharacters(params);
@@ -54,8 +60,8 @@ export function CharactersPage(): JSX.Element {
   const deleting = deleteMutation.isPending;
 
   useEffect(() => {
-    document.title = '角色 · 格物';
-  }, []);
+    document.title = workspace ? `${workspace.theme.name} · 角色 · 格物` : '角色 · 格物';
+  }, [workspace?.theme.name]);
 
   useEffect(() => {
     if (characters && characters.length > 0) {
@@ -113,15 +119,25 @@ export function CharactersPage(): JSX.Element {
     }
 
     if (!characters || characters.length === 0) {
+      if (keyword) {
+        return (
+          <Card className="flex flex-col items-center gap-3 p-8 text-center">
+            <p className="text-sm text-muted-foreground">没有匹配的角色</p>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" />
+              新建角色
+            </Button>
+          </Card>
+        );
+      }
       return (
-        <Card className="flex flex-col items-center gap-3 p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            {keyword ? '没有匹配的角色' : '还没有角色，先创建一个吧'}
-          </p>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            新建角色
-          </Button>
+        <Card className="flex flex-col items-center p-8">
+          <ScopedEmpty
+            themeName={workspace?.theme.name ?? null}
+            noun="角色"
+            action="新建角色"
+            onCreate={() => setCreateOpen(true)}
+          />
         </Card>
       );
     }
@@ -149,7 +165,8 @@ export function CharactersPage(): JSX.Element {
         }
       />
 
-      <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
+      <div className="space-y-4">
+        <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         <div className="space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -186,17 +203,19 @@ export function CharactersPage(): JSX.Element {
             </div>
           )}
         </Card>
-      </div>
+        </div>
 
-      <CreateCharacterDialog
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        onCreated={(id) => {
-          setCreateOpen(false);
-          setSelectedId(id);
-          setSearchParams({ id: String(id) }, { replace: true });
-        }}
-      />
+        <CreateCharacterDialog
+          open={createOpen}
+          onOpenChange={setCreateOpen}
+          defaultThemeCode={themeCode}
+          onCreated={(id) => {
+            setCreateOpen(false);
+            setSelectedId(id);
+            setSearchParams({ id: String(id) }, { replace: true });
+          }}
+        />
+      </div>
 
       <AlertDialog
         open={deleteTarget !== null}

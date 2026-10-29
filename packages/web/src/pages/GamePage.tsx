@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Eraser, Minus, Plus, RotateCcw, Ruler, Send, Undo2, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -51,6 +51,7 @@ import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { GameBrief } from '@/components/game/GameBrief';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
+import { useThemeDeploymentBySlug } from '@/hooks/useThemes';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useAssets } from '@/hooks/useAssets';
 import {
@@ -178,9 +179,16 @@ function describeBlock(
 
 export function GamePage(): JSX.Element {
   // OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
-  const { slug: slugParam } = useParams();
+  const { slug: slugParam, themeSlug } = useParams();
   const slug = slugParam && slugParam.length > 0 ? slugParam : null;
   const navigate = useNavigate();
+  /**
+   * v0.8.0（docs/v0.8.0.md §16.6）：从合辑进来时（`/play/theme/:slug/:key`），
+   * 左栏顶部要给一个**回到那个主题**的入口 —— 只靠浏览器返回，玩家玩到第 3 关
+   * 就已经不知道自己是从哪一串里进来的了。从单局入口进来时这里什么也不出现：
+   * 它表示「你从哪来」，不是装饰。
+   */
+  const themeQuery = useThemeDeploymentBySlug(themeSlug ?? null);
 
   const gameQuery = useGameDetail(slug);
   /** v0.6.2：存档按游戏自己的 slug 分键（数据比路由参数更可信）。 */
@@ -1107,12 +1115,22 @@ export function GamePage(): JSX.Element {
               <IconButton
                 variant="ghost"
                 icon={<ArrowLeft className="h-4 w-4" />}
-                label="返回游戏列表"
+                label={themeSlug ? '返回主题' : '返回游戏列表'}
                 side="right"
                 className={TOOLBAR_ICON_HOVER_CLASS}
-                onClick={() => navigate('/play')}
+                onClick={() => navigate(themeSlug ? `/play/theme/${themeSlug}` : '/play')}
               />
-              <BrandLogo height={16} />
+              {themeSlug ? (
+                <Link
+                  to={`/play/theme/${themeSlug}`}
+                  className="min-w-0 truncate text-xs text-muted-foreground hover:text-foreground"
+                  title="回到这个主题"
+                >
+                  {themeQuery.data?.name ?? '主题'}
+                </Link>
+              ) : (
+                <BrandLogo height={16} />
+              )}
               {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
               <ThemeToggle className="ml-auto" />
             </div>

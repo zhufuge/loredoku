@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { blockingFor } from '../assetRules';
 import { bgColorSchema } from './appearance';
+import { themeCodeSchema } from './theme';
 import {
   ASSET_CODE_MAX_LENGTH,
   ASSET_CODE_PATTERN,
@@ -45,6 +46,14 @@ export const assetTypeSchema = z.enum(ASSET_TYPES);
  */
 export const createAssetSchema = z
   .object({
+    /**
+     * v0.8.0（docs/v0.8.0.md §7.1 / §19）：新建时就要说清建在哪个主题 —— `theme_id`
+     * 建行后不可改，「建错主题」的代价是删了重建。
+     *
+     * **必填，且用编码。** §19 起没有「默认主题」这个落点了（`themes.is_default` 已删）：
+     * 猜一个主题比报错更糟 —— 作者会在另一个世界里的列表里找自己刚建的东西。
+     */
+    themeCode: themeCodeSchema,
     code: assetCodeSchema,
     name: z.string().trim().min(1, '资源名称不能为空').max(ASSET_NAME_MAX_LENGTH),
     type: assetTypeSchema.default(DEFAULT_ASSET_TYPE),
@@ -87,6 +96,8 @@ export const listAssetsQuerySchema = z.object({
     .transform((v) => v === 'true')
     .optional(),
   type: assetTypeSchema.optional(),
+  /** §19：按主题编码筛。`undefined` = 全部主题（系统配置页 / 打包体检用）。 */
+  themeCode: themeCodeSchema.optional(),
 });
 
 export type CreateAssetInput = z.infer<typeof createAssetSchema>;

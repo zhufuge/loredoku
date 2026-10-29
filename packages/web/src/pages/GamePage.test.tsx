@@ -63,6 +63,14 @@ vi.mock('@/hooks/useGames', () => ({
   useGameDetail: () => ({ data: fixture.detail, isLoading: false, isError: false }),
 }));
 vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
+/**
+ * v0.8.0 §16.6：从合辑进来时左栏要显示主题名。这套测试没有
+ * `QueryClientProvider`（也不需要），所以把它 mock 成「没有合辑上下文」——
+ * 也就是单局入口那条路径，返回入口根本不该出现。
+ */
+vi.mock('@/hooks/useThemes', () => ({
+  useThemeDeploymentBySlug: () => ({ data: undefined }),
+}));
 vi.mock('@/hooks/useCharacters', () => ({ useCharacters: () => ({ data: [] }) }));
 vi.mock('@/hooks/useHighlight', () => ({
   useHighlight: () => ({

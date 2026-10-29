@@ -54,6 +54,7 @@ function existingGame(overrides: Partial<MapGameSummary> = {}): MapGameSummary {
   return {
     id: 3,
     puzzleId: 9,
+    themeCode: 'default',
     puzzleName: 'Midnight Garden',
     puzzleVersionNo: 2,
     name: 'Midnight Garden',

@@ -20,6 +20,27 @@ function setValue(element: HTMLInputElement, value: string): void {
   setter?.call(element, value);
 }
 
+/**
+ * v0.8.0 §16.8：抽屉底部多了一行「风格来自主题…」，它要读主题。这里给一个**没有
+ * 缺省风格**的主题 —— 于是那一行只说「主题还没有缺省风格」，不会与任何既有断言抢
+ * 文字（差异清单另有 `ThemeStyleRow` 自己的测试）。
+ */
+vi.mock('@/hooks/useThemes', () => ({
+  useThemeDetail: () => ({
+    data: {
+      code: 'default',
+      name: '默认',
+      description: null,
+      data: { version: 1 },
+      counts: { assets: 0, maps: 0, characters: 0, puzzles: 0, games: 0 },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    },
+    isLoading: false,
+  }),
+  useUpdateTheme: () => ({ mutateAsync: () => Promise.resolve(), isPending: false }),
+}));
+
 /** Mirrors what a browser does: type, then leave the field. */
 function typeInto(element: HTMLInputElement | null, value: string): void {
   if (!element) throw new Error('input not found');
@@ -53,6 +74,7 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
           }}
           open
           gridSize={6}
+          themeCode="default"
           autoCellSize={120}
           style={style}
           name="旧名字"

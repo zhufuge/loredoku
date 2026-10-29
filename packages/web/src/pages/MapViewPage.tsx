@@ -36,6 +36,7 @@ import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canva
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { rulerStripSize } from '@/lib/ruler';
+import { workshopPath } from '@/lib/workspace';
 
 /**
  * FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this
@@ -269,7 +270,7 @@ export function MapViewPage(): JSX.Element {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">地图不存在或加载失败。</p>
-        <Button variant="outline" onClick={() => navigate('/maps')}>
+        <Button variant="outline" onClick={() => navigate(workshopPath('maps'))}>
           返回地图列表
         </Button>
       </div>
@@ -280,7 +281,7 @@ export function MapViewPage(): JSX.Element {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">该草稿还没有画布，去编辑器里先初始化。</p>
-        <Button variant="outline" onClick={() => navigate('/maps')}>
+        <Button variant="outline" onClick={() => navigate(workshopPath('maps'))}>
           返回地图列表
         </Button>
       </div>

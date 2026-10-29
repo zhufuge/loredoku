@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { ErrorCode } from '@loredoku/shared';
 import { db } from '../src/db/knex';
-import { api } from './helpers';
+import { api, fixtureTheme } from './helpers';
 
 /**
  * v0.6.1 (docs/v0.6.1.md §4 / §5.3) — the variant rules, end to end.
@@ -25,7 +25,7 @@ async function createAsset(body: Record<string, unknown> = {}): Promise<{
 }> {
   const res = await api
     .post('/api/assets')
-    .send({ code: uniqueCode('variant'), name: 'Asset', type: 'item', ...body });
+    .send({ code: uniqueCode('variant'), name: 'Asset', type: 'item', themeCode: await fixtureTheme(), ...body });
   expect(res.status).toBe(200);
   const id = res.body.data.id as number;
   createdAssets.push(id);
@@ -186,7 +186,9 @@ describe('asset variants API', () => {
     const asset = await createAsset();
     const variantId = await addVariant(asset.id, { name: '打开' });
 
-    const map = await api.post('/api/maps').send({ name: `Variants ${uniqueCode('m')}` });
+    const map = await api
+      .post('/api/maps')
+      .send({ name: `Variants ${uniqueCode('m')}`, themeCode: await fixtureTheme() });
     const mapId = map.body.data.id as number;
     createdMaps.push(mapId);
     await api.patch(`/api/maps/${mapId}/grid-size`).send({ gridSize: 4 });

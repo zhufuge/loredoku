@@ -27,6 +27,8 @@ import * as puzzleVersionRepo from '../repository/puzzleVersionRepository';
 import * as versionRepo from '../repository/versionRepository';
 import * as gameRepo from '../repository/gameRepository';
 import * as characterRepo from '../repository/characterRepository';
+import * as mapRepo from '../repository/mapRepository';
+import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 import { absorbLegacyMapDraft, readLegacyLinkageColors } from './mapDraftCompat';
 import { processPuzzleCover } from '../utils/image';
@@ -173,7 +175,12 @@ async function findWritable(id: number): Promise<puzzleRepo.PuzzleRowWithLineage
 export async function listPuzzleEntries(
   query: ListPuzzlesQuery & { page: number; pageSize: number },
 ): Promise<{ list: PuzzleEntrySummary[]; total: number }> {
-  return puzzleRepo.listPuzzleEntries(query);
+  // §19：谜题的主题来自底图，但筛选参数仍按主题编码给。
+  const { themeCode, ...rest } = query;
+  return puzzleRepo.listPuzzleEntries({
+    ...rest,
+    themeId: await themeService.filterThemeId(themeCode),
+  });
 }
 
 export async function getPuzzle(id: number): Promise<PuzzleDetail> {
@@ -240,7 +247,15 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
     rosterCols: null,
   };
 
-  const row = await puzzleRepo.createPuzzle({ name: input.name, description, data });
+  // v0.8.0 §7.1：谜题的主题**由底图决定**，所以这里没有「选主题」的余地 ——
+  // 读那一行地图的 `theme_id`，界面上那个选择器只是把结论显示出来。
+  const mapRow = await mapRepo.findById(input.mapId);
+  if (!mapRow) {
+    throw AppError.validation('所选地图版本不存在，请选择一个已发布的地图版本');
+  }
+  const themeId = Number(mapRow.theme_id);
+
+  const row = await puzzleRepo.createPuzzle({ themeId, name: input.name, description, data });
   return toDetail(row);
 }
 
@@ -271,6 +286,11 @@ export async function savePuzzle(
 
   await assertKnownCharacters(data);
   assertReferenceIssues(data);
+  // v0.8.0 §8 护栏 1：名册与画布上的引用必须与本谜题同主题。
+  await themeService.assertThemeScope(
+    Number(row.theme_id),
+    themeService.puzzleDraftRefs(data),
+  );
 
   const saved = await puzzleRepo.savePuzzleDraft(id, input.updatedAt ?? null, data);
   if (saved === undefined) {

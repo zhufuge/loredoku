@@ -32,6 +32,8 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { ThemeScopePill } from '@/components/theme/ThemeScopePill';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { Textarea } from '@/components/ui/textarea';
 import {
   useCreateCharacter,
@@ -69,12 +71,15 @@ interface CreateCharacterDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: (id: number) => void;
+  /** 没有工作空间上下文时（单测、整屏入口）的兜底主题**编码**（§19）。 */
+  defaultThemeCode?: string | null;
 }
 
 export function CreateCharacterDialog({
   open,
   onOpenChange,
   onCreated,
+  defaultThemeCode = null,
 }: CreateCharacterDialogProps): JSX.Element {
   const {
     register,
@@ -91,13 +96,21 @@ export function CreateCharacterDialog({
   const updateMutation = useUpdateCharacter();
   // v0.5.2 FEAT-M05: the avatar can be picked before the character exists.
   const [file, setFile] = useState<File | null>(null);
+  /**
+   * v0.8.0 §18：在工作空间里主题已由地址定了（`/hlm/characters`），对话框不再让人换
+   * —— 换了就等于建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。
+   */
+  const workspace = useWorkspace();
+  const boundaryThemeCode = workspace?.themeCode ?? defaultThemeCode;
+  const [themeCode, setThemeCode] = useState<string | null>(boundaryThemeCode);
 
   useEffect(() => {
     if (!open) {
       reset(DEFAULTS);
       setFile(null);
+      setThemeCode(boundaryThemeCode);
     }
-  }, [open, reset]);
+  }, [open, reset, boundaryThemeCode]);
 
   const busy =
     createMutation.isPending || uploadMutation.isPending || updateMutation.isPending;
@@ -115,6 +128,7 @@ export function CreateCharacterDialog({
       character = await createMutation.mutateAsync({
         name: values.name,
         code: values.code,
+        themeCode: themeCode ?? '',
         gender: values.gender,
         description: values.description || undefined,
         bgColor,
@@ -157,6 +171,12 @@ export function CreateCharacterDialog({
             <Input id="character-name" placeholder="例如：侦探" {...register('name')} />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
+          {/* v0.8.0 §16.7：名称 → 主题。v0.8.0 §18：在工作空间里这一格只读。 */}
+          {workspace ? (
+            <ThemeScopePill value={themeCode} locked lockedHint="当前工作空间" />
+          ) : (
+            <ThemeScopePill value={themeCode} onChange={setThemeCode} />
+          )}
           <div className="grid gap-2">
             <Label htmlFor="character-code">业务 ID</Label>
             <Input id="character-code" placeholder="detective" {...register('code')} />

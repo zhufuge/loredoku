@@ -8,3 +8,4 @@ export * from './mapDraft';
 export * from './participant';
 export * from './puzzle';
 export * from './game';
+export * from './theme';

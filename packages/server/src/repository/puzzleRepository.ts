@@ -21,6 +21,8 @@ export interface ListPuzzlesParams {
   kind?: 'draft' | 'version';
   sort: 'updatedAt' | 'name' | 'createdAt';
   order: 'asc' | 'desc';
+  /** v0.8.0：作用域条（§16.1）。 */
+  themeId?: number;
 }
 
 export type PuzzleRowWithLineage = PuzzleRow & {
@@ -93,7 +95,11 @@ export async function listPuzzleEntries(
 ): Promise<{ list: PuzzleEntrySummary[]; total: number }> {
   const rows = (await db('puzzles as pz')
     .select(...SELECT_WITH_LINEAGE)
-    .whereNull('pz.deleted_at')) as PuzzleRowWithLineage[];
+    .whereNull('pz.deleted_at')
+    .modify((query) => {
+      // v0.8.0：过滤放进 SQL，`total` 才是这个边界的总数。
+      if (params.themeId !== undefined) query.where('pz.theme_id', params.themeId);
+    })) as PuzzleRowWithLineage[];
 
   const entries = rows.map(toPuzzleEntry);
   const byKind = params.kind ? entries.filter((entry) => entry.kind === params.kind) : entries;
@@ -153,6 +159,8 @@ export async function findByIdIncludingDeleted(
 }
 
 export interface CreatePuzzleData {
+  /** v0.8.0：由底图那一行决定（`mapService` / `puzzleService` 读 `maps.theme_id`）。 */
+  themeId: number;
   name: string;
   description: string | null;
   data: PuzzleDraft;
@@ -166,6 +174,7 @@ export async function createPuzzle(input: CreatePuzzleData): Promise<PuzzleRowWi
   const createdId = await db.transaction(async (trx) => {
     const [row] = (await trx<PuzzleRow>('puzzles')
       .insert({
+        theme_id: input.themeId,
         root_id: 0,
         name: input.name,
         description: input.description,
@@ -266,6 +275,8 @@ export async function duplicatePuzzle(
     const data = absorbLegacyPuzzleDraft(source.data);
     const [row] = (await trx<PuzzleRow>('puzzles')
       .insert({
+        // v0.8.0：复制留在同一主题（跨主题复制本版不做，§14）。
+        theme_id: source.theme_id,
         root_id: 0,
         name: newName,
         description: source.description,

@@ -11,6 +11,7 @@ import * as mapRepo from '../repository/mapRepository';
 import * as mapCanvasRepo from '../repository/mapCanvasRepository';
 import { toMapEntry } from '../repository/mapRepository';
 import * as assetRepo from '../repository/assetRepository';
+import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 
 /**
@@ -18,7 +19,7 @@ import { AppError } from '../utils/AppError';
  * 的每个写入口都能直达它 —— 合并前它在另一张表，天然免疫。画布 / 尺寸 / 区域
  * 一律只允许写草稿行。
  */
-function assertWritable(row: MapRow | undefined): MapRow {
+function assertWritable(row: mapRepo.MapRowWithLineage | undefined): mapRepo.MapRowWithLineage {
   if (!row) {
     throw AppError.notFound('地图不存在');
   }
@@ -90,13 +91,20 @@ export async function getMap(mapId: number): Promise<MapResponse> {
 }
 
 export async function saveMap(mapId: number, input: SaveMapDraftInput): Promise<MapResponse> {
-  assertWritable(await mapCanvasRepo.getMapRow(mapId));
+  const owner = await mapCanvasRepo.getMapRow(mapId);
+  assertWritable(owner);
 
   // 尺寸只认草稿自己带的那一份（DB 没有尺寸列），越界由
   // assertValidReferences 按同一个值检查。
   const draft: MapDraft = { ...input.data };
   await assertValidReferences(draft, draft.gridSize);
   assertNoRegionOverlap(draft.regions);
+  // v0.8.0 §8 护栏 1：画布上的资源必须与本行同主题。只在服务端拦 —— 手工改 URL、
+  // 导入旧 JSON、脚本直连都绕过界面，那是这道护栏存在的全部理由。
+  await themeService.assertThemeScope(
+    Number(owner?.theme_id ?? 0),
+    themeService.mapDraftRefs(draft),
+  );
 
   // 后写覆盖：不做并发比对。
   const saved = await mapCanvasRepo.saveDraft(mapId, draft);
@@ -111,8 +119,20 @@ export async function saveMap(mapId: number, input: SaveMapDraftInput): Promise<
 }
 
 export async function updateGridSize(mapId: number, gridSize: number): Promise<ResizeResult> {
-  assertWritable(await mapCanvasRepo.getMapRow(mapId));
-  const outcome = await mapCanvasRepo.resizeDraft(mapId, gridSize);
+  const row = assertWritable(await mapCanvasRepo.getMapRow(mapId));
+  /**
+   * v0.8.0 §5 的落点：**初始化那一刻**把主题的缺省风格拷进草稿。
+   *
+   * §5 说得很清楚：`POST /maps` 写不了草稿（v0.5.8 起创建不带尺寸），所以这一步
+   * 只能挂在「第一次定尺寸」上。已有草稿的地图不探究 —— 快照式（S3）的全部意义
+   * 就是「主题之后怎么改都不追溯」。
+   */
+  const themeStyle = await themeService.defaultStyleOf(Number(row.theme_id ?? 0));
+  const outcome = await mapCanvasRepo.resizeDraft(
+    mapId,
+    gridSize,
+    themeStyle ? { initialStyle: themeStyle } : undefined,
+  );
   if (!outcome || outcome.record.draft === null) {
     throw AppError.notFound('地图不存在');
   }
@@ -133,6 +153,11 @@ export async function importMap(mapId: number, data: MapDraft): Promise<MapRespo
   const row = assertWritable(await mapCanvasRepo.getMapRow(mapId));
   await assertValidReferences(data, data.gridSize);
   assertNoRegionOverlap(data.regions);
+  // 导入是最容易把引用写穿的一条路 —— 一份旧 JSON 里的资源很可能属于别的主题。
+  await themeService.assertThemeScope(
+    Number(row?.theme_id ?? 0),
+    themeService.mapDraftRefs(data),
+  );
   const saved = await mapCanvasRepo.overwriteDraft(mapId, data);
   if (!saved) {
     throw AppError.notFound('地图不存在');

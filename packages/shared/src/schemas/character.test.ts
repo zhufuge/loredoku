@@ -9,7 +9,7 @@ import { characterSlotEntrySchema } from './mapDraft'
  * 于是老前端多塞的键被 zod 默认剥掉，而不是把请求打成 400。
  */
 describe('createCharacterSchema / updateCharacterSchema — v0.7.6 删掉 meta', () => {
-  const base = { code: 'legacy_c', name: '旧客户端' }
+  const base = { code: 'legacy_c', name: '旧客户端', themeCode: 'fixture' }
 
   it('创建时多塞的 meta 被剥掉，其余字段照常落库', () => {
     const parsed = createCharacterSchema.parse({ ...base, meta: { a: 1 } })
@@ -36,7 +36,7 @@ describe('createCharacterSchema / updateCharacterSchema — v0.7.6 删掉 meta',
  * 发的是 `''`，老客户端压根不发这个键。
  */
 describe('角色参与者默认值（v0.7.13 §11）', () => {
-  const base = { code: 'pc_1', name: '侦探' }
+  const base = { code: 'pc_1', name: '侦探', themeCode: 'fixture' }
 
   it('两个字段都可以缺席', () => {
     expect(createCharacterSchema.parse(base)).not.toHaveProperty('color')

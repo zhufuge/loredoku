@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { ErrorCode } from '@loredoku/shared';
-import { api } from './helpers';
+import { api, fixtureTheme } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
 
 /**
@@ -54,7 +54,7 @@ describe('assets 纯色块（形态级）', () => {
   async function create(body: Record<string, unknown> = {}): Promise<AssetFixture> {
     const res = await api
       .post('/api/assets')
-      .send({ code: uniqueCode('block'), name: 'Asset', ...body });
+      .send({ code: uniqueCode('block'), name: 'Asset', themeCode: await fixtureTheme(), ...body });
     expect(res.status).toBe(200);
     const asset = readAsset(res.body);
     created.push({ table: 'assets', id: asset.id });
@@ -103,7 +103,7 @@ describe('assets 纯色块（形态级）', () => {
   it('rejects a malformed colour', async () => {
     const posted = await api
       .post('/api/assets')
-      .send({ code: uniqueCode('bad'), name: 'Bad', bgColor: '#GGG' });
+      .send({ code: uniqueCode('bad'), name: 'Bad', bgColor: '#GGG', themeCode: await fixtureTheme() });
     expect(posted.status).toBe(400);
     expect(posted.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
@@ -146,7 +146,7 @@ describe('characters 纯色块（v0.5.1 FEAT-L02）', () => {
   async function create(body: Record<string, unknown> = {}): Promise<number> {
     const res = await api
       .post('/api/characters')
-      .send({ code: uniqueCode('char'), name: 'Character', ...body });
+      .send({ code: uniqueCode('char'), name: 'Character', themeCode: await fixtureTheme(), ...body });
     expect(res.status).toBe(200);
     const id = res.body.data.id as number;
     created.push({ table: 'characters', id });
@@ -182,7 +182,7 @@ describe('characters 纯色块（v0.5.1 FEAT-L02）', () => {
   it('rejects a malformed colour', async () => {
     const posted = await api
       .post('/api/characters')
-      .send({ code: uniqueCode('bad'), name: 'Bad', bgColor: '#GGG' });
+      .send({ code: uniqueCode('bad'), name: 'Bad', bgColor: '#GGG', themeCode: await fixtureTheme() });
     expect(posted.status).toBe(400);
     expect(posted.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 

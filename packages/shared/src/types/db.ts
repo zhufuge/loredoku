@@ -5,10 +5,13 @@ import type {
   CharacterGender,
   GameDifficulty,
   MapDraft,
+  ThemeData,
 } from './domain';
 
 export interface MapRow {
   id: string | number;
+  /** v0.8.0：边界。同一血统的每一行都必须同主题（迁移里有断言，docs/v0.8.0.md §12）。 */
+  theme_id: string | number;
   name: string;
   description: string | null;
   cover_path: string | null;
@@ -42,6 +45,8 @@ export interface MapRow {
  */
 export interface AssetRow {
   id: string | number;
+  /** v0.8.0：边界。`(theme_id, code)` 唯一，全局唯一已放开（docs/v0.8.0.md §3.2）。 */
+  theme_id: string | number;
   code: string;
   name: string;
   type: AssetType;
@@ -82,6 +87,8 @@ export interface AssetVariantRow {
  */
 export interface CharacterRow {
   id: string | number;
+  /** v0.8.0：边界，同 `AssetRow.theme_id`。 */
+  theme_id: string | number;
   code: string;
   name: string;
   gender: CharacterGender;
@@ -132,6 +139,8 @@ export interface MapGameRow {
  */
 export interface PuzzleRow {
   id: string | number;
+  /** v0.8.0：边界。谜题的主题由底图决定，界面上只读（docs/v0.8.0.md §7.1）。 */
+  theme_id: string | number;
   /** 血统根；普通谜题指向自己，fork 出的草稿沿用来源的根。 */
   root_id: string | number;
   /** `'draft'` = 工作条目，纯数字字符串 = 已发布版本（转换走 `versionToNo()`）。 */
@@ -175,4 +184,46 @@ export interface MapRegionCellRow {
   region_id: string | number;
   x: number;
   y: number;
+}
+
+/**
+ * v0.8.0：主题（docs/v0.8.0.md §4）。
+ *
+ * 不版本化 —— 地图与谜题已经有一套 `draft` / `version` 的冻结机制，主题再版本化
+ * 就得把资源、地图、谜题全部快照一遍，而第二遍没有真相（§2）。
+ */
+export interface ThemeRow {
+  id: string | number;
+  /** 稳定标识：URL / manifest / 导入对账。显示名可改，它不能。 */
+  code: string;
+  name: string;
+  description: string | null;
+  data: ThemeData;
+  deleted_at: Date | string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+/**
+ * v0.8.0 §9：主题合辑。**一行只记目录本身**，成员在下面那张表里。
+ *
+ * 刻意不存 `puzzle_ids` 数组：成员要排序、要能单独删掉一关，而且
+ * 数组上的外键约束在 Postgres 里不存在。
+ */
+export interface ThemeDeploymentRow {
+  id: string | number;
+  theme_id: string | number;
+  slug: string;
+  name: string;
+  description: string | null;
+  cover_path: string | null;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
+
+/** 合辑成员：挂 `puzzle_id`（不是 `game_id`，重新部署会换 game id，见 §9）。 */
+export interface ThemeDeploymentPuzzleRow {
+  deployment_id: string | number;
+  puzzle_id: string | number;
+  sort_order: number;
 }

@@ -8,9 +8,13 @@ export interface ListAssetsParams {
   keyword?: string;
   isActive?: boolean;
   type?: string;
+  /** v0.8.0：作用域条；`undefined` = 全部主题。 */
+  themeId?: number;
 }
 
 export interface CreateAssetData {
+  /** v0.8.0：边界。缺省由 `assetService` 落到默认主题，仓库层不接受「没有主题」。 */
+  themeId: number;
   code: string;
   name: string;
   type: AssetType;
@@ -49,6 +53,7 @@ export async function listAssets(params: ListAssetsParams): Promise<Asset[]> {
   const query = db<AssetRow>('assets');
   if (params.isActive !== undefined) query.where('is_active', params.isActive);
   if (params.type) query.where('type', params.type);
+  if (params.themeId !== undefined) query.where('theme_id', params.themeId);
   if (params.keyword) {
     const pattern = `%${params.keyword}%`;
     query.where((builder) => {
@@ -66,8 +71,14 @@ export async function findById(id: number): Promise<AssetRow | undefined> {
   return db<AssetRow>('assets').where({ id }).first();
 }
 
-export async function findByCode(code: string): Promise<AssetRow | undefined> {
-  return db<AssetRow>('assets').where({ code }).first();
+/**
+ * v0.8.0：`code` 的唯一性从全局收紧到**主题内**，所以查重必须带主题。
+ * 不传 `themeId` 时查全局（只给「这条 code 有没有人用过」这类提示用，不用于写入判断）。
+ */
+export async function findByCode(code: string, themeId?: number): Promise<AssetRow | undefined> {
+  const query = db<AssetRow>('assets').where({ code });
+  if (themeId !== undefined) query.where('theme_id', themeId);
+  return query.first();
 }
 
 export async function getAsset(id: number): Promise<Asset | null> {
@@ -84,6 +95,7 @@ export async function create(data: CreateAssetData): Promise<number> {
   return db.transaction(async (trx) => {
     const [row] = await trx('assets')
       .insert({
+        theme_id: data.themeId,
         code: data.code,
         name: data.name,
         type: data.type,
@@ -207,6 +219,24 @@ export async function existingAssetIds(ids: number[]): Promise<Set<number>> {
   if (ids.length === 0) return new Set();
   const rows = (await db('assets').whereIn('id', ids).select('id')) as Array<{ id: number | string }>;
   return new Set(rows.map((row) => Number(row.id)));
+}
+
+/**
+ * v0.8.0（docs/v0.8.0.md §11.2）：打包时按 id 闭包取资源（含形态）。
+ *
+ * 软删的行也要取得到 —— 已上线的游戏引用着一个后来被软删的资源时，包里仍要有它，
+ * 否则那一关的画布会缺图。所以这里**不加** `deleted_at` 过滤。
+ */
+export async function assetsByIds(ids: number[]): Promise<Map<number, Asset>> {
+  if (ids.length === 0) return new Map();
+  const rows = (await db<AssetRow>('assets').whereIn('id', ids).select('*')) as AssetRow[];
+  const variants = await variantRepo.listByAssetIds(rows.map((row) => Number(row.id)));
+  return new Map(
+    rows.map((row) => {
+      const id = Number(row.id);
+      return [id, toAsset(row, variants.get(id) ?? [])];
+    }),
+  );
 }
 
 export interface AssetMeta {

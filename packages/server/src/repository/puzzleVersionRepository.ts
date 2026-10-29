@@ -77,6 +77,8 @@ export interface CreatePuzzleVersionData {
 export async function createVersion(data: CreatePuzzleVersionData): Promise<PuzzleRow> {
   const [row] = (await db<PuzzleRow>('puzzles')
     .insert({
+      // v0.8.0：版本行继承草稿的主题 —— 同一血统必须同主题（迁移里有断言）。
+      theme_id: data.owner.theme_id,
       root_id: data.owner.root_id,
       version: String(data.versionNo),
       name: data.owner.name,
@@ -130,6 +132,7 @@ export async function forkVersion(
     const source = data ?? absorbLegacyPuzzleDraft(version.data);
     const [row] = (await trx<PuzzleRow>('puzzles')
       .insert({
+        theme_id: owner.theme_id,
         root_id: owner.root_id,
         name,
         description: version.description,

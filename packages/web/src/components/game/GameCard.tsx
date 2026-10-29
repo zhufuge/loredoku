@@ -61,19 +61,31 @@ function followPointerWithGlow(event: React.PointerEvent<HTMLDivElement>): void 
  */
 const LIGHT_LAYERS = ['paper-shade', 'paper-core'] as const;
 
-export function GameCard({ game }: { game: MapGameSummary }): JSX.Element {
+/**
+ * v0.8.0（docs/v0.8.0.md §16.6）：`href` 让同一张卡也能指向**主题里的**那一关
+ * （`/play/theme/:slug/:key`）。不传就是原来的单局地址 —— 存档键在两个入口下
+ * 都是 `game.slug`，所以两条路玩同一关仍是同一份进度。
+ */
+export function GameCard({
+  game,
+  href,
+}: {
+  game: MapGameSummary;
+  href?: string;
+}): JSX.Element {
   const navigate = useNavigate();
+  const to = href ?? `/play/${game.slug}`;
   const initial = game.name.trim().charAt(0) || '游';
 
   return (
     <Card
       role="button"
       tabIndex={0}
-      onClick={() => navigate(`/play/${game.slug}`)}
+      onClick={() => navigate(to)}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          navigate(`/play/${game.slug}`);
+          navigate(to);
         }
       }}
       className={cn(

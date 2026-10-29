@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { GRID_SIZE_DEFAULT, MAP_JSON_VERSION } from '@loredoku/shared';
 import { db } from '../db/knex';
-import type { DraftRegion, MapDraft, MapRow, ResizeRemoved } from '@loredoku/shared';
+import type { DraftRegion, MapDraft, MapRow, MapStyle, ResizeRemoved } from '@loredoku/shared';
 import { absorbLegacyMapDraft } from '../service/mapDraftCompat';
+import { THEME_CODE, type MapRowWithLineage } from './mapRepository';
 
 export interface DraftRecord {
   /**
@@ -40,8 +41,15 @@ function parseDraft(mapRow: MapRow): DraftRecord {
   return { draft };
 }
 
-export async function getMapRow(mapId: number): Promise<MapRow | undefined> {
-  return db<MapRow>('maps').where({ id: mapId }).first();
+/**
+ * v0.8.0 §19：带上主题编码。这一行要变成接口里的 `MapEntry`，而 `MapEntry` 用编码
+ * 说主题 —— 在主键上做一次标量子查询，比让每个调用方各自再查一次便宜。
+ */
+export async function getMapRow(mapId: number): Promise<MapRowWithLineage | undefined> {
+  return db('maps as m')
+    .select('m.*', THEME_CODE)
+    .where('m.id', mapId)
+    .first() as Promise<MapRowWithLineage | undefined>;
 }
 
 export async function getDraft(mapId: number): Promise<DraftRecord | undefined> {
@@ -70,6 +78,15 @@ export async function saveDraft(
 export async function resizeDraft(
   mapId: number,
   gridSize: number,
+  /**
+   * v0.8.0（docs/v0.8.0.md §5 的 S3）—— **初始化那一刻**要把主题的缺省风格
+   * 深拷贝进草稿。放在这里而不是 `POST /maps`：v0.5.8 起创建地图不带尺寸、
+   * `data` 是 `null`，写草稿要等到第一次定尺寸（或首次导入）。
+   *
+   * 只在 `row.data === null`（真正未初始化）时生效 —— 已有草稿的地图不追溯，
+   * 那正是 S3 与「引用式」的分界。
+   */
+  options?: { initialStyle?: MapStyle },
 ): Promise<ResizeOutcome | undefined> {
   return db.transaction(async (trx) => {
     const row = (await trx('maps').where({ id: mapId }).forUpdate().first()) as
@@ -77,6 +94,7 @@ export async function resizeDraft(
       | undefined;
     if (!row) return undefined;
 
+    const uninitialized = row.data === null || row.data === undefined;
     const draft = (row.data as MapDraft | null) ?? emptyDraft(GRID_SIZE_DEFAULT);
     const removed: ResizeRemoved = {
       background: 0,
@@ -115,13 +133,16 @@ export async function resizeDraft(
       });
     }
 
+    // 初始化时用主题的缺省风格，否则原样保留草稿自己的那份。
+    const style = (uninitialized ? options?.initialStyle : undefined) ?? draft.style;
+
     const next: MapDraft = {
       version: draft.version ?? MAP_JSON_VERSION,
       gridSize,
       cells: nextCells,
       regions: nextRegions,
       // v0.3.8 FEAT-D02: resizing must not drop the map-level style block.
-      ...(draft.style ? { style: draft.style } : {}),
+      ...(style ? { style } : {}),
     };
 
     const [updated] = (await trx('maps')

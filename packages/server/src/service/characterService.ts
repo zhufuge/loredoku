@@ -6,11 +6,13 @@ import type {
   UpdateCharacterInput,
 } from '@loredoku/shared';
 import * as repo from '../repository/characterRepository';
+import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 import { processAvatarImage } from '../utils/image';
 
 export async function listCharacters(query: ListCharactersQuery): Promise<Character[]> {
-  return repo.listCharacters(query);
+  const { themeCode, ...rest } = query;
+  return repo.listCharacters({ ...rest, themeId: await themeService.filterThemeId(themeCode) });
 }
 
 export async function getCharacter(id: number): Promise<Character> {
@@ -22,10 +24,13 @@ export async function getCharacter(id: number): Promise<Character> {
 }
 
 export async function createCharacter(input: CreateCharacterInput): Promise<Character> {
-  if (await repo.findByCode(input.code)) {
+  // v0.8.0：`code` 只在主题内唯一，查重带主题。§19：主题必填且用编码。
+  const themeId = await themeService.requireThemeId(input.themeCode);
+  if (await repo.findByCode(input.code, themeId)) {
     throw AppError.conflict('角色编码已存在');
   }
   const id = await repo.create({
+    themeId,
     code: input.code,
     name: input.name,
     gender: input.gender,

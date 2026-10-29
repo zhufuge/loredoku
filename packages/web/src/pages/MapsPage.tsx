@@ -17,6 +17,8 @@ import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
+import { ScopedEmpty } from '@/components/theme/ScopedEmpty';
 import { ListPager } from '@/components/common/ListPager';
 import {
   CreateMapDialog,
@@ -63,14 +65,17 @@ export function MapsPage(): JSX.Element {
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState<SortOption>('updatedAt');
   const [view, setView] = useStoredView(VIEW_STORAGE_KEY);
+  /** v0.8.0 §18：主题来自地址（`/:code/maps`）。 */
+  const workspace = useWorkspace();
+  const themeCode = workspace?.themeCode ?? null;
   const [createOpen, setCreateOpen] = useState(false);
   /** A work entry being renamed / re-covered (`EditMapDialog` needs a `MapEntry`). */
   const [editMapEntry, setEditMapEntry] = useState<MapEntrySummary | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<MapEntrySummary | null>(null);
 
   useEffect(() => {
-    document.title = '地图 · 格物';
-  }, []);
+    document.title = workspace ? `${workspace.theme.name} · 地图 · 格物` : '地图 · 格物';
+  }, [workspace?.theme.name]);
 
   const resetPages = (): void => {
     setDraftPage(1);
@@ -91,8 +96,10 @@ export function MapsPage(): JSX.Element {
       keyword: keyword || undefined,
       sort,
       order: 'desc' as const,
+      // v0.8.0 §16.1：作用域条只筛「看哪些」，不影响新建时能选什么。
+      themeCode: themeCode ?? undefined,
     }),
-    [keyword, sort],
+    [keyword, sort, themeCode],
   );
 
   const draftQuery = useMaps({ ...shared, kind: 'draft', page: draftPage });
@@ -252,15 +259,25 @@ export function MapsPage(): JSX.Element {
     }
 
     if (draftTotal === 0 && versionTotal === 0) {
+      if (keyword) {
+        return (
+          <Card className="flex flex-col items-center gap-3 p-12 text-center">
+            <p className="text-sm text-muted-foreground">没有匹配的地图</p>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" />
+              新建地图
+            </Button>
+          </Card>
+        );
+      }
       return (
-        <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            {keyword ? '没有匹配的地图' : '还没有地图，创建一个开始吧'}
-          </p>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            新建地图
-          </Button>
+        <Card className="flex flex-col items-center p-12">
+          <ScopedEmpty
+            themeName={workspace?.theme.name ?? null}
+            noun="地图"
+            action="新建地图"
+            onCreate={() => setCreateOpen(true)}
+          />
         </Card>
       );
     }
@@ -345,7 +362,11 @@ export function MapsPage(): JSX.Element {
         </div>
       </div>
 
-      <CreateMapDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <CreateMapDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        defaultThemeCode={themeCode}
+      />
       <EditMapDialog mapEntry={editMapEntry} onOpenChange={(open) => !open && setEditMapEntry(null)} />
 
       <AlertDialog

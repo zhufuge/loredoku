@@ -4,11 +4,15 @@ import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 export interface ListCharactersParams {
   keyword?: string;
   isActive?: boolean;
+  /** v0.8.0 §19：按主题编码筛。 */
+  themeCode?: string;
 }
 
 export interface CreateCharacterPayload {
   code: string;
   name: string;
+  /** v0.8.0 §19：这个角色属于哪个主题。**必填**，用编码。 */
+  themeCode: string;
   /** FEAT-501 */
   gender?: CharacterGender;
   description?: string | null;

@@ -21,6 +21,8 @@ export interface PuzzleListParams {
   kind?: 'draft' | 'version';
   sort?: PuzzleSort;
   order?: 'asc' | 'desc';
+  /** v0.8.0 §19：按主题编码筛。 */
+  themeCode?: string;
 }
 
 export interface CreatePuzzlePayload {

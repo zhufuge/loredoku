@@ -23,6 +23,11 @@ import { buildFileUrl } from '../utils/paths';
 
 /** 列表 / 详情共用的 join 结果：game 行 + 它挂着的谜题行。 */
 export interface GameRowWithPuzzle extends MapGameRow {
+  /**
+   * v0.8.0 §19：`games` 不存主题，这个字段顺着 `puzzles.theme_id` 查出来的是**编码**
+   * —— 接口只认编码，`theme_id` 停在仓储层。
+   */
+  puzzle_theme_code: string;
   puzzle_name: string;
   puzzle_version: string;
   puzzle_data: unknown;
@@ -30,6 +35,8 @@ export interface GameRowWithPuzzle extends MapGameRow {
 
 const GAME_SELECT = [
   'g.*',
+  // 主键上的标量子查询，与地图列表同一套写法（§19）。
+  db.raw('(SELECT t.code FROM themes t WHERE t.id = pz.theme_id) as puzzle_theme_code'),
   'pz.name as puzzle_name',
   'pz.version as puzzle_version',
   'pz.data as puzzle_data',
@@ -60,6 +67,20 @@ export async function getGameRowBySlug(slug: string): Promise<GameRowWithPuzzle 
   return liveQuery().where('g.slug', slug).select(...GAME_SELECT).first() as Promise<
     GameRowWithPuzzle | undefined
   >;
+}
+
+/**
+ * v0.8.0（docs/v0.8.0.md §11.1）：资源包的取材 —— 某个主题下**已上线**的游戏。
+ *
+ * `games` 自己不存 `theme_id`（§3.1：主题只挂在四个内容表上），所以走
+ * `join puzzles.theme_id`。排序给出一个确定的兜底顺序（部署时间倒序）；
+ * 有合辑时调用方再按合辑的 `sort_order` 重排。
+ */
+export async function listGameRowsByTheme(themeId: number): Promise<GameRowWithPuzzle[]> {
+  return (await liveQuery()
+    .where('pz.theme_id', themeId)
+    .select(...GAME_SELECT)
+    .orderBy('g.created_at', 'desc')) as GameRowWithPuzzle[];
 }
 
 /** OPT-W04 §4.4: 这条路径现在归谁 —— 别的谜题版本就是冲突。 */
@@ -168,6 +189,7 @@ export function toSummary(row: GameRowWithPuzzle): MapGameSummary {
   return {
     id: Number(row.id),
     puzzleId: Number(row.puzzle_id),
+    themeCode: row.puzzle_theme_code,
     puzzleName: row.puzzle_name,
     // 游戏只挂在版本行上，`'draft'` 不可能出现（`Number()` 在这里是安全的，
     // 但版本号从 `versionToNo` 的语义来 —— 这里直接取，仍留个 0 兜底）。

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { workshopPath } from '@/lib/workspace';
 
 export function NotFoundPage(): JSX.Element {
   return (
@@ -11,7 +12,7 @@ export function NotFoundPage(): JSX.Element {
       <h1 className="font-kai text-2xl leading-tight tracking-tight">404</h1>
       <p className="text-sm text-muted-foreground">页面不存在。</p>
       <Button asChild>
-        <Link to="/maps">返回地图列表</Link>
+        <Link to={workshopPath('maps')}>返回地图列表</Link>
       </Button>
     </section>
   );

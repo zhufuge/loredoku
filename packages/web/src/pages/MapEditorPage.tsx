@@ -78,6 +78,7 @@ import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
+import { workshopPath } from '@/lib/workspace';
 
 interface RegionDialogState {
   open: boolean;
@@ -837,7 +838,7 @@ export function MapEditorPage(): JSX.Element {
       <EditorErrorState
         message={forkFrom !== null ? '地图版本不存在或加载失败。' : '地图不存在或加载失败。'}
         backLabel="返回地图列表"
-        onBack={() => navigate('/maps')}
+        onBack={() => navigate(workshopPath('maps'))}
       />
     );
   }
@@ -897,7 +898,7 @@ export function MapEditorPage(): JSX.Element {
         currentVersionNo={editor.currentVersionNo}
         // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点。
         canSave={editor.dirty || entryDirty || forkFrom !== null}
-        onBack={() => navigate('/maps')}
+        onBack={() => navigate(workshopPath('maps'))}
         onSave={save}
         onPublish={forkFrom === null ? openPublishConfirm : undefined}
         onOpenVersions={() => setVersionsOpen(true)}
@@ -1117,6 +1118,7 @@ export function MapEditorPage(): JSX.Element {
             ref={mapInfoRef}
             open={mapInfoOpen}
             gridSize={editor.gridSize}
+            themeCode={mapEntry.themeCode}
             autoCellSize={autoCellSize}
             style={editor.style}
             name={entryInfo.name}

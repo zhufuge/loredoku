@@ -27,6 +27,7 @@ const oldMapEntry: MapEntry = {
   id: 7,
   name: '旧名',
   description: null,
+  themeCode: 'default',
   gridSize: 9,
   coverPath: null,
   coverUrl: null,

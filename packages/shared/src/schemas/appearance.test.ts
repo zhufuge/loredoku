@@ -61,7 +61,7 @@ describe('hasAppearance', () => {
 })
 
 describe('createAssetSchema — bgColor (FEAT-L01)', () => {
-  const base = { code: 'block_1', name: '色块' }
+  const base = { code: 'block_1', name: '色块', themeCode: 'fixture' }
 
   it('defaults to no colour block', () => {
     expect(createAssetSchema.parse(base).bgColor).toBeUndefined()
@@ -74,8 +74,8 @@ describe('createAssetSchema — bgColor (FEAT-L01)', () => {
 })
 
 describe('create schemas — isActive (FEAT-N06)', () => {
-  const item = { code: 'block_1', name: '色块' }
-  const character = { code: 'block_c', name: '色块人' }
+  const item = { code: 'block_1', name: '色块', themeCode: 'fixture' }
+  const character = { code: 'block_c', name: '色块人', themeCode: 'fixture' }
 
   it('omit it and the OPT-305 default (false) stands', () => {
     // The repository turns `undefined` into `false`, so an old caller's
@@ -114,7 +114,7 @@ describe('updateAssetVariantSchema — bgColor (FEAT-L01)', () => {
 })
 
 describe('createCharacterSchema / updateCharacterSchema — bgColor (FEAT-L02)', () => {
-  const base = { code: 'block_c', name: '色块人' }
+  const base = { code: 'block_c', name: '色块人', themeCode: 'fixture' }
 
   it('defaults to no colour block and accepts one when given', () => {
     expect(createCharacterSchema.parse(base).bgColor).toBeUndefined()

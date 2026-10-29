@@ -16,6 +16,7 @@ import { GameCard } from './GameCard';
 const GAME: MapGameSummary = {
   id: 7,
   puzzleId: 3,
+  themeCode: 'default',
   puzzleName: '雾港',
   puzzleVersionNo: 2,
   name: '雾港之夜',

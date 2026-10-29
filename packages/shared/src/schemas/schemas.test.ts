@@ -18,27 +18,27 @@ describe('gridSizeSchema', () => {
 
 describe('createMapSchema', () => {
   it('no longer carries a canvas size', () => {
-    const parsed = createMapSchema.parse({ name: '  My Map  ' })
+    const parsed = createMapSchema.parse({ name: '  My Map  ', themeCode: 'fixture' })
     expect(parsed.name).toBe('My Map')
     expect(parsed).not.toHaveProperty('gridSize')
   })
 
   it('requires a non-empty name', () => {
-    expect(createMapSchema.safeParse({ name: '   ' }).success).toBe(false)
+    expect(createMapSchema.safeParse({ name: '   ', themeCode: 'fixture' }).success).toBe(false)
   })
 })
 
 describe('createAssetSchema', () => {
   it('enforces the code pattern and defaults the size', () => {
-    const parsed = createAssetSchema.parse({ code: 'asset_1', name: 'Suspect' })
+    const parsed = createAssetSchema.parse({ code: 'asset_1', name: 'Suspect', themeCode: 'fixture' })
     expect(parsed).not.toHaveProperty('triggers')
     expect(parsed.blocking).toBe(false)
-    expect(createAssetSchema.safeParse({ code: 'bad code', name: 'x' }).success).toBe(false)
-    expect(createAssetSchema.safeParse({ code: 'ok', name: 'x' }).success).toBe(true)
+    expect(createAssetSchema.safeParse({ code: 'bad code', name: 'x', themeCode: 'fixture' }).success).toBe(false)
+    expect(createAssetSchema.safeParse({ code: 'ok', name: 'x', themeCode: 'fixture' }).success).toBe(true)
   })
 
   it('a background asset never blocks', () => {
-    expect(createAssetSchema.parse({ code: 'bg_1', name: 'Wall', type: 'background', blocking: true }).blocking).toBe(false)
-    expect(createAssetSchema.parse({ code: 'ob_1', name: 'Lamp', type: 'item', blocking: false }).blocking).toBe(false)
+    expect(createAssetSchema.parse({ code: 'bg_1', name: 'Wall', type: 'background', blocking: true, themeCode: 'fixture' }).blocking).toBe(false)
+    expect(createAssetSchema.parse({ code: 'ob_1', name: 'Lamp', type: 'item', blocking: false, themeCode: 'fixture' }).blocking).toBe(false)
   })
 })

@@ -5,6 +5,8 @@ export interface ListAssetsParams {
   keyword?: string;
   isActive?: boolean;
   type?: AssetType;
+  /** v0.8.0 §19：按主题**编码**筛（`/hlm/assets` 里那一段就是它）。 */
+  themeCode?: string;
 }
 
 /**
@@ -16,6 +18,8 @@ export interface ListAssetsParams {
 export interface CreateAssetPayload {
   code: string;
   name: string;
+  /** v0.8.0 §19：这条资源属于哪个主题。**必填**，用编码 —— 没有默认主题可落。 */
+  themeCode: string;
   type?: AssetType;
   blocking?: boolean;
   fitMode?: AssetFitMode;

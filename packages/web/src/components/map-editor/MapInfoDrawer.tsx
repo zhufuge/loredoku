@@ -33,6 +33,7 @@ import { CoverPicker } from '@/components/common/CoverPicker';
 import { ColorField } from '@/components/ui/color-input';
 import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
+import { ThemeStyleRow } from '@/components/map-editor/ThemeStyleRow';
 import {
   clampCellSize,
   clampLineWidth,
@@ -72,6 +73,12 @@ export interface MapInfoEntryDraft {
 interface MapInfoDrawerProps {
   open: boolean;
   gridSize: number;
+  /**
+   * v0.8.0 §16.8：这张地图属于哪个主题。抽屉底部那一行「风格来自主题…」靠它
+   * 去读主题的缺省风格。
+   */
+  /** v0.8.0 §19：这张图所属主题的**编码**（`MapEntry.themeCode`）。 */
+  themeCode: string;
   /** The value the adaptive pass currently computes (FEAT-D03 default). */
   autoCellSize: number;
   /** The committed style — the drawer edits a copy of it. */
@@ -153,6 +160,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
     {
       open,
       gridSize,
+      themeCode,
       autoCellSize,
       style,
       name,
@@ -673,6 +681,19 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 }
               />
             </Row>
+          </Section>
+
+          {/* ---- 主题风格（v0.8.0 §16.8） ---- */}
+          <Section
+            title="主题风格"
+            hint="Theme — 主题的缺省风格。它只在**新建地图那一刻**被拷进草稿（§5 的快照式），之后两边各走各的：改主题风格不会追溯改动已经画好的图。"
+          >
+            <ThemeStyleRow
+              themeCode={themeCode}
+              style={draft}
+              // 只是灌进抽屉草稿，落库仍等右上角「保存」—— 与这里其它控件完全一致。
+              onApplyThemeStyle={(next) => setDraft(next)}
+            />
           </Section>
         </div>
 

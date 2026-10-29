@@ -16,11 +16,15 @@ export interface MapListParams {
   kind?: 'draft' | 'version';
   sort?: MapSort;
   order?: 'asc' | 'desc';
+  /** v0.8.0 §19：按主题编码筛。 */
+  themeCode?: string;
 }
 
 export interface CreateMapPayload {
   name: string;
   description?: string;
+  /** v0.8.0 §19：这张图属于哪个主题。**必填**，用编码。 */
+  themeCode: string;
 }
 
 export interface UpdateMapPayload {

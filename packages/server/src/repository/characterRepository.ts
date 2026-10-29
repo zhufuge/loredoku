@@ -13,9 +13,13 @@ import { readLegacyCharacterSlots } from '../service/mapDraftCompat';
 export interface ListCharactersParams {
   keyword?: string;
   isActive?: boolean;
+  /** v0.8.0：作用域条；`undefined` = 全部主题。 */
+  themeId?: number;
 }
 
 export interface CreateCharacterData {
+  /** v0.8.0：边界。 */
+  themeId: number;
   code: string;
   name: string;
   /** FEAT-501 */
@@ -72,6 +76,7 @@ function toCharacter(row: CharacterRow): Character {
 export async function listCharacters(params: ListCharactersParams): Promise<Character[]> {
   const query = db<CharacterRow>('characters');
   if (params.isActive !== undefined) query.where('is_active', params.isActive);
+  if (params.themeId !== undefined) query.where('theme_id', params.themeId);
   if (params.keyword) {
     const pattern = `%${params.keyword}%`;
     query.where((builder) => {
@@ -86,8 +91,11 @@ export async function findById(id: number): Promise<CharacterRow | undefined> {
   return db<CharacterRow>('characters').where({ id }).first();
 }
 
-export async function findByCode(code: string): Promise<CharacterRow | undefined> {
-  return db<CharacterRow>('characters').where({ code }).first();
+/** v0.8.0：`code` 只在主题内唯一，查重必须带主题。 */
+export async function findByCode(code: string, themeId?: number): Promise<CharacterRow | undefined> {
+  const query = db<CharacterRow>('characters').where({ code });
+  if (themeId !== undefined) query.where('theme_id', themeId);
+  return query.first();
 }
 
 export async function getCharacter(id: number): Promise<Character | null> {
@@ -95,9 +103,17 @@ export async function getCharacter(id: number): Promise<Character | null> {
   return row ? toCharacter(row) : null;
 }
 
+/** v0.8.0（§11.2）：打包按 id 闭包取角色。软删的也取 —— 见 `assetsByIds` 的注释。 */
+export async function charactersByIds(ids: number[]): Promise<Map<number, Character>> {
+  if (ids.length === 0) return new Map();
+  const rows = (await db<CharacterRow>('characters').whereIn('id', ids).select('*')) as CharacterRow[];
+  return new Map(rows.map((row) => [Number(row.id), toCharacter(row)]));
+}
+
 export async function create(data: CreateCharacterData): Promise<number> {
   const [row] = await db('characters')
     .insert({
+      theme_id: data.themeId,
       code: data.code,
       name: data.name,
       gender: data.gender,

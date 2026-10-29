@@ -63,6 +63,18 @@ export async function listByAsset(assetId: number): Promise<AssetVariant[]> {
   return grouped.get(assetId) ?? [];
 }
 
+/**
+ * v0.8.0（§11.2）：打包时按 id 取形态 —— 用来补「只被 variantId 引用、没被
+ * assetId 引用」的资源（正常草稿不会这样，但体检要能兜住）。
+ */
+export async function listByIds(ids: number[]): Promise<AssetVariant[]> {
+  if (ids.length === 0) return [];
+  const rows = (await db<AssetVariantRow>('asset_variants')
+    .whereIn('id', ids)
+    .orderBy(['asset_id', 'sort_order', 'id'])) as AssetVariantRow[];
+  return rows.map(toAssetVariant);
+}
+
 export async function findById(assetId: number, variantId: number): Promise<AssetVariantRow | undefined> {
   return db<AssetVariantRow>('asset_variants').where({ id: variantId, asset_id: assetId }).first();
 }

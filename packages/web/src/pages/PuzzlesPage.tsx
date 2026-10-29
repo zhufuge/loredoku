@@ -19,6 +19,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { entryPreviewable } from '@/components/common/EntryActionsMenu';
 import { ListPager } from '@/components/common/ListPager';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
+import { ScopedEmpty } from '@/components/theme/ScopedEmpty';
 import { CreatePuzzleDialog } from '@/components/puzzle/CreatePuzzleDialog';
 import { EditPuzzleDialog } from '@/components/puzzle/EditPuzzleDialog';
 import { ViewToggle } from '@/components/common/ViewToggle';
@@ -60,6 +62,12 @@ export function PuzzlesPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState<SortOption>('updatedAt');
+  /**
+   * v0.8.0 §18：主题来自地址（`/:code/puzzles`）。谜题的边界来自底图，所以这里筛的是
+   * 「底图属于哪个主题」—— 与列表里那些谜题实际所属的主题一致。
+   */
+  const workspace = useWorkspace();
+  const themeCode = workspace?.themeCode ?? null;
   const [view, setView] = useStoredView(VIEW_STORAGE_KEY);
   /** `?new={mapId}:{versionNo}` —— 从地图列表「以此版本新建谜题」过来。 */
   const [createOpen, setCreateOpen] = useState(() => searchParams.get('new') !== null);
@@ -69,8 +77,8 @@ export function PuzzlesPage(): JSX.Element {
   const [deployTarget, setDeployTarget] = useState<PuzzleEntrySummary | null>(null);
 
   useEffect(() => {
-    document.title = '谜题 · 格物';
-  }, []);
+    document.title = workspace ? `${workspace.theme.name} · 谜题 · 格物` : '谜题 · 格物';
+  }, [workspace?.theme.name]);
 
   const resetPages = (): void => {
     setDraftPage(1);
@@ -91,8 +99,9 @@ export function PuzzlesPage(): JSX.Element {
       keyword: keyword || undefined,
       sort,
       order: 'desc' as const,
+      themeCode: themeCode ?? undefined,
     }),
-    [keyword, sort],
+    [keyword, sort, themeCode],
   );
 
   const draftQuery = usePuzzles({ ...shared, kind: 'draft', page: draftPage });
@@ -252,15 +261,25 @@ export function PuzzlesPage(): JSX.Element {
     }
 
     if (draftTotal === 0 && versionTotal === 0) {
+      if (keyword) {
+        return (
+          <Card className="flex flex-col items-center gap-3 p-12 text-center">
+            <p className="text-sm text-muted-foreground">没有匹配的谜题</p>
+            <Button onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1 h-4 w-4" />
+              新建谜题
+            </Button>
+          </Card>
+        );
+      }
       return (
-        <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            {keyword ? '没有匹配的谜题' : '还没有谜题，创建一个开始吧'}
-          </p>
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1 h-4 w-4" />
-            新建谜题
-          </Button>
+        <Card className="flex flex-col items-center p-12">
+          <ScopedEmpty
+            themeName={workspace?.theme.name ?? null}
+            noun="谜题"
+            action="新建谜题"
+            onCreate={() => setCreateOpen(true)}
+          />
         </Card>
       );
     }

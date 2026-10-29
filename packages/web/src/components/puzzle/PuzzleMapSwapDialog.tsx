@@ -17,6 +17,7 @@ import { formatDateTimeMinute } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { LoadingBlock } from '@/components/common/LoredokuLoader';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
+import { workshopPath } from '@/lib/workspace';
 
 /**
  * v0.7.3 §3：「引入新地图」。
@@ -114,7 +115,7 @@ export function PuzzleMapSwapDialog({
                 size="sm"
                 onClick={() => {
                   onOpenChange(false);
-                  navigate('/maps');
+                  navigate(workshopPath('maps'));
                 }}
               >
                 <MapIcon className="mr-1 h-3.5 w-3.5" />

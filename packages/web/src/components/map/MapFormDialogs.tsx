@@ -16,6 +16,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ThemeScopePill } from '@/components/theme/ThemeScopePill';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import {
   useCreateMap,
   useRemoveMapCover,
@@ -34,11 +36,14 @@ type CreateFormValues = z.infer<typeof createSchema>;
 interface CreateMapDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** 没有工作空间上下文时（单测、整屏入口）的兜底主题**编码**（§19）。 */
+  defaultThemeCode?: string | null;
 }
 
 export function CreateMapDialog({
   open,
   onOpenChange,
+  defaultThemeCode = null,
 }: CreateMapDialogProps): JSX.Element {
   const {
     register,
@@ -58,6 +63,10 @@ export function CreateMapDialog({
    */
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [coverFailed, setCoverFailed] = useState(false);
+  /** v0.8.0 §18：主题由工作空间定；没有上下文时才可改（见下面的胶囊）。 */
+  const workspace = useWorkspace();
+  const boundaryThemeCode = workspace?.themeCode ?? defaultThemeCode;
+  const [themeCode, setThemeCode] = useState<string | null>(boundaryThemeCode);
 
   const createMutation = useCreateMap();
   const uploadMutation = useUploadMapCover();
@@ -69,8 +78,9 @@ export function CreateMapDialog({
       setCover(null);
       setCreatedId(null);
       setCoverFailed(false);
+      setThemeCode(boundaryThemeCode);
     }
-  }, [open, reset]);
+  }, [open, reset, boundaryThemeCode]);
 
   const onSubmit = handleSubmit(async (values) => {
     // Retry path: the map already exists, so only the artwork is missing.
@@ -93,6 +103,8 @@ export function CreateMapDialog({
       mapEntry = await createMutation.mutateAsync({
         name: values.name,
         description: values.description?.trim() ? values.description.trim() : undefined,
+        // 服务端必填（§19）；胶囊同步过，正常路径不会是空串。
+        themeCode: themeCode ?? '',
       });
     } catch {
       return;
@@ -128,6 +140,14 @@ export function CreateMapDialog({
             />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
+          {/* v0.8.0 §16.7：名称 → 主题。建行之后不可改，所以只在这里出现一次。
+              v0.8.0 §18：在工作空间里主题由地址定，一律只读。 */}
+          <ThemeScopePill
+            value={themeCode}
+            onChange={setThemeCode}
+            locked={workspace !== null || createdId !== null}
+            lockedHint={workspace ? '当前工作空间' : '已创建'}
+          />
           <div className="grid gap-2">
             <Label htmlFor="map-description">描述</Label>
             <Textarea

@@ -7,6 +7,7 @@ import { assetsRouter } from './assets';
 import { charactersRouter } from './characters';
 import { puzzlesRouter } from './puzzles';
 import { gamesRouter } from './games';
+import { themesRouter, themeDeploymentsRouter } from './themes';
 
 export const apiRouter = new Router({ prefix: API_PREFIX });
 
@@ -19,6 +20,13 @@ apiRouter.use('/characters', charactersRouter.routes(), charactersRouter.allowed
 apiRouter.use('/puzzles', puzzlesRouter.routes(), puzzlesRouter.allowedMethods());
 // FEAT-G02: cross-map deployed games listing for the games home page.
 apiRouter.use('/games', gamesRouter.routes(), gamesRouter.allowedMethods());
+// v0.8.0: 主题（边界与缺省风格）与主题合辑。合辑是玩家也读的资源，所以单挂前缀。
+apiRouter.use('/themes', themesRouter.routes(), themesRouter.allowedMethods());
+apiRouter.use(
+  '/theme-deployments',
+  themeDeploymentsRouter.routes(),
+  themeDeploymentsRouter.allowedMethods(),
+);
 
 // 地图模块的接口前缀是 /api/maps。`/api/projects` 是已消失的 projects 表留下的
 // 旧前缀，前端不再调用；重定向只为手边还存着旧 URL 的场景。

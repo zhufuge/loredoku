@@ -4,6 +4,7 @@ import {
   GAME_SLUG_MIN_LENGTH,
   GAME_SLUG_PATTERN,
   GAME_SLUG_PREFIX,
+  GAME_SLUG_RESERVED,
 } from './constants';
 import type { GameDifficulty } from './types/domain';
 
@@ -89,6 +90,14 @@ export function slugError(slug: string): string | null {
   }
   if (slug.length > GAME_SLUG_MAX_LENGTH) {
     return `访问路径最多 ${GAME_SLUG_MAX_LENGTH} 个字符`;
+  }
+  /**
+   * v0.8.0（docs/v0.8.0.md §9）：`theme` 是 `/play/theme/:slug` 的第一段，被路由占了。
+   * `GAME_SLUG_PATTERN` 只认字符集，不会拦它，所以必须在这里显式拒 ——
+   * 否则某个作者把自己那关命名成 `theme`，两条路由就撞在一起。
+   */
+  if (GAME_SLUG_RESERVED.includes(slug)) {
+    return `「${slug}」是保留路径，请换一个`;
   }
   return null;
 }

@@ -32,6 +32,7 @@ function version(overrides: Partial<PublishedMapVersion> = {}): PublishedMapVers
     mapName: '午夜花园',
     gridSize: 6,
     publishedAt: '2026-01-03T00:00:00.000Z',
+    themeCode: 'default',
     ...overrides,
   };
 }

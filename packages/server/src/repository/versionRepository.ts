@@ -159,6 +159,8 @@ export async function createVersion(data: CreateVersionData): Promise<MapVersion
   // **真实快照**（合并前版本条目只能借用工作条目的当前值，§5）。
   const [row] = (await db<MapRow>('maps')
     .insert({
+      // v0.8.0：版本行继承草稿的主题 —— 同一血统必须同主题（迁移里有断言）。
+      theme_id: data.owner.theme_id,
       root_id: data.owner.root_id,
       name: data.owner.name,
       description: data.owner.description,

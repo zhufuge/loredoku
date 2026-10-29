@@ -78,6 +78,7 @@ import { versionKeys } from '@/hooks/useVersions';
 import { versionsApi } from '@/api/versions';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
+import { workshopPath } from '@/lib/workspace';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
 import {
@@ -797,7 +798,7 @@ export function PuzzleEditorPage(): JSX.Element {
       <EditorErrorState
         message="谜题不存在或加载失败。"
         backLabel="返回谜题列表"
-        onBack={() => navigate('/puzzles')}
+        onBack={() => navigate(workshopPath('puzzles'))}
       />
     );
   }
@@ -834,7 +835,7 @@ export function PuzzleEditorPage(): JSX.Element {
         currentVersionNo={detail?.currentVersionNo ?? null}
         // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点；只换了封面也一样。
         canSave={puzzle.dirty || coverDirty || forkFrom !== null}
-        onBack={() => navigate('/puzzles')}
+        onBack={() => navigate(workshopPath('puzzles'))}
         onSave={save}
         onPublish={forkFrom === null ? openPublishConfirm : undefined}
         onOpenVersions={() => setVersionsOpen(true)}

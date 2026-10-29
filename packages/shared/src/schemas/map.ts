@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { themeCodeSchema } from './theme';
 import {
   GRID_SIZE_DEFAULT,
   GRID_SIZE_MAX,
@@ -32,6 +33,11 @@ export const mapDescriptionSchema = z
  * （`data.gridSize`）。
  */
 export const createMapSchema = z.object({
+  /**
+   * v0.8.0：地图是边界的第二公民 —— 它引用的资源必须同主题（docs/v0.8.0.md §3.1）。
+   * §19 起必填、用编码：没有默认主题可落。
+   */
+  themeCode: themeCodeSchema,
   name: mapNameSchema,
   description: mapDescriptionSchema.optional().nullable(),
 });
@@ -52,6 +58,8 @@ export const listMapsQuerySchema = z.object({
   kind: listMapEntriesKindSchema.optional(),
   sort: z.enum(['updatedAt', 'name', 'createdAt']).default('updatedAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
+  /** §19：按主题编码筛。`undefined` = 全部主题。 */
+  themeCode: themeCodeSchema.optional(),
 });
 
 export type CreateMapInput = z.infer<typeof createMapSchema>;

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { bgColorSchema } from './appearance';
+import { themeCodeSchema } from './theme';
 import {
   CHARACTER_CODE_MAX_LENGTH,
   CHARACTER_CODE_PATTERN,
@@ -69,6 +70,8 @@ export const characterDisplayNameSchema = z
   .optional();
 
 export const createCharacterSchema = z.object({
+  /** v0.8.0 §19：新建即定边界，必填且用编码 —— 没有默认主题可落。 */
+  themeCode: themeCodeSchema,
   code: characterCodeSchema,
   name: z.string().trim().min(1, '角色名称不能为空').max(CHARACTER_NAME_MAX_LENGTH),
   gender: characterGenderSchema,
@@ -107,6 +110,8 @@ export const listCharactersQuerySchema = z.object({
     .enum(['true', 'false'])
     .transform((v) => v === 'true')
     .optional(),
+  /** §19：按主题编码筛；`undefined` = 全部。 */
+  themeCode: themeCodeSchema.optional(),
 });
 
 export type CreateCharacterInput = z.infer<typeof createCharacterSchema>;

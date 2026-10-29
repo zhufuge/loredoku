@@ -18,9 +18,13 @@ export interface ListMapsParams {
   kind?: 'draft' | 'version';
   sort: 'updatedAt' | 'name' | 'createdAt';
   order: 'asc' | 'desc';
+  /** v0.8.0：作用域条（§16.1）。 */
+  themeId?: number;
 }
 
 export interface CreateMapData {
+  /** v0.8.0：边界。同一血统的每一行都必须同主题（迁移里有断言）。 */
+  themeId: number;
   name: string;
   description: string | null;
 }
@@ -31,6 +35,8 @@ export interface UpdateMapData {
 }
 
 export type MapRowWithLineage = MapRow & {
+  /** v0.8.0 §19：主题编码（上面的标量子查询带出来）。 */
+  theme_code: string;
   /** 血统最高版本号（子查询，含软删行）；`null` = 血统还没发布过。 */
   current_version_no?: number | string | null;
   /** 血统内可见版本数（子查询，不含软删行）。 */
@@ -46,6 +52,13 @@ const LINEAGE_MAX_VERSION = db.raw(
 );
 const LINEAGE_VERSION_COUNT = db.raw(
   "(SELECT COUNT(*) FROM maps v WHERE v.root_id = m.root_id AND v.version <> 'draft' AND v.deleted_at IS NULL) AS version_count",
+);
+/**
+ * v0.8.0 §19：接口只认主题**编码**，而 `maps` 只存 `theme_id`。与上面两个血统子查询
+ * 同一套写法 —— 在主键上做一次标量子查询，省掉「service 里再拼一张 id→code 表」。
+ */
+export const THEME_CODE = db.raw(
+  '(SELECT t.code FROM themes t WHERE t.id = m.theme_id) AS theme_code',
 );
 
 type CountRow = { count?: string | number } | undefined;
@@ -73,6 +86,8 @@ export function toMapEntry(row: MapRowWithLineage): MapEntry {
     id: Number(row.id),
     name: row.name,
     description: row.description,
+    // v0.8.0（§5 / §16.8）：编辑器要它去读主题的缺省风格。
+    themeCode: row.theme_code,
     gridSize: draftGridSize(row.data as MapDraft | null),
     coverPath: row.cover_path,
     coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
@@ -124,8 +139,12 @@ export async function listMapEntries(
   params: ListMapsParams,
 ): Promise<{ list: MapEntrySummary[]; total: number }> {
   const rows = (await db('maps as m')
-    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT)
-    .whereNull('m.deleted_at')) as MapRowWithLineage[];
+    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT, THEME_CODE)
+    .whereNull('m.deleted_at')
+    .modify((query) => {
+      // v0.8.0：作用域条（§16.1）。过滤放在 SQL 里，`total` 才是这个边界的总数。
+      if (params.themeId !== undefined) query.where('m.theme_id', params.themeId);
+    })) as MapRowWithLineage[];
 
   const entries: MapEntrySummary[] = rows.map((row) => {
     const versionNo = versionToNo(row);
@@ -144,6 +163,7 @@ export async function listMapEntries(
       versionNo,
       name: row.name,
       description: row.description,
+      themeCode: row.theme_code,
       gridSize: draftGridSize(row.data as MapDraft | null),
       coverPath: row.cover_path,
       coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
@@ -204,7 +224,7 @@ function compareEntries(
  */
 export async function findById(id: number): Promise<MapRowWithLineage | undefined> {
   return db('maps as m')
-    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT)
+    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT, THEME_CODE)
     .where('m.id', id)
     .whereNull('m.deleted_at')
     .first() as Promise<MapRowWithLineage | undefined>;
@@ -218,7 +238,7 @@ export async function findByIdIncludingDeleted(
   id: number,
 ): Promise<MapRowWithLineage | undefined> {
   return db('maps as m')
-    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT)
+    .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT, THEME_CODE)
     .where('m.id', id)
     .first() as Promise<MapRowWithLineage | undefined>;
 }
@@ -229,10 +249,11 @@ export async function findByIdIncludingDeleted(
  * 单表查询即可；软删行过滤掉，名字用发布时的快照（§15 P0-3）。
  */
 export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
-  const rows = (await db('maps')
-    .whereNot('version', 'draft')
-    .whereNull('deleted_at')
-    .orderBy('created_at', 'desc')) as MapRow[];
+  const rows = (await db('maps as m')
+    .select('m.*', THEME_CODE)
+    .whereNot('m.version', 'draft')
+    .whereNull('m.deleted_at')
+    .orderBy('m.created_at', 'desc')) as MapRowWithLineage[];
 
   return rows.map((row) => ({
     mapId: Number(row.id),
@@ -241,6 +262,7 @@ export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
     mapName: row.name || '未命名地图',
     gridSize: draftGridSize(absorbLegacyMapDraft(row.data) as MapDraft | null) ?? 0,
     publishedAt: new Date(row.created_at).toISOString(),
+    themeCode: row.theme_code,
   }));
 }
 
@@ -287,15 +309,19 @@ export async function createMap(data: CreateMapData): Promise<MapEntry> {
   return db.transaction(async (trx) => {
     const [row] = (await trx<MapRow>('maps')
       .insert({
+        theme_id: data.themeId,
         name: data.name,
         description: data.description,
         root_id: 0,
       })
       .returning('*')) as MapRow[];
-    const [fixed] = (await trx<MapRow>('maps')
-      .where({ id: row!.id })
-      .update({ root_id: row!.id })
-      .returning('*')) as MapRow[];
+    await trx('maps').where({ id: row!.id }).update({ root_id: row!.id });
+    // v0.8.0 §19：`toMapEntry` 要主题编码，而 `returning('*')` 带不出 join / 子查询
+    // 的列，所以回读一次（事务内，主键查询）。
+    const fixed = (await trx('maps as m')
+      .select('m.*', THEME_CODE)
+      .where('m.id', row!.id)
+      .first()) as MapRowWithLineage | undefined;
     return toMapEntry(fixed!);
   });
 }
@@ -361,6 +387,9 @@ export async function duplicateMap(
 
     const [created] = (await trx<MapRow>('maps')
       .insert({
+        // v0.8.0：复制留在**同一主题**里 —— 跨主题的复制本版不做（§14），
+        // 而「移动」在这个数据模型里根本没有入口（theme_id 不可改）。
+        theme_id: source.theme_id,
         name: newName,
         description: source.description,
         cover_path: source.cover_path,
@@ -370,10 +399,12 @@ export async function duplicateMap(
       .returning('*')) as MapRow[];
 
     // `root_id` must point at the copy itself, not at the source.
-    const [fixed] = (await trx<MapRow>('maps')
-      .where({ id: created!.id })
-      .update({ root_id: created!.id })
-      .returning('*')) as MapRow[];
+    await trx('maps').where({ id: created!.id }).update({ root_id: created!.id });
+
+    const fixed = (await trx('maps as m')
+      .select('m.*', THEME_CODE)
+      .where('m.id', created!.id)
+      .first()) as MapRowWithLineage | undefined;
 
     return toMapEntry(fixed!);
   });
@@ -412,6 +443,8 @@ export async function forkFromVersion(
     const draft = (data ?? version.data) as MapDraft;
     const [row] = (await trx<MapRow>('maps')
       .insert({
+        // v0.8.0：fork 出的草稿沿用血统的主题（同血统必须同主题）。
+        theme_id: owner.theme_id,
         name,
         description: owner.description,
         cover_path: owner.cover_path,

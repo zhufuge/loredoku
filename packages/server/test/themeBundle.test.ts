@@ -1,0 +1,259 @@
+import { afterAll, describe, expect, it } from 'vitest';
+import { ErrorCode, MAP_JSON_VERSION } from '@loredoku/shared';
+import type { MapDraft } from '@loredoku/shared';
+import { api } from './helpers';
+import * as bundleService from '../src/service/bundleService';
+import { purgeTheme } from './purge';
+import { db } from '../src/db/knex';
+
+/**
+ * v0.8.0（docs/v0.8.0.md §11）—— 资源包的接线测试。
+ *
+ * 包的**内容**（id 闭包、sha256、体积）在真实数据上验证过一遍（见 §11.2 的实测表），
+ * 这里管的是三件在测试里能稳定复现的事：
+ *
+ * 1. 空主题不许导出（§11.1「0 关已部署」）；
+ * 2. 一关已上线就能导出，且包里的引用已经是包内序号（§11.3）；
+ * 3. HTTP 层真的流出一个 zip，文件名是 `<code>-bundle-<时间>.zip`（§11.6）。
+ *
+ * 素材全部用**纯色块**资源与角色：没有图片文件，包的内容完全确定，也不会往
+ * `storage/uploads` 里写东西。
+ */
+
+/** 主题在测试里只以**编码**出现 —— 接口没有别的名字（v0.8.0 §19）。 */
+const createdThemes: string[] = [];
+const createdMaps: number[] = [];
+const createdAssets: number[] = [];
+const createdCharacters: number[] = [];
+const createdPuzzles: number[] = [];
+/** 部署是「另起一行」，删谜题前必须先取消部署（`games.puzzle_id` 是 RESTRICT）。 */
+const createdGames: number[] = [];
+/** 版本行是**新插入的行**：不先删它们，底图与资源的引用就一直挂着不让删。 */
+const mapVersions: Array<{ mapId: number; versionNo: number }> = [];
+const puzzleVersions: Array<{ puzzleId: number; versionNo: number }> = [];
+
+function unique(prefix: string): string {
+  return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function uniqueSlug(prefix = 'bundle'): string {
+  return `${prefix}-${Math.random().toString(16).slice(2, 10)}`;
+}
+
+function emptyDraft(gridSize: number): MapDraft {
+  return { version: MAP_JSON_VERSION, gridSize, cells: {}, regions: [] };
+}
+
+async function createTheme(): Promise<string> {
+  const code = unique('t').toLowerCase().replace(/_/g, '-');
+  const res = await api.post('/api/themes').send({ code, name: `主题 ${code}` });
+  expect(res.status).toBe(200);
+  createdThemes.push(code);
+  return code;
+}
+
+/** 纯色块资源：不产生任何图片文件，所以包里只有 JSON。 */
+async function createSolidAsset(themeCode: string): Promise<number> {
+  const res = await api.post('/api/assets').send({
+    code: unique('a'),
+    name: '石板地',
+    type: 'background',
+    blocking: false,
+    themeCode,
+    appearance: { bgColor: '#8C7B6B' },
+  });
+  expect(res.status).toBe(200);
+  const id = res.body.data.id as number;
+  createdAssets.push(id);
+  return id;
+}
+
+async function createSolidCharacter(themeCode: string): Promise<number> {
+  const res = await api
+    .post('/api/characters')
+    .send({ code: unique('c'), name: '黛玉', themeCode, bgColor: '#B93A32' });
+  expect(res.status).toBe(200);
+  const id = res.body.data.id as number;
+  createdCharacters.push(id);
+  return id;
+}
+
+/**
+ * 一关「已经能玩」的谜题：底图 → 发布 → 建谜题 → 名册一位参与者 → 发布 →
+ * 部署成一个游戏。返回游戏 slug。
+ */
+async function deployedGame(themeCode: string): Promise<{
+  slug: string;
+  assetId: number;
+  variantId: number;
+  characterId: number;
+}> {
+  const assetId = await createSolidAsset(themeCode);
+  const characterId = await createSolidCharacter(themeCode);
+
+  const asset = await api.get(`/api/assets/${assetId}`);
+  expect(asset.status).toBe(200);
+  const variantId = asset.body.data.variants[0].id as number;
+
+  const map = await api.post('/api/maps').send({ name: `底图 ${unique('m')}`, themeCode });
+  expect(map.status).toBe(200);
+  const mapId = map.body.data.id as number;
+  createdMaps.push(mapId);
+  expect((await api.patch(`/api/maps/${mapId}/grid-size`).send({ gridSize: 2 })).status).toBe(200);
+
+  const draft = emptyDraft(2);
+  draft.cells['0,0'] = { background: { assetId, variantId } };
+  draft.cells['0,1'] = { item: { assetId, variantId, w: 1, h: 1 } };
+  expect((await api.put(`/api/maps/${mapId}/map`).send({ data: draft })).status).toBe(200);
+
+  const versionRes = await api.post(`/api/maps/${mapId}/versions`).send({});
+  expect(versionRes.status).toBe(200);
+  const mapVersionNo = versionRes.body.data.versionNo as number;
+  mapVersions.push({ mapId, versionNo: mapVersionNo });
+
+  const puzzle = await api
+    .post('/api/puzzles')
+    .send({ name: `撕扇 ${unique('p')}`, mapId, mapVersionNo });
+  expect(puzzle.status).toBe(200);
+  const puzzleId = puzzle.body.data.id as number;
+  createdPuzzles.push(puzzleId);
+
+  const initial = await api.get(`/api/puzzles/${puzzleId}`);
+  const puzzleDraft = initial.body.data.data;
+  puzzleDraft.characterSlots[0] = {
+    characterId,
+    linkages: [{ type: 'asset', id: assetId, scope: 'all', effect: 'highlight', color: 'red' }],
+  };
+  const saved = await api
+    .put(`/api/puzzles/${puzzleId}`)
+    .send({ data: puzzleDraft, updatedAt: initial.body.data.updatedAt });
+  expect(saved.status).toBe(200);
+
+  const published = await api.post(`/api/puzzles/${puzzleId}/versions`).send({});
+  expect(published.status).toBe(200);
+  createdPuzzles.push(published.body.data.id as number);
+  puzzleVersions.push({ puzzleId, versionNo: published.body.data.version as number });
+
+  const slug = uniqueSlug();
+  const deployed = await api
+    .post(`/api/puzzles/${published.body.data.id}/games`)
+    .send({ name: '撕扇', slug });
+  expect(deployed.status).toBe(200);
+  expect(deployed.body.data.slug).toBe(slug);
+  createdGames.push(deployed.body.data.id as number);
+
+  return { slug, assetId, variantId, characterId };
+}
+
+afterAll(async () => {
+  // 顺序不能换：game → 版本行 → 草稿 → 地图 → 资源/角色 → 主题（每一层都是 RESTRICT）。
+  for (const id of createdGames) await api.delete(`/api/games/${id}`);
+  for (const entry of puzzleVersions) {
+    await api.delete(`/api/puzzles/${entry.puzzleId}/versions/${entry.versionNo}`);
+  }
+  for (const id of createdPuzzles) await api.delete(`/api/puzzles/${id}`);
+  for (const entry of mapVersions) {
+    await api.delete(`/api/maps/${entry.mapId}/versions/${entry.versionNo}`);
+  }
+  for (const id of createdMaps) await api.delete(`/api/maps/${id}`);
+  for (const id of createdAssets) await api.delete(`/api/assets/${id}`);
+  for (const id of createdCharacters) await api.delete(`/api/characters/${id}`);
+  for (const code of createdThemes) await api.delete(`/api/themes/${code}`);
+
+  /**
+   * 兜底清扫。`DELETE /api/assets/:id` 会因为**已软删的版本行**的草稿还引用着它
+   * 而拒绝 —— 那是产品行为（草稿引用检查不看 `deleted_at`），不是这个用例要验的东西。
+   * 夹具必须自己擦干净，否则每跑一次 `npm test` 都在库里留一个主题。
+   *
+   * §19 起不再「留成软删」：主题的 DELETE 本来就是一条 UPDATE，软删的行还占着
+   * `themes.code`（普通 UNIQUE），一次跑一具尸体，几十次之后表就没法看了。
+   * `purgeTheme` 按外键顺序把这一整个主题物理抬走 —— 包括上面这些删不掉的残留。
+   */
+  for (const code of createdThemes) await purgeTheme(code);
+
+  await db.destroy();
+});
+
+describe('资源包导出（§11）', () => {
+  it('0 关已上线的主题不许导出 —— 空包是零字节的谜题', async () => {
+    const themeCode = await createTheme();
+    const res = await api.get(`/api/themes/${themeCode}/bundle`);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.message).toContain('先至少上线一关');
+  });
+
+  it('一关已上线 → 包里只有这一关，引用已是包内序号', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode);
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    expect(built.manifest.format).toBe('loredoku-theme');
+    expect(built.manifest.formatVersion).toBe(1);
+    expect(built.manifest.games.map((entry) => entry.key)).toEqual([game.slug]);
+    // 主题不版本化（§4）：包的身份是导出时间，不是版本号。
+    expect(built.manifest.exportedAt).toBeTruthy();
+
+    const assets = JSON.parse(
+      built.entries.find((entry) => entry.path === 'assets.json')!.data.toString('utf8'),
+    ) as { assets: Array<{ id: number; variants: Array<{ id: number }> }> };
+    expect(assets.assets).toHaveLength(1);
+    expect(assets.assets[0]!.id).toBe(1);
+    // 包里带整张形态表，所以形态序号也直接从 1 起
+    expect(assets.assets[0]!.variants[0]!.id).toBe(1);
+
+    const level = JSON.parse(
+      built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
+    ) as {
+      key: string;
+      puzzle: {
+        map: { data: { cells: Record<string, { background?: { assetId: number } }> } };
+        characterSlots: Array<{ characterId: number; linkages?: Array<{ id: number }> }>;
+      };
+    };
+    expect(level.key).toBe(game.slug);
+    expect(level.puzzle.map.data.cells['0,0']?.background?.assetId).toBe(1);
+    expect(level.puzzle.characterSlots[0]?.characterId).toBe(1);
+    expect(level.puzzle.characterSlots[0]?.linkages?.[0]?.id).toBe(1);
+
+    // 对账表留着：下一次导入回工坊靠它认人。
+    expect(built.manifest.originIds.assets['1']).toBe(game.assetId);
+    expect(built.manifest.originIds.characters['1']).toBe(game.characterId);
+    expect(Object.values(built.manifest.originIds.games)).toHaveLength(1);
+
+    // 纯色块资源没有图片，所以 `files` 只覆盖那几份 JSON，不会有任何 webp。
+    expect(built.entries.every((entry) => !entry.path.startsWith('files/'))).toBe(true);
+    expect(built.entries.map((entry) => entry.path)).toContain('manifest.json');
+    expect(built.entries.map((entry) => entry.path)).toContain('theme.json');
+  });
+
+  it('HTTP 层流出的是 zip，文件名带主题 code', async () => {
+    const themeCode = await createTheme();
+    await deployedGame(themeCode);
+
+    // superagent 没有 `application/zip` 的解析器，`.buffer(true)` 只会得到一个空对象 ——
+    // 自己收字节，才验得了「真的是一个 zip」。
+    const res = await api
+      .get(`/api/themes/${themeCode}/bundle`)
+      .buffer(true)
+      .parse((response, done) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => done(null, Buffer.concat(chunks)));
+      });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('application/zip');
+    expect(res.headers['content-disposition']).toContain(`filename="${themeCode}-bundle-`);
+
+    const body = res.body as Buffer;
+    expect(Buffer.isBuffer(body)).toBe(true);
+    // 本地文件头 `PK\x03\x04` —— 内容正确性由上面那条用例管，这里只验「真的是 zip」。
+    expect(body.subarray(0, 4).toString('binary')).toBe('PK\x03\x04');
+  });
+
+  it('主题不存在 → 404，而不是一个空包', async () => {
+    const res = await api.get('/api/themes/999999/bundle');
+    expect(res.status).toBe(404);
+  });
+});

@@ -57,6 +57,7 @@ function entry(kind: 'draft' | 'version', id: number, name: string): MapEntrySum
     versionNo: kind === 'version' ? 2 : null,
     name,
     description: null,
+    themeCode: 'default',
     gridSize: 6,
     coverPath: null,
     coverUrl: null,
