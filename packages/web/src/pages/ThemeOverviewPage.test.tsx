@@ -114,13 +114,38 @@ describe('ThemeOverviewPage（v0.8.0 §18）', () => {
     );
   });
 
+  /**
+   * v0.8.2：这一格与顶栏说的是同一件事（去哪个模块），图标也该是同一枚。
+   *
+   * 原来概览自带一份图标表，地图用的是 `MapPin`（定位针），顶栏用的是 `Map`
+   * （摊开的地图）—— 读者先在顶栏看见它，再到这四格里找它，两处却不是同一个形状。
+   */
+  it('四格的图标与顶栏同一枚 —— 地图就是 lucide-map，不是定位针', () => {
+    render();
+
+    const cards = Array.from(document.querySelectorAll('a[href^="/hlm/"]')).filter(
+      (node) => node.querySelector('svg') !== null,
+    );
+    expect(cards.length).toBe(4);
+
+    const icons = cards.map((node) => node.querySelector('svg')?.getAttribute('class') ?? '');
+    expect(icons[1]).toContain('lucide-map');
+    expect(document.querySelector('svg.lucide-map-pin')).toBeNull();
+    // 加大到 24px，描边压到 1.5 —— 否则 24px 的默认描边比原来粗一半。
+    for (const icon of icons) {
+      expect(icon).toContain('h-6');
+      expect(icon).toContain('w-6');
+    }
+    expect(cards[1]?.querySelector('svg')?.getAttribute('stroke-width')).toBe('1.5');
+  });
+
   it('编码与缺省风格都写成事实，而不是可点的控件', () => {
     render();
 
     expect(text()).toContain('hlm');
     expect(text()).toContain('未设置');
-    // 风格只能在画布上设 —— 这里说清去哪儿设，而不是放一个点不动的按钮。
-    expect(text()).toContain('设为主题风格');
+    // 风格只能在画布上设 —— 这里只给一条路，不放一个能改它的控件。
+    expect(text()).toContain('去设一张地图的风格');
   });
 
   it('主题风格已设过时，那一行改口说「已设置」', () => {
@@ -132,7 +157,7 @@ describe('ThemeOverviewPage（v0.8.0 §18）', () => {
     expect(text()).toContain('已设置');
   });
 
-  it('主按钮只有一个（上线），导出与改名都在 ⋯ 里', () => {
+  it('主按钮只有一个（上线），导出与编辑都在 ⋯ 里', () => {
     render();
 
     expect(button('上线')).toBeDefined();
@@ -140,8 +165,32 @@ describe('ThemeOverviewPage（v0.8.0 §18）', () => {
 
     act(() => button('更多操作')?.click());
     expect(button('导出资源包')).toBeDefined();
-    expect(button('重命名')).toBeDefined();
+    // v0.8.2：「重命名」改名「编辑主题信息」—— 这一格现在也管识别色。
+    expect(button('编辑主题信息')).toBeDefined();
     expect(button('删除主题')).toBeDefined();
+  });
+
+  it('识别色是一行事实：设过就出色块与色值，没设就是两个字的「未设置」', () => {
+    render();
+    expect(text()).toContain('识别色');
+    expect(text()).toContain('未设置');
+
+    workspaceRef.value = {
+      ...(workspaceRef.value as object),
+      theme: { ...themeRef, data: { version: 1, accent: '#B93A32' } },
+    };
+    render();
+
+    expect(text()).toContain('#B93A32');
+  });
+
+  it('缺省风格未设时，那一行给的是路（去地图），不是一段说明', () => {
+    render();
+
+    const mapsLink = Array.from(document.querySelectorAll('a')).find((node) =>
+      node.textContent?.includes('去设一张地图的风格'),
+    );
+    expect(mapsLink?.getAttribute('href')).toBe('/hlm/maps');
   });
 
   it('导出对话框只列这个主题已上线的关', () => {

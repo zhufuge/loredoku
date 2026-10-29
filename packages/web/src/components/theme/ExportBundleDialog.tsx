@@ -66,8 +66,6 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
     }
   };
 
-  const counts = theme?.counts;
-
   return (
     <Dialog open={open} onOpenChange={close}>
       <DialogContent className="max-w-lg">
@@ -119,13 +117,7 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
               </ul>
             )}
 
-            <p className="text-xs tabular-nums text-muted-foreground">
-              {games.length} 关 · {counts?.assets ?? 0} 资源 · {counts?.characters ?? 0} 角色
-            </p>
-            <p className="text-xs text-muted-foreground">
-              只带这些关实际引用到的资源，不是整个主题库。包里没有播放页面 ——
-              它是一份数据包，不是站点。
-            </p>
+            <p className="text-xs tabular-nums text-muted-foreground">共 {games.length} 关</p>
             {state.phase === 'running' ? <InlineLoading caption="正在打包…" /> : null}
           </div>
         )}

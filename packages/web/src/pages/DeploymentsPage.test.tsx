@@ -300,4 +300,79 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     // 中文名 slug 化之后什么都不剩，所以路径留给作者自己填 —— 与部署弹窗一贯的规则一致。
     expect(text()).toContain('无法根据名称生成访问路径');
   });
+
+  /**
+   * v0.8.2：导出清单与服务端同一把尺子 —— **只列当前主题的在线关**。
+   *
+   * 原来这里把 `gamesQuery.data`（全站）直接交给弹窗：清单会列出别的主题的关，
+   * 而服务端只打这个主题，于是「清单 8 关、包里 2 关」这种无从解释的差。
+   */
+  it('导出清单只列当前主题的关', () => {
+    const hlm = theme({ code: 'hlm', name: '红楼梦' });
+    workspaceRef.value = {
+      theme: hlm,
+      themes: [theme(), hlm],
+      themeCode: 'hlm',
+      href: (module: string) => `/hlm/${module}`,
+    };
+    gamesRef.data = [
+      game(),
+      game({ id: 4, themeCode: 'hlm', name: '撕扇', puzzleName: '撕扇', slug: 'puzzle-hlm-sishan' }),
+    ];
+    render();
+
+    act(() =>
+      Array.from(container.querySelectorAll('button'))
+        .find((node) => node.textContent?.trim() === '导出包')
+        ?.click(),
+    );
+
+    expect(text()).toContain('导出资源包 · 红楼梦');
+    expect(text()).toContain('撕扇');
+    expect(text()).not.toContain('午夜花园');
+    expect(text()).toContain('共 1 关');
+  });
+
+  /**
+   * 列表为了不重复展示排掉了合辑里的单局，但包里必须有它们 —— 这两件事用的是
+   * 不同的集合，别让「列表看不见」变成「包里没有」。
+   */
+  it('进了合辑的关不出现在列表里，但仍算在导出清单里', () => {
+    const hlm = theme({ code: 'hlm', name: '红楼梦' });
+    workspaceRef.value = {
+      theme: hlm,
+      themes: [theme(), hlm],
+      themeCode: 'hlm',
+      href: (module: string) => `/hlm/${module}`,
+    };
+    const sishan = game({
+      id: 4,
+      puzzleId: 30,
+      themeCode: 'hlm',
+      name: '撕扇',
+      puzzleName: '撕扇',
+      slug: 'puzzle-hlm-sishan',
+    });
+    gamesRef.data = [sishan];
+    deploymentsRef.data = [
+      deployment({
+        themeCode: 'hlm',
+        themeName: '红楼梦',
+        name: '红楼梦合辑',
+        entries: [{ puzzleId: 30, puzzleName: '撕扇', sortOrder: 0, game: sishan }],
+      }),
+    ];
+    render();
+
+    // 列表：合辑一行，单局不重复。
+    expect(text()).toContain('合辑「红楼梦合辑」');
+    expect(text()).toContain('共 0 个游戏在线。');
+
+    act(() =>
+      Array.from(container.querySelectorAll('button'))
+        .find((node) => node.textContent?.trim() === '导出包')
+        ?.click(),
+    );
+    expect(text()).toContain('共 1 关');
+  });
 });

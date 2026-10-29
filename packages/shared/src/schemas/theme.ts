@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  BG_COLOR_PATTERN,
   DEFAULT_THEME_CODE,
   THEME_CODE_MAX_LENGTH,
   THEME_CODE_PATTERN,
@@ -33,13 +34,25 @@ export const themeCodeSchema = z
   );
 
 /**
- * `themes.data`：主题级缺省。两个键都可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE`
+ * `themes.data`：主题级**缺省**，两个键可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE`
  * 补齐，缺 `linkageColors` 沿用谜题 schema 的默认调色板（§5 的 S3 快照式）。
  * `.strict()` 与其余 schema 一致：多出来的键是写错了名字，不是新功能。
+ *
+ * v0.8.2 起多一个 `accent`：它**不是**缺省，是这个空间的门牌色（见下）。
  */
 export const themeDataSchema = z
   .object({
     version: z.number().int().positive().default(THEME_DATA_VERSION),
+    /**
+     * v0.8.2：主题的**识别色**。
+     *
+     * 它和 `style` / `linkageColors` 不是一类东西：那两个是「新建内容时拷贝过去的
+     * 初始值」，会进画布、进导出包；`accent` 只回答「这一屏属于哪个世界」——
+     * 系统配置页的卡片色带、概览页的识别色事实行用它，**不进包、不参与渲染**。
+     *
+     * 可选：没选过就没有门牌，卡片也就不画色带 —— 不替作者编一个颜色出来。
+     */
+    accent: z.string().regex(BG_COLOR_PATTERN, '识别色需为 #RRGGBB 格式').optional(),
     style: mapStyleSchema.optional(),
     linkageColors: z.array(mapLinkageColorSchema).optional(),
   })

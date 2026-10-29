@@ -16,7 +16,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ThemeScopePill } from '@/components/theme/ThemeScopePill';
+import { ThemeScopeField } from '@/components/theme/ThemeScopeField';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import {
   useCreateMap,
@@ -141,13 +141,11 @@ export function CreateMapDialog({
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
           {/* v0.8.0 §16.7：名称 → 主题。建行之后不可改，所以只在这里出现一次。
-              v0.8.0 §18：在工作空间里主题由地址定，一律只读。 */}
-          <ThemeScopePill
-            value={themeCode}
-            onChange={setThemeCode}
-            locked={workspace !== null || createdId !== null}
-            lockedHint={workspace ? '当前工作空间' : '已创建'}
-          />
+              v0.8.2 §14：工作空间里主题由地址定，这一行整行不画；刚建完（等封面重试）
+              时同理 —— 那时候没有选择可做。 */}
+          {workspace !== null || createdId !== null ? null : (
+            <ThemeScopeField value={themeCode} onChange={setThemeCode} />
+          )}
           <div className="grid gap-2">
             <Label htmlFor="map-description">描述</Label>
             <Textarea

@@ -99,6 +99,19 @@ export function DeploymentsPage(): JSX.Element {
     return scoped.filter((game) => !inCollections.has(game.puzzleId));
   }, [gamesQuery.data, collections, workspace]);
 
+  /**
+   * 导出清单要的是**当前主题全部的在线关**，与上面列表的口径不同：
+   * 列表为了不重复展示排掉了合辑里的关，包里却必须有它们。
+   *
+   * v0.8.2：原来这里直接把 `gamesQuery.data`（全站）交给导出弹窗 —— 清单会列出
+   * 别的主题的关，而服务端只打当前主题，于是「清单 12 关、包里 8 关」；当前主题
+   * 一关都没有时按钮还能点。包的范围由服务端定，界面就照同一把尺子取数。
+   */
+  const deployedGames = useMemo(() => {
+    const all = gamesQuery.data ?? [];
+    return workspace ? all.filter((game) => game.themeCode === workspace.themeCode) : [];
+  }, [gamesQuery.data, workspace]);
+
   const versions = versionsQuery.data?.list ?? null;
 
   /**
@@ -369,7 +382,7 @@ export function DeploymentsPage(): JSX.Element {
       {/* v0.8.0 §16.10：导出先给清单，再给文件。弹窗的开关是 `theme` 是否为 null。 */}
       <ExportBundleDialog
         theme={exportOpen ? (workspace?.theme ?? null) : null}
-        games={gamesQuery.data ?? []}
+        games={deployedGames}
         onOpenChange={(open) => {
           if (!open) setExportOpen(false);
         }}

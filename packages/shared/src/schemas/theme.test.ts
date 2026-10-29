@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createThemeSchema, themeCodeSchema } from './theme';
+import { createThemeSchema, themeCodeSchema, themeDataSchema } from './theme';
 
 /**
  * v0.8.0 §18：主题编码是工作空间的地址前缀（`/hlm/maps`），所以除了字符集，还要拦
@@ -41,5 +41,36 @@ describe('themeCodeSchema（v0.8.0 §18）', () => {
   it('创建时同样走这套校验（不是只有单独调用才拦）', () => {
     const parsed = createThemeSchema.safeParse({ code: 'settings', name: '设置' });
     expect(parsed.success).toBe(false);
+  });
+});
+
+/**
+ * v0.8.2：`data.accent` 是主题的识别色 —— 只给界面认人用，不进包、不参与渲染。
+ * 它可选，且只收 `#RRGGBB`：颜色以字符串进 JSONB，写错了就是一个没人能改的脏值。
+ */
+describe('themeDataSchema.accent（v0.8.2）', () => {
+  it('不写就是没有 —— 没设过色带的主题是合法的', () => {
+    const parsed = themeDataSchema.parse({ version: 1 });
+    expect(parsed.accent).toBeUndefined();
+  });
+
+  it('写就得是 #RRGGBB', () => {
+    expect(themeDataSchema.parse({ version: 1, accent: '#B93A32' }).accent).toBe('#B93A32');
+    expect(themeDataSchema.safeParse({ version: 1, accent: 'B93A32' }).success).toBe(false);
+    expect(themeDataSchema.safeParse({ version: 1, accent: '#f00' }).success).toBe(false);
+    expect(themeDataSchema.safeParse({ version: 1, accent: 0xb93a32 }).success).toBe(false);
+  });
+
+  it('与缺省风格、调色板并存，互不覆盖', () => {
+    const parsed = themeDataSchema.parse({
+      version: 1,
+      accent: '#326385',
+      style: {},
+      linkageColors: [{ key: 'red', label: '红', color: '#B93A32' }],
+    });
+    expect(parsed.accent).toBe('#326385');
+    // `style: {}` 按 DEFAULT_MAP_STYLE 补齐 —— 加了 accent 之后这条行为不变。
+    expect(parsed.style?.cellSize).toBeDefined();
+    expect(parsed.linkageColors).toHaveLength(1);
   });
 });

@@ -83,7 +83,15 @@ export function GamesPage(): JSX.Element {
               variant="outline"
               size="sm"
               className="gap-1.5"
-              onClick={() => navigate(workshopPath('maps'))}
+              /*
+               * v0.8.2：进工坊落到**概览**，不是地图。
+               *
+               * v0.8.0 给每个工作空间配了自己的首页（`/:code/overview`），导航第一项
+               * 也是它；只有这枚从玩家侧进来的门还落在地图 —— 两处对「工坊的首页」
+               * 说法不一致。概览本来就是回答「这个空间是什么、有什么」的那一页，
+               * 从外面进来先看它，比先看一张画布合理。
+               */
+              onClick={() => navigate(workshopPath('overview'))}
               title="进入工坊（制作端）"
             >
               进入工坊

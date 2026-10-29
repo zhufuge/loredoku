@@ -659,9 +659,13 @@ export interface ThemeCounts {
  *
  * 两个键都可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE` 补齐，缺 `linkageColors`
  * 沿用谜题 schema 的默认调色板。所以老的 `{}` 与「全默认」是等价的。
+ *
+ * `accent`（v0.8.2）是这一层里唯一的例外：它不是「拷贝给内容」的缺省，而是这个
+ * 空间的**门牌色** —— 系统配置页的卡片色带、概览页的识别色用；不进导出包。
  */
 export interface ThemeData {
   version: number;
+  accent?: string;
   style?: MapStyle;
   linkageColors?: MapLinkageColor[];
 }

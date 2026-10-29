@@ -28,9 +28,10 @@ vi.mock('@/hooks/useMaps', () => ({
 }));
 
 /**
- * v0.8.0 §16.7：底图选中后，对话框里会出现一枚**只读**的主题胶囊。它要拿主题
- * 名字才写得出来，所以这里给一份最小列表 —— 两个主题就够了（只有一个时胶囊
- * 自我隐藏，那样就测不到「锁定」这条路径了）。
+ * v0.8.2 §14：底图选中后**不再**出现主题那一行。它原先是一枚只读胶囊（「主题
+ * 红楼梦 · 来自底图」），可主题由地址与底图共同决定，没有别的选择 —— 复述一遍
+ * 不换来任何决定。这里给一份主题列表，正是为了让「没渲染」不成立在「列表没到」
+ * 这个借口上。
  */
 vi.mock('@/hooks/useThemes', () => ({
   useThemes: () => ({
@@ -135,6 +136,21 @@ describe('CreatePuzzleDialog (FEAT-K03)', () => {
     )!;
     act(() => option.click());
     expect(text()).toContain('6×6');
+  });
+
+  it('v0.8.2 §14: 选中底图后不再出现主题那一行', () => {
+    render();
+    const option = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.includes('古堡之谜'),
+    )!;
+    act(() => option.click());
+
+    // 主题列表是有的（两个），所以「没出现」不是因为拿不到数据。
+    expect(text()).not.toContain('红楼梦');
+    expect(text()).not.toContain('来自底图');
+    expect(document.querySelector('select[aria-label="主题"]')).toBeNull();
+    // 同一块里那句「画布尺寸由底图决定」还在 —— 它说的是**取不到的信息**，不是复述。
+    expect(text()).toContain('画布尺寸');
   });
 
   it('the description is a field of the dialog ("新增描述字段")', () => {

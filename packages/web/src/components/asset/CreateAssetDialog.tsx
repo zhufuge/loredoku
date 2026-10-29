@@ -31,7 +31,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { SegmentedRadio } from '@/components/ui/segmented-radio';
-import { ThemeScopePill } from '@/components/theme/ThemeScopePill';
+import { ThemeScopeField } from '@/components/theme/ThemeScopeField';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { useCreateAsset, useUpdateAsset, useUploadAssetVariantImage } from '@/hooks/useAssets';
 
@@ -190,17 +190,32 @@ export function CreateAssetDialog({
             <Input id="asset-name" placeholder="例如：大树" {...register('name')} />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
-          {/* v0.8.0 §16.7：名称 → 主题。先说要建什么，再说它建在哪个世界里。
-              v0.8.0 §18：在工作空间里这一格只读（地址已经说明白了）。 */}
-          {workspace ? (
-            <ThemeScopePill value={themeCode} locked lockedHint="当前工作空间" />
-          ) : (
-            <ThemeScopePill value={themeCode} onChange={setThemeCode} />
-          )}
+          {/*
+            v0.8.0 §16.7：名称 → 主题。先说要建什么，再说它建在哪个世界里。
+            v0.8.2 §14：在工作空间里这一格**整行不画** —— 地址是 `/:themeCode/...`，
+            顶栏圆点旁就写着主题名，弹窗里再复述一遍是第三遍。
+          */}
+          {workspace ? null : <ThemeScopeField value={themeCode} onChange={setThemeCode} />}
           <div className="grid gap-2">
             <Label htmlFor="asset-code">业务 ID</Label>
-            <Input id="asset-code" placeholder={`例如：${themeCode ?? 'theme'}_big_tree`} {...register('code')} />
-            {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
+            <Input
+              id="asset-code"
+              aria-describedby="asset-code-hint"
+              placeholder={`例如：${themeCode ?? 'theme'}_big_tree`}
+              {...register('code')}
+            />
+            {errors.code ? (
+              <p className="text-xs text-destructive">{errors.code.message}</p>
+            ) : (
+              /*
+               * v0.8.1 预填了 `主题编码_`，但那个值在框里就是普通文字 —— 作者看不出
+               * 它是前缀，可以整段删掉，也可以改成别的主题的。这条小字把「已经替你
+               * 写好了什么」说清，剩下的仍然是他的自由。
+               */
+              <p id="asset-code-hint" className="text-2xs text-muted-foreground">
+                {themeCode ? `前缀 ${themeCode}_ 已填好，接着写后半段` : '只允许字母、数字与下划线'}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label htmlFor="asset-type">类型</Label>

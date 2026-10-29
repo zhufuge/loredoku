@@ -169,4 +169,28 @@ describe('AppShell · config（v0.8.0 §18）', () => {
     // 主题切换器属于工作空间，配置页没有它。
     expect(document.querySelector('[data-testid="theme-switcher"]')).toBeNull();
   });
+
+  /**
+   * v0.8.2：品牌后面不再挂一条 `/`。
+   *
+   * 斜杠是面包屑语法，说的是「右边这段挂在左边那段之下」；「系统配置」并不挂在
+   * 「格物」之下，而品牌里的「· 格物」已经是分隔符 —— 一句话里不必打两个断。
+   */
+  it('品牌后面没有斜杠 —— 「系统配置」是它自己的名字，不是格物的下级', () => {
+    const crumb = document.querySelector('[data-testid="config-crumb"]');
+    expect(crumb?.textContent?.trim()).toBe('系统配置');
+  });
+
+  it('「返回工坊」在日夜开关之后 —— 右上角最后一位始终是「离开这一处」', () => {
+    const toggle = document.querySelector('[data-testid="theme-toggle"]');
+    const back = Array.from(document.querySelectorAll('header a')).find(
+      (node) => node.textContent?.trim() === '返回工坊',
+    );
+    expect(toggle).not.toBeNull();
+    expect(back).toBeDefined();
+    // 日夜开关必须排在返回工坊**之前**（DOCUMENT_POSITION_FOLLOWING = 4）。
+    expect(
+      toggle?.compareDocumentPosition(back as Node) ?? 0,
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 });

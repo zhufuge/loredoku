@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useCreateTheme, useThemes } from '@/hooks/useThemes';
+import { readLastThemeCode } from '@/lib/workspace';
 import { cn } from '@/lib/utils';
 
 /**
@@ -19,13 +20,26 @@ import { cn } from '@/lib/utils';
  * 一个工作空间里的六个模块，主题列表在 `/settings/themes`，从顶栏的主题切换器
  * （【主题配置】）或地址进入。
  *
- * 卡片仍然回答两个问题：这个主题有多少东西，现在能玩几关。计数分两行 ——
- * 主行是**对外结果**（几关在线），次行是**库**（资源 / 地图 / 角色）。五个数字
- * 平铺成一排时，读者会把它们读成同一种量。
+ * v0.8.2 补了三处「这一页该回答却没回答」的事：
+ *
+ * 1. **我在哪**：卡片上标「当前」。这一页唯一的用途是换空间，不标就等于让人靠记忆
+ *    分辨两张长得一样的卡。系统配置没有 `WorkspaceContext`（它在 `WorkspaceLayout`
+ *    里），当前编码只能读切换器写的那个键。
+ * 2. **凭什么认出这个世界**：卡顶那条 8px 色带原来读 `data.linkageColors` —— 那个
+ *    字段自 v0.5.0 FEAT-K14 起已经搬到谜题上，没有任何界面会写它，于是色带永远是
+ *    一条 muted 灰线。现在改读 `data.accent`（v0.8.2 新增的识别色），没设就**不画**
+ *    色带，而不是留一条灰的在那儿冒充内容。
+ * 3. **这卡是什么形状**：两列时卡片 632px 宽、内容只占左边一半。现在把「几关在线」
+ *    做成右对齐的数字块 —— 宽度被用上了，也顺手和概览页的四格计数长成一个家族。
  */
 export function ThemesPage(): JSX.Element {
   const themesQuery = useThemes();
   const [createOpen, setCreateOpen] = useState(false);
+
+  // 系统配置页在 `AppShell variant="config"` 里，外壳之外没有工作空间上下文。
+  // 读「记住的主题编码」是这一页能拿到「我在哪」的唯一来源 —— 它由切换器与
+  // `WorkspaceLayout` 写入，换浏览器就没了，所以只用来**标一下**，不参与跳转。
+  const currentCode = readLastThemeCode();
 
   useEffect(() => {
     document.title = '主题 · 系统配置 · 格物';
@@ -36,25 +50,46 @@ export function ThemesPage(): JSX.Element {
   function renderBody(): JSX.Element {
     if (themesQuery.isLoading) {
       return (
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="h-36 rounded-lg bg-muted" />
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
+          {Array.from({ length: 2 }).map((_, index) => (
+            <div key={index} className="h-40 rounded-lg bg-muted" />
           ))}
         </div>
       );
     }
-    if (themes.length === 0) {
+
+    /*
+     * v0.8.2：错误态不再伪装成空态。原来 `data ?? []` 加上只判 `isLoading`，接口
+     * 500 时页面会说「还没有主题，先创建一个吧」—— 作者会真的去建第三个主题。
+     */
+    if (themesQuery.isError) {
       return (
-        <Card className="flex flex-col items-center gap-3 p-12 text-center">
-          <p className="text-sm text-muted-foreground">还没有主题，先创建一个吧</p>
-          <Button onClick={() => setCreateOpen(true)}>新建主题</Button>
+        <Card className="flex flex-col items-start gap-3 p-6">
+          <p className="text-sm">主题列表没取到</p>
+          <p className="text-xs text-muted-foreground">
+            {themesQuery.error instanceof Error ? themesQuery.error.message : '未知错误'}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => void themesQuery.refetch()}>
+            重试
+          </Button>
         </Card>
       );
     }
+
+    if (themes.length === 0) {
+      // 主按钮只留页头那一个：空态里再放一个「新建主题」，同一屏就有两个同义按钮。
+      return (
+        <Card className="flex flex-col items-center gap-2 p-12 text-center">
+          <p className="font-kai text-lg">还没有主题</p>
+          <p className="text-xs text-muted-foreground">点右上角「新建主题」，建第一个世界。</p>
+        </Card>
+      );
+    }
+
     return (
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(300px,1fr))] gap-4">
         {themes.map((theme) => (
-          <ThemeCard key={theme.code} theme={theme} />
+          <ThemeCard key={theme.code} theme={theme} current={theme.code === currentCode} />
         ))}
       </div>
     );
@@ -78,41 +113,58 @@ export function ThemesPage(): JSX.Element {
   );
 }
 
-function ThemeCard({ theme }: { theme: Theme }): JSX.Element {
-  // 色带用作者自己的调色板（§16.9）：它是这个主题真实的视觉语言，天然区分两个主题，
-  // 而且不违反「作品内容不随界面变」—— 这是引用，不是给界面新增配色。
-  const swatches = (theme.data.linkageColors ?? []).slice(0, 4);
+function ThemeCard({ theme, current }: { theme: Theme; current: boolean }): JSX.Element {
+  // v0.8.2：色带用主题自己的识别色（`data.accent`）—— 这是作者给的、属于这个世界的
+  // 一种颜色，界面只是引用它。没设过就整条不画：留一条 muted 灰带会被读成「有内容」。
+  const accent = theme.data.accent;
   return (
     <Link
-      // v0.8.0 §18：点卡片 = 进这间工作台，落在它的概览（四扇门都在那儿）。
       to={`/${theme.code}/overview`}
-      className="group flex flex-col overflow-hidden rounded-lg border border-border bg-card transition-colors hover:bg-accent/40"
+      aria-current={current ? 'page' : undefined}
+      data-testid={`theme-card-${theme.code}`}
+      className={cn(
+        'group flex flex-col overflow-hidden rounded-lg border bg-card transition-colors hover:bg-accent/40',
+        current ? 'border-primary/50' : 'border-border',
+      )}
     >
-      <div className="flex h-2">
-        {swatches.length > 0 ? (
-          swatches.map((swatch) => (
-            <span key={swatch.key} className="flex-1" style={{ backgroundColor: swatch.color }} />
-          ))
-        ) : (
-          <span className="flex-1 bg-muted" />
-        )}
-      </div>
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+      {/*
+       * v0.8.2：色带的**位置**总是占着 8px，有识别色才画出来。
+       * 不占位的话，同排卡片里只有设过色的那张往下挪 8px —— 标题、编码、描述
+       * 全部错开一条带子的高度，一排卡片看起来像没对齐的价签。
+       */}
+      <span
+        aria-hidden
+        data-testid="theme-accent-band"
+        className="h-2"
+        style={accent ? { backgroundColor: accent } : undefined}
+      />
+      <div className="flex flex-1 gap-4 p-4">
+        <div className="min-w-0 flex-1 space-y-2">
+          <div className="flex min-w-0 items-center gap-2">
             <h2 className="truncate font-kai text-lg leading-tight">{theme.name}</h2>
-            <p className="mt-1 truncate text-2xs text-muted-foreground">{theme.code}</p>
+            {current ? (
+              <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-2xs text-primary">
+                当前
+              </span>
+            ) : null}
           </div>
-        </div>
-        <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-          {theme.description ?? '暂无描述'}
-        </p>
-        <div className="mt-auto space-y-1">
-          <p className="text-xs text-foreground">
-            {theme.counts.puzzles} 关 · {theme.counts.games} 关在线
+          <p className="truncate font-mono text-2xs text-muted-foreground">{theme.code}</p>
+          <p className="line-clamp-2 text-xs leading-relaxed text-muted-foreground">
+            {theme.description ?? '暂无描述'}
           </p>
-          <p className="text-2xs text-muted-foreground">
-            {theme.counts.assets} 资源 · {theme.counts.maps} 地图 · {theme.counts.characters} 角色
+        </div>
+
+        {/* 右对齐的数字块：卡片在宽屏会拉到 600px 上下，光靠左边一两行字撑不住。 */}
+        <div className="shrink-0 text-right">
+          <p className="font-kai text-2xl leading-none tabular-nums">{theme.counts.games}</p>
+          <p className="mt-1 text-2xs text-muted-foreground">关在线</p>
+          <p className="mt-2 space-y-0.5 text-2xs text-muted-foreground">
+            <span className="block">
+              {theme.counts.assets} 资源 · {theme.counts.maps} 地图
+            </span>
+            <span className="block">
+              {theme.counts.characters} 角色 · {theme.counts.puzzles} 谜题
+            </span>
           </p>
         </div>
       </div>
@@ -123,6 +175,9 @@ function ThemeCard({ theme }: { theme: Theme }): JSX.Element {
 /**
  * §16.7：新建时必须当场选主题 —— 所以「主题」本身的新建只要 code / name。
  * `code` 进 URL 与 manifest，所以只在创建时可填，之后不可改（§4）。
+ *
+ * 识别色不在这里：新建的第一件事是给世界起名字，颜色是「它长出来之后」才有的判断，
+ * 而且这一版把它放在概览的「编辑主题信息」里（那里也能随时改）。
  */
 function CreateThemeDialog({
   open,
@@ -183,7 +238,6 @@ function CreateThemeDialog({
               id="theme-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="红楼梦"
             />
           </div>
           <div className="space-y-2">
@@ -195,11 +249,10 @@ function CreateThemeDialog({
                 setCodeTouched(true);
                 setCode(event.target.value);
               }}
-              placeholder="hlm"
+              placeholder="只能用小写字母、数字、下划线与连字符"
             />
-            <p className={cn('text-2xs text-muted-foreground')}>
-              进地址与资源包，创建后不可改。只能用小写字母、数字、下划线与连字符；
-              settings、play 等系统页面的路径不能用。
+            <p className="text-2xs text-muted-foreground">
+              创建后不可改。settings、play 等系统页面的路径不能用。
             </p>
           </div>
           <div className="space-y-2">

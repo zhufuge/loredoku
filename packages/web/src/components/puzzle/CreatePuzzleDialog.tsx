@@ -20,7 +20,6 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { ThemeScopePill } from '@/components/theme/ThemeScopePill';
 import { useCreatePuzzle } from '@/hooks/usePuzzles';
 import { usePublishedVersions } from '@/hooks/useMaps';
 import { formatDateTimeMinute } from '@/lib/format';
@@ -220,15 +219,6 @@ export function CreatePuzzleDialog({
               </p>
             ) : null}
           </div>
-
-          {/*
-            v0.8.0 §16.7：谜题的主题**由底图决定**，所以这一枚是只读的，而且排在
-            地图版本之后 —— 先给结论、再给原因，等于让人先接受一个不知道从哪来的
-            答案。没选版本时不渲染：那时候还没有结论可显示。
-          */}
-          {selected ? (
-            <ThemeScopePill value={selected.themeCode} locked lockedHint="来自底图" />
-          ) : null}
         </div>
 
         <DialogFooter>

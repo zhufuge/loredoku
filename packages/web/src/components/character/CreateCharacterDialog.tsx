@@ -32,7 +32,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ThemeScopePill } from '@/components/theme/ThemeScopePill';
+import { ThemeScopeField } from '@/components/theme/ThemeScopeField';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -181,16 +181,24 @@ export function CreateCharacterDialog({
             <Input id="character-name" placeholder="例如：侦探" {...register('name')} />
             {errors.name ? <p className="text-xs text-destructive">{errors.name.message}</p> : null}
           </div>
-          {/* v0.8.0 §16.7：名称 → 主题。v0.8.0 §18：在工作空间里这一格只读。 */}
-          {workspace ? (
-            <ThemeScopePill value={themeCode} locked lockedHint="当前工作空间" />
-          ) : (
-            <ThemeScopePill value={themeCode} onChange={setThemeCode} />
-          )}
+          {/* v0.8.0 §16.7：名称 → 主题。v0.8.2 §14：工作空间里整行不画（地址说过了）。 */}
+          {workspace ? null : <ThemeScopeField value={themeCode} onChange={setThemeCode} />}
           <div className="grid gap-2">
             <Label htmlFor="character-code">业务 ID</Label>
-            <Input id="character-code" placeholder={`例如：${themeCode ?? 'theme'}_detective`} {...register('code')} />
-            {errors.code ? <p className="text-xs text-destructive">{errors.code.message}</p> : null}
+            <Input
+              id="character-code"
+              aria-describedby="character-code-hint"
+              placeholder={`例如：${themeCode ?? 'theme'}_detective`}
+              {...register('code')}
+            />
+            {errors.code ? (
+              <p className="text-xs text-destructive">{errors.code.message}</p>
+            ) : (
+              /* v0.8.2：把「前缀已经替你写好」说出来，见 CreateAssetDialog 同一处。 */
+              <p id="character-code-hint" className="text-2xs text-muted-foreground">
+                {themeCode ? `前缀 ${themeCode}_ 已填好，接着写后半段` : '只允许字母、数字与下划线'}
+              </p>
+            )}
           </div>
           <div className="grid gap-2">
             <Label>性别</Label>
