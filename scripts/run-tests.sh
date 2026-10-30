@@ -1,34 +1,22 @@
 #!/usr/bin/env bash
-# 逐文件跑测试：vitest 在本环境下一次收集多个测试文件时会因为临时目录写入被拒
-# （EPERM）而静默漏收，所以按文件分别调用，最后汇总失败清单。
+# 跑一个包的测试。真正的逻辑在 scripts/run-tests.mjs：
+#
+#   1. 一次收集（~12 秒），而不是每个文件起一次 Node（87 个文件 2 分半）；
+#   2. 跑完拿报告对着磁盘列表核对，真被环境漏收的那几个（EPERM 偶发）再补跑；
+#   3. 一次收集都起不来时，整包退回逐文件。
+#
+# 用法：
+#   bash scripts/run-tests.sh packages/web
+#   bash scripts/run-tests.sh packages/shared --serial   # 强制逐文件
+#
+# server 在这个脚本里默认就是串行：它所有用例共用一个测试库，并行收集会偶发撞车。
 set -u
 
-PKG_DIR="$1"
-cd "$PKG_DIR" || exit 1
-
-FILES=$(find . -path ./node_modules -prune -o \( -name '*.test.ts' -o -name '*.test.tsx' \) -print | sort)
-
-pass=0
-total=0
-fail=0
-failed_files=""
-
-for file in $FILES; do
-  if ../../node_modules/.bin/vitest.cmd run "$file" --no-cache >/tmp/vt.log 2>&1; then
-    count=$(sed -r 's/\x1b\[[0-9;]*m//g' /tmp/vt.log | grep -E "^ *Tests +" | tail -1 | grep -oE "[0-9]+" | head -1)
-    echo "PASS  ${count:-?}	$file"
-    pass=$((pass + 1))
-    total=$((total + ${count:-0}))
-  else
-    echo "FAIL  $file"
-    fail=$((fail + 1))
-    failed_files="$failed_files $file"
-  fi
-done
-
-echo "-----------------------------------------"
-echo "files: $((pass + fail))  passed: $pass  failed: $fail  tests: $total"
-if [ "$fail" -gt 0 ]; then
-  echo "failed:$failed_files"
-  exit 1
+PKG_DIR="${1:-}"
+if [ -z "$PKG_DIR" ]; then
+  echo "用法: scripts/run-tests.sh packages/<pkg> [--serial]"
+  exit 2
 fi
+
+cd "$(dirname "$0")/.." || exit 1
+exec node scripts/run-tests.mjs "$PKG_DIR" "${2:-}"

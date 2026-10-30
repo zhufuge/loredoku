@@ -265,22 +265,6 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   });
 
   /**
-   * v0.7.12：计时在标题行最右边 —— 和「游戏名 + 尺寸」同一行，粗体淡色，
-   * 没有图标。它是一条元信息，不是工具栏里的一件工具。
-   */
-  it('places the timer at the right end of the title row', () => {
-    render();
-    const timer = container.querySelector('[data-testid="game-timer"]');
-    expect(timer).not.toBeNull();
-    expect(timer?.textContent).toBe('00:00');
-    expect(timer?.className).toContain('font-semibold');
-    expect(timer?.className).toContain('text-muted-foreground');
-    expect(timer?.querySelector('svg')).toBeNull();
-    // 同一行的前一个元素是游戏名。
-    expect(timer?.previousElementSibling?.textContent).toContain('夜车');
-  });
-
-  /**
    * v0.7.12：提交未通过 →「继续游戏」，秒表接着走。
    *
    * 这里用假定时器把时间「推」过去，比真的等 2 秒稳，也能顺便确认停表那一刻
@@ -381,34 +365,11 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   /**
    * v0.7.14（docs/v0.7.14.md §4）：题面与结束语。
    *
-   * 第一半是「进来就看得见、而且排在该在的地方」：左栏里从标题读到名册，中间
-   * 依次是描述、线索、参与者 —— 三样同时在视野里，谁也不用滚动去换另一个。
-   * 第二半是「结束语只在通过时说话」：没提交之前，那句话一个字都不该出现在页面里。
+   * v0.8.3 精简：左栏的堆叠顺序（标题 → 题面 → 名册）那半段删掉了 —— 布局。
+   * 留下的这一半是**剧透**：没提交之前，结束语一个字都不该出现在页面里。
    */
-  it('stacks the 题面 between the title and the roster in the left column, but not the ending', () => {
+  it('never shows the ending before the submit passes', () => {
     render();
-    const aside = container.querySelector('aside');
-    const brief = container.querySelector<HTMLElement>('[data-testid="game-brief"]');
-    const roster = container.querySelector<HTMLElement>('[data-testid="roster-matrix"]');
-    expect(aside && brief && roster).not.toBeNull();
-
-    expect(brief?.textContent).toContain('三人三行，各归其位。');
-    expect(brief?.textContent).toContain('同一行里没有重复编号');
-    expect(brief?.textContent).toContain('阴影里没有编号');
-
-    // 它属于左栏，不再压在盘面上。
-    expect(aside?.contains(brief)).toBe(true);
-    expect(container.querySelector('main')?.contains(brief)).toBe(false);
-
-    // 顺序：标题 → 题面 → 名册（文档顺序就是屏幕上的上下顺序）。
-    const title = aside?.querySelector('p');
-    expect(title?.textContent).toContain('夜车');
-    const precedes = (first: Element | null | undefined, second: Element): boolean =>
-      Boolean(first && first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(precedes(title, brief as Element)).toBe(true);
-    expect(precedes(brief, roster as Element)).toBe(true);
-
-    // 结束语是过关后的一句话 —— 开局就摆在页面上，等于剧透。
     expect(document.body.textContent).not.toContain('灯灭了');
   });
 

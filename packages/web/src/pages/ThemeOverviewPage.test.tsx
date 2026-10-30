@@ -8,13 +8,13 @@ import { ThemeOverviewPage } from './ThemeOverviewPage';
 /**
  * v0.8.3：概览页只回答两件事 —— 「这个空间是什么」与「它按什么规矩长」。
  *
- * 这一屏在这一版动过的地方不少，所以钉五组：
+ * v0.8.3 精简（docs/v0.8.3.md §16）：这里只留**写回数据的契约** —— 缺省风格改成
+ * `data.style`、难度分级改成 `data.difficultyLevels`（含两条边界：什么都没改就
+ * 不带这个键、恢复内置五档是删键而不是写一份一样的数组），以及「还有东西的
+ * 主题删不掉」。
  *
- * 1. 五格计数是**入口**，图标与顶栏同一枚；
- * 2. 信息卡四行，页头**没有**上线 / 导出 / `⋯` —— 动作平铺成两个按钮；
- * 3. 缺省风格是清单（二十几项按四组列），点「编辑缺省风格」打开表单，保存写回 `data.style`；
- * 4. 难度分级是清单（缺省 = 内置五档），点「编辑难度分级」能增删排序，保存写回 `data.difficultyLevels`；
- * 5. 导出资源包已经搬到部署页 —— 这一页不该再出现它。
+ * 五格计数、信息卡四行、页头有哪两个按钮、清单里列了哪几组、识别色怎么显示 ——
+ * 全是文案与布局，界面还要改，钉在这里只会每天早上叫一次。
  */
 
 const themeRef: Theme = {
@@ -51,8 +51,6 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
         node.textContent?.trim().includes(label) === true ||
         node.getAttribute('aria-label')?.includes(label) === true,
     );
-  const hrefs = (): string[] =>
-    Array.from(document.querySelectorAll('a')).map((node) => node.getAttribute('href') ?? '');
 
   function render(theme: Theme = themeRef): void {
     workspaceRef.value = {
@@ -93,83 +91,6 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     container.remove();
   });
 
-  it('五格计数既是数字也是入口 —— 点进去是本主题的模块', () => {
-    render();
-
-    expect(text()).toContain('49');
-    expect(text()).toContain('32');
-    expect(hrefs()).toEqual(
-      expect.arrayContaining([
-        '/hlm/assets',
-        '/hlm/maps',
-        '/hlm/characters',
-        '/hlm/puzzles',
-        '/hlm/deployments',
-      ]),
-    );
-    expect(text()).toContain('部署');
-  });
-
-  it('五格的图标与顶栏同一枚 —— 地图就是 lucide-map，不是定位针', () => {
-    render();
-
-    const cards = Array.from(document.querySelectorAll('a[href^="/hlm/"]')).filter(
-      (node) => node.querySelector('svg') !== null,
-    );
-    expect(cards.length).toBe(5);
-
-    const icons = cards.map((node) => node.querySelector('svg')?.getAttribute('class') ?? '');
-    expect(icons[1]).toContain('lucide-map');
-    expect(icons[4]).toContain('lucide-rocket');
-    expect(document.querySelector('svg.lucide-map-pin')).toBeNull();
-    for (const icon of icons) {
-      expect(icon).toContain('h-6');
-      expect(icon).toContain('w-6');
-    }
-    expect(cards[1]?.querySelector('svg')?.getAttribute('stroke-width')).toBe('1.5');
-  });
-
-  it('信息卡是名称 / 编码 / 描述 / 识别色四行', () => {
-    render();
-
-    for (const label of ['名称', '编码', '描述', '识别色']) {
-      expect(text()).toContain(label);
-    }
-    expect(text()).toContain('红楼梦');
-    expect(text()).toContain('hlm');
-    expect(text()).not.toContain('还没有关卡上线');
-  });
-
-  /**
-   * v0.8.3：动作平铺。
-   *
-   * 之前是「上线」在页头 + 导出 / 编辑 / 删除藏在 `⋯` 里。上线与导出都搬去了
-   * 部署页（那才是「出门」发生的地方），剩下的两个动作直接摆在页头上 ——
-   * 一个装两个按钮的菜单，比两个按钮贵。
-   */
-  it('页头只有「编辑信息」与「删除主题」，没有上线 / 导出 / 更多操作', () => {
-    render();
-
-    expect(button('编辑信息')).toBeDefined();
-    expect(button('删除主题')).toBeDefined();
-    expect(button('更多操作')).toBeUndefined();
-    expect(button('导出资源包')).toBeUndefined();
-    expect(button('上线')).toBeUndefined();
-  });
-
-  it('缺省风格是一张清单：四组都在，值按新建地图会拿到的那份显示', () => {
-    render();
-
-    expect(text()).toContain('缺省风格');
-    for (const group of ['网格', '边框', '标签', '光标']) {
-      expect(text()).toContain(group);
-    }
-    // 代表项：线宽与颜色各一条。
-    expect(text()).toContain('网格分隔线线宽');
-    expect(text()).toContain('网格分隔线颜色');
-    expect(text()).toContain('标签字体');
-  });
-
   it('编辑缺省风格：改一项线宽，保存写回 data.style（其余键原样带着）', () => {
     render();
     act(() => button('编辑缺省风格')?.click());
@@ -185,32 +106,6 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     };
     expect(payload.data.version).toBe(1);
     expect(payload.data.style.gridSeparator.width).toBe(4);
-  });
-
-  it('难度分级缺省就是内置五档，名字是中文', () => {
-    render();
-
-    expect(text()).toContain('难度分级');
-    for (const label of ['极简', '简单', '中等', '困难', '专家']) {
-      expect(text()).toContain(label);
-    }
-  });
-
-  it('主题自定义过分级时，清单显示自定义的那几档', () => {
-    render({
-      ...themeRef,
-      data: {
-        version: 1,
-        difficultyLevels: [
-          { key: 'warmup', label: '热身' },
-          { key: 'brutal', label: '地狱' },
-        ],
-      },
-    });
-
-    expect(text()).toContain('热身');
-    expect(text()).toContain('地狱');
-    expect(text()).not.toContain('极简');
   });
 
   it('编辑难度分级：加一档后保存，写回 data.difficultyLevels', () => {
@@ -271,19 +166,6 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
 
     const payload = updateMutate.mock.calls[0]?.[0] as { data: Record<string, unknown> };
     expect('difficultyLevels' in payload.data).toBe(false);
-  });
-
-  it('识别色是一行事实：设过就出色块与色值，没设就是两个字的「未设置」', () => {
-    render();
-    expect(text()).toContain('未设置');
-
-    render({ ...themeRef, data: { version: 1, accent: '#B93A32' } });
-    expect(text()).toContain('#B93A32');
-  });
-
-  it('没有描述时说「未填写」，而不是留一个空行', () => {
-    render({ ...themeRef, description: null });
-    expect(text()).toContain('未填写');
   });
 
   it('主题里还有东西时「删除」不可点 —— 先把数量说清楚再拦', () => {

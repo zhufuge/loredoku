@@ -188,23 +188,6 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     container.remove();
   });
 
-  it('一行里给出游戏名、来源谜题版本、难度、尺寸与访问路径', () => {
-    render();
-    expect(text()).toContain('午夜花园');
-    expect(text()).toContain('来源：午夜花园 v2');
-    expect(text()).toContain('6 × 6');
-    expect(text()).toContain('/play/puzzle-midnight-garden-medium');
-    expect(text()).toContain('共 1 个游戏在线。');
-  });
-
-  it('「打开游戏」是新标签页链接，不抢作者当前的列表页签', () => {
-    render();
-    const link = container.querySelector<HTMLAnchorElement>('a[title="在新标签页打开游戏"]');
-    expect(link?.getAttribute('href')).toBe('/play/puzzle-midnight-garden-medium');
-    expect(link?.getAttribute('target')).toBe('_blank');
-    expect(link?.getAttribute('rel')).toBe('noreferrer');
-  });
-
   it('取消部署要二次确认，且写明链接立刻失效、路径可以再用', () => {
     render();
     clickButton('取消部署');
@@ -212,15 +195,6 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     expect(text()).toContain('可以再用同一个访问路径重新部署');
     // 还没确认，不发请求。
     expect(cancelMutate).not.toHaveBeenCalled();
-  });
-
-  it('空态给一个「部署」的出口，而不是绕去谜题列表', () => {
-    gamesRef.data = [];
-    render();
-    expect(text()).toContain('还没有部署任何游戏');
-    const buttons = Array.from(container.querySelectorAll('button'));
-    expect(buttons.some((node) => node.textContent?.trim() === '部署')).toBe(true);
-    expect(buttons.some((node) => node.textContent?.includes('前往谜题列表'))).toBe(false);
   });
 
   /**

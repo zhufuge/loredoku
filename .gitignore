@@ -10,6 +10,8 @@ build/
 *.timestamp-*.mjs
 # 排查 vitest 并发写入被拦时临时指过的 TMPDIR（`TMPDIR=./.vitest-tmp`）
 .vitest-tmp/
+# scripts/run-tests.mjs 的中间报告（正常会自己删掉，崩了就留在这里）
+.vitest-report-*.json
 
 # env
 .env
