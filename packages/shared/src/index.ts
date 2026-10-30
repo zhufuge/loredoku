@@ -1,5 +1,6 @@
 export * from './constants';
 export * from './color';
+export * from './difficulty';
 export * from './gameSlug';
 export * from './assetRules';
 export * from './puzzleRefs';

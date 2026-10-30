@@ -2,14 +2,42 @@ import { z } from 'zod';
 import {
   BG_COLOR_PATTERN,
   DEFAULT_THEME_CODE,
+  GAME_DIFFICULTY_KEY_MAX_LENGTH,
+  GAME_DIFFICULTY_KEY_PATTERN,
   THEME_CODE_MAX_LENGTH,
   THEME_CODE_PATTERN,
   THEME_CODE_RESERVED,
   THEME_DATA_VERSION,
   THEME_DESCRIPTION_MAX_LENGTH,
+  THEME_DIFFICULTY_LABEL_MAX_LENGTH,
+  THEME_DIFFICULTY_TIER_MAX,
   THEME_NAME_MAX_LENGTH,
 } from '../constants';
 import { mapLinkageColorSchema, mapStyleSchema } from './mapDraft';
+
+/**
+ * v0.8.3（docs/v0.8.3.md §3）：主题自己的一档难度。
+ *
+ * 只存 `key` 与 `label`，**不存颜色** —— 徽章底色由它在列表里的位置决定（沿用
+ * `index.css` 那条五档热力坡）。理由：作者要回答的是「我这关算第几档」，不是
+ * 「这档是什么色」；而让作者选色，浅色下选定的淡色在深色界面里就会变成一块
+ * 亮补丁（v0.7.8 已经为此把五个 hex 换成 CSS 变量）。
+ */
+export const themeDifficultyTierSchema = z
+  .object({
+    key: z
+      .string()
+      .trim()
+      .min(1, '难度标识不能为空')
+      .max(GAME_DIFFICULTY_KEY_MAX_LENGTH)
+      .regex(GAME_DIFFICULTY_KEY_PATTERN, '难度标识只能包含字母、数字与连字符，且以字母开头'),
+    label: z
+      .string()
+      .trim()
+      .min(1, '难度名称不能为空')
+      .max(THEME_DIFFICULTY_LABEL_MAX_LENGTH, `难度名称最多 ${THEME_DIFFICULTY_LABEL_MAX_LENGTH} 个字`),
+  })
+  .strict();
 
 /**
  * v0.8.0 (docs/v0.8.0.md §4) —— 主题的写入口。
@@ -55,8 +83,37 @@ export const themeDataSchema = z
     accent: z.string().regex(BG_COLOR_PATTERN, '识别色需为 #RRGGBB 格式').optional(),
     style: mapStyleSchema.optional(),
     linkageColors: z.array(mapLinkageColorSchema).optional(),
+    /**
+     * v0.8.3：难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
+     * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。
+     */
+    difficultyLevels: z
+      .array(themeDifficultyTierSchema)
+      .min(1, '至少保留一档难度')
+      .max(THEME_DIFFICULTY_TIER_MAX, `最多定义 ${THEME_DIFFICULTY_TIER_MAX} 档难度`)
+      .optional(),
   })
   .strict()
+  /**
+   * 重复的 `key` 是**数据坏了**，不是样式问题：两行共用同一个标识，`game.difficulty`
+   * 就指不出是哪一档，而库里没有外键能替我们拦下它。所以在这里就说清楚是第几个。
+   */
+  .refine(
+    (data) => {
+      const keys = (data.difficultyLevels ?? []).map((tier) => tier.key);
+      return new Set(keys).size === keys.length;
+    },
+    (data) => {
+      const seen = new Set<string>();
+      const duplicate = (data.difficultyLevels ?? []).find((tier) =>
+        seen.has(tier.key) ? true : (seen.add(tier.key), false),
+      );
+      return {
+        message: `难度标识「${duplicate?.key ?? ''}」重复了`,
+        path: ['difficultyLevels'],
+      };
+    },
+  )
   .default({ version: THEME_DATA_VERSION });
 
 /**

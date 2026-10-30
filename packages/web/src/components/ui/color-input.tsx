@@ -50,27 +50,37 @@ export const ColorInput = forwardRef<HTMLInputElement, ColorInputProps>(function
 });
 
 /**
- * 取色器 + hex 文本框，成对出现。
+ * 取色器 + hex 文本框，**一处实现的统一面孔**。
  *
  * v0.7.13：从 `components/map-editor/StyleFields` 搬到这里 —— 角色页的「默认
  * 主题色」要同一副面孔，而角色页不该从 map-editor 里借控件。
  *
- * 文本框是**草稿**：一边打字一边要把非法中间态留在框里（`#f`、`#ff00`），
- * 只在失焦 / 回车时提交；提交不合法就回滚到当前值。取色器则即时生效，它给的
- * 一定是一个完整颜色。
+ * v0.8.3：这一版把它收成**唯一**的取色控件。此前同一件事有三种长相 ——
+ * 地图抽屉里是「色块 + hex」，角色页只有色块（hex 是死的一行字），主题色弹窗
+ * 反过来只有一整块调色板。作者在不同页面学到的是三套操作。
+ *
+ * 现在固定为两个东西：色块（原生取色器）与 hex 输入框。**没有调色板**（v0.8.3
+ * 收尾时按用户要求去掉）：一份十几种颜色的固定色板，能选的永远只有那十几种，
+ * 而「这个空间到底用什么颜色」本来就该由作者决定 —— 原生取色器给出的色域比
+ * 任何预设都宽，预设只会把界面推向同一套配色。
+ *
+ * hex 是**草稿**：一边打字一边要把非法中间态留在框里（`#f`、`#ff00`），只在
+ * 失焦 / 回车时提交；提交不合法就回滚到当前值。取色器则即时生效。
  */
-export function ColorField({
-  id,
-  value,
-  commit,
-  label = '选择颜色',
-}: {
+export interface ColorFieldProps {
   id?: string;
   value: string;
   commit: (value: string) => void;
   /** 取色器的无障碍名 —— 一个表单里可能有两个取色器。 */
   label?: string;
-}): JSX.Element {
+}
+
+export function ColorField({
+  id,
+  value,
+  commit,
+  label = '选择颜色',
+}: ColorFieldProps): JSX.Element {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
 
@@ -100,7 +110,7 @@ export function ColorField({
             flush();
           }
         }}
-        className="h-7 w-24 font-mono text-2xs"
+        className="h-7 w-[5.5rem] font-mono text-2xs"
         aria-label={`${label}（hex）`}
       />
     </div>

@@ -30,7 +30,7 @@ import {
   rosterRows,
 } from '@/lib/participantLayout';
 import { Button } from '@/components/ui/button';
-import { ColorInput } from '@/components/ui/color-input';
+import { ColorField } from '@/components/ui/color-input';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -654,21 +654,12 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               */}
               {draftPalette.map((entry, index) => (
                 <li key={index} className="space-y-1 rounded-md border p-2">
-                  <div className="flex items-center gap-1">
-                    <ColorInput
+                  <div className="flex items-start gap-1">
+                    {/* v0.8.3：与地图抽屉、角色页、概览页同一枚取色控件。 */}
+                    <ColorField
                       value={isValidStyleColor(entry.color) ? entry.color : '#888888'}
-                      onChange={(value) => patchEntry(index, { color: value })}
-                      aria-label="选择颜色"
-                    />
-                    <Input
-                      value={entry.color}
-                      onChange={(event) => {
-                        const value = event.target.value;
-                        if (!isValidStyleColor(value)) return;
-                        patchEntry(index, { color: value });
-                      }}
-                      className="h-7 w-24 font-mono text-2xs"
-                      aria-label="颜色值"
+                      commit={(value) => patchEntry(index, { color: value })}
+                      label="联动主题色"
                     />
                     <Button
                       type="button"
@@ -699,9 +690,6 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                       aria-label="颜色名称"
                     />
                   </div>
-                  {/* FIX-O16 (docs/v0.5.4.md §7.3): no swatch grid here — the
-                      palette belongs to the participant's theme colour only.
-                      The `ColorInput` above plus the hex field stay. */}
                   <div className="flex items-center gap-1">
                     <Label className="w-8 shrink-0 text-2xs font-normal text-muted-foreground">
                       key

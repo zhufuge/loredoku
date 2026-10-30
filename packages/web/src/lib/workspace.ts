@@ -27,9 +27,14 @@ export const WORKSHOP_MODULES = [
 
 export type ModuleKey = (typeof WORKSHOP_MODULES)[number]['key'];
 
-/** 一个主题里的四个内容模块 —— 计数卡片、概览页的链接都按这个顺序。 */
-export const CONTENT_MODULES = ['assets', 'maps', 'characters', 'puzzles'] as const;
-export type ContentModuleKey = (typeof CONTENT_MODULES)[number];
+/*
+ * v0.8.3：`CONTENT_MODULES` / `ContentModuleKey` 删掉了。
+ *
+ * 它曾经只服务概览页那四张计数卡（「一个主题里的四个内容模块」）。加了部署那一格
+ * 之后，卡片集合不再等于「内容模块集合」—— 而那张卡片表本身就写着顺序与标签，
+ * 于是这个常量只剩下「说一句已经有别处说的话」。`WORKSHOP_MODULES` 还在，它才是
+ * 顶栏导航的真相。
+ */
 
 export const SETTINGS_THEMES_PATH = '/settings/themes';
 
@@ -55,6 +60,26 @@ export function rememberThemeCode(code: string): void {
     window.localStorage.setItem(LAST_THEME_KEY, code);
   } catch {
     /* 记不住就算了 —— 它只影响旧地址的兜底，不该让导航报错。 */
+  }
+}
+
+/**
+ * v0.8.3（docs/v0.8.3.md §13）：主题被删掉时**立刻忘掉它**。
+ *
+ * 这个键是「上一次在哪个工作空间」。删掉那个主题之后，键里留着的是一个已经不
+ * 存在的编码 —— 而 `workshopPath()` 会拿它拼地址，于是「返回工坊」跳到
+ * `/被删掉的/overview`，得到「没有编码是 xxx 的主题」。
+ *
+ * 只删**匹配那一个**：删 A 不该让「记住的 B」也一起没了（多标签页里，另一个
+ * 标签可能正开着 B）。
+ */
+export function forgetThemeCode(code: string): void {
+  try {
+    if (window.localStorage.getItem(LAST_THEME_KEY) === code) {
+      window.localStorage.removeItem(LAST_THEME_KEY);
+    }
+  } catch {
+    /* 同上：存储不可用时什么也做不了，且不影响别的路径。 */
   }
 }
 

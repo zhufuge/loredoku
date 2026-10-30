@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { Theme, ThemeDeploymentSummary, ThemeOption } from '@loredoku/shared';
 import { themesApi, type CreateThemePayload, type DeployThemePayload, type UpdateThemePayload } from '@/api/themes';
+import { forgetThemeCode } from '@/lib/workspace';
 
 /**
  * v0.8.0（docs/v0.8.0.md §7 / §19）—— 主题的取数与写入。
@@ -62,6 +63,11 @@ export function useUpdateTheme(code: string) {
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
       toast.success('已保存');
     },
+    /**
+     * 失败必须说出来。没有这一条时，400 表现为「点了保存、弹窗不关、什么也没提示」——
+     * 作者会以为是自己没点到，再点两次，然后报「保存不生效」。
+     */
+    onError: (error: Error) => toast.error(error.message || '保存失败'),
   });
 }
 
@@ -69,7 +75,13 @@ export function useDeleteTheme() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => themesApi.remove(code),
-    onSuccess: () => {
+    /**
+     * v0.8.3（docs/v0.8.3.md §13）：删成功就把「上一次在哪个工作空间」这条记忆
+     * 一起清掉。留着它，接下来每一次「返回工坊」都会拼出 `/已删除的编码/overview`，
+     * 落到「没有编码是 xxx 的主题」—— 而那时候一间工坊明明还在。
+     */
+    onSuccess: (_data, code) => {
+      forgetThemeCode(code);
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
       toast.success('主题已删除');
     },

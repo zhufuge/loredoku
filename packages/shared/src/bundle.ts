@@ -161,7 +161,8 @@ export interface BundleManifestGame {
   name: string;
   puzzleName: string;
   gridSize: number;
-  difficulty: GameDifficulty;
+  /** v0.8.3：主题自定义的难度标识原样进包，导入方按自己的分级解释。 */
+  difficulty: string;
   cover: string | null;
 }
 

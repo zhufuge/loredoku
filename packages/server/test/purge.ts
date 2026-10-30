@@ -3,9 +3,9 @@ import { db } from '../src/db/knex';
 /**
  * v0.8.0 §19 —— 把主题**物理**删掉，测试收尾专用。
  *
- * 为什么必须亲手做：`DELETE /api/themes/:code` 是软删（一条 UPDATE），而
- * `themes.code` 是普通 UNIQUE —— 软删的行还占着那个编码，行本身也永远不会消失。
- * 夹具每跑一次就留一具尸体，跑几十次 `themes` 表就没法看了（§19 之前积了 78 个）。
+ * v0.8.3 §15 之后 `DELETE /api/themes/:code` 本身就是硬删了，为什么还要留着这个：
+ * 那个接口只会删**空**主题（有资源 / 地图 / 谜题 / 合辑一律 409），而夹具主题往往
+ * 还挂着东西。收尾不能指望走接口 —— 得自己按外键顺序往下拆。
  *
  * 顺序由外键决定，全部 RESTRICT，没有一处能靠 CASCADE 混过去：
  * games → theme_deployments → puzzles → assets（variants 跟着 CASCADE）→
@@ -34,10 +34,11 @@ export async function purgeTheme(code: string): Promise<void> {
 }
 
 /**
- * 规格与 `unique('t')` 造出来的临时主题：`t-1a2b3c4d`。
+ * 早期用例用 `unique('t')` 造出来的临时主题：`t-1a2b3c4d`。
  *
- * 它们全部是**软删状态**（用例跑完自己软删过），所以在这里一律清干净 ——
- * 一个都不该留下。
+ * 它们是 v0.8.0 之前留下的隐患（那时候删主题是软删，尸体行一直堆在库里）。
+ * v0.8.3 §15 起主题是硬删、迁移也清过一遍存量，这条兜底基本不会再扫到东西 ——
+ * 留着是因为它很便宜，而「测试不许污染库」这条规矩不该有例外。
  */
 export const TEMP_THEME_CODE = /^t-[0-9a-f]{8}$/;
 

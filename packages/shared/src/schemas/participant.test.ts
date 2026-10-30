@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_THEME_COLOR, EFFECT_COLORS, THEME_COLOR_PALETTE } from '../constants';
+import { DEFAULT_THEME_COLOR, EFFECT_COLORS } from '../constants';
 import { characterSlotEntrySchema } from './mapDraft';
 import { participantLinkagesSchema, participantTargetSchema, themeColorSchema } from './participant';
 
@@ -31,27 +31,6 @@ describe('themeColorSchema', () => {
   it('accepts colours outside the former reserved hue window', () => {
     for (const color of ['#FFFFFF', '#000000', '#EF4444', '#22C55E', '#FACC15']) {
       expect(themeColorSchema.safeParse(color).success).toBe(true);
-    }
-  });
-});
-
-describe('THEME_COLOR_PALETTE (MOD-801)', () => {
-  it('keeps 15 swatches, all darkened, with the new deep mist blue', () => {
-    expect(THEME_COLOR_PALETTE).toHaveLength(15);
-    expect(THEME_COLOR_PALETTE[0]).toBe(DEFAULT_THEME_COLOR);
-    expect(THEME_COLOR_PALETTE).toContain('#5B7C99');
-    // The near-duplicate teal from v0.3.2 was dropped.
-    expect(THEME_COLOR_PALETTE).not.toContain('#0F766E');
-  });
-
-  it('contains no bright / fluorescent colours (every entry is darkened)', () => {
-    // Brightness proxy: no channel above 210 outside white/black.
-    for (const hex of THEME_COLOR_PALETTE) {
-      if (hex === '#FFFFFF' || hex === '#000000') continue;
-      const r = parseInt(hex.slice(1, 3), 16);
-      const g = parseInt(hex.slice(3, 5), 16);
-      const b = parseInt(hex.slice(5, 7), 16);
-      expect(Math.max(r, g, b), hex).toBeLessThanOrEqual(210);
     }
   });
 });

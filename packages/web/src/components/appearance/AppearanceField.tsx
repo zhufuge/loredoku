@@ -6,7 +6,7 @@ import {
   type AppearanceMode,
 } from '@loredoku/shared';
 import { Label } from '@/components/ui/label';
-import { ColorInput } from '@/components/ui/color-input';
+import { ColorField } from '@/components/ui/color-input';
 import { cn } from '@/lib/utils';
 
 interface AppearanceFieldProps {
@@ -83,19 +83,13 @@ export function AppearanceField({
       </div>
 
       {mode === 'color' ? (
-        <div className="flex items-center gap-3">
-          {/* FIX-O10 (docs/v0.5.4.md §5.3): a grey translucent edge, so a
-              white block still has a visible boundary. */}
-          <ColorInput
-            aria-label="纯色块颜色"
-            className="border border-black/20"
-            value={color}
-            onChange={(value) => onBgColorChange(value.toUpperCase())}
-          />
-          <span className="font-mono text-xs text-muted-foreground">{color}</span>
-          {/* FIX-O08: 「不上传图片也能启用，画布上以该色块展示」 dropped — the
-              colour block is self-explanatory by now. */}
-        </div>
+        /* v0.8.3：统一取色控件 —— 色块 + hex 输入。原来这里只有一个色块，
+           右边那串 hex 是一行不能改的字。 */
+        <ColorField
+          label="纯色块颜色"
+          value={color}
+          commit={(value) => onBgColorChange(value.toUpperCase())}
+        />
       ) : (
         children
       )}

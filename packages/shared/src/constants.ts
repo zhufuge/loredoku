@@ -255,28 +255,9 @@ export const REGION_HIGHLIGHT_BORDER_COLOR = HIGHLIGHT_BLUE;
 /** OPT-B01 (docs/v0.3.6.md §1.1): 2px → 4px, growing **inwards**. */
 export const REGION_HIGHLIGHT_WIDTH = 4;
 export const DEFAULT_THEME_COLOR = '#FFFFFF';
-/**
- * MOD-801 (docs/v0.3.3.md §1.1.1): the v0.3.2 palette darkened ~12%, one deep
- * mist blue added, the near-duplicate teal dropped — 15 swatches, `#FFFFFF`
- * default.
- */
-export const THEME_COLOR_PALETTE = [
-  '#FFFFFF',
-  '#000000',
-  '#5B616D',
-  '#763B10',
-  '#A37643',
-  '#BB201D',
-  '#C74B0A',
-  '#AC7503',
-  '#138B3F',
-  '#0B7E74',
-  '#6931C9',
-  '#BA2165',
-  '#A2144F',
-  '#1A3695',
-  '#5B7C99',
-] as const;
+// v0.8.3：`THEME_COLOR_PALETTE`（v0.3.3 MOD-801 的 15 色板）已删除 —— 界面不再提供
+// 调色板，参与者主题色只由原生取色器与 hex 输入决定。留一张没人读的色表只会让后来者
+// 以为「主题色只能从这 15 个里挑」。
 
 // ---- Canvas layer stacking (docs/layer-priority.md, the single authority) ----
 /**
@@ -896,8 +877,41 @@ export const GAME_DIFFICULTY_TEXT_COLORS: Record<
 /** FEAT-G02: the default tier pre-selected in the deploy dialog. */
 export const GAME_DIFFICULTY_DEFAULT: (typeof GAME_DIFFICULTY_LEVELS)[number] = 'medium';
 
+/**
+ * v0.8.3：难度**标识**的字符集 —— 难度分级不再写死在 shared 里，主题可以在概览页
+ * 自己定义几档（见 `themeDataSchema.difficultyLevels`）。
+ *
+ * 它落进 `games.difficulty` 列，也出现在部署弹窗的 `aria-pressed` 与资源包
+ * manifest 里，所以只允许「字母开头 + 字母 / 数字 / 连字符」。
+ *
+ * **大小写都收**：内置五档是 v0.4 定下的 camelCase（`veryEasy` / `expert`），库里
+ * 每一行都写着它们；要收紧成纯小写就得改数据、改历史包的 manifest。一个标识符，
+ * 不是 URL 片段，大小写没有歧义 —— 所以规则里放行，界面也只展示、不让人手打。
+ *
+ * 上限 32 与列宽同步 —— 放开到 256 只会让徽章排版先在别处崩掉。
+ */
+export const GAME_DIFFICULTY_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$/;
+export const GAME_DIFFICULTY_KEY_MAX_LENGTH = 32;
+
+/** v0.8.3：一个主题最多定义几档难度 —— 超过一屏就没人读得完，也没人会做。 */
+export const THEME_DIFFICULTY_TIER_MAX = 12;
+/** v0.8.3：档位名是徽章上的字，太长会把徽章撑成一整行。 */
+export const THEME_DIFFICULTY_LABEL_MAX_LENGTH = 12;
+
 /** FEAT-G02: game name bounds (same width as a map name). */
 export const GAME_NAME_MAX_LENGTH = 100;
+
+/**
+ * v0.8.3：展示顺序的取值区间（`games.sort_weight`）。
+ *
+ * 有上下界不是洁癖：这一列是作者手填的整数，没有界的整数输入框意味着
+ * `999999999` 也能提交，然后所有其他行都被这一行挤到后面去。±999 够排任何
+ * 真实的关卡集，又短到能在输入框里一眼读完。
+ */
+export const GAME_SORT_WEIGHT_MIN = -999;
+export const GAME_SORT_WEIGHT_MAX = 999;
+/** 没设过时的值；也是所有存量行的值 —— 于是它们按访问路径排。 */
+export const GAME_SORT_WEIGHT_DEFAULT = 0;
 
 /** FEAT-G02: covers are the widest artwork in the app, so they get their own cap. */
 export const GAME_COVER_MAX_DIMENSION = 960;

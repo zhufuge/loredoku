@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import {
-  GAME_DIFFICULTY_DEFAULT,
-  GAME_DIFFICULTY_LEVELS,
+  GAME_DIFFICULTY_KEY_MAX_LENGTH,
+  GAME_DIFFICULTY_KEY_PATTERN,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
   GAME_SLUG_PATTERN,
+  GAME_SORT_WEIGHT_MAX,
+  GAME_SORT_WEIGHT_MIN,
 } from '../constants';
 
 /**
@@ -34,9 +36,31 @@ export const gameDeploySchema = z.object({
    * 变成一次选择：不传真（照旧 400），传真则把占位的那条部署假删后再落自己的。
    */
   overwriteSlug: z.boolean().optional(),
+  /**
+   * v0.8.3：难度不再是一个写死的枚举 —— 主题可以自己定义几档（概览页的
+   * 「难度分级」）。这里只把守**形状**（`GAME_DIFFICULTY_KEY_PATTERN`），
+   * 「这一档在不在本主题里」由服务端拿着主题去核对：schema 不认识数据库，
+   * 而这一步必须知道是哪个主题。
+   *
+   * **不给 `.default()`**：缺省档取决于主题（内置五档里是 `medium`，自定义分级
+   * 里是「正中间那一档」）。schema 里写死 `medium`，一个只有「热身 / 地狱」两档
+   * 的主题就会因为默认值不在自己的分级里而部署失败 —— 而作者根本没提难度。
+   */
   difficulty: z
-    .enum(GAME_DIFFICULTY_LEVELS)
-    .default(GAME_DIFFICULTY_DEFAULT),
+    .string()
+    .trim()
+    .min(1)
+    .max(GAME_DIFFICULTY_KEY_MAX_LENGTH)
+    .regex(GAME_DIFFICULTY_KEY_PATTERN, '难度标识只能包含字母、数字与连字符')
+    .optional(),
+  /**
+   * v0.8.3：展示顺序 —— **升序**，数字小的排前面，同权重按访问路径。
+   *
+   * 缺省（`undefined`）与「显式给 0」要分开：前者是「这次没提这件事」，服务端
+   * 沿用上一行的值（重新部署不该把作者排好的顺序悄悄清零）；后者是「就排 0」。
+   * 所以这里不给 `.default()` —— 一个把两者抹平的默认值，会让每次部署都重排一次。
+   */
+  sortWeight: z.number().int().min(GAME_SORT_WEIGHT_MIN).max(GAME_SORT_WEIGHT_MAX).optional(),
 });
 
 /**

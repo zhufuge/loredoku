@@ -52,7 +52,6 @@ export function toTheme(row: ThemeRow, counts: ThemeCounts): Theme {
 
 export async function listThemeRows(): Promise<ThemeRow[]> {
   return (await db<ThemeRow>('themes')
-    .whereNull('deleted_at')
     // 按创建顺序。§19 之前这里靠 `is_default` 把默认主题顶到第一位 —— 那让列表
     // 顺序承载了一个语义（「这行特殊」），删掉语义之后顺序就只是顺序。
     .orderBy('id', 'asc')) as ThemeRow[];
@@ -63,11 +62,11 @@ export async function listThemeOptions(): Promise<ThemeOption[]> {
 }
 
 export async function findById(id: number): Promise<ThemeRow | undefined> {
-  return db<ThemeRow>('themes').where({ id }).whereNull('deleted_at').first();
+  return db<ThemeRow>('themes').where({ id }).first();
 }
 
 export async function findByCode(code: string): Promise<ThemeRow | undefined> {
-  return db<ThemeRow>('themes').where({ code }).whereNull('deleted_at').first();
+  return db<ThemeRow>('themes').where({ code }).first();
 }
 
 /** 编码 → 主键（§19）：接口只认编码，进到写库那一刻才换成 `theme_id`。 */
@@ -101,16 +100,43 @@ export async function updateTheme(
   if (patch.name !== undefined) next['name'] = patch.name;
   if (patch.description !== undefined) next['description'] = patch.description;
   if (patch.data !== undefined) next['data'] = patch.data;
-  const affected = await db('themes').where({ id }).whereNull('deleted_at').update(next);
+  const affected = await db('themes').where({ id }).update(next);
   return affected > 0;
 }
 
-export async function softDeleteTheme(id: number): Promise<boolean> {
-  const affected = await db('themes')
-    .where({ id })
-    .whereNull('deleted_at')
-    .update({ deleted_at: db.fn.now() });
-  return affected > 0;
+/**
+ * v0.8.3（docs/v0.8.3.md §15）—— 删主题 = **物理删除**。
+ *
+ * 之前是软删（一条 UPDATE 写 `deleted_at`），理由是从 `maps` / `puzzles` / `games`
+ * 照抄过来的，但那三张表的软删各有明确用途（版本号不回收、slug 靠部分唯一索引
+ * 释放、软删行仍能按 `:id` 解析血统根），主题一条都不占：没有版本号，也没有任何
+ * 行按 id 引用它 —— `theme_id` 全是 `ON DELETE RESTRICT`，删之前必须清空。
+ *
+ * 代价反而落在软删身上：`themes.code` 是普通 UNIQUE，尸体行永远占着编码，同编码
+ * 重建直接撞唯一约束（→ 500），尸体还会一直堆在库里。
+ *
+ * **顺手清掉这个主题的「僵尸子行」**：地图与谜题删的是草稿行，版本行是软删留下的；
+ * 这些行肉眼看不见（所有列表都过滤 `deleted_at`），却仍然挂着 `theme_id` —— 不先
+ * 抬走它们，主题会以 23503（外键 RESTRICT）失败，而作者看到的是「一个空主题删不掉」。
+ * 只删**已软删**的行：还活着的子行说明护栏没跑或数据在变，外键该响就让它响。
+ *
+ * 外键是最后一道闸：调用方必须已经确认主题下没有活着的子行（护栏在 `themeService`）。
+ */
+export async function deleteTheme(id: number): Promise<boolean> {
+  return db.transaction(async (trx) => {
+    const zombiePuzzles = (await trx('puzzles')
+      .where({ theme_id: id })
+      .whereNotNull('deleted_at')
+      .pluck('id')) as number[];
+    if (zombiePuzzles.length > 0) {
+      // `games.puzzle_id` 是 RESTRICT，游戏行（含已取消部署的）得先走。
+      await trx('games').whereIn('puzzle_id', zombiePuzzles).del();
+      await trx('puzzles').whereIn('id', zombiePuzzles).del();
+    }
+    await trx('maps').where({ theme_id: id }).whereNotNull('deleted_at').del();
+    const affected = await trx('themes').where({ id }).del();
+    return affected > 0;
+  });
 }
 
 /**
@@ -121,6 +147,8 @@ export async function softDeleteTheme(id: number): Promise<boolean> {
  * 条不加过滤：停用的资源仍然属于这个主题，卡片上也要数进去。地图 / 谜题 / 游戏
  * 走软删，就必须过滤 —— 否则作者会看到「3 个谜题」却一个都点不开，`deleteTheme`
  * 拿这份计数当护栏也会把人锁死。
+ *
+ * 主题自己从 v0.8.3 起是硬删（§15），所以这张表里没有「已删主题」的行要跳。
  */
 export async function countsByTheme(): Promise<Map<number, ThemeCounts>> {
   const result = new Map<number, ThemeCounts>();

@@ -30,7 +30,7 @@ export interface MapStyleDiffEntry {
 
 type StyleLeaf = string | number | null;
 
-interface FieldSpec {
+export interface FieldSpec {
   key: string;
   group: MapStyleDiffGroup;
   label: string;
@@ -45,8 +45,12 @@ const raw = (value: StyleLeaf): string => (value === null ? '—' : String(value
 /**
  * 字段表 —— **顺序即显示顺序**。新增一个 `MapStyle` 字段时在这里加一行，否则
  * 弹窗会悄悄漏掉它（漏掉比多一行更糟：作者会以为那一项相同）。
+ *
+ * v0.8.3：**导出**了。概览页的「缺省风格」表单要按同一份顺序与同一套中文名列出
+ * 这二十几项 —— 两份表迟早会漂。`web` 那边只额外带一个「怎么写回去」的表，
+ * 标签与顺序仍然只有这里一份。
  */
-const FIELDS: readonly FieldSpec[] = [
+export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   // 网格
   { key: 'cellSize', group: '网格', label: '方格大小', read: (style) => style.cellSize, format: px },
   { key: 'gridSeparator.width', group: '网格', label: '网格分隔线线宽', read: (style) => style.gridSeparator.width, format: px },
@@ -97,7 +101,7 @@ export function diffMapStyle(
 ): MapStyleDiffEntry[] {
   if (!map || !theme) return [];
   const diffs: MapStyleDiffEntry[] = [];
-  for (const field of FIELDS) {
+  for (const field of MAP_STYLE_FIELDS) {
     const mapValue = field.read(map);
     const themeValue = field.read(theme);
     if (mapValue === themeValue) continue;

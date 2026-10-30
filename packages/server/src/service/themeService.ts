@@ -89,12 +89,22 @@ export async function updateTheme(code: string, input: UpdateThemeInput): Promis
  * §19 之前这里还有「默认主题不能删」—— 那是 `is_default` 的一半存在理由，列删掉
  * 之后它也一起没了。剩下的这条对每个主题都成立，反而更简单。
  *
- * 数据库上还有 `FK ON DELETE RESTRICT` 兜底 —— 但那是硬删时才会响，
- * 而这里走的是软删，所以真正管用的是下面这段计数。
+ * v0.8.3（§15）：这一层守的是**看得见的东西**，删下去是 `DELETE`。两处差别：
+ *
+ * - 合辑也要拦（`theme_deployments.theme_id` 是 RESTRICT），但它不在卡片计数里 ——
+ *   单独问一句，报错里点名合辑的名字，作者才知道去部署页处理；
+ * - 计数只数活跃行，外键却看所有行。地图 / 谜题软删的版本行由
+ *   `repo.deleteTheme` 顺手抬走（注释写在那儿），这里只管「还有没有活的」。
  */
 export async function deleteTheme(code: string): Promise<void> {
   const id = await repo.idOfCode(code);
   if (id === undefined) throw AppError.notFound('主题不存在');
+
+  const deployment = await repo.findDeploymentByTheme(id);
+  if (deployment) {
+    throw AppError.conflict(`主题下还有合辑「${deployment.name}」，请先删除合辑`);
+  }
+
   const counts = (await repo.countsByTheme()).get(id) ?? repo.emptyCounts();
   const parts: string[] = [];
   if (counts.assets > 0) parts.push(`${counts.assets} 个资源`);
@@ -104,7 +114,17 @@ export async function deleteTheme(code: string): Promise<void> {
   if (parts.length > 0) {
     throw AppError.conflict(`主题下还有 ${parts.join('、')}，请先移空`);
   }
-  await repo.softDeleteTheme(id);
+
+  try {
+    await repo.deleteTheme(id);
+  } catch (cause) {
+    // 外键兜底（23503）：计数与 `DELETE` 之间没有任何东西该长出来，真撞上就是
+    // 有一类行没被算进护栏 —— 说人话，别把 500 丢给作者。
+    if ((cause as { code?: string }).code === '23503') {
+      throw AppError.conflict('主题下还有内容，请先移空');
+    }
+    throw cause;
+  }
 }
 
 /**

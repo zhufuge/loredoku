@@ -121,7 +121,13 @@ export interface MapGameRow {
   /** OPT-W04: the unique access path (`/play/{slug}`). */
   slug: string;
   cover_path: string | null;
-  difficulty: GameDifficulty;
+  /** v0.8.3：内置五档之一或主题自定义的标识（`ThemeData.difficultyLevels`）。 */
+  difficulty: string;
+  /**
+   * v0.8.3：作者手填的展示顺序。**升序** —— 数字小的排前面，同权重按 `slug`；
+   * 默认 `0`，所以存量行等于「按访问路径排」。
+   */
+  sort_weight: number;
   /** 取消部署 = 假删；列表与详情一律过滤掉。 */
   deleted_at: Date | string | null;
   created_at: Date | string;

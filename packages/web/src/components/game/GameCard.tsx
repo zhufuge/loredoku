@@ -1,11 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import {
-  GAME_DIFFICULTY_COLORS,
-  GAME_DIFFICULTY_LABELS,
-  GAME_DIFFICULTY_TEXT_COLORS,
-} from '@loredoku/shared';
 import type { MapGameSummary } from '@loredoku/shared';
 import { Card } from '@/components/ui/card';
+import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import { cn } from '@/lib/utils';
 
 /**
@@ -135,15 +131,7 @@ export function GameCard({
           {game.name}
         </h3>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span
-            className="rounded px-2 py-0.5 font-medium"
-            style={{
-              backgroundColor: GAME_DIFFICULTY_COLORS[game.difficulty],
-              color: GAME_DIFFICULTY_TEXT_COLORS[game.difficulty],
-            }}
-          >
-            {GAME_DIFFICULTY_LABELS[game.difficulty]}
-          </span>
+          <DifficultyBadge difficulty={game.difficulty} className="rounded" />
           <span className="tabular-nums transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground">
             {game.gridSize} × {game.gridSize}
           </span>

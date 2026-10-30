@@ -122,8 +122,20 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
               * 开关前面，于是同一趟来回，出口会在顶栏里左右横跳一格。
               */}
             {config ? (
+              /*
+               * v0.8.3（docs/v0.8.3.md §13）：回工坊去**入口**，不自己拼地址。
+               *
+               * 原来这里写 `workshopPath('overview')`，也就是 `/记住的编码/overview`。
+               * 可那个编码可能是刚被删掉的那一间 —— 系统配置正是「删主题」之后落脚的
+               * 地方，于是点「返回工坊」得到的是「没有编码是 xxx 的主题」，明明还有
+               * 别的工坊开着。
+               *
+               * `/` 是 `ThemeEntryRedirect`：它把记住的编码对着**现有主题列表**验
+               * 一遍，失效就落到第一间，一间都没有才去配置页。判断只有那一处，
+               * 这里只负责说「回去」。
+               */
               <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                <Link to={workshopPath('overview')}>返回工坊</Link>
+                <Link to="/">返回工坊</Link>
               </Button>
             ) : (
               /* v0.5.4 FEAT-O07 (docs/v0.5.4.md §4): the way into the player side. */

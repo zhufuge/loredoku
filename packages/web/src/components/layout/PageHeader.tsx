@@ -3,8 +3,14 @@ import type { ReactNode } from 'react';
 interface PageHeaderProps {
   /** 页面名，2–3 个字。 */
   title: string;
-  /** 一句话说明这个页面能做什么 —— 不要再重复标题里已经有的词。 */
-  description: ReactNode;
+  /**
+   * 一句话说明这个页面能做什么 —— 不要再重复标题里已经有的词。
+   *
+   * v0.8.3：**可以不写**。概览页把名称与描述搬进了「信息」卡（那是这一页唯一的
+   * 事实区），页头再抄一遍副标题就是同一句话说两遍；而一个空的 `<p>` 会在标题
+   * 下面留出一行 `space-y-1` 的假间距。没有就整行不渲染。
+   */
+  description?: ReactNode;
   /** 页级主操作。通常只有一个按钮；没有就整块不渲染。 */
   actions?: ReactNode;
 }
@@ -29,7 +35,7 @@ export function PageHeader({ title, description, actions }: PageHeaderProps): JS
             再小就只剩「字体不一样」而看不出「写了什么」。粗体交给字号，不交给
             `font-synthesis`（见 index.css 的 `.font-kai`）。 */}
         <h1 className="font-kai text-2xl leading-tight tracking-tight">{title}</h1>
-        <p className="text-sm text-muted-foreground">{description}</p>
+        {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>

@@ -2,13 +2,11 @@ import { useState } from 'react';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  GAME_DIFFICULTY_COLORS,
-  GAME_DIFFICULTY_LABELS,
-  GAME_DIFFICULTY_TEXT_COLORS,
   type MapGameSummary,
   type Theme,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
+import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import {
   Dialog,
   DialogContent,
@@ -100,15 +98,7 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
                     className="flex items-center gap-2 rounded px-2 py-1.5 text-xs"
                   >
                     <span className="min-w-0 flex-1 truncate font-medium">{game.name}</span>
-                    <span
-                      className="shrink-0 rounded-full px-2 py-0.5 text-2xs font-medium"
-                      style={{
-                        backgroundColor: GAME_DIFFICULTY_COLORS[game.difficulty],
-                        color: GAME_DIFFICULTY_TEXT_COLORS[game.difficulty],
-                      }}
-                    >
-                      {GAME_DIFFICULTY_LABELS[game.difficulty]}
-                    </span>
+                    <DifficultyBadge difficulty={game.difficulty} />
                     <span className="w-12 shrink-0 text-right tabular-nums text-muted-foreground">
                       {game.gridSize} × {game.gridSize}
                     </span>

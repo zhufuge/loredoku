@@ -189,14 +189,23 @@ function CreateThemeDialog({
   const [name, setName] = useState('');
   const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
-  const [codeTouched, setCodeTouched] = useState(false);
   /** 服务端才是编码规则的权威（字符集、保留字、重名），它那句话要留在弹窗里。 */
   const [error, setError] = useState<string | null>(null);
   const createTheme = useCreateTheme();
 
-  // 中文名推不出 code（`slugify` 会得到空串），所以这里只做「小写化 + 空格换连字符」，
-  // 剩下的交给服务端的正则与错误消息 —— 别在前端发明规则。
-  const derivedCode = name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
+  /*
+   * v0.8.3（docs/v0.8.3.md §14）：编码**不再跟着名字长出来**。
+   *
+   * 上一版把名字小写化、空格换连字符之后填进编码框，看起来省事，实际有两个问题：
+   *
+   * 1. 它只对英文名成立 —— 中文名推出来是空串，于是「自动填」只在一半情况下发生过，
+   *    同一个输入框会有两种行为；
+   * 2. 名字是给读者看的，编码是进地址与资源包的。把它们绑在一起，等于鼓励作者用
+   *    「名字的拼音缩写」这种既不好看也不好念的东西当编码；更糟的是，作者改名字时
+   *    会以为编码也跟着改了 —— 而它创建后不可改。
+   *
+   * 现在两格各管各的：名字随便写，编码由作者自己定（`hlm`、`tang-chao`）。
+   */
 
   // 上一次失败的那句话不该跟着下一次打开一起出现。
   useEffect(() => {
@@ -206,7 +215,7 @@ function CreateThemeDialog({
   async function submit(): Promise<void> {
     try {
       await createTheme.mutateAsync({
-        code: (codeTouched ? code : derivedCode).trim(),
+        code: code.trim(),
         name: name.trim(),
         description: description.trim().length > 0 ? description.trim() : null,
       });
@@ -219,11 +228,10 @@ function CreateThemeDialog({
     setName('');
     setCode('');
     setDescription('');
-    setCodeTouched(false);
     onOpenChange(false);
   }
 
-  const canSubmit = name.trim().length > 0 && (codeTouched ? code : derivedCode).trim().length > 0;
+  const canSubmit = name.trim().length > 0 && code.trim().length > 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -244,16 +252,20 @@ function CreateThemeDialog({
             <Label htmlFor="theme-code">编码</Label>
             <Input
               id="theme-code"
-              value={codeTouched ? code : derivedCode}
-              onChange={(event) => {
-                setCodeTouched(true);
-                setCode(event.target.value);
-              }}
-              placeholder="只能用小写字母、数字、下划线与连字符"
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              placeholder="小写字母、数字、下划线或连字符，创建后不可改"
+              autoComplete="off"
+              spellCheck={false}
+              /*
+               * 等宽只管**输入值**（`hlm`、`tang-chao` 里 l/1、O/0 要分得开，
+               * 卡片上也用等宽显示编码）。`::placeholder` 会继承元素字体，
+               * 而这句话现在是一整句中文规则说明 —— 让它跟着等宽走，中文
+               * 会落到等宽栈的中文后备字体上，标点宽度也和旁边「可选」不
+               * 一致。所以单独把占位符拉回正文字体（v0.8.3 §14.5）。
+               */
+              className="font-mono placeholder:font-sans"
             />
-            <p className="text-2xs text-muted-foreground">
-              创建后不可改。settings、play 等系统页面的路径不能用。
-            </p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="theme-description">描述</Label>

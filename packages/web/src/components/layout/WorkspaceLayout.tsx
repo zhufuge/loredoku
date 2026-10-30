@@ -11,7 +11,6 @@ import {
   readLastThemeCode,
   rememberThemeCode,
   SETTINGS_THEMES_PATH,
-  workshopPath,
   type ModuleKey,
 } from '@/lib/workspace';
 
@@ -86,7 +85,14 @@ function MissingWorkspace({ code, reason }: { code: string; reason: string | nul
       )}
       <div className="flex items-center gap-2">
         <Button variant="outline" asChild>
-          <Link to={workshopPath('overview')}>
+          {/*
+           * v0.8.3（docs/v0.8.3.md §13）：去**入口**，不是 `workshopPath('overview')`。
+           *
+           * 这个页面最常见的来路就是「地址里那间刚被删掉」—— 而 `workshopPath`
+           * 拼的正是「记住的编码」，也就是被删的那一个。它会把这里重新指向这里，
+           * 点几下都出不去。
+           */}
+          <Link to="/">
             <LayoutGrid className="mr-1.5 h-4 w-4" />
             回到工坊
           </Link>

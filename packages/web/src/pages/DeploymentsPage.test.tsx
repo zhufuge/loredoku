@@ -85,6 +85,7 @@ function game(overrides: Partial<MapGameSummary> = {}): MapGameSummary {
     slug: 'puzzle-midnight-garden-medium',
     coverUrl: null,
     difficulty: 'medium',
+    sortWeight: 0,
     gridSize: 6,
     participantCount: 6,
     createdAt: '2026-01-04T00:00:00.000Z',

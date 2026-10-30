@@ -24,9 +24,17 @@ const themesRef: {
   refetch: () => void;
 } = { data: undefined, isLoading: false, isError: false, error: null, refetch: () => undefined };
 
+/** 新建主题的载荷留在这里，由各条用例自己看（默认什么都不做）。 */
+const createRef: { fn: (payload: unknown) => Promise<void> } = {
+  fn: () => Promise.resolve(),
+};
+
 vi.mock('@/hooks/useThemes', () => ({
   useThemes: () => themesRef,
-  useCreateTheme: () => ({ mutateAsync: () => Promise.resolve(), isPending: false }),
+  useCreateTheme: () => ({
+    mutateAsync: (payload: unknown) => createRef.fn(payload),
+    isPending: false,
+  }),
 }));
 
 function theme(code: string, name: string, overrides: Partial<Theme> = {}): Theme {
@@ -144,5 +152,100 @@ describe('ThemesPage（v0.8.2）', () => {
     expect(body).toContain('关在线');
     expect(body).not.toContain('关 · ');
     expect(body).toContain('51 资源 · 8 地图');
+  });
+});
+
+/**
+ * v0.8.3（docs/v0.8.3.md §14）：**名字与编码各管各的**。
+ *
+ * 上一版把名字小写化之后填进编码框：英文名看起来省事，中文名推出来是空串，于是
+ * 同一个输入框在一半情况下「自己长出内容」。而编码是进地址与资源包的那个字符串，
+ * 它该由作者定 —— 名字改了它也不会跟着改（创建后不可改）。
+ */
+describe('新建主题：名称不带动编码（v0.8.3 §14）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  const field = (id: string): HTMLInputElement | null =>
+    document.querySelector<HTMLInputElement>(`#${id}`);
+  const buttons = (): HTMLButtonElement[] => Array.from(document.querySelectorAll('button'));
+  const createButton = (): HTMLButtonElement | undefined =>
+    buttons().find((node) => node.textContent?.trim() === '创建');
+
+  /** React 的 value tracker 会吞掉直接赋值，要走原型上的 setter。 */
+  function type(input: HTMLInputElement | null, value: string): void {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
+    act(() => {
+      setter?.call(input, value);
+      input?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  }
+
+  beforeEach(() => {
+    themesRef.data = [theme('default', '默认'), theme('hlm', '红楼梦')];
+    themesRef.isLoading = false;
+    themesRef.isError = false;
+    themesRef.error = null;
+    createRef.fn = () => Promise.resolve();
+    window.localStorage.clear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    act(() => {
+      root.render(
+        <MemoryRouter initialEntries={['/settings/themes']}>
+          <ThemesPage />
+        </MemoryRouter>,
+      );
+    });
+    // 打开弹窗 —— 这一组都在弹窗里操作。
+    act(() => {
+      buttons()
+        .find((node) => node.textContent?.includes('新建主题'))
+        ?.click();
+    });
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    window.localStorage.clear();
+  });
+
+  it('输入名称时编码框不动', () => {
+    type(field('theme-name'), 'hongloumeng');
+
+    expect(field('theme-name')?.value).toBe('hongloumeng');
+    expect(field('theme-code')?.value).toBe('');
+  });
+
+  it('中文名同样不会推出一个空编码“填”进去', () => {
+    type(field('theme-name'), '红楼梦');
+
+    expect(field('theme-code')?.value).toBe('');
+  });
+
+  it('编码是必填：只写名字时「创建」按不动', () => {
+    type(field('theme-name'), '红楼梦');
+    expect(createButton()?.disabled).toBe(true);
+
+    type(field('theme-code'), 'hlm');
+    expect(createButton()?.disabled).toBe(false);
+  });
+
+  it('提交的是作者自己写的编码，不是名字的转写', async () => {
+    const payloads: unknown[] = [];
+    createRef.fn = (payload) => {
+      payloads.push(payload);
+      return Promise.resolve();
+    };
+
+    type(field('theme-name'), '唐草');
+    type(field('theme-code'), 'tang-chao');
+    await act(async () => {
+      createButton()?.click();
+    });
+
+    expect(payloads).toEqual([{ code: 'tang-chao', name: '唐草', description: null }]);
   });
 });

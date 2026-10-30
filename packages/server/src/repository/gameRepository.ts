@@ -52,7 +52,13 @@ function liveQuery() {
 export async function listGames(): Promise<MapGameSummary[]> {
   const rows = (await liveQuery()
     .select(...GAME_SELECT)
-    .orderBy('g.created_at', 'desc')) as GameRowWithPuzzle[];
+    .orderBy([
+      // v0.8.3：作者填的顺序优先，同权重按访问路径 —— 一个确定的兜底。
+      // 原来这里是 `created_at desc`（「最近部署的在前」），它只回答「刚做了什么」，
+      // 不回答「玩家该先玩哪一关」；而真正在排序的那件事，此前只能靠改 slug 做。
+      { column: 'g.sort_weight', order: 'asc' },
+      { column: 'g.slug', order: 'asc' },
+    ])) as GameRowWithPuzzle[];
   return rows.map(toSummary);
 }
 
@@ -73,14 +79,18 @@ export async function getGameRowBySlug(slug: string): Promise<GameRowWithPuzzle 
  * v0.8.0（docs/v0.8.0.md §11.1）：资源包的取材 —— 某个主题下**已上线**的游戏。
  *
  * `games` 自己不存 `theme_id`（§3.1：主题只挂在四个内容表上），所以走
- * `join puzzles.theme_id`。排序给出一个确定的兜底顺序（部署时间倒序）；
- * 有合辑时调用方再按合辑的 `sort_order` 重排。
+ * `join puzzles.theme_id`。排序与列表同一条规矩（v0.8.3）：`sort_weight` 升序、
+ * 同权重按 `slug` —— 包里那一份和界面上那一份顺序一致，作者排好的先后在包外层
+ * 也成立（有合辑时调用方仍按合辑的 `sort_order` 重排）。
  */
 export async function listGameRowsByTheme(themeId: number): Promise<GameRowWithPuzzle[]> {
   return (await liveQuery()
     .where('pz.theme_id', themeId)
     .select(...GAME_SELECT)
-    .orderBy('g.created_at', 'desc')) as GameRowWithPuzzle[];
+    .orderBy([
+      { column: 'g.sort_weight', order: 'asc' },
+      { column: 'g.slug', order: 'asc' },
+    ])) as GameRowWithPuzzle[];
 }
 
 /** OPT-W04 §4.4: 这条路径现在归谁 —— 别的谜题版本就是冲突。 */
@@ -105,7 +115,16 @@ export interface UpsertGameData {
    */
   coverPath: string | null;
   clearCover: boolean;
-  difficulty: GameDifficulty;
+  /** v0.8.3：`gameService` 已按主题分级校验过，这里只负责写。 */
+  difficulty: string;
+  /**
+   * v0.8.3：展示顺序。`undefined` = 这次没提 —— 沿用上一行的值（重新部署不该
+   * 把作者排好的顺序清零）；都没有就落 `0`。
+   *
+   * 注意这个值必须在这里兜住：`upsertGame` 是 delete-then-insert，行换新 id，
+   * 数据库默认值救不了「重新部署后被排到最后」。
+   */
+  sortWeight?: number;
   /**
    * v0.7.11：这条 slug 原本归另一条部署所有，作者选择了**覆盖**。
    *
@@ -135,6 +154,7 @@ export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> 
       .first()) as MapGameRow | undefined;
 
     const coverPath = data.clearCover ? null : data.coverPath ?? previous?.cover_path ?? null;
+    const sortWeight = data.sortWeight ?? previous?.sort_weight ?? 0;
 
     await trx('games').where({ puzzle_id: data.puzzleId }).del();
     const [row] = (await trx<MapGameRow>('games')
@@ -144,6 +164,7 @@ export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> 
         slug: data.slug,
         cover_path: coverPath,
         difficulty: data.difficulty,
+        sort_weight: sortWeight,
       })
       .returning('id')) as Array<{ id: string | number }>;
     return Number(row!.id);
@@ -198,6 +219,7 @@ export function toSummary(row: GameRowWithPuzzle): MapGameSummary {
     slug: row.slug,
     coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
     difficulty: row.difficulty,
+    sortWeight: Number(row.sort_weight ?? 0),
     gridSize: draft ? puzzleGridSize(draft) : 0,
     participantCount: participantCount(draft),
     createdAt: new Date(row.created_at).toISOString(),

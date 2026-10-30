@@ -1,4 +1,4 @@
-import type { GameDifficulty, MapGameDetail, MapGameSummary } from '@loredoku/shared';
+import type { MapGameDetail, MapGameSummary } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPost } from './client';
 
 /**
@@ -23,7 +23,13 @@ export interface DeployGamePayload {
    * 只应由「覆盖」弹窗的确认按钮传 —— 默认 `false`，冲突仍然是错误。
    */
   overwriteSlug?: boolean;
-  difficulty?: GameDifficulty;
+  /** v0.8.3：主题里的一档难度标识（内置五档之一或自定义 key）。 */
+  difficulty?: string;
+  /**
+   * v0.8.3：展示顺序（升序，小的在前，同权重按访问路径）。
+   * **缺省 ≠ 0** —— 不传表示「沿用这条部署上一次的值」，重新部署不会把顺序清零。
+   */
+  sortWeight?: number;
 }
 
 export const gamesApi = {

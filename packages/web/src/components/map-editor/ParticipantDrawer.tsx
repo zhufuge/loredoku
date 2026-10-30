@@ -334,8 +334,9 @@ export function ParticipantDrawer({
 
               {/*
                * Theme colour — FEAT-H08 §8.2(a) (docs/v0.4.2.md §8): one row with
-               * the current selection. The 15-colour palette and the hex box moved
-               * one layer down into `ThemeColorDialog`, which the row opens.
+               * the current selection. The editing controls moved one layer down
+               * into `ThemeColorDialog`, which the row opens. v0.8.3：那一层里现在
+               * 只有取色器 + hex（色板已按用户要求删除）。
                */}
               <div className="space-y-2">
                 <Label>主题色</Label>

@@ -8,7 +8,7 @@ import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { rememberThemeCode, SETTINGS_THEMES_PATH, WORKSHOP_MODULES, type ModuleKey } from '@/lib/workspace';
 import { cn } from '@/lib/utils';
 
-/** 与 `ThemeActionsMenu` 同宽：一行「名字 + 编码」读得完。 */
+/** 菜单宽度：一行「勾选 + 色点 + 名字 + 编码」读得完。 */
 const MENU_WIDTH = 208;
 
 const itemClass =

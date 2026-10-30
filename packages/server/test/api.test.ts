@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
 import { ErrorCode, MAP_JSON_VERSION } from '@loredoku/shared';
 import type { MapDraft } from '@loredoku/shared';
@@ -1561,6 +1561,164 @@ describe('games API slug (OPT-W04)', () => {
 });
 
 /**
+ * v0.8.3：展示顺序（`games.sort_weight`）。
+ *
+ * 三件事必须钉住：排序的两级（权重 → 路径）、重新部署**不**把顺序清掉、越界的
+ * 数字被拒而不是静默改成 0。第三条最容易悄悄坏掉 —— 一个 `.default(0)` 就能让
+ * 「这次没提」变成「就排 0」，作者排好的先后在下次改封面时就散了。
+ */
+describe('games API 展示顺序 (v0.8.3)', () => {
+  function token(): string {
+    return Math.random().toString(16).slice(2, 10);
+  }
+
+  const listOurs = async (hex: string): Promise<Array<{ slug: string; sortWeight: number }>> => {
+    const list = await api.get('/api/games');
+    return (list.body.data as Array<{ slug: string; sortWeight: number }>).filter((row) =>
+      row.slug.endsWith(hex),
+    );
+  };
+
+  it('按 sort_weight 升序排，同权重再按访问路径', async () => {
+    const hex = token();
+    const deploy = async (slug: string, sortWeight?: number): Promise<void> => {
+      const { versionId } = await deployablePuzzle(`Ord ${slug} ${hex}`);
+      const res = await api
+        .post(`/api/puzzles/${versionId}/games`)
+        .send(sortWeight === undefined ? { slug } : { slug, sortWeight });
+      expect(res.status).toBe(200);
+    };
+
+    // 故意按「乱的顺序」部署：b(5) → a(5) → z(-1)。若还按 `created_at desc` 排，
+    // 结果会是 z / a / b 之外的另一种顺序，这条断言就会失败。
+    await deploy(`ord-b-${hex}`, 5);
+    await deploy(`ord-a-${hex}`, 5);
+    await deploy(`ord-z-${hex}`, -1);
+
+    const ours = await listOurs(hex);
+    expect(ours.map((row) => row.slug)).toEqual([
+      `ord-z-${hex}`,
+      `ord-a-${hex}`,
+      `ord-b-${hex}`,
+    ]);
+    expect(ours.map((row) => row.sortWeight)).toEqual([-1, 5, 5]);
+  });
+
+  it('重新部署不带顺序时沿用上一次的值', async () => {
+    const hex = token();
+    const slug = `keep-${hex}`;
+    const { versionId } = await deployablePuzzle(`Keep ${hex}`);
+
+    const first = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug, sortWeight: 7 });
+    expect(first.status).toBe(200);
+    expect(first.body.data.sortWeight).toBe(7);
+
+    // 只换难度、不提顺序 —— 行是 delete-then-insert，值必须由服务端带过去。
+    const second = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug, difficulty: 'hard' });
+    expect(second.status).toBe(200);
+    expect(second.body.data.sortWeight).toBe(7);
+  });
+
+  it('没设过顺序时是 0，且越界的数字被拒', async () => {
+    const hex = token();
+    const { versionId } = await deployablePuzzle(`Plain ${hex}`);
+
+    const plain = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug: `plain-${hex}` });
+    expect(plain.body.data.sortWeight).toBe(0);
+
+    for (const sortWeight of [1000, -1000, 1.5]) {
+      const res = await api
+        .post(`/api/puzzles/${versionId}/games`)
+        .send({ slug: `plain-${hex}`, sortWeight });
+      expect(res.status, String(sortWeight)).toBe(400);
+      expect(res.body.code, String(sortWeight)).toBe(ErrorCode.VALIDATION_FAILED);
+    }
+  });
+});
+
+/**
+ * v0.8.3（docs/v0.8.3.md §3）：难度分级归主题。
+ *
+ * 三个断言各钉一件事：自定义档能部署、没提难度时用主题的默认档（不是写死的
+ * `medium`）、内置档在自定义主题里**同样**不合法（分级是整份替换，不是追加）。
+ *
+ * 主题用固定编码 + PATCH 覆盖 data：每跑一次都新建一个主题会把库变成垃圾场
+ * （`fixtureTheme` 的注释里已经记过这笔账）。
+ */
+describe('难度分级由主题定义 (v0.8.3)', () => {
+  const THEME_CODE = 'test-tiers';
+
+  // v0.8.3 §15：主题是硬删了，固定编码的夹具不再「留着复用」—— 跑完直接收掉。
+  // 走 `purgeTheme` 而不是接口：这个主题里还有地图 / 谜题 / 角色，接口只会回 409。
+  afterAll(async () => {
+    const { purgeTheme } = await import('./purge');
+    await purgeTheme(THEME_CODE);
+  });
+
+  async function useTiers(levels: Array<{ key: string; label: string }>): Promise<void> {
+    const created = await api.post('/api/themes').send({ code: THEME_CODE, name: '分级测试主题' });
+    if (created.status !== 200 && created.status !== 409) {
+      throw new Error(`分级测试主题建不出来：${created.status}`);
+    }
+    const patched = await api
+      .patch(`/api/themes/${THEME_CODE}`)
+      .send({ data: { version: 1, difficultyLevels: levels } });
+    expect(patched.status).toBe(200);
+  }
+
+  /** 与 `deployablePuzzle` 同款，只是把主题换掉 —— 发布要求名册上至少有一个人。 */
+  async function deployableInTheme(name: string, themeCode: string): Promise<number> {
+    const mapId = await createMap({ name, gridSize: 6, themeCode });
+    const versionNo = await publish(mapId);
+    const draftId = await createPuzzle({ name: `${name} 谜题`, mapId, mapVersionNo: versionNo });
+    const characterId = await createCharacterWithAvatar({ themeCode });
+    const initial = await api.get(`/api/puzzles/${draftId}`);
+    const draft = initial.body.data.data;
+    draft.characterSlots[0] = { characterId };
+    const saved = await api
+      .put(`/api/puzzles/${draftId}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(saved.status).toBe(200);
+    return publishPuzzle(draftId);
+  }
+
+  it('自定义档能部署；没提难度时取正中间那一档；内置档被拒', async () => {
+    await useTiers([
+      { key: 'warmup', label: '热身' },
+      { key: 'brutal', label: '地狱' },
+    ]);
+    const versionId = await deployableInTheme(`Tiered ${uniqueCode('t')}`, THEME_CODE);
+
+    const auto = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug: uniqueSlug('tier-auto') });
+    expect(auto.status).toBe(200);
+    // 两档的「正中间」落在第一档 —— 关键是它**来自主题**，而不是写死的 medium。
+    expect(auto.body.data.difficulty).toBe('warmup');
+
+    const custom = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug: uniqueSlug('tier-custom'), difficulty: 'brutal' });
+    expect(custom.status).toBe(200);
+    expect(custom.body.data.difficulty).toBe('brutal');
+
+    // medium 是内置档，但这个主题只有两档 —— 整份替换，不是「内置 + 追加」。
+    const rejected = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug: uniqueSlug('tier-nope'), difficulty: 'medium' });
+    expect(rejected.status).toBe(400);
+    expect(rejected.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(rejected.body.message).toContain('不是这个主题的难度分级');
+  });
+});
+
+/**
  * v0.7.1 §5.2 / §7.1：谜题有了版本，部署的单位从「谜题」变成「谜题版本行」。
  *
  * 这一组钉住四层拦截的第三层（服务端 400）与两个唯一约束的分工：
@@ -2076,6 +2234,127 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
     const names = (byName.body.data.list as Row[]).map((row) => row.name);
     expect(names).toEqual([...names].sort());
     expect(names[0]).toBe(`Order A ${token}`);
+  });
+});
+
+/**
+ * v0.8.3（docs/v0.8.3.md §15）：删主题 = **物理删除**，编码立刻回到可用状态。
+ *
+ * 以前是软删：行还在、`themes.code`（普通 UNIQUE）仍被占着，同编码重建只能撞唯一
+ * 约束 —— 接口回的是 500「服务器内部错误」。四条用例各钉一件事：编码释放、数量
+ * 护栏、合辑护栏、软删子行（外键）不挡路。
+ */
+describe('删除主题是硬删 (v0.8.3 §15)', () => {
+  /** 用例自己建的主题：跑完一律物理清掉（合辑 / 游戏的外键也由它一并处理）。 */
+  const createdThemes: string[] = [];
+
+  afterEach(async () => {
+    const { purgeTheme } = await import('./purge');
+    for (const code of createdThemes) await purgeTheme(code);
+    createdThemes.length = 0;
+  });
+
+  async function newTheme(prefix: string, name = '一次性主题'): Promise<string> {
+    const code = `${prefix}-${uniqueCode('t')}`;
+    const res = await api.post('/api/themes').send({ code, name });
+    expect(res.status).toBe(200);
+    createdThemes.push(code);
+    return code;
+  }
+
+  /** 一个能在指定主题里部署的谜题版本：发布要有名册，名册上得有位带头像的人。 */
+  async function deployableIn(code: string, name: string): Promise<number> {
+    const mapId = await createMap({ name, gridSize: 6, themeCode: code });
+    const versionNo = await publish(mapId);
+    const draftId = await createPuzzle({ name: `${name} 谜题`, mapId, mapVersionNo: versionNo });
+    const characterId = await createCharacterWithAvatar({ themeCode: code });
+    const initial = await api.get(`/api/puzzles/${draftId}`);
+    const draft = initial.body.data.data;
+    draft.characterSlots[0] = { characterId };
+    const saved = await api
+      .put(`/api/puzzles/${draftId}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    expect(saved.status).toBe(200);
+    return publishPuzzle(draftId);
+  }
+
+  it('空主题删掉之后，同一个编码可以立刻重建', async () => {
+    const code = await newTheme('hard');
+
+    const removed = await api.delete(`/api/themes/${code}`);
+    expect(removed.status).toBe(200);
+    expect((await api.get(`/api/themes/${code}`)).status).toBe(404);
+
+    // 软删时代这一句就是 500：尸体行还占着 `themes.code`。
+    const again = await api.post('/api/themes').send({ code, name: '同编码重建' });
+    expect(again.status).toBe(200);
+    expect(again.body.data.code).toBe(code);
+  });
+
+  it('主题里还有资源时拒绝，并说清数量', async () => {
+    const code = await newTheme('busy');
+    await createAsset({ themeCode: code });
+
+    const res = await api.delete(`/api/themes/${code}`);
+    expect(res.status).toBe(409);
+    expect(res.body.message).toContain('1 个资源');
+    // 拦住了就什么都没动。
+    expect((await api.get(`/api/themes/${code}`)).status).toBe(200);
+  });
+
+  it('主题下还有合辑时拒绝 —— 合辑不在卡片计数里，得单独点名', async () => {
+    const code = await newTheme('collect', '合辑测试');
+    await deployableIn(code, `合辑 ${uniqueCode('m')}`);
+    const deployed = await api
+      .post(`/api/themes/${code}/deploy`)
+      .send({ slug: uniqueSlug('collect'), name: '合辑' });
+    expect(deployed.status).toBe(200);
+
+    const res = await api.delete(`/api/themes/${code}`);
+    expect(res.status).toBe(409);
+    // 卡片上此时还有「1 个谜题」，但先说话的是合辑 —— 它是外键那一道。
+    expect(res.body.message).toContain('合辑');
+  });
+
+  it('只剩软删的地图 / 谜题 / 游戏行时，仍然删得掉', async () => {
+    const code = await newTheme('zombie');
+    const name = `僵尸 ${uniqueCode('z')}`;
+    const mapId = await createMap({ name, gridSize: 6, themeCode: code });
+    const versionNo = await publish(mapId);
+    const draftId = await createPuzzle({ name, mapId, mapVersionNo: versionNo });
+    const characterId = await createCharacterWithAvatar({ themeCode: code });
+    const initial = await api.get(`/api/puzzles/${draftId}`);
+    const draft = initial.body.data.data;
+    draft.characterSlots[0] = { characterId };
+    await api
+      .put(`/api/puzzles/${draftId}`)
+      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
+    const versionId = await publishPuzzle(draftId);
+
+    // 部署 → 取消部署：`games` 行留着（软删），谜题版本行接着也软删。
+    const game = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug: uniqueSlug('zombie') });
+    expect(game.status).toBe(200);
+    expect((await api.delete(`/api/games/${game.body.data.id as number}`)).status).toBe(200);
+
+    // 版本行软删、草稿行硬删 —— 作者眼里这个主题已经空了。
+    expect((await api.delete(`/api/puzzles/${versionId}`)).status).toBe(200);
+    expect((await api.delete(`/api/puzzles/${draftId}`)).status).toBe(200);
+    expect((await api.delete(`/api/maps/${mapId}/versions/${versionNo}`)).status).toBe(200);
+    expect((await api.delete(`/api/maps/${mapId}`)).status).toBe(200);
+    // 角色走的是「停用」不是删除（停用的角色仍然属于这个主题，卡片也数它），
+    // 要真抬走得显式 `hard=true` —— 否则主题会以「1 个角色」被拦。
+    expect(
+      (await api.delete(`/api/characters/${characterId}?hard=true&clearReferences=true`)).status,
+    ).toBe(200);
+
+    const counts = (await api.get(`/api/themes/${code}`)).body.data.counts as Record<string, number>;
+    expect(counts).toEqual({ assets: 0, maps: 0, characters: 0, puzzles: 0, games: 0 });
+
+    // 计数是 0，但软删行还挂着 `theme_id`：不先抬走它们，`DELETE` 会撞 23503。
+    expect((await api.delete(`/api/themes/${code}`)).status).toBe(200);
+    expect((await api.get(`/api/themes/${code}`)).status).toBe(404);
   });
 });
 

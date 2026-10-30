@@ -85,6 +85,7 @@ export function useDeployGame(options: { onSlugConflict?: SlugConflictHandler } 
       name,
       slug,
       difficulty,
+      sortWeight,
       clearCover,
       overwriteSlug,
       cover,
@@ -98,6 +99,7 @@ export function useDeployGame(options: { onSlugConflict?: SlugConflictHandler } 
         name,
         slug,
         difficulty,
+        sortWeight,
         clearCover,
         overwriteSlug,
       });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import {
-  GAME_DIFFICULTY_DEFAULT,
   GAME_DIFFICULTY_LEVELS,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
@@ -61,9 +60,14 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
     expect(parsed.clearCover).toBe(false);
   });
 
-  it('defaults the difficulty to medium and leaves the name to the service', () => {
+  /**
+   * v0.8.3：缺省难度**不再由 schema 决定** —— 由服务端按谜题所属主题分级补
+   * （内置五档给 `medium`，自定义分级给正中间那一档）。schema 里写死一个值，
+   * 只会让「只有两档、且都不叫 medium」的主题连部署都做不了。
+   */
+  it('leaves the difficulty to the service and the name to the service', () => {
     const parsed = gameDeploySchema.parse({});
-    expect(parsed.difficulty).toBe(GAME_DIFFICULTY_DEFAULT);
+    expect(parsed.difficulty).toBeUndefined();
     expect(parsed.name).toBeUndefined();
   });
 
@@ -72,8 +76,19 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
     expect(gameDeploySchema.safeParse({ versionNo: 3 }).success).toBe(true);
   });
 
-  it('rejects an unknown difficulty', () => {
-    expect(gameDeploySchema.safeParse({ difficulty: 'nightmare' }).success).toBe(false);
+  /**
+   * v0.8.3：难度是主题自定义的标识，schema 只判断**形状**。
+   * `nightmare` 现在形状合法 —— 它是不是这个主题的一档，由服务端拿着主题去核对
+   * （`api.test.ts` 的「自定义分级」一组）。
+   */
+  it('rejects a difficulty that is not an identifier at all', () => {
+    for (const bad of ['Very Easy', '困难', '-x', 'a b', 'x'.repeat(33)]) {
+      expect(gameDeploySchema.safeParse({ difficulty: bad }).success, bad).toBe(false);
+    }
+    // 内置五档是 camelCase，必须继续合法；自定义档（`nightmare`）形状上也合法。
+    for (const good of ['veryEasy', 'nightmare', 'tier-1']) {
+      expect(gameDeploySchema.safeParse({ difficulty: good }).success, good).toBe(true);
+    }
   });
 
   it('rejects an over-long name', () => {
@@ -86,6 +101,34 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
     for (const difficulty of GAME_DIFFICULTY_LEVELS) {
       expect(gameDeploySchema.parse({ difficulty }).difficulty).toBe(difficulty);
     }
+  });
+});
+
+/**
+ * v0.8.3：`sortWeight` 的**不给默认值**是刻意的 —— 缺省与 0 是两句话。
+ *
+ * 缺省 = 「这次没提」，服务端沿用上一行的值；0 = 「就排 0」。两者混成一个，
+ * 重新部署（delete-then-insert）就会把作者排好的顺序冲掉。
+ */
+describe('gameDeploySchema sortWeight (v0.8.3)', () => {
+  it('缺省时不落 0，交给仓储沿用上一行', () => {
+    expect(gameDeploySchema.parse({}).sortWeight).toBeUndefined();
+  });
+
+  it('显式 0 与缺省是两回事', () => {
+    expect(gameDeploySchema.parse({ sortWeight: 0 }).sortWeight).toBe(0);
+  });
+
+  it('接受区间内的负值（想把一关顶到最前面就得靠它）', () => {
+    expect(gameDeploySchema.parse({ sortWeight: -999 }).sortWeight).toBe(-999);
+    expect(gameDeploySchema.parse({ sortWeight: 999 }).sortWeight).toBe(999);
+  });
+
+  it('拒绝越界与非整数，而不是静默改成 0', () => {
+    for (const bad of [1000, -1000, 1.5, Number.NaN]) {
+      expect(gameDeploySchema.safeParse({ sortWeight: bad }).success, String(bad)).toBe(false);
+    }
+    expect(gameDeploySchema.safeParse({ sortWeight: '3' }).success).toBe(false);
   });
 });
 

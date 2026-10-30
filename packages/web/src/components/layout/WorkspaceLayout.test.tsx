@@ -114,6 +114,22 @@ describe('WorkspaceLayout（v0.8.0 §18）', () => {
     expect(text()).not.toContain('地图正文');
   });
 
+  /**
+   * v0.8.3（docs/v0.8.3.md §13）：这一页最常见的来路就是「地址里那间刚被删掉」，
+   * 而 `workshopPath()` 拼的正是「记住的编码」—— 也就是被删的那一个。若这里仍
+   * 用 `workshopPath('overview')`，这个按钮会把自己指回自己，点几下都出不去。
+   *
+   * 回**入口**（`/`）：`ThemeEntryRedirect` 会把记住的编码对着现有列表验一遍，
+   * 失效就落到还开着的第一间。
+   */
+  it('「回到工坊」去入口，不去记忆里那个已失效的编码', () => {
+    window.localStorage.setItem('loredoku.lastTheme', 'nope');
+    render('/nope/maps');
+
+    const back = links().find((node) => node.textContent?.trim() === '回到工坊');
+    expect(back?.getAttribute('href')).toBe('/');
+  });
+
   it('概览页也在同一个外壳里，导航第一项是它', () => {
     render('/hlm/overview');
 
@@ -168,6 +184,20 @@ describe('AppShell · config（v0.8.0 §18）', () => {
     expect(text()).toContain('返回工坊');
     // 主题切换器属于工作空间，配置页没有它。
     expect(document.querySelector('[data-testid="theme-switcher"]')).toBeNull();
+  });
+
+  /**
+   * v0.8.3（docs/v0.8.3.md §13）：删完主题就落在这张列表上，而「返回工坊」原先
+   * 拼的是「记住的编码」—— 那正好是刚被删掉的那个，于是点回去得到「没有编码是
+   * xxx 的主题」。
+   *
+   * 现在它指向 `/`：选哪一间由入口统一裁定（记住且还在 → 它；否则第一间）。
+   */
+  it('「返回工坊」去入口，不自己拼一个可能已被删掉的编码', () => {
+    const back = Array.from(document.querySelectorAll('header a')).find(
+      (node) => node.textContent?.trim() === '返回工坊',
+    );
+    expect(back?.getAttribute('href')).toBe('/');
   });
 
   /**

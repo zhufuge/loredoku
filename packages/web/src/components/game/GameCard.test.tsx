@@ -23,6 +23,7 @@ const GAME: MapGameSummary = {
   slug: 'foggy-harbour',
   coverUrl: '/covers/foggy-harbour.png',
   difficulty: 'hard',
+  sortWeight: 0,
   gridSize: 9,
   participantCount: 6,
   createdAt: '2026-01-01T00:00:00.000Z',

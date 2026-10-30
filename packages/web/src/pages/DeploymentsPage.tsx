@@ -2,9 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { Check, Copy, ExternalLink, Package, Rocket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  GAME_DIFFICULTY_COLORS,
-  GAME_DIFFICULTY_LABELS,
-  GAME_DIFFICULTY_TEXT_COLORS,
   type MapGameSummary,
   type PuzzleEntrySummary,
   type ThemeDeploymentSummary,
@@ -24,6 +21,7 @@ import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
+import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import { GameDeployDialog } from '@/components/game/GameDeployDialog';
 import { ExportBundleDialog } from '@/components/theme/ExportBundleDialog';
 import { useCancelGame, useGames } from '@/hooks/useGames';
@@ -226,15 +224,7 @@ export function DeploymentsPage(): JSX.Element {
           </div>
         </div>
 
-        <span
-          className="shrink-0 rounded-full px-2 py-0.5 text-2xs font-medium"
-          style={{
-            backgroundColor: GAME_DIFFICULTY_COLORS[game.difficulty],
-            color: GAME_DIFFICULTY_TEXT_COLORS[game.difficulty],
-          }}
-        >
-          {GAME_DIFFICULTY_LABELS[game.difficulty]}
-        </span>
+        <DifficultyBadge difficulty={game.difficulty} />
 
         <span className="w-16 shrink-0 tabular-nums text-sm text-muted-foreground">
           {game.gridSize} × {game.gridSize}

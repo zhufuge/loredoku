@@ -559,7 +559,18 @@ export interface MapGameSummary {
    */
   slug: string;
   coverUrl: string | null;
-  difficulty: GameDifficulty;
+  /**
+   * v0.8.3：难度标识。内置五档（`veryEasy` … `expert`）或主题自己定义的一档
+   * （`ThemeData.difficultyLevels[].key`）—— 展示前先用 `difficultyBadge` 对一遍
+   * 当前分级，对不上就照原样显示标识。
+   */
+  difficulty: string;
+  /**
+   * v0.8.3：展示顺序（越小越靠前）。列表接口已按它排好序，前端不必再排 ——
+   * 这个字段出现在这里，是为了让部署弹窗回填「上一次设的序号」，以及让导出
+   * 清单和列表说同一个顺序。
+   */
+  sortWeight: number;
   /** 派生自 `puzzle.data.map.data.gridSize`。 */
   gridSize: number;
   participantCount: number;
@@ -668,6 +679,30 @@ export interface ThemeData {
   accent?: string;
   style?: MapStyle;
   linkageColors?: MapLinkageColor[];
+  /**
+   * v0.8.3：这个空间的**难度分级**。
+   *
+   * 缺省（`undefined`）= 内置五档（极简 / 简单 / 中等 / 困难 / 专家）。给了就用
+   * 给的这几档 —— 顺序即「由易到难」，也决定徽章取热力坡上的哪一档颜色。
+   *
+   * 它和 `style` / `linkageColors` 一样是主题级的，但**消费方式不同**：那两个在
+   * 新建内容时被拷贝走，之后各走各的；分级不拷贝 —— 部署弹窗、游戏卡、资源包
+   * 每次都读**当前**主题的这几档。理由很直接：难度是一个「说法」，不是内容。
+   */
+  difficultyLevels?: ThemeDifficultyTier[];
+}
+
+/**
+ * v0.8.3：一档难度。
+ *
+ * `key` 落库（`games.difficulty`），改名不该把它改掉 —— 所以名字与标识分开，
+ * 与主题「显示名 / 编码」是同一组关系。
+ */
+export interface ThemeDifficultyTier {
+  /** 稳定标识，`GAME_DIFFICULTY_KEY_PATTERN`。 */
+  key: string;
+  /** 徽章上的字。 */
+  label: string;
 }
 
 /**

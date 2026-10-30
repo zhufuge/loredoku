@@ -72,6 +72,16 @@
 5 档是「竹青 → 芽绿 → 赭黄 → 柿橙 → 绛」的单向坡，表达一根刻度尺。`shared/constants.ts`
 的 `GAME_DIFFICULTY_*_COLORS` 存的是 `var(...)` 字符串，调用处是内联 style，所以自动跟随主题。
 
+v0.8.3 起**分级的档数是主题定的**（概览页可增删，见 `docs/v0.8.3.md` §3）：徽章底色不再
+按「档叫什么」查表，而是按它在分级里的**相对位置**落到这条坡上 —— 三档得到「竹青 / 赭黄 /
+绛」，八档则相邻两档共用一格。所以：
+
+- 颜色**不存**在 `themes.data.difficultyLevels` 里，作者只能改名字与顺序；
+- 取色只走 `difficultyBadge()`（`shared/difficulty.ts`），不要在组件里
+  `GAME_DIFFICULTY_COLORS[game.difficulty]` —— 那个键来自五个写死的值，自定义档会直接
+  拿到 `undefined`，徽章变成一行没有底色的字；
+- 标识不在分级里（档被删了）时时退回 `--muted` 中性灰 + 原样显示标识。
+
 两个历史坑，写在 `index.css` 注释里，别重新踩：
 
 - 浅色下 `secondary` 与 `accent` 曾经同值（96.1% 近白），选中与悬停分不出来（v0.7.0）。
@@ -232,12 +242,12 @@ v0.7.14 的题面一度是压在画布上的浮纸，专门占了一档 `gameBri
 |---|---|---|
 | `button` | variant ×6：`default` `destructive` `outline` `secondary` `ghost` `link`；size ×4：`default`(h-10) `sm`(h-9) `lg`(h-11) `icon`(40×40) | 悬停走 `*-hover` token；要 28px 图标按钮时**别用 `size="icon"`**，手写 `<button>` 或 `className="h-7 w-7"`（§3.4） |
 | `card` | `Card` `CardHeader` `CardTitle` `CardDescription` `CardContent` `CardFooter` | 原版 shadcn 的骨架，但阴影换成了 `shadow-paper`（v0.7.9 §3）：`rounded-lg border bg-card shadow-paper` + `p-6`。**`p-6` 对工坊偏大**，实际使用常被 `p-4` 覆盖 |
-| `input` | — | `h-10`、`text-sm`、`rounded-md`、`focus-visible:ring-2` |
+| `input` | — | `h-10`、`text-sm`、`rounded-md`、`focus-visible:ring-2`。`placeholder` 是伪元素，字体从元素继承 —— 给标识符字段（编码、hex、key）加 `font-mono` 时，**占位符里要是句子就得写 `placeholder:font-sans`**，否则中文会跟着等宽栈落到另一个后备字体上（v0.8.3 §14.5） |
 | `textarea` | — | 与 Input 同族 |
 | `label` | — | `text-sm font-medium`，表单里一律配 `<Label>` |
 | `select` | — | **原生 `<select>`** 薄封装，`h-10` + `ring-2`（v0.7.8 起与 Input 逐项对齐）。默认 `w-full`，要按内容收窄加 `w-auto`。**不要再手写 `<select>`** |
 | `segmented-radio` | — | 真 radio group（`role="radiogroup"` + `aria-checked`）。两个选项时**不要用下拉**，用它 |
-| `color-input` / `color-palette` | — | 颜色选择，走 `shared/color.ts` 的 hex/HSV 工具 |
+| `color-input` | — | 颜色选择。**取色一律用 `ColorField`**（v0.8.3 §8）：色块（原生取色器）+ hex 输入框，就这两件 —— **没有调色板**（v0.8.3 §8.3 按要求整块删掉，连同 `color-palette` 组件与 15 色常量）。裸 `ColorInput` 只剩两种用法：需要 `rgba()` 的阴影环，以及将来确实要单独摆一个色块的地方 |
 | `dialog` | — | **禁止点遮罩关闭**（`AGENTS.md` §3.2 硬约定） |
 | `alert-dialog` | — | 破坏性操作专用，二段式确认 |
 | `skeleton` | — | 加载占位，列表页在 `isLoading` 时铺。**不要自己写 `animate-pulse`**：组件里的 `load-skeleton` 已经带了「迟到 200ms + 呼吸」（v0.7.12 §9） |
@@ -282,7 +292,7 @@ v0.7.14 的题面一度是压在画布上的浮纸，专门占了一档 `gameBri
 页头  ──24px──  工具条  ──16px──  列表/网格           ← 地图 / 谜题
 页头  ──24px──  主从两栏                              ← 资源 / 角色
 页头  ──24px──  行列表（一个工作空间里的在线内容）     ← 部署
-页头  ──24px──  四格计数入口 ──16px──  事实行          ← 概览（/:code/overview）
+页头  ──24px──  五格计数入口 ──16px──  信息卡 ──16px──  两张清单卡  ← 概览（/:code/overview）
 页头  ──24px──  主题卡片网格                          ← 系统配置 · 主题
 ```
 
@@ -521,8 +531,10 @@ v0.8.0 §18 起这就是工作空间里的**常态**空态：地址已经说明�
 | 块 | 形状 | 边界 |
 |---|---|---|
 | 设置页 · 主题卡 | `a` + `rounded-lg border bg-card`，顶 8px 识别色带，左文右数 | **不用 `<Card>`**：它是整块可点的链接，`Card` 的 `shadow-paper` 在悬停时会让「浮起来」和「点得动」两件事混在一起 |
-| 概览 · 四格计数 | 同上（链接、无阴影、`p-3`），24px 图标（`strokeWidth={1.5}`，`self-start`）+ 24px 楷体数字 + 11px 标签 + 右侧箭头 | 四格 ≤4 项，正好卡在工作记忆上限；第五格要另起一块。图标取自 `lib/moduleIcons.ts` 的 `MODULE_ICONS` —— 与顶栏导航**同一枚**，两处各写一份必然漂（v0.8.2 §12） |
-| 概览 · 事实行 | `<Card>` + `divide-y`，行 `min-h-10`，左 64px 标签 | 这里是「只读事实」，值后面可以跟一句话，但**不许**长出控件 |
+| 概览 · 五格计数 | 同上（链接、无阴影、`p-3`），24px 图标（`strokeWidth={1.5}`，`self-start`）+ 24px 楷体数字 + 11px 标签 + 右侧箭头 | **五格一行**（资源 / 地图 / 角色 / 谜题 / 部署），`lg:grid-cols-5`；1440 下 237px、1024 下 186px 仍容得下「24px 图标 + 数字 + 箭头」，第六格才需要另起一块。图标取自 `lib/moduleIcons.ts` 的 `MODULE_ICONS` —— 与顶栏导航**同一枚**（v0.8.2 §12）。第五格数的是 `counts.games`（部署行），不是谜题数（v0.8.3 §2） |
+| 概览 · 信息卡 | `<Card>` + `divide-y`，行 `min-h-10`，左 64px 标签 | 四行固定：名称 / 编码 / 描述 / 识别色。这里是「这个空间是什么」，值后面**不许**长出控件，也不许塞操作指引（v0.8.3 §3 删掉了「缺省风格」「上线」两行） |
+| 概览 · 清单卡（v0.8.3） | `<Card>` + `CardHead`（楷体标题 + 一句口径 + 右侧「编辑<区块名>」），正文是网格清单 | 两张：**缺省风格**（四组 27 项，`sm:2 / xl:3` 列，每行「名字 —— 值」，颜色给色块 + hex）与**难度分级**（一排徽章）。清单是**读**，表单在弹窗里；清单里不许出现控件 —— 一行里放一个输入框，二十几行就是二十几个「有没有保存」的疑问（v0.8.3 §2 / §3） |
+| 概览 · 页头动作（v0.8.3） | 两个 `size="sm"` 按钮：`outline` 编辑信息 + `ghost` 删除主题 | **不设 `⋯`**：`⋯` 里只剩两个动作时，菜单比按钮贵；`⋯` 是在动作 ≥4 个时才划算的收纳。<br>「上线」与「导出资源包」都已搬到部署页 —— 概览回答静态问题，「出门」发生在部署页（v0.8.3 §1） |
 
 三条规矩：
 
@@ -530,7 +542,10 @@ v0.8.0 §18 起这就是工作空间里的**常态**空态：地址已经说明�
    的那张往下挪 8px，标题全错行（v0.8.2 §1.4）。
 2. **识别色走 `data.accent`**，卡片上不许写定色；它是作者的**门牌**，不是界面皮肤，
    所以它不随主题明暗变，也不进资源包。
-3. **作用域行（`ThemeScopeField`）只在真的能选时出现**（v0.8.2 §14）。主题由地址
+3. **动作平铺，不藏 `⋯`**（v0.8.3 §1）。页头动作 ≤3 个时一律平铺：主操作 `default` /
+   `outline`，破坏性用 `ghost` + `hover:text-destructive`。这套界面里 `⋯` 只在「同一个
+   对象有 4 个以上动作、且其中多数是低频的」时才出现。
+4. **作用域行（`ThemeScopeField`）只在真的能选时出现**（v0.8.2 §14）。主题由地址
    决定时（工作空间内的四个新建弹窗），这一行**整行不画** —— 地址 `/:code/...` 与
    顶栏的主题名已经说了两遍，弹窗里再说第三遍只是占掉 41px 却不让做任何决定。
    还有得选、且主题不止一间时，它是 `<Label>` 同档（14px / medium）、`min-h-10`
@@ -642,5 +657,6 @@ token 是唯一入口。
 - [ ] 新的页面内跳转带主题编码了吗？（`workspace.href(module)` / `workshopPath(module)`，别写 `'/maps'`）
 - [ ] 主题卡上的颜色走的是 `data.accent` 吗？没设识别色时那 8px 的位子还占着吗？（§3.11）
 - [ ] 新建弹窗里那行「主题」的标签与别的 `<Label>` 同档（14px / medium）、行高 40 吗？（§3.11）
+- [ ] 「编码 / 标识」这类进地址的字段，是作者自己填的吗？有没有从名字自动转写出来？（v0.8.3 §14）
 - [ ] 浮层层级用 `UI_Z` 了吗？
 - [ ] 跑过 `npm run typecheck` + `bash scripts/run-tests.sh packages/web` 吗？

@@ -61,6 +61,7 @@ function existingGame(overrides: Partial<MapGameSummary> = {}): MapGameSummary {
     slug: 'puzzle-night-train-easy',
     coverUrl: null,
     difficulty: 'easy',
+    sortWeight: 0,
     gridSize: 6,
     participantCount: 6,
     createdAt: '2026-01-04T00:00:00.000Z',
@@ -92,6 +93,21 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     document.querySelector<HTMLInputElement>('#game-deploy-slug') as HTMLInputElement;
 
   const text = (): string => document.body.textContent ?? '';
+
+  const sortInput = (): HTMLInputElement =>
+    document.querySelector<HTMLInputElement>('#game-deploy-sort') as HTMLInputElement;
+
+  const setSort = (value: string): void => {
+    const input = sortInput();
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(input),
+      'value',
+    )?.set;
+    act(() => {
+      setter?.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
 
   const clickButton = (label: string): void => {
     const found = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
@@ -190,6 +206,47 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
       }),
       expect.anything(),
     );
+  });
+
+  /**
+   * v0.8.3：顺序（`sort_weight`）。三种提交语义分别测 —— 回填、清空、越界。
+   * 「清空」那条最要紧：它必须是「这次不提」，而不是「就排 0」，否则重新部署
+   * 会把作者排好的先后冲掉。
+   */
+  it('重新部署时回填那条部署自己的顺序', () => {
+    render({ puzzle: puzzle(), existingGame: existingGame({ sortWeight: -3 }) });
+    expect(sortInput().value).toBe('-3');
+  });
+
+  it('第一次部署时顺序默认 0', () => {
+    render({ puzzle: puzzle() });
+    expect(sortInput().value).toBe('0');
+  });
+
+  it('清空顺序 = 这次不提（不把 0 发出去）', () => {
+    render({ puzzle: puzzle(), existingGame: existingGame({ sortWeight: 4 }) });
+    setSort('');
+    clickButton('部署');
+    const payload = deployMutate.mock.calls[0]?.[0] as Record<string, unknown>;
+    expect('sortWeight' in payload).toBe(false);
+  });
+
+  it('填了顺序就原样交出去', () => {
+    render({ puzzle: puzzle() });
+    setSort('12');
+    clickButton('部署');
+    expect(deployMutate).toHaveBeenCalledWith(
+      expect.objectContaining({ sortWeight: 12 }),
+      expect.anything(),
+    );
+  });
+
+  it('越界的顺序被拦住，不发请求', () => {
+    render({ puzzle: puzzle() });
+    setSort('1000');
+    clickButton('部署');
+    expect(deployMutate).not.toHaveBeenCalled();
+    expect(text()).toContain('顺序需为 -999 到 999 之间的整数');
   });
 
   it('谜题有封面时默认用它（v0.7.2 §4）', () => {

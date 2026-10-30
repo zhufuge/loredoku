@@ -13,6 +13,7 @@ function summary(slug: string): MapGameSummary {
     slug,
     coverUrl: null,
     difficulty: 'medium',
+    sortWeight: 0,
     gridSize: 2,
     participantCount: 1,
     createdAt: '2026-10-29T00:00:00.000Z',

@@ -74,3 +74,57 @@ describe('themeDataSchema.accent（v0.8.2）', () => {
     expect(parsed.linkageColors).toHaveLength(1);
   });
 });
+
+/**
+ * v0.8.3（docs/v0.8.3.md §3）：难度分级进 `data`。
+ *
+ * 三个硬约束各有理由：至少一档（零档的难度体系等于没有难度）、标识唯一（否则
+ * `games.difficulty` 指不出是哪一档）、最多 12 档（再多一屏放不下，也没人做）。
+ */
+describe('themeDataSchema.difficultyLevels（v0.8.3）', () => {
+  const tiers = [
+    { key: 'warmup', label: '热身' },
+    { key: 'brutal', label: '地狱' },
+  ];
+
+  it('不写就是内置五档 —— 存量主题原样成立', () => {
+    expect(themeDataSchema.parse({ version: 1 }).difficultyLevels).toBeUndefined();
+  });
+
+  it('写就原样收下，顺序不变', () => {
+    const parsed = themeDataSchema.parse({ version: 1, difficultyLevels: tiers });
+    expect(parsed.difficultyLevels).toEqual(tiers);
+  });
+
+  it('标识必须是短横线小写标识，名字不能空', () => {
+    expect(
+      themeDataSchema.safeParse({ version: 1, difficultyLevels: [{ key: 'Warm Up', label: '热' }] })
+        .success,
+    ).toBe(false);
+    expect(
+      themeDataSchema.safeParse({ version: 1, difficultyLevels: [{ key: 'warmup', label: ' ' }] })
+        .success,
+    ).toBe(false);
+  });
+
+  it('空数组被拒，一档都没有不叫分级', () => {
+    expect(themeDataSchema.safeParse({ version: 1, difficultyLevels: [] }).success).toBe(false);
+  });
+
+  it('标识重复被拒，并说出是哪一个', () => {
+    const parsed = themeDataSchema.safeParse({
+      version: 1,
+      difficultyLevels: [...tiers, { key: 'warmup', label: '又一个' }],
+    });
+    expect(parsed.success).toBe(false);
+    expect(parsed.success ? '' : parsed.error.issues[0]?.message).toContain('warmup');
+  });
+
+  it('超过 12 档被拒', () => {
+    const many = Array.from({ length: 13 }, (_, index) => ({
+      key: `tier-${index + 1}`,
+      label: `第 ${index + 1} 档`,
+    }));
+    expect(themeDataSchema.safeParse({ version: 1, difficultyLevels: many }).success).toBe(false);
+  });
+});

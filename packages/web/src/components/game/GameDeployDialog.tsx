@@ -2,22 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { ImagePlus, RefreshCw, Rocket, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  GAME_DIFFICULTY_COLORS,
-  GAME_DIFFICULTY_DEFAULT,
-  GAME_DIFFICULTY_LABELS,
-  GAME_DIFFICULTY_LEVELS,
-  GAME_DIFFICULTY_TEXT_COLORS,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
   GAME_SLUG_PREFIX,
+  GAME_SORT_WEIGHT_DEFAULT,
+  GAME_SORT_WEIGHT_MAX,
+  GAME_SORT_WEIGHT_MIN,
   composeSlug,
+  defaultDifficultyKey,
+  difficultyBadge,
   normalizeSlugInput,
+  resolveDifficultyTiers,
   slugError,
   slugify,
   splitSlug,
 } from '@loredoku/shared';
 import type {
-  GameDifficulty,
   GameSlugConflict,
   MapGameSummary,
   PuzzleEntrySummary,
@@ -32,6 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { Select } from '@/components/ui/select';
 import {
   AlertDialog,
@@ -119,7 +120,22 @@ export function GameDeployDialog({
    * 对外的地址改掉，路径只表达「这是哪一关」。
    */
   const [middle, setMiddle] = useState('');
-  const [difficulty, setDifficulty] = useState<GameDifficulty>(GAME_DIFFICULTY_DEFAULT);
+  /**
+   * v0.8.3：难度选项来自**当前主题**的分级（概览页可改）。缺省仍是内置五档 ——
+   * 没配过分级的主题照旧。
+   */
+  const workspace = useWorkspace();
+  const tiers = useMemo(
+    () => resolveDifficultyTiers(workspace?.theme.data.difficultyLevels),
+    [workspace?.theme.data.difficultyLevels],
+  );
+  const [difficulty, setDifficulty] = useState<string>(() => defaultDifficultyKey(tiers));
+  /**
+   * v0.8.3：展示顺序。存成**字符串**而不是数字 —— 输入框里允许出现「空」这个
+   * 中间状态（清空再重打），用数字承载会把空读成 0，于是作者清空的那一瞬就已经
+   * 决定「排 0」，而他还没打完。空串在提交时才翻译成「这次不提，沿用原值」。
+   */
+  const [sortWeight, setSortWeight] = useState(String(GAME_SORT_WEIGHT_DEFAULT));
   const [cover, setCover] = useState<File | null>(null);
   /**
    * OPT-W03 §3: the cover has three states — keep the stored one (default),
@@ -138,14 +154,30 @@ export function GameDeployDialog({
 
   const deploy = useDeployGame({ onSlugConflict: (info) => setConflict(info) });
 
+  /**
+   * 选项 = 主题的这几档；如果这条部署当前的难度**已经不在**分级里（作者后来删了
+   * 那一档），把它补在最后 —— 否则打开弹窗时没有任何一个按钮是选中的，作者会
+   * 以为这关没有难度。
+   */
+  const difficultyOptions = useMemo(() => {
+    const list = tiers.map((tier) => ({ key: tier.key, label: tier.label }));
+    if (difficulty && !list.some((tier) => tier.key === difficulty)) {
+      list.push({ key: difficulty, label: difficulty });
+    }
+    return list;
+  }, [tiers, difficulty]);
+
   // Every open starts from the puzzle's own defaults, or from the game's stored
   // values when this version row was deployed before (OPT-W03).
   useEffect(() => {
     if (!open || !activePuzzle) return;
     const startName = activePuzzle.name;
-    const startDifficulty = activeExisting?.difficulty ?? GAME_DIFFICULTY_DEFAULT;
+    const startDifficulty = activeExisting?.difficulty ?? defaultDifficultyKey(tiers);
     setName(startName);
     setDifficulty(startDifficulty);
+    // v0.8.3：重新部署时回填那条部署自己的顺序 —— 否则每次再部署都会把它悄悄
+    // 归 0，作者排好的先后在「改个封面」之后就散了。
+    setSortWeight(String(activeExisting?.sortWeight ?? GAME_SORT_WEIGHT_DEFAULT));
     setCover(null);
     setCoverRemoved(false);
     if (activeExisting) {
@@ -158,7 +190,7 @@ export function GameDeployDialog({
       setMiddle(slugify(startName));
       setMiddleTouched(false);
     }
-  }, [open, activePuzzle, activeExisting]);
+  }, [open, activePuzzle, activeExisting, tiers]);
 
   /** 关掉弹窗时把冲突与已选版本都收掉 —— 下次打开不该还停在「要覆盖吗」。 */
   useEffect(() => {
@@ -231,6 +263,23 @@ export function GameDeployDialog({
     activeExisting != null && slug.length > 0 && slug !== activeExisting.slug;
 
   /**
+   * v0.8.3：顺序的三种提交语义，别把它们混成一个值。
+   *
+   * - 空串 → `undefined`：这次不提，服务端沿用上一行（第一次部署则落 0）；
+   * - 合法整数 → 就排这个数；
+   * - 其它 → 拦住并说清区间，不是静默改成 0。
+   */
+  const weightText = sortWeight.trim();
+  const weightValue = weightText === '' ? undefined : Number(weightText);
+  const weightProblem =
+    weightValue !== undefined &&
+    (!Number.isInteger(weightValue) ||
+      weightValue < GAME_SORT_WEIGHT_MIN ||
+      weightValue > GAME_SORT_WEIGHT_MAX)
+      ? `顺序需为 ${GAME_SORT_WEIGHT_MIN} 到 ${GAME_SORT_WEIGHT_MAX} 之间的整数`
+      : null;
+
+  /**
    * v0.7.11：一次部署请求的完整形状。抽成类型是因为冲突时要用**同一份**内容
    * 重发一遍（只多一个 `overwriteSlug`）—— 让作者只回答「覆盖吗」，而不是
    * 重新填一遍表单。
@@ -239,7 +288,8 @@ export function GameDeployDialog({
     puzzleId: number;
     name: string;
     slug: string;
-    difficulty: GameDifficulty;
+    difficulty: string;
+    sortWeight?: number;
     clearCover: boolean;
     cover: File | null;
     coverFromPuzzleUrl: string | null;
@@ -271,12 +321,18 @@ export function GameDeployDialog({
       toast.error(problem);
       return;
     }
+    if (weightProblem) {
+      toast.error(weightProblem);
+      return;
+    }
     const request: DeployRequest = {
       // CONS-K16: the game belongs to the puzzle, not to the map version.
       puzzleId: activePuzzle.id,
       name: trimmed,
       slug: trimmedSlug,
       difficulty,
+      // v0.8.3：空着就不发这个键 —— 服务端会沿用上一次的值，而不是把它清成 0。
+      ...(weightValue === undefined ? {} : { sortWeight: weightValue }),
       // Only an explicit removal clears the stored cover (OPT-W03 §3).
       clearCover: coverRemoved && !cover,
       cover,
@@ -530,30 +586,70 @@ export function GameDeployDialog({
           <div className="space-y-1.5">
             <span className="text-sm font-medium">难度</span>
             <div className="flex flex-wrap gap-2">
-              {GAME_DIFFICULTY_LEVELS.map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  aria-pressed={difficulty === level}
-                  onClick={() => setDifficulty(level)}
-                  className={cn(
-                    // FEAT-O01: tint + dark label (was `text-white`).
-                    'rounded-full px-3 py-1 text-xs font-medium transition-opacity',
-                    difficulty === level
-                      ? 'ring-2 ring-offset-2 ring-offset-background'
-                      : 'opacity-60 hover:opacity-90',
-                  )}
-                  style={{
-                    backgroundColor: GAME_DIFFICULTY_COLORS[level],
-                    color: GAME_DIFFICULTY_TEXT_COLORS[level],
-                    ...(difficulty === level
-                      ? { boxShadow: `0 0 0 2px ${GAME_DIFFICULTY_COLORS[level]}` }
-                      : {}),
-                  }}
-                >
-                  {GAME_DIFFICULTY_LABELS[level]}
-                </button>
-              ))}
+              {difficultyOptions.map((tier) => {
+                const badge = difficultyBadge(tiers, tier.key);
+                return (
+                  <button
+                    key={tier.key}
+                    type="button"
+                    aria-pressed={difficulty === tier.key}
+                    onClick={() => setDifficulty(tier.key)}
+                    className={cn(
+                      // FEAT-O01: tint + dark label (was `text-white`).
+                      'rounded-full px-3 py-1 text-xs font-medium transition-opacity',
+                      difficulty === tier.key
+                        ? 'ring-2 ring-offset-2 ring-offset-background'
+                        : 'opacity-60 hover:opacity-90',
+                    )}
+                    style={{
+                      backgroundColor: badge.backgroundColor,
+                      color: badge.color,
+                      ...(difficulty === tier.key
+                        ? { boxShadow: `0 0 0 2px ${badge.backgroundColor}` }
+                        : {}),
+                    }}
+                  >
+                    {tier.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/*
+            v0.8.3：展示顺序。玩家首页、部署页与资源包里的游戏都按它排 ——
+            数字小的在前，同权重按访问路径。放在难度之后：它是「这次部署」
+            的第五项，不是「这个谜题」的属性。
+          */}
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium" htmlFor="game-deploy-sort">
+              顺序
+            </label>
+            <div className="flex items-center gap-3">
+              <Input
+                id="game-deploy-sort"
+                type="number"
+                inputMode="numeric"
+                step={1}
+                min={GAME_SORT_WEIGHT_MIN}
+                max={GAME_SORT_WEIGHT_MAX}
+                value={sortWeight}
+                placeholder={String(GAME_SORT_WEIGHT_DEFAULT)}
+                disabled={busy}
+                aria-describedby="game-deploy-sort-hint"
+                aria-invalid={weightProblem !== null}
+                className={cn('h-10 w-24 tabular-nums', weightProblem && 'border-destructive')}
+                onChange={(event) => setSortWeight(event.target.value)}
+              />
+              <p
+                id="game-deploy-sort-hint"
+                className={cn(
+                  'text-xs',
+                  weightProblem ? 'text-destructive' : 'text-muted-foreground',
+                )}
+              >
+                {weightProblem ?? '数字小的排前面，相同则按访问路径'}
+              </p>
             </div>
           </div>
         </div>
