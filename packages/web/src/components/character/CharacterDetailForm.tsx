@@ -119,7 +119,6 @@ export function CharacterDetailForm({
             {character.name}
             <GenderBadge gender={character.gender} />
           </h2>
-          <p className="text-xs text-muted-foreground">业务 ID：{character.code}（不可修改）</p>
         </div>
         <div className="flex items-center gap-2">
           {character.isActive ? (
@@ -167,6 +166,18 @@ export function CharacterDetailForm({
             value={name}
             onChange={(event) => setName(event.target.value)}
             className="max-w-sm"
+          />
+        </div>
+
+        {/* v0.8.5 §8：编码放进基本信息（与 AssetDetailForm 同一处理），只读。 */}
+        <div className="grid gap-2">
+          <Label htmlFor="character-code">编码</Label>
+          <Input
+            id="character-code"
+            value={character.code}
+            readOnly
+            aria-readonly
+            className="max-w-sm font-mono text-muted-foreground"
           />
         </div>
 

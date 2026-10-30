@@ -81,6 +81,20 @@ export function splitSlug(slug: string): string {
   return middle;
 }
 
+/**
+ * v0.8.5 §3.2：给**展示**用的短路径 —— 剥掉 `puzzle-` 前缀，
+ * 别的都不动。
+ *
+ * 与 {@link splitSlug} 的区别：那个是给输入框回填的（连难度后缀一起剥，因为它
+ * 要重建成同一个路径）；这个只服务「念给人听」—— 列表里每一行都以 `puzzle-`
+ * 开头，那一段不携带任何信息。**地址本身不变**，完整路径仍在 `title` 与新标签页
+ * 按钮上。
+ */
+export function stripSlugPrefix(slug: string): string {
+  const prefix = `${GAME_SLUG_PREFIX}-`;
+  return slug.startsWith(prefix) ? slug.slice(prefix.length) : slug;
+}
+
 /** §4.4: the author-visible reason a slug is unusable, or `null`. User-facing verbatim. */
 export function slugError(slug: string): string | null {
   if (slug.length === 0) return '请填写访问路径';

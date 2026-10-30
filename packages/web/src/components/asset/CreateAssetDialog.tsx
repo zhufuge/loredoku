@@ -46,9 +46,9 @@ const schema = z.object({
   code: z
     .string()
     .trim()
-    .min(1, '请输入业务 ID')
-    .max(ASSET_CODE_MAX_LENGTH, '业务 ID 过长')
-    .regex(ASSET_CODE_PATTERN, '业务 ID 仅允许字母、数字与下划线'),
+    .min(1, '请输入编码')
+    .max(ASSET_CODE_MAX_LENGTH, '编码过长')
+    .regex(ASSET_CODE_PATTERN, '编码仅允许字母、数字与下划线'),
   type: z.enum(ASSET_TYPES),
   blocking: z.boolean(),
   /** v0.5.1 FEAT-L01: image mode (default) or a colour block. */
@@ -68,7 +68,7 @@ const DEFAULTS: FormValues = {
 };
 
 /**
- * v0.8.1：业务 ID 预填 `主题编码_`。同一个编码在不同主题里各自存在，作者敲的
+ * v0.8.1：编码预填 `主题编码_`。同一个编码在不同主题里各自存在，作者敲的
  * 其实只有后半段 —— 前缀替他写好，顺手就把「这东西属于哪个世界」带进了 ID。
  */
 function defaultsFor(themeCode: string | null): FormValues {
@@ -154,7 +154,7 @@ export function CreateAssetDialog({
         isActive,
       });
     } catch {
-      // The hook already toasted the reason (e.g. duplicate 业务 ID).
+      // The hook already toasted the reason (e.g. duplicate 编码).
       return;
     }
     // §5.1: an upload failure must not swallow the created asset — the dialog
@@ -182,7 +182,7 @@ export function CreateAssetDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新建资源</DialogTitle>
-          <DialogDescription>业务 ID 创建后不可修改。</DialogDescription>
+          <DialogDescription>编码是它在规则与联动里的名字，创建后不可修改。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={onSubmit}>
           <div className="grid gap-2">
@@ -197,7 +197,7 @@ export function CreateAssetDialog({
           */}
           {workspace ? null : <ThemeScopeField value={themeCode} onChange={setThemeCode} />}
           <div className="grid gap-2">
-            <Label htmlFor="asset-code">业务 ID</Label>
+            <Label htmlFor="asset-code">编码</Label>
             <Input
               id="asset-code"
               aria-describedby="asset-code-hint"

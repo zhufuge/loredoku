@@ -27,6 +27,8 @@ export interface PuzzleListParams {
 
 export interface CreatePuzzlePayload {
   name: string;
+  /** v0.8.5 §7：编码 —— 部署时那串访问路径的中段。 */
+  code: string;
   description?: string | null;
   /** 建谜题时复制哪一份底图（maps 版本行）。 */
   mapId: number;
@@ -35,6 +37,8 @@ export interface CreatePuzzlePayload {
 
 export interface UpdatePuzzlePayload {
   name?: string;
+  /** v0.8.5 §7：改编码（v0.8.5 之前建的谜题靠它补写）。 */
+  code?: string;
   description?: string | null;
 }
 

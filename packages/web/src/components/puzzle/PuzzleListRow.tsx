@@ -6,9 +6,12 @@ import { formatDateTime } from '@/lib/format';
 import { ClampedText } from '@/components/common/ClampedText';
 
 /**
- * 谜题列表行：缩略图 + 名称 +（版本号）+ 部署 + 尺寸 + 底图 + 描述 + 时间 +
- * 操作。列序与 `MapListRow` 一致，只多两列「部署」与「底图」（谜题的画布是创建
- * 时复制来的，作者需要看到它来自哪张图的哪个版本）。
+ * 谜题列表行：缩略图 + 名称 +（版本号）+ 部署 + 尺寸 + **编码** + 描述 + 时间 +
+ * 操作。列序与 `MapListRow` 一致，只多两列「部署」与「编码」。
+ *
+ * v0.8.5 §6：这一列原来是**底图来源**（`地图名 vN`）—— 那是创建时复制的那份地图
+ * 版本，追溯用得上，日常读列表时却只是同一串字反复出现（一张图常常喂着好几关）。
+ * 换成编码之后，这一列说的是「这一关对外是谁」，部署时预填的路径也由它而来。
  *
  * 版本列只在版本条目上出现；草稿块里条条都是草稿，`v{n}` 不该重复。
  *
@@ -98,9 +101,13 @@ export function PuzzleListRow({
       <span className="w-16 shrink-0 tabular-nums text-sm text-muted-foreground">
         {`${entry.gridSize} × ${entry.gridSize}`}
       </span>
-      {/* 底图来源：创建时复制的那份地图版本，之后与地图再无联动。 */}
-      <span className="w-36 shrink-0 truncate text-xs text-muted-foreground" title={entry.mapName}>
-        {entry.mapName ? `${entry.mapName} v${entry.mapVersionNo}` : '—'}
+      {/* v0.8.5 §6：原来的「底图来源」列（`地图名 vN`）换成**编码** —— 来源是追溯用的
+          元信息，作者天天要看的却是「这一关对外叫什么」，而部署时那串路径就是它。 */}
+      <span
+        className="w-36 shrink-0 truncate font-mono text-xs text-muted-foreground"
+        title={entry.code ?? undefined}
+      >
+        {entry.code ?? '—'}
       </span>
       {entry.description ? (
         <ClampedText

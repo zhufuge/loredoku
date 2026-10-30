@@ -155,6 +155,14 @@ export interface PuzzleRow {
   deleted_at: Date | string | null;
   name: string;
   description: string | null;
+  /**
+   * v0.8.5 §7（docs/v0.8.5 §7.md §3）：这一关的编码 —— 部署时预填访问路径的那一串。
+   *
+   * 可空：v0.8.5 之前的谜题没有它，迁移也不会凭空造一个。**同血统共用**：
+   * 草稿行与版本行各存一份同样的值（版本行是快照，编码不是版本属性），改编码
+   * 一次写整条血统。
+   */
+  code: string | null;
   cover_path: string | null;
   /** `PuzzleDraft`（v2）；读之前过 `absorbLegacyPuzzleDraft`。 */
   data: unknown;

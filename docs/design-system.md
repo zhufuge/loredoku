@@ -242,10 +242,10 @@ v0.7.14 的题面一度是压在画布上的浮纸，专门占了一档 `gameBri
 |---|---|---|
 | `button` | variant ×6：`default` `destructive` `outline` `secondary` `ghost` `link`；size ×4：`default`(h-10) `sm`(h-9) `lg`(h-11) `icon`(40×40) | 悬停走 `*-hover` token；要 28px 图标按钮时**别用 `size="icon"`**，手写 `<button>` 或 `className="h-7 w-7"`（§3.4） |
 | `card` | `Card` `CardHeader` `CardTitle` `CardDescription` `CardContent` `CardFooter` | 原版 shadcn 的骨架，但阴影换成了 `shadow-paper`（v0.7.9 §3）：`rounded-lg border bg-card shadow-paper` + `p-6`。**`p-6` 对工坊偏大**，实际使用常被 `p-4` 覆盖 |
-| `input` | — | `h-10`、`text-sm`、`rounded-md`、`focus-visible:ring-2`。`placeholder` 是伪元素，字体从元素继承 —— 给标识符字段（编码、hex、key）加 `font-mono` 时，**占位符里要是句子就得写 `placeholder:font-sans`**，否则中文会跟着等宽栈落到另一个后备字体上（v0.8.3 §14.5） |
+| `input` | — | `h-10`、`text-sm`、`rounded-md`。焦点环是 **`ring-2` 贴着描边、不带 `ring-offset`**（v0.8.5 §5）：offset 会在环与描边之间留 2px 空隙，那 2px 填的是 `--background`（L\* 96.9），而输入框多半坐在 `bg-card`（99.3）里 —— 聚焦时框外先浮出一圈比纸面暗的缝再是蓝环，三层。改前外框 5px，现在 3px。**聚焦时不给描边染色**（上游会染色）：边色留给 `border-destructive` 报错，否则用户在错误字段里打字时红边会变蓝。`placeholder` 是伪元素，字体从元素继承 —— 给标识符字段（编码、hex、key）加 `font-mono` 时，**占位符里要是句子就得写 `placeholder:font-sans`**，否则中文会跟着等宽栈落到另一个后备字体上（v0.8.3 §14.5）。**只读的编码用 `readOnly` 而不是 `disabled`**（v0.8.5 §8）：值要能选中、复制，灰底会让它读起来像「加载中」；「改不了」由框本身表达，不再另写一行「（不可修改）」 |
 | `textarea` | — | 与 Input 同族 |
 | `label` | — | `text-sm font-medium`，表单里一律配 `<Label>` |
-| `select` | — | **原生 `<select>`** 薄封装，`h-10` + `ring-2`（v0.7.8 起与 Input 逐项对齐）。默认 `w-full`，要按内容收窄加 `w-auto`。**不要再手写 `<select>`** |
+| `select` | — | **原生 `<select>`** 薄封装，`h-10` + 与 `Input` **同一套**焦点环（`ring-2` 贴边、无 offset；v0.8.5 §5 后两者仍逐项对齐）。默认 `w-full`，要按内容收窄加 `w-auto`。**不要再手写 `<select>`** |
 | `segmented-radio` | — | 真 radio group（`role="radiogroup"` + `aria-checked`）。两个选项时**不要用下拉**，用它 |
 | `color-input` | — | 颜色选择。**取色一律用 `ColorField`**（v0.8.3 §8）：色块（原生取色器）+ hex 输入框，就这两件 —— **没有调色板**（v0.8.3 §8.3 按要求整块删掉，连同 `color-palette` 组件与 15 色常量）。裸 `ColorInput` 只剩两种用法：需要 `rgba()` 的阴影环，以及将来确实要单独摆一个色块的地方 |
 | `dialog` | — | **禁止点遮罩关闭**（`AGENTS.md` §3.2 硬约定） |
@@ -255,6 +255,7 @@ v0.7.14 的题面一度是压在画布上的浮纸，专门占了一档 `gameBri
 | `tooltip` | — | Radix Tooltip，**自带 Provider**（缺 Provider 会抛错）。portal 到 body，因此能穿过 `overflow-hidden` 的面板；`z-[60]`（压在 `z-50` 的对话框之上，不靠挂载顺序）；提示文案是 `text-2xs` + `shadow-lifted`。那张纸片的类名是导出的 `TOOLTIP_SURFACE_CLASS` —— 画布上的物品名称提示不走 Radix（物品层在多数页面是 `pointer-events: none`），但取同一层皮，改提示长相只改这一处（v0.7.13 §3） |
 | `sonner` | — | toast，`toast.success('图片已上传')` 这类句式 |
 | `virtual-list` | — | 长列表虚拟化（资源 / 角色面板） |
+| `sort-weight` | — | 部署页那一列「序」就地编辑（`SortWeightCell`，v0.8.5）。平时是 `序 数字`，点开变输入框；回车与失焦走同一条收口，`Escape` 取消，**值没变或输入不合法只收起、不发请求**。它没有表头可依，所以自己带一个「序」字当标签 |
 
 ---
 
@@ -375,6 +376,16 @@ PANEL_ICON_BUTTON_CLASS   = 'flex h-7 w-7 items-center justify-center rounded te
 | 操作 | `w-40` |
 
 两个页面之间来回切，右边缘应该落在同一列上。新增第三种行列表时先套这张表。
+
+**部署行比这张表多三列**（v0.8.5）：难度徽标、尺寸 `w-16`、顺序 `w-14`，都夹在名称与
+弹性中列之间；中列里放的是**访问路径的中段**（`hlm-sishan`），`/play/` 与 `puzzle-`
+两段都不显示 —— 每一行都一样的东西不提供信息（完整路径留在 `title` 里，v0.8.5 §3）。顺序
+那一格是 `SortWeightCell`：平时是一个数字，点开变输入框，回车与失焦同一条收口路径，
+**值真的变了**才写回。
+
+**谜题列表行**（v0.8.5 §6）比这张表多三列：部署徽标 `w-16`、尺寸 `w-16`、编码 `w-36`。
+编码那列原来放的是**底图来源**（`地图名 vN`）—— 追溯用得上，读列表时只是同一串字反复
+出现；换成编码之后，这一列回答的是「这一关对外是谁」，也正是部署时预填路径的那一串。
 
 **分组行列表**（v0.8.0 §16.4，部署页）：同一套列语法外面的两档高度 ——
 
@@ -612,7 +623,7 @@ token 是唯一入口。
 | ~~5.1~~ | ~~约 80 行魔法字号~~ | — | **已解决（v0.7.9 §4）**：`text-2xs` token 收编 81 处，10px 并入 11px，六档梯级见 §4.1 | — |
 | ~~5.2~~ | ~~slate 定色~~ | — | **已解决（v0.7.8 §1）**：改为 `--toolbar*` token，调用处不再出现 `dark:` | — |
 | 5.3 | **导航栏 `z-30`** | `AppShell.tsx` | 绕过 `UI_Z`，且数值与 `UI_Z.drawer` 相同 | 中（v0.7.8 评估后上调）：改错会真盖住抽屉，需先理清堆叠上下文 |
-| ~~5.4~~ | ~~Input 40px vs Select 36px~~ | — | **已解决（v0.7.8 §3）**：`Select` 改为 `h-10` + `ring-2`，与 `Input` 逐项对齐 | — |
+| ~~5.4~~ | ~~Input 40px vs Select 36px~~ | — | **已解决（v0.7.8 §3）**：`Select` 改为 `h-10`，与 `Input` 逐项对齐（焦点环在 v0.8.5 §5 又改了一次 —— 去掉了 `ring-offset`，环贴回描边；**高度这一半不变**） | — |
 | ~~5.5~~ | ~~冷蓝调色板~~ | — | **已解决（v0.7.8 §11）**：换成「墨 · 宣 · 靛 · 绛」，中性色转暖、primary 改石青、新增强度合适的 `success` / `warning` | — |
 | 5.6 | **卡片与分隔线两套并存** | 卡片 4 处、`border p-*` 12 处、`border-b` 为主 | 观感不统一（少量圆角卡片浮在边线分隔的版式里） | 低：先约定「列表行用分隔线、对话框内分组用卡片」 |
 | 5.7 | **表单 `Label` 没有 `htmlFor`** | `<Label>名称</Label>` + 相邻 `<Input>` 的写法遍布所有表单 | 标签与输入框没有程序化关联：点标签不能聚焦，屏幕阅读器读不出「这是哪个字段」 | 中大：30+ 处，需逐个加 `useId` + `htmlFor`（或改成把控件包进 `Label`） |
@@ -623,6 +634,7 @@ token 是唯一入口。
 | 5.12 | **重新取数时变淡只在 2 个页面上有** | `MapsPage` / `PuzzlesPage` 有 `isFetching && !isLoading` 的 `opacity-60`；`AssetsPage` / `CharactersPage` / `DeploymentsPage` / `GamesPage` 没有 | 同一个「后台在取数」的状态，四个页面毫无表示 | 低：包一层容器即可；但这属于**状态反馈**（v0.7.9 §1 那条线），不是动效，别混进来 |
 | 5.13 | **游戏页棋盘只能用指针操作** | `pages/GamePage.tsx` | `keydown` 只处理 Escape（退出模式）与空格（平移）；放编号 / 放头像 / 禁止符号 / 清除全部只由 pointer 触发，键盘用户无法完成任何摆放 | 高（无障碍）：要先把棋盘做成可聚焦的格子网格（`role="grid"` + 方向键导航），牵动渲染结构 |
 | 5.14 | **棋盘没拦 `contextmenu`** | 同上 | 触摸设备按住约 500ms 会弹系统菜单，与长按阈值撞在同一段时间上 —— v0.7.10 §3 的进度环会被打断 | 低：桌面端（主场景）不受影响；「要不要禁掉右键菜单」是新的交互决定，不该夹在动效改动里做 |
+| 5.15 | **`ring` / `foreground` 等 token 不支持透明度修饰符** | `tailwind.config.ts` 的 `colors` | 定义成 `hsl(var(--ring))` 而没有 `<alpha-value>` 占位符，于是 `ring-ring/50` 里的 `/50` 被**静默丢掉** —— 类还在、产物里查得到，画出来仍是实心（v0.8.5 §5.4 因此放弃了「软环」方案；与 v0.7.9 §3 记的 `shadow-[var(--shadow-card)]` 是同一类失败） | 低-中：加 `<alpha-value>` 在不写修饰符时行为不变；但要逐 token 确认没有地方依赖「修饰符无效」的现状 |
 
 > 5.6 容易被高估：初稿曾记为「大量卡片层层嵌套」，实测 `rounded-lg border` 只有 4 处，
 > 主力是 `border-b` 分隔的面板与行。所以这条债的真实分量是**版式语言不统一**，

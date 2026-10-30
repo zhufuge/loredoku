@@ -116,7 +116,6 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-semibold">{asset.name}</h2>
-          <p className="text-xs text-muted-foreground">业务 ID：{asset.code}（不可修改）</p>
         </div>
         <div className="flex items-center gap-2">
           {asset.isActive ? (
@@ -165,6 +164,20 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
             value={name}
             onChange={(event) => setName(event.target.value)}
             className="max-w-sm"
+          />
+        </div>
+
+        {/* v0.8.5 §8：编码是**信息**，不是标题的附注 —— 它跟名称并排站在基本信息里，
+            只读即可（不用再写一行「不可修改」，改不动这件事由框本身表达）。
+            用 `readOnly` 而不是 `disabled`：值还要能选中、复制到联动的 JSON 里。 */}
+        <div className="grid gap-2">
+          <Label htmlFor="asset-code">编码</Label>
+          <Input
+            id="asset-code"
+            value={asset.code}
+            readOnly
+            aria-readonly
+            className="max-w-sm font-mono text-muted-foreground"
           />
         </div>
 

@@ -490,6 +490,11 @@ export interface PuzzleEntrySummary {
   versionNo: number | null;
   name: string;
   description: string | null;
+  /**
+   * v0.8.5 §7（docs/v0.8.5 §7.md §3）：谜题编码 —— 部署弹窗按它预填访问路径。
+   * `null` = v0.8.5 之前建的谜题还没补过，部署时退回「按名称推导」。
+   */
+  code: string | null;
   /** 派生自 `data.map.data.gridSize`（唯一真源）。 */
   gridSize: number;
   /** 底图来源（追溯 / 展示，无 FK）。 */

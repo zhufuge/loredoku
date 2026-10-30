@@ -12,7 +12,12 @@ const buttonVariants = cva(
    * 「纸与墨」里最贴切的按压语汇：不是缩放（文字会跟着糊），是把纸按进桌面。
    * 只动 transform，不参与 `transition`（按下应当立刻发生，回弹也立刻）。
    */
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50',
+  /*
+   * v0.8.5 §5：焦点环与 `Input` 一起去掉 `ring-offset` —— 环贴着边缘画，
+   * 不再隔一层 `--background`。offset 那 2px 在 `bg-card` 上比纸面暗一档，
+   * 键盘聚焦时等于在按钮外面又描了一圈淡灰。
+   */
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {

@@ -34,6 +34,7 @@ function puzzle(overrides: Partial<PuzzleEntrySummary> = {}): PuzzleEntrySummary
     versionNo: 2,
     name: 'Midnight Garden',
     description: null,
+    code: null,
     gridSize: 6,
     mapId: 217,
     mapName: 'Old Castle',
@@ -148,6 +149,29 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     expect(middleInput().value).not.toContain('2');
     expect(text()).toContain('/play/puzzle-midnight-garden');
     expect(text()).not.toContain('-medium');
+  });
+
+  /**
+   * v0.8.5 §7.4：中段默认值来自**谜题编码**（作者建谜题时写的那一串），没有编码的
+   * 存量谜题才退回名称 —— 上一条测的正是退回那一路。
+   */
+  it('中段默认取谜题编码，改名不跟着变', () => {
+    render({ puzzle: puzzle({ code: 'hlm-sishan' }) });
+    expect(middleInput().value).toBe('hlm-sishan');
+
+    const nameInput = document.querySelector<HTMLInputElement>('#game-deploy-name')!;
+    const setter = Object.getOwnPropertyDescriptor(
+      Object.getPrototypeOf(nameInput),
+      'value',
+    )?.set;
+    act(() => {
+      setter?.call(nameInput, '另一个名字');
+      nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    // 编码定地址 —— 改名只改显示名，链接不能被带走。
+    expect(middleInput().value).toBe('hlm-sishan');
+    expect(text()).toContain('/play/puzzle-hlm-sishan');
   });
 
   it('改难度不改预览路径（v0.8.1：难度是属性，不是地址）', () => {

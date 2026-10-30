@@ -98,6 +98,7 @@ function detail(overrides: Partial<PuzzleDraft> = {}): PuzzleDetail {
     versionNo: null,
     name: draft.name,
     description: draft.description,
+    code: null,
     gridSize: draft.map.data.gridSize,
     mapId: draft.map.mapId,
     mapName: draft.map.mapName,

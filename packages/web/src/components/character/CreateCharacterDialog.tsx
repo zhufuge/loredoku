@@ -46,9 +46,9 @@ const schema = z.object({
   code: z
     .string()
     .trim()
-    .min(1, '请输入业务 ID')
-    .max(CHARACTER_CODE_MAX_LENGTH, '业务 ID 过长')
-    .regex(CHARACTER_CODE_PATTERN, '业务 ID 仅允许字母、数字与下划线'),
+    .min(1, '请输入编码')
+    .max(CHARACTER_CODE_MAX_LENGTH, '编码过长')
+    .regex(CHARACTER_CODE_PATTERN, '编码仅允许字母、数字与下划线'),
   gender: z.enum(CHARACTER_GENDERS),
   description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH, '描述过长').optional(),
   /** v0.5.1 FEAT-L02: image mode (default) or a colour block. */
@@ -68,7 +68,7 @@ const DEFAULTS: FormValues = {
 };
 
 /**
- * v0.8.1：业务 ID 预填 `主题编码_` —— 作者只敲后半段，前缀替他写好。
+ * v0.8.1：编码预填 `主题编码_` —— 作者只敲后半段，前缀替他写好。
  */
 function defaultsFor(themeCode: string | null): FormValues {
   return { ...DEFAULTS, code: themeCode ? `${themeCode}_` : '' };
@@ -173,7 +173,7 @@ export function CreateCharacterDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle>新建角色</DialogTitle>
-          <DialogDescription>业务 ID 创建后不可修改。</DialogDescription>
+          <DialogDescription>编码是它在规则与联动里的名字，创建后不可修改。</DialogDescription>
         </DialogHeader>
         <form className="grid gap-4" onSubmit={onSubmit}>
           <div className="grid gap-2">
@@ -184,7 +184,7 @@ export function CreateCharacterDialog({
           {/* v0.8.0 §16.7：名称 → 主题。v0.8.2 §14：工作空间里整行不画（地址说过了）。 */}
           {workspace ? null : <ThemeScopeField value={themeCode} onChange={setThemeCode} />}
           <div className="grid gap-2">
-            <Label htmlFor="character-code">业务 ID</Label>
+            <Label htmlFor="character-code">编码</Label>
             <Input
               id="character-code"
               aria-describedby="character-code-hint"

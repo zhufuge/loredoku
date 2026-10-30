@@ -28,12 +28,19 @@ const gamesRef: { data: MapGameSummary[]; isLoading: boolean; isError: boolean }
 const versionsRef: { data: { list: PuzzleEntrySummary[] } | undefined } = { data: { list: [] } };
 const cancelMutate = vi.fn();
 const deployMutate = vi.fn();
+const weightMutate = vi.fn();
 
 vi.mock('@/hooks/useGames', () => ({
   useGames: () => ({ ...gamesRef, refetch: () => {} }),
   useCancelGame: () => ({ mutate: cancelMutate, isPending: false }),
   // 部署弹窗也是这一页渲染的（默认关着），它得能拿到这个 hook。
   useDeployGame: () => ({ mutate: deployMutate, isPending: false }),
+  // v0.8.5：顺序列的就地编辑。
+  useUpdateGameWeight: () => ({
+    mutate: weightMutate,
+    isPending: false,
+    variables: undefined,
+  }),
 }));
 
 vi.mock('@/hooks/usePuzzles', () => ({
@@ -126,6 +133,7 @@ function version(overrides: Partial<PuzzleEntrySummary> = {}): PuzzleEntrySummar
     versionNo: 3,
     name: '海边的灯塔',
     description: null,
+    code: null,
     gridSize: 6,
     mapId: 1,
     mapName: '灯塔',
@@ -169,6 +177,7 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
   beforeEach(() => {
     cancelMutate.mockClear();
     deployMutate.mockClear();
+    weightMutate.mockClear();
     removeDeploymentMutate.mockClear();
     workspaceRef.value = null;
     themesRef.data = [theme()];
@@ -206,9 +215,9 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     render();
 
     expect(text()).toContain('合辑「默认合辑」');
-    expect(text()).toContain('/play/theme/hlm-collection');
+    expect(text()).toContain('hlm-collection');
     // 成员「午夜花园」的单局行不再重复 —— 合辑行已经把它算进去了。
-    expect(text()).not.toContain('/play/puzzle-midnight-garden-medium');
+    expect(text()).not.toContain('puzzle-midnight-garden-medium');
     // 页头数字 = 单局行数，不含合辑成员。
     expect(text()).toContain('共 0 个游戏在线。');
   });
@@ -349,5 +358,94 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
         ?.click(),
     );
     expect(text()).toContain('共 1 关');
+  });
+
+  /**
+   * v0.8.5：路径列只留尾部。v0.8.5 §3：连 `puzzle-` 那段也剥掉。
+   *
+   * `/play/` 与 `puzzle-` 在每一行都一样，却占着最宽的一列；复制按钮也随全路径
+   * 一起撤掉 —— 一个不是完整地址的字符串，复制出去也用不了。
+   */
+  it('路径列只显示中段（不显示 /play/ 与 puzzle-），也没有复制按钮', () => {
+    render();
+
+    expect(text()).toContain('midnight-garden-medium');
+    expect(text()).not.toContain('puzzle-midnight-garden-medium');
+    expect(text()).not.toContain('/play/');
+    // 完整地址没丢，挪到了 `title` 里（悬停可见，也是「打开游戏」那颗按钮的去处）。
+    expect(
+      container.querySelector('[title="/play/puzzle-midnight-garden-medium"]'),
+    ).not.toBeNull();
+    expect(
+      Array.from(container.querySelectorAll('button')).some((node) =>
+        node.getAttribute('aria-label')?.includes('复制'),
+      ),
+    ).toBe(false);
+  });
+
+  /**
+   * v0.8.5：顺序列 —— 平时是数字，点开是输入框；回车与失焦是同一条收尾路径，
+   * **值真的变了**才写回。
+   *
+   * 三条都在这里：改了要发；没改不发（点开看一眼是常事）；不合法不发（这一格
+   * 没有弹窗可以承载错误，把 `1.5` 交给服务端只会得到一句 400）。
+   */
+  it('顺序格点开变输入框：回车与失焦改值，值没变或不合法则不写回', () => {
+    render();
+
+    const cellButton = (): HTMLButtonElement => {
+      const found = container.querySelector<HTMLButtonElement>('button[aria-label="展示顺序"]');
+      if (!found) throw new Error('顺序格没渲染出来');
+      return found;
+    };
+    const openEditor = (): HTMLInputElement => {
+      act(() => cellButton().click());
+      const input = container.querySelector<HTMLInputElement>('input[aria-label="展示顺序"]');
+      if (!input) throw new Error('输入框没出现');
+      return input;
+    };
+    const type = (input: HTMLInputElement, value: string): void => {
+      const setter = Object.getOwnPropertyDescriptor(
+        Object.getPrototypeOf(input),
+        'value',
+      )?.set;
+      setter?.call(input, value);
+      act(() => input.dispatchEvent(new Event('input', { bubbles: true })));
+    };
+    const pressEnter = (input: HTMLInputElement): void => {
+      act(() =>
+        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+      );
+    };
+
+    // 收起时就是一个数字（前面那个「序」是这一列的标签，没有表头，得自己说清楚）。
+    expect(cellButton().textContent).toContain('0');
+
+    // 回车提交。
+    let input = openEditor();
+    type(input, '5');
+    pressEnter(input);
+    expect(weightMutate).toHaveBeenCalledWith({ id: 3, sortWeight: 5 });
+    expect(container.contains(input)).toBe(false);
+
+    // 失焦同样提交，负数也行（作者可以把一关顶到最前面）。
+    weightMutate.mockClear();
+    input = openEditor();
+    type(input, '-2');
+    act(() => input.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(weightMutate).toHaveBeenCalledWith({ id: 3, sortWeight: -2 });
+
+    // 值没变：收起，不发请求。
+    weightMutate.mockClear();
+    input = openEditor();
+    type(input, '0');
+    pressEnter(input);
+    expect(weightMutate).not.toHaveBeenCalled();
+
+    // 不合法：同样只收起，不发请求。
+    input = openEditor();
+    type(input, '1.5');
+    pressEnter(input);
+    expect(weightMutate).not.toHaveBeenCalled();
   });
 });

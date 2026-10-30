@@ -3,6 +3,7 @@ import { rm } from 'node:fs/promises';
 import { ErrorCode, MAP_JSON_VERSION } from '@loredoku/shared';
 import type { MapDraft } from '@loredoku/shared';
 import { api, fixtureTheme } from './helpers';
+import { db } from '../src/db/knex';
 import { resolveUploadPath } from '../src/utils/paths';
 
 const createdMapEntries: number[] = [];
@@ -139,7 +140,11 @@ async function publishVersion(mapId: number, version?: number): Promise<ApiRespo
 
 /** FEAT-K01: a puzzle bound to a published map version. */
 async function createPuzzle(body: Record<string, unknown>): Promise<number> {
-  const res = await api.post('/api/puzzles').send(body);
+  /**
+   * v0.8.5 §7：编码必填（部署时预填路径的那一串）。绝大多数用例不关心它，这里补一个
+   * 合法的唯一值；要断言编码的用例自己传，传了就盖掉这个默认。
+   */
+  const res = await api.post('/api/puzzles').send({ code: uniqueSlug('pc'), ...body });
   expect(res.status).toBe(200);
   expect(res.body.code).toBe(ErrorCode.OK);
   const id = res.body.data.id as number;
@@ -164,16 +169,19 @@ async function publishedMapWithItem(
 /** 一个新谜题（只有草稿行），底图复制自一张刚发布的地图版本。 */
 async function puzzleWithVersion(
   name: string,
-): Promise<{ mapId: number; draftId: number; puzzleName: string }> {
+): Promise<{ mapId: number; draftId: number; puzzleName: string; code: string }> {
   const mapId = await createMap({ name, gridSize: 6 });
   const versionNo = await publish(mapId);
   const puzzleName = `${name} 谜题`;
+  // v0.8.5 §7：编码必填。这里显式给一个，好让「部署不给路径时拿编码兜底」可断言。
+  const code = uniqueSlug('pz');
   const draftId = await createPuzzle({
     name: puzzleName,
+    code,
     mapId: mapId,
     mapVersionNo: versionNo,
   });
-  return { mapId, draftId, puzzleName };
+  return { mapId, draftId, puzzleName, code };
 }
 
 /** 发布一个谜题，返回**版本行 id** —— 部署的单位（草稿行不能部署）。 */
@@ -195,6 +203,7 @@ async function deployablePuzzle(name: string): Promise<{
   versionId: number;
   versionNo: number;
   puzzleName: string;
+  code: string;
 }> {
   const context = await puzzleWithVersion(name);
   const characterId = await createCharacterWithAvatar();
@@ -1065,7 +1074,7 @@ describe('puzzles API (FEAT-K01)', () => {
     const mapId = await createMap({ name: `NoVer ${uniqueCode('p')}`, gridSize: 6 });
     const res = await api
       .post('/api/puzzles')
-      .send({ name: '无版本', mapId: mapId, mapVersionNo: 1 });
+      .send({ name: '无版本', code: uniqueSlug('pc'), mapId: mapId, mapVersionNo: 1 });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(res.body.message).toContain('地图版本');
@@ -1075,7 +1084,7 @@ describe('puzzles API (FEAT-K01)', () => {
     const { mapId, versionNo } = await publishedMapWithItem(`BadName ${uniqueCode('p')}`);
     const res = await api
       .post('/api/puzzles')
-      .send({ name: '   ', mapId: mapId, mapVersionNo: versionNo });
+      .send({ name: '   ', code: uniqueSlug('pc'), mapId: mapId, mapVersionNo: versionNo });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
@@ -1207,6 +1216,43 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(res.body.data.data.description).toBe('新描述');
   });
 
+  /**
+   * v0.8.5 §7（docs/v0.8.5 §7.md §3）：编码在主题内不重，且写整条血统。
+   *
+   * 「同血统共用」这一条是这次最容易写错的地方：版本行是快照，编码却不是版本的
+   * 属性 —— 只写草稿行的话，部署那条版本时预填的还是旧编码。
+   */
+  it('编码在主题内不重；改编码写整条血统', async () => {
+    const { draftId, versionId, code } = await deployablePuzzle(`Code ${uniqueCode('p')}`);
+    // 版本行继承草稿的编码（发布时抄过去）。
+    expect((await api.get(`/api/puzzles/${draftId}`)).body.data.code).toBe(code);
+    expect((await api.get(`/api/puzzles/${versionId}`)).body.data.code).toBe(code);
+
+    // 同一个主题里再要一个同码谜题 → 409，而不是静默落一条重码。
+    const { mapId, versionNo } = await publishedMapWithItem(`Clash ${uniqueCode('p')}`);
+    const clash = await api
+      .post('/api/puzzles')
+      .send({ name: '撞码', code, mapId, mapVersionNo: versionNo });
+    expect(clash.status).toBe(409);
+    expect(clash.body.message).toContain('已经被这个主题的另一个谜题用过');
+
+    // 改编码写整条血统：草稿行与版本行都要跟着变，否则部署那条版本时预填的是旧码。
+    const renamed = uniqueSlug('pc2');
+    expect((await api.patch(`/api/puzzles/${draftId}`).send({ code: renamed })).status).toBe(200);
+    expect((await api.get(`/api/puzzles/${draftId}`)).body.data.code).toBe(renamed);
+    expect((await api.get(`/api/puzzles/${versionId}`)).body.data.code).toBe(renamed);
+  });
+
+  /** v0.8.5 §7：复制出来的是一条独立的谜题，编码不能原样带走。 */
+  it('复制谜题时换一个没被占用的编码', async () => {
+    const { draftId, code } = await deployablePuzzle(`DupCode ${uniqueCode('p')}`);
+
+    const copied = await api.post(`/api/puzzles/${draftId}/duplicate`);
+    expect(copied.status).toBe(200);
+    createdPuzzles.push(copied.body.data.id);
+    expect(copied.body.data.code).toBe(`${code}-2`);
+  });
+
   it('duplicates a puzzle under a unique copy name', async () => {
     const { mapId, versionNo } = await publishedMapWithItem(`Dup ${uniqueCode('p')}`);
     const id = await createPuzzle({ name: '原件', mapId: mapId, mapVersionNo: versionNo });
@@ -1225,7 +1271,7 @@ describe('puzzles API (FEAT-K01)', () => {
     const { mapId, versionNo } = await publishedMapWithItem(`Del ${uniqueCode('p')}`);
     const created = await api
       .post('/api/puzzles')
-      .send({ name: '待删', mapId: mapId, mapVersionNo: versionNo });
+      .send({ name: '待删', code: uniqueSlug('pc'), mapId: mapId, mapVersionNo: versionNo });
     const id = created.body.data.id as number;
 
     const removed = await api.delete(`/api/puzzles/${id}`);
@@ -1292,6 +1338,18 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.name).toBe(puzzleName);
     expect(deploy.body.data.difficulty).toBe('medium');
+  });
+
+  /**
+   * v0.8.5 §7.4：请求里没有路径时，兜底**先看谜题编码**（`puzzle-{code}`），
+   * 没有编码的存量谜题才退回按名称推导 —— 中文名推不出东西。
+   */
+  it('不给访问路径时用谜题编码派生', async () => {
+    const { versionId, code } = await deployablePuzzle(`Coded ${uniqueCode('p')}`);
+
+    const deploy = await api.post(`/api/puzzles/${versionId}/games`).send({});
+    expect(deploy.status).toBe(200);
+    expect(deploy.body.data.slug).toBe(`puzzle-${code}`);
   });
 
   it('keeps one game per puzzle — a later deploy overwrites the earlier one', async () => {
@@ -1368,16 +1426,16 @@ describe('games API slug (OPT-W04)', () => {
     return Math.random().toString(16).slice(2, 10);
   }
 
-  // v0.8.1：难度不进路径 —— 兜底派生只看名称。
-  it('derives puzzle-{name} when the path is left untouched', async () => {
+  // v0.8.1：难度不进路径。v0.8.5 §7.4：兜底先看**谜题编码**，没有编码才退回名称。
+  it('derives puzzle-{code} when the path is left untouched', async () => {
     const hex = token();
-    const { versionId } = await deployablePuzzle(`Flower Garden ${hex}`);
+    const { versionId, code } = await deployablePuzzle(`Flower Garden ${hex}`);
 
     const deploy = await api
       .post(`/api/puzzles/${versionId}/games`)
       .send({ name: `Flower Garden ${hex}`, difficulty: 'veryEasy' });
     expect(deploy.status).toBe(200);
-    expect(deploy.body.data.slug).toBe(`puzzle-flower-garden-${hex}`);
+    expect(deploy.body.data.slug).toBe(`puzzle-${code}`);
     expect(deploy.body.data.difficulty).toBe('veryEasy');
 
     // The list carries the slug so the card can link straight to it.
@@ -1385,13 +1443,13 @@ describe('games API slug (OPT-W04)', () => {
     const row = (list.body.data as Array<{ puzzleId: number | null; slug: string }>).find(
       (entry) => entry.puzzleId === versionId,
     );
-    expect(row?.slug).toBe(`puzzle-flower-garden-${hex}`);
+    expect(row?.slug).toBe(`puzzle-${code}`);
 
     // OPT-W04 §4.6: the game page resolves its game by path.
-    const detail = await api.get(`/api/games/slug/puzzle-flower-garden-${hex}`);
+    const detail = await api.get(`/api/games/slug/puzzle-${code}`);
     expect(detail.status).toBe(200);
     expect(detail.body.data.id).toBe(deploy.body.data.id);
-    expect(detail.body.data.slug).toBe(`puzzle-flower-garden-${hex}`);
+    expect(detail.body.data.slug).toBe(`puzzle-${code}`);
     expect(detail.body.data.puzzle.characterSlots[0]).not.toBeNull();
 
     // The by-id route still works (cover upload and internal callers).
@@ -1532,8 +1590,14 @@ describe('games API slug (OPT-W04)', () => {
     expect(res.body.data.slug).toBe(`puzzle-${hex}`);
   });
 
-  it('asks for a manual path when the name derives nothing (Q13)', async () => {
-    const { versionId } = await deployablePuzzle(`汉字项目 ${token()}`);
+  it('asks for a manual path when the puzzle has no code and the name derives nothing (Q13)', async () => {
+    const { versionId, draftId } = await deployablePuzzle(`汉字项目 ${token()}`);
+    /**
+     * v0.8.5 §7.4：这一格现在兜得住中文名了（编码就是路径形状）。要复现 Q13 得退回
+     * **没有编码的存量谜题** —— 接口已经造不出这种行，所以直接抹掉那一列。
+     */
+    await db('puzzles').where({ root_id: draftId }).update({ code: null });
+
     const res = await api
       .post(`/api/puzzles/${versionId}/games`)
       .send({ name: '神秘古堡', difficulty: 'medium' });
@@ -1639,6 +1703,88 @@ describe('games API 展示顺序 (v0.8.3)', () => {
       expect(res.status, String(sortWeight)).toBe(400);
       expect(res.body.code, String(sortWeight)).toBe(ErrorCode.VALIDATION_FAILED);
     }
+  });
+});
+
+/**
+ * v0.8.5：部署页的顺序列直接 `PATCH /api/games/:id`，不再绕去部署弹窗重发整份负载。
+ *
+ * 这条端点只认 `sortWeight` 一个键 —— 重发整份负载会把名称 / 路径 / 难度一起写
+ * 回去，而列表上的那些值可能已经比弹窗里的新。所以第一条用例顺手钉住「别的字段
+ * 一个都不动」。
+ */
+describe('部署页就地改顺序 (v0.8.5)', () => {
+  function token(): string {
+    return Math.random().toString(16).slice(2, 10);
+  }
+
+  const ours = async (
+    hex: string,
+  ): Promise<Array<{ id: number; slug: string; name: string; sortWeight: number }>> => {
+    const list = await api.get('/api/games');
+    return (list.body.data as Array<{ id: number; slug: string; name: string; sortWeight: number }>)
+      .filter((row) => row.slug.endsWith(hex));
+  };
+
+  it('改完顺序立刻反映在列表里，名称与路径一个都不动', async () => {
+    const hex = token();
+    const deploy = async (slug: string): Promise<number> => {
+      const { versionId } = await deployablePuzzle(`Patch ${slug} ${hex}`);
+      const res = await api.post(`/api/puzzles/${versionId}/games`).send({ slug });
+      expect(res.status).toBe(200);
+      return res.body.data.id as number;
+    };
+
+    await deploy(`wp-a-${hex}`);
+    const secondId = await deploy(`wp-b-${hex}`);
+
+    // 都还是 0 → 按路径排，a 在前。
+    expect((await ours(hex)).map((row) => row.slug)).toEqual([`wp-a-${hex}`, `wp-b-${hex}`]);
+    const secondBefore = (await ours(hex)).find((row) => row.id === secondId);
+
+    const patched = await api.patch(`/api/games/${secondId}`).send({ sortWeight: -5 });
+    expect(patched.status).toBe(200);
+    expect(patched.body.data.sortWeight).toBe(-5);
+    expect(patched.body.data.id).toBe(secondId);
+    // 只写一列：名称与路径原样回来，不是「被清空成缺省」。
+    expect(patched.body.data.slug).toBe(`wp-b-${hex}`);
+    expect(patched.body.data.name).toBe(secondBefore?.name);
+
+    // 列表顺序跟着变，b 顶到前面。
+    expect((await ours(hex)).map((row) => row.slug)).toEqual([`wp-b-${hex}`, `wp-a-${hex}`]);
+  });
+
+  it('缺键 / 越界 / 非整数都是 400，不落库', async () => {
+    const hex = token();
+    const { versionId } = await deployablePuzzle(`PatchBad ${hex}`);
+    const created = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug: `pb-${hex}`, sortWeight: 3 });
+    expect(created.status).toBe(200);
+    const id = created.body.data.id as number;
+
+    for (const body of [{}, { sortWeight: 1000 }, { sortWeight: -1000 }, { sortWeight: 1.5 }, { sortWeight: '3' }]) {
+      const res = await api.patch(`/api/games/${id}`).send(body);
+      expect(res.status, JSON.stringify(body)).toBe(400);
+      expect(res.body.code, JSON.stringify(body)).toBe(ErrorCode.VALIDATION_FAILED);
+    }
+
+    // 值没被任何一次失败的请求改动。
+    const row = (await ours(hex)).find((item) => item.id === id);
+    expect(row?.sortWeight).toBe(3);
+  });
+
+  it('不存在或已取消部署的游戏是 404', async () => {
+    expect((await api.patch('/api/games/99999999').send({ sortWeight: 1 })).status).toBe(404);
+
+    const hex = token();
+    const { versionId } = await deployablePuzzle(`PatchGone ${hex}`);
+    const created = await api
+      .post(`/api/puzzles/${versionId}/games`)
+      .send({ slug: `pg-${hex}` });
+    const id = created.body.data.id as number;
+    expect((await api.delete(`/api/games/${id}`)).status).toBe(200);
+    expect((await api.patch(`/api/games/${id}`).send({ sortWeight: 1 })).status).toBe(404);
   });
 });
 

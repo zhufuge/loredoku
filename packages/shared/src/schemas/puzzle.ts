@@ -8,6 +8,8 @@ import {
   MAP_NAME_MAX_LENGTH,
   PUZZLE_CLUE_MAX_LENGTH,
   PUZZLE_CLUES_MAX_COUNT,
+  PUZZLE_CODE_MAX_LENGTH,
+  PUZZLE_CODE_PATTERN,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
   PUZZLE_ENDING_MAX_LENGTH,
   PUZZLE_JSON_VERSION,
@@ -238,12 +240,53 @@ export const puzzleDraftSchema = puzzleDraftBaseSchema.superRefine((draft, ctx) 
 );
 
 /**
+ * v0.8.5 §7（docs/v0.8.5 §7.md §3）：谜题编码 —— 部署时用它预填访问路径。
+ *
+ * 形状就是「路径中段」的形状（见 `PUZZLE_CODE_PATTERN`），所以 `puzzle-code`
+ * 可以直接落进 `/play/puzzle-puzzle-code`，中间不做任何转写。大小写只收小写：
+ * 路径本来就只认小写，允许大写等于允许一个「存进去和显示出来不一样」的值。
+ *
+ * 「这个编码在不在主题里重复」schema 管不了 —— 它不认识数据库，那一步在
+ * `puzzleService.createPuzzle` 里拿着 `themeId` 查。
+ */
+const PUZZLE_CODE_RULE = '编码只能用小写字母、数字与连字符，不能以连字符开头或结尾';
+
+export const puzzleCodeSchema = z
+  .string()
+  .trim()
+  .min(2, '编码至少 2 个字符')
+  .max(PUZZLE_CODE_MAX_LENGTH, `编码最多 ${PUZZLE_CODE_MAX_LENGTH} 个字符`)
+  .regex(PUZZLE_CODE_PATTERN, PUZZLE_CODE_RULE);
+
+/**
+ * 同一句规则的**非 zod 版本** —— 弹窗在提交前要用它给出一行红字。
+ *
+ * 两处说同一组话不是冗余：schema 是服务端的门，这个函数是界面的门，共用一个
+ * 常量与一个措辞，就不会出现「界面放行、服务端拒绝」那种只有 toast 能解释的
+ * 状态。
+ */
+export function puzzleCodeError(code: string): string | null {
+  const trimmed = code.trim();
+  if (trimmed.length === 0) return '请填写编码';
+  if (trimmed.length < 2) return '编码至少 2 个字符';
+  if (trimmed.length > PUZZLE_CODE_MAX_LENGTH) {
+    return `编码最多 ${PUZZLE_CODE_MAX_LENGTH} 个字符`;
+  }
+  if (!PUZZLE_CODE_PATTERN.test(trimmed)) return PUZZLE_CODE_RULE;
+  return null;
+}
+
+/**
  * FEAT-K03: create needs a name, an optional description and — the point of
  * the dialog — the **published** map version to draw on. Whether that version
  * exists is checked by the service, which is the only place that can know.
+ *
+ * v0.8.5 §7：多一个**必填**的 `code`。它跟名称不一样 —— 名称可以重、可以改，
+ * 编码是这一关对外的身份，部署时那串路径就是它。
  */
 export const createPuzzleSchema = z.object({
   name: puzzleNameSchema,
+  code: puzzleCodeSchema,
   description: puzzleDescriptionSchema.optional().nullable(),
   mapId: z.number().int().positive(),
   mapVersionNo: z.number().int().positive(),
@@ -274,6 +317,12 @@ export const forkPuzzleVersionBodySchema = z.object({
 
 export const updatePuzzleSchema = z.object({
   name: puzzleNameSchema.optional(),
+  /**
+   * v0.8.5 §7：编码可改。v0.8.5 之前建的谜题没有编码（`null`），这里是它们唯一的
+   * 补写入口；改它**不会**动已部署游戏的路径 —— 路径是给持链接的人的承诺，
+   * 只有重新部署才会按新编码重填。
+   */
+  code: puzzleCodeSchema.optional(),
   description: puzzleDescriptionSchema.optional().nullable(),
 });
 

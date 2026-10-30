@@ -152,6 +152,36 @@ async function uniqueName(base: string): Promise<string> {
   return uniqueCopyName(base);
 }
 
+/**
+ * v0.8.5 §7：编码在主题内不重。
+ *
+ * 为什么不是数据库唯一约束：同一条谜题的草稿行与版本行**共用**一个编码（那是
+ * 这一关的身份，不是版本的属性），唯一索引会把它们判成冲突。所以只在「新建」
+ * 与「改编码」这两个真正的入口查一次。
+ */
+async function assertCodeFree(themeId: number, code: string): Promise<void> {
+  if (await puzzleRepo.codeTaken(themeId, code)) {
+    throw AppError.conflict(`编码「${code}」已经被这个主题的另一个谜题用过了`);
+  }
+}
+
+/**
+ * 复制出一条新谜题时给它找一个空编码：先试原样，撞了就 `-2`、`-3`……
+ *
+ * 原谜题没有编码时也返回 `null` —— 不为了「每个谜题都要有编码」去发明一个。
+ */
+async function freeCode(themeId: number, base: string | null): Promise<string | null> {
+  if (!base) return null;
+  const stem = base.slice(0, 44).replace(/-+$/g, '');
+  let candidate = stem;
+  let index = 2;
+  while (await puzzleRepo.codeTaken(themeId, candidate)) {
+    candidate = `${stem}-${index}`;
+    index += 1;
+  }
+  return candidate;
+}
+
 async function requireRow(id: number): Promise<puzzleRepo.PuzzleRowWithLineage> {
   const row = await puzzleRepo.findById(id);
   if (!row) {
@@ -255,7 +285,16 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
   }
   const themeId = Number(mapRow.theme_id);
 
-  const row = await puzzleRepo.createPuzzle({ themeId, name: input.name, description, data });
+  // v0.8.5 §7：编码同主题内不重。schema 只守形状，重复要拿着主题去查。
+  await assertCodeFree(themeId, input.code);
+
+  const row = await puzzleRepo.createPuzzle({
+    themeId,
+    name: input.name,
+    code: input.code,
+    description,
+    data,
+  });
   return toDetail(row);
 }
 
@@ -331,7 +370,14 @@ function assertReferenceIssues(data: PuzzleDraft): void {
 }
 
 export async function updatePuzzle(id: number, input: UpdatePuzzleInput): Promise<PuzzleDetail> {
-  await findWritable(id);
+  const current = await findWritable(id);
+  /**
+   * v0.8.5 §7：改编码前查一次重。相同值直接放过 —— 查重看不见「自己」，同血统的
+   * 草稿行与版本行本来就都带着这个编码。
+   */
+  if (input.code !== undefined && input.code !== current.code) {
+    await assertCodeFree(Number(current.theme_id), input.code);
+  }
   const updated = await puzzleRepo.updatePuzzle(id, input);
   if (!updated) {
     throw AppError.notFound('谜题不存在');
@@ -358,7 +404,10 @@ export async function deletePuzzle(id: number): Promise<void> {
 export async function duplicatePuzzle(id: number): Promise<PuzzleDetail> {
   const source = await findWritable(id);
   const name = await uniqueCopyName(source.name);
-  const created = await puzzleRepo.duplicatePuzzle(id, name);
+  // v0.8.5 §7：副本是另一条谜题，编码要重新占一个 —— 原样复制会让两条谜题在部署
+  // 时抢同一个路径。
+  const code = await freeCode(Number(source.theme_id), source.code ?? null);
+  const created = await puzzleRepo.duplicatePuzzle(id, name, code);
   if (!created) {
     throw AppError.notFound('谜题不存在');
   }

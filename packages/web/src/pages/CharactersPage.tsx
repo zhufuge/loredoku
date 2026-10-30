@@ -173,7 +173,7 @@ export function CharactersPage(): JSX.Element {
             <Input
               value={keywordInput}
               onChange={(event) => setKeywordInput(event.target.value)}
-              placeholder="搜索名称 / 业务 ID"
+              placeholder="搜索名称 / 编码"
               className="pl-9"
             />
           </div>

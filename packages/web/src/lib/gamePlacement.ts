@@ -652,6 +652,26 @@ export function resolveToolHint(input: {
 }
 
 /**
+ * v0.8.5：一次放置落下之后，工具栏该停在哪个模式。
+ *
+ * **头像（`image`）放下 = 这位参与者已经就位**，手上不再举着任何东西 —— 名册
+ * 那张卡的选中环随之退掉。否则界面在宣称「你还举着他」，下一次点格子会让人以为
+ * 要放第二个（而头像本来就只有一张）。
+ *
+ * **编号（`number`）不退出**：同一位参与者的编号会落在很多格上（一行线索里常有
+ * 好几个数字），每落一次都要回名册重点一下，等于把连续标注变成反复点卡片。
+ *
+ * 模式没变时**返回同一个对象**，调用方可以靠引用相等跳过 `setState`。
+ */
+export function modeAfterPlacement(
+  mode: GameOperationMode,
+  variant: ParticipantPlacementVariant,
+): GameOperationMode {
+  if (mode.kind !== 'placing') return mode;
+  return variant === 'image' ? { kind: 'idle' } : mode;
+}
+
+/**
  * SPEC-G01 §7.1: the 3×3 sub-grid position of the i-th number inside its cell,
  * as a 0..1 anchor pair (the renderer multiplies by `cellSize`).
  */

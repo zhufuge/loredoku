@@ -9,7 +9,7 @@ import { formatDateTime } from '@/lib/format';
 import { formatRelativeTime } from '@/lib/relativeTime';
 
 /**
- * 谜题卡片（网格视图，服务草稿块）：封面 + 名称 + 描述 + 「尺寸 · 底图 · 时间」
+ * 谜题卡片（网格视图，服务草稿块）：封面 + 名称 + 描述 + 「尺寸 · 编码 · 时间」
  * 一行 + 主按钮。
  *
  * 主按钮按 kind 分叉：草稿行进编辑器，版本行走「编辑此版本」（`?v=` fork 态 ——
@@ -89,8 +89,9 @@ export function PuzzleGridCard({
           <span className="shrink-0 tabular-nums">
             {entry.gridSize} × {entry.gridSize}
           </span>
-          <span className="truncate" title={entry.mapName}>
-            {entry.mapName ? `${entry.mapName} v${entry.mapVersionNo}` : '—'}
+          {/* v0.8.5 §6：这里原来是底图来源（`地图名 vN`），换成编码 —— 见 PuzzleListRow 同处。 */}
+          <span className="truncate font-mono" title={entry.code ?? undefined}>
+            {entry.code ?? '—'}
           </span>
           <span className="shrink-0" title={formatDateTime(entry.publishedAt ?? entry.updatedAt)}>
             {formatRelativeTime(entry.publishedAt ?? entry.updatedAt)}更新

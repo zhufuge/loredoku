@@ -113,7 +113,8 @@ async function deployedGame(themeCode: string): Promise<{
 
   const puzzle = await api
     .post('/api/puzzles')
-    .send({ name: `撕扇 ${unique('p')}`, mapId, mapVersionNo });
+    // v0.8.5 §7：编码必填（部署时预填路径用）。
+    .send({ name: `撕扇 ${unique('p')}`, code: uniqueSlug('pz'), mapId, mapVersionNo });
   expect(puzzle.status).toBe(200);
   const puzzleId = puzzle.body.data.id as number;
   createdPuzzles.push(puzzleId);

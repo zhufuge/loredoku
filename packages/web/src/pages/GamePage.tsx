@@ -101,6 +101,7 @@ import {
   createGamePlacementState,
   forbiddenCells,
   avatarPlacedParticipantIds,
+  modeAfterPlacement,
   placeForbidden,
   placeParticipant,
   placementAt,
@@ -901,6 +902,12 @@ export function GamePage(): JSX.Element {
         }),
       );
       if (variant === 'number') markPulse(cellKey(x, y), mode.participantId);
+      /**
+       * v0.8.5：头像落下之后，手上就没有东西了 —— 名册那张卡的选中环跟着退掉。
+       * 规则本身在 `modeAfterPlacement` 里（编号不受影响，见那里的注释）。
+       */
+      const nextMode = modeAfterPlacement(mode, variant);
+      if (nextMode !== mode) setMode(nextMode);
       return true;
     }
     if (mode.kind === 'forbidden') {

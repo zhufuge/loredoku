@@ -166,9 +166,32 @@ describe('CreatePuzzleDialog (FEAT-K03)', () => {
     expect(createMutate).not.toHaveBeenCalled();
   });
 
-  it('submitting sends name / description / map reference', () => {
+  /**
+   * v0.8.5 §7：编码必填，而且必须是路径形状 —— 它会被部署弹窗原样拿去当中段。
+   */
+  it('编码是必填项，且只收路径形状', () => {
     render();
     act(() => setValue(field('create-puzzle-name'), '午夜花园'));
+    const option = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.includes('古堡之谜'),
+    )!;
+    act(() => option.click());
+
+    // 名称 + 版本都齐了，缺编码仍然按不下去。
+    expect(submit().disabled).toBe(true);
+
+    act(() => setValue(field('create-puzzle-code'), 'Midnight_Garden'));
+    expect(text()).toContain('编码只能用小写字母、数字与连字符');
+    expect(submit().disabled).toBe(true);
+
+    act(() => setValue(field('create-puzzle-code'), 'midnight-garden'));
+    expect(submit().disabled).toBe(false);
+  });
+
+  it('submitting sends name / code / description / map reference', () => {
+    render();
+    act(() => setValue(field('create-puzzle-name'), '午夜花园'));
+    act(() => setValue(field('create-puzzle-code'), 'midnight-garden'));
     act(() => setValue(field('create-puzzle-description'), '六人六格'));
     const option = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.textContent?.includes('古堡之谜'),
@@ -177,6 +200,7 @@ describe('CreatePuzzleDialog (FEAT-K03)', () => {
     act(() => submit().click());
     expect(createMutate).toHaveBeenCalledWith({
       name: '午夜花园',
+      code: 'midnight-garden',
       description: '六人六格',
       mapId: 217,
       mapVersionNo: 3,

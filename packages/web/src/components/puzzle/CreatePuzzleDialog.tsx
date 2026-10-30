@@ -3,8 +3,10 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Map as MapIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import {
+  PUZZLE_CODE_MAX_LENGTH,
   PUZZLE_DESCRIPTION_MAX_LENGTH,
   PUZZLE_NAME_MAX_LENGTH,
+  puzzleCodeError,
   type PublishedMapVersion,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
@@ -40,6 +42,10 @@ import { workshopPath } from '@/lib/workspace';
  *
  * `?new={mapId}:{versionNo}` (from the map list's version entries, §7.1) is
  * read here so 「以此版本新建谜题」 arrives with the version already picked.
+ *
+ * v0.8.5 §7：多一格**编码**。它不跟着名称长 —— 名称是中文（`午夜花园`），编码要
+ * 是地址（`midnight-garden`），从前者推不出后者，硬推只会推出一串空。所以这一格
+ * 由作者自己写，写什么就变成部署时预填的那条路径。
  */
 export function CreatePuzzleDialog({
   open,
@@ -59,6 +65,8 @@ export function CreatePuzzleDialog({
   });
 
   const [name, setName] = useState('');
+  /** v0.8.5 §7：编码。与名称**不联动** —— 这一格是地址，得一格格敲。 */
+  const [code, setCode] = useState('');
   const [description, setDescription] = useState('');
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   /** 封面在建行之后才传（上传端点认 id），由 `useCreatePuzzle` 一并完成。 */
@@ -79,6 +87,7 @@ export function CreatePuzzleDialog({
   useEffect(() => {
     if (!open) return;
     setName('');
+    setCode('');
     setDescription('');
     setSelectedKey(null);
     setCover(null);
@@ -93,12 +102,29 @@ export function CreatePuzzleDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, searchParams, versions]);
 
-  const canSubmit = name.trim().length > 0 && selected !== null && !create.isPending;
+  /**
+   * 编码只在作者已经开始写的时候才报错 —— 一个刚打开的弹窗没必要先红一片。
+   * 「必填」这件事由 `canSubmit` 表达：没填就是按不下去。
+   */
+  const codeProblem = code.trim().length > 0 ? puzzleCodeError(code) : null;
+
+  const canSubmit =
+    name.trim().length > 0 &&
+    code.trim().length > 0 &&
+    codeProblem === null &&
+    selected !== null &&
+    !create.isPending;
 
   const submit = (): void => {
     const trimmed = name.trim();
     if (trimmed.length === 0) {
       toast.error('请填写谜题名称');
+      return;
+    }
+    const trimmedCode = code.trim();
+    const codeIssue = puzzleCodeError(trimmedCode);
+    if (codeIssue) {
+      toast.error(codeIssue);
       return;
     }
     if (!selected) {
@@ -108,6 +134,7 @@ export function CreatePuzzleDialog({
     const trimmedDescription = description.trim();
     create.mutate({
       name: trimmed,
+      code: trimmedCode,
       description: trimmedDescription.length > 0 ? trimmedDescription : undefined,
       mapId: selected.mapId,
       mapVersionNo: selected.versionNo,
@@ -136,6 +163,28 @@ export function CreatePuzzleDialog({
               disabled={create.isPending}
               onChange={(event) => setName(event.target.value)}
             />
+          </div>
+
+          {/* v0.8.5 §7：编码紧跟在名称后面 —— 它是这一关的第二个「名字」，一个是给人读的，
+              一个是给地址用的。 */}
+          <div className="space-y-1.5">
+            <Label htmlFor="create-puzzle-code">编码</Label>
+            <Input
+              id="create-puzzle-code"
+              value={code}
+              maxLength={PUZZLE_CODE_MAX_LENGTH}
+              placeholder="小写字母、数字与连字符，创建后不可改"
+              autoComplete="off"
+              spellCheck={false}
+              disabled={create.isPending}
+              aria-invalid={codeProblem !== null}
+              onChange={(event) => setCode(event.target.value)}
+            />
+            {codeProblem ? (
+              <p className="text-2xs text-destructive">{codeProblem}</p>
+            ) : (
+              <p className="text-2xs text-muted-foreground">部署时用它预填访问路径。</p>
+            )}
           </div>
 
           <div className="space-y-1.5">

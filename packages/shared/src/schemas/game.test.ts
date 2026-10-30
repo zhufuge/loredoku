@@ -6,7 +6,7 @@ import {
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
 } from '../constants';
-import { cellPlacementSchema, gameDeploySchema, gameSlugParamSchema } from './game';
+import { cellPlacementSchema, gameDeploySchema, gameSlugParamSchema, gameWeightUpdateSchema } from './game';
 
 describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
   it('lists fifteen layers, the two game-only ones between 区域标签 and 物品图层', () => {
@@ -129,6 +129,32 @@ describe('gameDeploySchema sortWeight (v0.8.3)', () => {
       expect(gameDeploySchema.safeParse({ sortWeight: bad }).success, String(bad)).toBe(false);
     }
     expect(gameDeploySchema.safeParse({ sortWeight: '3' }).success).toBe(false);
+  });
+});
+
+/**
+ * v0.8.5：`PATCH /api/games/:id` 的入参 —— 与部署 schema 的唯一区别是
+ * `sortWeight` **必填**：这条端点只做「改顺序」一件事，少一个键的意思只能是
+ * 请求写错了，静默成功只会让作者以为改上了。
+ */
+describe('gameWeightUpdateSchema (v0.8.5)', () => {
+  it('接受区间内的整数（含负数）', () => {
+    for (const value of [-999, -3, 0, 42, 999]) {
+      expect(gameWeightUpdateSchema.parse({ sortWeight: value }).sortWeight).toBe(value);
+    }
+  });
+
+  it('缺键是错误 —— 不是「沿用上一次」', () => {
+    expect(gameWeightUpdateSchema.safeParse({}).success).toBe(false);
+    expect(gameWeightUpdateSchema.safeParse({ weight: 3 }).success).toBe(false);
+  });
+
+  it('越界、非整数、字符串都拒', () => {
+    for (const bad of [1000, -1000, 1.5, Number.NaN, '3', null]) {
+      expect(gameWeightUpdateSchema.safeParse({ sortWeight: bad }).success, String(bad)).toBe(
+        false,
+      );
+    }
   });
 });
 

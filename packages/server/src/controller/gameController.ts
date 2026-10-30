@@ -46,6 +46,15 @@ export async function uploadCover(ctx: Context): Promise<void> {
   success(ctx, await gameService.uploadGameCover(id, file.buffer), '封面上传成功');
 }
 
+/**
+ * v0.8.5：部署页就地改权重。body 只有 `{ sortWeight }`，校验在 service ——
+ * 控制器把整个 body 原样交过去，同 `deploy` 的做法。
+ */
+export async function updateSortWeight(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  success(ctx, await gameService.updateGameSortWeight(id, ctx.request.body ?? {}), '顺序已更新');
+}
+
 /** §7.4: 取消部署 = 假删（链接立刻失效，slug 可复用）。 */
 export async function remove(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);

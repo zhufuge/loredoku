@@ -58,6 +58,9 @@ const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
  *   `puzzle` prop 的形状就是版本条目；
  * - 访问路径拆成「只读前缀 `puzzle-` + 可编辑中段」（v0.8.1 起难度不进路径）：
  *   已部署过的路径被改掉时明写「原访问路径将失效」。
+ * - v0.8.5 §7.4：中段默认值来自**谜题编码**（作者建谜题时写的那一串），没有编码的
+ *   存量谜题才退回按名称推导。前缀留在地址里、列表里不显示（`stripSlugPrefix`）——
+ *   它是个命名空间，不是这一关的信息。
  */
 export function GameDeployDialog({
   puzzle,
@@ -187,7 +190,12 @@ export function GameDeployDialog({
       setMiddle(splitSlug(activeExisting.slug));
       setMiddleTouched(true);
     } else {
-      setMiddle(slugify(startName));
+      /**
+       * v0.8.5 §7.4：**先看编码**。编码就是路径的中段（作者建谜题时写的就是地址形状），
+       * 有它就用它；没有（v0.8.5 之前的谜题）才退回按名称推导 —— 中文名推不出
+       * 东西，那时仍然需要作者自己填。
+       */
+      setMiddle(activePuzzle.code ? slugify(activePuzzle.code) : slugify(startName));
       setMiddleTouched(false);
     }
   }, [open, activePuzzle, activeExisting, tiers]);
@@ -204,10 +212,13 @@ export function GameDeployDialog({
    * 作者没手动改过中段时，它跟着名称走 —— 直接写在名称输入的 onChange 里，而不是
    * 用一个「同步」effect：两个 effect 抢着写同一个 state 时，初始化的那次回填会
    * 被随后的一次覆盖（已部署游戏的中段被清成默认值）。
+   *
+   * v0.8.5 §7.4：有编码时**不跟名称走** —— 路径由编码定，改名只改显示名。
    */
   const changeName = (next: string): void => {
     setName(next);
-    if (!middleTouched) setMiddle(slugify(next));
+    if (middleTouched) return;
+    setMiddle(activePuzzle?.code ? slugify(activePuzzle.code) : slugify(next));
   };
 
   // v0.8.1：难度不参与拼接 —— 路径只由中段决定。

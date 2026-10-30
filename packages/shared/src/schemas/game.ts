@@ -64,6 +64,17 @@ export const gameDeploySchema = z.object({
 });
 
 /**
+ * v0.8.5：部署页就地改权重（`PATCH /api/games/:id`）。
+ *
+ * 与 `gameDeploySchema.sortWeight` 的区别只有一条：那里**缺省**是「这次没提」，
+ * 这里 `sortWeight` 是**必填** —— 这条端点的唯一职责就是改它，少一个键的请求
+ * 没有别的意思可表达，静默成功只会让作者以为改上了。
+ */
+export const gameWeightUpdateSchema = z.object({
+  sortWeight: z.number().int().min(GAME_SORT_WEIGHT_MIN).max(GAME_SORT_WEIGHT_MAX),
+});
+
+/**
  * SPEC-G01 (docs/v0.4.0.md §7.1): what one cell of the 游戏放置层 holds.
  * The three forms are mutually exclusive; `null` is an empty cell.
  *

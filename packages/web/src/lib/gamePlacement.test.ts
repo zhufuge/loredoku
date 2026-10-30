@@ -23,6 +23,7 @@ import {
   formatCellLabel,
   glyphFontSize,
   hasParticipant,
+  modeAfterPlacement,
   numberSlotAnchor,
   numbersIn,
   participantPlacementAt,
@@ -1210,5 +1211,26 @@ describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
 
   it('returns an empty set for an untouched board', () => {
     expect(avatarPlacedParticipantIds(createGamePlacementState().board)).toEqual(new Set());
+  });
+});
+
+/**
+ * v0.8.5：头像落下之后名册的选中态要退掉；编号不能退 —— 那是一次连续动作。
+ */
+describe('modeAfterPlacement (v0.8.5)', () => {
+  const placing = { kind: 'placing', participantId: 3 } as const;
+
+  it('头像放下之后回到 idle —— 手上不再举着那位参与者', () => {
+    expect(modeAfterPlacement(placing, 'image')).toEqual({ kind: 'idle' });
+  });
+
+  it('编号不退出放置态，而且是同一个对象（调用方据此跳过 setState）', () => {
+    expect(modeAfterPlacement(placing, 'number')).toBe(placing);
+  });
+
+  it('其他工具态原样返回', () => {
+    const forbidden = { kind: 'forbidden' } as const;
+    expect(modeAfterPlacement(forbidden, 'image')).toBe(forbidden);
+    expect(modeAfterPlacement({ kind: 'idle' }, 'image')).toEqual({ kind: 'idle' });
   });
 });

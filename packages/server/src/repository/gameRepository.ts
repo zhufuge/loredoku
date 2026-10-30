@@ -186,6 +186,28 @@ export async function updateGameCover(
   return getGameRow(id);
 }
 
+/**
+ * v0.8.5：部署页就地改展示顺序。
+ *
+ * 只写 `sort_weight` 一列 —— 这是「排序」这件事最小的一次写，走部署端点重发
+ * 整份负载会把 `name` / `slug` / `difficulty` 一起带回去，任何一个字段在弹窗
+ * 里过时都会顺手把别的改掉。
+ *
+ * 返回更新后的摘要（`undefined` = 没有这条活行），调用方据此刷新列表。
+ */
+export async function updateGameSortWeight(
+  id: number,
+  sortWeight: number,
+): Promise<MapGameSummary | undefined> {
+  const affected = await db('games')
+    .where({ id })
+    .whereNull('deleted_at')
+    .update({ sort_weight: sortWeight, updated_at: db.fn.now() });
+  if (affected === 0) return undefined;
+  const row = await getGameRow(id);
+  return row ? toSummary(row) : undefined;
+}
+
 /** 取消部署 = 假删。行还在（审计 / 同一 slug 可复用），只是不再出现。 */
 export async function cancelGame(id: number): Promise<boolean> {
   const affected = await db('games')

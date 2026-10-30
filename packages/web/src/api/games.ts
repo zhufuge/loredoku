@@ -1,5 +1,5 @@
 import type { MapGameDetail, MapGameSummary } from '@loredoku/shared';
-import { apiDelete, apiGet, apiPost } from './client';
+import { apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 /**
  * CONS-K16 (docs/v0.5.0.md §10.2): the unit of deployment is a **puzzle** now —
@@ -59,5 +59,12 @@ export const gamesApi = {
   /** v0.7.1 §7.4：取消部署 = 假删（`deleted_at`），访问路径随之释放。 */
   cancel(id: number): Promise<null> {
     return apiDelete<null>(`/games/${id}`);
+  },
+  /**
+   * v0.8.5：部署页就地改权重。只有这一个键 —— 重发整份部署负载会顺手把名称、
+   * 路径、难度一起写回去，而列表上的那些值可能已经比弹窗里的新。
+   */
+  updateWeight(id: number, sortWeight: number): Promise<MapGameSummary> {
+    return apiPatch<MapGameSummary>(`/games/${id}`, { sortWeight });
   },
 };

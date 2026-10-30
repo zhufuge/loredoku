@@ -4,6 +4,7 @@ import {
   buildDefaultSlug,
   defaultDifficultyKey,
   gameDeploySchema,
+  gameWeightUpdateSchema,
   resolveDifficultyTiers,
   slugError,
 } from '@loredoku/shared';
@@ -71,6 +72,7 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
     body.slug,
     name,
     body.overwriteSlug === true,
+    puzzle.code ?? null,
   );
 
   const difficulty = await resolveDifficulty(Number(puzzle.theme_id), body.difficulty);
@@ -103,14 +105,21 @@ async function resolveSlug(
   rawSlug: string | undefined,
   name: string,
   overwriteSlug: boolean,
+  code: string | null,
 ): Promise<{ slug: string; replaceGameId: number | null }> {
   const typed = (rawSlug ?? '').trim();
   if (rawSlug !== undefined && typed.length === 0) {
     throw AppError.validation('访问路径必填');
   }
 
-  // v0.8.1：难度不进路径 —— 部署兜底也只从名称派生。
-  const slug = typed.length > 0 ? typed.toLowerCase() : buildDefaultSlug({ name });
+  /**
+   * v0.8.1：难度不进路径 —— 部署兜底也只从名称派生。
+   * v0.8.5 §7.4：**先看谜题编码**。编码本来就是路径形状（`hlm-sishan`），拿它当兜底
+   * 比拿名称靠谱 —— 中文名 slug 化之后什么都不剩，而那正是「作者得自己填」的
+   * 老毛病。没有编码的存量谜题照旧退回名称。
+   */
+  const slug =
+    typed.length > 0 ? typed.toLowerCase() : buildDefaultSlug({ name: code ?? name });
 
   const problem = slugError(slug);
   if (problem) {
@@ -201,6 +210,27 @@ export async function uploadGameCover(id: number, buffer: Buffer): Promise<MapGa
     throw AppError.notFound('游戏不存在');
   }
   return gameRepo.toSummary(row);
+}
+
+/**
+ * v0.8.5：部署页就地改展示顺序（`PATCH /api/games/:id`）。
+ *
+ * 只认 `sortWeight` 一个键：这条端点是「排序」这一个动作，不是「编辑部署」。
+ * 校验交给 shared 的 `gameWeightUpdateSchema`（区间 ±999、必须是整数），
+ * 越界在这里就是 400，而不是写进库里再让列表看起来「没反应」。
+ *
+ * 返回更新后的摘要 —— 前端拿它刷新缓存，顺序也随之重排。
+ */
+export async function updateGameSortWeight(
+  id: number,
+  input: unknown,
+): Promise<MapGameSummary> {
+  const body = parseOrThrow(gameWeightUpdateSchema, input);
+  const updated = await gameRepo.updateGameSortWeight(id, body.sortWeight);
+  if (!updated) {
+    throw AppError.notFound('游戏不存在');
+  }
+  return updated;
 }
 
 /**

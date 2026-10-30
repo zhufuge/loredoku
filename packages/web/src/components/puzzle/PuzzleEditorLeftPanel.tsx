@@ -179,7 +179,7 @@ export const PuzzleEditorLeftPanel = forwardRef<
           <input
             value={keyword}
             onChange={(event) => setKeyword(event.target.value)}
-            placeholder="搜索名称 / 业务 ID"
+            placeholder="搜索名称 / 编码"
             aria-label="搜索角色"
             className={cn(
               'h-8 w-full rounded-md border border-input bg-background pl-8 pr-2 text-xs',

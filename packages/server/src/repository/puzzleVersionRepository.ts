@@ -82,6 +82,9 @@ export async function createVersion(data: CreatePuzzleVersionData): Promise<Puzz
       root_id: data.owner.root_id,
       version: String(data.versionNo),
       name: data.owner.name,
+      // v0.8.5 §7：编码跟着血统走 —— 版本行也要带着它，部署**那条版本**时才有
+      // 「按编码预填路径」可依。
+      code: data.owner.code ?? null,
       description: data.owner.description,
       cover_path: data.owner.cover_path,
       data: data.data,
@@ -135,6 +138,8 @@ export async function forkVersion(
         theme_id: owner.theme_id,
         root_id: owner.root_id,
         name,
+        // v0.8.5 §7：fork 出的草稿仍在同一条血统里，编码照旧。
+        code: version.code ?? owner.code ?? null,
         description: version.description,
         cover_path: version.cover_path,
         data: source ? { ...source, name } : version.data,

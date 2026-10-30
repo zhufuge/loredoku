@@ -68,6 +68,7 @@ export function toPuzzleEntry(row: PuzzleRowWithLineage): PuzzleEntrySummary {
     versionNo,
     name: row.name,
     description: row.description,
+    code: row.code ?? null,
     gridSize: draft ? puzzleGridSize(draft) : 0,
     mapId: draft?.map?.mapId ?? 0,
     mapName: draft?.map?.mapName ?? '',
@@ -162,6 +163,8 @@ export interface CreatePuzzleData {
   /** v0.8.0：由底图那一行决定（`mapService` / `puzzleService` 读 `maps.theme_id`）。 */
   themeId: number;
   name: string;
+  /** v0.8.5 §7：编码（schema 保证形状，服务端保证主题内不重）。 */
+  code: string;
   description: string | null;
   data: PuzzleDraft;
 }
@@ -177,6 +180,7 @@ export async function createPuzzle(input: CreatePuzzleData): Promise<PuzzleRowWi
         theme_id: input.themeId,
         root_id: 0,
         name: input.name,
+        code: input.code,
         description: input.description,
         data: input.data,
       })
@@ -223,6 +227,8 @@ export async function savePuzzleDraft(
 export interface UpdatePuzzleData {
   name?: string;
   description?: string | null;
+  /** v0.8.5 §7：编码（同血统共写，见下）。 */
+  code?: string;
 }
 
 export async function updatePuzzle(
@@ -236,6 +242,17 @@ export async function updatePuzzle(
     const columns: Record<string, unknown> = { updated_at: trx.fn.now() };
     if (patch.name !== undefined) columns['name'] = patch.name;
     if (patch.description !== undefined) columns['description'] = patch.description;
+
+    /**
+     * v0.8.5 §7：编码写**整条血统**，不只这一行。
+     *
+     * 版本行是发布时的快照，但快照的是**内容**（画布、名册、名称）—— 「这一关
+     * 的对外身份」不是版本之间的差异。只写草稿行的话，列表里同一条谜题的版本行
+     * 会显示旧编码，部署那条版本时预填出来的路径也跟着旧。
+     */
+    if (patch.code !== undefined) {
+      await trx('puzzles').where({ root_id: row.root_id }).update({ code: patch.code });
+    }
 
     const data = absorbLegacyPuzzleDraft(row.data);
     if (data) {
@@ -261,10 +278,14 @@ export async function deletePuzzle(id: number): Promise<boolean> {
  * 「复制」create an independent puzzle：副本是它自己血统的根（与 fork 不同，
  * fork 留在原血统里续号）。底图画布随之整份复制 —— 谜题自带画布，所以复制
  * 不需要再问地图要数据。
+ *
+ * v0.8.5 §7：副本**不能沿用**原编码（那是另一条谜题的对外身份，而且部署路径会撞），
+ * 由 service 算一个没被占用的传进来（`-2`、`-3` …）。
  */
 export async function duplicatePuzzle(
   sourceId: number,
   newName: string,
+  newCode: string | null,
 ): Promise<PuzzleRowWithLineage | undefined> {
   const createdId = await db.transaction(async (trx) => {
     const source = (await trx<PuzzleRow>('puzzles').where({ id: sourceId }).first()) as
@@ -279,6 +300,7 @@ export async function duplicatePuzzle(
         theme_id: source.theme_id,
         root_id: 0,
         name: newName,
+        code: newCode,
         description: source.description,
         cover_path: source.cover_path,
         data: data ? { ...data, name: newName } : source.data,
@@ -290,6 +312,20 @@ export async function duplicatePuzzle(
   });
 
   return createdId === undefined ? undefined : findById(createdId);
+}
+
+/**
+ * v0.8.5 §7：这个编码在主题内是否已被**另一条**谜题占用。
+ *
+ * 同血统的版本行不算 —— 它们本来就共用同一个编码（见 `updatePuzzle`）。
+ * 查重只看未删行：删掉的谜题不该永久占着一个编码。
+ */
+export async function codeTaken(themeId: number, code: string): Promise<boolean> {
+  const row = await db('puzzles')
+    .where({ theme_id: themeId, code })
+    .whereNull('deleted_at')
+    .first('id');
+  return Boolean(row);
 }
 
 /**

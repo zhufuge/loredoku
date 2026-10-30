@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, ExternalLink, Package, Rocket, Trash2 } from 'lucide-react';
-import { toast } from 'sonner';
+import { ExternalLink, Folder, Package, Rocket, Trash2 } from 'lucide-react';
 import {
   type MapGameSummary,
   type PuzzleEntrySummary,
   type ThemeDeploymentSummary,
+  stripSlugPrefix,
 } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -23,8 +23,9 @@ import { PageHeader } from '@/components/layout/PageHeader';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import { GameDeployDialog } from '@/components/game/GameDeployDialog';
+import { SortWeightCell } from '@/components/game/SortWeightCell';
 import { ExportBundleDialog } from '@/components/theme/ExportBundleDialog';
-import { useCancelGame, useGames } from '@/hooks/useGames';
+import { useCancelGame, useGames, useUpdateGameWeight } from '@/hooks/useGames';
 import { usePuzzles } from '@/hooks/usePuzzles';
 import { useRemoveDeployment, useThemeDeployments } from '@/hooks/useThemes';
 import { formatDateTime } from '@/lib/format';
@@ -42,6 +43,18 @@ import { InlineLoading, LoredokuTick } from '@/components/common/LoredokuLoader'
  *
  * 取消部署是**假删**（`deleted_at`）：玩家的 `/play/{slug}` 立刻打不开，但同一个
  * 访问路径可以再用。取消**合辑**下线不一样：它只删目录，那几关的单局仍然在线。
+ *
+ * v0.8.5：这一行不再承担「给你一条可复制的链接」。
+ * - 路径只显示**尾部**（`puzzle-xxxx`），前缀 `/play/` 在每一行都一样，占着最宽的
+ *   一列却不提供任何信息；要真去玩，右边那颗新标签页按钮一直在。
+ * - 复制按钮与「已复制」勾号一起撤掉 —— 路径已经不是一个完整的地址，复制它没有意义。
+ * - 多了一列「顺序」（`sort_weight`）：点开就地改，回车或失焦时**值真的变了**才写回。
+ *
+ * v0.8.5 §3：路径连 `puzzle-` 那一段也不显示了（`stripSlugPrefix`）。
+ * - 它是 v0.4.1 给 `/play/` 底下留的命名空间，不是这一关的信息 —— 每行都以它开头，
+ *   读起来像页头的复读。地址本身没变，完整路径仍在 `title` 里。
+ * - 同一次改动把名称下面那行「来源：xxx vN」撤了：部署页回答的是「在线的是什么」，
+ *   不是「它是从哪一版谜题生成的」—— 后者要追溯，去谜题列表看版本号。
  */
 export function DeploymentsPage(): JSX.Element {
   const workspace = useWorkspace();
@@ -49,11 +62,10 @@ export function DeploymentsPage(): JSX.Element {
   const deploymentsQuery = useThemeDeployments();
   const cancelMutation = useCancelGame();
   const removeDeployment = useRemoveDeployment();
+  const updateWeight = useUpdateGameWeight();
   const [cancelTarget, setCancelTarget] = useState<MapGameSummary | null>(null);
   const [cancelCollection, setCancelCollection] = useState<ThemeDeploymentSummary | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
-  /** 刚复制成功的那一行的 key（slug / 合辑 slug）—— 让勾号只出现在被点的那一行。 */
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [deployOpen, setDeployOpen] = useState(false);
 
   /**
@@ -75,12 +87,6 @@ export function DeploymentsPage(): JSX.Element {
   useEffect(() => {
     document.title = workspace ? `${workspace.theme.name} · 部署 · 格物` : '部署 · 格物';
   }, [workspace?.theme.name]);
-
-  useEffect(() => {
-    if (copiedKey === null) return;
-    const timer = setTimeout(() => setCopiedKey(null), 1500);
-    return () => clearTimeout(timer);
-  }, [copiedKey]);
 
   const collections = useMemo(() => {
     const all = deploymentsQuery.data ?? [];
@@ -119,19 +125,6 @@ export function DeploymentsPage(): JSX.Element {
   const existingGameFor = (entry: PuzzleEntrySummary): MapGameSummary | null =>
     (gamesQuery.data ?? []).find((game) => game.puzzleId === entry.id) ?? null;
 
-  const copyPath = (path: string, key: string): void => {
-    const absolute = `${window.location.origin}${path}`;
-    void (async () => {
-      try {
-        await navigator.clipboard.writeText(absolute);
-        setCopiedKey(key);
-        toast.success('访问路径已复制');
-      } catch {
-        toast.error('复制失败，请手动选中');
-      }
-    })();
-  };
-
   function renderCollectionRow(deployment: ThemeDeploymentSummary): JSX.Element {
     const playable = deployment.entries.filter((entry) => entry.game !== null).length;
     const path = `/play/theme/${deployment.slug}`;
@@ -140,20 +133,28 @@ export function DeploymentsPage(): JSX.Element {
         key={`collection-${deployment.id}`}
         className="flex items-center gap-4 border-b px-4 py-3"
       >
+        {/* 与单局行同一个 64×40 的位：两行的名称列因此从同一个 x 起，读起来是一张表。 */}
+        <span className="flex h-10 w-16 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted/40">
+          <Folder className="h-4 w-4 text-muted-foreground/60" />
+        </span>
+
         <div className="w-48 shrink-0">
           <div className="truncate font-medium" title={deployment.name}>
             合辑「{deployment.name}」
           </div>
           <div className="truncate text-xs text-muted-foreground">目录 · {playable} 关</div>
         </div>
-        <button
-          type="button"
-          onClick={() => copyPath(path, `collection-${deployment.slug}`)}
-          title="复制完整访问路径"
-          className="min-w-0 flex-1 truncate text-left font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+
+        {/* 合辑没有自己的权重 —— 内部仍按 `sort_order`，这一格留空而不是给 0。 */}
+        <span className="w-14 shrink-0" />
+
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+          title={`/play/theme/${deployment.slug}`}
         >
-          {path}
-        </button>
+          {stripSlugPrefix(deployment.slug)}
+        </span>
+
         <span className="w-52 shrink-0 truncate text-right text-xs text-muted-foreground">
           {formatDateTime(deployment.createdAt)}
         </span>
@@ -169,18 +170,6 @@ export function DeploymentsPage(): JSX.Element {
           </a>
           <IconButton
             variant="ghost"
-            icon={
-              copiedKey === `collection-${deployment.slug}` ? (
-                <Check className="h-4 w-4 text-success" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )
-            }
-            label="复制合辑路径"
-            onClick={() => copyPath(path, `collection-${deployment.slug}`)}
-          />
-          <IconButton
-            variant="ghost"
             icon={<Trash2 className="h-4 w-4" />}
             label="取消合辑上线"
             className="text-destructive hover:text-destructive"
@@ -191,7 +180,13 @@ export function DeploymentsPage(): JSX.Element {
     );
   }
 
-  /** 单局行：与 v0.7 的 64px 行同档 —— 缩略图 64×40、名称 192、弹性中列、时间 208、操作 160。 */
+  /**
+   * 单局行：缩略图 64×40、名称 192、难度、尺寸 64、顺序 56、路径（弹性）、
+   * 时间 208、操作 160。
+   *
+   * v0.8.5：路径只剩 slug。v0.8.5 §3：连 slug 里的 `puzzle-` 也剥掉 —— 列里的字
+   * 只剩「这一关是谁」，完整地址在 `title` 里，要真打开就在右边那颗按钮上。
+   */
   function renderGameRow(game: MapGameSummary): JSX.Element {
     const initial = game.name.trim().charAt(0) || '游';
     const path = `/play/${game.slug}`;
@@ -219,9 +214,6 @@ export function DeploymentsPage(): JSX.Element {
           <div className="truncate font-medium" title={game.name}>
             {game.name}
           </div>
-          <div className="truncate text-xs text-muted-foreground">
-            来源：{game.puzzleName} v{game.puzzleVersionNo}
-          </div>
         </div>
 
         <DifficultyBadge difficulty={game.difficulty} />
@@ -230,14 +222,18 @@ export function DeploymentsPage(): JSX.Element {
           {game.gridSize} × {game.gridSize}
         </span>
 
-        <button
-          type="button"
-          onClick={() => copyPath(path, game.slug)}
-          title="复制完整访问路径"
-          className="min-w-0 flex-1 truncate text-left font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
+        <SortWeightCell
+          value={game.sortWeight}
+          pending={updateWeight.isPending && updateWeight.variables?.id === game.id}
+          onCommit={(sortWeight) => updateWeight.mutate({ id: game.id, sortWeight })}
+        />
+
+        <span
+          className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
+          title={path}
         >
-          {path}
-        </button>
+          {stripSlugPrefix(game.slug)}
+        </span>
 
         <span className="w-52 shrink-0 truncate text-right text-xs text-muted-foreground">
           {formatDateTime(game.createdAt)}
@@ -259,18 +255,6 @@ export function DeploymentsPage(): JSX.Element {
           </a>
           <IconButton
             variant="ghost"
-            icon={
-              copiedKey === game.slug ? (
-                <Check className="h-4 w-4 text-success" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )
-            }
-            label="复制访问路径"
-            onClick={() => copyPath(path, game.slug)}
-          />
-          <IconButton
-            variant="ghost"
             icon={<Trash2 className="h-4 w-4" />}
             label="取消部署"
             className="text-destructive hover:text-destructive"
@@ -280,7 +264,6 @@ export function DeploymentsPage(): JSX.Element {
       </div>
     );
   }
-
   function renderBody(): JSX.Element {
     if (gamesQuery.isLoading || deploymentsQuery.isLoading) {
       return (

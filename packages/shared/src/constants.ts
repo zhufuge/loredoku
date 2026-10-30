@@ -174,6 +174,17 @@ export const PUZZLE_JSON_VERSION = 2;
 export const PUZZLE_NAME_MAX_LENGTH = 100;
 export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
 
+/**
+ * v0.8.5 §7：谜题编码。
+ *
+ * 与资源 / 角色的编码**故意不同字符集**：那两个用下划线（`hlm_big_tree`），因为
+ * 它们只在 JSON 里被引用；这个用连字符，因为它会直接变成访问路径的中段
+ * （`/play/puzzle-hlm-sishan`），而路径只认小写字母、数字与连字符。让编码本身
+ * 就合法，部署时就不用再翻译一次 —— 「作者写的」和「地址里的」是同一个串。
+ */
+export const PUZZLE_CODE_MAX_LENGTH = 48;
+export const PUZZLE_CODE_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
 // ---- v0.7.14 题面：全局线索与结束语 ----
 /**
  * 全局线索**最多 8 条**（docs/v0.7.14.md §2）。

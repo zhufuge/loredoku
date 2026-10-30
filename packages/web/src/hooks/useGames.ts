@@ -133,3 +133,22 @@ export function useDeployGame(options: { onSlugConflict?: SlugConflictHandler } 
     },
   });
 }
+
+/**
+ * v0.8.5：部署页把某一行的权重改掉。
+ *
+ * 成功后只刷列表（服务端按 `sort_weight` 重新排过，本地不需要再排一次）—— 顺序
+ * 是服务端的一件事实，前端照抄就好。失败照样 toast：这一格是**就地编辑**，没有
+ * 弹窗可以承载错误，静默失败会让人以为改上了。
+ */
+export function useUpdateGameWeight() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, sortWeight }: { id: number; sortWeight: number }) =>
+      gamesApi.updateWeight(id, sortWeight),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: gameKeys.all });
+    },
+    onError: (error) => toast.error(errorMessage(error, '顺序保存失败')),
+  });
+}

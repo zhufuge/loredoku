@@ -261,14 +261,26 @@ describe('puzzleDraftSchema 自洽引用校验 (§5.2 第一半)', () => {
 });
 
 describe('谜题的三个写入 schema', () => {
-  it('createPuzzleSchema requires name + mapId + mapVersionNo', () => {
+  /**
+   * v0.8.5 §7：`code` 是**必填**的，而且形状必须是路径中段（小写 / 数字 / 连字符）——
+   * 部署时它原样落进 `/play/puzzle-{code}`，允许大写或下划线等于允许一条打不开的
+   * 链接。
+   */
+  it('createPuzzleSchema requires name + code + mapId + mapVersionNo', () => {
+    const ok = { name: '午夜花园', code: 'midnight-garden', mapId: 217, mapVersionNo: 3 };
+    expect(createPuzzleSchema.safeParse(ok).success).toBe(true);
+    // 缺编码 = 缺「这一关叫什么」，按不下去。
     expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapId: 217, mapVersionNo: 3 }).success).toBe(
-      true,
+      false,
     );
-    expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapId: 217 }).success).toBe(false);
-    expect(createPuzzleSchema.safeParse({ name: '午夜花园', mapVersionNo: 3 }).success).toBe(false);
-    const parsed = createPuzzleSchema.parse({ name: ' 午夜花园 ', mapId: 217, mapVersionNo: 3 });
+    expect(createPuzzleSchema.safeParse({ ...ok, code: 'x' }).success).toBe(false);
+    expect(createPuzzleSchema.safeParse({ ...ok, code: 'Midnight_Garden' }).success).toBe(false);
+    expect(createPuzzleSchema.safeParse({ ...ok, code: '-garden' }).success).toBe(false);
+    expect(createPuzzleSchema.safeParse({ ...ok, mapId: undefined }).success).toBe(false);
+    expect(createPuzzleSchema.safeParse({ ...ok, mapVersionNo: undefined }).success).toBe(false);
+    const parsed = createPuzzleSchema.parse({ ...ok, name: ' 午夜花园 ', code: ' midnight-garden ' });
     expect(parsed.name).toBe('午夜花园');
+    expect(parsed.code).toBe('midnight-garden');
     expect(parsed.description).toBeUndefined();
   });
 
@@ -284,6 +296,9 @@ describe('谜题的三个写入 schema', () => {
     expect(updatePuzzleSchema.safeParse({ name: '新名字' }).success).toBe(true);
     expect(updatePuzzleSchema.safeParse({ description: '' }).success).toBe(true);
     expect(updatePuzzleSchema.safeParse({ name: '   ' }).success).toBe(false);
+    // v0.8.5 §7：编码可改（存量谜题唯一的补写入口），但形状与创建时同一条规矩。
+    expect(updatePuzzleSchema.safeParse({ code: 'hlm-sishan' }).success).toBe(true);
+    expect(updatePuzzleSchema.safeParse({ code: 'HLM_Sishan' }).success).toBe(false);
     expect(updatePuzzleSchema.safeParse({}).success).toBe(true);
   });
 

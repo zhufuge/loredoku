@@ -16,5 +16,7 @@ gamesRouter.get('/', controller.list);
 gamesRouter.get('/slug/:slug', controller.detailBySlug);
 gamesRouter.get('/:id', controller.detail);
 gamesRouter.post('/:id/cover', gameCoverUpload.single('file'), controller.uploadCover);
+/** v0.8.5：部署页就地改展示顺序（只认 `sortWeight` 一个键）。 */
+gamesRouter.patch('/:id', controller.updateSortWeight);
 /** v0.7.1 §7.4: 取消部署（假删），玩家端与工坊「部署」模块共用同一份列表。 */
 gamesRouter.delete('/:id', controller.remove);
