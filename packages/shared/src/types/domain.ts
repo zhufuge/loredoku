@@ -364,12 +364,15 @@ export interface PuzzleDraft {
   /** v0.7.14：结束语 —— 玩家通过时出现在结算弹窗里的一句话。缺失 = 不显示。 */
   ending?: string;
   /**
-   * v0.8.6（docs/v0.8.6.md §4）：玩家侧「禁止符号」用哪张图。
+   * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4）：玩家侧「禁止符号」用哪张图。
    *
-   * 默认（缺席 / `null`）是放置层那枚 `×` 字形。作者在谜题编辑器的「基本信息」
-   * 抽屉里**上传**一张图之后，这一关的游戏页改为画那张图；新建谜题时它从主题的
-   * `data.forbiddenSymbol` 抄一份过来（`docs/v0.8.6.md` §4）。
-   * **可选** —— v0.8.6 之前发布的谜题版本行里没有这个键。
+   * 这是**覆盖值**：配了就用它，缺席（或 `null`）就跟随主题的
+   * `data.forbiddenSymbol` —— 两者都没有才是放置层那枚 `×` 字形。作者在谜题编辑器
+   * 的「基本信息」抽屉里上传一张，就是给这一题单独换一张；`null` 表示「回到跟随
+   * 主题」，而不是「强制 ×」。
+   *
+   * **可选** —— v0.8.6 之前发布的谜题版本行里没有这个键。v0.8.7 起新建谜题也不再
+   * 把主题那张拷进草稿（拷贝会让「主题换图」停在建题那一天）。
    */
   forbiddenSymbol?: ForbiddenSymbolImage | null;
 }
@@ -697,12 +700,15 @@ export interface ThemeData {
   style?: MapStyle;
   linkageColors?: MapLinkageColor[];
   /**
-   * v0.8.6（docs/v0.8.6.md §4）：这个空间的**禁止符号缺省** —— 新建谜题时抄进
-   * `PuzzleDraft.forbiddenSymbol`。它和 `style` / `linkageColors` 是同一种「缺省」：
-   * 只在创建那一刻拷贝，之后各走各的 —— 已发布的关卡不会因为主题后来换了一张图
-   * 而变（那一关的版本行冻着它自己的那张）。
+   * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4）：这个空间的**禁止符号** —— 本主题里
+   * 没有单独配置的谜题都画这一张。
    *
-   * 缺失 = 默认的 `×` 字形。图和谜题侧共用 {@link ForbiddenSymbolImage}。
+   * 与 `style` / `linkageColors` 那种「新建时拷一份」的缺省不同：它是**读取时**的
+   * 兜底（谜题 → 主题 → ×），所以换一张图，本主题下跟随的关卡下次打开就是新的，
+   * 已发布的也一样。谜题自己上传过的那张仍覆盖它。
+   *
+   * 缺失 = 本主题里跟随的那些谜题画默认的 `×` 字形。图和谜题侧共用
+   * {@link ForbiddenSymbolImage}。
    */
   forbiddenSymbol?: ForbiddenSymbolImage | null;
   /**
@@ -723,8 +729,8 @@ export interface ThemeData {
  *
  * 它不是资源引用 —— 作者上传的就是这一张，落在 `storage/uploads` 下，数据里只记
  * 相对路径（{@link fileUrlFromPath} 拼地址）。主题的 `ThemeData.forbiddenSymbol`
- * 与谜题的 `PuzzleDraft.forbiddenSymbol` 共用这个形状：前者是新建谜题的缺省，
- * 后者是这一关真正用的那张。
+ * 与谜题的 `PuzzleDraft.forbiddenSymbol` 共用这个形状：前者是本主题的缺省（读取时
+ * 兜底），后者是这一关自己那张（配了就覆盖）。
  */
 export interface ForbiddenSymbolImage {
   /**

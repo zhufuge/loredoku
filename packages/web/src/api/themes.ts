@@ -46,7 +46,8 @@ export const themesApi = {
   remove: (code: string) => apiDelete<null>(`/themes/${code}`),
 
   /**
-   * v0.8.6 §4 —— 主题级的「禁止符号」缺省。
+   * v0.8.6 §4 / v0.8.7 §4 —— 主题级的「禁止符号」：本主题里**没有单独配置**的谜题
+   * 读取时都用这张（谜题自己配了则覆盖）。
    *
    * 与其它 `data` 修改不同，这两个端点**即时保存**：上传 / 移除当场写进 `themes.data`
    * 并回更新后的整份主题，概览页因此不需要「保存」。图落在 `storage/uploads` 下，

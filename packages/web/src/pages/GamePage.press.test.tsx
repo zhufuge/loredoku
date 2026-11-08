@@ -74,6 +74,8 @@ vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
  */
 vi.mock('@/hooks/useThemes', () => ({
   useThemeDeploymentBySlug: () => ({ data: undefined }),
+  // v0.8.7 §4：禁止符号「谜题 → 主题 → ×」的第二档。这一套不测它，返回「主题没配」。
+  useForbiddenSymbolByCode: () => () => null,
 }));
 vi.mock('@/hooks/useCharacters', () => ({ useCharacters: () => ({ data: [] }) }));
 vi.mock('@/hooks/useHighlight', () => ({

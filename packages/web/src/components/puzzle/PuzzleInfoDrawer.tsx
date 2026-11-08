@@ -112,10 +112,18 @@ interface PuzzleInfoDrawerProps {
   /** v0.6.3 §3: the committed column count. `null` = 自动. */
   rosterCols: number | null;
   /**
-   * v0.8.6 §4: 已提交的禁止符号图；`null` = 默认的 `×`。
+   * v0.8.6 §4 / v0.8.7 §4: 已提交的禁止符号图；`null` = 这一题没单独配置
+   * （跟随主题，见 `themeForbiddenSymbol`；两边都没有才是 `×`）。
    * 值形状是 `{ path }` —— `path` 是 `storage/uploads` 下的相对路径。
    */
   forbiddenSymbol: ForbiddenSymbolImage | null;
+  /**
+   * v0.8.7 §4：主题的「禁止符号」缺省 —— 这一题没配时**玩家看到的就是这张**。
+   *
+   * 抽屉拿它只做两件事：预览画这张（否则作者看到的 `×` 与玩家看到的图对不上），
+   * 以及那句「未单独配置，跟随主题」的说明。`null` = 主题也没配。
+   */
+  themeForbiddenSymbol: ForbiddenSymbolImage | null;
   /**
    * v0.8.6 §4: 选中文件后**立即上传**。成功返回落盘路径（抽屉把它写进本地草稿，
    * 与其它字段同一个「保存」/ 撤销步）；失败返回 `null` —— 抽屉保留原值并提示。
@@ -222,6 +230,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       characterSlots,
       rosterCols,
       forbiddenSymbol,
+      themeForbiddenSymbol,
       onUploadForbiddenSymbol,
       coverUrl,
       coverFile,
@@ -245,6 +254,11 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       forbiddenSymbol,
       open,
     );
+    /**
+     * v0.8.7 §4：预览画「这一题最终会用的那张」—— 自己配了就是它，没配就是主题的。
+     * `null` = 两边都没有，玩家侧是 `×`。
+     */
+    const previewForbiddenSymbol = draftForbiddenSymbol ?? themeForbiddenSymbol;
     /**
      * v0.8.6 §4: 上传在选完文件那一刻就发生，所以「上传中 / 失败」是控件的短暂状态，
      * 不进草稿、也不算一次编辑。
@@ -595,18 +609,24 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             v0.8.6 §4：玩家在游戏页标记排除项时画面上显示的那枚符号。默认是 ×，
             作者可以上传一张图片替换它。文件一选中就上传，返回的 path 写进本地草稿 ——
             与其余基本信息同一个「保存」/ 撤销步。
+
+            v0.8.7 §4：**没配就跟随主题**。所以预览画的必须是这一题最终会用的那张
+            （自己的一张，否则主题的那张），不然作者在抽屉里看到 ×、玩家在游戏页
+            看到一张图 —— 两边说的不是同一件事。`data-source` 也让测试能分清
+            「自己的」和「跟随的」。
           */}
           <Section
             title="禁止符号"
-            hint="Forbidden Symbol — 玩家在游戏页标记排除项时画面上显示的那枚符号。默认是 ×；上传一张图片可替换它，图片按格子居中等比缩放。"
+            hint="Forbidden Symbol — 玩家在游戏页标记排除项时画面上显示的那枚符号。不单独配置就跟随主题的那张（主题概览页的「禁止符号」）；上传一张图片可以只给这一题换一张，按格子居中等比缩放。两边都没有才是默认的 ×。"
           >
             <div className="flex items-start gap-3">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/30">
-                {draftForbiddenSymbol ? (
+                {previewForbiddenSymbol ? (
                   <img
                     data-testid="forbidden-symbol-preview"
-                    src={fileUrlFromPath(draftForbiddenSymbol.path)}
-                    alt="禁止符号预览"
+                    data-source={draftForbiddenSymbol ? 'puzzle' : 'theme'}
+                    src={fileUrlFromPath(previewForbiddenSymbol.path)}
+                    alt={draftForbiddenSymbol ? '禁止符号预览' : '主题的禁止符号预览'}
                     draggable={false}
                     className="h-full w-full object-contain"
                   />
@@ -649,7 +669,11 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                   </Button>
                 </div>
                 <p className="text-2xs leading-relaxed text-muted-foreground">
-                  默认是 ×。这张图会出现在玩家游戏页标记排除项的格子里；新建谜题会先带主题的缺省，见主题概览页。
+                  {draftForbiddenSymbol
+                    ? '这一题用自己上传的这张；「移除」就回到跟随主题。'
+                    : themeForbiddenSymbol
+                      ? '这一题没有单独配置，玩家看到的是主题那张（在主题概览页的「禁止符号」里换）。'
+                      : '这一题和主题都没有配置，玩家看到的是默认的 ×。'}
                 </p>
                 {forbiddenUploadError ? (
                   <p role="alert" className="text-2xs text-destructive">

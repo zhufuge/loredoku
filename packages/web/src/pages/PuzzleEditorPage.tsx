@@ -59,6 +59,7 @@ import {
 } from '@/components/puzzle/PuzzleInfoDrawer';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useAssets } from '@/hooks/useAssets';
+import { useForbiddenSymbolByCode } from '@/hooks/useThemes';
 import { useHighlight } from '@/hooks/useHighlight';
 import {
   useForkPuzzleVersion,
@@ -145,6 +146,11 @@ export function PuzzleEditorPage(): JSX.Element {
   // preview page). v0.8.1：主题段在地址里，两个列表都只取这个工作空间的。
   const assetsQuery = useAssets({ themeCode });
   const charactersQuery = useCharacters({ themeCode });
+  /**
+   * v0.8.7 §4：禁止符号「没配就跟随主题」，抽屉要显示这一题**最终**会画的那张。
+   * 编码就在地址里，走「主题列表摊成表」那条路（与播放页同一个 hook）。
+   */
+  const themeForbiddenSymbolOf = useForbiddenSymbolByCode();
   const saveMutation = useSavePuzzle();
   /** fork 态的保存 mutation：不自己跳转，由下面的 persist 收尾。 */
   const forkSaveMutation = useForkPuzzleVersion({ navigate: false });
@@ -1054,6 +1060,7 @@ export function PuzzleEditorPage(): JSX.Element {
             characterSlots={puzzle.characterSlots}
             rosterCols={puzzle.rosterCols}
             forbiddenSymbol={puzzle.forbiddenSymbol}
+            themeForbiddenSymbol={themeForbiddenSymbolOf(themeCode)}
             onUploadForbiddenSymbol={async (file) => {
               try {
                 return await uploadForbiddenSymbolMutation.mutateAsync({ id, file });

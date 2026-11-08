@@ -21,6 +21,11 @@ import { GamePage } from './GamePage';
  */
 
 const fixture = vi.hoisted(() => ({
+  /**
+   * v0.8.7 §4：主题的禁止符号（主题概览页那份）。`useForbiddenSymbolByCode` 的 mock
+   * 读它，于是「谜题没配 → 跟随主题」这条能在页面级断言。
+   */
+  theme: { forbiddenSymbol: null as ForbiddenSymbolImage | null },
   detail: {
     id: 1,
     puzzleId: 7,
@@ -28,6 +33,7 @@ const fixture = vi.hoisted(() => ({
     puzzleVersionNo: 1,
     name: '夜车',
     slug: 'night-train',
+    themeCode: 'hlm',
     coverUrl: null,
     difficulty: 2,
     gridSize: 9,
@@ -73,6 +79,11 @@ vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
  */
 vi.mock('@/hooks/useThemes', () => ({
   useThemeDeploymentBySlug: () => ({ data: undefined }),
+  /**
+   * v0.8.7 §4：禁止符号的「跟随主题」那一档。真实 hook 返回「按编码查表」的函数，
+   * 这里按同一个签名返回一个常量。
+   */
+  useForbiddenSymbolByCode: () => () => fixture.theme.forbiddenSymbol,
 }));
 vi.mock('@/hooks/useCharacters', () => ({ useCharacters: () => ({ data: [] }) }));
 vi.mock('@/hooks/useHighlight', () => ({
@@ -105,6 +116,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   beforeEach(() => {
     window.localStorage.clear();
     fixture.detail.puzzle.forbiddenSymbol = null;
+    fixture.theme.forbiddenSymbol = null;
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -449,6 +461,32 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(placed).not.toBeNull();
       expect(placed?.tagName).toBe('text');
       expect(placed?.textContent).toBe('×');
+    });
+
+    /**
+     * v0.8.7 §4：「谜题不配置禁止符号图标，则默认使用主题的配置，谜题无需额外配置」。
+     * 页面级只认结果 —— 这一格画出来的到底是哪张图。
+     */
+    it('follows the theme when the puzzle configures nothing', () => {
+      const themePath = 'themes/3/forbidden-symbol/ink.webp';
+      fixture.theme.forbiddenSymbol = { path: themePath };
+      seedSave({ board: { '4,4': { kind: 'forbidden' } } });
+      render();
+
+      const placed = container.querySelector('[data-testid="forbidden-4,4"]');
+      expect(placed?.tagName).toBe('IMG');
+      expect(placed?.getAttribute('src')).toBe('/api/files/themes/3/forbidden-symbol/ink.webp');
+    });
+
+    it('the puzzle’s own image still wins over the theme’s', () => {
+      fixture.detail.puzzle.forbiddenSymbol = { path: symbolPath };
+      fixture.theme.forbiddenSymbol = { path: 'themes/3/forbidden-symbol/ink.webp' };
+      seedSave({ board: { '4,4': { kind: 'forbidden' } } });
+      render();
+
+      expect(
+        container.querySelector('[data-testid="forbidden-4,4"]')?.getAttribute('src'),
+      ).toBe(symbolUrl);
     });
 
     it('keeps the × glyph for an old version row that has no key at all', () => {

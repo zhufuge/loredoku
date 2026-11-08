@@ -7,7 +7,6 @@ import {
   findOutOfScopeRefs,
   type CreateThemeDeploymentInput,
   type CreateThemeInput,
-  type ForbiddenSymbolImage,
   type MapStyle,
   type Theme,
   type ThemeData,
@@ -212,24 +211,6 @@ export async function defaultStyleOf(themeId: number): Promise<MapStyle | null> 
   if (!row) return null;
   const style = (row.data as ThemeData | null)?.style;
   return style ?? null;
-}
-
-/**
- * v0.8.6 §4：主题的禁止符号缺省，只在**新建谜题那一刻**取一次（与
- * {@link defaultStyleOf} 同一种快照语义）。
- *
- * `null` 的两条来路也一样：主题没配过，或旧数据的 `theme_id` 指向已删主题 ——
- * 都不该让「新建谜题」失败，缺省就是那枚 `×` 字形。
- */
-export async function defaultForbiddenSymbolOf(
-  themeId: number,
-): Promise<ForbiddenSymbolImage | null> {
-  if (!Number.isFinite(themeId)) return null;
-  const row = await repo.findById(themeId);
-  if (!row) return null;
-  const symbol = (row.data as ThemeData | null)?.forbiddenSymbol;
-  // 深拷贝：新谜题拿到的是一个独立对象，主题之后再改不会顺带改到它。
-  return symbol?.path ? { path: symbol.path } : null;
 }
 
 async function namesOf(kind: ThemeRefTarget['kind'], ids: number[]): Promise<Map<number, string>> {

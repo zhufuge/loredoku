@@ -300,6 +300,36 @@ describe('资源包导出（§11）', () => {
     expect(manifestFile?.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  /**
+   * v0.8.7 §4：谜题没配禁止符号就**跟随主题**。包里必须把它一起装上 —— 否则
+   * 「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
+   */
+  it('谜题没配 → 打包装上主题那张，关卡 JSON 里补出包内路径', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode);
+    // 关卡先建、主题后配：跟随是读取时的，不是建题那一刻的快照。
+    const uploaded = await api
+      .post(`/api/themes/${themeCode}/forbidden-symbol`)
+      .attach('file', TINY_PNG, 'symbol.png');
+    expect(uploaded.status).toBe(200);
+    const row = (await db('themes').where({ code: themeCode }).first('id')) as
+      | { id: string | number }
+      | undefined;
+    symbolDirs.push(resolveUploadPath(`themes/${Number(row!.id)}`));
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    const symbolEntries = built.entries.filter((entry) => entry.path.startsWith('files/symbols/'));
+    expect(symbolEntries).toHaveLength(1);
+    const target = `files/symbols/${game.slug}.webp`;
+    expect(symbolEntries[0]!.path).toBe(target);
+
+    const level = JSON.parse(
+      built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
+    ) as { puzzle: { forbiddenSymbol?: { path: string } } };
+    expect(level.puzzle.forbiddenSymbol).toEqual({ path: target });
+  });
+
   /** §11.2：引用闭包缺一个文件就**中止**，不能交付一个少一张图的包。 */
   it('禁止符号图不在了 → 打包中止（400 + bundle-incomplete）', async () => {
     const themeCode = await createTheme();

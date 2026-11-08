@@ -291,10 +291,9 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
   }
   const themeId = Number(mapRow.theme_id);
 
-  // v0.8.6 §4：主题的「禁止符号」是**新建那一刻的缺省**（与 style / linkageColors
-  // 同一种语义）—— 深拷贝一份进草稿，之后主题换图不追溯这一题。
-  const defaultSymbol = await themeService.defaultForbiddenSymbolOf(themeId);
-  if (defaultSymbol) data.forbiddenSymbol = defaultSymbol;
+  // v0.8.7 §4：**不再把主题的禁止符号拷进草稿** —— 谜题不配就跟随主题，由读取侧
+  // （游戏页、谜题抽屉）按「谜题 → 主题 → ×」解析。拷一份会让「主题换图」永远停在
+  // 建题那一天，也正是「每建一题都要配一次」的来源。
 
   // v0.8.5 §7：编码同主题内不重。schema 只守形状，重复要拿着主题去查。
   await assertCodeFree(themeId, input.code);

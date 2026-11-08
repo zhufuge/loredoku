@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { resolveDifficultyTiers } from '@loredoku/shared';
 import type {
+  ForbiddenSymbolImage,
   Theme,
   ThemeDeploymentSummary,
   ThemeDifficultyTier,
@@ -79,7 +80,11 @@ export function useUpdateTheme(code: string) {
 }
 
 /**
- * v0.8.6 §4 —— 主题级的「禁止符号」缺省，**即时保存**。
+ * v0.8.6 §4 / v0.8.7 §4 —— 主题级的「禁止符号」，**即时保存**。
+ *
+ * 它不是「新建时抄一份」的缺省，而是本主题里**没单独配置**的谜题读取时的兜底：
+ * 换一张图，跟随的关卡（含已发布的）下次打开就是新的。所以成功后要把
+ * `themeKeys.all` 底下的一切一起失效 —— 播放页与谜题抽屉都按编码去查这份数据。
  *
  * 卡片里选好文件就上传、点移除就清掉，不再走「编辑 → 保存」。所以这里没有草稿：
  * 成功与失败都要当场有回音，且必须让工作空间里那份 `theme`（`WorkspaceLayout`
@@ -91,13 +96,16 @@ export function useUploadThemeForbiddenSymbol(code: string) {
     mutationFn: (file: File) => themesApi.uploadForbiddenSymbol(code, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      toast.success('已设为新建谜题的默认禁止符号');
+      toast.success('已设为本主题的默认禁止符号');
     },
     onError: (error: Error) => toast.error(error.message || '禁止符号上传失败'),
   });
 }
 
-/** 移除主题级缺省 = 删掉 `data.forbiddenSymbol`，新建谜题回到默认的 `×` 字形。 */
+/**
+ * 移除主题级禁止符号 = 删掉 `data.forbiddenSymbol`：本主题里跟随的谜题回到默认的
+ * `×` 字形（自己配过的那几题不受影响）。
+ */
 export function useRemoveThemeForbiddenSymbol(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -163,6 +171,35 @@ export function useDifficultyTiersByCode(): (
   // 同一个函数引用跨渲染保持稳定：它要传进几十张卡的 props。
   return useCallback(
     (code: string | null | undefined) => (code ? byCode.get(code) : undefined),
+    [byCode],
+  );
+}
+
+/**
+ * v0.8.7 §4 —— 按主题编码查「禁止符号」：本主题里**没有单独配置**的谜题读到的就是它。
+ *
+ * 与 `useDifficultyTiersByCode` 同一种做法（同一份 `/themes`，同一个理由）：播放页与
+ * 谜题编辑器都在 `WorkspaceLayout` 外面，`useWorkspace()` 是 `null`，拿不到上下文里
+ * 那份 `theme`；而它们要的只是这一个小字段。整份列表取一次摊成表，按编码查。
+ *
+ * 谜题自己配了就不该用这份 —— 顺序（谜题 → 主题 → ×）在
+ * `lib/forbiddenSymbol.ts`，两边都走它，不各写一遍。
+ */
+export function useForbiddenSymbolByCode(): (
+  code: string | null | undefined,
+) => ForbiddenSymbolImage | null {
+  const query = useThemes();
+  const byCode = useMemo(() => {
+    const map = new Map<string, ForbiddenSymbolImage>();
+    for (const theme of query.data ?? []) {
+      const symbol = theme.data.forbiddenSymbol;
+      if (symbol?.path) map.set(theme.code, symbol);
+    }
+    return map;
+  }, [query.data]);
+
+  return useCallback(
+    (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
     [byCode],
   );
 }

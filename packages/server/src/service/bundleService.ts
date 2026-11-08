@@ -19,8 +19,10 @@ import {
   type BundleManifestGame,
   type BundleThemeFile,
   type Character,
+  type ForbiddenSymbolImage,
   type MapDraft,
   type PuzzleDraft,
+  type ThemeData,
   type ThemeRefTarget,
 } from '@loredoku/shared';
 import * as assetRepo from '../repository/assetRepository';
@@ -105,13 +107,20 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
   const manifestGames: BundleManifestGame[] = [];
   const originGames: Record<string, number> = {};
   const puzzleEntries: BundleEntry[] = [];
+  /**
+   * v0.8.7 §4：主题的禁止符号是**读取时**的缺省。包里必须把它一起装上 ——
+   * 否则「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
+   * 谜题自己配了就不看这份（那一关的 JSON 里已经有路径）。
+   */
+  const themeForbiddenSymbol: ForbiddenSymbolImage | null =
+    (themeRow.data as ThemeData | null)?.forbiddenSymbol ?? null;
 
   for (const [index, game] of games.entries()) {
     const key = game.input.summary.slug;
     const cover = await takeCover(game.row, index + 1, files);
     // v0.8.6 §4：一张上传的禁止符号图 —— 包内路径改写发生在这里（`shared/bundle`
     // 只重编号资源 id，它没有文件系统，不知道文件在不在）。
-    const input = await takeForbiddenSymbol(game.input, key, files, problems);
+    const input = await takeForbiddenSymbol(game.input, key, themeForbiddenSymbol, files, problems);
     manifestGames.push({
       key,
       file: `puzzles/${key}.json`,
@@ -458,10 +467,15 @@ async function takeCover(
 async function takeForbiddenSymbol(
   game: BundleGameInput,
   gameKey: string,
+  fallback: ForbiddenSymbolImage | null,
   files: FileSink,
   problems: BundleProblem[],
 ): Promise<BundleGameInput> {
-  const sourcePath = game.puzzle.forbiddenSymbol?.path;
+  /**
+   * v0.8.7 §4：自己配了用自己的，没配就用主题那张（与玩家侧同一个顺序）。
+   * 只有一条出路 —— 两边都没有，这一关进包时就不带符号图，播放器画 `×`。
+   */
+  const sourcePath = game.puzzle.forbiddenSymbol?.path ?? fallback?.path;
   if (!sourcePath) return game;
 
   const taken = await files.take(sourcePath, `files/symbols/${gameKey}${extension(sourcePath)}`);

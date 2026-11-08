@@ -51,7 +51,7 @@ import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { GameBrief } from '@/components/game/GameBrief';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
-import { useThemeDeploymentBySlug } from '@/hooks/useThemes';
+import { useForbiddenSymbolByCode, useThemeDeploymentBySlug } from '@/hooks/useThemes';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useAssets } from '@/hooks/useAssets';
 import {
@@ -343,12 +343,20 @@ export function GamePage(): JSX.Element {
   }, [assetsQuery.data]);
 
   /**
-   * v0.8.6：这一局禁止符号画什么。`null` = 没配置（缺席 / `null`，含所有旧版本行），
-   * 两个游戏图层都退回原来那枚 `×`（放置层黑字、提示层绿字）。
+   * v0.8.7 §4：这一局禁止符号画什么 —— **谜题自己配的 → 主题的缺省 → `×`**。
+   *
+   * 主题那一份按**这一局的主题编码**查（§19）；`useWorkspace()` 在播放页是 `null`，
+   * 所以走的是「主题列表摊成表」那条路，与难度分级同一个 hook 家族。
+   * `null` 仍是两边都没有，两个游戏图层退回原来那枚 `×`（放置层黑字、提示层绿字）。
    */
+  const themeForbiddenSymbolOf = useForbiddenSymbolByCode();
   const forbiddenSymbol = useMemo(
-    () => resolveForbiddenSymbolImage(detail?.puzzle?.forbiddenSymbol),
-    [detail],
+    () =>
+      resolveForbiddenSymbolImage(
+        detail?.puzzle?.forbiddenSymbol,
+        themeForbiddenSymbolOf(detail?.themeCode),
+      ),
+    [detail, themeForbiddenSymbolOf],
   );
 
   const charactersById = useMemo(() => {

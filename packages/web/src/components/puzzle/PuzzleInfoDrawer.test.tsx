@@ -75,6 +75,7 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
           characterSlots={slots}
           rosterCols={rosterCols}
           forbiddenSymbol={null}
+          themeForbiddenSymbol={null}
           onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
@@ -284,6 +285,7 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
           characterSlots={slots}
           rosterCols={null}
           forbiddenSymbol={null}
+          themeForbiddenSymbol={null}
           onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
@@ -434,6 +436,7 @@ describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
           characterSlots={slots}
           rosterCols={null}
           forbiddenSymbol={null}
+          themeForbiddenSymbol={null}
           onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={null}
           coverFile={null}
@@ -573,7 +576,10 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
     url: '/api/files/puzzles/1/forbidden-symbol/a.webp',
   };
 
-  function render(committed: ForbiddenSymbolImage | null = null): void {
+  function render(
+    committed: ForbiddenSymbolImage | null = null,
+    theme: ForbiddenSymbolImage | null = null,
+  ): void {
     act(() => {
       root.render(
         <PuzzleInfoDrawer
@@ -589,6 +595,7 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
           characterSlots={slots}
           rosterCols={null}
           forbiddenSymbol={committed}
+          themeForbiddenSymbol={theme}
           onUploadForbiddenSymbol={onUploadForbiddenSymbol}
           coverUrl={null}
           coverFile={null}
@@ -601,13 +608,23 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
   }
 
   /** 重新挂一棵干净的树（带着已提交的值），用于「有图」起始态。 */
-  function renderCommitted(committed: ForbiddenSymbolImage): void {
+  function remount(
+    committed: ForbiddenSymbolImage | null,
+    theme: ForbiddenSymbolImage | null = null,
+  ): void {
     act(() => root.unmount());
     container.remove();
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
-    render(committed);
+    render(committed, theme);
+  }
+
+  function renderCommitted(
+    committed: ForbiddenSymbolImage,
+    theme: ForbiddenSymbolImage | null = null,
+  ): void {
+    remount(committed, theme);
   }
 
   const save = (): HTMLButtonElement =>
@@ -661,6 +678,35 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
     expect(preview()?.getAttribute('src')).toBe(fileUrlFromPath(committed.path));
     // 已提交的值就是当前值：打开即不脏。
     expect(handle?.isDirty()).toBe(false);
+  });
+
+  /**
+   * v0.8.7 §4：这一题没配就跟随主题 —— 预览必须画主题那张，否则作者在抽屉里看到
+   * `×`、玩家在游戏页看到一张图。说明文字也要点明它从哪来。
+   */
+  it('这一题没配、主题配了：预览画主题那张，说明写着「跟随主题」', () => {
+    const themeSymbol = { path: 'themes/3/forbidden-symbol/theme.webp' };
+    remount(null, themeSymbol);
+
+    const image = preview();
+    expect(image?.getAttribute('src')).toBe(fileUrlFromPath(themeSymbol.path));
+    expect(image?.getAttribute('data-source')).toBe('theme');
+    // 跟随不是「已提交的值」—— 打开即不脏，也不能被当成这一题自己的配置。
+    expect(handle?.isDirty()).toBe(false);
+    expect(container.textContent).toContain('没有单独配置');
+  });
+
+  it('自己配了就用自己那张（覆盖主题），移除后回到跟随', () => {
+    const own = { path: 'puzzles/1/forbidden-symbol/own.webp' };
+    const themeSymbol = { path: 'themes/3/forbidden-symbol/theme.webp' };
+    renderCommitted(own, themeSymbol);
+    expect(preview()?.getAttribute('data-source')).toBe('puzzle');
+
+    act(() => removeButton().click());
+    // 草稿清了 → 预览回到主题那张，「移除」也随之不可再点。
+    expect(preview()?.getAttribute('src')).toBe(fileUrlFromPath(themeSymbol.path));
+    expect(preview()?.getAttribute('data-source')).toBe('theme');
+    expect(removeButton().disabled).toBe(true);
   });
 
   it('选一张图 → 立即上传 → 保存时提交 { path }', async () => {

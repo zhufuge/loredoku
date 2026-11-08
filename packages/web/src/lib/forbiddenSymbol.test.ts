@@ -2,25 +2,47 @@ import { describe, expect, it } from 'vitest';
 import { resolveForbiddenSymbolImage } from './forbiddenSymbol';
 
 /**
- * v0.8.6（docs/v0.8.6.md §4）：上传文件路径 → 站内图片地址。
- *
- * 只钉两件事：没配置时没有图（调用方退回 ×）、配置了就把 `/api/files/` 拼上。
+ * v0.8.6（docs/v0.8.6.md §4）/ v0.8.7（§2）：上传文件路径 → 站内图片地址，
+ * 以及「谜题 → 主题」这条来源顺序。
  */
 describe('resolveForbiddenSymbolImage', () => {
-  it('没有配置（缺席 / null）时没有图片', () => {
+  it('两边都没有（缺席 / null）时没有图片', () => {
     expect(resolveForbiddenSymbolImage(undefined)).toBeNull();
     expect(resolveForbiddenSymbolImage(null)).toBeNull();
+    expect(resolveForbiddenSymbolImage(null, null)).toBeNull();
+  });
+
+  it('谜题自己的那张优先于主题', () => {
+    expect(
+      resolveForbiddenSymbolImage(
+        { path: 'puzzles/12/forbidden-symbol/a1.webp' },
+        { path: 'themes/3/forbidden-symbol/b2.webp' },
+      ),
+    ).toEqual({
+      imageUrl: '/api/files/puzzles/12/forbidden-symbol/a1.webp',
+      source: 'puzzle',
+    });
+  });
+
+  it('谜题没配就跟随主题 —— 作者不必每建一题都上传一次', () => {
+    expect(
+      resolveForbiddenSymbolImage(null, { path: 'themes/3/forbidden-symbol/b2.webp' }),
+    ).toEqual({
+      imageUrl: '/api/files/themes/3/forbidden-symbol/b2.webp',
+      source: 'theme',
+    });
   });
 
   it('把上传路径拼成站内地址', () => {
     expect(resolveForbiddenSymbolImage({ path: 'puzzles/12/forbidden-symbol/a1.webp' })).toEqual({
       imageUrl: '/api/files/puzzles/12/forbidden-symbol/a1.webp',
+      source: 'puzzle',
     });
   });
 
-  it('主题的文件路径同样适用（新建谜题会抄主题缺省）', () => {
-    expect(resolveForbiddenSymbolImage({ path: 'themes/3/forbidden-symbol/b2.webp' })).toEqual({
-      imageUrl: '/api/files/themes/3/forbidden-symbol/b2.webp',
-    });
+  it('空字符串路径按「没配」处理（后端不会写，但坏数据不该画出破图地址）', () => {
+    expect(resolveForbiddenSymbolImage({ path: '' }, { path: 'themes/3/x.webp' })?.source).toBe(
+      'theme',
+    );
   });
 });

@@ -1405,7 +1405,11 @@ describe('puzzles API (FEAT-K01)', () => {
       ).toBeUndefined();
     });
 
-    it('新建谜题继承主题缺省；之后主题换图不影响这一题', async () => {
+    /**
+     * v0.8.7 §4：新建谜题**不再拷贝**主题的禁止符号 —— 不配就跟随，读取侧解析。
+     * 这一条钉的是「库里的草稿保持干净」，以及「主题换图对跟随的谜题立刻生效」。
+     */
+    it('新建谜题不拷贝主题的禁止符号（跟随），主题换图后仍没有自己的那份', async () => {
       const created = await theme();
       uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
 
@@ -1422,31 +1426,44 @@ describe('puzzles API (FEAT-K01)', () => {
       });
       const versionNo = await publish(mapId);
       const inheritedId = await createPuzzle({
-        name: '继承缺省',
+        name: '跟随主题',
         mapId,
         mapVersionNo: versionNo,
       });
-      // 新建那一刻深拷贝一份 —— 不是一条指向主题的引用。
-      expect((await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol).toEqual({
+      // 草稿里没有这个键：跟随是读取时的事，不是建题时的一次拷贝。
+      expect(
+        (await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol,
+      ).toBeUndefined();
+      // 主题那一份仍然在 —— 解析的兜底来自它。
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol).toEqual({
         path: firstPath,
       });
 
-      // 主题换一张图：已建谜题仍是创建时抄走的那份。
+      // 主题换一张图：跟随的谜题依旧没有自己的那份，所以读到的就是新的。
       const second = await api
         .post(`/api/themes/${created.code}/forbidden-symbol`)
         .attach('file', TINY_PNG, 'symbol.png');
       expect(second.status).toBe(200);
       const secondPath = second.body.data.data.forbiddenSymbol.path as string;
       expect(secondPath).not.toBe(firstPath);
-      expect((await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol).toEqual({
-        path: firstPath,
-      });
-
-      // 之后再新建，拿到的是新缺省。
-      const laterId = await createPuzzle({ name: '后来的谜题', mapId, mapVersionNo: versionNo });
-      expect((await api.get(`/api/puzzles/${laterId}`)).body.data.data.forbiddenSymbol).toEqual({
+      expect(
+        (await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol,
+      ).toBeUndefined();
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol).toEqual({
         path: secondPath,
       });
+
+      // 作者显式给这一题传一张 —— 那才是「自己的」，与主题无关。
+      const own = { path: secondPath };
+      const initial = await api.get(`/api/puzzles/${inheritedId}`);
+      const saved = await api.put(`/api/puzzles/${inheritedId}`).send({
+        data: { ...initial.body.data.data, forbiddenSymbol: own },
+        updatedAt: initial.body.data.updatedAt,
+      });
+      expect(saved.status).toBe(200);
+      expect((await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol).toEqual(
+        own,
+      );
     });
   });
 });
