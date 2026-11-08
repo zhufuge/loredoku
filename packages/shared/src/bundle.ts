@@ -240,11 +240,24 @@ export function buildBundlePuzzleFile(
   game: BundleGameInput,
   ids: BundleIdMaps,
 ): BundlePuzzleFile {
+  const puzzle = renumberPuzzleDraft(game.puzzle, ids);
   return {
     key: game.summary.slug,
     summary: game.summary,
-    map: game.map,
-    puzzle: renumberPuzzleDraft(game.puzzle, ids),
+    /**
+     * v0.9.0 §5 修正：`map` 必须是**重编号之后**的那份。
+     *
+     * v0.8.0 这里写的是 `map: game.map` —— 它是 `puzzle.map.data` 的原始引用
+     * （服务端 `toDetail` 就是这么给的），而 `renumberPuzzleDraft` 是 clone 一份
+     * 再改引用 id。于是包里出现**两份画布**：`puzzle.map.data` 里的 `assetId`
+     * 是 1..N，`map` 里的还是数据库原 id。播放器读前者正常，读后者就是一张
+     * 没有背景的空棋盘。
+     *
+     * 为什么到现在才暴露：v0.8.0 到 v0.8.7 都没有播放器，没人真的消费过这个字段；
+     * v0.9.0 的播放器第一眼看到的就是它。
+     */
+    map: puzzle.map.data,
+    puzzle,
   };
 }
 

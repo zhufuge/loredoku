@@ -5,6 +5,9 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
+# 播放器产物（v0.9.0）：一个产物只装一个主题包，且带几千个资源文件，
+# 由 `npm run build:player -- --bundle=…` 现打，不进仓库
+dist-player/
 
 # vitest 用 ts 配置时生成的临时产物
 *.timestamp-*.mjs

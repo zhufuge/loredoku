@@ -122,4 +122,28 @@ describe('buildBundlePuzzleFile', () => {
     );
     expect(file.key).toBe('puzzle-sishan-medium');
   });
+
+  /**
+   * v0.9.0 §5：包里有**两份画布**（`map` 与 `puzzle.map.data`），两份都必须已经
+   * 重编号。v0.8.0 只改了后者，`map` 还指着数据库原 id —— 播放器读 `map` 会得到
+   * 一张没有背景的空棋盘（v0.9.0 实测撞上的就是这一条）。
+   */
+  it('map 与 puzzle.map.data 是同一份、且引用已重编号', () => {
+    const source = puzzle();
+    const ids = buildBundleIdMaps([
+      { summary: summary('puzzle-sishan-medium'), map: source.map.data, puzzle: source },
+    ]);
+    const file = buildBundlePuzzleFile(
+      { summary: summary('puzzle-sishan-medium'), map: source.map.data, puzzle: source },
+      ids,
+    );
+
+    expect(file.map).toEqual(file.puzzle.map.data);
+    const cells = Object.values(file.map.cells);
+    const assetIds = cells.map((cell) => cell.background?.assetId ?? cell.item?.assetId);
+    for (const id of assetIds) {
+      // 重编号后的 id 一定小于原 id（序号从 1 起，数据库 id 是四位数）。
+      expect(id).toBeLessThan(100);
+    }
+  });
 });

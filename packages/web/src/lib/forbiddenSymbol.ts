@@ -20,6 +20,11 @@ export interface ForbiddenSymbolRender {
  * 顺序是**谜题 → 主题**：谜题自己配了就用它（覆盖），没配就跟随主题 —— 作者因此
  * 不必每建一题都去点一次上传。两边都没有才是 `null`，由调用方退回那枚 `×` 字形。
  *
+ * `toUrl` 是「相对路径 → 可用的 src」那一步。默认是**接口模式**的
+ * `/api/files/<path>`；播放器（v0.9.0）传自己的包根解析器，因为那边的图片是同目录
+ * 下的静态文件，没有 `/api` 这层。参数化而不是让调用方改返回值：`source` 那个
+ * 判断（自己配的 / 跟随主题）得和 URL 一起算出来，分两步必有一处会写岔。
+ *
  * 注意这里**不判断文件在不在**：路径是服务端上传端点写进 JSON 的，文件不随行删除；
  * 真出现 404（比如有人手动清了 `storage/uploads`），浏览器会画一枚破图 —— 用
  * `onError` 回退需要组件状态，这一版不做（docs/v0.8.6.md §6）。
@@ -27,8 +32,9 @@ export interface ForbiddenSymbolRender {
 export function resolveForbiddenSymbolImage(
   puzzleRef: ForbiddenSymbolImage | null | undefined,
   themeRef: ForbiddenSymbolImage | null | undefined = null,
+  toUrl: (path: string) => string = fileUrlFromPath,
 ): ForbiddenSymbolRender | null {
-  if (puzzleRef?.path) return { imageUrl: fileUrlFromPath(puzzleRef.path), source: 'puzzle' };
-  if (themeRef?.path) return { imageUrl: fileUrlFromPath(themeRef.path), source: 'theme' };
+  if (puzzleRef?.path) return { imageUrl: toUrl(puzzleRef.path), source: 'puzzle' };
+  if (themeRef?.path) return { imageUrl: toUrl(themeRef.path), source: 'theme' };
   return null;
 }

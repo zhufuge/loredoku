@@ -62,12 +62,25 @@ const LIGHT_LAYERS = ['paper-shade', 'paper-core'] as const;
  * （`/play/theme/:slug/:key`）。不传就是原来的单局地址 —— 存档键在两个入口下
  * 都是 `game.slug`，所以两条路玩同一关仍是同一份进度。
  */
+/**
+ * v0.9.0 §6：卡片真正读到的就这五个字段。
+ *
+ * 播放器（`/loredoku/:code/play`）的关卡清单来自包里的 `manifest.games`，
+ * 它没有 `MapGameSummary` 里那些 id / 时间戳 —— 而卡片本来也没用过它们。
+ * 收窄成 `Pick` 之后两条路共用同一张卡，`MapGameSummary` 结构上天然兼容，
+ * 线上那边的调用一行都不用改。
+ */
+export type GameCardData = Pick<
+  MapGameSummary,
+  'slug' | 'name' | 'coverUrl' | 'difficulty' | 'gridSize'
+>;
+
 export function GameCard({
   game,
   href,
   tiers,
 }: {
-  game: MapGameSummary;
+  game: GameCardData;
   href?: string;
   /**
    * v0.8.6 §3.6：这一关所属主题的分级。播放页在工作空间外面，`DifficultyBadge`

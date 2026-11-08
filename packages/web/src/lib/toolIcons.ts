@@ -43,16 +43,22 @@ export interface ToolIconRender {
   source: 'puzzle' | 'theme';
 }
 
-/** 一枚的最终结果；`null` = 两边都没有，调用方画内置图标。 */
+/**
+ * 一枚的最终结果；`null` = 两边都没有，调用方画内置图标。
+ *
+ * `toUrl` 与禁止符号那个同一条道理：默认 `/api/files/<path>`，播放器（v0.9.0）
+ * 传包根解析器 —— 那边的图片是包里的静态文件。
+ */
 export function resolveToolIcon(
   kind: GameToolIconKind,
   puzzleIcons: GameToolIcons | null | undefined,
   themeIcons: GameToolIcons | null | undefined,
+  toUrl: (path: string) => string = fileUrlFromPath,
 ): ToolIconRender | null {
   const own = puzzleIcons?.[kind];
-  if (own?.path) return { imageUrl: fileUrlFromPath(own.path), source: 'puzzle' };
+  if (own?.path) return { imageUrl: toUrl(own.path), source: 'puzzle' };
   const inherited = themeIcons?.[kind];
-  if (inherited?.path) return { imageUrl: fileUrlFromPath(inherited.path), source: 'theme' };
+  if (inherited?.path) return { imageUrl: toUrl(inherited.path), source: 'theme' };
   return null;
 }
 
@@ -65,10 +71,11 @@ export function resolveToolIcon(
 export function resolveToolIcons(
   puzzleIcons: GameToolIcons | null | undefined,
   themeIcons: GameToolIcons | null | undefined,
+  toUrl: (path: string) => string = fileUrlFromPath,
 ): Partial<Record<GameToolIconKind, ToolIconRender>> {
   const result: Partial<Record<GameToolIconKind, ToolIconRender>> = {};
   for (const kind of GAME_TOOL_ICON_KINDS) {
-    const render = resolveToolIcon(kind, puzzleIcons, themeIcons);
+    const render = resolveToolIcon(kind, puzzleIcons, themeIcons, toUrl);
     if (render) result[kind] = render;
   }
   return result;

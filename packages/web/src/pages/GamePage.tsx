@@ -50,11 +50,7 @@ import {
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { GameBrief } from '@/components/game/GameBrief';
-import { useCharacters } from '@/hooks/useCharacters';
-import { useGameDetail } from '@/hooks/useGames';
-import { useForbiddenSymbolByCode, useThemeDeploymentBySlug, useToolIconsByCode } from '@/hooks/useThemes';
 import { useHighlight } from '@/hooks/useHighlight';
-import { useAssets } from '@/hooks/useAssets';
 import {
   clientToCanvasPoint,
   clientToCell,
@@ -67,6 +63,7 @@ import {
   type CanvasPoint,
 } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
+import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
 import {
   clearGameTimer,
   formatElapsed,
@@ -211,10 +208,45 @@ function GameToolIcon({
   );
 }
 
+/**
+ * v0.9.0（docs/v0.9.0.md §2）：这一层只剩「谁来供数据」这一个决定。
+ *
+ * - 外面套了 `GameSourceScope`（播放器）：用外面给的那份，**一行 api 代码都不引**；
+ * - 没套（工坊 / 线上）：自己套一份 api 实现 —— 也就是 v0.9.0 之前的行为，逐字节不变。
+ *
+ * 拆成两个组件而不是「条件调用 hook」：`useGameDetail` 一被调用就会发请求，
+ * 播放器里一次都不该发。
+ */
 export function GamePage(): JSX.Element {
-  // OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
-  const { slug: slugParam, themeSlug } = useParams();
-  const slug = slugParam && slugParam.length > 0 ? slugParam : null;
+  const provided = useProvidedGameSource();
+  if (!provided) {
+    /**
+     * 没有来源 = 这个入口没有资格渲染游戏页。工坊与线上走的是
+     * `pages/ApiGamePage`（router 里直接挂它），播放器走 `PlayerGamePage`
+     * （先套一层 bundle source）。两者都给了 source，所以这条分支只在
+     * 「有人把 GamePage 挂进了一个新路由却忘了给数据源」时触发。
+     */
+    throw new Error('GamePage 需要 GameSourceScope：工坊请用 ApiGamePage，播放器请用 PlayerGamePage');
+  }
+  return <GameView source={provided} />;
+}
+
+/**
+ * 渲染层。两个入口共用这一份 —— 它不认识 axios，也不认识包，只认一个 `GameSource`。
+ * 去掉数据来源之后剩下的就是这 1500 行画布 / 名册 / 工具栏。
+ */
+export function GameView({ source }: { source: GameSource }): JSX.Element {
+  /**
+   * OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
+   *
+   * v0.9.0 §3：播放器的路由参数叫 `key`（`/loredoku/:code/play/:key`），工坊叫
+   * `slug`；主题那一段在工坊是部署 slug（`themeSlug`）、在播放器是主题编码（`code`）。
+   * 两个入口共用一个组件，参数名就都收在这里，别处只认 `slug` / `themeQuery`。
+   */
+  const params = useParams<{ slug?: string; key?: string; themeSlug?: string; code?: string }>();
+  const slug = (params.slug ?? params.key) || null;
+  /** 主题那一段：工坊是部署 slug，播放器是主题编码。只用来取名字与拼返回地址。 */
+  const themeRef = params.themeSlug ?? params.code ?? null;
   const navigate = useNavigate();
   /**
    * v0.8.0（docs/v0.8.0.md §16.6）：从合辑进来时（`/play/theme/:slug/:key`），
@@ -222,14 +254,22 @@ export function GamePage(): JSX.Element {
    * 就已经不知道自己是从哪一串里进来的了。从单局入口进来时这里什么也不出现：
    * 它表示「你从哪来」，不是装饰。
    */
-  const themeQuery = useThemeDeploymentBySlug(themeSlug ?? null);
+  const themeQuery = source.useTheme(themeRef);
 
-  const gameQuery = useGameDetail(slug);
-  /** v0.6.2：存档按游戏自己的 slug 分键（数据比路由参数更可信）。 */
-  const gameSlug = gameQuery.data?.slug ?? slug;
+  const gameQuery = source.useGame(slug);
+  /**
+   * v0.6.2：存档按游戏自己的 slug 分键（数据比路由参数更可信）。
+   * v0.9.0 §4：**键的身份交给 source** —— 线上仍是 slug（已有进度不能作废），
+   * 播放器是 `bundle:<主题code>:<key>`，两套键互不相通。
+   */
+  const storageId = gameQuery.data
+    ? source.storageId(gameQuery.data.slug)
+    : slug
+      ? source.storageId(slug)
+      : null;
   // A deployed snapshot may reference items/characters that are now inactive.
-  const assetsQuery = useAssets({});
-  const charactersQuery = useCharacters({});
+  const assetsQuery = source.useAssets();
+  const charactersQuery = source.useCharacters();
 
   const {
     highlight,
@@ -382,25 +422,32 @@ export function GamePage(): JSX.Element {
    * 主题那一份按**这一局的主题编码**查（§19）；`useWorkspace()` 在播放页是 `null`，
    * 所以走的是「主题列表摊成表」那条路，与难度分级同一个 hook 家族。
    * `null` 仍是两边都没有，两个游戏图层退回原来那枚 `×`（放置层黑字、提示层绿字）。
+   *
+   * v0.9.0 §2：查表的活儿挪进 `source` —— 播放器的包里每一关已经烤好了最终结果
+   * （`bundleService` 把主题那张补进了关卡 JSON），所以那边一律返回 `null`。
    */
-  const themeForbiddenSymbolOf = useForbiddenSymbolByCode();
   const forbiddenSymbol = useMemo(
     () =>
       resolveForbiddenSymbolImage(
         detail?.puzzle?.forbiddenSymbol,
-        themeForbiddenSymbolOf(detail?.themeCode),
+        source.themeForbiddenSymbol(detail?.themeCode),
+        source.fileUrl,
       ),
-    [detail, themeForbiddenSymbolOf],
+    [detail, source],
   );
 
   /**
    * v0.8.7 §7：工具栏三枚动作按钮（清除 / 撤回 / 提交）画什么 —— 同一套顺序：
    * **谜题自己的 → 主题的 → 内置图标**。主题那一份同样按这一局的主题编码查。
    */
-  const themeToolIconsOf = useToolIconsByCode();
   const toolIcons = useMemo(
-    () => resolveToolIcons(detail?.puzzle?.toolIcons, themeToolIconsOf(detail?.themeCode)),
-    [detail, themeToolIconsOf],
+    () =>
+      resolveToolIcons(
+        detail?.puzzle?.toolIcons,
+        source.themeToolIcons(detail?.themeCode),
+        source.fileUrl,
+      ),
+    [detail, source],
   );
 
   const charactersById = useMemo(() => {
@@ -440,10 +487,10 @@ export function GamePage(): JSX.Element {
   /** 写存档的唯一出口；空盘时由 `writeGameProgress` 删键。 */
   const saveProgress = useCallback(
     (board: GamePlacementBoard): void => {
-      if (!gameSlug) return;
-      writeGameProgress(gameSlug, { board, ...progressMeta });
+      if (!storageId) return;
+      writeGameProgress(storageId, { board, ...progressMeta });
     },
-    [gameSlug, progressMeta],
+    [storageId, progressMeta],
   );
 
   /**
@@ -637,9 +684,9 @@ export function GamePage(): JSX.Element {
     runningSinceRef.current = null;
     setElapsedMs(value);
     setTimerRunning(false);
-    if (gameSlug) writeGameTimer(gameSlug, progressMeta, value);
+    if (storageId) writeGameTimer(storageId, progressMeta, value);
     return value;
-  }, [currentElapsed, gameSlug, progressMeta]);
+  }, [currentElapsed, storageId, progressMeta]);
 
   const resumeTimer = useCallback((): void => {
     if (runningSinceRef.current !== null) return;
@@ -654,8 +701,8 @@ export function GamePage(): JSX.Element {
     runningSinceRef.current = Date.now();
     setElapsedMs(0);
     setTimerRunning(true);
-    if (gameSlug) clearGameTimer(gameSlug);
-  }, [gameSlug]);
+    if (storageId) clearGameTimer(storageId);
+  }, [storageId]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -672,9 +719,9 @@ export function GamePage(): JSX.Element {
    * 为什么不是每秒：localStorage 是同步写，秒针每跳一次就写一条 JSON 没必要。
    */
   useEffect(() => {
-    if (!gameSlug) return;
+    if (!storageId) return;
     const persist = (): void => {
-      writeGameTimer(gameSlug, progressMeta, currentElapsed());
+      writeGameTimer(storageId, progressMeta, currentElapsed());
     };
     const onVisibilityChange = (): void => {
       if (document.visibilityState === 'hidden') persist();
@@ -688,7 +735,7 @@ export function GamePage(): JSX.Element {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       persist();
     };
-  }, [gameSlug, progressMeta, currentElapsed]);
+  }, [storageId, progressMeta, currentElapsed]);
 
   /** 刚放下的字形动效过期清理（`place-pop` 只在这一小段时间里挂着）。 */
   useEffect(
@@ -712,7 +759,7 @@ export function GamePage(): JSX.Element {
   const hydratedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     if (!draft) return;
-    const key = `${gameSlug ?? ''}|${gridSize}|${slots.length}`;
+    const key = `${storageId ?? ''}|${gridSize}|${slots.length}`;
     const firstLoad = hydratedKeyRef.current !== key;
     hydratedKeyRef.current = key;
 
@@ -724,7 +771,7 @@ export function GamePage(): JSX.Element {
     setResult(null);
     if (!firstLoad) return;
 
-    const saved = gameSlug ? readGameProgress(gameSlug, progressMeta) : null;
+    const saved = storageId ? readGameProgress(storageId, progressMeta) : null;
     // 历史栈不落盘：回来时从「当前这一版棋盘」重新开始记，撤销不会跨会话。
     const restored: GamePlacementState = saved
       ? { board: saved.board, past: [], future: [] }
@@ -732,12 +779,12 @@ export function GamePage(): JSX.Element {
     placementRef.current = restored;
     setPlacementState(restored);
 
-    const savedElapsed = gameSlug ? readGameTimer(gameSlug, progressMeta) : 0;
+    const savedElapsed = storageId ? readGameTimer(storageId, progressMeta) : 0;
     elapsedRef.current = savedElapsed;
     runningSinceRef.current = Date.now();
     setElapsedMs(savedElapsed);
     setTimerRunning(true);
-  }, [draft, gameSlug, gridSize, slots.length, progressMeta]);
+  }, [draft, storageId, gridSize, slots.length, progressMeta]);
 
   /**
    * SPEC-G05 §5.3: the roster cards of participants that are already on the
@@ -1209,14 +1256,14 @@ export function GamePage(): JSX.Element {
               <IconButton
                 variant="ghost"
                 icon={<ArrowLeft className="h-4 w-4" />}
-                label={themeSlug ? '返回主题' : '返回游戏列表'}
+                label={themeRef ? '返回主题' : '返回游戏列表'}
                 side="right"
                 className={TOOLBAR_ICON_HOVER_CLASS}
-                onClick={() => navigate(themeSlug ? `/play/theme/${themeSlug}` : '/play')}
+                onClick={() => navigate(themeRef ? source.themeHref(themeRef) : source.listHref())}
               />
-              {themeSlug ? (
+              {themeRef ? (
                 <Link
-                  to={`/play/theme/${themeSlug}`}
+                  to={source.themeHref(themeRef)}
                   className="min-w-0 truncate text-xs text-muted-foreground hover:text-foreground"
                   title="回到这个主题"
                 >

@@ -28,10 +28,13 @@ loredoku/
 │   │       ├── repository/     # Knex 数据访问
 │   │       ├── db/             # knex 连接与 migrations
 │   │       └── utils/          # 日志、图片、响应封装、校验
-│   └── web/                    # Vite + React 前端
+│   └── web/                    # Vite + React 前端（工坊 + 播放器两个入口）
+│       ├── index.html          # 工坊入口 → dist/
+│       ├── player.html         # 播放器入口 → dist-player/（v0.9.0）
 │       └── src/
 │           ├── pages/          # MapsPage / AssetsPage / CharactersPage / PuzzlesPage / …
 │           ├── components/     # map-editor / puzzle / asset / character / map / game / ui
+│           ├── player/         # 播放器：读资源包、列表页、关卡页、两条路由
 │           ├── stores/         # editorStore（地图画布）/ puzzleStore（谜题），均带撤销栈
 │           ├── hooks/          # TanStack Query 数据 hooks 与编辑器流程 hooks（useEditorSave 等）
 │           ├── api/            # Axios 接口封装
@@ -62,6 +65,19 @@ npm run build && npm start # 生产模式：后端 3000 直接托管前端构建
 
 浏览器访问 `http://localhost:{web-port}`。
 
+### 播放器（v0.9.0）
+
+给玩家看的**第二份产物**：只装一个主题资源包，不发一个 `/api` 请求，纯静态部署即可。
+
+```bash
+npm run build:player -- --bundle=hlm.zip   # 包里要有 manifest.json / puzzles/ / files/
+npm run preview:player                     # http://localhost:4173/loredoku/
+```
+
+包可以是从主题概览页导出的 `.zip`，也可以是解压后的目录。产物落在
+`packages/web/dist-player/`（入口 `index.html`、包在 `<code>/` 下），拷到静态服务器的
+`/loredoku/` 就能玩；一个产物对应一个主题。细节见 [`docs/v0.9.0.md`](./docs/v0.9.0.md)。
+
 ---
 
 ## 常用脚本
@@ -69,7 +85,10 @@ npm run build && npm start # 生产模式：后端 3000 直接托管前端构建
 | 命令 | 说明 |
 |---|---|
 | `npm run dev` / `dev:server` / `dev:web` | 启动开发环境 |
+| `npm run dev:player -- --bundle=<包>` | 播放器 dev（`5174/loredoku/`，只读一个主题资源包，不连后端） |
 | `npm run build` | 构建全部 workspace |
+| `npm run build:player -- --bundle=<包>` | 播放器产物 → `packages/web/dist-player/` |
+| `npm run preview:player` | 预览播放器产物（`4173/loredoku/`） |
 | `npm run typecheck` | 全量 TypeScript 类型检查 |
 | `npm test` | 全部测试（各 workspace Vitest + 根目录 `scripts/`） |
 | `npm run db:migrate` / `db:rollback` | 数据库迁移 / 回滚 |
@@ -81,6 +100,7 @@ npm run build && npm start # 生产模式：后端 3000 直接托管前端构建
 ## 相关文档
 
 - [`docs/`](./docs) —— 逐版需求文档
+- [`docs/v0.9.0.md`](./docs/v0.9.0.md) —— 播放器：独立产物、资源包怎么烤进产物、`GameSource` 两种实现。
 - [`docs/data-json.md`](./docs/data-json.md) —— 地图 / 谜题 `data` JSON 的结构参考（字段、取值、默认值、校验、导入导出）。
 - [`docs/map-management-and-editor.md`](./docs/map-management-and-editor.md) —— 地图管理页与地图编辑器的功能说明（页面结构、每个控件的含义与取值范围、发布校验、快捷键）。
 - [`docs/layer-priority.md`](./docs/layer-priority.md) —— 画布图层命名与 z-index 次序的唯一权威。

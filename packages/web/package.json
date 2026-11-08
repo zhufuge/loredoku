@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "dev:player": "node scripts/player.mjs dev",
+    "build:player": "node scripts/player.mjs build",
+    "preview:player": "node scripts/player.mjs preview",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "fonts": "node scripts/build-fonts.mjs",

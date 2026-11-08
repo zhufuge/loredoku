@@ -81,8 +81,13 @@ const MapEditorPage = lazyPage(
   () => import('@/pages/MapEditorPage').then((m) => ({ default: m.MapEditorPage })),
   screenFallback('正在加载画布…'),
 );
+/**
+ * v0.9.0 §2：工坊 / 线上挂的是**接口模式**那一份（`ApiGamePage`），它自己套一层
+ * api source 再交给 `GamePage` 的渲染层。`GamePage` 本身不含 axios —— 播放器直接
+ * 用它，于是那个产物的 chunk 图里根本没有 `src/api/*`。
+ */
 const GamePage = lazyPage(
-  () => import('@/pages/GamePage').then((m) => ({ default: m.GamePage })),
+  () => import('@/pages/ApiGamePage'),
   screenFallback('正在加载游戏…'),
 );
 const GamesPage = lazyPage(() =>

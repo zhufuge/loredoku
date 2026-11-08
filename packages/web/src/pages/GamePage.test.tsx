@@ -6,7 +6,7 @@ import type { ForbiddenSymbolImage, GameToolIcons } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
 import { gameTimerKey } from '@/lib/gameTimer';
-import { GamePage } from './GamePage';
+import ApiGamePage from './ApiGamePage';
 
 /**
  * v0.6.2（docs/v0.6.2.md §3 / §4）开出的页面级测试，v0.7.11 按新行为重写：
@@ -153,7 +153,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       root.render(
         <MemoryRouter initialEntries={['/play/night-train']}>
           <Routes>
-            <Route path="/play/:slug" element={<GamePage />} />
+            <Route path="/play/:slug" element={<ApiGamePage />} />
           </Routes>
         </MemoryRouter>,
       );

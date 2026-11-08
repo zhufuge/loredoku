@@ -5,7 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
-import { GamePage } from './GamePage';
+import ApiGamePage from './ApiGamePage';
 
 /**
  * v0.7.11：长按的过程可见化 + 按住滑动连续操作。
@@ -141,7 +141,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       root.render(
         <MemoryRouter initialEntries={['/play/night-train']}>
           <Routes>
-            <Route path="/play/:slug" element={<GamePage />} />
+            <Route path="/play/:slug" element={<ApiGamePage />} />
           </Routes>
         </MemoryRouter>,
       );
