@@ -16,6 +16,7 @@ import {
   type Asset,
 } from '@loredoku/shared';
 import type { CellMap } from '@/lib/highlight';
+import type { CanvasPoint } from '@/lib/grid';
 import { TOOLTIP_SURFACE_CLASS } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { cellRectStyle, itemRectStyle, parseKey } from './layerGeometry';
@@ -95,10 +96,14 @@ export function MapBackgroundLayer({
  * hover test still runs against the footprint: hovering the overhang of a
  * neighbouring cell must not light this item up.
  *
- * v0.7.13 (docs/v0.7.13.md §2): 停够 1s 就把资源名报出来。**不走 Radix Tooltip**
+ * v0.7.13 (docs/v0.7.13.md §2): 停一会儿就把资源名报出来。**不走 Radix Tooltip**
  * —— 物品层在非编辑器页面是 `pointer-events: none`（游戏页要把点击留给格子），
  * `TooltipTrigger` 根本收不到 hover；命中本来就已经由画布坐标算好了，直接复用。
  * 于是这里只借 Tooltip 的**长相**（`TOOLTIP_SURFACE_CLASS`），自己算位置。
+ *
+ * v0.8.7 §8：位置改成**跟着光标**（`pointer`，画布像素）。原来贴在物品上方，物品被
+ * 作者缩放过 / 偏移过之后，纸片飘在离指头很远的地方，读起来像另一件东西的名字；
+ * 靠边时按画布边界翻边，不靠估算的物品宽度。
  */
 export function MapItemLayer({
   cells,
@@ -106,6 +111,7 @@ export function MapItemLayer({
   cellSize,
   interactive = false,
   hover = null,
+  pointer = null,
   liftOnHover = true,
   padding = 4,
   gridSize,
@@ -118,6 +124,11 @@ export function MapItemLayer({
   cellSize: number;
   interactive?: boolean;
   hover?: CellCoord | null;
+  /**
+   * v0.8.7 §8：光标的**画布坐标**（像素，原点在画布左上角）。给了就把名称提示贴在
+   * 光标旁边；不给（触屏、测试、还没动过鼠标）就退回原来那种「贴在物品上方」。
+   */
+  pointer?: CanvasPoint | null;
   /** OPT-902: disable when the caller renders its own hover affordance. */
   liftOnHover?: boolean;
   /** OPT-C06: artwork inset in px; the editor passes the scaled value. */
@@ -235,7 +246,7 @@ export function MapItemLayer({
                     // （一行 12rem，中文 11px 装得下十几个字），`truncate` 收尾。
                     'pointer-events-none absolute w-max max-w-48 truncate',
                   )}
-                  style={nameTipStyle(rect, cellSize, gridSize)}
+                  style={nameTipStyle(rect, cellSize, gridSize, pointer)}
                 >
                   {asset!.name}
                 </span>
@@ -255,6 +266,9 @@ const HOVERED_ITEM_Z = MAP_LAYER_Z.itemLayer + 1;
 
 /** 提示纸片与物品之间的空隙，跟 `TooltipContent` 的 `sideOffset` 一样是 6。 */
 const TIP_GAP_PX = 6;
+/** v0.8.7 §8：提示贴光标时，向右、向下各让开这么多 —— 纸片不压在指头上。 */
+const TIP_CURSOR_GAP_X = 14;
+const TIP_CURSOR_GAP_Y = 18;
 /** 提示大约 22px 高 + 6px 空隙；头顶不够这么高就翻到下方。 */
 const TIP_FLIP_MIN_TOP_PX = 32;
 /** 提示半宽的保守估计：比它更靠边就直接贴边对齐，免得被画布切掉一截。 */
@@ -287,7 +301,10 @@ function hitItemKey(cells: CellMap, hover: CellCoord): string | null {
 /**
  * 名称提示的位置（相对物品那个 `div` 的 padding box）。
  *
- * 三件事：
+ * v0.8.7 §8：**有光标坐标就跟光标走**（{@link cursorTipStyle}），没有才用原来那套
+ * 「贴在物品上方 / 下方」—— 触屏没有悬停，测试里也常常不传坐标。
+ *
+ * 原来那套的三件事：
  * - **上下**：默认浮在物品上方 6px；头顶不足 32px（第一行物品，往上就是画布
  *   被 `overflow-hidden` 切掉的边）就翻到下方。画布坐标与提示尺寸一起被 zoom
  *   缩放，所以这里用画布像素判断，任意缩放级别都成立。
@@ -302,11 +319,14 @@ function nameTipStyle(
   rect: CSSProperties,
   cellSize: number,
   gridSize: number | undefined,
+  pointer: CanvasPoint | null,
 ): CSSProperties {
   const left = Number(rect.left) || 0;
   const top = Number(rect.top) || 0;
   const width = Number(rect.width) || 0;
   const gridPx = gridSize === undefined ? null : gridSize * cellSize;
+
+  if (pointer) return cursorTipStyle(left, top, pointer, gridPx);
 
   const vertical: CSSProperties =
     top >= TIP_FLIP_MIN_TOP_PX
@@ -326,4 +346,36 @@ function nameTipStyle(
     return { ...vertical, left: `calc(100% - ${overflow}px)`, transform: 'translateX(-100%)' };
   }
   return { ...vertical, left: '50%', transform: 'translateX(-50%)' };
+}
+
+/**
+ * v0.8.7 §8：把提示贴到光标右下角，快到画布右边 / 下边时翻到另一侧，最后夹进画布。
+ *
+ * 翻边用的是**预算**（{@link TIP_EDGE_BUDGET_PX} / {@link TIP_FLIP_MIN_TOP_PX}）
+ * 而不是真实尺寸：提示要跟着鼠标动，等一帧量了宽高再放会追不上指针，而少算一点
+ * 顶多是贴边多留几像素白，算多了才会被切掉。夹紧保证提示永远落在纸面上 ——
+ * 画布外面是 `overflow-hidden` 的容器，出去就没了。
+ *
+ * 返回的坐标相对物品框（绝对定位的包含块），与上面那套同一个坐标系。
+ */
+function cursorTipStyle(
+  left: number,
+  top: number,
+  pointer: CanvasPoint,
+  gridPx: number | null,
+): CSSProperties {
+  const clamp = (value: number, min: number, max: number): number =>
+    Math.min(max, Math.max(min, value));
+  const maxX = gridPx === null ? Number.POSITIVE_INFINITY : Math.max(0, gridPx - TIP_EDGE_BUDGET_PX);
+  const maxY = gridPx === null ? Number.POSITIVE_INFINITY : Math.max(0, gridPx - TIP_FLIP_MIN_TOP_PX);
+
+  let x = pointer.x + TIP_CURSOR_GAP_X;
+  if (x > maxX) x = pointer.x - TIP_CURSOR_GAP_X - TIP_EDGE_BUDGET_PX;
+  let y = pointer.y + TIP_CURSOR_GAP_Y;
+  if (y > maxY) y = pointer.y - TIP_CURSOR_GAP_Y - TIP_FLIP_MIN_TOP_PX;
+
+  return {
+    left: clamp(x, 0, maxX) - left,
+    top: clamp(y, 0, maxY) - top,
+  };
 }

@@ -3,6 +3,7 @@ import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
   FORBIDDEN_SYMBOL_PATH_MAX_LENGTH,
+  GAME_TOOL_ICON_KINDS,
   MAX_PAGE_SIZE,
 } from '../constants';
 
@@ -53,3 +54,25 @@ export const forbiddenSymbolImageSchema = z
   .strict();
 
 export const forbiddenSymbolSchema = forbiddenSymbolImageSchema.nullable().optional();
+
+/**
+ * v0.8.7 §7：游戏页三枚动作按钮的图标（清除 / 撤回 / 提交）。
+ *
+ * 与 `forbiddenSymbolSchema` 同一个形状、同一条路径校验 —— 它们都是「一张上传图」，
+ * 只是画的位置不同。`kind` 落进地址段，所以先在这里把它守成一个枚举：一个拼错的
+ * `tool-icons/claer` 该是 400，而不是「上传成功但哪儿也没变」。
+ */
+export const gameToolIconKindSchema = z.enum(GAME_TOOL_ICON_KINDS);
+
+export const gameToolIconsSchema = z
+  .object({
+    clear: forbiddenSymbolSchema,
+    undo: forbiddenSymbolSchema,
+    submit: forbiddenSymbolSchema,
+  })
+  .strict()
+  .nullable()
+  .optional();
+
+/** `POST /themes/:code/tool-icons/:icon` 与谜题侧同款的一条路径参数。 */
+export const toolIconParamSchema = z.object({ icon: gameToolIconKindSchema });

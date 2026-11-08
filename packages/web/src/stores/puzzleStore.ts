@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import {
   DEFAULT_THEME_COLOR,
+  GAME_TOOL_ICON_KINDS,
   LINKAGE_COLOR_MIN_COUNT,
   MAP_JSON_VERSION,
   MAX_HISTORY_STEPS,
@@ -9,6 +10,7 @@ import {
   type DraftCell,
   type DraftRegion,
   type ForbiddenSymbolImage,
+  type GameToolIcons,
   type MapLinkageColor,
   type MapStyle,
   type ParticipantTarget,
@@ -118,6 +120,10 @@ interface Snapshot {
    */
   forbiddenSymbol: ForbiddenSymbolImage | null;
   /**
+   * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。`null` = 三枚都跟随主题。
+   */
+  toolIcons: GameToolIcons | null;
+  /**
    * v0.7.3 §4：底图也是可撤销的一部分。
    *
    * 「引入新地图」换的是 `mapContext`，撤销要能把它换回来 —— 否则会出现
@@ -154,6 +160,11 @@ export interface PuzzleState {
    * `null` = 默认的 `×` 字形；非 null 时渲染上传的那张图。
    */
   forbiddenSymbol: ForbiddenSymbolImage | null;
+  /**
+   * v0.8.7 §7：游戏页右列三枚动作按钮的画。`null` = 三枚都跟随主题的
+   * `ThemeData.toolIcons`，主题也没有就用内置图标。
+   */
+  toolIcons: GameToolIcons | null;
 
   // ---- view / focus (never in the undo stack) ----
   selection: PuzzleSelection | null;
@@ -193,6 +204,8 @@ export interface PuzzleState {
     rosterCols: number | null;
     /** v0.8.6 §4：`null` = 默认的 `×` 字形。 */
     forbiddenSymbol: ForbiddenSymbolImage | null;
+    /** v0.8.7 §7：工具按钮图标；`null` = 三枚都跟随主题。 */
+    toolIcons: GameToolIcons | null;
   }) => void;
   setParticipantConfig: (
     slotIndex: number,
@@ -267,6 +280,20 @@ function cloneForbiddenSymbol(ref: ForbiddenSymbolImage | null): ForbiddenSymbol
   return ref ? { ...ref } : null;
 }
 
+/**
+ * v0.8.7 §7：三枚工具图标也是平坦的 `{ path }`，逐枚复制一层。空的 / 全是空位的
+ * 对象归一化成 `null` —— 与「从没配过」同一个口径，序列化时也就不留空壳。
+ */
+function cloneToolIcons(icons: GameToolIcons | null | undefined): GameToolIcons | null {
+  if (!icons) return null;
+  const next: GameToolIcons = {};
+  for (const kind of GAME_TOOL_ICON_KINDS) {
+    const ref = icons[kind];
+    if (ref?.path) next[kind] = { ...ref };
+  }
+  return Object.keys(next).length > 0 ? next : null;
+}
+
 function snapshot(state: PuzzleState): Snapshot {
   return {
     name: state.name,
@@ -278,6 +305,7 @@ function snapshot(state: PuzzleState): Snapshot {
     characterSlots: state.characterSlots.map(ensureEntry),
     rosterCols: state.rosterCols,
     forbiddenSymbol: cloneForbiddenSymbol(state.forbiddenSymbol),
+    toolIcons: cloneToolIcons(state.toolIcons),
     mapContext: state.mapContext,
   };
 }
@@ -321,6 +349,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     characterSlots: [],
     rosterCols: null,
     forbiddenSymbol: null,
+    toolIcons: null,
     selection: null,
     selectedSlotIndex: null,
     activeParticipantId: null,
@@ -360,6 +389,8 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         rosterCols: detail.data.rosterCols ?? null,
         // v0.8.6 §4：旧行没有这个键，读进来是「默认 ×」而不是 undefined。
         forbiddenSymbol: cloneForbiddenSymbol(detail.data.forbiddenSymbol ?? null),
+        // v0.8.7 §7：同理，旧行没有 `toolIcons` = 三枚都跟随主题。
+        toolIcons: cloneToolIcons(detail.data.toolIcons),
         selection: null,
         selectedSlotIndex: null,
         ...INACTIVE_ACTIVATION,
@@ -397,6 +428,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         ).map(ensureEntry);
         next.rosterCols = patch.rosterCols;
         next.forbiddenSymbol = cloneForbiddenSymbol(patch.forbiddenSymbol);
+        next.toolIcons = cloneToolIcons(patch.toolIcons);
       }),
 
     // Guarded before `commit` so a rejected removal neither dirties the puzzle
@@ -636,6 +668,8 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         ...(state.forbiddenSymbol
           ? { forbiddenSymbol: { ...state.forbiddenSymbol } }
           : {}),
+        // v0.8.7 §7：同一条规矩 —— 三枚一张都没配就不写这个键。
+        ...(state.toolIcons ? { toolIcons: cloneToolIcons(state.toolIcons)! } : {}),
       };
     },
 
@@ -653,6 +687,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           rosterCols: draft.rosterCols ?? null,
           // v0.8.6 §4：导入 / 恢复草稿时整块读入，同样是副本。
           forbiddenSymbol: cloneForbiddenSymbol(draft.forbiddenSymbol ?? null),
+          toolIcons: cloneToolIcons(draft.toolIcons),
           past,
           future: [],
           dirty: true,

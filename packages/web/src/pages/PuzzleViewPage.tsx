@@ -32,7 +32,15 @@ import { useCharacters } from '@/hooks/useCharacters';
 import { useAssets } from '@/hooks/useAssets';
 import { useHighlight } from '@/hooks/useHighlight';
 import { usePuzzle, usePuzzleMapContext } from '@/hooks/usePuzzles';
-import { clampZoom, clientToCell, isInBounds, zoomAtPoint, ZOOM_STEP } from '@/lib/grid';
+import {
+  clampZoom,
+  clientToCanvasPoint,
+  clientToCell,
+  isInBounds,
+  zoomAtPoint,
+  ZOOM_STEP,
+  type CanvasPoint,
+} from '@/lib/grid';
 import {
   collectBlockingCells,
   collectItemCells,
@@ -40,7 +48,7 @@ import {
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
-import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
+import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import { workshopPath } from '@/lib/workspace';
 import { rulerStripSize } from '@/lib/ruler';
@@ -105,6 +113,8 @@ export function PuzzleViewPage(): JSX.Element {
   const [spaceHeld, setSpaceHeld] = useState(false);
   /** OPT-902: the cell under the cursor, driving the hover affordances. */
   const [hover, setHover] = useState<CellCoord | null>(null);
+  /** v0.8.7 §8：光标在纸上的像素位置 —— 物品名称提示贴它。 */
+  const [hoverPoint, setHoverPoint] = useState<CanvasPoint | null>(null);
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const panRef = useRef<{ x: number; y: number } | null>(null);
@@ -196,6 +206,18 @@ export function PuzzleViewPage(): JSX.Element {
       cellSize,
     });
     return isInBounds(coord, gridSize) ? coord : null;
+  };
+
+  /** v0.8.7 §8：同一套换算，但不除格子大小 —— 得到「光标在纸上的哪个像素」。 */
+  const toCanvasPoint = (clientX: number, clientY: number): CanvasPoint | null => {
+    const node = containerRef.current;
+    if (!node) return null;
+    return clientToCanvasPoint(clientX, clientY, {
+      rect: node.getBoundingClientRect(),
+      pan,
+      zoom,
+      cellSize,
+    });
   };
 
   /**
@@ -329,6 +351,7 @@ export function PuzzleViewPage(): JSX.Element {
   useEffect(() => {
     setActivation(INACTIVE_ACTIVATION);
     setHover(null);
+    setHoverPoint(null);
     setLabelRegionId(null);
   }, [mapContext]);
 
@@ -452,6 +475,7 @@ export function PuzzleViewPage(): JSX.Element {
           onPointerMove={(event) => {
             // OPT-902: the hover affordances follow the cursor even while panning.
             setHover(toCell(event.clientX, event.clientY));
+            setHoverPoint(toCanvasPoint(event.clientX, event.clientY));
             if (!panRef.current) return;
             setPan({
               x: event.clientX - panRef.current.x,
@@ -464,7 +488,10 @@ export function PuzzleViewPage(): JSX.Element {
           onPointerCancel={() => {
             panRef.current = null;
           }}
-          onPointerLeave={() => setHover(null)}
+          onPointerLeave={() => {
+            setHover(null);
+            setHoverPoint(null);
+          }}
           onWheel={(event) => {
             if (!(event.ctrlKey || event.metaKey)) return;
             const node = containerRef.current;
@@ -491,7 +518,12 @@ export function PuzzleViewPage(): JSX.Element {
           >
             <div
               className="absolute left-0 top-0 bg-background"
-              style={{ width: total, height: total, zIndex: MAP_LAYER_Z.canvasBase }}
+              style={{
+              width: total,
+              height: total,
+              zIndex: MAP_LAYER_Z.canvasBase,
+              ...canvasShadowStyle(style),
+            }}
             />
 
             {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
@@ -520,6 +552,7 @@ export function PuzzleViewPage(): JSX.Element {
               // OPT-C06: object artwork is inset inside its footprint.
               padding={itemPadding(cellSize)}
               hover={hover}
+              pointer={hoverPoint}
             />
 
             <MapRegionLabelLayer

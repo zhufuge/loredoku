@@ -443,6 +443,16 @@ export const STYLE_DEFAULT_REGION_HIGHLIGHT_WIDTH = 12;
 /** §7: the region highlight line is the strong blue `#3b82f6`. */
 export const STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR = '#3B82F6';
 export const STYLE_DEFAULT_CANVAS_FRAME_WIDTH = 12;
+/**
+ * v0.8.7 §6：画布这张纸的**投影** —— 向右下偏移一小段、不带模糊的硬影，颜色取
+ * 画布外框色（`style.canvasFrame.color`）再压一层透明度。
+ *
+ * 它不走 `--shadow-paper` / `--shadow-lifted` 那三档界面阴影：那三档是暖色、随浅色 /
+ * 深色主题换，而这张影子是**作品**的一部分（和画框、网格线一样，不随界面变）。
+ * 偏移量是画布像素 —— 和其它线宽一样，跟着 `zoom` 缩放。
+ */
+export const CANVAS_SHADOW_OFFSET_PX = 6;
+export const CANVAS_SHADOW_ALPHA = 0.3;
 export const STYLE_DEFAULT_GRID_SEPARATOR_WIDTH = 4;
 export const STYLE_DEFAULT_MOUSE_CURSOR_WIDTH = 8;
 export const STYLE_DEFAULT_OPERATION_CURSOR_WIDTH = 8;
@@ -517,15 +527,17 @@ export const ITEM_PADDING_MAX = 12;
 export const ITEM_HOVER_LIFT_PX = 4;
 export const ITEM_HOVER_TRANSITION_MS = 120;
 
-// ---- v0.7.13 物品名称提示（docs/v0.7.13.md §2） ----
+// ---- v0.7.13 物品名称提示（docs/v0.7.13.md §2 / v0.8.7 §8） ----
 /**
  * 悬停多久之后报出物品名称。
  *
- * 比全站 Tooltip 的 320ms 慢三倍多，这是**故意的**：墙面上的物品是按格密排的，
- * 320ms 会让扫过去一眼变成「提示雨」；而这里要回答的是「这个画的是什么东西」，
- * 是一个停下来的动作，不是在找按钮。1s 恰好把「路过」和「在看」分开。
+ * v0.7.13 定的是 1s，理由是「墙面上的物品按格密排，320ms 会变成提示雨」。v0.8.7 §8
+ * 把提示改成**跟着光标走**之后，那个顾虑的一半就不成立了：一块跟着指头的纸片是
+ * 「我在看这个」，不是「路上冒出来一张卡片」。于是对齐全站 Tooltip 的 320ms ——
+ * 同一块屏上不该有两套「多久算停下来」。路过仍然不会触发：320ms 内划过去，计时器
+ * 连开都来不及。
  */
-export const ITEM_NAME_TIP_DELAY_MS = 1000;
+export const ITEM_NAME_TIP_DELAY_MS = 320;
 
 // ---- v0.7.5 物品展示变换（docs/v0.7.5.md §3） ----
 /**
@@ -1042,6 +1054,27 @@ export const FORBIDDEN_SYMBOL_MAX_DIMENSION = 256;
 
 /** v0.8.6：`forbiddenSymbol.path` 的长度上限（`storage/uploads` 下的相对路径）。 */
 export const FORBIDDEN_SYMBOL_PATH_MAX_LENGTH = 200;
+
+// ---- v0.8.7 §7：游戏页工具按钮的图标（docs/v0.8.7.md §7） ----
+/**
+ * 游戏页右列那三枚**动作按钮**：清除、撤回、提交。
+ *
+ * 它们和禁止符号是两件事：禁止符号是玩家画在格子里的**符号**（放置层 / 提示层 /
+ * 工具栏三处同图），而这三枚只是按钮上的画。所以存储也分开（`toolIcons` 与
+ * `forbiddenSymbol` 各一个键），解析顺序却相同：谜题自己的 → 主题的 → 内置图标。
+ */
+export const GAME_TOOL_ICON_KINDS = ['clear', 'undo', 'submit'] as const;
+export type GameToolIconKind = (typeof GAME_TOOL_ICON_KINDS)[number];
+
+/**
+ * 三枚按钮的中文名。放在 shared 而不是 `web`：服务端导出资源包时也要用它们报
+ * 「图标（撤回）的图不在了」，两处各写一份迟早会有一处写成「撤销」。
+ */
+export const GAME_TOOL_ICON_LABELS: Record<GameToolIconKind, string> = {
+  clear: '清除',
+  undo: '撤回',
+  submit: '提交',
+};
 
 // ---- Pagination ----
 export const DEFAULT_PAGE = 1;

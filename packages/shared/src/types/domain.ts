@@ -375,6 +375,14 @@ export interface PuzzleDraft {
    * 把主题那张拷进草稿（拷贝会让「主题换图」停在建题那一天）。
    */
   forbiddenSymbol?: ForbiddenSymbolImage | null;
+  /**
+   * v0.8.7 §7：这一关的工具按钮画什么（清除 / 撤回 / 提交）。
+   *
+   * 与 {@link PuzzleDraft.forbiddenSymbol} 同一套语义：这是**覆盖值**，缺席就跟随
+   * 主题的 `ThemeData.toolIcons`，两边都没有才用内置图标。**可选** —— v0.8.7 之前
+   * 的草稿与版本行里没有这个键。
+   */
+  toolIcons?: GameToolIcons | null;
 }
 
 export interface MapResponse {
@@ -712,6 +720,14 @@ export interface ThemeData {
    */
   forbiddenSymbol?: ForbiddenSymbolImage | null;
   /**
+   * v0.8.7 §7：本主题的工具按钮图标（清除 / 撤回 / 提交）—— 本主题里没有单独配置的
+   * 谜题，按钮上都画这一套。
+   *
+   * 与 {@link ThemeData.forbiddenSymbol} 同一条规矩：**读取时**兜底，不是「新建时
+   * 拷一份」。所以换一套图，跟随的关卡（含已发布的）下次打开就是新的。
+   */
+  toolIcons?: GameToolIcons | null;
+  /**
    * v0.8.3：这个空间的**难度分级**。
    *
    * 缺省（`undefined`）= 内置五档（极简 / 简单 / 中等 / 困难 / 专家）。给了就用
@@ -738,6 +754,22 @@ export interface ForbiddenSymbolImage {
    * `themes/3/forbidden-symbol/<uuid>.webp`。
    */
   path: string;
+}
+
+/**
+ * v0.8.7 §7：游戏页右列三枚**动作按钮**（清除 / 撤回 / 提交）的画。
+ *
+ * 每枚都是「一张上传图」—— 与禁止符号同一种形状、同一条解析顺序（谜题自己的 →
+ * 主题的 → 内置图标），只是消费的位置不同：禁止符号画在格子里，这三张只画在按钮上。
+ *
+ * 三者都缺席（或 `null`）时，按钮退回内置的 lucide 图标（橡皮 / 回退箭头 / 纸飞机）。
+ * 用一个对象而不是三个平铺字段：作者改的是「这一套按钮长什么样」，读的一方也只需要
+ * 一次 `resolveToolIcon(kind, …)`。
+ */
+export interface GameToolIcons {
+  clear?: ForbiddenSymbolImage | null;
+  undo?: ForbiddenSymbolImage | null;
+  submit?: ForbiddenSymbolImage | null;
 }
 
 /**

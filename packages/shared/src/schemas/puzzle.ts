@@ -16,7 +16,7 @@ import {
   PUZZLE_NAME_MAX_LENGTH,
 } from '../constants';
 import { characterSlotEntrySchema, mapDraftSchema, mapLinkageColorSchema } from './mapDraft';
-import { forbiddenSymbolSchema } from './common';
+import { forbiddenSymbolSchema, gameToolIconsSchema } from './common';
 import { themeCodeSchema } from './theme';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
@@ -233,8 +233,10 @@ const puzzleDraftBaseSchema = z
       .max(GRID_SIZE_MAX, `列数不能超过 ${GRID_SIZE_MAX}`)
       .nullable()
       .optional(),
-    /** v0.8.6 §4：禁止符号的上传图；缺席 / `null` = 默认的 `×` 字形。 */
+    /** v0.8.6 §4：禁止符号的上传图；缺席 / `null` = 跟随主题，都没有才是 `×` 字形。 */
     forbiddenSymbol: forbiddenSymbolSchema,
+    /** v0.8.7 §7：工具按钮图标；缺席 / `null` = 跟随主题，都没有才是内置图标。 */
+    toolIcons: gameToolIconsSchema,
   })
   .strict();
 

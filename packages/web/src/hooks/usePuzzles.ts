@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ErrorCode,
+  type GameToolIconKind,
   type PublishViolation,
   type PuzzleDraft,
   type PuzzleEntrySummary,
@@ -174,8 +175,24 @@ export function useUploadPuzzleForbiddenSymbol() {
   });
 }
 
-export function useRemovePuzzleCover() {
+/**
+ * v0.8.7 §7：工具按钮图标上传（清除 / 撤回 / 提交）。
+ *
+ * 与禁止符号逐条相同：失败不 toast（抽屉在控件旁报），成功刷新谜题详情。一次一枚，
+ * 所以 `icon` 跟着参数走 —— 三枚的 `path` 各自独立，不能合成一次请求。
+ */
+export function useUploadPuzzleToolIcon() {
   const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, icon, file }: { id: number; icon: GameToolIconKind; file: File }) =>
+      puzzlesApi.uploadToolIcon(id, icon, file),
+    onSuccess: (_data, { id }) => {
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.detail(id) });
+    },
+  });
+}
+
+export function useRemovePuzzleCover() {  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: number) => puzzlesApi.removeCover(id),
     onSuccess: (data) => {

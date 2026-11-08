@@ -27,6 +27,8 @@ function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string
 
 /** 其余用例不碰上传控件；给一个空实现把 props 补齐。 */
 const noopUploadForbiddenSymbol = vi.fn(async () => null);
+/** v0.8.7 §7：三枚工具图标的上传同样是别处的活儿。 */
+const noopUploadToolIcon = vi.fn(async () => null);
 
 describe('PuzzleInfoDrawer (SPEC-K05)', () => {
   let container: HTMLDivElement;
@@ -76,6 +78,9 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
           rosterCols={rosterCols}
           forbiddenSymbol={null}
           themeForbiddenSymbol={null}
+          toolIcons={null}
+          themeToolIcons={null}
+          onUploadToolIcon={noopUploadToolIcon}
           onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
@@ -286,6 +291,9 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
           rosterCols={null}
           forbiddenSymbol={null}
           themeForbiddenSymbol={null}
+          toolIcons={null}
+          themeToolIcons={null}
+          onUploadToolIcon={noopUploadToolIcon}
           onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
@@ -437,6 +445,9 @@ describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
           rosterCols={null}
           forbiddenSymbol={null}
           themeForbiddenSymbol={null}
+          toolIcons={null}
+          themeToolIcons={null}
+          onUploadToolIcon={noopUploadToolIcon}
           onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={null}
           coverFile={null}
@@ -596,6 +607,9 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
           rosterCols={null}
           forbiddenSymbol={committed}
           themeForbiddenSymbol={theme}
+          toolIcons={null}
+          themeToolIcons={null}
+          onUploadToolIcon={noopUploadToolIcon}
           onUploadForbiddenSymbol={onUploadForbiddenSymbol}
           coverUrl={null}
           coverFile={null}

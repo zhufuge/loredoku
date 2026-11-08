@@ -1,9 +1,11 @@
 import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { resolveDifficultyTiers } from '@loredoku/shared';
+import { GAME_TOOL_ICON_LABELS, resolveDifficultyTiers } from '@loredoku/shared';
 import type {
   ForbiddenSymbolImage,
+  GameToolIconKind,
+  GameToolIcons,
   Theme,
   ThemeDeploymentSummary,
   ThemeDifficultyTier,
@@ -118,8 +120,40 @@ export function useRemoveThemeForbiddenSymbol(code: string) {
   });
 }
 
-export function useDeleteTheme() {
+/**
+ * v0.8.7 §7 —— 主题的工具按钮图标（清除 / 撤回 / 提交），**一次一枚、即时保存**。
+ *
+ * 一次一枚是故意的：作者通常只想换「清除」那一枚，重新上传另外两枚既费事又会让
+ * 三枚的 `path` 各自变成新文件。成功后同样把 `themeKeys.all` 一起失效 —— 播放页与
+ * 谜题抽屉都按编码查这份数据。
+ */
+export function useUploadThemeToolIcon(code: string) {
   const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ icon, file }: { icon: GameToolIconKind; file: File }) =>
+      themesApi.uploadToolIcon(code, icon, file),
+    onSuccess: (_theme, { icon }) => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success(`已设为本主题的${GAME_TOOL_ICON_LABELS[icon]}图标`);
+    },
+    onError: (error: Error) => toast.error(error.message || '图标上传失败'),
+  });
+}
+
+/** 移除一枚 = 把 `data.toolIcons[icon]` 删掉，另外两枚不动。 */
+export function useRemoveThemeToolIcon(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (icon: GameToolIconKind) => themesApi.removeToolIcon(code, icon),
+    onSuccess: (_theme, icon) => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success(`已移除${GAME_TOOL_ICON_LABELS[icon]}图标`);
+    },
+    onError: (error: Error) => toast.error(error.message || '移除失败'),
+  });
+}
+
+export function useDeleteTheme() {  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => themesApi.remove(code),
     /**
@@ -204,8 +238,33 @@ export function useForbiddenSymbolByCode(): (
   );
 }
 
-export function useThemeDeploymentBySlug(slug: string | null) {
-  return useQuery({
+/**
+ * v0.8.7 §7 —— 按主题编码查「工具按钮图标」（清除 / 撤回 / 提交）。
+ *
+ * 与 `useForbiddenSymbolByCode` 同一个理由、同一份 `/themes`：播放页与谜题编辑器都
+ * 在 `WorkspaceLayout` 外面，拿不到上下文那份 `theme`，只能按编码查表。三枚一起给，
+ * 因为工具栏一屏要画全套；解析顺序（谜题 → 主题 → 内置）在 `lib/toolIcons.ts`。
+ */
+export function useToolIconsByCode(): (
+  code: string | null | undefined,
+) => GameToolIcons | null {
+  const query = useThemes();
+  const byCode = useMemo(() => {
+    const map = new Map<string, GameToolIcons>();
+    for (const theme of query.data ?? []) {
+      const icons = theme.data.toolIcons;
+      if (icons && Object.keys(icons).length > 0) map.set(theme.code, icons);
+    }
+    return map;
+  }, [query.data]);
+
+  return useCallback(
+    (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
+    [byCode],
+  );
+}
+
+export function useThemeDeploymentBySlug(slug: string | null) {  return useQuery({
     queryKey: themeKeys.deploymentBySlug(slug ?? ''),
     queryFn: () => themesApi.deploymentBySlug(slug as string),
     enabled: Boolean(slug),

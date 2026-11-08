@@ -32,6 +32,9 @@ const deleteMutate = vi.fn(() => Promise.resolve());
 const updateMutate = vi.fn((_payload: unknown) => Promise.resolve());
 const uploadForbiddenMutate = vi.fn((_file: File) => Promise.resolve());
 const removeForbiddenMutate = vi.fn(() => Promise.resolve());
+/** v0.8.7 §7：三枚工具图标的上传参数是 `{ icon, file }`。 */
+const uploadToolIconMutate = vi.fn((_payload: unknown) => Promise.resolve());
+const removeToolIconMutate = vi.fn((_icon: unknown) => Promise.resolve());
 
 vi.mock('@/components/layout/WorkspaceContext', () => ({
   useWorkspace: () => workspaceRef.value,
@@ -41,6 +44,9 @@ vi.mock('@/hooks/useThemes', () => ({
   useDeleteTheme: () => ({ mutateAsync: deleteMutate, isPending: false }),
   useUploadThemeForbiddenSymbol: () => ({ mutate: uploadForbiddenMutate, isPending: false }),
   useRemoveThemeForbiddenSymbol: () => ({ mutate: removeForbiddenMutate, isPending: false }),
+  /** v0.8.7 §7：工具按钮图标卡片的三枚各自上传 / 移除，这里只需要「没在忙」。 */
+  useUploadThemeToolIcon: () => ({ mutate: uploadToolIconMutate, isPending: false }),
+  useRemoveThemeToolIcon: () => ({ mutate: removeToolIconMutate, isPending: false, variables: undefined }),
 }));
 
 describe('ThemeOverviewPage（v0.8.3）', () => {
@@ -86,6 +92,8 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     updateMutate.mockClear();
     uploadForbiddenMutate.mockClear();
     removeForbiddenMutate.mockClear();
+    uploadToolIconMutate.mockClear();
+    removeToolIconMutate.mockClear();
     document.body.innerHTML = '';
     container = document.createElement('div');
     document.body.appendChild(container);

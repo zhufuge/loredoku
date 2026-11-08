@@ -11,6 +11,7 @@ import {
   PUZZLE_COVER_MAX_DIMENSION,
   THUMBNAIL_MAX_DIMENSION,
   UPLOAD_ALLOWED_MIME,
+  type GameToolIconKind,
 } from '@loredoku/shared';
 import { AppError } from './AppError';
 import { uploadRoot } from './paths';
@@ -116,7 +117,31 @@ export async function processForbiddenSymbolImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   buffer: Buffer,
 ): Promise<ProcessedImage> {
-  const folder = `${owner.kind === 'puzzle' ? 'puzzles' : 'themes'}/${owner.id}/forbidden-symbol`;
+  return processSymbolImage(owner, 'forbidden-symbol', buffer);
+}
+
+/**
+ * v0.8.7 §7：工具按钮的图标（清除 / 撤回 / 提交）。
+ *
+ * 与禁止符号同一档尺寸（按钮上画 20px，256 已经富余）：所以复用那条「只写一张
+ * webp」的通道，只是目录再深一层 `.../tool-icons/<icon>/`。作者换一张图，旧文件
+ * 留在原地不删 —— 版本行、复制出来的谜题可能还指着它。
+ */
+export async function processToolIconImage(
+  owner: { kind: 'puzzle' | 'theme'; id: number },
+  icon: GameToolIconKind,
+  buffer: Buffer,
+): Promise<ProcessedImage> {
+  return processSymbolImage(owner, `tool-icons/${icon}`, buffer);
+}
+
+/** 两种「符号级小图」共用的一条路：按所有者分目录，长边缩到 256。 */
+async function processSymbolImage(
+  owner: { kind: 'puzzle' | 'theme'; id: number },
+  sub: string,
+  buffer: Buffer,
+): Promise<ProcessedImage> {
+  const folder = `${owner.kind === 'puzzle' ? 'puzzles' : 'themes'}/${owner.id}/${sub}`;
   return processScaledImage(folder, buffer, FORBIDDEN_SYMBOL_MAX_DIMENSION);
 }
 

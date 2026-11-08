@@ -49,14 +49,16 @@ import {
   computeCellSizeForInsets,
 } from '@/lib/canvasSize';
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
-import { effectiveCellSize } from '@/lib/mapStyle';
+import { canvasShadowStyle, effectiveCellSize } from '@/lib/mapStyle';
 import { rulerStripSize } from '@/lib/ruler';
 import {
   clampZoom,
+  clientToCanvasPoint,
   clientToCell,
   isInBounds,
   zoomAtPoint,
   ZOOM_STEP,
+  type CanvasPoint,
 } from '@/lib/grid';
 import type { Selection } from '@/stores/editorStore';
 
@@ -187,6 +189,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const [hover, setHover] = useState<CellCoord | null>(null);
+  /** v0.8.7 §8：光标在纸上的像素位置 —— 物品名称提示贴它。 */
+  const [hoverPoint, setHoverPoint] = useState<CanvasPoint | null>(null);
   const [brushCells, setBrushCells] = useState<Coord[]>([]);
   /** Set when the pointer sits directly on a region label (§2.2). */
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
@@ -471,6 +475,18 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           ? coord
           : null,
     );
+    // v0.8.7 §8：提示跟手 —— 位置只在这一格真的命中物品时才会被画出来。
+    const node = containerRef.current;
+    if (node) {
+      setHoverPoint(
+        clientToCanvasPoint(event.clientX, event.clientY, {
+          rect: node.getBoundingClientRect(),
+          pan,
+          zoom,
+          cellSize,
+        }),
+      );
+    }
 
     const interaction = interactionRef.current;
     if (!interaction) return;
@@ -645,7 +661,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={() => setHover(null)}
+      onPointerLeave={() => {
+        setHover(null);
+        setHoverPoint(null);
+      }}
     >
       <div
         className="absolute left-0 top-0"
@@ -658,7 +677,12 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       >
         <div
           className="absolute left-0 top-0 bg-background"
-          style={{ width: total, height: total, zIndex: MAP_LAYER_Z.canvasBase }}
+          style={{
+            width: total,
+            height: total,
+            zIndex: MAP_LAYER_Z.canvasBase,
+            ...canvasShadowStyle(style),
+          }}
         />
 
         {/* 《画布图层优先级规范》§2 — rendered bottom-up; the z-index of each
@@ -692,6 +716,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           padding={itemPadding(cellSize)}
           interactive={selectInteractive}
           hover={hover}
+          pointer={hoverPoint}
           onClick={(coord, event) => {
             if (event.shiftKey && selectedRegionId) {
               onToggleRegionCell(coord);

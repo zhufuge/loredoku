@@ -394,11 +394,17 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
     null
   ],
   "rosterCols": 3,
-  "forbiddenSymbol": { "path": "puzzles/12/forbidden-symbol/a1b2c3d4.webp" }
+  "forbiddenSymbol": { "path": "puzzles/12/forbidden-symbol/a1b2c3d4.webp" },
+  "toolIcons": {
+    "clear": { "path": "puzzles/12/tool-icons/clear/9f8e7d6c.webp" },
+    "submit": { "path": "puzzles/12/tool-icons/submit/5a4b3c2d.webp" }
+  }
 }
 ```
 
-`characterSlots` 长度 3 = `gridSize`，最后一个槽位空着。第 2 位参与者的 `linkages` 里 `character` 目标指向第 1 位的 `characterId`、`cell` 目标在 3×3 之内 —— 这两条都会被 schema 检查。`forbiddenSymbol` 指向一张上传的图（v0.8.6）：玩家在游戏页把这格标成排除项时，画面上画的就是那张图，而不是默认的 `×`；该图由 `POST /api/puzzles/:id/forbidden-symbol` 上传、或从主题缺省抄来。
+`characterSlots` 长度 3 = `gridSize`，最后一个槽位空着。第 2 位参与者的 `linkages` 里 `character` 目标指向第 1 位的 `characterId`、`cell` 目标在 3×3 之内 —— 这两条都会被 schema 检查。`forbiddenSymbol` 指向一张上传的图（v0.8.6）：玩家在游戏页把这格标成排除项时，画面上画的就是那张图，而不是默认的 `×`；该图由 `POST /api/puzzles/:id/forbidden-symbol` 上传。**不写这个键就是「跟随主题」**（v0.8.7）：读取时依次找谜题自己的 → 主题的 → 内置的 `×`，所以新建谜题不会把主题那份抄进草稿。
+
+`toolIcons`（v0.8.7）是同一套做法的三份：`clear` / `undo` / `submit` 三枚工具按钮的图标，**缺哪一枚就跟随主题**（再没有才画内置的 lucide 图标）。每枚复用同一个 `{ path }`，一次上传只改一枚；三枚都清空时整个键删掉，与「从没配过」同义。上面例子里只配了两枚 —— 没写 `undo` 就等于那一枚用主题的。
 
 ### 5.8 三层校验
 

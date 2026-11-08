@@ -4,12 +4,15 @@ import { ChevronRight, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import {
   DEFAULT_DIFFICULTY_TIERS,
   DEFAULT_MAP_STYLE,
+  GAME_TOOL_ICON_KINDS,
+  GAME_TOOL_ICON_LABELS,
   fileUrlFromPath,
   MAP_STYLE_DIFF_GROUPS,
   difficultySwatchColor,
   nextDifficultyLevel,
   resolveDifficultyTiers,
   THEME_DIFFICULTY_TIER_MAX,
+  type GameToolIconKind,
   type MapStyle,
   type Theme,
   type ThemeCounts,
@@ -39,10 +42,13 @@ import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import {
   useDeleteTheme,
   useRemoveThemeForbiddenSymbol,
+  useRemoveThemeToolIcon,
   useUpdateTheme,
   useUploadThemeForbiddenSymbol,
+  useUploadThemeToolIcon,
 } from '@/hooks/useThemes';
 import { isValidShadowColor, isValidStyleColor } from '@/lib/mapStyle';
+import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
 import {
   resetThemeStyle,
   THEME_STYLE_FIELDS,
@@ -291,6 +297,9 @@ export function ThemeOverviewPage(): JSX.Element {
       {/* v0.8.6 §4：主题级的「禁止符号」缺省。与地图初始样式同属「新建内容长什么样」。 */}
       <ForbiddenSymbolCard theme={theme} />
 
+      {/* v0.8.7 §7：三枚工具按钮的图标 —— 与禁止符号同一套「读取时兜底」。 */}
+      <ToolIconsCard theme={theme} />
+
       {/* v0.8.3 §3：难度分级。徽章就是部署页 / 游戏卡上那一枚，所见即所得。 */}
       <Card className="space-y-3 px-4 py-4">
         <CardHead title="难度分级" onEdit={() => setTiersOpen(true)} />
@@ -436,6 +445,104 @@ function ForbiddenSymbolCard({ theme }: { theme: Theme }): JSX.Element {
           event.target.value = '';
           if (!file) return;
           upload.mutate(file);
+        }}
+      />
+    </Card>
+  );
+}
+
+/**
+ * v0.8.7 §7：主题级的**工具按钮图标** —— 清除 / 撤回 / 提交三枚。
+ *
+ * 与「禁止符号」同一条规矩：这是**读取时**的兜底，不是新建时抄一份副本。所以换一套
+ * 图，本主题下跟随的关卡（含已发布的）下次打开就是新的；谜题里单独上传过的仍用
+ * 自己那张。
+ *
+ * 交互与禁止符号卡一致：选中文件即上传、点移除即清掉，没有「编辑 → 保存」那一层。
+ * 差别只在数量 —— 三枚各一行，各自独立（换「清除」不该动另外两枚），所以隐藏的
+ * file input 只有一个，用 `pending` 记住这次点的是哪一枚。
+ */
+function ToolIconsCard({ theme }: { theme: Theme }): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const upload = useUploadThemeToolIcon(theme.code);
+  const remove = useRemoveThemeToolIcon(theme.code);
+  const icons = theme.data.toolIcons ?? {};
+  const [pending, setPending] = useState<GameToolIconKind | null>(null);
+  const busy = upload.isPending || remove.isPending;
+
+  return (
+    <Card className="space-y-3 px-4 py-4">
+      <CardHead title="工具按钮图标" />
+      <ul className="divide-y divide-border">
+        {GAME_TOOL_ICON_KINDS.map((kind) => {
+          const current = icons[kind] ?? null;
+          const Fallback = TOOL_ICON_FALLBACKS[kind];
+          return (
+            <li key={kind} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
+                {current ? (
+                  <img
+                    src={fileUrlFromPath(current.path)}
+                    alt={`${GAME_TOOL_ICON_LABELS[kind]}图标`}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <Fallback className="h-4 w-4 text-muted-foreground" aria-hidden />
+                )}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs">{GAME_TOOL_ICON_LABELS[kind]}</p>
+                <p className="text-2xs leading-relaxed text-muted-foreground">
+                  {current ? '本主题里跟随的关卡都用这张' : '未配置，用内置图标'}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    setPending(kind);
+                    inputRef.current?.click();
+                  }}
+                >
+                  <Upload className="mr-1 h-3.5 w-3.5" />
+                  {upload.isPending && pending === kind ? '上传中…' : current ? '更换' : '上传'}
+                </Button>
+                {current ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    disabled={busy}
+                    onClick={() => remove.mutate(kind)}
+                  >
+                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                    {remove.isPending && remove.variables === kind ? '移除中…' : '移除'}
+                  </Button>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-2xs leading-relaxed text-muted-foreground">
+        游戏页右列那三枚按钮画的就是这套；谜题里单独上传过的仍用自己那张。
+      </p>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          const icon = pending;
+          setPending(null);
+          if (!file || !icon) return;
+          upload.mutate({ icon, file });
         }}
       />
     </Card>

@@ -9,6 +9,8 @@ import {
 } from 'react';
 import { HelpCircle, Plus, Trash2, Upload, X } from 'lucide-react';
 import {
+  GAME_TOOL_ICON_KINDS,
+  GAME_TOOL_ICON_LABELS,
   LINKAGE_COLOR_KEY_PATTERN,
   LINKAGE_COLOR_LABEL_MAX_LENGTH,
   LINKAGE_COLOR_MAX_COUNT,
@@ -23,9 +25,12 @@ import {
   fileUrlFromPath,
   type CharacterSlotEntry,
   type ForbiddenSymbolImage,
+  type GameToolIconKind,
+  type GameToolIcons,
   type MapLinkageColor,
 } from '@loredoku/shared';
 import { CoverPicker } from '@/components/common/CoverPicker';
+import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
 import {
   computeParticipantLayout,
   resolveRosterCols,
@@ -92,6 +97,8 @@ export interface PuzzleBasicInfo {
    * `null` = 默认的 `×` 字形。
    */
   forbiddenSymbol: ForbiddenSymbolImage | null;
+  /** v0.8.7 §7：三枚工具按钮图标；`null` = 三枚都跟随主题。 */
+  toolIcons: GameToolIcons | null;
   /** v0.7.3 §2: a freshly picked cover file, or `null` to keep the stored one. */
   coverFile: File | null;
   /** v0.7.3 §2: the stored cover should be dropped. */
@@ -124,6 +131,21 @@ interface PuzzleInfoDrawerProps {
    * 以及那句「未单独配置，跟随主题」的说明。`null` = 主题也没配。
    */
   themeForbiddenSymbol: ForbiddenSymbolImage | null;
+  /**
+   * v0.8.7 §7：这一题提交过的工具按钮图标（清除 / 撤回 / 提交）。`null` = 三枚都
+   * 没单独配 —— 玩家看到的是主题那一套。形状与禁止符号相同：`{ path }`。
+   */
+  toolIcons: GameToolIcons | null;
+  /** v0.8.7 §7：主题的那一套；这一题没配的那几枚，预览与说明都靠它。 */
+  themeToolIcons: GameToolIcons | null;
+  /**
+   * v0.8.7 §7：选中文件后**立即上传**，返回落盘路径 —— 抽屉把它写进本地草稿的
+   * `toolIcons[icon]`，随「保存」一个撤销步。失败返回 `null`。
+   */
+  onUploadToolIcon: (
+    icon: GameToolIconKind,
+    file: File,
+  ) => Promise<{ path: string; url: string } | null>;
   /**
    * v0.8.6 §4: 选中文件后**立即上传**。成功返回落盘路径（抽屉把它写进本地草稿，
    * 与其它字段同一个「保存」/ 撤销步）；失败返回 `null` —— 抽屉保留原值并提示。
@@ -218,6 +240,16 @@ function forbiddenSymbolEquals(
   return (a?.path ?? null) === (b?.path ?? null);
 }
 
+/**
+ * v0.8.7 §7：三枚图标逐枚比 `path`。用 `every` 而不是比对象 —— 键的**顺序**不该参与
+ * 「改没改」的判断，作者先换「提交」再换「清除」和反过来是同一份结果。
+ */
+function toolIconsEqual(a: GameToolIcons | null, b: GameToolIcons | null): boolean {
+  return GAME_TOOL_ICON_KINDS.every(
+    (kind) => (a?.[kind]?.path ?? null) === (b?.[kind]?.path ?? null),
+  );
+}
+
 export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDrawerProps>(
   function PuzzleInfoDrawer(
     {
@@ -231,7 +263,10 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       rosterCols,
       forbiddenSymbol,
       themeForbiddenSymbol,
+      toolIcons,
+      themeToolIcons,
       onUploadForbiddenSymbol,
+      onUploadToolIcon,
       coverUrl,
       coverFile,
       coverRemoved,
@@ -254,6 +289,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       forbiddenSymbol,
       open,
     );
+    /** v0.8.7 §7：三枚工具按钮图标也走草稿 —— 同一套提交时机、同一个撤销步。 */
+    const [draftToolIcons, setDraftToolIcons] = useDraft<GameToolIcons | null>(toolIcons, open);
     /**
      * v0.8.7 §4：预览画「这一题最终会用的那张」—— 自己配了就是它，没配就是主题的。
      * `null` = 两边都没有，玩家侧是 `×`。
@@ -267,6 +304,14 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     const [forbiddenUploadError, setForbiddenUploadError] = useState<string | null>(null);
     /** 上传控件的真身：一个隐藏的 `<input type="file">`。 */
     const forbiddenInputRef = useRef<HTMLInputElement | null>(null);
+    /**
+     * v0.8.7 §7：三枚工具图标共用**一个**隐藏 input —— `pendingToolIcon` 记住这次点的是
+     * 哪一枚，选完文件才知道往哪个键上放。上传中 / 失败同样是控件的短暂状态。
+     */
+    const [toolIconUploading, setToolIconUploading] = useState<GameToolIconKind | null>(null);
+    const [toolIconError, setToolIconError] = useState<string | null>(null);
+    const [pendingToolIcon, setPendingToolIcon] = useState<GameToolIconKind | null>(null);
+    const toolIconInputRef = useRef<HTMLInputElement | null>(null);
     /** v0.7.3 §2: the cover is drafted as `{ file, removed }` and uploaded on save. */
     const [draftCoverFile, setDraftCoverFile] = useDraft<File | null>(coverFile, open);
     const [draftCoverRemoved, setDraftCoverRemoved] = useDraft<boolean>(coverRemoved, open);
@@ -291,6 +336,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       !paletteEquals(draftPalette, linkageColors) ||
       draftCols !== rosterCols ||
       !forbiddenSymbolEquals(draftForbiddenSymbol, forbiddenSymbol) ||
+      !toolIconsEqual(draftToolIcons, toolIcons) ||
       draftCoverFile !== coverFile ||
       draftCoverRemoved !== coverRemoved;
     const latest = useRef({
@@ -302,6 +348,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftSlots,
       draftCols,
       draftForbiddenSymbol,
+      draftToolIcons,
       draftCoverFile,
       draftCoverRemoved,
       dirty,
@@ -316,6 +363,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftSlots,
       draftCols,
       draftForbiddenSymbol,
+      draftToolIcons,
       draftCoverFile,
       draftCoverRemoved,
       dirty,
@@ -328,7 +376,11 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
 
     useEffect(() => {
       // 每次打开都从「没有错误」开始 —— 上一次失败的提示不该留到下一次。
-      if (open) setForbiddenUploadError(null);
+      if (open) {
+        setForbiddenUploadError(null);
+        setToolIconError(null);
+        setPendingToolIcon(null);
+      }
     }, [open]);
 
     useEffect(() => {
@@ -354,6 +406,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               characterSlots: current.draftSlots,
               rosterCols: current.draftCols,
               forbiddenSymbol: current.draftForbiddenSymbol,
+              toolIcons: current.draftToolIcons,
               coverFile: current.draftCoverFile,
               coverRemoved: current.draftCoverRemoved,
             });
@@ -370,6 +423,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           setDraftSlots(characterSlots);
           setDraftCols(rosterCols);
           setDraftForbiddenSymbol(forbiddenSymbol);
+          setDraftToolIcons(toolIcons);
           setDraftCoverFile(coverFile);
           setDraftCoverRemoved(coverRemoved);
         },
@@ -385,6 +439,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         linkageColors,
         rosterCols,
         forbiddenSymbol,
+        toolIcons,
         onCommit,
         onRequestClose,
         setDraftName,
@@ -395,6 +450,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         setDraftSlots,
         setDraftCols,
         setDraftForbiddenSymbol,
+        setDraftToolIcons,
         setDraftCoverFile,
         setDraftCoverRemoved,
       ],
@@ -481,6 +537,27 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         setForbiddenUploadError('图片上传失败，请重试。');
       } finally {
         setForbiddenUploading(false);
+      }
+    };
+
+    /**
+     * v0.8.7 §7：一枚工具图标的上传。与禁止符号同一条时序 —— 选中即上传，成功才写进
+     * 草稿；失败保留原值、只在那一枚下面报一句。三枚互不影响，所以状态按枚记。
+     */
+    const uploadToolIcon = async (icon: GameToolIconKind, file: File): Promise<void> => {
+      setToolIconUploading(icon);
+      setToolIconError(null);
+      try {
+        const uploaded = await onUploadToolIcon(icon, file);
+        if (!uploaded) {
+          setToolIconError('图片上传失败，请重试。');
+          return;
+        }
+        setDraftToolIcons({ ...(draftToolIcons ?? {}), [icon]: { path: uploaded.path } });
+      } catch {
+        setToolIconError('图片上传失败，请重试。');
+      } finally {
+        setToolIconUploading(null);
       }
     };
 
@@ -697,6 +774,112 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             />
           </Section>
 
+          {/*
+            v0.8.7 §7：三枚工具按钮图标。与禁止符号同一条规矩 —— 不配就跟随主题，
+            预览画这一题**最终会用**的那一枚（自己的，否则主题的，再否则内置图标），
+            所以作者在抽屉里看到的和玩家按到的是同一张。`data-source` 让「自己的」与
+            「跟随的」在结构和测试里分得开。
+          */}
+          <Section
+            title="工具按钮图标"
+            hint="Toolbar Icons — 游戏页右列三枚按钮（清除 / 撤回 / 提交）上的画。不单独配置就跟随主题那一套（主题概览页的「工具按钮图标」）；上传一张可以只给这一题换一枚。都没配的按钮用内置图标。"
+          >
+            <ul className="divide-y divide-border">
+              {GAME_TOOL_ICON_KINDS.map((icon) => {
+                const own = draftToolIcons?.[icon] ?? null;
+                const inherited = themeToolIcons?.[icon] ?? null;
+                const preview = own ?? inherited;
+                const Fallback = TOOL_ICON_FALLBACKS[icon];
+                return (
+                  <li key={icon} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/30">
+                      {preview ? (
+                        <img
+                          data-testid={`tool-icon-preview-${icon}`}
+                          data-source={own ? 'puzzle' : 'theme'}
+                          src={fileUrlFromPath(preview.path)}
+                          alt={`${GAME_TOOL_ICON_LABELS[icon]}图标预览`}
+                          draggable={false}
+                          className="h-full w-full object-contain"
+                        />
+                      ) : (
+                        <Fallback className="h-4 w-4 text-muted-foreground" aria-hidden />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-xs">{GAME_TOOL_ICON_LABELS[icon]}</span>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs"
+                          disabled={toolIconUploading !== null}
+                          onClick={() => {
+                            setPendingToolIcon(icon);
+                            toolIconInputRef.current?.click();
+                          }}
+                        >
+                          <Upload className="mr-1 h-3.5 w-3.5" />
+                          {toolIconUploading === icon
+                            ? '上传中…'
+                            : own
+                              ? '更换'
+                              : inherited
+                                ? '单独配一张'
+                                : '选择图片'}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-xs text-destructive hover:text-destructive"
+                          disabled={toolIconUploading !== null || own === null}
+                          onClick={() => {
+                            const rest: GameToolIcons = { ...(draftToolIcons ?? {}) };
+                            delete rest[icon];
+                            setDraftToolIcons(Object.keys(rest).length > 0 ? rest : null);
+                            setToolIconError(null);
+                          }}
+                        >
+                          <Trash2 className="mr-1 h-3.5 w-3.5" />
+                          移除
+                        </Button>
+                      </div>
+                      <p className="text-2xs leading-relaxed text-muted-foreground">
+                        {own
+                          ? '这一题用自己上传的这张；「移除」就回到跟随主题。'
+                          : inherited
+                            ? '这一题没有单独配置，玩家看到的是主题那张。'
+                            : '这一题和主题都没有配置，玩家看到的是内置图标。'}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            {toolIconError ? (
+              <p role="alert" className="text-2xs text-destructive">
+                {toolIconError}
+              </p>
+            ) : null}
+            <input
+              ref={toolIconInputRef}
+              id="puzzle-info-tool-icons"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(event) => {
+                const picked = event.target.files?.[0] ?? null;
+                event.target.value = '';
+                const icon = pendingToolIcon;
+                setPendingToolIcon(null);
+                if (!picked || !icon) return;
+                void uploadToolIcon(icon, picked);
+              }}
+            />
+          </Section>
+
           <Section
             title="题面"
             hint="Brief — 玩家侧这张纸片贴在盘面左上角：描述在上，全局线索在下。全局线索讲整盘的规则（「每条斜线不同」），参与者各自的线索讲「这位住在哪」，两处分开写。结束语只在玩家通过时出现。"
@@ -908,7 +1091,9 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           <Button
             type="button"
             size="sm"
-            disabled={!dirty || descriptionOverLimit || nameBlank || forbiddenUploading}
+            disabled={
+              !dirty || descriptionOverLimit || nameBlank || forbiddenUploading || toolIconUploading !== null
+            }
             onClick={() =>
               onCommit({
                 name: draftName.trim(),
@@ -919,6 +1104,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 characterSlots: draftSlots,
                 rosterCols: draftCols,
                 forbiddenSymbol: draftForbiddenSymbol,
+                toolIcons: draftToolIcons,
                 coverFile: draftCoverFile,
                 coverRemoved: draftCoverRemoved,
               })

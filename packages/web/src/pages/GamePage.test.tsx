@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ForbiddenSymbolImage } from '@loredoku/shared';
+import type { ForbiddenSymbolImage, GameToolIcons } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
 import { gameTimerKey } from '@/lib/gameTimer';
@@ -25,7 +25,11 @@ const fixture = vi.hoisted(() => ({
    * v0.8.7 §4：主题的禁止符号（主题概览页那份）。`useForbiddenSymbolByCode` 的 mock
    * 读它，于是「谜题没配 → 跟随主题」这条能在页面级断言。
    */
-  theme: { forbiddenSymbol: null as ForbiddenSymbolImage | null },
+  theme: {
+    forbiddenSymbol: null as ForbiddenSymbolImage | null,
+    /** v0.8.7 §7：主题那一套工具按钮图标；默认没配。 */
+    toolIcons: null as GameToolIcons | null,
+  },
   detail: {
     id: 1,
     puzzleId: 7,
@@ -64,6 +68,8 @@ const fixture = vi.hoisted(() => ({
       rosterCols: 3,
       // v0.8.6：默认没配置 —— 这一页的老行为（`×` 字形）必须先原样成立。
       forbiddenSymbol: null as ForbiddenSymbolImage | null,
+      /** v0.8.7 §7：谜题自己那一套工具按钮图标；默认没配。 */
+      toolIcons: null as GameToolIcons | null,
     },
   },
 }));
@@ -84,6 +90,11 @@ vi.mock('@/hooks/useThemes', () => ({
    * 这里按同一个签名返回一个常量。
    */
   useForbiddenSymbolByCode: () => () => fixture.theme.forbiddenSymbol,
+  /**
+   * v0.8.7 §7：三枚工具按钮图标。同样按编码查表，这里返回 fixture 里那一套
+   * （默认 `null` = 谁都没配，按钮画内置图标）。
+   */
+  useToolIconsByCode: () => () => fixture.theme.toolIcons,
 }));
 vi.mock('@/hooks/useCharacters', () => ({ useCharacters: () => ({ data: [] }) }));
 vi.mock('@/hooks/useHighlight', () => ({
@@ -517,6 +528,46 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         (node) => node.getAttribute('src') === symbolUrl,
       );
       expect(preview).not.toBeUndefined();
+    });
+  });
+
+  /**
+   * v0.8.7 §7：「清除 / 撤回 / 提交」三枚按钮的画。页面级只认结果 —— 按钮里到底是
+   * 一张 `<img>` 还是内置图标（`data-testid` 只在画图时出现）。
+   */
+  describe('工具按钮图标（v0.8.7）', () => {
+    beforeEach(() => {
+      fixture.theme.toolIcons = null;
+      fixture.detail.puzzle.toolIcons = null;
+    });
+
+    const iconSrc = (name: string): string | null | undefined =>
+      container.querySelector(`[data-testid="${name}-tool-icon"]`)?.getAttribute('src');
+
+    it('三枚都没配时画内置图标', () => {
+      render();
+      expect(iconSrc('clear')).toBeUndefined();
+      expect(iconSrc('undo')).toBeUndefined();
+      expect(iconSrc('submit')).toBeUndefined();
+    });
+
+    it('主题配了一套，三枚都跟着画', () => {
+      fixture.theme.toolIcons = {
+        clear: { path: 'themes/3/tool-icons/clear/a.webp' },
+        undo: { path: 'themes/3/tool-icons/undo/b.webp' },
+        submit: { path: 'themes/3/tool-icons/submit/c.webp' },
+      };
+      render();
+      expect(iconSrc('clear')).toBe('/api/files/themes/3/tool-icons/clear/a.webp');
+      expect(iconSrc('undo')).toBe('/api/files/themes/3/tool-icons/undo/b.webp');
+      expect(iconSrc('submit')).toBe('/api/files/themes/3/tool-icons/submit/c.webp');
+    });
+
+    it('谜题自己配的那一枚覆盖主题，其余照旧跟随', () => {
+      fixture.theme.toolIcons = { clear: { path: 'themes/3/tool-icons/clear/a.webp' } };
+      fixture.detail.puzzle.toolIcons = { clear: { path: 'puzzles/7/tool-icons/clear/own.webp' } };
+      render();
+      expect(iconSrc('clear')).toBe('/api/files/puzzles/7/tool-icons/clear/own.webp');
     });
   });
 });

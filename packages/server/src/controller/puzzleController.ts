@@ -5,6 +5,7 @@ import {
   listPuzzlesQuerySchema,
   paginationQuerySchema,
   savePuzzleDraftSchema,
+  toolIconParamSchema,
   updatePuzzleSchema,
 } from '@loredoku/shared';
 import { success } from '../utils/response';
@@ -90,4 +91,18 @@ export async function uploadForbiddenSymbol(ctx: Context): Promise<void> {
     throw puzzleService.forbiddenSymbolRequired();
   }
   success(ctx, await puzzleService.uploadForbiddenSymbol(id, file.buffer), '上传成功');
+}
+
+/**
+ * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），与禁止符号逐条相同 —— 只写文件，
+ * `path` 随保存请求回草稿。`:icon` 走枚举校验，拼错即 400。
+ */
+export async function uploadToolIcon(ctx: Context): Promise<void> {
+  const { id } = parseOrThrow(idParamSchema, ctx.params);
+  const { icon } = parseOrThrow(toolIconParamSchema, ctx.params);
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw puzzleService.toolIconRequired();
+  }
+  success(ctx, await puzzleService.uploadToolIcon(id, icon, file.buffer), '上传成功');
 }

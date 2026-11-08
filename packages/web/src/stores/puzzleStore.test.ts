@@ -475,6 +475,8 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
       rosterCols: 3,
       // v0.8.6 §4: 禁止符号与其余基本信息同一个撤销步。
       forbiddenSymbol: null,
+      // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
+      toolIcons: null,
     });
 
     expect(store().description).toBe('改过的描述');
@@ -519,6 +521,7 @@ describe('forbiddenSymbol（v0.8.6 §4）', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: store().rosterCols,
+      toolIcons: null,
     };
   }
 
@@ -593,6 +596,8 @@ describe('replaceMapContext (v0.7.3 §3.3)', () => {
       characterSlots: store().characterSlots,
       rosterCols: 2,
       forbiddenSymbol: null,
+      // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
+      toolIcons: null,
     });
     const baseline = store().past.length;
 
@@ -915,6 +920,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       characterSlots: store().characterSlots,
       rosterCols: 2,
       forbiddenSymbol: null,
+      // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
+      toolIcons: null,
     });
     expect(store().toDraft().rosterCols).toBe(2);
     // 自动 is stored as `null`, not dropped — the field is always present.
@@ -927,6 +934,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       characterSlots: store().characterSlots,
       rosterCols: null,
       forbiddenSymbol: null,
+      // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
+      toolIcons: null,
     });
     expect(store().toDraft().rosterCols).toBeNull();
   });
@@ -945,6 +954,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       characterSlots: store().characterSlots,
       rosterCols: null,
       forbiddenSymbol: null,
+      // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
+      toolIcons: null,
     });
     const draft = store().toDraft();
     expect(draft.clues).toEqual(['同一行里没有重复编号', '阴影里没有编号']);

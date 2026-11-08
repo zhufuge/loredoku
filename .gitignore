@@ -13,6 +13,8 @@ build/
 # scripts/run-tests.mjs 的中间报告（正常会自己删掉，崩了就留在这里）
 .vitest-report-*.json
 
+.tmp/
+
 # env
 .env
 .env.local

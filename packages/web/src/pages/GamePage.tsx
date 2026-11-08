@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Eraser, Minus, Plus, RotateCcw, Ruler, Send, Undo2, X } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
@@ -13,6 +13,7 @@ import {
   type CharacterSlotEntry,
   type Asset,
   type GamePlacementBoard,
+  type GameToolIconKind,
   type MapDraft,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
@@ -51,10 +52,11 @@ import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { GameBrief } from '@/components/game/GameBrief';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
-import { useForbiddenSymbolByCode, useThemeDeploymentBySlug } from '@/hooks/useThemes';
+import { useForbiddenSymbolByCode, useThemeDeploymentBySlug, useToolIconsByCode } from '@/hooks/useThemes';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useAssets } from '@/hooks/useAssets';
 import {
+  clientToCanvasPoint,
   clientToCell,
   clampZoom,
   isInBounds,
@@ -62,6 +64,7 @@ import {
   ZOOM_MAX,
   ZOOM_MIN,
   ZOOM_STEP,
+  type CanvasPoint,
 } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import {
@@ -71,6 +74,7 @@ import {
   writeGameTimer,
 } from '@/lib/gameTimer';
 import { resolveForbiddenSymbolImage } from '@/lib/forbiddenSymbol';
+import { TOOL_ICON_FALLBACKS, resolveToolIcons, type ToolIconRender } from '@/lib/toolIcons';
 import { rosterPanelWidthFor } from '@/lib/participantLayout';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
@@ -81,7 +85,7 @@ import {
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
-import { effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
+import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import { rulerStripSize } from '@/lib/ruler';
 import { LoadingScreen } from '@/components/common/LoredokuLoader';
@@ -179,6 +183,34 @@ function describeBlock(
   }
 }
 
+/**
+ * v0.8.7 §7：工具栏上的画 —— 作者给这一枚配了图就画图，没配就是内置的 lucide 图标。
+ *
+ * 深色界面要翻一次：与禁止符号同一条理由（图多半是「深墨画在透明底上」，按浅色
+ * 地图纸挑的），`invert` 翻明度、`hue-rotate-180` 把色相转回来，否则红印会变青。
+ */
+function GameToolIcon({
+  render,
+  name,
+}: {
+  render: ToolIconRender | undefined;
+  name: GameToolIconKind;
+}): JSX.Element {
+  if (!render) {
+    const Fallback = TOOL_ICON_FALLBACKS[name];
+    return <Fallback className="h-5 w-5" />;
+  }
+  return (
+    <img
+      src={render.imageUrl}
+      alt=""
+      draggable={false}
+      data-testid={`${name}-tool-icon`}
+      className="h-5 w-5 select-none object-contain dark:invert dark:hue-rotate-180"
+    />
+  );
+}
+
 export function GamePage(): JSX.Element {
   // OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
   const { slug: slugParam, themeSlug } = useParams();
@@ -227,6 +259,8 @@ export function GamePage(): JSX.Element {
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hover, setHover] = useState<CellCoord | null>(null);
+  /** v0.8.7 §8：光标在纸上的像素位置 —— 物品名称提示贴它，不贴物品。 */
+  const [hoverPoint, setHoverPoint] = useState<CanvasPoint | null>(null);
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
   /**
    * v0.7.11：正在被长按的格子 —— 有值时棋盘上画一圈进度环，抬手 / 移出 /
@@ -359,6 +393,16 @@ export function GamePage(): JSX.Element {
     [detail, themeForbiddenSymbolOf],
   );
 
+  /**
+   * v0.8.7 §7：工具栏三枚动作按钮（清除 / 撤回 / 提交）画什么 —— 同一套顺序：
+   * **谜题自己的 → 主题的 → 内置图标**。主题那一份同样按这一局的主题编码查。
+   */
+  const themeToolIconsOf = useToolIconsByCode();
+  const toolIcons = useMemo(
+    () => resolveToolIcons(detail?.puzzle?.toolIcons, themeToolIconsOf(detail?.themeCode)),
+    [detail, themeToolIconsOf],
+  );
+
   const charactersById = useMemo(() => {
     const map = new Map<number, Character>();
     for (const character of charactersQuery.data ?? []) map.set(character.id, character);
@@ -463,6 +507,24 @@ export function GamePage(): JSX.Element {
       return isInBounds(coord, gridSize) ? coord : null;
     },
     [gridSize, pan, zoom, cellSize],
+  );
+
+  /**
+   * v0.8.7 §8：同一套换算，但不除格子大小 —— 得到的是「光标在纸上的哪个像素」。
+   * 物品名称提示要用它，格子多大都不影响「指头在哪儿」这件事。
+   */
+  const toCanvasPoint = useCallback(
+    (clientX: number, clientY: number): CanvasPoint | null => {
+      const node = containerRef.current;
+      if (!node) return null;
+      return clientToCanvasPoint(clientX, clientY, {
+        rect: node.getBoundingClientRect(),
+        pan,
+        zoom,
+        cellSize,
+      });
+    },
+    [pan, zoom, cellSize],
   );
 
   /**
@@ -656,6 +718,7 @@ export function GamePage(): JSX.Element {
 
     setActivation(INACTIVE_ACTIVATION);
     setHover(null);
+    setHoverPoint(null);
     setLabelRegionId(null);
     setMode({ kind: 'idle' });
     setResult(null);
@@ -1280,6 +1343,7 @@ export function GamePage(): JSX.Element {
             }
             const cell = toCell(event.clientX, event.clientY);
             setHover(cell);
+            setHoverPoint(toCanvasPoint(event.clientX, event.clientY));
 
             const paint = paintRef.current;
             if (!paint || !cell) return;
@@ -1327,6 +1391,7 @@ export function GamePage(): JSX.Element {
             paintRef.current = null;
             dropCellPress();
             setHover(null);
+            setHoverPoint(null);
           }}
           onWheel={(event) => {
             // v0.6.2 §4：Ctrl / ⌘ + 滚轮以指针为锚点缩放（与预览页一致）。
@@ -1372,9 +1437,15 @@ export function GamePage(): JSX.Element {
               height: total,
             }}
           >
+            {/* v0.8.7 §6：这张纸的投影 —— 外框色压一层透明度，向右下偏 6px 的硬影。 */}
             <div
               className="absolute left-0 top-0 bg-background"
-              style={{ width: total, height: total, zIndex: MAP_LAYER_Z.canvasBase }}
+              style={{
+                width: total,
+                height: total,
+                zIndex: MAP_LAYER_Z.canvasBase,
+                ...canvasShadowStyle(style),
+              }}
             />
 
             {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z.
@@ -1404,6 +1475,7 @@ export function GamePage(): JSX.Element {
               gridSize={gridSize}
               padding={itemPadding(cellSize)}
               hover={hover}
+              pointer={hoverPoint}
             />
 
             <MapRegionLabelLayer
@@ -1534,7 +1606,7 @@ export function GamePage(): JSX.Element {
             onPointerUp={endClearPress}
             onPointerLeave={endClearPress}
           >
-            <Eraser className="h-5 w-5" />
+            <GameToolIcon render={toolIcons.clear} name="clear" />
             {/*
              * v0.7.11：长按 500ms 清空全部 —— 与棋格长按画同一圈进度环。
              * 两个长按此前都没有过程反馈，用户只能猜「按住够不够久」；
@@ -1559,7 +1631,7 @@ export function GamePage(): JSX.Element {
             disabled={!canUndo(placementState)}
             onClick={() => updatePlacement(undo)}
           >
-            <Undo2 className="h-5 w-5" />
+            <GameToolIcon render={toolIcons.undo} name="undo" />
           </Button>
           {/*
             * v0.7.11：提交按钮不再变成勾 —— 提交是一次**结算**，不是一个要记住
@@ -1575,7 +1647,7 @@ export function GamePage(): JSX.Element {
             disabled={!readyToSubmit}
             onClick={submit}
           >
-            <Send className="h-5 w-5" />
+            <GameToolIcon render={toolIcons.submit} name="submit" />
           </Button>
 
           {/* v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。 */}

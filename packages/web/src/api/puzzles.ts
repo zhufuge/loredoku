@@ -1,4 +1,5 @@
 import type {
+  GameToolIconKind,
   PaginatedData,
   PuzzleDetail,
   PuzzleDraft,
@@ -94,6 +95,19 @@ export const puzzlesApi = {
     const form = new FormData();
     form.append('file', file);
     return apiPost<{ path: string; url: string }>(`/puzzles/${id}/forbidden-symbol`, form);
+  },
+  /**
+   * v0.8.7 §7：上传一枚工具按钮图标（清除 / 撤回 / 提交）。与禁止符号逐条相同 ——
+   * 返回的 `path` 写进草稿的 `toolIcons[icon]`，`url` 只给抽屉预览用。
+   */
+  uploadToolIcon(
+    id: number,
+    icon: GameToolIconKind,
+    file: File,
+  ): Promise<{ path: string; url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<{ path: string; url: string }>(`/puzzles/${id}/tool-icons/${icon}`, form);
   },
 
   /** 发布 = 血统里新增一条版本行；`version` 省略时由服务端续号。 */

@@ -5,6 +5,7 @@ import {
   idParamSchema,
   listThemesQuerySchema,
   themeCodeParamSchema,
+  toolIconParamSchema,
   updateThemeDeploymentSchema,
   updateThemeSchema,
 } from '@loredoku/shared';
@@ -62,6 +63,28 @@ export async function uploadForbiddenSymbol(ctx: Context): Promise<void> {
 export async function removeForbiddenSymbol(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
   success(ctx, await themeService.removeForbiddenSymbol(code), '禁止符号已清除');
+}
+
+/**
+ * v0.8.7 §7：主题的工具按钮图标（清除 / 撤回 / 提交）。
+ *
+ * 地址里的 `:icon` 走枚举校验 —— 拼错的种类是 400，而不是「传上去了但哪儿也没变」。
+ * 回执同样是**更新后的整份主题**：概览页那一屏直接换掉，不必自己拼。
+ */
+export async function uploadToolIcon(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  const { icon } = parseOrThrow(toolIconParamSchema, ctx.params);
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw themeService.toolIconRequired();
+  }
+  success(ctx, await themeService.uploadToolIcon(code, icon, file.buffer), '图标已保存');
+}
+
+export async function removeToolIcon(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  const { icon } = parseOrThrow(toolIconParamSchema, ctx.params);
+  success(ctx, await themeService.removeToolIcon(code, icon), '图标已清除');
 }
 
 // ---- 合辑 ----

@@ -1,6 +1,9 @@
 import {
+  CANVAS_SHADOW_ALPHA,
+  CANVAS_SHADOW_OFFSET_PX,
   DEFAULT_LINKAGE_COLORS,
   DEFAULT_MAP_STYLE,
+  hexToRgb,
   LINKAGE_COLOR_KEY_PATTERN,
   LINKAGE_COLOR_LABEL_MAX_LENGTH,
   LINKAGE_COLOR_MAX_COUNT,
@@ -34,6 +37,7 @@ import {
   type MapStyle,
   type ParticipantTarget,
 } from '@loredoku/shared';
+import type { CSSProperties } from 'react';
 import { cellScale, scaleFontSize, scaleLineWidth } from '@/lib/canvasScale';
 
 /**
@@ -327,6 +331,24 @@ export function effectiveCellSize(autoCellSize: number, style: MapStyle): number
 /** The scaled line width for one style field, used by every drawing layer. */
 export function styleLineWidth(base: number, cellSize: number): number {
   return scaleLineWidth(base, cellScale(cellSize));
+}
+
+/**
+ * v0.8.7 §6：画布纸片的投影。**颜色不是新字段** —— 就是画布外框色再压一道透明度，
+ * 于是「换外框颜色」时影子跟着走，作者不用把一个颜色配两遍。
+ *
+ * 为什么是硬影（`blur = 0`）：这张图的气质是一条线画到底的（网格、框、标签都在
+ * 1 ~ 12px 的细线里），一团 12px 的弥散阴影会第一个跳出来抢注意力。向右下偏移
+ * 6px 的硬影说的是「一叠纸」，不是「浮窗」。
+ *
+ * 返回值直接摊进画布底色那一层（`MAP_LAYER_Z.canvasBase`）的 `style`：它在缩放
+ * 容器里，所以偏移量随 `zoom` 一起缩放，和线宽同一套规矩。
+ */
+export function canvasShadowStyle(style: MapStyle): CSSProperties {
+  const { r, g, b } = hexToRgb(style.canvasFrame.color);
+  return {
+    boxShadow: `${CANVAS_SHADOW_OFFSET_PX}px ${CANVAS_SHADOW_OFFSET_PX}px 0 rgba(${r}, ${g}, ${b}, ${CANVAS_SHADOW_ALPHA})`,
+  };
 }
 
 /**

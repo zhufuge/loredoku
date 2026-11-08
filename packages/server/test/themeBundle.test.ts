@@ -97,7 +97,7 @@ async function createSolidCharacter(themeCode: string): Promise<number> {
  */
 async function deployedGame(
   themeCode: string,
-  options: { forbiddenSymbol?: boolean } = {},
+  options: { forbiddenSymbol?: boolean; toolIcons?: boolean } = {},
 ): Promise<{
   slug: string;
   assetId: number;
@@ -105,6 +105,7 @@ async function deployedGame(
   characterId: number;
   draftId: number;
   forbiddenSymbolPath?: string;
+  toolIconPaths?: Record<string, string>;
 }> {
   const assetId = await createSolidAsset(themeCode);
   const characterId = await createSolidCharacter(themeCode);
@@ -155,10 +156,30 @@ async function deployedGame(
     symbolDirs.push(resolveUploadPath(`puzzles/${puzzleId}`));
   }
 
+  // v0.8.7 §7：三枚工具按钮图标，同样走真实上传端点。
+  const toolIconPaths: Record<string, string> = {};
+  if (options.toolIcons) {
+    for (const icon of ['clear', 'undo', 'submit'] as const) {
+      const uploaded = await api
+        .post(`/api/puzzles/${puzzleId}/tool-icons/${icon}`)
+        .attach('file', TINY_PNG, `${icon}.png`);
+      expect(uploaded.status).toBe(200);
+      toolIconPaths[icon] = uploaded.body.data.path as string;
+    }
+    symbolDirs.push(resolveUploadPath(`puzzles/${puzzleId}`));
+  }
+
   const saved = await api.put(`/api/puzzles/${puzzleId}`).send({
     data: {
       ...puzzleDraft,
       ...(forbiddenSymbolPath ? { forbiddenSymbol: { path: forbiddenSymbolPath } } : {}),
+      ...(Object.keys(toolIconPaths).length
+        ? {
+            toolIcons: Object.fromEntries(
+              Object.entries(toolIconPaths).map(([icon, path]) => [icon, { path }]),
+            ),
+          }
+        : {}),
     },
     updatedAt: initial.body.data.updatedAt,
   });
@@ -184,6 +205,7 @@ async function deployedGame(
     characterId,
     draftId: puzzleId,
     forbiddenSymbolPath,
+    ...(Object.keys(toolIconPaths).length ? { toolIconPaths } : {}),
   };
 }
 
@@ -328,6 +350,81 @@ describe('资源包导出（§11）', () => {
       built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
     ) as { puzzle: { forbiddenSymbol?: { path: string } } };
     expect(level.puzzle.forbiddenSymbol).toEqual({ path: target });
+  });
+
+  /**
+   * v0.8.7 §7：三枚工具按钮图标与禁止符号同一条路 —— 搬文件、改写为包内路径。
+   * 文件名带 `-<icon>`：一关最多三张，解压后一眼能看出是哪一枚。
+   */
+  it('工具按钮图标进包：files/icons 三条、关卡 JSON 路径已改写、manifest 有 hash', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode, { toolIcons: true });
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    const entries = built.entries.filter((entry) => entry.path.startsWith('files/icons/'));
+    expect(entries.map((entry) => entry.path).sort()).toEqual([
+      `files/icons/${game.slug}-clear.webp`,
+      `files/icons/${game.slug}-submit.webp`,
+      `files/icons/${game.slug}-undo.webp`,
+    ]);
+
+    const level = JSON.parse(
+      built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
+    ) as { puzzle: { toolIcons?: Record<string, { path: string }> } };
+    expect(level.puzzle.toolIcons).toEqual({
+      clear: { path: `files/icons/${game.slug}-clear.webp` },
+      undo: { path: `files/icons/${game.slug}-undo.webp` },
+      submit: { path: `files/icons/${game.slug}-submit.webp` },
+    });
+
+    const manifestFile = built.manifest.files.find(
+      (entry) => entry.path === `files/icons/${game.slug}-clear.webp`,
+    );
+    expect(manifestFile?.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  /**
+   * 谜题没配就跟随主题 —— 与禁止符号 §4 的理由一字不差：线上画主题那一套，包里
+   * 若没有，同一关的按钮在两种运行环境里长得不一样。
+   */
+  it('谜题没配工具图标 → 打包装上主题那三枚', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode);
+    const row = (await db('themes').where({ code: themeCode }).first('id')) as
+      | { id: string | number }
+      | undefined;
+    symbolDirs.push(resolveUploadPath(`themes/${Number(row!.id)}`));
+    for (const icon of ['clear', 'undo', 'submit'] as const) {
+      const uploaded = await api
+        .post(`/api/themes/${themeCode}/tool-icons/${icon}`)
+        .attach('file', TINY_PNG, `${icon}.png`);
+      expect(uploaded.status).toBe(200);
+    }
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    const level = JSON.parse(
+      built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
+    ) as { puzzle: { toolIcons?: Record<string, { path: string }> } };
+    expect(level.puzzle.toolIcons).toEqual({
+      clear: { path: `files/icons/${game.slug}-clear.webp` },
+      undo: { path: `files/icons/${game.slug}-undo.webp` },
+      submit: { path: `files/icons/${game.slug}-submit.webp` },
+    });
+  });
+
+  /** 某一枚的源文件不在了 → 只跳过那一枚，但 `problems` 非空，打包照样中止。 */
+  it('某一枚工具图标不在了 → 打包中止（400 + bundle-incomplete）', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode, { toolIcons: true });
+
+    await rm(resolveUploadPath(game.toolIconPaths!.undo!), { force: true });
+
+    const res = await api.get(`/api/themes/${themeCode}/bundle`);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.data).toMatchObject({ kind: 'bundle-incomplete' });
   });
 
   /** §11.2：引用闭包缺一个文件就**中止**，不能交付一个少一张图的包。 */

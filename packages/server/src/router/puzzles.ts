@@ -34,6 +34,13 @@ puzzlesRouter.post(
   controller.uploadForbiddenSymbol,
 );
 
+/** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）—— 与禁止符号同一条「只写文件」的路。 */
+puzzlesRouter.post(
+  '/:id/tool-icons/:icon',
+  forbiddenSymbolUpload.single('file'),
+  controller.uploadToolIcon,
+);
+
 // §5.5: 发布 / 版本历史 / 版本详情 / fork / 删版本。
 puzzlesRouter.post('/:id/versions', versionController.publish);
 puzzlesRouter.get('/:id/versions', versionController.list);

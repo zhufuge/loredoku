@@ -1,4 +1,5 @@
 import type {
+  GameToolIconKind,
   Theme,
   ThemeDeploymentSummary,
   ThemeOption,
@@ -60,6 +61,20 @@ export const themesApi = {
   },
   removeForbiddenSymbol: (code: string) =>
     apiDelete<Theme>(`/themes/${code}/forbidden-symbol`),
+
+  /**
+   * v0.8.7 §7 —— 主题的工具按钮图标（清除 / 撤回 / 提交），**一次一枚**、即时保存。
+   *
+   * 与禁止符号同一套：回执是更新后的整份主题，概览页那一屏直接换掉；点「移除」就是
+   * 把那一枚从 `data.toolIcons` 里删掉（另外两枚不动）。
+   */
+  uploadToolIcon: (code: string, icon: GameToolIconKind, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<Theme>(`/themes/${code}/tool-icons/${icon}`, form);
+  },
+  removeToolIcon: (code: string, icon: GameToolIconKind) =>
+    apiDelete<Theme>(`/themes/${code}/tool-icons/${icon}`),
 
   // ---- 合辑 ----
   deployments: () => apiGet<ThemeDeploymentSummary[]>('/theme-deployments'),

@@ -10,6 +10,7 @@ import {
 } from '@loredoku/shared';
 import type {
   CreatePuzzleInput,
+  GameToolIconKind,
   ListPuzzlesQuery,
   MapDraft,
   PublishViolation,
@@ -31,7 +32,7 @@ import * as mapRepo from '../repository/mapRepository';
 import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 import { absorbLegacyMapDraft, readLegacyLinkageColors } from './mapDraftCompat';
-import { processForbiddenSymbolImage, processPuzzleCover } from '../utils/image';
+import { processForbiddenSymbolImage, processPuzzleCover, processToolIconImage } from '../utils/image';
 import { buildFileUrl } from '../utils/paths';
 
 /**
@@ -56,6 +57,11 @@ export function coverRequired(): AppError {
 /** Raised when `POST /api/puzzles/:id/forbidden-symbol` arrives without a file part. */
 export function forbiddenSymbolRequired(): AppError {
   return AppError.validation('请选择禁止符号图片');
+}
+
+/** v0.8.7 §7：`POST /api/puzzles/:id/tool-icons/:icon` 少了文件部分。 */
+export function toolIconRequired(): AppError {
+  return AppError.validation('请选择图标图片');
 }
 
 /** 存量行读成 `PuzzleDraft`（v1 会补一份空画布）；读不出来就是坏数据。 */
@@ -463,6 +469,22 @@ export async function uploadForbiddenSymbol(
 ): Promise<{ path: string; url: string }> {
   await requireRow(id);
   const image = await processForbiddenSymbolImage({ kind: 'puzzle', id }, buffer);
+  return { path: image.relativePath, url: buildFileUrl(image.relativePath) };
+}
+
+/**
+ * v0.8.7 §7：工具按钮图标上传（清除 / 撤回 / 提交）。
+ *
+ * 与禁止符号逐条相同 —— 只写文件、`path` 随保存请求回草稿、版本行也允许（fork 态
+ * 先上传后保存）。差别只在目录与「哪一枚」。
+ */
+export async function uploadToolIcon(
+  id: number,
+  icon: GameToolIconKind,
+  buffer: Buffer,
+): Promise<{ path: string; url: string }> {
+  await requireRow(id);
+  const image = await processToolIconImage({ kind: 'puzzle', id }, icon, buffer);
   return { path: image.relativePath, url: buildFileUrl(image.relativePath) };
 }
 

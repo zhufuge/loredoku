@@ -31,6 +31,17 @@ themesRouter.post(
 );
 themesRouter.delete('/:code/forbidden-symbol', controller.removeForbiddenSymbol);
 
+/**
+ * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。与禁止符号同一种「读取时兜底」，
+ * 一次一枚 —— `:icon` 是 `GAME_TOOL_ICON_KINDS` 里的一个。
+ */
+themesRouter.post(
+  '/:code/tool-icons/:icon',
+  forbiddenSymbolUpload.single('file'),
+  controller.uploadToolIcon,
+);
+themesRouter.delete('/:code/tool-icons/:icon', controller.removeToolIcon);
+
 /** 一键整主题部署（§9）：对每个谜题血统的最新已发布版本跑一次 `deployGame`。 */
 themesRouter.post('/:code/deploy', controller.deploy);
 

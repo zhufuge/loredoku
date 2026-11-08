@@ -15,11 +15,13 @@ import {
   type ThemeRefTarget,
   type UpdateThemeDeploymentInput,
   type UpdateThemeInput,
+  type GameToolIconKind,
+  type GameToolIcons,
 } from '@loredoku/shared';
 import * as repo from '../repository/themeRepository';
 import * as gameService from './gameService';
 import { AppError } from '../utils/AppError';
-import { processForbiddenSymbolImage } from '../utils/image';
+import { processForbiddenSymbolImage, processToolIconImage } from '../utils/image';
 
 /**
  * v0.8.0（docs/v0.8.0.md）—— 主题的三件事，按重要性排：
@@ -107,11 +109,11 @@ async function themeDataOf(code: string): Promise<{ id: number; data: ThemeData 
 }
 
 /**
- * v0.8.6 §4：给主题配一张「禁止符号缺省」图。
+ * v0.8.6 §4 / v0.8.7 §4：给主题配一张「禁止符号」图。
  *
- * 主题不版本化，所以改完即时生效；但只对**之后新建**的谜题生效 —— 已建的谜题在
- * 创建那一刻就抄走了自己的 path（见 `puzzleService.createPuzzle`）。旧图不删：
- * 存量谜题可能还指着它。
+ * 主题不版本化，所以改完即时生效；读的时候才落地 —— 本主题里没单独配置的谜题
+ * 下次打开就是新的（见 `lib/forbiddenSymbol.ts` 的解析顺序）。旧图不删：存量谜题
+ * 与版本行可能还指着它。
  */
 export async function uploadForbiddenSymbol(code: string, buffer: Buffer): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
@@ -127,6 +129,43 @@ export async function removeForbiddenSymbol(code: string): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
   const next: ThemeData = { ...data };
   delete next.forbiddenSymbol;
+  await repo.updateTheme(id, { data: next });
+  return getTheme(code);
+}
+
+/** v0.8.7 §7：`POST /api/themes/:code/tool-icons/:icon` 少了文件部分。 */
+export function toolIconRequired(): AppError {
+  return AppError.validation('请选择图标图片');
+}
+
+/**
+ * v0.8.7 §7：主题级的工具按钮图标 —— 与禁止符号同一种「读取时兜底」。
+ *
+ * 一次只改一枚：`toolIcons` 里的其它两枚原样留着（作者换「清除」不该把「撤回」抹掉）。
+ * 三枚都清空时整个 `toolIcons` 键删掉，与「从没配过」同一个口径。
+ */
+export async function uploadToolIcon(
+  code: string,
+  icon: GameToolIconKind,
+  buffer: Buffer,
+): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const image = await processToolIconImage({ kind: 'theme', id }, icon, buffer);
+  const toolIcons: GameToolIcons = {
+    ...(data.toolIcons ?? {}),
+    [icon]: { path: image.relativePath },
+  };
+  await repo.updateTheme(id, { data: { ...data, toolIcons } });
+  return getTheme(code);
+}
+
+export async function removeToolIcon(code: string, icon: GameToolIconKind): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const next: ThemeData = { ...data };
+  const rest: GameToolIcons = { ...(next.toolIcons ?? {}) };
+  delete rest[icon];
+  if (Object.keys(rest).length === 0) delete next.toolIcons;
+  else next.toolIcons = rest;
   await repo.updateTheme(id, { data: next });
   return getTheme(code);
 }

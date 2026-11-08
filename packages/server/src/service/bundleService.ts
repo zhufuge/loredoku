@@ -4,6 +4,8 @@ import { PassThrough, type Readable } from 'node:stream';
 import { ZipArchive } from 'archiver';
 import {
   BUNDLE_FORMAT_VERSION,
+  GAME_TOOL_ICON_KINDS,
+  GAME_TOOL_ICON_LABELS,
   buildBundleIdMaps,
   buildBundleManifest,
   buildBundlePuzzleFile,
@@ -20,6 +22,7 @@ import {
   type BundleThemeFile,
   type Character,
   type ForbiddenSymbolImage,
+  type GameToolIcons,
   type MapDraft,
   type PuzzleDraft,
   type ThemeData,
@@ -114,13 +117,26 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
    */
   const themeForbiddenSymbol: ForbiddenSymbolImage | null =
     (themeRow.data as ThemeData | null)?.forbiddenSymbol ?? null;
+  /**
+   * v0.8.7 §7：工具按钮图标同样要进包，理由与禁止符号一字不差 —— 线上画的是主题
+   * 那张，包里若没有，同一关的按钮在两种运行环境里长得不一样。
+   */
+  const themeToolIcons: GameToolIcons | null =
+    (themeRow.data as ThemeData | null)?.toolIcons ?? null;
 
   for (const [index, game] of games.entries()) {
     const key = game.input.summary.slug;
     const cover = await takeCover(game.row, index + 1, files);
     // v0.8.6 §4：一张上传的禁止符号图 —— 包内路径改写发生在这里（`shared/bundle`
     // 只重编号资源 id，它没有文件系统，不知道文件在不在）。
-    const input = await takeForbiddenSymbol(game.input, key, themeForbiddenSymbol, files, problems);
+    const withSymbol = await takeForbiddenSymbol(
+      game.input,
+      key,
+      themeForbiddenSymbol,
+      files,
+      problems,
+    );
+    const input = await takeToolIcons(withSymbol, key, themeToolIcons, files, problems);
     manifestGames.push({
       key,
       file: `puzzles/${key}.json`,
@@ -489,6 +505,47 @@ async function takeForbiddenSymbol(
     return game;
   }
   return { ...game, puzzle: { ...game.puzzle, forbiddenSymbol: { path: taken } } };
+}
+
+/**
+ * v0.8.7 §7：一关的三枚工具按钮图标进包，并把该关 JSON 里各自的 `path` 改写成包内
+ * 相对路径。解析顺序与玩家侧一致：谜题自己的 → 主题的 → （都没有就不带，播放器用
+ * 内置图标）。
+ *
+ * 目标文件名带 `-<icon>`：一关最多三张，`<slug>-clear.webp` 这样的名字既唯一又能在
+ * 解压后一眼看出是哪一枚。某一枚的源文件缺失**只跳过那一枚** —— 另外两枚照样进包，
+ * 打包仍会因为 `problems` 非空而中止（§11.2）。
+ */
+async function takeToolIcons(
+  game: BundleGameInput,
+  gameKey: string,
+  themeIcons: GameToolIcons | null,
+  files: FileSink,
+  problems: BundleProblem[],
+): Promise<BundleGameInput> {
+  const resolved: GameToolIcons = {};
+  let touched = false;
+  for (const icon of GAME_TOOL_ICON_KINDS) {
+    const sourcePath = game.puzzle.toolIcons?.[icon]?.path ?? themeIcons?.[icon]?.path;
+    if (!sourcePath) continue;
+    const taken = await files.take(
+      sourcePath,
+      `files/icons/${gameKey}-${icon}${extension(sourcePath)}`,
+    );
+    if (!taken) {
+      problems.push({
+        game: game.summary.name,
+        where: `工具图标（${GAME_TOOL_ICON_LABELS[icon]}）`,
+        kind: 'file',
+        message: `图片 ${sourcePath} 不在了`,
+      });
+      continue;
+    }
+    resolved[icon] = { path: taken };
+    touched = true;
+  }
+  if (!touched) return game;
+  return { ...game, puzzle: { ...game.puzzle, toolIcons: resolved } };
 }
 
 // ---- 小工具 ----

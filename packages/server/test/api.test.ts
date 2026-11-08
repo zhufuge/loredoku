@@ -1466,6 +1466,122 @@ describe('puzzles API (FEAT-K01)', () => {
       );
     });
   });
+
+  /**
+   * v0.8.7 §7：「清除 / 撤回 / 提交」三枚按钮的图标，主题与谜题两级配置，与禁止符号
+   * 同一条路（只写一张 webp、读取侧兜底）。这里钉的是**接口契约**：
+   *
+   * ① 主题三枚逐枚写、互不干扰，删掉一枚另两枚还在，三枚都删干净则整个键消失；
+   * ② 谜题只写文件（`{ path, url }`），草稿里要保存才落地；
+   * ③ `:icon` 是枚举 —— 拼错是 400，不是「传上去了但哪儿也没变」。
+   */
+  describe('工具按钮图标的上传 (v0.8.7 §7)', () => {
+    const THEME_CODE = 'test-tool-icons';
+
+    afterAll(async () => {
+      const { purgeTheme } = await import('./purge');
+      await purgeTheme(THEME_CODE);
+    });
+
+    async function theme(): Promise<{ code: string; id: number }> {
+      const created = await api
+        .post('/api/themes')
+        .send({ code: THEME_CODE, name: '工具图标测试主题' });
+      if (created.status !== 200 && created.status !== 409) {
+        throw new Error(`工具图标测试主题建不出来：${created.status}`);
+      }
+      const row = (await db('themes').where({ code: THEME_CODE }).first('id')) as
+        | { id: string | number }
+        | undefined;
+      if (!row) throw new Error('工具图标测试主题读不出来');
+      return { code: THEME_CODE, id: Number(row.id) };
+    }
+
+    it('主题三枚各写各的，删一枚另两枚还在，删空则整个键消失', async () => {
+      const created = await theme();
+      uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
+
+      const icons = ['clear', 'undo', 'submit'] as const;
+      const paths: Record<string, string> = {};
+      for (const icon of icons) {
+        const uploaded = await api
+          .post(`/api/themes/${created.code}/tool-icons/${icon}`)
+          .attach('file', TINY_PNG, `${icon}.png`);
+        expect(uploaded.status).toBe(200);
+        const path = uploaded.body.data.data.toolIcons[icon].path as string;
+        expect(path).toMatch(
+          new RegExp(`^themes/${created.id}/tool-icons/${icon}/[0-9a-f-]+\\.webp$`),
+        );
+        paths[icon] = path;
+      }
+      // 回执是整份主题：三枚都在，而且上传一枚没把别的枚冲掉。
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.toolIcons).toEqual({
+        clear: { path: paths.clear },
+        undo: { path: paths.undo },
+        submit: { path: paths.submit },
+      });
+
+      const one = await api.delete(`/api/themes/${created.code}/tool-icons/undo`);
+      expect(one.status).toBe(200);
+      expect(one.body.data.data.toolIcons).toEqual({
+        clear: { path: paths.clear },
+        submit: { path: paths.submit },
+      });
+
+      await api.delete(`/api/themes/${created.code}/tool-icons/clear`);
+      const last = await api.delete(`/api/themes/${created.code}/tool-icons/submit`);
+      expect(last.status).toBe(200);
+      // 三枚都空 → 删键，与「从没配过」同一个写法。
+      expect(last.body.data.data.toolIcons).toBeUndefined();
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.toolIcons).toBeUndefined();
+    });
+
+    it('谜题上传只写文件，保存草稿后才进 JSONB', async () => {
+      const { draftId } = await puzzleWithVersion(`Icon ${uniqueCode('p')}`);
+      uploadedPuzzleSymbolDirs.push(resolveUploadPath(`puzzles/${draftId}`));
+
+      const uploaded = await api
+        .post(`/api/puzzles/${draftId}/tool-icons/clear`)
+        .attach('file', TINY_PNG, 'clear.png');
+      expect(uploaded.status).toBe(200);
+      const path = uploaded.body.data.path as string;
+      expect(path).toMatch(new RegExp(`^puzzles/${draftId}/tool-icons/clear/[0-9a-f-]+\\.webp$`));
+      expect((await api.get(new URL(uploaded.body.data.url as string).pathname)).status).toBe(200);
+      // 只写文件：草稿的 JSON 没被这个端点动过。
+      expect((await api.get(`/api/puzzles/${draftId}`)).body.data.data.toolIcons).toBeUndefined();
+
+      const initial = await api.get(`/api/puzzles/${draftId}`);
+      const saved = await api.put(`/api/puzzles/${draftId}`).send({
+        data: { ...initial.body.data.data, toolIcons: { clear: { path } } },
+        updatedAt: initial.body.data.updatedAt,
+      });
+      expect(saved.status).toBe(200);
+      expect((await api.get(`/api/puzzles/${draftId}`)).body.data.data.toolIcons).toEqual({
+        clear: { path },
+      });
+    });
+
+    it('拼错的 :icon 是 400；没有文件是 400；未知谜题 404', async () => {
+      const created = await theme();
+      uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
+
+      const badName = await api
+        .post(`/api/themes/${created.code}/tool-icons/erase`)
+        .attach('file', TINY_PNG, 'erase.png');
+      expect(badName.status).toBe(400);
+      expect(badName.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+
+      const none = await api.post(`/api/themes/${created.code}/tool-icons/clear`);
+      expect(none.status).toBe(400);
+      expect(none.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+
+      const missing = await api
+        .post('/api/puzzles/99999999/tool-icons/clear')
+        .attach('file', TINY_PNG, 'clear.png');
+      expect(missing.status).toBe(404);
+      expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
+    });
+  });
 });
 
 // ---- v0.4.0 FEAT-G02 + v0.5.0 CONS-K16: the unit of deployment is a puzzle ----

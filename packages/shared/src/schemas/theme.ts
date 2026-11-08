@@ -15,7 +15,7 @@ import {
   THEME_NAME_MAX_LENGTH,
 } from '../constants';
 import { mapLinkageColorSchema, mapStyleSchema } from './mapDraft';
-import { forbiddenSymbolSchema } from './common';
+import { forbiddenSymbolSchema, gameToolIconsSchema } from './common';
 
 /**
  * v0.8.6（docs/v0.8.6.md §3）：主题自己的一档难度 = **数字 + 名字 + 可选颜色**。
@@ -92,13 +92,15 @@ export const themeDataSchema = z
     style: mapStyleSchema.optional(),
     linkageColors: z.array(mapLinkageColorSchema).optional(),
     /**
-     * v0.8.6（docs/v0.8.6.md §4）：这个空间的**禁止符号缺省**。
+     * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4）：这个空间的**禁止符号**。
      *
-     * 和 `style` / `linkageColors` 同一种「缺省」：只在新建谜题那一刻被抄进
-     * `PuzzleDraft.forbiddenSymbol`，之后各走各的 —— 已上线的关卡不会因为这里
-     * 换了一张图而变。缺失 / `null` = 默认的 `×` 字形。
+     * 与 `style` / `linkageColors` 的「新建时拷一份」不同：它是**读取时**的兜底 ——
+     * 谜题自己没配就用这一张（谜题 → 主题 → ×）。所以换图对跟随的关卡立刻生效。
+     * 缺失 / `null` = 本主题里跟随的谜题画默认的 `×` 字形。
      */
     forbiddenSymbol: forbiddenSymbolSchema,
+    /** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），解析顺序同禁止符号。 */
+    toolIcons: gameToolIconsSchema,
     /**
      * v0.8.3：难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
      * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。

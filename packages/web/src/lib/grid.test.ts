@@ -3,6 +3,7 @@ import { DEFAULT_CELL_SIZE } from '@loredoku/shared'
 import {
   boardSize,
   clampZoom,
+  clientToCanvasPoint,
   clientToCell,
   isInBounds,
   startsPan,
@@ -22,6 +23,29 @@ describe('clampZoom', () => {
 
   it('rounds to three decimals to avoid float drift', () => {
     expect(clampZoom(1.2 + 1.3000000000000003 - 1.3)).toBe(1.2)
+  })
+})
+
+describe('clientToCanvasPoint (v0.8.7 §8)', () => {
+  it('算的是像素而不是格号 —— 不除 cellSize', () => {
+    const point = clientToCanvasPoint(rect.left + 250, rect.top + 130, {
+      rect,
+      pan: { x: 0, y: 0 },
+      zoom: 1,
+      cellSize: 100,
+    })
+    expect(point).toEqual({ x: 250, y: 130 })
+  })
+
+  it('先减平移，再按缩放折回画布像素', () => {
+    const point = clientToCanvasPoint(rect.left + 40, rect.top + 60, {
+      rect,
+      pan: { x: -20, y: -10 },
+      zoom: 2,
+      cellSize: 100,
+    })
+    // (40 - (-20)) / 2 = 30；(60 - (-10)) / 2 = 35。
+    expect(point).toEqual({ x: 30, y: 35 })
   })
 })
 

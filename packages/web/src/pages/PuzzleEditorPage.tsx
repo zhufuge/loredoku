@@ -59,7 +59,7 @@ import {
 } from '@/components/puzzle/PuzzleInfoDrawer';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useAssets } from '@/hooks/useAssets';
-import { useForbiddenSymbolByCode } from '@/hooks/useThemes';
+import { useForbiddenSymbolByCode, useToolIconsByCode } from '@/hooks/useThemes';
 import { useHighlight } from '@/hooks/useHighlight';
 import {
   useForkPuzzleVersion,
@@ -71,6 +71,7 @@ import {
   useSavePuzzle,
   useUploadPuzzleCover,
   useUploadPuzzleForbiddenSymbol,
+  useUploadPuzzleToolIcon,
 } from '@/hooks/usePuzzles';
 import { useEditorPublish } from '@/hooks/useEditorPublish';
 import { useEditorSave } from '@/hooks/useEditorSave';
@@ -151,6 +152,8 @@ export function PuzzleEditorPage(): JSX.Element {
    * 编码就在地址里，走「主题列表摊成表」那条路（与播放页同一个 hook）。
    */
   const themeForbiddenSymbolOf = useForbiddenSymbolByCode();
+  /** v0.8.7 §7：主题那一套工具按钮图标 —— 三枚一起查，抽屉逐枚说明「跟随」。 */
+  const themeToolIconsOf = useToolIconsByCode();
   const saveMutation = useSavePuzzle();
   /** fork 态的保存 mutation：不自己跳转，由下面的 persist 收尾。 */
   const forkSaveMutation = useForkPuzzleVersion({ navigate: false });
@@ -164,6 +167,8 @@ export function PuzzleEditorPage(): JSX.Element {
    * `pendingCover` 那套「保存后再传」的时序；fork 态用版本行 id 上传，端点允许。
    */
   const uploadForbiddenSymbolMutation = useUploadPuzzleForbiddenSymbol();
+  /** v0.8.7 §7：三枚工具按钮图标同样「选中即上传」，一次一枚。 */
+  const uploadToolIconMutation = useUploadPuzzleToolIcon();
   /** v0.7.3 §3：引入新地图的弹窗 + 取新画布时的忙碌态。 */
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
@@ -504,6 +509,7 @@ export function PuzzleEditorPage(): JSX.Element {
       characterSlots: next.characterSlots,
       rosterCols: next.rosterCols,
       forbiddenSymbol: next.forbiddenSymbol,
+      toolIcons: next.toolIcons,
     });
     // 抽屉每次提交都带上当前的封面状态，所以只在真的变了时才改 pending。
     const coverChanged =
@@ -1061,6 +1067,8 @@ export function PuzzleEditorPage(): JSX.Element {
             rosterCols={puzzle.rosterCols}
             forbiddenSymbol={puzzle.forbiddenSymbol}
             themeForbiddenSymbol={themeForbiddenSymbolOf(themeCode)}
+            toolIcons={puzzle.toolIcons ?? null}
+            themeToolIcons={themeToolIconsOf(themeCode)}
             onUploadForbiddenSymbol={async (file) => {
               try {
                 return await uploadForbiddenSymbolMutation.mutateAsync({ id, file });
@@ -1069,8 +1077,14 @@ export function PuzzleEditorPage(): JSX.Element {
                 return null;
               }
             }}
-            coverUrl={detail?.coverUrl ?? null}
-            coverFile={pendingCover?.file ?? null}
+            onUploadToolIcon={async (icon, file) => {
+              try {
+                return await uploadToolIconMutation.mutateAsync({ id, icon, file });
+              } catch {
+                return null;
+              }
+            }}
+            coverUrl={detail?.coverUrl ?? null}            coverFile={pendingCover?.file ?? null}
             coverRemoved={pendingCover?.removed ?? false}
             onRequestClose={closePuzzleInfo}
             onCommit={commitPuzzleInfo}

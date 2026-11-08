@@ -29,6 +29,30 @@ export function clientToCell(clientX: number, clientY: number, view: ViewTransfo
   };
 }
 
+/** 画布坐标：以画布左上角为原点、按 100% 缩放计的像素。 */
+export interface CanvasPoint {
+  x: number;
+  y: number;
+}
+
+/**
+ * v0.8.7 §8：屏幕坐标 → **画布**坐标。
+ *
+ * 与 {@link clientToCell} 的差别只有一处：不除 `cellSize`。物品名称提示要贴在光标
+ * 旁边，它需要的是「光标在纸上的哪个像素」，而不是「第几格」—— 格子大小可调，
+ * 像素位置在任何 `cellSize` 下都是同一个点。
+ */
+export function clientToCanvasPoint(
+  clientX: number,
+  clientY: number,
+  view: ViewTransform,
+): CanvasPoint {
+  return {
+    x: (clientX - view.rect.left - view.pan.x) / view.zoom,
+    y: (clientY - view.rect.top - view.pan.y) / view.zoom,
+  };
+}
+
 export function isInBounds(coord: CellCoord, gridSize: number): boolean {
   return coord.x >= 0 && coord.y >= 0 && coord.x < gridSize && coord.y < gridSize;
 }

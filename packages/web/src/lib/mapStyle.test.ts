@@ -19,6 +19,7 @@ import {
   type MapStyle,
 } from '@loredoku/shared';
 import {
+  canvasShadowStyle,
   clampCellSize,
   clampLineWidth,
   clampRulerFontSize,
@@ -275,6 +276,23 @@ describe('styleLineWidth (FEAT-D02 §关键规则 1)', () => {
     expect(styleLineWidth(2, 90)).toBeCloseTo(1.5, 6);
     // 12 × 2 = 24 → clamped to the 12px ceiling.
     expect(styleLineWidth(12, 240)).toBe(12);
+  });
+});
+
+describe('canvas shadow (v0.8.7 §6)', () => {
+  it('拼出「外框色 + 透明度」的右下硬影', () => {
+    const style = resolveMapStyle({
+      canvasFrame: { width: 12, color: '#2F2A24' },
+    } as Partial<MapStyle>);
+    // 6px 偏移、0 模糊、47 = 0x2F / 42 = 0x2A / 36 = 0x24，透明度取常量。
+    expect(canvasShadowStyle(style).boxShadow).toBe('6px 6px 0 rgba(47, 42, 36, 0.3)');
+  });
+
+  it('换外框色，影子跟着换 —— 它不是一个独立的颜色字段', () => {
+    const red = resolveMapStyle({
+      canvasFrame: { width: 12, color: '#FF0000' },
+    } as Partial<MapStyle>);
+    expect(canvasShadowStyle(red).boxShadow).toBe('6px 6px 0 rgba(255, 0, 0, 0.3)');
   });
 });
 
