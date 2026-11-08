@@ -915,9 +915,15 @@ export function GamePage(): JSX.Element {
       /**
        * v0.8.5：头像落下之后，手上就没有东西了 —— 名册那张卡的选中环跟着退掉。
        * 规则本身在 `modeAfterPlacement` 里（编号不受影响，见那里的注释）。
+       *
+       * v0.8.7：退的还有**触碰态**。之前这里只 `setMode`，于是名册上那道 2px
+       * 主色环、棋盘上这位参与者的联动高亮与放大头像一起留了下来 —— 头像明明
+       * 已经落定，界面还在说「这位正被拿着」。放置态结束就是整手操作结束，
+       * 走 `applyMode`（它已经把「离开放置态 → `escape`」这条规矩收在一处，
+       * 见 SPEC-G04）。
        */
       const nextMode = modeAfterPlacement(mode, variant);
-      if (nextMode !== mode) setMode(nextMode);
+      if (nextMode !== mode) applyMode(nextMode);
       return true;
     }
     if (mode.kind === 'forbidden') {

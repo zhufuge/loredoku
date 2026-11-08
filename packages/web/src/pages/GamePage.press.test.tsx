@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
 import { GamePage } from './GamePage';
@@ -299,6 +300,63 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     expect(ring()).toBeNull();
     // 抬手后窗口关闭，落定标记撤掉（头像本身留在棋盘上）。
     expect(container.querySelector('.place-settle')).toBeNull();
+  });
+
+  /**
+   * v0.8.7：头像落下 = 这一手做完了 —— 名册那张卡不能继续留在「触碰态」。
+   *
+   * 原先只把 `mode` 收回 `idle`（选中那道 3px 边退掉了），`activation` 还停在
+   * `click` 上：卡片外面那道 2px 主色环、棋盘上这位参与者的联动高亮、以及
+   * `activeParticipantId` 带来的 1.3× 放大头像，一起留在了屏幕上。头像已经落定，
+   * 界面却还在说「这位正被拿着」。
+   *
+   * 短按（放编号）不在此列：那位参与者确实还在手上，卡片该亮着 —— 见下一条。
+   */
+  it('头像落下之后，名册卡不再留在触碰态（v0.8.7）', async () => {
+    render();
+    sizeCanvas();
+    enterPlacing(0);
+
+    const card = (): HTMLElement => {
+      const node = container.querySelector<HTMLElement>('[data-slot-index="0"]');
+      if (!node) throw new Error('名册第一张卡没渲染出来');
+      return node;
+    };
+
+    // 点卡之后是「拿着」：选中那道边 + 主题色铺开。
+    expect(card().style.boxShadow).toContain('--primary');
+    expect(card().getAttribute('data-tint')).toBe('on');
+
+    const at = cellCenter(4, 4);
+    pointer('pointerdown', at);
+    await wait(560);
+    pointer('pointerup', at);
+
+    // 头像落下：环与铺色一起退掉，棋盘上也找不到被放大的头像。
+    expect(card().style.boxShadow).toBe('');
+    expect(card().getAttribute('data-tint')).toBeNull();
+    const magnified = `main [style*="scale(${GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE})"]`;
+    expect(container.querySelector(magnified)).toBeNull();
+  });
+
+  /**
+   * 同一件事的另一半：短按落的是**编号（草稿）**，这位参与者仍然拿在手上 ——
+   * 卡片该继续亮着。`modeAfterPlacement` 只对头像把模式收回 `idle`，所以
+   * 「退触碰态」也只发生在头像那一路。
+   */
+  it('短按只放编号：名册卡还亮着（v0.8.7）', () => {
+    render();
+    sizeCanvas();
+    enterPlacing(0);
+
+    const at = cellCenter(4, 4);
+    pointer('pointerdown', at);
+    pointer('pointerup', at);
+    clickAt(at);
+
+    const card = container.querySelector<HTMLElement>('[data-slot-index="0"]');
+    expect(card?.style.boxShadow).toContain('--primary');
+    expect(card?.getAttribute('data-tint')).toBe('on');
   });
 
   /**
