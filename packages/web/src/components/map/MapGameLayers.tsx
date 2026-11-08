@@ -14,6 +14,7 @@ import {
 } from '@loredoku/shared';
 import type { GamePlacementBoard } from '@loredoku/shared';
 import { itemPadding } from '@/lib/canvasScale';
+import type { ForbiddenSymbolRender } from '@/lib/forbiddenSymbol';
 import { glyphFontSize, numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
 import { participantBadgeText } from '@/lib/participantLayout';
 import { PressRing } from '@/components/common/PressRing';
@@ -22,6 +23,13 @@ import { parseKey } from './layerGeometry';
 /**
  * the two game-only layers, split out of the old `MapLayers.tsx`.
  */
+
+/**
+ * v0.8.6：禁止符号的图片在格内四周各留 9% —— 贴边画会让一枚小图标撑满整格，
+ * 和格子里的编号、头像抢同一条视觉基线。两层共用同一个比例，提示层的预览与
+ * 放置层落下的那张图才会严丝合缝地对上。
+ */
+const FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO = 0.09;
 
 /**
  * 层 4 · 工具提示层（Game Tool Hint Layer）— SPEC-G02 (docs/v0.4.0.md §8).
@@ -44,15 +52,62 @@ export function MapGameToolHintLayer({
   cell,
   cellSize,
   slots,
+  forbiddenSymbol = null,
 }: {
   hint: GameToolHint | null;
   cell: CellCoord | null;
   cellSize: number;
   /** The roster, for the number glyph's colour and 编号展示 text. */
   slots: Array<CharacterSlotEntry | null>;
+  /** v0.8.6：禁止符号配置的上传图；`null` = 画那枚绿色 `×` 字形。 */
+  forbiddenSymbol?: ForbiddenSymbolRender | null;
 }): JSX.Element | null {
   if (!hint || !cell) return null;
   const total = cellSize;
+  /**
+   * v0.8.6：作者给禁止符号挑了图，工具提示层就画**同一张图**的预览 ——
+   * 悬停时预告的东西必须就是落下的东西（v0.6.4 给编号立的同一条规矩）。
+   * 落下位置与尺寸和格子一致，所以预览直接画在格子上。
+   */
+  if (hint.kind === 'forbidden' && forbiddenSymbol) {
+    const inset = total * FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO;
+    return (
+      <div
+        className="pointer-events-none absolute left-0 top-0"
+        style={{ zIndex: MAP_LAYER_Z.gameToolHint }}
+      >
+        {/*
+          外层必须是**一格大小**的定位盒。这里原来直接在 0×0 的浮层里放绝对定位的
+          `img`，Tailwind preflight 的 `img { max-width: 100% }` 会以父级宽度（0）为
+          上限，把预览压成 0 宽 —— 真页面上只剩一条看不见的竖条（实测量到 0×152）。
+          父级给回一格宽高，`max-width: 100%` 才是「不超过这一格」。
+        */}
+        <div
+          className="absolute"
+          style={{
+            left: cell.x * cellSize,
+            top: cell.y * cellSize,
+            width: total,
+            height: total,
+          }}
+        >
+          <img
+            src={forbiddenSymbol.imageUrl}
+            alt=""
+            draggable={false}
+            className="pointer-events-none absolute select-none"
+            style={{
+              left: inset,
+              top: inset,
+              width: total - inset * 2,
+              height: total - inset * 2,
+              objectFit: 'contain',
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
   const glyph = ((): JSX.Element => {
     if (hint.kind === 'number') {
       const slot = slots[hint.participantId - 1] ?? null;
@@ -235,6 +290,7 @@ export function MapGamePlacementLayer({
   activeParticipantId = null,
   settleKey = null,
   pulse = EMPTY_PULSE,
+  forbiddenSymbol = null,
 }: {
   board: GamePlacementBoard;
   slots: Array<CharacterSlotEntry | null>;
@@ -257,6 +313,8 @@ export function MapGamePlacementLayer({
    * 在动画播到一半时被摘掉类，缩放立刻弹回原尺寸 —— 看起来像闪了一下。
    */
   pulse?: GamePlacementPulse;
+  /** v0.8.6：禁止符号配置的图片；`null` = 画那枚 `×` 字形。 */
+  forbiddenSymbol?: ForbiddenSymbolRender | null;
 }): JSX.Element | null {
   const entries = Object.entries(board).filter(([, placement]) => placement !== null && placement !== undefined);
   if (entries.length === 0) return null;
@@ -353,24 +411,48 @@ export function MapGamePlacementLayer({
             ) : null}
 
             {placement.kind === 'forbidden' ? (
-              <svg className="absolute left-0 top-0" width={cellSize} height={cellSize}>
-                <text
-                  x={cellSize / 2}
-                  y={cellSize / 2}
-                  fill="#000000"
-                  fontSize={forbiddenFontSize}
-                  fontWeight={800}
-                  textAnchor="middle"
-                  dominantBaseline="central"
+              forbiddenSymbol ? (
+                /**
+                 * v0.8.6：这条谜题给禁止符号配了一张图 —— 画图，不再画 `×`。
+                 * `data-testid` 与动效类名都留在同一个元素上，页面测试和「刚
+                 * 放下」的盖章动效不必知道这次画的是字形还是图片。
+                 */
+                <img
+                  src={forbiddenSymbol.imageUrl}
+                  alt=""
+                  draggable={false}
                   data-testid={`forbidden-${key}`}
-                  // v0.7.12：`×` 有自己的一支动效 —— 从 0.35 倍弹到 1.16 倍再落定，
-                  // 带一点回正的轻微旋转。编号的 `place-pop` 是「盖章」，这个更像
-                  // 「划掉」，两者不该长得一模一样。
-                  className={pulse[key] === null ? 'forbidden-pop' : undefined}
-                >
-                  ×
-                </text>
-              </svg>
+                  className={
+                    pulse[key] === null
+                      ? 'forbidden-pop block h-full w-full select-none'
+                      : 'block h-full w-full select-none'
+                  }
+                  style={{
+                    objectFit: 'contain',
+                    padding: cellSize * FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO,
+                    boxSizing: 'border-box',
+                  }}
+                />
+              ) : (
+                <svg className="absolute left-0 top-0" width={cellSize} height={cellSize}>
+                  <text
+                    x={cellSize / 2}
+                    y={cellSize / 2}
+                    fill="#000000"
+                    fontSize={forbiddenFontSize}
+                    fontWeight={800}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    data-testid={`forbidden-${key}`}
+                    // v0.7.12：`×` 有自己的一支动效 —— 从 0.35 倍弹到 1.16 倍再落定，
+                    // 带一点回正的轻微旋转。编号的 `place-pop` 是「盖章」，这个更像
+                    // 「划掉」，两者不该长得一模一样。
+                    className={pulse[key] === null ? 'forbidden-pop' : undefined}
+                  >
+                    ×
+                  </text>
+                </svg>
+              )
             ) : null}
           </div>
         );

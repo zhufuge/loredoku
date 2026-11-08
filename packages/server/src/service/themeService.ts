@@ -1,11 +1,13 @@
 import {
   ErrorCode,
+  THEME_DATA_VERSION,
   collectMapThemeRefs,
   collectPuzzleThemeRefs,
   dedupeThemeRefs,
   findOutOfScopeRefs,
   type CreateThemeDeploymentInput,
   type CreateThemeInput,
+  type ForbiddenSymbolImage,
   type MapStyle,
   type Theme,
   type ThemeData,
@@ -18,6 +20,7 @@ import {
 import * as repo from '../repository/themeRepository';
 import * as gameService from './gameService';
 import { AppError } from '../utils/AppError';
+import { processForbiddenSymbolImage } from '../utils/image';
 
 /**
  * v0.8.0（docs/v0.8.0.md）—— 主题的三件事，按重要性排：
@@ -80,6 +83,52 @@ export async function updateTheme(code: string, input: UpdateThemeInput): Promis
   const id = await repo.idOfCode(code);
   if (id === undefined) throw AppError.notFound('主题不存在');
   await repo.updateTheme(id, input);
+  return getTheme(code);
+}
+
+/** Raised when `POST /api/themes/:code/forbidden-symbol` arrives without a file part. */
+export function forbiddenSymbolRequired(): AppError {
+  return AppError.validation('请选择禁止符号图片');
+}
+
+/**
+ * 主题 `data` 的读 → 改 → 写（禁止符号的两个端点用）。
+ *
+ * 数据库默认值是 `{}`（v0.8.0 之前的行），而 `ThemeData.version` 是必填 —— 不补
+ * 一个版本戳就写不回去。`repo.toTheme` 也会补，但它顺带数五张表，这里不需要。
+ */
+async function themeDataOf(code: string): Promise<{ id: number; data: ThemeData }> {
+  const row = await repo.findByCode(code);
+  if (!row) throw AppError.notFound('主题不存在');
+  const raw = row.data as Partial<ThemeData> | null | undefined;
+  return {
+    id: Number(row.id),
+    data: { ...raw, version: raw?.version ?? THEME_DATA_VERSION },
+  };
+}
+
+/**
+ * v0.8.6 §4：给主题配一张「禁止符号缺省」图。
+ *
+ * 主题不版本化，所以改完即时生效；但只对**之后新建**的谜题生效 —— 已建的谜题在
+ * 创建那一刻就抄走了自己的 path（见 `puzzleService.createPuzzle`）。旧图不删：
+ * 存量谜题可能还指着它。
+ */
+export async function uploadForbiddenSymbol(code: string, buffer: Buffer): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const image = await processForbiddenSymbolImage({ kind: 'theme', id }, buffer);
+  await repo.updateTheme(id, {
+    data: { ...data, forbiddenSymbol: { path: image.relativePath } },
+  });
+  return getTheme(code);
+}
+
+/** v0.8.6 §4：清掉主题缺省 —— 键整个删掉（`null` 与缺席等价，但少一种口径）。 */
+export async function removeForbiddenSymbol(code: string): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const next: ThemeData = { ...data };
+  delete next.forbiddenSymbol;
+  await repo.updateTheme(id, { data: next });
   return getTheme(code);
 }
 
@@ -163,6 +212,24 @@ export async function defaultStyleOf(themeId: number): Promise<MapStyle | null> 
   if (!row) return null;
   const style = (row.data as ThemeData | null)?.style;
   return style ?? null;
+}
+
+/**
+ * v0.8.6 §4：主题的禁止符号缺省，只在**新建谜题那一刻**取一次（与
+ * {@link defaultStyleOf} 同一种快照语义）。
+ *
+ * `null` 的两条来路也一样：主题没配过，或旧数据的 `theme_id` 指向已删主题 ——
+ * 都不该让「新建谜题」失败，缺省就是那枚 `×` 字形。
+ */
+export async function defaultForbiddenSymbolOf(
+  themeId: number,
+): Promise<ForbiddenSymbolImage | null> {
+  if (!Number.isFinite(themeId)) return null;
+  const row = await repo.findById(themeId);
+  if (!row) return null;
+  const symbol = (row.data as ThemeData | null)?.forbiddenSymbol;
+  // 深拷贝：新谜题拿到的是一个独立对象，主题之后再改不会顺带改到它。
+  return symbol?.path ? { path: symbol.path } : null;
 }
 
 async function namesOf(kind: ThemeRefTarget['kind'], ids: number[]): Promise<Map<number, string>> {

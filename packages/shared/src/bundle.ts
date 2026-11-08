@@ -105,6 +105,9 @@ function clone<T>(value: T): T {
  *
  * 画布副本里的 `map.mapId` / `map.versionNo` **不动**：它们是「画布从哪来」的追溯
  * 字段，不是引用（v0.7.1 §5.3）。
+ *
+ * v0.8.6 的禁止符号不在这张表里：它是上传文件而不是资源 id，包内路径的改写发生在
+ * 服务端的 `bundleService`（它要真的把文件搬进包里）。
  */
 export function renumberPuzzleDraft(puzzle: PuzzleDraft, ids: BundleIdMaps): PuzzleDraft {
   const next = clone(puzzle);
@@ -161,8 +164,11 @@ export interface BundleManifestGame {
   name: string;
   puzzleName: string;
   gridSize: number;
-  /** v0.8.3：主题自定义的难度标识原样进包，导入方按自己的分级解释。 */
-  difficulty: string;
+  /**
+   * v0.8.6：**档位数字**（v0.8.3 时是字符串标识）。导入方按自己的分级解释 ——
+   * 数字对不上就显示「第 N 档」，不用猜是哪个名字。
+   */
+  difficulty: number;
   cover: string | null;
 }
 

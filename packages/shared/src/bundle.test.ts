@@ -12,7 +12,7 @@ function summary(slug: string): MapGameSummary {
     name: '撕扇',
     slug,
     coverUrl: null,
-    difficulty: 'medium',
+    difficulty: 3,
     sortWeight: 0,
     gridSize: 2,
     participantCount: 1,

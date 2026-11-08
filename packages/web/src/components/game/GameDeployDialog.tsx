@@ -9,7 +9,7 @@ import {
   GAME_SORT_WEIGHT_MAX,
   GAME_SORT_WEIGHT_MIN,
   composeSlug,
-  defaultDifficultyKey,
+  defaultDifficultyLevel,
   difficultyBadge,
   normalizeSlugInput,
   resolveDifficultyTiers,
@@ -132,7 +132,7 @@ export function GameDeployDialog({
     () => resolveDifficultyTiers(workspace?.theme.data.difficultyLevels),
     [workspace?.theme.data.difficultyLevels],
   );
-  const [difficulty, setDifficulty] = useState<string>(() => defaultDifficultyKey(tiers));
+  const [difficulty, setDifficulty] = useState<number>(() => defaultDifficultyLevel(tiers));
   /**
    * v0.8.3：展示顺序。存成**字符串**而不是数字 —— 输入框里允许出现「空」这个
    * 中间状态（清空再重打），用数字承载会把空读成 0，于是作者清空的那一瞬就已经
@@ -163,9 +163,9 @@ export function GameDeployDialog({
    * 以为这关没有难度。
    */
   const difficultyOptions = useMemo(() => {
-    const list = tiers.map((tier) => ({ key: tier.key, label: tier.label }));
-    if (difficulty && !list.some((tier) => tier.key === difficulty)) {
-      list.push({ key: difficulty, label: difficulty });
+    const list = tiers.map((tier) => ({ level: tier.level, label: tier.label }));
+    if (!list.some((tier) => tier.level === difficulty)) {
+      list.push({ level: difficulty, label: `第 ${difficulty} 档` });
     }
     return list;
   }, [tiers, difficulty]);
@@ -175,7 +175,7 @@ export function GameDeployDialog({
   useEffect(() => {
     if (!open || !activePuzzle) return;
     const startName = activePuzzle.name;
-    const startDifficulty = activeExisting?.difficulty ?? defaultDifficultyKey(tiers);
+    const startDifficulty = activeExisting?.difficulty ?? defaultDifficultyLevel(tiers);
     setName(startName);
     setDifficulty(startDifficulty);
     // v0.8.3：重新部署时回填那条部署自己的顺序 —— 否则每次再部署都会把它悄悄
@@ -299,7 +299,7 @@ export function GameDeployDialog({
     puzzleId: number;
     name: string;
     slug: string;
-    difficulty: string;
+    difficulty: number;
     sortWeight?: number;
     clearCover: boolean;
     cover: File | null;
@@ -598,24 +598,24 @@ export function GameDeployDialog({
             <span className="text-sm font-medium">难度</span>
             <div className="flex flex-wrap gap-2">
               {difficultyOptions.map((tier) => {
-                const badge = difficultyBadge(tiers, tier.key);
+                const badge = difficultyBadge(tiers, tier.level);
                 return (
                   <button
-                    key={tier.key}
+                    key={tier.level}
                     type="button"
-                    aria-pressed={difficulty === tier.key}
-                    onClick={() => setDifficulty(tier.key)}
+                    aria-pressed={difficulty === tier.level}
+                    onClick={() => setDifficulty(tier.level)}
                     className={cn(
                       // FEAT-O01: tint + dark label (was `text-white`).
                       'rounded-full px-3 py-1 text-xs font-medium transition-opacity',
-                      difficulty === tier.key
+                      difficulty === tier.level
                         ? 'ring-2 ring-offset-2 ring-offset-background'
                         : 'opacity-60 hover:opacity-90',
                     )}
                     style={{
                       backgroundColor: badge.backgroundColor,
                       color: badge.color,
-                      ...(difficulty === tier.key
+                      ...(difficulty === tier.level
                         ? { boxShadow: `0 0 0 2px ${badge.backgroundColor}` }
                         : {}),
                     }}

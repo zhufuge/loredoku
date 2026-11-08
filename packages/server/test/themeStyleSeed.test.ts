@@ -12,7 +12,8 @@ import { db } from '../src/db/knex';
  * 这个文件钉三件在测试里能稳定复现的事：
  *
  * 1. 新建地图第一次定尺寸时，草稿的 `style` 就是主题的缺省风格（不用作者再调二十
- *    几个值 —— 那正是「同一主题地图重复配置」这个痛点）；
+ *    几个值 —— 那正是「同一主题地图重复配置」这个痛点）**但方格大小除外**：
+ *    它随画布尺寸变，不是风格（v0.8.6 §1）；
  * 2. 主题没设过风格时不写 `style`，落 `DEFAULT_MAP_STYLE`（不发明值）；
  * 3. **已有的草稿不会被追溯改动**：改主题风格后再 resize，图还是自己那份。
  *
@@ -98,6 +99,24 @@ describe('主题风格 → 新地图（§5 的 S3）', () => {
     const draft = await draftOf(mapId);
 
     expect(draft.style).toBeUndefined();
+  });
+
+  /**
+   * v0.8.6 §1：方格大小不是风格 —— 同一个 168px 在 4×4 和 20×20 的图上完全是两种
+   * 粗细。主题里那个值就算存在（「设为主题风格」会把当时那张图的值一并写进去），
+   * 也不该决定新图的格子大小；新图从「按画布自适应」开始。
+   */
+  it('拷风格时不带方格大小，其余字段照旧来自主题', async () => {
+    const style: MapStyle = { ...themeStyle(), cellSize: 168 };
+    const themeCode = await createTheme(style);
+    const mapId = await createMap(themeCode);
+
+    await initMap(mapId);
+    const draft = await draftOf(mapId);
+
+    expect(draft.style?.cellSize).toBeNull();
+    expect(draft.style?.gridSeparator).toEqual(style.gridSeparator);
+    expect(draft.style?.regionLabel).toEqual(style.regionLabel);
   });
 
   it('已有的草稿不追溯：改主题风格后再 resize，图还是自己那份', async () => {

@@ -117,7 +117,7 @@ describe('ThemeStyleRow（§16.8）', () => {
     themeRef.data = theme();
     render(themeStyle);
 
-    expect(text()).toContain('主题还没有缺省风格');
+    expect(text()).toContain('主题还没有初始样式');
     act(() => button('风格')?.click());
 
     expect(button('设为主题风格')).toBeDefined();

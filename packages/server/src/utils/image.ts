@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import sharp from 'sharp';
+import sharp, { type Metadata } from 'sharp';
 import {
   CHARACTER_AVATAR_MAX_DIMENSION,
   ErrorCode,
+  FORBIDDEN_SYMBOL_MAX_DIMENSION,
   GAME_COVER_MAX_DIMENSION,
   MAP_COVER_MAX_DIMENSION,
   PUZZLE_COVER_MAX_DIMENSION,
@@ -100,6 +101,73 @@ export async function processPuzzleCover(
   buffer: Buffer,
 ): Promise<ProcessedImage> {
   return processImage('puzzles', puzzleId, buffer, PUZZLE_COVER_MAX_DIMENSION);
+}
+
+/**
+ * v0.8.6（docs/v0.8.6.md §4）：禁止符号的上传图 —— 谜题自己那一张，或主题的
+ * 「新建谜题缺省」。
+ *
+ * 路径按**谁拥有它**分目录（`puzzles/<id>/forbidden-symbol/` /
+ * `themes/<id>/forbidden-symbol/`）：这样看得出这张图是从哪来的。注意删行**不会**
+ * 删文件（与封面同策略，见 docs/v0.8.6.md §6）：复制谜题、fork 出来的草稿会共用
+ * 同一个 `path`，删了就把别人还在引用的图弄丢了。
+ */
+export async function processForbiddenSymbolImage(
+  owner: { kind: 'puzzle' | 'theme'; id: number },
+  buffer: Buffer,
+): Promise<ProcessedImage> {
+  const folder = `${owner.kind === 'puzzle' ? 'puzzles' : 'themes'}/${owner.id}/forbidden-symbol`;
+  return processScaledImage(folder, buffer, FORBIDDEN_SYMBOL_MAX_DIMENSION);
+}
+
+/**
+ * 只写一张缩放后的 webp 的通道（v0.8.6 §4 的禁止符号用）。
+ *
+ * 与 {@link processImage} 的「原图 + 缩略图」不同：那张图最终画在棋盘上只有几十
+ * 像素，留一份原图只是让同一张图在磁盘上多存一遍。所以这里处理失败就直接报
+ * 415 —— 返回一个指向不存在文件的 `path`，比当场说「这张图用不了」难查得多。
+ */
+async function processScaledImage(
+  folder: string,
+  buffer: Buffer,
+  maxDimension: number,
+): Promise<ProcessedImage> {
+  if (!detectImageType(buffer)) {
+    throw new AppError(ErrorCode.UNSUPPORTED_MEDIA_TYPE, '不支持的图片格式');
+  }
+
+  const relativePath = `${folder}/${randomUUID()}.webp`;
+
+  let metadata: Metadata;
+  let data: Buffer;
+  try {
+    // 原图尺寸只作记录；真正决定落盘的是长边 ≤ `maxDimension` 的那次 resize。
+    metadata = await sharp(buffer, { density: 96 }).metadata();
+    data = await sharp(buffer, { density: 96 })
+      .resize(maxDimension, maxDimension, {
+        fit: 'inside',
+        withoutEnlargement: true,
+      })
+      // 保留透明通道（webp 默认带 alpha），quality 85 是「小图看得清」与
+      // 「这张图本来就不该大」之间的折中。
+      .webp({ quality: 85 })
+      .toBuffer();
+  } catch {
+    throw new AppError(ErrorCode.UNSUPPORTED_MEDIA_TYPE, '不支持的图片格式');
+  }
+
+  // 转码成功才建目录 / 落盘：失败不该在 uploads 下留一个空目录。
+  const dir = join(uploadRoot, folder);
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(uploadRoot, relativePath), data);
+
+  return {
+    relativePath,
+    mime: 'image/webp',
+    size: data.length,
+    width: metadata.width ?? null,
+    height: metadata.height ?? null,
+  };
 }
 
 async function processImage(

@@ -363,6 +363,15 @@ export interface PuzzleDraft {
   clues?: string[];
   /** v0.7.14：结束语 —— 玩家通过时出现在结算弹窗里的一句话。缺失 = 不显示。 */
   ending?: string;
+  /**
+   * v0.8.6（docs/v0.8.6.md §4）：玩家侧「禁止符号」用哪张图。
+   *
+   * 默认（缺席 / `null`）是放置层那枚 `×` 字形。作者在谜题编辑器的「基本信息」
+   * 抽屉里**上传**一张图之后，这一关的游戏页改为画那张图；新建谜题时它从主题的
+   * `data.forbiddenSymbol` 抄一份过来（`docs/v0.8.6.md` §4）。
+   * **可选** —— v0.8.6 之前发布的谜题版本行里没有这个键。
+   */
+  forbiddenSymbol?: ForbiddenSymbolImage | null;
 }
 
 export interface MapResponse {
@@ -565,11 +574,14 @@ export interface MapGameSummary {
   slug: string;
   coverUrl: string | null;
   /**
-   * v0.8.3：难度标识。内置五档（`veryEasy` … `expert`）或主题自己定义的一档
-   * （`ThemeData.difficultyLevels[].key`）—— 展示前先用 `difficultyBadge` 对一遍
-   * 当前分级，对不上就照原样显示标识。
+   * v0.8.6：难度**档位数字**。落库的就是这个数字（`games.difficulty` 是 smallint），
+   * 文字是主题给的映射（`ThemeData.difficultyLevels[].label`）—— 展示前先用
+   * `difficultyBadge` 对一遍当前分级，对不上就显示「第 N 档」。
+   *
+   * v0.8.3 起这里存的是字符串标识（`medium` / `tier-1`）；数字的好处是它自带
+   * 顺序，删掉中间一档也不必给后面的重新编号。
    */
-  difficulty: string;
+  difficulty: number;
   /**
    * v0.8.3：展示顺序（越小越靠前）。列表接口已按它排好序，前端不必再排 ——
    * 这个字段出现在这里，是为了让部署弹窗回填「上一次设的序号」，以及让导出
@@ -685,10 +697,19 @@ export interface ThemeData {
   style?: MapStyle;
   linkageColors?: MapLinkageColor[];
   /**
+   * v0.8.6（docs/v0.8.6.md §4）：这个空间的**禁止符号缺省** —— 新建谜题时抄进
+   * `PuzzleDraft.forbiddenSymbol`。它和 `style` / `linkageColors` 是同一种「缺省」：
+   * 只在创建那一刻拷贝，之后各走各的 —— 已发布的关卡不会因为主题后来换了一张图
+   * 而变（那一关的版本行冻着它自己的那张）。
+   *
+   * 缺失 = 默认的 `×` 字形。图和谜题侧共用 {@link ForbiddenSymbolImage}。
+   */
+  forbiddenSymbol?: ForbiddenSymbolImage | null;
+  /**
    * v0.8.3：这个空间的**难度分级**。
    *
    * 缺省（`undefined`）= 内置五档（极简 / 简单 / 中等 / 困难 / 专家）。给了就用
-   * 给的这几档 —— 顺序即「由易到难」，也决定徽章取热力坡上的哪一档颜色。
+   * 给的这几档 —— 按 `level` 从小到大即「由易到难」，徽章也只认 `level`。
    *
    * 它和 `style` / `linkageColors` 一样是主题级的，但**消费方式不同**：那两个在
    * 新建内容时被拷贝走，之后各走各的；分级不拷贝 —— 部署弹窗、游戏卡、资源包
@@ -698,16 +719,37 @@ export interface ThemeData {
 }
 
 /**
- * v0.8.3：一档难度。
+ * v0.8.6（docs/v0.8.6.md §4）：玩家侧「禁止符号」那张**上传图**。
  *
- * `key` 落库（`games.difficulty`），改名不该把它改掉 —— 所以名字与标识分开，
- * 与主题「显示名 / 编码」是同一组关系。
+ * 它不是资源引用 —— 作者上传的就是这一张，落在 `storage/uploads` 下，数据里只记
+ * 相对路径（{@link fileUrlFromPath} 拼地址）。主题的 `ThemeData.forbiddenSymbol`
+ * 与谜题的 `PuzzleDraft.forbiddenSymbol` 共用这个形状：前者是新建谜题的缺省，
+ * 后者是这一关真正用的那张。
+ */
+export interface ForbiddenSymbolImage {
+  /**
+   * `storage/uploads` 下的相对路径，如 `puzzles/12/forbidden-symbol/<uuid>.webp` /
+   * `themes/3/forbidden-symbol/<uuid>.webp`。
+   */
+  path: string;
+}
+
+/**
+ * v0.8.6：一档难度 = **数字 + 名字 + 可选颜色**。
+ *
+ * `level` 落库（`games.difficulty`），所以它是身份：改名、换色都不动它，改它等于
+ * 把这一档在难度轴上的位置挪走。数字同时是顺序 —— 不必再另存一个「第几个」。
  */
 export interface ThemeDifficultyTier {
-  /** 稳定标识，`GAME_DIFFICULTY_KEY_PATTERN`。 */
-  key: string;
+  /** 档位数字（1 起，越大越难），`GAME_DIFFICULTY_LEVEL_MIN` … `MAX`。 */
+  level: number;
   /** 徽章上的字。 */
   label: string;
+  /**
+   * 可选 `#rrggbb`。不填就按位置落在内置那条热力坡上（存量主题因此不用补数据）；
+   * 填了则由它混出徽章的底色与字色，见 `difficultyBadge`。
+   */
+  color?: string;
 }
 
 /**

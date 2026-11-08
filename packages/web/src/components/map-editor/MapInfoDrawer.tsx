@@ -686,7 +686,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
           {/* ---- 主题风格（v0.8.0 §16.8） ---- */}
           <Section
             title="主题风格"
-            hint="Theme — 主题的缺省风格。它只在**新建地图那一刻**被拷进草稿（§5 的快照式），之后两边各走各的：改主题风格不会追溯改动已经画好的图。"
+            hint="Theme — 主题的地图初始样式。它只在**新建地图那一刻**被拷进草稿（§5 的快照式），之后两边各走各的：改主题风格不会追溯改动已经画好的图。"
           >
             <ThemeStyleRow
               themeCode={themeCode}

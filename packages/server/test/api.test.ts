@@ -14,6 +14,9 @@ const createdPuzzles: number[] = [];
 const uploadedAvatarDirs: string[] = [];
 const uploadedGameCoverDirs: string[] = [];
 const uploadedMapCoverDirs: string[] = [];
+/** v0.8.6 §4：禁止符号上传图落的目录（`puzzles/<id>` / `themes/<id>`）。 */
+const uploadedPuzzleSymbolDirs: string[] = [];
+const uploadedThemeSymbolDirs: string[] = [];
 
 function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
@@ -1286,6 +1289,166 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(res.status).toBe(404);
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
+
+  /**
+   * v0.8.6（docs/v0.8.6.md §4）：禁止符号是一张**上传图**（不是资源引用），
+   * 主题还可以配一份「新建谜题缺省」。四件事一起钉：
+   *
+   * ① 谜题上传 → `{ path, url }`，随草稿保存后读回一致；
+   * ② 主题上传 / 删除 → `themes.data.forbiddenSymbol`；
+   * ③ 新建谜题拷贝主题缺省，之后主题换图不追溯；
+   * ④ 版本行 id 也能上传（fork 态只写文件、不写库）。
+   */
+  describe('禁止符号的上传与主题缺省 (v0.8.6 §4)', () => {
+    const THEME_CODE = 'test-forbidden-symbol';
+
+    afterAll(async () => {
+      const { purgeTheme } = await import('./purge');
+      await purgeTheme(THEME_CODE);
+    });
+
+    /** 主题按编码寻址（§19）；上传目录按主键分，收尾要它。 */
+    async function theme(): Promise<{ code: string; id: number }> {
+      const created = await api
+        .post('/api/themes')
+        .send({ code: THEME_CODE, name: '禁止符号测试主题' });
+      if (created.status !== 200 && created.status !== 409) {
+        throw new Error(`禁止符号测试主题建不出来：${created.status}`);
+      }
+      const row = (await db('themes').where({ code: THEME_CODE }).first('id')) as
+        | { id: string | number }
+        | undefined;
+      if (!row) throw new Error('禁止符号测试主题读不出来');
+      return { code: THEME_CODE, id: Number(row.id) };
+    }
+
+    it('谜题上传：返回 path/url，保存草稿再读回一致；非图片 415、无文件 400', async () => {
+      const { draftId } = await puzzleWithVersion(`Sym ${uniqueCode('p')}`);
+      uploadedPuzzleSymbolDirs.push(resolveUploadPath(`puzzles/${draftId}`));
+
+      const none = await api.post(`/api/puzzles/${draftId}/forbidden-symbol`);
+      expect(none.status).toBe(400);
+      expect(none.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+
+      const bad = await api
+        .post(`/api/puzzles/${draftId}/forbidden-symbol`)
+        .attach('file', Buffer.from('definitely not an image'), 'notes.txt');
+      expect(bad.status).toBe(415);
+      expect(bad.body.code).toBe(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
+
+      const uploaded = await api
+        .post(`/api/puzzles/${draftId}/forbidden-symbol`)
+        .attach('file', TINY_PNG, 'symbol.png');
+      expect(uploaded.status).toBe(200);
+      expect(uploaded.body.code).toBe(ErrorCode.OK);
+      const path = uploaded.body.data.path as string;
+      // 只写一张缩放后的 webp，没有原图 / 缩略图两份。
+      expect(path).toMatch(new RegExp(`^puzzles/${draftId}/forbidden-symbol/[0-9a-f-]+\\.webp$`));
+      expect(typeof uploaded.body.data.url).toBe('string');
+      // 回执的 url 真能取到文件。
+      expect((await api.get(new URL(uploaded.body.data.url as string).pathname)).status).toBe(200);
+
+      const initial = await api.get(`/api/puzzles/${draftId}`);
+      const saved = await api.put(`/api/puzzles/${draftId}`).send({
+        data: { ...initial.body.data.data, forbiddenSymbol: { path } },
+        updatedAt: initial.body.data.updatedAt,
+      });
+      expect(saved.status).toBe(200);
+      expect(saved.body.data.data.forbiddenSymbol).toEqual({ path });
+      // 再读一次：值来自 JSONB，不是内存里的那份。
+      expect((await api.get(`/api/puzzles/${draftId}`)).body.data.data.forbiddenSymbol).toEqual({
+        path,
+      });
+    });
+
+    it('版本行 id 也能上传（fork 态只写文件、不写库），未知谜题 404', async () => {
+      const { versionId } = await deployablePuzzle(`ForkSym ${uniqueCode('p')}`);
+      uploadedPuzzleSymbolDirs.push(resolveUploadPath(`puzzles/${versionId}`));
+
+      const uploaded = await api
+        .post(`/api/puzzles/${versionId}/forbidden-symbol`)
+        .attach('file', TINY_PNG, 'symbol.png');
+      expect(uploaded.status).toBe(200);
+      expect(uploaded.body.data.path).toContain(`puzzles/${versionId}/forbidden-symbol/`);
+      expect((await api.get(new URL(uploaded.body.data.url as string).pathname)).status).toBe(200);
+      // 只写文件：版本行的 JSON 没被这个端点动过。
+      expect((await api.get(`/api/puzzles/${versionId}`)).body.data.data.forbiddenSymbol).toBeUndefined();
+
+      const missing = await api
+        .post('/api/puzzles/99999999/forbidden-symbol')
+        .attach('file', TINY_PNG, 'symbol.png');
+      expect(missing.status).toBe(404);
+      expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
+    });
+
+    it('主题上传 → 读回；DELETE 后消失', async () => {
+      const created = await theme();
+      uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
+
+      const uploaded = await api
+        .post(`/api/themes/${created.code}/forbidden-symbol`)
+        .attach('file', TINY_PNG, 'symbol.png');
+      expect(uploaded.status).toBe(200);
+      expect(uploaded.body.code).toBe(ErrorCode.OK);
+      const path = uploaded.body.data.data.forbiddenSymbol.path as string;
+      expect(path).toMatch(new RegExp(`^themes/${created.id}/forbidden-symbol/[0-9a-f-]+\\.webp$`));
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol).toEqual({
+        path,
+      });
+
+      const cleared = await api.delete(`/api/themes/${created.code}/forbidden-symbol`);
+      expect(cleared.status).toBe(200);
+      // DELETE 是**删键**，不是写成 null。
+      expect(cleared.body.data.data.forbiddenSymbol).toBeUndefined();
+      expect(
+        (await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol,
+      ).toBeUndefined();
+    });
+
+    it('新建谜题继承主题缺省；之后主题换图不影响这一题', async () => {
+      const created = await theme();
+      uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
+
+      const first = await api
+        .post(`/api/themes/${created.code}/forbidden-symbol`)
+        .attach('file', TINY_PNG, 'symbol.png');
+      expect(first.status).toBe(200);
+      const firstPath = first.body.data.data.forbiddenSymbol.path as string;
+
+      const mapId = await createMap({
+        name: `Sym map ${uniqueCode('p')}`,
+        gridSize: 6,
+        themeCode: created.code,
+      });
+      const versionNo = await publish(mapId);
+      const inheritedId = await createPuzzle({
+        name: '继承缺省',
+        mapId,
+        mapVersionNo: versionNo,
+      });
+      // 新建那一刻深拷贝一份 —— 不是一条指向主题的引用。
+      expect((await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol).toEqual({
+        path: firstPath,
+      });
+
+      // 主题换一张图：已建谜题仍是创建时抄走的那份。
+      const second = await api
+        .post(`/api/themes/${created.code}/forbidden-symbol`)
+        .attach('file', TINY_PNG, 'symbol.png');
+      expect(second.status).toBe(200);
+      const secondPath = second.body.data.data.forbiddenSymbol.path as string;
+      expect(secondPath).not.toBe(firstPath);
+      expect((await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol).toEqual({
+        path: firstPath,
+      });
+
+      // 之后再新建，拿到的是新缺省。
+      const laterId = await createPuzzle({ name: '后来的谜题', mapId, mapVersionNo: versionNo });
+      expect((await api.get(`/api/puzzles/${laterId}`)).body.data.data.forbiddenSymbol).toEqual({
+        path: secondPath,
+      });
+    });
+  });
 });
 
 // ---- v0.4.0 FEAT-G02 + v0.5.0 CONS-K16: the unit of deployment is a puzzle ----
@@ -1296,11 +1459,11 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
 
     const deploy = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ name: '神秘古堡', slug, difficulty: 'hard' });
+      .send({ name: '神秘古堡', slug, difficulty: 4 });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.puzzleId).toBe(versionId);
     expect(deploy.body.data.name).toBe('神秘古堡');
-    expect(deploy.body.data.difficulty).toBe('hard');
+    expect(deploy.body.data.difficulty).toBe(4);
     expect(deploy.body.data.gridSize).toBe(6);
     expect(deploy.body.data.coverUrl).toBeNull();
     expect(deploy.body.data.participantCount).toBe(1);
@@ -1337,7 +1500,7 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
     const deploy = await api.post(`/api/puzzles/${versionId}/games`).send({});
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.name).toBe(puzzleName);
-    expect(deploy.body.data.difficulty).toBe('medium');
+    expect(deploy.body.data.difficulty).toBe(3);
   });
 
   /**
@@ -1357,12 +1520,12 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
 
     const first = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ name: '第一版', slug: uniqueSlug('first'), difficulty: 'easy' });
+      .send({ name: '第一版', slug: uniqueSlug('first'), difficulty: 2 });
     expect(first.status).toBe(200);
 
     const second = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ name: '第二版', slug: uniqueSlug('second'), difficulty: 'expert' });
+      .send({ name: '第二版', slug: uniqueSlug('second'), difficulty: 5 });
     expect(second.status).toBe(200);
     expect(second.body.data.id).not.toBe(first.body.data.id);
     // 游戏挂在版本行上，所以摘要里的版本号就是那个版本。
@@ -1382,12 +1545,14 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
-  it('rejects an unknown difficulty and an empty name', async () => {
+  it('rejects an out-of-range difficulty and an empty name', async () => {
     const { versionId } = await deployablePuzzle(`Invalid ${uniqueCode('p')}`);
 
+    // 7 不在内置五档里，也不在任何主题的分级里 —— schema 只拦「1…99 的整数」，
+    // 「这一档存不存在」由服务端拿主题核对（见后面「难度分级由主题定义」）。
     const badDifficulty = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ difficulty: 'nightmare' });
+      .send({ difficulty: 7 });
     expect(badDifficulty.status).toBe(400);
 
     const emptyName = await api.post(`/api/puzzles/${versionId}/games`).send({ name: '   ' });
@@ -1433,10 +1598,10 @@ describe('games API slug (OPT-W04)', () => {
 
     const deploy = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ name: `Flower Garden ${hex}`, difficulty: 'veryEasy' });
+      .send({ name: `Flower Garden ${hex}`, difficulty: 1 });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.slug).toBe(`puzzle-${code}`);
-    expect(deploy.body.data.difficulty).toBe('veryEasy');
+    expect(deploy.body.data.difficulty).toBe(1);
 
     // The list carries the slug so the card can link straight to it.
     const list = await api.get('/api/games');
@@ -1463,7 +1628,7 @@ describe('games API slug (OPT-W04)', () => {
 
     const deploy = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug, difficulty: 'hard' });
+      .send({ slug, difficulty: 4 });
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.slug).toBe(slug);
     // No name in the body → the puzzle's own name is used.
@@ -1479,13 +1644,13 @@ describe('games API slug (OPT-W04)', () => {
     const first = await deployablePuzzle(`Owner ${token()}`);
     const ok = await api
       .post(`/api/puzzles/${first.versionId}/games`)
-      .send({ slug, difficulty: 'easy' });
+      .send({ slug, difficulty: 2 });
     expect(ok.status).toBe(200);
 
     const second = await deployablePuzzle(`Thief ${token()}`);
     const clash = await api
       .post(`/api/puzzles/${second.versionId}/games`)
-      .send({ slug, difficulty: 'easy' });
+      .send({ slug, difficulty: 2 });
     expect(clash.status).toBe(400);
     expect(clash.body.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(clash.body.message).toBe(`访问路径「${slug}」已被占用，请更换`);
@@ -1503,7 +1668,7 @@ describe('games API slug (OPT-W04)', () => {
     const owner = await deployablePuzzle(`Owner ${token()}`);
     const kept = await api
       .post(`/api/puzzles/${owner.versionId}/games`)
-      .send({ name: '被顶掉的那一个', slug, difficulty: 'easy' });
+      .send({ name: '被顶掉的那一个', slug, difficulty: 2 });
     expect(kept.status).toBe(200);
 
     // v0.7.11：冲突除了说「被占用」，还要说清占位的是谁 —— 覆盖弹窗要问
@@ -1511,13 +1676,13 @@ describe('games API slug (OPT-W04)', () => {
     const claimant = await deployablePuzzle(`Claimant ${token()}`);
     const clash = await api
       .post(`/api/puzzles/${claimant.versionId}/games`)
-      .send({ slug, difficulty: 'hard' });
+      .send({ slug, difficulty: 4 });
     expect(clash.status).toBe(400);
     expect(clash.body.data).toMatchObject({ kind: 'slug-taken', slug, name: '被顶掉的那一个' });
 
     const takeover = await api
       .post(`/api/puzzles/${claimant.versionId}/games`)
-      .send({ name: '新的主人', slug, difficulty: 'hard', overwriteSlug: true });
+      .send({ name: '新的主人', slug, difficulty: 4, overwriteSlug: true });
     expect(takeover.status).toBe(200);
     expect(takeover.body.data.slug).toBe(slug);
 
@@ -1538,12 +1703,12 @@ describe('games API slug (OPT-W04)', () => {
 
     const first = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug, difficulty: 'easy' });
+      .send({ slug, difficulty: 2 });
     expect(first.status).toBe(200);
 
     const second = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug, difficulty: 'hard' });
+      .send({ slug, difficulty: 4 });
     expect(second.status).toBe(200);
     expect(second.body.data.slug).toBe(slug);
 
@@ -1600,14 +1765,14 @@ describe('games API slug (OPT-W04)', () => {
 
     const res = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ name: '神秘古堡', difficulty: 'medium' });
+      .send({ name: '神秘古堡', difficulty: 3 });
     expect(res.status).toBe(400);
     expect(res.body.message).toBe('无法根据名称生成访问路径，请手动填写（仅限小写字母、数字与连字符）');
 
     // …and taking the hint works.
     const typed = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ name: '神秘古堡', slug: `mystery-castle-${token()}`, difficulty: 'medium' });
+      .send({ name: '神秘古堡', slug: `mystery-castle-${token()}`, difficulty: 3 });
     expect(typed.status).toBe(200);
   });
 
@@ -1682,7 +1847,7 @@ describe('games API 展示顺序 (v0.8.3)', () => {
     // 只换难度、不提顺序 —— 行是 delete-then-insert，值必须由服务端带过去。
     const second = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug, difficulty: 'hard' });
+      .send({ slug, difficulty: 4 });
     expect(second.status).toBe(200);
     expect(second.body.data.sortWeight).toBe(7);
   });
@@ -1807,7 +1972,7 @@ describe('难度分级由主题定义 (v0.8.3)', () => {
     await purgeTheme(THEME_CODE);
   });
 
-  async function useTiers(levels: Array<{ key: string; label: string }>): Promise<void> {
+  async function useTiers(levels: Array<{ level: number; label: string }>): Promise<void> {
     const created = await api.post('/api/themes').send({ code: THEME_CODE, name: '分级测试主题' });
     if (created.status !== 200 && created.status !== 409) {
       throw new Error(`分级测试主题建不出来：${created.status}`);
@@ -1836,8 +2001,8 @@ describe('难度分级由主题定义 (v0.8.3)', () => {
 
   it('自定义档能部署；没提难度时取正中间那一档；内置档被拒', async () => {
     await useTiers([
-      { key: 'warmup', label: '热身' },
-      { key: 'brutal', label: '地狱' },
+      { level: 1, label: '热身' },
+      { level: 2, label: '地狱' },
     ]);
     const versionId = await deployableInTheme(`Tiered ${uniqueCode('t')}`, THEME_CODE);
 
@@ -1846,18 +2011,18 @@ describe('难度分级由主题定义 (v0.8.3)', () => {
       .send({ slug: uniqueSlug('tier-auto') });
     expect(auto.status).toBe(200);
     // 两档的「正中间」落在第一档 —— 关键是它**来自主题**，而不是写死的 medium。
-    expect(auto.body.data.difficulty).toBe('warmup');
+    expect(auto.body.data.difficulty).toBe(1);
 
     const custom = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug: uniqueSlug('tier-custom'), difficulty: 'brutal' });
+      .send({ slug: uniqueSlug('tier-custom'), difficulty: 2 });
     expect(custom.status).toBe(200);
-    expect(custom.body.data.difficulty).toBe('brutal');
+    expect(custom.body.data.difficulty).toBe(2);
 
-    // medium 是内置档，但这个主题只有两档 —— 整份替换，不是「内置 + 追加」。
+    // 第 3 档是内置五档里的 —— 但这个主题只有两档，整份替换，不是「内置 + 追加」。
     const rejected = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug: uniqueSlug('tier-nope'), difficulty: 'medium' });
+      .send({ slug: uniqueSlug('tier-nope'), difficulty: 3 });
     expect(rejected.status).toBe(400);
     expect(rejected.body.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(rejected.body.message).toContain('不是这个主题的难度分级');
@@ -2068,7 +2233,7 @@ describe('v0.7.1 谜题版本与部署', () => {
     const { draftId, versionId, puzzleName } = await deployablePuzzle(`Same ${uniqueCode('p')}`);
     const first = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ name: puzzleName, difficulty: 'medium' });
+      .send({ name: puzzleName, difficulty: 3 });
     expect(first.status).toBe(200);
 
     // 从 v1 fork 出草稿，直接发布成 v2（名册已复制，校验能过）。
@@ -2080,14 +2245,14 @@ describe('v0.7.1 谜题版本与部署', () => {
     // 中段不带版本号，所以名称相同 ⇒ 默认路径相同。
     const clash = await api
       .post(`/api/puzzles/${v2}/games`)
-      .send({ name: puzzleName, difficulty: 'medium' });
+      .send({ name: puzzleName, difficulty: 3 });
     expect(clash.status).toBe(400);
     expect(clash.body.message).toContain('已被占用');
 
     // 作者在中段里写点别的即可。
     const ok = await api
       .post(`/api/puzzles/${v2}/games`)
-      .send({ name: puzzleName, slug: uniqueSlug('same-second'), difficulty: 'medium' });
+      .send({ name: puzzleName, slug: uniqueSlug('same-second'), difficulty: 3 });
     expect(ok.status).toBe(200);
   });
 
@@ -2096,7 +2261,7 @@ describe('v0.7.1 谜题版本与部署', () => {
     const slug = uniqueSlug('cancel');
     const deploy = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug, difficulty: 'easy' });
+      .send({ slug, difficulty: 2 });
     expect(deploy.status).toBe(200);
     const gameId = deploy.body.data.id as number;
 
@@ -2125,7 +2290,7 @@ describe('v0.7.1 谜题版本与部署', () => {
     // slug 被释放：同一路径可以重新部署。
     const again = await api
       .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug, difficulty: 'easy' });
+      .send({ slug, difficulty: 2 });
     expect(again.status).toBe(200);
     expect(again.body.data.slug).toBe(slug);
 
@@ -2529,6 +2694,12 @@ afterAll(async () => {
     await rm(dir, { recursive: true, force: true });
   }
   for (const dir of uploadedMapCoverDirs) {
+    await rm(dir, { recursive: true, force: true });
+  }
+  for (const dir of uploadedPuzzleSymbolDirs) {
+    await rm(dir, { recursive: true, force: true });
+  }
+  for (const dir of uploadedThemeSymbolDirs) {
     await rm(dir, { recursive: true, force: true });
   }
 });

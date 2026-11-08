@@ -2,6 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { ForbiddenSymbolImage } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
 import { gameTimerKey } from '@/lib/gameTimer';
@@ -28,7 +29,7 @@ const fixture = vi.hoisted(() => ({
     name: '夜车',
     slug: 'night-train',
     coverUrl: null,
-    difficulty: 'easy',
+    difficulty: 2,
     gridSize: 9,
     participantCount: 3,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -55,6 +56,8 @@ const fixture = vi.hoisted(() => ({
       linkageColors: [],
       // v0.6.3 §3.4: the layout the puzzle was published with.
       rosterCols: 3,
+      // v0.8.6：默认没配置 —— 这一页的老行为（`×` 字形）必须先原样成立。
+      forbiddenSymbol: null as ForbiddenSymbolImage | null,
     },
   },
 }));
@@ -101,6 +104,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    fixture.detail.puzzle.forbiddenSymbol = null;
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -413,5 +417,68 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
     act(() => reset?.click());
     expect(container.textContent).toContain('100%');
+  });
+
+  /**
+   * v0.8.6（docs/v0.8.6.md §4）：禁止符号可以上传一张图。
+   *
+   * 只钉**画出来的是谁**：棋盘上那一格从 `×` 字形换成 `<img>`，地址由上传文件的
+   * 相对路径拼出来；没配置时仍然是原来那个 `×`。尺寸、内缩、类名都是外观，
+   * 不在这里钉。
+   */
+  describe('禁止符号用上传的图片（v0.8.6）', () => {
+    const symbolPath = 'puzzles/12/forbidden-symbol/red.webp';
+    const symbolUrl = '/api/files/puzzles/12/forbidden-symbol/red.webp';
+
+    it('puts the uploaded image on the board', () => {
+      fixture.detail.puzzle.forbiddenSymbol = { path: symbolPath };
+      seedSave({ board: { '4,4': { kind: 'forbidden' } } });
+      render();
+
+      const placed = container.querySelector('[data-testid="forbidden-4,4"]');
+      expect(placed).not.toBeNull();
+      expect(placed?.tagName).toBe('IMG');
+      expect(placed?.getAttribute('src')).toBe(symbolUrl);
+    });
+
+    it('keeps the × glyph when the puzzle configures no symbol', () => {
+      seedSave({ board: { '4,4': { kind: 'forbidden' } } });
+      render();
+
+      const placed = container.querySelector('[data-testid="forbidden-4,4"]');
+      expect(placed).not.toBeNull();
+      expect(placed?.tagName).toBe('text');
+      expect(placed?.textContent).toBe('×');
+    });
+
+    it('keeps the × glyph for an old version row that has no key at all', () => {
+      // v0.8.6 之前发布的版本行里没有这个键（连 `null` 都没有）。
+      delete (fixture.detail.puzzle as { forbiddenSymbol?: unknown }).forbiddenSymbol;
+      seedSave({ board: { '4,4': { kind: 'forbidden' } } });
+      render();
+
+      expect(container.querySelector('[data-testid="forbidden-4,4"]')?.tagName).toBe('text');
+    });
+
+    it('previews the same image in the tool-hint layer', () => {
+      fixture.detail.puzzle.forbiddenSymbol = { path: symbolPath };
+      render();
+      sizeCanvas();
+      // jsdom 没有真实布局：先按视口重排一次，再把指针放到画布中心。
+      act(() => container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click());
+      act(() => container.querySelector<HTMLButtonElement>('button[title^="禁止符号"]')?.click());
+      act(() => {
+        container
+          .querySelector('main')
+          ?.dispatchEvent(
+            new MouseEvent('pointermove', { bubbles: true, clientX: 450, clientY: 350 }),
+          );
+      });
+
+      const preview = Array.from(container.querySelectorAll('main img')).find(
+        (node) => node.getAttribute('src') === symbolUrl,
+      );
+      expect(preview).not.toBeUndefined();
+    });
   });
 });

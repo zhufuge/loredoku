@@ -109,6 +109,9 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
   for (const [index, game] of games.entries()) {
     const key = game.input.summary.slug;
     const cover = await takeCover(game.row, index + 1, files);
+    // v0.8.6 §4：一张上传的禁止符号图 —— 包内路径改写发生在这里（`shared/bundle`
+    // 只重编号资源 id，它没有文件系统，不知道文件在不在）。
+    const input = await takeForbiddenSymbol(game.input, key, files, problems);
     manifestGames.push({
       key,
       file: `puzzles/${key}.json`,
@@ -120,7 +123,7 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
     });
     originGames[key] = Number(game.row.id);
 
-    const file = buildBundlePuzzleFile(game.input, ids);
+    const file = buildBundlePuzzleFile(input, ids);
     puzzleEntries.push({ path: `puzzles/${key}.json`, data: json(file) });
   }
 
@@ -439,6 +442,39 @@ async function takeCover(
 ): Promise<string | null> {
   if (!row.cover_path) return null;
   return files.take(row.cover_path, `files/covers/${index}${extension(row.cover_path)}`);
+}
+
+/**
+ * v0.8.6 §4：一关的禁止符号图进包，并把该关 JSON 里的 `path` 改写成包内相对路径
+ * （与资源图同一条「包内相对地址」约定，由播放器的 `resolveFile` 拼到包根）。
+ *
+ * 目标文件名只用 `gameKey`：一关最多一张符号图，slug 已经唯一且只含 `[a-z0-9-]`。
+ * 源文件缺失时**不改写**，只记一条 `file` 问题 —— 反正 `problems` 非空时打包会在
+ * 构造下一律中止（§11.2），产出的 `path` 不会被交给任何人。
+ *
+ * 返回的是新的 `BundleGameInput`：`buildBundlePuzzleFile` 会 clone 谜题，但输入
+ * 本身还被别处用来算引用闭包，不能原地改。
+ */
+async function takeForbiddenSymbol(
+  game: BundleGameInput,
+  gameKey: string,
+  files: FileSink,
+  problems: BundleProblem[],
+): Promise<BundleGameInput> {
+  const sourcePath = game.puzzle.forbiddenSymbol?.path;
+  if (!sourcePath) return game;
+
+  const taken = await files.take(sourcePath, `files/symbols/${gameKey}${extension(sourcePath)}`);
+  if (!taken) {
+    problems.push({
+      game: game.summary.name,
+      where: '禁止符号',
+      kind: 'file',
+      message: `图片 ${sourcePath} 不在了`,
+    });
+    return game;
+  }
+  return { ...game, puzzle: { ...game.puzzle, forbiddenSymbol: { path: taken } } };
 }
 
 // ---- 小工具 ----

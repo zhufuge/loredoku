@@ -128,10 +128,21 @@ export async function updateGridSize(mapId: number, gridSize: number): Promise<R
    * 就是「主题之后怎么改都不追溯」。
    */
   const themeStyle = await themeService.defaultStyleOf(Number(row.theme_id ?? 0));
+  /**
+   * v0.8.6 §1：拷风格时**不带方格大小**。
+   *
+   * 概览页已经把「方格大小」从初始样式里拿掉了 —— 它不是风格，是这张图自己的事：
+   * 同一个 168px 在 4×4 和 20×20 的图上完全是两种粗细。如果主题里那个值还照样被
+   * 拷进新图，界面藏起来的这一项就仍在暗中决定新图的格子大小。
+   *
+   * 置 `null` = 「按画布自适应」，也就是新图本该有的起点。想定死尺寸就去那张图的
+   * 「基本信息」里写 —— 那里才是它的入口。
+   */
+  const initialStyle = themeStyle ? { ...themeStyle, cellSize: null } : undefined;
   const outcome = await mapCanvasRepo.resizeDraft(
     mapId,
     gridSize,
-    themeStyle ? { initialStyle: themeStyle } : undefined,
+    initialStyle ? { initialStyle } : undefined,
   );
   if (!outcome || outcome.record.draft === null) {
     throw AppError.notFound('地图不存在');

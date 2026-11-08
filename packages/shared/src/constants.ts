@@ -832,17 +832,17 @@ export const EDITOR_TOOLS = ['select', 'region', 'character', 'eraser', 'pan'] a
 export const MAX_HISTORY_STEPS = 50;
 
 // ---- v0.4.0 games (docs/v0.4.0.md §5 / §7 / §10) ----
-/** FEAT-G02: the five difficulty tiers — a green → red ramp outside the linkage palette. */
+/**
+ * v0.4 的内置五档**名字**。
+ *
+ * v0.8.6 起难度在库里存的是**数字档位**（`games.difficulty` 已经是 smallint），
+ * 这五个名字只剩两处还在用：v0.8.1 之前的老路径里剥难度后缀
+ * （`GAME_DIFFICULTY_SLUGS`），以及 v0.8.6 那条迁移把旧值换成数字。
+ * 界面上一个都不会出现 —— 徽章上的字来自主题的 `difficultyLevels[].label`。
+ */
 export const GAME_DIFFICULTY_LEVELS = ['veryEasy', 'easy', 'medium', 'hard', 'expert'] as const;
 
-export const GAME_DIFFICULTY_LABELS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
-  veryEasy: 'Very Easy',
-  easy: 'Easy',
-  medium: 'Medium',
-  hard: 'Hard',
-  expert: 'Expert',
-};
-
+/** 内置五档的中文名 —— 主题没配分级时，默认那五档的 `label`。 */
 export const GAME_DIFFICULTY_LABELS_ZH: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
   veryEasy: '极简',
   easy: '简单',
@@ -864,6 +864,9 @@ export const GAME_DIFFICULTY_LABELS_ZH: Record<(typeof GAME_DIFFICULTY_LEVELS)[n
  * `background-color: var(--difficulty-*-bg)` 展开后是 `background-color: 150 34% 92%`
  * —— 不是合法颜色值，浏览器整条丢弃，徽章就只剩文字、没有底色。`hsl()` 写在
  * 这里而不是变量里，是为了不破坏「三元组供 `hsl(var(--x) / <alpha>)` 复用」的约定。
+ *
+ * v0.8.6：主题可以给每一档指定颜色了，这两张表退成**兜底** —— 没指定颜色的档
+ * 仍按位置落在坡上，存量主题一个像素都不变。
  */
 export const GAME_DIFFICULTY_COLORS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
   veryEasy: 'hsl(var(--difficulty-very-easy-bg))',
@@ -885,24 +888,36 @@ export const GAME_DIFFICULTY_TEXT_COLORS: Record<
   expert: 'hsl(var(--difficulty-expert-fg))',
 };
 
-/** FEAT-G02: the default tier pre-selected in the deploy dialog. */
-export const GAME_DIFFICULTY_DEFAULT: (typeof GAME_DIFFICULTY_LEVELS)[number] = 'medium';
+/** FEAT-G02: the default tier pre-selected in the deploy dialog —— 第 3 档（原 `medium`）。 */
+export const GAME_DIFFICULTY_DEFAULT_LEVEL = 3;
 
 /**
- * v0.8.3：难度**标识**的字符集 —— 难度分级不再写死在 shared 里，主题可以在概览页
- * 自己定义几档（见 `themeDataSchema.difficultyLevels`）。
+ * v0.8.6：档位数字的取值区间。
  *
- * 它落进 `games.difficulty` 列，也出现在部署弹窗的 `aria-pressed` 与资源包
- * manifest 里，所以只允许「字母开头 + 字母 / 数字 / 连字符」。
- *
- * **大小写都收**：内置五档是 v0.4 定下的 camelCase（`veryEasy` / `expert`），库里
- * 每一行都写着它们；要收紧成纯小写就得改数据、改历史包的 manifest。一个标识符，
- * 不是 URL 片段，大小写没有歧义 —— 所以规则里放行，界面也只展示、不让人手打。
- *
- * 上限 32 与列宽同步 —— 放开到 256 只会让徽章排版先在别处崩掉。
+ * 数字**就是**顺序 —— 1 是最容易的一档，也是落进 `games.difficulty` 的值。上限
+ * 99 而不是 5：主题可以删档，删掉中间一档后后面那些不必重编号（重编号等于把
+ * 已经在用的关卡集体搬走），留出空档才是对的。
  */
-export const GAME_DIFFICULTY_KEY_PATTERN = /^[A-Za-z][A-Za-z0-9]*(-[A-Za-z0-9]+)*$/;
-export const GAME_DIFFICULTY_KEY_MAX_LENGTH = 32;
+export const GAME_DIFFICULTY_LEVEL_MIN = 1;
+export const GAME_DIFFICULTY_LEVEL_MAX = 99;
+
+/**
+ * v0.8.6：内置那条热力坡的**取色点**（浅色主题下的前景色 hex）。
+ *
+ * 主题没给某一档指定颜色时，徽章仍按这一档在分级里的位置落在这条坡上 —— 视觉与
+ * v0.8.3 完全一致，存量主题不需要补数据。分级弹窗里的取色器也拿它当初始值，
+ * 于是「打开弹窗看到的那颗色」就是徽章此刻正在用的色。
+ */
+export const GAME_DIFFICULTY_RAMP_HEX = [
+  '#285d44',
+  '#2f5c2d',
+  '#714e19',
+  '#7a3d1f',
+  '#802b28',
+] as const;
+
+/** v0.8.6：主题自定义的难度色 —— 只收 `#rrggbb`（取色器给的就是这个）。 */
+export const THEME_DIFFICULTY_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
 /** v0.8.3：一个主题最多定义几档难度 —— 超过一屏就没人读得完，也没人会做。 */
 export const THEME_DIFFICULTY_TIER_MAX = 12;
@@ -976,7 +991,12 @@ export const GAME_SLUG_MAX_LENGTH = 80;
 /** Only lower-case letters, digits and single dashes — no unicode, no spaces. */
 export const GAME_SLUG_PATTERN = /^[a-z0-9-]+$/;
 
-/** OPT-W04 §4.3: difficulty → URL segment (never leak `veryEasy` camelCase). */
+/**
+ * OPT-W04 §4.3: difficulty → URL segment (never leak `veryEasy` camelCase).
+ *
+ * v0.8.6：难度不再落进新路径（v0.8.1 就去掉了后缀），这张表只剩「剥掉老路径
+ * 尾部的难度后缀」一个用途。
+ */
 export const GAME_DIFFICULTY_SLUGS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
   veryEasy: 'very-easy',
   easy: 'easy',
@@ -1011,6 +1031,17 @@ export const UPLOAD_ALLOWED_MIME = [
   'image/svg+xml',
 ] as const;
 export const THUMBNAIL_MAX_DIMENSION = 512;
+
+/**
+ * v0.8.6（docs/v0.8.6.md §4）：禁止符号那张图的长边上限（像素）。
+ *
+ * 它画在格子里的有效面积不到一格，256px 已经够 4K 屏；再大只是让一份谜题 JSON
+ * 从几 KB 变成几 MB（图是内联在谜题数据里的，见 `ForbiddenSymbolImage`）。
+ */
+export const FORBIDDEN_SYMBOL_MAX_DIMENSION = 256;
+
+/** v0.8.6：`forbiddenSymbol.path` 的长度上限（`storage/uploads` 下的相对路径）。 */
+export const FORBIDDEN_SYMBOL_PATH_MAX_LENGTH = 200;
 
 // ---- Pagination ----
 export const DEFAULT_PAGE = 1;

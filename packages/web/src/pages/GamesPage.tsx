@@ -10,7 +10,7 @@ import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useGames } from '@/hooks/useGames';
-import { useThemeDeployments } from '@/hooks/useThemes';
+import { useDifficultyTiersByCode, useThemeDeployments } from '@/hooks/useThemes';
 import { workshopPath } from '@/lib/workspace';
 
 /**
@@ -30,6 +30,11 @@ export function GamesPage(): JSX.Element {
   const navigate = useNavigate();
   const gamesQuery = useGames();
   const deploymentsQuery = useThemeDeployments();
+  /**
+   * v0.8.6 §3.6：这一页在工作空间外面，徽章读不到主题的分级 —— 每张卡按它自己的
+   * `themeCode` 去查。单局段里可能并排站着两个主题的关卡，各显示各的叫法。
+   */
+  const tiersFor = useDifficultyTiersByCode();
   const games = useMemo(() => gamesQuery.data ?? [], [gamesQuery.data]);
   const deployments = useMemo(() => deploymentsQuery.data ?? [], [deploymentsQuery.data]);
 
@@ -155,7 +160,7 @@ export function GamesPage(): JSX.Element {
                 </h2>
                 <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
                   {singles.map((game) => (
-                    <GameCard key={game.id} game={game} />
+                    <GameCard key={game.id} game={game} tiers={tiersFor(game.themeCode)} />
                   ))}
                 </div>
               </section>

@@ -69,7 +69,7 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
               <span className="text-2xs"> · 与主题一致</span>
             )
           ) : (
-            <span className="text-2xs"> · 主题还没有缺省风格</span>
+            <span className="text-2xs"> · 主题还没有初始样式</span>
           )}
         </p>
         <Button
@@ -93,7 +93,7 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
             <div className="space-y-3">
               {diffs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  这张图与主题的缺省风格完全一致，没有需要看的差异。
+                  这张图与主题的初始样式完全一致，没有需要看的差异。
                 </p>
               ) : (
                 <div className="max-h-72 overflow-y-auto rounded-md border">
@@ -153,7 +153,7 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
           ) : (
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                这个主题还没有缺省风格。之后新建的地图会从「一张已经有风格的图」抄一份。
+                这个主题还没有初始样式。之后新建的地图会从「一张已经有风格的图」抄一份。
               </p>
               <div className="flex justify-end">{setAsThemeButton}</div>
             </div>

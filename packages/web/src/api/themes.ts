@@ -45,6 +45,21 @@ export const themesApi = {
     apiPatch<Theme>(`/themes/${code}`, payload),
   remove: (code: string) => apiDelete<null>(`/themes/${code}`),
 
+  /**
+   * v0.8.6 §4 —— 主题级的「禁止符号」缺省。
+   *
+   * 与其它 `data` 修改不同，这两个端点**即时保存**：上传 / 移除当场写进 `themes.data`
+   * 并回更新后的整份主题，概览页因此不需要「保存」。图落在 `storage/uploads` 下，
+   * `data.forbiddenSymbol.path` 只记相对路径（渲染时 `fileUrlFromPath` 拼地址）。
+   */
+  uploadForbiddenSymbol: (code: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<Theme>(`/themes/${code}/forbidden-symbol`, form);
+  },
+  removeForbiddenSymbol: (code: string) =>
+    apiDelete<Theme>(`/themes/${code}/forbidden-symbol`),
+
   // ---- 合辑 ----
   deployments: () => apiGet<ThemeDeploymentSummary[]>('/theme-deployments'),
   deploymentBySlug: (slug: string) =>

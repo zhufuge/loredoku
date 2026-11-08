@@ -44,6 +44,26 @@ export async function remove(ctx: Context): Promise<void> {
   success(ctx, null, '主题已删除');
 }
 
+/**
+ * v0.8.6 §4：主题的「禁止符号缺省」上传 / 清除。
+ *
+ * 回执是**更新后的主题**（而不是单独的 `path`）：作者改的是主题配置，前端拿到
+ * 整份就能直接刷新那一屏。两张图的旧文件都不删 —— 存量谜题可能还指着它们。
+ */
+export async function uploadForbiddenSymbol(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw themeService.forbiddenSymbolRequired();
+  }
+  success(ctx, await themeService.uploadForbiddenSymbol(code, file.buffer), '禁止符号已保存');
+}
+
+export async function removeForbiddenSymbol(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  success(ctx, await themeService.removeForbiddenSymbol(code), '禁止符号已清除');
+}
+
 // ---- 合辑 ----
 
 export async function listDeployments(ctx: Context): Promise<void> {

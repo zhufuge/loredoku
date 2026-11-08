@@ -70,6 +70,7 @@ import {
   readGameTimer,
   writeGameTimer,
 } from '@/lib/gameTimer';
+import { resolveForbiddenSymbolImage } from '@/lib/forbiddenSymbol';
 import { rosterPanelWidthFor } from '@/lib/participantLayout';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
@@ -340,6 +341,15 @@ export function GamePage(): JSX.Element {
     for (const item of assetsQuery.data ?? []) map.set(item.id, item);
     return map;
   }, [assetsQuery.data]);
+
+  /**
+   * v0.8.6：这一局禁止符号画什么。`null` = 没配置（缺席 / `null`，含所有旧版本行），
+   * 两个游戏图层都退回原来那枚 `×`（放置层黑字、提示层绿字）。
+   */
+  const forbiddenSymbol = useMemo(
+    () => resolveForbiddenSymbolImage(detail?.puzzle?.forbiddenSymbol),
+    [detail],
+  );
 
   const charactersById = useMemo(() => {
     const map = new Map<number, Character>();
@@ -1396,6 +1406,7 @@ export function GamePage(): JSX.Element {
               cell={hoverEffects.cell}
               cellSize={cellSize}
               slots={slots}
+              forbiddenSymbol={forbiddenSymbol}
             />
 
             {/* v0.7.11：长按进度环 —— 按住 500ms 的等待可见化（SPEC-J02）。
@@ -1432,6 +1443,8 @@ export function GamePage(): JSX.Element {
               settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
               /* v0.7.11：刚放下的编号 / 禁止符号各「盖章」一次。 */
               pulse={pulse}
+              /* v0.8.6：配置了图片时，放下的禁止符号画那张图而不是 `×`。 */
+              forbiddenSymbol={forbiddenSymbol}
             />
 
             <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
@@ -1474,7 +1487,27 @@ export function GamePage(): JSX.Element {
             title="禁止符号：标记该格为排除项"
             onClick={() => toggleTool('forbidden')}
           >
-            <X className="h-5 w-5 text-destructive" />
+            {/*
+              v0.8.6：这条谜题给禁止符号配了图，工具按钮就画**同一张图** ——
+              按钮上是什么，落下去就是什么（v0.6.4 给编号立下的规矩，v0.8.6 已用
+              在工具提示层）。没配时才退回那枚红色 `×` 字形。
+
+              深色界面要翻一次：这些图多半是「深墨画在透明底上」（作者是按浅色的
+              地图纸挑的），直接放在 `bg-background` 上等于没有。`invert` 把明度
+              翻过来，`hue-rotate-180` 再把色相转回去 —— 只用 `invert` 的话，一枚
+              红印在深色下会变成青色。
+            */}
+            {forbiddenSymbol ? (
+              <img
+                src={forbiddenSymbol.imageUrl}
+                alt=""
+                draggable={false}
+                data-testid="forbidden-tool-icon"
+                className="h-5 w-5 select-none object-contain dark:invert dark:hue-rotate-180"
+              />
+            ) : (
+              <X className="h-5 w-5 text-destructive" />
+            )}
           </Button>
           <Button
             variant="ghost"

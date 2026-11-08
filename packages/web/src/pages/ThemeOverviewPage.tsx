@@ -1,11 +1,13 @@
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowDown, ArrowUp, ChevronRight, Plus, RotateCcw, Trash2 } from 'lucide-react';
+import { ChevronRight, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import {
   DEFAULT_DIFFICULTY_TIERS,
   DEFAULT_MAP_STYLE,
+  fileUrlFromPath,
   MAP_STYLE_DIFF_GROUPS,
-  nextDifficultyKey,
+  difficultySwatchColor,
+  nextDifficultyLevel,
   resolveDifficultyTiers,
   THEME_DIFFICULTY_TIER_MAX,
   type MapStyle,
@@ -28,15 +30,26 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ColorField } from '@/components/ui/color-input';
+import { ColorField, ColorInput } from '@/components/ui/color-input';
 import { IconButton } from '@/components/ui/icon-button';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { DifficultyBadge } from '@/components/game/DifficultyBadge';
-import { NumberField } from '@/components/map-editor/StyleFields';
-import { useDeleteTheme, useUpdateTheme } from '@/hooks/useThemes';
-import { isValidShadowColor } from '@/lib/mapStyle';
-import { THEME_STYLE_FIELDS, writeStyleValue } from '@/lib/themeStyleFields';
+import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
+import {
+  useDeleteTheme,
+  useRemoveThemeForbiddenSymbol,
+  useUpdateTheme,
+  useUploadThemeForbiddenSymbol,
+} from '@/hooks/useThemes';
+import { isValidShadowColor, isValidStyleColor } from '@/lib/mapStyle';
+import {
+  resetThemeStyle,
+  THEME_STYLE_FIELDS,
+  THEME_STYLE_GROUP_HINTS,
+  writeStyleValue,
+  type ThemeStyleField,
+} from '@/lib/themeStyleFields';
 import { SETTINGS_THEMES_PATH, type ModuleKey } from '@/lib/workspace';
 import { MODULE_ICONS } from '@/lib/moduleIcons';
 
@@ -76,7 +89,7 @@ const COUNT_LINKS = [
  *
  * - **五格计数**当入口（大数字 + 箭头），点了就去对应模块；第五格是部署；
  * - **四行信息**：名称、编码、描述、识别色 —— 都是「别处改、这里看」的；
- * - **缺省风格**：二十几项按网格 / 边框 / 标签 / 光标列成清单，可整份编辑（v0.8.3）；
+ * - **地图初始样式**：二十几项按网格 / 边框 / 标签 / 光标列成清单，可整份编辑（v0.8.3）；
  * - **难度分级**：这个空间认可哪几档，可增删改（v0.8.3）；
  * - **动作平铺**：编辑信息、删除各是一个按钮（v0.8.3 去掉了 `⋯`）。
  *
@@ -108,7 +121,7 @@ export function ThemeOverviewPage(): JSX.Element {
   }
 
   const accent = theme.data.accent ?? null;
-  /** 没有缺省风格的主题，渲染的是**新建地图时会拿到的**那份 —— 清单不能是空的。 */
+  /** 没有初始样式的主题，渲染的是**新建地图时会拿到的**那份 —— 清单不能是空的。 */
   const style = theme.data.style ?? DEFAULT_MAP_STYLE;
   const tiers = resolveDifficultyTiers(theme.data.difficultyLevels);
 
@@ -206,57 +219,84 @@ export function ThemeOverviewPage(): JSX.Element {
       </Card>
 
       {/*
-       * v0.8.3 §2：缺省风格。
+       * v0.8.6 §1：「缺省风格」改名「地图初始样式」。原来那个词要读者先知道
+       * 「缺省」是 default 的旧译，再猜「风格」指的是地图的样式 —— 而这个区块
+       * 全部的用途就是「告诉新建的那张图长什么样」。
        *
-       * 以前这一行只写「去地图的『基本信息』里用『设为主题风格』写入」—— 那是一句
-       * 操作指引，读者还得再走四步。现在它是一张**清单**：二十几项按四个分组列全，
-       * 每项一行「名字 + 当前值」，右上角一个「编辑」把整份打开成表单。
+       * 也不再写一句副标题（「新建地图时抄这一份；已经画好的图不受影响」）：
+       * 清单本身就是答案，一句话解释一个已经看得见的东西只占了第一屏。
        */}
       <Card className="space-y-3 px-4 py-4">
-        <CardHead
-          title="缺省风格"
-          description="新建地图时抄这一份；已经画好的图不受影响。"
-          onEdit={() => setStyleOpen(true)}
-          editLabel="编辑缺省风格"
-        />
-        <div className="grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
+        <CardHead title="地图初始样式" onEdit={() => setStyleOpen(true)} />
+        {/*
+         * v0.8.7 §1 —— 这份清单从「三列流式网格」改成「多栏」。
+         *
+         * 原来每个组标题 `col-span-full`，于是每组都要另起一行、组尾剩下一两个
+         * 空格：网格（2 项）占两格留一格，边框（5 项）占两行留一格，光标（7 项）
+         * 占两行留两格 —— 右半边参差着四个洞，读起来像一张没对齐的表。
+         *
+         * 现在用 CSS 多栏（`columns-*`）：组是**一栏里的一段**，浏览器按内容高度
+         * 把四段分进三栏（2+5 / 9 / 7 行），既没有洞，也不用手写「哪组进哪栏」的
+         * 表 —— 那种表每加一组就要跟着改一次。`break-inside-avoid` 保证一组不会
+         * 被从中间劈到两栏。
+         */}
+        <div className="columns-1 gap-x-10 lg:columns-3">
           {MAP_STYLE_DIFF_GROUPS.map((group) => {
             const rows = THEME_STYLE_FIELDS.filter((field) => field.group === group);
             return (
-              <Fragment key={group}>
-                <h4 className="col-span-full mt-1 text-2xs font-medium text-muted-foreground first:mt-0">
+              <section key={group} className="mb-5 break-inside-avoid last:mb-0">
+                {/*
+                 * 组名从「几乎和行标签同色同号的 10px 小字」提成**栏头**：稍重一点的
+                 * 颜色 + 一条通栏细线。它原来是靠「另起一行」来划分组的，现在组在
+                 * 栏里上下相接，只靠位置已经分不开了。
+                 */}
+                <h4 className="mb-1.5 border-b border-border pb-1 text-2xs font-medium tracking-[0.08em] text-foreground/70">
                   {group}
                 </h4>
-                {rows.map((field) => (
-                  <div
-                    key={field.key}
-                    className="flex items-baseline justify-between gap-3 border-b border-border/60 py-1 last:border-b-0"
-                  >
-                    <span className="truncate text-xs text-muted-foreground">{field.label}</span>
-                    <StyleValue kind={field.kind} text={field.format(style)} />
-                  </div>
-                ))}
-              </Fragment>
+                {/*
+                 * 行不再是一个个 `justify-between` 的 div：`dt` / `dd` 是同一个网格的
+                 * 两列，值列宽度由**这一组里最长的值**决定，于是同一组的右边缘落在
+                 * 一条线上 ——「4px」和「12px」的末位对齐，七个字符的色值自然也排成
+                 * 一列。用 `justify-between` 时值贴的是列右边缘，而列宽 373px，标签
+                 * 与值之间隔着大半列空白，读一行要横着扫过去。
+                 *
+                 * 为什么只对齐到「组」：网格是每组一份（组要 `break-inside-avoid`，
+                 * 不能拆到两栏）。组与组之间差几个像素，值都还是贴着自己那条右边缘。
+                 *
+                 * **两套列宽是有意的**：`lg` 以上一栏 373px，右对齐像一张表；`lg` 以下
+                 * 整页只剩一栏（宽 500+），同样右对齐的话标签与值之间会空出半行，读一行
+                 * 要横跨半屏 —— 那时改成「标签按内容宽、值紧跟其后」。单栏里没人拿它竖着
+                 * 扫，组与组差几个像素不算问题。
+                 *
+                 * 也就不画行分隔线了：二十几条横线只把纸面切成格子，而每一行短的
+                 * 只有二十来个字，靠行距已经分得开。组与组之间剩下的那点空间，正好
+                 * 交给栏头那条线。
+                 */}
+                <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1 lg:grid-cols-[minmax(0,1fr)_max-content]">
+                  {rows.map((field) => (
+                    <Fragment key={field.key}>
+                      <dt className="truncate text-xs text-muted-foreground">{field.label}</dt>
+                      <dd>
+                        <StyleValue kind={field.kind} text={field.format(style)} />
+                      </dd>
+                    </Fragment>
+                  ))}
+                </dl>
+              </section>
             );
           })}
         </div>
       </Card>
 
+      {/* v0.8.6 §4：主题级的「禁止符号」缺省。与地图初始样式同属「新建内容长什么样」。 */}
+      <ForbiddenSymbolCard theme={theme} />
+
       {/* v0.8.3 §3：难度分级。徽章就是部署页 / 游戏卡上那一枚，所见即所得。 */}
       <Card className="space-y-3 px-4 py-4">
-        <CardHead
-          title="难度分级"
-          description={
-            theme.data.difficultyLevels
-              ? '部署关卡时从这几档里挑，顺序即由易到难。'
-              : '还没改过，用的是内置五档；部署关卡时从这几档里挑。'
-          }
-          onEdit={() => setTiersOpen(true)}
-          editLabel="编辑难度分级"
-        />
+        <CardHead title="难度分级" onEdit={() => setTiersOpen(true)} />
         <div className="flex flex-wrap gap-2">
           {tiers.map((tier) => (
-            <DifficultyBadge key={tier.key} difficulty={tier.key} tiers={tiers} className="px-2.5 py-1 text-xs" />
+            <DifficultyBadge key={tier.level} difficulty={tier.level} tiers={tiers} className="px-2.5 py-1 text-xs" />
           ))}
         </div>
       </Card>
@@ -279,45 +319,144 @@ function FactRow({ label, children }: { label: string; children: ReactNode }): J
   );
 }
 
-/** 清单卡片的头：标题 + 一句口径 + 「编辑」。三个区块共用。 */
-function CardHead({
-  title,
-  description,
-  onEdit,
-  editLabel,
-}: {
-  title: string;
-  description: string;
-  onEdit: () => void;
-  /** 两个区块并排时，两个都叫「编辑」读者分不清是哪一个。 */
-  editLabel: string;
-}): JSX.Element {
+/**
+ * 清单卡片的头：标题 + 「编辑」。两个区块共用。
+ *
+ * v0.8.6 §1：**去掉了副标题**，按钮也不再写「编辑缺省风格 / 编辑难度分级」。
+ *
+ * 副标题那两句都是在解释一个已经看得见的清单（「新建地图时抄这一份」/「部署关卡时
+ * 从这几档里挑」），占掉的却是第一屏。按钮写成「编辑」是因为它就贴着那张卡片的
+ * 标题 —— 眼睛已经把「编辑」和上面那行字连起来了，再复述一遍主语只是更长。
+ *
+ * 但**可访问名**不能只有「编辑」：两个同名按钮对屏幕阅读器是灾难，读出来一模一样。
+ * 所以视觉文案是「编辑」，`aria-label` 仍是「编辑地图初始样式 / 编辑难度分级」。
+ *
+ * v0.8.6 §4：「禁止符号」卡片没有「编辑」这一步（上传 / 移除即时保存），所以
+ * `onEdit` 是可选的 —— 不给就只渲染标题。
+ */
+function CardHead({ title, onEdit }: { title: string; onEdit?: () => void }): JSX.Element {
   return (
     <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h3 className="font-kai text-base leading-tight">{title}</h3>
-        <p className="mt-1 text-2xs leading-relaxed text-muted-foreground">{description}</p>
-      </div>
-      <Button variant="outline" size="sm" className="shrink-0" onClick={onEdit}>
-        {editLabel}
-      </Button>
+      <h3 className="font-kai text-base leading-tight">{title}</h3>
+      {onEdit ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          aria-label={`编辑${title}`}
+          onClick={onEdit}
+        >
+          编辑
+        </Button>
+      ) : null}
     </div>
   );
 }
 
-/** 清单里的一格值：颜色给色块 + 色值，别的一律等宽字。 */
+/**
+ * v0.8.6 §4：主题级的「禁止符号」缺省 —— 本主题**新建**谜题时抄过去的那张图。
+ *
+ * 与「地图初始样式」同属一类：只影响新建那一刻，之后各走各的。所以这里不提供
+ * 「批量改已有谜题」的入口，也不假装有 —— 已在编辑的谜题、已发布的关卡各自冻着
+ * 自己那张（后者的版本行是一份快照）。
+ *
+ * 交互刻意不做弹窗：整个设置只有一张图，上传 / 移除就是最终动作，服务端即时保存。
+ * 再套一层「编辑 → 保存」，多出来的两次点击换不到任何可撤销性（这里本来就没有
+ * 取消的语义）。预览与按钮放在同一行，让「现在是什么」和「能改成什么」一眼对上。
+ */
+function ForbiddenSymbolCard({ theme }: { theme: Theme }): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const upload = useUploadThemeForbiddenSymbol(theme.code);
+  const remove = useRemoveThemeForbiddenSymbol(theme.code);
+  const current = theme.data.forbiddenSymbol ?? null;
+  const busy = upload.isPending || remove.isPending;
+
+  return (
+    <Card className="space-y-3 px-4 py-4">
+      <CardHead title="禁止符号" />
+      <div className="flex items-start gap-4">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
+          {current ? (
+            <img
+              src={fileUrlFromPath(current.path)}
+              alt="禁止符号"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            /* 没有缺省 = 新建谜题仍拿到默认的 × 字形，占位就画这一枚。 */
+            <X className="h-6 w-6 text-muted-foreground" aria-hidden />
+          )}
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+            >
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              {upload.isPending ? '上传中…' : current ? '更换' : '上传图片'}
+            </Button>
+            {current ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                disabled={busy}
+                onClick={() => remove.mutate()}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                {remove.isPending ? '移除中…' : '移除'}
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-2xs leading-relaxed text-muted-foreground">
+            这张图会作为新建谜题的默认禁止符号；已在编辑的谜题与已发布的关卡不追溯。
+          </p>
+        </div>
+      </div>
+      {/*
+       * 隐藏的 file input：按钮点它、选完立刻上传，`value` 清空是为了选同一张图
+       * 再点一次也能触发 change。
+       */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          if (!file) return;
+          upload.mutate(file);
+        }}
+      />
+    </Card>
+  );
+}
+
+/**
+ * 清单里的一格值：颜色给色块 + 色值，别的一律等宽字。
+ *
+ * v0.8.7 §1：字号从 10px 提到 12px，色块跟着从 10px 提到 12px。这一格不是「备注」——
+ * 它是整个区块的**正文**（26 项值），而 10px 的等宽字在 1440 宽的屏幕上看是灰点。
+ * 标签仍是 12px 的 `muted`：层级靠颜色，不靠字号 —— 大小再差一档，行就要矮回去了。
+ */
 function StyleValue({ kind, text }: { kind: string; text: string }): JSX.Element {
   const isColor = kind === 'color' && /^#[0-9a-fA-F]{6}$/.test(text);
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5">
+    <span className="inline-flex items-center gap-1.5">
       {isColor ? (
         <span
           aria-hidden
-          className="h-2.5 w-2.5 rounded-sm ring-1 ring-inset ring-border"
+          className="h-3 w-3 rounded-sm ring-1 ring-inset ring-border"
           style={{ backgroundColor: text }}
         />
       ) : null}
-      <span className="font-mono text-2xs text-foreground">{text}</span>
+      <span className="font-mono text-xs tabular-nums text-foreground">{text}</span>
     </span>
   );
 }
@@ -442,7 +581,25 @@ function EditThemeDialog({
 }
 
 /**
- * v0.8.3 §2：缺省风格表单。
+ * v0.8.6 §1.6：光标那七个字段在抽屉里分属两个带框的小节 —— 鼠标框跟着指针走，
+ * 操作框钉在当前操作格上，两者只是碰巧都叫「框」。摊成七行平铺，作者读到「阻挡色」
+ * 得自己回想它属于哪一个。
+ */
+const CURSOR_BOXES = [
+  {
+    key: 'mouseCursorBox',
+    title: '鼠标光标框',
+    hint: 'Mouse Cursor Box — 跟着指针走，画布最高层。',
+  },
+  {
+    key: 'operationCursorBox',
+    title: '操作光标框',
+    hint: 'Operation Cursor Box — 钉在当前操作格上，画在网格线外侧。',
+  },
+] as const;
+
+/**
+ * v0.8.3 §2：地图初始样式表单。
  *
  * 字段表来自 `THEME_STYLE_FIELDS`（同一份 `MAP_STYLE_FIELDS` + 各自怎么写），所以
  * 这里不重复列二十几行 JSX —— 那种写法每加一个风格字段都要改两处，而漏掉的那一处
@@ -482,56 +639,87 @@ function ThemeStyleDialog({
     onOpenChange(false);
   }
 
+  /** 一组里的字段，顺序仍由 `MAP_STYLE_FIELDS` 决定 —— 页面不另排。 */
+  const fieldsOf = (group: string): readonly ThemeStyleField[] =>
+    THEME_STYLE_FIELDS.filter((field) => field.group === group);
+
+  const renderField = (field: ThemeStyleField): JSX.Element => (
+    <Row key={field.key} label={field.label} hint={field.hint}>
+      <StyleFieldControl
+        field={field}
+        value={field.read(style)}
+        onChange={(next) => set(field.key, next)}
+      />
+    </Row>
+  );
+
+  /**
+   * v0.8.6 §1.6：正文的骨架照「地图基本信息」抽屉 —— 分区之间有下边框、标题后面
+   * 一个问号、行是「标签 —— 控件」（`Row`），光标那七个字段收成两个带框的小节。
+   *
+   * 弹窗原来读起来散：672px 宽的对话框里，标签贴着左边缘、控件贴着右边缘，中间
+   * 空出一百多像素，二十几行之间既没有线也没有分区；而同一批字段在抽屉里是 320px
+   * 一栏的表单，一行挨着一行。**同一件事在两处长成两样**，作者每次都要重学一遍
+   * 「这一行改的是哪一项」。
+   *
+   * 于是这里只改版式，不加字段：宽度收到一栏，分组标题从「灰字」变成「分区」，
+   * 行离得近一点，光标两个框各自围一个边。
+   */
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>缺省风格 · {theme.name}</DialogTitle>
+      <DialogContent className="max-w-sm gap-0 p-0">
+        <DialogHeader className="border-b px-4 py-3">
+          <DialogTitle className="text-sm font-semibold">
+            地图初始样式 · {theme.name}
+          </DialogTitle>
         </DialogHeader>
-        <div className="max-h-[64vh] space-y-4 overflow-y-auto pr-1">
+        <div className="max-h-[62vh] overflow-y-auto">
           {MAP_STYLE_DIFF_GROUPS.map((group) => (
-            <section key={group} className="space-y-2">
-              <h4 className="text-xs font-medium text-muted-foreground">{group}</h4>
-              <div className="space-y-1.5">
-                {THEME_STYLE_FIELDS.filter((field) => field.group === group).map((field) => {
-                  const value = field.read(style);
-                  return (
-                    <div key={field.key} className="flex items-center justify-between gap-3">
-                      <Label className="text-2xs font-normal text-muted-foreground">
-                        {field.label}
-                      </Label>
-                      <StyleFieldControl
-                        field={field}
-                        value={value}
-                        onChange={(next) => set(field.key, next)}
-                      />
+            <section key={group} className="space-y-2 border-b px-4 py-3 last:border-b-0">
+              <h3 className="flex items-center text-xs font-semibold text-foreground">
+                <span>{group}</span>
+                <Hint text={THEME_STYLE_GROUP_HINTS[group] ?? group} />
+              </h3>
+              {group === '光标' ? (
+                <div className="space-y-2">
+                  {CURSOR_BOXES.map((box) => (
+                    <div key={box.key} className="space-y-1.5 rounded-md border p-2">
+                      <span className="flex items-center text-2xs font-medium">
+                        <span>{box.title}</span>
+                        <Hint text={box.hint} />
+                      </span>
+                      {fieldsOf(group)
+                        .filter((field) => field.key.startsWith(`${box.key}.`))
+                        .map(renderField)}
                     </div>
-                  );
-                })}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">{fieldsOf(group).map(renderField)}</div>
+              )}
             </section>
           ))}
         </div>
-        <div className="flex items-center justify-between gap-2 pt-2">
+        <footer className="flex items-center justify-between gap-2 border-t px-4 py-3">
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="text-muted-foreground"
-            onClick={() => setStyle(DEFAULT_MAP_STYLE)}
+            onClick={() => setStyle((current) => resetThemeStyle(current))}
           >
             <RotateCcw className="mr-1 h-3.5 w-3.5" />
             恢复默认
           </Button>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+            <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
               取消
             </Button>
-            <Button onClick={() => void submit()} disabled={update.isPending}>
+            <Button size="sm" onClick={() => void submit()} disabled={update.isPending}>
               {update.isPending ? '保存中…' : '保存'}
             </Button>
           </div>
-        </div>
+        </footer>
       </DialogContent>
     </Dialog>
   );
@@ -559,55 +747,62 @@ function StyleFieldControl({
   }
 
   if (field.kind === 'number') {
+    /**
+     * v0.8.6 §1：`cellSize` 那一整套「自适应」的分支删掉了 —— 它是唯一可空的字段，
+     * 而它已经不在字段表里。`typeof` 的兜底留着，免得将来有字段的 `read` 返回
+     * `null` 时把 `0` 以外的 `NaN` 送到输入框里。
+     */
     const numeric = typeof value === 'number' ? value : 0;
     return (
-      <div className="flex items-center gap-1">
-        {/* `cellSize` 可以是 `null`（按画布自适应）—— 回不去的话那一项只能越改越死。 */}
-        {field.key === 'cellSize' && value === null ? (
-          <span className="w-16 text-right text-2xs text-muted-foreground">自适应</span>
-        ) : (
-          <NumberField
-            id={`theme-style-${field.key}`}
-            value={numeric}
-            min={field.min ?? 0}
-            max={field.max ?? 999}
-            step={field.step ?? 1}
-            suffix={field.suffix}
-            commit={(next) => {
-              const clamped = Math.min(field.max ?? 999, Math.max(field.min ?? 0, next));
-              onChange(clamped);
-            }}
-          />
-        )}
-        {field.key === 'cellSize' ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            title={value === null ? '当前已是自适应' : '改为自适应'}
-            disabled={value === null}
-            onClick={() => onChange(null)}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-          </Button>
-        ) : null}
-      </div>
+      <NumberField
+        id={`theme-style-${field.key}`}
+        value={numeric}
+        min={field.min ?? 0}
+        max={field.max ?? 999}
+        step={field.step ?? 1}
+        suffix={field.suffix}
+        commit={(next) => {
+          const clamped = Math.min(field.max ?? 999, Math.max(field.min ?? 0, next));
+          onChange(clamped);
+        }}
+      />
     );
   }
 
   const text = typeof value === 'string' ? value : '';
   /**
-   * 阴影环允许 `rgba()` —— 这里只拦「明明打错了却照样提交」：输入不合法时不写回
-   * 草稿，框里留着用户打的那半截，视觉上不跳。保存时 schema 仍是最后一道关。
+   * 阴影环允许 `rgba()` —— 抽屉那边是一组「色块 + 文本框」：色块给常见的不透明色，
+   * 文本框留给带透明度的写法。这里照抄同一副面孔，包括那条「不合法就不写回草稿」
+   * 的规矩：框里留着用户打的那半截，视觉上不跳，保存时 schema 仍是最后一道关。
    */
+  if (field.kind === 'shadow') {
+    return (
+      <div className="flex items-center gap-1">
+        <ColorInput
+          value={isValidStyleColor(text) ? text : '#000000'}
+          onChange={onChange}
+          aria-label={`${field.label}（取色）`}
+        />
+        <Input
+          value={text}
+          onChange={(event) => {
+            const next = event.target.value;
+            if (!isValidShadowColor(next)) return;
+            onChange(next);
+          }}
+          className="h-7 w-32 font-mono text-2xs"
+          aria-label={field.label}
+        />
+      </div>
+    );
+  }
+
   return (
     <Input
       value={text}
       onChange={(event) => {
         const next = event.target.value;
-        if (field.kind === 'shadow' && !isValidShadowColor(next)) return;
-        if (field.kind === 'text' && next.trim().length === 0) return;
+        if (next.trim().length === 0) return;
         onChange(next);
       }}
       className="h-7 w-40 font-mono text-2xs"
@@ -617,12 +812,16 @@ function StyleFieldControl({
 }
 
 /**
- * v0.8.3 §3：难度分级。
+ * v0.8.6 §3：难度分级。
  *
- * 一档 = 标识 + 名字。**标识不给改**：它落进 `games.difficulty`，改一次，库里那些
- * 关就跟新名字对不上了，而这里没有任何东西能替它们改回来。名字随便改 —— 那才是
- * 「说法」。新档的标识由 `nextDifficultyKey` 生成（`tier-1`、`tier-2` …），
- * 因为中文名 slug 化之后什么都不剩。
+ * 一档 = **数字 + 名字 + 可选颜色**。
+ *
+ * 数字落进 `games.difficulty`，所以**不给改**：库里那些关只记得数字，改一次就
+ * 全对不上了。它同时是顺序 —— 列表按它排，删掉中间一档也不必给后面重新编号
+ * （重编号等于把已经在用的关卡集体搬走）。新档的数字接在最大一档后面。
+ *
+ * 颜色可以不给：不给就按位置落在内置五档那条热力坡上，存量主题因此一个像素都
+ * 不变；给了就是一颗 `#rrggbb`，徽章拿它混出淡底与深字（浅色、深色界面各取各的）。
  *
  * 「恢复内置五档」= 把 `difficultyLevels` 这个键删掉，回到「没配过」的状态 ——
  * 比写一份和内置一模一样的数组干净：以后内置改了，这类主题跟着改。
@@ -646,31 +845,32 @@ function DifficultyTiersDialog({
     setTiers([...resolveDifficultyTiers(theme.data.difficultyLevels)]);
   }, [open, theme.data.difficultyLevels]);
 
-  const move = (index: number, delta: number): void => {
-    setTiers((current) => {
-      const target = index + delta;
-      if (target < 0 || target >= current.length) return current;
-      const next = [...current];
-      const [row] = next.splice(index, 1);
-      next.splice(target, 0, row as ThemeDifficultyTier);
-      return next;
-    });
+  /** 只改名字 / 颜色 —— 档位数字是身份，界面上根本不给改。 */
+  const patch = (level: number, next: Partial<ThemeDifficultyTier>): void => {
+    setTiers((current) =>
+      current.map((row) => (row.level === level ? { ...row, ...next } : row)),
+    );
   };
 
   async function submit(): Promise<void> {
     const data: Record<string, unknown> = { ...theme.data };
     /**
-     * 「和内置五档一模一样」才删键 —— 并且要连**名字**一起比。
+     * 「和内置五档一模一样」才删键 —— 名字和**颜色**都要比。
      *
-     * v0.8.3 修：这里第一版只比 `key`，于是「把『极简』改名叫『入门』」会被判成
-     * 「还是内置五档」，`difficultyLevels` 被删掉，保存后名字又变回「极简」——
-     * 界面上看起来就是「保存不生效」。改名字不改 key，但名字正是作者要存的东西。
+     * v0.8.3 的第一版只比标识，于是「把『极简』改名叫『入门』」会被判成「还是
+     * 内置五档」，保存后名字又变回「极简」。v0.8.6 加了颜色，同一个坑再多一维：
+     * 只改了颜色的档，删掉键之后颜色也跟着没了。
      */
     const isBuiltIn =
       tiers.length === DEFAULT_DIFFICULTY_TIERS.length &&
       tiers.every((tier, index) => {
         const builtin = DEFAULT_DIFFICULTY_TIERS[index];
-        return builtin !== undefined && tier.key === builtin.key && tier.label === builtin.label;
+        return (
+          builtin !== undefined &&
+          tier.level === builtin.level &&
+          tier.label === builtin.label &&
+          tier.color === undefined
+        );
       });
     if (isBuiltIn) delete data['difficultyLevels'];
     else data['difficultyLevels'] = tiers;
@@ -684,53 +884,48 @@ function DifficultyTiersDialog({
 
   const tooFew = tiers.length === 0;
   const tooMany = tiers.length >= THEME_DIFFICULTY_TIER_MAX;
+  const nextLevel = nextDifficultyLevel(tiers);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>难度分级 · {theme.name}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
           <p className="text-2xs leading-relaxed text-muted-foreground">
-            顺序即由易到难，徽章的底色也按这个顺序取。标识落库，不能改；名字随便改。
+            数字是档位，落库的就是它，越大越难；名字与颜色只影响展示。颜色不改就沿用内置那五档的坡。
           </p>
 
           <ul className="space-y-2">
-            {tiers.map((tier, index) => (
-              <li key={tier.key} className="flex items-center gap-2">
-                <DifficultyBadge difficulty={tier.key} tiers={tiers} className="w-16 justify-center text-center" />
+            {tiers.map((tier) => (
+              <li key={tier.level} className="flex items-center gap-2">
+                <span
+                  className="w-5 shrink-0 text-center font-mono text-2xs text-muted-foreground"
+                  title={`第 ${tier.level} 档`}
+                >
+                  {tier.level}
+                </span>
+                <DifficultyBadge difficulty={tier.level} tiers={tiers} className="w-14 justify-center text-center" />
                 <Input
                   value={tier.label}
-                  aria-label={`第 ${index + 1} 档名称`}
+                  aria-label={`第 ${tier.level} 档名称`}
                   maxLength={12}
-                  onChange={(event) =>
-                    setTiers((current) =>
-                      current.map((row, position) =>
-                        position === index ? { ...row, label: event.target.value } : row,
-                      ),
-                    )
-                  }
+                  onChange={(event) => patch(tier.level, { label: event.target.value })}
                   className="h-8 flex-1 text-sm"
                 />
-                <span className="w-20 shrink-0 truncate font-mono text-2xs text-muted-foreground">
-                  {tier.key}
-                </span>
-                <IconButton
-                  icon={<ArrowUp className="h-3.5 w-3.5" />}
-                  label="上移"
-                  variant="ghost"
-                  className="h-7 w-7 text-muted-foreground"
-                  disabled={index === 0}
-                  onClick={() => move(index, -1)}
+                <ColorField
+                  value={difficultySwatchColor(tiers, tier.level)}
+                  label={`第 ${tier.level} 档颜色`}
+                  commit={(color) => patch(tier.level, { color })}
                 />
                 <IconButton
-                  icon={<ArrowDown className="h-3.5 w-3.5" />}
-                  label="下移"
+                  icon={<RotateCcw className="h-3.5 w-3.5" />}
+                  label="恢复默认色"
                   variant="ghost"
                   className="h-7 w-7 text-muted-foreground"
-                  disabled={index === tiers.length - 1}
-                  onClick={() => move(index, 1)}
+                  disabled={tier.color === undefined}
+                  onClick={() => patch(tier.level, { color: undefined })}
                 />
                 <IconButton
                   icon={<Trash2 className="h-3.5 w-3.5" />}
@@ -738,7 +933,9 @@ function DifficultyTiersDialog({
                   variant="ghost"
                   className="h-7 w-7 text-muted-foreground hover:text-destructive"
                   disabled={tiers.length <= 1}
-                  onClick={() => setTiers((current) => current.filter((_, position) => position !== index))}
+                  onClick={() =>
+                    setTiers((current) => current.filter((row) => row.level !== tier.level))
+                  }
                 />
               </li>
             ))}
@@ -753,7 +950,7 @@ function DifficultyTiersDialog({
               onClick={() =>
                 setTiers((current) => [
                   ...current,
-                  { key: nextDifficultyKey(current), label: `第 ${current.length + 1} 档` },
+                  { level: nextLevel, label: `第 ${nextLevel} 档` },
                 ])
               }
             >

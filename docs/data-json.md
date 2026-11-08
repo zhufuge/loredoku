@@ -258,6 +258,7 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 | `rosterCols` | `number \| null` | ✘ | 1–24 整数 | 名册矩阵列数；缺席 / `null` = 自动 |
 | `clues` | array | ✘ | ≤ 8 项，每项 ≤ 120 字符，默认 `[]` | **全局线索**（v0.7.14）：整盘共享的几条规则，玩家侧贴在盘面左上角 |
 | `ending` | string | ✘ | ≤ 200 字符，默认 `""` | **结束语**（v0.7.14）：玩家通过时出现在结算弹窗里 |
+| `forbiddenSymbol` | `{ path: string } \| null` | ✘ | `storage/uploads` 下的图片相对路径 | **禁止符号的图**（v0.8.6）：玩家标记排除项时画面上显示的那张图；缺席 / `null` = 默认的 `×` 字形。新建谜题时从主题的 `data.forbiddenSymbol` 抄一份 |
 
 ### 5.2 `map` — 底图快照
 
@@ -331,6 +332,7 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 - **`displayNumber`**：配置在**条目**上而不是槽位序号上 —— 拖动换座位时序号变、它不变。留空 = 回落到序号。
 - **`rosterCols`**：只是布局提示，不是事实。存的值超出今天的名册长度会被夹到 `[1, 槽位数]`；编辑器输入框上限是 6（`ROSTER_COLS_MAX`），超过 6 列的旧数据仍能渲染（面板封顶 512px 横向滚动）。行数从不存储，恒为 `ceil(槽位数 / 列数)`。
 - **`clues` / `ending`**（v0.7.14）：**属于整个谜题**，与参与者各自的 `characterSlots[].clue` 分两层 —— 后者讲「这位住在哪」，是一个头像的条件；前者讲「这盘按什么规则摆」，玩家必须同时看着盘面。空串是合法的（导入的文件里可能带空行），读的时候要滤掉；编辑器的提交路径会 trim + 去空，所以正常写出来不会有空项。**旧数据缺这两个键是常态**（v0.7.14 之前发布出去的版本行是冻住的 JSON），读的地方一律按空处理，不要假设服务端补过默认值。
+- **`forbiddenSymbol`**（v0.8.6）：作者**上传**的那张图，数据里只记它在 `storage/uploads` 下的相对路径（如 `puzzles/12/forbidden-symbol/<uuid>.webp`），不存 URL —— `PUBLIC_BASE_URL` 会随环境变；渲染时前端用 `fileUrlFromPath` 拼成 `/api/files/...`。上传时服务端就把它缩成长边 ≤ 256px 的 webp（只存这一张）。它是**谜题自己的字段**而不是主题风格，所以每一关各自带着它。**主题的 `data.forbiddenSymbol` 是新建谜题的缺省**（同一形状）：服务端在 `createPuzzle` 那一刻深拷贝进来，之后各走各的 —— 主题后来换图不影响已建/已发布的关卡。资源包导出会把这个文件收进包里（`files/symbols/...`）并把这条 path 改写成包内相对路径（`docs/v0.8.6.md` §4）。
 
 ### 5.7 完整示例（底图 3×3，3 个槽位）
 
@@ -391,11 +393,12 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
     },
     null
   ],
-  "rosterCols": 3
+  "rosterCols": 3,
+  "forbiddenSymbol": { "path": "puzzles/12/forbidden-symbol/a1b2c3d4.webp" }
 }
 ```
 
-`characterSlots` 长度 3 = `gridSize`，最后一个槽位空着。第 2 位参与者的 `linkages` 里 `character` 目标指向第 1 位的 `characterId`、`cell` 目标在 3×3 之内 —— 这两条都会被 schema 检查。
+`characterSlots` 长度 3 = `gridSize`，最后一个槽位空着。第 2 位参与者的 `linkages` 里 `character` 目标指向第 1 位的 `characterId`、`cell` 目标在 3×3 之内 —— 这两条都会被 schema 检查。`forbiddenSymbol` 指向一张上传的图（v0.8.6）：玩家在游戏页把这格标成排除项时，画面上画的就是那张图，而不是默认的 `×`；该图由 `POST /api/puzzles/:id/forbidden-symbol` 上传、或从主题缺省抄来。
 
 ### 5.8 三层校验
 
@@ -523,5 +526,6 @@ const data = {
 | `docs/v0.7.1.md` §5.3 / §7 | 谜题自带画布副本、游戏只引用谜题行 |
 | `docs/v0.7.5.md` §3 | 物品 `scale` / `offset` 的展示与占格之分 |
 | `docs/v0.7.6.md` §9 / §10 | 形态表改名、`formId` → `variantId` |
+| `docs/v0.8.6.md` §4 | 禁止符号可以上传一张图（`forbiddenSymbol`，v0.8.6）；主题的 `data.forbiddenSymbol` 是新建谜题的缺省 |
 | `docs/v0.7.0.md` §4 | 区域样式三级化（`RegionStyleOverride`） |
 | `docs/layer-priority.md` | 画布图层次序（与 JSON 无关，但读渲染代码时会用到） |

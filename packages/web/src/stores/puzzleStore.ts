@@ -8,6 +8,7 @@ import {
   type CharacterSlotEntry,
   type DraftCell,
   type DraftRegion,
+  type ForbiddenSymbolImage,
   type MapLinkageColor,
   type MapStyle,
   type ParticipantTarget,
@@ -113,6 +114,10 @@ interface Snapshot {
   /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
   rosterCols: number | null;
   /**
+   * v0.8.6 §4：玩家侧「禁止符号」用哪张上传图。`null` = 默认的 `×` 字形。
+   */
+  forbiddenSymbol: ForbiddenSymbolImage | null;
+  /**
    * v0.7.3 §4：底图也是可撤销的一部分。
    *
    * 「引入新地图」换的是 `mapContext`，撤销要能把它换回来 —— 否则会出现
@@ -144,6 +149,11 @@ export interface PuzzleState {
    * 撤销 takes a layout change back too.
    */
   rosterCols: number | null;
+  /**
+   * v0.8.6（docs/v0.8.6.md §4）：玩家在游戏页标记排除项时画面上显示的那枚符号。
+   * `null` = 默认的 `×` 字形；非 null 时渲染上传的那张图。
+   */
+  forbiddenSymbol: ForbiddenSymbolImage | null;
 
   // ---- view / focus (never in the undo stack) ----
   selection: PuzzleSelection | null;
@@ -181,6 +191,8 @@ export interface PuzzleState {
     linkageColors: MapLinkageColor[];
     characterSlots: Array<CharacterSlotEntry | null>;
     rosterCols: number | null;
+    /** v0.8.6 §4：`null` = 默认的 `×` 字形。 */
+    forbiddenSymbol: ForbiddenSymbolImage | null;
   }) => void;
   setParticipantConfig: (
     slotIndex: number,
@@ -247,6 +259,14 @@ export interface PuzzleState {
   applyDraft: (draft: PuzzleDraft) => void;
 }
 
+/**
+ * v0.8.6 §4：禁止符号图是平坦的 `{ path }`，复制一层就和来源脱钩了（撤销栈 /
+ * 草稿都不能和「此刻」共用一个对象）。
+ */
+function cloneForbiddenSymbol(ref: ForbiddenSymbolImage | null): ForbiddenSymbolImage | null {
+  return ref ? { ...ref } : null;
+}
+
 function snapshot(state: PuzzleState): Snapshot {
   return {
     name: state.name,
@@ -257,6 +277,7 @@ function snapshot(state: PuzzleState): Snapshot {
     linkageColors: state.linkageColors.map((entry) => ({ ...entry })),
     characterSlots: state.characterSlots.map(ensureEntry),
     rosterCols: state.rosterCols,
+    forbiddenSymbol: cloneForbiddenSymbol(state.forbiddenSymbol),
     mapContext: state.mapContext,
   };
 }
@@ -299,6 +320,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     linkageColors: resolveLinkageColors(undefined),
     characterSlots: [],
     rosterCols: null,
+    forbiddenSymbol: null,
     selection: null,
     selectedSlotIndex: null,
     activeParticipantId: null,
@@ -336,6 +358,8 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           detail.data.characterSlots,
         ).map(ensureEntry),
         rosterCols: detail.data.rosterCols ?? null,
+        // v0.8.6 §4：旧行没有这个键，读进来是「默认 ×」而不是 undefined。
+        forbiddenSymbol: cloneForbiddenSymbol(detail.data.forbiddenSymbol ?? null),
         selection: null,
         selectedSlotIndex: null,
         ...INACTIVE_ACTIVATION,
@@ -372,6 +396,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           patch.characterSlots,
         ).map(ensureEntry);
         next.rosterCols = patch.rosterCols;
+        next.forbiddenSymbol = cloneForbiddenSymbol(patch.forbiddenSymbol);
       }),
 
     // Guarded before `commit` so a rejected removal neither dirties the puzzle
@@ -606,6 +631,11 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         // v0.6.3 §3: the published game renders the roster the way the puzzle
         // asked for, so the column count has to reach the snapshot.
         rosterCols: state.rosterCols,
+        // v0.8.6 §4: 只有作者真的挑过图才写这个键 —— 默认 × 用「缺席」表达，
+        // 草稿里不留一个 `forbiddenSymbol: null`。
+        ...(state.forbiddenSymbol
+          ? { forbiddenSymbol: { ...state.forbiddenSymbol } }
+          : {}),
       };
     },
 
@@ -621,6 +651,8 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           linkageColors: resolveLinkageColors(draft.linkageColors),
           characterSlots: genSlotArray(size, draft.characterSlots).map(ensureEntry),
           rosterCols: draft.rosterCols ?? null,
+          // v0.8.6 §4：导入 / 恢复草稿时整块读入，同样是副本。
+          forbiddenSymbol: cloneForbiddenSymbol(draft.forbiddenSymbol ?? null),
           past,
           future: [],
           dirty: true,

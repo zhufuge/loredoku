@@ -36,7 +36,7 @@ const fixture = vi.hoisted(() => ({
     name: '夜车',
     slug: 'night-train',
     coverUrl: null,
-    difficulty: 'easy',
+    difficulty: 2,
     gridSize: 9,
     participantCount: 3,
     createdAt: '2026-01-01T00:00:00.000Z',

@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import type { MapGameSummary } from '@loredoku/shared';
+import type { MapGameSummary, ThemeDifficultyTier } from '@loredoku/shared';
 import { Card } from '@/components/ui/card';
 import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import { cn } from '@/lib/utils';
@@ -65,9 +65,15 @@ const LIGHT_LAYERS = ['paper-shade', 'paper-core'] as const;
 export function GameCard({
   game,
   href,
+  tiers,
 }: {
   game: MapGameSummary;
   href?: string;
+  /**
+   * v0.8.6 §3.6：这一关所属主题的分级。播放页在工作空间外面，`DifficultyBadge`
+   * 自己读不到主题 —— 由页面查好传下来。不传就还是老行为（工作空间 / 内置五档）。
+   */
+  tiers?: readonly ThemeDifficultyTier[];
 }): JSX.Element {
   const navigate = useNavigate();
   const to = href ?? `/play/${game.slug}`;
@@ -131,7 +137,7 @@ export function GameCard({
           {game.name}
         </h3>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <DifficultyBadge difficulty={game.difficulty} className="rounded" />
+          <DifficultyBadge difficulty={game.difficulty} tiers={tiers} className="rounded" />
           <span className="tabular-nums transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground">
             {game.gridSize} × {game.gridSize}
           </span>

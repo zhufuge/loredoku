@@ -1,10 +1,12 @@
 import { afterAll, describe, expect, it } from 'vitest';
+import { rm } from 'node:fs/promises';
 import { ErrorCode, MAP_JSON_VERSION } from '@loredoku/shared';
 import type { MapDraft } from '@loredoku/shared';
 import { api } from './helpers';
 import * as bundleService from '../src/service/bundleService';
 import { purgeTheme } from './purge';
 import { db } from '../src/db/knex';
+import { resolveUploadPath } from '../src/utils/paths';
 
 /**
  * v0.8.0（docs/v0.8.0.md §11）—— 资源包的接线测试。
@@ -31,6 +33,14 @@ const createdGames: number[] = [];
 /** 版本行是**新插入的行**：不先删它们，底图与资源的引用就一直挂着不让删。 */
 const mapVersions: Array<{ mapId: number; versionNo: number }> = [];
 const puzzleVersions: Array<{ puzzleId: number; versionNo: number }> = [];
+/** v0.8.6 §4：禁止符号上传图落在 `puzzles/<id>/forbidden-symbol/`。 */
+const symbolDirs: string[] = [];
+
+/** 1×1 PNG —— 与 `api.test.ts` 同一个夹具，够上传管线接受。 */
+const TINY_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 function unique(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
@@ -81,12 +91,20 @@ async function createSolidCharacter(themeCode: string): Promise<number> {
 /**
  * 一关「已经能玩」的谜题：底图 → 发布 → 建谜题 → 名册一位参与者 → 发布 →
  * 部署成一个游戏。返回游戏 slug。
+ *
+ * `forbiddenSymbol: true` 时在发布前走一遍真实的上传端点并把 `path` 存进草稿 ——
+ * 打包链路（v0.8.6 §4）要的正是「版本行里有一个上传图路径」这个状态。
  */
-async function deployedGame(themeCode: string): Promise<{
+async function deployedGame(
+  themeCode: string,
+  options: { forbiddenSymbol?: boolean } = {},
+): Promise<{
   slug: string;
   assetId: number;
   variantId: number;
   characterId: number;
+  draftId: number;
+  forbiddenSymbolPath?: string;
 }> {
   const assetId = await createSolidAsset(themeCode);
   const characterId = await createSolidCharacter(themeCode);
@@ -125,9 +143,25 @@ async function deployedGame(themeCode: string): Promise<{
     characterId,
     linkages: [{ type: 'asset', id: assetId, scope: 'all', effect: 'highlight', color: 'red' }],
   };
-  const saved = await api
-    .put(`/api/puzzles/${puzzleId}`)
-    .send({ data: puzzleDraft, updatedAt: initial.body.data.updatedAt });
+
+  // v0.8.6 §4：先真的传一张图，再把回执的 `path` 存进草稿（发布后它就冻在版本行里）。
+  let forbiddenSymbolPath: string | undefined;
+  if (options.forbiddenSymbol) {
+    const uploaded = await api
+      .post(`/api/puzzles/${puzzleId}/forbidden-symbol`)
+      .attach('file', TINY_PNG, 'symbol.png');
+    expect(uploaded.status).toBe(200);
+    forbiddenSymbolPath = uploaded.body.data.path as string;
+    symbolDirs.push(resolveUploadPath(`puzzles/${puzzleId}`));
+  }
+
+  const saved = await api.put(`/api/puzzles/${puzzleId}`).send({
+    data: {
+      ...puzzleDraft,
+      ...(forbiddenSymbolPath ? { forbiddenSymbol: { path: forbiddenSymbolPath } } : {}),
+    },
+    updatedAt: initial.body.data.updatedAt,
+  });
   expect(saved.status).toBe(200);
 
   const published = await api.post(`/api/puzzles/${puzzleId}/versions`).send({});
@@ -143,7 +177,14 @@ async function deployedGame(themeCode: string): Promise<{
   expect(deployed.body.data.slug).toBe(slug);
   createdGames.push(deployed.body.data.id as number);
 
-  return { slug, assetId, variantId, characterId };
+  return {
+    slug,
+    assetId,
+    variantId,
+    characterId,
+    draftId: puzzleId,
+    forbiddenSymbolPath,
+  };
 }
 
 afterAll(async () => {
@@ -173,6 +214,8 @@ afterAll(async () => {
   for (const code of createdThemes) await purgeTheme(code);
 
   await db.destroy();
+
+  for (const dir of symbolDirs) await rm(dir, { recursive: true, force: true });
 });
 
 describe('资源包导出（§11）', () => {
@@ -227,6 +270,47 @@ describe('资源包导出（§11）', () => {
     expect(built.entries.every((entry) => !entry.path.startsWith('files/'))).toBe(true);
     expect(built.entries.map((entry) => entry.path)).toContain('manifest.json');
     expect(built.entries.map((entry) => entry.path)).toContain('theme.json');
+  });
+
+  /**
+   * v0.8.6 §4：禁止符号是一张**上传图**，所以打包时它和资源图走同一条「搬文件 +
+   * 改写为包内相对路径」的路 —— 只是目标目录是 `files/symbols/`。
+   */
+  it('禁止符号图进包：files/symbols 有条目、关卡 JSON 路径已改写、manifest 有 hash', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode, { forbiddenSymbol: true });
+    expect(game.forbiddenSymbolPath).toBeTruthy();
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    const symbolEntries = built.entries.filter((entry) => entry.path.startsWith('files/symbols/'));
+    expect(symbolEntries).toHaveLength(1);
+    const target = `files/symbols/${game.slug}.webp`;
+    expect(symbolEntries[0]!.path).toBe(target);
+
+    const level = JSON.parse(
+      built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
+    ) as { puzzle: { forbiddenSymbol?: { path: string } } };
+    // 包里指向包内相对路径，不是 `puzzles/<id>/forbidden-symbol/...` 那条上传路径。
+    expect(level.puzzle.forbiddenSymbol).toEqual({ path: target });
+
+    // 校验和覆盖包里除 manifest 自己以外的一切 —— 这张图也不例外。
+    const manifestFile = built.manifest.files.find((entry) => entry.path === target);
+    expect(manifestFile?.bytes).toBe(symbolEntries[0]!.data.length);
+    expect(manifestFile?.sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  /** §11.2：引用闭包缺一个文件就**中止**，不能交付一个少一张图的包。 */
+  it('禁止符号图不在了 → 打包中止（400 + bundle-incomplete）', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode, { forbiddenSymbol: true });
+
+    await rm(resolveUploadPath(game.forbiddenSymbolPath!), { force: true });
+
+    const res = await api.get(`/api/themes/${themeCode}/bundle`);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.data).toMatchObject({ kind: 'bundle-incomplete' });
   });
 
   it('HTTP 层流出的是 zip，文件名带主题 code', async () => {

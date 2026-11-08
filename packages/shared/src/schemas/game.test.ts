@@ -52,18 +52,18 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
   it('accepts a full deploy body', () => {
     const parsed = gameDeploySchema.parse({
       name: '  神秘古堡  ',
-      difficulty: 'expert',
+      difficulty: 5,
       clearCover: false,
     });
     expect(parsed.name).toBe('神秘古堡');
-    expect(parsed.difficulty).toBe('expert');
+    expect(parsed.difficulty).toBe(5);
     expect(parsed.clearCover).toBe(false);
   });
 
   /**
-   * v0.8.3：缺省难度**不再由 schema 决定** —— 由服务端按谜题所属主题分级补
-   * （内置五档给 `medium`，自定义分级给正中间那一档）。schema 里写死一个值，
-   * 只会让「只有两档、且都不叫 medium」的主题连部署都做不了。
+   * v0.8.6：缺省难度**不再由 schema 决定** —— 由服务端按谜题所属主题分级补
+   * （内置五档给第 3 档，自定义分级给正中间那一档）。schema 里写死一个值，
+   * 只会让「只有两档」的主题连部署都做不了。
    */
   it('leaves the difficulty to the service and the name to the service', () => {
     const parsed = gameDeploySchema.parse({});
@@ -77,17 +77,17 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
   });
 
   /**
-   * v0.8.3：难度是主题自定义的标识，schema 只判断**形状**。
-   * `nightmare` 现在形状合法 —— 它是不是这个主题的一档，由服务端拿着主题去核对
-   * （`api.test.ts` 的「自定义分级」一组）。
+   * v0.8.6：难度是**档位数字**，schema 只判断「1…99 的整数」。
+   * 某个数字是不是这个主题的一档，由服务端拿着主题去核对（`api.test.ts` 的
+   * 「自定义分级」一组）。字符串在这里一律不合法 —— 连 `'3'` 也不收，接口是
+   * JSON，不是查询串。
    */
-  it('rejects a difficulty that is not an identifier at all', () => {
-    for (const bad of ['Very Easy', '困难', '-x', 'a b', 'x'.repeat(33)]) {
-      expect(gameDeploySchema.safeParse({ difficulty: bad }).success, bad).toBe(false);
+  it('rejects a difficulty that is not an integer level', () => {
+    for (const bad of ['3', 'expert', 0, 100, 2.5, -1, null]) {
+      expect(gameDeploySchema.safeParse({ difficulty: bad }).success, String(bad)).toBe(false);
     }
-    // 内置五档是 camelCase，必须继续合法；自定义档（`nightmare`）形状上也合法。
-    for (const good of ['veryEasy', 'nightmare', 'tier-1']) {
-      expect(gameDeploySchema.safeParse({ difficulty: good }).success, good).toBe(true);
+    for (const good of [1, 3, 99]) {
+      expect(gameDeploySchema.safeParse({ difficulty: good }).success, String(good)).toBe(true);
     }
   });
 
@@ -97,8 +97,9 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
     ).toBe(false);
   });
 
-  it('accepts every difficulty tier the UI offers', () => {
-    for (const difficulty of GAME_DIFFICULTY_LEVELS) {
+  it('accepts every built-in difficulty level', () => {
+    for (const [index] of GAME_DIFFICULTY_LEVELS.entries()) {
+      const difficulty = index + 1;
       expect(gameDeploySchema.parse({ difficulty }).difficulty).toBe(difficulty);
     }
   });

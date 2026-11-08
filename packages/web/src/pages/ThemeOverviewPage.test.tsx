@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Theme } from '@loredoku/shared';
+import { DEFAULT_MAP_STYLE, type Theme } from '@loredoku/shared';
 import { ThemeOverviewPage } from './ThemeOverviewPage';
 
 /**
@@ -30,6 +30,8 @@ const themeRef: Theme = {
 const workspaceRef: { value: unknown } = { value: null };
 const deleteMutate = vi.fn(() => Promise.resolve());
 const updateMutate = vi.fn((_payload: unknown) => Promise.resolve());
+const uploadForbiddenMutate = vi.fn((_file: File) => Promise.resolve());
+const removeForbiddenMutate = vi.fn(() => Promise.resolve());
 
 vi.mock('@/components/layout/WorkspaceContext', () => ({
   useWorkspace: () => workspaceRef.value,
@@ -37,6 +39,8 @@ vi.mock('@/components/layout/WorkspaceContext', () => ({
 vi.mock('@/hooks/useThemes', () => ({
   useUpdateTheme: () => ({ mutateAsync: updateMutate, isPending: false }),
   useDeleteTheme: () => ({ mutateAsync: deleteMutate, isPending: false }),
+  useUploadThemeForbiddenSymbol: () => ({ mutate: uploadForbiddenMutate, isPending: false }),
+  useRemoveThemeForbiddenSymbol: () => ({ mutate: removeForbiddenMutate, isPending: false }),
 }));
 
 describe('ThemeOverviewPage（v0.8.3）', () => {
@@ -80,6 +84,8 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
   beforeEach(() => {
     deleteMutate.mockClear();
     updateMutate.mockClear();
+    uploadForbiddenMutate.mockClear();
+    removeForbiddenMutate.mockClear();
     document.body.innerHTML = '';
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -91,9 +97,9 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     container.remove();
   });
 
-  it('编辑缺省风格：改一项线宽，保存写回 data.style（其余键原样带着）', () => {
+  it('编辑地图初始样式：改一项线宽，保存写回 data.style（其余键原样带着）', () => {
     render();
-    act(() => button('编辑缺省风格')?.click());
+    act(() => button('编辑地图初始样式')?.click());
 
     const width = document.querySelector<HTMLInputElement>('#theme-style-gridSeparator\\.width');
     expect(width).not.toBeNull();
@@ -115,10 +121,64 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     act(() => button('保存')?.click());
 
     const payload = updateMutate.mock.calls[0]?.[0] as {
-      data: { difficultyLevels?: Array<{ key: string; label: string }> };
+      data: { difficultyLevels?: Array<{ level: number; label: string }> };
     };
     expect(payload.data.difficultyLevels).toHaveLength(6);
-    expect(payload.data.difficultyLevels?.[5]?.key).toBe('tier-1');
+    // 档位数字接在最大一档后面 —— 不补空档，那个数字可能还被某条部署指着。
+    expect(payload.data.difficultyLevels?.[5]).toEqual({ level: 6, label: '第 6 档' });
+  });
+
+  /**
+   * 颜色是**可选**的：选了才写进 `data`。而「改了色」必须让它不再等于内置五档 ——
+   * 否则 `isBuiltIn` 会把 `difficultyLevels` 删掉，保存后颜色跟着没了，界面上就是
+   * 「改了色但没生效」（同一个坑 v0.8.3 在名字上踩过一次）。
+   */
+  it('改一档的颜色：hex 提交后写回带 color 的那一档', () => {
+    render();
+    act(() => button('编辑难度分级')?.click());
+
+    const hex = document.querySelector<HTMLInputElement>(
+      '[role="dialog"] input[aria-label="第 1 档颜色（hex）"]',
+    ) as HTMLInputElement;
+    expect(hex).not.toBeNull();
+    type(hex, '#7c3aed');
+    act(() => {
+      hex.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    });
+    act(() => button('保存')?.click());
+
+    const payload = updateMutate.mock.calls[0]?.[0] as {
+      data: { difficultyLevels?: Array<{ level: number; label: string; color?: string }> };
+    };
+    expect(payload.data.difficultyLevels?.[0]?.color).toBe('#7C3AED');
+    expect(payload.data.difficultyLevels?.[1]?.color).toBeUndefined();
+  });
+
+  /**
+   * v0.8.6 §1：方格大小从清单里拿掉了，「恢复默认」就不能再顺手把它拨回 `null`。
+   * 作者看不见那一项，也改不到它 —— 那它就不该被改掉。
+   */
+  it('恢复默认只动清单上的字段，方格大小原样写回', () => {
+    render({
+      ...themeRef,
+      data: {
+        version: 1,
+        style: {
+          ...DEFAULT_MAP_STYLE,
+          cellSize: 48,
+          gridSeparator: { width: 9, color: '#000000' },
+        },
+      },
+    });
+    act(() => button('编辑地图初始样式')?.click());
+    act(() => button('恢复默认')?.click());
+    act(() => button('保存')?.click());
+
+    const payload = updateMutate.mock.calls[0]?.[0] as {
+      data: { style: { cellSize: number | null; gridSeparator: { width: number } } };
+    };
+    expect(payload.data.style.cellSize).toBe(48);
+    expect(payload.data.style.gridSeparator).toEqual(DEFAULT_MAP_STYLE.gridSeparator);
   });
 
   /**
@@ -136,10 +196,10 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     act(() => button('保存')?.click());
 
     const payload = updateMutate.mock.calls[0]?.[0] as {
-      data: { difficultyLevels?: Array<{ key: string; label: string }> };
+      data: { difficultyLevels?: Array<{ level: number; label: string; color?: string }> };
     };
     expect(payload.data.difficultyLevels).toHaveLength(5);
-    expect(payload.data.difficultyLevels?.[0]).toEqual({ key: 'veryEasy', label: '入门' });
+    expect(payload.data.difficultyLevels?.[0]).toEqual({ level: 1, label: '入门' });
   });
 
   it('什么都没改就保存，不带 difficultyLevels —— 等同「没配过」', () => {
@@ -158,7 +218,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
   it('恢复内置五档后保存，payload 里没有 difficultyLevels 这个键', () => {
     render({
       ...themeRef,
-      data: { version: 1, difficultyLevels: [{ key: 'warmup', label: '热身' }] },
+      data: { version: 1, difficultyLevels: [{ level: 1, label: '热身' }] },
     });
     act(() => button('编辑难度分级')?.click());
     act(() => button('恢复内置五档')?.click());
@@ -166,6 +226,46 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
 
     const payload = updateMutate.mock.calls[0]?.[0] as { data: Record<string, unknown> };
     expect('difficultyLevels' in payload.data).toBe(false);
+  });
+
+  /**
+   * v0.8.6 §4：主题级的「禁止符号」缺省。数据里只存 `storage/uploads` 下的相对
+   * 路径，页面用 `fileUrlFromPath` 拼成站内地址 —— 存绝对地址换个端口就指到别人的
+   * 服务器。有缺省时预览那张图；没有时新建谜题仍是默认的 `×`，只给上传入口。
+   */
+  it('主题配了禁止符号：渲染那张图的站内地址，不给「上传图片」按钮', () => {
+    render({
+      ...themeRef,
+      data: {
+        version: 1,
+        forbiddenSymbol: { path: 'themes/3/forbidden-symbol/mark.webp' },
+      },
+    });
+
+    const image = document.querySelector<HTMLImageElement>('img[alt="禁止符号"]');
+    expect(image?.getAttribute('src')).toBe('/api/files/themes/3/forbidden-symbol/mark.webp');
+    expect(button('上传图片')).toBeUndefined();
+    expect(button('移除')).toBeDefined();
+  });
+
+  it('主题没配禁止符号：给上传入口，选好文件立刻上传（即时保存，不需要再点保存）', () => {
+    render();
+    expect(button('上传图片')).toBeDefined();
+    expect(document.querySelector('img[alt="禁止符号"]')).toBeNull();
+
+    const input = document.querySelector<HTMLInputElement>('input[type="file"]');
+    expect(input).not.toBeNull();
+    const file = new File(['symbol'], 'mark.webp', { type: 'image/webp' });
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    act(() => {
+      input?.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    expect(uploadForbiddenMutate).toHaveBeenCalledTimes(1);
+    expect(uploadForbiddenMutate.mock.calls[0]?.[0]).toBe(file);
+    // 上传不等于「编辑后保存」：页面不该顺带调用主题更新。
+    expect(updateMutate).not.toHaveBeenCalled();
+    expect(removeForbiddenMutate).not.toHaveBeenCalled();
   });
 
   it('主题里还有东西时「删除」不可点 —— 先把数量说清楚再拦', () => {

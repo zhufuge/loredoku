@@ -1,8 +1,12 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { DEFAULT_LINKAGE_COLORS } from '@loredoku/shared';
-import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
+import { DEFAULT_LINKAGE_COLORS, fileUrlFromPath } from '@loredoku/shared';
+import type {
+  CharacterSlotEntry,
+  ForbiddenSymbolImage,
+  MapLinkageColor,
+} from '@loredoku/shared';
 import { PuzzleInfoDrawer, type PuzzleInfoDrawerHandle } from './PuzzleInfoDrawer';
 
 /**
@@ -20,6 +24,9 @@ function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string
   setter?.call(element, value);
   element.dispatchEvent(new Event('input', { bubbles: true }));
 }
+
+/** 其余用例不碰上传控件；给一个空实现把 props 补齐。 */
+const noopUploadForbiddenSymbol = vi.fn(async () => null);
 
 describe('PuzzleInfoDrawer (SPEC-K05)', () => {
   let container: HTMLDivElement;
@@ -67,6 +74,8 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={rosterCols}
+          forbiddenSymbol={null}
+          onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
           coverRemoved={false}
@@ -274,6 +283,8 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={null}
+          forbiddenSymbol={null}
+          onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
           coverRemoved={false}
@@ -289,7 +300,9 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
   const save = (): HTMLButtonElement =>
     container.querySelector<HTMLButtonElement>('footer button:last-child') as HTMLButtonElement;
   const coverInput = (): HTMLInputElement =>
-    container.querySelector<HTMLInputElement>('input[type="file"]') as HTMLInputElement;
+    container.querySelector<HTMLInputElement>(
+      'input[type="file"]:not(#puzzle-info-forbidden-symbol)',
+    ) as HTMLInputElement;
 
   function pickCover(file: File): void {
     const input = coverInput();
@@ -420,6 +433,8 @@ describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={null}
+          forbiddenSymbol={null}
+          onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
           coverUrl={null}
           coverFile={null}
           coverRemoved={false}
@@ -531,5 +546,168 @@ describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
     act(() => setValue(endingInput(), '  灯灭了。  '));
     act(() => save().click());
     expect((onCommit.mock.calls[0]![0] as { ending: string }).ending).toBe('灯灭了。');
+  });
+});
+
+/**
+ * v0.8.6 §4：禁止符号 —— 玩家在游戏页标记排除项时显示的那枚符号。
+ *
+ * 抽屉负责「选图 → 立即上传 → 把返回的 path 写进本地草稿」这一段，与名称 / 描述
+ * 同一个「保存」/ 撤销步；「移除」把草稿清回默认的 `×`（提交 `null`）。上传失败
+ * 保留原值并给出提示，绝不静默。
+ */
+describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  let handle: PuzzleInfoDrawerHandle | null;
+
+  const palette: MapLinkageColor[] = DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry }));
+  const onCommit = vi.fn();
+  const onRequestClose = vi.fn();
+  const onUploadForbiddenSymbol = vi.fn();
+  const slots: Array<CharacterSlotEntry | null> = [
+    { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
+  ];
+  const uploaded = {
+    path: 'puzzles/1/forbidden-symbol/a.webp',
+    url: '/api/files/puzzles/1/forbidden-symbol/a.webp',
+  };
+
+  function render(committed: ForbiddenSymbolImage | null = null): void {
+    act(() => {
+      root.render(
+        <PuzzleInfoDrawer
+          ref={(instance) => {
+            handle = instance;
+          }}
+          open
+          name="午夜花园"
+          description="旧描述"
+          clues={[]}
+          ending=""
+          linkageColors={palette}
+          characterSlots={slots}
+          rosterCols={null}
+          forbiddenSymbol={committed}
+          onUploadForbiddenSymbol={onUploadForbiddenSymbol}
+          coverUrl={null}
+          coverFile={null}
+          coverRemoved={false}
+          onRequestClose={onRequestClose}
+          onCommit={onCommit}
+        />,
+      );
+    });
+  }
+
+  /** 重新挂一棵干净的树（带着已提交的值），用于「有图」起始态。 */
+  function renderCommitted(committed: ForbiddenSymbolImage): void {
+    act(() => root.unmount());
+    container.remove();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    render(committed);
+  }
+
+  const save = (): HTMLButtonElement =>
+    container.querySelector<HTMLButtonElement>('footer button:last-child') as HTMLButtonElement;
+  const fileInput = (): HTMLInputElement =>
+    container.querySelector<HTMLInputElement>('#puzzle-info-forbidden-symbol') as HTMLInputElement;
+  const preview = (): HTMLImageElement | null =>
+    container.querySelector<HTMLImageElement>('[data-testid="forbidden-symbol-preview"]');
+  const removeButton = (): HTMLButtonElement =>
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (button) => button.textContent?.trim() === '移除',
+    ) as HTMLButtonElement;
+  const uploadError = (): HTMLElement | null =>
+    container.querySelector<HTMLElement>('[role="alert"]');
+
+  async function pickFile(file: File): Promise<void> {
+    const input = fileInput();
+    Object.defineProperty(input, 'files', { value: [file], configurable: true });
+    await act(async () => {
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  }
+
+  beforeEach(() => {
+    handle = null;
+    onCommit.mockClear();
+    onRequestClose.mockClear();
+    onUploadForbiddenSymbol.mockReset();
+    URL.createObjectURL = vi.fn(() => 'blob:preview');
+    URL.revokeObjectURL = vi.fn();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+    render();
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('默认没有图：预览是 × 占位，也没调用上传', () => {
+    expect(preview()).toBeNull();
+    expect(onUploadForbiddenSymbol).not.toHaveBeenCalled();
+    expect(handle?.isDirty()).toBe(false);
+  });
+
+  it('有图时按 path 拼站内地址渲染预览', () => {
+    const committed = { path: 'puzzles/1/forbidden-symbol/stored.webp' };
+    renderCommitted(committed);
+    expect(preview()?.getAttribute('src')).toBe(fileUrlFromPath(committed.path));
+    // 已提交的值就是当前值：打开即不脏。
+    expect(handle?.isDirty()).toBe(false);
+  });
+
+  it('选一张图 → 立即上传 → 保存时提交 { path }', async () => {
+    onUploadForbiddenSymbol.mockResolvedValue(uploaded);
+    const file = new File(['x'], 'symbol.webp', { type: 'image/webp' });
+
+    await pickFile(file);
+
+    expect(onUploadForbiddenSymbol).toHaveBeenCalledTimes(1);
+    expect(onUploadForbiddenSymbol).toHaveBeenCalledWith(file);
+    // 上传成功只写抽屉草稿；点保存之前不碰页面。
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(handle?.isDirty()).toBe(true);
+
+    act(() => save().click());
+    const committed = onCommit.mock.calls[0]![0] as {
+      forbiddenSymbol: ForbiddenSymbolImage | null;
+    };
+    expect(committed.forbiddenSymbol).toEqual({ path: uploaded.path });
+  });
+
+  it('「移除」把草稿清回默认 ×，提交 null', () => {
+    const committed = { path: 'puzzles/1/forbidden-symbol/stored.webp' };
+    renderCommitted(committed);
+
+    act(() => removeButton().click());
+    expect(preview()).toBeNull();
+    expect(handle?.isDirty()).toBe(true);
+    act(() => save().click());
+    const next = onCommit.mock.calls[0]![0] as {
+      forbiddenSymbol: ForbiddenSymbolImage | null;
+    };
+    expect(next.forbiddenSymbol).toBeNull();
+  });
+
+  it('上传失败（回调返回 null）保留原值并给出错误提示', async () => {
+    const committed = { path: 'puzzles/1/forbidden-symbol/stored.webp' };
+    renderCommitted(committed);
+    onUploadForbiddenSymbol.mockResolvedValue(null);
+
+    await pickFile(new File(['x'], 'symbol.webp', { type: 'image/webp' }));
+
+    // 值没变：草稿仍等于已提交的那张，所以不算一次编辑。
+    expect(handle?.isDirty()).toBe(false);
+    expect(preview()?.getAttribute('src')).toBe(fileUrlFromPath(committed.path));
+    // 失败不静默。
+    expect(uploadError()).not.toBeNull();
+    expect(save().disabled).toBe(true);
   });
 });

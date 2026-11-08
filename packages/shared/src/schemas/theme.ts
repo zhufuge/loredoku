@@ -2,40 +2,48 @@ import { z } from 'zod';
 import {
   BG_COLOR_PATTERN,
   DEFAULT_THEME_CODE,
-  GAME_DIFFICULTY_KEY_MAX_LENGTH,
-  GAME_DIFFICULTY_KEY_PATTERN,
+  GAME_DIFFICULTY_LEVEL_MAX,
+  GAME_DIFFICULTY_LEVEL_MIN,
   THEME_CODE_MAX_LENGTH,
   THEME_CODE_PATTERN,
   THEME_CODE_RESERVED,
   THEME_DATA_VERSION,
   THEME_DESCRIPTION_MAX_LENGTH,
+  THEME_DIFFICULTY_COLOR_PATTERN,
   THEME_DIFFICULTY_LABEL_MAX_LENGTH,
   THEME_DIFFICULTY_TIER_MAX,
   THEME_NAME_MAX_LENGTH,
 } from '../constants';
 import { mapLinkageColorSchema, mapStyleSchema } from './mapDraft';
+import { forbiddenSymbolSchema } from './common';
 
 /**
- * v0.8.3（docs/v0.8.3.md §3）：主题自己的一档难度。
+ * v0.8.6（docs/v0.8.6.md §3）：主题自己的一档难度 = **数字 + 名字 + 可选颜色**。
  *
- * 只存 `key` 与 `label`，**不存颜色** —— 徽章底色由它在列表里的位置决定（沿用
- * `index.css` 那条五档热力坡）。理由：作者要回答的是「我这关算第几档」，不是
- * 「这档是什么色」；而让作者选色，浅色下选定的淡色在深色界面里就会变成一块
- * 亮补丁（v0.7.8 已经为此把五个 hex 换成 CSS 变量）。
+ * `level` 是身份，落进 `games.difficulty`。v0.8.3 用的是字符串标识，v0.8.6 换成
+ * 数字：数字自带顺序（难度本来就是一条轴），删掉中间一档也不必给后面的重新编号。
+ *
+ * `color` 可缺 —— 缺了仍按位置落在内置五档热力坡上，存量主题因此不用补数据。
+ * 填了则是一个**绝对的** `#rrggbb`：徽章的底色与字色都由它混出来（`difficultyBadge`），
+ * 于是同一颗色在浅色与深色界面里都读得下去，不必存两套。
  */
 export const themeDifficultyTierSchema = z
   .object({
-    key: z
-      .string()
-      .trim()
-      .min(1, '难度标识不能为空')
-      .max(GAME_DIFFICULTY_KEY_MAX_LENGTH)
-      .regex(GAME_DIFFICULTY_KEY_PATTERN, '难度标识只能包含字母、数字与连字符，且以字母开头'),
+    level: z
+      .number()
+      .int('难度档位必须是整数')
+      .min(GAME_DIFFICULTY_LEVEL_MIN, `难度档位最小是 ${GAME_DIFFICULTY_LEVEL_MIN}`)
+      .max(GAME_DIFFICULTY_LEVEL_MAX, `难度档位最大是 ${GAME_DIFFICULTY_LEVEL_MAX}`),
     label: z
       .string()
       .trim()
       .min(1, '难度名称不能为空')
       .max(THEME_DIFFICULTY_LABEL_MAX_LENGTH, `难度名称最多 ${THEME_DIFFICULTY_LABEL_MAX_LENGTH} 个字`),
+    color: z
+      .string()
+      .trim()
+      .regex(THEME_DIFFICULTY_COLOR_PATTERN, '颜色要写成 #rrggbb')
+      .optional(),
   })
   .strict();
 
@@ -84,6 +92,14 @@ export const themeDataSchema = z
     style: mapStyleSchema.optional(),
     linkageColors: z.array(mapLinkageColorSchema).optional(),
     /**
+     * v0.8.6（docs/v0.8.6.md §4）：这个空间的**禁止符号缺省**。
+     *
+     * 和 `style` / `linkageColors` 同一种「缺省」：只在新建谜题那一刻被抄进
+     * `PuzzleDraft.forbiddenSymbol`，之后各走各的 —— 已上线的关卡不会因为这里
+     * 换了一张图而变。缺失 / `null` = 默认的 `×` 字形。
+     */
+    forbiddenSymbol: forbiddenSymbolSchema,
+    /**
      * v0.8.3：难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
      * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。
      */
@@ -95,21 +111,21 @@ export const themeDataSchema = z
   })
   .strict()
   /**
-   * 重复的 `key` 是**数据坏了**，不是样式问题：两行共用同一个标识，`game.difficulty`
-   * 就指不出是哪一档，而库里没有外键能替我们拦下它。所以在这里就说清楚是第几个。
+   * 重复的 `level` 是**数据坏了**，不是样式问题：两档共用同一个数字，`games.difficulty`
+   * 就指不出是哪一档，而库里没有外键能替我们拦下它。所以在这里就说清楚是第几档。
    */
   .refine(
     (data) => {
-      const keys = (data.difficultyLevels ?? []).map((tier) => tier.key);
-      return new Set(keys).size === keys.length;
+      const levels = (data.difficultyLevels ?? []).map((tier) => tier.level);
+      return new Set(levels).size === levels.length;
     },
     (data) => {
-      const seen = new Set<string>();
+      const seen = new Set<number>();
       const duplicate = (data.difficultyLevels ?? []).find((tier) =>
-        seen.has(tier.key) ? true : (seen.add(tier.key), false),
+        seen.has(tier.level) ? true : (seen.add(tier.level), false),
       );
       return {
-        message: `难度标识「${duplicate?.key ?? ''}」重复了`,
+        message: `难度档位「${duplicate?.level ?? ''}」重复了`,
         path: ['difficultyLevels'],
       };
     },

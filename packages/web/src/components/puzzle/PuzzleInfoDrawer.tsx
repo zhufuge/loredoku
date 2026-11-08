@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { HelpCircle, Plus, Trash2, X } from 'lucide-react';
+import { HelpCircle, Plus, Trash2, Upload, X } from 'lucide-react';
 import {
   LINKAGE_COLOR_KEY_PATTERN,
   LINKAGE_COLOR_LABEL_MAX_LENGTH,
@@ -20,7 +20,9 @@ import {
   PUZZLE_NAME_MAX_LENGTH,
   ROSTER_COLS_MAX,
   UI_Z,
+  fileUrlFromPath,
   type CharacterSlotEntry,
+  type ForbiddenSymbolImage,
   type MapLinkageColor,
 } from '@loredoku/shared';
 import { CoverPicker } from '@/components/common/CoverPicker';
@@ -85,6 +87,11 @@ export interface PuzzleBasicInfo {
   characterSlots: Array<CharacterSlotEntry | null>;
   /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
   rosterCols: number | null;
+  /**
+   * v0.8.6 (docs/v0.8.6.md §4): 玩家侧「禁止符号」用的那张上传图。
+   * `null` = 默认的 `×` 字形。
+   */
+  forbiddenSymbol: ForbiddenSymbolImage | null;
   /** v0.7.3 §2: a freshly picked cover file, or `null` to keep the stored one. */
   coverFile: File | null;
   /** v0.7.3 §2: the stored cover should be dropped. */
@@ -104,6 +111,16 @@ interface PuzzleInfoDrawerProps {
   characterSlots: Array<CharacterSlotEntry | null>;
   /** v0.6.3 §3: the committed column count. `null` = 自动. */
   rosterCols: number | null;
+  /**
+   * v0.8.6 §4: 已提交的禁止符号图；`null` = 默认的 `×`。
+   * 值形状是 `{ path }` —— `path` 是 `storage/uploads` 下的相对路径。
+   */
+  forbiddenSymbol: ForbiddenSymbolImage | null;
+  /**
+   * v0.8.6 §4: 选中文件后**立即上传**。成功返回落盘路径（抽屉把它写进本地草稿，
+   * 与其它字段同一个「保存」/ 撤销步）；失败返回 `null` —— 抽屉保留原值并提示。
+   */
+  onUploadForbiddenSymbol: (file: File) => Promise<{ path: string; url: string } | null>;
   /** The cover currently on the server (`null` when it has none). */
   coverUrl: string | null;
   /** A cover file already applied to the page's local state but not uploaded yet. */
@@ -185,6 +202,14 @@ function cluesEqual(a: readonly string[], b: readonly string[]): boolean {
   return JSON.stringify(normalizeClues(a)) === JSON.stringify(normalizeClues(b));
 }
 
+/** v0.8.6 §4：缺席 / `null` 都表示「默认 ×」，两者相等。 */
+function forbiddenSymbolEquals(
+  a: ForbiddenSymbolImage | null,
+  b: ForbiddenSymbolImage | null,
+): boolean {
+  return (a?.path ?? null) === (b?.path ?? null);
+}
+
 export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDrawerProps>(
   function PuzzleInfoDrawer(
     {
@@ -196,6 +221,8 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       linkageColors,
       characterSlots,
       rosterCols,
+      forbiddenSymbol,
+      onUploadForbiddenSymbol,
       coverUrl,
       coverFile,
       coverRemoved,
@@ -213,6 +240,19 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     const [draftPalette, setDraftPalette] = useDraft<MapLinkageColor[]>(linkageColors, open);
     /** v0.6.3 §3: the column count is drafted like everything else here. */
     const [draftCols, setDraftCols] = useDraft<number | null>(rosterCols, open);
+    /** v0.8.6 §4: 禁止符号也走草稿 —— 与其余基本信息同一套提交时机。 */
+    const [draftForbiddenSymbol, setDraftForbiddenSymbol] = useDraft<ForbiddenSymbolImage | null>(
+      forbiddenSymbol,
+      open,
+    );
+    /**
+     * v0.8.6 §4: 上传在选完文件那一刻就发生，所以「上传中 / 失败」是控件的短暂状态，
+     * 不进草稿、也不算一次编辑。
+     */
+    const [forbiddenUploading, setForbiddenUploading] = useState(false);
+    const [forbiddenUploadError, setForbiddenUploadError] = useState<string | null>(null);
+    /** 上传控件的真身：一个隐藏的 `<input type="file">`。 */
+    const forbiddenInputRef = useRef<HTMLInputElement | null>(null);
     /** v0.7.3 §2: the cover is drafted as `{ file, removed }` and uploaded on save. */
     const [draftCoverFile, setDraftCoverFile] = useDraft<File | null>(coverFile, open);
     const [draftCoverRemoved, setDraftCoverRemoved] = useDraft<boolean>(coverRemoved, open);
@@ -236,6 +276,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftEnding.trim() !== ending.trim() ||
       !paletteEquals(draftPalette, linkageColors) ||
       draftCols !== rosterCols ||
+      !forbiddenSymbolEquals(draftForbiddenSymbol, forbiddenSymbol) ||
       draftCoverFile !== coverFile ||
       draftCoverRemoved !== coverRemoved;
     const latest = useRef({
@@ -246,6 +287,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftPalette,
       draftSlots,
       draftCols,
+      draftForbiddenSymbol,
       draftCoverFile,
       draftCoverRemoved,
       dirty,
@@ -259,6 +301,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftPalette,
       draftSlots,
       draftCols,
+      draftForbiddenSymbol,
       draftCoverFile,
       draftCoverRemoved,
       dirty,
@@ -267,6 +310,11 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
 
     useEffect(() => {
       if (open) settledRef.current = false;
+    }, [open]);
+
+    useEffect(() => {
+      // 每次打开都从「没有错误」开始 —— 上一次失败的提示不该留到下一次。
+      if (open) setForbiddenUploadError(null);
     }, [open]);
 
     useEffect(() => {
@@ -291,6 +339,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               linkageColors: current.draftPalette,
               characterSlots: current.draftSlots,
               rosterCols: current.draftCols,
+              forbiddenSymbol: current.draftForbiddenSymbol,
               coverFile: current.draftCoverFile,
               coverRemoved: current.draftCoverRemoved,
             });
@@ -306,6 +355,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           setDraftPalette(linkageColors);
           setDraftSlots(characterSlots);
           setDraftCols(rosterCols);
+          setDraftForbiddenSymbol(forbiddenSymbol);
           setDraftCoverFile(coverFile);
           setDraftCoverRemoved(coverRemoved);
         },
@@ -320,6 +370,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         ending,
         linkageColors,
         rosterCols,
+        forbiddenSymbol,
         onCommit,
         onRequestClose,
         setDraftName,
@@ -329,6 +380,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         setDraftPalette,
         setDraftSlots,
         setDraftCols,
+        setDraftForbiddenSymbol,
         setDraftCoverFile,
         setDraftCoverRemoved,
       ],
@@ -395,6 +447,27 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
 
     const removeClue = (index: number): void => {
       setDraftClues(draftClues.filter((_, i) => i !== index));
+    };
+
+    /**
+     * v0.8.6 §4：选中文件后**立即上传**，成功才把 `{ path }` 写进抽屉草稿。
+     * 失败像没选过一样 —— 原值留着，控件旁给一行错误（不静默）。
+     */
+    const uploadForbiddenSymbol = async (file: File): Promise<void> => {
+      setForbiddenUploading(true);
+      setForbiddenUploadError(null);
+      try {
+        const uploaded = await onUploadForbiddenSymbol(file);
+        if (!uploaded) {
+          setForbiddenUploadError('图片上传失败，请重试。');
+          return;
+        }
+        setDraftForbiddenSymbol({ path: uploaded.path });
+      } catch {
+        setForbiddenUploadError('图片上传失败，请重试。');
+      } finally {
+        setForbiddenUploading(false);
+      }
     };
 
     /**
@@ -515,6 +588,88 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 setDraftCoverRemoved(true);
               }}
               onRestore={() => setDraftCoverRemoved(false)}
+            />
+          </Section>
+
+          {/*
+            v0.8.6 §4：玩家在游戏页标记排除项时画面上显示的那枚符号。默认是 ×，
+            作者可以上传一张图片替换它。文件一选中就上传，返回的 path 写进本地草稿 ——
+            与其余基本信息同一个「保存」/ 撤销步。
+          */}
+          <Section
+            title="禁止符号"
+            hint="Forbidden Symbol — 玩家在游戏页标记排除项时画面上显示的那枚符号。默认是 ×；上传一张图片可替换它，图片按格子居中等比缩放。"
+          >
+            <div className="flex items-start gap-3">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/30">
+                {draftForbiddenSymbol ? (
+                  <img
+                    data-testid="forbidden-symbol-preview"
+                    src={fileUrlFromPath(draftForbiddenSymbol.path)}
+                    alt="禁止符号预览"
+                    draggable={false}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-xl text-muted-foreground" aria-hidden="true">
+                    ×
+                  </span>
+                )}
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs"
+                    disabled={forbiddenUploading}
+                    onClick={() => forbiddenInputRef.current?.click()}
+                  >
+                    <Upload className="mr-1 h-3.5 w-3.5" />
+                    {forbiddenUploading
+                      ? '上传中…'
+                      : draftForbiddenSymbol
+                        ? '更换'
+                        : '选择图片'}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs text-destructive hover:text-destructive"
+                    disabled={forbiddenUploading || draftForbiddenSymbol === null}
+                    onClick={() => {
+                      setDraftForbiddenSymbol(null);
+                      setForbiddenUploadError(null);
+                    }}
+                  >
+                    <Trash2 className="mr-1 h-3.5 w-3.5" />
+                    移除
+                  </Button>
+                </div>
+                <p className="text-2xs leading-relaxed text-muted-foreground">
+                  默认是 ×。这张图会出现在玩家游戏页标记排除项的格子里；新建谜题会先带主题的缺省，见主题概览页。
+                </p>
+                {forbiddenUploadError ? (
+                  <p role="alert" className="text-2xs text-destructive">
+                    {forbiddenUploadError}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+            <input
+              ref={forbiddenInputRef}
+              id="puzzle-info-forbidden-symbol"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(event) => {
+                const picked = event.target.files?.[0] ?? null;
+                event.target.value = '';
+                if (!picked) return;
+                void uploadForbiddenSymbol(picked);
+              }}
             />
           </Section>
 
@@ -729,7 +884,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           <Button
             type="button"
             size="sm"
-            disabled={!dirty || descriptionOverLimit || nameBlank}
+            disabled={!dirty || descriptionOverLimit || nameBlank || forbiddenUploading}
             onClick={() =>
               onCommit({
                 name: draftName.trim(),
@@ -739,6 +894,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 linkageColors: draftPalette,
                 characterSlots: draftSlots,
                 rosterCols: draftCols,
+                forbiddenSymbol: draftForbiddenSymbol,
                 coverFile: draftCoverFile,
                 coverRemoved: draftCoverRemoved,
               })

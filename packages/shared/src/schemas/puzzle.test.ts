@@ -171,6 +171,38 @@ describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
       ).toBe(false);
     }
   });
+
+  /**
+   * v0.8.6（docs/v0.8.6.md §4）—— 禁止符号用哪张资源图。
+   *
+   * 与 `rosterCols` 同一条可选字段规则：老版本行没有这个键照样解析，值缺席 =
+   * 默认的 `×`。`variantId` 可选（缺省 = 资源第一个形态），`null` 与缺席等价。
+   */
+  it('keeps the forbidden symbol image optional and strict', () => {
+    const older = puzzleDraftSchema.parse(draft());
+    expect(older.forbiddenSymbol).toBeUndefined();
+    expect(puzzleDraftSchema.parse(draft({ forbiddenSymbol: null })).forbiddenSymbol).toBeNull();
+
+    const chosen = puzzleDraftSchema.parse(
+      draft({ forbiddenSymbol: { path: 'puzzles/12/forbidden-symbol/a1b2.webp' } }),
+    );
+    expect(chosen.forbiddenSymbol).toEqual({ path: 'puzzles/12/forbidden-symbol/a1b2.webp' });
+
+    for (const bad of [
+      {},
+      { path: '' },
+      { path: '/etc/passwd' },
+      { path: 'puzzles/../themes/x.webp' },
+      { path: 'a.webp' },
+      { path: 7 },
+      { path: 'puzzles/1/x.webp', extra: true },
+      'puzzles/1/x.webp',
+    ] as Array<unknown>) {
+      expect(puzzleDraftSchema.safeParse(draft({ forbiddenSymbol: bad })).success, JSON.stringify(bad)).toBe(
+        false,
+      );
+    }
+  });
 });
 
 describe('puzzleDraftSchema 自洽引用校验 (§5.2 第一半)', () => {

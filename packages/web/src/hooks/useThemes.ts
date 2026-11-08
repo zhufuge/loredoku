@@ -1,6 +1,13 @@
+import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { Theme, ThemeDeploymentSummary, ThemeOption } from '@loredoku/shared';
+import { resolveDifficultyTiers } from '@loredoku/shared';
+import type {
+  Theme,
+  ThemeDeploymentSummary,
+  ThemeDifficultyTier,
+  ThemeOption,
+} from '@loredoku/shared';
 import { themesApi, type CreateThemePayload, type DeployThemePayload, type UpdateThemePayload } from '@/api/themes';
 import { forgetThemeCode } from '@/lib/workspace';
 
@@ -71,6 +78,38 @@ export function useUpdateTheme(code: string) {
   });
 }
 
+/**
+ * v0.8.6 §4 —— 主题级的「禁止符号」缺省，**即时保存**。
+ *
+ * 卡片里选好文件就上传、点移除就清掉，不再走「编辑 → 保存」。所以这里没有草稿：
+ * 成功与失败都要当场有回音，且必须让工作空间里那份 `theme`（`WorkspaceLayout`
+ * 从 `useThemes()` 取）一起刷新 —— 否则概览页的预览图要等下一次进页面才变。
+ */
+export function useUploadThemeForbiddenSymbol(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => themesApi.uploadForbiddenSymbol(code, file),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('已设为新建谜题的默认禁止符号');
+    },
+    onError: (error: Error) => toast.error(error.message || '禁止符号上传失败'),
+  });
+}
+
+/** 移除主题级缺省 = 删掉 `data.forbiddenSymbol`，新建谜题回到默认的 `×` 字形。 */
+export function useRemoveThemeForbiddenSymbol(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => themesApi.removeForbiddenSymbol(code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('已移除默认禁止符号');
+    },
+    onError: (error: Error) => toast.error(error.message || '移除失败'),
+  });
+}
+
 export function useDeleteTheme() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -93,6 +132,39 @@ export function useThemeDeployments() {
     queryKey: themeKeys.deployments(),
     queryFn: () => themesApi.deployments() as Promise<ThemeDeploymentSummary[]>,
   });
+}
+
+/**
+ * v0.8.6 §3.6 —— 玩家侧要的「主题编码 → 难度分级」。
+ *
+ * 播放页（`/play`、`/play/theme/:slug`）在 `WorkspaceLayout` 外面，`useWorkspace()`
+ * 拿到的是 `null`。`DifficultyBadge` 于是只能落到内置五档 —— 作者在概览页配的名字
+ * 与颜色，到了玩家面前一个都不出现，第 6 档以后还直接变成「第 6 档」。
+ *
+ * 而 `MapGameSummary` 与 `ThemeDeploymentSummary` 都带着 `themeCode`（§19），所以
+ * 这里把主题列表取一次、摊成一张表，卡按自己那一关的主题去查。
+ *
+ * **一次 `/themes` 换掉每张卡各问一次**：列表页二十几张卡，一张一个请求就是二十几次；
+ * 主题数量是个位数，整份列表比分头取还小。分级的排序交给 `resolveDifficultyTiers`
+ * ——「主题里存着什么顺序」不该由界面猜。
+ */
+export function useDifficultyTiersByCode(): (
+  code: string | null | undefined,
+) => readonly ThemeDifficultyTier[] | undefined {
+  const query = useThemes();
+  const byCode = useMemo(() => {
+    const map = new Map<string, readonly ThemeDifficultyTier[]>();
+    for (const theme of query.data ?? []) {
+      map.set(theme.code, resolveDifficultyTiers(theme.data.difficultyLevels));
+    }
+    return map;
+  }, [query.data]);
+
+  // 同一个函数引用跨渲染保持稳定：它要传进几十张卡的 props。
+  return useCallback(
+    (code: string | null | undefined) => (code ? byCode.get(code) : undefined),
+    [byCode],
+  );
 }
 
 export function useThemeDeploymentBySlug(slug: string | null) {

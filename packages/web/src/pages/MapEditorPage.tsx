@@ -86,6 +86,25 @@ interface RegionDialogState {
 }
 
 /**
+ * FEAT-F01 的标尺开关，偏好落在 `localStorage`（同 `MapViewPage` / `PuzzleEditorPage`
+ * 的 `RULER_STORAGE_KEY` 模式）。
+ *
+ * v0.8.6 §2：**缺省改成不展示**。标尺画在画布外面那两条边带上，它占的正是画布
+ * 能用的高度与宽度 —— 一张 20×20 的图在窗口里能不能一屏放下，取决于这两条带子
+ * 在不在。而它回答的问题（「第几列」）只在数格子时才有意义，不是每次打开都要看。
+ *
+ * 「可配置」就是底栏右上角那枚标尺按钮：点开一次，`localStorage` 记成 `visible`，
+ * 之后一直是展示的。所以判断条件从「不等于 `hidden`」翻成「等于 `visible`」——
+ * 老读者**点过**开关的保持原样，从没点过的从此收起来。
+ */
+const RULER_STORAGE_KEY = 'loredoku.editor.ruler';
+
+function readStoredRulerVisible(): boolean {
+  if (typeof window === 'undefined') return false;
+  return window.localStorage.getItem(RULER_STORAGE_KEY) === 'visible';
+}
+
+/**
  * v0.5.0 SPEC-K12 (docs/v0.5.0.md §9.1): the map editor is 只编辑地图 again.
  *
  * The roster, the participant panel, the participant drawer and the whole
@@ -192,14 +211,11 @@ export function MapEditorPage(): JSX.Element {
   const [regionError, setRegionError] = useState<string | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<MapDraft | null>(null);
-  const [rulerVisible, setRulerVisible] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return true;
-    return window.localStorage.getItem('loredoku.editor.ruler') !== 'hidden';
-  });
+  const [rulerVisible, setRulerVisible] = useState<boolean>(readStoredRulerVisible);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem('loredoku.editor.ruler', rulerVisible ? 'visible' : 'hidden');
+      window.localStorage.setItem(RULER_STORAGE_KEY, rulerVisible ? 'visible' : 'hidden');
     }
   }, [rulerVisible]);
 

@@ -1,5 +1,6 @@
 import Router from '@koa/router';
 import * as controller from '../controller/themeController';
+import { forbiddenSymbolUpload } from '../middleware/upload';
 
 /**
  * v0.8.0（docs/v0.8.0.md §7 / §19）—— `/api/themes` 只负责「边界」本身与它的缺省
@@ -18,6 +19,17 @@ themesRouter.post('/', controller.create);
 themesRouter.get('/:code', controller.detail);
 themesRouter.patch('/:code', controller.update);
 themesRouter.delete('/:code', controller.remove);
+
+/**
+ * v0.8.6 §4：主题级的「禁止符号缺省」。它和 `style` / `linkageColors` 一样是
+ * 缺省，不是内容：改即时生效，但只影响**之后新建**的谜题。
+ */
+themesRouter.post(
+  '/:code/forbidden-symbol',
+  forbiddenSymbolUpload.single('file'),
+  controller.uploadForbiddenSymbol,
+);
+themesRouter.delete('/:code/forbidden-symbol', controller.removeForbiddenSymbol);
 
 /** 一键整主题部署（§9）：对每个谜题血统的最新已发布版本跑一次 `deployGame`。 */
 themesRouter.post('/:code/deploy', controller.deploy);

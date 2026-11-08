@@ -61,7 +61,7 @@ function existingGame(overrides: Partial<MapGameSummary> = {}): MapGameSummary {
     name: 'Midnight Garden',
     slug: 'puzzle-night-train-easy',
     coverUrl: null,
-    difficulty: 'easy',
+    difficulty: 2,
     sortWeight: 0,
     gridSize: 6,
     participantCount: 6,
@@ -226,7 +226,7 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
       expect.objectContaining({
         puzzleId: 9,
         slug: 'puzzle-flower-garden',
-        difficulty: 'medium',
+        difficulty: 3,
       }),
       expect.anything(),
     );

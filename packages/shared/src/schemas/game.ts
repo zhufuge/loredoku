@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import {
-  GAME_DIFFICULTY_KEY_MAX_LENGTH,
-  GAME_DIFFICULTY_KEY_PATTERN,
+  GAME_DIFFICULTY_LEVEL_MAX,
+  GAME_DIFFICULTY_LEVEL_MIN,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
   GAME_SLUG_PATTERN,
@@ -37,21 +37,19 @@ export const gameDeploySchema = z.object({
    */
   overwriteSlug: z.boolean().optional(),
   /**
-   * v0.8.3：难度不再是一个写死的枚举 —— 主题可以自己定义几档（概览页的
-   * 「难度分级」）。这里只把守**形状**（`GAME_DIFFICULTY_KEY_PATTERN`），
-   * 「这一档在不在本主题里」由服务端拿着主题去核对：schema 不认识数据库，
-   * 而这一步必须知道是哪个主题。
+   * v0.8.6：难度是**档位数字**（v0.8.3 时是字符串标识）。schema 只知道「一个
+   * 1…99 的整数」，至于这个数字在这个主题里存不存在，由服务端拿着主题去核对 ——
+   * schema 不认识数据库，而这一步必须知道是哪个主题。
    *
-   * **不给 `.default()`**：缺省档取决于主题（内置五档里是 `medium`，自定义分级
-   * 里是「正中间那一档」）。schema 里写死 `medium`，一个只有「热身 / 地狱」两档
-   * 的主题就会因为默认值不在自己的分级里而部署失败 —— 而作者根本没提难度。
+   * **不给 `.default()`**：缺省档取决于主题（内置五档里是第 3 档，自定义分级里
+   * 是「正中间那一档」）。schema 里写死 3，一个只有两档的主题就会因为默认值不在
+   * 自己的分级里而部署失败 —— 而作者根本没提难度。
    */
   difficulty: z
-    .string()
-    .trim()
-    .min(1)
-    .max(GAME_DIFFICULTY_KEY_MAX_LENGTH)
-    .regex(GAME_DIFFICULTY_KEY_PATTERN, '难度标识只能包含字母、数字与连字符')
+    .number()
+    .int('难度必须是整数档位')
+    .min(GAME_DIFFICULTY_LEVEL_MIN)
+    .max(GAME_DIFFICULTY_LEVEL_MAX)
     .optional(),
   /**
    * v0.8.3：展示顺序 —— **升序**，数字小的排前面，同权重按访问路径。

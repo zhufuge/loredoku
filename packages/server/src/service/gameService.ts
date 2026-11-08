@@ -2,7 +2,7 @@ import {
   ErrorCode,
   absorbLegacyPuzzleDraft,
   buildDefaultSlug,
-  defaultDifficultyKey,
+  defaultDifficultyLevel,
   gameDeploySchema,
   gameWeightUpdateSchema,
   resolveDifficultyTiers,
@@ -150,30 +150,30 @@ async function resolveSlug(
 }
 
 /**
- * v0.8.3（docs/v0.8.3.md §3.3）：难度标识必须是**这个谜题所属主题**里的一档。
+ * v0.8.6：难度档位必须是**这个谜题所属主题**里的一档。
  *
- * `gameDeploySchema` 只把守形状（小写标识符），因为「这一档存不存在」的答案在
+ * `gameDeploySchema` 只把守「1…99 的整数」，因为「这一档存不存在」的答案在
  * `themes.data.difficultyLevels` 里，而 schema 不认识数据库。这一层拿主题去核对。
  *
- * **没提难度时**由这里补上这个主题的默认档（`defaultDifficultyKey`：有 `medium`
- * 就用它，否则取正中间那一档）—— 不能在 schema 里写死 `medium`，否则一个只有
- * 「热身 / 地狱」的主题连部署都做不了：默认值不在它自己的分级里。
+ * **没提难度时**由这里补上这个主题的默认档（`defaultDifficultyLevel`：有第 3 档
+ * 就用它，否则取正中间那一档）—— 不能在 schema 里写死 3，否则一个只有
+ * 「热身 / 地狱」两档的主题连部署都做不了：默认值不在它自己的分级里。
  *
  * 主题没有配分级时 `resolveDifficultyTiers` 给出内置五档 —— 存量主题照旧能部署
- * `medium`，而 `nightmare` 这种从没定义过的标识照样被拒（以前是被 zod 的枚举拒）。
+ * 第 3 档，而 7 这种从没定义过的档位照样被拒。
  */
-async function resolveDifficulty(themeId: number, requested: string | undefined): Promise<string> {
+async function resolveDifficulty(themeId: number, requested: number | undefined): Promise<number> {
   const theme = await themeRepo.findById(themeId);
   if (!theme) {
     throw AppError.validation('谜题所属的主题不存在，无法部署');
   }
   const tiers = resolveDifficultyTiers(theme.data.difficultyLevels);
   if (requested === undefined) {
-    return defaultDifficultyKey(tiers);
+    return defaultDifficultyLevel(tiers);
   }
-  if (!tiers.some((tier) => tier.key === requested)) {
-    const names = tiers.map((tier) => tier.label).join('、');
-    throw AppError.validation(`「${requested}」不是这个主题的难度分级（可用：${names}）`);
+  if (!tiers.some((tier) => tier.level === requested)) {
+    const names = tiers.map((tier) => `第 ${tier.level} 档「${tier.label}」`).join('、');
+    throw AppError.validation(`「第 ${requested} 档」不是这个主题的难度分级（可用：${names}）`);
   }
   return requested;
 }

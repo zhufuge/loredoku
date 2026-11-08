@@ -86,6 +86,15 @@ export const puzzlesApi = {
   removeCover(id: number): Promise<PuzzleDetail> {
     return apiDelete<PuzzleDetail>(`/puzzles/${id}/cover`);
   },
+  /**
+   * v0.8.6 §4：上传「禁止符号」那张图（multipart 字段 `file`）。返回落盘后的相对
+   * 路径与站内地址 —— 路径要写进草稿的 `forbiddenSymbol`，地址只给调用方预览用。
+   */
+  uploadForbiddenSymbol(id: number, file: File): Promise<{ path: string; url: string }> {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<{ path: string; url: string }>(`/puzzles/${id}/forbidden-symbol`, form);
+  },
 
   /** 发布 = 血统里新增一条版本行；`version` 省略时由服务端续号。 */
   publish(id: number, version?: number): Promise<PuzzleEntrySummary> {

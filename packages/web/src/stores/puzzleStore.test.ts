@@ -473,6 +473,8 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
       ],
       // v0.6.3 §3: the layout column count is part of the same gesture.
       rosterCols: 3,
+      // v0.8.6 §4: 禁止符号与其余基本信息同一个撤销步。
+      forbiddenSymbol: null,
     });
 
     expect(store().description).toBe('改过的描述');
@@ -495,6 +497,71 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
    */
   it('reads a legacy puzzle as 自动', () => {
     expect(store().rosterCols).toBeNull();
+  });
+});
+
+/**
+ * v0.8.6（docs/v0.8.6.md §4）：玩家侧「禁止符号」用哪张上传图。
+ *
+ * 约定的两条：默认 `×` 用「草稿里缺席」表达（不是 `forbiddenSymbol: null`），
+ * 作者上传过图之后才写出 `{ path }`；它跟其余基本信息同一个撤销步。
+ */
+describe('forbiddenSymbol（v0.8.6 §4）', () => {
+  const chosen = { path: 'puzzles/42/forbidden-symbol/chosen.webp' };
+
+  /** 只把现有的其它基本信息原样带上，测试关心的是那一个字段。 */
+  function basicInfo() {
+    return {
+      name: store().name,
+      description: store().description,
+      clues: store().clues,
+      ending: store().ending,
+      linkageColors: store().linkageColors,
+      characterSlots: store().characterSlots,
+      rosterCols: store().rosterCols,
+    };
+  }
+
+  it('init 读入草稿里的引用；旧行的缺席读成 null（默认 ×）', () => {
+    store().init(detail({ forbiddenSymbol: chosen }), mapContext());
+    expect(store().forbiddenSymbol).toEqual(chosen);
+
+    store().init(detail(), mapContext());
+    expect(store().forbiddenSymbol).toBeNull();
+  });
+
+  it('setBasicInfo 写入，toDraft 带出去', () => {
+    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: chosen });
+    expect(store().forbiddenSymbol).toEqual(chosen);
+    expect(store().toDraft().forbiddenSymbol).toEqual(chosen);
+  });
+
+  it('null 不写进草稿 —— 默认 × 用缺席表达', () => {
+    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: chosen });
+    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: null });
+    expect(store().forbiddenSymbol).toBeNull();
+    expect(store().toDraft()).not.toHaveProperty('forbiddenSymbol');
+  });
+
+  it('applyDraft 往返', () => {
+    store().applyDraft({ ...detail().data, forbiddenSymbol: chosen });
+    expect(store().forbiddenSymbol).toEqual(chosen);
+
+    store().applyDraft(detail().data);
+    expect(store().forbiddenSymbol).toBeNull();
+  });
+
+  it('一步撤销回到之前的值', () => {
+    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: chosen });
+    store().setBasicInfo({
+      ...basicInfo(),
+      forbiddenSymbol: { path: 'puzzles/42/forbidden-symbol/other.webp' },
+    });
+
+    store().undo();
+    expect(store().forbiddenSymbol).toEqual(chosen);
+    store().undo();
+    expect(store().forbiddenSymbol).toBeNull();
   });
 });
 
@@ -525,6 +592,7 @@ describe('replaceMapContext (v0.7.3 §3.3)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: 2,
+      forbiddenSymbol: null,
     });
     const baseline = store().past.length;
 
@@ -846,6 +914,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: 2,
+      forbiddenSymbol: null,
     });
     expect(store().toDraft().rosterCols).toBe(2);
     // 自动 is stored as `null`, not dropped — the field is always present.
@@ -857,6 +926,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: null,
+      forbiddenSymbol: null,
     });
     expect(store().toDraft().rosterCols).toBeNull();
   });
@@ -874,6 +944,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: null,
+      forbiddenSymbol: null,
     });
     const draft = store().toDraft();
     expect(draft.clues).toEqual(['同一行里没有重复编号', '阴影里没有编号']);

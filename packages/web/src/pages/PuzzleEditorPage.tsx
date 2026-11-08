@@ -69,6 +69,7 @@ import {
   useRemovePuzzleCover,
   useSavePuzzle,
   useUploadPuzzleCover,
+  useUploadPuzzleForbiddenSymbol,
 } from '@/hooks/usePuzzles';
 import { useEditorPublish } from '@/hooks/useEditorPublish';
 import { useEditorSave } from '@/hooks/useEditorSave';
@@ -152,6 +153,11 @@ export function PuzzleEditorPage(): JSX.Element {
   /** 封面没有 JSON 通道，落库是「先保存草稿、再传文件」两步。 */
   const uploadCoverMutation = useUploadPuzzleCover();
   const removeCoverMutation = useRemovePuzzleCover();
+  /**
+   * v0.8.6 §4：禁止符号图在**选中那一刻**就上传（路径要先进草稿），所以它不走
+   * `pendingCover` 那套「保存后再传」的时序；fork 态用版本行 id 上传，端点允许。
+   */
+  const uploadForbiddenSymbolMutation = useUploadPuzzleForbiddenSymbol();
   /** v0.7.3 §3：引入新地图的弹窗 + 取新画布时的忙碌态。 */
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
@@ -491,6 +497,7 @@ export function PuzzleEditorPage(): JSX.Element {
       linkageColors: next.linkageColors,
       characterSlots: next.characterSlots,
       rosterCols: next.rosterCols,
+      forbiddenSymbol: next.forbiddenSymbol,
     });
     // 抽屉每次提交都带上当前的封面状态，所以只在真的变了时才改 pending。
     const coverChanged =
@@ -843,7 +850,7 @@ export function PuzzleEditorPage(): JSX.Element {
         onOpenVersions={() => setVersionsOpen(true)}
         onImportMap={() => setSwapOpen(true)}
         mapInfoOpen={puzzleInfoOpen}
-        infoTitle="谜题基本信息（名称、封面、描述、参与者布局、联动主题色）"
+        infoTitle="谜题基本信息（名称、封面、描述、禁止符号、参与者布局、联动主题色）"
         onOpenMapInfo={() => {
           if (puzzleInfoOpen) {
             closePuzzleInfo();
@@ -1046,6 +1053,15 @@ export function PuzzleEditorPage(): JSX.Element {
             linkageColors={puzzle.linkageColors}
             characterSlots={puzzle.characterSlots}
             rosterCols={puzzle.rosterCols}
+            forbiddenSymbol={puzzle.forbiddenSymbol}
+            onUploadForbiddenSymbol={async (file) => {
+              try {
+                return await uploadForbiddenSymbolMutation.mutateAsync({ id, file });
+              } catch {
+                // 抽屉负责提示与保留原值；这里只把失败折成 `null`。
+                return null;
+              }
+            }}
             coverUrl={detail?.coverUrl ?? null}
             coverFile={pendingCover?.file ?? null}
             coverRemoved={pendingCover?.removed ?? false}

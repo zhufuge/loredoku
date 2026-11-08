@@ -31,7 +31,8 @@ import * as mapRepo from '../repository/mapRepository';
 import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 import { absorbLegacyMapDraft, readLegacyLinkageColors } from './mapDraftCompat';
-import { processPuzzleCover } from '../utils/image';
+import { processForbiddenSymbolImage, processPuzzleCover } from '../utils/image';
+import { buildFileUrl } from '../utils/paths';
 
 /**
  * 谜题模块的服务层（v0.7.1 §5）。
@@ -50,6 +51,11 @@ import { processPuzzleCover } from '../utils/image';
 /** Raised when `POST /api/puzzles/:id/cover` arrives without a file part. */
 export function coverRequired(): AppError {
   return AppError.validation('请选择封面图片');
+}
+
+/** Raised when `POST /api/puzzles/:id/forbidden-symbol` arrives without a file part. */
+export function forbiddenSymbolRequired(): AppError {
+  return AppError.validation('请选择禁止符号图片');
 }
 
 /** 存量行读成 `PuzzleDraft`（v1 会补一份空画布）；读不出来就是坏数据。 */
@@ -285,6 +291,11 @@ export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDeta
   }
   const themeId = Number(mapRow.theme_id);
 
+  // v0.8.6 §4：主题的「禁止符号」是**新建那一刻的缺省**（与 style / linkageColors
+  // 同一种语义）—— 深拷贝一份进草稿，之后主题换图不追溯这一题。
+  const defaultSymbol = await themeService.defaultForbiddenSymbolOf(themeId);
+  if (defaultSymbol) data.forbiddenSymbol = defaultSymbol;
+
   // v0.8.5 §7：编码同主题内不重。schema 只守形状，重复要拿着主题去查。
   await assertCodeFree(themeId, input.code);
 
@@ -435,6 +446,25 @@ export async function removeCover(id: number): Promise<PuzzleDetail> {
     throw AppError.notFound('谜题不存在');
   }
   return toDetail(row);
+}
+
+/**
+ * v0.8.6 §4：禁止符号图上传（multipart）。
+ *
+ * 三点与封面不同：
+ *
+ * 1. **只写文件、不写库** —— `path` 住在草稿 JSON 里，由作者随保存请求带回来。
+ * 2. 所以**版本行也允许**（`requireRow`，不是 `findWritable`）：编辑器 `?v=` 的
+ *    fork 态拿到的就是版本行 id，上传发生在保存草稿之前；写文件不碰冻结快照。
+ * 3. 回执是 `{ path, url }` 而不是整条谜题 —— 行本来就没变。
+ */
+export async function uploadForbiddenSymbol(
+  id: number,
+  buffer: Buffer,
+): Promise<{ path: string; url: string }> {
+  await requireRow(id);
+  const image = await processForbiddenSymbolImage({ kind: 'puzzle', id }, buffer);
+  return { path: image.relativePath, url: buildFileUrl(image.relativePath) };
 }
 
 /**

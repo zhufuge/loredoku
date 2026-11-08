@@ -157,6 +157,23 @@ export function useUploadPuzzleCover() {
   });
 }
 
+/**
+ * v0.8.6 §4：禁止符号图上传。
+ *
+ * 失败**不在这里 toast**：调用方（抽屉）要把「原值保留 + 一行错误」画在控件旁边，
+ * 同一次失败在页角和控件旁各报一遍只会吵。这里只负责成功后刷新谜题详情。
+ */
+export function useUploadPuzzleForbiddenSymbol() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, file }: { id: number; file: File }) =>
+      puzzlesApi.uploadForbiddenSymbol(id, file),
+    onSuccess: (_data, { id }) => {
+      void queryClient.invalidateQueries({ queryKey: puzzleKeys.detail(id) });
+    },
+  });
+}
+
 export function useRemovePuzzleCover() {
   const queryClient = useQueryClient();
   return useMutation({

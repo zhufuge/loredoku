@@ -115,8 +115,8 @@ export interface UpsertGameData {
    */
   coverPath: string | null;
   clearCover: boolean;
-  /** v0.8.3：`gameService` 已按主题分级校验过，这里只负责写。 */
-  difficulty: string;
+  /** v0.8.6：`gameService` 已按主题分级校验过档位，这里只负责写数字。 */
+  difficulty: number;
   /**
    * v0.8.3：展示顺序。`undefined` = 这次没提 —— 沿用上一行的值（重新部署不该
    * 把作者排好的顺序清零）；都没有就落 `0`。

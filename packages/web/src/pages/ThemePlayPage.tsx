@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
-import { useThemeDeploymentBySlug } from '@/hooks/useThemes';
+import { useDifficultyTiersByCode, useThemeDeploymentBySlug } from '@/hooks/useThemes';
 
 /**
  * v0.8.0（docs/v0.8.0.md §10 / §16.6）—— `/play/theme/:slug`：一个主题的关卡页。
@@ -26,6 +26,8 @@ export function ThemePlayPage(): JSX.Element {
   const slug = slugParam && slugParam.length > 0 ? slugParam : null;
   const navigate = useNavigate();
   const query = useThemeDeploymentBySlug(slug);
+  /** v0.8.6 §3.6：同上 —— 这一页在 `WorkspaceLayout` 外面，分级得自己查。 */
+  const tiersFor = useDifficultyTiersByCode();
 
   const deployment = query.data ?? null;
   /** 只有**还在线**的成员才摆卡片：取消上线的那一关不摆灰卡（§16.5）。 */
@@ -100,6 +102,7 @@ export function ThemePlayPage(): JSX.Element {
                 <GameCard
                   key={entry.game.id}
                   game={entry.game}
+                  tiers={tiersFor(deployment.themeCode)}
                   href={`/play/theme/${deployment.slug}/${entry.game.slug}`}
                 />
               ) : null,
