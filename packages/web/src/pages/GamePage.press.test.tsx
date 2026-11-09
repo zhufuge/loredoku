@@ -73,6 +73,8 @@ vi.mock('@/hooks/useThemes', () => ({
   useForbiddenSymbolByCode: () => () => null,
   // v0.9.2 §2：计时环的图 —— 这一套不测它，主题当作「没配」。
   usePressRingByCode: () => () => null,
+  // v0.9.3 §3：校验样式 —— 这一套不测它，主题当作「没配」。
+  useCheckStyleByCode: () => () => null,
   // v0.8.7 §7：这一套不测工具图标，主题那一套一律当作「没配」。
   useToolIconsByCode: () => () => null,
 }));

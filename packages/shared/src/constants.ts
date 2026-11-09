@@ -1044,6 +1044,31 @@ export const GAME_LONG_PRESS_MS = 500;
  */
 export const GAME_CLEAR_LONG_PRESS_MS = 800;
 
+// ---- v0.9.3 submit check (docs/v0.9.3.md) ----
+/**
+ * v0.9.3：提交后**逐人校验**的节奏。
+ *
+ * 一次提交要把所有参与者挨个圈一遍。两段时间分开：
+ *   - `GAME_CHECK_RING_SWEEP_MS`：那一圈从 0 扫到满 —— 它表示「正在核对这一位」；
+ *   - `GAME_CHECK_STEP_MS`：到下一位的间隔（含扫完后那一小段停顿）。
+ *
+ * 为什么是 480 而不是更快：这一步是**给人看的**，不是计算。扫得太快读成「闪了
+ * 一下」；停留太短又会让前面几位的颜色来不及被看见。9 位参与者约 4.3s，是这段
+ * 演出能接受的上限 —— 再长就该让玩家等得不耐烦了。
+ */
+export const GAME_CHECK_RING_SWEEP_MS = 360;
+export const GAME_CHECK_STEP_MS = 480;
+
+/**
+ * v0.9.3：校验圈的两档颜色（主题里可改，这里是缺省）。
+ *
+ * 绿 = 通过、红 = 未通过 —— 是「对 / 错」的语义，不是股市那套涨跌色。地图是作者
+ * 上传的照片，什么底色都有，所以这两个值刻意取深一档（600 而不是 500）：浅绿
+ * 压在浅色地砖上会糊掉。
+ */
+export const THEME_CHECK_PASS_COLOR = '#16A34A';
+export const THEME_CHECK_FAIL_COLOR = '#DC2626';
+
 /**
  * v0.7.11：长按进度环的**出场延迟**。
  *

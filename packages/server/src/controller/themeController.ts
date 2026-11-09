@@ -4,6 +4,7 @@ import {
   listThemesQuerySchema,
   themeCodeParamSchema,
   toolIconParamSchema,
+  updateThemeCheckStyleSchema,
   updateThemeSchema,
 } from '@loredoku/shared';
 import { success } from '../utils/response';
@@ -102,6 +103,33 @@ export async function uploadPressRing(ctx: Context): Promise<void> {
 export async function removePressRing(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
   success(ctx, await themeService.removePressRing(code), '计时环已恢复默认');
+}
+
+/**
+ * v0.9.3 §3：提交校验的两档颜色（主题级）。
+ *
+ * 单独一个端点而不是走 `PATCH /themes/:code`：那条是「整份 data 覆盖」，两个取色器
+ * 每动一下就把整份主题提交一遍，很容易把别处的改动顺手覆盖掉。
+ */
+export async function updateCheckStyle(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  const patch = parseOrThrow(updateThemeCheckStyleSchema, ctx.request.body);
+  success(ctx, await themeService.updateCheckStyle(code, patch), '校验颜色已保存');
+}
+
+/** v0.9.3 §3：校验圈图（主题级，可选）。不传 = 回到内置本色细环。 */
+export async function uploadCheckRing(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw themeService.checkRingRequired();
+  }
+  success(ctx, await themeService.uploadCheckRing(code, file.buffer), '校验圈图已保存');
+}
+
+export async function removeCheckRing(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  success(ctx, await themeService.removeCheckRing(code), '校验圈已恢复默认');
 }
 
 /**

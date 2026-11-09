@@ -2,8 +2,10 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ForbiddenSymbolImage, GameToolIcons } from '@loredoku/shared';
+import { GAME_CHECK_STEP_MS } from '@loredoku/shared';
+import type { ForbiddenSymbolImage, GameToolIcons, ThemeCheckStyle } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
+import { imageTintMatrix } from '@/components/common/PressRing';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
 import { gameTimerKey } from '@/lib/gameTimer';
 import ApiGamePage from './ApiGamePage';
@@ -33,6 +35,8 @@ const fixture = vi.hoisted(() => ({
     forbiddenSymbol: null as ForbiddenSymbolImage | null,
     /** v0.8.7 §7：主题那一套工具按钮图标；默认没配。 */
     toolIcons: null as GameToolIcons | null,
+    /** v0.9.3 §7：主题级的校验样式（两档颜色 + 圈图）；默认没配。 */
+    checkStyle: null as ThemeCheckStyle | null,
   },
   detail: {
     id: 1,
@@ -90,6 +94,8 @@ vi.mock('@/hooks/useThemes', () => ({
   useForbiddenSymbolByCode: () => () => fixture.theme.forbiddenSymbol,
   // v0.9.2 §2：长按计时环的图 —— 这一套不测它，主题当作「没配」。
   usePressRingByCode: () => () => null,
+  // v0.9.3 §3 / §7：校验样式 —— 默认不配，落回内置绿 / 红。
+  useCheckStyleByCode: () => () => fixture.theme.checkStyle,
   /**
    * v0.8.7 §7：三枚工具按钮图标。同样按编码查表，这里返回 fixture 里那一套
    * （默认 `null` = 谁都没配，按钮画内置图标）。
@@ -132,6 +138,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     // 那几张图会漏到后面的右栏布局用例里（它们要求「谁都没配」）。
     fixture.detail.puzzle.toolIcons = null;
     fixture.theme.toolIcons = null;
+    // v0.9.3 §7：圈图与两档颜色也是 fixture 上的可变状态，别漏到别的用例。
+    fixture.theme.checkStyle = null;
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -237,27 +245,83 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
    * v0.7.12：没放完已经交不上去（按钮禁用），所以「未通过」只剩一种局面 ——
    * 三位都放了，但 1 和 2 撞在同一列。弹窗该是两条「位置不对」，不牵扯 3。
    */
-  it('lists the offending participants (and nothing more) when a submit fails', () => {
-    seedSave({
-      board: {
-        '0,0': { kind: 'participant', index: 1 },
-        '0,1': { kind: 'participant', index: 2 },
-        '5,5': { kind: 'participant', index: 3 },
-      },
-    });
-    render();
-    act(() =>
-      container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
-    );
+  /**
+   * v0.9.3 §2：提交后**先逐人校验**，结论要等圈完最后一位才出来。
+   *
+   * 钉三件能看见的事：
+   *   1. 点下提交的那一刻不弹窗，左栏先压一层遮罩（地图除外）；
+   *   2. 圈是一拍一位加上去的 —— 不是一次性全亮；
+   *   3. 圈到最后一位之后再一拍，结论才落下来，而且那几圈**还留在棋盘上**。
+   */
+  it('提交后先逐人圈一遍，圈完才给结论', () => {
+    vi.useFakeTimers();
+    try {
+      seedSave({
+        board: {
+          '0,0': { kind: 'participant', index: 1 },
+          '1,1': { kind: 'participant', index: 2 },
+          '2,2': { kind: 'participant', index: 3 },
+        },
+      });
+      render();
+      const rings = (): number =>
+        container.querySelectorAll('main .press-ring-arc').length;
+      const dialog = (): string => document.body.textContent ?? '';
 
-    const dialog = document.body.textContent ?? '';
-    expect(dialog).toContain('提交未通过');
-    expect(dialog).toContain('编号 1');
-    expect(dialog).toContain('编号 2');
-    expect(dialog).toContain('位置不对');
-    // 3 站在自己的行列上，不该被点名。
-    expect(dialog).not.toContain('编号 3');
-    expect(dialog).not.toContain('未放置');
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+      // 遮罩出来了、圈还没画、结论也还没出来。
+      expect(container.querySelector('[data-testid="check-scrim"]')).not.toBeNull();
+      expect(rings()).toBe(0);
+      expect(dialog()).not.toContain('定案');
+
+      act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      expect(rings()).toBe(1);
+      act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      expect(rings()).toBe(2);
+      act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      expect(rings()).toBe(3);
+      expect(dialog()).not.toContain('定案');
+
+      // 最后再一拍才结算 —— 让最末那一圈也扫满。
+      act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      expect(dialog()).toContain('定案');
+      // 圈留在棋盘上：那是弹窗背后的一张结论图。
+      expect(rings()).toBe(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lists the offending participants (and nothing more) when a submit fails', () => {
+    vi.useFakeTimers();
+    try {
+      seedSave({
+        board: {
+          '0,0': { kind: 'participant', index: 1 },
+          '0,1': { kind: 'participant', index: 2 },
+          '5,5': { kind: 'participant', index: 3 },
+        },
+      });
+      render();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+      // v0.9.3 §2：结论在逐人校验之后 —— 三位三拍，再加一拍收尾。
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+
+      const dialog = document.body.textContent ?? '';
+      expect(dialog).toContain('提交未通过');
+      expect(dialog).toContain('编号 1');
+      expect(dialog).toContain('编号 2');
+      expect(dialog).toContain('位置不对');
+      // 3 站在自己的行列上，不该被点名。
+      expect(dialog).not.toContain('编号 3');
+      expect(dialog).not.toContain('未放置');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /**
@@ -331,7 +395,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(clock()).toBe('00:03');
 
       // 弹窗开着的时候钟是停的。
-      act(() => vi.advanceTimersByTime(2000));
+      // v0.9.3 §2：结论在逐人校验之后 —— 先把那几拍推完，弹窗才出现。
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
       expect(clock()).toBe('00:03');
 
       const resume = Array.from(document.querySelectorAll('button')).find(
@@ -402,30 +467,131 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
    * v0.8.3 精简：左栏的堆叠顺序（标题 → 题面 → 名册）那半段删掉了 —— 布局。
    * 留下的这一半是**剧透**：没提交之前，结束语一个字都不该出现在页面里。
    */
+  /**
+   * v0.9.3 §5：配了圈图时，**只画那张被染成结果色的图**，不再另画一道本色弧。
+   *
+   * 棋盘里让 1、2 同排（未通过）、3 独自站对角线（通过），一次提交就能同时
+   * 看到两档颜色。断言走 DOM：每位的 `<image filter>` 指向一条
+   * `feColorMatrix`，矩阵值等于对应结果色的纯色矩阵；同时 `press-ring-arc`
+   * 只剩遮罩里那 3 条白色的（扇形刻度），没有结果色的进度弧 —— 颜色完全由
+   * 已上传的图片承载。
+   */
+  it('配了圈图：每位的结果色染到那张图上', () => {
+    vi.useFakeTimers();
+    try {
+      fixture.theme.checkStyle = {
+        passColor: '#16A34A',
+        failColor: '#DC2626',
+        ring: { path: 'themes/3/check-ring/seal.webp' },
+      };
+      seedSave({
+        board: {
+          '0,0': { kind: 'participant', index: 1 },
+          '0,1': { kind: 'participant', index: 2 },
+          '5,5': { kind: 'participant', index: 3 },
+        },
+      });
+      render();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+
+      const images = Array.from(container.querySelectorAll('main image[filter]'));
+      expect(images).toHaveLength(3);
+      expect(
+        images.every((image) => image.getAttribute('href') === '/api/files/themes/3/check-ring/seal.webp'),
+      ).toBe(true);
+      const matrices = images.map((image) => {
+        const id = image.getAttribute('filter')?.replace(/^url\(#|\)$/g, '');
+        const node = id ? container.querySelector(`filter#${id} feColorMatrix`) : null;
+        return node?.getAttribute('values') ?? '';
+      });
+      expect(matrices.filter((value) => value === imageTintMatrix('#DC2626'))).toHaveLength(2);
+      expect(matrices.filter((value) => value === imageTintMatrix('#16A34A'))).toHaveLength(1);
+
+      // 有图就没有额外那道结果色弧：剩下的 3 条全是扇形遮罩里的白环。
+      const arcs = Array.from(container.querySelectorAll('main circle.press-ring-arc'));
+      expect(arcs).toHaveLength(3);
+      expect(arcs.every((arc) => arc.getAttribute('stroke') === '#FFFFFF')).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('never shows the ending before the submit passes', () => {
     render();
     expect(document.body.textContent).not.toContain('灯灭了');
   });
 
-  it('gives the author’s 结束语 in the dialog that says the submit passed', () => {
-    // 三位各在一条互不相同的行与列上 —— 客户端校验通过。
-    seedSave({
-      board: {
-        '0,0': { kind: 'participant', index: 1 },
-        '1,1': { kind: 'participant', index: 2 },
-        '2,2': { kind: 'participant', index: 3 },
-      },
-    });
-    render();
-    act(() =>
-      container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
-    );
+  it('gives the author’s 结束语 in the 定案 card', () => {
+    vi.useFakeTimers();
+    try {
+      // 三位各在一条互不相同的行与列上 —— 客户端校验通过。
+      seedSave({
+        board: {
+          '0,0': { kind: 'participant', index: 1 },
+          '1,1': { kind: 'participant', index: 2 },
+          '2,2': { kind: 'participant', index: 3 },
+        },
+      });
+      render();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
 
-    const dialog = document.body.textContent ?? '';
-    expect(dialog).toContain('提交通过');
-    expect(dialog).toContain('灯灭了，花园还在。');
-    // 结束语没有「结束语：」这样的标签 —— 它是作者的话，不是界面在解说。
-    expect(dialog).not.toContain('结束语：');
+      const dialog = document.body.textContent ?? '';
+      // v0.9.3 §3：标题是「定案」，不再说「提交通过」，也不再报用时。
+      expect(dialog).toContain('定案');
+      expect(dialog).not.toContain('提交通过');
+      expect(dialog).not.toMatch(/用时\s*\d/);
+      expect(dialog).toContain('灯灭了，花园还在。');
+      // 结束语没有「结束语：」这样的标签 —— 它是作者的话，不是界面在解说。
+      expect(dialog).not.toContain('结束语：');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * v0.9.3 §3：印章。只有**作者给提交按钮配了图**时才盖 —— 内置那枚 lucide 勾是
+   * 界面图标，盖上去像把按钮按进纸里，不是一个印。
+   */
+  it('作者给提交配了图，定案卡右上角才盖那一枚印', () => {
+    vi.useFakeTimers();
+    try {
+      seedSave({
+        board: {
+          '0,0': { kind: 'participant', index: 1 },
+          '1,1': { kind: 'participant', index: 2 },
+          '2,2': { kind: 'participant', index: 3 },
+        },
+      });
+      render();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // 没配 —— 只有字，没有印。
+      expect(document.querySelector('[data-testid="verdict-stamp"]')).toBeNull();
+
+      act(() => root.unmount());
+      root = createRoot(container);
+      fixture.detail.puzzle.toolIcons = { submit: { path: 'puzzles/7/tool-icons/submit/a.webp' } };
+      render();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+
+      const stamp = document.querySelector<HTMLImageElement>('[data-testid="verdict-stamp"]');
+      expect(stamp).not.toBeNull();
+      expect(stamp?.getAttribute('src')).toBe('/api/files/puzzles/7/tool-icons/submit/a.webp');
+    } finally {
+      fixture.detail.puzzle.toolIcons = null;
+      vi.useRealTimers();
+    }
   });
 
   it('zooms in and out by one step and resets to 100%', () => {

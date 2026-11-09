@@ -110,6 +110,11 @@ export function useBundleGameSource(code: string): GameSource {
        * 游戏页拿它过 `fileUrl` 拼包根，与其它包内图片同一条路。
        */
       themePressRing: () => manifest?.theme.pressRing ?? null,
+      /**
+       * v0.9.3 §3：校验样式同样只在 manifest 里一份（两档颜色是几个字节，圈图是
+       * `files/check/...`）。老包没有这个键 → `null`，游戏页落回内置绿 / 红。
+       */
+      themeCheckStyle: () => manifest?.theme.checkStyle ?? null,
       storageId: (key) => bundleStorageId(code, key),
       listHref: () => themeHrefOf(code),
       gameHref: (key) => gameHrefOf(code, key),

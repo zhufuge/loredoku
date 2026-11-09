@@ -7,6 +7,7 @@ import type {
   GameToolIconKind,
   GameToolIcons,
   Theme,
+  ThemeCheckStyle,
   ThemeDifficultyTier,
   ThemeOption,
 } from '@loredoku/shared';
@@ -181,7 +182,8 @@ export function useRemoveThemePressRing(code: string) {
   });
 }
 
-export function useDeleteTheme() {  const queryClient = useQueryClient();
+export function useDeleteTheme() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => themesApi.remove(code),
     /**
@@ -307,4 +309,72 @@ export function usePressRingByCode(): (
     (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
     [byCode],
   );
+}
+
+/**
+ * v0.9.3 §3 —— 按主题编码查「提交校验」的样子（两档颜色 + 圈图）。
+ *
+ * 与上面两个 `*ByCode` 同一个理由：游戏页在工作空间外面，只能按编码查表。
+ * 这里整份 `checkStyle` 一起给 —— 颜色与圈图是同一个配置的两半，分开取会让
+ * 「作者刚改了颜色、圈图还是旧的」这种半新半旧的状态出现在同一帧里。
+ *
+ * 返回值可能是 `null`（主题没配过），由 `lib/checkStyle.ts` 填默认绿 / 红。
+ */
+export function useCheckStyleByCode(): (
+  code: string | null | undefined,
+) => ThemeCheckStyle | null {
+  const query = useThemes();
+  const byCode = useMemo(() => {
+    const map = new Map<string, ThemeCheckStyle>();
+    for (const theme of query.data ?? []) {
+      const style = theme.data.checkStyle;
+      if (style) map.set(theme.code, style);
+    }
+    return map;
+  }, [query.data]);
+
+  return useCallback(
+    (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
+    [byCode],
+  );
+}
+
+/**
+ * v0.9.3 §3：改两档颜色。与上传圈图分开 —— 取色器每动一下只发一个颜色。
+ */
+export function useUpdateThemeCheckStyle(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: { passColor?: string; failColor?: string }) =>
+      themesApi.updateCheckStyle(code, patch),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+    },
+    onError: (error: Error) => toast.error(error.message || '校验颜色保存失败'),
+  });
+}
+
+/** v0.9.3 §3：换校验圈图。移除只删图，两档颜色留着。 */
+export function useUploadThemeCheckRing(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => themesApi.uploadCheckRing(code, file),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('已设为本主题的校验圈');
+    },
+    onError: (error: Error) => toast.error(error.message || '校验圈上传失败'),
+  });
+}
+
+export function useRemoveThemeCheckRing(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => themesApi.removeCheckRing(code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('已恢复默认校验圈');
+    },
+    onError: (error: Error) => toast.error(error.message || '移除失败'),
+  });
 }

@@ -38,6 +38,10 @@ const removeToolIconMutate = vi.fn((_icon: unknown) => Promise.resolve());
 /** v0.9.2 §2：计时环只有一张，上传收 `File`、移除不收参数。 */
 const uploadPressRingMutate = vi.fn((_file: File) => Promise.resolve());
 const removePressRingMutate = vi.fn(() => Promise.resolve());
+/** v0.9.3 §3：校验样式 —— 改颜色收一个 patch，圈图同禁止符号那样上传 / 移除。 */
+const updateCheckStyleMutate = vi.fn((_patch: unknown) => Promise.resolve());
+const uploadCheckRingMutate = vi.fn((_file: File) => Promise.resolve());
+const removeCheckRingMutate = vi.fn(() => Promise.resolve());
 
 vi.mock('@/components/layout/WorkspaceContext', () => ({
   useWorkspace: () => workspaceRef.value,
@@ -53,6 +57,10 @@ vi.mock('@/hooks/useThemes', () => ({
   /** v0.9.2 §2：长按计时环那一张，只有上传 / 移除两个动作。 */
   useUploadThemePressRing: () => ({ mutate: uploadPressRingMutate, isPending: false }),
   useRemoveThemePressRing: () => ({ mutate: removePressRingMutate, isPending: false }),
+  /** v0.9.3 §3：校验样式 —— 两个颜色走同一个 mutate，圈图走上传 / 移除。 */
+  useUpdateThemeCheckStyle: () => ({ mutate: updateCheckStyleMutate, isPending: false }),
+  useUploadThemeCheckRing: () => ({ mutate: uploadCheckRingMutate, isPending: false }),
+  useRemoveThemeCheckRing: () => ({ mutate: removeCheckRingMutate, isPending: false }),
 }));
 
 describe('ThemeOverviewPage（v0.8.3）', () => {

@@ -76,6 +76,21 @@ export const themesApi = {
     return apiPost<Theme>(`/themes/${code}/press-ring`, form);
   },
   removePressRing: (code: string) => apiDelete<Theme>(`/themes/${code}/press-ring`),
+
+  /**
+   * v0.9.3 §3 —— 提交校验的两档颜色与圈图。
+   *
+   * 颜色走 PATCH（只带要改的那一档），圈图走上传 / 删除 —— 配色与换图是两个动作，
+   * 分开之后「改一个颜色」不会把整份 `data` 覆盖一遍。
+   */
+  updateCheckStyle: (code: string, patch: { passColor?: string; failColor?: string }) =>
+    apiPatch<Theme>(`/themes/${code}/check-style`, patch),
+  uploadCheckRing: (code: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<Theme>(`/themes/${code}/check-ring`, form);
+  },
+  removeCheckRing: (code: string) => apiDelete<Theme>(`/themes/${code}/check-ring`),
 };
 
 /**

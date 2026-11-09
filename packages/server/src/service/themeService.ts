@@ -1,5 +1,7 @@
 import {
   ErrorCode,
+  THEME_CHECK_FAIL_COLOR,
+  THEME_CHECK_PASS_COLOR,
   THEME_DATA_VERSION,
   collectMapThemeRefs,
   collectPuzzleThemeRefs,
@@ -8,6 +10,7 @@ import {
   type CreateThemeInput,
   type MapStyle,
   type Theme,
+  type ThemeCheckStyle,
   type ThemeData,
   type ThemeOption,
   type ThemeRefTarget,
@@ -17,7 +20,12 @@ import {
 } from '@loredoku/shared';
 import * as repo from '../repository/themeRepository';
 import { AppError } from '../utils/AppError';
-import { processForbiddenSymbolImage, processPressRingImage, processToolIconImage } from '../utils/image';
+import {
+  processCheckRingImage,
+  processForbiddenSymbolImage,
+  processPressRingImage,
+  processToolIconImage,
+} from '../utils/image';
 
 /**
  * v0.8.0（docs/v0.8.0.md）—— 主题的三件事，按重要性排：
@@ -191,6 +199,69 @@ export async function removePressRing(code: string): Promise<Theme> {
   const next: ThemeData = { ...data };
   delete next.pressRing;
   await repo.updateTheme(id, { data: next });
+  return getTheme(code);
+}
+
+/** v0.9.3 §3：`POST /api/themes/:code/check-ring` 少了文件部分。 */
+export function checkRingRequired(): AppError {
+  return AppError.validation('请选择校验圈图片');
+}
+
+/**
+ * v0.9.3 §3：提交校验的**圈图** —— 主题级、可选。
+ *
+ * 只动 `checkStyle.ring`，两档颜色原样保留（作者可能先配色、后换图）。主题还没有
+ * `checkStyle` 时按 schema 的默认补齐两档颜色，所以写进去的永远是一份完整的三键。
+ */
+export async function uploadCheckRing(code: string, buffer: Buffer): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const image = await processCheckRingImage({ kind: 'theme', id }, buffer);
+  await repo.updateTheme(id, {
+    data: {
+      ...data,
+      checkStyle: {
+        passColor: data.checkStyle?.passColor ?? THEME_CHECK_PASS_COLOR,
+        failColor: data.checkStyle?.failColor ?? THEME_CHECK_FAIL_COLOR,
+        ring: { path: image.relativePath },
+      },
+    },
+  });
+  return getTheme(code);
+}
+
+/** 移除圈图 = 只删 `ring`，颜色留着 —— 「恢复内置」不该顺手改掉作者挑的颜色。 */
+export async function removeCheckRing(code: string): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const next: ThemeData = { ...data };
+  if (next.checkStyle) {
+    const { ring: _ring, ...rest } = next.checkStyle;
+    next.checkStyle = rest;
+  }
+  await repo.updateTheme(id, { data: next });
+  return getTheme(code);
+}
+
+/**
+ * v0.9.3 §3：改两档颜色（主题概述页的两个取色器）。
+ *
+ * 与上传同一份数据，但**不动 `ring`**：配色与换图是两个动作，各改各的。
+ */
+export async function updateCheckStyle(
+  code: string,
+  patch: { passColor?: string; failColor?: string },
+): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const current: Partial<ThemeCheckStyle> = data.checkStyle ?? {};
+  await repo.updateTheme(id, {
+    data: {
+      ...data,
+      checkStyle: {
+        passColor: patch.passColor ?? current.passColor ?? THEME_CHECK_PASS_COLOR,
+        failColor: patch.failColor ?? current.failColor ?? THEME_CHECK_FAIL_COLOR,
+        ring: current.ring ?? null,
+      },
+    },
+  });
   return getTheme(code);
 }
 

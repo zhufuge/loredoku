@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { PressRing } from './PressRing';
+import { PressRing, imageTintMatrix } from './PressRing';
 
 /**
  * v0.9.2 §2：计时环的**图模式**。
@@ -29,7 +29,7 @@ describe('PressRing', () => {
     container.remove();
   });
 
-  function render(props: { imageUrl?: string | null }): SVGSVGElement {
+  function render(props: { imageUrl?: string | null; imageTintColor?: string | null }): SVGSVGElement {
     act(() => {
       root.render(
         <PressRing
@@ -88,5 +88,87 @@ describe('PressRing', () => {
     const imageMode = render({ imageUrl: '/ring.webp' });
     const wedge = imageMode.querySelector('mask circle') as SVGCircleElement;
     expect(wedge.style.getPropertyValue('--press-ring-duration')).toBe('340ms');
+  });
+});
+
+/**
+ * v0.9.3 §5：图模式下把「通过 / 未通过」的结果色**染到那张已上传的圆圈图上**。
+ *
+ * 用户澄清后只染图片本身（调用方有图时不再另画弧），所以这里钉的是：
+ * 传色 = image 挂 filter、滤镜只换颜色不换 alpha；不传色（长按计时环）= 没有
+ * 滤镜，图保持作者原色。
+ */
+describe('PressRing 图模式染色（v0.9.3 §7）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function render(props: { imageUrl?: string | null; imageTintColor?: string | null }): SVGSVGElement {
+    act(() => {
+      root.render(
+        <PressRing size={100} durationMs={340} seq="0,0,1" {...props} />,
+      );
+    });
+    const svg = container.querySelector('svg');
+    if (!svg) throw new Error('环没渲染出来');
+    return svg;
+  }
+
+  it('纯色染色：RGB 系数全为 0，常数项是结果色，alpha 一行原样通过', () => {
+    const matrix = imageTintMatrix('#FF0000');
+    expect(matrix?.split(' ')).toEqual([
+      '0', '0', '0', '0', '1',
+      '0', '0', '0', '0', '0',
+      '0', '0', '0', '0', '0',
+      '0', '0', '0', '1', '0',
+    ]);
+  });
+
+  it('三个分量按 #RRGGBB 换算成 0~1 的常数，非法颜色返回 null', () => {
+    const green = imageTintMatrix('#16A34A')?.split(' ') ?? [];
+    expect(green).toHaveLength(20);
+    expect(Number(green[4])).toBeCloseTo(22 / 255, 5);
+    expect(Number(green[9])).toBeCloseTo(163 / 255, 5);
+    expect(Number(green[14])).toBeCloseTo(74 / 255, 5);
+    // 前三行不读原像素，第四行只搬 alpha —— 图再深也染出同一个绿。
+    expect(green.slice(0, 4)).toEqual(['0', '0', '0', '0']);
+    expect(green.slice(15)).toEqual(['0', '0', '0', '1', '0']);
+    expect(imageTintMatrix('green')).toBeNull();
+    expect(imageTintMatrix('#12345')).toBeNull();
+  });
+
+  it('传了结果色：image 挂 filter，滤镜里是那条矩阵，扇形遮罩仍在', () => {
+    const svg = render({ imageUrl: '/ring.webp', imageTintColor: '#16A34A' });
+    const image = svg.querySelector('image');
+    const id = image?.getAttribute('filter')?.replace(/^url\(#|\)$/g, '');
+    expect(id).toBeTruthy();
+    const filter = svg.querySelector(`filter#${id}`);
+    expect(filter?.getAttribute('color-interpolation-filters')).toBe('sRGB');
+    expect(filter?.querySelector('feColorMatrix')?.getAttribute('values')).toBe(
+      imageTintMatrix('#16A34A'),
+    );
+    expect(image?.getAttribute('mask')).toMatch(/^url\(#/);
+  });
+
+  it('不传结果色（长按环）：没有 filter 元素，图保持作者的原色', () => {
+    const svg = render({ imageUrl: '/ring.webp' });
+    expect(svg.querySelector('filter')).toBeNull();
+    expect(svg.querySelector('image')?.hasAttribute('filter')).toBe(false);
+  });
+
+  it('没配图时就算给颜色也不挂滤镜', () => {
+    const svg = render({ imageTintColor: '#DC2626' });
+    expect(svg.querySelector('image')).toBeNull();
+    expect(svg.querySelector('filter')).toBeNull();
   });
 });

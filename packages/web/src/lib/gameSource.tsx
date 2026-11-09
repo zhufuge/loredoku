@@ -5,6 +5,7 @@ import type {
   ForbiddenSymbolImage,
   GameToolIcons,
   MapGameDetail,
+  ThemeCheckStyle,
 } from '@loredoku/shared';
 
 /**
@@ -55,6 +56,13 @@ export interface GameSource {
    * `null` = 没配，画内置白弧。包里那张已内联进 manifest，所以 bundle 也能给。
    */
   themePressRing(themeCode: string | null | undefined): ForbiddenSymbolImage | null;
+  /**
+   * 主题级的**提交校验**样式（v0.9.3 §3）：两档颜色 + 可选圈图。
+   *
+   * 同样「读取时兜底」：返回 `null` 表示这个主题没配过，由 `lib/checkStyle.ts`
+   * 填内置绿 / 红。bundle 从 `manifest.theme.checkStyle` 取，api 从主题列表查。
+   */
+  themeCheckStyle(themeCode: string | null | undefined): ThemeCheckStyle | null;
   /**
    * 包内 / 库内相对路径 → 能塞进 `<img src>` 的地址。
    *

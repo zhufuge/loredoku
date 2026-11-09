@@ -149,6 +149,19 @@ export async function processPressRingImage(
   return processSymbolImage(owner, 'press-ring', buffer);
 }
 
+/**
+ * v0.9.3 §3：提交校验时圈住参与者的那张**圈图**（主题级，可选）。
+ *
+ * 与计时环同一个尺寸档：圈的直径最多是一格，256 的长边富余。目录 `.../check-ring/`。
+ * 没配就用内置本色细环，所以这张图是**替换**而不是必需。
+ */
+export async function processCheckRingImage(
+  owner: { kind: 'puzzle' | 'theme'; id: number },
+  buffer: Buffer,
+): Promise<ProcessedImage> {
+  return processSymbolImage(owner, 'check-ring', buffer);
+}
+
 /** 三种「符号级小图」共用的一条路：按所有者分目录，长边缩到 256。 */
 async function processSymbolImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },

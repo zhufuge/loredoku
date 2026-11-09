@@ -49,5 +49,19 @@ themesRouter.delete('/:code/tool-icons/:icon', controller.removeToolIcon);
 themesRouter.post('/:code/press-ring', forbiddenSymbolUpload.single('file'), controller.uploadPressRing);
 themesRouter.delete('/:code/press-ring', controller.removePressRing);
 
+/**
+ * v0.9.3 §3：提交校验的两档颜色与圈图。
+ *
+ * 颜色走 PATCH、圈图走上传 / 删除 —— 配色与换图是两个动作。颜色单独开一个端点，
+ * 是为了不把「改一个颜色」变成「整份 data 覆盖」。
+ */
+themesRouter.patch('/:code/check-style', controller.updateCheckStyle);
+themesRouter.post(
+  '/:code/check-ring',
+  forbiddenSymbolUpload.single('file'),
+  controller.uploadCheckRing,
+);
+themesRouter.delete('/:code/check-ring', controller.removeCheckRing);
+
 /** 导出资源包（§11）：本版只打包，不解包、不导入、不托管。 */
 themesRouter.get('/:code/bundle', controller.bundle);

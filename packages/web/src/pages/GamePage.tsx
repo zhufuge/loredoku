@@ -3,11 +3,14 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
+  GAME_CHECK_RING_SWEEP_MS,
+  GAME_CHECK_STEP_MS,
   GAME_CLEAR_LONG_PRESS_MS,
   GAME_LONG_PRESS_MS,
   GAME_PRESS_RING_DELAY_MS,
   MAP_LAYER_Z,
   RULER_ACTIVE_FONT_DELTA,
+  UI_Z,
   type CellCoord,
   type Character,
   type CharacterSlotEntry,
@@ -33,6 +36,7 @@ import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
 import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
+  MapGameCheckLayer,
   MapGamePlacementLayer,
   MapGamePressRing,
   MapGameToolHintLayer,
@@ -72,6 +76,7 @@ import {
 } from '@/lib/gameTimer';
 import { resolveForbiddenSymbolImage } from '@/lib/forbiddenSymbol';
 import { resolvePressRing } from '@/lib/pressRing';
+import { resolveCheckStyle } from '@/lib/checkStyle';
 import { TOOL_ICON_FALLBACKS, resolveToolIcons, type ToolIconRender } from '@/lib/toolIcons';
 import { rosterPanelWidthFor } from '@/lib/participantLayout';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
@@ -102,6 +107,7 @@ import {
   clearCell,
   createGamePlacementState,
   forbiddenCells,
+  avatarCellOf,
   avatarPlacedParticipantIds,
   modeAfterPlacement,
   placeForbidden,
@@ -144,6 +150,38 @@ const GAME_PLACE_PULSE_MS = 400;
 function readStoredRulerVisible(): boolean {
   if (typeof window === 'undefined') return true;
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
+}
+
+/**
+ * v0.9.3 §2：提交时逐人圈一遍的**名单** —— 按序号排，只有落了头像的才有格子可圈。
+ *
+ * 「通过 / 未通过」直接取自判卷结果（`issues` 里有这位的编号就是没过）。判卷与
+ * 呈现因此用的是同一份结论，不会出现「圈是绿的、名单里却有他」。
+ *
+ * 只圈**落了头像**的人：编号格上没有人形，圈住一堆数字说不清是在核对谁。没有
+ * 头像的那几位仍在 `blame` 里出现（「未放置」），只是不上动画。
+ */
+interface CheckItem {
+  participantId: number;
+  cell: CellCoord;
+  passed: boolean;
+}
+
+function buildCheckItems(
+  board: GamePlacementBoard,
+  slots: Array<CharacterSlotEntry | null>,
+  issues: readonly PlacementIssue[],
+): CheckItem[] {
+  const failed = new Set(issues.map((issue) => issue.participantId));
+  const items: CheckItem[] = [];
+  slots.forEach((slot, index) => {
+    if (!slot) return;
+    const participantId = index + 1;
+    const cell = avatarCellOf(board, participantId);
+    if (!cell) return;
+    items.push({ participantId, cell, passed: !failed.has(participantId) });
+  });
+  return items;
 }
 
 /**
@@ -261,6 +299,26 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     | { kind: 'passed'; elapsedMs: number }
     | { kind: 'failed'; blame: PlacementBlame[] }
     | null
+  >(null);
+  /**
+   * v0.9.3 §2：提交后的**逐人校验**。
+   *
+   * 提交不再直接弹结论：先把棋盘上的参与者按序号挨个圈一遍，圈完才给结果。
+   * 这一步不是计算（答案早就有了），是**让人看见核对的过程** —— 之前按下提交，
+   * 弹窗立刻盖上来，玩家连自己哪一格被算成「不对」都不知道。
+   *
+   * `revealed` 是「已经圈过几位」。它同时决定画几个圈、以及什么时候收尾。
+   * 结算弹窗出现后这一份仍留着 —— 那些圈就是背景里的一张结论图，关弹窗时一起撤。
+   */
+  const [checkRun, setCheckRun] = useState<{
+    items: CheckItem[];
+    revealed: number;
+    runId: number;
+  } | null>(null);
+  const checkRunIdRef = useRef(0);
+  /** 校验序列落定之后要弹的那份结论 —— 提前算好，等最后一圈扫完再交出去。 */
+  const pendingResultRef = useRef<
+    { kind: 'passed'; elapsedMs: number } | { kind: 'failed'; blame: PlacementBlame[] } | null
   >(null);
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -422,6 +480,15 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    */
   const pressRingImage = useMemo(
     () => resolvePressRing(source.themePressRing(detail?.themeCode), source.fileUrl),
+    [detail, source],
+  );
+
+  /**
+   * v0.9.3 §2：提交校验的两档颜色与圈图。主题没配过就是内置绿 / 红（见
+   * `lib/checkStyle.ts`），所以这里拿到的永远是一份能直接用的样式。
+   */
+  const checkStyle = useMemo(
+    () => resolveCheckStyle(source.themeCheckStyle(detail?.themeCode), source.fileUrl),
     [detail, source],
   );
 
@@ -881,22 +948,52 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    *
    * 提交状态不再落盘、按钮也不再变成勾：那是上一版把「核对过」当成进度的做法，
    * 而进度本来就是棋盘本身。
+   *
+   * v0.9.3 §2：结论不再立刻弹 —— 先按序号把参与者**逐个圈一遍**，圈完再结算。
+   * 判卷结果照旧一次算完（`validatePlacement`），只是分了先后呈现：玩家得看得见
+   * 「哪一位被圈成了什么颜色」，否则那几句「位置不对」仍然要自己回去找。
    */
   const submit = (): void => {
     // v0.7.12：按钮已经禁用，这里再做一次守卫 —— 快捷键 / 测试 / 旧闭包都可能绕过。
-    if (!readyToSubmit) return;
+    // v0.9.3：校验进行中再按也不算 —— 那会让棋盘被圈第二遍。
+    if (!readyToSubmit || checkRun) return;
     const elapsed = pauseTimer();
-    const validation = validatePlacement({
-      board: placementRef.current.board,
-      slots,
-      nameOf,
-    });
-    if (!validation.passed) {
-      setResult({ kind: 'failed', blame: summarizeIssues(validation.issues, nameOf) });
-      return;
-    }
-    setResult({ kind: 'passed', elapsedMs: elapsed });
+    const board = placementRef.current.board;
+    const validation = validatePlacement({ board, slots, nameOf });
+
+    const items = buildCheckItems(board, slots, validation.issues);
+    const blame = validation.passed ? null : summarizeIssues(validation.issues, nameOf);
+
+    checkRunIdRef.current += 1;
+    setCheckRun({ items, revealed: 0, runId: checkRunIdRef.current });
+    /*
+     * 一个参与者的棋盘（理论上不会有）也要有结论 —— 空序列会让定时器那一侧
+     * 立刻收尾，所以这里不特殊处理，交给下面那条 effect 的 `revealed >= length`。
+     */
+    pendingResultRef.current = validation.passed
+      ? { kind: 'passed', elapsedMs: elapsed }
+      : { kind: 'failed', blame: blame ?? [] };
   };
+
+  /**
+   * v0.9.3 §2：逐人推进。
+   *
+   * 每 `GAME_CHECK_STEP_MS` 揭一位：先把这一位的圈画上，再等下一拍。最后一位
+   * 揭完之后再等一拍才落结论 —— 让最末那一圈也扫满，不然它会在半路上被弹窗盖住。
+   */
+  useEffect(() => {
+    if (!checkRun) return;
+    const timer = window.setTimeout(() => {
+      if (checkRun.revealed < checkRun.items.length) {
+        setCheckRun({ ...checkRun, revealed: checkRun.revealed + 1 });
+        return;
+      }
+      // 全部圈完 —— 收尾。圈留在棋盘上（结算弹窗背后的那张结论图）。
+      setResult(pendingResultRef.current);
+      pendingResultRef.current = null;
+    }, GAME_CHECK_STEP_MS);
+    return () => window.clearTimeout(timer);
+  }, [checkRun]);
 
   /**
    * v0.7.11：重新开始 / 再玩一次 —— 棋盘、历史、计时一起归零。
@@ -909,6 +1006,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     placementRef.current = fresh;
     setPlacementState(fresh);
     setResult(null);
+    setCheckRun(null);
     setMode({ kind: 'idle' });
     setActivation(INACTIVE_ACTIVATION);
     setPulse({});
@@ -926,11 +1024,14 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   const closeResult = (): void => {
     if (result?.kind === 'failed') resumeTimer();
     setResult(null);
+    // v0.9.3 §2：棋盘上那几圈结论跟着弹窗一起撤 —— 留着会读成「还在结算中」。
+    setCheckRun(null);
   };
 
   /** 未通过时「继续游戏」：关上弹窗，接着走表、接着摆。 */
   const continueGame = (): void => {
     setResult(null);
+    setCheckRun(null);
     resumeTimer();
   };
 
@@ -1215,9 +1316,24 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
             两个互不相干的区域，而线索说的正是这些人。
             （原本标题区有 `border-b`，那条线正好压在参与者框头顶。） */}
         <aside
-          className="flex shrink-0 flex-col border-r bg-background"
+          className="relative flex shrink-0 flex-col border-r bg-background"
           style={{ width: rosterWidth }}
         >
+          {/*
+            * v0.9.3 §2：校验进行中，**除了地图之外**的一切压一层薄纱。
+            *
+            * 只盖左栏，因为这一屏除了地图就只有这一栏（顶栏在栏内）。遮罩接指针、
+            * 不做 `pointer-events-none`：校验期间工具栏 / 名册都不该还能点 ——
+            * 否则玩家能在核对到一半时把头像挪走。
+            */}
+          {checkRun && !result ? (
+            <div
+              aria-hidden="true"
+              data-testid="check-scrim"
+              className="absolute inset-0 bg-background/70"
+              style={{ zIndex: UI_Z.saveMask }}
+            />
+          ) : null}
           <div className="shrink-0 space-y-1 p-3">
             {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
                 v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
@@ -1305,7 +1421,11 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
         {/* 中列：与预览页一致的地图 + 两个游戏图层 */}
         <main
           ref={containerRef}
-          className="relative min-h-0 flex-1 select-none overflow-hidden bg-muted/30"
+          className={cn(
+            'relative min-h-0 flex-1 select-none overflow-hidden bg-muted/30',
+            // v0.9.3 §2：核对期间棋盘只读 —— 圈到一半还能落子就说不清在核对什么。
+            checkRun && 'pointer-events-none',
+          )}
           style={{
             // v0.6.2：按住空格 / 中键时是抓手，格内放东西是 pointer，其余普通光标。
             cursor: spaceHeld ? 'grab' : hoverEffects.cell ? 'pointer' : 'default',
@@ -1544,6 +1664,22 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               forbiddenSymbol={forbiddenSymbol}
             />
 
+            {/*
+              * v0.9.3 §2：提交后逐人校验的圈。按序号一位一位揭开，颜色取主题的
+              * 「通过 / 未通过」两档；圈留在棋盘上，直到结算弹窗被关掉。
+              */}
+            {checkRun ? (
+              <MapGameCheckLayer
+                marks={checkRun.items.slice(0, checkRun.revealed)}
+                cellSize={cellSize}
+                passColor={checkStyle.passColor}
+                failColor={checkStyle.failColor}
+                ringUrl={checkStyle.ringUrl}
+                sweepMs={GAME_CHECK_RING_SWEEP_MS}
+                runId={checkRun.runId}
+              />
+            ) : null}
+
             <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
 
             {/* 层 1 — 鼠标提示框（游戏页无操作提示框）。 A placed `×` counts
@@ -1739,10 +1875,14 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
 
       {/*
         v0.7.11：提交的两种结局共用一个弹窗。
-        - 通过：用时 + 再玩一次；
+        - 通过：定案 + 结束语 + 再玩一次；
         - 未通过：只说谁不对（不展开行列坐标）+ 继续游戏 / 重新开始。
         两种都用 `Dialog`，不是 `AlertDialog` —— 这里不是「要不要删除」那种确认，
         而是一局结束后的结算。
+
+        v0.9.3 §3：通过的那一面换了写法 —— 标题「定案」、不报用时、不写
+        「校验通过」。这一局已经结束，界面该说的是「结案了」，而不是再念一遍
+        成绩；用时对玩家没有下一步，对作者也不该出现在玩家的结算卡上。
       */}
       <Dialog
         open={result !== null}
@@ -1751,21 +1891,45 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
         }}
       >
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {result?.kind === 'passed' ? '提交通过' : '提交未通过'}
-            </DialogTitle>
-            <DialogDescription>
-              {result?.kind === 'passed'
-                ? `用时 ${formatElapsed(result.elapsedMs)}。`
-                : '下面这些参与者的位置还不对，改完可以再提交一次。'}
-            </DialogDescription>
-          </DialogHeader>
+          {result?.kind === 'passed' ? (
+            <div className="flex items-start justify-between gap-4 pr-6">
+              <div className="min-w-0 space-y-1.5">
+                <DialogTitle className="font-kai text-2xl font-semibold tracking-[0.3em]">
+                  定案
+                </DialogTitle>
+                <DialogDescription className="sr-only">
+                  这一局已经结束。
+                </DialogDescription>
+              </div>
+              {/*
+                * v0.9.3 §3：印章。**只在作者给「提交」配了图时才有** —— 内置的
+                * lucide 勾是一枚界面图标，盖上去像把按钮按进了纸里，不是一个印。
+                * 动效见 `index.css` 的 `.stamp-press`：从大到正、带一点转正的回弹。
+                */}
+              {toolIcons.submit ? (
+                <img
+                  src={toolIcons.submit.imageUrl}
+                  alt=""
+                  draggable={false}
+                  data-testid="verdict-stamp"
+                  className="stamp-press mt-1 h-14 w-14 shrink-0 select-none object-contain dark:invert dark:hue-rotate-180"
+                />
+              ) : null}
+            </div>
+          ) : (
+            <DialogHeader>
+              <DialogTitle>提交未通过</DialogTitle>
+              <DialogDescription>
+                下面这些参与者的位置还不对，改完可以再提交一次。
+              </DialogDescription>
+            </DialogHeader>
+          )}
 
           {/*
             v0.7.14（docs/v0.7.14.md §4）：结束语。作者的一句话，通过时才出现。
-            **不给它加标签**（不写「结束语：」）—— 那是作者的声音，不是界面在说话；
-            换成楷体、和上面的用时之间隔一条细线，就够把「这是另一件事」说清楚。
+            **不给它加标签**（不写「结束语：」）—— 那是作者的声音，不是界面在说话。
+            v0.9.3 §3：上面那条「用时」拿掉之后，它成了这张卡唯一的正文，于是
+            与标题之间补一条细线 —— 「定案」两个字和作者写的这一段是两件事。
           */}
           {result?.kind === 'passed' && puzzleEnding.length > 0 ? (
             <p className="whitespace-pre-wrap border-t pt-3 font-kai text-sm leading-[1.9] text-foreground/90">

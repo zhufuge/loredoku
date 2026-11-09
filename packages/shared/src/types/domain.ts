@@ -748,6 +748,31 @@ export interface ThemeData {
    * 每次都读**当前**主题的这几档。理由很直接：难度是一个「说法」，不是内容。
    */
   difficultyLevels?: ThemeDifficultyTier[];
+  /**
+   * v0.9.3（docs/v0.9.3.md §3）：**提交校验**时的样子 —— 两档颜色 + 可选的圈图。
+   *
+   * 与 `forbiddenSymbol` / `toolIcons` / `pressRing` 同一条规矩：**读取时**兜底，
+   * 不是「新建时拷一份」。改一档颜色，所有关卡（含已发布的）下次提交就是新的。
+   *
+   * 缺失 / `null` = 内置的绿（通过）/ 红（未通过）与内置细环。字段刻意不全：
+   * 作者可能只改颜色、不换图，所以 `ring` 是可选的。
+   */
+  checkStyle?: ThemeCheckStyle | null;
+}
+
+/**
+ * v0.9.3：提交后逐人校验时，圈住参与者的那一圈。
+ *
+ * 颜色是「对 / 错」的语义色（绿 / 红），不是股市那套涨跌色；圈图是可选的 ——
+ * 配了就用那张图（按扇形揭开，进度照样读得出来），没配就画一圈本色细环。
+ */
+export interface ThemeCheckStyle {
+  /** 通过的颜色（`#RRGGBB`）。缺省见 `THEME_CHECK_PASS_COLOR`。 */
+  passColor: string;
+  /** 未通过的颜色（`#RRGGBB`）。缺省见 `THEME_CHECK_FAIL_COLOR`。 */
+  failColor: string;
+  /** 圈图（可选）。`null` / 缺失 = 画本色细环。 */
+  ring?: ForbiddenSymbolImage | null;
 }
 
 /**

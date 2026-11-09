@@ -8,6 +8,7 @@ import type {
   MapGameSummary,
   ParticipantTarget,
   PuzzleDraft,
+  ThemeCheckStyle,
   ThemeDifficultyTier,
 } from './types/domain';
 import {
@@ -207,6 +208,16 @@ export interface BundleManifestTheme {
    * 可选：没配过环的主题没有这个键，播放器画内置白弧。
    */
   pressRing?: ForbiddenSymbolImage | null;
+  /**
+   * v0.9.3 §3：提交校验的两档颜色与圈图。
+   *
+   * 与 `pressRing` 同一条「主题级共用一份」：颜色是几个字节，圈图是一张图 ——
+   * 都写进 manifest，播放器不必再读 theme.json。`ring.path` 是包内相对路径
+   * （`files/check/check-ring.webp`）。
+   *
+   * 可选：没配过的主题没有这个键，播放器按内置绿 / 红处理。
+   */
+  checkStyle?: ThemeCheckStyle | null;
 }
 
 export interface BundleManifest {
@@ -256,6 +267,8 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
         : {}),
       // v0.9.2 §2：同一条「没配就不写键」—— 计时环是可选装饰。
       ...(input.theme.pressRing ? { pressRing: input.theme.pressRing } : {}),
+      // v0.9.3 §3：校验样式同理。颜色与圈图可能只配了一半，按原样抄进去。
+      ...(input.theme.checkStyle ? { checkStyle: input.theme.checkStyle } : {}),
     },
     games: input.games,
     assets: 'assets.json',

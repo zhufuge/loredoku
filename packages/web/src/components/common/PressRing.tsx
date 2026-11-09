@@ -62,7 +62,48 @@ interface PressRingProps {
    * `null` / 不传 = 内置白弧（v0.7.11 的样式）。
    */
   imageUrl?: string | null;
+  /**
+   * v0.9.3 §5：图模式下把**整张已上传的圆圈图片**染成结果色。
+   *
+   * 用户澄清过：要染的是那张图片本身，不是在图外面再补一道结果色弧。所以调用方
+   * （`MapGameCheckLayer`）有图时只画这一枚、不再画细弧；这里用一条
+   * `feColorMatrix` 把每个像素换成结果色，alpha 原样保留 —— 形状、镂空、透明区
+   * 都不变，颜色是作者取色器里挑的那一个。
+   *
+   * 只收 `#RRGGBB`；不合法就不挂滤镜（图保持原样），别让 SVG 静默丢声明。
+   * 长按计时环不传这一项：它只报进度、不报结论，图保持作者画的样子。
+   */
+  imageTintColor?: string | null;
   className?: string;
+}
+
+const HEX_COLOR = /^#([0-9a-fA-F]{6})$/;
+
+/**
+ * v0.9.3 §5（同日按用户澄清改定）：把**整张已上传的圆圈图片**染成结果色。
+ *
+ * 只换颜色、不换形状 —— 矩阵前三行的 RGB 系数全为 0、常数项就是结果色的
+ * 三个分量；第四行让 alpha 原样通过。于是图里每一个像素（不论原色深浅、
+ * 是笔画还是底色）都变成同一个绿 / 红，而透明区仍透明、镂空的字也还是镂空。
+ *
+ * 为什么不用「亮度 × 结果色」：那版保留了原图明暗，深色章染出来会发暗，
+ * 用户要的是「给图片染色」—— 结论色得是作者取色器里挑的那一个，不该被
+ * 图片本身的深浅改写。
+ *
+ * 也不必 `feFlood + feComposite`：一条 `feColorMatrix` 同样只认 alpha，
+ * 但少了把 flood 的不透明区裁回原 alpha 的那一步。
+ *
+ * 只收 `#RRGGBB`；不合法返回 `null`（调用方就不挂滤镜，宁可显示原图）。
+ */
+export function imageTintMatrix(color: string): string | null {
+  const match = HEX_COLOR.exec(color);
+  if (!match) return null;
+  const packed = Number.parseInt(match[1] ?? '000000', 16);
+  const channels = [((packed >> 16) & 255) / 255, ((packed >> 8) & 255) / 255, (packed & 255) / 255];
+  const cell = (value: number): string => String(Number(value.toFixed(6)));
+  // 每行：R' / G' / B' = 常数（结果色分量），A' = 原 alpha。
+  const rows = channels.map((channel) => `0 0 0 0 ${cell(channel)}`);
+  return [...rows, '0 0 0 1 0'].join(' ');
 }
 
 export function PressRing({
@@ -74,6 +115,7 @@ export function PressRing({
   color = '#FFFFFF',
   trackColor,
   imageUrl = null,
+  imageTintColor = null,
   className,
 }: PressRingProps): JSX.Element {
   const center = size / 2;
@@ -88,6 +130,9 @@ export function PressRing({
   const discLength = 2 * Math.PI * center;
   // `useId()` 会给出 `:r1:` 这样的值，冒号在 `url(#…)` 里不保险 —— 洗掉。
   const maskId = `press-ring-mask-${useId().replace(/[^A-Za-z0-9_-]/g, '')}`;
+  const tintId = `${maskId}-tint`;
+  // 只在「有图 + 有合法结果色」时染色；长按环不传色，图保持原样。
+  const tintMatrix = imageUrl && typeof imageTintColor === 'string' ? imageTintMatrix(imageTintColor) : null;
 
   return (
     <svg
@@ -134,6 +179,19 @@ export function PressRing({
                 }
               />
             </mask>
+            {tintMatrix ? (
+              <filter
+                id={tintId}
+                filterUnits="userSpaceOnUse"
+                x={0}
+                y={0}
+                width={size}
+                height={size}
+                colorInterpolationFilters="sRGB"
+              >
+                <feColorMatrix in="SourceGraphic" type="matrix" values={tintMatrix} />
+              </filter>
+            ) : null}
           </defs>
           <image
             href={imageUrl}
@@ -143,6 +201,7 @@ export function PressRing({
             height={size}
             preserveAspectRatio="xMidYMid meet"
             mask={`url(#${maskId})`}
+            filter={tintMatrix ? `url(#${tintId})` : undefined}
           />
         </>
       ) : null}

@@ -47,8 +47,12 @@ const GAME_TOOL_HINT_CLEAR_ICON_RATIO = 0.6;
 /**
  * 白描边用 4 向硬 `drop-shadow` 叠成 —— 跟着图片的 alpha 走，不会把透明区涂白。
  * 半径按格子大小取（小格子至少 1px），放大后描边也跟着变粗，比例不漂。
+ *
+ * v0.9.3 §4：清除图标与**禁止符号的悬停预览**共用它 —— 两者都是「跟着指针走的
+ * 预告」，落在照片上都需要从底纹里浮出来。已放置的 `×` 不在这条路上（那是内容，
+ * 不是预告），仍是原来的黑描边。
  */
-function clearIconOutlineFilter(cellSize: number): string {
+function hintOutlineFilter(cellSize: number): string {
   const radius = Math.max(1, Math.round(cellSize * 0.02));
   return [
     `drop-shadow(${radius}px 0 0 #ffffff)`,
@@ -144,9 +148,15 @@ export function MapGameToolHintLayer({
    * v0.8.6：作者给禁止符号挑了图，工具提示层就画**同一张图**的预览 ——
    * 悬停时预告的东西必须就是落下的东西（v0.6.4 给编号立的同一条规矩）。
    * 落下位置与尺寸和格子一致，所以预览直接画在格子上。
+   *
+   * v0.9.3 §4：预览加一圈白描边（与清除图标同一条），压在照片上没有底纹也看得清。
    */
   if (hint.kind === 'forbidden' && forbiddenSymbol) {
-    return imageHint(forbiddenSymbol.imageUrl, FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO);
+    return imageHint(
+      forbiddenSymbol.imageUrl,
+      FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO,
+      hintOutlineFilter(total),
+    );
   }
   /**
    * v0.9.1 §3 / §5：清除工具同理 —— 按钮上如果是作者上传的图，指针底下的预览也画
@@ -158,7 +168,7 @@ export function MapGameToolHintLayer({
     return imageHint(
       clearIcon.imageUrl,
       (1 - GAME_TOOL_HINT_CLEAR_ICON_RATIO) / 2,
-      clearIconOutlineFilter(total),
+      hintOutlineFilter(total),
     );
   }
   const glyph = ((): JSX.Element => {
@@ -193,7 +203,12 @@ export function MapGameToolHintLayer({
           x={total / 2}
           y={total / 2}
           fill={GAME_TOOL_HINT_FORBIDDEN_COLOR}
-          stroke="#000000"
+          /*
+           * v0.9.3 §4：悬停预览的 `×` 换成**白**描边（原先与已放置的一样是黑的）。
+           * 理由同清除图标：这一枚跟着指针走，压在地图照片上，黑边在暗处等于没有边。
+           * 已放置的那一枚仍由放置层画、仍是黑边 —— 内容与预告用两种描边区分。
+           */
+          stroke="#FFFFFF"
           strokeWidth={fontSize * GAME_NUMBER_STROKE_RATIO}
           paintOrder="stroke fill"
           fontSize={fontSize}
@@ -311,6 +326,103 @@ export function MapGamePressRing({
           imageUrl={imageUrl}
         />
       </div>
+    </div>
+  );
+}
+
+/**
+ * v0.9.3 §2：提交后逐人校验时，圈住某一位的那一圈。
+ *
+ * 形状借 `PressRing`：一圈弧 + `stroke-dashoffset` 从整条周长推到 0，也就是
+ * 「圆环扇形加载」—— 扫满的那一帧，就是这一位核对完的那一帧。颜色由主题给
+ * （通过 / 未通过两档），所以这一层不认识「对错」，只认识颜色。
+ *
+ * 与棋格长按那圈的区别：那个画完就消失（抬手即卸载），这个**画完要留着** ——
+ * 一圈通过色停在原地，是这一位的结论。所以没有「取消即卸载」，卸载由页面在
+ * 关掉结算时统一做。
+ *
+ * z 取 `regionLabel + 1`（= 43），与长按环同一档，不新增图层：两者不会同时出现。
+ */
+export interface GameCheckRingMark {
+  participantId: number;
+  cell: CellCoord;
+  passed: boolean;
+}
+
+export function MapGameCheckLayer({
+  marks,
+  cellSize,
+  passColor,
+  failColor,
+  ringUrl = null,
+  sweepMs,
+  runId,
+}: {
+  marks: readonly GameCheckRingMark[];
+  cellSize: number;
+  passColor: string;
+  failColor: string;
+  /** 主题配的圈图；`null` = 只画本色细环。 */
+  ringUrl?: string | null;
+  sweepMs: number;
+  /** 一次提交一个值 —— 同一位连查两次，动画也要从头播。 */
+  runId: number;
+}): JSX.Element | null {
+  if (marks.length === 0) return null;
+  /*
+   * 没配图时的内置细弧，直径跟着格子走（与长按环同一条）：作者按「一格」的
+   * 尺度画的图，落到别的格子上不该忽大忽小。所以半径按格算，不按图算。
+   * v0.9.3 §5：有图就不画这道弧了，这两个数只在回落路径上生效。
+   */
+  const radiusRatio = 0.44;
+  const strokeWidth = Math.max(2, cellSize * 0.055);
+
+  return (
+    <div
+      className="pointer-events-none absolute left-0 top-0"
+      style={{ zIndex: MAP_LAYER_Z.regionLabel + 1 }}
+    >
+      {marks.map((mark) => (
+        <div
+          key={mark.participantId}
+          className="absolute"
+          style={{
+            left: mark.cell.x * cellSize,
+            top: mark.cell.y * cellSize,
+            width: cellSize,
+            height: cellSize,
+          }}
+        >
+          {/*
+           * v0.9.3 §5（按用户澄清改定）：**颜色只由那张已上传的圆圈图片表达**。
+           *
+           * 配了图 → 只画它，整张染成通过 / 未通过色（扇形揭开照旧）；没配图 →
+           * 才回落到内置的本色细弧。上一版「原色图 + 旁边一道结果色弧」是两个
+           * 信号在说同一件事，反而让人分不清哪个是结论；用户要的是给图片染色，
+           * 不是在图外面再补一圈。
+           *
+           * 图与弧都走同一段 `sweepMs`，所以有没有图，节奏完全一致。
+           */}
+          {ringUrl ? (
+            <PressRing
+              size={cellSize}
+              durationMs={sweepMs}
+              seq={`check-img-${runId}-${mark.participantId}`}
+              imageUrl={ringUrl}
+              imageTintColor={mark.passed ? passColor : failColor}
+            />
+          ) : (
+            <PressRing
+              size={cellSize}
+              durationMs={sweepMs}
+              seq={`check-${runId}-${mark.participantId}`}
+              radiusRatio={radiusRatio}
+              strokeWidth={strokeWidth}
+              color={mark.passed ? passColor : failColor}
+            />
+          )}
+        </div>
+      ))}
     </div>
   );
 }

@@ -210,3 +210,81 @@ describe('themeDataSchema.pressRing（v0.9.2）', () => {
     ).toBe(false);
   });
 });
+
+/**
+ * v0.9.3 §3：提交校验的样式。两个颜色带 `.default()` —— 作者只换圈图时，写进
+ * 库里的仍是一份完整的三键，服务端不必再补一遍默认值。
+ */
+describe('themeDataSchema.checkStyle（v0.9.3）', () => {
+  it('缺省是 undefined；给空对象也会补齐两档颜色', () => {
+    expect(themeDataSchema.parse({ version: 1 }).checkStyle).toBeUndefined();
+    expect(themeDataSchema.parse({ version: 1, checkStyle: null }).checkStyle).toBeNull();
+    expect(themeDataSchema.parse({ version: 1, checkStyle: {} }).checkStyle).toEqual({
+      passColor: '#16A34A',
+      failColor: '#DC2626',
+    });
+  });
+
+  it('配了颜色与圈图就原样收下', () => {
+    expect(
+      themeDataSchema.parse({
+        version: 1,
+        checkStyle: {
+          passColor: '#123456',
+          failColor: '#654321',
+          ring: { path: 'themes/1/check-ring/a.webp' },
+        },
+      }).checkStyle,
+    ).toEqual({
+      passColor: '#123456',
+      failColor: '#654321',
+      ring: { path: 'themes/1/check-ring/a.webp' },
+    });
+  });
+
+  it('颜色必须是 #RRGGBB，多出来的键一律拒', () => {
+    expect(
+      themeDataSchema.safeParse({ version: 1, checkStyle: { passColor: 'green' } }).success,
+    ).toBe(false);
+    expect(
+      themeDataSchema.safeParse({ version: 1, checkStyle: { passColor: '#123456', x: 1 } }).success,
+    ).toBe(false);
+  });
+});
+
+/**
+ * v0.9.3 §3：提交校验的样式。两个颜色带 `.default()` —— 作者只换圈图时，写进
+ * 库里的仍是一份完整的三键，服务端不必再补一遍默认值。
+ */
+describe('themeDataSchema.checkStyle（v0.9.3）', () => {
+  it('缺省是 undefined；给空对象也会补齐两档颜色', () => {
+    expect(themeDataSchema.parse({ version: 1 }).checkStyle).toBeUndefined();
+    expect(themeDataSchema.parse({ version: 1, checkStyle: null }).checkStyle).toBeNull();
+    expect(themeDataSchema.parse({ version: 1, checkStyle: {} }).checkStyle).toEqual({
+      passColor: '#16A34A',
+      failColor: '#DC2626',
+    });
+  });
+
+  it('配了颜色与圈图就原样收下', () => {
+    expect(
+      themeDataSchema.parse({
+        version: 1,
+        checkStyle: { passColor: '#123456', failColor: '#654321', ring: { path: 'themes/1/check-ring/a.webp' } },
+      }).checkStyle,
+    ).toEqual({
+      passColor: '#123456',
+      failColor: '#654321',
+      ring: { path: 'themes/1/check-ring/a.webp' },
+    });
+  });
+
+  it('颜色必须是 #RRGGBB，多出来的键一律拒', () => {
+    expect(
+      themeDataSchema.safeParse({ version: 1, checkStyle: { passColor: 'green' } }).success,
+    ).toBe(false);
+    expect(
+      themeDataSchema.safeParse({ version: 1, checkStyle: { passColor: '#123456', x: 1 } }).success,
+    ).toBe(false);
+  });
+});

@@ -3,7 +3,12 @@ import { fileUrlFromPath } from '@loredoku/shared';
 import { useAssets } from '@/hooks/useAssets';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
-import { useForbiddenSymbolByCode, usePressRingByCode, useToolIconsByCode } from '@/hooks/useThemes';
+import {
+  useCheckStyleByCode,
+  useForbiddenSymbolByCode,
+  usePressRingByCode,
+  useToolIconsByCode,
+} from '@/hooks/useThemes';
 import type { GameSource } from '@/lib/gameSource';
 
 /**
@@ -23,6 +28,7 @@ export function useApiGameSource(): GameSource {
   const forbiddenSymbolOf = useForbiddenSymbolByCode();
   const toolIconsOf = useToolIconsByCode();
   const pressRingOf = usePressRingByCode();
+  const checkStyleOf = useCheckStyleByCode();
 
   return useMemo<GameSource>(
     () => ({
@@ -55,10 +61,11 @@ export function useApiGameSource(): GameSource {
       themeForbiddenSymbol: (themeCode) => forbiddenSymbolOf(themeCode),
       themeToolIcons: (themeCode) => toolIconsOf(themeCode),
       themePressRing: (themeCode) => pressRingOf(themeCode),
+      themeCheckStyle: (themeCode) => checkStyleOf(themeCode),
       storageId: (key) => key,
       listHref: () => '/play',
       gameHref: (key) => `/play/${key}`,
     }),
-    [forbiddenSymbolOf, toolIconsOf, pressRingOf],
+    [forbiddenSymbolOf, toolIconsOf, pressRingOf, checkStyleOf],
   );
 }

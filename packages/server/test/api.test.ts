@@ -1468,6 +1468,98 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   /**
+   * v0.9.3 §3：提交校验的两档颜色与圈图。
+   *
+   * 与禁止符号 / 计时环同一条路，但**配色与换图分成两个端点**：取色器每动一下
+   * 只该改一个颜色，不该把整份 `data` 覆盖一遍。四件事一起钉：
+   *
+   * ① PATCH 只改给的那一档，另一档与圈图原样保留；
+   * ② 主题还没有 `checkStyle` 时，改一个颜色会把两档都补齐（写入永远是完整三键）；
+   * ③ 上传圈图不会顺手改掉作者挑的颜色；移除只删图、颜色留着；
+   * ④ 空 body / 非法颜色 / 没带文件都是 400。
+   */
+  describe('提交校验的样式与圈图 (v0.9.3 §3)', () => {
+    const THEME_CODE = 'test-check-style';
+
+    afterAll(async () => {
+      const { purgeTheme } = await import('./purge');
+      await purgeTheme(THEME_CODE);
+    });
+
+    async function theme(): Promise<{ code: string; id: number }> {
+      const created = await api
+        .post('/api/themes')
+        .send({ code: THEME_CODE, name: '校验样式测试主题' });
+      if (created.status !== 200 && created.status !== 409) {
+        throw new Error(`校验样式测试主题建不出来：${created.status}`);
+      }
+      const row = (await db('themes').where({ code: THEME_CODE }).first('id')) as
+        | { id: string | number }
+        | undefined;
+      if (!row) throw new Error('校验样式测试主题读不出来');
+      return { code: THEME_CODE, id: Number(row.id) };
+    }
+
+    it('改一个颜色只动那一档，另一档按默认补齐', async () => {
+      const created = await theme();
+
+      const empty = await api.patch(`/api/themes/${created.code}/check-style`).send({});
+      expect(empty.status).toBe(400);
+      expect(empty.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+
+      const bad = await api
+        .patch(`/api/themes/${created.code}/check-style`)
+        .send({ passColor: 'green' });
+      expect(bad.status).toBe(400);
+
+      const one = await api
+        .patch(`/api/themes/${created.code}/check-style`)
+        .send({ passColor: '#123456' });
+      expect(one.status).toBe(200);
+      expect(one.body.data.data.checkStyle).toEqual({
+        passColor: '#123456',
+        failColor: '#DC2626',
+        ring: null,
+      });
+
+      // 再改另一档：第一档不能被冲掉。
+      const two = await api
+        .patch(`/api/themes/${created.code}/check-style`)
+        .send({ failColor: '#654321' });
+      expect(two.status).toBe(200);
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.checkStyle).toEqual({
+        passColor: '#123456',
+        failColor: '#654321',
+        ring: null,
+      });
+    });
+
+    it('上传圈图不动颜色；移除只删图，颜色留着', async () => {
+      const created = await theme();
+      uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
+
+      await api.patch(`/api/themes/${created.code}/check-style`).send({ passColor: '#111111' });
+
+      const none = await api.post(`/api/themes/${created.code}/check-ring`);
+      expect(none.status).toBe(400);
+
+      const uploaded = await api
+        .post(`/api/themes/${created.code}/check-ring`)
+        .attach('file', TINY_PNG, 'ring.png');
+      expect(uploaded.status).toBe(200);
+      const path = uploaded.body.data.data.checkStyle.ring.path as string;
+      expect(path).toMatch(new RegExp(`^themes/${created.id}/check-ring/[0-9a-f-]+\\.webp$`));
+      // 作者挑的通过色没被这次上传改掉。
+      expect(uploaded.body.data.data.checkStyle.passColor).toBe('#111111');
+
+      const cleared = await api.delete(`/api/themes/${created.code}/check-ring`);
+      expect(cleared.status).toBe(200);
+      expect(cleared.body.data.data.checkStyle.ring).toBeUndefined();
+      expect(cleared.body.data.data.checkStyle.passColor).toBe('#111111');
+    });
+  });
+
+  /**
    * v0.8.7 §7：「清除 / 撤回 / 提交」三枚按钮的图标，主题与谜题两级配置，与禁止符号
    * 同一条路（只写一张 webp、读取侧兜底）。这里钉的是**接口契约**：
    *

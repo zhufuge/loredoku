@@ -12,6 +12,8 @@ import {
   THEME_DIFFICULTY_COLOR_PATTERN,
   THEME_DIFFICULTY_LABEL_MAX_LENGTH,
   THEME_DIFFICULTY_TIER_MAX,
+  THEME_CHECK_FAIL_COLOR,
+  THEME_CHECK_PASS_COLOR,
   THEME_NAME_MAX_LENGTH,
 } from '../constants';
 import { mapLinkageColorSchema, mapStyleSchema } from './mapDraft';
@@ -70,6 +72,25 @@ export const themeCodeSchema = z
   );
 
 /**
+ * v0.9.3（docs/v0.9.3.md §3）：提交后逐人校验时的样子 —— 两档颜色 + 可选的圈图。
+ *
+ * 颜色给了 `.default()`：作者只换圈图、没动颜色时，写进去的仍是一份**完整**的
+ * `{ passColor, failColor, ring }`。好处是不必在服务端再补一遍默认值 —— 缺什么
+ * 解析时就补齐了，库里不会出现「有 checkStyle 但缺一个颜色」的半成品。
+ */
+export const themeCheckStyleSchema = z
+  .object({
+    passColor: z.string().regex(BG_COLOR_PATTERN, '校验通过色需为 #RRGGBB 格式')
+      .default(THEME_CHECK_PASS_COLOR),
+    failColor: z.string().regex(BG_COLOR_PATTERN, '校验未通过色需为 #RRGGBB 格式')
+      .default(THEME_CHECK_FAIL_COLOR),
+    ring: forbiddenSymbolSchema,
+  })
+  .strict()
+  .nullable()
+  .optional();
+
+/**
  * `themes.data`：主题级**缺省**，两个键可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE`
  * 补齐，缺 `linkageColors` 沿用谜题 schema 的默认调色板（§5 的 S3 快照式）。
  * `.strict()` 与其余 schema 一致：多出来的键是写错了名字，不是新功能。
@@ -106,6 +127,10 @@ export const themeDataSchema = z
      * 同一条「读取时兜底」的规矩；缺了 = 内置白弧。
      */
     pressRing: forbiddenSymbolSchema,
+    /**
+     * v0.9.3 §3：提交校验的两档颜色与圈图。缺了 = 内置绿 / 红 + 本色细环。
+     */
+    checkStyle: themeCheckStyleSchema,
     /**
      * v0.8.3：难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
      * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。
@@ -165,6 +190,23 @@ export const updateThemeSchema = z
     data: themeDataSchema.optional(),
   })
   .refine((value) => Object.keys(value).length > 0, '请提供需要更新的字段');
+
+/**
+ * v0.9.3 §3：只说「改哪一档颜色」—— 与上传圈图分开。
+ *
+ * 两个字段都可选（作者可能只改通过色），但**至少要给一个**：空 body 是一次没有
+ * 意义的写库，应该 400 而不是悄悄成功。
+ */
+export const updateThemeCheckStyleSchema = z
+  .object({
+    passColor: z.string().regex(BG_COLOR_PATTERN, '校验通过色需为 #RRGGBB 格式').optional(),
+    failColor: z.string().regex(BG_COLOR_PATTERN, '校验未通过色需为 #RRGGBB 格式').optional(),
+  })
+  .strict()
+  .refine(
+    (value) => value.passColor !== undefined || value.failColor !== undefined,
+    '请提供需要更新的颜色',
+  );
 
 export const listThemesQuerySchema = z.object({
   /** 作用域条与新建对话框都只要 id / code / name，`light` 省掉四张表的计数。 */

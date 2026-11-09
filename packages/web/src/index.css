@@ -555,6 +555,42 @@
   }
 
   /*
+   * v0.9.3 §3：结案印章（`GamePage`「定案」卡右上角那枚提交图标）。
+   *
+   * 一枚印不是「淡入的图标」：它从比最终大一圈的位置压下来，落定时先比目标略小
+   * 一点点、再弹回原位 —— 那是纸被压下去的形变。转 8° 是因为手盖的印从来不会
+   * 正着朝上。
+   *
+   * 只播一次（`both`，不循环），且**只动 transform 与 opacity**：卡片尺寸在盖章
+   * 过程中不会跳。`transform-origin` 偏右上，让「压」的那一下从角落发力。
+   *
+   * 系统开着「减少动态效果」时由下面那段 `*` 规则压到 0.01ms —— 印章直接出现，
+   * 不演，但一定看得见。
+   */
+  .stamp-press {
+    transform-origin: 60% 40%;
+    animation: stamp-press 420ms cubic-bezier(0.22, 0.9, 0.28, 1) both;
+  }
+
+  @keyframes stamp-press {
+    from {
+      opacity: 0;
+      transform: scale(1.7) rotate(-18deg);
+    }
+    55% {
+      opacity: 1;
+      transform: scale(0.92) rotate(-8deg);
+    }
+    78% {
+      transform: scale(1.04) rotate(-8deg);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1) rotate(-8deg);
+    }
+  }
+
+  /*
    * 放下的一刻（v0.7.11）——编号与禁止符号的「盖章」。
    *
    * 头像有 `place-settle`（长按那半秒的过程刚结束，需要一点落定感）；短按放下的

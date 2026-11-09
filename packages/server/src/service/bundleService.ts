@@ -22,6 +22,7 @@ import {
   type BundleThemeFile,
   type Character,
   type ForbiddenSymbolImage,
+  type ThemeCheckStyle,
   type GameToolIcons,
   type MapDraft,
   type PuzzleDraft,
@@ -184,6 +185,38 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
     manifestPressRing = { path: taken };
   }
 
+  /**
+   * v0.9.3 §3：提交校验的圈图 —— 同样是主题级一张，装进 `files/check/`，
+   * 路径进 `manifest.theme.checkStyle.ring`。两档颜色是几个字节，一起写进 manifest，
+   * 播放器因此不必为了配色再读一次 theme.json。
+   *
+   * 只配了颜色没配图是常态（默认就是绿 / 红），所以这里两种情况都要能过去。
+   */
+  const checkRingSource = themeData?.checkStyle?.ring?.path ?? null;
+  let manifestCheckStyle: ThemeCheckStyle | null = themeData?.checkStyle
+    ? {
+        passColor: themeData.checkStyle.passColor,
+        failColor: themeData.checkStyle.failColor,
+        ...(themeData.checkStyle.ring ? { ring: themeData.checkStyle.ring } : {}),
+      }
+    : null;
+  if (checkRingSource) {
+    const taken = await files.take(
+      checkRingSource,
+      `files/check/check-ring${extension(checkRingSource)}`,
+    );
+    if (!taken) {
+      problems.push({
+        game: themeRow.name,
+        where: '校验圈',
+        kind: 'file',
+        message: `图片 ${checkRingSource} 不在了`,
+      });
+      throw incomplete(problems);
+    }
+    manifestCheckStyle = { ...(manifestCheckStyle as ThemeCheckStyle), ring: { path: taken } };
+  }
+
   const exportedAt = new Date().toISOString();
   const themeFile: BundleThemeFile = {
     code: themeRow.code,
@@ -204,6 +237,7 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
       description: themeRow.description,
       ...(themeDifficultyLevels ? { difficultyLevels: themeDifficultyLevels } : {}),
       ...(manifestPressRing ? { pressRing: manifestPressRing } : {}),
+      ...(manifestCheckStyle ? { checkStyle: manifestCheckStyle } : {}),
     },
     exportedAt,
     games: manifestGames,

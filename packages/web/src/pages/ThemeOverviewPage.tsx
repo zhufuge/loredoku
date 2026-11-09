@@ -40,15 +40,19 @@ import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import {
   useDeleteTheme,
+  useRemoveThemeCheckRing,
   useRemoveThemeForbiddenSymbol,
   useRemoveThemePressRing,
   useRemoveThemeToolIcon,
   useUpdateTheme,
+  useUpdateThemeCheckStyle,
+  useUploadThemeCheckRing,
   useUploadThemeForbiddenSymbol,
   useUploadThemePressRing,
   useUploadThemeToolIcon,
 } from '@/hooks/useThemes';
 import { isValidShadowColor, isValidStyleColor, resolveMapStyle } from '@/lib/mapStyle';
+import { resolveCheckStyle } from '@/lib/checkStyle';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
 import {
   resetThemeStyle,
@@ -307,6 +311,9 @@ export function ThemeOverviewPage(): JSX.Element {
 
       {/* v0.9.2 §2：长按放置参与者时那圈计时环的图 —— 同上，读取时兜底。 */}
       <PressRingCard theme={theme} />
+
+      {/* v0.9.3 §3：提交校验的两档颜色与圈图。 */}
+      <CheckStyleCard theme={theme} />
 
       {/* v0.8.3 §3：难度分级。徽章就是部署页 / 游戏卡上那一枚，所见即所得。 */}
       <Card className="space-y-3 px-4 py-4">
@@ -622,6 +629,109 @@ function PressRingCard({ theme }: { theme: Theme }): JSX.Element {
           </div>
           <p className="text-2xs leading-relaxed text-muted-foreground">
             玩家按住一格放头像时画这张；没配就是内置的白弧。进度照样按长按时长走。
+          </p>
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          if (!file) return;
+          upload.mutate(file);
+        }}
+      />
+    </Card>
+  );
+}
+
+/**
+ * v0.9.3 §3：提交校验 —— 两档颜色 + 可选的圈图。
+ *
+ * 为什么颜色和圈图在同一张卡：它们回答的是同一个问题「这个世界怎么告诉你对错」。
+ * 分成两张卡会让作者以为可以只配一半（其实颜色才是必需的那一半）。
+ *
+ * 颜色即时保存（取色器一动就发一个 PATCH），圈图走上传 / 移除 —— 两个动作各走
+ * 各的端点，「改颜色」不会顺带把圈图覆盖掉。
+ */
+function CheckStyleCard({ theme }: { theme: Theme }): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const style = resolveCheckStyle(theme.data.checkStyle);
+  const update = useUpdateThemeCheckStyle(theme.code);
+  const upload = useUploadThemeCheckRing(theme.code);
+  const remove = useRemoveThemeCheckRing(theme.code);
+  const ring = theme.data.checkStyle?.ring ?? null;
+  const busy = upload.isPending || remove.isPending;
+
+  return (
+    <Card className="space-y-3 px-4 py-4">
+      <CardHead title="提交校验" />
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">通过</span>
+          <ColorField
+            label="校验通过色"
+            value={style.passColor}
+            commit={(next) => update.mutate({ passColor: next })}
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">未通过</span>
+          <ColorField
+            label="校验未通过色"
+            value={style.failColor}
+            commit={(next) => update.mutate({ failColor: next })}
+          />
+        </div>
+      </div>
+      <div className="flex items-start gap-4 border-t pt-3">
+        <div
+          className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30"
+          /* 圈图的预览用「通过」那档色垫在底下：作者一眼能看出圈和图叠在一起的样子。 */
+          style={{ boxShadow: `inset 0 0 0 2px ${style.passColor}` }}
+        >
+          {ring ? (
+            <img
+              src={fileUrlFromPath(ring.path)}
+              alt="校验圈"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            <CircleDashed className="h-6 w-6 text-muted-foreground" aria-hidden />
+          )}
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+            >
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              {upload.isPending ? '上传中…' : ring ? '更换圈图' : '上传圈图'}
+            </Button>
+            {ring ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                disabled={busy}
+                onClick={() => remove.mutate()}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                {remove.isPending ? '移除中…' : '移除'}
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-2xs leading-relaxed text-muted-foreground">
+            玩家提交后，参与者会被逐个圈住：通过是左边的颜色，没通过是另一个。配了圈图就用它，
+            没配就是一圈本色细环。
           </p>
         </div>
       </div>
