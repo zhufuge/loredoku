@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
-import { toast } from 'sonner';
 import {
   DEFAULT_CELL_SIZE,
   GAME_LONG_PRESS_MS,
@@ -143,42 +142,6 @@ const GAME_PLACE_PULSE_MS = 400;
 function readStoredRulerVisible(): boolean {
   if (typeof window === 'undefined') return true;
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
-}
-
-/**
- * SPEC-G05 §5.2 (docs/v0.4.1.md §5.2) + CLAR-H13 (docs/v0.4.2.md §1.1) + SPEC-J05
- * (docs/v0.4.3.md §3.6): the reason a placement was refused, as a toast. Wording
- * says **编号** wherever the cell's content is meant — the participant themselves
- * never enters the map.
- *
- * v0.7.11：`'avatar'`（长按的正是这位头像自己所在的那一格）返回 `null` ——
- * 什么都不做已经是最正确的回应，再弹一句「这里已经有他的头像了」纯属噪音。
- * 原先那条「已经放在别处」的拒绝也随**搬家**一起消失了。
- *
- * v0.7.12：`'forbidden'` 也返回 `null` —— `×` 格在放置态下是**静默的无效果**
- * （需求：「参与者编号点击时无效果」）。提示层在这种格子上已经不再画编号，
- * 点下去再弹一句「请先清除」就成了一次自相矛盾的对话。
- *
- * v0.9.0 §18：把 `'non-standable'` 也归到「静默拒绝」这一家 —— 不可站立的格子本
- * 来就画得很清楚（地面碎了 / 桌面塌了），玩家点上去被挡住已经知道原因，再弹一句
- * 「该格有不可站立的物品」反而是噪音。放置规则不变（仍然挡），只是不说话了。
- */
-function describeBlock(
-  block: NonNullable<ReturnType<typeof placementBlockReason>>,
-  participantId: number,
-): string | null {
-  switch (block) {
-    case 'non-standable':
-    case 'forbidden':
-    case 'avatar':
-      return null;
-    // SPEC-J03 §9 Q6：短按点「该格已有该编号」是 **toggle 删除**，不走拒绝
-    // 路径。这个 case 保留只为 `PlacementBlock` 的成员完整性（它不会被返回）。
-    case 'duplicate':
-      return `该格已有编号 ${participantId}`;
-    case 'grid-full':
-      return '该格编号已满（最多 9 个）';
-  }
 }
 
 /**
@@ -1008,17 +971,15 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    * v0.7.11：
    * - 棋盘一律读 `placementRef.current`。按住滑动会在**同一个事件循环**里连着
    *   调用好几次，读渲染闭包里的 `placementState` 会让后一次把前一次覆盖掉。
-   * - `quiet` 让滑动经过的不可放置格**不出 toast**：划过一行十来格，弹十几个
-   *   错误提示既挡住棋盘又说不清是哪一格。单点仍然照常说明原因。
    * - 返回**是否真的执行了**：长按的进度环靠它决定收场 —— 环画满却什么都没发生，
    *   会读成「按成功了但没反应」，比不画环更糟。
+   *
+   * v0.9.1 §4：放置被拒一律**静默** —— 不再弹吐司。原先唯一还会说话的是
+   * 「该格编号已满」，但它和之前删掉的几条一样属于噪音：格子上的编号已经写满
+   * 九个，玩家看得见；再弹一句只是挡住棋盘。`quiet`（滑动时压掉提示）因此也
+   * 一并退场，拒绝路径只剩 `return false`。
    */
-  const dispatchCell = (
-    x: number,
-    y: number,
-    variant: ParticipantPlacementVariant,
-    options?: { quiet?: boolean },
-  ): boolean => {
+  const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): boolean => {
     const board = placementRef.current.board;
     if (mode.kind === 'placing') {
       const block = placementBlockReason({
@@ -1029,11 +990,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
         blockingCells,
         variant,
       });
-      if (block) {
-        const message = describeBlock(block, mode.participantId);
-        if (message && !options?.quiet) toast.error(message);
-        return false;
-      }
+      if (block) return false;
       updatePlacement((state) =>
         placeParticipant(state, {
           x,
@@ -1107,8 +1064,8 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
      * 需求给的说法是「不出现圆圈，不提示，就是无效果」，所以这里在按下的一刻就
      * 退回，连定时器都不挂。
      *
-     * 这条判断只针对**长按（头像）**。短按（编号）走的是另一套：非站立格仍会
-     * 说明原因，`×` 格与头像格则同样静默 —— 见 `describeBlock`。
+     * v0.9.1 §4：短按（编号）现在同样静默 —— 放置被拒一律不弹提示，于是两类
+     * 手势在「放不进去」这件事上的反馈完全一致：环不画、话不说、棋盘不动。
      */
     const refused = placementBlockReason({
       board: placementRef.current.board,
@@ -1190,10 +1147,10 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     press.timer = window.setTimeout(() => {
       press.fired = true;
       // 清空是一次性的，棋盘随即变空 —— 满环留在空棋盘上没有意义，立即收。
+      // v0.9.1 §4：不再弹「已清空全部放置」—— 棋盘当场变空本身就是反馈。
       setClearPress(null);
       applyMode({ kind: 'clearing' });
       updatePlacement(clearAll);
-      toast.success('已清空全部放置');
     }, GAME_LONG_PRESS_MS);
     clearPressRef.current = press;
   };
@@ -1416,10 +1373,10 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               // 滑出了第一格 = 拖动，不是长按。
               cancelCellPress();
               // 起点那一格也要落：它同样是「划过的格子」。
-              dispatchCell(paint.start.x, paint.start.y, 'number', { quiet: true });
+              dispatchCell(paint.start.x, paint.start.y, 'number');
             }
             paint.lastKey = key;
-            dispatchCell(cell.x, cell.y, 'number', { quiet: true });
+            dispatchCell(cell.x, cell.y, 'number');
           }}
           onPointerUp={(event) => {
             panRef.current = null;
@@ -1434,8 +1391,8 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               if (cell && cellKey(cell.x, cell.y) !== paint.lastKey) {
                 paint.painted = true;
                 cancelCellPress();
-                dispatchCell(paint.start.x, paint.start.y, 'number', { quiet: true });
-                dispatchCell(cell.x, cell.y, 'number', { quiet: true });
+                dispatchCell(paint.start.x, paint.start.y, 'number');
+                dispatchCell(cell.x, cell.y, 'number');
               }
             }
             if (paint?.painted) paintedRef.current = true;
@@ -1533,6 +1490,8 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               assetsById={assetsById}
               cellSize={cellSize}
               gridSize={gridSize}
+              // v0.9.1 §5：物品描边（宽度 0 = 不描边）。
+              itemOutline={style.itemOutline}
               padding={itemPadding(cellSize)}
               hover={hover}
               pointer={hoverPoint}
@@ -1553,6 +1512,8 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               cellSize={cellSize}
               slots={slots}
               forbiddenSymbol={forbiddenSymbol}
+              // v0.9.1 §3：清除工具配了图，指针底下就画同一张（与按钮一致）。
+              clearIcon={toolIcons.clear ?? null}
             />
 
             {/* v0.7.11：长按进度环 —— 按住 500ms 的等待可见化（SPEC-J02）。
@@ -1685,29 +1646,46 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               />
             ) : null}
           </Button>
-          <Button
-            variant="ghost"
-            className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
-            title={canUndo(placementState) ? '回退上一步' : '没有可回退的操作'}
-            disabled={!canUndo(placementState)}
-            onClick={() => updatePlacement(undo)}
+          {/*
+            * v0.9.1 §1：不可回退时按钮 `disabled`，而基类的
+            * `disabled:pointer-events-none` 会让它接不到 hover —— 光标与提示一起失效。
+            * 外面包一层 span 接住指针（禁用的按钮不挡事件），由 span 出
+            * `cursor-not-allowed` 与那句「为什么不能点」的提示。
+            */}
+          <span
+            className={cn('block w-full', !canUndo(placementState) && 'cursor-not-allowed')}
+            title={canUndo(placementState) ? undefined : '当前没有可以回退的步骤'}
           >
-            <GameToolIcon render={toolIcons.undo} name="undo" />
-          </Button>
+            <Button
+              variant="ghost"
+              className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
+              title={canUndo(placementState) ? '回退上一步' : '当前没有可以回退的步骤'}
+              disabled={!canUndo(placementState)}
+              onClick={() => updatePlacement(undo)}
+            >
+              <GameToolIcon render={toolIcons.undo} name="undo" />
+            </Button>
+          </span>
           {/*
             * v0.7.11：提交按钮不再变成勾 —— 提交是一次**结算**，不是一个要记住
             * 的状态。勾只会在下一次进来时变成一句谎话（玩家看到自己没做过的勾）。
             * v0.7.12：没放完不能提交（编号不算放置）。
+            * v0.9.1 §1：没放完时同样包一层 span，给禁用光标和提示。
             */}
-          <Button
-            variant="ghost"
-            className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
-            title={readyToSubmit ? '提交' : '还有参与者没放好，放完才能提交'}
-            disabled={!readyToSubmit}
-            onClick={submit}
+          <span
+            className={cn('block w-full', !readyToSubmit && 'cursor-not-allowed')}
+            title={readyToSubmit ? undefined : '尚未将人物放置完全'}
           >
-            <GameToolIcon render={toolIcons.submit} name="submit" />
-          </Button>
+            <Button
+              variant="ghost"
+              className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
+              title={readyToSubmit ? '提交' : '尚未将人物放置完全'}
+              disabled={!readyToSubmit}
+              onClick={submit}
+            >
+              <GameToolIcon render={toolIcons.submit} name="submit" />
+            </Button>
+          </span>
 
           {/*
            * v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。

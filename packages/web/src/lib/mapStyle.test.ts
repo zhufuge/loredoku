@@ -24,6 +24,7 @@ import {
   clampLineWidth,
   clampRulerFontSize,
   clampRulerGap,
+  itemOutlineFilter,
   mapStyleEquals,
   clampOperationOffset,
   clampRegionBorderWidth,
@@ -279,21 +280,49 @@ describe('styleLineWidth (FEAT-D02 §关键规则 1)', () => {
   });
 });
 
-describe('canvas shadow (v0.8.7 §6)', () => {
-  it('拼出「外框色 + 透明度」的右下硬影', () => {
-    const style = resolveMapStyle({
-      canvasFrame: { width: 12, color: '#2F2A24' },
-    } as Partial<MapStyle>);
-    // 24px 偏移（v0.9.0 §16 从 6 调上来）、0 模糊、47 = 0x2F / 42 = 0x2A /
-    // 36 = 0x24，透明度取常量。x 与 y 用同一个常量，别让影子歪掉。
-    expect(canvasShadowStyle(style).boxShadow).toBe('24px 24px 0 rgba(47, 42, 36, 0.3)');
+describe('canvas shadow (v0.8.7 §6 / v0.9.1 §2)', () => {
+  it('出厂 36px、墨黑 0.3 的右下硬影', () => {
+    const style = resolveMapStyle(undefined);
+    // 0 模糊，x 与 y 用同一个偏移，别让影子歪掉；透明度取常量。
+    expect(canvasShadowStyle(style).boxShadow).toBe('36px 36px 0 rgba(0, 0, 0, 0.3)');
   });
 
-  it('换外框色，影子跟着换 —— 它不是一个独立的颜色字段', () => {
-    const red = resolveMapStyle({
+  it('偏移与颜色读 canvasShadow，与画布外框解耦', () => {
+    const style = resolveMapStyle({
+      // 外框染红也不该把影子带红 —— 这是 v0.9.1 拆开它们的重点。
       canvasFrame: { width: 12, color: '#FF0000' },
+      canvasShadow: { offset: 48, color: '#2F2A24' },
     } as Partial<MapStyle>);
-    expect(canvasShadowStyle(red).boxShadow).toBe('24px 24px 0 rgba(255, 0, 0, 0.3)');
+    expect(canvasShadowStyle(style).boxShadow).toBe('48px 48px 0 rgba(47, 42, 36, 0.3)');
+  });
+
+  it('偏移量被夹在 0 ~ 120 的区间里', () => {
+    expect(resolveMapStyle({ canvasShadow: { offset: -10, color: '#000000' } } as Partial<MapStyle>).canvasShadow.offset).toBe(0);
+    expect(resolveMapStyle({ canvasShadow: { offset: 999, color: '#000000' } } as Partial<MapStyle>).canvasShadow.offset).toBe(120);
+  });
+});
+
+describe('item outline (v0.9.1 §5)', () => {
+  it('出厂宽度 0，filter 为 undefined（不描边）', () => {
+    const style = resolveMapStyle(undefined);
+    expect(style.itemOutline.width).toBe(0);
+    expect(itemOutlineFilter(style.itemOutline, BASE_CELL)).toBeUndefined();
+  });
+
+  it('宽度 > 0：4 向 drop-shadow，颜色取配置，宽度按方格缩放', () => {
+    const style = resolveMapStyle({
+      itemOutline: { width: 6, color: '#2F2A24' },
+    } as Partial<MapStyle>);
+    const filter = itemOutlineFilter(style.itemOutline, BASE_CELL);
+    expect(filter?.match(/drop-shadow/g)).toHaveLength(4);
+    expect(filter?.match(/#2F2A24/g)).toHaveLength(4);
+    // cellSize = BASE_CELL 时基准值不缩放。
+    expect(filter).toContain('6px');
+  });
+
+  it('宽度被夹在 0 ~ 12 的区间里', () => {
+    expect(resolveMapStyle({ itemOutline: { width: -3, color: '#000000' } } as Partial<MapStyle>).itemOutline.width).toBe(0);
+    expect(resolveMapStyle({ itemOutline: { width: 99, color: '#000000' } } as Partial<MapStyle>).itemOutline.width).toBe(12);
   });
 });
 

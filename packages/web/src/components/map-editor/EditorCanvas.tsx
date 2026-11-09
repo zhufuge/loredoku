@@ -712,6 +712,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           assetsById={assetsById}
           cellSize={cellSize}
           gridSize={gridSize}
+          // v0.9.1 §5：物品描边（宽度 0 = 不描边）。
+          itemOutline={style.itemOutline}
           // OPT-C06: object artwork is inset inside its footprint.
           padding={itemPadding(cellSize)}
           interactive={selectInteractive}

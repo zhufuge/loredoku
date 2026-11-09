@@ -12,6 +12,8 @@ import {
   GRID_SIZE_MIN,
   MAP_STYLE_CELL_SIZE_MAX,
   MAP_STYLE_CELL_SIZE_MIN,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_LINE_WIDTH_MAX,
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
@@ -20,6 +22,8 @@ import {
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
+  MAP_STYLE_SHADOW_OFFSET_MAX,
+  MAP_STYLE_SHADOW_OFFSET_MIN,
   UI_Z,
   type MapStyle,
   type RegionStyle,
@@ -35,7 +39,9 @@ import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
 import { ThemeStyleRow } from '@/components/map-editor/ThemeStyleRow';
 import {
+  clampCanvasShadowOffset,
   clampCellSize,
+  clampItemOutlineWidth,
   clampLineWidth,
   clampOperationOffset,
   clampRulerFontSize,
@@ -421,7 +427,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
           {/* ---- 线条 ---- */}
           <Section
             title="线条"
-            hint="Lines — 各图层的线宽与颜色。所有数值都是「基准值」，随方格尺寸等比缩放，不随画布缩放变化。"
+            hint="Lines — 各图层的线宽与颜色、画布纸片投下的硬影，以及物品描边。所有数值都是「基准值」，随方格尺寸等比缩放，不随画布缩放变化。"
           >
             <Row
               label="画布外框"
@@ -447,6 +453,41 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                     patch((current) => ({
                       ...current,
                       canvasFrame: { ...current.canvasFrame, color: value },
+                    }))
+                  }
+                />
+              </div>
+            </Row>
+
+            {/* v0.9.1 §2：画布纸片的投影 —— 偏移 + 颜色，默认 36px。 */}
+            <Row
+              label="画布阴影"
+              hint="Canvas Shadow — 画布纸片向右下投下的硬影（无模糊），偏移量随缩放一起变。0 就是不投阴影；颜色只收 #RRGGBB，渲染时统一压 30% 透明度。"
+            >
+              <div className="flex items-center gap-1">
+                <NumberField
+                  id="map-info-shadow-offset"
+                  value={draft.canvasShadow.offset}
+                  min={MAP_STYLE_SHADOW_OFFSET_MIN}
+                  max={MAP_STYLE_SHADOW_OFFSET_MAX}
+                  suffix="px"
+                  commit={(value) =>
+                    patch((current) => ({
+                      ...current,
+                      canvasShadow: {
+                        ...current.canvasShadow,
+                        offset: clampCanvasShadowOffset(value),
+                      },
+                    }))
+                  }
+                />
+                <ColorField
+                  id="map-info-shadow-color"
+                  value={draft.canvasShadow.color}
+                  commit={(value) =>
+                    patch((current) => ({
+                      ...current,
+                      canvasShadow: { ...current.canvasShadow, color: value },
                     }))
                   }
                 />
@@ -609,6 +650,44 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                         ...current.operationCursorBox,
                         offset: clampOperationOffset(value),
                       },
+                    }))
+                  }
+                />
+              </Row>
+            </div>
+
+            {/* v0.9.1 §5：物品描边 —— 默认宽度 0（不描边）。 */}
+            <div className="space-y-1.5 rounded-md border p-2">
+              <span className="flex items-center text-2xs font-medium">
+                <span>物品描边</span>
+                <Hint text="Item Outline — 沿物品图片的轮廓画一圈描边（剪影，不是矩形框），用来把物品从底纹里拔出来。宽度 0 就是不描边（出厂默认）；宽度是基准值，随方格尺寸等比缩放。" />
+              </span>
+              <Row label="宽度">
+                <NumberField
+                  id="map-info-item-outline-width"
+                  value={draft.itemOutline.width}
+                  min={MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN}
+                  max={MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX}
+                  suffix="px"
+                  commit={(value) =>
+                    patch((current) => ({
+                      ...current,
+                      itemOutline: {
+                        ...current.itemOutline,
+                        width: clampItemOutlineWidth(value),
+                      },
+                    }))
+                  }
+                />
+              </Row>
+              <Row label="颜色">
+                <ColorField
+                  id="map-info-item-outline-color"
+                  value={draft.itemOutline.color}
+                  commit={(value) =>
+                    patch((current) => ({
+                      ...current,
+                      itemOutline: { ...current.itemOutline, color: value },
                     }))
                   }
                 />

@@ -1,6 +1,5 @@
 import {
   CANVAS_SHADOW_ALPHA,
-  CANVAS_SHADOW_OFFSET_PX,
   DEFAULT_LINKAGE_COLORS,
   DEFAULT_MAP_STYLE,
   hexToRgb,
@@ -20,6 +19,10 @@ import {
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
+  MAP_STYLE_SHADOW_OFFSET_MAX,
+  MAP_STYLE_SHADOW_OFFSET_MIN,
   MAP_STYLE_REGION_LABEL_FONT_MAX,
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
@@ -29,6 +32,8 @@ import {
   RULER_ACTIVE_FONT_DELTA,
   type CharacterSlotEntry,
   type MapLinkageColor,
+  type MapStyleCanvasShadow,
+  type MapStyleItemOutline,
   type MapStyleLine,
   type MapStyleMouseCursorBox,
   type MapStyleOperationCursorBox,
@@ -65,6 +70,16 @@ export function clampRegionLabelStroke(value: number): number {
 
 export function clampOperationOffset(value: number): number {
   return clampNumber(value, MAP_STYLE_OPERATION_OFFSET_MIN, MAP_STYLE_OPERATION_OFFSET_MAX);
+}
+
+/** v0.9.1：画布阴影的偏移量（画布像素），整数 0 ~ 120。 */
+export function clampCanvasShadowOffset(value: number): number {
+  return Math.round(clampNumber(value, MAP_STYLE_SHADOW_OFFSET_MIN, MAP_STYLE_SHADOW_OFFSET_MAX));
+}
+
+/** v0.9.1 §5：物品描边宽度，0 ~ 12（0 = 不描边）。允许小数，与线宽同档。 */
+export function clampItemOutlineWidth(value: number): number {
+  return clampNumber(value, MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN, MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX);
 }
 
 /** v0.3.9 FEAT-E02: ruler text size (integer px). */
@@ -131,6 +146,8 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
   const fallback = DEFAULT_MAP_STYLE;
 
   const canvasFrame: Partial<MapStyleLine> = source.canvasFrame ?? {};
+  const canvasShadow: Partial<MapStyleCanvasShadow> = source.canvasShadow ?? {};
+  const itemOutline: Partial<MapStyleItemOutline> = source.itemOutline ?? {};
   const gridSeparator: Partial<MapStyleLine> = source.gridSeparator ?? {};
   const mouseCursorBox: Partial<MapStyleMouseCursorBox> = source.mouseCursorBox ?? {};
   const operationCursorBox: Partial<MapStyleOperationCursorBox> = source.operationCursorBox ?? {};
@@ -152,6 +169,20 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
     canvasFrame: {
       width: width(fallback.canvasFrame.width, canvasFrame.width),
       color: color(fallback.canvasFrame.color, canvasFrame.color),
+    },
+    canvasShadow: {
+      offset:
+        typeof canvasShadow.offset === 'number'
+          ? clampCanvasShadowOffset(canvasShadow.offset)
+          : fallback.canvasShadow.offset,
+      color: color(fallback.canvasShadow.color, canvasShadow.color),
+    },
+    itemOutline: {
+      width:
+        typeof itemOutline.width === 'number'
+          ? clampItemOutlineWidth(itemOutline.width)
+          : fallback.itemOutline.width,
+      color: color(fallback.itemOutline.color, itemOutline.color),
     },
     gridSeparator: {
       width: width(fallback.gridSeparator.width, gridSeparator.width),
@@ -334,24 +365,49 @@ export function styleLineWidth(base: number, cellSize: number): number {
 }
 
 /**
- * v0.8.7 §6：画布纸片的投影。**颜色不是新字段** —— 就是画布外框色再压一道透明度，
- * 于是「换外框颜色」时影子跟着走，作者不用把一个颜色配两遍。
+ * v0.8.7 §6：画布纸片的投影。v0.9.1 §2 起偏移量与颜色都读 `style.canvasShadow`
+ * —— 作者能在「地图基本信息」或主题缺省风格里各配各的，不再跟着外框色走。
  *
  * 为什么是硬影（`blur = 0`）：这张图的气质是一条线画到底的（网格、框、标签都在
- * 1 ~ 12px 的细线里），一团 12px 的弥散阴影会第一个跳出来抢注意力。向右下偏移
- * 24px 的硬影说的是「一叠纸」，不是「浮窗」。
+ * 1 ~ 12px 的细线里），一团弥散阴影会第一个跳出来抢注意力。向右下偏移的硬影说的
+ * 是「一叠纸」，不是「浮窗」。
  *
- * 2026-11-09（docs/v0.9.0.md §16）：原来是 6px，实测只露约 3px（外框描边压掉了
- * 2.8px），调到 24px。颜色、透明度、模糊半径一概没动 —— 这一版只加偏移。
+ * 透明度仍是固定值 {@link CANVAS_SHADOW_ALPHA}（0.3）：颜色只收 `#RRGGBB`，不开放
+ * alpha —— 影子是「颜色 + 固定一层淡度」，不让人去调第二个数。
  *
  * 返回值直接摊进画布底色那一层（`MAP_LAYER_Z.canvasBase`）的 `style`：它在缩放
  * 容器里，所以偏移量随 `zoom` 一起缩放，和线宽同一套规矩。
  */
 export function canvasShadowStyle(style: MapStyle): CSSProperties {
-  const { r, g, b } = hexToRgb(style.canvasFrame.color);
+  const { r, g, b } = hexToRgb(style.canvasShadow.color);
+  const offset = style.canvasShadow.offset;
   return {
-    boxShadow: `${CANVAS_SHADOW_OFFSET_PX}px ${CANVAS_SHADOW_OFFSET_PX}px 0 rgba(${r}, ${g}, ${b}, ${CANVAS_SHADOW_ALPHA})`,
+    boxShadow: `${offset}px ${offset}px 0 rgba(${r}, ${g}, ${b}, ${CANVAS_SHADOW_ALPHA})`,
   };
+}
+
+/**
+ * v0.9.1 §5：物品描边。返回 CSS `filter`；宽度为 0（出厂默认）时返回 `undefined`，
+ * 调用方据此不挂 filter —— 零宽描边不该在 DOM 上留一条 `drop-shadow(0px 0 0 …)`。
+ *
+ * 用 4 向硬 `drop-shadow` 叠成一圈**剪影描边**：跟着物品图片的 alpha 走，透明
+ * 背景的物品得到的是一圈贴着实物的边，而不是一个矩形框。宽度先按方格尺寸缩放
+ * （`styleLineWidth`，与线宽同一套规矩），颜色直接用配置的 `#RRGGBB`。
+ */
+export function itemOutlineFilter(
+  outline: MapStyleItemOutline,
+  cellSize: number,
+): string | undefined {
+  if (!(outline.width > 0)) return undefined;
+  const px = styleLineWidth(outline.width, cellSize);
+  if (!(px > 0)) return undefined;
+  const { color } = outline;
+  return [
+    `drop-shadow(${px}px 0 0 ${color})`,
+    `drop-shadow(-${px}px 0 0 ${color})`,
+    `drop-shadow(0 ${px}px 0 ${color})`,
+    `drop-shadow(0 -${px}px 0 ${color})`,
+  ].join(' ');
 }
 
 /**

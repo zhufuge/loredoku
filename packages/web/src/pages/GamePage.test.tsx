@@ -278,7 +278,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
     render();
     const blocked = container.querySelector<HTMLButtonElement>(
-      'button[title="还有参与者没放好，放完才能提交"]',
+      'button[title="尚未将人物放置完全"]',
     );
     expect(blocked).not.toBeNull();
     expect(blocked?.disabled).toBe(true);
@@ -580,6 +580,46 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       render();
       expect(iconSrc('clear')).toBe('/api/files/puzzles/7/tool-icons/clear/own.webp');
     });
+
+    /**
+     * v0.9.1 §3 / §5：清除工具的悬停预览必须与按钮**同一张图** —— 作者配了图，
+     * 指针底下就不能还画内置橡皮。§5 起它还比内置字形大一圈（60%）并带白描边。
+     */
+    it('清除工具触碰方格时预览的是按钮那张图（更大 + 白描边）', () => {
+      fixture.detail.puzzle.toolIcons = { clear: { path: 'puzzles/7/tool-icons/clear/own.webp' } };
+      render();
+      sizeCanvas();
+      act(() => container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click());
+      // 短按清除按钮 = 切换清除工具（按住 500ms 才是清空全部）。
+      act(() => {
+        const clear = container.querySelector<HTMLButtonElement>(
+          'button[title="清除放置，长按清空全部"]',
+        );
+        clear?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+        clear?.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
+      });
+      act(() => {
+        container
+          .querySelector('main')
+          ?.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 450, clientY: 350 }));
+      });
+
+      const preview = Array.from(container.querySelectorAll('main img')).find(
+        (node) => node.getAttribute('src') === '/api/files/puzzles/7/tool-icons/clear/own.webp',
+      ) as HTMLImageElement | undefined;
+      expect(preview).not.toBeUndefined();
+
+      // §5：60% 的格子宽（比内置橡皮的 42% 大一圈）。
+      const cellBox = preview?.parentElement as HTMLElement | null;
+      const total = Number.parseFloat(cellBox?.style.width ?? '0');
+      expect(total).toBeGreaterThan(0);
+      expect(Number.parseFloat(preview?.style.width ?? '0')).toBeCloseTo(total * 0.6, 1);
+
+      // §5：白色描边 —— 4 向 drop-shadow，颜色必须是 #ffffff。
+      const filter = preview?.style.filter ?? '';
+      expect(filter).toContain('drop-shadow');
+      expect(filter.match(/#ffffff/g)).toHaveLength(4);
+    });
   });
 
   /**
@@ -620,8 +660,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       const selectors = [
         'button[title="标记"]',
         'button[title="清除放置，长按清空全部"]',
-        'button[title="没有可回退的操作"]',
-        'button[title^="还有参与者没放好"]',
+        'button[title="当前没有可以回退的步骤"]',
+        'button[title="尚未将人物放置完全"]',
       ];
       for (const selector of selectors) {
         const button = container.querySelector<HTMLButtonElement>(selector);
@@ -630,6 +670,35 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         expect(icon?.classList.contains('h-8')).toBe(true);
         expect(icon?.classList.contains('w-8')).toBe(true);
       }
+    });
+
+    /**
+     * v0.9.1 §1：按钮不可用时，光标变成「禁用」并给一句「为什么不能点」。
+     *
+     * 禁用的 `<button>` 因基类的 `disabled:pointer-events-none` 接不到 hover，
+     * 所以光标与提示都挂在**外面那层 span** 上 —— 这条测试钉住「span 才是响应者」，
+     * 免得哪天顺手把 span 去掉、工具栏又变回「点了没反应也没解释」。
+     */
+    describe('禁用状态的光标与提示（v0.9.1 §1）', () => {
+      function expectDisabledHint(selector: string, text: string): void {
+        const button = container.querySelector<HTMLButtonElement>(selector);
+        expect(button, selector).not.toBeNull();
+        expect(button?.disabled, selector).toBe(true);
+        const wrapper = button?.parentElement;
+        expect(wrapper?.tagName, selector).toBe('SPAN');
+        expect(wrapper?.className, selector).toContain('cursor-not-allowed');
+        expect(wrapper?.getAttribute('title'), selector).toBe(text);
+      }
+
+      it('回退：不可用时 cursor-not-allowed +「当前没有可以回退的步骤」', () => {
+        render();
+        expectDisabledHint('button[title="当前没有可以回退的步骤"]', '当前没有可以回退的步骤');
+      });
+
+      it('提交：没放完时 cursor-not-allowed +「尚未将人物放置完全」', () => {
+        render();
+        expectDisabledHint('button[title="尚未将人物放置完全"]', '尚未将人物放置完全');
+      });
     });
 
     it('作者上传的四张图也按 32px 显示，不回落到 20px', () => {

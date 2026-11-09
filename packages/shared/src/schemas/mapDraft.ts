@@ -15,6 +15,8 @@ import {
   MAP_STYLE_COLOR_PATTERN,
   MAP_STYLE_FONT_FAMILY_NAME_MAX_LENGTH,
   MAP_STYLE_FONT_FAMILY_NAME_PATTERN,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_LINE_WIDTH_MAX,
   MAP_STYLE_LINE_WIDTH_MIN,
   MAP_STYLE_OPERATION_OFFSET_MAX,
@@ -27,6 +29,8 @@ import {
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
+  MAP_STYLE_SHADOW_OFFSET_MAX,
+  MAP_STYLE_SHADOW_OFFSET_MIN,
   MAP_NOTE_MAX_LENGTH,
   PARTICIPANT_DISPLAY_NUMBER_MAX,
   REGION_BORDER_WIDTH_MAX,
@@ -102,6 +106,28 @@ export const mapStyleSchema = z.object({
   canvasFrame: styleLineSchema(DEFAULT_MAP_STYLE.canvasFrame).default(() => ({
     ...DEFAULT_MAP_STYLE.canvasFrame,
   })),
+  // v0.9.1：画布阴影 —— 偏移（画布像素）+ 颜色（#RRGGBB，透明度固定 0.3）。
+  canvasShadow: z
+    .object({
+      offset: z
+        .number()
+        .min(MAP_STYLE_SHADOW_OFFSET_MIN)
+        .max(MAP_STYLE_SHADOW_OFFSET_MAX)
+        .default(DEFAULT_MAP_STYLE.canvasShadow.offset),
+      color: styleColorSchema.default(DEFAULT_MAP_STYLE.canvasShadow.color),
+    })
+    .default(() => ({ ...DEFAULT_MAP_STYLE.canvasShadow })),
+  // v0.9.1 §5：物品描边 —— 宽度 0 即关闭（出厂默认），颜色 #RRGGBB。
+  itemOutline: z
+    .object({
+      width: z
+        .number()
+        .min(MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN)
+        .max(MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX)
+        .default(DEFAULT_MAP_STYLE.itemOutline.width),
+      color: styleColorSchema.default(DEFAULT_MAP_STYLE.itemOutline.color),
+    })
+    .default(() => ({ ...DEFAULT_MAP_STYLE.itemOutline })),
   gridSeparator: styleLineSchema(DEFAULT_MAP_STYLE.gridSeparator).default(() => ({
     ...DEFAULT_MAP_STYLE.gridSeparator,
   })),

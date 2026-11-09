@@ -3,7 +3,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ChevronRight, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import {
   DEFAULT_DIFFICULTY_TIERS,
-  DEFAULT_MAP_STYLE,
   GAME_TOOL_ICON_KINDS,
   GAME_TOOL_ICON_LABELS,
   fileUrlFromPath,
@@ -47,7 +46,7 @@ import {
   useUploadThemeForbiddenSymbol,
   useUploadThemeToolIcon,
 } from '@/hooks/useThemes';
-import { isValidShadowColor, isValidStyleColor } from '@/lib/mapStyle';
+import { isValidShadowColor, isValidStyleColor, resolveMapStyle } from '@/lib/mapStyle';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
 import {
   resetThemeStyle,
@@ -127,8 +126,12 @@ export function ThemeOverviewPage(): JSX.Element {
   }
 
   const accent = theme.data.accent ?? null;
-  /** 没有初始样式的主题，渲染的是**新建地图时会拿到的**那份 —— 清单不能是空的。 */
-  const style = theme.data.style ?? DEFAULT_MAP_STYLE;
+  /**
+   * 没有初始样式的主题，渲染的是**新建地图时会拿到的**那份 —— 清单不能是空的。
+   * v0.9.1：走 `resolveMapStyle` 而不是 `?? DEFAULT_MAP_STYLE` —— 老主题存的是
+   * 旧形状（缺 `canvasShadow`），直接读字段会炸；解析一遍把缺的键补齐。
+   */
+  const style = resolveMapStyle(theme.data.style);
   const tiers = resolveDifficultyTiers(theme.data.difficultyLevels);
 
   return (
@@ -728,12 +731,14 @@ function ThemeStyleDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
-  const [style, setStyle] = useState<MapStyle>(theme.data.style ?? DEFAULT_MAP_STYLE);
+  // v0.9.1：老主题的 `style` 可能是旧形状（缺 `canvasShadow`）；先解析补齐，
+  // 否则字段表读 `canvasShadow.offset` 会拿到 undefined。
+  const [style, setStyle] = useState<MapStyle>(() => resolveMapStyle(theme.data.style));
   const update = useUpdateTheme(theme.code);
 
   useEffect(() => {
     if (!open) return;
-    setStyle(theme.data.style ?? DEFAULT_MAP_STYLE);
+    setStyle(resolveMapStyle(theme.data.style));
   }, [open, theme.data.style]);
 
   const set = (key: string, value: string | number | null): void =>

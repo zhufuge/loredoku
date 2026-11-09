@@ -123,6 +123,53 @@ describe.each(layers)('$name — 纯色块（v0.5.1 SPEC-L03 §3.1）', ({ layer
   });
 });
 
+describe('层 4 · 物品层 — 物品描边（v0.9.1 §5）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function paint(assetId: number, outline: { width: number; color: string } | null): void {
+    act(() => {
+      root.render(
+        <MapItemLayer
+          cells={new Map([['0,0', { item: { assetId, w: 1, h: 1 } }]])}
+          assetsById={assetsById}
+          cellSize={100}
+          itemOutline={outline}
+        />,
+      );
+    });
+  }
+
+  it('宽度 0（出厂默认）不挂 filter', () => {
+    paint(2, { width: 0, color: '#000000' });
+    expect(container.querySelector('img')?.style.filter ?? '').toBe('');
+  });
+
+  it('宽度 > 0 时图片带 4 向 drop-shadow，颜色取配置', () => {
+    paint(2, { width: 4, color: '#FF0000' });
+    const filter = container.querySelector('img')?.style.filter ?? '';
+    expect(filter.match(/drop-shadow/g)).toHaveLength(4);
+    expect(filter.match(/#FF0000/g)).toHaveLength(4);
+  });
+
+  it('色块同样带描边', () => {
+    paint(1, { width: 4, color: '#00FF00' });
+    const painted = container.querySelector<HTMLDivElement>('[data-color-block]');
+    expect(painted?.style.filter ?? '').toContain('drop-shadow');
+  });
+});
+
 describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () => {
   let container: HTMLDivElement;
   let root: Root;

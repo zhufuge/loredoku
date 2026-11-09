@@ -14,7 +14,9 @@ import {
   resolveAssetVariant,
   type CellCoord,
   type Asset,
+  type MapStyleItemOutline,
 } from '@loredoku/shared';
+import { itemOutlineFilter } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/highlight';
 import type { CanvasPoint } from '@/lib/grid';
 import { TOOLTIP_SURFACE_CLASS } from '@/components/ui/tooltip';
@@ -116,12 +118,15 @@ export function MapItemLayer({
   padding = 4,
   gridSize,
   showNameOnHover = true,
+  itemOutline = null,
   onPointerDown,
   onClick,
 }: {
   cells: CellMap;
   assetsById: Map<number, Asset>;
   cellSize: number;
+  /** v0.9.1 §5：物品描边（宽度 0 或 `null` = 不描边）。 */
+  itemOutline?: MapStyleItemOutline | null;
   interactive?: boolean;
   hover?: CellCoord | null;
   /**
@@ -184,12 +189,17 @@ export function MapItemLayer({
           // 那张画走），宽高与位置都从 `itemRectStyle` 来。
           const rect = itemRectStyle(x, y, cellSize, anchor);
           const tipVisible = tipOn && hovered && Boolean(asset?.name);
+          /**
+           * v0.9.1 §5：物品描边。宽度 0 时 `undefined`（不挂 filter），所以默认
+           * 无描边的物品在 DOM 上和一个 `filter` 都没有时完全一样。
+           */
+          const outlineFilter = itemOutline ? itemOutlineFilter(itemOutline, cellSize) : undefined;
           // v0.5.1 FEAT-L01 / SPEC-L03: colour blocks render as a solid block.
           const inner = look?.bgColor ? (
             <div
               data-color-block={look.bgColor}
               className="block h-full w-full"
-              style={{ backgroundColor: look.bgColor }}
+              style={{ backgroundColor: look.bgColor, filter: outlineFilter }}
             />
           ) : src ? (
             <img
@@ -202,6 +212,8 @@ export function MapItemLayer({
                 objectFit: look?.fitMode === 'contain' ? 'contain' : 'cover',
                 transform: lifted ? `translateY(-${ITEM_HOVER_LIFT_PX}px)` : undefined,
                 transition: `transform ${ITEM_HOVER_TRANSITION_MS}ms var(--motion-ease-out)`,
+                // v0.9.1 §5：描边跟着图片的 alpha 走。
+                filter: outlineFilter,
               }}
             />
           ) : null;
@@ -217,7 +229,9 @@ export function MapItemLayer({
                 zIndex: hovered ? HOVERED_ITEM_Z : MAP_LAYER_Z.itemLayer,
                 // The lift is allowed to poke past the cell edge while hovered,
                 // and so is the name tip.
-                overflow: lifted || tipVisible ? 'visible' : 'hidden',
+                // v0.9.1 §5：有描边时放开裁剪 —— drop-shadow 会朝四周扩出几像素，
+                // 容器（padding 之内）本来会把超出边框盒的部分切掉。
+                overflow: lifted || tipVisible || outlineFilter ? 'visible' : 'hidden',
                 // OPT-C06: the padding applies to the whole footprint, not per cell.
                 padding,
                 boxSizing: 'border-box',

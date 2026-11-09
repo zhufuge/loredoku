@@ -11,8 +11,12 @@ import {
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
   MAP_STYLE_RULER_FONT_MAX,
   MAP_STYLE_RULER_FONT_MIN,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
+  MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
+  MAP_STYLE_SHADOW_OFFSET_MAX,
+  MAP_STYLE_SHADOW_OFFSET_MIN,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
   mapStyleSchema,
@@ -64,10 +68,15 @@ const WRITE_SPECS: Record<string, WriteSpec> = {
 
   'canvasFrame.width': { kind: 'number', min: MAP_STYLE_LINE_WIDTH_MIN, max: MAP_STYLE_LINE_WIDTH_MAX, suffix: 'px' },
   'canvasFrame.color': { kind: 'color' },
+  'canvasShadow.offset': { kind: 'number', min: MAP_STYLE_SHADOW_OFFSET_MIN, max: MAP_STYLE_SHADOW_OFFSET_MAX, suffix: 'px' },
+  'canvasShadow.color': { kind: 'color' },
   'regionOutline.width': { kind: 'number', min: REGION_BORDER_WIDTH_MIN, max: REGION_BORDER_WIDTH_MAX, suffix: 'px' },
   'regionOutline.color': { kind: 'color' },
   'regionHighlight.width': { kind: 'number', min: MAP_STYLE_LINE_WIDTH_MIN, max: MAP_STYLE_LINE_WIDTH_MAX, step: 0.5, suffix: 'px' },
   'regionHighlight.color': { kind: 'color' },
+
+  'itemOutline.width': { kind: 'number', min: MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN, max: MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX, suffix: 'px' },
+  'itemOutline.color': { kind: 'color' },
 
   'regionLabel.fontFamily': { kind: 'text' },
   'regionLabel.fontSize': { kind: 'number', min: MAP_STYLE_REGION_LABEL_FONT_MIN, max: MAP_STYLE_REGION_LABEL_FONT_MAX, suffix: 'px' },
@@ -105,10 +114,15 @@ const FIELD_HINTS: Record<string, string> = {
   'canvasFrame.width':
     'Canvas Frame — 整张画布最外圈的边框线，画在画布矩形之外，与格内内容不重叠。',
   'canvasFrame.color': '画布外框 — 最外圈那条线的颜色。',
+  'canvasShadow.offset': 'Canvas Shadow — 画布纸片投下的硬影，向右下偏移这么多像素（随缩放）。0 就是不投。',
+  'canvasShadow.color': '画布阴影颜色 — 影子统一压 30% 透明度，所以浅色看起来会比原色淡。',
   'regionOutline.width': 'Region Outline — 区域自己的边界线，与画布外框、网格线都不是一回事。',
   'regionOutline.color': '区域轮廓线 — 区域边界线的颜色。',
   'regionHighlight.width': 'Region Highlight — 指针停在区域上时压在最上面的一层高亮。',
   'regionHighlight.color': '区域高亮线 — 那层高亮的颜色。',
+
+  'itemOutline.width': 'Item Outline — 沿物品图片轮廓画一圈描边；0 就是不描边（出厂默认），1 ~ 12 与线宽同档。',
+  'itemOutline.color': '物品描边颜色 — 描边压在物品轮廓外圈，选和底图反差大的颜色。',
 
   'regionLabel.fontFamily':
     'Region Label — 区域名用的字体。写本机已有的字体名（如「霞鹜文楷」）；访客没有这个字体时退回系统默认。',
@@ -138,6 +152,7 @@ const FIELD_HINTS: Record<string, string> = {
 export const THEME_STYLE_GROUP_HINTS: Record<string, string> = {
   网格: 'Grid — 方格之间的分隔线。',
   边框: 'Frame — 画布外圈与区域边框。',
+  物品: 'Item — 放在地图上的物品的描边（默认关闭）。',
   标签: 'Label — 区域名在常态与悬停下的样子，以及行列标尺。',
   光标: 'Cursor — 指针经过时的高亮框，画布最上面那一层。',
 };

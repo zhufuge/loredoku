@@ -14,7 +14,7 @@ import type { MapStyle } from './constants';
  * 数字：这个列表的用途是让人确认「差的是不是我以为的那一项」，不是给人改库。
  */
 
-export type MapStyleDiffGroup = '网格' | '边框' | '标签' | '光标';
+export type MapStyleDiffGroup = '网格' | '边框' | '物品' | '标签' | '光标';
 
 export interface MapStyleDiffEntry {
   group: MapStyleDiffGroup;
@@ -59,10 +59,17 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   // 边框
   { key: 'canvasFrame.width', group: '边框', label: '画布外框线宽', read: (style) => style.canvasFrame.width, format: px },
   { key: 'canvasFrame.color', group: '边框', label: '画布外框颜色', read: (style) => style.canvasFrame.color, format: raw },
+  // v0.9.1：画布阴影独立成两项（原来偏移是常量、颜色跟外框走，没法比对也没法改）。
+  { key: 'canvasShadow.offset', group: '边框', label: '画布阴影偏移', read: (style) => style.canvasShadow.offset, format: px },
+  { key: 'canvasShadow.color', group: '边框', label: '画布阴影颜色', read: (style) => style.canvasShadow.color, format: raw },
   { key: 'regionOutline.width', group: '边框', label: '区域轮廓线线宽', read: (style) => style.regionOutline.width, format: px },
   { key: 'regionOutline.color', group: '边框', label: '区域轮廓线颜色', read: (style) => style.regionOutline.color, format: raw },
   { key: 'regionHighlight.width', group: '边框', label: '区域高亮线线宽', read: (style) => style.regionHighlight.width, format: px },
   { key: 'regionHighlight.color', group: '边框', label: '区域高亮线颜色', read: (style) => style.regionHighlight.color, format: raw },
+
+  // 物品（v0.9.1 §5）
+  { key: 'itemOutline.width', group: '物品', label: '物品描边宽度', read: (style) => style.itemOutline.width, format: px },
+  { key: 'itemOutline.color', group: '物品', label: '物品描边颜色', read: (style) => style.itemOutline.color, format: raw },
 
   // 标签
   { key: 'regionLabel.fontFamily', group: '标签', label: '标签字体', read: (style) => style.regionLabel.fontFamily, format: raw },
@@ -88,7 +95,7 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
 ];
 
 /** 显示顺序也固定下来 —— 差异弹窗的分组顺序不该随字段表顺序漂移。 */
-export const MAP_STYLE_DIFF_GROUPS: readonly MapStyleDiffGroup[] = ['网格', '边框', '标签', '光标'];
+export const MAP_STYLE_DIFF_GROUPS: readonly MapStyleDiffGroup[] = ['网格', '边框', '物品', '标签', '光标'];
 
 /**
  * 两张风格之间有哪几项不一样。`theme` 为 `undefined`（主题还没设缺省风格）时

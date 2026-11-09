@@ -338,6 +338,12 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
  */
 export const MAP_STYLE_LINE_WIDTH_MIN = 1;
 export const MAP_STYLE_LINE_WIDTH_MAX = 12;
+/**
+ * v0.9.1 §5：物品描边的宽度区间。**0 = 不描边**，也是出厂默认 —— 描边是可选
+ * 强调，不是每张图都得有；真要加时 1 ~ 12 与线宽同一档手感。
+ */
+export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN = 0;
+export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX = 12;
 export const MAP_STYLE_OPERATION_OFFSET_MIN = 0;
 export const MAP_STYLE_OPERATION_OFFSET_MAX = 8;
 export const MAP_STYLE_REGION_LABEL_FONT_MIN = 9;
@@ -454,10 +460,17 @@ export const STYLE_DEFAULT_CANVAS_FRAME_WIDTH = 12;
  * 2026-11-09（docs/v0.9.0.md §16）：6 → **24**。首发那个 6px 实测只露出约 3px
  * —— 外框的 SVG 描边骑在画布边界上、以边界为中心画，外半边正好压掉 2.8px，
  * 影子几乎看不见。用户要「地图阴影再偏移 20px」，最终定为总偏移 24px。
- * 变宽之后要留意画布容器的 `overflow-hidden`：实测与裁剪边界见 §16。
+ *
+ * 2026-11-09（docs/v0.9.1.md §2）：24 → **36**，并且偏移量与颜色不再是常量 ——
+ * 它们进了 `MapStyle.canvasShadow`（地图「基本信息」与主题缺省风格都能改）。
+ * 下面这几个常量只剩「出厂默认值」与区间，`canvasShadowStyle` 读的是风格里的值。
  */
-export const CANVAS_SHADOW_OFFSET_PX = 24;
+export const CANVAS_SHADOW_OFFSET_PX = 36;
+/** 固定透明度：阴影颜色只配 `#RRGGBB`，落成影子时统一压这一档。 */
 export const CANVAS_SHADOW_ALPHA = 0.3;
+/** v0.9.1：阴影偏移的可调区间（画布像素）。0 = 不投阴影。 */
+export const MAP_STYLE_SHADOW_OFFSET_MIN = 0;
+export const MAP_STYLE_SHADOW_OFFSET_MAX = 120;
 export const STYLE_DEFAULT_GRID_SEPARATOR_WIDTH = 4;
 export const STYLE_DEFAULT_MOUSE_CURSOR_WIDTH = 8;
 export const STYLE_DEFAULT_OPERATION_CURSOR_WIDTH = 8;
@@ -756,6 +769,33 @@ export interface MapStyleRuler {
   gap: number;
 }
 
+/**
+ * v0.9.1（docs/v0.9.1.md §2）：画布这张纸投下的影子。
+ *
+ * v0.8.7 §6 时它是两个常量（偏移 24px、颜色取外框色）。这一版把偏移与颜色
+ * 都搬进风格，于是「地图基本信息」与主题的缺省风格都能各改各的；透明度仍
+ * 固定为 {@link CANVAS_SHADOW_ALPHA}（颜色只收 `#RRGGBB`，不开放 alpha）。
+ */
+export interface MapStyleCanvasShadow {
+  /** 向右下偏移多少画布像素（随 `zoom` 缩放）。 */
+  offset: number;
+  /** 影子颜色（`#RRGGBB`），落成影子时压 {@link CANVAS_SHADOW_ALPHA} 透明度。 */
+  color: string;
+}
+
+/**
+ * v0.9.1 §5（docs/v0.9.1.md §5）：地图上**物品**的描边。
+ *
+ * 沿物品图片的 alpha 画一圈剪影描边（不是矩形框），用来把物品从底纹里拔出来。
+ * `width = 0` 是出厂默认 —— 不描边。
+ */
+export interface MapStyleItemOutline {
+  /** 基准宽度（随方格尺寸等比缩放）；0 = 不描边。 */
+  width: number;
+  /** 描边颜色（`#RRGGBB`）。 */
+  color: string;
+}
+
 export interface MapLinkageColor {
   /** Referenced by `ParticipantTarget.color`. */
   key: string;
@@ -767,6 +807,10 @@ export interface MapStyle {
   /** `null` = use the adaptive cell size; otherwise an explicit override. */
   cellSize: number | null;
   canvasFrame: MapStyleLine;
+  /** v0.9.1：画布纸片的投影（偏移 + 颜色）。 */
+  canvasShadow: MapStyleCanvasShadow;
+  /** v0.9.1 §5：物品的描边（默认宽度 0 = 不描边）。 */
+  itemOutline: MapStyleItemOutline;
   gridSeparator: MapStyleLine;
   mouseCursorBox: MapStyleMouseCursorBox;
   operationCursorBox: MapStyleOperationCursorBox;
@@ -810,6 +854,10 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
   cellSize: null,
   // v0.5.2 SPEC-M07: geometric defaults come from the `STYLE_DEFAULT_*` set.
   canvasFrame: { width: STYLE_DEFAULT_CANVAS_FRAME_WIDTH, color: LINE_COLOR },
+  // v0.9.1：出厂 36px、颜色沿用外框的墨色（#000000），透明度由渲染层固定为 0.3。
+  canvasShadow: { offset: CANVAS_SHADOW_OFFSET_PX, color: LINE_COLOR },
+  // v0.9.1 §5：默认不描边；颜色先给墨色，作者打开描边时不用先去改颜色。
+  itemOutline: { width: MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN, color: LINE_COLOR },
   gridSeparator: { width: STYLE_DEFAULT_GRID_SEPARATOR_WIDTH, color: LINE_COLOR },
   mouseCursorBox: {
     width: STYLE_DEFAULT_MOUSE_CURSOR_WIDTH,

@@ -16,6 +16,7 @@ import type { GamePlacementBoard } from '@loredoku/shared';
 import { itemPadding } from '@/lib/canvasScale';
 import type { ForbiddenSymbolRender } from '@/lib/forbiddenSymbol';
 import { glyphFontSize, numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
+import type { ToolIconRender } from '@/lib/toolIcons';
 import { participantBadgeText } from '@/lib/participantLayout';
 import { PressRing } from '@/components/common/PressRing';
 import { parseKey } from './layerGeometry';
@@ -30,6 +31,32 @@ import { parseKey } from './layerGeometry';
  * 放置层落下的那张图才会严丝合缝地对上。
  */
 const FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO = 0.09;
+
+/**
+ * v0.9.1 §3：清除工具的**内置**橡皮字形画在格子的 42%（居中）。
+ */
+const GAME_TOOL_HINT_ERASER_RATIO = 0.42;
+
+/**
+ * v0.9.1 §5：作者上传的清除图标比内置字形**大一圈**（60%），并加白色描边。
+ * 上传图多半是「深墨画在透明底」，落在有纹理的地图上容易和底纹糊在一起；
+ * 放大 + 白描边让它从格子里浮出来，一眼看得出「这是工具，不是地图内容」。
+ */
+const GAME_TOOL_HINT_CLEAR_ICON_RATIO = 0.6;
+
+/**
+ * 白描边用 4 向硬 `drop-shadow` 叠成 —— 跟着图片的 alpha 走，不会把透明区涂白。
+ * 半径按格子大小取（小格子至少 1px），放大后描边也跟着变粗，比例不漂。
+ */
+function clearIconOutlineFilter(cellSize: number): string {
+  const radius = Math.max(1, Math.round(cellSize * 0.02));
+  return [
+    `drop-shadow(${radius}px 0 0 #ffffff)`,
+    `drop-shadow(-${radius}px 0 0 #ffffff)`,
+    `drop-shadow(0 ${radius}px 0 #ffffff)`,
+    `drop-shadow(0 -${radius}px 0 #ffffff)`,
+  ].join(' ');
+}
 
 /**
  * 层 4 · 工具提示层（Game Tool Hint Layer）— SPEC-G02 (docs/v0.4.0.md §8).
@@ -53,6 +80,7 @@ export function MapGameToolHintLayer({
   cellSize,
   slots,
   forbiddenSymbol = null,
+  clearIcon = null,
 }: {
   hint: GameToolHint | null;
   cell: CellCoord | null;
@@ -61,16 +89,18 @@ export function MapGameToolHintLayer({
   slots: Array<CharacterSlotEntry | null>;
   /** v0.8.6：禁止符号配置的上传图；`null` = 画那枚绿色 `×` 字形。 */
   forbiddenSymbol?: ForbiddenSymbolRender | null;
+  /** v0.9.1 §3：清除工具配的上传图；`null` = 画内置橡皮字形。 */
+  clearIcon?: ToolIconRender | null;
 }): JSX.Element | null {
   if (!hint || !cell) return null;
   const total = cellSize;
+
   /**
-   * v0.8.6：作者给禁止符号挑了图，工具提示层就画**同一张图**的预览 ——
-   * 悬停时预告的东西必须就是落下的东西（v0.6.4 给编号立的同一条规矩）。
-   * 落下位置与尺寸和格子一致，所以预览直接画在格子上。
+   * v0.9.1 §3：把一张上传图铺进格子。禁止符号与清除图标共用这一段 —— 两者都是
+   * 「按钮上画什么，指针底下就预告什么」，只是内缩比例不同。
    */
-  if (hint.kind === 'forbidden' && forbiddenSymbol) {
-    const inset = total * FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO;
+  const imageHint = (imageUrl: string, insetRatio: number, filter?: string): JSX.Element => {
+    const inset = total * insetRatio;
     return (
       <div
         className="pointer-events-none absolute left-0 top-0"
@@ -92,7 +122,7 @@ export function MapGameToolHintLayer({
           }}
         >
           <img
-            src={forbiddenSymbol.imageUrl}
+            src={imageUrl}
             alt=""
             draggable={false}
             className="pointer-events-none absolute select-none"
@@ -102,10 +132,33 @@ export function MapGameToolHintLayer({
               width: total - inset * 2,
               height: total - inset * 2,
               objectFit: 'contain',
+              // v0.9.1 §5：仅清除图标会传这个（白描边）；禁止符号保持原样。
+              filter,
             }}
           />
         </div>
       </div>
+    );
+  };
+  /**
+   * v0.8.6：作者给禁止符号挑了图，工具提示层就画**同一张图**的预览 ——
+   * 悬停时预告的东西必须就是落下的东西（v0.6.4 给编号立的同一条规矩）。
+   * 落下位置与尺寸和格子一致，所以预览直接画在格子上。
+   */
+  if (hint.kind === 'forbidden' && forbiddenSymbol) {
+    return imageHint(forbiddenSymbol.imageUrl, FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO);
+  }
+  /**
+   * v0.9.1 §3 / §5：清除工具同理 —— 按钮上如果是作者上传的图，指针底下的预览也画
+   * 那一张，而不是内置橡皮。v0.9.1 §5 起它比内置字形**大一圈**（60%），并带一圈
+   * 白色描边，避免深墨图标和地图底纹糊在一起。没配图时（`clearIcon` 为 `null`）
+   * 继续走下面的 SVG 橡皮分支（仍是 42%）。
+   */
+  if (hint.kind === 'eraser' && clearIcon) {
+    return imageHint(
+      clearIcon.imageUrl,
+      (1 - GAME_TOOL_HINT_CLEAR_ICON_RATIO) / 2,
+      clearIconOutlineFilter(total),
     );
   }
   const glyph = ((): JSX.Element => {
@@ -153,7 +206,7 @@ export function MapGameToolHintLayer({
       );
     }
     // Eraser: a tilted rounded body with a metal ferrule (SPEC-G02 §5).
-    const size = total * 0.42;
+    const size = total * GAME_TOOL_HINT_ERASER_RATIO;
     const cx = total / 2;
     const cy = total / 2;
     return (

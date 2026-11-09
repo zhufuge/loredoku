@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeftRight, Palette } from 'lucide-react';
 import { diffMapStyle, type MapStyle } from '@loredoku/shared';
+import { resolveMapStyle } from '@/lib/mapStyle';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useThemeDetail, useUpdateTheme } from '@/hooks/useThemes';
@@ -34,7 +35,13 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
   const updateTheme = useUpdateTheme(themeCode);
   const [diffOpen, setDiffOpen] = useState(false);
   const theme = themeQuery.data;
-  const themeStyle = theme?.data.style;
+  /**
+   * v0.9.1：老主题存的是旧形状（缺 `canvasShadow`），`diffMapStyle` 会去读
+   * `style.canvasShadow.offset` —— 先解析补齐再比对。`undefined` 原样保留，那是
+   * 「主题还没设缺省风格」的信号，不能补成默认值（否则会误报「与主题一致」）。
+   */
+  const storedThemeStyle = theme?.data.style;
+  const themeStyle = storedThemeStyle ? resolveMapStyle(storedThemeStyle) : undefined;
 
   // 差异跟着**草稿**算：改一个线宽，弹窗里的项数当场少一项，这是最直接的反馈。
   const diffs = useMemo(() => diffMapStyle(style, themeStyle), [style, themeStyle]);
