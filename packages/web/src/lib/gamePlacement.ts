@@ -859,49 +859,13 @@ export function validatePlacement(input: ValidatePlacementInput): PlacementValid
   return { passed: issues.length === 0, issues };
 }
 
-/**
- * v0.7.11：提交未通过时，弹窗只回答**谁不对**，不回答**为什么**。
- *
- * 原来的清单把每一处同类 / 同列 / 位置条件都摊开写（十几条），像一张调试报告；
- * 玩家真正需要的是「回去看哪几位」。这里按参与者归并：同一个人有多条问题时
- * 只留一句 —— 没上场的说「未放置」，其余一律说「位置不对」。
- *
- * 归并规则：`unplaced` 优先（一个还没放下的人，谈位置没有意义）。
- */
-export interface PlacementBlame {
-  participantId: number;
-  /** 展示用：「编号 3（张三）」。 */
-  label: string;
-  reason: 'unplaced' | 'wrong';
-}
-
+/** 展示用：「编号 3（张三）」；没配名字就只报编号。判卷文案仍在用。 */
 export function participantLabel(
   participantId: number,
   nameOf?: (participantId: number) => string | undefined,
 ): string {
   const name = nameOf?.(participantId);
   return name && name.length > 0 ? `编号 ${participantId}（${name}）` : `编号 ${participantId}`;
-}
-
-export function summarizeIssues(
-  issues: PlacementIssue[],
-  nameOf?: (participantId: number) => string | undefined,
-): PlacementBlame[] {
-  const byParticipant = new Map<number, PlacementBlame>();
-  for (const issue of issues) {
-    const existing = byParticipant.get(issue.participantId);
-    const reason: PlacementBlame['reason'] = issue.code === 'unplaced' ? 'unplaced' : 'wrong';
-    if (!existing) {
-      byParticipant.set(issue.participantId, {
-        participantId: issue.participantId,
-        label: participantLabel(issue.participantId, nameOf),
-        reason,
-      });
-      continue;
-    }
-    if (reason === 'unplaced') existing.reason = 'unplaced';
-  }
-  return [...byParticipant.values()].sort((a, b) => a.participantId - b.participantId);
 }
 
 function dedupeSorted(values: number[]): number[] {

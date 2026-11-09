@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import {
@@ -23,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { PressSweep } from '@/components/common/PressSweep';
 import {
+  DIALOG_OVERLAY_TINT_CLASS,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -115,14 +123,12 @@ import {
   placementAt,
   placementBlockReason,
   resolveToolHint,
-  summarizeIssues,
   toggleForbidden,
   undo,
   validatePlacement,
   type GameOperationMode,
   type GamePlacementState,
   type ParticipantPlacementVariant,
-  type PlacementBlame,
   type PlacementIssue,
 } from '@/lib/gamePlacement';
 
@@ -158,8 +164,9 @@ function readStoredRulerVisible(): boolean {
  * 「通过 / 未通过」直接取自判卷结果（`issues` 里有这位的编号就是没过）。判卷与
  * 呈现因此用的是同一份结论，不会出现「圈是绿的、名单里却有他」。
  *
- * 只圈**落了头像**的人：编号格上没有人形，圈住一堆数字说不清是在核对谁。没有
- * 头像的那几位仍在 `blame` 里出现（「未放置」），只是不上动画。
+ * 只圈**落了头像**的人：编号格上没有人形，圈住一堆数字说不清是在核对谁。没
+ * 落头像的那几位不上动画 —— 棋盘上没有可圈的格子；结论弹窗也不再列名字
+ * （v0.9.4），只把绿圈的数量写成 `x/n 正确`。
  */
 interface CheckItem {
   participantId: number;
@@ -182,6 +189,39 @@ function buildCheckItems(
     items.push({ participantId, cell, passed: !failed.has(participantId) });
   });
   return items;
+}
+
+/**
+ * v0.9.4：核对期间四处**各自完整**的遮罩 —— 左栏、右栏、中列留白、画布底色层。
+ *
+ * 不再用全屏四块挖洞：
+ * - 左右两栏本来就是独立的 `aside`，各盖一层即可（挡点击）；
+ * - 中列（`main`）那一层铺满整个地图区，`z = saveMask(40)`，压住标尺条带与画布
+ *   四周的留白；它**低于**画布纸（`canvasBase` 容器在校验时抬到 `saveMask+1`），
+ *   所以棋盘本身照常明亮，只有纸以外的部分被压暗；
+ * - 画布底色层那一层塞进 `canvasBase` 里（纸底之上、其余图层之下），只压暗没铺
+ *   背景图的格子，铺了图 / 物品 / 头像 / 校验圈的格子照常亮。
+ *
+ * 颜色统一取弹窗 overlay 的 `DIALOG_OVERLAY_TINT_CLASS`，四处不会各说一套。
+ */
+function CheckScrim({
+  area,
+  className,
+  style,
+}: {
+  area: 'left' | 'right' | 'canvas' | 'center';
+  className?: string;
+  style?: CSSProperties;
+}): JSX.Element {
+  return (
+    <div
+      aria-hidden="true"
+      data-testid="check-scrim"
+      data-scrim-area={area}
+      className={cn(DIALOG_OVERLAY_TINT_CLASS, className)}
+      style={style}
+    />
+  );
 }
 
 /**
@@ -292,12 +332,18 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    * v0.7.11：提交的结果。`null` = 弹窗关着。
    *
    * 通过 / 未通过共用同一个弹窗：两者都是「这一局到这里有个结论」，只是下一个
-   * 动作不同（再玩一次 / 继续游戏）。未通过时只带**谁不对**，不带行列坐标 ——
-   * 详细清单像一张调试报告，玩家真正要做的是回去看那几个人。
+   * 动作不同（再玩一次 / 继续游戏）。
+   *
+   * v0.9.4：未通过**不再带名单**。棋盘上那几圈已经把谁不对画出来了，弹窗再
+   * 列一遍编号 / 位置是第三遍重复；这里只留一句「未能结案」，外加一个不带
+   * 身份信息的计数（`x/n 正确`）—— 数量告诉玩家差多远，不点名。
+   *
+   * `correct` / `total` 是**按下提交那一刻**的快照，和棋盘上的绿圈同源；弹窗
+   * 背后玩家没法改棋盘（遮罩 + 结论层），但结算卡也不该跟着后来的状态变。
    */
   const [result, setResult] = useState<
     | { kind: 'passed'; elapsedMs: number }
-    | { kind: 'failed'; blame: PlacementBlame[] }
+    | { kind: 'failed'; correct: number; total: number }
     | null
   >(null);
   /**
@@ -318,7 +364,9 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   const checkRunIdRef = useRef(0);
   /** 校验序列落定之后要弹的那份结论 —— 提前算好，等最后一圈扫完再交出去。 */
   const pendingResultRef = useRef<
-    { kind: 'passed'; elapsedMs: number } | { kind: 'failed'; blame: PlacementBlame[] } | null
+    | { kind: 'passed'; elapsedMs: number }
+    | { kind: 'failed'; correct: number; total: number }
+    | null
   >(null);
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -513,6 +561,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
+
   const rulerScale = cellScale(cellSize);
   const rulerMaxFont = scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale);
   const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
@@ -942,8 +991,8 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    * v0.7.11：提交 = **结算**，不是打勾。
    *
    * - 停表：点下提交这一刻的用时就是这一局的成绩（读弹窗的时间不算）；
-   * - 通过 → 弹窗给出用时与「再玩一次」；
-   * - 未通过 → 弹窗只说**谁不对**（`summarizeIssues` 归并过的名单），给
+   * - 通过 → 定案（结束语 + 再玩一次）；
+   * - 未通过 → v0.9.4 给「x/n 正确。未能结案」，不列名单，给
    *   「继续游戏 / 重新开始」。继续游戏会重新走表 —— 玩家要接着想。
    *
    * 提交状态不再落盘、按钮也不再变成勾：那是上一版把「核对过」当成进度的做法，
@@ -962,7 +1011,15 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     const validation = validatePlacement({ board, slots, nameOf });
 
     const items = buildCheckItems(board, slots, validation.issues);
-    const blame = validation.passed ? null : summarizeIssues(validation.issues, nameOf);
+    /**
+     * v0.9.4 追加：失败卡里的 `x/n 正确`。
+     *
+     * `x` 就是这一轮会被圈成**绿色**的人数（`buildCheckItems` 用同一份 issues
+     * 判 passed），`n` 是名单里真正要找的人数；没落头像的人必然带 `unplaced`
+     * issue，所以不会混进 `x`。数字与玩家看见的圈一一对应，不另算一套。
+     */
+    const correct = items.filter((item) => item.passed).length;
+    const total = slots.filter((slot) => slot !== null).length;
 
     checkRunIdRef.current += 1;
     setCheckRun({ items, revealed: 0, runId: checkRunIdRef.current });
@@ -972,7 +1029,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
      */
     pendingResultRef.current = validation.passed
       ? { kind: 'passed', elapsedMs: elapsed }
-      : { kind: 'failed', blame: blame ?? [] };
+      : { kind: 'failed', correct, total };
   };
 
   /**
@@ -1320,17 +1377,19 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
           style={{ width: rosterWidth }}
         >
           {/*
-            * v0.9.3 §2：校验进行中，**除了地图之外**的一切压一层薄纱。
+            * v0.9.4：左栏自己一层完整遮罩。它是独立的 `relative` 容器，
+            * 不需要和地图区共用全屏遮罩，也不需要挖洞。遮罩接指针 —— 核对期间
+            * 名册 / 题面 / 主题开关都不该还能点。
             *
-            * 只盖左栏，因为这一屏除了地图就只有这一栏（顶栏在栏内）。遮罩接指针、
-            * 不做 `pointer-events-none`：校验期间工具栏 / 名册都不该还能点 ——
-            * 否则玩家能在核对到一半时把头像挪走。
+            * v0.9.4（追加）：`-right-px` 让这一层越过左栏自己的右边框 ——
+            * 那条边框正是「左栏 / 中列」的分隔线，`inset-0` 只盖到内边距盒、
+            * 盖不到边框，于是分隔线会比四周更亮地留在那里。越过 1px 之后它与
+            * 中列遮罩（同档同色）在这条线上交叠，分隔线一起被压暗。
             */}
           {checkRun && !result ? (
-            <div
-              aria-hidden="true"
-              data-testid="check-scrim"
-              className="absolute inset-0 bg-background/70"
+            <CheckScrim
+              area="left"
+              className="absolute inset-y-0 left-0 -right-px"
               style={{ zIndex: UI_Z.saveMask }}
             />
           ) : null}
@@ -1554,9 +1613,25 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
             dispatchCell(cell.x, cell.y, 'number');
           }}
         >
+          {/* v0.9.4：中列整层遮罩 —— 铺满地图区，压住标尺条带与画布四周留白；
+            它低于画布纸（纸在校验时抬到 saveMask+1），所以棋盘照常明亮。
+            只在校验进行中、结算弹窗未出时存在，与左右两栏同色同档。 */}
+          {checkRun && !result ? (
+            <CheckScrim
+              area="center"
+              className="pointer-events-none absolute inset-0"
+              style={{ zIndex: UI_Z.saveMask }}
+            />
+          ) : null}
+
           <div
+            data-testid="game-canvas"
             className="absolute left-0 top-0"
             style={{
+              // v0.9.4：校验期间把这张纸抬到遮罩之上（saveMask+1），于是中列那层
+              // 铺满地图区的遮罩只压暗标尺与留白、压不到棋盘；正常游戏时这层不挂，
+              // 不影响标尺压在纸边之上的默认层级。
+              zIndex: checkRun && !result ? UI_Z.saveMask + 1 : undefined,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
               width: total,
@@ -1572,7 +1647,18 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
                 zIndex: MAP_LAYER_Z.canvasBase,
                 ...canvasShadowStyle(style),
               }}
-            />
+            >
+              {/*
+                * v0.9.4：地图区的完整遮罩**就在画布底色层里**。
+                *
+                * 父层 z-index = canvasBase(10)，其余内容层最小是 backgroundLayer(20)，
+                * 所以这一层只压暗「纸的底色」；铺了背景图 / 物品 / 头像 / 校验圈的
+                * 格子照常亮。不用量矩形、不用挖洞，缩放平移时它跟着纸一起走。
+                */}
+              {checkRun && !result ? (
+                <CheckScrim area="canvas" className="pointer-events-none absolute inset-0" />
+              ) : null}
+            </div>
 
             {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z.
                 SPEC-G01: the game page drops 操作光标框 and adds the two
@@ -1710,7 +1796,17 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
         </main>
 
         {/* 右列：工具栏（SPEC-G04） */}
-        <aside className="flex w-[84px] shrink-0 flex-col items-center gap-2 border-l bg-background p-2">
+        <aside className="relative flex w-[84px] shrink-0 flex-col items-center gap-2 border-l bg-background p-2">
+          {/* v0.9.4：右栏自己一层完整遮罩 —— 与左栏同一层颜色、同一档层级。
+              `-left-px` 越过右栏自己的左边框，把「中列 / 右栏」那条分隔线也压暗
+              （理由同左栏，见上方注释）。 */}
+          {checkRun && !result ? (
+            <CheckScrim
+              area="right"
+              className="absolute inset-y-0 -left-px right-0"
+              style={{ zIndex: UI_Z.saveMask }}
+            />
+          ) : null}
           <Button
             variant="ghost"
             className={cn(
@@ -1876,7 +1972,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
       {/*
         v0.7.11：提交的两种结局共用一个弹窗。
         - 通过：定案 + 结束语 + 再玩一次；
-        - 未通过：只说谁不对（不展开行列坐标）+ 继续游戏 / 重新开始。
+        - 未通过：结果 +「x/n 正确。未能结案」，不列名单位置 + 继续游戏 / 重新开始。
         两种都用 `Dialog`，不是 `AlertDialog` —— 这里不是「要不要删除」那种确认，
         而是一局结束后的结算。
 
@@ -1916,14 +2012,15 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
                 />
               ) : null}
             </div>
-          ) : (
+          ) : result?.kind === 'failed' ? (
             <DialogHeader>
-              <DialogTitle>提交未通过</DialogTitle>
+              {/* v0.9.4：标题与正文都只报结论 —— 谁不对由棋盘上的圈说，这里只报对了几个。 */}
+              <DialogTitle>结果</DialogTitle>
               <DialogDescription>
-                下面这些参与者的位置还不对，改完可以再提交一次。
+                你没有找出所有人的位置！{result.correct}/{result.total} 正确。未能结案。
               </DialogDescription>
             </DialogHeader>
-          )}
+          ) : null}
 
           {/*
             v0.7.14（docs/v0.7.14.md §4）：结束语。作者的一句话，通过时才出现。
@@ -1935,19 +2032,6 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
             <p className="whitespace-pre-wrap border-t pt-3 font-kai text-sm leading-[1.9] text-foreground/90">
               {puzzleEnding}
             </p>
-          ) : null}
-
-          {result?.kind === 'failed' ? (
-            <ul className="max-h-72 space-y-1 overflow-y-auto rounded-md border p-2 text-xs">
-              {result.blame.map((entry) => (
-                <li key={entry.participantId} className="flex items-center gap-2">
-                  <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-2xs text-destructive">
-                    {entry.reason === 'unplaced' ? '未放置' : '位置不对'}
-                  </span>
-                  <span>{entry.label}</span>
-                </li>
-              ))}
-            </ul>
           ) : null}
 
           <DialogFooter>

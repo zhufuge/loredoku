@@ -8,6 +8,14 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 export const DialogClose = DialogPrimitive.Close;
 export const DialogPortal = DialogPrimitive.Portal;
 
+/**
+ * v0.9.4：弹窗与「逐人校验」的聚焦遮罩共用这一层黑色薄纱。
+ *
+ * 两处都写 `bg-black/60` 的话，改弹窗那天校验遮罩就会悄悄留在旧颜色上；抽成
+ * 一个 class 常量，Tailwind 仍能扫到这个字面量并生成对应 CSS。
+ */
+export const DIALOG_OVERLAY_TINT_CLASS = 'bg-black/60';
+
 export const DialogOverlay = forwardRef<
   ElementRef<typeof DialogPrimitive.Overlay>,
   ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
@@ -15,7 +23,8 @@ export const DialogOverlay = forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      'sheet-fade fixed inset-0 z-50 bg-black/60',
+      'sheet-fade fixed inset-0 z-50',
+      DIALOG_OVERLAY_TINT_CLASS,
       className,
     )}
     {...props}

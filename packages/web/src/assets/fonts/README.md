@@ -40,9 +40,9 @@ npm run build
 脚本会打印体积对比：
 
 ```
-charset=common + 补字 1
+charset=common + 补字 4
 
-霞鹜文楷-Regular.woff2   4705 字          24.7 MB → 925 KB    3.1s
+霞鹜文楷-Regular.woff2   4708 字          24.7 MB → 926 KB    3.0s
 ```
 
 ### 字集怎么选

@@ -2,7 +2,8 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GAME_CHECK_STEP_MS } from '@loredoku/shared';
+import { GAME_CHECK_STEP_MS, UI_Z } from '@loredoku/shared';
+import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
 import type { ForbiddenSymbolImage, GameToolIcons, ThemeCheckStyle } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { imageTintMatrix } from '@/components/common/PressRing';
@@ -16,7 +17,7 @@ import ApiGamePage from './ApiGamePage';
  * 1. 进页面时把本地存档恢复成棋盘 —— **不再**有「已提交」这个可恢复的状态，
  *    取而代之的是**计时**：关掉页面再回来，秒表接着走；
  * 2. 右栏的缩放簇真的能改比例，重置能回到 100%；
- * 3. 提交是一次结算：未通过时弹窗只列**谁不对**。
+ * 3. 提交是一次结算：未通过时弹窗报结论与 `x/n 正确`，不再列谁不对。
  *
  * 页面级只钉**对外可观察**的结果（用时 / 百分比 / 弹窗文案 / 棋盘画了什么），
  * 存档与计时的清洗规则分别在 `gameProgress.test.ts` / `gameTimer.test.ts` 里覆盖。
@@ -240,10 +241,11 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   });
 
   /**
-   * v0.7.11：提交未通过时弹窗只说**谁不对**，不说为什么。
+   * v0.9.4：提交未通过时弹窗**只报结论 + 一个计数**，不列谁不对 / 哪里不对。
    *
    * v0.7.12：没放完已经交不上去（按钮禁用），所以「未通过」只剩一种局面 ——
-   * 三位都放了，但 1 和 2 撞在同一列。弹窗该是两条「位置不对」，不牵扯 3。
+   * 三位都放了，但 1 和 2 撞在同一列、3 独自站对，因此是 `1/3 正确`。
+   * 棋盘上的圈已经把这两位圈成红色，弹窗里再列一遍编号是重复信息。
    */
   /**
    * v0.9.3 §2：提交后**先逐人校验**，结论要等圈完最后一位才出来。
@@ -271,8 +273,14 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       act(() =>
         container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
       );
-      // 遮罩出来了、圈还没画、结论也还没出来。
-      expect(container.querySelector('[data-testid="check-scrim"]')).not.toBeNull();
+      // 四处遮罩同时出现、圈还没画、结论也还没出来。
+      const scrims = container.querySelectorAll<HTMLElement>('[data-testid="check-scrim"]');
+      expect(scrims).toHaveLength(4);
+      // v0.9.4：左栏 / 右栏 / 中列留白 / 画布底色层各一层完整遮罩，都用弹窗 overlay 的颜色。
+      expect([...scrims].every((el) => el.className.includes(DIALOG_OVERLAY_TINT_CLASS))).toBe(true);
+      expect([...scrims].every((el) => el.style.backgroundColor === '')).toBe(true);
+      expect([...scrims].every((el) => el.style.mixBlendMode === '')).toBe(true);
+      expect(container.querySelector('.fixed.inset-0[data-testid="check-scrim"]')).toBeNull();
       expect(rings()).toBe(0);
       expect(dialog()).not.toContain('定案');
 
@@ -294,7 +302,66 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
-  it('lists the offending participants (and nothing more) when a submit fails', () => {
+  /**
+   * v0.9.4：四处独立完整遮罩 —— 左右两栏各自一层（挡点击），中列一层铺满地图区
+   * （压住留白与标尺、低于画布纸所以棋盘明亮），画布底色层那一层嵌在 `canvasBase`
+   * 里（只压暗纸底）。不再量视口矩形、不再四块挖洞。
+   */
+  it('校验遮罩分成左栏 / 右栏 / 中列留白 / 画布底色层四处，结算后一起撤掉', () => {
+    vi.useFakeTimers();
+    try {
+      seedSave({
+        board: {
+          '0,0': { kind: 'participant', index: 1 },
+          '1,1': { kind: 'participant', index: 2 },
+          '2,2': { kind: 'participant', index: 3 },
+        },
+      });
+      render();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+
+      const byArea = (area: string): HTMLElement =>
+        container.querySelector<HTMLElement>(`[data-scrim-area="${area}"]`)!;
+      const left = byArea('left');
+      const right = byArea('right');
+      const center = byArea('center');
+      const canvas = byArea('canvas');
+      expect(left).toBeTruthy();
+      expect(right).toBeTruthy();
+      expect(center).toBeTruthy();
+      expect(canvas).toBeTruthy();
+      // 左右两栏：遮罩直接挂在各自的 aside 里，且抬到内容之上挡点击。
+      expect(left.parentElement?.tagName).toBe('ASIDE');
+      expect(right.parentElement?.tagName).toBe('ASIDE');
+      // v0.9.4 追加：左右遮罩越过各自朝向中列的那道边框（`-right-px` / `-left-px`），
+      // 把「左栏/中列」「中列/右栏」两条分隔线也压暗，否则会比四周更亮地留在那里。
+      expect(left.className).toContain('absolute inset-y-0');
+      expect(left.className).toContain('-right-px');
+      expect(right.className).toContain('absolute inset-y-0');
+      expect(right.className).toContain('-left-px');
+      expect(Number(left.style.zIndex)).toBeGreaterThan(0);
+      expect(Number(right.style.zIndex)).toBeGreaterThan(0);
+      // 中列：铺满地图区、压住留白与标尺，层级等于 saveMask（低于抬起的画布纸）。
+      expect(center.className).toContain('absolute inset-0');
+      expect(Number(center.style.zIndex)).toBe(UI_Z.saveMask);
+      expect(center.parentElement?.tagName).toBe('MAIN');
+      // 地图区：遮罩是 canvasBase 的子元素，跟着画布一起缩放平移；
+      // 它自己不接指针，上面的格子 / 物品 / 圈照常显示。
+      expect(canvas.className).toContain('pointer-events-none');
+      expect(canvas.parentElement?.className).toContain('bg-background');
+      expect(canvas.parentElement?.parentElement?.getAttribute('data-testid')).toBe('game-canvas');
+
+      // 结算卡一出现四处一起撤掉 —— 不能和弹窗自己的 overlay 叠成两层黑。
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      expect(container.querySelectorAll('[data-testid="check-scrim"]')).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('未通过时报「结果 / 1/3 正确 / 未能结案」，不列错误人员与位置', () => {
     vi.useFakeTimers();
     try {
       seedSave({
@@ -312,13 +379,44 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
 
       const dialog = document.body.textContent ?? '';
-      expect(dialog).toContain('提交未通过');
-      expect(dialog).toContain('编号 1');
-      expect(dialog).toContain('编号 2');
-      expect(dialog).toContain('位置不对');
-      // 3 站在自己的行列上，不该被点名。
+      expect(dialog).toContain('结果');
+      expect(dialog).toContain('你没有找出所有人的位置！1/3 正确。未能结案。');
+      // 名单整块删掉了：不点名、不说行列、也不说谁没放。
+      expect(dialog).not.toContain('编号 1');
+      expect(dialog).not.toContain('编号 2');
       expect(dialog).not.toContain('编号 3');
+      expect(dialog).not.toContain('位置不对');
       expect(dialog).not.toContain('未放置');
+      expect(dialog).not.toContain('提交未通过');
+      expect(document.querySelector('[role="dialog"] ul')).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * v0.9.4 追加：`x/n` 是算出来的，不是写死的一句。三人同列时三位都带
+   * column issue —— 绿圈一个也没有，正文就得是 `0/3 正确`。
+   */
+  it('未通过时的正确数随棋盘变化：三人同列是 0/3', () => {
+    vi.useFakeTimers();
+    try {
+      seedSave({
+        board: {
+          '0,0': { kind: 'participant', index: 1 },
+          '0,1': { kind: 'participant', index: 2 },
+          '0,2': { kind: 'participant', index: 3 },
+        },
+      });
+      render();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+      );
+      for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+
+      const dialog = document.body.textContent ?? '';
+      expect(dialog).toContain('你没有找出所有人的位置！0/3 正确。未能结案。');
+      expect(dialog).not.toContain('1/3');
     } finally {
       vi.useRealTimers();
     }

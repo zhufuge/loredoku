@@ -35,7 +35,6 @@ import {
   placementBlockReason,
   redo,
   resolveToolHint,
-  summarizeIssues,
   sweepParticipantNumbers,
   toggleForbidden,
   undo,
@@ -716,38 +715,6 @@ describe('长按搬家（v0.7.11）', () => {
       }),
     ).toBe('avatar');
     expect(place(state, 2, 3, 1, { gridSize: 6, variant: 'image' })).toBe(state);
-  });
-});
-
-describe('失败的名单归并（v0.7.11）', () => {
-  it('lists each participant once, and says only whether they are missing or misplaced', () => {
-    const board = place(createGamePlacementState(), 0, 0, 1, { gridSize: 4, variant: 'image' })
-      .board;
-    const both = {
-      ...board,
-      '1,0': { kind: 'participant', index: 2 },
-      '2,0': { kind: 'participant', index: 3 },
-    } as GamePlacementBoard;
-    const validation = validatePlacement({
-      board: both,
-      slots: [slot(101), slot(102), slot(103), slot(104)],
-      nameOf: (id) => (id === 4 ? '阿玉' : undefined),
-    });
-    const blame = summarizeIssues(validation.issues, (id) => (id === 4 ? '阿玉' : undefined));
-    // 1 / 2 / 3 同行（每人一条），4 没放：归并成四条，一人一条。
-    expect(blame.map((entry) => entry.participantId)).toEqual([1, 2, 3, 4]);
-    expect(blame.filter((entry) => entry.reason === 'wrong')).toHaveLength(3);
-    expect(blame[3]).toEqual({ participantId: 4, label: '编号 4（阿玉）', reason: 'unplaced' });
-  });
-
-  it('prefers 「未放置」 when a participant is both missing and off its condition', () => {
-    const blame = summarizeIssues(
-      [
-        { participantId: 2, code: 'row', message: 'x' },
-        { participantId: 2, code: 'unplaced', message: 'y' },
-      ],
-    );
-    expect(blame).toEqual([{ participantId: 2, label: '编号 2', reason: 'unplaced' }]);
   });
 });
 
