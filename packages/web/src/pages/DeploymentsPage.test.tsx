@@ -2,20 +2,18 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  MapGameSummary,
-  PuzzleEntrySummary,
-  Theme,
-  ThemeDeploymentSummary,
-} from '@loredoku/shared';
+import type { MapGameSummary, PuzzleEntrySummary, Theme } from '@loredoku/shared';
 import { DeploymentsPage } from './DeploymentsPage';
 
 /**
  * 部署模块（v0.7.1 §7.4）：一行 = 一条在线的东西；取消部署走二次确认，弹窗里
  * 明写「玩家立刻无法访问 / 同一路径可以再用」两件事。
  *
- * v0.8.1：列表恢复 v0.8 之前的**平铺**样式 —— 合辑一段、单局一段，一张卡；
- * 「导出包」挪到页头（它是主题级动作）。工作空间里只列当前主题的行。
+ * v0.8.1：列表恢复 v0.8 之前的**平铺**样式，一张卡；「导出包」挪到页头（它是
+ * 主题级动作）。工作空间里只列当前主题的行。
+ *
+ * v0.9.2：合辑那一段连同两张表删了，这一页只剩单局 —— 原来那两个「合辑某某」
+ * 的用例也随之删除。
  *
  * v0.7.11：这一页有了自己的「部署」按钮 —— 空状态里也是它。原先那个
  * 「前往谜题列表」的出口随之删掉：它唯一的用处是绕路去做同一件事。
@@ -48,17 +46,13 @@ vi.mock('@/hooks/usePuzzles', () => ({
 }));
 
 /**
- * 合辑列表也 mock 掉 —— 它走 react-query，而这套测试没有 `QueryClientProvider`
- * （也不需要：平铺逻辑是纯展示）。
+ * `useThemes` mock 掉 —— 它走 react-query，而这套测试没有 `QueryClientProvider`
+ * （也不需要：平铺逻辑是纯展示）。v0.9.2 起这一页不再需要合辑列表。
  */
 const themesRef: { data: Theme[]; isLoading: boolean } = { data: [], isLoading: false };
-const deploymentsRef: { data: ThemeDeploymentSummary[] } = { data: [] };
-const removeDeploymentMutate = vi.fn();
 
 vi.mock('@/hooks/useThemes', () => ({
   useThemes: () => themesRef,
-  useThemeDeployments: () => deploymentsRef,
-  useRemoveDeployment: () => ({ mutate: removeDeploymentMutate, isPending: false }),
 }));
 
 /** 没有上下文时页面退回「全部行平铺」的老行为，所以默认给 `null`；
@@ -96,30 +90,6 @@ function game(overrides: Partial<MapGameSummary> = {}): MapGameSummary {
     gridSize: 6,
     participantCount: 6,
     createdAt: '2026-01-04T00:00:00.000Z',
-    ...overrides,
-  };
-}
-
-/** 一条主题合辑 —— 目录，不是内容（§9）。 */
-function deployment(overrides: Partial<ThemeDeploymentSummary> = {}): ThemeDeploymentSummary {
-  return {
-    id: 7,
-    themeCode: 'default',
-    themeName: '默认主题',
-    slug: 'hlm-collection',
-    name: '默认合辑',
-    description: null,
-    coverUrl: null,
-    entries: [
-      {
-        puzzleId: 9,
-        puzzleName: '午夜花园',
-        sortOrder: 0,
-        game: game(),
-      },
-    ],
-    createdAt: '2026-01-05T00:00:00.000Z',
-    updatedAt: '2026-01-05T00:00:00.000Z',
     ...overrides,
   };
 }
@@ -178,11 +148,9 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     cancelMutate.mockClear();
     deployMutate.mockClear();
     weightMutate.mockClear();
-    removeDeploymentMutate.mockClear();
     workspaceRef.value = null;
     themesRef.data = [theme()];
     themesRef.isLoading = false;
-    deploymentsRef.data = [];
     gamesRef.data = [game()];
     gamesRef.isLoading = false;
     gamesRef.isError = false;
@@ -204,22 +172,6 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     expect(text()).toContain('可以再用同一个访问路径重新部署');
     // 还没确认，不发请求。
     expect(cancelMutate).not.toHaveBeenCalled();
-  });
-
-  /**
-   * v0.8.1：平铺列表里合辑也是一行，摆在单局上面；已经进了合辑的单局不再
-   * 重复列一遍 —— 合辑行已经把它算进去了。
-   */
-  it('合辑平铺在单局上面，进了合辑的单局不重复列', () => {
-    deploymentsRef.data = [deployment()];
-    render();
-
-    expect(text()).toContain('合辑「默认合辑」');
-    expect(text()).toContain('hlm-collection');
-    // 成员「午夜花园」的单局行不再重复 —— 合辑行已经把它算进去了。
-    expect(text()).not.toContain('puzzle-midnight-garden-medium');
-    // 页头数字 = 单局行数，不含合辑成员。
-    expect(text()).toContain('共 0 个游戏在线。');
   });
 
   /** 工作空间里只列**这个主题**的关，别的主题一行都不混进来（§18）。 */
@@ -314,49 +266,6 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     expect(text()).toContain('导出资源包 · 红楼梦');
     expect(text()).toContain('撕扇');
     expect(text()).not.toContain('午夜花园');
-    expect(text()).toContain('共 1 关');
-  });
-
-  /**
-   * 列表为了不重复展示排掉了合辑里的单局，但包里必须有它们 —— 这两件事用的是
-   * 不同的集合，别让「列表看不见」变成「包里没有」。
-   */
-  it('进了合辑的关不出现在列表里，但仍算在导出清单里', () => {
-    const hlm = theme({ code: 'hlm', name: '红楼梦' });
-    workspaceRef.value = {
-      theme: hlm,
-      themes: [theme(), hlm],
-      themeCode: 'hlm',
-      href: (module: string) => `/hlm/${module}`,
-    };
-    const sishan = game({
-      id: 4,
-      puzzleId: 30,
-      themeCode: 'hlm',
-      name: '撕扇',
-      puzzleName: '撕扇',
-      slug: 'puzzle-hlm-sishan',
-    });
-    gamesRef.data = [sishan];
-    deploymentsRef.data = [
-      deployment({
-        themeCode: 'hlm',
-        themeName: '红楼梦',
-        name: '红楼梦合辑',
-        entries: [{ puzzleId: 30, puzzleName: '撕扇', sortOrder: 0, game: sishan }],
-      }),
-    ];
-    render();
-
-    // 列表：合辑一行，单局不重复。
-    expect(text()).toContain('合辑「红楼梦合辑」');
-    expect(text()).toContain('共 0 个游戏在线。');
-
-    act(() =>
-      Array.from(container.querySelectorAll('button'))
-        .find((node) => node.textContent?.trim() === '导出包')
-        ?.click(),
-    );
     expect(text()).toContain('共 1 关');
   });
 

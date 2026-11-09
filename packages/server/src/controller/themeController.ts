@@ -1,12 +1,9 @@
 import type { Context } from 'koa';
 import {
-  createThemeDeploymentSchema,
   createThemeSchema,
-  idParamSchema,
   listThemesQuerySchema,
   themeCodeParamSchema,
   toolIconParamSchema,
-  updateThemeDeploymentSchema,
   updateThemeSchema,
 } from '@loredoku/shared';
 import { success } from '../utils/response';
@@ -87,39 +84,24 @@ export async function removeToolIcon(ctx: Context): Promise<void> {
   success(ctx, await themeService.removeToolIcon(code, icon), '图标已清除');
 }
 
-// ---- 合辑 ----
-
-export async function listDeployments(ctx: Context): Promise<void> {
-  success(ctx, await themeService.listDeployments());
-}
-
-export async function deploymentDetail(ctx: Context): Promise<void> {
-  const { id } = parseOrThrow(idParamSchema, ctx.params);
-  success(ctx, await themeService.getDeployment(id));
-}
-
-/** 玩家页用它：`/play/theme/:slug` 不经过工坊，只认 slug。 */
-export async function deploymentBySlug(ctx: Context): Promise<void> {
-  const slug = String(ctx.params.slug ?? '').trim();
-  success(ctx, await themeService.getDeploymentBySlug(slug));
-}
-
-export async function deploy(ctx: Context): Promise<void> {
+/**
+ * v0.9.2 §2：长按放置参与者时的**计时环**图（主题级）。
+ *
+ * 与禁止符号 / 工具图标同一个形状：一次一张、即时保存、回执是更新后的整份主题。
+ * 不配就是内置白弧，所以「移除」不是一个清空动作，而是**回到默认样式**。
+ */
+export async function uploadPressRing(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
-  const body = parseOrThrow(createThemeDeploymentSchema, ctx.request.body ?? {});
-  success(ctx, await themeService.deployTheme(code, body), '主题已上线');
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw themeService.pressRingRequired();
+  }
+  success(ctx, await themeService.uploadPressRing(code, file.buffer), '计时环已保存');
 }
 
-export async function updateDeployment(ctx: Context): Promise<void> {
-  const { id } = parseOrThrow(idParamSchema, ctx.params);
-  const body = parseOrThrow(updateThemeDeploymentSchema, ctx.request.body ?? {});
-  success(ctx, await themeService.updateDeployment(id, body), '已保存');
-}
-
-export async function removeDeployment(ctx: Context): Promise<void> {
-  const { id } = parseOrThrow(idParamSchema, ctx.params);
-  await themeService.removeDeployment(id);
-  success(ctx, null, '合辑已下线');
+export async function removePressRing(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  success(ctx, await themeService.removePressRing(code), '计时环已恢复默认');
 }
 
 /**

@@ -217,27 +217,3 @@ export interface ThemeRow {
   created_at: Date | string;
   updated_at: Date | string;
 }
-
-/**
- * v0.8.0 §9：主题合辑。**一行只记目录本身**，成员在下面那张表里。
- *
- * 刻意不存 `puzzle_ids` 数组：成员要排序、要能单独删掉一关，而且
- * 数组上的外键约束在 Postgres 里不存在。
- */
-export interface ThemeDeploymentRow {
-  id: string | number;
-  theme_id: string | number;
-  slug: string;
-  name: string;
-  description: string | null;
-  cover_path: string | null;
-  created_at: Date | string;
-  updated_at: Date | string;
-}
-
-/** 合辑成员：挂 `puzzle_id`（不是 `game_id`，重新部署会换 game id，见 §9）。 */
-export interface ThemeDeploymentPuzzleRow {
-  deployment_id: string | number;
-  puzzle_id: string | number;
-  sort_order: number;
-}

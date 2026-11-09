@@ -67,13 +67,6 @@ export function useBundleGameSource(code: string): GameSource {
        * 主题名来自 `manifest.theme` —— 不需要按编码再查一次（包自己就是那个主题）。
        * `_ref` 收下但不用：播放器的路由里那段 `:code` 是**包的位置**，不是查询条件。
        */
-      useTheme() {
-        return {
-          data: manifest ? { name: manifest.theme.name } : null,
-          isLoading: manifestQuery.isLoading,
-          isError: manifestQuery.isError,
-        };
-      },
       useGame(key) {
         const query = useQuery({
           queryKey: ['bundle', code, 'game', key ?? ''],
@@ -111,8 +104,13 @@ export function useBundleGameSource(code: string): GameSource {
        */
       themeForbiddenSymbol: () => null,
       themeToolIcons: () => null,
+      /**
+       * v0.9.2 §2：计时环那张图**不逐关**内联 —— 全主题共用一张，装在
+       * `manifest.theme.pressRing` 里，`path` 是包内相对路径（`files/ring/...`）。
+       * 游戏页拿它过 `fileUrl` 拼包根，与其它包内图片同一条路。
+       */
+      themePressRing: () => manifest?.theme.pressRing ?? null,
       storageId: (key) => bundleStorageId(code, key),
-      themeHref: () => themeHrefOf(code),
       listHref: () => themeHrefOf(code),
       gameHref: (key) => gameHrefOf(code, key),
     }),

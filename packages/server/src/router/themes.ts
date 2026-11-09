@@ -42,22 +42,12 @@ themesRouter.post(
 );
 themesRouter.delete('/:code/tool-icons/:icon', controller.removeToolIcon);
 
-/** 一键整主题部署（§9）：对每个谜题血统的最新已发布版本跑一次 `deployGame`。 */
-themesRouter.post('/:code/deploy', controller.deploy);
+/**
+ * v0.9.2 §2：长按放置参与者时的计时环 —— 一张图，主题级。与禁止符号同一种
+ * 「读取时兜底」：不配就画内置白弧，配了则所有关卡都换（含已发布的）。
+ */
+themesRouter.post('/:code/press-ring', forbiddenSymbolUpload.single('file'), controller.uploadPressRing);
+themesRouter.delete('/:code/press-ring', controller.removePressRing);
 
 /** 导出资源包（§11）：本版只打包，不解包、不导入、不托管。 */
 themesRouter.get('/:code/bundle', controller.bundle);
-
-/**
- * 合辑列表单独挂一个前缀（`/api/theme-deployments`）：它是**玩家也读**的资源，
- * 不该藏在 `/themes/:code/...` 下面（玩家没有「主题详情」这一层）。合辑自己的 `:id`
- * 是另一回事 —— 它不是主题。
- */
-export const themeDeploymentsRouter = new Router();
-
-themeDeploymentsRouter.get('/', controller.listDeployments);
-// `by-slug` 必须排在 `/:id` 前面，否则它会被当成一个 id 解析。
-themeDeploymentsRouter.get('/by-slug/:slug', controller.deploymentBySlug);
-themeDeploymentsRouter.get('/:id', controller.deploymentDetail);
-themeDeploymentsRouter.patch('/:id', controller.updateDeployment);
-themeDeploymentsRouter.delete('/:id', controller.removeDeployment);

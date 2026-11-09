@@ -8,8 +8,10 @@ import { db } from '../src/db/knex';
  * 还挂着东西。收尾不能指望走接口 —— 得自己按外键顺序往下拆。
  *
  * 顺序由外键决定，全部 RESTRICT，没有一处能靠 CASCADE 混过去：
- * games → theme_deployments → puzzles → assets（variants 跟着 CASCADE）→
- * characters → maps → themes。
+ * games → puzzles → assets（variants 跟着 CASCADE）→ characters → maps → themes。
+ *
+ * v0.9.2：`theme_deployments` 那一步没了 —— 两张表已被迁移删掉（`docs/v0.9.2.md`
+ * §1），这里再 `del()` 一次只会撞上「表不存在」。
  *
  * `games` 只挂 `puzzle_id`（v0.7.1 起游戏属于谜题版本，不再直接挂地图），
  * 所以删游戏只能顺着谜题找。
@@ -25,7 +27,6 @@ export async function purgeTheme(code: string): Promise<void> {
   if (puzzleIds.length > 0) {
     await db('games').whereIn('puzzle_id', puzzleIds).del();
   }
-  await db('theme_deployments').where({ theme_id: themeId }).del();
   await db('puzzles').where({ theme_id: themeId }).del();
   await db('assets').where({ theme_id: themeId }).del();
   await db('characters').where({ theme_id: themeId }).del();

@@ -82,18 +82,14 @@ vi.mock('@/hooks/useGames', () => ({
   useGameDetail: () => ({ data: fixture.detail, isLoading: false, isError: false }),
 }));
 vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
-/**
- * v0.8.0 §16.6：从合辑进来时左栏要显示主题名。这套测试没有
- * `QueryClientProvider`（也不需要），所以把它 mock 成「没有合辑上下文」——
- * 也就是单局入口那条路径，返回入口根本不该出现。
- */
 vi.mock('@/hooks/useThemes', () => ({
-  useThemeDeploymentBySlug: () => ({ data: undefined }),
   /**
    * v0.8.7 §4：禁止符号的「跟随主题」那一档。真实 hook 返回「按编码查表」的函数，
    * 这里按同一个签名返回一个常量。
    */
   useForbiddenSymbolByCode: () => () => fixture.theme.forbiddenSymbol,
+  // v0.9.2 §2：长按计时环的图 —— 这一套不测它，主题当作「没配」。
+  usePressRingByCode: () => () => null,
   /**
    * v0.8.7 §7：三枚工具按钮图标。同样按编码查表，这里返回 fixture 里那一套
    * （默认 `null` = 谁都没配，按钮画内置图标）。
@@ -590,7 +586,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       render();
       sizeCanvas();
       act(() => container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click());
-      // 短按清除按钮 = 切换清除工具（按住 500ms 才是清空全部）。
+      // 短按清除按钮 = 切换清除工具（按住 800ms 才是清空全部，见 v0.9.2 §3）。
       act(() => {
         const clear = container.querySelector<HTMLButtonElement>(
           'button[title="清除放置，长按清空全部"]',

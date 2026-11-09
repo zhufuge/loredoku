@@ -1,11 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ExternalLink, Folder, Package, Rocket, Trash2 } from 'lucide-react';
-import {
-  type MapGameSummary,
-  type PuzzleEntrySummary,
-  type ThemeDeploymentSummary,
-  stripSlugPrefix,
-} from '@loredoku/shared';
+import { ExternalLink, Package, Rocket, Trash2 } from 'lucide-react';
+import { type MapGameSummary, type PuzzleEntrySummary, stripSlugPrefix } from '@loredoku/shared';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -27,7 +22,6 @@ import { SortWeightCell } from '@/components/game/SortWeightCell';
 import { ExportBundleDialog } from '@/components/theme/ExportBundleDialog';
 import { useCancelGame, useGames, useUpdateGameWeight } from '@/hooks/useGames';
 import { usePuzzles } from '@/hooks/usePuzzles';
-import { useRemoveDeployment, useThemeDeployments } from '@/hooks/useThemes';
 import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { InlineLoading, LoredokuTick } from '@/components/common/LoredokuLoader';
@@ -38,11 +32,15 @@ import { InlineLoading, LoredokuTick } from '@/components/common/LoredokuLoader'
  * v0.8.0 §16.4 曾把它改成按主题分卡片，§19.9 又给认不出的行留了个兜底桶再撤掉。
  * 但这一页在 §18 之后本来就**只在一个工作空间里**：标题就是这个主题，分组头
  * 「红楼梦 · 8 关在线 · 导出包」等于把页头抄了一遍。所以列表回到 v0.7 的形状 ——
- * 合辑一段、单局一段，一张卡，行即一切；「导出包」上移到页头（它本来就是
- * 主题级动作，页头才是它该在的地方）。
+ * 一张卡、行即一切；「导出包」上移到页头（它本来就是主题级动作）。
+ *
+ * v0.9.2：合辑（`theme_deployments`）连同两张表一起删了，这一页只剩**单局**。
+ * 原来「合辑一段 + 单局一段」里那段目录行、它的「取消上线」确认框、以及
+ * `useThemeDeployments` / `useRemoveDeployment` 两个 hook 全都不在了；
+ * 关卡顺序只剩 `sort_weight` 一列（v0.8.3 §6.2 起它才是顺序的唯一真源）。
  *
  * 取消部署是**假删**（`deleted_at`）：玩家的 `/play/{slug}` 立刻打不开，但同一个
- * 访问路径可以再用。取消**合辑**下线不一样：它只删目录，那几关的单局仍然在线。
+ * 访问路径可以再用。
  *
  * v0.8.5：这一行不再承担「给你一条可复制的链接」。
  * - 路径只显示**尾部**（`puzzle-xxxx`），前缀 `/play/` 在每一行都一样，占着最宽的
@@ -59,12 +57,9 @@ import { InlineLoading, LoredokuTick } from '@/components/common/LoredokuLoader'
 export function DeploymentsPage(): JSX.Element {
   const workspace = useWorkspace();
   const gamesQuery = useGames();
-  const deploymentsQuery = useThemeDeployments();
   const cancelMutation = useCancelGame();
-  const removeDeployment = useRemoveDeployment();
   const updateWeight = useUpdateGameWeight();
   const [cancelTarget, setCancelTarget] = useState<MapGameSummary | null>(null);
-  const [cancelCollection, setCancelCollection] = useState<ThemeDeploymentSummary | null>(null);
   const [exportOpen, setExportOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
 
@@ -88,24 +83,13 @@ export function DeploymentsPage(): JSX.Element {
     document.title = workspace ? `${workspace.theme.name} · 部署 · 格物` : '部署 · 格物';
   }, [workspace?.theme.name]);
 
-  const collections = useMemo(() => {
-    const all = deploymentsQuery.data ?? [];
-    return workspace ? all.filter((row) => row.themeCode === workspace.themeCode) : all;
-  }, [deploymentsQuery.data, workspace]);
-
   const games = useMemo(() => {
     const all = gamesQuery.data ?? [];
-    const scoped = workspace ? all.filter((game) => game.themeCode === workspace.themeCode) : all;
-    // 已经进了合辑的单局不再重复列一遍：合辑行已经把它们算进去了。
-    const inCollections = new Set(
-      collections.flatMap((deployment) => deployment.entries.map((entry) => entry.puzzleId)),
-    );
-    return scoped.filter((game) => !inCollections.has(game.puzzleId));
-  }, [gamesQuery.data, collections, workspace]);
+    return workspace ? all.filter((game) => game.themeCode === workspace.themeCode) : all;
+  }, [gamesQuery.data, workspace]);
 
   /**
-   * 导出清单要的是**当前主题全部的在线关**，与上面列表的口径不同：
-   * 列表为了不重复展示排掉了合辑里的关，包里却必须有它们。
+   * 导出清单要的是**当前主题全部的在线关**。
    *
    * v0.8.2：原来这里直接把 `gamesQuery.data`（全站）交给导出弹窗 —— 清单会列出
    * 别的主题的关，而服务端只打当前主题，于是「清单 12 关、包里 8 关」；当前主题
@@ -124,61 +108,6 @@ export function DeploymentsPage(): JSX.Element {
    */
   const existingGameFor = (entry: PuzzleEntrySummary): MapGameSummary | null =>
     (gamesQuery.data ?? []).find((game) => game.puzzleId === entry.id) ?? null;
-
-  function renderCollectionRow(deployment: ThemeDeploymentSummary): JSX.Element {
-    const playable = deployment.entries.filter((entry) => entry.game !== null).length;
-    const path = `/play/theme/${deployment.slug}`;
-    return (
-      <div
-        key={`collection-${deployment.id}`}
-        className="flex items-center gap-4 border-b px-4 py-3"
-      >
-        {/* 与单局行同一个 64×40 的位：两行的名称列因此从同一个 x 起，读起来是一张表。 */}
-        <span className="flex h-10 w-16 shrink-0 items-center justify-center overflow-hidden rounded border bg-muted/40">
-          <Folder className="h-4 w-4 text-muted-foreground/60" />
-        </span>
-
-        <div className="w-48 shrink-0">
-          <div className="truncate font-medium" title={deployment.name}>
-            合辑「{deployment.name}」
-          </div>
-          <div className="truncate text-xs text-muted-foreground">目录 · {playable} 关</div>
-        </div>
-
-        {/* 合辑没有自己的权重 —— 内部仍按 `sort_order`，这一格留空而不是给 0。 */}
-        <span className="w-14 shrink-0" />
-
-        <span
-          className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground"
-          title={`/play/theme/${deployment.slug}`}
-        >
-          {stripSlugPrefix(deployment.slug)}
-        </span>
-
-        <span className="w-52 shrink-0 truncate text-right text-xs text-muted-foreground">
-          {formatDateTime(deployment.createdAt)}
-        </span>
-        <div className="flex w-40 shrink-0 items-center justify-end gap-1">
-          <a
-            href={path}
-            target="_blank"
-            rel="noreferrer"
-            title="在新标签页打开合辑"
-            className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }))}
-          >
-            <ExternalLink className="h-4 w-4" />
-          </a>
-          <IconButton
-            variant="ghost"
-            icon={<Trash2 className="h-4 w-4" />}
-            label="取消合辑上线"
-            className="text-destructive hover:text-destructive"
-            onClick={() => setCancelCollection(deployment)}
-          />
-        </div>
-      </div>
-    );
-  }
 
   /**
    * 单局行：缩略图 64×40、名称 192、难度、尺寸 64、顺序 56、路径（弹性）、
@@ -265,7 +194,7 @@ export function DeploymentsPage(): JSX.Element {
     );
   }
   function renderBody(): JSX.Element {
-    if (gamesQuery.isLoading || deploymentsQuery.isLoading) {
+    if (gamesQuery.isLoading) {
       return (
         <div className="space-y-2">
           {/* v0.7.9：骨架高 64（= 行高），原来是 80 —— 加载完成后整页会往上跳 16px。 */}
@@ -290,7 +219,7 @@ export function DeploymentsPage(): JSX.Element {
       );
     }
 
-    if (collections.length === 0 && games.length === 0) {
+    if (games.length === 0) {
       return (
         // v0.7.8 §5：工坊五个列表页的空状态统一为「一句说明 + 一个主按钮」。
         // v0.7.11：按钮就是「部署」—— 空状态下一步要做的事，不再让人先去别处。
@@ -306,7 +235,6 @@ export function DeploymentsPage(): JSX.Element {
 
     return (
       <Card className="overflow-hidden">
-        {collections.map(renderCollectionRow)}
         {games.map(renderGameRow)}
       </Card>
     );
@@ -393,45 +321,6 @@ export function DeploymentsPage(): JSX.Element {
                 </>
               ) : (
                 '取消部署'
-              )}
-            </Button>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog
-        open={cancelCollection !== null}
-        onOpenChange={(open) => {
-          if (!open && !removeDeployment.isPending) setCancelCollection(null);
-        }}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>取消合辑「{cancelCollection?.name}」上线？</AlertDialogTitle>
-            <AlertDialogDescription>
-              合辑只是一份目录：取消之后 /play/theme/{cancelCollection?.slug} 打不开，
-              但那几关的单局仍然在线，玩家还能单独进入。要真正下线一关，请取消它的部署。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={removeDeployment.isPending}>取消</AlertDialogCancel>
-            <Button
-              variant="destructive"
-              disabled={removeDeployment.isPending}
-              onClick={() => {
-                if (!cancelCollection) return;
-                removeDeployment.mutate(cancelCollection.id, {
-                  onSuccess: () => setCancelCollection(null),
-                });
-              }}
-            >
-              {removeDeployment.isPending ? (
-                <>
-                  <LoredokuTick className="mr-1" />
-                  处理中…
-                </>
-              ) : (
-                '取消上线'
               )}
             </Button>
           </AlertDialogFooter>

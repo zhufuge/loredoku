@@ -385,6 +385,45 @@ describe('资源包导出（§11）', () => {
   });
 
   /**
+   * v0.9.2 §2：长按计时环是一张**主题级**的图，全主题共用一张 —— 所以它不进
+   * 每一关的 JSON，只装在 `files/ring/` 里一份，路径写进 `manifest.theme.pressRing`。
+   *
+   * 同时守住另一半：没配环的主题不写这个键（老包与新包都按「没有」处理）。
+   */
+  it('计时环图进包：files/ring 一份、manifest.theme.pressRing 指过去', async () => {
+    const themeCode = await createTheme();
+    await deployedGame(themeCode);
+    const uploaded = await api
+      .post(`/api/themes/${themeCode}/press-ring`)
+      .attach('file', TINY_PNG, 'ring.png');
+    expect(uploaded.status).toBe(200);
+    const row = (await db('themes').where({ code: themeCode }).first('id')) as
+      | { id: string | number }
+      | undefined;
+    symbolDirs.push(resolveUploadPath(`themes/${Number(row!.id)}`));
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    const ringEntries = built.entries.filter((entry) => entry.path.startsWith('files/ring/'));
+    expect(ringEntries).toHaveLength(1);
+    const target = 'files/ring/press-ring.webp';
+    expect(ringEntries[0]!.path).toBe(target);
+    // 一张图只装一份，不因为「主题里有 3 关」就变成三份。
+    expect(built.manifest.theme.pressRing).toEqual({ path: target });
+
+    // 校验和覆盖包里除 manifest 自己以外的一切。
+    const manifestFile = built.manifest.files.find((entry) => entry.path === target);
+    expect(manifestFile?.bytes).toBe(ringEntries[0]!.data.length);
+    expect(manifestFile?.sha256).toMatch(/^[0-9a-f]{64}$/);
+
+    // 没配的主题：一个键都不多。
+    const plainCode = await createTheme();
+    await deployedGame(plainCode);
+    const plain = await bundleService.buildThemeBundle(plainCode);
+    expect('pressRing' in plain.manifest.theme).toBe(false);
+  });
+
+  /**
    * v0.8.7 §7：三枚工具按钮图标与禁止符号同一条路 —— 搬文件、改写为包内路径。
    * 文件名带 `-<icon>`：一关最多三张，解压后一眼能看出是哪一枚。
    */

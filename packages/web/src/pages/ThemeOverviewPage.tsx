@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ChevronRight, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
+import { ChevronRight, CircleDashed, Plus, RotateCcw, Trash2, Upload, X } from 'lucide-react';
 import {
   DEFAULT_DIFFICULTY_TIERS,
   GAME_TOOL_ICON_KINDS,
@@ -41,9 +41,11 @@ import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import {
   useDeleteTheme,
   useRemoveThemeForbiddenSymbol,
+  useRemoveThemePressRing,
   useRemoveThemeToolIcon,
   useUpdateTheme,
   useUploadThemeForbiddenSymbol,
+  useUploadThemePressRing,
   useUploadThemeToolIcon,
 } from '@/hooks/useThemes';
 import { isValidShadowColor, isValidStyleColor, resolveMapStyle } from '@/lib/mapStyle';
@@ -303,6 +305,9 @@ export function ThemeOverviewPage(): JSX.Element {
       {/* v0.8.7 §7：三枚工具按钮的图标 —— 与禁止符号同一套「读取时兜底」。 */}
       <ToolIconsCard theme={theme} />
 
+      {/* v0.9.2 §2：长按放置参与者时那圈计时环的图 —— 同上，读取时兜底。 */}
+      <PressRingCard theme={theme} />
+
       {/* v0.8.3 §3：难度分级。徽章就是部署页 / 游戏卡上那一枚，所见即所得。 */}
       <Card className="space-y-3 px-4 py-4">
         <CardHead title="难度分级" onEdit={() => setTiersOpen(true)} />
@@ -553,8 +558,91 @@ function ToolIconsCard({ theme }: { theme: Theme }): JSX.Element {
 }
 
 /**
- * 清单里的一格值：颜色给色块 + 色值，别的一律等宽字。
+ * v0.9.2 §2：主题级的**长按计时环** —— 玩家按住一格放头像时，那 500ms 的进度圈
+ * 画成作者给的图。
  *
+ * 与「禁止符号」「工具按钮图标」同一条规矩：**读取时**兜底，不是新建时抄一份。
+ * 换一张图，本主题下所有关卡（含已发布的）下次打开就是新的 —— 不必逐题重传。
+ *
+ * 只有一张（不像工具图标有三枚），交互也与禁止符号卡一字不差：选中文件即上传、
+ * 点移除即回到内置白弧，没有「编辑 → 保存」。
+ *
+ * **图只换样子，不换刻度**：进度仍按长按时长顺时针走，由一条扇形遮罩揭开这张图
+ * （见 `components/common/PressRing.tsx`）。所以对图的要求不苛刻 —— 圆环、笔触圈、
+ * 一枚印章都能用，透明底会留下底色，方图会按 `meet` 缩进格子里。
+ */
+function PressRingCard({ theme }: { theme: Theme }): JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const upload = useUploadThemePressRing(theme.code);
+  const remove = useRemoveThemePressRing(theme.code);
+  const current = theme.data.pressRing ?? null;
+  const busy = upload.isPending || remove.isPending;
+
+  return (
+    <Card className="space-y-3 px-4 py-4">
+      <CardHead title="长按计时环" />
+      <div className="flex items-start gap-4">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
+          {current ? (
+            <img
+              src={fileUrlFromPath(current.path)}
+              alt="长按计时环"
+              className="h-full w-full object-contain"
+            />
+          ) : (
+            /* 没配 = 内置白弧，占位就画一圈虚线圆，与游戏页看到的形状对上。 */
+            <CircleDashed className="h-6 w-6 text-muted-foreground" aria-hidden />
+          )}
+        </div>
+        <div className="min-w-0 flex-1 space-y-1.5">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={busy}
+              onClick={() => inputRef.current?.click()}
+            >
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              {upload.isPending ? '上传中…' : current ? '更换' : '上传环图'}
+            </Button>
+            {current ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                disabled={busy}
+                onClick={() => remove.mutate()}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                {remove.isPending ? '移除中…' : '移除'}
+              </Button>
+            ) : null}
+          </div>
+          <p className="text-2xs leading-relaxed text-muted-foreground">
+            玩家按住一格放头像时画这张；没配就是内置的白弧。进度照样按长按时长走。
+          </p>
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          if (!file) return;
+          upload.mutate(file);
+        }}
+      />
+    </Card>
+  );
+}
+
+/**
+ * 清单里的一格值：颜色给色块 + 色值，别的一律等宽字。
  * v0.8.7 §1：字号从 10px 提到 12px，色块跟着从 10px 提到 12px。这一格不是「备注」——
  * 它是整个区块的**正文**（26 项值），而 10px 的等宽字在 1440 宽的屏幕上看是灰点。
  * 标签仍是 12px 的 `muted`：层级靠颜色，不靠字号 —— 大小再差一档，行就要矮回去了。

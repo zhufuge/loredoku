@@ -1,16 +1,11 @@
-import type {
-  GameToolIconKind,
-  Theme,
-  ThemeDeploymentSummary,
-  ThemeOption,
-} from '@loredoku/shared';
+import type { GameToolIconKind, Theme, ThemeOption } from '@loredoku/shared';
 import { ApiError, apiClient, apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 /**
  * v0.8.0（docs/v0.8.0.md §7 / §19）—— 主题只提供「边界本身」的接口；内容仍然住在
  * `/assets` `/maps` `/characters` `/puzzles` 下（带 `?themeCode=`）。
  *
- * **主题的一切寻址都用编码**：`detail` / `update` / `remove` / `deploy` / `bundle`
+ * **主题的一切寻址都用编码**：`detail` / `update` / `remove` / `bundle`
  * 都收 `code`。理由与地址里那一段相同 —— `code` 才是能进 URL、进 manifest、
  * 将来能拿去对账的那个字符串；数字主键只在服务端内部流通。
  *
@@ -26,13 +21,6 @@ export interface UpdateThemePayload {
   name?: string;
   description?: string | null;
   data?: Record<string, unknown>;
-}
-
-export interface DeployThemePayload {
-  slug: string;
-  name?: string;
-  description?: string | null;
-  puzzleIds?: number[];
 }
 
 export const themesApi = {
@@ -76,13 +64,18 @@ export const themesApi = {
   removeToolIcon: (code: string, icon: GameToolIconKind) =>
     apiDelete<Theme>(`/themes/${code}/tool-icons/${icon}`),
 
-  // ---- 合辑 ----
-  deployments: () => apiGet<ThemeDeploymentSummary[]>('/theme-deployments'),
-  deploymentBySlug: (slug: string) =>
-    apiGet<ThemeDeploymentSummary>(`/theme-deployments/by-slug/${slug}`),
-  deploy: (code: string, payload: DeployThemePayload) =>
-    apiPost<ThemeDeploymentSummary>(`/themes/${code}/deploy`, payload),
-  removeDeployment: (id: number) => apiDelete<null>(`/theme-deployments/${id}`),
+  /**
+   * v0.9.2 §2 —— 长按放置参与者时那圈**计时环**的图，**即时保存**。
+   *
+   * 与禁止符号同一种「读取时兜底」：上传即覆盖、移除即回到内置白弧。只有一张，
+   * 所以地址里没有 `:kind` 那一段。
+   */
+  uploadPressRing: (code: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<Theme>(`/themes/${code}/press-ring`, form);
+  },
+  removePressRing: (code: string) => apiDelete<Theme>(`/themes/${code}/press-ring`),
 };
 
 /**

@@ -35,6 +35,9 @@ const removeForbiddenMutate = vi.fn(() => Promise.resolve());
 /** v0.8.7 §7：三枚工具图标的上传参数是 `{ icon, file }`。 */
 const uploadToolIconMutate = vi.fn((_payload: unknown) => Promise.resolve());
 const removeToolIconMutate = vi.fn((_icon: unknown) => Promise.resolve());
+/** v0.9.2 §2：计时环只有一张，上传收 `File`、移除不收参数。 */
+const uploadPressRingMutate = vi.fn((_file: File) => Promise.resolve());
+const removePressRingMutate = vi.fn(() => Promise.resolve());
 
 vi.mock('@/components/layout/WorkspaceContext', () => ({
   useWorkspace: () => workspaceRef.value,
@@ -47,6 +50,9 @@ vi.mock('@/hooks/useThemes', () => ({
   /** v0.8.7 §7：工具按钮图标卡片的三枚各自上传 / 移除，这里只需要「没在忙」。 */
   useUploadThemeToolIcon: () => ({ mutate: uploadToolIconMutate, isPending: false }),
   useRemoveThemeToolIcon: () => ({ mutate: removeToolIconMutate, isPending: false, variables: undefined }),
+  /** v0.9.2 §2：长按计时环那一张，只有上传 / 移除两个动作。 */
+  useUploadThemePressRing: () => ({ mutate: uploadPressRingMutate, isPending: false }),
+  useRemoveThemePressRing: () => ({ mutate: removePressRingMutate, isPending: false }),
 }));
 
 describe('ThemeOverviewPage（v0.8.3）', () => {
@@ -94,6 +100,8 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     removeForbiddenMutate.mockClear();
     uploadToolIconMutate.mockClear();
     removeToolIconMutate.mockClear();
+    uploadPressRingMutate.mockClear();
+    removePressRingMutate.mockClear();
     document.body.innerHTML = '';
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -274,6 +282,31 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     // 上传不等于「编辑后保存」：页面不该顺带调用主题更新。
     expect(updateMutate).not.toHaveBeenCalled();
     expect(removeForbiddenMutate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * v0.9.2 §2：长按计时环那张图 —— 与禁止符号同一条「上传即保存」。
+   *
+   * 这里钉三件事：没配时给「上传环图」入口、配了就渲染那张图的站内地址、
+   * 点「移除」直接发请求（不回落到「编辑 → 保存」）。
+   */
+  it('长按计时环：没配给上传入口，配了渲染那张图，移除直接发请求', () => {
+    render();
+    expect(button('上传环图')).toBeDefined();
+    expect(document.querySelector('img[alt="长按计时环"]')).toBeNull();
+
+    render({
+      ...themeRef,
+      data: { version: 1, pressRing: { path: 'themes/3/press-ring/ring.webp' } },
+    });
+
+    const image = document.querySelector<HTMLImageElement>('img[alt="长按计时环"]');
+    expect(image?.getAttribute('src')).toBe('/api/files/themes/3/press-ring/ring.webp');
+    expect(button('上传环图')).toBeUndefined();
+
+    act(() => button('移除')?.click());
+    expect(removePressRingMutate).toHaveBeenCalledTimes(1);
+    expect(updateMutate).not.toHaveBeenCalled();
   });
 
   it('主题里还有东西时「删除」不可点 —— 先把数量说清楚再拦', () => {

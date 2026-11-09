@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
+  GAME_CLEAR_LONG_PRESS_MS,
   GAME_LONG_PRESS_MS,
   GAME_PRESS_RING_DELAY_MS,
   MAP_LAYER_Z,
@@ -17,7 +18,7 @@ import {
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
-import { PressRing } from '@/components/common/PressRing';
+import { PressSweep } from '@/components/common/PressSweep';
 import {
   Dialog,
   DialogContent,
@@ -70,6 +71,7 @@ import {
   writeGameTimer,
 } from '@/lib/gameTimer';
 import { resolveForbiddenSymbolImage } from '@/lib/forbiddenSymbol';
+import { resolvePressRing } from '@/lib/pressRing';
 import { TOOL_ICON_FALLBACKS, resolveToolIcons, type ToolIconRender } from '@/lib/toolIcons';
 import { rosterPanelWidthFor } from '@/lib/participantLayout';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
@@ -160,7 +162,8 @@ function GameToolIcon({
   /**
    * v0.9.0 §17：四枚工具按钮的图标统一放大到 32px（`h-8 w-8`）。内置图标与作者
    * 上传的图**共用这一处尺寸** —— 否则「配了图反而变小」会像是上传坏了。
-   * 按钮仍是 48px 触屏档，图标四周各留 8px，长按那圈进度环也还画得下。
+   * 按钮仍是 48px 触屏档，图标四周各留 8px；长按清除的那道扇形是填在按钮
+   * 底下的（v0.9.2 §5），不与图标抢地方。
    */
   if (!render) {
     const Fallback = TOOL_ICON_FALLBACKS[name];
@@ -209,30 +212,15 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    * OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
    *
    * v0.9.0 §3：播放器的路由参数叫 `key`（`/loredoku/:code/play/:key`），工坊叫
-   * `slug`；主题那一段在工坊是部署 slug（`themeSlug`）。
-   * 两个入口共用一个组件，参数名就都收在这里，别处只认 `slug` / `themeQuery`。
-   */
-  const params = useParams<{ slug?: string; key?: string; themeSlug?: string; code?: string }>();
-  const slug = (params.slug ?? params.key) || null;
-  /**
-   * 顶栏那行「从哪个主题进来」—— 只有工坊的 `/play/theme/:slug/:key` 才带
-   * `themeSlug`，那一支才显示主题名链接。播放器（`/loredoku/:code/play/:key`）和
-   * 工坊从 `/play` 单局进来的都没有 `themeSlug`，于是走 `else` 分支画 `BrandLogo`、
-   * 返回游戏列表。
+   * `slug`。两个入口共用一个组件，参数名就都收在这里，别处只认 `slug`。
    *
-   * 这正是「player 也和原页面一样用 loredoku」那条（v0.9.0 §18）：主题编码只用来
-   * 绑包，不该出现在顶栏 —— 之前写成 `?? params.code` 会让播放器在返回箭头后面露出
-   * 主题名，与工坊单局入口（BrandLogo）不一致。
+   * v0.9.2：合辑（`/play/theme/:themeSlug/:slug`）连同 `theme_deployments` 两张表
+   * 一起删了，于是这里不再有「从哪个主题进来」这一档 —— 顶栏恒为 `loredoku` 与
+   * 「返回游戏列表」，与播放器、工坊单局入口三处一致。
    */
-  const themeRef = params.themeSlug ?? null;
+  const params = useParams<{ slug?: string; key?: string; code?: string }>();
+  const slug = (params.slug ?? params.key) || null;
   const navigate = useNavigate();
-  /**
-   * v0.8.0（docs/v0.8.0.md §16.6）：从合辑进来时（`/play/theme/:slug/:key`），
-   * 左栏顶部要给一个**回到那个主题**的入口 —— 只靠浏览器返回，玩家玩到第 3 关
-   * 就已经不知道自己是从哪一串里进来的了。从单局入口进来时这里什么也不出现：
-   * 它表示「你从哪来」，不是装饰。
-   */
-  const themeQuery = source.useTheme(themeRef);
 
   const gameQuery = source.useGame(slug);
   /**
@@ -425,6 +413,15 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
         source.themeToolIcons(detail?.themeCode),
         source.fileUrl,
       ),
+    [detail, source],
+  );
+
+  /**
+   * v0.9.2 §2：长按放置参与者时那圈计时环画什么 —— 作者在主题里配了图就画那张，
+   * 没配就是内置白弧。只有主题一档：环属于「这个世界的操作手感」，不是某一关的内容。
+   */
+  const pressRingImage = useMemo(
+    () => resolvePressRing(source.themePressRing(detail?.themeCode), source.fileUrl),
     [detail, source],
   );
 
@@ -1151,7 +1148,9 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
       setClearPress(null);
       applyMode({ kind: 'clearing' });
       updatePlacement(clearAll);
-    }, GAME_LONG_PRESS_MS);
+      // v0.9.2 §3：清空是「整盘抹掉」，比棋格的 500ms 更长（800ms）——
+      // 两者后果不是一个量级，触发阈值也不该一样轻。
+    }, GAME_CLEAR_LONG_PRESS_MS);
     clearPressRef.current = press;
   };
 
@@ -1226,22 +1225,12 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               <IconButton
                 variant="ghost"
                 icon={<ArrowLeft className="h-4 w-4" />}
-                label={themeRef ? '返回主题' : '返回游戏列表'}
+                label="返回游戏列表"
                 side="right"
                 className={TOOLBAR_ICON_HOVER_CLASS}
-                onClick={() => navigate(themeRef ? source.themeHref(themeRef) : source.listHref())}
+                onClick={() => navigate(source.listHref())}
               />
-              {themeRef ? (
-                <Link
-                  to={source.themeHref(themeRef)}
-                  className="min-w-0 truncate text-xs text-muted-foreground hover:text-foreground"
-                  title="回到这个主题"
-                >
-                  {themeQuery.data?.name ?? '主题'}
-                </Link>
-              ) : (
-                <BrandLogo height={16} />
-              )}
+              <BrandLogo height={16} />
               {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
               <ThemeToggle className="ml-auto" />
             </div>
@@ -1523,6 +1512,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               cellSize={cellSize}
               durationMs={GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
               seq={pressCell?.seq ?? 0}
+              imageUrl={pressRingImage}
             />
 
             {/* 层 5 · 游戏放置层 — SPEC-G01 */}
@@ -1628,23 +1618,27 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
             onPointerUp={endClearPress}
             onPointerLeave={endClearPress}
           >
-            <GameToolIcon render={toolIcons.clear} name="clear" />
             {/*
-             * v0.7.11：长按 500ms 清空全部 —— 与棋格长按画同一圈进度环。
-             * 两个长按此前都没有过程反馈，用户只能猜「按住够不够久」；
-             * 一致的环让「按住 500ms」这件事在界面上只有一种样子。
+             * v0.9.2 §3：长按 800ms 清空全部 —— 进度画在**按钮方块之内**，
+             * 一个从 12 点开始扫的扇形，不再是棋格那圈细环。48px 的方块里
+             * 已经有 32px 的图标，环套上去会和图标抢地方。
+             *
+             * 时长必须跟着 `GAME_CLEAR_LONG_PRESS_MS` 走（不是棋格那个 500）：
+             * 扫满的那一帧就是清空发生的那一帧，各写一个数就会出现
+             * 「扫满了还没清」或者「清完了还在扫」。
+             *
+             * 顺序要紧：扇形是绝对定位的，会盖在普通流内容之上；图标包一层
+             * `relative` 才是「填色在图标后面」这一层关系。
              */}
             {clearPress !== null ? (
-              <PressRing
-                size={40}
-                durationMs={GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
+              <PressSweep
+                durationMs={GAME_CLEAR_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
                 seq={`clear-${clearPress}`}
-                strokeWidth={2.5}
-                radiusRatio={0.46}
-                color="hsl(var(--primary))"
-                className="left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2"
               />
             ) : null}
+            <span className="relative">
+              <GameToolIcon render={toolIcons.clear} name="clear" />
+            </span>
           </Button>
           {/*
             * v0.9.1 §1：不可回退时按钮 `disabled`，而基类的

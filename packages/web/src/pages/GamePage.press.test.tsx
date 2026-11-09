@@ -10,7 +10,7 @@ import ApiGamePage from './ApiGamePage';
 /**
  * v0.7.11：长按的过程可见化 + 按住滑动连续操作。
  *
- * 棋格上按住 500ms 放头像（SPEC-J02）、清除按钮上按住 500ms 清空全部
+ * 棋格上按住 500ms 放头像（SPEC-J02）、清除按钮上按住 800ms 清空全部（v0.9.2 §3）
  * （SPEC-G04）—— 这两个手势此前只有结果、没有过程。这一轮给它们同一圈进度环，
  * 并且环**延迟 160ms** 才出现：单点根本不会长按，之前它却会在按下的第一帧就闪
  * 出来，那是在预告一件不会发生的事。
@@ -19,11 +19,12 @@ import ApiGamePage from './ApiGamePage';
  *   1. 单点不闪环；按住过了 160ms，环才出现；抬手，环消失；
  *   2. 按住到 500ms，头像落下（带落定动效）而环留到抬手；
  *   3. 被规则拒绝时环立刻收回 —— 不能让一个满环停在那里冒充「放好了」；
- *   4. 清除按钮的长按画的是同一圈环，不是另一套；
+ *   4. 清除按钮的长按**不**画环，而是在按钮方块里扫出一个扇形（v0.9.2 §5）；
  *   5. 按住滑过的格子都会落笔（放置 / 擦除），且抬手那一记 click 不会把最后一格
  *      再切换一次。
  *
- * 环的几何（周长、时长变量、12 点起点）在 `PressRing.test.tsx` 里单独钉。
+ * 环的几何（周长、时长变量、12 点起点）在 `PressRing.test.tsx` 里单独钉，
+ * 扇形的角度与时长变量在 `PressSweep.test.tsx` 里单独钉。
  */
 
 const GRID = 9;
@@ -67,15 +68,11 @@ vi.mock('@/hooks/useGames', () => ({
   useGameDetail: () => ({ data: fixture.detail, isLoading: false, isError: false }),
 }));
 vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
-/**
- * v0.8.0 §16.6：从合辑进来时左栏要显示主题名。这套测试没有
- * `QueryClientProvider`（也不需要），所以把它 mock 成「没有合辑上下文」——
- * 也就是单局入口那条路径，返回入口根本不该出现。
- */
 vi.mock('@/hooks/useThemes', () => ({
-  useThemeDeploymentBySlug: () => ({ data: undefined }),
   // v0.8.7 §4：禁止符号「谜题 → 主题 → ×」的第二档。这一套不测它，返回「主题没配」。
   useForbiddenSymbolByCode: () => () => null,
+  // v0.9.2 §2：计时环的图 —— 这一套不测它，主题当作「没配」。
+  usePressRingByCode: () => () => null,
   // v0.8.7 §7：这一套不测工具图标，主题那一套一律当作「没配」。
   useToolIconsByCode: () => () => null,
 }));
@@ -234,6 +231,11 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
 
   function ring(): Element | null {
     return container.querySelector('.press-ring-arc');
+  }
+
+  /** v0.9.2 §5：清除按钮长按时那块扇形（按钮自己的进度反馈，不是棋格那圈环）。 */
+  function sweep(): Element | null {
+    return container.querySelector('.press-sweep');
   }
 
   function seedSave(payload: Record<string, unknown>): void {
@@ -518,7 +520,21 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     expect(savedBoard()).toEqual({ '2,2': { kind: 'forbidden' } });
   });
 
-  it('清除按钮的长按画的是同一圈环', async () => {
+  /**
+   * v0.9.2 §5：清除按钮的长按不再画环，改成**按钮方块内的扇形扫描**。
+   * 这里钉的是同一套时序（延迟 160ms 才出现、抬手即消失），只把观察对象
+   * 从 `.press-ring-arc` 换成 `.press-sweep` —— 环的几何归 `PressRing.test.tsx`，
+   * 扇形的几何归 `PressSweep.test.tsx`。
+   */
+  /**
+   * v0.9.2 §3：「清空全部」的阈值比棋格长（800 vs 500）。
+   *
+   * 两个长按的后果不是一个量级 —— 放错一位撤销一步就回来了，清空是整盘抹掉。
+   * 所以钉的是**时间差**本身：过了棋格那个 500ms 还不能触发，扇形还在扫；
+   * 到 800ms 才清，而且清的那一刻扇形已经收掉（不能停在满格上冒充还在按）。
+   */
+  it('清空全部按 800ms 才算，比棋格的 500ms 长', async () => {
+    seedSave({ board: { '0,0': { kind: 'participant', index: 1 } } });
     render();
     sizeCanvas();
 
@@ -530,15 +546,45 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     act(() => {
       button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
     });
-    // 与棋格同一个延迟 —— 单点只是切换工具，不该闪一圈。
-    expect(ring()).toBeNull();
 
-    await wait(200);
-    expect(ring()).not.toBeNull();
+    // 棋格在这一刻早就落子了；清空必须还没发生。
+    await wait(560);
+    expect(savedBoard()).toEqual({ '0,0': { kind: 'participant', index: 1 } });
+    expect(sweep()).not.toBeNull();
+
+    await wait(320);
+    expect(savedBoard()).toEqual({});
+    expect(sweep()).toBeNull();
 
     act(() => {
       button.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
     });
+  });
+
+  it('清除按钮的长按在方块里扫出一个扇形', async () => {
+    render();
+    sizeCanvas();
+
+    const button = Array.from(container.querySelectorAll('button')).find((node) =>
+      node.getAttribute('title')?.startsWith('清除放置'),
+    );
+    if (!button) throw new Error('清除按钮没渲染出来');
+
+    act(() => {
+      button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+    });
+    // 与棋格同一个延迟 —— 单点只是切换工具，不该闪一下。
+    expect(sweep()).toBeNull();
+    // 棋格那圈环不该被这里顺手画出来：这是两种反馈，不能混。
     expect(ring()).toBeNull();
+
+    await wait(200);
+    expect(sweep()).not.toBeNull();
+    expect(ring()).toBeNull();
+
+    act(() => {
+      button.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
+    });
+    expect(sweep()).toBeNull();
   });
 });

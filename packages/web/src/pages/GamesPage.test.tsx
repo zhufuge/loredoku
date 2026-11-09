@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MapGameSummary, ThemeDeploymentSummary, ThemeDifficultyTier } from '@loredoku/shared';
+import type { MapGameSummary, ThemeDifficultyTier } from '@loredoku/shared';
 import { GamesPage } from './GamesPage';
 
 /**
@@ -21,18 +21,12 @@ const gamesRef: { data: MapGameSummary[]; isLoading: boolean; error: null; refet
   error: null,
   refetch: () => undefined,
 };
-const deploymentsRef: { data: ThemeDeploymentSummary[]; isLoading: boolean; error: null } = {
-  data: [],
-  isLoading: false,
-  error: null,
-};
 
 /** `themeCode → 分级`，由各用例自己摆。 */
 const tiersByCode = new Map<string, readonly ThemeDifficultyTier[]>();
 
 vi.mock('@/hooks/useGames', () => ({ useGames: () => gamesRef }));
 vi.mock('@/hooks/useThemes', () => ({
-  useThemeDeployments: () => deploymentsRef,
   useDifficultyTiersByCode: () => (code: string | null | undefined) =>
     code ? tiersByCode.get(code) : undefined,
 }));
@@ -91,7 +85,6 @@ describe('GamesPage', () => {
     // `workshopPath` 靠这个记住的工作空间拼地址（没有它只会回 `/`）。
     window.localStorage.setItem('loredoku.lastTheme', 'hlm');
     gamesRef.data = [];
-    deploymentsRef.data = [];
     tiersByCode.clear();
     mount();
   });

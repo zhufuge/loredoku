@@ -728,6 +728,16 @@ export interface ThemeData {
    */
   toolIcons?: GameToolIcons | null;
   /**
+   * v0.9.2（docs/v0.9.2.md §2）：长按放置参与者时那圈**计时环**的图。
+   *
+   * 与 `forbiddenSymbol` / `toolIcons` 同一条规矩：**读取时**兜底，不是「新建时
+   * 拷一份」。换一张图，所有关卡下次打开就是新的，已发布的也一样。
+   *
+   * 缺失 / `null` = 画内置的那圈白弧（v0.7.11 的样式）。图只换**样子**，进度仍
+   * 按长按时长顺时针填满 —— 环回答的是「还要按多久」，不能因为换成插画就没了刻度。
+   */
+  pressRing?: ForbiddenSymbolImage | null;
+  /**
    * v0.8.3：这个空间的**难度分级**。
    *
    * 缺省（`undefined`）= 内置五档（极简 / 简单 / 中等 / 困难 / 专家）。给了就用
@@ -814,32 +824,4 @@ export interface Theme {
 export interface ThemeOption {
   code: string;
   name: string;
-}
-
-/** 合辑里的一关：成员挂 `puzzle_id`，`game` 是它此刻活跃的那条部署（可能没有）。 */
-export interface ThemeDeploymentEntry {
-  puzzleId: number;
-  puzzleName: string;
-  sortOrder: number;
-  /** `null` = 这一关撤了部署。玩家页据此把它从列表里去掉，成员行仍然留着。 */
-  game: MapGameSummary | null;
-}
-
-/**
- * 主题合辑（docs/v0.8.0.md §9）。**它是目录，不是内容**：成员指向已有的谜题版本行，
- * 所以「冻结」仍然只有一处真相。`games` 只放还有活跃部署的成员，按 `sortOrder` 排好。
- */
-export interface ThemeDeploymentSummary {
-  /** 合辑自己的 id（不等于主题 id）；下线 / 改名走 `/api/theme-deployments/:id`。 */
-  id: number;
-  /** 它属于哪个主题 —— 编码（§19），与 `/api/themes/:code` 同一套说法。 */
-  themeCode: string;
-  themeName: string;
-  slug: string;
-  name: string;
-  description: string | null;
-  coverUrl: string | null;
-  entries: ThemeDeploymentEntry[];
-  createdAt: string;
-  updatedAt: string;
 }

@@ -12,6 +12,20 @@ import { NotFoundPage } from '@/pages/NotFoundPage';
  * 记不住（换了浏览器、清了存储）就去挑主题的入口，地图 id 保不住 —— 宁可
  * 多一跳，也不编一个不存在的编码出来。
  */
+/**
+ * v0.9.2：合辑删掉之后，`/play/theme/:slug`（合辑页）与 `/play/theme/:slug/:key`
+ * （合辑里的一关）都不存在了。这两条地址却可能是玩家收藏过的，直接删会让它们
+ * 匹配到 `/play/:slug` 里、把 `theme` 当成一个游戏 —— 所以留两条重定向：
+ *
+ * - 合辑页 → `/play`（单局列表里仍然有那几关）；
+ * - 合辑里的一关 → `/play/:key`（**存档键一直是游戏 slug，进度不丢**）。
+ */
+function PlayThemeLegacyRedirect({ to }: { to: 'list' | 'game' }): JSX.Element {
+  const params = useParams<{ slug?: string }>();
+  const target = to === 'game' && params.slug ? `/play/${params.slug}` : '/play';
+  return <Navigate to={target} replace />;
+}
+
 function FullscreenLegacyRedirect({
   kind,
   view,
@@ -92,11 +106,6 @@ const GamePage = lazyPage(
 );
 const GamesPage = lazyPage(() =>
   import('@/pages/GamesPage').then((m) => ({ default: m.GamesPage })),
-);
-// v0.8.0 §10：主题播放页 —— 玩家从 `/play` 的大卡进来，挑一关。
-const ThemePlayPage = lazyPage(
-  () => import('@/pages/ThemePlayPage').then((m) => ({ default: m.ThemePlayPage })),
-  screenFallback('正在加载主题…'),
 );
 const AssetsPage = lazyPage(() => import('@/pages/AssetsPage').then((m) => ({ default: m.AssetsPage })));
 const MapViewPage = lazyPage(
@@ -203,13 +212,9 @@ export const routes: RouteObject[] = [
   { path: '/puzzles/:puzzleId/view', element: <FullscreenLegacyRedirect kind="puzzle" view /> },
   { path: '/play', element: <GamesPage /> },
   { path: '/play/:slug', element: <GamePage /> },
-  /**
-   * v0.8.0 §16.6：主题里的那一关走这条地址（`key` = 游戏的 slug），游戏页据此
-   * 给出「回到红楼梦」的入口。**存档键仍是游戏的 slug**（§10），两条路玩同一关
-   * 是同一份进度 —— 路由参数只用于寻址。
-   */
-  { path: '/play/theme/:themeSlug', element: <ThemePlayPage /> },
-  { path: '/play/theme/:themeSlug/:slug', element: <GamePage /> },
+  /** v0.9.2：合辑的两条旧地址改成重定向（见 `PlayThemeLegacyRedirect`）。 */
+  { path: '/play/theme/:themeSlug', element: <PlayThemeLegacyRedirect to="list" /> },
+  { path: '/play/theme/:themeSlug/:slug', element: <PlayThemeLegacyRedirect to="game" /> },
 ];
 
 export const router = createBrowserRouter(routes);

@@ -1,17 +1,11 @@
 import type { Knex } from 'knex';
 import { db } from '../db/knex';
-import { buildFileUrl } from '../utils/paths';
-import * as gameRepo from './gameRepository';
 import type {
   Theme,
   ThemeCounts,
   ThemeData,
-  ThemeDeploymentEntry,
-  ThemeDeploymentSummary,
   ThemeOption,
   ThemeRow,
-  ThemeDeploymentRow,
-  MapGameSummary,
 } from '@loredoku/shared';
 import { THEME_DATA_VERSION } from '@loredoku/shared';
 
@@ -211,165 +205,6 @@ export async function themeIdsOf(
   return new Map(rows.map((row) => [Number(row.id), Number(row.theme_id)]));
 }
 
-// ---- 主题合辑（§9） ----
-
-function toDeployment(
-  row: ThemeDeploymentRow,
-  themeCode: string,
-  themeName: string,
-  entries: ThemeDeploymentEntry[],
-): ThemeDeploymentSummary {
-  return {
-    id: Number(row.id),
-    themeCode,
-    themeName,
-    slug: row.slug,
-    name: row.name,
-    description: row.description,
-    coverUrl: row.cover_path ? buildFileUrl(row.cover_path) : null,
-    entries,
-    createdAt: new Date(row.created_at).toISOString(),
-    updatedAt: new Date(row.updated_at).toISOString(),
-  };
-}
-
-export async function findDeploymentBySlug(slug: string): Promise<ThemeDeploymentRow | undefined> {
-  return db<ThemeDeploymentRow>('theme_deployments').where({ slug }).first();
-}
-
-export async function findDeploymentByTheme(
-  themeId: number,
-): Promise<ThemeDeploymentRow | undefined> {
-  return db<ThemeDeploymentRow>('theme_deployments').where({ theme_id: themeId }).first();
-}
-
-/** 合辑成员的解析：成员行 + 该谜题的**活跃**游戏（没有就说明这关撤了，§9）。 */
-async function deploymentEntries(deploymentId: number): Promise<ThemeDeploymentEntry[]> {
-  const members = (await db('theme_deployment_puzzles')
-    .join('puzzles', 'puzzles.id', 'theme_deployment_puzzles.puzzle_id')
-    .where('theme_deployment_puzzles.deployment_id', deploymentId)
-    .whereNull('puzzles.deleted_at')
-    .orderBy('theme_deployment_puzzles.sort_order', 'asc')
-    .select(
-      'theme_deployment_puzzles.puzzle_id as puzzle_id',
-      'theme_deployment_puzzles.sort_order as sort_order',
-      'puzzles.name as puzzle_name',
-      'puzzles.root_id as root_id',
-    )) as Array<{
-    puzzle_id: string | number;
-    sort_order: number;
-    puzzle_name: string;
-    root_id: string | number;
-  }>;
-  if (members.length === 0) return [];
-
-  const puzzleIds = members.map((row) => Number(row.puzzle_id));
-  // 复用 `gameRepository.listGames()` 的映射：网格大小 / 难度 / 封面 / 参与者数
-  // 都要从谜题行派出来，自己再拼一遍就是第二个真源。
-  const allGames = await gameRepo.listGames();
-  const gameByPuzzle = new Map<number, MapGameSummary>();
-  for (const game of allGames) {
-    if (!puzzleIds.includes(game.puzzleId)) continue;
-    if (gameByPuzzle.has(game.puzzleId)) continue;
-    gameByPuzzle.set(game.puzzleId, game);
-  }
-
-  return members.map((row) => ({
-    puzzleId: Number(row.puzzle_id),
-    puzzleName: row.puzzle_name,
-    sortOrder: row.sort_order,
-    game: gameByPuzzle.get(Number(row.puzzle_id)) ?? null,
-  }));
-}
-
-export async function getDeployment(id: number): Promise<ThemeDeploymentSummary | undefined> {
-  const row = await db<ThemeDeploymentRow>('theme_deployments').where({ id }).first();
-  if (!row) return undefined;
-  const theme = await db<ThemeRow>('themes').where({ id: row.theme_id }).first();
-  return toDeployment(
-    row,
-    theme?.code ?? '',
-    theme?.name ?? '',
-    await deploymentEntries(Number(row.id)),
-  );
-}
-
-export async function listDeployments(): Promise<ThemeDeploymentSummary[]> {
-  const rows = (await db('theme_deployments')
-    .join('themes', 'themes.id', 'theme_deployments.theme_id')
-    // 与主题列表同一套顺序（§19）：先按主题创建顺序，再按合辑自己的顺序。
-    .orderBy([{ column: 'themes.id', order: 'asc' }, { column: 'theme_deployments.id', order: 'asc' }])
-    .select(
-      'theme_deployments.*',
-      'themes.code as theme_code',
-      'themes.name as theme_name',
-    )) as Array<ThemeDeploymentRow & { theme_code: string; theme_name: string }>;
-  const out: ThemeDeploymentSummary[] = [];
-  for (const row of rows) {
-    out.push(
-      toDeployment(row, row.theme_code, row.theme_name, await deploymentEntries(Number(row.id))),
-    );
-  }
-  return out;
-}
-
-export async function upsertDeployment(
-  trx: Knex.Transaction | Knex,
-  data: {
-    themeId: number;
-    slug: string;
-    name: string;
-    description: string | null;
-    puzzleIds: number[];
-  },
-): Promise<number> {
-  const existing = await trx<ThemeDeploymentRow>('theme_deployments')
-    .where({ theme_id: data.themeId })
-    .orWhere({ slug: data.slug })
-    .first();
-  let id: number;
-  if (existing) {
-    id = Number(existing.id);
-    await trx('theme_deployments')
-      .where({ id })
-      .update({
-        slug: data.slug,
-        name: data.name,
-        description: data.description,
-        updated_at: trx.fn.now(),
-      });
-  } else {
-    const [row] = (await trx('theme_deployments')
-      .insert({
-        theme_id: data.themeId,
-        slug: data.slug,
-        name: data.name,
-        description: data.description,
-      })
-      .returning('id')) as Array<{ id: string | number }>;
-    id = Number(row!.id);
-  }
-
-  // 成员整体重写（顺序就是作者给的顺序）。`puzzle_id` 不变，所以重新部署一关时
-  // 合辑自动指向新版本，不需要重建（§9）。
-  await trx('theme_deployment_puzzles').where({ deployment_id: id }).del();
-  if (data.puzzleIds.length > 0) {
-    await trx('theme_deployment_puzzles').insert(
-      data.puzzleIds.map((puzzleId, index) => ({
-        deployment_id: id,
-        puzzle_id: puzzleId,
-        sort_order: index,
-      })),
-    );
-  }
-  return id;
-}
-
-export async function deleteDeployment(id: number): Promise<boolean> {
-  const affected = await db('theme_deployments').where({ id }).del();
-  return affected > 0;
-}
-
 /** 体检报错要把 id 翻成人名；不存在的 id 不在返回里，调用方自己兜底成 `#id`。 */
 export async function namesByIds(
   table: 'assets' | 'characters',
@@ -396,45 +231,8 @@ export async function themesByIds(
   return new Map(rows.map((row) => [Number(row.id), { code: row.code, name: row.name }]));
 }
 
-/** `upsertDeployment` 既能在事务里跑，也能单独跑（部署是「先建游戏、再写目录」，不要求原子）。 */
+/** 事务句柄直接给 `db`：调用方要的多是「几条写一起提交」，这里不另开一层。 */
 export function tx(): Knex {
   return db;
 }
-
-/** 一键整主题部署的取材：每个谜题**血统**的最新已发布版本（§9）。 */
-export async function latestPublishedPerRoot(
-  themeId: number,
-): Promise<Array<{ puzzleId: number; name: string; slug: string | null }>> {
-  const rows = (await db('puzzles')
-    .where({ theme_id: themeId })
-    .whereNull('deleted_at')
-    .whereNot('version', 'draft')
-    .select('id', 'root_id', 'name', 'version')) as Array<{
-    id: string | number;
-    root_id: string | number;
-    name: string;
-    version: string;
-  }>;
-  const best = new Map<number, { puzzleId: number; name: string; versionNo: number }>();
-  for (const row of rows) {
-    const rootId = Number(row.root_id);
-    const versionNo = Number(row.version);
-    const current = best.get(rootId);
-    if (!current || versionNo > current.versionNo) {
-      best.set(rootId, { puzzleId: Number(row.id), name: row.name, versionNo });
-    }
-  }
-  const games = await db('games').whereNull('deleted_at').select('puzzle_id', 'slug');
-  const slugByPuzzle = new Map(
-    (games as Array<{ puzzle_id: string | number; slug: string }>).map((row) => [
-      Number(row.puzzle_id),
-      row.slug,
-    ]),
-  );
-  return [...best.values()].map((entry) => ({
-    puzzleId: entry.puzzleId,
-    name: entry.name,
-    // 已经部署过的关沿用原路径：中文关名推不出 slug（`buildDefaultSlug` 返回空串）。
-    slug: slugByPuzzle.get(entry.puzzleId) ?? null,
-  }));
-}
+

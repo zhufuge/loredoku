@@ -1030,6 +1030,20 @@ export const GAME_TOOL_HINT_ERASER_COLOR = '#374151';
 
 /** SPEC-G04: long-pressing the clear button wipes the whole board. */
 export const GAME_LONG_PRESS_MS = 500;
+
+/**
+ * v0.9.2 §3：「长按清空全部」的阈值 —— **500 → 800ms**，比棋格的 500 更长。
+ *
+ * 两个长按的后果不是一个量级：棋格长按是「把这一位放到这一格」，放错了撤销一步
+ * 就回来了；清除按钮长按是把**整盘放置一次抹掉**，虽然也能回退，但那是全盘消失
+ * 再回来，读起来像丢过东西。同一个 500ms 让这两件事的手感一样轻，而后者明显
+ * 该更「难触发」一点。
+ *
+ * 只加长清除这一枚：棋格那边仍是 {@link GAME_LONG_PRESS_MS}。两个数各管一件事，
+ * 别再合并回去 —— 合并那天一定会有人为了让清空更安全而顺带把放置也拖慢。
+ */
+export const GAME_CLEAR_LONG_PRESS_MS = 800;
+
 /**
  * v0.7.11：长按进度环的**出场延迟**。
  *
@@ -1038,7 +1052,8 @@ export const GAME_LONG_PRESS_MS = 500;
  * 挂载，单点（绝大多数点击都在 120ms 内抬手）就什么都看不见。
  *
  * 环因此只画**剩下的** `GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS`，
- * 画满的那一帧仍是动作发生的那一帧（见 `PressRing`）。
+ * 画满的那一帧仍是动作发生的那一帧（见 `PressRing`）。清除按钮用的是同一个
+ * 延迟，只是总长换成 `GAME_CLEAR_LONG_PRESS_MS`（v0.9.2 §3）。
  */
 export const GAME_PRESS_RING_DELAY_MS = 160;
 /** SPEC-G04: the undo stack keeps at most this many placement steps. */

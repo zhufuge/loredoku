@@ -2,6 +2,7 @@ import { BUNDLE_FORMAT, BUNDLE_FORMAT_VERSION } from './constants';
 import type {
   Asset,
   Character,
+  ForbiddenSymbolImage,
   GameDifficulty,
   MapDraft,
   MapGameSummary,
@@ -196,6 +197,16 @@ export interface BundleManifestTheme {
   name: string;
   description: string | null;
   difficultyLevels?: readonly ThemeDifficultyTier[];
+  /**
+   * v0.9.2 §2：长按计时环那张图（主题级，所有关卡共用一张）。
+   *
+   * 放在 manifest 而不是逐关复制：同一张图进 8 份没有意义，而播放器进列表页时
+   * 已经读了 manifest，顺手就能拿到。`path` 是**包内相对路径**
+   * （`files/ring/press-ring.webp`），由播放器拼到包根。
+   *
+   * 可选：没配过环的主题没有这个键，播放器画内置白弧。
+   */
+  pressRing?: ForbiddenSymbolImage | null;
 }
 
 export interface BundleManifest {
@@ -243,6 +254,8 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
       ...(input.theme.difficultyLevels
         ? { difficultyLevels: input.theme.difficultyLevels }
         : {}),
+      // v0.9.2 §2：同一条「没配就不写键」—— 计时环是可选装饰。
+      ...(input.theme.pressRing ? { pressRing: input.theme.pressRing } : {}),
     },
     games: input.games,
     assets: 'assets.json',

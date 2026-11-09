@@ -2686,10 +2686,10 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
  *
  * 以前是软删：行还在、`themes.code`（普通 UNIQUE）仍被占着，同编码重建只能撞唯一
  * 约束 —— 接口回的是 500「服务器内部错误」。四条用例各钉一件事：编码释放、数量
- * 护栏、合辑护栏、软删子行（外键）不挡路。
+ * 护栏、软删子行（外键）不挡路。
  */
 describe('删除主题是硬删 (v0.8.3 §15)', () => {
-  /** 用例自己建的主题：跑完一律物理清掉（合辑 / 游戏的外键也由它一并处理）。 */
+  /** 用例自己建的主题：跑完一律物理清掉（游戏 / 谜题的外键也由它一并处理）。 */
   const createdThemes: string[] = [];
 
   afterEach(async () => {
@@ -2744,20 +2744,6 @@ describe('删除主题是硬删 (v0.8.3 §15)', () => {
     expect(res.body.message).toContain('1 个资源');
     // 拦住了就什么都没动。
     expect((await api.get(`/api/themes/${code}`)).status).toBe(200);
-  });
-
-  it('主题下还有合辑时拒绝 —— 合辑不在卡片计数里，得单独点名', async () => {
-    const code = await newTheme('collect', '合辑测试');
-    await deployableIn(code, `合辑 ${uniqueCode('m')}`);
-    const deployed = await api
-      .post(`/api/themes/${code}/deploy`)
-      .send({ slug: uniqueSlug('collect'), name: '合辑' });
-    expect(deployed.status).toBe(200);
-
-    const res = await api.delete(`/api/themes/${code}`);
-    expect(res.status).toBe(409);
-    // 卡片上此时还有「1 个谜题」，但先说话的是合辑 —— 它是外键那一道。
-    expect(res.body.message).toContain('合辑');
   });
 
   it('只剩软删的地图 / 谜题 / 游戏行时，仍然删得掉', async () => {

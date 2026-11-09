@@ -49,6 +49,21 @@
 }
 
 /*
+ * 按钮内扇形扫描的角度（v0.9.2 §5，用法见 `.press-sweep`）。
+ *
+ * 和上面几条同一个理由：`conic-gradient` 的止点用的是一个自定义属性，不注册
+ * 就只是一串 token，浏览器不会插值 —— 关键帧写了也只会在终点跳一下。注册成
+ * `<angle>` 之后它才是能补间的角度，扇形才会一帧一帧地长出来。
+ *
+ * 初值给 0deg：未注册 / 没跑到动画时扫过的面积为零，也就是「什么都不显示」。
+ */
+@property --press-sweep-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/*
  * 调色板（v0.7.8）：墨 · 宣 · 靛 · 绛
  *
  * 上一版是 shadcn 默认的冷蓝 SaaS 值（中性色落在 210–217 冷灰，primary 是
@@ -482,6 +497,36 @@
     }
     to {
       stroke-dashoffset: 0;
+    }
+  }
+
+  /*
+   * 按钮内的扇形扫描（v0.9.2 §5，`components/common/PressSweep.tsx`）。
+   *
+   * 清除按钮的长按此前和棋格共用同一圈细环。但那枚按钮只有 48px 高，环画在
+   * 40px 的方框里，和 32px 的图标抢同一块地方 —— 环一出来，图标就被一圈线
+   * 圈住，读成「这个图标坏了」。改成往**按钮自己的方块**里填：扇形从 12 点
+   * 开始顺时针扫，扫满才执行，索引和「还要按多久」一点没丢，却不再和图标重叠。
+   *
+   * 扫过的面积靠 `--press-sweep-angle` 从 0 推到 360，`conic-gradient` 按它
+   * 切一刀。这条属性注册成 `<angle>` 才能补间（见文件顶部的 `@property`）。
+   *
+   * 与环的差别要说清楚：环动的是 SVG 呈现属性，跑在合成线程上；这里每一帧都要
+   * 重画那张渐变，是**主线程**的活。代价可以接受 —— 方块不到 100×48，渐变只有
+   * 两个色标，且只在按住的这 340ms 里存在（抬手即卸载）。
+   *
+   * 时长同样必须 `linear`：它是倒计时，缓动会骗人。
+   */
+  .press-sweep {
+    animation: press-sweep-fill var(--press-sweep-duration, 500ms) linear forwards;
+  }
+
+  @keyframes press-sweep-fill {
+    from {
+      --press-sweep-angle: 0deg;
+    }
+    to {
+      --press-sweep-angle: 360deg;
     }
   }
 
@@ -1191,6 +1236,15 @@ html[data-theme-transition] *::after {
    */
   .press-ring-arc {
     animation-duration: var(--press-ring-duration, 500ms) !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  /*
+   * v0.9.2 §5：清除按钮的扇形扫描同理 —— 它是那里唯一的进度反馈，压到
+   * 0.01ms 会让方块一按就整块填满，用户以为按一下就够了。
+   */
+  .press-sweep {
+    animation-duration: var(--press-sweep-duration, 500ms) !important;
     animation-iteration-count: 1 !important;
   }
 

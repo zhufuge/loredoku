@@ -185,3 +185,28 @@ describe('themeDataSchema 的禁止符号缺省（v0.8.6 §4）', () => {
     }
   });
 });
+/**
+ * v0.9.2 §2：长按计时环那张图走的是「禁止符号」同一个形状 —— `{ path }` 或
+ * `null` / 缺省。`themeDataSchema` 是 `.strict()` 的，少写这一项会让作者
+ * 一上传就 400，所以这里把它钉住。
+ */
+describe('themeDataSchema.pressRing（v0.9.2）', () => {
+  it('缺省是 undefined，null 与 {path} 都收', () => {
+    expect(themeDataSchema.parse({ version: 1 }).pressRing).toBeUndefined();
+    expect(themeDataSchema.parse({ version: 1, pressRing: null }).pressRing).toBeNull();
+    expect(
+      themeDataSchema.parse({ version: 1, pressRing: { path: 'themes/1/press-ring/a.webp' } })
+        .pressRing,
+    ).toEqual({ path: 'themes/1/press-ring/a.webp' });
+  });
+
+  it('路径不能往上跳，形状必须只有 path', () => {
+    expect(
+      themeDataSchema.safeParse({ version: 1, pressRing: { path: '../etc/passwd' } }).success,
+    ).toBe(false);
+    expect(
+      themeDataSchema.safeParse({ version: 1, pressRing: { path: 'themes/1/a.webp', x: 1 } })
+        .success,
+    ).toBe(false);
+  });
+});

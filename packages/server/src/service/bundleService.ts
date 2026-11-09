@@ -163,6 +163,27 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
 
   if (problems.length > 0) throw incomplete(problems);
 
+  /**
+   * v0.9.2 §2：长按计时环那张图 —— 主题级、所有关卡共用一张，所以只装一份，
+   * 路径进 `manifest.theme.pressRing`。不逐关复制：同一张图进 8 份没有意义，
+   * 而播放器进列表页时已经读了 manifest。
+   */
+  const pressRingSource = themeData?.pressRing?.path ?? null;
+  let manifestPressRing: ForbiddenSymbolImage | null = null;
+  if (pressRingSource) {
+    const taken = await files.take(pressRingSource, `files/ring/press-ring${extension(pressRingSource)}`);
+    if (!taken) {
+      problems.push({
+        game: themeRow.name,
+        where: '计时环',
+        kind: 'file',
+        message: `图片 ${pressRingSource} 不在了`,
+      });
+      throw incomplete(problems);
+    }
+    manifestPressRing = { path: taken };
+  }
+
   const exportedAt = new Date().toISOString();
   const themeFile: BundleThemeFile = {
     code: themeRow.code,
@@ -182,6 +203,7 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
       name: themeRow.name,
       description: themeRow.description,
       ...(themeDifficultyLevels ? { difficultyLevels: themeDifficultyLevels } : {}),
+      ...(manifestPressRing ? { pressRing: manifestPressRing } : {}),
     },
     exportedAt,
     games: manifestGames,
@@ -236,6 +258,13 @@ export function zipStream(built: BuiltBundle): Readable {
 
 // ---- 取材 ----
 
+/**
+ * 取材：主题里所有已上线的关卡。
+ *
+ * v0.9.2：`orderByCollection` 没了 —— 合辑（`theme_deployments`）已被删除，包的
+ * 关卡顺序就是 `listGameRowsByTheme` 自己的那个顺序（`sort_weight` 升序、`slug`
+ * 兜底，v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
+ */
 async function takeGames(themeId: number): Promise<TakenGame[]> {
   const rows = await gameRepo.listGameRowsByTheme(themeId);
   if (rows.length === 0) {
@@ -243,8 +272,7 @@ async function takeGames(themeId: number): Promise<TakenGame[]> {
     throw AppError.validation('这个主题还没有上线的关卡，先至少上线一关');
   }
 
-  const ordered = await orderByCollection(themeId, rows);
-  return ordered.map((row) => {
+  return rows.map((row) => {
     const detail = gameRepo.toDetail(row);
     const puzzle: PuzzleDraft | null = detail.puzzle;
     if (!puzzle) {
@@ -254,29 +282,6 @@ async function takeGames(themeId: number): Promise<TakenGame[]> {
       row,
       input: { summary: gameRepo.toSummary(row), map: detail.map, puzzle },
     };
-  });
-}
-
-/**
- * 关卡顺序：有合辑就按合辑的 `sort_order`（那是作者给玩家排的阅读顺序），
- * 没进合辑的关排在后面，按部署时间倒序 —— 包不依赖合辑存在（§11.1）。
- */
-async function orderByCollection(
-  themeId: number,
-  rows: gameRepo.GameRowWithPuzzle[],
-): Promise<gameRepo.GameRowWithPuzzle[]> {
-  const head = await themeRepo.findDeploymentByTheme(themeId);
-  if (!head) return rows;
-  const deployment = await themeRepo.getDeployment(Number(head.id));
-  if (!deployment) return rows;
-
-  const order = new Map<number, number>();
-  for (const entry of deployment.entries) order.set(entry.puzzleId, entry.sortOrder);
-  return [...rows].sort((left, right) => {
-    const leftOrder = order.get(Number(left.puzzle_id)) ?? Number.MAX_SAFE_INTEGER;
-    const rightOrder = order.get(Number(right.puzzle_id)) ?? Number.MAX_SAFE_INTEGER;
-    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
-    return Number(right.id) - Number(left.id);
   });
 }
 

@@ -5,23 +5,19 @@ import {
   collectPuzzleThemeRefs,
   dedupeThemeRefs,
   findOutOfScopeRefs,
-  type CreateThemeDeploymentInput,
   type CreateThemeInput,
   type MapStyle,
   type Theme,
   type ThemeData,
-  type ThemeDeploymentSummary,
   type ThemeOption,
   type ThemeRefTarget,
-  type UpdateThemeDeploymentInput,
   type UpdateThemeInput,
   type GameToolIconKind,
   type GameToolIcons,
 } from '@loredoku/shared';
 import * as repo from '../repository/themeRepository';
-import * as gameService from './gameService';
 import { AppError } from '../utils/AppError';
-import { processForbiddenSymbolImage, processToolIconImage } from '../utils/image';
+import { processForbiddenSymbolImage, processPressRingImage, processToolIconImage } from '../utils/image';
 
 /**
  * v0.8.0（docs/v0.8.0.md）—— 主题的三件事，按重要性排：
@@ -30,7 +26,8 @@ import { processForbiddenSymbolImage, processToolIconImage } from '../utils/imag
  *    只有「新建到某个主题」；
  * 2. **缺省**：`themes.data.style` / `linkageColors` 只在新建地图 / 谜题那一刻被拷贝，
  *    主题之后怎么改都不追溯（§5 的 S3）；
- * 3. **交付**：合辑只是目录（§9），「一键整主题部署」是动作，不是新状态。
+ * 3. **交付**：v0.9.2 起只剩「单局部署」—— 合辑（`theme_deployments`）连同它的
+ *    「一键整主题上线」一起删掉了，上线一关就是 `POST /api/puzzles/:id/games`。
  */
 
 export interface ThemeScopeIssueView {
@@ -170,27 +167,49 @@ export async function removeToolIcon(code: string, icon: GameToolIconKind): Prom
   return getTheme(code);
 }
 
+/** v0.9.2 §2：`POST /api/themes/:code/press-ring` 少了文件部分。 */
+export function pressRingRequired(): AppError {
+  return AppError.validation('请选择计时环图片');
+}
+
+/**
+ * v0.9.2 §2：长按放置参与者时那圈**计时环**的图 —— 主题级，与禁止符号同一条
+ * 「读取时兜底」。一次只有一张（不像工具图标那样有 `kind`），换图即覆盖。
+ *
+ * 换一张对**所有**关卡立刻生效：游戏页按主题编码查这份数据，不经过谜题。
+ */
+export async function uploadPressRing(code: string, buffer: Buffer): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const image = await processPressRingImage({ kind: 'theme', id }, buffer);
+  await repo.updateTheme(id, { data: { ...data, pressRing: { path: image.relativePath } } });
+  return getTheme(code);
+}
+
+/** 移除 = 删掉 `data.pressRing`，所有关卡回到内置的那圈白弧。 */
+export async function removePressRing(code: string): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const next: ThemeData = { ...data };
+  delete next.pressRing;
+  await repo.updateTheme(id, { data: next });
+  return getTheme(code);
+}
+
 /**
  * 删主题。只有一条规矩：还有东西就先把数量说清楚，再拦（§8 护栏 3）。
  *
  * §19 之前这里还有「默认主题不能删」—— 那是 `is_default` 的一半存在理由，列删掉
  * 之后它也一起没了。剩下的这条对每个主题都成立，反而更简单。
  *
- * v0.8.3（§15）：这一层守的是**看得见的东西**，删下去是 `DELETE`。两处差别：
+ * v0.8.3（§15）：这一层守的是**看得见的东西**，删下去是 `DELETE`。计数只数活跃行，
+ * 外键却看所有行；地图 / 谜题软删的版本行由 `repo.deleteTheme` 顺手抬走（注释写在
+ * 那儿），这里只管「还有没有活的」。
  *
- * - 合辑也要拦（`theme_deployments.theme_id` 是 RESTRICT），但它不在卡片计数里 ——
- *   单独问一句，报错里点名合辑的名字，作者才知道去部署页处理；
- * - 计数只数活跃行，外键却看所有行。地图 / 谜题软删的版本行由
- *   `repo.deleteTheme` 顺手抬走（注释写在那儿），这里只管「还有没有活的」。
+ * v0.9.2：`theme_deployments`（合辑）两张表已删，原来那条「主题下还有合辑，请先
+ * 删除合辑」的单独拦截随之消失 —— 现在只剩「卡片上看得见的那四类」。
  */
 export async function deleteTheme(code: string): Promise<void> {
   const id = await repo.idOfCode(code);
   if (id === undefined) throw AppError.notFound('主题不存在');
-
-  const deployment = await repo.findDeploymentByTheme(id);
-  if (deployment) {
-    throw AppError.conflict(`主题下还有合辑「${deployment.name}」，请先删除合辑`);
-  }
 
   const counts = (await repo.countsByTheme()).get(id) ?? repo.emptyCounts();
   const parts: string[] = [];
@@ -329,90 +348,6 @@ export function mapDraftRefs(draft: Parameters<typeof collectMapThemeRefs>[0]): 
 
 export function puzzleDraftRefs(draft: Parameters<typeof collectPuzzleThemeRefs>[0]): ThemeRefTarget[] {
   return collectPuzzleThemeRefs(draft);
-}
-
-// ---- 合辑（§9） ----
-
-export async function listDeployments(): Promise<ThemeDeploymentSummary[]> {
-  return repo.listDeployments();
-}
-
-export async function getDeployment(id: number): Promise<ThemeDeploymentSummary> {
-  const found = await repo.getDeployment(id);
-  if (!found) throw AppError.notFound('合辑不存在');
-  return found;
-}
-
-export async function getDeploymentBySlug(slug: string): Promise<ThemeDeploymentSummary> {
-  const row = await repo.findDeploymentBySlug(slug);
-  if (!row) throw AppError.notFound('合辑不存在');
-  return getDeployment(Number(row.id));
-}
-
-/**
- * 一键整主题部署。**这是动作，不是新状态**（§9）：对主题里每个谜题血统的最新
- * 已发布版本各跑一次 `deployGame`，再把成员与顺序写进合辑。
- *
- * 已经部署过的关沿用原访问路径 —— 红楼梦 8 个关名都是中文，`buildDefaultSlug`
- * 对它们返回空串，不带 slug 会直接 400。
- */
-export async function deployTheme(
-  code: string,
-  input: CreateThemeDeploymentInput,
-): Promise<ThemeDeploymentSummary> {
-  const theme = await repo.findByCode(code);
-  if (!theme) throw AppError.notFound('主题不存在');
-  const themeId = Number(theme.id);
-
-  const candidates = await repo.latestPublishedPerRoot(themeId);
-  if (candidates.length === 0) {
-    throw AppError.validation('这个主题还没有已发布的谜题版本，先发布一关');
-  }
-  const selected =
-    input.puzzleIds && input.puzzleIds.length > 0
-      ? candidates.filter((entry) => input.puzzleIds!.includes(entry.puzzleId))
-      : candidates;
-  if (selected.length === 0) {
-    throw AppError.validation('选中的关卡里没有已发布的版本');
-  }
-
-  for (const entry of selected) {
-    await gameService.deployGame(entry.puzzleId, {
-      name: entry.name,
-      slug: entry.slug ?? undefined,
-    });
-  }
-
-  const id = await repo.upsertDeployment(repo.tx(), {
-    themeId,
-    slug: input.slug,
-    name: input.name ?? theme.name,
-    description: input.description ?? null,
-    puzzleIds: selected.map((entry) => entry.puzzleId),
-  });
-  return getDeployment(id);
-}
-
-export async function updateDeployment(
-  id: number,
-  input: UpdateThemeDeploymentInput,
-): Promise<ThemeDeploymentSummary> {
-  const current = await getDeployment(id);
-  const themeId = await repo.idOfCode(current.themeCode);
-  if (themeId === undefined) throw AppError.notFound('主题不存在');
-  await repo.upsertDeployment(repo.tx(), {
-    themeId,
-    slug: current.slug,
-    name: input.name ?? current.name,
-    description: input.description ?? current.description,
-    puzzleIds: input.puzzleIds ?? current.entries.map((entry) => entry.puzzleId),
-  });
-  return getDeployment(id);
-}
-
-export async function removeDeployment(id: number): Promise<void> {
-  const ok = await repo.deleteDeployment(id);
-  if (!ok) throw AppError.notFound('合辑不存在');
 }
 
 

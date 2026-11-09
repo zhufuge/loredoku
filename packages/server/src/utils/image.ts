@@ -135,7 +135,21 @@ export async function processToolIconImage(
   return processSymbolImage(owner, `tool-icons/${icon}`, buffer);
 }
 
-/** 两种「符号级小图」共用的一条路：按所有者分目录，长边缩到 256。 */
+/**
+ * v0.9.2 §2：长按放置参与者时那圈**计时环**的图（主题级）。
+ *
+ * 尺寸比禁止符号大：环的外接方形最大就是格子（`cellSize`，实测 152px 上下），
+ * 上传图会被缩到格子直径再画 —— 256 的长边仍然富余，所以同走这条小图通道，
+ * 目录是 `.../press-ring/`。
+ */
+export async function processPressRingImage(
+  owner: { kind: 'puzzle' | 'theme'; id: number },
+  buffer: Buffer,
+): Promise<ProcessedImage> {
+  return processSymbolImage(owner, 'press-ring', buffer);
+}
+
+/** 三种「符号级小图」共用的一条路：按所有者分目录，长边缩到 256。 */
 async function processSymbolImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   sub: string,

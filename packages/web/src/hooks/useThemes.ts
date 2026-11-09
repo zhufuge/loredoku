@@ -7,11 +7,10 @@ import type {
   GameToolIconKind,
   GameToolIcons,
   Theme,
-  ThemeDeploymentSummary,
   ThemeDifficultyTier,
   ThemeOption,
 } from '@loredoku/shared';
-import { themesApi, type CreateThemePayload, type DeployThemePayload, type UpdateThemePayload } from '@/api/themes';
+import { themesApi, type CreateThemePayload, type UpdateThemePayload } from '@/api/themes';
 import { forgetThemeCode } from '@/lib/workspace';
 
 /**
@@ -29,8 +28,6 @@ export const themeKeys = {
   list: () => [...themeKeys.all, 'list'] as const,
   options: () => [...themeKeys.all, 'options'] as const,
   detail: (code: string) => [...themeKeys.all, 'detail', code] as const,
-  deployments: () => ['theme-deployments'] as const,
-  deploymentBySlug: (slug: string) => ['theme-deployments', 'by-slug', slug] as const,
 };
 
 export function useThemes() {
@@ -153,6 +150,37 @@ export function useRemoveThemeToolIcon(code: string) {
   });
 }
 
+/**
+ * v0.9.2 §2 —— 长按放置参与者时的**计时环**图，即时保存。
+ *
+ * 与禁止符号 / 工具图标同一条链路：成功即把 `themeKeys.all` 集体失效 —— 游戏页
+ * 是按编码查这份数据的，换一张图所有关卡下次打开（或立即重取）就是新的。
+ */
+export function useUploadThemePressRing(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => themesApi.uploadPressRing(code, file),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('已设为本主题的计时环');
+    },
+    onError: (error: Error) => toast.error(error.message || '计时环上传失败'),
+  });
+}
+
+/** 移除 = 删掉 `data.pressRing`：所有关卡回到内置的那圈白弧。 */
+export function useRemoveThemePressRing(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => themesApi.removePressRing(code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('已恢复默认计时环');
+    },
+    onError: (error: Error) => toast.error(error.message || '移除失败'),
+  });
+}
+
 export function useDeleteTheme() {  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => themesApi.remove(code),
@@ -169,21 +197,14 @@ export function useDeleteTheme() {  const queryClient = useQueryClient();
   });
 }
 
-export function useThemeDeployments() {
-  return useQuery({
-    queryKey: themeKeys.deployments(),
-    queryFn: () => themesApi.deployments() as Promise<ThemeDeploymentSummary[]>,
-  });
-}
-
 /**
  * v0.8.6 §3.6 —— 玩家侧要的「主题编码 → 难度分级」。
  *
- * 播放页（`/play`、`/play/theme/:slug`）在 `WorkspaceLayout` 外面，`useWorkspace()`
+ * 播放页（`/play`）在 `WorkspaceLayout` 外面，`useWorkspace()`
  * 拿到的是 `null`。`DifficultyBadge` 于是只能落到内置五档 —— 作者在概览页配的名字
  * 与颜色，到了玩家面前一个都不出现，第 6 档以后还直接变成「第 6 档」。
  *
- * 而 `MapGameSummary` 与 `ThemeDeploymentSummary` 都带着 `themeCode`（§19），所以
+ * 而 `MapGameSummary` 带着 `themeCode`（§19），所以
  * 这里把主题列表取一次、摊成一张表，卡按自己那一关的主题去查。
  *
  * **一次 `/themes` 换掉每张卡各问一次**：列表页二十几张卡，一张一个请求就是二十几次；
@@ -263,39 +284,27 @@ export function useToolIconsByCode(): (
     [byCode],
   );
 }
-
-export function useThemeDeploymentBySlug(slug: string | null) {  return useQuery({
-    queryKey: themeKeys.deploymentBySlug(slug ?? ''),
-    queryFn: () => themesApi.deploymentBySlug(slug as string),
-    enabled: Boolean(slug),
-  });
-}
-
-export function useDeployTheme(themeCode: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (payload: DeployThemePayload) => themesApi.deploy(themeCode, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      void queryClient.invalidateQueries({ queryKey: themeKeys.deployments() });
-      void queryClient.invalidateQueries({ queryKey: ['games'] });
-      toast.success('主题已上线');
-    },
-  });
-}
-
 /**
- * 合辑下线（§9）：只删目录，不动那几关的部署 —— 单局仍然在线，玩家还能从
- * `/play` 的单局段进得去。这正是「合辑只是目录」的意思。
+ * v0.9.2 §2 —— 按主题编码查「长按计时环」那张图。
+ *
+ * 与禁止符号 / 工具图标同一份 `/themes`、同一个理由：游戏页在工作空间外面，
+ * 只能按编码查表。只有一张，所以不像工具图标那样摊成 `GameToolIcons`。
  */
-export function useRemoveDeployment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => themesApi.removeDeployment(id),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: themeKeys.deployments() });
-      toast.success('合辑已下线');
-    },
-    onError: (error: Error) => toast.error(error.message || '下线失败'),
-  });
+export function usePressRingByCode(): (
+  code: string | null | undefined,
+) => ForbiddenSymbolImage | null {
+  const query = useThemes();
+  const byCode = useMemo(() => {
+    const map = new Map<string, ForbiddenSymbolImage>();
+    for (const theme of query.data ?? []) {
+      const ring = theme.data.pressRing;
+      if (ring?.path) map.set(theme.code, ring);
+    }
+    return map;
+  }, [query.data]);
+
+  return useCallback(
+    (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
+    [byCode],
+  );
 }

@@ -102,6 +102,11 @@ export const themeDataSchema = z
     /** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），解析顺序同禁止符号。 */
     toolIcons: gameToolIconsSchema,
     /**
+     * v0.9.2 §2：长按放置参与者时的**计时环**那张图。与上面两项同一个形状、
+     * 同一条「读取时兜底」的规矩；缺了 = 内置白弧。
+     */
+    pressRing: forbiddenSymbolSchema,
+    /**
      * v0.8.3：难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
      * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。
      */
@@ -169,33 +174,9 @@ export const listThemesQuerySchema = z.object({
     .optional(),
 });
 
-/**
- * 一键整主题部署（§9）：`POST /api/themes/:id/deployments`。
- *
- * 不传 `puzzleIds` = 该主题下**每个谜题血统的最新已发布版本**全部上架；
- * 传了就一直用它（部署页那个「勾选哪些关卡上架」的对话框走这条路）。
- * `slug` 与单局游戏各占一个命名空间（`/play/theme/:slug` vs `/play/:slug`），不共享。
- */
-export const createThemeDeploymentSchema = z.object({
-  slug: z.string().trim().min(1, '请填写访问路径'),
-  name: z.string().trim().min(1, '请填写合辑名称').max(THEME_NAME_MAX_LENGTH).optional(),
-  description: z.string().trim().max(THEME_DESCRIPTION_MAX_LENGTH).nullable().optional(),
-  puzzleIds: z.array(z.coerce.number().int().positive()).optional(),
-});
-
-export const updateThemeDeploymentSchema = z
-  .object({
-    name: z.string().trim().min(1).max(THEME_NAME_MAX_LENGTH).optional(),
-    description: z.string().trim().max(THEME_DESCRIPTION_MAX_LENGTH).nullable().optional(),
-    puzzleIds: z.array(z.coerce.number().int().positive()).optional(),
-  })
-  .refine((value) => Object.keys(value).length > 0, '请提供需要更新的字段');
-
 export type CreateThemeInput = z.infer<typeof createThemeSchema>;
 export type UpdateThemeInput = z.infer<typeof updateThemeSchema>;
 export type ThemeDataInput = z.infer<typeof themeDataSchema>;
-export type CreateThemeDeploymentInput = z.infer<typeof createThemeDeploymentSchema>;
-export type UpdateThemeDeploymentInput = z.infer<typeof updateThemeDeploymentSchema>;
 
 /** 迁移与测试用的固定常量，避免两处各写一遍字符串。 */
 export const DEFAULT_THEME_SEED = {

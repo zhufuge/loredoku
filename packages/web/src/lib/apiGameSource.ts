@@ -3,11 +3,7 @@ import { fileUrlFromPath } from '@loredoku/shared';
 import { useAssets } from '@/hooks/useAssets';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useGameDetail } from '@/hooks/useGames';
-import {
-  useForbiddenSymbolByCode,
-  useThemeDeploymentBySlug,
-  useToolIconsByCode,
-} from '@/hooks/useThemes';
+import { useForbiddenSymbolByCode, usePressRingByCode, useToolIconsByCode } from '@/hooks/useThemes';
 import type { GameSource } from '@/lib/gameSource';
 
 /**
@@ -26,18 +22,11 @@ import type { GameSource } from '@/lib/gameSource';
 export function useApiGameSource(): GameSource {
   const forbiddenSymbolOf = useForbiddenSymbolByCode();
   const toolIconsOf = useToolIconsByCode();
+  const pressRingOf = usePressRingByCode();
 
   return useMemo<GameSource>(
     () => ({
       kind: 'api',
-      useTheme(slug) {
-        const query = useThemeDeploymentBySlug(slug);
-        return {
-          data: query.data ? { name: query.data.name } : null,
-          isLoading: query.isLoading,
-          isError: query.isError,
-        };
-      },
       useGame(key) {
         const query = useGameDetail(key);
         return {
@@ -65,11 +54,11 @@ export function useApiGameSource(): GameSource {
       fileUrl: (path) => fileUrlFromPath(path),
       themeForbiddenSymbol: (themeCode) => forbiddenSymbolOf(themeCode),
       themeToolIcons: (themeCode) => toolIconsOf(themeCode),
+      themePressRing: (themeCode) => pressRingOf(themeCode),
       storageId: (key) => key,
-      themeHref: (themeRef) => `/play/theme/${themeRef}`,
       listHref: () => '/play',
       gameHref: (key) => `/play/${key}`,
     }),
-    [forbiddenSymbolOf, toolIconsOf],
+    [forbiddenSymbolOf, toolIconsOf, pressRingOf],
   );
 }

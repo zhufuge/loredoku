@@ -272,6 +272,7 @@ export function MapGamePressRing({
   cellSize,
   durationMs,
   seq,
+  imageUrl = null,
 }: {
   /** 正在被按住的那一格；`null` 表示没有进行中的长按。 */
   cell: CellCoord | null;
@@ -280,6 +281,11 @@ export function MapGamePressRing({
   durationMs: number;
   /** 每次按下递增 —— 同一格连按两次也要从头画。 */
   seq: number;
+  /**
+   * v0.9.2 §2：主题里配的那张环图（`null` = 内置白弧）。进度照样走 —— 图整张铺在
+   * 格子上、由扇形遮罩顺时针揭开，见 `PressRing`。
+   */
+  imageUrl?: string | null;
 }): JSX.Element | null {
   if (!cell) return null;
   return (
@@ -302,6 +308,7 @@ export function MapGamePressRing({
           seq={`${cell.x},${cell.y},${seq}`}
           // 地图是玩家上传的照片，什么底色都有 —— 深色底轨同时充当白弧的描边。
           trackColor="rgba(15, 23, 42, 0.4)"
+          imageUrl={imageUrl}
         />
       </div>
     </div>

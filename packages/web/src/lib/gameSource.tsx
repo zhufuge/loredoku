@@ -31,11 +31,6 @@ import type {
  * 同一个浏览器里同时开着两者，互不干扰。
  */
 
-/** 主题在游戏页上只用到一个字段：顶栏那行标题（`/play/theme/...` 进游戏时）。 */
-export interface GameThemeRef {
-  name: string;
-}
-
 /** `useQuery` 里渲染层真正用到的三件套。 */
 export interface GameQuery<T> {
   data: T | null;
@@ -45,8 +40,6 @@ export interface GameQuery<T> {
 
 export interface GameSource {
   readonly kind: 'api' | 'bundle';
-  /** 顶栏那行「从哪个主题进来的」。没有主题上下文时传 `null`。 */
-  useTheme(slug: string | null): GameQuery<GameThemeRef>;
   /** 一关的全部数据（画布 + 谜题 + 摘要）。 */
   useGame(key: string | null): GameQuery<MapGameDetail>;
   /** 画布上画物品要用到的资源表 —— 两个来源都是全量。 */
@@ -57,6 +50,11 @@ export interface GameSource {
   themeForbiddenSymbol(themeCode: string | null | undefined): ForbiddenSymbolImage | null;
   /** 主题级的三枚工具按钮图标（v0.8.7 §7），同一条。 */
   themeToolIcons(themeCode: string | null | undefined): GameToolIcons | null;
+  /**
+   * 主题级的长按计时环图（v0.9.2 §2）。与上面两项同一条「读取时兜底」：
+   * `null` = 没配，画内置白弧。包里那张已内联进 manifest，所以 bundle 也能给。
+   */
+  themePressRing(themeCode: string | null | undefined): ForbiddenSymbolImage | null;
   /**
    * 包内 / 库内相对路径 → 能塞进 `<img src>` 的地址。
    *
@@ -71,14 +69,16 @@ export interface GameSource {
    */
   storageId(key: string): string;
   /**
-   * 三个地址。v0.9.0 §3：两个入口的路由前缀不同（`/play/theme/...` 与
-   * `/loredoku/:code/play`），而「返回主题」那个箭头在两个入口里都得指向对的地方 ——
-   * 与其让 `GamePage` 里出现「如果是播放器就……」，不如把地址也交给 source。
+   * 两个地址。v0.9.0 §3：两个入口的路由前缀不同（`/play` 与 `/loredoku/:code/play`），
+   * 而「返回游戏列表」那个箭头在两个入口里都得指向对的地方 —— 与其让 `GamePage`
+   * 里出现「如果是播放器就……」，不如把地址也交给 source。
    *
    * 返回值都是**路由内路径**（不带站点 base）：工坊挂 basename `/`，播放器挂
    * `/loredoku`，两者由各自的 router 补前缀。
+   *
+   * v0.9.2：`themeHref` 随合辑一起删了 —— `/play/theme/:slug` 那个「回到主题」的
+   * 落点已经不存在，顶栏也不再显示主题名。
    */
-  themeHref(themeRef: string): string;
   listHref(): string;
   gameHref(key: string): string;
 }
