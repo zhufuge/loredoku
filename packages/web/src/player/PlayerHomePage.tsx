@@ -7,18 +7,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
-import { bundleRoot, gameHrefOf, toGameCard } from './bundleLoad';
+import { bundleDifficultyTiers, bundleRoot, gameHrefOf, toGameCard } from './bundleLoad';
 import { useBundleManifest } from './PlayerBundleProvider';
 
 /**
  * v0.9.0（docs/v0.9.0.md §6）—— 播放器的关卡列表页 `/loredoku/:code/play`。
  *
- * 与线上那个 `/play/theme/:slug` 长得像，但**一件东西都没有**：没有「全部游戏」
- * 的上一级（这个产物只有一个主题）、没有难度分级查询（分级阈值不在包里，见
- * 代价 §9.3）、没有接口。数据只有一处：`manifest.games`。
+ * 与线上那个 `/play/theme/:slug` 长得像，但没有「全部游戏」的上一级（这个产物只有
+ * 一个主题）、没有 `/themes` 查询、没有接口。数据只有一处：`manifest` —— 关卡清单是
+ * `manifest.games`，难度分级的名字与颜色是 `manifest.theme.difficultyLevels`
+ * （2026-11-09 补，见 §13）。线上那页要按 `themeCode` 去 `/themes` 查分级，这里
+ * 不用：包本身就是那个主题，导出时已经把配置冻进来了。
  *
  * 卡片用同一张 `GameCard`（v0.9.0 §6 把它的入参收窄成五个字段），所以在工坊里
- * 改卡片长得什么样，播放器会跟着变 —— 两边不会各长一张脸。
+ * 改卡片长得什么样，播放器会跟着变 —— 两边不会各长一张脸。`tiers` 必须显式传：
+ * 这一页在 `WorkspaceLayout` 外面，`DifficultyBadge` 不传就退回内置五档（v0.8.6 §3.6）。
  */
 export function PlayerHomePage(): JSX.Element {
   const { code = '' } = useParams<{ code: string }>();
@@ -28,6 +31,13 @@ export function PlayerHomePage(): JSX.Element {
     () => (manifest ? manifest.games.map((game) => toGameCard(game, bundleRoot(code))) : []),
     [manifest, code],
   );
+
+  /**
+   * 2026-11-09 补（docs/v0.9.0.md §13）：一份包一个主题，分级对每张卡都一样，
+   * 所以算一次传下去，不在 `map` 里给每张卡重算。老包没这个键时
+   * `resolveDifficultyTiers` 给内置五档 —— 与修复前的行为一致。
+   */
+  const tiers = useMemo(() => (manifest ? bundleDifficultyTiers(manifest) : undefined), [manifest]);
 
   /** 包的目录名与包里的身份对不上 —— 部署错了，不是玩家的问题，但得说清楚。 */
   const mismatched = manifest ? manifest.theme.code !== code : false;
@@ -91,7 +101,12 @@ export function PlayerHomePage(): JSX.Element {
         ) : (
           <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
             {games.map((game) => (
-              <GameCard key={game.slug} game={game} href={gameHrefOf(code, game.slug)} />
+              <GameCard
+                key={game.slug}
+                game={game}
+                tiers={tiers}
+                href={gameHrefOf(code, game.slug)}
+              />
             ))}
           </div>
         )}

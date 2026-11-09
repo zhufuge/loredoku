@@ -92,10 +92,13 @@ v0.8.3 起**分级的档数是主题定的**（概览页可增删，见 `docs/v0
   而且 `game.difficulty` 现在是数字；
 - 档位数字不在分级里（档被删了）时退回 `--muted` 中性灰 + 「第 N 档」；
 - **分级从哪来要说得清**：工坊里的页面（部署页、导出清单）由 `DifficultyBadge` 自己读
-  `useWorkspace().theme`；播放页（`/play`、`/play/theme/:slug`）在 `WorkspaceLayout` 外面，
+  `useWorkspace().theme`；线上播放页（`/play`、`/play/theme/:slug`）在 `WorkspaceLayout` 外面，
   得用 `useDifficultyTiersByCode()` 按 `themeCode` 查好、经 `GameCard` 的 `tiers` 传下去
-  （`docs/v0.8.6.md` §3.6）。谁都不给，徽章就落回内置五档 —— 在播放页上那意味着作者配的
-  名字与颜色一个都不出现。
+  （`docs/v0.8.6.md` §3.6）；**离线播放器**（`/loredoku/:code/play`）没有 `/themes` 可查，
+  分级由导出时冻进 `manifest.theme.difficultyLevels`、读包侧 `bundleDifficultyTiers()` 交给
+  同一张卡（`docs/v0.9.0.md` §13）。三条路最后都汇到 `resolveDifficultyTiers()`。
+  谁都不给，徽章就落回内置五档 —— 在播放页上那意味着作者配的名字与颜色一个都不出现；
+  v0.9.0 首发的旧包正是这样，要显示作者的字得重新导出。
 
 两个历史坑，写在 `index.css` 注释里，别重新踩：
 
@@ -176,7 +179,8 @@ v0.7.9 §3：从 8px 压到 6px —— 8px 圆角配通用投影是 SaaS 卡片�
 阴影**。新加面板时不要顺手 `shadow-paper`，那会破坏「越临时越浮」的语义。
 
 > **唯一一处不在这三档里**：画布自己那道投影（v0.8.7 §6）。色取 `style.canvasFrame.color`
-> + 固定 0.3 alpha、`6px 6px 0` 的硬影，收在 `lib/mapStyle.ts` 的 `canvasShadowStyle()`。
+> + 固定 0.3 alpha、`24px 24px 0` 的硬影，收在 `lib/mapStyle.ts` 的 `canvasShadowStyle()`
+> （偏移 2026-11-09 从 6px 调到 24px，见 `docs/v0.9.0.md` §16）。
 > 它随**主题**变而不随明暗界面变 —— 画布是「作品」，同一张地图在浅色与深色下应该是同一张纸。
 > `--shadow-*` 那三档是**界面**的材质，两者不要互相借用。
 
@@ -373,7 +377,9 @@ PANEL_ICON_BUTTON_CLASS   = 'flex h-7 w-7 items-center justify-center rounded te
   调用处只补 `shrink-0` 之类的宽度。
 
 尺寸：28×28（`h-7 w-7`）是工具条与面板的标准图标按钮档；`h-6 w-6`（24）只出现在芯片上的
-小 `×`；玩家端右栏用 48px（`h-12`）——触屏尺寸，属于另一套。
+小 `×`；玩家端右栏**按钮**用 48px（`h-12`）——触屏尺寸，属于另一套。里面四枚工具图标
+自 v0.9.0 §17 起是 32×32（`h-8 w-8`，内置字形与作者上传的图同档），按钮尺寸没跟着变：
+一个是点击区，一个是画，别把两者抄成同一个数。
 
 地图工具条、谜题底栏、游戏页右栏共用同一套，**新增面板按钮不要再手写这串 class**。
 导航栏自 v0.7.8 起不在这套里 —— 它用 `bg-primary/10 text-primary` 表示「你在哪」（§1.1）。

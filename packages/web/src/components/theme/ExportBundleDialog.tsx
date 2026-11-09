@@ -36,7 +36,11 @@ interface ExportBundleDialogProps {
  * 打包前体检的**可见部分**（§11.2）：包里缺文件时，服务端会在这一步报错并列出
  * 缺的是哪一关的哪个引用，而不是交付一个坏包。
  *
- * 第二屏（进度 / 完成）与第一屏同高，只换内容 —— 对话框不在下载时跳尺寸。
+ * 第二屏（进度 / 完成）与第一屏共用同一个对话框，只换中间内容。
+ *
+ * 2026-11-09（docs/v0.9.0.md §15）：完成屏原来还有一行「包里没有播放页面，
+ * 下一版会有纯前端播放页」—— 播放器 v0.9.0 已经落地，那句话反而误导，删掉。
+ * 现在只留一行文件名，对话框会自然收一点；不为对齐凭空留一块空白。
  */
 export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleDialogProps): JSX.Element {
   const [state, setState] = useState<{ phase: 'idle' | 'running' | 'done'; filename?: string }>({
@@ -75,15 +79,9 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
         </DialogHeader>
 
         {state.phase === 'done' ? (
-          <div className="space-y-3">
-            <p className="text-sm">
-              已生成 <span className="font-mono text-xs">{state.filename}</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              包里没有播放页面，双击 index.html 是打不开的（这一版只做打包）。
-              下一版会有一个能加载包的纯前端播放页。
-            </p>
-          </div>
+          <p className="text-sm">
+            已生成 <span className="font-mono text-xs">{state.filename}</span>
+          </p>
         ) : (
           <div className="space-y-3">
             {games.length === 0 ? (

@@ -47,7 +47,9 @@ function collect(dir, out = []) {
     if (entry === 'node_modules' || entry === 'dist') continue;
     const full = path.join(dir, entry);
     if (statSync(full).isDirectory()) collect(full, out);
-    else if (/\.test\.tsx?$/.test(entry)) out.push(full);
+    // `.test.mjs` 是构建脚本自己的单测（如 packages/web/scripts/playerEnv.test.mjs）；
+    // Vitest 默认就收它，这里也得算进清单，否则汇总数字会少算、失败还会被吞掉。
+    else if (/\.test\.(tsx?|mjs)$/.test(entry)) out.push(full);
   }
   return out;
 }

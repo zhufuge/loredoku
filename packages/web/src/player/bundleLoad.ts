@@ -1,6 +1,7 @@
 import {
   BUNDLE_FORMAT,
   BUNDLE_FORMAT_VERSION,
+  resolveDifficultyTiers,
   type Asset,
   type BundleAssetsFile,
   type BundleCharactersFile,
@@ -9,6 +10,7 @@ import {
   type BundlePuzzleFile,
   type Character,
   type MapGameDetail,
+  type ThemeDifficultyTier,
 } from '@loredoku/shared';
 
 /**
@@ -21,7 +23,7 @@ import {
  * 包的结构（v0.8.0 §11.2，服务端 `bundleService` 产出）：
  *
  * ```
- * manifest.json          身份 + 关卡清单 + 每个文件的校验和
+ * manifest.json          身份 + 难度分级 + 关卡清单 + 每个文件的校验和
  * theme.json             主题名 / 描述（只装身份，没有 style）
  * assets.json            全量资源，URL 已换成包内相对路径
  * characters.json        全量角色，同上
@@ -92,6 +94,24 @@ export function toGameCard(game: BundleManifestGame, root: string): BundleGameCa
     difficulty: game.difficulty,
     gridSize: game.gridSize,
   };
+}
+
+/**
+ * 2026-11-09 补（docs/v0.9.0.md §13）：列表页徽章上的**字与颜色**。
+ *
+ * 包里每关只带 `difficulty` 数字；名字、颜色、有哪几档都是主题级的，导出时冻在
+ * `manifest.theme.difficultyLevels`。不读它，`DifficultyBadge` 就走内置五档 ——
+ * 作者配的「初 / 通」在下载包里变成「极简 / 简单」，第 6 档以后还会显示「第 6 档」。
+ *
+ * 为什么在这里包一层而不是页面直接调 `resolveDifficultyTiers`：老包（v0.9.0 导出的）
+ * 没有这个键，缺省 / 空数组 / 乱序三种情况都要按同一条规矩兜底 —— 那条规矩在
+ * `shared/difficulty.ts`，线上 `useDifficultyTiersByCode` 用的也是它。让「包长什么样」
+ * 继续只在这个文件里被解释一次。
+ */
+export function bundleDifficultyTiers(
+  manifest: BundleManifest,
+): readonly ThemeDifficultyTier[] {
+  return resolveDifficultyTiers(manifest.theme.difficultyLevels);
 }
 
 /**

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BUNDLE_FORMAT, BUNDLE_FORMAT_VERSION } from '@loredoku/shared';
+import {
+  BUNDLE_FORMAT,
+  BUNDLE_FORMAT_VERSION,
+  DEFAULT_DIFFICULTY_TIERS,
+  difficultyBadge,
+} from '@loredoku/shared';
 import type {
   Asset,
   BundleManifest,
@@ -8,6 +13,7 @@ import type {
 } from '@loredoku/shared';
 import {
   assertBundleFormat,
+  bundleDifficultyTiers,
   bundleFileUrl,
   bundleRoot,
   bundleStorageId,
@@ -97,6 +103,59 @@ describe('toGameCard', () => {
   it('没有封面就是 null（列表页画首字占位）', () => {
     const entry = { ...manifest().games[0]!, cover: null };
     expect(toGameCard(entry, '/hlm/').coverUrl).toBeNull();
+  });
+});
+
+/**
+ * 2026-11-09 补（docs/v0.9.0.md §13）：徽章上的字来自主题，不是内置五档。
+ * 这一组只钉「包 → 分级」这一段；真正画出来是 PlayerHomePage.test.tsx 的事。
+ */
+describe('bundleDifficultyTiers', () => {
+  it('包里配了分级 → 名字、颜色都在，且按 level 升序（顺序由读包方统一）', () => {
+    const levels = [
+      { level: 3, label: '精' },
+      { level: 1, label: '初' },
+      { level: 2, label: '通', color: '#B93A32' },
+    ];
+    const tiers = bundleDifficultyTiers(
+      manifest({
+        theme: {
+          code: 'hlm',
+          name: '红楼梦',
+          description: null,
+          difficultyLevels: levels,
+        },
+      }),
+    );
+    expect(tiers.map((tier) => tier.label)).toEqual(['初', '通', '精']);
+    expect(tiers[1]?.color).toBe('#B93A32');
+    expect(difficultyBadge(tiers, 2).label).toBe('通');
+  });
+
+  it('老包没有这个键、或存了空数组 → 内置五档，与修复前逐字节一致', () => {
+    expect(bundleDifficultyTiers(manifest())).toEqual(DEFAULT_DIFFICULTY_TIERS);
+    expect(
+      bundleDifficultyTiers(
+        manifest({
+          theme: { code: 'hlm', name: '红楼梦', description: null, difficultyLevels: [] },
+        }),
+      ),
+    ).toEqual(DEFAULT_DIFFICULTY_TIERS);
+    expect(difficultyBadge(bundleDifficultyTiers(manifest()), 2).label).toBe('简单');
+  });
+
+  it('主题删过档 → 那一档显示「第 N 档」而不是硬塞进别人的名字', () => {
+    const tiers = bundleDifficultyTiers(
+      manifest({
+        theme: {
+          code: 'hlm',
+          name: '红楼梦',
+          description: null,
+          difficultyLevels: [{ level: 1, label: '初' }],
+        },
+      }),
+    );
+    expect(difficultyBadge(tiers, 5).label).toBe('第 5 档');
   });
 });
 

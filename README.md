@@ -68,15 +68,22 @@ npm run build && npm start # 生产模式：后端 3000 直接托管前端构建
 ### 播放器（v0.9.0）
 
 给玩家看的**第二份产物**：只装一个主题资源包，不发一个 `/api` 请求，纯静态部署即可。
+默认包路径写在仓库根 `.env` 的 `LOREDOKU_BUNDLE`（模板见 `.env.example`，相对路径按仓库根
+解析），所以常用命令不带参数：
 
 ```bash
-npm run build:player -- --bundle=hlm.zip   # 包里要有 manifest.json / puzzles/ / files/
+npm run dev:player                         # http://localhost:5174/loredoku/hlm/play
+npm run build:player                       # → packages/web/dist-player/
 npm run preview:player                     # http://localhost:4173/loredoku/
+npm run build:player -- --bundle=other.zip # 临时换包，不改 .env
 ```
 
-包可以是从主题概览页导出的 `.zip`，也可以是解压后的目录。产物落在
-`packages/web/dist-player/`（入口 `index.html`、包在 `<code>/` 下），拷到静态服务器的
-`/loredoku/` 就能玩；一个产物对应一个主题。细节见 [`docs/v0.9.0.md`](./docs/v0.9.0.md)。
+优先级是 `--bundle` > 显式环境变量 `LOREDOKU_BUNDLE` > `.env`。包可以是从主题概览页导出的
+`.zip`，也可以是解压后的目录（里面直接是 `manifest.json` / `puzzles/` / `files/`）。
+**包本身不进仓库**（`resources/themes/` 被 gitignore），克隆后先导出一份放到那个路径，
+或改 `.env` 指向自己的包。产物落在 `packages/web/dist-player/`（入口 `index.html`、
+包在 `<code>/` 下），拷到静态服务器的 `/loredoku/` 就能玩；一个产物对应一个主题。
+细节见 [`docs/v0.9.0.md`](./docs/v0.9.0.md)。
 
 ---
 
@@ -85,9 +92,9 @@ npm run preview:player                     # http://localhost:4173/loredoku/
 | 命令 | 说明 |
 |---|---|
 | `npm run dev` / `dev:server` / `dev:web` | 启动开发环境 |
-| `npm run dev:player -- --bundle=<包>` | 播放器 dev（`5174/loredoku/`，只读一个主题资源包，不连后端） |
+| `npm run dev:player` | 播放器 dev（`5174/loredoku/`，只读 `.env` 里那个资源包，不连后端） |
 | `npm run build` | 构建全部 workspace |
-| `npm run build:player -- --bundle=<包>` | 播放器产物 → `packages/web/dist-player/` |
+| `npm run build:player` | 播放器产物 → `packages/web/dist-player/`；两条命令都可用 `-- --bundle=<包>` 临时覆盖 |
 | `npm run preview:player` | 预览播放器产物（`4173/loredoku/`） |
 | `npm run typecheck` | 全量 TypeScript 类型检查 |
 | `npm test` | 全部测试（各 workspace Vitest + 根目录 `scripts/`） |

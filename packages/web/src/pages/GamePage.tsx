@@ -99,7 +99,6 @@ import {
   cellKey,
   clearAll,
   clearCell,
-  countPlacements,
   createGamePlacementState,
   forbiddenCells,
   avatarPlacedParticipantIds,
@@ -159,6 +158,10 @@ function readStoredRulerVisible(): boolean {
  * v0.7.12：`'forbidden'` 也返回 `null` —— `×` 格在放置态下是**静默的无效果**
  * （需求：「参与者编号点击时无效果」）。提示层在这种格子上已经不再画编号，
  * 点下去再弹一句「请先清除」就成了一次自相矛盾的对话。
+ *
+ * v0.9.0 §18：把 `'non-standable'` 也归到「静默拒绝」这一家 —— 不可站立的格子本
+ * 来就画得很清楚（地面碎了 / 桌面塌了），玩家点上去被挡住已经知道原因，再弹一句
+ * 「该格有不可站立的物品」反而是噪音。放置规则不变（仍然挡），只是不说话了。
  */
 function describeBlock(
   block: NonNullable<ReturnType<typeof placementBlockReason>>,
@@ -166,9 +169,7 @@ function describeBlock(
 ): string | null {
   switch (block) {
     case 'non-standable':
-      return '该格有不可站立的物品，不能放置';
     case 'forbidden':
-      return null;
     case 'avatar':
       return null;
     // SPEC-J03 §9 Q6：短按点「该格已有该编号」是 **toggle 删除**，不走拒绝
@@ -193,9 +194,14 @@ function GameToolIcon({
   render: ToolIconRender | undefined;
   name: GameToolIconKind;
 }): JSX.Element {
+  /**
+   * v0.9.0 §17：四枚工具按钮的图标统一放大到 32px（`h-8 w-8`）。内置图标与作者
+   * 上传的图**共用这一处尺寸** —— 否则「配了图反而变小」会像是上传坏了。
+   * 按钮仍是 48px 触屏档，图标四周各留 8px，长按那圈进度环也还画得下。
+   */
   if (!render) {
     const Fallback = TOOL_ICON_FALLBACKS[name];
-    return <Fallback className="h-5 w-5" />;
+    return <Fallback className="h-8 w-8" />;
   }
   return (
     <img
@@ -203,7 +209,7 @@ function GameToolIcon({
       alt=""
       draggable={false}
       data-testid={`${name}-tool-icon`}
-      className="h-5 w-5 select-none object-contain dark:invert dark:hue-rotate-180"
+      className="h-8 w-8 select-none object-contain dark:invert dark:hue-rotate-180"
     />
   );
 }
@@ -240,13 +246,22 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    * OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
    *
    * v0.9.0 §3：播放器的路由参数叫 `key`（`/loredoku/:code/play/:key`），工坊叫
-   * `slug`；主题那一段在工坊是部署 slug（`themeSlug`）、在播放器是主题编码（`code`）。
+   * `slug`；主题那一段在工坊是部署 slug（`themeSlug`）。
    * 两个入口共用一个组件，参数名就都收在这里，别处只认 `slug` / `themeQuery`。
    */
   const params = useParams<{ slug?: string; key?: string; themeSlug?: string; code?: string }>();
   const slug = (params.slug ?? params.key) || null;
-  /** 主题那一段：工坊是部署 slug，播放器是主题编码。只用来取名字与拼返回地址。 */
-  const themeRef = params.themeSlug ?? params.code ?? null;
+  /**
+   * 顶栏那行「从哪个主题进来」—— 只有工坊的 `/play/theme/:slug/:key` 才带
+   * `themeSlug`，那一支才显示主题名链接。播放器（`/loredoku/:code/play/:key`）和
+   * 工坊从 `/play` 单局进来的都没有 `themeSlug`，于是走 `else` 分支画 `BrandLogo`、
+   * 返回游戏列表。
+   *
+   * 这正是「player 也和原页面一样用 loredoku」那条（v0.9.0 §18）：主题编码只用来
+   * 绑包，不该出现在顶栏 —— 之前写成 `?? params.code` 会让播放器在返回箭头后面露出
+   * 主题名，与工坊单局入口（BrandLogo）不一致。
+   */
+  const themeRef = params.themeSlug ?? null;
   const navigate = useNavigate();
   /**
    * v0.8.0（docs/v0.8.0.md §16.6）：从合辑进来时（`/play/theme/:slug/:key`），
@@ -1215,8 +1230,6 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     setZoom(next);
   };
 
-  const undoSteps = placementState.past.length;
-
   if (gameQuery.isLoading) {
     return <LoadingScreen caption="正在加载游戏…" />;
   }
@@ -1617,7 +1630,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               'h-12 w-full',
               mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
-            title="禁止符号：标记该格为排除项"
+            title="标记"
             onClick={() => toggleTool('forbidden')}
           >
             {/*
@@ -1636,10 +1649,11 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
                 alt=""
                 draggable={false}
                 data-testid="forbidden-tool-icon"
-                className="h-5 w-5 select-none object-contain dark:invert dark:hue-rotate-180"
+                /* v0.9.0 §17：与下面三枚内置图标同一档 32px。 */
+                className="h-8 w-8 select-none object-contain dark:invert dark:hue-rotate-180"
               />
             ) : (
-              <X className="h-5 w-5 text-destructive" />
+              <X className="h-8 w-8 text-destructive" />
             )}
           </Button>
           <Button
@@ -1648,7 +1662,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               'relative h-12 w-full',
               mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
-            title="清除工具：清除该格放置；长按清空全部"
+            title="清除放置，长按清空全部"
             onPointerDown={startClearPress}
             onPointerUp={endClearPress}
             onPointerLeave={endClearPress}
@@ -1688,17 +1702,20 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
           <Button
             variant="ghost"
             className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
-            title={
-              readyToSubmit ? '提交当前摆放（先校验）' : '还有参与者没放好，放完才能提交'
-            }
+            title={readyToSubmit ? '提交' : '还有参与者没放好，放完才能提交'}
             disabled={!readyToSubmit}
             onClick={submit}
           >
             <GameToolIcon render={toolIcons.submit} name="submit" />
           </Button>
 
-          {/* v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。 */}
-          <div className="mt-1 flex w-full flex-col items-center gap-1 border-t pt-2">
+          {/*
+           * v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。
+           * v0.9.0 §17：右下角那两行统计删掉之后，这一簇由 `mt-auto` 顶到**最下面**
+           * —— 上面四枚是「对棋盘做什么」，下面这簇是「怎么看棋盘」，中间留白正好
+           * 把两组分开。分隔线跟着这一簇走，不再横在两枚工具按钮之间。
+           */}
+          <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-2">
             <IconButton
               variant="ghost"
               icon={<Plus className="h-4 w-4" />}
@@ -1738,12 +1755,13 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
             />
           </div>
 
-          {/* SPEC-G04 §6.4: step counter —— v0.7.12 起计时不再在这里（见标题行） */}
-          <div className="mt-auto w-full border-t pt-2 text-center text-2xs leading-relaxed text-muted-foreground">
-            已放置 {countPlacements(placementState.board)} 个
-            <br />
-            可回退 {undoSteps} 步
-          </div>
+          {/*
+           * v0.9.0 §17：原来这里有两行「已放置 N 个 / 可回退 M 步」的统计。
+           * 删掉的理由：棋盘上的头像、`×`、编号本身就是计数，撤回按钮的
+           * enabled / disabled 本身就是可回退状态 —— 右下角再写一遍是同一份
+           * 信息的第二次表述，还把视图簇从底边挤了上去。计时早在 v0.7.12
+           * 就搬到了标题行，这里不再有任何文字。
+           */}
         </aside>
       </div>
 

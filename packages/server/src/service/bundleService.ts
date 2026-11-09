@@ -110,19 +110,28 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
   const manifestGames: BundleManifestGame[] = [];
   const originGames: Record<string, number> = {};
   const puzzleEntries: BundleEntry[] = [];
+  /** 主题的 `data` 是 JSON 列，取一次给下面三处用。 */
+  const themeData = (themeRow.data as ThemeData | null) ?? null;
   /**
    * v0.8.7 §4：主题的禁止符号是**读取时**的缺省。包里必须把它一起装上 ——
    * 否则「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
    * 谜题自己配了就不看这份（那一关的 JSON 里已经有路径）。
    */
-  const themeForbiddenSymbol: ForbiddenSymbolImage | null =
-    (themeRow.data as ThemeData | null)?.forbiddenSymbol ?? null;
+  const themeForbiddenSymbol: ForbiddenSymbolImage | null = themeData?.forbiddenSymbol ?? null;
   /**
    * v0.8.7 §7：工具按钮图标同样要进包，理由与禁止符号一字不差 —— 线上画的是主题
    * 那张，包里若没有，同一关的按钮在两种运行环境里长得不一样。
    */
-  const themeToolIcons: GameToolIcons | null =
-    (themeRow.data as ThemeData | null)?.toolIcons ?? null;
+  const themeToolIcons: GameToolIcons | null = themeData?.toolIcons ?? null;
+  /**
+   * 2026-11-09 补（docs/v0.9.0.md §13）：主题的难度分级。包里每关只带 `difficulty`
+   * **数字**，名字与颜色是主题级的；不带上它，播放器的列表页只能退回内置五档，
+   * 作者配的「初 / 通」在下载包里变成「极简 / 简单」。
+   *
+   * 存原始配置、不在导出时排序：`resolveDifficultyTiers` 在读包那一侧统一排，
+   * 与线上 `useDifficultyTiersByCode` 是同一条规矩。
+   */
+  const themeDifficultyLevels = themeData?.difficultyLevels;
 
   for (const [index, game] of games.entries()) {
     const key = game.input.summary.slug;
@@ -168,7 +177,12 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
   };
 
   const manifest = buildBundleManifest({
-    theme: { code: themeRow.code, name: themeRow.name, description: themeRow.description },
+    theme: {
+      code: themeRow.code,
+      name: themeRow.name,
+      description: themeRow.description,
+      ...(themeDifficultyLevels ? { difficultyLevels: themeDifficultyLevels } : {}),
+    },
     exportedAt,
     games: manifestGames,
     // 校验和要覆盖包里**除 manifest 自己以外**的一切 —— 三份侧表 + 每关 + 每个文件。

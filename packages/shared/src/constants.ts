@@ -444,14 +444,19 @@ export const STYLE_DEFAULT_REGION_HIGHLIGHT_WIDTH = 12;
 export const STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR = '#3B82F6';
 export const STYLE_DEFAULT_CANVAS_FRAME_WIDTH = 12;
 /**
- * v0.8.7 §6：画布这张纸的**投影** —— 向右下偏移一小段、不带模糊的硬影，颜色取
+ * v0.8.7 §6：画布这张纸的**投影** —— 向右下偏移一段、不带模糊的硬影，颜色取
  * 画布外框色（`style.canvasFrame.color`）再压一层透明度。
  *
  * 它不走 `--shadow-paper` / `--shadow-lifted` 那三档界面阴影：那三档是暖色、随浅色 /
  * 深色主题换，而这张影子是**作品**的一部分（和画框、网格线一样，不随界面变）。
  * 偏移量是画布像素 —— 和其它线宽一样，跟着 `zoom` 缩放。
+ *
+ * 2026-11-09（docs/v0.9.0.md §16）：6 → **24**。首发那个 6px 实测只露出约 3px
+ * —— 外框的 SVG 描边骑在画布边界上、以边界为中心画，外半边正好压掉 2.8px，
+ * 影子几乎看不见。用户要「地图阴影再偏移 20px」，最终定为总偏移 24px。
+ * 变宽之后要留意画布容器的 `overflow-hidden`：实测与裁剪边界见 §16。
  */
-export const CANVAS_SHADOW_OFFSET_PX = 6;
+export const CANVAS_SHADOW_OFFSET_PX = 24;
 export const CANVAS_SHADOW_ALPHA = 0.3;
 export const STYLE_DEFAULT_GRID_SEPARATOR_WIDTH = 4;
 export const STYLE_DEFAULT_MOUSE_CURSOR_WIDTH = 8;

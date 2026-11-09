@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { buildBundleIdMaps, buildBundlePuzzleFile, renumberPuzzleDraft } from './bundle';
+import {
+  buildBundleIdMaps,
+  buildBundleManifest,
+  buildBundlePuzzleFile,
+  renumberPuzzleDraft,
+} from './bundle';
+import type { BuildBundleManifestInput } from './bundle';
 import type { MapDraft, MapGameSummary, PuzzleDraft } from './types/domain';
 
 function summary(slug: string): MapGameSummary {
@@ -145,5 +151,48 @@ describe('buildBundlePuzzleFile', () => {
       // 重编号后的 id 一定小于原 id（序号从 1 起，数据库 id 是四位数）。
       expect(id).toBeLessThan(100);
     }
+  });
+});
+
+/**
+ * 2026-11-09 补（docs/v0.9.0.md §13）：包里要带上作者配的难度名字与颜色。
+ * 只测「原样透传 / 没配就不写键」两件事 —— 排序和内置五档的兜底属于
+ * `resolveDifficultyTiers`，不在这里重做一遍。
+ */
+describe('buildBundleManifest 的主题难度分级', () => {
+  function input(theme: BuildBundleManifestInput['theme']): BuildBundleManifestInput {
+    return {
+      theme,
+      exportedAt: '2026-11-09T00:00:00.000Z',
+      games: [],
+      files: [],
+      fonts: [],
+      ids: buildBundleIdMaps([]),
+      originGames: {},
+    };
+  }
+
+  it('配了就原样进 manifest.theme（不排序、不改颜色）', () => {
+    const levels = [
+      { level: 3, label: '通', color: '#B93A32' },
+      { level: 1, label: '初' },
+    ];
+    const built = buildBundleManifest(
+      input({ code: 'hlm', name: '红楼梦', description: null, difficultyLevels: levels }),
+    );
+    expect(built.theme.difficultyLevels).toEqual(levels);
+    expect(built.theme.difficultyLevels?.[0]?.label).toBe('通');
+    expect(JSON.parse(JSON.stringify(built.theme))).toHaveProperty('difficultyLevels');
+  });
+
+  it('没配过 / 老包都不写这个键，读包方按 undefined 兜底', () => {
+    const built = buildBundleManifest(input({ code: 'hlm', name: '红楼梦', description: null }));
+    expect(built.theme.difficultyLevels).toBeUndefined();
+    expect('difficultyLevels' in built.theme).toBe(false);
+    expect(Object.keys(JSON.parse(JSON.stringify(built.theme)))).toEqual([
+      'code',
+      'name',
+      'description',
+    ]);
   });
 });

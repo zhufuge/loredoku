@@ -16,15 +16,11 @@ import { existsSync, renameSync } from 'node:fs';
 import path from 'node:path';
 import { readBundle } from './readBundle.mjs';
 
-/** 资源包路径：命令行优先（`--bundle=…` / `--bundle …`），其次环境变量。 */
-export function resolveBundlePath() {
-  const argv = process.argv;
-  const inline = argv.find((arg) => arg.startsWith('--bundle='));
-  if (inline) return inline.slice('--bundle='.length);
-  const index = argv.indexOf('--bundle');
-  if (index >= 0 && argv[index + 1]) return argv[index + 1];
-  return process.env.LOREDOKU_BUNDLE ?? null;
-}
+/**
+ * 2026-11-09 补（docs/v0.9.0.md §14）：「包在哪」的解析已经收进
+ * `scripts/playerEnv.mjs`（`--bundle > 环境变量 > .env`），由 `vite.player.config.ts`
+ * 算好之后当参数传进来。这个文件只管**拿到包之后**怎么烤 / 怎么递。
+ */
 
 const MIME = new Map([
   ['.json', 'application/json; charset=utf-8'],
@@ -51,7 +47,7 @@ export function bundleAssets(bundlePath) {
   const load = () => {
     if (!bundlePath) {
       throw new Error(
-        '没有指定主题资源包：用 `--bundle=<路径>` 或环境变量 LOREDOKU_BUNDLE 给一个 .zip / 目录。',
+        '没有指定主题资源包：在仓库根 .env 里写 LOREDOKU_BUNDLE=<路径>，或用 --bundle=<路径> 临时覆盖。',
       );
     }
     if (!loaded) loaded = readBundle(bundlePath);

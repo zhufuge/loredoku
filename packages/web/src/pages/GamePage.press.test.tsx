@@ -227,7 +227,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
 
   /** 切到 `×` 工具（工具栏第二组里那个红叉按钮）。 */
   function enterForbidden(): void {
-    const button = container.querySelector<HTMLButtonElement>('button[title^="禁止符号"]');
+    const button = container.querySelector<HTMLButtonElement>('button[title="标记"]');
     if (!button) throw new Error('禁止符号按钮没渲染出来');
     act(() => button.click());
   }
@@ -438,7 +438,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     sizeCanvas();
 
     const eraser = Array.from(container.querySelectorAll('button')).find((node) =>
-      node.getAttribute('title')?.startsWith('清除工具'),
+      node.getAttribute('title')?.startsWith('清除放置'),
     );
     if (!eraser) throw new Error('清除按钮没渲染出来');
     // 短按 = 切换成清除工具（长按才是清空全部）—— 两个事件都要给，缺一个就当长按。
@@ -472,8 +472,13 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
 
     // 空盘 —— 收回之后存档把整条键都删了。
     expect(savedBoard()).toEqual({});
-    // 收回是**一步**历史，能反悔。
-    expect(container.textContent).toContain('可回退 1 步');
+    // v0.9.0 §17：右下角「可回退 M 步」删了，改用按钮本身验「收回是一步历史」：
+    // 撤回按钮点亮 → 点一下 → 那枚 × 回到棋盘。比读一行数字更直接。
+    const undo = container.querySelector<HTMLButtonElement>('button[title="回退上一步"]');
+    expect(undo).not.toBeNull();
+    expect(undo?.disabled).toBe(false);
+    act(() => undo?.click());
+    expect(savedBoard()['4,4']).toEqual({ kind: 'forbidden' });
   });
 
   /**
@@ -518,7 +523,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     sizeCanvas();
 
     const button = Array.from(container.querySelectorAll('button')).find((node) =>
-      node.getAttribute('title')?.startsWith('清除工具'),
+      node.getAttribute('title')?.startsWith('清除放置'),
     );
     if (!button) throw new Error('清除按钮没渲染出来');
 

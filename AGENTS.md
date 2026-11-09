@@ -26,9 +26,10 @@ npm run dev                 # 后端 3000 + 前端 5173（-s / -w 改端口，PU
 npm run dev:server          # 只起后端
 npm run dev:web             # 只起前端
 npm run build               # 构建全部 workspace
-npm run dev:player   -- --bundle=<包.zip|目录>   # 播放器 dev（5174/loredoku/，v0.9.0）
-npm run build:player -- --bundle=<包.zip|目录>   # 播放器产物 → packages/web/dist-player/
+npm run dev:player                               # 播放器 dev（5174/loredoku/，v0.9.0）
+npm run build:player                             # 播放器产物 → packages/web/dist-player/
 npm run preview:player                           # 预览播放器产物（4173/loredoku/，不要求包）
+#   ↑ 三条默认读仓库根 .env 的 LOREDOKU_BUNDLE；临时换包加 `-- --bundle=<包.zip|目录>`
 npm start                   # 先 build：后端 3000 直接托管 packages/web/dist（v0.5.6）
 npm run typecheck           # 全量 tsc --noEmit
 npm test                    # 各 workspace Vitest + 根目录 scripts/ 单测

@@ -7,6 +7,7 @@ import type {
   MapGameSummary,
   ParticipantTarget,
   PuzzleDraft,
+  ThemeDifficultyTier,
 } from './types/domain';
 import {
   collectPuzzleThemeRefs,
@@ -178,11 +179,30 @@ export interface BundleManifestFile {
   sha256: string;
 }
 
+/**
+ * 包里的主题身份 + **难度分级**（2026-11-09 补，见 docs/v0.9.0.md §13）。
+ *
+ * `difficultyLevels` 为什么放 manifest 而不放 theme.json：播放器进列表页时已经要读
+ * manifest（关卡清单在里面），再为几档名字多取一次 theme.json 不值；manifest.theme
+ * 本来就把 theme.json 的 code / name / description 抄了一份，这里只是同一个做法。
+ * 存的是**导出那一刻的原始配置**，排序与兜底留给读包方的 `resolveDifficultyTiers`。
+ *
+ * 可选而非必填：v0.9.0 导出的老包没有这个键。新播放器读老包时按「没配过」处理
+ * （内置五档），所以这次是**向后兼容的加法**，不动 `BUNDLE_FORMAT_VERSION` —— 升版
+ * 会让所有存量包在 `assertBundleFormat` 那里直接被拒。
+ */
+export interface BundleManifestTheme {
+  code: string;
+  name: string;
+  description: string | null;
+  difficultyLevels?: readonly ThemeDifficultyTier[];
+}
+
 export interface BundleManifest {
   format: string;
   formatVersion: number;
   exportedAt: string;
-  theme: { code: string; name: string; description: string | null };
+  theme: BundleManifestTheme;
   games: BundleManifestGame[];
   assets: string;
   characters: string;
@@ -196,7 +216,7 @@ export interface BundleManifest {
 }
 
 export interface BuildBundleManifestInput {
-  theme: { code: string; name: string; description: string | null };
+  theme: BundleManifestTheme;
   exportedAt: string;
   games: BundleManifestGame[];
   files: BundleManifestFile[];
@@ -214,7 +234,16 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
     format: BUNDLE_FORMAT,
     formatVersion: BUNDLE_FORMAT_VERSION,
     exportedAt: input.exportedAt,
-    theme: input.theme,
+    theme: {
+      code: input.theme.code,
+      name: input.theme.name,
+      description: input.theme.description,
+      // 没配过就不写这个键（概览页「恢复内置五档」也是删键）：缺省主题与老包的
+      // manifest 因此一个字节都不多，读包方一律按 undefined 处理。
+      ...(input.theme.difficultyLevels
+        ? { difficultyLevels: input.theme.difficultyLevels }
+        : {}),
+    },
     games: input.games,
     assets: 'assets.json',
     characters: 'characters.json',
@@ -273,6 +302,11 @@ export function bundleRefsOf(game: BundleGameInput): ThemeRefTarget[] {
  *
  * **没有 `style`** —— 风格跟着每一关走（`PuzzleDraft.map.data.style` + `linkageColors`），
  * 包里再放一份就会和关卡里那份不一致，而关卡里那份才是玩家看到的。
+ *
+ * **难度分级也不在这里**（2026-11-09 补，docs/v0.9.0.md §13）：它是列表页唯一用得着的
+ * 主题配置，跟着 `manifest.theme` 一起发，播放器不必为它多取一次文件。style 不能进包
+ * 的理由是「会与关卡里那份不一致」；分级没有这个问题 —— 关卡里只有 `difficulty` 数字，
+ * 名字与颜色只有主题这一份。
  */
 export interface BundleThemeFile {
   code: string;

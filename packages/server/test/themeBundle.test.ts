@@ -295,6 +295,38 @@ describe('资源包导出（§11）', () => {
   });
 
   /**
+   * 2026-11-09 补（docs/v0.9.0.md §13）：包里每关只有 `difficulty` **数字**，
+   * 名字与颜色是主题级的。不带它们，播放器列表页只能退回内置五档。
+   * 同时守住另一半：缺省主题不写这个键，老包读起来仍是「没配过」。
+   */
+  it('主题配了难度分级 → manifest.theme 带上；没配就一个键都不多', async () => {
+    const levels = [
+      { level: 1, label: '初' },
+      { level: 2, label: '通', color: '#B93A32' },
+      { level: 3, label: '精' },
+    ];
+    const themedCode = await createTheme();
+    const patched = await api
+      .patch(`/api/themes/${themedCode}`)
+      .send({ data: { version: 1, difficultyLevels: levels } });
+    expect(patched.status).toBe(200);
+    await deployedGame(themedCode);
+
+    const built = await bundleService.buildThemeBundle(themedCode);
+    expect(built.manifest.theme.difficultyLevels).toEqual(levels);
+    // 真正进 zip 的那份 manifest.json 也要有 —— 只改内存里的 built.manifest 不算数。
+    const fromZip = JSON.parse(
+      built.entries.find((entry) => entry.path === 'manifest.json')!.data.toString('utf8'),
+    ) as { theme: { difficultyLevels?: unknown } };
+    expect(fromZip.theme.difficultyLevels).toEqual(levels);
+
+    const plainCode = await createTheme();
+    await deployedGame(plainCode);
+    const plain = await bundleService.buildThemeBundle(plainCode);
+    expect('difficultyLevels' in plain.manifest.theme).toBe(false);
+  });
+
+  /**
    * v0.8.6 §4：禁止符号是一张**上传图**，所以打包时它和资源图走同一条「搬文件 +
    * 改写为包内相对路径」的路 —— 只是目标目录是 `files/symbols/`。
    */

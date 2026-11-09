@@ -16,8 +16,12 @@ import ApiGamePage from './ApiGamePage';
  * 2. 右栏的缩放簇真的能改比例，重置能回到 100%；
  * 3. 提交是一次结算：未通过时弹窗只列**谁不对**。
  *
- * 页面级只钉**对外可观察**的结果（步数计数器 / 用时 / 百分比 / 弹窗文案），
+ * 页面级只钉**对外可观察**的结果（用时 / 百分比 / 弹窗文案 / 棋盘画了什么），
  * 存档与计时的清洗规则分别在 `gameProgress.test.ts` / `gameTimer.test.ts` 里覆盖。
+ *
+ * v0.9.0 §17：右下角「已放置 / 可回退」两行统计被删掉，原先靠这两行断言存档
+ * 水合的用例改成看**棋盘本身**（放置层与 `forbidden-*` 标记）—— 少一层文案，
+ * 断言反而更贴近玩家真正看见的东西。
  */
 
 const fixture = vi.hoisted(() => ({
@@ -128,6 +132,10 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     window.localStorage.clear();
     fixture.detail.puzzle.forbiddenSymbol = null;
     fixture.theme.forbiddenSymbol = null;
+    // v0.9.0 §17：这两套也是 fixture 上的可变状态 —— 不重置的话，图标用例里配的
+    // 那几张图会漏到后面的右栏布局用例里（它们要求「谁都没配」）。
+    fixture.detail.puzzle.toolIcons = null;
+    fixture.theme.toolIcons = null;
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -203,7 +211,9 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       },
     });
     render();
-    expect(container.textContent).toContain('已放置 3 个');
+    // v0.9.0 §17：计数器没了，直接看棋盘 —— 放置层出现、那一格 × 画出来了。
+    expect(container.querySelector('main div[style*="z-index: 40"]')).not.toBeNull();
+    expect(container.querySelector('[data-testid="forbidden-4,4"]')).not.toBeNull();
     // 水合不能反过来把存档清掉：读到的还是那三格。
     const kept = JSON.parse(window.localStorage.getItem(gameProgressKey('night-train')) ?? '{}');
     expect(Object.keys(kept.board ?? {})).toHaveLength(3);
@@ -241,7 +251,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
     render();
     act(() =>
-      container.querySelector<HTMLButtonElement>('button[title="提交当前摆放（先校验）"]')?.click(),
+      container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
     );
 
     const dialog = document.body.textContent ?? '';
@@ -285,7 +295,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
     render();
     const ready = container.querySelector<HTMLButtonElement>(
-      'button[title="提交当前摆放（先校验）"]',
+      'button[title="提交"]',
     );
     expect(ready).not.toBeNull();
     expect(ready?.disabled).toBe(false);
@@ -319,7 +329,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
       act(() =>
         container
-          .querySelector<HTMLButtonElement>('button[title="提交当前摆放（先校验）"]')
+          .querySelector<HTMLButtonElement>('button[title="提交"]')
           ?.click(),
       );
       expect(clock()).toBe('00:03');
@@ -361,7 +371,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   it('starts empty when the save belongs to another grid', () => {
     seedSave({ gridSize: 12, board: { '0,0': { kind: 'participant', index: 1 } } });
     render();
-    expect(container.textContent).toContain('已放置 0 个');
+    // 指纹不匹配的旧存档按「没有存档」处理：放置层整层不渲染（棋盘空白）。
+    expect(container.querySelector('main div[style*="z-index: 40"]')).toBeNull();
   });
 
   it('writes the board back to localStorage while playing', () => {
@@ -371,7 +382,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     // 摆到视口中央，下面按视口中心点算出来的格子才稳定（不依赖默认格宽）。
     act(() => container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click());
 
-    const forbidden = container.querySelector<HTMLButtonElement>('button[title^="禁止符号"]');
+    const forbidden = container.querySelector<HTMLButtonElement>('button[title="标记"]');
     expect(forbidden).not.toBeNull();
     act(() => forbidden?.click());
 
@@ -411,7 +422,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
     render();
     act(() =>
-      container.querySelector<HTMLButtonElement>('button[title="提交当前摆放（先校验）"]')?.click(),
+      container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
     );
 
     const dialog = document.body.textContent ?? '';
@@ -515,7 +526,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       sizeCanvas();
       // jsdom 没有真实布局：先按视口重排一次，再把指针放到画布中心。
       act(() => container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click());
-      act(() => container.querySelector<HTMLButtonElement>('button[title^="禁止符号"]')?.click());
+      act(() => container.querySelector<HTMLButtonElement>('button[title="标记"]')?.click());
       act(() => {
         container
           .querySelector('main')
@@ -568,6 +579,74 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       fixture.detail.puzzle.toolIcons = { clear: { path: 'puzzles/7/tool-icons/clear/own.webp' } };
       render();
       expect(iconSrc('clear')).toBe('/api/files/puzzles/7/tool-icons/clear/own.webp');
+    });
+  });
+
+  /**
+   * v0.9.0 §17：右栏的三处收纳 —— 统计删掉、视图簇沉底、四枚图标放大。
+   *
+   * 这三件事都发生在**共享**的 `GamePage.tsx`：工坊 `/play/:slug` 与播放器
+   * `/loredoku/:code/play/:key` 挂的是同一个组件，所以不存在两份布局要同步。
+   */
+  describe('右栏布局（v0.9.0 §17）', () => {
+    /** 右栏是第二个 `<aside>`（第一个是左列的题面 / 名册）。 */
+    function toolbar(): Element {
+      const asides = container.querySelectorAll('aside');
+      const right = asides[asides.length - 1];
+      if (!right) throw new Error('右栏没渲染出来');
+      return right;
+    }
+
+    it('右下角不再有「已放置 / 可回退」两行统计', () => {
+      render();
+      expect(container.textContent).not.toContain('已放置');
+      expect(container.textContent).not.toContain('可回退');
+    });
+
+    it('放大 / 缩小 / 重置 / 标尺这一簇是右栏的最后一个子元素', () => {
+      render();
+      const last = toolbar().lastElementChild;
+      expect(last).not.toBeNull();
+      // `mt-auto` 是「沉到底边」的唯一手段：统计那块删掉后，不能再靠它顶下去。
+      expect(last?.className).toContain('mt-auto');
+      for (const label of ['放大', '缩小', '重置视图', '显示 / 隐藏标尺']) {
+        expect(last?.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
+      }
+      expect(last?.textContent).toContain('100%');
+    });
+
+    it('四枚工具按钮的图标都是 32px（h-8 w-8）', () => {
+      render();
+      const selectors = [
+        'button[title="标记"]',
+        'button[title="清除放置，长按清空全部"]',
+        'button[title="没有可回退的操作"]',
+        'button[title^="还有参与者没放好"]',
+      ];
+      for (const selector of selectors) {
+        const button = container.querySelector<HTMLButtonElement>(selector);
+        expect(button).not.toBeNull();
+        const icon = button?.querySelector('svg, img');
+        expect(icon?.classList.contains('h-8')).toBe(true);
+        expect(icon?.classList.contains('w-8')).toBe(true);
+      }
+    });
+
+    it('作者上传的四张图也按 32px 显示，不回落到 20px', () => {
+      fixture.theme.toolIcons = {
+        clear: { path: 'themes/3/tool-icons/clear/a.webp' },
+        undo: { path: 'themes/3/tool-icons/undo/b.webp' },
+        submit: { path: 'themes/3/tool-icons/submit/c.webp' },
+      };
+      fixture.detail.puzzle.forbiddenSymbol = { path: 'puzzles/7/forbidden-symbol/x.webp' };
+      render();
+
+      const images = Array.from(toolbar().querySelectorAll('img'));
+      expect(images).toHaveLength(4);
+      for (const image of images) {
+        expect(image.classList.contains('h-8')).toBe(true);
+        expect(image.classList.contains('w-8')).toBe(true);
+      }
     });
   });
 });
