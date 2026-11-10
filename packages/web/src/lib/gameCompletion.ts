@@ -116,13 +116,11 @@ export function readGameCompletion(
 }
 
 /**
- * 记下这一关通过了。返回**最终存着的那一条** —— 已经有一条有效记录时原样返回，
- * 不覆盖。
+ * 记下这一关通过了 —— **以最后一次为准**。
  *
- * 为什么首次为准而不是「取更快的一局」：这条记录在列表页读作「结案了」，
- * 卡片是**凭证**不是排行榜；数字随每次重玩来回跳，会把一枚印读成一个计时器。
- * 想刷新成绩就重新来（清掉站点的 localStorage），这条规矩与 v0.7.11「提交不落盘」
- * 同一种态度：界面不该记一个玩家没做过的状态，也不该替他改成绩。
+ * v0.9.5 是「首次为准」，理由是卡片上的印是凭证、不是排行榜。v0.9.6 用户明确了
+ * 规则：「完成时间：记录最后一次完成时间（重复完成，仅记录最后一次）」—— 重玩
+ * 通关就是又结了一次案，卡片该跟着最新的那一次走。
  *
  * 指纹对不上（`gridSize <= 0`，画布还没算出来）时不写：写下去的每一条都必须
  * 能被 `readGameCompletion` 读回来，否则列表页永远看不见它。
@@ -134,9 +132,6 @@ export function recordGameCompletion(
 ): GameCompletion | null {
   if (typeof window === 'undefined' || storageId.length === 0) return null;
   if (!Number.isFinite(meta.gridSize) || meta.gridSize <= 0) return null;
-
-  const existing = readGameCompletion(storageId, meta);
-  if (existing) return existing;
 
   const completion: GameCompletion = {
     elapsedMs: Math.max(0, Math.floor(input.elapsedMs)),

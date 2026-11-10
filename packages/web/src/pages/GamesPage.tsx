@@ -11,6 +11,7 @@ import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useGames } from '@/hooks/useGames';
 import { useDifficultyTiersByCode } from '@/hooks/useThemes';
 import { readGameCompletion, type GameCompletion } from '@/lib/gameCompletion';
+import { readLastLeftAt, readLastLeftElapsed } from '@/lib/gameTimer';
 import { workshopPath } from '@/lib/workspace';
 
 /**
@@ -32,13 +33,24 @@ export function GamesPage(): JSX.Element {
   const games = useMemo(() => gamesQuery.data ?? [], [gamesQuery.data]);
 
   /**
-   * v0.9.5：每张卡各自的通过记录。存档键就是游戏 slug（线上那一套，见
-   * `lib/apiGameSource` 的 `storageId`），指纹只有 `gridSize`。
-   *
-   * 整份算一次而不是让卡片自己读：读 localStorage 是同步 I/O，二十几张卡各读一次
-   * 就是二十几次序列化；而这里顺手得到一份「哪些关通过了」的表 —— 将来要写
-   * 「已完成 3 / 8」这种计数时，它就在手边。
+   * v0.9.6：每一关的**最后离开时间**。它与通过记录分两条键（完成是既成事实、
+   * 离开是上次玩到几点），所以这里分开算一张表；卡片按「完成优先，否则离开」
+   * 自己挑一个。
    */
+  const lastLeft = useMemo(() => {
+    const map = new Map<string, { elapsedMs: number; at: string | null }>();
+    for (const game of games) {
+      const elapsedMs = readLastLeftElapsed(game.slug, { gridSize: game.gridSize });
+      if (elapsedMs === null) continue;
+      map.set(game.slug, {
+        elapsedMs,
+        at: readLastLeftAt(game.slug, { gridSize: game.gridSize }),
+      });
+    }
+    return map;
+  }, [games]);
+
+  /** v0.9.5：每张卡各自的通过记录（键是游戏 slug）。 */
   const completions = useMemo(() => {
     const map = new Map<string, GameCompletion>();
     for (const game of games) {
@@ -129,6 +141,8 @@ export function GamesPage(): JSX.Element {
                 game={game}
                 tiers={tiersFor(game.themeCode)}
                 completion={completions.get(game.slug) ?? null}
+                lastLeftAt={lastLeft.get(game.slug)?.at ?? null}
+                lastLeftElapsedMs={lastLeft.get(game.slug)?.elapsedMs ?? null}
               />
             ))}
           </div>

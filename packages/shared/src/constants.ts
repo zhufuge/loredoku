@@ -350,6 +350,15 @@ export const MAP_STYLE_REGION_LABEL_FONT_MIN = 9;
 export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
 export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
 export const MAP_STYLE_REGION_LABEL_STROKE_MAX = 12;
+/**
+ * v0.9.6：区域标签位置偏移的上下限（画布像素，正负都收）。
+ *
+ * 上下限存在的理由是**别让它跑没**：超过一格半之后，作者自己也说不清标签跑到
+ * 哪儿去了，而工具栏里没有「标签在画面外」这种提示。±200 足够把标签推到相邻
+ * 两三格之外。
+ */
+export const REGION_LABEL_OFFSET_MIN = -200;
+export const REGION_LABEL_OFFSET_MAX = 200;
 
 // ---- v0.7.4 区域标签字体（docs/v0.7.4.md §2） ----
 /**
@@ -763,6 +772,22 @@ export interface MapStyleRegionLabel {
   hoverStrokeWidth: number;
 }
 
+/**
+ * v0.9.6：区域标签的**位置偏移**（相对「格子上沿居中」这个锚点）。
+ *
+ * 锚点由 `labelCell` 决定，但同一个格子在不同区域里可能被别的东西占着 —— 一条
+ * 只占两格的长区域、标签又压在桌沿上时，作者需要把它推开一点点。偏移是
+ * **每块区域各自一份**，所以放在 `DraftRegion.style.label` 的覆盖里（而不是
+ * 地图级缺省）：地图级的缺省偏移对一块区域合适，对另一块就不合适。
+ *
+ * 单位是**画布像素**（随 `zoom` 缩放、不随格子大小变）：「推开半格」这种意图
+ * 会随格子大小漂移，而「往右 12px」不会。`0` = 不偏移（出厂值）。
+ */
+export interface RegionLabelOffset {
+  x: number;
+  y: number;
+}
+
 /** v0.3.9 FEAT-E02: ruler text size + the text→board gap. */
 export interface MapStyleRuler {
   fontSize: number;
@@ -830,22 +855,34 @@ export type RegionLineStyle = MapStyleLine;
 /** 区域标签的区域级覆盖：与 `MapStyleRegionLabel` 同字段。 */
 export type RegionLabelStyle = MapStyleRegionLabel;
 
-/** The resolved region style: the map-level defaults with the region's overrides merged in. */
+/**
+ * The resolved region style: the map-level defaults with the region's overrides merged in.
+ *
+ * v0.9.6：`labelOffset` 挂在**这一层**而不是 `label` 里面 —— 它只在区域级存在，
+ * 地图级没有对应项。挂进来的话 `RegionLabelStyle`（= `MapStyleRegionLabel`）就
+ * 得为它加一个地图级永远没有的字段，`DEFAULT_MAP_STYLE` 与两处共用编辑器都会
+ * 被牵连。放在这里则只多一份「这块区域的标签往哪偏」，读点也直白。
+ */
 export interface RegionStyle {
   outline: RegionLineStyle;
   highlight: RegionLineStyle;
   label: RegionLabelStyle;
+  /** v0.9.6：区域标签的位置偏移（画布像素）。缺省 `{ x: 0, y: 0 }`。 */
+  labelOffset: RegionLabelOffset;
 }
 
 /**
  * 区域样式的**存储变体**：对地图级缺省的深 partial，只记差异。渲染时
  * `resolveRegionStyle(地图级缺省, override)` 合成完整值；三者全等于缺省时
  * 整个 `style` 键不落盘（`regionStyleOverride` 助手负责这件事）。
+ *
+ * v0.9.6：`label.offset` 与 `label` 其它字段同一条规矩 —— 只有非 0 的那一轴
+ * 才记，两轴都 0 时整块 `offset` 不落盘。
  */
 export interface RegionStyleOverride {
   outline?: Partial<RegionLineStyle>;
   highlight?: Partial<RegionLineStyle>;
-  label?: Partial<RegionLabelStyle>;
+  label?: Partial<RegionLabelStyle> & { offset?: Partial<RegionLabelOffset> };
 }
 
 /** Declared after every constant it reads, to avoid the temporal dead zone on import. */
@@ -1058,6 +1095,15 @@ export const GAME_CLEAR_LONG_PRESS_MS = 800;
  */
 export const GAME_CHECK_RING_SWEEP_MS = 360;
 export const GAME_CHECK_STEP_MS = 480;
+
+/**
+ * v0.9.6：校验**通过**之后，「定案 + 印章」在地图遮罩上停多久再弹结算卡。
+ *
+ * 用途是让那枚印落定：`.stamp-press` 的动效 420ms（从 1.7 倍 −18° 落到正位），
+ * 停 1s 意味着动画跑完还留了半秒让玩家看见。短于动画时长就成了「弹窗盖着印在
+ * 底下动」，那等于没做这个效果；太长会让玩家干等。
+ */
+export const GAME_VERDICT_HOLD_MS = 1000;
 
 /**
  * v0.9.3：校验圈的两档颜色（主题里可改，这里是缺省）。

@@ -202,3 +202,50 @@ describe('区域标签字体 (v0.7.4)', () => {
     expect(isMapStyleFontFamilyKey(42)).toBe(false);
   });
 });
+
+/**
+ * v0.9.6：区域标签的**位置偏移**（每块区域独立配置）。
+ *
+ * 两件事：只在区域级出现（地图级 `MapStyle.regionLabel` 没有这一项），以及
+ * 两轴都可缺、都有范围。
+ */
+describe('区域标签位置偏移 (v0.9.6)', () => {
+  it('regionStyleOverrideSchema 收 { label: { offset: { x, y } } }', () => {
+    const parsed = regionStyleOverrideSchema.parse({
+      label: { offset: { x: 12, y: -30 } },
+    });
+    expect(parsed.label?.offset).toEqual({ x: 12, y: -30 });
+  });
+
+  it('两轴都可缺，空对象也合法', () => {
+    expect(regionStyleOverrideSchema.safeParse({ label: { offset: {} } }).success).toBe(true);
+    expect(regionStyleOverrideSchema.safeParse({ label: { offset: { x: 5 } } }).success).toBe(true);
+  });
+
+  it('越界 / 多带键一律拒', () => {
+    for (const bad of [
+      { x: 5000 },
+      { y: -5000 },
+      { x: 1, extra: true },
+    ] as Array<unknown>) {
+      expect(
+        regionStyleOverrideSchema.safeParse({ label: { offset: bad } }).success,
+        JSON.stringify(bad),
+      ).toBe(false);
+    }
+  });
+
+  it('draftRegionSchema 收带偏移的区域', () => {
+    const parsed = draftRegionSchema.parse({
+      id: 'rg_a',
+      name: '回廊',
+      cells: [[0, 0]],
+      style: { label: { offset: { x: 6, y: 6 } } },
+    });
+    expect(parsed.style?.label?.offset).toEqual({ x: 6, y: 6 });
+  });
+
+  it('地图级 regionLabel 里没有 offset —— 它只属于某一块区域', () => {
+    expect(mapStyleSchema.parse({}).regionLabel).not.toHaveProperty('offset');
+  });
+});

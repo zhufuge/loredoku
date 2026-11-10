@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { Clock } from 'lucide-react';
 import type { MapGameSummary, ThemeDifficultyTier } from '@loredoku/shared';
 import { Card } from '@/components/ui/card';
 import { DifficultyBadge } from '@/components/game/DifficultyBadge';
@@ -82,6 +83,8 @@ export function GameCard({
   href,
   tiers,
   completion,
+  lastLeftAt,
+  lastLeftElapsedMs,
 }: {
   game: GameCardData;
   href?: string;
@@ -100,6 +103,16 @@ export function GameCard({
    * 握着 `gridSize`，指纹那一半也不必再问卡片要。
    */
   completion?: GameCompletion | null;
+  /**
+   * v0.9.6：**最后离开时间**（ISO）—— 没有完成记录时那一格显示它。
+   *
+   * 与 completion 分开传：它们是两份不同的记录（完成是既成事实、离开是上次
+   * 玩到几点），合并成一个「时间」字段会让「有完成记录时该不该继续更新它」
+   * 变成一道选择题。
+   */
+  lastLeftAt?: string | null;
+  /** v0.9.6：最后离开时的计时读数（毫秒）—— 卡片那一格显示的是它。 */
+  lastLeftElapsedMs?: number | null;
 }): JSX.Element {
   const navigate = useNavigate();
   const to = href ?? `/play/${game.slug}`;
@@ -170,16 +183,25 @@ export function GameCard({
           {game.name}
         </h3>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <DifficultyBadge difficulty={game.difficulty} tiers={tiers} className="rounded" />
+          {/*
+            v0.9.6：页脚按用户给的版式重排 ——
+            左边「n × n」+ 难度，右边【时间图标】+ 时间。
+            时间取「完成优先，否则最后离开」，见 `CompletionTime`。
+          */}
           <span className="flex items-baseline gap-2">
-            {/*
-              v0.9.5：通过的关卡在这里多一格完成用时 —— 它比 `n × n` 更该被看见，
-              所以排在尺寸左边。没通过时这一格整段不出现，页脚与改动前逐字相同。
-            */}
-            {completed ? <CompletionTime completion={completed} /> : null}
             <span className="tabular-nums transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground">
               {game.gridSize} × {game.gridSize}
             </span>
+            <DifficultyBadge difficulty={game.difficulty} tiers={tiers} className="rounded" />
+          </span>
+          <span className="flex items-center gap-1">
+            <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <CompletionTime
+              completion={completed}
+              lastLeftAt={lastLeftAt ?? null}
+              lastLeftElapsedMs={lastLeftElapsedMs ?? null}
+              className="transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground"
+            />
           </span>
         </div>
       </div>

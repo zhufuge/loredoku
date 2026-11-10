@@ -204,6 +204,8 @@ function RegionEditBranch({
         idPrefix="region-info"
         value={draft}
         onChange={(next) => setDraft(next)}
+        /* v0.9.6：位置偏移只在这一屏出现 —— 它属于这块区域自己的标签。 */
+        showOffset
       />
 
       {error ? <p className="text-2xs text-destructive">{error}</p> : null}

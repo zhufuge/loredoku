@@ -707,6 +707,9 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 outline: draft.regionOutline,
                 highlight: draft.regionHighlight,
                 label: draft.regionLabel,
+                // v0.9.6：地图级没有标签偏移这一项（它只属于某一块区域），
+                // 这里给 0 占位；`showOffset` 不开，所以它不会出现在这一屏。
+                labelOffset: { x: 0, y: 0 },
               }}
               onChange={(next) =>
                 patch((current) => ({

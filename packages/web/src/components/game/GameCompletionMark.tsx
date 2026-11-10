@@ -1,81 +1,107 @@
-import { useState } from 'react';
 import type { GameCompletion } from '@/lib/gameCompletion';
 import { formatElapsed } from '@/lib/gameTimer';
 import { cn } from '@/lib/utils';
+import { VerdictMark } from '@/components/game/VerdictMark';
 
 /**
- * v0.9.5：**已完成的谜题**在列表页的模样 —— 两件东西，分两处放：
+ * v0.9.5 / v0.9.6：**已完成的谜题**在列表页的模样 —— 两件东西，分两处放：
  *
- * 1. `CompletionOverlay`：盖在封面上的**大面积覆盖**（整张封面压一层，再把作者
- *    给「提交」配的那枚图案斜着印上去）。它是「这一关结案了」的**整卡提示** ——
- *    卡片很小，一枚角标会被扫过去，一整片覆盖才让人在挑关卡时一眼看见哪些做完了。
- * 2. `CompletionTime`：页脚那一格**用时**（`03:07`）。覆盖是「做没做过」，用时是
- *    「做得怎么样」，两件事。
+ * 1. `CompletionOverlay`：盖在封面上的**大面积覆盖**（整张封面压一层，再把
+ *    「定案」两个字与作者给「提交」配的那枚图案斜着印上去）。它是「这一关结案了」
+ *    的**整卡提示** —— 卡片很小，一枚角标会被扫过去，一整片覆盖才让人在挑关卡时
+ *    一眼看见哪些做完了。
+ * 2. `CompletionTime`：页脚那一格**时间**（完成用时 / 最后离开时间）。
  *
- * **没有图案就不盖章**（与 v0.9.3 §3 定案卡同一条规矩）：内置的 lucide 发送图标是
- * 界面图标，盖上去像把按钮按进了封面里，不是一个印。那一档只剩用时 —— 覆盖也
- * 一起不画：一片没有印的空蒙版只会把封面弄脏。
+ * v0.9.6：加上「定案」两个字，且印改由 `VerdictMark` 提供 —— 那张遮罩上的大印
+ * 与卡片上的小印必须是同一枚、同一个角度，两处各画一遍迟早会走样。
+ *
+ * **没有图案就不盖章，但「定案」两个字照留**（v0.9.6 调整）：v0.9.5 是「没印就
+ * 整块不画」，理由是「一片没有印的空蒙版只会把封面弄脏」。加了文字之后这条理由
+ * 不成立了 —— 「定案」本身就说清了这一关的状态，蒙版也就不空。
  */
 export function CompletionOverlay({
   completion,
 }: {
   completion: GameCompletion;
-}): JSX.Element | null {
-  /**
-   * 记下来的地址可能已经不在了：作者换过那枚图、包重新导出过（`files/icons/`
-   * 里的文件名带着关卡 key，重新导出不一定同名）。加载失败就**静默不画**，
-   * 不在封面上留一个破图标 —— 用时那一边照常显示，完成这件事仍然说得清楚。
-   *
-   * 用 state 而不是 `onError` 直接改 DOM：这一块的重渲染本来就是从「一次失败的
-   * 加载」开始的，交给 React 才不会和卡片自己的悬停重渲染抢。
-   */
-  const [failed, setFailed] = useState(false);
-  if (!completion.stampUrl || failed) return null;
-
+}): JSX.Element {
   return (
     <div
       aria-hidden="true"
       data-testid="game-completion-cover"
       className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/55"
     >
-      <img
-        src={completion.stampUrl}
-        alt=""
-        draggable={false}
-        data-testid="game-completion-stamp"
-        onError={() => setFailed(true)}
-        /*
-         * 倾斜 -8°：与定案卡那枚 `stamp-press` 的落点角度一致 —— 同一枚印在
-         * 两处不会一正一歪。尺寸按封面的 62% 走（`max-h`/`max-w` 一起限），
-         * 长边图与方图都不会顶破封面；`object-contain` 保住图案本身的比例。
-         *
-         * 深色翻一次（与工具栏那几枚同一条理由：图多半是深墨画在透明底上），
-         * `hue-rotate-180` 把色相转回来，否则红印在深色下会变青。
-         */
-        className="max-h-[62%] max-w-[62%] -rotate-[8deg] select-none object-contain opacity-90 shadow-lifted dark:invert dark:hue-rotate-180"
-      />
+      {/*
+        * v0.9.6：与地图遮罩**同一个组件、同一个排法**（定案在上、印在下、居中）。
+        * 用户：「上面展示和谜题卡片一样的定案+印章（位置也相同）」—— 各画一遍
+        * 迟早会在某一版里一横一竖。卡片上不播印章动效：列表里的印是既成事实。
+        */}
+      <VerdictMark stampUrl={completion.stampUrl} className="h-full w-full" />
     </div>
   );
 }
 
 /**
- * 页脚那格用时。写成 `用时 03:07`：光一个 `03:07` 挨着难度徽章会被读成「时长」
- * 这个字段名都没有的一个数；三个字把「这是这一局的成绩」说清楚。
+ * 页脚那一格**时间**（v0.9.6 改）。
+ *
+ * 规则是「完成优先，否则取最后离开」，显示的都是**计时读数**（`mm:ss`）：
+ * - 有完成记录 → 那一局的完成用时；
+ * - 没完成但玩过 → 上次离开时表上的读数；
+ * - 都没玩过 → `00:00`。
+ *
+ * 版面上**不加前缀**：用户给的占位符是「【时间图标】00:00」，图标已经说了
+ * 「这是一格时间」，再写「完成 / 离开」会把 12 张卡的页脚挤成一团。数字具体是
+ * 哪一种，交给 `title`（悬停才看）。
  */
 export function CompletionTime({
   completion,
+  lastLeftElapsedMs,
+  lastLeftAt,
   className,
 }: {
-  completion: GameCompletion;
+  completion: GameCompletion | null;
+  /** v0.9.6：最后离开时的计时读数（毫秒）；没有完成记录时才显示。 */
+  lastLeftElapsedMs?: number | null;
+  /** 最后离开的墙钟时刻，只进 title。 */
+  lastLeftAt?: string | null;
   className?: string;
 }): JSX.Element {
+  if (completion) {
+    return (
+      <span
+        data-testid="game-completion-time"
+        title={`完成用时 · 完成于 ${completion.completedAt.slice(0, 10)}`}
+        className={cn('shrink-0 tabular-nums', className)}
+      >
+        {formatElapsed(completion.elapsedMs)}
+      </span>
+    );
+  }
+  if (lastLeftElapsedMs !== null && lastLeftElapsedMs !== undefined) {
+    return (
+      <span
+        data-testid="game-last-left"
+        title={
+          lastLeftAt
+            ? `上次离开时的计时 · ${formatLastLeft(lastLeftAt)}`
+            : '上一次游玩离开时的计时'
+        }
+        className={cn('shrink-0 tabular-nums', className)}
+      >
+        {formatElapsed(lastLeftElapsedMs)}
+      </span>
+    );
+  }
   return (
-    <span
-      data-testid="game-completion-time"
-      title={`完成于 ${completion.completedAt.slice(0, 10)}`}
-      className={cn('shrink-0 tabular-nums', className)}
-    >
-      用时 {formatElapsed(completion.elapsedMs)}
+    <span data-testid="game-no-time" className={cn('shrink-0 tabular-nums', className)}>
+      00:00
     </span>
   );
+}
+
+/** `2026-11-10T15:04:00Z` → `11-10 15:04`（本地时区）。 */
+export function formatLastLeft(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  const pad = (value: number): string => String(value).padStart(2, '0');
+  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }

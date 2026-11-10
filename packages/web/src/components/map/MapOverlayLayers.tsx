@@ -166,7 +166,18 @@ export function MapRegionLabelLayer({
         const anchor = region.labelCell ?? computeLabelCell(region.cells);
         if (!anchor) return null;
         const hovered = hoveredRegionId === region.id;
-        const label = resolveRegionStyle(style, region.style).label;
+        const resolved = resolveRegionStyle(style, region.style);
+        const label = resolved.label;
+        /*
+         * v0.9.6：每块区域自己那份**位置偏移**（画布像素）。
+         *
+         * 单位是画布像素而不是格子比例：「往右 12px」在 4×4 和 12×12 的盘面上
+         * 说的是同一件事，而「往右半格」会随格子大小漂移 —— 作者调的是「这一枚
+         * 标签压到别的东西了」，不是「按格算的间距」。
+         *
+         * 它跟着纸一起 `transform`（父层带着 zoom / pan），所以缩放时不用另算。
+         */
+        const offset = resolved.labelOffset;
         const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
         return (
           <button
@@ -175,8 +186,8 @@ export function MapRegionLabelLayer({
             className="region-label pointer-events-auto absolute whitespace-nowrap"
             style={
               {
-                left: (anchor[0] + 0.5) * cellSize,
-                top: (anchor[1] + 1) * cellSize - 2,
+                left: (anchor[0] + 0.5) * cellSize + offset.x,
+                top: (anchor[1] + 1) * cellSize - 2 + offset.y,
                 transform: 'translate(-50%, -100%)',
                 color: hovered ? label.hoverColor : label.color,
                 fontFamily: fontFamilyStack(label.fontFamily),

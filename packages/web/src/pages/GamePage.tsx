@@ -12,6 +12,7 @@ import {
   DEFAULT_CELL_SIZE,
   GAME_CHECK_RING_SWEEP_MS,
   GAME_CHECK_STEP_MS,
+  GAME_VERDICT_HOLD_MS,
   GAME_CLEAR_LONG_PRESS_MS,
   GAME_LONG_PRESS_MS,
   GAME_PRESS_RING_DELAY_MS,
@@ -62,6 +63,7 @@ import {
 } from '@/components/map/MapOverlayLayers';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { GameBrief } from '@/components/game/GameBrief';
+import { VerdictMark } from '@/components/game/VerdictMark';
 import { useHighlight } from '@/hooks/useHighlight';
 import {
   clientToCanvasPoint,
@@ -79,7 +81,7 @@ import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
 import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
 import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
 import {
-  clearGameTimer,
+  resetGameTimer,
   formatElapsed,
   readGameTimer,
   writeGameTimer,
@@ -827,6 +829,26 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 见那条 effect 上的注释（这是 v0.7.11 续计时在真浏览器里失效的根因）。
    */
   const [hydrated, setHydrated] = useState(false);
+  /**
+   * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
+   *
+   * 它和 `result` 不是一件事：`result` 是「刚刚结算完、结算卡开着」，`finished`
+   * 是「这一关以前就结案了」。后者让页面一进来就摆出结案遮罩、表停在 00:00，
+   * 直到玩家点「再玩一次」。
+   */
+  const [finished, setFinished] = useState(false);
+  /**
+   * v0.9.6：定案遮罩停完之后弹结算卡的那个定时器。它必须能被打断 ——
+   * 玩家在 1 秒内点「再玩一次」或离开时，晚到的弹窗会盖在一个已经重置的棋盘上。
+   */
+  const verdictTimerRef = useRef<number | null>(null);
+  /**
+   * v0.9.6：这一版结案遮罩是「刚通过」还是「已完成再进入」。
+   *
+   * 只用来决定**印章动效**：刚通过时演一次「印下去」，再进入是既成事实不演。
+   * 其余表现（定案 + 印 + 再玩一次）两版一样。
+   */
+  const revisitedRef = useRef(false);
   const elapsedRef = useRef(0);
   const runningSinceRef = useRef<number | null>(null);
 
@@ -859,8 +881,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     runningSinceRef.current = Date.now();
     setElapsedMs(0);
     setTimerRunning(true);
-    if (storageId) clearGameTimer(storageId);
-  }, [storageId]);
+    // v0.9.6：只归零用时，保留「最后离开时间」—— 重新开始也算「来玩过」。
+    if (storageId) resetGameTimer(storageId, progressMeta);
+  }, [storageId, progressMeta]);
 
   useEffect(() => {
     if (!timerRunning) return;
@@ -923,6 +946,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     () => () => {
       for (const timer of pulseTimersRef.current.values()) window.clearTimeout(timer);
       pulseTimersRef.current.clear();
+      // v0.9.6：定案遮罩那颗「停一秒再弹窗」的定时器也要撤 —— 否则离开页面后它
+      // 还会对着一个已经卸载的组件 setState。
+      if (verdictTimerRef.current !== null) {
+        window.clearTimeout(verdictTimerRef.current);
+        verdictTimerRef.current = null;
+      }
     },
     [],
   );
@@ -973,10 +1002,24 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setPlacementState(restored);
 
     const savedElapsed = storageId ? readGameTimer(storageId, progressMeta) : 0;
-    elapsedRef.current = savedElapsed;
-    runningSinceRef.current = Date.now();
-    setElapsedMs(savedElapsed);
-    setTimerRunning(true);
+    /**
+     * v0.9.6：**已完成再进入 → 定格 00:00**。
+     *
+     * 用户给的规则：「已完成再次进入，定格 00:00，点再玩一次时再开始计时」。
+     * 所以这一局不是「接着上次走」，而是「已经结案了，等你想重玩」。表停着、
+     * 数字归零，`replay()` 才把它放回跑道。
+     */
+    const alreadyDone = Boolean(
+      storageId && readGameCompletion(storageId, { gridSize }),
+    );
+    const startFrom = alreadyDone ? 0 : savedElapsed;
+    // 已完成再进入：结案遮罩上要多一颗「再玩一次」、且不播印章动效。
+    revisitedRef.current = alreadyDone;
+    elapsedRef.current = startFrom;
+    runningSinceRef.current = alreadyDone ? null : Date.now();
+    setElapsedMs(startFrom);
+    setTimerRunning(!alreadyDone);
+    setFinished(alreadyDone);
     /**
      * v0.9.5：读完了才允许落盘。这一行必须排在 `readGameProgress` /
      * `readGameTimer` 之后 —— 它一置真，计时那条 effect 立即开始每 5 秒写一次。
@@ -1018,6 +1061,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     () => allParticipantsPlaced(placementState.board, slots),
     [placementState.board, slots],
   );
+
+  /**
+   * v0.9.6：**这一关已经结案** —— 右侧四枚动作按钮全部置灰。
+   *
+   * 用户：「校验通过后，右侧按钮都置灰不能用」。理由也成立：棋盘已经定格在
+   * 结案那一帧，再让玩家摆一颗头像、退一步、提交一次，改的是一局已经结束的
+   * 棋；要动就得先点「再玩一次」，那是一个明确的重开动作。
+   */
+  const toolsLocked = finished;
 
   useEffect(() => {
     if (!activeSlot) {
@@ -1165,6 +1217,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    *
    * 每 `GAME_CHECK_STEP_MS` 揭一位：先把这一位的圈画上，再等下一拍。最后一位
    * 揭完之后再等一拍才落结论 —— 让最末那一圈也扫满，不然它会在半路上被弹窗盖住。
+   *
+   * v0.9.6：**通过**的那一路不直接弹窗 —— 先把地图方格蒙住、盖上「定案 + 印章」
+   * （印章带动效），停 `GAME_VERDICT_HOLD_MS` 让印落定，再弹结算卡。
+   * 未通过照旧立刻弹（`x/n 正确` 那张卡没有仪式，玩家要接着改）。
    */
   useEffect(() => {
     if (!checkRun) return;
@@ -1173,9 +1229,22 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         setCheckRun({ ...checkRun, revealed: checkRun.revealed + 1 });
         return;
       }
-      // 全部圈完 —— 收尾。圈留在棋盘上（结算弹窗背后的那张结论图）。
-      setResult(pendingResultRef.current);
+      const pending = pendingResultRef.current;
       pendingResultRef.current = null;
+      if (pending?.kind === 'passed') {
+        /*
+         * 通过：先撤掉逐人校验的圈与遮罩，换成「定案」那张大遮罩 —— 圈是过程，
+         * 定案是结论，两样同时出现会读成「还在校验」。
+         */
+        setCheckRun(null);
+        setFinished(true);
+        verdictTimerRef.current = window.setTimeout(() => {
+          verdictTimerRef.current = null;
+          setResult(pending);
+        }, GAME_VERDICT_HOLD_MS);
+        return;
+      }
+      setResult(pending);
     }, GAME_CHECK_STEP_MS);
     return () => window.clearTimeout(timer);
   }, [checkRun]);
@@ -1185,6 +1254,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    *
    * 「清空历史记录」是字面意义上的：`past` / `future` 都丢掉，所以重开这一局
    * 之后撤销不会把上一局的摆放捞回来。
+   *
+   * v0.9.6：它同时是「从结案状态回到奔跑状态」的唯一出口 —— 已完成那一版遮罩上
+   * 的「再玩一次」也走这里（见 `replay`）。
    */
   const restart = useCallback((): void => {
     const fresh = createGamePlacementState();
@@ -1192,12 +1264,26 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setPlacementState(fresh);
     setResult(null);
     setCheckRun(null);
+    setFinished(false);
     setMode({ kind: 'idle' });
     setActivation(INACTIVE_ACTIVATION);
     setPulse({});
     saveProgress(fresh.board);
     resetTimer();
   }, [saveProgress, resetTimer]);
+
+  /**
+   * v0.9.6：已完成那一版遮罩上的「再玩一次」。
+   *
+   * 与 `restart` 的差别只有一处：**先撤掉定案遮罩再重置**。清盘之后再撤遮罩会让
+   * 玩家看见一帧空棋盘顶着「定案」，像结算卡还没收干净。
+   */
+  const replay = (): void => {
+    setFinished(false);
+    // 下一局若再通过，是新的一次「刚盖上去」—— 动效要重新播。
+    revisitedRef.current = false;
+    restart();
+  };
 
   /**
    * v0.7.12：关上未通过的弹窗 = 继续这一局，秒表也要接着走。
@@ -1514,7 +1600,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             * 盖不到边框，于是分隔线会比四周更亮地留在那里。越过 1px 之后它与
             * 中列遮罩（同档同色）在这条线上交叠，分隔线一起被压暗。
             */}
-          {checkRun && !result ? (
+          {checkRun && !result && !finished ? (
             <CheckScrim
               area="left"
               className="absolute inset-y-0 left-0 -right-px"
@@ -1744,7 +1830,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           {/* v0.9.4：中列整层遮罩 —— 铺满地图区，压住标尺条带与画布四周留白；
             它低于画布纸（纸在校验时抬到 saveMask+1），所以棋盘照常明亮。
             只在校验进行中、结算弹窗未出时存在，与左右两栏同色同档。 */}
-          {checkRun && !result ? (
+          {checkRun && !result && !finished ? (
             <CheckScrim
               area="center"
               className="pointer-events-none absolute inset-0"
@@ -1759,7 +1845,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               // v0.9.4：校验期间把这张纸抬到遮罩之上（saveMask+1），于是中列那层
               // 铺满地图区的遮罩只压暗标尺与留白、压不到棋盘；正常游戏时这层不挂，
               // 不影响标尺压在纸边之上的默认层级。
-              zIndex: checkRun && !result ? UI_Z.saveMask + 1 : undefined,
+              zIndex: checkRun && !result && !finished ? UI_Z.saveMask + 1 : undefined,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
               width: total,
@@ -1783,7 +1869,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 * 所以这一层只压暗「纸的底色」；铺了背景图 / 物品 / 头像 / 校验圈的
                 * 格子照常亮。不用量矩形、不用挖洞，缩放平移时它跟着纸一起走。
                 */}
-              {checkRun && !result ? (
+              {checkRun && !result && !finished ? (
                 <CheckScrim area="canvas" className="pointer-events-none absolute inset-0" />
               ) : null}
             </div>
@@ -1791,6 +1877,55 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z.
                 SPEC-G01: the game page drops 操作光标框 and adds the two
                 game-only layers above 区域标签. */}
+            {/*
+              v0.9.6：**定案遮罩** —— 校验通过（或这一关早就完成了）时，地图方格
+              被整片蒙住，上面盖「定案 + 印章」。
+
+              为什么挂在画布纸里而不是当成第五处独立遮罩：用户要的是「把地图方格用
+              遮罩遮住，上面展示定案+印章（位置和谜题卡片一样）」。位置与卡片一致，
+              意味着它得跟着纸走 —— 挂在 `game-canvas` 里就自动随缩放/平移，不必
+              再量一次矩形。它压在内容层之上（`zIndex` 取最高的鼠标框 +1），所以
+              格子、物品、头像都被蒙住。
+
+              左右两栏**不遮**（用户明确：已完成的再进入只留地图方格遮罩）；校验
+              通过那一瞬的左右遮罩由 `checkRun` 那条路径撤掉 —— 见提交的 effect。
+            */}
+            {finished ? (
+              <div
+                data-testid="verdict-scrim"
+                className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-background/85"
+                style={{ zIndex: MAP_LAYER_Z.mouseCursorBox + 1 }}
+              >
+                <VerdictMark
+                  stampUrl={toolIcons.submit?.imageUrl ?? null}
+                  /* 棋盘比 291px 的卡大得多，但排法与卡片完全一致。 */
+                  large
+                  /* 刚通过时演一次「印下去」；已完成再进入是既成事实，不演。 */
+                  /*
+                   * 刚通过时演一次「印下去」；已完成再进入是既成事实，不演。
+                   * 判据只看「是不是这次进来的」，不看 esult —— 结算卡弹出后遮罩还
+                   * 在（它才是背景），动画类不该因为弹窗出现就被摘掉。
+                   */
+                  animate={!revisitedRef.current}
+                />
+                {/*
+                  * v0.9.6：**没有结算卡开着时**，遮罩上必须有「再玩一次」——
+                  * 这是这一局唯一能回到奔跑状态的出口。刚通过 + 结算卡还开着时
+                  * 不画（卡里已经有同一颗按钮，两处各一颗是同一件事说两遍）；
+                  * 关掉弹窗之后就补上，否则按钮全灰、遮罩盖着，玩家会卡在结案页。
+                  */}
+                {!result ? (
+                  <Button
+                    data-testid="verdict-replay"
+                    onClick={replay}
+                    className="pointer-events-auto"
+                  >
+                    再玩一次
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
+
             <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
             <MapHighlightLayer
               highlight={highlight}
@@ -1928,7 +2063,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           {/* v0.9.4：右栏自己一层完整遮罩 —— 与左栏同一层颜色、同一档层级。
               `-left-px` 越过右栏自己的左边框，把「中列 / 右栏」那条分隔线也压暗
               （理由同左栏，见上方注释）。 */}
-          {checkRun && !result ? (
+          {checkRun && !result && !finished ? (
             <CheckScrim
               area="right"
               className="absolute inset-y-0 -left-px right-0"
@@ -1942,6 +2077,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
             title="标记"
+            disabled={toolsLocked}
             onClick={() => toggleTool('forbidden')}
           >
             {/*
@@ -1974,6 +2110,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
             title="清除放置，长按清空全部"
+            disabled={toolsLocked}
             onPointerDown={startClearPress}
             onPointerUp={endClearPress}
             onPointerLeave={endClearPress}
@@ -2007,14 +2144,29 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             * `cursor-not-allowed` 与那句「为什么不能点」的提示。
             */}
           <span
-            className={cn('block w-full', !canUndo(placementState) && 'cursor-not-allowed')}
-            title={canUndo(placementState) ? undefined : '当前没有可以回退的步骤'}
+            className={cn(
+              'block w-full',
+              (!canUndo(placementState) || toolsLocked) && 'cursor-not-allowed',
+            )}
+            title={
+              toolsLocked
+                ? '这一局已结案，点「再玩一次」才能继续'
+                : canUndo(placementState)
+                  ? undefined
+                  : '当前没有可以回退的步骤'
+            }
           >
             <Button
               variant="ghost"
               className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
-              title={canUndo(placementState) ? '回退上一步' : '当前没有可以回退的步骤'}
-              disabled={!canUndo(placementState)}
+              title={
+                toolsLocked
+                  ? '这一局已结案，点「再玩一次」才能继续'
+                  : canUndo(placementState)
+                    ? '回退上一步'
+                    : '当前没有可以回退的步骤'
+              }
+              disabled={!canUndo(placementState) || toolsLocked}
               onClick={() => updatePlacement(undo)}
             >
               <GameToolIcon render={toolIcons.undo} name="undo" />
@@ -2027,14 +2179,29 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             * v0.9.1 §1：没放完时同样包一层 span，给禁用光标和提示。
             */}
           <span
-            className={cn('block w-full', !readyToSubmit && 'cursor-not-allowed')}
-            title={readyToSubmit ? undefined : '尚未将人物放置完全'}
+            className={cn(
+              'block w-full',
+              (!readyToSubmit || toolsLocked) && 'cursor-not-allowed',
+            )}
+            title={
+              toolsLocked
+                ? '这一局已结案，点「再玩一次」才能继续'
+                : readyToSubmit
+                  ? undefined
+                  : '尚未将人物放置完全'
+            }
           >
             <Button
               variant="ghost"
               className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
-              title={readyToSubmit ? '提交' : '尚未将人物放置完全'}
-              disabled={!readyToSubmit}
+              title={
+                toolsLocked
+                  ? '这一局已结案，点「再玩一次」才能继续'
+                  : readyToSubmit
+                    ? '提交'
+                    : '尚未将人物放置完全'
+              }
+              disabled={!readyToSubmit || toolsLocked}
               onClick={submit}
             >
               <GameToolIcon render={toolIcons.submit} name="submit" />
@@ -2126,19 +2293,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 </DialogDescription>
               </div>
               {/*
-                * v0.9.3 §3：印章。**只在作者给「提交」配了图时才有** —— 内置的
-                * lucide 勾是一枚界面图标，盖上去像把按钮按进了纸里，不是一个印。
-                * 动效见 `index.css` 的 `.stamp-press`：从大到正、带一点转正的回弹。
+                * v0.9.6：**这一格不再画印章**。用户把它移到了地图遮罩上 ——
+                * 印是「盖在纸上」的东西，弹窗是一张浮起来的卡，把印塞进卡里
+                * 两处各盖一次就成了重复播报。动效也跟着搬过去（见 `VerdictMark`）。
                 */}
-              {toolIcons.submit ? (
-                <img
-                  src={toolIcons.submit.imageUrl}
-                  alt=""
-                  draggable={false}
-                  data-testid="verdict-stamp"
-                  className="stamp-press mt-1 h-14 w-14 shrink-0 select-none object-contain dark:invert dark:hue-rotate-180"
-                />
-              ) : null}
             </div>
           ) : result?.kind === 'failed' ? (
             <DialogHeader>

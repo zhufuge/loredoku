@@ -8,11 +8,14 @@ import {
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
+  REGION_LABEL_OFFSET_MAX,
+  REGION_LABEL_OFFSET_MIN,
 } from '@loredoku/shared';
 import {
   clampLineWidth,
   clampRegionBorderWidth,
   clampRegionLabelFont,
+  clampRegionLabelOffset,
   clampRegionLabelStroke,
 } from '@/lib/mapStyle';
 import { ColorField } from '@/components/ui/color-input';
@@ -38,11 +41,21 @@ export function RegionStyleEditor({
   idPrefix,
   value,
   onChange,
+  showOffset = false,
 }: {
   idPrefix: string;
   /** Resolved values — the region's own override already merged over the map default. */
   value: RegionStyle;
   onChange: (next: RegionStyle) => void;
+  /**
+   * v0.9.6：**位置偏移只在区域信息里出现**。
+   *
+   * 偏移是「这块区域的标签该往哪挪一点」—— 它只对某一块区域有意义，地图级缺省
+   * 里没有这一项（`MapStyle.regionLabel` 不带 offset）。所以编辑器在「地图基本
+   * 信息」那一处不画这两格，在两个入口共用同一个组件的前提下多加一个开关，
+   * 而不是把组件抄一份。
+   */
+  showOffset?: boolean;
 }): JSX.Element {
   const patchLabel = (
     patch: Partial<RegionStyle['label']>,
@@ -56,6 +69,13 @@ export function RegionStyleEditor({
       label.hoverFontSize = label.fontSize;
     }
     onChange({ ...value, label });
+  };
+
+  /**
+   * v0.9.6：位置偏移不是 `label` 的字段（地图级没有这一项），所以单独一个 patch。
+   */
+  const patchLabelOffset = (patch: Partial<RegionStyle['labelOffset']>): void => {
+    onChange({ ...value, labelOffset: { ...value.labelOffset, ...patch } });
   };
 
   /**
@@ -217,6 +237,39 @@ export function RegionStyleEditor({
             />
           </div>
         </Row>
+        {/*
+          v0.9.6：位置偏移 —— 只在这一块区域的标签需要避开别的东西时才调。
+          单位是画布像素（正右 / 正下为正），0 就是不偏移，也是出厂值。
+        */}
+        {showOffset ? (
+          <Row
+            label="位置偏移"
+            hint="Label Offset — 这块区域的标签相对「格子上沿居中」挪多少画布像素（右 / 下为正，0 = 不偏移）。只影响这一块区域的标签。"
+          >
+            <div className="flex items-center gap-1">
+              <NumberField
+                id={`${idPrefix}-label-offset-x`}
+                value={value.labelOffset.x}
+                min={REGION_LABEL_OFFSET_MIN}
+                max={REGION_LABEL_OFFSET_MAX}
+                suffix="x"
+                commit={(next) =>
+                  patchLabelOffset({ x: clampRegionLabelOffset(next) })
+                }
+              />
+              <NumberField
+                id={`${idPrefix}-label-offset-y`}
+                value={value.labelOffset.y}
+                min={REGION_LABEL_OFFSET_MIN}
+                max={REGION_LABEL_OFFSET_MAX}
+                suffix="y"
+                commit={(next) =>
+                  patchLabelOffset({ y: clampRegionLabelOffset(next) })
+                }
+              />
+            </div>
+          </Row>
+        ) : null}
       </div>
     </div>
   );

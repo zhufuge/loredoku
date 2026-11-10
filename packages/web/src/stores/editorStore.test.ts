@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import type { MapDraft } from '@loredoku/shared';
-import { MAP_JSON_VERSION, MIN_CELL_SIZE } from '@loredoku/shared';
+import type { MapDraft, RegionStyle } from '@loredoku/shared';
+import { DEFAULT_MAP_STYLE, MAP_JSON_VERSION, MIN_CELL_SIZE } from '@loredoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();
@@ -363,6 +363,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
           hoverStrokeColor: '#3B82F6',
           hoverStrokeWidth: 10,
         },
+        labelOffset: { x: 0, y: 0 },
       }),
       'override',
     );
@@ -396,6 +397,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
           hoverStrokeColor: '#3B82F6',
           hoverStrokeWidth: 10,
         },
+        labelOffset: { x: 0, y: 0 },
       }),
       'override',
     );
@@ -418,6 +420,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
           hoverStrokeColor: '#3B82F6',
           hoverStrokeWidth: 10,
         },
+        labelOffset: { x: 0, y: 0 },
       }),
       'override',
     );
@@ -440,6 +443,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
           hoverStrokeColor: '#3B82F6',
           hoverStrokeWidth: 10,
         },
+        labelOffset: { x: 0, y: 0 },
       },
     });
     expect('style' in (store().regions[0] ?? {})).toBe(false);
@@ -513,5 +517,39 @@ describe('setItemTransform', () => {
     store().setItemTransform(4, 4, { scale: 2 });
     expect(store().cells.size).toBe(0);
     expect(store().dirty).toBe(false);
+  });
+});
+
+/**
+ * v0.9.6：区域标签位置偏移 —— 每块区域独立配置，缺省不落盘。
+ *
+ * 这一层钉的是**存储契约**：偏移非 0 时跟着区域一起存下来，两轴都 0 时不写
+ * `style` 键（与其它字段同一条「只记差异」的规矩）。
+ */
+describe('区域标签位置偏移（v0.9.6）', () => {
+  const baseRegionStyle = (): RegionStyle => ({
+    outline: { width: DEFAULT_MAP_STYLE.regionOutline.width, color: DEFAULT_MAP_STYLE.regionOutline.color },
+    highlight: {
+      width: DEFAULT_MAP_STYLE.regionHighlight.width,
+      color: DEFAULT_MAP_STYLE.regionHighlight.color,
+    },
+    label: DEFAULT_MAP_STYLE.regionLabel,
+    labelOffset: { x: 0, y: 0 },
+  });
+
+  it('存下非 0 的偏移，逐区域独立', () => {
+    store().createRegion(
+      regionInput('rg_a', [[0, 0]], { ...baseRegionStyle(), labelOffset: { x: 12, y: -6 } }),
+      'override',
+    );
+    store().createRegion(regionInput('rg_b', [[2, 2]]), 'override');
+
+    expect(store().regions[0]?.style?.label?.offset).toEqual({ x: 12, y: -6 });
+    expect(store().regions[1]?.style).toBeUndefined();
+  });
+
+  it('两轴都是 0 时整个 style 键不落盘', () => {
+    store().createRegion(regionInput('rg_a', [[0, 0]], baseRegionStyle()), 'override');
+    expect('style' in (store().regions[0] ?? {})).toBe(false);
   });
 });

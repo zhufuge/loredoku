@@ -6,6 +6,7 @@ import type {
   RegionStyleOverride,
 } from '@loredoku/shared';
 import { isMapStyleFontFamilyName } from '@loredoku/shared';
+import { REGION_LABEL_OFFSET_MAX, REGION_LABEL_OFFSET_MIN } from '@loredoku/shared';
 import {
   clampLineWidth,
   clampRegionBorderWidth,
@@ -34,6 +35,17 @@ function pickColor(fallback: string, value: unknown): string {
   return isValidStyleColor(trimmed) ? trimmed : fallback;
 }
 
+/**
+ * v0.9.6：标签偏移的夹取。`undefined` / 非数字 → 0（不偏移），越界夹到 ±上限。
+ *
+ * 为什么夹而不是拒：这两个数来自输入框，作者打到一半（空串、`-`）时值会短暂是
+ * 非数字 —— 那一刻把标签弹回原位再弹回来比留在原地更晃眼。
+ */
+function clampLabelOffset(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
+  return Math.min(REGION_LABEL_OFFSET_MAX, Math.max(REGION_LABEL_OFFSET_MIN, Math.round(value)));
+}
+
 /** Merges a region's override over the map-level defaults, clamping as it goes. */
 export function resolveRegionStyle(
   base: MapStyle,
@@ -41,7 +53,7 @@ export function resolveRegionStyle(
 ): RegionStyle {
   const outline: Partial<RegionLineStyle> = override?.outline ?? {};
   const highlight: Partial<RegionLineStyle> = override?.highlight ?? {};
-  const label: Partial<RegionLabelStyle> = override?.label ?? {};
+  const label: RegionStyleOverride['label'] = override?.label ?? {};
 
   const fontSize =
     typeof label.fontSize === 'number'
@@ -96,6 +108,12 @@ export function resolveRegionStyle(
           ? clampRegionLabelStroke(label.hoverStrokeWidth)
           : base.regionLabel.hoverStrokeWidth,
     },
+    // v0.9.6：每块区域自己那份位置偏移。地图级缺省没有这一项 —— 偏移只对
+    // 某一块区域的排版有意义，所以缺省恒为 0。
+    labelOffset: {
+      x: clampLabelOffset(label.offset?.x),
+      y: clampLabelOffset(label.offset?.y),
+    },
   };
 }
 
@@ -124,7 +142,7 @@ export function regionStyleOverride(
     highlight.color = style.highlight.color;
   }
 
-  const label: Partial<RegionLabelStyle> = {};
+  const label: NonNullable<RegionStyleOverride['label']> = {};
   if (style.label.fontFamily !== base.regionLabel.fontFamily) {
     label.fontFamily = style.label.fontFamily;
   }
@@ -152,6 +170,14 @@ export function regionStyleOverride(
   if (style.label.hoverStrokeWidth !== base.regionLabel.hoverStrokeWidth) {
     label.hoverStrokeWidth = style.label.hoverStrokeWidth;
   }
+  /*
+   * v0.9.6：偏移没有「地图级缺省」可比 —— 缺省永远是 0，所以只有**非 0 的那一侧**
+   * 才记进覆盖。两轴都 0 时整块 `offset` 不落盘，与「从没调过」同一个口径。
+   */
+  const offset: { x?: number; y?: number } = {};
+  if (style.labelOffset.x !== 0) offset.x = style.labelOffset.x;
+  if (style.labelOffset.y !== 0) offset.y = style.labelOffset.y;
+  if (Object.keys(offset).length > 0) label.offset = offset;
 
   const override: RegionStyleOverride = {};
   if (Object.keys(outline).length > 0) override.outline = outline;

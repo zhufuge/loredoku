@@ -56,13 +56,19 @@ describe('通过记录（v0.9.5）', () => {
    * 卡片上那枚印是**凭证**，不是排行榜：重玩一次更快，也不该把已写的数字改小。
    * 这条与 v0.7.11「提交不落盘」同一种态度 —— 界面不替玩家改成绩。
    */
-  it('首次为准：已经有一条有效记录时不再覆盖', () => {
+  /**
+   * v0.9.6：**以最后一次为准**（v0.9.5 是首次为准）。
+   *
+   * 用户给的规则：「完成时间：记录最后一次完成时间（重复完成，仅记录最后一次）」
+   * —— 重玩通关就是又结了一次案，卡片该跟着最新的那一次走。
+   */
+  it('以最后一次为准：重复完成覆盖成最新那一次', () => {
     recordGameCompletion('puzzle-dao', META, { elapsedMs: 5000, stampUrl: null });
     const second = recordGameCompletion('puzzle-dao', META, { elapsedMs: 900, stampUrl: '/x.webp' });
 
-    expect(second?.elapsedMs).toBe(5000);
-    expect(second?.stampUrl).toBeNull();
-    expect(readGameCompletion('puzzle-dao', META)?.elapsedMs).toBe(5000);
+    expect(second?.elapsedMs).toBe(900);
+    expect(second?.stampUrl).toBe('/x.webp');
+    expect(readGameCompletion('puzzle-dao', META)?.elapsedMs).toBe(900);
   });
 
   it('网格变了 = 另一道题：整条作废', () => {

@@ -15,6 +15,7 @@ import {
   toGameCard,
 } from './bundleLoad';
 import { readGameCompletion, type GameCompletion } from '@/lib/gameCompletion';
+import { readLastLeftAt, readLastLeftElapsed } from '@/lib/gameTimer';
 import { useBundleManifest } from './PlayerBundleProvider';
 
 /**
@@ -63,6 +64,18 @@ export function PlayerHomePage(): JSX.Element {
         gridSize: game.gridSize,
       });
       if (completion) map.set(game.key, completion);
+    }
+    return map;
+  }, [manifest, code]);
+
+  /** v0.9.6：最后离开时间（键同 storageId，走 undleStorageId）。 */
+  const lastLeft = useMemo(() => {
+    const map = new Map<string, { elapsedMs: number; at: string | null }>();
+    for (const game of manifest?.games ?? []) {
+      const id = bundleStorageId(code, game.key);
+      const elapsedMs = readLastLeftElapsed(id, { gridSize: game.gridSize });
+      if (elapsedMs === null) continue;
+      map.set(game.key, { elapsedMs, at: readLastLeftAt(id, { gridSize: game.gridSize }) });
     }
     return map;
   }, [manifest, code]);
@@ -132,6 +145,8 @@ export function PlayerHomePage(): JSX.Element {
                 tiers={tiers}
                 href={gameHrefOf(code, game.slug)}
                 completion={completions.get(game.slug) ?? null}
+                lastLeftAt={lastLeft.get(game.slug)?.at ?? null}
+                lastLeftElapsedMs={lastLeft.get(game.slug)?.elapsedMs ?? null}
               />
             ))}
           </div>

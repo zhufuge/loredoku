@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapGameSummary, ThemeDifficultyTier } from '@loredoku/shared';
 import { recordGameCompletion } from '@/lib/gameCompletion';
+import { gameTimerKey } from '@/lib/gameTimer';
 import { GamesPage } from './GamesPage';
 
 /**
@@ -147,19 +148,20 @@ describe('GamesPage', () => {
   });
 
   /**
-   * v0.9.5：通过的关卡在列表页留两样东西 —— 封面上**大面积覆盖 + 提交图案倾斜
-   * 盖上**，页脚补一格**完成用时**。
+   * v0.9.6：完成的关卡在列表页留三样东西 —— 封面上的**大面积覆盖（定案 + 印章）**、
+   * 页脚那一格的**时间**、以及「完成优先，否则最后离开」的取舍。
    *
-   * 三条分开钉：通过的才有、没通过的没有（别把整页都盖上）、以及「没配印就只有
-   * 用时，不盖空蒙版」（与 v0.9.3 §3 定案卡同一条规矩）。
+   * 覆盖现在**总是**出现（有完成记录就画）：v0.9.5 是「没印就整块不画」，理由是
+   * 「空蒙版只会弄脏封面」；加了「定案」两个字之后这条理由不成立 —— 文字本身就说清
+   * 了状态。印那一格仍然只在配了图时才有。
    */
-  describe('已完成的谜题（v0.9.5）', () => {
+  describe('已完成的谜题（v0.9.5 / v0.9.6）', () => {
     const stampUrl = '/api/files/themes/2/tool-icons/submit/a.webp';
 
     const covers = (): Array<HTMLElement> =>
       Array.from(document.querySelectorAll<HTMLElement>('[data-testid="game-completion-cover"]'));
 
-    it('通过的关卡：封面盖上那枚印、页脚写出完成用时；没通过的两样都没有', () => {
+    it('通过的关卡：封面盖「定案」+ 那枚印，页脚写完成用时；没通过的两样都没有', () => {
       gamesRef.data = [
         game({ id: 1, slug: 'done-one', gridSize: 5 }),
         game({ id: 2, slug: 'not-yet', gridSize: 5 }),
@@ -172,16 +174,17 @@ describe('GamesPage', () => {
 
       const cover = covers();
       expect(cover).toHaveLength(1);
-      const img = cover[0]?.querySelector('img');
-      expect(img?.getAttribute('src')).toBe(stampUrl);
+      // v0.9.6：用户要求「已完成的谜题卡片在印章基础上添加『定案』两个字」。
+      expect(cover[0]?.textContent).toContain('定案');
+      expect(cover[0]?.querySelector('img')?.getAttribute('src')).toBe(stampUrl);
 
       const text = document.body.textContent ?? '';
-      expect(text).toContain('用时 03:07');
-      // 只有一张卡有「用时」那一格。
+      expect(text).toContain('03:07');
+      // 只有一张卡有那一格。
       expect(document.querySelectorAll('[data-testid="game-completion-time"]')).toHaveLength(1);
     });
 
-    it('没配印的通过记录：只有用时，封面不盖一层空蒙版', () => {
+    it('没配印的通过记录：仍然盖「定案」那一层，只是没有印', () => {
       gamesRef.data = [game({ id: 1, slug: 'done-plain', gridSize: 5 })];
       recordGameCompletion('done-plain', { gridSize: 5 }, { elapsedMs: 65_000, stampUrl: null });
 
@@ -189,11 +192,14 @@ describe('GamesPage', () => {
       container.remove();
       mount();
 
-      expect(covers()).toHaveLength(0);
-      expect(document.body.textContent).toContain('用时 01:05');
+      const cover = covers();
+      expect(cover).toHaveLength(1);
+      expect(cover[0]?.textContent).toContain('定案');
+      expect(cover[0]?.querySelector('[data-testid="verdict-stamp"]')).toBeNull();
+      expect(document.body.textContent).toContain('01:05');
     });
 
-    /** 网格对不上 = 另一道题：旧记录不认，卡片回到「没通过」的样子。 */
+    /** 网格对不上 = 另一道题：旧记录不认，卡片回到「没做过」的样子。 */
     it('网格变了就不算通过：旧记录整条作废', () => {
       gamesRef.data = [game({ id: 1, slug: 'rebuilt', gridSize: 6 })];
       recordGameCompletion('rebuilt', { gridSize: 4 }, { elapsedMs: 1000, stampUrl });
@@ -203,14 +209,14 @@ describe('GamesPage', () => {
       mount();
 
       expect(covers()).toHaveLength(0);
-      expect(document.body.textContent).not.toContain('用时');
+      expect(covers()).toHaveLength(0);
     });
 
     /**
      * 记下来的地址可能已经不在了（作者换过那枚图、包重新导出过）。破图标不能
-     * 留在封面上 —— 加载失败就撤掉那一层，用时照常显示。
+     * 留在封面上 —— 加载失败就撤掉那枚印，「定案」与时间照常显示。
      */
-    it('印的地址失效：那一层撤掉，用时还在', () => {
+    it('印的地址失效：只撤掉印那一张，「定案」与时间还在', () => {
       gamesRef.data = [game({ id: 1, slug: 'stale-stamp', gridSize: 5 })];
       recordGameCompletion('stale-stamp', { gridSize: 5 }, { elapsedMs: 42_000, stampUrl });
 
@@ -224,8 +230,34 @@ describe('GamesPage', () => {
         img?.dispatchEvent(new Event('error'));
       });
 
+      // 那一层（含「定案」）还在，只是印没了字还在。
+      expect(covers()).toHaveLength(1);
+      expect(covers()[0]?.querySelector('[data-testid="verdict-stamp"]')).toBeNull();
+      expect(document.body.textContent).toContain('00:42');
+    });
+
+    /**
+     * v0.9.6：没完成但**玩过**的关卡，那一格显示最后离开时间。
+     */
+    it('没完成但玩过：显示最后离开时间', () => {
+      gamesRef.data = [game({ id: 1, slug: 'left-before', gridSize: 5 })];
+      window.localStorage.setItem(
+        gameTimerKey('left-before'),
+        JSON.stringify({
+          gridSize: 5,
+          participantCount: 1,
+          elapsedMs: 30_000,
+          leftAt: '2026-11-10T07:04:00.000Z',
+        }),
+      );
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
       expect(covers()).toHaveLength(0);
-      expect(document.body.textContent).toContain('用时 00:42');
+      expect(document.querySelector('[data-testid="game-last-left"]')?.textContent).toContain('00:30');
     });
   });
+
 });

@@ -144,3 +144,44 @@ describe('regionStyleOverride', () => {
     expect(regionStyleOverride(resolved, base)).toEqual(override);
   });
 });
+
+/**
+ * v0.9.6：区域标签的**位置偏移** —— 每块区域独立配置，缺省 `{ x: 0, y: 0 }`。
+ *
+ * 它不在 `label` 里面（地图级没有这一项），所以 `RegionStyle.labelOffset` 是
+ * 单独一层；存储侧也单独记，两轴都 0 时整块不落盘。
+ */
+describe('区域标签位置偏移（v0.9.6）', () => {
+  it('没配就是 0 / 0 —— 标签停在「格子上沿居中」', () => {
+    expect(resolveRegionStyle(baseStyle()).labelOffset).toEqual({ x: 0, y: 0 });
+  });
+
+  it('配了就按配置解析，缺一轴时另一轴仍是 0', () => {
+    expect(
+      resolveRegionStyle(baseStyle(), { label: { offset: { x: 12 } } }).labelOffset,
+    ).toEqual({ x: 12, y: 0 });
+    expect(
+      resolveRegionStyle(baseStyle(), { label: { offset: { x: -8, y: 20 } } }).labelOffset,
+    ).toEqual({ x: -8, y: 20 });
+  });
+
+  it('越界夹到 ±200，非数字落回 0（输入框打到一半的值）', () => {
+    expect(
+      resolveRegionStyle(baseStyle(), { label: { offset: { x: 9999, y: -9999 } } }).labelOffset,
+    ).toEqual({ x: 200, y: -200 });
+    expect(
+      resolveRegionStyle(baseStyle(), {
+        label: { offset: { x: Number.NaN, y: 'nope' as never } },
+      }).labelOffset,
+    ).toEqual({ x: 0, y: 0 });
+  });
+
+  it('只有非 0 的那一轴写进覆盖；两轴都 0 时整块不落盘', () => {
+    const base = baseStyle();
+    const shifted = resolveRegionStyle(base, { label: { offset: { x: 10, y: 0 } } });
+    expect(regionStyleOverride(shifted, base)).toEqual({ label: { offset: { x: 10 } } });
+
+    const untouched = resolveRegionStyle(base);
+    expect(regionStyleOverride(untouched, base)).toBeUndefined();
+  });
+});

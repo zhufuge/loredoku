@@ -25,6 +25,8 @@ import {
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
+  REGION_LABEL_OFFSET_MAX,
+  REGION_LABEL_OFFSET_MIN,
   MAP_STYLE_RULER_FONT_MAX,
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
@@ -341,6 +343,26 @@ const regionLabelOverrideSchema = z
       .number()
       .min(MAP_STYLE_REGION_LABEL_STROKE_MIN)
       .max(MAP_STYLE_REGION_LABEL_STROKE_MAX)
+      .optional(),
+    /**
+     * v0.9.6：这块区域的标签往哪偏（画布像素，相对「格子上沿居中」）。
+     *
+     * x / y 都可缺：只改一个方向的作者不该被迫填另一个。整块缺席 = 不偏移。
+     */
+    offset: z
+      .object({
+        x: z
+          .number()
+          .min(REGION_LABEL_OFFSET_MIN, `标签横向偏移不能小于 ${REGION_LABEL_OFFSET_MIN}`)
+          .max(REGION_LABEL_OFFSET_MAX, `标签横向偏移不能大于 ${REGION_LABEL_OFFSET_MAX}`)
+          .optional(),
+        y: z
+          .number()
+          .min(REGION_LABEL_OFFSET_MIN, `标签纵向偏移不能小于 ${REGION_LABEL_OFFSET_MIN}`)
+          .max(REGION_LABEL_OFFSET_MAX, `标签纵向偏移不能大于 ${REGION_LABEL_OFFSET_MAX}`)
+          .optional(),
+      })
+      .strict()
       .optional(),
   })
   .strict();

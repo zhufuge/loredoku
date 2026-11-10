@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GAME_CHECK_STEP_MS, UI_Z } from '@loredoku/shared';
+import { GAME_CHECK_STEP_MS, GAME_VERDICT_HOLD_MS, UI_Z } from '@loredoku/shared';
 import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
 import type { UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
@@ -311,9 +311,16 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   }
 
   /** 点提交、把逐人校验推完，等结算卡落下来。 */
+  /**
+   * 点提交、把逐人校验推完，等结算卡落下来。
+   *
+   * v0.9.6：**通过**时多一段「定案遮罩停一秒再弹窗」，所以这里最后再推一次
+   * `GAME_VERDICT_HOLD_MS`。未通过不受影响（那一路立刻弹）。
+   */
   function submitAndSettle(): void {
     act(() => container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click());
     for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+    act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
   }
 
   function footerButton(label: string): HTMLButtonElement | undefined {
@@ -464,15 +471,16 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       render();
       submitAndSettle();
       expect(document.body.textContent).toContain('定案');
-      // 校验圈留在上一关的棋盘上（弹窗背后的那张结论图）。
-      expect(container.querySelectorAll('main .press-ring-arc').length).toBeGreaterThan(0);
+      // v0.9.6：通过之后棋盘上是**定案遮罩**（逐人校验的圈已经撤了）。
+      expect(container.querySelector('[data-testid="verdict-scrim"]')).not.toBeNull();
 
       fixture.detail.slug = 'day-boat';
       fixture.detail.gridSize = 5;
       navigateTo('day-boat');
 
-      // 新一关：没有结算卡，也没有上一关那几圈。
+      // 新一关：没有结算卡，也没有上一关的定案遮罩 / 那几圈。
       expect(document.body.textContent).not.toContain('定案');
+      expect(container.querySelector('[data-testid="verdict-scrim"]')).toBeNull();
       expect(container.querySelectorAll('main .press-ring-arc')).toHaveLength(0);
     } finally {
       vi.useRealTimers();
@@ -531,11 +539,24 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(rings()).toBe(3);
       expect(dialog()).not.toContain('定案');
 
-      // 最后再一拍才结算 —— 让最末那一圈也扫满。
+      // 最后再一拍才到结论阶段（v0.9.6：先撤圈、盖定案遮罩）。
       act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
-      expect(dialog()).toContain('定案');
-      // 圈留在棋盘上：那是弹窗背后的一张结论图。
-      expect(rings()).toBe(3);
+      /*
+       * v0.9.6：通过之后不再「弹窗背后留着一圈圈结论」—— 用户要的是「把地图方格
+       * 用遮罩遮住，上面展示定案 + 印章」。圈是过程（谁被圈成什么色），定案是结论；
+       * 两样同时在场会读成「还在校验」。
+       */
+      expect(rings()).toBe(0);
+      expect(container.querySelector('[data-testid="verdict-scrim"]')).not.toBeNull();
+      expect(container.querySelector('[data-testid="verdict-mark"]')?.textContent).toContain('定案');
+      /*
+       * 结算卡要等定案遮罩停一拍才出现。注意这里查的是 **dialog 元素**而不是
+       * `document.body.textContent` —— 遮罩上本来就写着「定案」两个字。
+       */
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
+      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('定案');
     } finally {
       vi.useRealTimers();
     }
@@ -594,6 +615,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
       // 结算卡一出现四处一起撤掉 —— 不能和弹窗自己的 overlay 叠成两层黑。
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
       expect(container.querySelectorAll('[data-testid="check-scrim"]')).toHaveLength(0);
     } finally {
       vi.useRealTimers();
@@ -616,6 +639,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       );
       // v0.9.3 §2：结论在逐人校验之后 —— 三位三拍，再加一拍收尾。
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
 
       const dialog = document.body.textContent ?? '';
       expect(dialog).toContain('结果');
@@ -652,6 +677,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
       );
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
 
       const dialog = document.body.textContent ?? '';
       expect(dialog).toContain('你没有找出所有人的位置！0/3 正确。未能结案。');
@@ -734,6 +761,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       // 弹窗开着的时候钟是停的。
       // v0.9.3 §2：结论在逐人校验之后 —— 先把那几拍推完，弹窗才出现。
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
       expect(clock()).toBe('00:03');
 
       const resume = Array.from(document.querySelectorAll('button')).find(
@@ -831,6 +860,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
       );
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
 
       const images = Array.from(container.querySelectorAll('main image[filter]'));
       expect(images).toHaveLength(3);
@@ -875,6 +906,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
       );
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
 
       const dialog = document.body.textContent ?? '';
       // v0.9.3 §3：标题是「定案」，不再说「提交通过」，也不再报用时。
@@ -908,6 +941,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
       );
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
       // 没配 —— 只有字，没有印。
       expect(document.querySelector('[data-testid="verdict-stamp"]')).toBeNull();
 
@@ -919,6 +954,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
       );
       for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+      // v0.9.6：通过时定案遮罩停一秒才弹窗（未通过不受影响）。
+      act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
 
       const stamp = document.querySelector<HTMLImageElement>('[data-testid="verdict-stamp"]');
       expect(stamp).not.toBeNull();
@@ -1393,4 +1430,122 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       }
     });
   });
+
+  /**
+   * v0.9.6：**计时的规范** + 结案遮罩。
+   *
+   * 用户给的规则：
+   * - 首次进入从 00:00 计时；离开记录时间 a；再进从 a 继续；
+   * - 提交暂停 b；通过记为完成时间 c，之后都是 00:00 开始；
+   * - 未通过点「继续游戏」从 b 继续；「重新开始」从 00:00；
+   * - **已完成再次进入 → 定格 00:00，点「再玩一次」才开跑**。
+   */
+  describe('计时与结案遮罩（v0.9.6）', () => {
+    it('已完成再次进入：定格 00:00、盖定案遮罩、多一颗「再玩一次」', () => {
+      recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
+      window.localStorage.setItem(
+        gameTimerKey('night-train'),
+        JSON.stringify({ gridSize: 9, participantCount: 3, elapsedMs: 45_000 }),
+      );
+
+      render();
+
+      // 表停在 00:00（不是存档里的 00:45，也不是完成时的 01:30）。
+      expect(container.textContent).toContain('00:00');
+      expect(container.textContent).not.toContain('00:45');
+
+      const scrim = container.querySelector('[data-testid="verdict-scrim"]');
+      expect(scrim).not.toBeNull();
+      expect(scrim?.textContent).toContain('定案');
+      expect(scrim?.querySelector('[data-testid="verdict-replay"]')).not.toBeNull();
+    });
+
+    it('点「再玩一次」：遮罩撤掉、表从 00:00 开始跑', () => {
+      recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
+      render();
+      expect(container.querySelector('[data-testid="verdict-scrim"]')).not.toBeNull();
+
+      act(() =>
+        container.querySelector<HTMLButtonElement>('[data-testid="verdict-replay"]')?.click(),
+      );
+
+      expect(container.querySelector('[data-testid="verdict-scrim"]')).toBeNull();
+      expect(container.textContent).toContain('00:00');
+    });
+
+    it('没完成过的关卡：不盖定案遮罩、也没有「再玩一次」', () => {
+      render();
+      expect(container.querySelector('[data-testid="verdict-scrim"]')).toBeNull();
+    });
+
+    it('通过之后右侧四枚动作按钮全部置灰', () => {
+      vi.useFakeTimers();
+      try {
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+
+        // 四枚工具按钮（标记 / 清除 / 回退 / 提交）都 disabled。
+        for (const title of ['标记', '清除放置，长按清空全部']) {
+          expect(container.querySelector<HTMLButtonElement>(`button[title="${title}"]`)?.disabled).toBe(
+            true,
+          );
+        }
+        const undo = container.querySelector<HTMLButtonElement>('button[title*="已结案"]');
+        expect(undo?.disabled).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('通过之后结算卡里不再有印章 —— 印搬到遮罩上了', () => {
+      vi.useFakeTimers();
+      try {
+        seedPassingBoard();
+        fixture.detail.puzzle.toolIcons = { submit: { path: 'puzzles/7/tool-icons/submit/a.webp' } };
+        render();
+        submitAndSettle();
+
+        const dialog = document.querySelector('[role="dialog"]');
+        expect(dialog?.textContent).toContain('定案');
+        expect(dialog?.querySelector('[data-testid="verdict-stamp"]')).toBeNull();
+        // 印在遮罩上，而且是「刚盖上去」的那一版（带动效类）。
+        const scrim = container.querySelector('[data-testid="verdict-scrim"]');
+        const stamp = scrim?.querySelector<HTMLImageElement>('[data-testid="verdict-stamp"]');
+        expect(stamp?.getAttribute('src')).toBe('/api/files/puzzles/7/tool-icons/submit/a.webp');
+        expect(stamp?.className).toContain('stamp-press');
+        // 结算卡开着时，遮罩上不重复放「再玩一次」（卡里已有）。
+        expect(scrim?.querySelector('[data-testid="verdict-replay"]')).toBeNull();
+      } finally {
+        fixture.detail.puzzle.toolIcons = null;
+        vi.useRealTimers();
+      }
+    });
+
+    /**
+     * v0.9.6：关掉结算卡之后，遮罩上必须补出「再玩一次」—— 否则按钮全灰、
+     * 遮罩盖着棋盘，玩家没有出口。
+     */
+    it('关掉通过的结算卡：遮罩仍在，并补出「再玩一次」', () => {
+      vi.useFakeTimers();
+      try {
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+        expect(document.querySelector('[role="dialog"]')).not.toBeNull();
+
+        const close = Array.from(
+          document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+        ).find((button) => button.textContent?.trim() === '关闭');
+        act(() => close?.click());
+
+        const scrim = container.querySelector('[data-testid="verdict-scrim"]');
+        expect(scrim).not.toBeNull();
+        expect(scrim?.querySelector('[data-testid="verdict-replay"]')).not.toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
 });
