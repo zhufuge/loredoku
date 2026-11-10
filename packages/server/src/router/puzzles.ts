@@ -2,7 +2,7 @@ import Router from '@koa/router';
 import * as controller from '../controller/puzzleController';
 import * as versionController from '../controller/puzzleVersionController';
 import * as gameController from '../controller/gameController';
-import { forbiddenSymbolUpload, puzzleCoverUpload } from '../middleware/upload';
+import { symbolImageUpload, puzzleCoverUpload } from '../middleware/upload';
 
 /**
  * 谜题模块（v0.7.1 §5 / §6.3）：谜题、它的版本，以及「部署为游戏」——
@@ -29,15 +29,15 @@ puzzlesRouter.delete('/:id/cover', controller.removeCover);
  * 随后的保存请求带回来。所以这里也允许版本行 id（编辑器 `?v=` 的 fork 态）。
  */
 puzzlesRouter.post(
-  '/:id/forbidden-symbol',
-  forbiddenSymbolUpload.single('file'),
-  controller.uploadForbiddenSymbol,
+  '/:id/mark',
+  symbolImageUpload.single('file'),
+  controller.uploadMark,
 );
 
-/** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）—— 与禁止符号同一条「只写文件」的路。 */
+/** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）—— 与标记同一条「只写文件」的路。 */
 puzzlesRouter.post(
   '/:id/tool-icons/:icon',
-  forbiddenSymbolUpload.single('file'),
+  symbolImageUpload.single('file'),
   controller.uploadToolIcon,
 );
 

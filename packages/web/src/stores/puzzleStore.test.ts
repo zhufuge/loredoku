@@ -473,8 +473,8 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
       ],
       // v0.6.3 §3: the layout column count is part of the same gesture.
       rosterCols: 3,
-      // v0.8.6 §4: 禁止符号与其余基本信息同一个撤销步。
-      forbiddenSymbol: null,
+      // v0.8.6 §4: 标记与其余基本信息同一个撤销步。
+      mark: null,
       // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
       toolIcons: null,
     });
@@ -503,12 +503,12 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
 });
 
 /**
- * v0.8.6（docs/v0.8.6.md §4）：玩家侧「禁止符号」用哪张上传图。
+ * v0.8.6（docs/v0.8.6.md §4）：玩家侧「标记」用哪张上传图。
  *
- * 约定的两条：默认 `×` 用「草稿里缺席」表达（不是 `forbiddenSymbol: null`），
+ * 约定的两条：默认 `×` 用「草稿里缺席」表达（不是 `mark: null`），
  * 作者上传过图之后才写出 `{ path }`；它跟其余基本信息同一个撤销步。
  */
-describe('forbiddenSymbol（v0.8.6 §4）', () => {
+describe('mark（v0.8.6 §4）', () => {
   const chosen = { path: 'puzzles/42/forbidden-symbol/chosen.webp' };
 
   /** 只把现有的其它基本信息原样带上，测试关心的是那一个字段。 */
@@ -526,45 +526,45 @@ describe('forbiddenSymbol（v0.8.6 §4）', () => {
   }
 
   it('init 读入草稿里的引用；旧行的缺席读成 null（默认 ×）', () => {
-    store().init(detail({ forbiddenSymbol: chosen }), mapContext());
-    expect(store().forbiddenSymbol).toEqual(chosen);
+    store().init(detail({ mark: chosen }), mapContext());
+    expect(store().mark).toEqual(chosen);
 
     store().init(detail(), mapContext());
-    expect(store().forbiddenSymbol).toBeNull();
+    expect(store().mark).toBeNull();
   });
 
   it('setBasicInfo 写入，toDraft 带出去', () => {
-    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: chosen });
-    expect(store().forbiddenSymbol).toEqual(chosen);
-    expect(store().toDraft().forbiddenSymbol).toEqual(chosen);
+    store().setBasicInfo({ ...basicInfo(), mark: chosen });
+    expect(store().mark).toEqual(chosen);
+    expect(store().toDraft().mark).toEqual(chosen);
   });
 
   it('null 不写进草稿 —— 默认 × 用缺席表达', () => {
-    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: chosen });
-    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: null });
-    expect(store().forbiddenSymbol).toBeNull();
-    expect(store().toDraft()).not.toHaveProperty('forbiddenSymbol');
+    store().setBasicInfo({ ...basicInfo(), mark: chosen });
+    store().setBasicInfo({ ...basicInfo(), mark: null });
+    expect(store().mark).toBeNull();
+    expect(store().toDraft()).not.toHaveProperty('mark');
   });
 
   it('applyDraft 往返', () => {
-    store().applyDraft({ ...detail().data, forbiddenSymbol: chosen });
-    expect(store().forbiddenSymbol).toEqual(chosen);
+    store().applyDraft({ ...detail().data, mark: chosen });
+    expect(store().mark).toEqual(chosen);
 
     store().applyDraft(detail().data);
-    expect(store().forbiddenSymbol).toBeNull();
+    expect(store().mark).toBeNull();
   });
 
   it('一步撤销回到之前的值', () => {
-    store().setBasicInfo({ ...basicInfo(), forbiddenSymbol: chosen });
+    store().setBasicInfo({ ...basicInfo(), mark: chosen });
     store().setBasicInfo({
       ...basicInfo(),
-      forbiddenSymbol: { path: 'puzzles/42/forbidden-symbol/other.webp' },
+      mark: { path: 'puzzles/42/forbidden-symbol/other.webp' },
     });
 
     store().undo();
-    expect(store().forbiddenSymbol).toEqual(chosen);
+    expect(store().mark).toEqual(chosen);
     store().undo();
-    expect(store().forbiddenSymbol).toBeNull();
+    expect(store().mark).toBeNull();
   });
 });
 
@@ -595,7 +595,7 @@ describe('replaceMapContext (v0.7.3 §3.3)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: 2,
-      forbiddenSymbol: null,
+      mark: null,
       // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
       toolIcons: null,
     });
@@ -919,7 +919,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: 2,
-      forbiddenSymbol: null,
+      mark: null,
       // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
       toolIcons: null,
     });
@@ -933,7 +933,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: null,
-      forbiddenSymbol: null,
+      mark: null,
       // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
       toolIcons: null,
     });
@@ -953,7 +953,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       linkageColors: store().linkageColors,
       characterSlots: store().characterSlots,
       rosterCols: null,
-      forbiddenSymbol: null,
+      mark: null,
       // v0.8.7 §7：三枚工具图标 —— 抽屉提交时同样要显式带上（`null` = 跟随主题）。
       toolIcons: null,
     });

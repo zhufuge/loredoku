@@ -75,6 +75,8 @@ import {
   type CanvasPoint,
 } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
+import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
+import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
 import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
 import {
   clearGameTimer,
@@ -82,9 +84,9 @@ import {
   readGameTimer,
   writeGameTimer,
 } from '@/lib/gameTimer';
-import { resolveForbiddenSymbolImage } from '@/lib/forbiddenSymbol';
-import { resolvePressRing } from '@/lib/pressRing';
-import { resolveCheckStyle } from '@/lib/checkStyle';
+import { resolveMarkImage } from '@/lib/mark';
+import { resolveRingImage } from '@/lib/ring';
+import { resolveCheckColors } from '@/lib/checkStyle';
 import { TOOL_ICON_FALLBACKS, resolveToolIcons, type ToolIconRender } from '@/lib/toolIcons';
 import { rosterPanelWidthFor } from '@/lib/participantLayout';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
@@ -145,7 +147,7 @@ import {
 const RULER_STORAGE_KEY = 'loredoku.gameview.ruler';
 
 /**
- * v0.7.11：刚放下的编号 / 禁止符号挂多久的 `place-pop` 类。
+ * v0.7.11：刚放下的编号 / 标记挂多久的 `place-pop` 类。
  *
  * 动画本身只有 180ms；多留一段是为了让**同一帧里放下的另一格**（按住滑动）也
  * 各自挂着自己的类，而不是互相顶掉。过了这个窗口就摘掉，免得以后任何一次重挂载
@@ -227,7 +229,7 @@ function CheckScrim({
 /**
  * v0.8.7 §7：工具栏上的画 —— 作者给这一枚配了图就画图，没配就是内置的 lucide 图标。
  *
- * 深色界面要翻一次：与禁止符号同一条理由（图多半是「深墨画在透明底上」，按浅色
+ * 深色界面要翻一次：与标记同一条理由（图多半是「深墨画在透明底上」，按浅色
  * 地图纸挑的），`invert` 翻明度、`hue-rotate-180` 把色相转回来，否则红印会变青。
  */
 function GameToolIcon({
@@ -284,8 +286,37 @@ export function GamePage(): JSX.Element {
 /**
  * 渲染层。两个入口共用这一份 —— 它不认识 axios，也不认识包，只认一个 `GameSource`。
  * 去掉数据来源之后剩下的就是这 1500 行画布 / 名册 / 工具栏。
+ *
+ * v0.9.5 追加：**换关 = 换一局**，所以这里按关卡把实际渲染层整个换掉。
+ *
+ * 为什么 `key` 必须下到这一层：`GameView` 是所有入口的汇合点 —— 线上 / 工坊是
+ * `ApiGamePage → GameView`，播放器是 `PlayerGamePage → GamePage → GameView`。
+ * 把 `key` 加在 `GamePage` 上只覆盖播放器那一条（实测线上路径根本没经过它，
+ * 换关后缩放仍停在上一关的 130%）。加在这一层，于是**每一个**入口都自动得到
+ * 「换关即重建」，将来再接第三个入口也不会漏。
+ *
+ * `key` 变了 React 就卸载旧的 `GameViewForLevel`、挂一个新的：缩放 / 平移、
+ * 放置模式、联动激活、长按环、刚放下的脉冲表、计时器、结算状态全部回到初值，
+ * 再由新一关自己的数据重新水合。
+ *
+ * 为什么必须是 `key` 而不是在渲染层里逐个 `setXxx` 重置：逐关状态有二三十个
+ * （下面那一大片 `useState` / `useRef`），靠一份「换关时要清哪些」的清单去维护，
+ * 漏一个就是这一处 bug 的重演。`key` 是唯一一处能保证「全都归零」的写法。
+ *
+ * 路由参数在**外面**读：`params.slug`（线上 / 工坊）与 `params.key`（播放器）
+ * 是两个名字，收成一处之后渲染层不必再关心自己在哪个入口。
  */
 export function GameView({ source }: { source: GameSource }): JSX.Element {
+  const params = useParams<{ slug?: string; key?: string }>();
+  const levelKey = (params.slug ?? params.key) || '';
+  return <GameViewForLevel key={levelKey} source={source} />;
+}
+
+/**
+ * 一关的渲染层本体。**不要直接用它** —— 它带着「上一次换关留下来的状态」，
+ * 只有外面那层 `key` 才能保证换关时清零（见 `GameView`）。
+ */
+function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   /**
    * OPT-W04 (docs/v0.4.1.md §4.7): the route parameter is the access path.
    *
@@ -314,6 +345,14 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   // A deployed snapshot may reference items/characters that are now inactive.
   const assetsQuery = source.useAssets();
   const charactersQuery = source.useCharacters();
+  /**
+   * v0.9.5：整份关卡清单 —— 只为定案卡上那枚「下一关」。顺序就是列表页看到的
+   * 那一份（线上 `/api/games`、播放器 `manifest.games`，两者都已按作者排的
+   * `sort_weight, slug` 排好），所以「下一关」永远是「列表里下一张卡」。
+   *
+   * 读不出来（接口失败 / 包里没清单）→ `null`，那枚按钮不出现。
+   */
+  const catalogQuery = source.useCatalog();
 
   const {
     highlight,
@@ -413,7 +452,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     lastKey: string;
     painted: boolean;
   } | null>(null);
-  /** 刚放下的编号 / 禁止符号，按格子键索引；见 `MapGamePlacementLayer` 的 `pulse`。 */
+  /** 刚放下的编号 / 标记，按格子键索引；见 `MapGamePlacementLayer` 的 `pulse`。 */
   const [pulse, setPulse] = useState<GamePlacementPulse>({});
   const pulseTimersRef = useRef<Map<string, number>>(new Map());
 
@@ -489,7 +528,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   }, [assetsQuery.data]);
 
   /**
-   * v0.8.7 §4：这一局禁止符号画什么 —— **谜题自己配的 → 主题的缺省 → `×`**。
+   * v0.8.7 §4：这一局标记画什么 —— **谜题自己配的 → 主题的缺省 → `×`**。
    *
    * 主题那一份按**这一局的主题编码**查（§19）；`useWorkspace()` 在播放页是 `null`，
    * 所以走的是「主题列表摊成表」那条路，与难度分级同一个 hook 家族。
@@ -498,11 +537,11 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    * v0.9.0 §2：查表的活儿挪进 `source` —— 播放器的包里每一关已经烤好了最终结果
    * （`bundleService` 把主题那张补进了关卡 JSON），所以那边一律返回 `null`。
    */
-  const forbiddenSymbol = useMemo(
+  const mark = useMemo(
     () =>
-      resolveForbiddenSymbolImage(
-        detail?.puzzle?.forbiddenSymbol,
-        source.themeForbiddenSymbol(detail?.themeCode),
+      resolveMarkImage(
+        detail?.puzzle?.mark,
+        source.themeMark(detail?.themeCode),
         source.fileUrl,
       ),
     [detail, source],
@@ -523,20 +562,21 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   );
 
   /**
-   * v0.9.2 §2：长按放置参与者时那圈计时环画什么 —— 作者在主题里配了图就画那张，
-   * 没配就是内置白弧。只有主题一档：环属于「这个世界的操作手感」，不是某一关的内容。
+   * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张** —— 所以这里只解析
+   * 一次，两个图层共用。作者在主题里配了图就画那张，没配就是各自的内置细弧。
+   * 只有主题一档：环属于「这个世界的操作手感」，不是某一关的内容。
    */
-  const pressRingImage = useMemo(
-    () => resolvePressRing(source.themePressRing(detail?.themeCode), source.fileUrl),
+  const ringImage = useMemo(
+    () => resolveRingImage(source.themeRing(detail?.themeCode), source.fileUrl),
     [detail, source],
   );
 
   /**
-   * v0.9.3 §2：提交校验的两档颜色与圈图。主题没配过就是内置绿 / 红（见
-   * `lib/checkStyle.ts`），所以这里拿到的永远是一份能直接用的样式。
+   * v0.9.3 §2；v0.9.5 起只剩两档颜色（圈图见上面的 `ringImage`）。主题没配过就是
+   * 内置绿 / 红（见 `lib/checkStyle.ts`），所以这里拿到的永远是一份能直接用的样式。
    */
   const checkStyle = useMemo(
-    () => resolveCheckStyle(source.themeCheckStyle(detail?.themeCode), source.fileUrl),
+    () => resolveCheckColors(source.themeCheckColors(detail?.themeCode)),
     [detail, source],
   );
 
@@ -583,6 +623,28 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     },
     [storageId, progressMeta],
   );
+
+  /**
+   * v0.9.5：定案卡的「下一关」。
+   *
+   * 「下一关」＝列表里排在**当前这一关之后、还没通过**的第一关。三件事各自的出处：
+   * - 顺序：`source.useCatalog()`（两个入口都是列表页那一份，作者排好的先后说了算）；
+   * - 「还没通过」：逐关读本地通过记录（`lib/gameCompletion.ts`）—— 那一关可能是在
+   *   别的会话里通过的，内存里没有它的状态可读；
+   * - 跳转：`source.gameHref(key)`，两个入口的路由前缀不同，由 source 给。
+   *
+   * 只算一次、存在 `result.kind === 'passed'` 那一刻的渲染里：清单通常在进页面时
+   * 就取到了，`useMemo` 的依赖也只有它和当前这一关。
+   */
+  const nextLevel = useMemo<GameLevelRef | null>(() => {
+    const levels = catalogQuery.data;
+    if (!levels || levels.length === 0 || !slug) return null;
+    return nextUnfinishedLevel(levels, slug, (level) =>
+      Boolean(
+        readGameCompletion(source.storageId(level.key), { gridSize: level.gridSize }),
+      ),
+    );
+  }, [catalogQuery.data, slug, source]);
 
   /**
    * **所有改变棋盘的操作都从这里走**：算新状态 → 更新 → 顺手把结果落进
@@ -760,6 +822,11 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    */
   const [elapsedMs, setElapsedMs] = useState(0);
   const [timerRunning, setTimerRunning] = useState(true);
+  /**
+   * v0.9.5：这一局的水合跑完了吗 —— 计时落盘的那条 effect 靠它挡住「读之前先写」。
+   * 见那条 effect 上的注释（这是 v0.7.11 续计时在真浏览器里失效的根因）。
+   */
+  const [hydrated, setHydrated] = useState(false);
   const elapsedRef = useRef(0);
   const runningSinceRef = useRef<number | null>(null);
 
@@ -808,9 +875,32 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   /**
    * 落盘的时机：每 5 秒一次（意外关闭最多丢 5 秒），页面隐藏 / 卸载时各补一次。
    * 为什么不是每秒：localStorage 是同步写，秒针每跳一次就写一条 JSON 没必要。
+   *
+   * v0.9.5 修：**水合之前不落盘**。
+   *
+   * 真浏览器里 `gameQuery.data` 是异步来的，所以这一页会先渲染一次「画布还没到」
+   * 的形态（`progressMeta.gridSize === 0`），再渲染一次真的。上一次的那条 effect
+   * 在依赖变化时会先跑一次清理 —— 那一刻 `elapsedRef` 还是 0，于是 `persist()`
+   * 写进一个「0 毫秒」，而 `writeGameTimer` 对 0 的处理是**删键**。它跑在下面那条
+   * 水合 effect 之前，删的正是水合要读的那条计时 —— 结果是「关掉页面再回来，
+   * 秒表从 00:00 重新开始」，v0.7.11 的续计时在真浏览器里从来没有生效过。
+   *
+   * jsdom 用例看不出来：那边 `useGameDetail` 的 mock 第一次渲染就有数据。
+   *
+   * 修法只加一道闸：`hydrated` 为假时这条 effect 直接返回（不挂定时器、也不注册
+   * 卸载落盘）。水合跑完才落盘，读与写就不会抢在同一个时刻。
+   *
+   * 同一道闸顺带挡住 v0.9.5 发现的第二个口子：**换关**。从定案卡点「下一关」跳到
+   * 另一关时组件不重建，新一关的数据还在路上（`draft` 为空 ⇒ `gridSize = 0`），
+   * 而秒表里留着上一关的累计值。旧版这里会一次一次把「上一关的用时 + 指纹 0」
+   * 写进**新一关**的计时键，既串了成绩，留下的还是一条读不回来的垃圾。
+   * 现在 `draft` 没到就把 `hydrated` 打回 false，等新一关读完自己的存档再开闸。
+   *
+   * `gridSize > 0` 是最后一道保险：指纹为 0 的条目 `readGameTimer` 永远读不回来，
+   * 写它没有任何意义。
    */
   useEffect(() => {
-    if (!storageId) return;
+    if (!storageId || !hydrated || gridSize <= 0) return;
     const persist = (): void => {
       writeGameTimer(storageId, progressMeta, currentElapsed());
     };
@@ -826,7 +916,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       persist();
     };
-  }, [storageId, progressMeta, currentElapsed]);
+  }, [storageId, progressMeta, currentElapsed, hydrated, gridSize]);
 
   /** 刚放下的字形动效过期清理（`place-pop` 只在这一小段时间里挂着）。 */
   useEffect(
@@ -849,10 +939,22 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
    */
   const hydratedKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!draft) return;
+    /**
+     * v0.9.5：**先关闸，再决定要不要开**。
+     *
+     * 换关时这一页不重建：`slug` 变了、新一关的数据还没到，`draft` 是空。这个
+     * 瞬间必须让计时落盘停下来 —— 否则旧闭包会拿着上一关的累计毫秒去写新一关
+     * 的键（`gridSize` 也还是上一关的值，指纹一路对不上）。关闸之后，下面读到
+     * 新一关自己的存档那一刻再置真。
+     */
+    if (!draft) {
+      setHydrated(false);
+      return;
+    }
     const key = `${storageId ?? ''}|${gridSize}|${slots.length}`;
     const firstLoad = hydratedKeyRef.current !== key;
     hydratedKeyRef.current = key;
+    if (firstLoad) setHydrated(false);
 
     setActivation(INACTIVE_ACTIVATION);
     setHover(null);
@@ -875,6 +977,11 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
     runningSinceRef.current = Date.now();
     setElapsedMs(savedElapsed);
     setTimerRunning(true);
+    /**
+     * v0.9.5：读完了才允许落盘。这一行必须排在 `readGameProgress` /
+     * `readGameTimer` 之后 —— 它一置真，计时那条 effect 立即开始每 5 秒写一次。
+     */
+    setHydrated(true);
   }, [draft, storageId, gridSize, slots.length, progressMeta]);
 
   /**
@@ -1023,6 +1130,27 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
 
     checkRunIdRef.current += 1;
     setCheckRun({ items, revealed: 0, runId: checkRunIdRef.current });
+    /**
+     * v0.9.5：通过 = **结案**，要落一条记录（用时 + 完成时刻 + 那枚印），列表页
+     * 据此盖印并写出完成用时。
+     *
+     * 写在这里而不是等结算卡出现：读者是「玩家按下了提交、答对了」这一刻，与
+     * 弹窗何时弹出无关 —— 玩家关掉页面、中途刷新，结案都不该丢。`recordGameCompletion`
+     * 自己保证「首次为准、指纹对不上就不写」，这里不必再判一次。
+     *
+     * 印的地址取**此刻已经解析好的**那一份（谜题 → 主题 → 内置，见 `lib/toolIcons.ts`）：
+     * 列表页拿不到关卡级的工具图标，通过那一刻是唯一一次手里有它的时机。
+     *
+     * 返回值不往 `result` 里带：结案卡自己**不报成绩**（v0.9.3 §3），用时只写进
+     * 记录给列表页读。`completion` 因此只是一个「写完了」的凭据，页面不留它。
+     */
+    if (validation.passed) {
+      recordGameCompletion(
+        storageId ?? '',
+        { gridSize },
+        { elapsedMs: elapsed, stampUrl: toolIcons.submit?.imageUrl ?? null },
+      );
+    }
     /*
      * 一个参与者的棋盘（理论上不会有）也要有结论 —— 空序列会让定时器那一侧
      * 立刻收尾，所以这里不特殊处理，交给下面那条 effect 的 `revealed >= length`。
@@ -1093,7 +1221,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
   };
 
   /**
-   * v0.7.11：给刚放下的编号 / 禁止符号挂一次「盖章」动效。
+   * v0.7.11：给刚放下的编号 / 标记挂一次「盖章」动效。
    *
    * 用一张「格子键 → 参与者编号」的表而不是单个「最后一格」：按住滑动会连着
    * 放好几格，单值会让前一格的字形在动画播到一半时被摘掉类，缩放猛地弹回原样。
@@ -1706,7 +1834,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               cell={hoverEffects.cell}
               cellSize={cellSize}
               slots={slots}
-              forbiddenSymbol={forbiddenSymbol}
+              mark={mark}
               // v0.9.1 §3：清除工具配了图，指针底下就画同一张（与按钮一致）。
               clearIcon={toolIcons.clear ?? null}
             />
@@ -1718,7 +1846,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               cellSize={cellSize}
               durationMs={GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
               seq={pressCell?.seq ?? 0}
-              imageUrl={pressRingImage}
+              imageUrl={ringImage}
             />
 
             {/* 层 5 · 游戏放置层 — SPEC-G01 */}
@@ -1744,10 +1872,10 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
                * 时间戳：抬手即清环，窗口自然结束。
                */
               settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
-              /* v0.7.11：刚放下的编号 / 禁止符号各「盖章」一次。 */
+              /* v0.7.11：刚放下的编号 / 标记各「盖章」一次。 */
               pulse={pulse}
-              /* v0.8.6：配置了图片时，放下的禁止符号画那张图而不是 `×`。 */
-              forbiddenSymbol={forbiddenSymbol}
+              /* v0.8.6：配置了图片时，放下的标记画那张图而不是 `×`。 */
+              mark={mark}
             />
 
             {/*
@@ -1760,7 +1888,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
                 cellSize={cellSize}
                 passColor={checkStyle.passColor}
                 failColor={checkStyle.failColor}
-                ringUrl={checkStyle.ringUrl}
+                ringUrl={ringImage}
                 sweepMs={GAME_CHECK_RING_SWEEP_MS}
                 runId={checkRun.runId}
               />
@@ -1817,7 +1945,7 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
             onClick={() => toggleTool('forbidden')}
           >
             {/*
-              v0.8.6：这条谜题给禁止符号配了图，工具按钮就画**同一张图** ——
+              v0.8.6：这条谜题给标记配了图，工具按钮就画**同一张图** ——
               按钮上是什么，落下去就是什么（v0.6.4 给编号立下的规矩，v0.8.6 已用
               在工具提示层）。没配时才退回那枚红色 `×` 字形。
 
@@ -1826,9 +1954,9 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
               翻过来，`hue-rotate-180` 再把色相转回去 —— 只用 `invert` 的话，一枚
               红印在深色下会变成青色。
             */}
-            {forbiddenSymbol ? (
+            {mark ? (
               <img
-                src={forbiddenSymbol.imageUrl}
+                src={mark.imageUrl}
                 alt=""
                 draggable={false}
                 data-testid="forbidden-tool-icon"
@@ -2034,18 +2162,55 @@ export function GameView({ source }: { source: GameSource }): JSX.Element {
             </p>
           ) : null}
 
-          <DialogFooter>
+          <DialogFooter className="flex-wrap">
             {result?.kind === 'passed' ? (
               <>
+                {/*
+                  * v0.9.5：两张结果卡都多一枚「返回谜题列表」—— 一局到此结束，
+                  * 玩家的下一个动作通常不是「再点一次棋盘」，而是挑下一关。
+                  * 落点与左上角那个箭头同一个地址（`source.listHref()`）。
+                  */}
                 <Button variant="outline" onClick={closeResult}>
                   关闭
                 </Button>
-                <Button onClick={restart}>再玩一次</Button>
+                {/*
+                  * 「再玩一次」是这一面的**兜底主按钮**：后面没有没做过的关时
+                  * （`nextLevel === null`，比如这是最后一关、或下面的都通过了），
+                  * 结案卡上仍然得有一个实心按钮，否则四枚全是描边、读不出下一步。
+                  * 有「下一关」时它让位，退成 outline。
+                  */}
+                <Button variant={nextLevel ? 'outline' : 'default'} onClick={restart}>
+                  再玩一次
+                </Button>
+                <Button variant="outline" onClick={() => navigate(source.listHref())}>
+                  返回谜题列表
+                </Button>
+                {/*
+                  * v0.9.5：**下一关**。通过之后才出现 —— 未通过时「换一关」是一句
+                  * 逃跑的邀请，通过之后它才是顺理成章的下一步。
+                  *
+                  * 「下一关」＝列表顺序里排在当前之后、**还没通过**的第一关
+                  * （`lib/gameCatalog.ts`）。后面没有了、或下面的关全通过过了，这枚
+                  * 按钮就不画 —— 指不到地方的按钮比没有更糟。
+                  */}
+                {nextLevel ? (
+                  <Button onClick={() => navigate(source.gameHref(nextLevel.key))}>
+                    下一关
+                  </Button>
+                ) : null}
               </>
             ) : (
               <>
                 <Button variant="outline" onClick={continueGame}>
                   继续游戏
+                </Button>
+                {/*
+                  * v0.9.5：未通过也留一条退路 —— 这一局可以接着改（继续游戏），
+                  * 也可以先去别的关。两枚新按钮都是 `outline`：这一面的主按钮仍是
+                  * 「重新开始」（本版不动它），退出与换关不该比它更抢眼。
+                  */}
+                <Button variant="outline" onClick={() => navigate(source.listHref())}>
+                  返回谜题列表
                 </Button>
                 <Button onClick={restart}>重新开始</Button>
               </>

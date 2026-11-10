@@ -2,13 +2,14 @@ import { useMemo } from 'react';
 import { fileUrlFromPath } from '@loredoku/shared';
 import { useAssets } from '@/hooks/useAssets';
 import { useCharacters } from '@/hooks/useCharacters';
-import { useGameDetail } from '@/hooks/useGames';
+import { useGameDetail, useGames } from '@/hooks/useGames';
 import {
-  useCheckStyleByCode,
-  useForbiddenSymbolByCode,
-  usePressRingByCode,
+  useCheckColorsByCode,
+  useMarkByCode,
+  useRingByCode,
   useToolIconsByCode,
 } from '@/hooks/useThemes';
+import type { GameLevelRef } from '@/lib/gameCatalog';
 import type { GameSource } from '@/lib/gameSource';
 
 /**
@@ -21,14 +22,14 @@ import type { GameSource } from '@/lib/gameSource';
  * 搜到 `axios/` 的 UA 字符串）。拆开之后 `gameSource.tsx` 只剩「接口 + context」，
  * 播放器引它是零依赖。
  *
- * 两个主题级兜底（禁止符号 / 工具图标）用 `useCallback` 保住引用稳定 —— 它们进了
+ * 两个主题级兜底（标记 / 工具图标）用 `useCallback` 保住引用稳定 —— 它们进了
  * `useMemo` 的依赖数组，每次渲染换一个函数就会让画布白重算一遍。
  */
 export function useApiGameSource(): GameSource {
-  const forbiddenSymbolOf = useForbiddenSymbolByCode();
+  const markOf = useMarkByCode();
   const toolIconsOf = useToolIconsByCode();
-  const pressRingOf = usePressRingByCode();
-  const checkStyleOf = useCheckStyleByCode();
+  const ringOf = useRingByCode();
+  const checkColorsOf = useCheckColorsByCode();
 
   return useMemo<GameSource>(
     () => ({
@@ -58,14 +59,31 @@ export function useApiGameSource(): GameSource {
         };
       },
       fileUrl: (path) => fileUrlFromPath(path),
-      themeForbiddenSymbol: (themeCode) => forbiddenSymbolOf(themeCode),
+      themeMark: (themeCode) => markOf(themeCode),
       themeToolIcons: (themeCode) => toolIconsOf(themeCode),
-      themePressRing: (themeCode) => pressRingOf(themeCode),
-      themeCheckStyle: (themeCode) => checkStyleOf(themeCode),
+      themeRing: (themeCode) => ringOf(themeCode),
+      themeCheckColors: (themeCode) => checkColorsOf(themeCode),
       storageId: (key) => key,
       listHref: () => '/play',
       gameHref: (key) => `/play/${key}`,
+      /**
+       * v0.9.5：定案卡的「下一关」要知道整份清单。这里读的就是列表页那一份
+       * `/api/games`（同一个 `gameKeys.all`，react-query 去重，不会多一个请求），
+       * 顺序也沿用它返回的 `sortWeight, slug` —— 卡片网格排成什么样，「下一关」
+       * 就按什么走。
+       */
+      useCatalog() {
+        const query = useGames();
+        const data = useMemo<GameLevelRef[] | null>(
+          () =>
+            query.data
+              ? query.data.map((game) => ({ key: game.slug, gridSize: game.gridSize }))
+              : null,
+          [query.data],
+        );
+        return { data, isLoading: query.isLoading, isError: query.isError };
+      },
     }),
-    [forbiddenSymbolOf, toolIconsOf, pressRingOf, checkStyleOf],
+    [markOf, toolIconsOf, ringOf, checkColorsOf],
   );
 }

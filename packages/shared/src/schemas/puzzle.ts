@@ -16,7 +16,7 @@ import {
   PUZZLE_NAME_MAX_LENGTH,
 } from '../constants';
 import { characterSlotEntrySchema, mapDraftSchema, mapLinkageColorSchema } from './mapDraft';
-import { forbiddenSymbolSchema, gameToolIconsSchema } from './common';
+import { gameToolIconsSchema, moveLegacyImageKeys, optionalUploadedImageSchema } from './common';
 import { themeCodeSchema } from './theme';
 
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
@@ -196,7 +196,7 @@ function validateSelfConsistentReferences(
   });
 }
 
-const puzzleDraftBaseSchema = z
+const puzzleDraftObjectSchema = z
   .object({
     version: z.number().int().positive().default(PUZZLE_JSON_VERSION),
     map: puzzleMapSnapshotSchema,
@@ -233,12 +233,27 @@ const puzzleDraftBaseSchema = z
       .max(GRID_SIZE_MAX, `列数不能超过 ${GRID_SIZE_MAX}`)
       .nullable()
       .optional(),
-    /** v0.8.6 §4：禁止符号的上传图；缺席 / `null` = 跟随主题，都没有才是 `×` 字形。 */
-    forbiddenSymbol: forbiddenSymbolSchema,
+    /**
+     * v0.8.6 §4；v0.9.5 更名：**标记**的上传图；缺席 / `null` = 跟随主题，都没有
+     * 才是 `×` 字形。旧键 `forbiddenSymbol` 由 `withLegacyImageKeys` 在读入时搬过来。
+     */
+    mark: optionalUploadedImageSchema,
     /** v0.8.7 §7：工具按钮图标；缺席 / `null` = 跟随主题，都没有才是内置图标。 */
     toolIcons: gameToolIconsSchema,
   })
   .strict();
+
+/**
+ * v0.9.5：谜题草稿先过一次「旧键搬运」（`forbiddenSymbol → mark`）。
+ *
+ * 与主题侧同一条道理：`.strict()` 不接受未知键，而 v0.9.5 之前落库的版本行、
+ * 旧导出包里还带着 `forbiddenSymbol` —— 必须**先**搬再校验，所以 `preprocess`
+ * 套在最外层。字段级的 `withLegacyImageKeys` 只改自己的值，看不到同级的旧键。
+ */
+const puzzleDraftBaseSchema = z.preprocess(
+  (raw) => moveLegacyImageKeys(raw),
+  puzzleDraftObjectSchema,
+);
 
 export const puzzleDraftSchema = puzzleDraftBaseSchema.superRefine((draft, ctx) =>
   validateSelfConsistentReferences(draft, ctx),

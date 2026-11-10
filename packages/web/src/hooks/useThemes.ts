@@ -3,13 +3,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { GAME_TOOL_ICON_LABELS, resolveDifficultyTiers } from '@loredoku/shared';
 import type {
-  ForbiddenSymbolImage,
+  UploadedImage,
   GameToolIconKind,
   GameToolIcons,
   Theme,
-  ThemeCheckStyle,
+  ThemeCheckColors,
   ThemeDifficultyTier,
   ThemeOption,
+  ThemeRing,
 } from '@loredoku/shared';
 import { themesApi, type CreateThemePayload, type UpdateThemePayload } from '@/api/themes';
 import { forgetThemeCode } from '@/lib/workspace';
@@ -80,7 +81,7 @@ export function useUpdateTheme(code: string) {
 }
 
 /**
- * v0.8.6 §4 / v0.8.7 §4 —— 主题级的「禁止符号」，**即时保存**。
+ * v0.8.6 §4 / v0.8.7 §4；v0.9.5 更名 —— 主题级的「标记」，**即时保存**。
  *
  * 它不是「新建时抄一份」的缺省，而是本主题里**没单独配置**的谜题读取时的兜底：
  * 换一张图，跟随的关卡（含已发布的）下次打开就是新的。所以成功后要把
@@ -90,29 +91,29 @@ export function useUpdateTheme(code: string) {
  * 成功与失败都要当场有回音，且必须让工作空间里那份 `theme`（`WorkspaceLayout`
  * 从 `useThemes()` 取）一起刷新 —— 否则概览页的预览图要等下一次进页面才变。
  */
-export function useUploadThemeForbiddenSymbol(code: string) {
+export function useUploadThemeMark(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => themesApi.uploadForbiddenSymbol(code, file),
+    mutationFn: (file: File) => themesApi.uploadMark(code, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      toast.success('已设为本主题的默认禁止符号');
+      toast.success('已设为本主题的默认标记');
     },
-    onError: (error: Error) => toast.error(error.message || '禁止符号上传失败'),
+    onError: (error: Error) => toast.error(error.message || '标记上传失败'),
   });
 }
 
 /**
- * 移除主题级禁止符号 = 删掉 `data.forbiddenSymbol`：本主题里跟随的谜题回到默认的
+ * 移除主题级标记 = 删掉 `data.mark`：本主题里跟随的谜题回到默认的
  * `×` 字形（自己配过的那几题不受影响）。
  */
-export function useRemoveThemeForbiddenSymbol(code: string) {
+export function useRemoveThemeMark(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => themesApi.removeForbiddenSymbol(code),
+    mutationFn: () => themesApi.removeMark(code),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      toast.success('已移除默认禁止符号');
+      toast.success('已移除默认标记');
     },
     onError: (error: Error) => toast.error(error.message || '移除失败'),
   });
@@ -154,29 +155,29 @@ export function useRemoveThemeToolIcon(code: string) {
 /**
  * v0.9.2 §2 —— 长按放置参与者时的**计时环**图，即时保存。
  *
- * 与禁止符号 / 工具图标同一条链路：成功即把 `themeKeys.all` 集体失效 —— 游戏页
+ * 与标记 / 工具图标同一条链路：成功即把 `themeKeys.all` 集体失效 —— 游戏页
  * 是按编码查这份数据的，换一张图所有关卡下次打开（或立即重取）就是新的。
  */
-export function useUploadThemePressRing(code: string) {
+export function useUploadThemeRing(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (file: File) => themesApi.uploadPressRing(code, file),
+    mutationFn: (file: File) => themesApi.uploadRing(code, file),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      toast.success('已设为本主题的计时环');
+      toast.success('已设为本主题的圆环');
     },
-    onError: (error: Error) => toast.error(error.message || '计时环上传失败'),
+    onError: (error: Error) => toast.error(error.message || '圆环上传失败'),
   });
 }
 
-/** 移除 = 删掉 `data.pressRing`：所有关卡回到内置的那圈白弧。 */
-export function useRemoveThemePressRing(code: string) {
+/** 移除 = 删掉 `data.ring`：所有关卡回到各自的内置细弧。 */
+export function useRemoveThemeRing(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => themesApi.removePressRing(code),
+    mutationFn: () => themesApi.removeRing(code),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      toast.success('已恢复默认计时环');
+      toast.success('已恢复默认圆环');
     },
     onError: (error: Error) => toast.error(error.message || '移除失败'),
   });
@@ -233,23 +234,23 @@ export function useDifficultyTiersByCode(): (
 }
 
 /**
- * v0.8.7 §4 —— 按主题编码查「禁止符号」：本主题里**没有单独配置**的谜题读到的就是它。
+ * v0.8.7 §4 —— 按主题编码查「标记」：本主题里**没有单独配置**的谜题读到的就是它。
  *
  * 与 `useDifficultyTiersByCode` 同一种做法（同一份 `/themes`，同一个理由）：播放页与
  * 谜题编辑器都在 `WorkspaceLayout` 外面，`useWorkspace()` 是 `null`，拿不到上下文里
  * 那份 `theme`；而它们要的只是这一个小字段。整份列表取一次摊成表，按编码查。
  *
  * 谜题自己配了就不该用这份 —— 顺序（谜题 → 主题 → ×）在
- * `lib/forbiddenSymbol.ts`，两边都走它，不各写一遍。
+ * `lib/mark.ts`，两边都走它，不各写一遍。
  */
-export function useForbiddenSymbolByCode(): (
+export function useMarkByCode(): (
   code: string | null | undefined,
-) => ForbiddenSymbolImage | null {
+) => UploadedImage | null {
   const query = useThemes();
   const byCode = useMemo(() => {
-    const map = new Map<string, ForbiddenSymbolImage>();
+    const map = new Map<string, UploadedImage>();
     for (const theme of query.data ?? []) {
-      const symbol = theme.data.forbiddenSymbol;
+      const symbol = theme.data.mark;
       if (symbol?.path) map.set(theme.code, symbol);
     }
     return map;
@@ -264,7 +265,7 @@ export function useForbiddenSymbolByCode(): (
 /**
  * v0.8.7 §7 —— 按主题编码查「工具按钮图标」（清除 / 撤回 / 提交）。
  *
- * 与 `useForbiddenSymbolByCode` 同一个理由、同一份 `/themes`：播放页与谜题编辑器都
+ * 与 `useMarkByCode` 同一个理由、同一份 `/themes`：播放页与谜题编辑器都
  * 在 `WorkspaceLayout` 外面，拿不到上下文那份 `theme`，只能按编码查表。三枚一起给，
  * 因为工具栏一屏要画全套；解析顺序（谜题 → 主题 → 内置）在 `lib/toolIcons.ts`。
  */
@@ -287,20 +288,22 @@ export function useToolIconsByCode(): (
   );
 }
 /**
- * v0.9.2 §2 —— 按主题编码查「长按计时环」那张图。
+ * v0.9.2 §2；v0.9.5 起与校验圈**合并成一张**：按主题编码查**那一圈**。
  *
- * 与禁止符号 / 工具图标同一份 `/themes`、同一个理由：游戏页在工作空间外面，
- * 只能按编码查表。只有一张，所以不像工具图标那样摊成 `GameToolIcons`。
+ * 与标记 / 工具图标同一份 `/themes`、同一个理由：游戏页在工作空间外面，
+ * 只能按编码查表。只有一份（`{ image }`），所以不像工具图标那样摊成 `GameToolIcons`。
+ *
+ * 两个消费点读同一份：长按放置的进度环、提交校验的结果环。
  */
-export function usePressRingByCode(): (
+export function useRingByCode(): (
   code: string | null | undefined,
-) => ForbiddenSymbolImage | null {
+) => ThemeRing | null {
   const query = useThemes();
   const byCode = useMemo(() => {
-    const map = new Map<string, ForbiddenSymbolImage>();
+    const map = new Map<string, ThemeRing>();
     for (const theme of query.data ?? []) {
-      const ring = theme.data.pressRing;
-      if (ring?.path) map.set(theme.code, ring);
+      const ring = theme.data.ring;
+      if (ring?.image?.path) map.set(theme.code, ring);
     }
     return map;
   }, [query.data]);
@@ -320,12 +323,12 @@ export function usePressRingByCode(): (
  *
  * 返回值可能是 `null`（主题没配过），由 `lib/checkStyle.ts` 填默认绿 / 红。
  */
-export function useCheckStyleByCode(): (
+export function useCheckColorsByCode(): (
   code: string | null | undefined,
-) => ThemeCheckStyle | null {
+) => ThemeCheckColors | null {
   const query = useThemes();
   const byCode = useMemo(() => {
-    const map = new Map<string, ThemeCheckStyle>();
+    const map = new Map<string, ThemeCheckColors>();
     for (const theme of query.data ?? []) {
       const style = theme.data.checkStyle;
       if (style) map.set(theme.code, style);
@@ -354,27 +357,3 @@ export function useUpdateThemeCheckStyle(code: string) {
   });
 }
 
-/** v0.9.3 §3：换校验圈图。移除只删图，两档颜色留着。 */
-export function useUploadThemeCheckRing(code: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (file: File) => themesApi.uploadCheckRing(code, file),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      toast.success('已设为本主题的校验圈');
-    },
-    onError: (error: Error) => toast.error(error.message || '校验圈上传失败'),
-  });
-}
-
-export function useRemoveThemeCheckRing(code: string) {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: () => themesApi.removeCheckRing(code),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
-      toast.success('已恢复默认校验圈');
-    },
-    onError: (error: Error) => toast.error(error.message || '移除失败'),
-  });
-}

@@ -154,20 +154,22 @@ describe('themeDataSchema.difficultyLevels（v0.8.6）', () => {
 });
 
 /**
- * v0.8.6（docs/v0.8.6.md §4）：主题的禁止符号缺省 —— 与谜题侧同一个形状，
- * 新建谜题那一刻被抄走；缺失 / null 都表示「默认 ×」。
+ * v0.8.6（docs/v0.8.6.md §4）；v0.9.5 字段名 `forbiddenSymbol → mark`（界面上的
+ * 名字也从「禁止符号」改成「标记」）。
+ *
+ * 缺失 / null 都表示「默认 ×」。旧键由 `stripLegacyThemeKeys` 搬过来。
  */
-describe('themeDataSchema 的禁止符号缺省（v0.8.6 §4）', () => {
+describe('themeDataSchema 的标记（v0.8.6 §4 / v0.9.5 更名）', () => {
   it('缺省 / null 与一张上传图都合法', () => {
     expect(themeDataSchema.safeParse({ version: 1 }).success).toBe(true);
-    expect(themeDataSchema.safeParse({ version: 1, forbiddenSymbol: null }).success).toBe(true);
+    expect(themeDataSchema.safeParse({ version: 1, mark: null }).success).toBe(true);
     const parsed = themeDataSchema.safeParse({
       version: 1,
-      forbiddenSymbol: { path: 'themes/3/forbidden-symbol/x.webp' },
+      mark: { path: 'themes/3/mark/x.webp' },
     });
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.forbiddenSymbol).toEqual({ path: 'themes/3/forbidden-symbol/x.webp' });
+      expect(parsed.data.mark).toEqual({ path: 'themes/3/mark/x.webp' });
     }
   });
 
@@ -179,43 +181,82 @@ describe('themeDataSchema 的禁止符号缺省（v0.8.6 §4）', () => {
       { path: 'themes/3/x.webp', extra: 1 },
     ] as Array<unknown>) {
       expect(
-        themeDataSchema.safeParse({ version: 1, forbiddenSymbol: bad }).success,
+        themeDataSchema.safeParse({ version: 1, mark: bad }).success,
         JSON.stringify(bad),
       ).toBe(false);
     }
   });
+
+  /** v0.9.5：v0.9.5 之前存的主题还带着 `forbiddenSymbol`，读进来要落到 `mark`。 */
+  it('读得懂旧的 forbiddenSymbol', () => {
+    const parsed = themeDataSchema.parse({
+      version: 1,
+      forbiddenSymbol: { path: 'themes/3/forbidden-symbol/x.webp' },
+    });
+    expect(parsed.mark).toEqual({ path: 'themes/3/forbidden-symbol/x.webp' });
+    expect(parsed).not.toHaveProperty('forbiddenSymbol');
+  });
 });
+
 /**
- * v0.9.2 §2：长按计时环那张图走的是「禁止符号」同一个形状 —— `{ path }` 或
- * `null` / 缺省。`themeDataSchema` 是 `.strict()` 的，少写这一项会让作者
- * 一上传就 400，所以这里把它钉住。
+ * v0.9.5：**那一圈** —— 长按计时环与提交校验圈合并成一个配置键。
+ *
+ * 旧数据两条来路都要读得出来：主题顶层的 `pressRing: { path }`、
+ * 校验的 `checkStyle.ring: { path }`；新形状是 `ring: { image: { path } }`。
  */
-describe('themeDataSchema.pressRing（v0.9.2）', () => {
-  it('缺省是 undefined，null 与 {path} 都收', () => {
-    expect(themeDataSchema.parse({ version: 1 }).pressRing).toBeUndefined();
-    expect(themeDataSchema.parse({ version: 1, pressRing: null }).pressRing).toBeNull();
+describe('themeDataSchema.ring（v0.9.5 合并）', () => {
+  it('缺省是 undefined；null 与 { image: { path } } 都收', () => {
+    expect(themeDataSchema.parse({ version: 1 }).ring).toBeUndefined();
+    expect(themeDataSchema.parse({ version: 1, ring: null }).ring).toBeNull();
     expect(
-      themeDataSchema.parse({ version: 1, pressRing: { path: 'themes/1/press-ring/a.webp' } })
-        .pressRing,
-    ).toEqual({ path: 'themes/1/press-ring/a.webp' });
+      themeDataSchema.parse({ version: 1, ring: { image: { path: 'themes/1/ring/a.webp' } } }).ring,
+    ).toEqual({ image: { path: 'themes/1/ring/a.webp' } });
   });
 
-  it('路径不能往上跳，形状必须只有 path', () => {
+  it('旧的 pressRing 搬到 ring.image', () => {
     expect(
-      themeDataSchema.safeParse({ version: 1, pressRing: { path: '../etc/passwd' } }).success,
+      themeDataSchema.parse({ version: 1, pressRing: { path: 'themes/1/press-ring/a.webp' } }).ring,
+    ).toEqual({ image: { path: 'themes/1/press-ring/a.webp' } });
+  });
+
+  it('旧的 checkStyle.ring 搬到 ring.image，且 checkStyle 只剩两档颜色', () => {
+    const parsed = themeDataSchema.parse({
+      version: 1,
+      checkStyle: {
+        passColor: '#123456',
+        failColor: '#654321',
+        ring: { path: 'themes/1/check-ring/a.webp' },
+      },
+    });
+    expect(parsed.ring).toEqual({ image: { path: 'themes/1/check-ring/a.webp' } });
+    expect(parsed.checkStyle).toEqual({ passColor: '#123456', failColor: '#654321' });
+  });
+
+  /** 两条旧来路同时存在时，`pressRing` 优先（它是先有的那个）。 */
+  it('pressRing 与 checkStyle.ring 同时存在时取 pressRing', () => {
+    const parsed = themeDataSchema.parse({
+      version: 1,
+      pressRing: { path: 'themes/1/press-ring/a.webp' },
+      checkStyle: { ring: { path: 'themes/1/check-ring/b.webp' } },
+    });
+    expect(parsed.ring).toEqual({ image: { path: 'themes/1/press-ring/a.webp' } });
+  });
+
+  it('路径不能往上跳，形状必须只有 image.path', () => {
+    expect(
+      themeDataSchema.safeParse({ version: 1, ring: { image: { path: '../etc/passwd' } } }).success,
     ).toBe(false);
     expect(
-      themeDataSchema.safeParse({ version: 1, pressRing: { path: 'themes/1/a.webp', x: 1 } })
+      themeDataSchema.safeParse({ version: 1, ring: { image: { path: 'themes/1/a.webp', x: 1 } } })
         .success,
     ).toBe(false);
   });
 });
 
 /**
- * v0.9.3 §3：提交校验的样式。两个颜色带 `.default()` —— 作者只换圈图时，写进
- * 库里的仍是一份完整的三键，服务端不必再补一遍默认值。
+ * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。两个颜色带 `.default()`。
  */
-describe('themeDataSchema.checkStyle（v0.9.3）', () => {
+describe('themeDataSchema.checkStyle（v0.9.3 / v0.9.5 收敛为颜色）', () => {
   it('缺省是 undefined；给空对象也会补齐两档颜色', () => {
     expect(themeDataSchema.parse({ version: 1 }).checkStyle).toBeUndefined();
     expect(themeDataSchema.parse({ version: 1, checkStyle: null }).checkStyle).toBeNull();
@@ -225,21 +266,13 @@ describe('themeDataSchema.checkStyle（v0.9.3）', () => {
     });
   });
 
-  it('配了颜色与圈图就原样收下', () => {
+  it('配了颜色就原样收下', () => {
     expect(
       themeDataSchema.parse({
         version: 1,
-        checkStyle: {
-          passColor: '#123456',
-          failColor: '#654321',
-          ring: { path: 'themes/1/check-ring/a.webp' },
-        },
+        checkStyle: { passColor: '#123456', failColor: '#654321' },
       }).checkStyle,
-    ).toEqual({
-      passColor: '#123456',
-      failColor: '#654321',
-      ring: { path: 'themes/1/check-ring/a.webp' },
-    });
+    ).toEqual({ passColor: '#123456', failColor: '#654321' });
   });
 
   it('颜色必须是 #RRGGBB，多出来的键一律拒', () => {
@@ -263,19 +296,6 @@ describe('themeDataSchema.checkStyle（v0.9.3）', () => {
     expect(themeDataSchema.parse({ version: 1, checkStyle: {} }).checkStyle).toEqual({
       passColor: '#16A34A',
       failColor: '#DC2626',
-    });
-  });
-
-  it('配了颜色与圈图就原样收下', () => {
-    expect(
-      themeDataSchema.parse({
-        version: 1,
-        checkStyle: { passColor: '#123456', failColor: '#654321', ring: { path: 'themes/1/check-ring/a.webp' } },
-      }).checkStyle,
-    ).toEqual({
-      passColor: '#123456',
-      failColor: '#654321',
-      ring: { path: 'themes/1/check-ring/a.webp' },
     });
   });
 

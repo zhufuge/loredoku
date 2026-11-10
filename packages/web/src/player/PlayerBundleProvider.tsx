@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import type { GameLevelRef } from '@/lib/gameCatalog';
 import type { GameSource } from '@/lib/gameSource';
 import {
   bundleFileUrl,
@@ -102,22 +103,37 @@ export function useBundleGameSource(code: string): GameSource {
        * 「谜题没配 → 主题那张」补进了关卡 JSON（v0.8.7 §4 / §7）。所以这里恒为
        * `null`，游戏页的两条兜底分支在播放器里永远不会走到。
        */
-      themeForbiddenSymbol: () => null,
+      themeMark: () => null,
       themeToolIcons: () => null,
       /**
-       * v0.9.2 §2：计时环那张图**不逐关**内联 —— 全主题共用一张，装在
-       * `manifest.theme.pressRing` 里，`path` 是包内相对路径（`files/ring/...`）。
+       * v0.9.2 §2；v0.9.5 合并：**那一圈**（长按 + 校验共用）不逐关内联 —— 全主题共用一张，装在
+       * `manifest.theme.ring` 里，`image.path` 是包内相对路径（`files/ring/...`）。
        * 游戏页拿它过 `fileUrl` 拼包根，与其它包内图片同一条路。
        */
-      themePressRing: () => manifest?.theme.pressRing ?? null,
+      themeRing: () => manifest?.theme.ring ?? null,
       /**
        * v0.9.3 §3：校验样式同样只在 manifest 里一份（两档颜色是几个字节，圈图是
        * `files/check/...`）。老包没有这个键 → `null`，游戏页落回内置绿 / 红。
        */
-      themeCheckStyle: () => manifest?.theme.checkStyle ?? null,
+      themeCheckColors: () => manifest?.theme.checkStyle ?? null,
       storageId: (key) => bundleStorageId(code, key),
       listHref: () => themeHrefOf(code),
       gameHref: (key) => gameHrefOf(code, key),
+      /**
+       * v0.9.5：定案卡的「下一关」。清单就是 `manifest.games` —— 播放器列表页
+       * 画的也是它，连顺序都不必再排一次（服务端导出时已按 `sort_weight, slug`
+       * 排好，见 `gameRepository.listGameRowsByTheme`）。
+       */
+      useCatalog() {
+        const data = useMemo<GameLevelRef[] | null>(
+          () =>
+            manifest
+              ? manifest.games.map((game) => ({ key: game.key, gridSize: game.gridSize }))
+              : null,
+          [manifest],
+        );
+        return { data, isLoading: manifestQuery.isLoading, isError: manifestQuery.isError };
+      },
     }),
     [
       code,

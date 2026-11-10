@@ -159,16 +159,16 @@ export function useUploadPuzzleCover() {
 }
 
 /**
- * v0.8.6 §4：禁止符号图上传。
+ * v0.8.6 §4：标记图上传。
  *
  * 失败**不在这里 toast**：调用方（抽屉）要把「原值保留 + 一行错误」画在控件旁边，
  * 同一次失败在页角和控件旁各报一遍只会吵。这里只负责成功后刷新谜题详情。
  */
-export function useUploadPuzzleForbiddenSymbol() {
+export function useUploadPuzzleMark() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ id, file }: { id: number; file: File }) =>
-      puzzlesApi.uploadForbiddenSymbol(id, file),
+      puzzlesApi.uploadMark(id, file),
     onSuccess: (_data, { id }) => {
       void queryClient.invalidateQueries({ queryKey: puzzleKeys.detail(id) });
     },
@@ -178,7 +178,7 @@ export function useUploadPuzzleForbiddenSymbol() {
 /**
  * v0.8.7 §7：工具按钮图标上传（清除 / 撤回 / 提交）。
  *
- * 与禁止符号逐条相同：失败不 toast（抽屉在控件旁报），成功刷新谜题详情。一次一枚，
+ * 与标记逐条相同：失败不 toast（抽屉在控件旁报），成功刷新谜题详情。一次一枚，
  * 所以 `icon` 跟着参数走 —— 三枚的 `path` 各自独立，不能合成一次请求。
  */
 export function useUploadPuzzleToolIcon() {

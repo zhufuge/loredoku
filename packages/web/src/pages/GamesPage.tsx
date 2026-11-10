@@ -10,6 +10,7 @@ import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useGames } from '@/hooks/useGames';
 import { useDifficultyTiersByCode } from '@/hooks/useThemes';
+import { readGameCompletion, type GameCompletion } from '@/lib/gameCompletion';
 import { workshopPath } from '@/lib/workspace';
 
 /**
@@ -29,6 +30,23 @@ export function GamesPage(): JSX.Element {
   const gamesQuery = useGames();
   const tiersFor = useDifficultyTiersByCode();
   const games = useMemo(() => gamesQuery.data ?? [], [gamesQuery.data]);
+
+  /**
+   * v0.9.5：每张卡各自的通过记录。存档键就是游戏 slug（线上那一套，见
+   * `lib/apiGameSource` 的 `storageId`），指纹只有 `gridSize`。
+   *
+   * 整份算一次而不是让卡片自己读：读 localStorage 是同步 I/O，二十几张卡各读一次
+   * 就是二十几次序列化；而这里顺手得到一份「哪些关通过了」的表 —— 将来要写
+   * 「已完成 3 / 8」这种计数时，它就在手边。
+   */
+  const completions = useMemo(() => {
+    const map = new Map<string, GameCompletion>();
+    for (const game of games) {
+      const completion = readGameCompletion(game.slug, { gridSize: game.gridSize });
+      if (completion) map.set(game.slug, completion);
+    }
+    return map;
+  }, [games]);
 
   useEffect(() => {
     document.title = '格物';
@@ -106,7 +124,12 @@ export function GamesPage(): JSX.Element {
         ) : (
           <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
             {games.map((game) => (
-              <GameCard key={game.id} game={game} tiers={tiersFor(game.themeCode)} />
+              <GameCard
+                key={game.id}
+                game={game}
+                tiers={tiersFor(game.themeCode)}
+                completion={completions.get(game.slug) ?? null}
+              />
             ))}
           </div>
         )}

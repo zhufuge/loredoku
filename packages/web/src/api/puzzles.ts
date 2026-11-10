@@ -88,16 +88,16 @@ export const puzzlesApi = {
     return apiDelete<PuzzleDetail>(`/puzzles/${id}/cover`);
   },
   /**
-   * v0.8.6 §4：上传「禁止符号」那张图（multipart 字段 `file`）。返回落盘后的相对
-   * 路径与站内地址 —— 路径要写进草稿的 `forbiddenSymbol`，地址只给调用方预览用。
+   * v0.8.6 §4：上传「标记」那张图（multipart 字段 `file`）。返回落盘后的相对
+   * 路径与站内地址 —— 路径要写进草稿的 `mark`，地址只给调用方预览用。
    */
-  uploadForbiddenSymbol(id: number, file: File): Promise<{ path: string; url: string }> {
+  uploadMark(id: number, file: File): Promise<{ path: string; url: string }> {
     const form = new FormData();
     form.append('file', file);
-    return apiPost<{ path: string; url: string }>(`/puzzles/${id}/forbidden-symbol`, form);
+    return apiPost<{ path: string; url: string }>(`/puzzles/${id}/mark`, form);
   },
   /**
-   * v0.8.7 §7：上传一枚工具按钮图标（清除 / 撤回 / 提交）。与禁止符号逐条相同 ——
+   * v0.8.7 §7：上传一枚工具按钮图标（清除 / 撤回 / 提交）。与标记逐条相同 ——
    * 返回的 `path` 写进草稿的 `toolIcons[icon]`，`url` 只给抽屉预览用。
    */
   uploadToolIcon(

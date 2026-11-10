@@ -364,23 +364,29 @@ export interface PuzzleDraft {
   /** v0.7.14：结束语 —— 玩家通过时出现在结算弹窗里的一句话。缺失 = 不显示。 */
   ending?: string;
   /**
-   * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4）：玩家侧「禁止符号」用哪张图。
+   * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4；v0.9.5 更名）：「标记」用哪张图。
    *
    * 这是**覆盖值**：配了就用它，缺席（或 `null`）就跟随主题的
-   * `data.forbiddenSymbol` —— 两者都没有才是放置层那枚 `×` 字形。作者在谜题编辑器
-   * 的「基本信息」抽屉里上传一张，就是给这一题单独换一张；`null` 表示「回到跟随
+   * `data.mark` —— 两者都没有才是放置层那枚 `×` 字形。作者在谜题编辑器的
+   * 「基本操作」模块里上传一张，就是给这一题单独换一张；`null` 表示「回到跟随
    * 主题」，而不是「强制 ×」。
+   *
+   * 名字从 `forbiddenSymbol` 改成 `mark`（v0.9.5）：玩家做的是「标一下这格排除」，
+   * 界面上的动词是「标记」；`forbidden` 是它落下去之后的语义，不是按钮的名字。
    *
    * **可选** —— v0.8.6 之前发布的谜题版本行里没有这个键。v0.8.7 起新建谜题也不再
    * 把主题那张拷进草稿（拷贝会让「主题换图」停在建题那一天）。
+   *
+   * 旧键 `forbiddenSymbol` 由 `withLegacyImageKeys` 在读入时搬过来（冻结的版本行、
+   * 旧导出包还带着它）。
    */
-  forbiddenSymbol?: ForbiddenSymbolImage | null;
+  mark?: UploadedImage | null;
   /**
    * v0.8.7 §7：这一关的工具按钮画什么（清除 / 撤回 / 提交）。
    *
-   * 与 {@link PuzzleDraft.forbiddenSymbol} 同一套语义：这是**覆盖值**，缺席就跟随
-   * 主题的 `ThemeData.toolIcons`，两边都没有才用内置图标。**可选** —— v0.8.7 之前
-   * 的草稿与版本行里没有这个键。
+   * 与 {@link PuzzleDraft.mark} 同一套语义：这是**覆盖值**，缺席就跟随主题的
+   * `ThemeData.toolIcons`，两边都没有才用内置图标。**可选** —— v0.8.7 之前的
+   * 草稿与版本行里没有这个键。
    */
   toolIcons?: GameToolIcons | null;
 }
@@ -708,35 +714,34 @@ export interface ThemeData {
   style?: MapStyle;
   linkageColors?: MapLinkageColor[];
   /**
-   * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4）：这个空间的**禁止符号** —— 本主题里
-   * 没有单独配置的谜题都画这一张。
+   * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4；v0.9.5 更名）：这个空间的**标记** ——
+   * 本主题里没有单独配置的谜题都画这一张。
    *
    * 与 `style` / `linkageColors` 那种「新建时拷一份」的缺省不同：它是**读取时**的
    * 兜底（谜题 → 主题 → ×），所以换一张图，本主题下跟随的关卡下次打开就是新的，
    * 已发布的也一样。谜题自己上传过的那张仍覆盖它。
    *
    * 缺失 = 本主题里跟随的那些谜题画默认的 `×` 字形。图和谜题侧共用
-   * {@link ForbiddenSymbolImage}。
+   * {@link UploadedImage}。旧键 `forbiddenSymbol` 由 `withLegacyImageKeys` 搬过来。
    */
-  forbiddenSymbol?: ForbiddenSymbolImage | null;
+  mark?: UploadedImage | null;
   /**
    * v0.8.7 §7：本主题的工具按钮图标（清除 / 撤回 / 提交）—— 本主题里没有单独配置的
    * 谜题，按钮上都画这一套。
    *
-   * 与 {@link ThemeData.forbiddenSymbol} 同一条规矩：**读取时**兜底，不是「新建时
+   * 与 {@link ThemeData.mark} 同一条规矩：**读取时**兜底，不是「新建时
    * 拷一份」。所以换一套图，跟随的关卡（含已发布的）下次打开就是新的。
    */
   toolIcons?: GameToolIcons | null;
   /**
-   * v0.9.2（docs/v0.9.2.md §2）：长按放置参与者时那圈**计时环**的图。
+   * v0.9.2（docs/v0.9.2.md §2）：玩家**戳在格子上等待**时那圈进度环的图。
    *
-   * 与 `forbiddenSymbol` / `toolIcons` 同一条规矩：**读取时**兜底，不是「新建时
-   * 拷一份」。换一张图，所有关卡下次打开就是新的，已发布的也一样。
-   *
-   * 缺失 / `null` = 画内置的那圈白弧（v0.7.11 的样式）。图只换**样子**，进度仍
-   * 按长按时长顺时针填满 —— 环回答的是「还要按多久」，不能因为换成插画就没了刻度。
+   * v0.9.5 起它和提交校验的圈**合并成一套**（`ThemeRing`）：玩家看到的都是
+   * 「一圈绕着一格走」，长按是等它满、校验是等它扫完 —— 同一个世界的同一种回应，
+   * 不该配两张图。旧键 `pressRing` / `checkStyle.ring` 由 `withLegacyImageKeys`
+   * 与 `themeRingSchema` 搬到 `ring`。
    */
-  pressRing?: ForbiddenSymbolImage | null;
+  ring?: ThemeRing | null;
   /**
    * v0.8.3：这个空间的**难度分级**。
    *
@@ -751,42 +756,59 @@ export interface ThemeData {
   /**
    * v0.9.3（docs/v0.9.3.md §3）：**提交校验**时的样子 —— 两档颜色 + 可选的圈图。
    *
-   * 与 `forbiddenSymbol` / `toolIcons` / `pressRing` 同一条规矩：**读取时**兜底，
-   * 不是「新建时拷一份」。改一档颜色，所有关卡（含已发布的）下次提交就是新的。
+   * 与 `mark` / `toolIcons` / `ring` 同一条规矩：**读取时**兜底，不是「新建时拷一份」。
+   * 改一档颜色，所有关卡（含已发布的）下次提交就是新的。
    *
-   * 缺失 / `null` = 内置的绿（通过）/ 红（未通过）与内置细环。字段刻意不全：
-   * 作者可能只改颜色、不换图，所以 `ring` 是可选的。
+   * v0.9.5：**圈图从这里搬走了**（并进 `ring`），这里只剩两档颜色 —— 校验的颜色
+   * 是「对 / 错」的语义，和环长什么样是两件事。旧数据里的 `checkStyle.ring` 仍然
+   * 读得出来（`themeRingSchema` 兜底），迁移会把存量行搬到新键。
+   *
+   * 缺失 / `null` = 内置的绿（通过）/ 红（未通过）。
    */
-  checkStyle?: ThemeCheckStyle | null;
+  checkStyle?: ThemeCheckColors | null;
 }
 
 /**
- * v0.9.3：提交后逐人校验时，圈住参与者的那一圈。
+ * v0.9.5：主题的**那一圈** —— 长按计时环与提交校验圈共用一张图。
  *
- * 颜色是「对 / 错」的语义色（绿 / 红），不是股市那套涨跌色；圈图是可选的 ——
- * 配了就用那张图（按扇形揭开，进度照样读得出来），没配就画一圈本色细环。
+ * 为什么合并：玩家看到的都是「一圈绕着一格走」。长按是等它装满（放头像）、校验是
+ * 等它扫完（宣布这一位对错）—— 同一种回应、同一个尺度、同一个世界的语言。分成
+ * 两张配置的后果是作者要传两次，而且很难保证它们看起来是一家人。
+ *
+ * 图只换**样子**，进度仍按各自时长顺时针填满 —— 环回答的是「还要等多久」，
+ * 不能因为换成插画就没了刻度。
  */
-export interface ThemeCheckStyle {
+export interface ThemeRing {
+  /** 那一圈图。缺失 = 画内置的那圈细弧（长按白弧 / 校验本色环）。 */
+  image?: UploadedImage | null;
+}
+
+/**
+ * v0.9.3 / v0.9.5：提交校验的两档颜色。
+ *
+ * 颜色是「对 / 错」的语义色（绿 / 红），不是股市那套涨跌色。圈图 v0.9.5 起并进
+ * `ThemeData.ring`，这里只剩颜色。
+ */
+export interface ThemeCheckColors {
   /** 通过的颜色（`#RRGGBB`）。缺省见 `THEME_CHECK_PASS_COLOR`。 */
   passColor: string;
   /** 未通过的颜色（`#RRGGBB`）。缺省见 `THEME_CHECK_FAIL_COLOR`。 */
   failColor: string;
-  /** 圈图（可选）。`null` / 缺失 = 画本色细环。 */
-  ring?: ForbiddenSymbolImage | null;
 }
 
 /**
- * v0.8.6（docs/v0.8.6.md §4）：玩家侧「禁止符号」那张**上传图**。
+ * v0.8.6（docs/v0.8.6.md §4；v0.9.5 更名）：作者上传的一张**符号小图**。
  *
  * 它不是资源引用 —— 作者上传的就是这一张，落在 `storage/uploads` 下，数据里只记
- * 相对路径（{@link fileUrlFromPath} 拼地址）。主题的 `ThemeData.forbiddenSymbol`
- * 与谜题的 `PuzzleDraft.forbiddenSymbol` 共用这个形状：前者是本主题的缺省（读取时
- * 兜底），后者是这一关自己那张（配了就覆盖）。
+ * 相对路径（{@link fileUrlFromPath} 拼地址）。标记（主题缺省 / 谜题覆盖）、三枚
+ * 按钮图标、那一圈图共用这个形状。
+ *
+ * v0.9.5 从 `ForbiddenSymbolImage` 改名：它服务的早就不止「禁止符号」一种图。
  */
-export interface ForbiddenSymbolImage {
+export interface UploadedImage {
   /**
-   * `storage/uploads` 下的相对路径，如 `puzzles/12/forbidden-symbol/<uuid>.webp` /
-   * `themes/3/forbidden-symbol/<uuid>.webp`。
+   * `storage/uploads` 下的相对路径，如 `puzzles/12/mark/<uuid>.webp` /
+   * `themes/3/ring/<uuid>.webp`。
    */
   path: string;
 }
@@ -794,17 +816,17 @@ export interface ForbiddenSymbolImage {
 /**
  * v0.8.7 §7：游戏页右列三枚**动作按钮**（清除 / 撤回 / 提交）的画。
  *
- * 每枚都是「一张上传图」—— 与禁止符号同一种形状、同一条解析顺序（谜题自己的 →
- * 主题的 → 内置图标），只是消费的位置不同：禁止符号画在格子里，这三张只画在按钮上。
+ * 每枚都是「一张上传图」—— 与标记同一种形状、同一条解析顺序（谜题自己的 →
+ * 主题的 → 内置图标），只是消费的位置不同：标记画在格子里，这三张只画在按钮上。
  *
  * 三者都缺席（或 `null`）时，按钮退回内置的 lucide 图标（橡皮 / 回退箭头 / 纸飞机）。
  * 用一个对象而不是三个平铺字段：作者改的是「这一套按钮长什么样」，读的一方也只需要
  * 一次 `resolveToolIcon(kind, …)`。
  */
 export interface GameToolIcons {
-  clear?: ForbiddenSymbolImage | null;
-  undo?: ForbiddenSymbolImage | null;
-  submit?: ForbiddenSymbolImage | null;
+  clear?: UploadedImage | null;
+  undo?: UploadedImage | null;
+  submit?: UploadedImage | null;
 }
 
 /**

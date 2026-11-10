@@ -1,6 +1,6 @@
 import Router from '@koa/router';
 import * as controller from '../controller/themeController';
-import { forbiddenSymbolUpload } from '../middleware/upload';
+import { symbolImageUpload } from '../middleware/upload';
 
 /**
  * v0.8.0（docs/v0.8.0.md §7 / §19）—— `/api/themes` 只负责「边界」本身与它的缺省
@@ -21,47 +21,41 @@ themesRouter.patch('/:code', controller.update);
 themesRouter.delete('/:code', controller.remove);
 
 /**
- * v0.8.6 §4：主题级的「禁止符号缺省」。它和 `style` / `linkageColors` 一样是
- * 缺省，不是内容：改即时生效，但只影响**之后新建**的谜题。
+ * v0.8.6 §4；v0.9.5 更名：主题级的**标记**缺省。
+ *
+ * 它和 `style` / `linkageColors` 一样是缺省，不是内容：改即时生效，但只影响
+ * **之后新建**的谜题。本主题里跟随的谜题读到的也是它。
  */
-themesRouter.post(
-  '/:code/forbidden-symbol',
-  forbiddenSymbolUpload.single('file'),
-  controller.uploadForbiddenSymbol,
-);
-themesRouter.delete('/:code/forbidden-symbol', controller.removeForbiddenSymbol);
+themesRouter.post('/:code/mark', symbolImageUpload.single('file'), controller.uploadMark);
+themesRouter.delete('/:code/mark', controller.removeMark);
 
 /**
- * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。与禁止符号同一种「读取时兜底」，
+ * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。与标记同一种「读取时兜底」，
  * 一次一枚 —— `:icon` 是 `GAME_TOOL_ICON_KINDS` 里的一个。
  */
 themesRouter.post(
   '/:code/tool-icons/:icon',
-  forbiddenSymbolUpload.single('file'),
+  symbolImageUpload.single('file'),
   controller.uploadToolIcon,
 );
 themesRouter.delete('/:code/tool-icons/:icon', controller.removeToolIcon);
 
 /**
- * v0.9.2 §2：长按放置参与者时的计时环 —— 一张图，主题级。与禁止符号同一种
- * 「读取时兜底」：不配就画内置白弧，配了则所有关卡都换（含已发布的）。
+ * v0.9.2 §2 / v0.9.5：**那一圈** —— 长按计时环与提交校验圈合并成一张图。
+ *
+ * 一次一张、主题级。与标记同一种「读取时兜底」：不配就各自画内置细弧，配了则
+ * 所有关卡都换（含已发布的）。
  */
-themesRouter.post('/:code/press-ring', forbiddenSymbolUpload.single('file'), controller.uploadPressRing);
-themesRouter.delete('/:code/press-ring', controller.removePressRing);
+themesRouter.post('/:code/ring', symbolImageUpload.single('file'), controller.uploadRing);
+themesRouter.delete('/:code/ring', controller.removeRing);
 
 /**
- * v0.9.3 §3：提交校验的两档颜色与圈图。
+ * v0.9.3 §3：提交校验的**两档颜色**（圈图已并进 `ring`）。
  *
- * 颜色走 PATCH、圈图走上传 / 删除 —— 配色与换图是两个动作。颜色单独开一个端点，
- * 是为了不把「改一个颜色」变成「整份 data 覆盖」。
+ * 颜色走 PATCH、圈图走上面的上传 / 删除 —— 配色与换图是两个动作。颜色单独开一个
+ * 端点，是为了不把「改一个颜色」变成「整份 data 覆盖」。
  */
 themesRouter.patch('/:code/check-style', controller.updateCheckStyle);
-themesRouter.post(
-  '/:code/check-ring',
-  forbiddenSymbolUpload.single('file'),
-  controller.uploadCheckRing,
-);
-themesRouter.delete('/:code/check-ring', controller.removeCheckRing);
 
 /** 导出资源包（§11）：本版只打包，不解包、不导入、不托管。 */
 themesRouter.get('/:code/bundle', controller.bundle);

@@ -10,7 +10,7 @@ import {
   type CreateThemeInput,
   type MapStyle,
   type Theme,
-  type ThemeCheckStyle,
+  type ThemeCheckColors,
   type ThemeData,
   type ThemeOption,
   type ThemeRefTarget,
@@ -21,9 +21,8 @@ import {
 import * as repo from '../repository/themeRepository';
 import { AppError } from '../utils/AppError';
 import {
-  processCheckRingImage,
-  processForbiddenSymbolImage,
-  processPressRingImage,
+  processMarkImage,
+  processRingImage,
   processToolIconImage,
 } from '../utils/image';
 
@@ -92,9 +91,9 @@ export async function updateTheme(code: string, input: UpdateThemeInput): Promis
   return getTheme(code);
 }
 
-/** Raised when `POST /api/themes/:code/forbidden-symbol` arrives without a file part. */
-export function forbiddenSymbolRequired(): AppError {
-  return AppError.validation('请选择禁止符号图片');
+/** Raised when `POST /api/themes/:code/mark` arrives without a file part. */
+export function markRequired(): AppError {
+  return AppError.validation('请选择标记图片');
 }
 
 /**
@@ -114,26 +113,25 @@ async function themeDataOf(code: string): Promise<{ id: number; data: ThemeData 
 }
 
 /**
- * v0.8.6 §4 / v0.8.7 §4：给主题配一张「禁止符号」图。
+ * v0.8.6 §4 / v0.8.7 §4；v0.9.5 更名：给主题配一张**标记**图。
  *
  * 主题不版本化，所以改完即时生效；读的时候才落地 —— 本主题里没单独配置的谜题
- * 下次打开就是新的（见 `lib/forbiddenSymbol.ts` 的解析顺序）。旧图不删：存量谜题
- * 与版本行可能还指着它。
+ * 下次打开就是新的。旧图不删：存量谜题与版本行可能还指着它。
  */
-export async function uploadForbiddenSymbol(code: string, buffer: Buffer): Promise<Theme> {
+export async function uploadMark(code: string, buffer: Buffer): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
-  const image = await processForbiddenSymbolImage({ kind: 'theme', id }, buffer);
+  const image = await processMarkImage({ kind: 'theme', id }, buffer);
   await repo.updateTheme(id, {
-    data: { ...data, forbiddenSymbol: { path: image.relativePath } },
+    data: { ...data, mark: { path: image.relativePath } },
   });
   return getTheme(code);
 }
 
 /** v0.8.6 §4：清掉主题缺省 —— 键整个删掉（`null` 与缺席等价，但少一种口径）。 */
-export async function removeForbiddenSymbol(code: string): Promise<Theme> {
+export async function removeMark(code: string): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
   const next: ThemeData = { ...data };
-  delete next.forbiddenSymbol;
+  delete next.mark;
   await repo.updateTheme(id, { data: next });
   return getTheme(code);
 }
@@ -175,90 +173,54 @@ export async function removeToolIcon(code: string, icon: GameToolIconKind): Prom
   return getTheme(code);
 }
 
-/** v0.9.2 §2：`POST /api/themes/:code/press-ring` 少了文件部分。 */
-export function pressRingRequired(): AppError {
-  return AppError.validation('请选择计时环图片');
-}
-
 /**
- * v0.9.2 §2：长按放置参与者时那圈**计时环**的图 —— 主题级，与禁止符号同一条
- * 「读取时兜底」。一次只有一张（不像工具图标那样有 `kind`），换图即覆盖。
+ * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张**（`ThemeData.ring`）。
+ *
+ * 玩家看到的都是「一圈绕着一格走」：长按是等它装满（放头像）、校验是等它扫完
+ * （宣布这一位对错）。同一世界的同一种回应，配两张图只会让作者传两次、而且很难
+ * 保证两张看起来是一家人。
  *
  * 换一张对**所有**关卡立刻生效：游戏页按主题编码查这份数据，不经过谜题。
  */
-export async function uploadPressRing(code: string, buffer: Buffer): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const image = await processPressRingImage({ kind: 'theme', id }, buffer);
-  await repo.updateTheme(id, { data: { ...data, pressRing: { path: image.relativePath } } });
-  return getTheme(code);
+export function ringRequired(): AppError {
+  return AppError.validation('请选择圆环图片');
 }
 
-/** 移除 = 删掉 `data.pressRing`，所有关卡回到内置的那圈白弧。 */
-export async function removePressRing(code: string): Promise<Theme> {
+export async function uploadRing(code: string, buffer: Buffer): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
-  const next: ThemeData = { ...data };
-  delete next.pressRing;
-  await repo.updateTheme(id, { data: next });
-  return getTheme(code);
-}
-
-/** v0.9.3 §3：`POST /api/themes/:code/check-ring` 少了文件部分。 */
-export function checkRingRequired(): AppError {
-  return AppError.validation('请选择校验圈图片');
-}
-
-/**
- * v0.9.3 §3：提交校验的**圈图** —— 主题级、可选。
- *
- * 只动 `checkStyle.ring`，两档颜色原样保留（作者可能先配色、后换图）。主题还没有
- * `checkStyle` 时按 schema 的默认补齐两档颜色，所以写进去的永远是一份完整的三键。
- */
-export async function uploadCheckRing(code: string, buffer: Buffer): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const image = await processCheckRingImage({ kind: 'theme', id }, buffer);
+  const image = await processRingImage({ kind: 'theme', id }, buffer);
   await repo.updateTheme(id, {
-    data: {
-      ...data,
-      checkStyle: {
-        passColor: data.checkStyle?.passColor ?? THEME_CHECK_PASS_COLOR,
-        failColor: data.checkStyle?.failColor ?? THEME_CHECK_FAIL_COLOR,
-        ring: { path: image.relativePath },
-      },
-    },
+    data: { ...data, ring: { image: { path: image.relativePath } } },
   });
   return getTheme(code);
 }
 
-/** 移除圈图 = 只删 `ring`，颜色留着 —— 「恢复内置」不该顺手改掉作者挑的颜色。 */
-export async function removeCheckRing(code: string): Promise<Theme> {
+/** 移除 = 删掉 `data.ring`，所有关卡回到各自的内置细弧（长按白弧 / 校验本色环）。 */
+export async function removeRing(code: string): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
   const next: ThemeData = { ...data };
-  if (next.checkStyle) {
-    const { ring: _ring, ...rest } = next.checkStyle;
-    next.checkStyle = rest;
-  }
+  delete next.ring;
   await repo.updateTheme(id, { data: next });
   return getTheme(code);
 }
 
 /**
- * v0.9.3 §3：改两档颜色（主题概述页的两个取色器）。
+ * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。
  *
- * 与上传同一份数据，但**不动 `ring`**：配色与换图是两个动作，各改各的。
+ * 配色与换图是两个动作，各改各的 —— 改颜色不该顺手动那一圈图。
  */
 export async function updateCheckStyle(
   code: string,
   patch: { passColor?: string; failColor?: string },
 ): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
-  const current: Partial<ThemeCheckStyle> = data.checkStyle ?? {};
+  const current: Partial<ThemeCheckColors> = data.checkStyle ?? {};
   await repo.updateTheme(id, {
     data: {
       ...data,
       checkStyle: {
         passColor: patch.passColor ?? current.passColor ?? THEME_CHECK_PASS_COLOR,
         failColor: patch.failColor ?? current.failColor ?? THEME_CHECK_FAIL_COLOR,
-        ring: current.ring ?? null,
       },
     },
   });

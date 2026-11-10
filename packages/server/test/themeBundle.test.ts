@@ -33,7 +33,7 @@ const createdGames: number[] = [];
 /** 版本行是**新插入的行**：不先删它们，底图与资源的引用就一直挂着不让删。 */
 const mapVersions: Array<{ mapId: number; versionNo: number }> = [];
 const puzzleVersions: Array<{ puzzleId: number; versionNo: number }> = [];
-/** v0.8.6 §4：禁止符号上传图落在 `puzzles/<id>/forbidden-symbol/`。 */
+/** v0.8.6 §4：标记上传图落在 `puzzles/<id>/forbidden-symbol/`。 */
 const symbolDirs: string[] = [];
 
 /** 1×1 PNG —— 与 `api.test.ts` 同一个夹具，够上传管线接受。 */
@@ -92,19 +92,19 @@ async function createSolidCharacter(themeCode: string): Promise<number> {
  * 一关「已经能玩」的谜题：底图 → 发布 → 建谜题 → 名册一位参与者 → 发布 →
  * 部署成一个游戏。返回游戏 slug。
  *
- * `forbiddenSymbol: true` 时在发布前走一遍真实的上传端点并把 `path` 存进草稿 ——
+ * `mark: true` 时在发布前走一遍真实的上传端点并把 `path` 存进草稿 ——
  * 打包链路（v0.8.6 §4）要的正是「版本行里有一个上传图路径」这个状态。
  */
 async function deployedGame(
   themeCode: string,
-  options: { forbiddenSymbol?: boolean; toolIcons?: boolean } = {},
+  options: { mark?: boolean; toolIcons?: boolean } = {},
 ): Promise<{
   slug: string;
   assetId: number;
   variantId: number;
   characterId: number;
   draftId: number;
-  forbiddenSymbolPath?: string;
+  markPath?: string;
   toolIconPaths?: Record<string, string>;
 }> {
   const assetId = await createSolidAsset(themeCode);
@@ -146,13 +146,13 @@ async function deployedGame(
   };
 
   // v0.8.6 §4：先真的传一张图，再把回执的 `path` 存进草稿（发布后它就冻在版本行里）。
-  let forbiddenSymbolPath: string | undefined;
-  if (options.forbiddenSymbol) {
+  let markPath: string | undefined;
+  if (options.mark) {
     const uploaded = await api
-      .post(`/api/puzzles/${puzzleId}/forbidden-symbol`)
+      .post(`/api/puzzles/${puzzleId}/mark`)
       .attach('file', TINY_PNG, 'symbol.png');
     expect(uploaded.status).toBe(200);
-    forbiddenSymbolPath = uploaded.body.data.path as string;
+    markPath = uploaded.body.data.path as string;
     symbolDirs.push(resolveUploadPath(`puzzles/${puzzleId}`));
   }
 
@@ -172,7 +172,7 @@ async function deployedGame(
   const saved = await api.put(`/api/puzzles/${puzzleId}`).send({
     data: {
       ...puzzleDraft,
-      ...(forbiddenSymbolPath ? { forbiddenSymbol: { path: forbiddenSymbolPath } } : {}),
+      ...(markPath ? { mark: { path: markPath } } : {}),
       ...(Object.keys(toolIconPaths).length
         ? {
             toolIcons: Object.fromEntries(
@@ -204,7 +204,7 @@ async function deployedGame(
     variantId,
     characterId,
     draftId: puzzleId,
-    forbiddenSymbolPath,
+    markPath,
     ...(Object.keys(toolIconPaths).length ? { toolIconPaths } : {}),
   };
 }
@@ -327,26 +327,26 @@ describe('资源包导出（§11）', () => {
   });
 
   /**
-   * v0.8.6 §4：禁止符号是一张**上传图**，所以打包时它和资源图走同一条「搬文件 +
-   * 改写为包内相对路径」的路 —— 只是目标目录是 `files/symbols/`。
+   * v0.8.6 §4：标记是一张**上传图**，所以打包时它和资源图走同一条「搬文件 +
+   * 改写为包内相对路径」的路 —— 只是目标目录是 `files/marks/`。
    */
-  it('禁止符号图进包：files/symbols 有条目、关卡 JSON 路径已改写、manifest 有 hash', async () => {
+  it('标记图进包：files/marks 有条目、关卡 JSON 路径已改写、manifest 有 hash', async () => {
     const themeCode = await createTheme();
-    const game = await deployedGame(themeCode, { forbiddenSymbol: true });
-    expect(game.forbiddenSymbolPath).toBeTruthy();
+    const game = await deployedGame(themeCode, { mark: true });
+    expect(game.markPath).toBeTruthy();
 
     const built = await bundleService.buildThemeBundle(themeCode);
 
-    const symbolEntries = built.entries.filter((entry) => entry.path.startsWith('files/symbols/'));
+    const symbolEntries = built.entries.filter((entry) => entry.path.startsWith('files/marks/'));
     expect(symbolEntries).toHaveLength(1);
-    const target = `files/symbols/${game.slug}.webp`;
+    const target = `files/marks/${game.slug}.webp`;
     expect(symbolEntries[0]!.path).toBe(target);
 
     const level = JSON.parse(
       built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
-    ) as { puzzle: { forbiddenSymbol?: { path: string } } };
+    ) as { puzzle: { mark?: { path: string } } };
     // 包里指向包内相对路径，不是 `puzzles/<id>/forbidden-symbol/...` 那条上传路径。
-    expect(level.puzzle.forbiddenSymbol).toEqual({ path: target });
+    expect(level.puzzle.mark).toEqual({ path: target });
 
     // 校验和覆盖包里除 manifest 自己以外的一切 —— 这张图也不例外。
     const manifestFile = built.manifest.files.find((entry) => entry.path === target);
@@ -355,7 +355,7 @@ describe('资源包导出（§11）', () => {
   });
 
   /**
-   * v0.8.7 §4：谜题没配禁止符号就**跟随主题**。包里必须把它一起装上 —— 否则
+   * v0.8.7 §4：谜题没配标记就**跟随主题**。包里必须把它一起装上 —— 否则
    * 「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
    */
   it('谜题没配 → 打包装上主题那张，关卡 JSON 里补出包内路径', async () => {
@@ -363,7 +363,7 @@ describe('资源包导出（§11）', () => {
     const game = await deployedGame(themeCode);
     // 关卡先建、主题后配：跟随是读取时的，不是建题那一刻的快照。
     const uploaded = await api
-      .post(`/api/themes/${themeCode}/forbidden-symbol`)
+      .post(`/api/themes/${themeCode}/mark`)
       .attach('file', TINY_PNG, 'symbol.png');
     expect(uploaded.status).toBe(200);
     const row = (await db('themes').where({ code: themeCode }).first('id')) as
@@ -373,28 +373,30 @@ describe('资源包导出（§11）', () => {
 
     const built = await bundleService.buildThemeBundle(themeCode);
 
-    const symbolEntries = built.entries.filter((entry) => entry.path.startsWith('files/symbols/'));
+    const symbolEntries = built.entries.filter((entry) => entry.path.startsWith('files/marks/'));
     expect(symbolEntries).toHaveLength(1);
-    const target = `files/symbols/${game.slug}.webp`;
+    const target = `files/marks/${game.slug}.webp`;
     expect(symbolEntries[0]!.path).toBe(target);
 
     const level = JSON.parse(
       built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
-    ) as { puzzle: { forbiddenSymbol?: { path: string } } };
-    expect(level.puzzle.forbiddenSymbol).toEqual({ path: target });
+    ) as { puzzle: { mark?: { path: string } } };
+    expect(level.puzzle.mark).toEqual({ path: target });
   });
 
   /**
-   * v0.9.2 §2：长按计时环是一张**主题级**的图，全主题共用一张 —— 所以它不进
-   * 每一关的 JSON，只装在 `files/ring/` 里一份，路径写进 `manifest.theme.pressRing`。
+   * v0.9.2 §2；v0.9.6 起长按计时环与提交校验圈**合并成一张**（`ThemeData.ring`）。
+   *
+   * 它是一张**主题级**的图，全主题共用一张 —— 所以不进每一关的 JSON，只装在
+   * `files/ring/` 里一份，路径写进 `manifest.theme.ring.image`。
    *
    * 同时守住另一半：没配环的主题不写这个键（老包与新包都按「没有」处理）。
    */
-  it('计时环图进包：files/ring 一份、manifest.theme.pressRing 指过去', async () => {
+  it('圆环图进包：files/ring 一份、manifest.theme.ring 指过去', async () => {
     const themeCode = await createTheme();
     await deployedGame(themeCode);
     const uploaded = await api
-      .post(`/api/themes/${themeCode}/press-ring`)
+      .post(`/api/themes/${themeCode}/ring`)
       .attach('file', TINY_PNG, 'ring.png');
     expect(uploaded.status).toBe(200);
     const row = (await db('themes').where({ code: themeCode }).first('id')) as
@@ -406,10 +408,10 @@ describe('资源包导出（§11）', () => {
 
     const ringEntries = built.entries.filter((entry) => entry.path.startsWith('files/ring/'));
     expect(ringEntries).toHaveLength(1);
-    const target = 'files/ring/press-ring.webp';
+    const target = 'files/ring/ring.webp';
     expect(ringEntries[0]!.path).toBe(target);
     // 一张图只装一份，不因为「主题里有 3 关」就变成三份。
-    expect(built.manifest.theme.pressRing).toEqual({ path: target });
+    expect(built.manifest.theme.ring).toEqual({ image: { path: target } });
 
     // 校验和覆盖包里除 manifest 自己以外的一切。
     const manifestFile = built.manifest.files.find((entry) => entry.path === target);
@@ -420,11 +422,11 @@ describe('资源包导出（§11）', () => {
     const plainCode = await createTheme();
     await deployedGame(plainCode);
     const plain = await bundleService.buildThemeBundle(plainCode);
-    expect('pressRing' in plain.manifest.theme).toBe(false);
+    expect('ring' in plain.manifest.theme).toBe(false);
   });
 
   /**
-   * v0.8.7 §7：三枚工具按钮图标与禁止符号同一条路 —— 搬文件、改写为包内路径。
+   * v0.8.7 §7：三枚工具按钮图标与标记同一条路 —— 搬文件、改写为包内路径。
    * 文件名带 `-<icon>`：一关最多三张，解压后一眼能看出是哪一枚。
    */
   it('工具按钮图标进包：files/icons 三条、关卡 JSON 路径已改写、manifest 有 hash', async () => {
@@ -456,7 +458,7 @@ describe('资源包导出（§11）', () => {
   });
 
   /**
-   * 谜题没配就跟随主题 —— 与禁止符号 §4 的理由一字不差：线上画主题那一套，包里
+   * 谜题没配就跟随主题 —— 与标记 §4 的理由一字不差：线上画主题那一套，包里
    * 若没有，同一关的按钮在两种运行环境里长得不一样。
    */
   it('谜题没配工具图标 → 打包装上主题那三枚', async () => {
@@ -499,11 +501,11 @@ describe('资源包导出（§11）', () => {
   });
 
   /** §11.2：引用闭包缺一个文件就**中止**，不能交付一个少一张图的包。 */
-  it('禁止符号图不在了 → 打包中止（400 + bundle-incomplete）', async () => {
+  it('标记图不在了 → 打包中止（400 + bundle-incomplete）', async () => {
     const themeCode = await createTheme();
-    const game = await deployedGame(themeCode, { forbiddenSymbol: true });
+    const game = await deployedGame(themeCode, { mark: true });
 
-    await rm(resolveUploadPath(game.forbiddenSymbolPath!), { force: true });
+    await rm(resolveUploadPath(game.markPath!), { force: true });
 
     const res = await api.get(`/api/themes/${themeCode}/bundle`);
     expect(res.status).toBe(400);

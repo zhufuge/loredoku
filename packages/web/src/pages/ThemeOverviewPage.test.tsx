@@ -30,15 +30,15 @@ const themeRef: Theme = {
 const workspaceRef: { value: unknown } = { value: null };
 const deleteMutate = vi.fn(() => Promise.resolve());
 const updateMutate = vi.fn((_payload: unknown) => Promise.resolve());
-const uploadForbiddenMutate = vi.fn((_file: File) => Promise.resolve());
-const removeForbiddenMutate = vi.fn(() => Promise.resolve());
+const uploadMarkMutate = vi.fn((_file: File) => Promise.resolve());
+const removeMarkMutate = vi.fn(() => Promise.resolve());
 /** v0.8.7 §7：三枚工具图标的上传参数是 `{ icon, file }`。 */
 const uploadToolIconMutate = vi.fn((_payload: unknown) => Promise.resolve());
 const removeToolIconMutate = vi.fn((_icon: unknown) => Promise.resolve());
 /** v0.9.2 §2：计时环只有一张，上传收 `File`、移除不收参数。 */
-const uploadPressRingMutate = vi.fn((_file: File) => Promise.resolve());
-const removePressRingMutate = vi.fn(() => Promise.resolve());
-/** v0.9.3 §3：校验样式 —— 改颜色收一个 patch，圈图同禁止符号那样上传 / 移除。 */
+const uploadRingMutate = vi.fn((_file: File) => Promise.resolve());
+const removeRingMutate = vi.fn(() => Promise.resolve());
+/** v0.9.3 §3：校验样式 —— 改颜色收一个 patch，圈图同标记那样上传 / 移除。 */
 const updateCheckStyleMutate = vi.fn((_patch: unknown) => Promise.resolve());
 const uploadCheckRingMutate = vi.fn((_file: File) => Promise.resolve());
 const removeCheckRingMutate = vi.fn(() => Promise.resolve());
@@ -49,18 +49,16 @@ vi.mock('@/components/layout/WorkspaceContext', () => ({
 vi.mock('@/hooks/useThemes', () => ({
   useUpdateTheme: () => ({ mutateAsync: updateMutate, isPending: false }),
   useDeleteTheme: () => ({ mutateAsync: deleteMutate, isPending: false }),
-  useUploadThemeForbiddenSymbol: () => ({ mutate: uploadForbiddenMutate, isPending: false }),
-  useRemoveThemeForbiddenSymbol: () => ({ mutate: removeForbiddenMutate, isPending: false }),
+  useUploadThemeMark: () => ({ mutate: uploadMarkMutate, isPending: false }),
+  useRemoveThemeMark: () => ({ mutate: removeMarkMutate, isPending: false }),
   /** v0.8.7 §7：工具按钮图标卡片的三枚各自上传 / 移除，这里只需要「没在忙」。 */
   useUploadThemeToolIcon: () => ({ mutate: uploadToolIconMutate, isPending: false }),
   useRemoveThemeToolIcon: () => ({ mutate: removeToolIconMutate, isPending: false, variables: undefined }),
   /** v0.9.2 §2：长按计时环那一张，只有上传 / 移除两个动作。 */
-  useUploadThemePressRing: () => ({ mutate: uploadPressRingMutate, isPending: false }),
-  useRemoveThemePressRing: () => ({ mutate: removePressRingMutate, isPending: false }),
-  /** v0.9.3 §3：校验样式 —— 两个颜色走同一个 mutate，圈图走上传 / 移除。 */
+  useUploadThemeRing: () => ({ mutate: uploadRingMutate, isPending: false }),
+  useRemoveThemeRing: () => ({ mutate: removeRingMutate, isPending: false }),
+  /** v0.9.3 §3：两档颜色走同一个 mutate。 */
   useUpdateThemeCheckStyle: () => ({ mutate: updateCheckStyleMutate, isPending: false }),
-  useUploadThemeCheckRing: () => ({ mutate: uploadCheckRingMutate, isPending: false }),
-  useRemoveThemeCheckRing: () => ({ mutate: removeCheckRingMutate, isPending: false }),
 }));
 
 describe('ThemeOverviewPage（v0.8.3）', () => {
@@ -104,12 +102,12 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
   beforeEach(() => {
     deleteMutate.mockClear();
     updateMutate.mockClear();
-    uploadForbiddenMutate.mockClear();
-    removeForbiddenMutate.mockClear();
+    uploadMarkMutate.mockClear();
+    removeMarkMutate.mockClear();
     uploadToolIconMutate.mockClear();
     removeToolIconMutate.mockClear();
-    uploadPressRingMutate.mockClear();
-    removePressRingMutate.mockClear();
+    uploadRingMutate.mockClear();
+    removeRingMutate.mockClear();
     document.body.innerHTML = '';
     container = document.createElement('div');
     document.body.appendChild(container);
@@ -253,68 +251,94 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
   });
 
   /**
-   * v0.8.6 §4：主题级的「禁止符号」缺省。数据里只存 `storage/uploads` 下的相对
-   * 路径，页面用 `fileUrlFromPath` 拼成站内地址 —— 存绝对地址换个端口就指到别人的
-   * 服务器。有缺省时预览那张图；没有时新建谜题仍是默认的 `×`，只给上传入口。
+   * v0.9.5：**操作提示**这一张卡把五项并到一起（标记 / 清除 / 回退 / 提交 / 圆环）。
+   *
+   * 这几条钉的是数据契约而不是排版：哪一项配了、页面就拿那项的地址去画，
+   * 点上传 / 移除就直接发请求（即时保存，没有「编辑 → 保存」那一层）。
    */
-  it('主题配了禁止符号：渲染那张图的站内地址，不给「上传图片」按钮', () => {
-    render({
-      ...themeRef,
-      data: {
-        version: 1,
-        forbiddenSymbol: { path: 'themes/3/forbidden-symbol/mark.webp' },
-      },
-    });
+  it('五项都在同一张卡里：标记、清除、回退、提交、圆环', () => {
+    render();
 
-    const image = document.querySelector<HTMLImageElement>('img[alt="禁止符号"]');
-    expect(image?.getAttribute('src')).toBe('/api/files/themes/3/forbidden-symbol/mark.webp');
-    expect(button('上传图片')).toBeUndefined();
-    expect(button('移除')).toBeDefined();
+    // 每一行都挂着自己的 testid —— 行名就是数据键。
+    for (const key of ['mark', 'clear', 'undo', 'submit', 'ring']) {
+      expect(document.querySelector(`[data-testid="marks-row-${key}"]`)).not.toBeNull();
+    }
   });
 
-  it('主题没配禁止符号：给上传入口，选好文件立刻上传（即时保存，不需要再点保存）', () => {
-    render();
-    expect(button('上传图片')).toBeDefined();
-    expect(document.querySelector('img[alt="禁止符号"]')).toBeNull();
+  it('配了标记：渲染那张图的站内地址，不给「上传」按钮但给「移除」', () => {
+    render({
+      ...themeRef,
+      data: { version: 1, mark: { path: 'themes/3/mark/mark.webp' } },
+    });
 
+    const image = document.querySelector<HTMLImageElement>('img[alt="标记"]');
+    expect(image?.getAttribute('src')).toBe('/api/files/themes/3/mark/mark.webp');
+    const row = document.querySelector('[data-testid="marks-row-mark"]');
+    expect(row?.textContent).not.toContain('上传');
+    expect(row?.textContent).toContain('移除');
+  });
+
+  it('没配标记：给上传入口，选好文件立刻上传（不需要再点保存）', () => {
+    render();
+    const row = document.querySelector('[data-testid="marks-row-mark"]');
+    expect(row?.textContent).toContain('上传');
+    expect(document.querySelector('img[alt="标记"]')).toBeNull();
+
+    // 第一个隐藏 file input 是标记那一项（顺序：mark → 三枚图标 → ring）。
     const input = document.querySelector<HTMLInputElement>('input[type="file"]');
     expect(input).not.toBeNull();
-    const file = new File(['symbol'], 'mark.webp', { type: 'image/webp' });
+    const file = new File(['mark'], 'mark.webp', { type: 'image/webp' });
     Object.defineProperty(input, 'files', { value: [file], configurable: true });
     act(() => {
       input?.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-    expect(uploadForbiddenMutate).toHaveBeenCalledTimes(1);
-    expect(uploadForbiddenMutate.mock.calls[0]?.[0]).toBe(file);
+    expect(uploadMarkMutate).toHaveBeenCalledTimes(1);
+    expect(uploadMarkMutate.mock.calls[0]?.[0]).toBe(file);
     // 上传不等于「编辑后保存」：页面不该顺带调用主题更新。
     expect(updateMutate).not.toHaveBeenCalled();
-    expect(removeForbiddenMutate).not.toHaveBeenCalled();
+    expect(removeMarkMutate).not.toHaveBeenCalled();
   });
 
   /**
-   * v0.9.2 §2：长按计时环那张图 —— 与禁止符号同一条「上传即保存」。
+   * v0.9.2 §2；v0.9.5：**那一圈** —— 长按计时环与提交校验圈共用一张图。
    *
-   * 这里钉三件事：没配时给「上传环图」入口、配了就渲染那张图的站内地址、
-   * 点「移除」直接发请求（不回落到「编辑 → 保存」）。
+   * 这一条同时守住合并本身：配一次，两个消费点都读它；页面里只有一个圆环入口。
    */
-  it('长按计时环：没配给上传入口，配了渲染那张图，移除直接发请求', () => {
+  it('圆环：配一次两处共用，移除直接发请求', () => {
     render();
-    expect(button('上传环图')).toBeDefined();
-    expect(document.querySelector('img[alt="长按计时环"]')).toBeNull();
+    expect(button('上传')).toBeDefined();
+    expect(document.querySelector('img[alt="圆环"]')).toBeNull();
 
     render({
       ...themeRef,
-      data: { version: 1, pressRing: { path: 'themes/3/press-ring/ring.webp' } },
+      data: { version: 1, ring: { image: { path: 'themes/3/ring/ring.webp' } } },
     });
 
-    const image = document.querySelector<HTMLImageElement>('img[alt="长按计时环"]');
-    expect(image?.getAttribute('src')).toBe('/api/files/themes/3/press-ring/ring.webp');
-    expect(button('上传环图')).toBeUndefined();
+    const image = document.querySelector<HTMLImageElement>('img[alt="圆环"]');
+    expect(image?.getAttribute('src')).toBe('/api/files/themes/3/ring/ring.webp');
 
-    act(() => button('移除')?.click());
-    expect(removePressRingMutate).toHaveBeenCalledTimes(1);
+    // 只有一行「圆环」—— 合并之后不该再出现第二个圆环入口。
+    expect(document.querySelectorAll('[data-testid="marks-row-ring"]')).toHaveLength(1);
+
+    const row = document.querySelector('[data-testid="marks-row-ring"]');
+    const remove = Array.from(row?.querySelectorAll('button') ?? []).find(
+      (node) => node.textContent?.includes('移除') === true,
+    );
+    act(() => remove?.click());
+    expect(removeRingMutate).toHaveBeenCalledTimes(1);
     expect(updateMutate).not.toHaveBeenCalled();
+  });
+
+  /** 校验的颜色还在（圈图搬走了，颜色是它自己的那一半）。 */
+  it('两档校验颜色仍在，改一项只发一个 patch', () => {
+    render({
+      ...themeRef,
+      data: { version: 1, checkStyle: { passColor: '#123456', failColor: '#654321' } },
+    });
+
+    expect(document.querySelector('[aria-label*="校验通过色"]')).not.toBeNull();
+    expect(document.querySelector('[aria-label*="校验未通过色"]')).not.toBeNull();
   });
 
   it('主题里还有东西时「删除」不可点 —— 先把数量说清楚再拦', () => {

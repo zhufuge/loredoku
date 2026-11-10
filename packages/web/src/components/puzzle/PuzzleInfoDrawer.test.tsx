@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LINKAGE_COLORS, fileUrlFromPath } from '@loredoku/shared';
 import type {
   CharacterSlotEntry,
-  ForbiddenSymbolImage,
+  UploadedImage,
   MapLinkageColor,
 } from '@loredoku/shared';
 import { PuzzleInfoDrawer, type PuzzleInfoDrawerHandle } from './PuzzleInfoDrawer';
@@ -26,7 +26,7 @@ function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string
 }
 
 /** 其余用例不碰上传控件；给一个空实现把 props 补齐。 */
-const noopUploadForbiddenSymbol = vi.fn(async () => null);
+const noopUploadMark = vi.fn(async () => null);
 /** v0.8.7 §7：三枚工具图标的上传同样是别处的活儿。 */
 const noopUploadToolIcon = vi.fn(async () => null);
 
@@ -76,12 +76,12 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={rosterCols}
-          forbiddenSymbol={null}
-          themeForbiddenSymbol={null}
+          mark={null}
+          themeMark={null}
           toolIcons={null}
           themeToolIcons={null}
           onUploadToolIcon={noopUploadToolIcon}
-          onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
+          onUploadMark={noopUploadMark}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
           coverRemoved={false}
@@ -289,12 +289,12 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={null}
-          forbiddenSymbol={null}
-          themeForbiddenSymbol={null}
+          mark={null}
+          themeMark={null}
           toolIcons={null}
           themeToolIcons={null}
           onUploadToolIcon={noopUploadToolIcon}
-          onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
+          onUploadMark={noopUploadMark}
           coverUrl={options.coverUrl ?? null}
           coverFile={null}
           coverRemoved={false}
@@ -311,7 +311,7 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
     container.querySelector<HTMLButtonElement>('footer button:last-child') as HTMLButtonElement;
   const coverInput = (): HTMLInputElement =>
     container.querySelector<HTMLInputElement>(
-      'input[type="file"]:not(#puzzle-info-forbidden-symbol)',
+      'input[type="file"]:not(#puzzle-info-mark)',
     ) as HTMLInputElement;
 
   function pickCover(file: File): void {
@@ -443,12 +443,12 @@ describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={null}
-          forbiddenSymbol={null}
-          themeForbiddenSymbol={null}
+          mark={null}
+          themeMark={null}
           toolIcons={null}
           themeToolIcons={null}
           onUploadToolIcon={noopUploadToolIcon}
-          onUploadForbiddenSymbol={noopUploadForbiddenSymbol}
+          onUploadMark={noopUploadMark}
           coverUrl={null}
           coverFile={null}
           coverRemoved={false}
@@ -564,13 +564,13 @@ describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
 });
 
 /**
- * v0.8.6 §4：禁止符号 —— 玩家在游戏页标记排除项时显示的那枚符号。
+ * v0.8.6 §4：标记 —— 玩家在游戏页标记排除项时显示的那枚符号。
  *
  * 抽屉负责「选图 → 立即上传 → 把返回的 path 写进本地草稿」这一段，与名称 / 描述
  * 同一个「保存」/ 撤销步；「移除」把草稿清回默认的 `×`（提交 `null`）。上传失败
  * 保留原值并给出提示，绝不静默。
  */
-describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
+describe('PuzzleInfoDrawer 标记（v0.8.6 §4）', () => {
   let container: HTMLDivElement;
   let root: Root;
   let handle: PuzzleInfoDrawerHandle | null;
@@ -578,7 +578,7 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
   const palette: MapLinkageColor[] = DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry }));
   const onCommit = vi.fn();
   const onRequestClose = vi.fn();
-  const onUploadForbiddenSymbol = vi.fn();
+  const onUploadMark = vi.fn();
   const slots: Array<CharacterSlotEntry | null> = [
     { characterId: 7, themeColor: '#FFFFFF', clue: '', linkages: [] },
   ];
@@ -588,8 +588,8 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
   };
 
   function render(
-    committed: ForbiddenSymbolImage | null = null,
-    theme: ForbiddenSymbolImage | null = null,
+    committed: UploadedImage | null = null,
+    theme: UploadedImage | null = null,
   ): void {
     act(() => {
       root.render(
@@ -605,12 +605,12 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
           linkageColors={palette}
           characterSlots={slots}
           rosterCols={null}
-          forbiddenSymbol={committed}
-          themeForbiddenSymbol={theme}
+          mark={committed}
+          themeMark={theme}
           toolIcons={null}
           themeToolIcons={null}
           onUploadToolIcon={noopUploadToolIcon}
-          onUploadForbiddenSymbol={onUploadForbiddenSymbol}
+          onUploadMark={onUploadMark}
           coverUrl={null}
           coverFile={null}
           coverRemoved={false}
@@ -623,8 +623,8 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
 
   /** 重新挂一棵干净的树（带着已提交的值），用于「有图」起始态。 */
   function remount(
-    committed: ForbiddenSymbolImage | null,
-    theme: ForbiddenSymbolImage | null = null,
+    committed: UploadedImage | null,
+    theme: UploadedImage | null = null,
   ): void {
     act(() => root.unmount());
     container.remove();
@@ -635,8 +635,8 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
   }
 
   function renderCommitted(
-    committed: ForbiddenSymbolImage,
-    theme: ForbiddenSymbolImage | null = null,
+    committed: UploadedImage,
+    theme: UploadedImage | null = null,
   ): void {
     remount(committed, theme);
   }
@@ -644,9 +644,9 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
   const save = (): HTMLButtonElement =>
     container.querySelector<HTMLButtonElement>('footer button:last-child') as HTMLButtonElement;
   const fileInput = (): HTMLInputElement =>
-    container.querySelector<HTMLInputElement>('#puzzle-info-forbidden-symbol') as HTMLInputElement;
+    container.querySelector<HTMLInputElement>('#puzzle-info-mark') as HTMLInputElement;
   const preview = (): HTMLImageElement | null =>
-    container.querySelector<HTMLImageElement>('[data-testid="forbidden-symbol-preview"]');
+    container.querySelector<HTMLImageElement>('[data-testid="mark-preview"]');
   const removeButton = (): HTMLButtonElement =>
     Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
       (button) => button.textContent?.trim() === '移除',
@@ -666,7 +666,7 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
     handle = null;
     onCommit.mockClear();
     onRequestClose.mockClear();
-    onUploadForbiddenSymbol.mockReset();
+    onUploadMark.mockReset();
     URL.createObjectURL = vi.fn(() => 'blob:preview');
     URL.revokeObjectURL = vi.fn();
     container = document.createElement('div');
@@ -682,7 +682,7 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
 
   it('默认没有图：预览是 × 占位，也没调用上传', () => {
     expect(preview()).toBeNull();
-    expect(onUploadForbiddenSymbol).not.toHaveBeenCalled();
+    expect(onUploadMark).not.toHaveBeenCalled();
     expect(handle?.isDirty()).toBe(false);
   });
 
@@ -724,22 +724,22 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
   });
 
   it('选一张图 → 立即上传 → 保存时提交 { path }', async () => {
-    onUploadForbiddenSymbol.mockResolvedValue(uploaded);
+    onUploadMark.mockResolvedValue(uploaded);
     const file = new File(['x'], 'symbol.webp', { type: 'image/webp' });
 
     await pickFile(file);
 
-    expect(onUploadForbiddenSymbol).toHaveBeenCalledTimes(1);
-    expect(onUploadForbiddenSymbol).toHaveBeenCalledWith(file);
+    expect(onUploadMark).toHaveBeenCalledTimes(1);
+    expect(onUploadMark).toHaveBeenCalledWith(file);
     // 上传成功只写抽屉草稿；点保存之前不碰页面。
     expect(onCommit).not.toHaveBeenCalled();
     expect(handle?.isDirty()).toBe(true);
 
     act(() => save().click());
     const committed = onCommit.mock.calls[0]![0] as {
-      forbiddenSymbol: ForbiddenSymbolImage | null;
+      mark: UploadedImage | null;
     };
-    expect(committed.forbiddenSymbol).toEqual({ path: uploaded.path });
+    expect(committed.mark).toEqual({ path: uploaded.path });
   });
 
   it('「移除」把草稿清回默认 ×，提交 null', () => {
@@ -751,15 +751,15 @@ describe('PuzzleInfoDrawer 禁止符号（v0.8.6 §4）', () => {
     expect(handle?.isDirty()).toBe(true);
     act(() => save().click());
     const next = onCommit.mock.calls[0]![0] as {
-      forbiddenSymbol: ForbiddenSymbolImage | null;
+      mark: UploadedImage | null;
     };
-    expect(next.forbiddenSymbol).toBeNull();
+    expect(next.mark).toBeNull();
   });
 
   it('上传失败（回调返回 null）保留原值并给出错误提示', async () => {
     const committed = { path: 'puzzles/1/forbidden-symbol/stored.webp' };
     renderCommitted(committed);
-    onUploadForbiddenSymbol.mockResolvedValue(null);
+    onUploadMark.mockResolvedValue(null);
 
     await pickFile(new File(['x'], 'symbol.webp', { type: 'image/webp' }));
 

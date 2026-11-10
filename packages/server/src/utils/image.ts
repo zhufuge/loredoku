@@ -5,7 +5,7 @@ import sharp, { type Metadata } from 'sharp';
 import {
   CHARACTER_AVATAR_MAX_DIMENSION,
   ErrorCode,
-  FORBIDDEN_SYMBOL_MAX_DIMENSION,
+  SYMBOL_IMAGE_MAX_DIMENSION,
   GAME_COVER_MAX_DIMENSION,
   MAP_COVER_MAX_DIMENSION,
   PUZZLE_COVER_MAX_DIMENSION,
@@ -105,25 +105,27 @@ export async function processPuzzleCover(
 }
 
 /**
- * v0.8.6（docs/v0.8.6.md §4）：禁止符号的上传图 —— 谜题自己那一张，或主题的
- * 「新建谜题缺省」。
+ * v0.8.6（docs/v0.8.6.md §4）；v0.9.5 更名：**标记**的上传图 —— 谜题自己那一张，
+ * 或主题的「新建谜题缺省」。
  *
- * 路径按**谁拥有它**分目录（`puzzles/<id>/forbidden-symbol/` /
- * `themes/<id>/forbidden-symbol/`）：这样看得出这张图是从哪来的。注意删行**不会**
- * 删文件（与封面同策略，见 docs/v0.8.6.md §6）：复制谜题、fork 出来的草稿会共用
- * 同一个 `path`，删了就把别人还在引用的图弄丢了。
+ * 路径按**谁拥有它**分目录（`puzzles/<id>/mark/` / `themes/<id>/mark/`）：这样看得出
+ * 这张图是从哪来的。v0.9.5 之前落在 `forbidden-symbol/` 里的老图**不动** —— 数据里
+ * 存的是完整相对路径，目录名只是「新上传写到哪」，改名不影响读。
+ *
+ * 注意删行**不会**删文件（与封面同策略）：复制谜题、fork 出来的草稿会共用同一个
+ * `path`，删了就把别人还在引用的图弄丢了。
  */
-export async function processForbiddenSymbolImage(
+export async function processMarkImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   buffer: Buffer,
 ): Promise<ProcessedImage> {
-  return processSymbolImage(owner, 'forbidden-symbol', buffer);
+  return processSymbolImage(owner, 'mark', buffer);
 }
 
 /**
  * v0.8.7 §7：工具按钮的图标（清除 / 撤回 / 提交）。
  *
- * 与禁止符号同一档尺寸（按钮上画 20px，256 已经富余）：所以复用那条「只写一张
+ * 与标记同一档尺寸（按钮上画 20px，256 已经富余）：所以复用那条「只写一张
  * webp」的通道，只是目录再深一层 `.../tool-icons/<icon>/`。作者换一张图，旧文件
  * 留在原地不删 —— 版本行、复制出来的谜题可能还指着它。
  */
@@ -136,30 +138,20 @@ export async function processToolIconImage(
 }
 
 /**
- * v0.9.2 §2：长按放置参与者时那圈**计时环**的图（主题级）。
+ * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张**。
  *
- * 尺寸比禁止符号大：环的外接方形最大就是格子（`cellSize`，实测 152px 上下），
+ * 尺寸比标记大一点：环的外接方形最大就是格子（`cellSize`，实测 152px 上下），
  * 上传图会被缩到格子直径再画 —— 256 的长边仍然富余，所以同走这条小图通道，
- * 目录是 `.../press-ring/`。
- */
-export async function processPressRingImage(
-  owner: { kind: 'puzzle' | 'theme'; id: number },
-  buffer: Buffer,
-): Promise<ProcessedImage> {
-  return processSymbolImage(owner, 'press-ring', buffer);
-}
-
-/**
- * v0.9.3 §3：提交校验时圈住参与者的那张**圈图**（主题级，可选）。
+ * 目录是 `.../ring/`。
  *
- * 与计时环同一个尺寸档：圈的直径最多是一格，256 的长边富余。目录 `.../check-ring/`。
- * 没配就用内置本色细环，所以这张图是**替换**而不是必需。
+ * 旧的两个目录（`press-ring/` 与 `check-ring/`）里的图仍在原处、仍能被读 ——
+ * 数据里记的是各自的相对路径。
  */
-export async function processCheckRingImage(
+export async function processRingImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   buffer: Buffer,
 ): Promise<ProcessedImage> {
-  return processSymbolImage(owner, 'check-ring', buffer);
+  return processSymbolImage(owner, 'ring', buffer);
 }
 
 /** 三种「符号级小图」共用的一条路：按所有者分目录，长边缩到 256。 */
@@ -169,7 +161,7 @@ async function processSymbolImage(
   buffer: Buffer,
 ): Promise<ProcessedImage> {
   const folder = `${owner.kind === 'puzzle' ? 'puzzles' : 'themes'}/${owner.id}/${sub}`;
-  return processScaledImage(folder, buffer, FORBIDDEN_SYMBOL_MAX_DIMENSION);
+  return processScaledImage(folder, buffer, SYMBOL_IMAGE_MAX_DIMENSION);
 }
 
 /**

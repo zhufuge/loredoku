@@ -40,19 +40,17 @@ import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import {
   useDeleteTheme,
-  useRemoveThemeCheckRing,
-  useRemoveThemeForbiddenSymbol,
-  useRemoveThemePressRing,
+  useRemoveThemeRing,
+  useRemoveThemeMark,
   useRemoveThemeToolIcon,
   useUpdateTheme,
   useUpdateThemeCheckStyle,
-  useUploadThemeCheckRing,
-  useUploadThemeForbiddenSymbol,
-  useUploadThemePressRing,
+  useUploadThemeRing,
+  useUploadThemeMark,
   useUploadThemeToolIcon,
 } from '@/hooks/useThemes';
 import { isValidShadowColor, isValidStyleColor, resolveMapStyle } from '@/lib/mapStyle';
-import { resolveCheckStyle } from '@/lib/checkStyle';
+import { resolveCheckColors } from '@/lib/checkStyle';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
 import {
   resetThemeStyle,
@@ -303,17 +301,13 @@ export function ThemeOverviewPage(): JSX.Element {
         </div>
       </Card>
 
-      {/* v0.8.6 §4：主题级的「禁止符号」缺省。与地图初始样式同属「新建内容长什么样」。 */}
-      <ForbiddenSymbolCard theme={theme} />
-
-      {/* v0.8.7 §7：三枚工具按钮的图标 —— 与禁止符号同一套「读取时兜底」。 */}
-      <ToolIconsCard theme={theme} />
-
-      {/* v0.9.2 §2：长按放置参与者时那圈计时环的图 —— 同上，读取时兜底。 */}
-      <PressRingCard theme={theme} />
-
-      {/* v0.9.3 §3：提交校验的两档颜色与圈图。 */}
-      <CheckStyleCard theme={theme} />
+      {/*
+        v0.9.5：这五项原本是四张独立的卡片（标记 / 工具按钮图标 / 长按计时环 /
+        提交校验）—— 它们回答的是同一个问题：**玩家在盘面上操作时看到的那些提示长
+        什么样**。分四张会让人以为四件事互不相干，而作者改的时候往往是一起调的。
+        合成一张卡之后，五枚图并排放在同一节里，一眼看得全。
+      */}
+      <GameMarksCard theme={theme} />
 
       {/* v0.8.3 §3：难度分级。徽章就是部署页 / 游戏卡上那一枚，所见即所得。 */}
       <Card className="space-y-3 px-4 py-4">
@@ -355,7 +349,7 @@ function FactRow({ label, children }: { label: string; children: ReactNode }): J
  * 但**可访问名**不能只有「编辑」：两个同名按钮对屏幕阅读器是灾难，读出来一模一样。
  * 所以视觉文案是「编辑」，`aria-label` 仍是「编辑地图初始样式 / 编辑难度分级」。
  *
- * v0.8.6 §4：「禁止符号」卡片没有「编辑」这一步（上传 / 移除即时保存），所以
+ * v0.8.6 §4：「标记」卡片没有「编辑」这一步（上传 / 移除即时保存），所以
  * `onEdit` 是可选的 —— 不给就只渲染标题。
  */
 function CardHead({ title, onEdit }: { title: string; onEdit?: () => void }): JSX.Element {
@@ -378,365 +372,195 @@ function CardHead({ title, onEdit }: { title: string; onEdit?: () => void }): JS
 }
 
 /**
- * v0.8.6 §4 / v0.8.7 §4：主题级的「禁止符号」—— 本主题里**没有单独配置**的谜题
- * 都用这张图。
+ * v0.9.5：**操作提示** —— 玩家在盘面上操作时看到的那些提示，都在这一张卡里。
  *
- * 它是「缺省」而不是「副本」：谜题自己不配才落到这里，所以换一张图，本主题下所有
- * 跟随的关卡（包括已发布的）下次打开就是新的 —— 与「地图初始样式」那种只在新建
- * 那一刻抄一份的语义不同。已在谜题里单独上传过的那些仍用自己那张（覆盖）。
+ * 五项：
  *
- * 因此这里不给「批量改已有谜题」的入口：跟随的那些本来就跟着走，覆盖的那些不该
- * 被一次点击抹掉。
+ * | 项 | 玩家看到它的地方 |
+ * |---|---|
+ * | 标记 | 标「这格排除」时画在格子里的那枚符号（谜题可以单独换一张） |
+ * | 清除 / 回退 / 提交 | 游戏页右列那三枚按钮上的画 |
+ * | 圆环 | 按住一格放头像的进度环、提交后逐人校验的结果环 |
  *
- * 交互刻意不做弹窗：整个设置只有一张图，上传 / 移除就是最终动作，服务端即时保存。
- * 再套一层「编辑 → 保存」，多出来的两次点击换不到任何可撤销性（这里本来就没有
- * 取消的语义）。预览与按钮放在同一行，让「现在是什么」和「能改成什么」一眼对上。
+ * 为什么合成一张：它们回答的是同一个问题 —— **这个世界的操作手感长什么样**。
+ * 分四张卡会让人以为四件事互不相干，而作者调的时候往往是一起调的。
+ *
+ * 五枚都是**读取时**兜底，不是「新建时抄一份」：换一张图，本主题下跟随的关卡
+ * （含已发布的）下次打开就是新的。所以这里没有「保存」，选中文件即上传、
+ * 点移除即清掉。已在谜题里单独上传过的仍用自己那张（覆盖）。
+ *
+ * 圆环那一项**同时管两处**：长按计时环与提交校验圈——玩家看到的都是「一圈绕着
+ * 一格走」，配两张图只会让作者传两次、而且很难保证它们看起来是一家人。
  */
-function ForbiddenSymbolCard({ theme }: { theme: Theme }): JSX.Element {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const upload = useUploadThemeForbiddenSymbol(theme.code);
-  const remove = useRemoveThemeForbiddenSymbol(theme.code);
-  const current = theme.data.forbiddenSymbol ?? null;
-  const busy = upload.isPending || remove.isPending;
+function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
+  const markInputRef = useRef<HTMLInputElement>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
+  const ringInputRef = useRef<HTMLInputElement>(null);
+  const [pendingIcon, setPendingIcon] = useState<GameToolIconKind | null>(null);
+
+  const uploadMark = useUploadThemeMark(theme.code);
+  const removeMarkImage = useRemoveThemeMark(theme.code);
+  const uploadIcon = useUploadThemeToolIcon(theme.code);
+  const removeIcon = useRemoveThemeToolIcon(theme.code);
+  const uploadRingImage = useUploadThemeRing(theme.code);
+  const removeRingImage = useRemoveThemeRing(theme.code);
+  const updateCheckStyle = useUpdateThemeCheckStyle(theme.code);
+
+  const mark = theme.data.mark ?? null;
+  const icons = theme.data.toolIcons ?? {};
+  const ring = theme.data.ring?.image ?? null;
+  const checkStyle = resolveCheckColors(theme.data.checkStyle);
+
+  const markBusy = uploadMark.isPending || removeMarkImage.isPending;
+  const ringBusy = uploadRingImage.isPending || removeRingImage.isPending;
+
+  /** 一行的骨架：预览 + 名字与说明 + 右侧两枚按钮。五项共用，尺寸才一致。 */
+  const row = (
+    key: string,
+    preview: JSX.Element,
+    title: string,
+    description: string,
+    uploading: boolean,
+    hasImage: boolean,
+    onPick: () => void,
+    onRemove: () => void,
+    label: string,
+  ): JSX.Element => (
+    <li key={key} data-testid={`marks-row-${label}`} className="flex items-center gap-3 py-2">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
+        {preview}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs">{title}</p>
+        <p className="text-2xs leading-relaxed text-muted-foreground">{description}</p>
+      </div>
+      <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+        <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={onPick}>
+          <Upload className="mr-1 h-3.5 w-3.5" />
+          {uploading ? '上传中…' : hasImage ? '更换' : '上传'}
+        </Button>
+        {hasImage ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-muted-foreground hover:text-destructive"
+            disabled={uploading}
+            onClick={onRemove}
+          >
+            <Trash2 className="mr-1 h-3.5 w-3.5" />
+            移除
+          </Button>
+        ) : null}
+      </div>
+    </li>
+  );
 
   return (
     <Card className="space-y-3 px-4 py-4">
-      <CardHead title="禁止符号" />
-      <div className="flex items-start gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
-          {current ? (
+      <CardHead title="操作提示" />
+      <ul className="divide-y divide-border">
+        {row(
+          'mark',
+          mark ? (
             <img
-              src={fileUrlFromPath(current.path)}
-              alt="禁止符号"
+              src={fileUrlFromPath(mark.path)}
+              alt="标记"
               className="h-full w-full object-contain"
             />
           ) : (
-            /* 没有缺省 = 本主题里没单独配的谜题拿到默认的 × 字形，占位就画这一枚。 */
-            <X className="h-6 w-6 text-muted-foreground" aria-hidden />
-          )}
-        </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => inputRef.current?.click()}
-            >
-              <Upload className="mr-1 h-3.5 w-3.5" />
-              {upload.isPending ? '上传中…' : current ? '更换' : '上传图片'}
-            </Button>
-            {current ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive"
-                disabled={busy}
-                onClick={() => remove.mutate()}
-              >
-                <Trash2 className="mr-1 h-3.5 w-3.5" />
-                {remove.isPending ? '移除中…' : '移除'}
-              </Button>
-            ) : null}
-          </div>
-          <p className="text-2xs leading-relaxed text-muted-foreground">
-            本主题里没有单独配置的谜题都用这张图；已经在谜题里上传过的仍用自己那张。
-          </p>
-        </div>
-      </div>
-      {/*
-       * 隐藏的 file input：按钮点它、选完立刻上传，`value` 清空是为了选同一张图
-       * 再点一次也能触发 change。
-       */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0] ?? null;
-          event.target.value = '';
-          if (!file) return;
-          upload.mutate(file);
-        }}
-      />
-    </Card>
-  );
-}
+            <X className="h-4 w-4 text-muted-foreground" aria-hidden />
+          ),
+          '标记',
+          mark ? '本主题里跟随的关卡都用这张' : '未配置，用内置的 ×',
+          markBusy,
+          mark !== null,
+          () => markInputRef.current?.click(),
+          () => removeMarkImage.mutate(),
+          'mark',
+        )}
 
-/**
- * v0.8.7 §7：主题级的**工具按钮图标** —— 清除 / 撤回 / 提交三枚。
- *
- * 与「禁止符号」同一条规矩：这是**读取时**的兜底，不是新建时抄一份副本。所以换一套
- * 图，本主题下跟随的关卡（含已发布的）下次打开就是新的；谜题里单独上传过的仍用
- * 自己那张。
- *
- * 交互与禁止符号卡一致：选中文件即上传、点移除即清掉，没有「编辑 → 保存」那一层。
- * 差别只在数量 —— 三枚各一行，各自独立（换「清除」不该动另外两枚），所以隐藏的
- * file input 只有一个，用 `pending` 记住这次点的是哪一枚。
- */
-function ToolIconsCard({ theme }: { theme: Theme }): JSX.Element {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const upload = useUploadThemeToolIcon(theme.code);
-  const remove = useRemoveThemeToolIcon(theme.code);
-  const icons = theme.data.toolIcons ?? {};
-  const [pending, setPending] = useState<GameToolIconKind | null>(null);
-  const busy = upload.isPending || remove.isPending;
-
-  return (
-    <Card className="space-y-3 px-4 py-4">
-      <CardHead title="工具按钮图标" />
-      <ul className="divide-y divide-border">
         {GAME_TOOL_ICON_KINDS.map((kind) => {
           const current = icons[kind] ?? null;
           const Fallback = TOOL_ICON_FALLBACKS[kind];
-          return (
-            <li key={kind} className="flex items-center gap-3 py-2 first:pt-0 last:pb-0">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
-                {current ? (
-                  <img
-                    src={fileUrlFromPath(current.path)}
-                    alt={`${GAME_TOOL_ICON_LABELS[kind]}图标`}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <Fallback className="h-4 w-4 text-muted-foreground" aria-hidden />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs">{GAME_TOOL_ICON_LABELS[kind]}</p>
-                <p className="text-2xs leading-relaxed text-muted-foreground">
-                  {current ? '本主题里跟随的关卡都用这张' : '未配置，用内置图标'}
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={busy}
-                  onClick={() => {
-                    setPending(kind);
-                    inputRef.current?.click();
-                  }}
-                >
-                  <Upload className="mr-1 h-3.5 w-3.5" />
-                  {upload.isPending && pending === kind ? '上传中…' : current ? '更换' : '上传'}
-                </Button>
-                {current ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="text-muted-foreground hover:text-destructive"
-                    disabled={busy}
-                    onClick={() => remove.mutate(kind)}
-                  >
-                    <Trash2 className="mr-1 h-3.5 w-3.5" />
-                    {remove.isPending && remove.variables === kind ? '移除中…' : '移除'}
-                  </Button>
-                ) : null}
-              </div>
-            </li>
+          const uploading = uploadIcon.isPending && pendingIcon === kind;
+          return row(
+            kind,
+            current ? (
+              <img
+                src={fileUrlFromPath(current.path)}
+                alt={`${GAME_TOOL_ICON_LABELS[kind]}图标`}
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <Fallback className="h-4 w-4 text-muted-foreground" aria-hidden />
+            ),
+            GAME_TOOL_ICON_LABELS[kind],
+            current ? '本主题里跟随的关卡都用这张' : '未配置，用内置图标',
+            uploading,
+            current !== null,
+            () => {
+              setPendingIcon(kind);
+              iconInputRef.current?.click();
+            },
+            () => removeIcon.mutate(kind),
+            kind,
           );
         })}
-      </ul>
-      <p className="text-2xs leading-relaxed text-muted-foreground">
-        游戏页右列那三枚按钮画的就是这套；谜题里单独上传过的仍用自己那张。
-      </p>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0] ?? null;
-          event.target.value = '';
-          const icon = pending;
-          setPending(null);
-          if (!file || !icon) return;
-          upload.mutate({ icon, file });
-        }}
-      />
-    </Card>
-  );
-}
 
-/**
- * v0.9.2 §2：主题级的**长按计时环** —— 玩家按住一格放头像时，那 500ms 的进度圈
- * 画成作者给的图。
- *
- * 与「禁止符号」「工具按钮图标」同一条规矩：**读取时**兜底，不是新建时抄一份。
- * 换一张图，本主题下所有关卡（含已发布的）下次打开就是新的 —— 不必逐题重传。
- *
- * 只有一张（不像工具图标有三枚），交互也与禁止符号卡一字不差：选中文件即上传、
- * 点移除即回到内置白弧，没有「编辑 → 保存」。
- *
- * **图只换样子，不换刻度**：进度仍按长按时长顺时针走，由一条扇形遮罩揭开这张图
- * （见 `components/common/PressRing.tsx`）。所以对图的要求不苛刻 —— 圆环、笔触圈、
- * 一枚印章都能用，透明底会留下底色，方图会按 `meet` 缩进格子里。
- */
-function PressRingCard({ theme }: { theme: Theme }): JSX.Element {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const upload = useUploadThemePressRing(theme.code);
-  const remove = useRemoveThemePressRing(theme.code);
-  const current = theme.data.pressRing ?? null;
-  const busy = upload.isPending || remove.isPending;
-
-  return (
-    <Card className="space-y-3 px-4 py-4">
-      <CardHead title="长按计时环" />
-      <div className="flex items-start gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
-          {current ? (
-            <img
-              src={fileUrlFromPath(current.path)}
-              alt="长按计时环"
-              className="h-full w-full object-contain"
-            />
-          ) : (
-            /* 没配 = 内置白弧，占位就画一圈虚线圆，与游戏页看到的形状对上。 */
-            <CircleDashed className="h-6 w-6 text-muted-foreground" aria-hidden />
-          )}
-        </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => inputRef.current?.click()}
-            >
-              <Upload className="mr-1 h-3.5 w-3.5" />
-              {upload.isPending ? '上传中…' : current ? '更换' : '上传环图'}
-            </Button>
-            {current ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive"
-                disabled={busy}
-                onClick={() => remove.mutate()}
-              >
-                <Trash2 className="mr-1 h-3.5 w-3.5" />
-                {remove.isPending ? '移除中…' : '移除'}
-              </Button>
-            ) : null}
-          </div>
-          <p className="text-2xs leading-relaxed text-muted-foreground">
-            玩家按住一格放头像时画这张；没配就是内置的白弧。进度照样按长按时长走。
-          </p>
-        </div>
-      </div>
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0] ?? null;
-          event.target.value = '';
-          if (!file) return;
-          upload.mutate(file);
-        }}
-      />
-    </Card>
-  );
-}
-
-/**
- * v0.9.3 §3：提交校验 —— 两档颜色 + 可选的圈图。
- *
- * 为什么颜色和圈图在同一张卡：它们回答的是同一个问题「这个世界怎么告诉你对错」。
- * 分成两张卡会让作者以为可以只配一半（其实颜色才是必需的那一半）。
- *
- * 颜色即时保存（取色器一动就发一个 PATCH），圈图走上传 / 移除 —— 两个动作各走
- * 各的端点，「改颜色」不会顺带把圈图覆盖掉。
- */
-function CheckStyleCard({ theme }: { theme: Theme }): JSX.Element {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const style = resolveCheckStyle(theme.data.checkStyle);
-  const update = useUpdateThemeCheckStyle(theme.code);
-  const upload = useUploadThemeCheckRing(theme.code);
-  const remove = useRemoveThemeCheckRing(theme.code);
-  const ring = theme.data.checkStyle?.ring ?? null;
-  const busy = upload.isPending || remove.isPending;
-
-  return (
-    <Card className="space-y-3 px-4 py-4">
-      <CardHead title="提交校验" />
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">通过</span>
-          <ColorField
-            label="校验通过色"
-            value={style.passColor}
-            commit={(next) => update.mutate({ passColor: next })}
-          />
-        </div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">未通过</span>
-          <ColorField
-            label="校验未通过色"
-            value={style.failColor}
-            commit={(next) => update.mutate({ failColor: next })}
-          />
-        </div>
-      </div>
-      <div className="flex items-start gap-4 border-t pt-3">
-        <div
-          className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30"
-          /* 圈图的预览用「通过」那档色垫在底下：作者一眼能看出圈和图叠在一起的样子。 */
-          style={{ boxShadow: `inset 0 0 0 2px ${style.passColor}` }}
-        >
-          {ring ? (
+        {row(
+          'ring',
+          ring ? (
             <img
               src={fileUrlFromPath(ring.path)}
-              alt="校验圈"
+              alt="圆环"
               className="h-full w-full object-contain"
             />
           ) : (
-            <CircleDashed className="h-6 w-6 text-muted-foreground" aria-hidden />
-          )}
+            <CircleDashed className="h-4 w-4 text-muted-foreground" aria-hidden />
+          ),
+          '圆环',
+          ring
+            ? '按住放头像的进度环、提交后的校验环，都用这张'
+            : '未配置，两处各用内置细弧',
+          ringBusy,
+          ring !== null,
+          () => ringInputRef.current?.click(),
+          () => removeRingImage.mutate(),
+          'ring',
+        )}
+      </ul>
+
+      {/*
+       * 圆环那一项**同时管校验**，而校验还有两档颜色必须能改 —— 所以颜色紧跟在
+       * 圆环下面，而不是另起一张卡：它们说的是同一件事（「怎么告诉你对错」）。
+       */}
+      <div className="space-y-2 border-t pt-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">校验通过</span>
+          <ColorField
+            label="校验通过色"
+            value={checkStyle.passColor}
+            commit={(next) => updateCheckStyle.mutate({ passColor: next })}
+          />
         </div>
-        <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={busy}
-              onClick={() => inputRef.current?.click()}
-            >
-              <Upload className="mr-1 h-3.5 w-3.5" />
-              {upload.isPending ? '上传中…' : ring ? '更换圈图' : '上传圈图'}
-            </Button>
-            {ring ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="text-muted-foreground hover:text-destructive"
-                disabled={busy}
-                onClick={() => remove.mutate()}
-              >
-                <Trash2 className="mr-1 h-3.5 w-3.5" />
-                {remove.isPending ? '移除中…' : '移除'}
-              </Button>
-            ) : null}
-          </div>
-          <p className="text-2xs leading-relaxed text-muted-foreground">
-            玩家提交后，参与者会被逐个圈住：通过是左边的颜色，没通过是另一个。配了圈图就用它，
-            没配就是一圈本色细环。
-          </p>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-xs text-muted-foreground">校验未通过</span>
+          <ColorField
+            label="校验未通过色"
+            value={checkStyle.failColor}
+            commit={(next) => updateCheckStyle.mutate({ failColor: next })}
+          />
         </div>
       </div>
+
+      <p className="text-2xs leading-relaxed text-muted-foreground">
+        谜题里单独上传过的仍用自己那张。圆环同时管「按住等放头像」与「提交后的校验」两处。
+      </p>
+
+      {/* 三个隐藏的 file input：一张图一个，按钮点它们、选完立刻上传。 */}
       <input
-        ref={inputRef}
+        ref={markInputRef}
         type="file"
         accept="image/png,image/jpeg,image/webp,image/svg+xml"
         className="hidden"
@@ -744,12 +568,39 @@ function CheckStyleCard({ theme }: { theme: Theme }): JSX.Element {
           const file = event.target.files?.[0] ?? null;
           event.target.value = '';
           if (!file) return;
-          upload.mutate(file);
+          uploadMark.mutate(file);
+        }}
+      />
+      <input
+        ref={iconInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          const kind = pendingIcon;
+          setPendingIcon(null);
+          if (!file || !kind) return;
+          uploadIcon.mutate({ icon: kind, file });
+        }}
+      />
+      <input
+        ref={ringInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          if (!file) return;
+          uploadRingImage.mutate(file);
         }}
       />
     </Card>
   );
 }
+
 
 /**
  * 清单里的一格值：颜色给色块 + 色值，别的一律等宽字。

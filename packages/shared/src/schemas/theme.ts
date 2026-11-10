@@ -17,7 +17,12 @@ import {
   THEME_NAME_MAX_LENGTH,
 } from '../constants';
 import { mapLinkageColorSchema, mapStyleSchema } from './mapDraft';
-import { forbiddenSymbolSchema, gameToolIconsSchema } from './common';
+import {
+  gameToolIconsSchema,
+  moveLegacyImageKeys,
+  optionalUploadedImageSchema,
+  withLegacyImageKeys,
+} from './common';
 
 /**
  * v0.8.6（docs/v0.8.6.md §3）：主题自己的一档难度 = **数字 + 名字 + 可选颜色**。
@@ -72,32 +77,49 @@ export const themeCodeSchema = z
   );
 
 /**
- * v0.9.3（docs/v0.9.3.md §3）：提交后逐人校验时的样子 —— 两档颜色 + 可选的圈图。
+ * v0.9.3（docs/v0.9.3.md §3）；v0.9.5 起只剩颜色。
  *
- * 颜色给了 `.default()`：作者只换圈图、没动颜色时，写进去的仍是一份**完整**的
- * `{ passColor, failColor, ring }`。好处是不必在服务端再补一遍默认值 —— 缺什么
+ * 颜色给了 `.default()`：作者只换环图、没动颜色时，写进去的仍是一份**完整**的
+ * `{ passColor, failColor }`。好处是不必在服务端再补一遍默认值 —— 缺什么
  * 解析时就补齐了，库里不会出现「有 checkStyle 但缺一个颜色」的半成品。
+ *
+ * 圈图 v0.9.5 搬去了 `ThemeData.ring`（与长按计时环共用）。旧数据里的
+ * `checkStyle.ring` 仍能读出来 —— 见下面 `themeRingSchema` 的兜底。
  */
-export const themeCheckStyleSchema = z
+export const themeCheckColorsSchema = z
   .object({
     passColor: z.string().regex(BG_COLOR_PATTERN, '校验通过色需为 #RRGGBB 格式')
       .default(THEME_CHECK_PASS_COLOR),
     failColor: z.string().regex(BG_COLOR_PATTERN, '校验未通过色需为 #RRGGBB 格式')
       .default(THEME_CHECK_FAIL_COLOR),
-    ring: forbiddenSymbolSchema,
   })
   .strict()
   .nullable()
   .optional();
 
 /**
- * `themes.data`：主题级**缺省**，两个键可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE`
- * 补齐，缺 `linkageColors` 沿用谜题 schema 的默认调色板（§5 的 S3 快照式）。
- * `.strict()` 与其余 schema 一致：多出来的键是写错了名字，不是新功能。
+ * v0.9.5：主题的**那一圈**（长按计时环 + 提交校验圈共用）。
  *
- * v0.8.2 起多一个 `accent`：它**不是**缺省，是这个空间的门牌色（见下）。
+ * 形状是 `{ image?: { path } }` 而不是直接一张 `{ path }`：那一圈将来可能不只
+ * 「一张图」（比如速度、粗细），而现在先把「图」这一格留出名字，读点就不必写
+ * `ring.path` 这种把结构焊死的样子。
+ *
+ * 旧键搬运**不在这里**做：同级字段（顶层 `pressRing`、`checkStyle.ring`）在这个
+ * 字段的 `preprocess` 里看不见，所以统一由外面的 `stripLegacyThemeKeys` 在对象
+ * 那一层搬完，这里只认搬好的形状。
  */
-export const themeDataSchema = z
+export const themeRingSchema = z
+  .object({ image: optionalUploadedImageSchema })
+  .strict()
+  .nullable()
+  .optional();
+
+/**
+ * `themes.data` 的**对象那一半**（不含旧键预处理，见下面的 `themeDataSchema`）。
+ *
+ * `.strict()` 与其余 schema 一致：多出来的键是写错了名字，不是新功能。
+ */
+const themeDataObjectSchema = z
   .object({
     version: z.number().int().positive().default(THEME_DATA_VERSION),
     /**
@@ -113,24 +135,27 @@ export const themeDataSchema = z
     style: mapStyleSchema.optional(),
     linkageColors: z.array(mapLinkageColorSchema).optional(),
     /**
-     * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4）：这个空间的**禁止符号**。
+     * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4；v0.9.5 更名）：这个空间的**标记**。
      *
      * 与 `style` / `linkageColors` 的「新建时拷一份」不同：它是**读取时**的兜底 ——
      * 谜题自己没配就用这一张（谜题 → 主题 → ×）。所以换图对跟随的关卡立刻生效。
      * 缺失 / `null` = 本主题里跟随的谜题画默认的 `×` 字形。
+     *
+     * 旧键 `forbiddenSymbol` 由 `withLegacyImageKeys` 在读入时搬过来。
      */
-    forbiddenSymbol: forbiddenSymbolSchema,
-    /** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），解析顺序同禁止符号。 */
+    mark: withLegacyImageKeys(optionalUploadedImageSchema),
+    /** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），解析顺序同标记。 */
     toolIcons: gameToolIconsSchema,
     /**
-     * v0.9.2 §2：长按放置参与者时的**计时环**那张图。与上面两项同一个形状、
-     * 同一条「读取时兜底」的规矩；缺了 = 内置白弧。
+     * v0.9.5：**那一圈** —— 长按计时环与提交校验圈共用一张图。缺了 = 各自的内置
+     * 细弧（长按白弧 / 校验本色环）。旧键 `pressRing` 与 `checkStyle.ring` 由
+     * `themeRingSchema` 的预处理搬过来。
      */
-    pressRing: forbiddenSymbolSchema,
+    ring: themeRingSchema,
     /**
-     * v0.9.3 §3：提交校验的两档颜色与圈图。缺了 = 内置绿 / 红 + 本色细环。
+     * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。缺了 = 内置绿 / 红。
      */
-    checkStyle: themeCheckStyleSchema,
+    checkStyle: themeCheckColorsSchema,
     /**
      * v0.8.3：难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
      * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。
@@ -163,6 +188,83 @@ export const themeDataSchema = z
     },
   )
   .default({ version: THEME_DATA_VERSION });
+
+/**
+ * `themes.data`：主题级**缺省**，几个键都可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE`
+ * 补齐，缺 `linkageColors` 沿用谜题 schema 的默认调色板（§5 的 S3 快照式）。
+ *
+ * v0.8.2 起多一个 `accent`：它**不是**缺省，是这个空间的门牌色。
+ *
+ * v0.9.5：外面再包一层「旧键搬运」（`stripLegacyThemeKeys`）。读的顺序很重要 ——
+ * `.strict()` 不接受未知键，而旧主题的顶层带着 `pressRing` / `checkStyle.ring`，
+ * 所以必须**先**搬再校验，于是把 `preprocess` 套在最外层。
+ */
+export const themeDataSchema = z.preprocess(
+  (raw) => stripLegacyThemeKeys(raw),
+  themeDataObjectSchema,
+);
+
+/**
+ * v0.9.5：把 `themes.data` 的**旧键**搬到新键上，丢掉已经不存在的那几个。
+ *
+ * 三件事：
+ * 1. `forbiddenSymbol → mark`（与谜题侧同一对，复用 `moveLegacyImageKeys`）；
+ * 2. `pressRing → ring.image`、`checkStyle.ring → ring.image`（`pressRing` 优先：
+ *    它是先有的那个，校验圈是后加的补充）；
+ * 3. 摘掉 `checkStyle.ring` 本身 —— v0.9.5 起 `checkStyle` 只剩两档颜色，
+ *    留着它会被 `themeCheckColorsSchema` 的 `.strict()` 判成多余键。
+ *
+ * 为什么在**外层**预处理而不是各字段自己搬：`.strict()` 是在对象层判「有没有多余
+ * 的键」的，字段级的 `preprocess` 只能改那个字段自己的值，看不到同级的旧键。
+ */
+export function stripLegacyThemeKeys(raw: unknown): unknown {
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return raw;
+  const record = { ...(raw as Record<string, unknown>) };
+
+  // 1. 标记：`forbiddenSymbol → mark`
+  const withMark = moveLegacyImageKeys(record) as Record<string, unknown>;
+
+  // 2. 那一圈：`pressRing` / `checkStyle.ring` → `ring.image`（已有 `ring` 就不动）
+  const existingRing = withMark['ring'];
+  const hasNewRing =
+    existingRing &&
+    typeof existingRing === 'object' &&
+    !Array.isArray(existingRing) &&
+    'image' in (existingRing as Record<string, unknown>);
+  if (!hasNewRing) {
+    const pressRing = withMark['pressRing'];
+    const checkRing =
+      withMark['checkStyle'] &&
+      typeof withMark['checkStyle'] === 'object' &&
+      !Array.isArray(withMark['checkStyle'])
+        ? ((withMark['checkStyle'] as Record<string, unknown>)['ring'] ?? null)
+        : null;
+    const source = imagePathOf(pressRing) ?? imagePathOf(checkRing);
+    if (source) withMark['ring'] = { image: { path: source } };
+  }
+  delete withMark['pressRing'];
+
+  // 3. `checkStyle` 只剩颜色
+  const checkStyle = withMark['checkStyle'];
+  if (checkStyle && typeof checkStyle === 'object' && !Array.isArray(checkStyle)) {
+    const { ring: _ring, ...colors } = checkStyle as Record<string, unknown>;
+    withMark['checkStyle'] = colors;
+  }
+  return withMark;
+}
+
+/** 从 `{ path }` / `{ image: { path } }` 里取出路径；取不到就是 `null`。 */
+function imagePathOf(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  if (typeof record['path'] === 'string') return record['path'];
+  const image = record['image'];
+  if (image && typeof image === 'object' && !Array.isArray(image)) {
+    const path = (image as Record<string, unknown>)['path'];
+    if (typeof path === 'string') return path;
+  }
+  return null;
+}
 
 /**
  * `/api/themes/:code` 的路径参数（§19）。

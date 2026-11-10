@@ -24,13 +24,14 @@ import {
   UI_Z,
   fileUrlFromPath,
   type CharacterSlotEntry,
-  type ForbiddenSymbolImage,
+  type UploadedImage,
   type GameToolIconKind,
   type GameToolIcons,
   type MapLinkageColor,
 } from '@loredoku/shared';
 import { CoverPicker } from '@/components/common/CoverPicker';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
+import { resolveMarkImage } from '@/lib/mark';
 import {
   computeParticipantLayout,
   resolveRosterCols,
@@ -93,10 +94,10 @@ export interface PuzzleBasicInfo {
   /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
   rosterCols: number | null;
   /**
-   * v0.8.6 (docs/v0.8.6.md §4): 玩家侧「禁止符号」用的那张上传图。
+   * v0.8.6 (docs/v0.8.6.md §4): 玩家侧「标记」用的那张上传图。
    * `null` = 默认的 `×` 字形。
    */
-  forbiddenSymbol: ForbiddenSymbolImage | null;
+  mark: UploadedImage | null;
   /** v0.8.7 §7：三枚工具按钮图标；`null` = 三枚都跟随主题。 */
   toolIcons: GameToolIcons | null;
   /** v0.7.3 §2: a freshly picked cover file, or `null` to keep the stored one. */
@@ -119,21 +120,21 @@ interface PuzzleInfoDrawerProps {
   /** v0.6.3 §3: the committed column count. `null` = 自动. */
   rosterCols: number | null;
   /**
-   * v0.8.6 §4 / v0.8.7 §4: 已提交的禁止符号图；`null` = 这一题没单独配置
-   * （跟随主题，见 `themeForbiddenSymbol`；两边都没有才是 `×`）。
+   * v0.8.6 §4 / v0.8.7 §4: 已提交的标记图；`null` = 这一题没单独配置
+   * （跟随主题，见 `themeMark`；两边都没有才是 `×`）。
    * 值形状是 `{ path }` —— `path` 是 `storage/uploads` 下的相对路径。
    */
-  forbiddenSymbol: ForbiddenSymbolImage | null;
+  mark: UploadedImage | null;
   /**
-   * v0.8.7 §4：主题的「禁止符号」缺省 —— 这一题没配时**玩家看到的就是这张**。
+   * v0.8.7 §4：主题的「标记」缺省 —— 这一题没配时**玩家看到的就是这张**。
    *
    * 抽屉拿它只做两件事：预览画这张（否则作者看到的 `×` 与玩家看到的图对不上），
    * 以及那句「未单独配置，跟随主题」的说明。`null` = 主题也没配。
    */
-  themeForbiddenSymbol: ForbiddenSymbolImage | null;
+  themeMark: UploadedImage | null;
   /**
    * v0.8.7 §7：这一题提交过的工具按钮图标（清除 / 撤回 / 提交）。`null` = 三枚都
-   * 没单独配 —— 玩家看到的是主题那一套。形状与禁止符号相同：`{ path }`。
+   * 没单独配 —— 玩家看到的是主题那一套。形状与标记相同：`{ path }`。
    */
   toolIcons: GameToolIcons | null;
   /** v0.8.7 §7：主题的那一套；这一题没配的那几枚，预览与说明都靠它。 */
@@ -150,7 +151,7 @@ interface PuzzleInfoDrawerProps {
    * v0.8.6 §4: 选中文件后**立即上传**。成功返回落盘路径（抽屉把它写进本地草稿，
    * 与其它字段同一个「保存」/ 撤销步）；失败返回 `null` —— 抽屉保留原值并提示。
    */
-  onUploadForbiddenSymbol: (file: File) => Promise<{ path: string; url: string } | null>;
+  onUploadMark: (file: File) => Promise<{ path: string; url: string } | null>;
   /** The cover currently on the server (`null` when it has none). */
   coverUrl: string | null;
   /** A cover file already applied to the page's local state but not uploaded yet. */
@@ -233,9 +234,9 @@ function cluesEqual(a: readonly string[], b: readonly string[]): boolean {
 }
 
 /** v0.8.6 §4：缺席 / `null` 都表示「默认 ×」，两者相等。 */
-function forbiddenSymbolEquals(
-  a: ForbiddenSymbolImage | null,
-  b: ForbiddenSymbolImage | null,
+function markEquals(
+  a: UploadedImage | null,
+  b: UploadedImage | null,
 ): boolean {
   return (a?.path ?? null) === (b?.path ?? null);
 }
@@ -261,11 +262,11 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       linkageColors,
       characterSlots,
       rosterCols,
-      forbiddenSymbol,
-      themeForbiddenSymbol,
+      mark,
+      themeMark,
       toolIcons,
       themeToolIcons,
-      onUploadForbiddenSymbol,
+      onUploadMark,
       onUploadToolIcon,
       coverUrl,
       coverFile,
@@ -284,9 +285,9 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     const [draftPalette, setDraftPalette] = useDraft<MapLinkageColor[]>(linkageColors, open);
     /** v0.6.3 §3: the column count is drafted like everything else here. */
     const [draftCols, setDraftCols] = useDraft<number | null>(rosterCols, open);
-    /** v0.8.6 §4: 禁止符号也走草稿 —— 与其余基本信息同一套提交时机。 */
-    const [draftForbiddenSymbol, setDraftForbiddenSymbol] = useDraft<ForbiddenSymbolImage | null>(
-      forbiddenSymbol,
+    /** v0.8.6 §4: 标记也走草稿 —— 与其余基本信息同一套提交时机。 */
+    const [draftMark, setDraftMark] = useDraft<UploadedImage | null>(
+      mark,
       open,
     );
     /** v0.8.7 §7：三枚工具按钮图标也走草稿 —— 同一套提交时机、同一个撤销步。 */
@@ -295,15 +296,15 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
      * v0.8.7 §4：预览画「这一题最终会用的那张」—— 自己配了就是它，没配就是主题的。
      * `null` = 两边都没有，玩家侧是 `×`。
      */
-    const previewForbiddenSymbol = draftForbiddenSymbol ?? themeForbiddenSymbol;
+    const previewMark = draftMark ?? themeMark;
     /**
      * v0.8.6 §4: 上传在选完文件那一刻就发生，所以「上传中 / 失败」是控件的短暂状态，
      * 不进草稿、也不算一次编辑。
      */
-    const [forbiddenUploading, setForbiddenUploading] = useState(false);
-    const [forbiddenUploadError, setForbiddenUploadError] = useState<string | null>(null);
+    const [markUploading, setMarkUploading] = useState(false);
+    const [markUploadError, setMarkUploadError] = useState<string | null>(null);
     /** 上传控件的真身：一个隐藏的 `<input type="file">`。 */
-    const forbiddenInputRef = useRef<HTMLInputElement | null>(null);
+    const markInputRef = useRef<HTMLInputElement | null>(null);
     /**
      * v0.8.7 §7：三枚工具图标共用**一个**隐藏 input —— `pendingToolIcon` 记住这次点的是
      * 哪一枚，选完文件才知道往哪个键上放。上传中 / 失败同样是控件的短暂状态。
@@ -335,7 +336,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftEnding.trim() !== ending.trim() ||
       !paletteEquals(draftPalette, linkageColors) ||
       draftCols !== rosterCols ||
-      !forbiddenSymbolEquals(draftForbiddenSymbol, forbiddenSymbol) ||
+      !markEquals(draftMark, mark) ||
       !toolIconsEqual(draftToolIcons, toolIcons) ||
       draftCoverFile !== coverFile ||
       draftCoverRemoved !== coverRemoved;
@@ -347,7 +348,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftPalette,
       draftSlots,
       draftCols,
-      draftForbiddenSymbol,
+      draftMark,
       draftToolIcons,
       draftCoverFile,
       draftCoverRemoved,
@@ -362,7 +363,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       draftPalette,
       draftSlots,
       draftCols,
-      draftForbiddenSymbol,
+      draftMark,
       draftToolIcons,
       draftCoverFile,
       draftCoverRemoved,
@@ -377,7 +378,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     useEffect(() => {
       // 每次打开都从「没有错误」开始 —— 上一次失败的提示不该留到下一次。
       if (open) {
-        setForbiddenUploadError(null);
+        setMarkUploadError(null);
         setToolIconError(null);
         setPendingToolIcon(null);
       }
@@ -405,7 +406,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               linkageColors: current.draftPalette,
               characterSlots: current.draftSlots,
               rosterCols: current.draftCols,
-              forbiddenSymbol: current.draftForbiddenSymbol,
+              mark: current.draftMark,
               toolIcons: current.draftToolIcons,
               coverFile: current.draftCoverFile,
               coverRemoved: current.draftCoverRemoved,
@@ -422,7 +423,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           setDraftPalette(linkageColors);
           setDraftSlots(characterSlots);
           setDraftCols(rosterCols);
-          setDraftForbiddenSymbol(forbiddenSymbol);
+          setDraftMark(mark);
           setDraftToolIcons(toolIcons);
           setDraftCoverFile(coverFile);
           setDraftCoverRemoved(coverRemoved);
@@ -438,7 +439,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         ending,
         linkageColors,
         rosterCols,
-        forbiddenSymbol,
+        mark,
         toolIcons,
         onCommit,
         onRequestClose,
@@ -449,7 +450,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         setDraftPalette,
         setDraftSlots,
         setDraftCols,
-        setDraftForbiddenSymbol,
+        setDraftMark,
         setDraftToolIcons,
         setDraftCoverFile,
         setDraftCoverRemoved,
@@ -523,25 +524,25 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
      * v0.8.6 §4：选中文件后**立即上传**，成功才把 `{ path }` 写进抽屉草稿。
      * 失败像没选过一样 —— 原值留着，控件旁给一行错误（不静默）。
      */
-    const uploadForbiddenSymbol = async (file: File): Promise<void> => {
-      setForbiddenUploading(true);
-      setForbiddenUploadError(null);
+    const uploadMark = async (file: File): Promise<void> => {
+      setMarkUploading(true);
+      setMarkUploadError(null);
       try {
-        const uploaded = await onUploadForbiddenSymbol(file);
+        const uploaded = await onUploadMark(file);
         if (!uploaded) {
-          setForbiddenUploadError('图片上传失败，请重试。');
+          setMarkUploadError('图片上传失败，请重试。');
           return;
         }
-        setDraftForbiddenSymbol({ path: uploaded.path });
+        setDraftMark({ path: uploaded.path });
       } catch {
-        setForbiddenUploadError('图片上传失败，请重试。');
+        setMarkUploadError('图片上传失败，请重试。');
       } finally {
-        setForbiddenUploading(false);
+        setMarkUploading(false);
       }
     };
 
     /**
-     * v0.8.7 §7：一枚工具图标的上传。与禁止符号同一条时序 —— 选中即上传，成功才写进
+     * v0.8.7 §7：一枚工具图标的上传。与标记同一条时序 —— 选中即上传，成功才写进
      * 草稿；失败保留原值、只在那一枚下面报一句。三枚互不影响，所以状态按枚记。
      */
     const uploadToolIcon = async (icon: GameToolIconKind, file: File): Promise<void> => {
@@ -681,117 +682,100 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               onRestore={() => setDraftCoverRemoved(false)}
             />
           </Section>
-
           {/*
-            v0.8.6 §4：玩家在游戏页标记排除项时画面上显示的那枚符号。默认是 ×，
-            作者可以上传一张图片替换它。文件一选中就上传，返回的 path 写进本地草稿 ——
-            与其余基本信息同一个「保存」/ 撤销步。
+            v0.9.5：**操作提示** —— 标记 + 三枚按钮图标，合成一个模块。
 
-            v0.8.7 §4：**没配就跟随主题**。所以预览画的必须是这一题最终会用的那张
-            （自己的一张，否则主题的那张），不然作者在抽屉里看到 ×、玩家在游戏页
-            看到一张图 —— 两边说的不是同一件事。`data-source` 也让测试能分清
-            「自己的」和「跟随的」。
+            它们回答的是同一个问题：玩家在盘面上操作时看到的那些提示长什么样。
+            用户要的就是「标记 / 清除 / 回退 / 提交的配置放到一个模块」—— 分两节会
+            让人以为它们无关，而作者通常是一起调的。
+
+            一律**没配就跟随主题**：预览画的必须是这一题最终会用的那张（自己的，
+            否则主题的，再否则内置），不然作者在抽屉里看到 ×、玩家在游戏页看到一张
+            图 —— 两边说的不是同一件事。`data-source` 让测试能分清「自己的」和
+            「跟随的」。
           */}
           <Section
-            title="禁止符号"
-            hint="Forbidden Symbol — 玩家在游戏页标记排除项时画面上显示的那枚符号。不单独配置就跟随主题的那张（主题概览页的「禁止符号」）；上传一张图片可以只给这一题换一张，按格子居中等比缩放。两边都没有才是默认的 ×。"
-          >
-            <div className="flex items-start gap-3">
-              <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/30">
-                {previewForbiddenSymbol ? (
-                  <img
-                    data-testid="forbidden-symbol-preview"
-                    data-source={draftForbiddenSymbol ? 'puzzle' : 'theme'}
-                    src={fileUrlFromPath(previewForbiddenSymbol.path)}
-                    alt={draftForbiddenSymbol ? '禁止符号预览' : '主题的禁止符号预览'}
-                    draggable={false}
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <span className="text-xl text-muted-foreground" aria-hidden="true">
-                    ×
-                  </span>
-                )}
-              </div>
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs"
-                    disabled={forbiddenUploading}
-                    onClick={() => forbiddenInputRef.current?.click()}
-                  >
-                    <Upload className="mr-1 h-3.5 w-3.5" />
-                    {forbiddenUploading
-                      ? '上传中…'
-                      : draftForbiddenSymbol
-                        ? '更换'
-                        : '选择图片'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs text-destructive hover:text-destructive"
-                    disabled={forbiddenUploading || draftForbiddenSymbol === null}
-                    onClick={() => {
-                      setDraftForbiddenSymbol(null);
-                      setForbiddenUploadError(null);
-                    }}
-                  >
-                    <Trash2 className="mr-1 h-3.5 w-3.5" />
-                    移除
-                  </Button>
-                </div>
-                <p className="text-2xs leading-relaxed text-muted-foreground">
-                  {draftForbiddenSymbol
-                    ? '这一题用自己上传的这张；「移除」就回到跟随主题。'
-                    : themeForbiddenSymbol
-                      ? '这一题没有单独配置，玩家看到的是主题那张（在主题概览页的「禁止符号」里换）。'
-                      : '这一题和主题都没有配置，玩家看到的是默认的 ×。'}
-                </p>
-                {forbiddenUploadError ? (
-                  <p role="alert" className="text-2xs text-destructive">
-                    {forbiddenUploadError}
-                  </p>
-                ) : null}
-              </div>
-            </div>
-            <input
-              ref={forbiddenInputRef}
-              id="puzzle-info-forbidden-symbol"
-              type="file"
-              accept="image/png,image/jpeg,image/webp,image/svg+xml"
-              className="hidden"
-              onChange={(event) => {
-                const picked = event.target.files?.[0] ?? null;
-                event.target.value = '';
-                if (!picked) return;
-                void uploadForbiddenSymbol(picked);
-              }}
-            />
-          </Section>
-
-          {/*
-            v0.8.7 §7：三枚工具按钮图标。与禁止符号同一条规矩 —— 不配就跟随主题，
-            预览画这一题**最终会用**的那一枚（自己的，否则主题的，再否则内置图标），
-            所以作者在抽屉里看到的和玩家按到的是同一张。`data-source` 让「自己的」与
-            「跟随的」在结构和测试里分得开。
-          */}
-          <Section
-            title="工具按钮图标"
-            hint="Toolbar Icons — 游戏页右列三枚按钮（清除 / 撤回 / 提交）上的画。不单独配置就跟随主题那一套（主题概览页的「工具按钮图标」）；上传一张可以只给这一题换一枚。都没配的按钮用内置图标。"
+            title="操作提示"
+            hint="玩家在盘面上操作时看到的提示：标记是「这格排除」的那枚符号，另外三枚是游戏页右列按钮上的画。不单独配置就跟随主题（主题概览页的「操作提示」）；上传一张可以只给这一题换一枚。都没配时用内置样式。"
           >
             <ul className="divide-y divide-border">
+              {/* 标记：形状与三枚按钮一致，只是它画在格子里。 */}
+              <li
+                data-testid="mark-row"
+                className="flex items-start gap-3 py-2 first:pt-0 last:pb-0"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/30">
+                  {previewMark ? (
+                    <img
+                      data-testid="mark-preview"
+                      data-source={draftMark ? 'puzzle' : 'theme'}
+                      src={fileUrlFromPath(previewMark.path)}
+                      alt={draftMark ? '标记预览' : '主题的标记预览'}
+                      draggable={false}
+                      className="h-full w-full object-contain"
+                    />
+                  ) : (
+                    <span className="text-base text-muted-foreground" aria-hidden="true">
+                      ×
+                    </span>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs">标记</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      disabled={markUploading}
+                      onClick={() => markInputRef.current?.click()}
+                    >
+                      <Upload className="mr-1 h-3.5 w-3.5" />
+                      {markUploading
+                        ? '上传中…'
+                        : draftMark
+                          ? '更换'
+                          : themeMark
+                            ? '单独配一张'
+                            : '选择图片'}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs text-destructive hover:text-destructive"
+                      disabled={markUploading || draftMark === null}
+                      onClick={() => {
+                        setDraftMark(null);
+                        setMarkUploadError(null);
+                      }}
+                    >
+                      <Trash2 className="mr-1 h-3.5 w-3.5" />
+                      移除
+                    </Button>
+                  </div>
+                  <p className="text-2xs leading-relaxed text-muted-foreground">
+                    {draftMark
+                      ? '这一题用自己上传的这张；「移除」就回到跟随主题。'
+                      : themeMark
+                        ? '这一题没有单独配置，玩家看到的是主题那张。'
+                        : '这一题和主题都没有配置，玩家看到的是默认的 ×。'}
+                  </p>
+                </div>
+              </li>
+
               {GAME_TOOL_ICON_KINDS.map((icon) => {
                 const own = draftToolIcons?.[icon] ?? null;
                 const inherited = themeToolIcons?.[icon] ?? null;
                 const preview = own ?? inherited;
                 const Fallback = TOOL_ICON_FALLBACKS[icon];
                 return (
-                  <li key={icon} className="flex items-start gap-3 py-2 first:pt-0 last:pb-0">
+                  <li
+                    key={icon}
+                    data-testid={`tool-icon-row-${icon}`}
+                    className="flex items-start gap-3 py-2 first:pt-0 last:pb-0"
+                  >
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted/30">
                       {preview ? (
                         <img
@@ -858,11 +842,29 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 );
               })}
             </ul>
+            {markUploadError ? (
+              <p role="alert" className="text-2xs text-destructive">
+                {markUploadError}
+              </p>
+            ) : null}
             {toolIconError ? (
               <p role="alert" className="text-2xs text-destructive">
                 {toolIconError}
               </p>
             ) : null}
+            <input
+              ref={markInputRef}
+              id="puzzle-info-mark"
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/svg+xml"
+              className="hidden"
+              onChange={(event) => {
+                const picked = event.target.files?.[0] ?? null;
+                event.target.value = '';
+                if (!picked) return;
+                void uploadMark(picked);
+              }}
+            />
             <input
               ref={toolIconInputRef}
               id="puzzle-info-tool-icons"
@@ -1092,7 +1094,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
             type="button"
             size="sm"
             disabled={
-              !dirty || descriptionOverLimit || nameBlank || forbiddenUploading || toolIconUploading !== null
+              !dirty || descriptionOverLimit || nameBlank || markUploading || toolIconUploading !== null
             }
             onClick={() =>
               onCommit({
@@ -1103,7 +1105,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                 linkageColors: draftPalette,
                 characterSlots: draftSlots,
                 rosterCols: draftCols,
-                forbiddenSymbol: draftForbiddenSymbol,
+                mark: draftMark,
                 toolIcons: draftToolIcons,
                 coverFile: draftCoverFile,
                 coverRemoved: draftCoverRemoved,

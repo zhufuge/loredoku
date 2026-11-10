@@ -1295,12 +1295,12 @@ describe('puzzles API (FEAT-K01)', () => {
    * 主题还可以配一份「新建谜题缺省」。四件事一起钉：
    *
    * ① 谜题上传 → `{ path, url }`，随草稿保存后读回一致；
-   * ② 主题上传 / 删除 → `themes.data.forbiddenSymbol`；
+   * ② 主题上传 / 删除 → `themes.data.mark`；
    * ③ 新建谜题拷贝主题缺省，之后主题换图不追溯；
    * ④ 版本行 id 也能上传（fork 态只写文件、不写库）。
    */
-  describe('禁止符号的上传与主题缺省 (v0.8.6 §4)', () => {
-    const THEME_CODE = 'test-forbidden-symbol';
+  describe('标记的上传与主题缺省 (v0.8.6 §4)', () => {
+    const THEME_CODE = 'test-mark';
 
     afterAll(async () => {
       const { purgeTheme } = await import('./purge');
@@ -1311,14 +1311,14 @@ describe('puzzles API (FEAT-K01)', () => {
     async function theme(): Promise<{ code: string; id: number }> {
       const created = await api
         .post('/api/themes')
-        .send({ code: THEME_CODE, name: '禁止符号测试主题' });
+        .send({ code: THEME_CODE, name: '标记测试主题' });
       if (created.status !== 200 && created.status !== 409) {
-        throw new Error(`禁止符号测试主题建不出来：${created.status}`);
+        throw new Error(`标记测试主题建不出来：${created.status}`);
       }
       const row = (await db('themes').where({ code: THEME_CODE }).first('id')) as
         | { id: string | number }
         | undefined;
-      if (!row) throw new Error('禁止符号测试主题读不出来');
+      if (!row) throw new Error('标记测试主题读不出来');
       return { code: THEME_CODE, id: Number(row.id) };
     }
 
@@ -1326,37 +1326,37 @@ describe('puzzles API (FEAT-K01)', () => {
       const { draftId } = await puzzleWithVersion(`Sym ${uniqueCode('p')}`);
       uploadedPuzzleSymbolDirs.push(resolveUploadPath(`puzzles/${draftId}`));
 
-      const none = await api.post(`/api/puzzles/${draftId}/forbidden-symbol`);
+      const none = await api.post(`/api/puzzles/${draftId}/mark`);
       expect(none.status).toBe(400);
       expect(none.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
       const bad = await api
-        .post(`/api/puzzles/${draftId}/forbidden-symbol`)
+        .post(`/api/puzzles/${draftId}/mark`)
         .attach('file', Buffer.from('definitely not an image'), 'notes.txt');
       expect(bad.status).toBe(415);
       expect(bad.body.code).toBe(ErrorCode.UNSUPPORTED_MEDIA_TYPE);
 
       const uploaded = await api
-        .post(`/api/puzzles/${draftId}/forbidden-symbol`)
+        .post(`/api/puzzles/${draftId}/mark`)
         .attach('file', TINY_PNG, 'symbol.png');
       expect(uploaded.status).toBe(200);
       expect(uploaded.body.code).toBe(ErrorCode.OK);
       const path = uploaded.body.data.path as string;
       // 只写一张缩放后的 webp，没有原图 / 缩略图两份。
-      expect(path).toMatch(new RegExp(`^puzzles/${draftId}/forbidden-symbol/[0-9a-f-]+\\.webp$`));
+      expect(path).toMatch(new RegExp(`^puzzles/${draftId}/mark/[0-9a-f-]+\\.webp$`));
       expect(typeof uploaded.body.data.url).toBe('string');
       // 回执的 url 真能取到文件。
       expect((await api.get(new URL(uploaded.body.data.url as string).pathname)).status).toBe(200);
 
       const initial = await api.get(`/api/puzzles/${draftId}`);
       const saved = await api.put(`/api/puzzles/${draftId}`).send({
-        data: { ...initial.body.data.data, forbiddenSymbol: { path } },
+        data: { ...initial.body.data.data, mark: { path } },
         updatedAt: initial.body.data.updatedAt,
       });
       expect(saved.status).toBe(200);
-      expect(saved.body.data.data.forbiddenSymbol).toEqual({ path });
+      expect(saved.body.data.data.mark).toEqual({ path });
       // 再读一次：值来自 JSONB，不是内存里的那份。
-      expect((await api.get(`/api/puzzles/${draftId}`)).body.data.data.forbiddenSymbol).toEqual({
+      expect((await api.get(`/api/puzzles/${draftId}`)).body.data.data.mark).toEqual({
         path,
       });
     });
@@ -1366,16 +1366,16 @@ describe('puzzles API (FEAT-K01)', () => {
       uploadedPuzzleSymbolDirs.push(resolveUploadPath(`puzzles/${versionId}`));
 
       const uploaded = await api
-        .post(`/api/puzzles/${versionId}/forbidden-symbol`)
+        .post(`/api/puzzles/${versionId}/mark`)
         .attach('file', TINY_PNG, 'symbol.png');
       expect(uploaded.status).toBe(200);
-      expect(uploaded.body.data.path).toContain(`puzzles/${versionId}/forbidden-symbol/`);
+      expect(uploaded.body.data.path).toContain(`puzzles/${versionId}/mark/`);
       expect((await api.get(new URL(uploaded.body.data.url as string).pathname)).status).toBe(200);
       // 只写文件：版本行的 JSON 没被这个端点动过。
-      expect((await api.get(`/api/puzzles/${versionId}`)).body.data.data.forbiddenSymbol).toBeUndefined();
+      expect((await api.get(`/api/puzzles/${versionId}`)).body.data.data.mark).toBeUndefined();
 
       const missing = await api
-        .post('/api/puzzles/99999999/forbidden-symbol')
+        .post('/api/puzzles/99999999/mark')
         .attach('file', TINY_PNG, 'symbol.png');
       expect(missing.status).toBe(404);
       expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
@@ -1386,22 +1386,22 @@ describe('puzzles API (FEAT-K01)', () => {
       uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
 
       const uploaded = await api
-        .post(`/api/themes/${created.code}/forbidden-symbol`)
+        .post(`/api/themes/${created.code}/mark`)
         .attach('file', TINY_PNG, 'symbol.png');
       expect(uploaded.status).toBe(200);
       expect(uploaded.body.code).toBe(ErrorCode.OK);
-      const path = uploaded.body.data.data.forbiddenSymbol.path as string;
-      expect(path).toMatch(new RegExp(`^themes/${created.id}/forbidden-symbol/[0-9a-f-]+\\.webp$`));
-      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol).toEqual({
+      const path = uploaded.body.data.data.mark.path as string;
+      expect(path).toMatch(new RegExp(`^themes/${created.id}/mark/[0-9a-f-]+\\.webp$`));
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.mark).toEqual({
         path,
       });
 
-      const cleared = await api.delete(`/api/themes/${created.code}/forbidden-symbol`);
+      const cleared = await api.delete(`/api/themes/${created.code}/mark`);
       expect(cleared.status).toBe(200);
       // DELETE 是**删键**，不是写成 null。
-      expect(cleared.body.data.data.forbiddenSymbol).toBeUndefined();
+      expect(cleared.body.data.data.mark).toBeUndefined();
       expect(
-        (await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol,
+        (await api.get(`/api/themes/${created.code}`)).body.data.data.mark,
       ).toBeUndefined();
     });
 
@@ -1414,10 +1414,10 @@ describe('puzzles API (FEAT-K01)', () => {
       uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
 
       const first = await api
-        .post(`/api/themes/${created.code}/forbidden-symbol`)
+        .post(`/api/themes/${created.code}/mark`)
         .attach('file', TINY_PNG, 'symbol.png');
       expect(first.status).toBe(200);
-      const firstPath = first.body.data.data.forbiddenSymbol.path as string;
+      const firstPath = first.body.data.data.mark.path as string;
 
       const mapId = await createMap({
         name: `Sym map ${uniqueCode('p')}`,
@@ -1432,24 +1432,24 @@ describe('puzzles API (FEAT-K01)', () => {
       });
       // 草稿里没有这个键：跟随是读取时的事，不是建题时的一次拷贝。
       expect(
-        (await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol,
+        (await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.mark,
       ).toBeUndefined();
       // 主题那一份仍然在 —— 解析的兜底来自它。
-      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol).toEqual({
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.mark).toEqual({
         path: firstPath,
       });
 
       // 主题换一张图：跟随的谜题依旧没有自己的那份，所以读到的就是新的。
       const second = await api
-        .post(`/api/themes/${created.code}/forbidden-symbol`)
+        .post(`/api/themes/${created.code}/mark`)
         .attach('file', TINY_PNG, 'symbol.png');
       expect(second.status).toBe(200);
-      const secondPath = second.body.data.data.forbiddenSymbol.path as string;
+      const secondPath = second.body.data.data.mark.path as string;
       expect(secondPath).not.toBe(firstPath);
       expect(
-        (await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol,
+        (await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.mark,
       ).toBeUndefined();
-      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.forbiddenSymbol).toEqual({
+      expect((await api.get(`/api/themes/${created.code}`)).body.data.data.mark).toEqual({
         path: secondPath,
       });
 
@@ -1457,28 +1457,27 @@ describe('puzzles API (FEAT-K01)', () => {
       const own = { path: secondPath };
       const initial = await api.get(`/api/puzzles/${inheritedId}`);
       const saved = await api.put(`/api/puzzles/${inheritedId}`).send({
-        data: { ...initial.body.data.data, forbiddenSymbol: own },
+        data: { ...initial.body.data.data, mark: own },
         updatedAt: initial.body.data.updatedAt,
       });
       expect(saved.status).toBe(200);
-      expect((await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.forbiddenSymbol).toEqual(
+      expect((await api.get(`/api/puzzles/${inheritedId}`)).body.data.data.mark).toEqual(
         own,
       );
     });
   });
 
   /**
-   * v0.9.3 §3：提交校验的两档颜色与圈图。
+   * v0.9.3 §3；v0.9.6 起**圈图并进 `ring`**（与长按计时环共用一张），`checkStyle`
+   * 只剩两档颜色。
    *
-   * 与禁止符号 / 计时环同一条路，但**配色与换图分成两个端点**：取色器每动一下
-   * 只该改一个颜色，不该把整份 `data` 覆盖一遍。四件事一起钉：
+   * 三件事一起钉：
    *
-   * ① PATCH 只改给的那一档，另一档与圈图原样保留；
-   * ② 主题还没有 `checkStyle` 时，改一个颜色会把两档都补齐（写入永远是完整三键）；
-   * ③ 上传圈图不会顺手改掉作者挑的颜色；移除只删图、颜色留着；
-   * ④ 空 body / 非法颜色 / 没带文件都是 400。
+   * ① PATCH 只改给的那一档，另一档原样保留；
+   * ② 主题还没有 `checkStyle` 时，改一个颜色会把两档都补齐；
+   * ③ 空 body / 非法颜色都是 400。
    */
-  describe('提交校验的样式与圈图 (v0.9.3 §3)', () => {
+  describe('提交校验的两档颜色 (v0.9.3 / v0.9.6)', () => {
     const THEME_CODE = 'test-check-style';
 
     afterAll(async () => {
@@ -1519,7 +1518,6 @@ describe('puzzles API (FEAT-K01)', () => {
       expect(one.body.data.data.checkStyle).toEqual({
         passColor: '#123456',
         failColor: '#DC2626',
-        ring: null,
       });
 
       // 再改另一档：第一档不能被冲掉。
@@ -1530,31 +1528,41 @@ describe('puzzles API (FEAT-K01)', () => {
       expect((await api.get(`/api/themes/${created.code}`)).body.data.data.checkStyle).toEqual({
         passColor: '#123456',
         failColor: '#654321',
-        ring: null,
       });
     });
 
-    it('上传圈图不动颜色；移除只删图，颜色留着', async () => {
+    /**
+     * v0.9.6：圈图不再是校验自己的那一份 —— 它并进了主题的 `ring`。
+     * 所以这里钉的是**两者互不干扰**：改颜色不碰 `ring`，换圆环也不碰颜色。
+     */
+    it('换圆环不动两档颜色，改颜色也不碰圆环', async () => {
       const created = await theme();
       uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
 
       await api.patch(`/api/themes/${created.code}/check-style`).send({ passColor: '#111111' });
 
-      const none = await api.post(`/api/themes/${created.code}/check-ring`);
+      const none = await api.post(`/api/themes/${created.code}/ring`);
       expect(none.status).toBe(400);
 
       const uploaded = await api
-        .post(`/api/themes/${created.code}/check-ring`)
+        .post(`/api/themes/${created.code}/ring`)
         .attach('file', TINY_PNG, 'ring.png');
       expect(uploaded.status).toBe(200);
-      const path = uploaded.body.data.data.checkStyle.ring.path as string;
-      expect(path).toMatch(new RegExp(`^themes/${created.id}/check-ring/[0-9a-f-]+\\.webp$`));
+      const path = uploaded.body.data.data.ring.image.path as string;
+      expect(path).toMatch(new RegExp(`^themes/${created.id}/ring/[0-9a-f-]+\\.webp$`));
       // 作者挑的通过色没被这次上传改掉。
       expect(uploaded.body.data.data.checkStyle.passColor).toBe('#111111');
 
-      const cleared = await api.delete(`/api/themes/${created.code}/check-ring`);
+      // 再改颜色：圆环原样留着。
+      const patch = await api
+        .patch(`/api/themes/${created.code}/check-style`)
+        .send({ failColor: '#222222' });
+      expect(patch.status).toBe(200);
+      expect(patch.body.data.data.ring.image.path).toBe(path);
+
+      const cleared = await api.delete(`/api/themes/${created.code}/ring`);
       expect(cleared.status).toBe(200);
-      expect(cleared.body.data.data.checkStyle.ring).toBeUndefined();
+      expect(cleared.body.data.data.ring).toBeUndefined();
       expect(cleared.body.data.data.checkStyle.passColor).toBe('#111111');
     });
   });

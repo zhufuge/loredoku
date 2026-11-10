@@ -7,7 +7,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
-import { bundleDifficultyTiers, bundleRoot, gameHrefOf, toGameCard } from './bundleLoad';
+import {
+  bundleDifficultyTiers,
+  bundleRoot,
+  bundleStorageId,
+  gameHrefOf,
+  toGameCard,
+} from './bundleLoad';
+import { readGameCompletion, type GameCompletion } from '@/lib/gameCompletion';
 import { useBundleManifest } from './PlayerBundleProvider';
 
 /**
@@ -41,6 +48,24 @@ export function PlayerHomePage(): JSX.Element {
 
   /** 包的目录名与包里的身份对不上 —— 部署错了，不是玩家的问题，但得说清楚。 */
   const mismatched = manifest ? manifest.theme.code !== code : false;
+
+  /**
+   * v0.9.5：每张卡的通过记录。存档键是 `bundle:<主题code>:<key>`（与游戏页
+   * `storageId` 同一条），所以**离线包的进度不会串到线上**，反之亦然。
+   *
+   * 指纹只有 `gridSize`：`manifest.games` 里正好有它，读一个坏记录的概率降到
+   * 「网格变了」这一种 —— 那确实就是另一道题了。
+   */
+  const completions = useMemo(() => {
+    const map = new Map<string, GameCompletion>();
+    for (const game of manifest?.games ?? []) {
+      const completion = readGameCompletion(bundleStorageId(code, game.key), {
+        gridSize: game.gridSize,
+      });
+      if (completion) map.set(game.key, completion);
+    }
+    return map;
+  }, [manifest, code]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -106,6 +131,7 @@ export function PlayerHomePage(): JSX.Element {
                 game={game}
                 tiers={tiers}
                 href={gameHrefOf(code, game.slug)}
+                completion={completions.get(game.slug) ?? null}
               />
             ))}
           </div>

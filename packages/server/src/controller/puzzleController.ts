@@ -84,13 +84,13 @@ export async function removeCover(ctx: Context): Promise<void> {
  * 版本行 id 也接受：编辑器 `?v=` 的 fork 态拿到的就是版本行 id，而上传发生在
  * 保存草稿之前，这里只写文件，不触碰版本行的不可变语义。
  */
-export async function uploadForbiddenSymbol(ctx: Context): Promise<void> {
+export async function uploadMark(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
   if (!file) {
-    throw puzzleService.forbiddenSymbolRequired();
+    throw puzzleService.markRequired();
   }
-  success(ctx, await puzzleService.uploadForbiddenSymbol(id, file.buffer), '上传成功');
+  success(ctx, await puzzleService.uploadMark(id, file.buffer), '上传成功');
 }
 
 /**

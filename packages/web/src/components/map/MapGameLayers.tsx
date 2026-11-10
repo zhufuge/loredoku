@@ -14,7 +14,7 @@ import {
 } from '@loredoku/shared';
 import type { GamePlacementBoard } from '@loredoku/shared';
 import { itemPadding } from '@/lib/canvasScale';
-import type { ForbiddenSymbolRender } from '@/lib/forbiddenSymbol';
+import type { MarkRender } from '@/lib/mark';
 import { glyphFontSize, numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
 import type { ToolIconRender } from '@/lib/toolIcons';
 import { participantBadgeText } from '@/lib/participantLayout';
@@ -26,7 +26,7 @@ import { parseKey } from './layerGeometry';
  */
 
 /**
- * v0.8.6：禁止符号的图片在格内四周各留 9% —— 贴边画会让一枚小图标撑满整格，
+ * v0.8.6：标记的图片在格内四周各留 9% —— 贴边画会让一枚小图标撑满整格，
  * 和格子里的编号、头像抢同一条视觉基线。两层共用同一个比例，提示层的预览与
  * 放置层落下的那张图才会严丝合缝地对上。
  */
@@ -48,7 +48,7 @@ const GAME_TOOL_HINT_CLEAR_ICON_RATIO = 0.6;
  * 白描边用 4 向硬 `drop-shadow` 叠成 —— 跟着图片的 alpha 走，不会把透明区涂白。
  * 半径按格子大小取（小格子至少 1px），放大后描边也跟着变粗，比例不漂。
  *
- * v0.9.3 §4：清除图标与**禁止符号的悬停预览**共用它 —— 两者都是「跟着指针走的
+ * v0.9.3 §4：清除图标与**标记的悬停预览**共用它 —— 两者都是「跟着指针走的
  * 预告」，落在照片上都需要从底纹里浮出来。已放置的 `×` 不在这条路上（那是内容，
  * 不是预告），仍是原来的黑描边。
  */
@@ -83,7 +83,7 @@ export function MapGameToolHintLayer({
   cell,
   cellSize,
   slots,
-  forbiddenSymbol = null,
+  mark = null,
   clearIcon = null,
 }: {
   hint: GameToolHint | null;
@@ -91,8 +91,8 @@ export function MapGameToolHintLayer({
   cellSize: number;
   /** The roster, for the number glyph's colour and 编号展示 text. */
   slots: Array<CharacterSlotEntry | null>;
-  /** v0.8.6：禁止符号配置的上传图；`null` = 画那枚绿色 `×` 字形。 */
-  forbiddenSymbol?: ForbiddenSymbolRender | null;
+  /** v0.8.6：标记配置的上传图；`null` = 画那枚绿色 `×` 字形。 */
+  mark?: MarkRender | null;
   /** v0.9.1 §3：清除工具配的上传图；`null` = 画内置橡皮字形。 */
   clearIcon?: ToolIconRender | null;
 }): JSX.Element | null {
@@ -100,7 +100,7 @@ export function MapGameToolHintLayer({
   const total = cellSize;
 
   /**
-   * v0.9.1 §3：把一张上传图铺进格子。禁止符号与清除图标共用这一段 —— 两者都是
+   * v0.9.1 §3：把一张上传图铺进格子。标记与清除图标共用这一段 —— 两者都是
    * 「按钮上画什么，指针底下就预告什么」，只是内缩比例不同。
    */
   const imageHint = (imageUrl: string, insetRatio: number, filter?: string): JSX.Element => {
@@ -136,7 +136,7 @@ export function MapGameToolHintLayer({
               width: total - inset * 2,
               height: total - inset * 2,
               objectFit: 'contain',
-              // v0.9.1 §5：仅清除图标会传这个（白描边）；禁止符号保持原样。
+              // v0.9.1 §5：仅清除图标会传这个（白描边）；标记保持原样。
               filter,
             }}
           />
@@ -145,15 +145,15 @@ export function MapGameToolHintLayer({
     );
   };
   /**
-   * v0.8.6：作者给禁止符号挑了图，工具提示层就画**同一张图**的预览 ——
+   * v0.8.6：作者给标记挑了图，工具提示层就画**同一张图**的预览 ——
    * 悬停时预告的东西必须就是落下的东西（v0.6.4 给编号立的同一条规矩）。
    * 落下位置与尺寸和格子一致，所以预览直接画在格子上。
    *
    * v0.9.3 §4：预览加一圈白描边（与清除图标同一条），压在照片上没有底纹也看得清。
    */
-  if (hint.kind === 'forbidden' && forbiddenSymbol) {
+  if (hint.kind === 'forbidden' && mark) {
     return imageHint(
-      forbiddenSymbol.imageUrl,
+      mark.imageUrl,
       FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO,
       hintOutlineFilter(total),
     );
@@ -462,7 +462,7 @@ export function MapGamePlacementLayer({
   activeParticipantId = null,
   settleKey = null,
   pulse = EMPTY_PULSE,
-  forbiddenSymbol = null,
+  mark = null,
 }: {
   board: GamePlacementBoard;
   slots: Array<CharacterSlotEntry | null>;
@@ -478,15 +478,15 @@ export function MapGamePlacementLayer({
    */
   settleKey?: string | null;
   /**
-   * v0.7.11：刚放下的**编号 / 禁止符号**，按格子键索引 —— 值是参与者编号，
+   * v0.7.11：刚放下的**编号 / 标记**，按格子键索引 —— 值是参与者编号，
    * `null` 表示那个 `×`。命中的那一个字形播一次「盖章」缩放。
    *
    * 用表而不是单个「最后一格」：按住滑动会连着放好几格，单值会让前一格的字形
    * 在动画播到一半时被摘掉类，缩放立刻弹回原尺寸 —— 看起来像闪了一下。
    */
   pulse?: GamePlacementPulse;
-  /** v0.8.6：禁止符号配置的图片；`null` = 画那枚 `×` 字形。 */
-  forbiddenSymbol?: ForbiddenSymbolRender | null;
+  /** v0.8.6：标记配置的图片；`null` = 画那枚 `×` 字形。 */
+  mark?: MarkRender | null;
 }): JSX.Element | null {
   const entries = Object.entries(board).filter(([, placement]) => placement !== null && placement !== undefined);
   if (entries.length === 0) return null;
@@ -583,14 +583,14 @@ export function MapGamePlacementLayer({
             ) : null}
 
             {placement.kind === 'forbidden' ? (
-              forbiddenSymbol ? (
+              mark ? (
                 /**
-                 * v0.8.6：这条谜题给禁止符号配了一张图 —— 画图，不再画 `×`。
+                 * v0.8.6：这条谜题给标记配了一张图 —— 画图，不再画 `×`。
                  * `data-testid` 与动效类名都留在同一个元素上，页面测试和「刚
                  * 放下」的盖章动效不必知道这次画的是字形还是图片。
                  */
                 <img
-                  src={forbiddenSymbol.imageUrl}
+                  src={mark.imageUrl}
                   alt=""
                   draggable={false}
                   data-testid={`forbidden-${key}`}

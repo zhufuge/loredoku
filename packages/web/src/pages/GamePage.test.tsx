@@ -1,13 +1,14 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GAME_CHECK_STEP_MS, UI_Z } from '@loredoku/shared';
 import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
-import type { ForbiddenSymbolImage, GameToolIcons, ThemeCheckStyle } from '@loredoku/shared';
+import type { UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { imageTintMatrix } from '@/components/common/PressRing';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
+import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
 import { gameTimerKey } from '@/lib/gameTimer';
 import ApiGamePage from './ApiGamePage';
 
@@ -29,15 +30,30 @@ import ApiGamePage from './ApiGamePage';
 
 const fixture = vi.hoisted(() => ({
   /**
-   * v0.8.7 §4：主题的禁止符号（主题概览页那份）。`useForbiddenSymbolByCode` 的 mock
+   * v0.9.5：这一关的数据还在路上（真浏览器里的第一拍）。用例用完记得放回 `false`。
+   */
+  detailPending: false,
+  /**
+   * v0.9.5：整份关卡清单（`/api/games` 那一份，按作者排好的先后）。定案卡的
+   * 「下一关」从它算出来；每个用例可以改它（`useGames` 的 mock 读同一份）。
+   */
+  catalog: [
+    { slug: 'night-train', gridSize: 9 },
+    { slug: 'day-boat', gridSize: 5 },
+    { slug: 'dusk-tower', gridSize: 6 },
+  ] as Array<{ slug: string; gridSize: number }>,
+  /**
+   * v0.8.7 §4：主题的标记（主题概览页那份）。`useForbiddenSymbolByCode` 的 mock
    * 读它，于是「谜题没配 → 跟随主题」这条能在页面级断言。
    */
   theme: {
-    forbiddenSymbol: null as ForbiddenSymbolImage | null,
+    mark: null as UploadedImage | null,
     /** v0.8.7 §7：主题那一套工具按钮图标；默认没配。 */
     toolIcons: null as GameToolIcons | null,
-    /** v0.9.3 §7：主题级的校验样式（两档颜色 + 圈图）；默认没配。 */
-    checkStyle: null as ThemeCheckStyle | null,
+    /** v0.9.3 §7；v0.9.5：主题的两档校验颜色；默认没配。 */
+    checkStyle: null as ThemeCheckColors | null,
+    /** v0.9.2 §2；v0.9.5 合并：主题的**那一圈**图（长按 + 校验共用）；默认没配。 */
+    ring: null as ThemeRing | null,
   },
   detail: {
     id: 1,
@@ -76,7 +92,7 @@ const fixture = vi.hoisted(() => ({
       // v0.6.3 §3.4: the layout the puzzle was published with.
       rosterCols: 3,
       // v0.8.6：默认没配置 —— 这一页的老行为（`×` 字形）必须先原样成立。
-      forbiddenSymbol: null as ForbiddenSymbolImage | null,
+      mark: null as UploadedImage | null,
       /** v0.8.7 §7：谜题自己那一套工具按钮图标；默认没配。 */
       toolIcons: null as GameToolIcons | null,
     },
@@ -84,19 +100,33 @@ const fixture = vi.hoisted(() => ({
 }));
 
 vi.mock('@/hooks/useGames', () => ({
-  useGameDetail: () => ({ data: fixture.detail, isLoading: false, isError: false }),
+  /**
+   * v0.9.5：`useCatalog` 读的是**同一个** `useGames()`（`ApiGameSource` 里就是它）。
+   * 这里给一份清单，「下一关」才有的可算；`catalog` 是可变夹具，用例按需改。
+   *
+   * `detailPending` 也是夹具：真浏览器里数据是异步到的，页面会先渲染一次
+   * 「画布还没到」（`gridSize = 0`）的形态。续计时那个 bug 只在那一拍上出现。
+   */
+  useGameDetail: () =>
+    fixture.detailPending
+      ? { data: undefined, isLoading: true, isError: false }
+      : { data: fixture.detail, isLoading: false, isError: false },
+  useGames: () => ({ data: fixture.catalog, isLoading: false, isError: false, error: null }),
 }));
 vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
 vi.mock('@/hooks/useThemes', () => ({
   /**
-   * v0.8.7 §4：禁止符号的「跟随主题」那一档。真实 hook 返回「按编码查表」的函数，
-   * 这里按同一个签名返回一个常量。
+   * v0.8.7 §4；v0.9.5 更名：标记的「跟随主题」那一档。真实 hook 返回「按编码查表」
+   * 的函数，这里按同一个签名返回一个常量。
    */
-  useForbiddenSymbolByCode: () => () => fixture.theme.forbiddenSymbol,
-  // v0.9.2 §2：长按计时环的图 —— 这一套不测它，主题当作「没配」。
-  usePressRingByCode: () => () => null,
-  // v0.9.3 §3 / §7：校验样式 —— 默认不配，落回内置绿 / 红。
-  useCheckStyleByCode: () => () => fixture.theme.checkStyle,
+  useMarkByCode: () => () => fixture.theme.mark,
+  /**
+   * v0.9.2 §2；v0.9.5：**那一圈** —— 长按计时环与校验圈共用一张。这一套里由
+   * `fixture.theme.ring` 决定，默认「没配」。
+   */
+  useRingByCode: () => () => fixture.theme.ring,
+  // v0.9.3 §3：校验的两档颜色 —— 默认不配，落回内置绿 / 红。
+  useCheckColorsByCode: () => () => fixture.theme.checkStyle,
   /**
    * v0.8.7 §7：三枚工具按钮图标。同样按编码查表，这里返回 fixture 里那一套
    * （默认 `null` = 谁都没配，按钮画内置图标）。
@@ -127,20 +157,46 @@ afterAll(() => {
   media.restore();
 });
 
+/** v0.9.5：结算卡上两枚跳转按钮真的把地址改了 —— 只读它，不渲染目标页。 */
+function PathProbe(): JSX.Element {
+  const location = useLocation();
+  return <p data-testid="route-path">{location.pathname}</p>;
+}
+
+/**
+ * v0.9.5 追加：「下一关」的真实路径 = **同一个 router 内换地址**。
+ *
+ * 把 `useNavigate()` 挂到一个不渲染任何东西的组件上，用例就能在同一个 router
+ * 实例里跳转 —— 这是「组件不重建、状态可能串过去」唯一能被测到的形态。
+ */
+let routerNavigate: ((target: string) => void) | null = null;
+
+function NavigateProbe(): null {
+  routerNavigate = useNavigate();
+  return null;
+}
+
 describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   let container: HTMLDivElement;
   let root: Root;
 
   beforeEach(() => {
     window.localStorage.clear();
-    fixture.detail.puzzle.forbiddenSymbol = null;
-    fixture.theme.forbiddenSymbol = null;
+    fixture.detailPending = false;
+    // 换关用例改过 slug / gridSize —— 它们是同一个夹具对象，必须逐条还原，
+    // 否则后面所有用例都在「5×5 的 day-boat」上跑。
+    fixture.detail.slug = 'night-train';
+    fixture.detail.gridSize = 9;
+    fixture.detail.puzzle.mark = null;
+    fixture.theme.mark = null;
     // v0.9.0 §17：这两套也是 fixture 上的可变状态 —— 不重置的话，图标用例里配的
     // 那几张图会漏到后面的右栏布局用例里（它们要求「谁都没配」）。
     fixture.detail.puzzle.toolIcons = null;
     fixture.theme.toolIcons = null;
     // v0.9.3 §7：圈图与两档颜色也是 fixture 上的可变状态，别漏到别的用例。
     fixture.theme.checkStyle = null;
+    // v0.9.5：那一圈同样是可变夹具（长按 + 校验共用）。
+    fixture.theme.ring = null;
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -167,11 +223,32 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         <MemoryRouter initialEntries={['/play/night-train']}>
           <Routes>
             <Route path="/play/:slug" element={<ApiGamePage />} />
+            {/* 跳走之后那一页不必渲染，但路由表里得有一个落点，否则 router 会警告。 */}
+            <Route path="*" element={null} />
           </Routes>
+          {/* v0.9.5：结算卡上的「下一关 / 返回谜题列表」跳到哪儿 —— 只读地址。 */}
+          <PathProbe />
+          {/* v0.9.5：让用例能在同一个 router 里换关（见 `NavigateProbe`）。 */}
+          <NavigateProbe />
         </MemoryRouter>,
       );
     });
   }
+
+  /**
+   * v0.9.5 追加：在**同一个 router** 里换关 —— 模拟「下一关」的真实路径。
+   *
+   * 用 `<MemoryRouter>` + `navigate()` 而不是重新 `root.render(...)`：后者会换掉
+   * 整棵树，测不到「组件不重建 → 状态串过去」这件事，而那正是这一组用例要抓的。
+   */
+  function navigateTo(nextSlug: string): void {
+    act(() => {
+      routerNavigate?.(`/play/${nextSlug}`);
+    });
+  }
+
+  const path = (): string =>
+    document.querySelector('[data-testid="route-path"]')?.textContent ?? '';
 
   /**
    * jsdom 的元素尺寸恒为 0，而 `fit` / `zoomBy` 都要读真实矩形才有意义。
@@ -207,7 +284,45 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     );
   }
 
-  it('restores a saved board — 头像、编号、禁止符号都还在', () => {
+  /** v0.9.5：`/api/files/…` 那一份印 —— 只是地址，不需要真的能加载。 */
+  const SUBMIT_STAMP_PATH = 'puzzles/7/tool-icons/submit/a.webp';
+  const SUBMIT_STAMP_URL = `/api/files/${SUBMIT_STAMP_PATH}`;
+
+  /** 三位在互不相同的行与列上 —— 客户端校验通过。 */
+  function seedPassingBoard(): void {
+    seedSave({
+      board: {
+        '0,0': { kind: 'participant', index: 1 },
+        '1,1': { kind: 'participant', index: 2 },
+        '2,2': { kind: 'participant', index: 3 },
+      },
+    });
+  }
+
+  /** 1、2 同列 —— 未通过。 */
+  function seedFailingBoard(): void {
+    seedSave({
+      board: {
+        '0,0': { kind: 'participant', index: 1 },
+        '0,1': { kind: 'participant', index: 2 },
+        '5,5': { kind: 'participant', index: 3 },
+      },
+    });
+  }
+
+  /** 点提交、把逐人校验推完，等结算卡落下来。 */
+  function submitAndSettle(): void {
+    act(() => container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click());
+    for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+  }
+
+  function footerButton(label: string): HTMLButtonElement | undefined {
+    return Array.from(
+      document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
+    ).find((node) => node.textContent?.trim() === label);
+  }
+
+  it('restores a saved board — 头像、编号、标记都还在', () => {
     seedSave({
       board: {
         '0,0': { kind: 'participant', index: 1 },
@@ -238,6 +353,130 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(
       container.querySelector('[title="已提交，可继续摆放后再次提交"]'),
     ).toBeNull();
+  });
+
+  /**
+   * v0.9.5 修的一个真 bug（v0.7.11 的续计时在真浏览器里从来没生效过）：
+   *
+   * 页面第一次渲染时数据还没到（`gridSize = 0`），计时落盘那条 effect 的依赖随后
+   * 变一次，于是**清理函数**先跑了一次 —— 它写的是 `elapsedRef`（那时还是 0），
+   * 而 `writeGameTimer(…, 0)` 的语义是**删键**。删的正是紧接着要读的那条存档。
+   *
+   * 这条用例模拟「数据晚一拍才到」：先给一份空 detail 渲染一次，再换成真的。
+   * 水合之后秒表必须还是存档里的 03:07 —— 而且落盘不能把它清掉。
+   */
+  it('数据晚一拍才到时，存档里的计时不会被抢在读取之前删掉', () => {
+    window.localStorage.setItem(
+      gameTimerKey('night-train'),
+      JSON.stringify({ gridSize: 9, participantCount: 3, elapsedMs: 187_000 }),
+    );
+    fixture.detailPending = true;
+    render();
+    // 数据到齐，同一个 root 再渲染一次 —— 这正是真浏览器里的那一拍。
+    fixture.detailPending = false;
+    render();
+
+    expect(container.textContent).toContain('03:07');
+    // 落盘写回的是那条存档，不是「0 毫秒 → 删键」。
+    const stored = JSON.parse(
+      window.localStorage.getItem(gameTimerKey('night-train')) ?? 'null',
+    ) as { elapsedMs?: number } | null;
+    expect(stored?.elapsedMs ?? 0).toBeGreaterThanOrEqual(187_000);
+  });
+
+  /**
+   * v0.9.5 修的第二个口子：**换关**。
+   *
+   * 从定案卡点「下一关」时组件不重建，新一关的数据还在路上。旧版这里会拿着
+   * 上一关的累计毫秒去写新一关的键（指纹 `gridSize: 0`）—— 成绩串了关，留下的
+   * 还是一条永远读不回来的垃圾。现在换关时先关闸，等新一关读完自己的存档。
+   */
+  it('换关时不把上一关的用时写进下一关的计时键', () => {
+    window.localStorage.setItem(
+      gameTimerKey('night-train'),
+      JSON.stringify({ gridSize: 9, participantCount: 3, elapsedMs: 187_000 }),
+    );
+    render();
+    expect(container.textContent).toContain('03:07');
+
+    // 切到另一关：先渲染「数据还没到」的那一拍（真实情况），再给数据。
+    fixture.detail.slug = 'day-boat';
+    fixture.detailPending = true;
+    render();
+    fixture.detailPending = false;
+    fixture.detail.gridSize = 5;
+    render();
+
+    expect(window.localStorage.getItem(gameTimerKey('day-boat'))).toBeNull();
+    // 上一关那条也还在、数字没被谁改写。
+    const kept = JSON.parse(
+      window.localStorage.getItem(gameTimerKey('night-train')) ?? 'null',
+    ) as { elapsedMs?: number } | null;
+    expect(kept?.elapsedMs ?? 0).toBeGreaterThanOrEqual(187_000);
+  });
+
+  /**
+   * v0.9.5 追加（用户反馈）：「进入下一关时，应该加载这一关的状态和数据，
+   * 不要复用上一关的状态和数据」。
+   *
+   * 真实路径是**同一个 router 内换地址** —— 组件不重建，于是逐关状态全都留在
+   * 原地：缩放 / 平移、放置模式、联动激活、长按环、脉冲表……真浏览器实测过，
+   * 在 130% 的 A 关点「下一关」，B 关仍停在 130% 与 A 的平移量（B 是 6×6，那张
+   * 纸直接被摆到了屏幕外）。
+   *
+   * 修法是在渲染层外面套一层按关卡变化的 `key`：换关 = 卸载重建，状态自然归零，
+   * 新一关再由自己的数据水合。这里钉「重建过」这一件事 —— 缩放回到 100% 是
+   * 最直观的投影，但真正要保证的是**全部**状态归零，所以下面再加一条棋盘断言。
+   */
+  it('换关时缩放 / 平移回到这一关自己的初值，不继承上一关', () => {
+    window.localStorage.setItem(
+      gameTimerKey('night-train'),
+      JSON.stringify({ gridSize: 9, participantCount: 3, elapsedMs: 187_000 }),
+    );
+    render();
+    sizeCanvas();
+
+    // 在 A 关放大两档 —— 这一页的缩放是逐关状态。
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="放大"]')?.click());
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-label="放大"]')?.click());
+    expect(container.textContent).toContain('120%');
+
+    // 换到 B 关（同一个 router，组件复用）。
+    fixture.detail.slug = 'day-boat';
+    fixture.detail.gridSize = 5;
+    navigateTo('day-boat');
+
+    // B 关拿回自己的 100%，不是 A 关留下的 120%。
+    expect(container.textContent).not.toContain('120%');
+    expect(container.textContent).toContain('100%');
+  });
+
+  /**
+   * 同一件事的另一面：**结案状态**也不该跟到下一关。
+   *
+   * 结算卡开着的时候点「下一关」，新一关若复用了 `result` / `checkRun`，那张
+   * 「定案」卡会跟着过去。这里钉它不跟 —— 换关之后画面上没有结算卡。
+   */
+  it('换关时上一关的结算卡与校验圈不跟过去', () => {
+    vi.useFakeTimers();
+    try {
+      seedPassingBoard();
+      render();
+      submitAndSettle();
+      expect(document.body.textContent).toContain('定案');
+      // 校验圈留在上一关的棋盘上（弹窗背后的那张结论图）。
+      expect(container.querySelectorAll('main .press-ring-arc').length).toBeGreaterThan(0);
+
+      fixture.detail.slug = 'day-boat';
+      fixture.detail.gridSize = 5;
+      navigateTo('day-boat');
+
+      // 新一关：没有结算卡，也没有上一关那几圈。
+      expect(document.body.textContent).not.toContain('定案');
+      expect(container.querySelectorAll('main .press-ring-arc')).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   /**
@@ -577,11 +816,9 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   it('配了圈图：每位的结果色染到那张图上', () => {
     vi.useFakeTimers();
     try {
-      fixture.theme.checkStyle = {
-        passColor: '#16A34A',
-        failColor: '#DC2626',
-        ring: { path: 'themes/3/check-ring/seal.webp' },
-      };
+      // v0.9.5：圈图并进主题的 `ring`，校验只剩两档颜色。
+      fixture.theme.ring = { image: { path: 'themes/3/check-ring/seal.webp' } };
+      fixture.theme.checkStyle = { passColor: '#16A34A', failColor: '#DC2626' };
       seedSave({
         board: {
           '0,0': { kind: 'participant', index: 1 },
@@ -692,6 +929,184 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
+  /**
+   * v0.9.5：两张结果卡各多一枚「返回谜题列表」—— 一局结束，玩家的下一个动作通常
+   * 不是再点棋盘，而是挑下一关。落点与左上角那个箭头同一个地址（`listHref`）。
+   */
+  describe('结果卡的出口（v0.9.5）', () => {
+    it('通过：返回谜题列表 → /play', () => {
+      vi.useFakeTimers();
+      try {
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+
+        const back = footerButton('返回谜题列表');
+        expect(back).toBeDefined();
+        act(() => back?.click());
+        expect(path()).toBe('/play');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('未通过：同样有一枚返回谜题列表', () => {
+      vi.useFakeTimers();
+      try {
+        seedFailingBoard();
+        render();
+        submitAndSettle();
+
+        // 继续游戏 / 重新开始仍在。
+        expect(footerButton('继续游戏')).toBeDefined();
+        expect(footerButton('重新开始')).toBeDefined();
+
+        const back = footerButton('返回谜题列表');
+        expect(back).toBeDefined();
+        act(() => back?.click());
+        expect(path()).toBe('/play');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    /**
+     * 「下一关」＝清单里排在当前之后、还没通过的第一关。当前是 `night-train`
+     * （清单第 0 条），后面那两关都没做过 → 跳 `day-boat`。
+     */
+    it('通过：下一关跳到清单里第一个还没做的关', () => {
+      vi.useFakeTimers();
+      try {
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+
+        const next = footerButton('下一关');
+        expect(next).toBeDefined();
+        act(() => next?.click());
+        expect(path()).toBe('/play/day-boat');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    /** 后面那几关已经通过了 → 没有「下一关」可跳，那枚按钮就不画。 */
+    it('通过：后面的关全通过了 → 不画「下一关」', () => {
+      vi.useFakeTimers();
+      try {
+        // `night-train` 自己会在提交时写记录；另外两关先写进去。
+        recordGameCompletion('day-boat', { gridSize: 5 }, { elapsedMs: 1000, stampUrl: null });
+        recordGameCompletion('dusk-tower', { gridSize: 6 }, { elapsedMs: 2000, stampUrl: null });
+
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+
+        expect(document.body.textContent).toContain('定案');
+        expect(footerButton('返回谜题列表')).toBeDefined();
+        expect(footerButton('下一关')).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    /** 未通过时不给「下一关」—— 通过之后它才是顺理成章的下一步。 */
+    it('未通过：没有「下一关」', () => {
+      vi.useFakeTimers();
+      try {
+        seedFailingBoard();
+        render();
+        submitAndSettle();
+
+        expect(document.body.textContent).toContain('结果');
+        expect(footerButton('下一关')).toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    /**
+     * 后面没有没做过的关时，「再玩一次」重新当主按钮 —— 四枚全是描边的话，
+     * 结案卡上就读不出「下一步建议做什么」了。这里只看类名里的实心底色，
+     * 不钉具体 token。
+     */
+    it('通过但没有下一关：再玩一次仍是主按钮', () => {
+      vi.useFakeTimers();
+      try {
+        recordGameCompletion('day-boat', { gridSize: 5 }, { elapsedMs: 1000, stampUrl: null });
+        recordGameCompletion('dusk-tower', { gridSize: 6 }, { elapsedMs: 2000, stampUrl: null });
+
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+
+        expect(footerButton('下一关')).toBeUndefined();
+        // `bg-primary` 是 Button 的 default 变体；outline 没有它。
+        expect(footerButton('再玩一次')?.className).toContain('bg-primary');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  /**
+   * v0.9.5：通过时落一条记录，列表页据此盖印并写出完成用时。
+   *
+   * 三条行为分开钉：写得对（用时 + 印地址）、没配印也能通过（`stampUrl` 为 null）、
+   * 未通过不写。
+   */
+  describe('通过记录（v0.9.5）', () => {
+    it('通过 → 记下用时与那枚印的地址', () => {
+      vi.useFakeTimers();
+      try {
+        window.localStorage.setItem(
+          gameTimerKey('night-train'),
+          JSON.stringify({ gridSize: 9, participantCount: 3, elapsedMs: 187_000 }),
+        );
+        fixture.detail.puzzle.toolIcons = { submit: { path: SUBMIT_STAMP_PATH } };
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+
+        const saved = readGameCompletion('night-train', { gridSize: 9 });
+        // 计时器从 03:07 接着走，提交那一刻停表 —— 精确到毫秒不确定，只钉区间。
+        expect(saved?.elapsedMs).toBeGreaterThanOrEqual(187_000);
+        expect(saved?.stampUrl).toBe(SUBMIT_STAMP_URL);
+      } finally {
+        fixture.detail.puzzle.toolIcons = null;
+        vi.useRealTimers();
+      }
+    });
+
+    it('没配印也能通过：记录在，印是 null', () => {
+      vi.useFakeTimers();
+      try {
+        seedPassingBoard();
+        render();
+        submitAndSettle();
+
+        const saved = readGameCompletion('night-train', { gridSize: 9 });
+        expect(saved).not.toBeNull();
+        expect(saved?.stampUrl).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('未通过不写记录', () => {
+      vi.useFakeTimers();
+      try {
+        seedFailingBoard();
+        render();
+        submitAndSettle();
+
+        expect(readGameCompletion('night-train', { gridSize: 9 })).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   it('zooms in and out by one step and resets to 100%', () => {
     render();
     sizeCanvas();
@@ -714,18 +1129,18 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   });
 
   /**
-   * v0.8.6（docs/v0.8.6.md §4）：禁止符号可以上传一张图。
+   * v0.8.6（docs/v0.8.6.md §4）：标记可以上传一张图。
    *
    * 只钉**画出来的是谁**：棋盘上那一格从 `×` 字形换成 `<img>`，地址由上传文件的
    * 相对路径拼出来；没配置时仍然是原来那个 `×`。尺寸、内缩、类名都是外观，
    * 不在这里钉。
    */
-  describe('禁止符号用上传的图片（v0.8.6）', () => {
+  describe('标记用上传的图片（v0.8.6）', () => {
     const symbolPath = 'puzzles/12/forbidden-symbol/red.webp';
     const symbolUrl = '/api/files/puzzles/12/forbidden-symbol/red.webp';
 
     it('puts the uploaded image on the board', () => {
-      fixture.detail.puzzle.forbiddenSymbol = { path: symbolPath };
+      fixture.detail.puzzle.mark = { path: symbolPath };
       seedSave({ board: { '4,4': { kind: 'forbidden' } } });
       render();
 
@@ -746,12 +1161,12 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
 
     /**
-     * v0.8.7 §4：「谜题不配置禁止符号图标，则默认使用主题的配置，谜题无需额外配置」。
+     * v0.8.7 §4：「谜题不配置标记图标，则默认使用主题的配置，谜题无需额外配置」。
      * 页面级只认结果 —— 这一格画出来的到底是哪张图。
      */
     it('follows the theme when the puzzle configures nothing', () => {
       const themePath = 'themes/3/forbidden-symbol/ink.webp';
-      fixture.theme.forbiddenSymbol = { path: themePath };
+      fixture.theme.mark = { path: themePath };
       seedSave({ board: { '4,4': { kind: 'forbidden' } } });
       render();
 
@@ -761,8 +1176,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
 
     it('the puzzle’s own image still wins over the theme’s', () => {
-      fixture.detail.puzzle.forbiddenSymbol = { path: symbolPath };
-      fixture.theme.forbiddenSymbol = { path: 'themes/3/forbidden-symbol/ink.webp' };
+      fixture.detail.puzzle.mark = { path: symbolPath };
+      fixture.theme.mark = { path: 'themes/3/forbidden-symbol/ink.webp' };
       seedSave({ board: { '4,4': { kind: 'forbidden' } } });
       render();
 
@@ -773,7 +1188,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
     it('keeps the × glyph for an old version row that has no key at all', () => {
       // v0.8.6 之前发布的版本行里没有这个键（连 `null` 都没有）。
-      delete (fixture.detail.puzzle as { forbiddenSymbol?: unknown }).forbiddenSymbol;
+      delete (fixture.detail.puzzle as { mark?: unknown }).mark;
       seedSave({ board: { '4,4': { kind: 'forbidden' } } });
       render();
 
@@ -781,7 +1196,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
 
     it('previews the same image in the tool-hint layer', () => {
-      fixture.detail.puzzle.forbiddenSymbol = { path: symbolPath };
+      fixture.detail.puzzle.mark = { path: symbolPath };
       render();
       sizeCanvas();
       // jsdom 没有真实布局：先按视口重排一次，再把指针放到画布中心。
@@ -967,7 +1382,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         undo: { path: 'themes/3/tool-icons/undo/b.webp' },
         submit: { path: 'themes/3/tool-icons/submit/c.webp' },
       };
-      fixture.detail.puzzle.forbiddenSymbol = { path: 'puzzles/7/forbidden-symbol/x.webp' };
+      fixture.detail.puzzle.mark = { path: 'puzzles/7/forbidden-symbol/x.webp' };
       render();
 
       const images = Array.from(toolbar().querySelectorAll('img'));

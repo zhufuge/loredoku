@@ -2,6 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import type { MapGameSummary, ThemeDifficultyTier } from '@loredoku/shared';
 import { Card } from '@/components/ui/card';
 import { DifficultyBadge } from '@/components/game/DifficultyBadge';
+import { CompletionOverlay, CompletionTime } from '@/components/game/GameCompletionMark';
+import type { GameCompletion } from '@/lib/gameCompletion';
 import { cn } from '@/lib/utils';
 
 /**
@@ -79,6 +81,7 @@ export function GameCard({
   game,
   href,
   tiers,
+  completion,
 }: {
   game: GameCardData;
   href?: string;
@@ -87,10 +90,21 @@ export function GameCard({
    * 自己读不到主题 —— 由页面查好传下来。不传就还是老行为（工作空间 / 内置五档）。
    */
   tiers?: readonly ThemeDifficultyTier[];
+  /**
+   * v0.9.5：这一关的通过记录（`lib/gameCompletion.ts`）。有值时封面盖一层印、
+   * 页脚写出完成用时。
+   *
+   * 由**页面**读好传进来，不在卡片里自己读 localStorage：卡片是纯展示，
+   * 而「哪些关通过了」是列表页要一次算清的一件事（它还顺手决定定案卡的
+   * 「下一关」跳哪儿）。两个列表页（`/play`、播放器的 `/:code/play`）都已经
+   * 握着 `gridSize`，指纹那一半也不必再问卡片要。
+   */
+  completion?: GameCompletion | null;
 }): JSX.Element {
   const navigate = useNavigate();
   const to = href ?? `/play/${game.slug}`;
   const initial = game.name.trim().charAt(0) || '游';
+  const completed = completion ?? null;
 
   return (
     <Card
@@ -144,6 +158,12 @@ export function GameCard({
             className={cn('paper-light pointer-events-none', layer)}
           />
         ))}
+        {/*
+          v0.9.5：结案的那一层。放在封面里、光的三层之后 —— 它压的是**封面本身**
+          （含那层纸光），而不是压住整张卡片：标题与页脚仍要读得清，玩家在挑关卡时
+          还得看得见这一关叫什么、多难。
+        */}
+        {completed ? <CompletionOverlay completion={completed} /> : null}
       </div>
       <div className="space-y-2 p-4">
         <h3 className="truncate font-medium" title={game.name}>
@@ -151,8 +171,15 @@ export function GameCard({
         </h3>
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <DifficultyBadge difficulty={game.difficulty} tiers={tiers} className="rounded" />
-          <span className="tabular-nums transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground">
-            {game.gridSize} × {game.gridSize}
+          <span className="flex items-baseline gap-2">
+            {/*
+              v0.9.5：通过的关卡在这里多一格完成用时 —— 它比 `n × n` 更该被看见，
+              所以排在尺寸左边。没通过时这一格整段不出现，页脚与改动前逐字相同。
+            */}
+            {completed ? <CompletionTime completion={completed} /> : null}
+            <span className="tabular-nums transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground">
+              {game.gridSize} × {game.gridSize}
+            </span>
           </span>
         </div>
       </div>

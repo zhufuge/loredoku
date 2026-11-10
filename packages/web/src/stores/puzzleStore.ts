@@ -9,7 +9,7 @@ import {
   type CharacterSlotEntry,
   type DraftCell,
   type DraftRegion,
-  type ForbiddenSymbolImage,
+  type UploadedImage,
   type GameToolIcons,
   type MapLinkageColor,
   type MapStyle,
@@ -116,9 +116,9 @@ interface Snapshot {
   /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
   rosterCols: number | null;
   /**
-   * v0.8.6 §4：玩家侧「禁止符号」用哪张上传图。`null` = 默认的 `×` 字形。
+   * v0.8.6 §4：玩家侧「标记」用哪张上传图。`null` = 默认的 `×` 字形。
    */
-  forbiddenSymbol: ForbiddenSymbolImage | null;
+  mark: UploadedImage | null;
   /**
    * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。`null` = 三枚都跟随主题。
    */
@@ -159,7 +159,7 @@ export interface PuzzleState {
    * v0.8.6（docs/v0.8.6.md §4）：玩家在游戏页标记排除项时画面上显示的那枚符号。
    * `null` = 默认的 `×` 字形；非 null 时渲染上传的那张图。
    */
-  forbiddenSymbol: ForbiddenSymbolImage | null;
+  mark: UploadedImage | null;
   /**
    * v0.8.7 §7：游戏页右列三枚动作按钮的画。`null` = 三枚都跟随主题的
    * `ThemeData.toolIcons`，主题也没有就用内置图标。
@@ -203,7 +203,7 @@ export interface PuzzleState {
     characterSlots: Array<CharacterSlotEntry | null>;
     rosterCols: number | null;
     /** v0.8.6 §4：`null` = 默认的 `×` 字形。 */
-    forbiddenSymbol: ForbiddenSymbolImage | null;
+    mark: UploadedImage | null;
     /** v0.8.7 §7：工具按钮图标；`null` = 三枚都跟随主题。 */
     toolIcons: GameToolIcons | null;
   }) => void;
@@ -273,10 +273,10 @@ export interface PuzzleState {
 }
 
 /**
- * v0.8.6 §4：禁止符号图是平坦的 `{ path }`，复制一层就和来源脱钩了（撤销栈 /
+ * v0.8.6 §4：标记图是平坦的 `{ path }`，复制一层就和来源脱钩了（撤销栈 /
  * 草稿都不能和「此刻」共用一个对象）。
  */
-function cloneForbiddenSymbol(ref: ForbiddenSymbolImage | null): ForbiddenSymbolImage | null {
+function cloneMark(ref: UploadedImage | null): UploadedImage | null {
   return ref ? { ...ref } : null;
 }
 
@@ -304,7 +304,7 @@ function snapshot(state: PuzzleState): Snapshot {
     linkageColors: state.linkageColors.map((entry) => ({ ...entry })),
     characterSlots: state.characterSlots.map(ensureEntry),
     rosterCols: state.rosterCols,
-    forbiddenSymbol: cloneForbiddenSymbol(state.forbiddenSymbol),
+    mark: cloneMark(state.mark),
     toolIcons: cloneToolIcons(state.toolIcons),
     mapContext: state.mapContext,
   };
@@ -348,7 +348,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     linkageColors: resolveLinkageColors(undefined),
     characterSlots: [],
     rosterCols: null,
-    forbiddenSymbol: null,
+    mark: null,
     toolIcons: null,
     selection: null,
     selectedSlotIndex: null,
@@ -388,7 +388,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         ).map(ensureEntry),
         rosterCols: detail.data.rosterCols ?? null,
         // v0.8.6 §4：旧行没有这个键，读进来是「默认 ×」而不是 undefined。
-        forbiddenSymbol: cloneForbiddenSymbol(detail.data.forbiddenSymbol ?? null),
+        mark: cloneMark(detail.data.mark ?? null),
         // v0.8.7 §7：同理，旧行没有 `toolIcons` = 三枚都跟随主题。
         toolIcons: cloneToolIcons(detail.data.toolIcons),
         selection: null,
@@ -427,7 +427,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           patch.characterSlots,
         ).map(ensureEntry);
         next.rosterCols = patch.rosterCols;
-        next.forbiddenSymbol = cloneForbiddenSymbol(patch.forbiddenSymbol);
+        next.mark = cloneMark(patch.mark);
         next.toolIcons = cloneToolIcons(patch.toolIcons);
       }),
 
@@ -664,9 +664,9 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         // asked for, so the column count has to reach the snapshot.
         rosterCols: state.rosterCols,
         // v0.8.6 §4: 只有作者真的挑过图才写这个键 —— 默认 × 用「缺席」表达，
-        // 草稿里不留一个 `forbiddenSymbol: null`。
-        ...(state.forbiddenSymbol
-          ? { forbiddenSymbol: { ...state.forbiddenSymbol } }
+        // 草稿里不留一个 `mark: null`。
+        ...(state.mark
+          ? { mark: { ...state.mark } }
           : {}),
         // v0.8.7 §7：同一条规矩 —— 三枚一张都没配就不写这个键。
         ...(state.toolIcons ? { toolIcons: cloneToolIcons(state.toolIcons)! } : {}),
@@ -686,7 +686,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
           characterSlots: genSlotArray(size, draft.characterSlots).map(ensureEntry),
           rosterCols: draft.rosterCols ?? null,
           // v0.8.6 §4：导入 / 恢复草稿时整块读入，同样是副本。
-          forbiddenSymbol: cloneForbiddenSymbol(draft.forbiddenSymbol ?? null),
+          mark: cloneMark(draft.mark ?? null),
           toolIcons: cloneToolIcons(draft.toolIcons),
           past,
           future: [],

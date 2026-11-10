@@ -32,7 +32,7 @@ import * as mapRepo from '../repository/mapRepository';
 import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 import { absorbLegacyMapDraft, readLegacyLinkageColors } from './mapDraftCompat';
-import { processForbiddenSymbolImage, processPuzzleCover, processToolIconImage } from '../utils/image';
+import { processMarkImage, processPuzzleCover, processToolIconImage } from '../utils/image';
 import { buildFileUrl } from '../utils/paths';
 
 /**
@@ -55,8 +55,8 @@ export function coverRequired(): AppError {
 }
 
 /** Raised when `POST /api/puzzles/:id/forbidden-symbol` arrives without a file part. */
-export function forbiddenSymbolRequired(): AppError {
-  return AppError.validation('请选择禁止符号图片');
+export function markRequired(): AppError {
+  return AppError.validation('请选择标记图片');
 }
 
 /** v0.8.7 §7：`POST /api/puzzles/:id/tool-icons/:icon` 少了文件部分。 */
@@ -463,12 +463,12 @@ export async function removeCover(id: number): Promise<PuzzleDetail> {
  *    fork 态拿到的就是版本行 id，上传发生在保存草稿之前；写文件不碰冻结快照。
  * 3. 回执是 `{ path, url }` 而不是整条谜题 —— 行本来就没变。
  */
-export async function uploadForbiddenSymbol(
+export async function uploadMark(
   id: number,
   buffer: Buffer,
 ): Promise<{ path: string; url: string }> {
   await requireRow(id);
-  const image = await processForbiddenSymbolImage({ kind: 'puzzle', id }, buffer);
+  const image = await processMarkImage({ kind: 'puzzle', id }, buffer);
   return { path: image.relativePath, url: buildFileUrl(image.relativePath) };
 }
 

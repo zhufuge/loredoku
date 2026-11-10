@@ -23,7 +23,7 @@ import ApiGamePage from './ApiGamePage';
  *   5. 按住滑过的格子都会落笔（放置 / 擦除），且抬手那一记 click 不会把最后一格
  *      再切换一次。
  *
- * 环的几何（周长、时长变量、12 点起点）在 `PressRing.test.tsx` 里单独钉，
+ * 环的几何（周长、时长变量、12 点起点）在 `ring.test.tsx` 里单独钉，
  * 扇形的角度与时长变量在 `PressSweep.test.tsx` 里单独钉。
  */
 
@@ -66,15 +66,20 @@ const fixture = vi.hoisted(() => ({
 
 vi.mock('@/hooks/useGames', () => ({
   useGameDetail: () => ({ data: fixture.detail, isLoading: false, isError: false }),
+  /**
+   * v0.9.5：`ApiGameSource.useCatalog()` 读的是同一个 `useGames()`。这一套不测
+   * 「下一关」，给一份只含当前这一关的清单 —— 后面没有关卡，那枚按钮不出现。
+   */
+  useGames: () => ({ data: [], isLoading: false, isError: false, error: null }),
 }));
 vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
 vi.mock('@/hooks/useThemes', () => ({
-  // v0.8.7 §4：禁止符号「谜题 → 主题 → ×」的第二档。这一套不测它，返回「主题没配」。
-  useForbiddenSymbolByCode: () => () => null,
+  // v0.8.7 §4：标记「谜题 → 主题 → ×」的第二档。这一套不测它，返回「主题没配」。
+  useMarkByCode: () => () => null,
   // v0.9.2 §2：计时环的图 —— 这一套不测它，主题当作「没配」。
-  usePressRingByCode: () => () => null,
+  useRingByCode: () => () => null,
   // v0.9.3 §3：校验样式 —— 这一套不测它，主题当作「没配」。
-  useCheckStyleByCode: () => () => null,
+  useCheckColorsByCode: () => () => null,
   // v0.8.7 §7：这一套不测工具图标，主题那一套一律当作「没配」。
   useToolIconsByCode: () => () => null,
 }));
@@ -227,7 +232,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
   /** 切到 `×` 工具（工具栏第二组里那个红叉按钮）。 */
   function enterForbidden(): void {
     const button = container.querySelector<HTMLButtonElement>('button[title="标记"]');
-    if (!button) throw new Error('禁止符号按钮没渲染出来');
+    if (!button) throw new Error('标记按钮没渲染出来');
     act(() => button.click());
   }
 
@@ -368,7 +373,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
   });
 
   /**
-   * v0.7.12（「不能站立的格子和禁止符号在的格子，选参与者长按时，不出现圆圈，
+   * v0.7.12（「不能站立的格子和标记在的格子，选参与者长按时，不出现圆圈，
    * 不提示，就是无效果」）。
    *
    * 前两版是「环先照画，被规则拒绝时再收回」。问题是环画满的那一刻，玩家看到的
@@ -461,7 +466,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
   });
 
   /**
-   * v0.7.12（「禁止符号点已经放置了禁止符号的格子时，清空该格子的禁止符号」）。
+   * v0.7.12（「标记点已经放置了标记的格子时，清空该格子的标记」）。
    *
    * `×` 从此是一支开关。此前这一下什么都不做，撤销一个点错的 `×` 要切到橡皮
    * 擦掉整格、再切回来 —— 两次工具切换只为了一个单格动作。
@@ -525,7 +530,7 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
   /**
    * v0.9.2 §5：清除按钮的长按不再画环，改成**按钮方块内的扇形扫描**。
    * 这里钉的是同一套时序（延迟 160ms 才出现、抬手即消失），只把观察对象
-   * 从 `.press-ring-arc` 换成 `.press-sweep` —— 环的几何归 `PressRing.test.tsx`，
+   * 从 `.press-ring-arc` 换成 `.press-sweep` —— 环的几何归 `ring.test.tsx`，
    * 扇形的几何归 `PressSweep.test.tsx`。
    */
   /**

@@ -44,23 +44,23 @@ export async function remove(ctx: Context): Promise<void> {
 }
 
 /**
- * v0.8.6 §4：主题的「禁止符号缺省」上传 / 清除。
+ * v0.8.6 §4；v0.9.5 更名：主题的**标记**缺省上传 / 清除。
  *
  * 回执是**更新后的主题**（而不是单独的 `path`）：作者改的是主题配置，前端拿到
- * 整份就能直接刷新那一屏。两张图的旧文件都不删 —— 存量谜题可能还指着它们。
+ * 整份就能直接刷新那一屏。旧文件不删 —— 存量谜题可能还指着它。
  */
-export async function uploadForbiddenSymbol(ctx: Context): Promise<void> {
+export async function uploadMark(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
   const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
   if (!file) {
-    throw themeService.forbiddenSymbolRequired();
+    throw themeService.markRequired();
   }
-  success(ctx, await themeService.uploadForbiddenSymbol(code, file.buffer), '禁止符号已保存');
+  success(ctx, await themeService.uploadMark(code, file.buffer), '标记已保存');
 }
 
-export async function removeForbiddenSymbol(ctx: Context): Promise<void> {
+export async function removeMark(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
-  success(ctx, await themeService.removeForbiddenSymbol(code), '禁止符号已清除');
+  success(ctx, await themeService.removeMark(code), '标记已清除');
 }
 
 /**
@@ -86,23 +86,23 @@ export async function removeToolIcon(ctx: Context): Promise<void> {
 }
 
 /**
- * v0.9.2 §2：长按放置参与者时的**计时环**图（主题级）。
+ * v0.9.2 §2；v0.9.5 起与校验圈**合并成一张** —— 所以只有一个 `ring` 入口。
  *
- * 与禁止符号 / 工具图标同一个形状：一次一张、即时保存、回执是更新后的整份主题。
- * 不配就是内置白弧，所以「移除」不是一个清空动作，而是**回到默认样式**。
+ * 与标记 / 工具图标同一个形状：一次一张、即时保存、回执是更新后的整份主题。
+ * 不配就是内置细弧，所以「移除」不是一个清空动作，而是**回到默认样式**。
  */
-export async function uploadPressRing(ctx: Context): Promise<void> {
+export async function uploadRing(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
   const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
   if (!file) {
-    throw themeService.pressRingRequired();
+    throw themeService.ringRequired();
   }
-  success(ctx, await themeService.uploadPressRing(code, file.buffer), '计时环已保存');
+  success(ctx, await themeService.uploadRing(code, file.buffer), '圆环已保存');
 }
 
-export async function removePressRing(ctx: Context): Promise<void> {
+export async function removeRing(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
-  success(ctx, await themeService.removePressRing(code), '计时环已恢复默认');
+  success(ctx, await themeService.removeRing(code), '圆环已恢复默认');
 }
 
 /**
@@ -115,21 +115,6 @@ export async function updateCheckStyle(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
   const patch = parseOrThrow(updateThemeCheckStyleSchema, ctx.request.body);
   success(ctx, await themeService.updateCheckStyle(code, patch), '校验颜色已保存');
-}
-
-/** v0.9.3 §3：校验圈图（主题级，可选）。不传 = 回到内置本色细环。 */
-export async function uploadCheckRing(ctx: Context): Promise<void> {
-  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
-  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
-  if (!file) {
-    throw themeService.checkRingRequired();
-  }
-  success(ctx, await themeService.uploadCheckRing(code, file.buffer), '校验圈图已保存');
-}
-
-export async function removeCheckRing(ctx: Context): Promise<void> {
-  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
-  success(ctx, await themeService.removeCheckRing(code), '校验圈已恢复默认');
 }
 
 /**

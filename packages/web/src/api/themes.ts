@@ -35,25 +35,24 @@ export const themesApi = {
   remove: (code: string) => apiDelete<null>(`/themes/${code}`),
 
   /**
-   * v0.8.6 §4 / v0.8.7 §4 —— 主题级的「禁止符号」：本主题里**没有单独配置**的谜题
-   * 读取时都用这张（谜题自己配了则覆盖）。
+   * v0.8.6 §4 / v0.8.7 §4；v0.9.5 更名 —— 主题级的**标记**：本主题里**没有单独配置**
+   * 的谜题读取时都用这张（谜题自己配了则覆盖）。
    *
    * 与其它 `data` 修改不同，这两个端点**即时保存**：上传 / 移除当场写进 `themes.data`
    * 并回更新后的整份主题，概览页因此不需要「保存」。图落在 `storage/uploads` 下，
-   * `data.forbiddenSymbol.path` 只记相对路径（渲染时 `fileUrlFromPath` 拼地址）。
+   * `data.mark.path` 只记相对路径（渲染时 `fileUrlFromPath` 拼地址）。
    */
-  uploadForbiddenSymbol: (code: string, file: File) => {
+  uploadMark: (code: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return apiPost<Theme>(`/themes/${code}/forbidden-symbol`, form);
+    return apiPost<Theme>(`/themes/${code}/mark`, form);
   },
-  removeForbiddenSymbol: (code: string) =>
-    apiDelete<Theme>(`/themes/${code}/forbidden-symbol`),
+  removeMark: (code: string) => apiDelete<Theme>(`/themes/${code}/mark`),
 
   /**
    * v0.8.7 §7 —— 主题的工具按钮图标（清除 / 撤回 / 提交），**一次一枚**、即时保存。
    *
-   * 与禁止符号同一套：回执是更新后的整份主题，概览页那一屏直接换掉；点「移除」就是
+   * 与标记同一套：回执是更新后的整份主题，概览页那一屏直接换掉；点「移除」就是
    * 把那一枚从 `data.toolIcons` 里删掉（另外两枚不动）。
    */
   uploadToolIcon: (code: string, icon: GameToolIconKind, file: File) => {
@@ -65,32 +64,26 @@ export const themesApi = {
     apiDelete<Theme>(`/themes/${code}/tool-icons/${icon}`),
 
   /**
-   * v0.9.2 §2 —— 长按放置参与者时那圈**计时环**的图，**即时保存**。
+   * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张** —— 所以这里只有一个
+   * `ring` 端点、没有 `:kind` 那一段。
    *
-   * 与禁止符号同一种「读取时兜底」：上传即覆盖、移除即回到内置白弧。只有一张，
-   * 所以地址里没有 `:kind` 那一段。
+   * 与标记同一种「读取时兜底」：上传即覆盖、移除即回到各自的内置细弧。
    */
-  uploadPressRing: (code: string, file: File) => {
+  uploadRing: (code: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
-    return apiPost<Theme>(`/themes/${code}/press-ring`, form);
+    return apiPost<Theme>(`/themes/${code}/ring`, form);
   },
-  removePressRing: (code: string) => apiDelete<Theme>(`/themes/${code}/press-ring`),
+  removeRing: (code: string) => apiDelete<Theme>(`/themes/${code}/ring`),
 
   /**
-   * v0.9.3 §3 —— 提交校验的两档颜色与圈图。
+   * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。
    *
-   * 颜色走 PATCH（只带要改的那一档），圈图走上传 / 删除 —— 配色与换图是两个动作，
-   * 分开之后「改一个颜色」不会把整份 `data` 覆盖一遍。
+   * 颜色走 PATCH（只带要改的那一档），圈图走上面的上传 / 删除 —— 配色与换图是两个
+   * 动作，分开之后「改一个颜色」不会把整份 `data` 覆盖一遍。
    */
   updateCheckStyle: (code: string, patch: { passColor?: string; failColor?: string }) =>
     apiPatch<Theme>(`/themes/${code}/check-style`, patch),
-  uploadCheckRing: (code: string, file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    return apiPost<Theme>(`/themes/${code}/check-ring`, form);
-  },
-  removeCheckRing: (code: string) => apiDelete<Theme>(`/themes/${code}/check-ring`),
 };
 
 /**

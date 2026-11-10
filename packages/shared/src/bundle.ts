@@ -2,14 +2,16 @@ import { BUNDLE_FORMAT, BUNDLE_FORMAT_VERSION } from './constants';
 import type {
   Asset,
   Character,
-  ForbiddenSymbolImage,
   GameDifficulty,
   MapDraft,
   MapGameSummary,
   ParticipantTarget,
   PuzzleDraft,
-  ThemeCheckStyle,
+  ThemeCheckColors,
   ThemeDifficultyTier,
+  // v0.9.5：原来的 `ForbiddenSymbolImage` / `ThemeCheckStyle` 改名为 `UploadedImage`
+  // 与 `ThemeCheckColors`，圈图并进 `ThemeRing`。
+  ThemeRing,
 } from './types/domain';
 import {
   collectPuzzleThemeRefs,
@@ -199,25 +201,27 @@ export interface BundleManifestTheme {
   description: string | null;
   difficultyLevels?: readonly ThemeDifficultyTier[];
   /**
-   * v0.9.2 §2：长按计时环那张图（主题级，所有关卡共用一张）。
+   * v0.9.2 §2；v0.9.5 起与提交校验圈**合并成一套**（`ThemeRing`）。
    *
    * 放在 manifest 而不是逐关复制：同一张图进 8 份没有意义，而播放器进列表页时
-   * 已经读了 manifest，顺手就能拿到。`path` 是**包内相对路径**
-   * （`files/ring/press-ring.webp`），由播放器拼到包根。
+   * 已经读了 manifest，顺手就能拿到。`image.path` 是**包内相对路径**
+   * （`files/ring/ring.webp`），由播放器拼到包根。
    *
-   * 可选：没配过环的主题没有这个键，播放器画内置白弧。
+   * 可选：没配过环的主题没有这个键，播放器画内置细弧。
+   *
+   * v0.9.5 之前这里是 `pressRing: { path }` 与 `checkStyle.ring: { path }` 两个键
+   * —— 播放器读老包时由 `migrateLegacyBundleRing` 换成新形状。
    */
-  pressRing?: ForbiddenSymbolImage | null;
+  ring?: ThemeRing | null;
   /**
-   * v0.9.3 §3：提交校验的两档颜色与圈图。
+   * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。
    *
-   * 与 `pressRing` 同一条「主题级共用一份」：颜色是几个字节，圈图是一张图 ——
-   * 都写进 manifest，播放器不必再读 theme.json。`ring.path` 是包内相对路径
-   * （`files/check/check-ring.webp`）。
+   * 与 `ring` 同一条「主题级共用一份」：颜色是几个字节，都写进 manifest，播放器
+   * 不必再读 theme.json。
    *
    * 可选：没配过的主题没有这个键，播放器按内置绿 / 红处理。
    */
-  checkStyle?: ThemeCheckStyle | null;
+  checkStyle?: ThemeCheckColors | null;
 }
 
 export interface BundleManifest {
@@ -265,9 +269,9 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
       ...(input.theme.difficultyLevels
         ? { difficultyLevels: input.theme.difficultyLevels }
         : {}),
-      // v0.9.2 §2：同一条「没配就不写键」—— 计时环是可选装饰。
-      ...(input.theme.pressRing ? { pressRing: input.theme.pressRing } : {}),
-      // v0.9.3 §3：校验样式同理。颜色与圈图可能只配了一半，按原样抄进去。
+      // v0.9.2 §2 / v0.9.5：同一条「没配就不写键」—— 那一圈是可选装饰。
+      ...(input.theme.ring ? { ring: input.theme.ring } : {}),
+      // v0.9.3 §3：校验颜色同理。只配了颜色没配图是常态。
       ...(input.theme.checkStyle ? { checkStyle: input.theme.checkStyle } : {}),
     },
     games: input.games,

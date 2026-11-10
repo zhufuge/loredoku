@@ -21,13 +21,14 @@ import {
   type BundleManifestGame,
   type BundleThemeFile,
   type Character,
-  type ForbiddenSymbolImage,
-  type ThemeCheckStyle,
   type GameToolIcons,
   type MapDraft,
   type PuzzleDraft,
+  type ThemeCheckColors,
   type ThemeData,
   type ThemeRefTarget,
+  type ThemeRing,
+  type UploadedImage,
 } from '@loredoku/shared';
 import * as assetRepo from '../repository/assetRepository';
 import * as characterRepo from '../repository/characterRepository';
@@ -114,11 +115,11 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
   /** 主题的 `data` 是 JSON 列，取一次给下面三处用。 */
   const themeData = (themeRow.data as ThemeData | null) ?? null;
   /**
-   * v0.8.7 §4：主题的禁止符号是**读取时**的缺省。包里必须把它一起装上 ——
-   * 否则「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
+   * v0.8.7 §4；v0.9.5 更名：主题的**标记**是**读取时**的缺省。包里必须把它一起装上
+   * —— 否则「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
    * 谜题自己配了就不看这份（那一关的 JSON 里已经有路径）。
    */
-  const themeForbiddenSymbol: ForbiddenSymbolImage | null = themeData?.forbiddenSymbol ?? null;
+  const themeMark: UploadedImage | null = themeData?.mark ?? null;
   /**
    * v0.8.7 §7：工具按钮图标同样要进包，理由与禁止符号一字不差 —— 线上画的是主题
    * 那张，包里若没有，同一关的按钮在两种运行环境里长得不一样。
@@ -137,16 +138,16 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
   for (const [index, game] of games.entries()) {
     const key = game.input.summary.slug;
     const cover = await takeCover(game.row, index + 1, files);
-    // v0.8.6 §4：一张上传的禁止符号图 —— 包内路径改写发生在这里（`shared/bundle`
+    // v0.8.6 §4：一张上传的标记图 —— 包内路径改写发生在这里（`shared/bundle`
     // 只重编号资源 id，它没有文件系统，不知道文件在不在）。
-    const withSymbol = await takeForbiddenSymbol(
+    const withMark = await takeMark(
       game.input,
       key,
-      themeForbiddenSymbol,
+      themeMark,
       files,
       problems,
     );
-    const input = await takeToolIcons(withSymbol, key, themeToolIcons, files, problems);
+    const input = await takeToolIcons(withMark, key, themeToolIcons, files, problems);
     manifestGames.push({
       key,
       file: `puzzles/${key}.json`,
@@ -165,57 +166,39 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
   if (problems.length > 0) throw incomplete(problems);
 
   /**
-   * v0.9.2 §2：长按计时环那张图 —— 主题级、所有关卡共用一张，所以只装一份，
-   * 路径进 `manifest.theme.pressRing`。不逐关复制：同一张图进 8 份没有意义，
-   * 而播放器进列表页时已经读了 manifest。
+   * v0.9.2 §2；v0.9.5 合并：**那一圈** —— 长按计时环与提交校验圈共用一张图。
+   *
+   * 主题级、所有关卡共用一张，所以只装一份，路径进 `manifest.theme.ring`。不逐关
+   * 复制：同一张图进 8 份没有意义，而播放器进列表页时已经读了 manifest。
    */
-  const pressRingSource = themeData?.pressRing?.path ?? null;
-  let manifestPressRing: ForbiddenSymbolImage | null = null;
-  if (pressRingSource) {
-    const taken = await files.take(pressRingSource, `files/ring/press-ring${extension(pressRingSource)}`);
+  const ringSource = themeData?.ring?.image?.path ?? null;
+  let manifestRing: ThemeRing | null = null;
+  if (ringSource) {
+    const taken = await files.take(ringSource, `files/ring/ring${extension(ringSource)}`);
     if (!taken) {
       problems.push({
         game: themeRow.name,
-        where: '计时环',
+        where: '圆环',
         kind: 'file',
-        message: `图片 ${pressRingSource} 不在了`,
+        message: `图片 ${ringSource} 不在了`,
       });
       throw incomplete(problems);
     }
-    manifestPressRing = { path: taken };
+    manifestRing = { image: { path: taken } };
   }
 
   /**
-   * v0.9.3 §3：提交校验的圈图 —— 同样是主题级一张，装进 `files/check/`，
-   * 路径进 `manifest.theme.checkStyle.ring`。两档颜色是几个字节，一起写进 manifest，
-   * 播放器因此不必为了配色再读一次 theme.json。
+   * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。
    *
-   * 只配了颜色没配图是常态（默认就是绿 / 红），所以这里两种情况都要能过去。
+   * 颜色是几个字节，一起写进 manifest，播放器因此不必为了配色再读一次 theme.json。
+   * 只配了颜色没配图是常态（默认就是绿 / 红），所以两种都要能过去。
    */
-  const checkRingSource = themeData?.checkStyle?.ring?.path ?? null;
-  let manifestCheckStyle: ThemeCheckStyle | null = themeData?.checkStyle
+  const manifestCheckStyle: ThemeCheckColors | null = themeData?.checkStyle
     ? {
         passColor: themeData.checkStyle.passColor,
         failColor: themeData.checkStyle.failColor,
-        ...(themeData.checkStyle.ring ? { ring: themeData.checkStyle.ring } : {}),
       }
     : null;
-  if (checkRingSource) {
-    const taken = await files.take(
-      checkRingSource,
-      `files/check/check-ring${extension(checkRingSource)}`,
-    );
-    if (!taken) {
-      problems.push({
-        game: themeRow.name,
-        where: '校验圈',
-        kind: 'file',
-        message: `图片 ${checkRingSource} 不在了`,
-      });
-      throw incomplete(problems);
-    }
-    manifestCheckStyle = { ...(manifestCheckStyle as ThemeCheckStyle), ring: { path: taken } };
-  }
 
   const exportedAt = new Date().toISOString();
   const themeFile: BundleThemeFile = {
@@ -236,7 +219,7 @@ export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> 
       name: themeRow.name,
       description: themeRow.description,
       ...(themeDifficultyLevels ? { difficultyLevels: themeDifficultyLevels } : {}),
-      ...(manifestPressRing ? { pressRing: manifestPressRing } : {}),
+      ...(manifestRing ? { ring: manifestRing } : {}),
       ...(manifestCheckStyle ? { checkStyle: manifestCheckStyle } : {}),
     },
     exportedAt,
@@ -533,31 +516,31 @@ async function takeCover(
  * 返回的是新的 `BundleGameInput`：`buildBundlePuzzleFile` 会 clone 谜题，但输入
  * 本身还被别处用来算引用闭包，不能原地改。
  */
-async function takeForbiddenSymbol(
+async function takeMark(
   game: BundleGameInput,
   gameKey: string,
-  fallback: ForbiddenSymbolImage | null,
+  fallback: UploadedImage | null,
   files: FileSink,
   problems: BundleProblem[],
 ): Promise<BundleGameInput> {
   /**
    * v0.8.7 §4：自己配了用自己的，没配就用主题那张（与玩家侧同一个顺序）。
-   * 只有一条出路 —— 两边都没有，这一关进包时就不带符号图，播放器画 `×`。
+   * 只有一条出路 —— 两边都没有，这一关进包时就不带标记图，播放器画 `×`。
    */
-  const sourcePath = game.puzzle.forbiddenSymbol?.path ?? fallback?.path;
+  const sourcePath = game.puzzle.mark?.path ?? fallback?.path;
   if (!sourcePath) return game;
 
-  const taken = await files.take(sourcePath, `files/symbols/${gameKey}${extension(sourcePath)}`);
+  const taken = await files.take(sourcePath, `files/marks/${gameKey}${extension(sourcePath)}`);
   if (!taken) {
     problems.push({
       game: game.summary.name,
-      where: '禁止符号',
+      where: '标记',
       kind: 'file',
       message: `图片 ${sourcePath} 不在了`,
     });
     return game;
   }
-  return { ...game, puzzle: { ...game.puzzle, forbiddenSymbol: { path: taken } } };
+  return { ...game, puzzle: { ...game.puzzle, mark: { path: taken } } };
 }
 
 /**

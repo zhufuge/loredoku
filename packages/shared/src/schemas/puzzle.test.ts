@@ -173,20 +173,21 @@ describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
   });
 
   /**
-   * v0.8.6（docs/v0.8.6.md §4）—— 禁止符号用哪张资源图。
+   * v0.8.6（docs/v0.8.6.md §4）；v0.9.5 起字段名为 `mark` —— **标记**用哪张图。
    *
    * 与 `rosterCols` 同一条可选字段规则：老版本行没有这个键照样解析，值缺席 =
-   * 默认的 `×`。`variantId` 可选（缺省 = 资源第一个形态），`null` 与缺席等价。
+   * 默认的 `×`。`null` 与缺席等价（= 跟随主题）。
+   *
+   * 旧键 `forbiddenSymbol` 仍读得出来（冻结的版本行、旧导出包），由
+   * `withLegacyImageKeys` 在读入时搬成 `mark`。
    */
-  it('keeps the forbidden symbol image optional and strict', () => {
+  it('keeps the mark image optional and strict', () => {
     const older = puzzleDraftSchema.parse(draft());
-    expect(older.forbiddenSymbol).toBeUndefined();
-    expect(puzzleDraftSchema.parse(draft({ forbiddenSymbol: null })).forbiddenSymbol).toBeNull();
+    expect(older.mark).toBeUndefined();
+    expect(puzzleDraftSchema.parse(draft({ mark: null })).mark).toBeNull();
 
-    const chosen = puzzleDraftSchema.parse(
-      draft({ forbiddenSymbol: { path: 'puzzles/12/forbidden-symbol/a1b2.webp' } }),
-    );
-    expect(chosen.forbiddenSymbol).toEqual({ path: 'puzzles/12/forbidden-symbol/a1b2.webp' });
+    const chosen = puzzleDraftSchema.parse(draft({ mark: { path: 'puzzles/12/mark/a1b2.webp' } }));
+    expect(chosen.mark).toEqual({ path: 'puzzles/12/mark/a1b2.webp' });
 
     for (const bad of [
       {},
@@ -198,10 +199,20 @@ describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
       { path: 'puzzles/1/x.webp', extra: true },
       'puzzles/1/x.webp',
     ] as Array<unknown>) {
-      expect(puzzleDraftSchema.safeParse(draft({ forbiddenSymbol: bad })).success, JSON.stringify(bad)).toBe(
+      expect(puzzleDraftSchema.safeParse(draft({ mark: bad })).success, JSON.stringify(bad)).toBe(
         false,
       );
     }
+  });
+
+  /** v0.9.5：v0.9.5 之前落库的谜题行还带着旧键，读进来必须落到 `mark` 上。 */
+  it('读得懂 v0.9.5 之前的 forbiddenSymbol（旧键搬到 mark）', () => {
+    const legacy = puzzleDraftSchema.parse(
+      draft({ forbiddenSymbol: { path: 'puzzles/12/forbidden-symbol/a1b2.webp' } }),
+    );
+    expect(legacy.mark).toEqual({ path: 'puzzles/12/forbidden-symbol/a1b2.webp' });
+    // 旧键本身不再出现在解析结果里（写回去时只会写新键）。
+    expect(legacy).not.toHaveProperty('forbiddenSymbol');
   });
 });
 

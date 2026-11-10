@@ -1138,23 +1138,29 @@ export const UPLOAD_ALLOWED_MIME = [
 export const THUMBNAIL_MAX_DIMENSION = 512;
 
 /**
- * v0.8.6（docs/v0.8.6.md §4）：禁止符号那张图的长边上限（像素）。
+ * v0.8.6（docs/v0.8.6.md §4）：**符号级小图**的长边上限（像素）。
  *
- * 它画在格子里的有效面积不到一格，256px 已经够 4K 屏；再大只是让一份谜题 JSON
- * 从几 KB 变成几 MB（图是内联在谜题数据里的，见 `ForbiddenSymbolImage`）。
+ * v0.9.5 起这一类图不再只有「禁止符号」：标记、清除 / 回退 / 提交三枚按钮图标、
+ * 长按计时环与校验圈都是同一种「作者上传的一张图」，尺寸档也相同 —— 它们最终都
+ * 画在「一格」这个尺度上（最大是格子直径，实测 152px 上下），256 已经够 4K 屏。
+ * 再大只是让一份谜题 JSON 从几 KB 变成几 MB（图是内联在数据里的，
+ * 见 `UploadedImage`）。
  */
-export const FORBIDDEN_SYMBOL_MAX_DIMENSION = 256;
+export const SYMBOL_IMAGE_MAX_DIMENSION = 256;
 
-/** v0.8.6：`forbiddenSymbol.path` 的长度上限（`storage/uploads` 下的相对路径）。 */
-export const FORBIDDEN_SYMBOL_PATH_MAX_LENGTH = 200;
+/** v0.8.6：`UploadedImage.path` 的长度上限（`storage/uploads` 下的相对路径）。 */
+export const SYMBOL_IMAGE_PATH_MAX_LENGTH = 200;
 
 // ---- v0.8.7 §7：游戏页工具按钮的图标（docs/v0.8.7.md §7） ----
 /**
  * 游戏页右列那三枚**动作按钮**：清除、撤回、提交。
  *
- * 它们和禁止符号是两件事：禁止符号是玩家画在格子里的**符号**（放置层 / 提示层 /
+ * 它们和标记是两件事：标记是玩家画在格子里的**符号**（放置层 / 提示层 /
  * 工具栏三处同图），而这三枚只是按钮上的画。所以存储也分开（`toolIcons` 与
- * `forbiddenSymbol` 各一个键），解析顺序却相同：谜题自己的 → 主题的 → 内置图标。
+ * `mark` 各一个键），解析顺序却相同：谜题自己的 → 主题的 → 内置图标。
+ *
+ * v0.9.5：这四样（标记 + 三枚按钮）在配置页里并进了**同一个模块**，
+ * 因为作者改的是「这一套操作长什么样」，分两处会让人以为它们无关。
  */
 export const GAME_TOOL_ICON_KINDS = ['clear', 'undo', 'submit'] as const;
 export type GameToolIconKind = (typeof GAME_TOOL_ICON_KINDS)[number];

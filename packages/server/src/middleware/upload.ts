@@ -13,5 +13,5 @@ export const gameCoverUpload = imageUpload;
 export const mapCoverUpload = imageUpload;
 /** v0.7.1 §7.5: the puzzle cover rides the same reader. */
 export const puzzleCoverUpload = imageUpload;
-/** v0.8.6 §4: 禁止符号的上传图 —— 谜题与主题缺省共用同一个 reader。 */
-export const forbiddenSymbolUpload = imageUpload;
+/** v0.8.6 §4；v0.9.5 更名：**符号小图** —— 标记 / 工具图标 / 圆环共用同一个 reader。 */
+export const symbolImageUpload = imageUpload;

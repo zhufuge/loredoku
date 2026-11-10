@@ -27,7 +27,7 @@ export const TOOL_ICON_FALLBACKS: Record<GameToolIconKind, LucideIcon> = {
  * v0.8.7 §7（docs/v0.8.7.md §7）：游戏页右列三枚**动作按钮**（清除 / 撤回 / 提交）
  * 该画什么。
  *
- * 与禁止符号（`lib/forbiddenSymbol.ts`）是同一条解析顺序，只是消费位置不同：
+ * 与标记（`lib/mark.ts`）是同一条解析顺序，只是消费位置不同：
  *
  * ```
  * 谜题自己的 toolIcons  →  主题的 data.toolIcons  →  内置 lucide 图标
@@ -46,7 +46,7 @@ export interface ToolIconRender {
 /**
  * 一枚的最终结果；`null` = 两边都没有，调用方画内置图标。
  *
- * `toUrl` 与禁止符号那个同一条道理：默认 `/api/files/<path>`，播放器（v0.9.0）
+ * `toUrl` 与标记那个同一条道理：默认 `/api/files/<path>`，播放器（v0.9.0）
  * 传包根解析器 —— 那边的图片是包里的静态文件。
  */
 export function resolveToolIcon(

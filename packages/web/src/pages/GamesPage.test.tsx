@@ -3,6 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapGameSummary, ThemeDifficultyTier } from '@loredoku/shared';
+import { recordGameCompletion } from '@/lib/gameCompletion';
 import { GamesPage } from './GamesPage';
 
 /**
@@ -143,5 +144,88 @@ describe('GamesPage', () => {
     mount();
 
     expect(document.body.textContent).toContain('简单');
+  });
+
+  /**
+   * v0.9.5：通过的关卡在列表页留两样东西 —— 封面上**大面积覆盖 + 提交图案倾斜
+   * 盖上**，页脚补一格**完成用时**。
+   *
+   * 三条分开钉：通过的才有、没通过的没有（别把整页都盖上）、以及「没配印就只有
+   * 用时，不盖空蒙版」（与 v0.9.3 §3 定案卡同一条规矩）。
+   */
+  describe('已完成的谜题（v0.9.5）', () => {
+    const stampUrl = '/api/files/themes/2/tool-icons/submit/a.webp';
+
+    const covers = (): Array<HTMLElement> =>
+      Array.from(document.querySelectorAll<HTMLElement>('[data-testid="game-completion-cover"]'));
+
+    it('通过的关卡：封面盖上那枚印、页脚写出完成用时；没通过的两样都没有', () => {
+      gamesRef.data = [
+        game({ id: 1, slug: 'done-one', gridSize: 5 }),
+        game({ id: 2, slug: 'not-yet', gridSize: 5 }),
+      ];
+      recordGameCompletion('done-one', { gridSize: 5 }, { elapsedMs: 187_000, stampUrl });
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      const cover = covers();
+      expect(cover).toHaveLength(1);
+      const img = cover[0]?.querySelector('img');
+      expect(img?.getAttribute('src')).toBe(stampUrl);
+
+      const text = document.body.textContent ?? '';
+      expect(text).toContain('用时 03:07');
+      // 只有一张卡有「用时」那一格。
+      expect(document.querySelectorAll('[data-testid="game-completion-time"]')).toHaveLength(1);
+    });
+
+    it('没配印的通过记录：只有用时，封面不盖一层空蒙版', () => {
+      gamesRef.data = [game({ id: 1, slug: 'done-plain', gridSize: 5 })];
+      recordGameCompletion('done-plain', { gridSize: 5 }, { elapsedMs: 65_000, stampUrl: null });
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(covers()).toHaveLength(0);
+      expect(document.body.textContent).toContain('用时 01:05');
+    });
+
+    /** 网格对不上 = 另一道题：旧记录不认，卡片回到「没通过」的样子。 */
+    it('网格变了就不算通过：旧记录整条作废', () => {
+      gamesRef.data = [game({ id: 1, slug: 'rebuilt', gridSize: 6 })];
+      recordGameCompletion('rebuilt', { gridSize: 4 }, { elapsedMs: 1000, stampUrl });
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(covers()).toHaveLength(0);
+      expect(document.body.textContent).not.toContain('用时');
+    });
+
+    /**
+     * 记下来的地址可能已经不在了（作者换过那枚图、包重新导出过）。破图标不能
+     * 留在封面上 —— 加载失败就撤掉那一层，用时照常显示。
+     */
+    it('印的地址失效：那一层撤掉，用时还在', () => {
+      gamesRef.data = [game({ id: 1, slug: 'stale-stamp', gridSize: 5 })];
+      recordGameCompletion('stale-stamp', { gridSize: 5 }, { elapsedMs: 42_000, stampUrl });
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      const img = covers()[0]?.querySelector('img');
+      expect(img).not.toBeNull();
+      act(() => {
+        img?.dispatchEvent(new Event('error'));
+      });
+
+      expect(covers()).toHaveLength(0);
+      expect(document.body.textContent).toContain('用时 00:42');
+    });
   });
 });

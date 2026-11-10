@@ -59,7 +59,7 @@ import {
 } from '@/components/puzzle/PuzzleInfoDrawer';
 import { useCharacters } from '@/hooks/useCharacters';
 import { useAssets } from '@/hooks/useAssets';
-import { useForbiddenSymbolByCode, useToolIconsByCode } from '@/hooks/useThemes';
+import { useMarkByCode, useToolIconsByCode } from '@/hooks/useThemes';
 import { useHighlight } from '@/hooks/useHighlight';
 import {
   useForkPuzzleVersion,
@@ -70,7 +70,7 @@ import {
   useRemovePuzzleCover,
   useSavePuzzle,
   useUploadPuzzleCover,
-  useUploadPuzzleForbiddenSymbol,
+  useUploadPuzzleMark,
   useUploadPuzzleToolIcon,
 } from '@/hooks/usePuzzles';
 import { useEditorPublish } from '@/hooks/useEditorPublish';
@@ -148,10 +148,10 @@ export function PuzzleEditorPage(): JSX.Element {
   const assetsQuery = useAssets({ themeCode });
   const charactersQuery = useCharacters({ themeCode });
   /**
-   * v0.8.7 §4：禁止符号「没配就跟随主题」，抽屉要显示这一题**最终**会画的那张。
+   * v0.8.7 §4：标记「没配就跟随主题」，抽屉要显示这一题**最终**会画的那张。
    * 编码就在地址里，走「主题列表摊成表」那条路（与播放页同一个 hook）。
    */
-  const themeForbiddenSymbolOf = useForbiddenSymbolByCode();
+  const themeMarkOf = useMarkByCode();
   /** v0.8.7 §7：主题那一套工具按钮图标 —— 三枚一起查，抽屉逐枚说明「跟随」。 */
   const themeToolIconsOf = useToolIconsByCode();
   const saveMutation = useSavePuzzle();
@@ -163,10 +163,10 @@ export function PuzzleEditorPage(): JSX.Element {
   const uploadCoverMutation = useUploadPuzzleCover();
   const removeCoverMutation = useRemovePuzzleCover();
   /**
-   * v0.8.6 §4：禁止符号图在**选中那一刻**就上传（路径要先进草稿），所以它不走
+   * v0.8.6 §4：标记图在**选中那一刻**就上传（路径要先进草稿），所以它不走
    * `pendingCover` 那套「保存后再传」的时序；fork 态用版本行 id 上传，端点允许。
    */
-  const uploadForbiddenSymbolMutation = useUploadPuzzleForbiddenSymbol();
+  const uploadMarkMutation = useUploadPuzzleMark();
   /** v0.8.7 §7：三枚工具按钮图标同样「选中即上传」，一次一枚。 */
   const uploadToolIconMutation = useUploadPuzzleToolIcon();
   /** v0.7.3 §3：引入新地图的弹窗 + 取新画布时的忙碌态。 */
@@ -508,7 +508,7 @@ export function PuzzleEditorPage(): JSX.Element {
       linkageColors: next.linkageColors,
       characterSlots: next.characterSlots,
       rosterCols: next.rosterCols,
-      forbiddenSymbol: next.forbiddenSymbol,
+      mark: next.mark,
       toolIcons: next.toolIcons,
     });
     // 抽屉每次提交都带上当前的封面状态，所以只在真的变了时才改 pending。
@@ -862,7 +862,7 @@ export function PuzzleEditorPage(): JSX.Element {
         onOpenVersions={() => setVersionsOpen(true)}
         onImportMap={() => setSwapOpen(true)}
         mapInfoOpen={puzzleInfoOpen}
-        infoTitle="谜题基本信息（名称、封面、描述、禁止符号、参与者布局、联动主题色）"
+        infoTitle="谜题基本信息（名称、封面、描述、标记、参与者布局、联动主题色）"
         onOpenMapInfo={() => {
           if (puzzleInfoOpen) {
             closePuzzleInfo();
@@ -1065,13 +1065,13 @@ export function PuzzleEditorPage(): JSX.Element {
             linkageColors={puzzle.linkageColors}
             characterSlots={puzzle.characterSlots}
             rosterCols={puzzle.rosterCols}
-            forbiddenSymbol={puzzle.forbiddenSymbol}
-            themeForbiddenSymbol={themeForbiddenSymbolOf(themeCode)}
+            mark={puzzle.mark}
+            themeMark={themeMarkOf(themeCode)}
             toolIcons={puzzle.toolIcons ?? null}
             themeToolIcons={themeToolIconsOf(themeCode)}
-            onUploadForbiddenSymbol={async (file) => {
+            onUploadMark={async (file) => {
               try {
-                return await uploadForbiddenSymbolMutation.mutateAsync({ id, file });
+                return await uploadMarkMutation.mutateAsync({ id, file });
               } catch {
                 // 抽屉负责提示与保留原值；这里只把失败折成 `null`。
                 return null;

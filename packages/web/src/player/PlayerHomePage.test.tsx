@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BUNDLE_FORMAT, BUNDLE_FORMAT_VERSION } from '@loredoku/shared';
 import type { BundleManifest } from '@loredoku/shared';
+import { recordGameCompletion } from '@/lib/gameCompletion';
+import { bundleStorageId } from './bundleLoad';
 import { PlayerHomePage } from './PlayerHomePage';
 
 /**
@@ -143,5 +145,36 @@ describe('PlayerHomePage 的难度徽章', () => {
     const texts = badges();
     expect(texts).toContain('简单');
     expect(texts).toContain('中等');
+  });
+
+  /**
+   * v0.9.5：通过的关卡在播放器的列表页也留「印 + 用时」。
+   *
+   * 关键是**存档键**：离线包用的是 `bundle:<code>:<key>`，与线上那套（裸 slug）
+   * 互不相通（v0.8.0 §11.6）。这里按包键写一条，再确认卡片认得出它 —— 顺手守住
+   * 「别把线上那套键也读进来」的边界。
+   */
+  it('通过记录按包键读：封面盖上那枚印、页脚写出用时', () => {
+    manifestRef.data = manifest(identity);
+    recordGameCompletion(bundleStorageId('hlm', 'puzzle-sishan'), { gridSize: 4 }, {
+      elapsedMs: 187_000,
+      stampUrl: '/loredoku/hlm/files/icons/puzzle-sishan-submit.webp',
+    });
+    // 裸 slug 那条是线上那一套 —— 它在这里不该被认。
+    recordGameCompletion('puzzle-yinqilin', { gridSize: 5 }, {
+      elapsedMs: 60_000,
+      stampUrl: '/api/files/themes/2/tool-icons/submit/a.webp',
+    });
+    mount();
+
+    const covers = document.querySelectorAll('[data-testid="game-completion-cover"]');
+    expect(covers).toHaveLength(1);
+    expect(covers[0]?.querySelector('img')?.getAttribute('src')).toBe(
+      '/loredoku/hlm/files/icons/puzzle-sishan-submit.webp',
+    );
+
+    const times = document.querySelectorAll('[data-testid="game-completion-time"]');
+    expect(times).toHaveLength(1);
+    expect(times[0]?.textContent).toContain('03:07');
   });
 });
