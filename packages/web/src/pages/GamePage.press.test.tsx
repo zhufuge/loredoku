@@ -435,7 +435,11 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     ]);
   });
 
-  it('按住清除橡皮擦滑过的格子一起清掉', () => {
+  /**
+   * v0.9.8：擦掉一格是**两拍**——先演退场动效，动画放完才真的从棋盘上删掉。
+   * 断言因此要等一小段，而不是抬手立刻读存档。
+   */
+  it('按住清除橡皮擦滑过的格子一起清掉', async () => {
     seedSave({
       board: {
         '0,0': { kind: 'participant', index: 1 },
@@ -462,6 +466,62 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     pointer('pointerup', cellCenter(2, 0));
     clickAt(cellCenter(2, 0));
 
+    await wait(400);
+
+    expect(savedBoard()).toEqual({});
+  });
+
+  /**
+   * v0.9.8：擦掉的那一格**先退场再消失**。
+   *
+   * 直接删的话玩家只看到画面重绘了一次，分不清刚擦掉的是哪一格；按住滑过一片
+   * 时更是跟不上。这里钉的是「点下去之后、删掉之前」那一段：格子上挂上了退场
+   * 类，存档里却还在。
+   */
+  it('橡皮点掉一格：先演退场，动效放完才从存档里删', async () => {
+    seedSave({ board: { '4,4': { kind: 'numbers', entries: [2] } } });
+    render();
+    sizeCanvas();
+
+    const eraser = Array.from(container.querySelectorAll('button')).find((node) =>
+      node.getAttribute('title')?.startsWith('清除放置'),
+    );
+    if (!eraser) throw new Error('清除按钮没渲染出来');
+    act(() => {
+      eraser.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+      eraser.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
+    });
+
+    clickAt(cellCenter(4, 4));
+
+    // 退场进行中：棋盘上还留着，只是已经在淡出。
+    expect(savedBoard()['4,4']).toEqual({ kind: 'numbers', entries: [2] });
+    expect(container.querySelector('.erase-out')).not.toBeNull();
+
+    await wait(400);
+
+    expect(savedBoard()).toEqual({});
+    expect(container.querySelector('.erase-out')).toBeNull();
+  });
+
+  /** 空格上按橡皮：本来就没东西可擦，不播动效、也不写存档。 */
+  it('橡皮点空格：什么都不发生', async () => {
+    render();
+    sizeCanvas();
+
+    const eraser = Array.from(container.querySelectorAll('button')).find((node) =>
+      node.getAttribute('title')?.startsWith('清除放置'),
+    );
+    if (!eraser) throw new Error('清除按钮没渲染出来');
+    act(() => {
+      eraser.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
+      eraser.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
+    });
+
+    clickAt(cellCenter(4, 4));
+
+    expect(container.querySelector('.erase-out')).toBeNull();
+    await wait(400);
     expect(savedBoard()).toEqual({});
   });
 

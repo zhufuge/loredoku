@@ -14,6 +14,7 @@ import {
 } from '@loredoku/shared';
 import type { GamePlacementBoard } from '@loredoku/shared';
 import { itemPadding } from '@/lib/canvasScale';
+import { cn } from '@/lib/utils';
 import type { MarkRender } from '@/lib/mark';
 import { glyphFontSize, numberSlotAnchor, type GameToolHint } from '@/lib/gamePlacement';
 import type { ToolIconRender } from '@/lib/toolIcons';
@@ -103,7 +104,12 @@ export function MapGameToolHintLayer({
    * v0.9.1 §3：把一张上传图铺进格子。标记与清除图标共用这一段 —— 两者都是
    * 「按钮上画什么，指针底下就预告什么」，只是内缩比例不同。
    */
-  const imageHint = (imageUrl: string, insetRatio: number, filter?: string): JSX.Element => {
+  const imageHint = (
+    imageUrl: string,
+    insetRatio: number,
+    filter?: string,
+    pop = false,
+  ): JSX.Element => {
     const inset = total * insetRatio;
     return (
       <div
@@ -126,10 +132,20 @@ export function MapGameToolHintLayer({
           }}
         >
           <img
+            /*
+             * v0.9.8：`key` 跟着格子走 —— 指针挪到另一格时强制重挂载，动效才会
+             * 重新播一遍。不重挂载的话 React 复用同一个 `<img>`，动画只在第一次
+             * 悬停时演一次，之后换格子都是「图瞬间跳过去」。
+             */
+            key={`hint-${cell.x},${cell.y}`}
             src={imageUrl}
             alt=""
             draggable={false}
-            className="pointer-events-none absolute select-none"
+            className={
+              pop
+                ? 'forbidden-pop pointer-events-none absolute select-none'
+                : 'pointer-events-none absolute select-none'
+            }
             style={{
               left: inset,
               top: inset,
@@ -152,10 +168,17 @@ export function MapGameToolHintLayer({
    * v0.9.3 §4：预览加一圈白描边（与清除图标同一条），压在照片上没有底纹也看得清。
    */
   if (hint.kind === 'forbidden' && mark) {
+    /*
+     * v0.9.8：动效搬到**悬浮的**这一枚上。原先「划掉」那一下演在放置层刚落下的
+     * `×` 上，指针底下的预告却是静止的 —— 玩家手一动，先看到的是静止的图跳过去，
+     * 再看到身后那一格自己弹了一下，因果是反的。现在预告本身带 `forbidden-pop`，
+     * 落下的 `×` 直接出现。
+     */
     return imageHint(
       mark.imageUrl,
       FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO,
       hintOutlineFilter(total),
+      true,
     );
   }
   /**
@@ -200,6 +223,8 @@ export function MapGameToolHintLayer({
       const fontSize = cellSize * GAME_FORBIDDEN_FONT_RATIO;
       return (
         <text
+          /* v0.9.8：动效在**悬浮的**这一枚 `×` 上，见上面 `imageHint` 的注释。 */
+          className="forbidden-pop"
           x={total / 2}
           y={total / 2}
           fill={GAME_TOOL_HINT_FORBIDDEN_COLOR}
@@ -254,6 +279,8 @@ export function MapGameToolHintLayer({
       style={{ zIndex: MAP_LAYER_Z.gameToolHint }}
     >
       <svg
+        /* v0.9.8：同 `imageHint`，`key` 跟着格子走才会换一格重播一次动效。 */
+        key={`hint-${cell.x},${cell.y}`}
         className="absolute left-0 top-0"
         width={total}
         height={total}
@@ -428,12 +455,16 @@ export function MapGameCheckLayer({
 }
 
 /**
- * v0.7.11：「刚放下的东西」按格子索引 —— 值是该格的参与者编号，`null` 是那个 `×`。
+ * v0.7.11：「刚放下的编号」按格子索引 —— 值是那一格的参与者编号。
  * 只用来挂一次性的缩放动效，过期就由页面摘掉（见 `GamePage` 的 `markPulse`）。
+ *
+ * v0.9.8：`×` 不再进这张表。放下的 `×` 是静默出现的，演动效的是**跟着指针
+ * 悬停的那一枚**（见 `MapGameToolHintLayer`）—— 那才是玩家手指尖上的东西。
  */
-export type GamePlacementPulse = Readonly<Record<string, number | null>>;
+export type GamePlacementPulse = Readonly<Record<string, number>>;
 
 const EMPTY_PULSE: GamePlacementPulse = {};
+const EMPTY_ERASING: ReadonlySet<string> = new Set();
 
 /**
  * 层 5 · 游戏放置层（Game Placement Layer）— SPEC-G01 (docs/v0.4.0.md §7).
@@ -462,6 +493,7 @@ export function MapGamePlacementLayer({
   activeParticipantId = null,
   settleKey = null,
   pulse = EMPTY_PULSE,
+  erasing = EMPTY_ERASING,
   mark = null,
 }: {
   board: GamePlacementBoard;
@@ -478,13 +510,21 @@ export function MapGamePlacementLayer({
    */
   settleKey?: string | null;
   /**
-   * v0.7.11：刚放下的**编号 / 标记**，按格子键索引 —— 值是参与者编号，
-   * `null` 表示那个 `×`。命中的那一个字形播一次「盖章」缩放。
+   * v0.7.11：刚放下的**编号**，按格子键索引 —— 值是参与者编号。命中的那一个
+   * 字形播一次「盖章」缩放。
    *
    * 用表而不是单个「最后一格」：按住滑动会连着放好几格，单值会让前一格的字形
    * 在动画播到一半时被摘掉类，缩放立刻弹回原尺寸 —— 看起来像闪了一下。
    */
   pulse?: GamePlacementPulse;
+  /**
+   * v0.9.8：**正在退场**的格子。橡皮点掉一格时先演一次缩小淡出，动画放完页面
+   * 才真的把它从棋盘上删掉（见 `GamePage` 的 `eraseCell`）。
+   *
+   * 三种放置形态共用同一支动效：玩家要看见的是「刚才那一格被我擦掉了」，不是
+   * 「编号有编号的擦法、头像有头像的擦法」。
+   */
+  erasing?: ReadonlySet<string>;
   /** v0.8.6：标记配置的图片；`null` = 画那枚 `×` 字形。 */
   mark?: MarkRender | null;
 }): JSX.Element | null {
@@ -515,7 +555,11 @@ export function MapGamePlacementLayer({
           >
             {placement.kind === 'participant' ? (
               <div
-                className={settleKey === key ? 'place-settle absolute' : 'absolute'}
+                className={cn(
+                  'absolute',
+                  settleKey === key && 'place-settle',
+                  erasing.has(key) && 'erase-out',
+                )}
                 style={{
                   inset: 0,
                   // v0.6.4 §3: the active participant's avatar magnifies around
@@ -541,44 +585,47 @@ export function MapGamePlacementLayer({
 
             {placement.kind === 'numbers' ? (
               <svg className="absolute left-0 top-0" width={cellSize} height={cellSize}>
-                {placement.entries.map((participantId, index) => {
-                  const anchor = numberSlotAnchor(index);
-                  // v0.6.4 §3: only the active participant's own glyph grows —
-                  // the stroke scales with it so the outline keeps its weight.
-                  const active = participantId === activeParticipantId;
-                  const glyphScale = active ? GAME_ACTIVE_PARTICIPANT_NUMBER_SCALE : 1;
-                  // v0.6.4 fix §4: the glyph is the participant's 编号展示
-                  // text when they have one — the same mapping the roster
-                  // badges use — and their sequence number otherwise.
-                  const slot = slots[participantId - 1] ?? null;
-                  const label = participantBadgeText(slot, participantId - 1);
-                  // A configured label can be wider than a digit, so the font
-                  // shrinks to keep it inside its third of the cell.
-                  const fontSize = glyphFontSize(
-                    label,
-                    cellSize / GAME_NUMBER_GRID,
-                    numberFontSize * glyphScale,
-                  );
-                  return (
-                    <text
-                      key={`num-${key}-${participantId}-${index}`}
-                      x={anchor.x * cellSize}
-                      y={anchor.y * cellSize}
-                      fill={slot?.themeColor ?? '#000000'}
-                      stroke="#000000"
-                      strokeWidth={fontSize * GAME_NUMBER_STROKE_RATIO}
-                      paintOrder="stroke fill"
-                      fontSize={fontSize}
-                      fontWeight={700}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      // v0.7.11：刚放下的这个编号「盖章」一次（180ms 缩放）。
-                      className={pulse[key] === participantId ? 'place-pop' : undefined}
-                    >
-                      {label}
-                    </text>
-                  );
-                })}
+                {/* v0.9.8：擦除时整格一起退场，所以套一层 `<g>` 而不是逐枚字形挂类。 */}
+                <g className={erasing.has(key) ? 'erase-out' : undefined}>
+                  {placement.entries.map((participantId, index) => {
+                    const anchor = numberSlotAnchor(index);
+                    // v0.6.4 §3: only the active participant's own glyph grows —
+                    // the stroke scales with it so the outline keeps its weight.
+                    const active = participantId === activeParticipantId;
+                    const glyphScale = active ? GAME_ACTIVE_PARTICIPANT_NUMBER_SCALE : 1;
+                    // v0.6.4 fix §4: the glyph is the participant's 编号展示
+                    // text when they have one — the same mapping the roster
+                    // badges use — and their sequence number otherwise.
+                    const slot = slots[participantId - 1] ?? null;
+                    const label = participantBadgeText(slot, participantId - 1);
+                    // A configured label can be wider than a digit, so the font
+                    // shrinks to keep it inside its third of the cell.
+                    const fontSize = glyphFontSize(
+                      label,
+                      cellSize / GAME_NUMBER_GRID,
+                      numberFontSize * glyphScale,
+                    );
+                    return (
+                      <text
+                        key={`num-${key}-${participantId}-${index}`}
+                        x={anchor.x * cellSize}
+                        y={anchor.y * cellSize}
+                        fill={slot?.themeColor ?? '#000000'}
+                        stroke="#000000"
+                        strokeWidth={fontSize * GAME_NUMBER_STROKE_RATIO}
+                        paintOrder="stroke fill"
+                        fontSize={fontSize}
+                        fontWeight={700}
+                        textAnchor="middle"
+                        dominantBaseline="central"
+                        // v0.7.11：刚放下的这个编号「盖章」一次（180ms 缩放）。
+                        className={pulse[key] === participantId ? 'place-pop' : undefined}
+                      >
+                        {label}
+                      </text>
+                    );
+                  })}
+                </g>
               </svg>
             ) : null}
 
@@ -586,19 +633,21 @@ export function MapGamePlacementLayer({
               mark ? (
                 /**
                  * v0.8.6：这条谜题给标记配了一张图 —— 画图，不再画 `×`。
-                 * `data-testid` 与动效类名都留在同一个元素上，页面测试和「刚
-                 * 放下」的盖章动效不必知道这次画的是字形还是图片。
+                 * `data-testid` 留在同一个元素上，页面测试不必知道这次画的是
+                 * 字形还是图片。
+                 *
+                 * v0.9.8：放下的 `×` 不再演入场动效（演的是悬停那一枚），但被
+                 * 橡皮擦掉时仍要退场 —— `erase-out` 与放置动效是两件事。
                  */
                 <img
                   src={mark.imageUrl}
                   alt=""
                   draggable={false}
                   data-testid={`forbidden-${key}`}
-                  className={
-                    pulse[key] === null
-                      ? 'forbidden-pop block h-full w-full select-none'
-                      : 'block h-full w-full select-none'
-                  }
+                  className={cn(
+                    'block h-full w-full select-none',
+                    erasing.has(key) && 'erase-out',
+                  )}
                   style={{
                     objectFit: 'contain',
                     padding: cellSize * FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO,
@@ -616,10 +665,8 @@ export function MapGamePlacementLayer({
                     textAnchor="middle"
                     dominantBaseline="central"
                     data-testid={`forbidden-${key}`}
-                    // v0.7.12：`×` 有自己的一支动效 —— 从 0.35 倍弹到 1.16 倍再落定，
-                    // 带一点回正的轻微旋转。编号的 `place-pop` 是「盖章」，这个更像
-                    // 「划掉」，两者不该长得一模一样。
-                    className={pulse[key] === null ? 'forbidden-pop' : undefined}
+                    // v0.9.8：入场静默，退场（被擦掉）走 `erase-out`。
+                    className={erasing.has(key) ? 'erase-out' : undefined}
                   >
                     ×
                   </text>

@@ -157,20 +157,19 @@ export function GameCard({
             alt={game.name}
             draggable={false}
             /*
-             * v0.9.7：定案卡**不演 hover 放大** —— 与不演光源同一条理由。
-             * 封面一推进，「定案 + 印」跟着一起胀，读起来像这张卡还能再点进去
-             * 玩一局；结案是既成事实，该稳稳停着。
+             * v0.9.8：定案卡也演 hover 放大 —— 与封面光源不同，几何推进是
+             * 「这张卡可点」的通用手感，结案卡仍能点进去看成绩，不该独缺这一下。
              */
             className={cn(
               'no-drag h-full w-full object-cover transition-transform duration-image ease-in-out',
-              !completed && 'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
+              'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
             )}
           />
         ) : (
           <div
             className={cn(
               'flex h-full w-full items-center justify-center bg-secondary/40 transition-transform duration-image ease-in-out',
-              !completed && 'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
+              'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
             )}
           >
             <span className="text-4xl font-semibold text-muted-foreground/60">{initial}</span>

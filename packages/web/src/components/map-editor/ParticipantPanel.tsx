@@ -710,9 +710,11 @@ export function ParticipantPanel({
                     ) : null}
                   </div>
 
-                  {/* OPT-A02: clue area 72px, 3 lines @ 11px/20px, ellipsis + title tooltip */}
+                  {/* OPT-A02: clue area 72px, 3 lines @ 11px/20px, ellipsis + title tooltip
+                      v0.9.8：线索短的时候（一两行）也要在 72px 里上下居中 ——
+                      原来 items-start 让一两行的卡看着「上半截有字、下半截空」。 */}
                   <div
-                    className="flex w-full items-start justify-center px-1"
+                    className="flex w-full items-center justify-center px-1"
                     style={{ height: CLUE_AREA_HEIGHT }}
                   >
                     {clueSegments.length > 0 ? (

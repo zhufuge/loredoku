@@ -575,18 +575,18 @@
   @keyframes stamp-press {
     from {
       opacity: 0;
-      transform: scale(1.7) rotate(-18deg);
+      transform: scale(1.7) rotate(-24deg);
     }
     55% {
       opacity: 1;
-      transform: scale(0.92) rotate(-8deg);
+      transform: scale(0.92) rotate(-14deg);
     }
     78% {
-      transform: scale(1.04) rotate(-8deg);
+      transform: scale(1.04) rotate(-14deg);
     }
     to {
       opacity: 1;
-      transform: scale(1) rotate(-8deg);
+      transform: scale(1) rotate(-14deg);
     }
   }
 
@@ -651,6 +651,33 @@
     to {
       scale: 1;
       rotate: 0deg;
+    }
+  }
+
+  /*
+   * 被擦掉的一刻（v0.9.8）—— 三种放置形态共用同一支退场。
+   *
+   * 橡皮点下去如果东西直接消失，玩家看到的只是一次重绘：分不清刚擦掉的是哪一
+   * 格。这里让那一格先缩下去、淡出去，动画放完页面才真的把它从棋盘上删掉
+   * （见 `GamePage` 的 `eraseCell`），「擦掉」因此是一段看得见的过程。
+   *
+   * `both` 是必需的：动画结束后元素要保持末帧的透明，直到页面把它摘掉 ——
+   * 否则最后那几毫秒会闪回原样。
+   */
+  .erase-out {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: erase-out var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  @keyframes erase-out {
+    from {
+      opacity: 1;
+      scale: 1;
+    }
+    to {
+      opacity: 0;
+      scale: 0.45;
     }
   }
 

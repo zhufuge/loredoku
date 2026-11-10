@@ -13,8 +13,8 @@ import { cn } from '@/lib/utils';
  * 三处必须是**同一张脸**：玩家在列表上认出的那枚印，进关卡后盖上来的也得是它。
  * 所以这里只管画，位置与动画交给调用方（遮罩里居中、卡片里撑满封面）。
  *
- * 印的角度固定在 **−8°**，与 v0.9.3 定案卡那枚 `stamp-press` 停下的角度一致 ——
- * 同一枚印在两处不会一正一歪。
+ * 印的角度固定在 **−14°**（v0.9.8 从 −8° 再斜一点），与 `index.css` 里
+ * `stamp-press` 收尾帧一致 —— 同一枚印在两处不会一正一歪。
  */
 
 /**
@@ -53,7 +53,10 @@ export function VerdictStamp({
        * 不随主题变。深底上的可读性交给印自己的透明底与下面那层字衬。
        */
       className={cn(
-        '-rotate-[8deg] select-none object-contain',
+        /* v0.9.8：再斜一点（−8° → −14°）。角度同时写在 `index.css` 的
+           `@keyframes stamp-press` 收尾帧里，两处必须一致，否则「有没有动效」
+           会停成两个不同的角度。 */
+        '-rotate-[14deg] select-none object-contain',
         animate && 'stamp-press',
         className,
       )}
@@ -68,7 +71,7 @@ export function VerdictStamp({
  * 卡片封面与地图遮罩共用这一个组件、同一个排法（用户 v0.9.6：「位置也相同」）。
  * `large` 给地图遮罩用（棋盘比 291px 的卡大得多），但**比例与次序不变**。
  *
- * 做法：容器里文字与印各自居中，印用负 `margin-top` 上提；角度仍是 −8°。
+ * 做法：容器里文字与印各自居中，印用负 `margin-top` 上提；角度仍是 −14°。
  * 上提量按字号比例走（em），`large` 与卡片两处因此自动同比例叠压。
  *
  * v0.9.7（第六批）：字再放大一档、印上提更多 —— 用户「定案字体大小可以再大一些，
@@ -109,8 +112,8 @@ export function VerdictMark({
           onDark
             ? 'text-primary-foreground dark:text-foreground'
             : 'text-foreground',
-          /* v0.9.7（第六批）：再放大一档。 */
-          large ? 'text-8xl' : 'text-5xl',
+          /* v0.9.8：再放大一档（遮罩 8xl → 9xl，卡片 5xl → 7xl）。 */
+          large ? 'text-9xl' : 'text-7xl',
         )}
       >
         定案

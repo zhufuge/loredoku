@@ -78,7 +78,11 @@ import {
 } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
-import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
+import {
+  clearGameCompletion,
+  readGameCompletion,
+  recordGameCompletion,
+} from '@/lib/gameCompletion';
 import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
 import {
   resetGameTimer,
@@ -156,6 +160,14 @@ const RULER_STORAGE_KEY = 'loredoku.gameview.ruler';
  * 把旧格子再「盖章」一遍。
  */
 const GAME_PLACE_PULSE_MS = 400;
+
+/**
+ * v0.9.8：橡皮擦掉一格时，「退场动效演完」到「真的从棋盘上删掉」之间隔多久。
+ *
+ * 与 `--motion-base`（180ms）同档：动效是缩小淡出，删早了会被截在半路，删晚了
+ * 那格已经透明却还占着「不可站立」的判定。留 40ms 给动画的收尾帧。
+ */
+const GAME_ERASE_MS = 220;
 
 function readStoredRulerVisible(): boolean {
   if (typeof window === 'undefined') return true;
@@ -485,6 +497,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   /** 刚放下的编号 / 标记，按格子键索引；见 `MapGamePlacementLayer` 的 `pulse`。 */
   const [pulse, setPulse] = useState<GamePlacementPulse>({});
   const pulseTimersRef = useRef<Map<string, number>>(new Map());
+  /** v0.9.8：正在退场的格子（橡皮点掉它了）；见 `MapGamePlacementLayer` 的 `erasing`。 */
+  const [erasing, setErasing] = useState<ReadonlySet<string>>(() => new Set());
+  const eraseTimersRef = useRef<Map<string, number>>(new Map());
 
   /**
    * v0.6.2：视图缩放与拖拽平移，与只读预览页同一套手感 ——
@@ -909,7 +924,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     runningSinceRef.current = Date.now();
     setElapsedMs(elapsedRef.current);
     setTimerRunning(true);
-  }, []);
+    // v0.9.8：表一旦重新走起来，这一局就不再是「已定案」的了。
+    if (storageId) clearGameCompletion(storageId);
+  }, [storageId]);
 
   /** 重新计时：清零、清掉本地记录、从这一帧重新走。 */
   const resetTimer = useCallback((): void => {
@@ -919,6 +936,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setTimerRunning(true);
     // v0.9.6：只归零用时，保留「最后离开时间」—— 重新开始也算「来玩过」。
     if (storageId) resetGameTimer(storageId, progressMeta);
+    // v0.9.8：重开一局，完成时间就该跟着一起清掉（计时与完成时间不共存）。
+    if (storageId) clearGameCompletion(storageId);
   }, [storageId, progressMeta]);
 
   useEffect(() => {
@@ -982,6 +1001,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     () => () => {
       for (const timer of pulseTimersRef.current.values()) window.clearTimeout(timer);
       pulseTimersRef.current.clear();
+      // v0.9.8：擦除的定时器同理 —— 到点会对着已卸载的组件 setState。
+      for (const timer of eraseTimersRef.current.values()) window.clearTimeout(timer);
+      eraseTimersRef.current.clear();
       // v0.9.6：定案遮罩那颗「停一秒再弹窗」的定时器也要撤 —— 否则离开页面后它
       // 还会对着一个已经卸载的组件 setState。
       if (verdictTimerRef.current !== null) {
@@ -1324,6 +1346,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setMode({ kind: 'idle' });
     setActivation(INACTIVE_ACTIVATION);
     setPulse({});
+    // v0.9.8：正在退场的格子也一起收 —— 那些 timer 到点会去清一个已经清空的盘。
+    for (const timer of eraseTimersRef.current.values()) window.clearTimeout(timer);
+    eraseTimersRef.current.clear();
+    setErasing(new Set());
     saveProgress(fresh.board);
     resetTimer();
   }, [saveProgress, resetTimer]);
@@ -1363,13 +1389,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   };
 
   /**
-   * v0.7.11：给刚放下的编号 / 标记挂一次「盖章」动效。
+   * v0.7.11：给刚放下的编号挂一次「盖章」动效。
    *
    * 用一张「格子键 → 参与者编号」的表而不是单个「最后一格」：按住滑动会连着
    * 放好几格，单值会让前一格的字形在动画播到一半时被摘掉类，缩放猛地弹回原样。
    * 每一格 400ms 后自己过期（动画只有 180ms），表不会越积越大。
+   *
+   * v0.9.8：`×` 不再走这里 —— 见 `dispatchCell` 的 forbidden 分支。
    */
-  const markPulse = (key: string, participantId: number | null): void => {
+  const markPulse = (key: string, participantId: number): void => {
     setPulse((previous) => ({ ...previous, [key]: participantId }));
     const timers = pulseTimersRef.current;
     const existing = timers.get(key);
@@ -1385,6 +1413,42 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           return next;
         });
       }, GAME_PLACE_PULSE_MS),
+    );
+  };
+
+  /**
+   * v0.9.8：橡皮点掉一格 —— **先演退场，再删**。
+   *
+   * 直接 `clearCell` 的话，格子上的东西是瞬间消失的：玩家只看到画面重绘了一次，
+   * 分不清刚擦掉的是哪一格，按住滑过一片时更是完全跟不上。这里先把格子记进
+   * `erasing`（放置层据此挂 `erase-out`：缩小 + 淡出），动画放完才真的删。
+   *
+   * 每一格各记各的 timer：按住滑过好几格时，几段退场应当并排演，而不是后一格
+   * 把前一格的定时器顶掉 —— 那会让前一格永远停在半透明状态。
+   */
+  const eraseCell = (x: number, y: number): void => {
+    const key = cellKey(x, y);
+    const timers = eraseTimersRef.current;
+    // 已经在退场：这一格不再重启动画，否则按住来回蹭会把动画一直按在第一帧。
+    if (timers.has(key)) return;
+    setErasing((previous) => {
+      if (previous.has(key)) return previous;
+      const next = new Set(previous);
+      next.add(key);
+      return next;
+    });
+    timers.set(
+      key,
+      window.setTimeout(() => {
+        timers.delete(key);
+        setErasing((previous) => {
+          if (!previous.has(key)) return previous;
+          const next = new Set(previous);
+          next.delete(key);
+          return next;
+        });
+        updatePlacement((state) => clearCell(state, { x, y }));
+      }, GAME_ERASE_MS),
     );
   };
 
@@ -1452,17 +1516,21 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         updatePlacement((state) => toggleForbidden(state, { x, y, blockingCells }));
         return true;
       }
-      // v0.7.12：放不进去（不可站立 / 头像格）时不播「刚放下」的动效 ——
-      // 那一格本来就没有 `×` 可放。
+      // v0.7.12：放不进去（不可站立 / 头像格）时什么都不做 —— 那一格本来就没有
+      // `×` 可放。
       if (!canPlaceForbidden({ board: placementRef.current.board, x, y, blockingCells })) {
         return false;
       }
+      // v0.9.8：放下的 `×` 静默出现，不再挂 `markPulse` —— 演入场动效的是跟着
+      // 指针悬停的那一枚（`MapGameToolHintLayer`），放置本身没有可看的动作。
       updatePlacement((state) => placeForbidden(state, { x, y, blockingCells }));
-      markPulse(key, null);
       return true;
     }
     if (mode.kind === 'clearing') {
-      updatePlacement((state) => clearCell(state, { x, y }));
+      const key = cellKey(x, y);
+      // 空格上什么都不会发生 —— 连动效都不该有，那一格本来就没东西可擦。
+      if (!placementRef.current.board[key]) return false;
+      eraseCell(x, y);
       return true;
     }
     return false;
@@ -2104,8 +2172,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                * 时间戳：抬手即清环，窗口自然结束。
                */
               settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
-              /* v0.7.11：刚放下的编号 / 标记各「盖章」一次。 */
+              /* v0.7.11：刚放下的编号各「盖章」一次。 */
               pulse={pulse}
+              /* v0.9.8：橡皮点掉的格子先演退场，动效放完才真删。 */
+              erasing={erasing}
               /* v0.8.6：配置了图片时，放下的标记画那张图而不是 `×`。 */
               mark={mark}
             />
