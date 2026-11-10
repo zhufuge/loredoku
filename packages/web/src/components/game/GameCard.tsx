@@ -144,7 +144,9 @@ export function GameCard({
           its top and bottom off. */}
       <div
         data-testid="game-cover"
-        onPointerMove={followPointerWithGlow}
+        /* v0.9.7：已结案的卡片不演鼠标光源 —— 那一层是「挑关卡时找手感」的，
+           定案卡是既成事实，指针扫过去不该再亮一下。 */
+        onPointerMove={completed ? undefined : followPointerWithGlow}
         className="relative isolate aspect-square w-full overflow-hidden border-b bg-muted/50"
       >
         {game.coverUrl ? (
@@ -154,23 +156,40 @@ export function GameCard({
             src={game.coverUrl}
             alt={game.name}
             draggable={false}
-            className="no-drag h-full w-full object-cover transition-transform duration-image ease-in-out group-hover:scale-[1.1] group-focus-visible:scale-[1.1]"
+            /*
+             * v0.9.7：定案卡**不演 hover 放大** —— 与不演光源同一条理由。
+             * 封面一推进，「定案 + 印」跟着一起胀，读起来像这张卡还能再点进去
+             * 玩一局；结案是既成事实，该稳稳停着。
+             */
+            className={cn(
+              'no-drag h-full w-full object-cover transition-transform duration-image ease-in-out',
+              !completed && 'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
+            )}
           />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-secondary/40 transition-transform duration-image ease-in-out group-hover:scale-[1.1] group-focus-visible:scale-[1.1]">
+          <div
+            className={cn(
+              'flex h-full w-full items-center justify-center bg-secondary/40 transition-transform duration-image ease-in-out',
+              !completed && 'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
+            )}
+          >
             <span className="text-4xl font-semibold text-muted-foreground/60">{initial}</span>
           </div>
         )}
         {/* 光的三层。`aria-hidden` + `pointer-events-none`：纯装饰，既不进
-            无障碍树，也不会把指针事件从卡片手里抢走。 */}
-        {LIGHT_LAYERS.map((layer) => (
-          <div
-            key={layer}
-            aria-hidden="true"
-            data-testid="game-glow"
-            className={cn('paper-light pointer-events-none', layer)}
-          />
-        ))}
+            无障碍树，也不会把指针事件从卡片手里抢走。
+            v0.9.7：定案卡整组不画 —— 盖着「定案 + 印」的封面上再浮一层光斑，
+            两件装饰抢同一块地方，也让「结案」读起来像还能再玩一次。 */}
+        {completed
+          ? null
+          : LIGHT_LAYERS.map((layer) => (
+              <div
+                key={layer}
+                aria-hidden="true"
+                data-testid="game-glow"
+                className={cn('paper-light pointer-events-none', layer)}
+              />
+            ))}
         {/*
           v0.9.5：结案的那一层。放在封面里、光的三层之后 —— 它压的是**封面本身**
           （含那层纸光），而不是压住整张卡片：标题与页脚仍要读得清，玩家在挑关卡时
@@ -194,15 +213,25 @@ export function GameCard({
             </span>
             <DifficultyBadge difficulty={game.difficulty} tiers={tiers} className="rounded" />
           </span>
-          <span className="flex items-center gap-1">
-            <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <CompletionTime
-              completion={completed}
-              lastLeftAt={lastLeftAt ?? null}
-              lastLeftElapsedMs={lastLeftElapsedMs ?? null}
-              className="transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground"
-            />
-          </span>
+          {/*
+            v0.9.7：**时间格分两种** ——
+            - 已完成：时钟图标 + 完成用时（图标说的是「这是一份成绩」）；
+            - 只玩过、没完成：只写「3 分钟前」这样的相对时间，**不画图标**。
+              相对时间本身就说清了「什么时候」，再挂一枚时钟会把它读成一份
+              计时读数；图标在这里反而是噪音。
+            - 没玩过：整格不出现。
+          */}
+          {completed || lastLeftAt ? (
+            <span className="flex items-center gap-1">
+              {completed ? <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden /> : null}
+              <CompletionTime
+                completion={completed}
+                lastLeftAt={lastLeftAt ?? null}
+                lastLeftElapsedMs={lastLeftElapsedMs ?? null}
+                className="transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground"
+              />
+            </span>
+          ) : null}
         </div>
       </div>
     </Card>

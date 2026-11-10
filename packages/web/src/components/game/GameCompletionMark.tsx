@@ -41,16 +41,16 @@ export function CompletionOverlay({
 }
 
 /**
- * 页脚那一格**时间**（v0.9.6 改）。
+ * 页脚那一格**时间**（v0.9.6 排版 / v0.9.7 内容）。
  *
- * 规则是「完成优先，否则取最后离开」，显示的都是**计时读数**（`mm:ss`）：
- * - 有完成记录 → 那一局的完成用时；
- * - 没完成但玩过 → 上次离开时表上的读数；
- * - 都没玩过 → `00:00`。
+ * 规则仍是「完成优先，否则取最后离开」，但两者说的不是同一件事：
+ * - 有完成记录 → 那一局的**完成用时**（`mm:ss` 或 `hh:mm:ss`）；
+ * - 没完成但玩过 → **相对时间**（「刚刚」「3 分钟前」，v0.9.7）—— 用户明确
+ *   要的是「最后离开谜题时间」用「刚刚 / 1分钟前之类」，不再显示计时读数；
+ * - 都没玩过 → **这一格整段不出现**（v0.9.7），连时间图标一起省掉。
  *
- * 版面上**不加前缀**：用户给的占位符是「【时间图标】00:00」，图标已经说了
- * 「这是一格时间」，再写「完成 / 离开」会把 12 张卡的页脚挤成一团。数字具体是
- * 哪一种，交给 `title`（悬停才看）。
+ * v0.9.7：**时间超过 1 小时补 `hh`**。`formatElapsed` 已经做了这件事（v0.9.6
+ * 起就是），这里只是把「完成用时 / 游戏内计时」都统一交给它，不再各写一套。
  */
 export function CompletionTime({
   completion,
@@ -59,12 +59,12 @@ export function CompletionTime({
   className,
 }: {
   completion: GameCompletion | null;
-  /** v0.9.6：最后离开时的计时读数（毫秒）；没有完成记录时才显示。 */
+  /** v0.9.6：最后离开时的计时读数（毫秒）；v0.9.7 起只进 `title`。 */
   lastLeftElapsedMs?: number | null;
-  /** 最后离开的墙钟时刻，只进 title。 */
+  /** v0.9.7：最后离开的墙钟时刻（ISO）—— 卡片主体显示它的相对时间。 */
   lastLeftAt?: string | null;
   className?: string;
-}): JSX.Element {
+}): JSX.Element | null {
   if (completion) {
     return (
       <span
@@ -76,26 +76,44 @@ export function CompletionTime({
       </span>
     );
   }
-  if (lastLeftElapsedMs !== null && lastLeftElapsedMs !== undefined) {
+  if (lastLeftAt) {
     return (
       <span
         data-testid="game-last-left"
         title={
-          lastLeftAt
-            ? `上次离开时的计时 · ${formatLastLeft(lastLeftAt)}`
-            : '上一次游玩离开时的计时'
+          lastLeftElapsedMs !== null && lastLeftElapsedMs !== undefined
+            ? `上次离开时计时 ${formatElapsed(lastLeftElapsedMs)} · ${formatLastLeft(lastLeftAt)}`
+            : `上次离开于 ${formatLastLeft(lastLeftAt)}`
         }
-        className={cn('shrink-0 tabular-nums', className)}
+        className={cn('shrink-0', className)}
       >
-        {formatElapsed(lastLeftElapsedMs)}
+        {formatRelativeTime(lastLeftAt)}
       </span>
     );
   }
-  return (
-    <span data-testid="game-no-time" className={cn('shrink-0 tabular-nums', className)}>
-      00:00
-    </span>
-  );
+  // v0.9.7：从未玩过 —— 不展示时间（返回 null，调用方连图标一起不画）。
+  return null;
+}
+
+/**
+ * v0.9.7：把 ISO 时刻说成「刚刚 / N 分钟前 / N 小时前 / N 天前 / 具体日期」。
+ *
+ * 分档只到「天」：再往上（周 / 月）对「我上次玩到什么时候」没什么帮助，
+ * 而超过 7 天直接写日期更准。未来的时刻（设备时钟被拨过）按「刚刚」处理，
+ * 不显示负数。
+ */
+export function formatRelativeTime(iso: string, now: number = Date.now()): string {
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return '—';
+  const seconds = Math.max(0, Math.floor((now - then) / 1000));
+  if (seconds < 60) return '刚刚';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days <= 7) return `${days} 天前`;
+  return formatLastLeft(iso);
 }
 
 /** `2026-11-10T15:04:00Z` → `11-10 15:04`（本地时区）。 */

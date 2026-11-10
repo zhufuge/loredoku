@@ -1458,6 +1458,110 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(scrim).not.toBeNull();
       expect(scrim?.textContent).toContain('定案');
       expect(scrim?.querySelector('[data-testid="verdict-replay"]')).not.toBeNull();
+      /*
+       * v0.9.7：地图遮罩用「一般遮罩颜色」—— 与四处校验遮罩、弹窗 overlay
+       * 同一个 token（DIALOG_OVERLAY_TINT_CLASS），不再用 bg-background/85 那档。
+       */
+      expect(scrim?.className).toContain(DIALOG_OVERLAY_TINT_CLASS);
+    });
+
+    /**
+     * v0.9.7：**结案后整块画布与名册不再接指针**（地图 / 物品 / 人物交互全停）。
+     * 断言的是行为 —— 往画布派发点击，棋盘存档一个字都不变；视图簇按钮禁用；
+     * 「再玩一次」仍能点。
+     */
+    it('定案后：画布与名册不接指针，视图簇禁用，再玩一次仍可用', () => {
+      recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
+      render();
+
+      const main = container.querySelector('main');
+      const before = window.localStorage.getItem(gameProgressKey('night-train'));
+      act(() => {
+        main?.dispatchEvent(
+          new MouseEvent('click', { bubbles: true, clientX: 450, clientY: 350 }),
+        );
+        main?.dispatchEvent(
+          new MouseEvent('pointermove', { bubbles: true, clientX: 450, clientY: 350 }),
+        );
+      });
+      expect(window.localStorage.getItem(gameProgressKey('night-train'))).toBe(before);
+
+      // 右栏视图簇：放大 / 缩小 / 重置视图 / 标尺四枚都禁用。
+      for (const label of ['放大', '缩小', '重置视图', '显示 / 隐藏标尺']) {
+        const button = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+          (candidate) => candidate.getAttribute('aria-label') === label || candidate.title === label,
+        );
+        expect(button?.disabled, label).toBe(true);
+      }
+
+      // 遮罩里的「再玩一次」仍然能点，点完遮罩撤掉。
+      const replay = container.querySelector<HTMLButtonElement>('[data-testid="verdict-replay"]');
+      expect(replay?.disabled).toBe(false);
+      act(() => replay?.click());
+      expect(container.querySelector('[data-testid="verdict-scrim"]')).toBeNull();
+    });
+
+    /**
+     * v0.9.7（例外）：结案后**返回与切换日夜模式仍可用**。
+     *
+     * 左栏整体 `pointer-events-none`，头部那一行用 `pointer-events-auto` 恢复。
+     * jsdom 不做 CSS hit-testing，所以这里钉的是「按钮没有被 disabled」这一半；
+     * `pointer-events` 的实际放行在真浏览器里验（读 `getComputedStyle` 与点击）。
+     */
+    it('定案后：返回按钮与主题开关仍未被禁用', () => {
+      recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
+      render();
+
+      const back = Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+        (candidate) =>
+          candidate.getAttribute('aria-label') === '返回游戏列表' ||
+          candidate.title === '返回游戏列表',
+      );
+      const theme = container.querySelector<HTMLButtonElement>('[data-testid="theme-toggle"]');
+
+      expect(back?.disabled).toBe(false);
+      expect(theme?.disabled).toBe(false);
+      // 主题按钮真的挂了 cycle：点一下 mode 会变（三态循环）。
+      const before = theme?.getAttribute('data-theme-mode');
+      act(() => theme?.click());
+      expect(container.querySelector('[data-testid="theme-toggle"]')?.getAttribute('data-theme-mode')).not.toBe(
+        before,
+      );
+    });
+
+    /**
+     * v0.9.7（第六批）：**隔着遮罩冒泡的指针不再点亮 hover**。
+     *
+     * 遮罩自己 `pointer-events-auto` 接住指针之后，事件会沿 React 树冒泡到
+     * `<main>` 的 `onPointerMove`。之前只靠 CSS `pointer-events-none` 挡住
+     * hit-testing，没挡住冒泡，于是光标框 / 物品抬起 / 区域高亮会隔着遮罩亮起来。
+     * 现在 handler 入口短路 + `hoverEffects` 从源头收 `hover: null`。
+     */
+    it('定案后：从遮罩冒泡的 pointermove 不点亮任何格子 hover', () => {
+      recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
+      render();
+
+      const scrim = container.querySelector<HTMLElement>('[data-testid="verdict-scrim"]');
+      expect(scrim).not.toBeNull();
+      act(() => {
+        scrim?.dispatchEvent(
+          new MouseEvent('pointermove', { bubbles: true, clientX: 450, clientY: 350 }),
+        );
+        scrim?.dispatchEvent(
+          new MouseEvent('pointerover', { bubbles: true, clientX: 450, clientY: 350 }),
+        );
+      });
+
+      // 光标不该变成 pointer（hoverEffects.cell 恒为 null），物品名提示不出现。
+      const main = container.querySelector<HTMLElement>('main');
+      expect(main?.style.cursor).not.toBe('pointer');
+      expect(container.querySelector('[data-testid="item-name-tip"]')).toBeNull();
+      // 棋盘存档也没被落笔。
+      const before = window.localStorage.getItem(gameProgressKey('night-train'));
+      act(() => {
+        scrim?.dispatchEvent(new MouseEvent('click', { bubbles: true, clientX: 450, clientY: 350 }));
+      });
+      expect(window.localStorage.getItem(gameProgressKey('night-train'))).toBe(before);
     });
 
     it('点「再玩一次」：遮罩撤掉、表从 00:00 开始跑', () => {

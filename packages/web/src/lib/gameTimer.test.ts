@@ -98,9 +98,11 @@ describe('formatElapsed — 秒级显示', () => {
     expect(formatElapsed(3_599_000)).toBe('59:59');
   });
 
-  it('adds the hour once it overflows', () => {
-    expect(formatElapsed(3_600_000)).toBe('1:00:00');
-    expect(formatElapsed(3_787_000)).toBe('1:03:07');
+  it('超过一小时用 hh:mm:ss（小时也补两位，v0.9.7）', () => {
+    expect(formatElapsed(3_600_000)).toBe('01:00:00');
+    expect(formatElapsed(3_787_000)).toBe('01:03:07');
+    // 没超过一小时仍是 mm:ss。
+    expect(formatElapsed(3_599_000)).toBe('59:59');
   });
 
   it('clamps garbage to 00:00', () => {

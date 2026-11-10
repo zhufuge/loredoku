@@ -186,7 +186,10 @@ export function readLastLeftAt(
 }
 
 /**
- * 秒级显示。一小时以内是 `mm:ss`（`03:07`），超过就补上小时（`1:03:07`）——
+ * 秒级显示。**没超过一小时是 `mm:ss`（`03:07`），超过就是 `hh:mm:ss`
+ * （`01:03:07`）** —— v0.9.7 明确要求小时也补两位，之前是 `1:03:07`，
+ * 与 `mm:ss` 那两段等宽不统一，秒针跳到 10 点以后整行会左右抖。
+ *
  * 数字等宽由调用方给（`tabular-nums`），否则秒针跳动时整行会左右抖。
  */
 export function formatElapsed(elapsedMs: number): string {
@@ -195,5 +198,7 @@ export function formatElapsed(elapsedMs: number): string {
   const minutes = Math.floor((totalSeconds % 3600) / 60);
   const seconds = totalSeconds % 60;
   const pad = (value: number): string => String(value).padStart(2, '0');
-  return hours > 0 ? `${hours}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`;
+  return hours > 0
+    ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+    : `${pad(minutes)}:${pad(seconds)}`;
 }

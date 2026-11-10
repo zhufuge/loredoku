@@ -182,6 +182,8 @@ describe('GamesPage', () => {
       expect(text).toContain('03:07');
       // 只有一张卡有那一格。
       expect(document.querySelectorAll('[data-testid="game-completion-time"]')).toHaveLength(1);
+      /* v0.9.7：完成用时那一格仍带时钟图标（只有相对时间那格不带）。 */
+      expect(document.querySelectorAll('svg.lucide-clock')).toHaveLength(1);
     });
 
     it('没配印的通过记录：仍然盖「定案」那一层，只是没有印', () => {
@@ -237,9 +239,10 @@ describe('GamesPage', () => {
     });
 
     /**
-     * v0.9.6：没完成但**玩过**的关卡，那一格显示最后离开时间。
+     * v0.9.7：没完成但玩过的关卡，那一格显示**相对时间**（「刚刚 / N 分钟前」），
+     * 不再显示计时读数。用动态时间戳，免得断言随墙上时钟漂移。
      */
-    it('没完成但玩过：显示最后离开时间', () => {
+    it('没完成但玩过：显示「N 分钟前」这样的相对时间', () => {
       gamesRef.data = [game({ id: 1, slug: 'left-before', gridSize: 5 })];
       window.localStorage.setItem(
         gameTimerKey('left-before'),
@@ -247,7 +250,7 @@ describe('GamesPage', () => {
           gridSize: 5,
           participantCount: 1,
           elapsedMs: 30_000,
-          leftAt: '2026-11-10T07:04:00.000Z',
+          leftAt: new Date(Date.now() - 3 * 60_000).toISOString(),
         }),
       );
 
@@ -256,7 +259,70 @@ describe('GamesPage', () => {
       mount();
 
       expect(covers()).toHaveLength(0);
-      expect(document.querySelector('[data-testid="game-last-left"]')?.textContent).toContain('00:30');
+      expect(document.querySelector('[data-testid="game-last-left"]')?.textContent).toContain(
+        '3 分钟前',
+      );
+      /* v0.9.7：相对时间那一格**不画时钟图标**（图标只配完成用时）。 */
+      expect(document.querySelector('svg.lucide-clock')).toBeNull();
+    });
+
+    /** v0.9.7：从未玩过的游戏，时间格连图标一起不画。 */
+    it('未开始的游戏：不展示时间，也没有时间图标', () => {
+      gamesRef.data = [game({ id: 1, slug: 'never-played', gridSize: 5 })];
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(covers()).toHaveLength(0);
+      expect(document.querySelector('[data-testid="game-completion-time"]')).toBeNull();
+      expect(document.querySelector('[data-testid="game-last-left"]')).toBeNull();
+      expect(document.querySelector('[data-testid="game-no-time"]')).toBeNull();
+      // 卡片里唯一的时钟图标就是时间格那一枚。
+      expect(document.querySelector('svg.lucide-clock')).toBeNull();
+    });
+
+    /**
+     * v0.9.7：**定案的卡片不演鼠标光源动效**。
+     *
+     * 断言的是「光层在不在 / 封面还接不接 pointermove」这两个行为，不是颜色或
+     * 排版。没完成的卡仍要有光层 —— 别把整站的光源一起关掉。
+     */
+    it('定案卡不画鼠标光层，未完成的卡仍有光层', () => {
+      gamesRef.data = [
+        game({ id: 1, slug: 'done-one', gridSize: 5 }),
+        game({ id: 2, slug: 'fresh-one', gridSize: 5 }),
+      ];
+      recordGameCompletion('done-one', { gridSize: 5 }, { elapsedMs: 187_000, stampUrl: null });
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      const covers = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-testid="game-cover"]'),
+      );
+      expect(covers).toHaveLength(2);
+      const glows = covers.map((cover) => cover.querySelectorAll('[data-testid="game-glow"]').length);
+      // 第一张是定案卡：0 层光；第二张没完成：光源照旧。
+      expect(glows[0]).toBe(0);
+      expect(glows[1]).toBeGreaterThan(0);
+    });
+
+    /** v0.9.7：只有计时存档、没有离开时刻的旧数据 —— 不画孤零零的时间图标。 */
+    it('旧计时存档（无 leftAt）：不展示时间图标', () => {
+      gamesRef.data = [game({ id: 1, slug: 'legacy-timer', gridSize: 5 })];
+      window.localStorage.setItem(
+        gameTimerKey('legacy-timer'),
+        JSON.stringify({ gridSize: 5, participantCount: 1, elapsedMs: 30_000 }),
+      );
+
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(document.querySelector('svg.lucide-clock')).toBeNull();
+      expect(document.querySelector('[data-testid="game-last-left"]')).toBeNull();
     });
   });
 

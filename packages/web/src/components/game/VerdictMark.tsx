@@ -45,11 +45,15 @@ export function VerdictStamp({
       data-testid="verdict-stamp"
       onError={() => setFailed(true)}
       /*
-       * 深色翻一次（与工具栏那几枚同一条理由：图多半是深墨画在透明底上），
-       * `hue-rotate-180` 把色相转回来，否则红印在深色下会变青。
+       * v0.9.7：**印章保持原色**（用户明确要求）。
+       *
+       * 之前按主题 / 遮罩翻过色（`dark:invert` / `brightness-0 invert`），那是为了
+       * 深墨印在深底上能看清；但一枚红印被翻成白色就不再是作者盖的那枚了。
+       * 两处（列表卡片的浅底、游戏遮罩的深底）现在都用同一张原图、同一个角度，
+       * 不随主题变。深底上的可读性交给印自己的透明底与下面那层字衬。
        */
       className={cn(
-        '-rotate-[8deg] select-none object-contain opacity-90 dark:invert dark:hue-rotate-180',
+        '-rotate-[8deg] select-none object-contain',
         animate && 'stamp-press',
         className,
       )}
@@ -58,35 +62,55 @@ export function VerdictStamp({
 }
 
 /**
- * 「定案」两个字在上、印章在下的**竖排居中** —— 卡片封面与地图遮罩共用这一个
- * 组件、同一个排法（用户：「上面展示和谜题卡片一样的定案+印章（位置也相同）」）。
+ * 「定案」两个字在上、印章在下**压住一点点字**（v0.9.7）—— 印章不是规规矩矩
+ * 排在文字下面，而是往上偏一点，盖住「定案」下缘，像真盖上去的。
  *
- * 两处都盖在一张图（封面 / 棋盘）上、都居中；分两套排法迟早会在某一版里走样。
- * 文字用楷体、加宽字距：与结算卡标题同一个写法（v0.9.3 §3 定下「定案」是
- * 一局结束的说法，不再念成绩）。
- *
+ * 卡片封面与地图遮罩共用这一个组件、同一个排法（用户 v0.9.6：「位置也相同」）。
  * `large` 给地图遮罩用（棋盘比 291px 的卡大得多），但**比例与次序不变**。
+ *
+ * 做法：容器里文字与印各自居中，印用负 `margin-top` 上提；角度仍是 −8°。
+ * 上提量按字号比例走（em），`large` 与卡片两处因此自动同比例叠压。
+ *
+ * v0.9.7（第六批）：字再放大一档、印上提更多 —— 用户「定案字体大小可以再大一些，
+ * 印章使用原色压在字上。列表卡片封面也一样」。两处都走这个组件，所以一起生效。
  */
 export function VerdictMark({
   stampUrl,
   animate = false,
   large = false,
+  onDark = false,
   className,
 }: {
   stampUrl: string | null;
   animate?: boolean;
   large?: boolean;
+  /** v0.9.7：压在深色遮罩上时文字要用浅色，否则「定案」两个字会糊进黑底。 */
+  onDark?: boolean;
   className?: string;
 }): JSX.Element {
   return (
     <div
       data-testid="verdict-mark"
-      className={cn('flex flex-col items-center justify-center gap-2', className)}
+      className={cn('relative flex flex-col items-center justify-center', className)}
     >
       <span
         className={cn(
-          'font-kai font-semibold tracking-[0.3em] text-foreground',
-          large ? 'text-5xl' : 'text-lg',
+          'relative z-0 font-kai font-bold tracking-[0.25em]',
+          /*
+           * v0.9.7：压在固定深色遮罩（bg-black/60）上的字必须**始终浅色**。
+           * 不能单用 text-foreground（浅色主题下是墨色）或 text-background
+           * （深色主题下也是墨色）—— 那正是 index.css §"光照两端"注释里说的
+           * 「主题 token 会让方向随主题反转」。
+           *
+           * 两档各自取该主题下的近白：
+           *   浅色主题 → --primary-foreground (40 30% 98%)
+           *   深色主题 → --foreground        (38 20% 92%)
+           */
+          onDark
+            ? 'text-primary-foreground dark:text-foreground'
+            : 'text-foreground',
+          /* v0.9.7（第六批）：再放大一档。 */
+          large ? 'text-8xl' : 'text-5xl',
         )}
       >
         定案
@@ -95,12 +119,12 @@ export function VerdictMark({
         stampUrl={stampUrl}
         animate={animate}
         /*
-         * 卡片上印占封面的 46%，遮罩上按同样的「长边不超过容器一半」放大 ——
-         * 两处的相对大小与次序一致。不写死 `h/w`：那会让 max-* 与固定尺寸互相
-         * 打架（印被压成一小块），也让长边图与方图都保不住比例。
+         * `z-10` 压在字之上，`-mt-[0.55em]` 上提盖住字的下缘（v0.9.7 第六批
+         * 从 0.35em 加大 —— 要明显「压在字上」，不是贴在字下面）。没有配图时
+         * 这个元素不渲染，文字自己居中，不会留下一段空白。
          */
         className={cn(
-          'max-h-[46%] max-w-[46%]',
+          'relative z-10 -mt-[0.55em] max-h-[52%] max-w-[52%]',
           /* 给一个保底尺寸：没有它 `<img>` 会按原图像素渲染，长边图可能缩成一小块。 */
           large ? 'h-48 w-48' : 'h-24 w-24',
         )}

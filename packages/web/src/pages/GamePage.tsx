@@ -410,6 +410,34 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     | null
   >(null);
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
+
+  /**
+   * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
+   *
+   * 它和 `result` 不是一件事：`result` 是「刚刚结算完、结算卡开着」，`finished`
+   * 是「这一关以前就结案了」。后者让页面一进来就摆出结案遮罩、表停在 00:00，
+   * 直到玩家点「再玩一次」。
+   *
+   * 声明放在最前面的 state 区（而不是计时那一带）是因为 `hoverEffects` 的
+   * `useMemo` 要读它，必须比那个 `useMemo` 先声明，否则 TDZ。
+   */
+  const [finished, setFinished] = useState(false);
+
+  /**
+   * v0.9.7：**结案的那一局，整块画布与名册都不再接指针**。
+   *
+   * 用户：「定案的游戏里，有地图遮罩，就不要有鼠标和地图及物品人物的交互」。
+   *
+   * 两层防守，缺一不可：
+   * 1. 两个容器挂 `pointer-events-none`（挡 hit-testing），遮罩与头部各自
+   *    `pointer-events-auto` 恢复；
+   * 2. **所有入口 handler 再短路一次** —— CSS 只挡命中，遮罩接住的事件仍会
+   *    沿 React 树冒泡回 `<main>`，不守住这一层，格子照样会亮、会落笔。
+   *
+   * 这也是为什么 `hoverEffects` 从源头收到 `hover: null`：不管冒泡把 state
+   * 写成什么，画出来的都是 `NO_HOVER_EFFECTS`。
+   */
+  const interactionLocked = finished;
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hover, setHover] = useState<CellCoord | null>(null);
   /** v0.8.7 §8：光标在纸上的像素位置 —— 物品名称提示贴它，不贴物品。 */
@@ -668,8 +696,23 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const blockingCells = useMemo(() => collectBlockingCells(cells, assetsById), [cells, assetsById]);
   const itemCells = useMemo(() => collectItemCells(cells), [cells]);
   const hoverEffects = useMemo(
-    () => resolveHoverEffects({ hover, blockingCells, itemCells, regions }),
-    [hover, blockingCells, itemCells, regions],
+    () =>
+      resolveHoverEffects({
+        /*
+         * v0.9.7：**结案后不画任何 hover 效果**。
+         *
+         * 光靠 CSS `pointer-events-none` 挡不住：定案遮罩自己 `pointer-events-auto`
+         * 接住指针之后，事件会沿 React 树冒泡回 `<main>` 的 `onPointerMove`，
+         * `setHover` 照样写状态，光标框 / 物品抬起 / 区域高亮就会隔着遮罩亮起来。
+         * 这里从源头给 `resolveHoverEffects` 一个 `hover: null`，让三样效果一起
+         * 归零 —— 不管冒泡把状态写成什么，画出来的都是 `NO_HOVER_EFFECTS`。
+         */
+        hover: interactionLocked ? null : hover,
+        blockingCells,
+        itemCells,
+        regions,
+      }),
+    [hover, interactionLocked, blockingCells, itemCells, regions],
   );
   const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
   const hoveredRegion = hoveredRegionId
@@ -829,14 +872,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 见那条 effect 上的注释（这是 v0.7.11 续计时在真浏览器里失效的根因）。
    */
   const [hydrated, setHydrated] = useState(false);
-  /**
-   * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
-   *
-   * 它和 `result` 不是一件事：`result` 是「刚刚结算完、结算卡开着」，`finished`
-   * 是「这一关以前就结案了」。后者让页面一进来就摆出结案遮罩、表停在 00:00，
-   * 直到玩家点「再玩一次」。
-   */
-  const [finished, setFinished] = useState(false);
+
   /**
    * v0.9.6：定案遮罩停完之后弹结算卡的那个定时器。它必须能被打断 ——
    * 玩家在 1 秒内点「再玩一次」或离开时，晚到的弹窗会盖在一个已经重置的棋盘上。
@@ -955,6 +991,22 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     },
     [],
   );
+
+  /**
+   * v0.9.7：结案那一刻把残留的悬停 / 激活 / 放置态收干净。
+   *
+   * 玩家可能是「鼠标正停在某格上」时通过的；指针被 `pointer-events-none` 挡住
+   * 之后，那个格子的操作光标框 / 名册高亮不会自己收到 `pointerleave`，会一直
+   * 亮在定案遮罩底下。这里在 `finished` 转真时显式清一次。
+   */
+  useEffect(() => {
+    if (!finished) return;
+    setHover(null);
+    setHoverPoint(null);
+    setLabelRegionId(null);
+    setActivation(INACTIVE_ACTIVATION);
+    setMode({ kind: 'idle' });
+  }, [finished]);
 
   /**
    * 换一局 / 首次加载：不继承上一局的激活、悬停与棋盘。
@@ -1104,8 +1156,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     return map;
   }, [highlight]);
 
-  const handleActivation = (event: LinkageActivationEvent): void =>
+  const handleActivation = (event: LinkageActivationEvent): void => {
+    /* v0.9.7：结案后名册不再联动高亮（冒泡可能绕过 pointer-events-none）。 */
+    if (interactionLocked) return;
     setActivation((state) => reduceLinkageActivation(state, event));
+  };
 
   /**
    * SPEC-G03 §9.1: clicking a roster card arms that participant for placement
@@ -1116,6 +1171,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * participants from 1 (SPEC-G01 §7.1) — so the mode carries `index + 1`.
    */
   const handleCardClick = (index: number): void => {
+    if (interactionLocked) return;
     const participantId = index + 1;
     if (mode.kind === 'placing' && mode.participantId === participantId) {
       setMode({ kind: 'idle' });
@@ -1587,7 +1643,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             两个互不相干的区域，而线索说的正是这些人。
             （原本标题区有 `border-b`，那条线正好压在参与者框头顶。） */}
         <aside
-          className="relative flex shrink-0 flex-col border-r bg-background"
+          className={cn(
+            'relative flex shrink-0 flex-col border-r bg-background',
+            /* v0.9.7：结案后名册 / 题面不再接指针（见 interactionLocked）。 */
+            interactionLocked && 'pointer-events-none',
+          )}
           style={{ width: rosterWidth }}
         >
           {/*
@@ -1607,7 +1667,19 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               style={{ zIndex: UI_Z.saveMask }}
             />
           ) : null}
-          <div className="shrink-0 space-y-1 p-3">
+          {/*
+            * v0.9.7：结案后名册 / 题面不再接指针；**但这一行是例外** ——
+            * 用户明确「定案游戏里，可以点击返回和切换日夜模式」。
+            * 父层 `pointer-events-none` 之下，子元素用 `pointer-events-auto` 显式
+            * 恢复（CSS 允许），于是返回箭头与主题开关照常可点，下面的题面、
+            * 名册仍然锁着。
+            */}
+          <div
+            className={cn(
+              'shrink-0 space-y-1 p-3',
+              interactionLocked && 'pointer-events-auto',
+            )}
+          >
             {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
                 v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
             <div className="flex items-center gap-1">
@@ -1698,6 +1770,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             'relative min-h-0 flex-1 select-none overflow-hidden bg-muted/30',
             // v0.9.3 §2：核对期间棋盘只读 —— 圈到一半还能落子就说不清在核对什么。
             checkRun && 'pointer-events-none',
+            // v0.9.7：结案后地图 / 物品 / 格子的指针交互全停（遮罩接管这一屏）。
+            interactionLocked && 'pointer-events-none',
           )}
           style={{
             // v0.6.2：按住空格 / 中键时是抓手，格内放东西是 pointer，其余普通光标。
@@ -1705,6 +1779,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             touchAction: 'none',
           }}
           onPointerDown={(event) => {
+            /*
+             * v0.9.7：结案后所有指针动作从入口短路。CSS `pointer-events-none`
+             * 挡的是 hit-testing，遮罩 `pointer-events-auto` 接住的事件仍会冒泡
+             * 到这里；不守住这一层，格子还是会被落笔。
+             */
+            if (interactionLocked) return;
             if (event.button === 1 || (event.button === 0 && spaceHeld)) {
               // v0.6.2 §4：空格 + 左键 或 中键 = 平移，不是放置。
               event.preventDefault();
@@ -1732,6 +1812,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             if (mode.kind === 'placing') startCellPress(cell.x, cell.y, mode.participantId);
           }}
           onPointerMove={(event) => {
+            if (interactionLocked) return;
             if (panRef.current) {
               pannedRef.current = true;
               setPan({
@@ -1761,6 +1842,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             dispatchCell(cell.x, cell.y, 'number');
           }}
           onPointerUp={(event) => {
+            if (interactionLocked) return;
             panRef.current = null;
             const paint = paintRef.current;
             paintRef.current = null;
@@ -1793,6 +1875,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             setHoverPoint(null);
           }}
           onWheel={(event) => {
+            if (interactionLocked) return;
             // v0.6.2 §4：Ctrl / ⌘ + 滚轮以指针为锚点缩放（与预览页一致）。
             if (!(event.ctrlKey || event.metaKey)) return;
             const node = containerRef.current;
@@ -1806,6 +1889,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             setZoom(next);
           }}
           onClick={(event) => {
+            if (interactionLocked) return;
             // 刚拖过画布：这一下 click 是拖拽手势的尾巴，不是放东西。
             if (pannedRef.current) {
               pannedRef.current = false;
@@ -1893,17 +1977,29 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             {finished ? (
               <div
                 data-testid="verdict-scrim"
-                className="absolute inset-0 flex flex-col items-center justify-center gap-6 bg-background/85"
+                /* v0.9.7：与四处校验遮罩、弹窗 overlay 同一档「一般遮罩颜色」
+                   （`DIALOG_OVERLAY_TINT_CLASS` = bg-black/60）。v0.9.6 用的是
+                   bg-background/85，浅色系、过实，读起来像另一套东西。 */
+                className={cn(
+                  DIALOG_OVERLAY_TINT_CLASS,
+                  /*
+                   * v0.9.7：遮罩自己接住指针 —— 中列容器已经 `pointer-events-none`，
+                   * 这里显式恢复，免得指针穿到下面的格子上去。按钮仍带
+                   * `pointer-events-auto`，是这一屏唯一能点的东西。
+                   */
+                  'pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-6',
+                )}
                 style={{ zIndex: MAP_LAYER_Z.mouseCursorBox + 1 }}
               >
                 <VerdictMark
                   stampUrl={toolIcons.submit?.imageUrl ?? null}
                   /* 棋盘比 291px 的卡大得多，但排法与卡片完全一致。 */
                   large
-                  /* 刚通过时演一次「印下去」；已完成再进入是既成事实，不演。 */
+                  /* 深色遮罩上用浅色文字；印章保持作者上传的原色（v0.9.7 第六批）。 */
+                  onDark
                   /*
                    * 刚通过时演一次「印下去」；已完成再进入是既成事实，不演。
-                   * 判据只看「是不是这次进来的」，不看 esult —— 结算卡弹出后遮罩还
+                   * 判据只看「是不是这次进来的」，不看 result —— 结算卡弹出后遮罩还
                    * 在（它才是背景），动画类不该因为弹窗出现就被摘掉。
                    */
                   animate={!revisitedRef.current}
@@ -1951,8 +2047,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               // v0.9.1 §5：物品描边（宽度 0 = 不描边）。
               itemOutline={style.itemOutline}
               padding={itemPadding(cellSize)}
-              hover={hover}
-              pointer={hoverPoint}
+              /* v0.9.7：结案后不给物品层任何悬停 / 指针坐标，物品不会隔着遮罩抬起。 */
+              hover={interactionLocked ? null : hover}
+              pointer={interactionLocked ? null : hoverPoint}
             />
 
             <MapRegionLabelLayer
@@ -2053,7 +2150,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               pan={pan}
               total={total}
               style={style}
-              hover={hover}
+              hover={interactionLocked ? null : hover}
             />
           ) : null}
         </main>
@@ -2221,7 +2318,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               label="放大"
               side="right"
               className={TOOLBAR_ICON_HOVER_CLASS}
-              disabled={zoom >= ZOOM_MAX}
+              disabled={toolsLocked || zoom >= ZOOM_MAX}
               onClick={() => zoomBy(1)}
             />
             <span className="w-full text-center text-2xs tabular-nums text-muted-foreground">
@@ -2233,7 +2330,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               label="缩小"
               side="right"
               className={TOOLBAR_ICON_HOVER_CLASS}
-              disabled={zoom <= ZOOM_MIN}
+              disabled={toolsLocked || zoom <= ZOOM_MIN}
               onClick={() => zoomBy(-1)}
             />
             <IconButton
@@ -2242,6 +2339,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               label="重置视图"
               side="right"
               className={TOOLBAR_ICON_HOVER_CLASS}
+              disabled={toolsLocked}
               onClick={fit}
             />
             <IconButton
@@ -2250,6 +2348,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               label="显示 / 隐藏标尺"
               side="right"
               className={cn(showRulers ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS)}
+              disabled={toolsLocked}
               onClick={() => setShowRulers((current) => !current)}
             />
           </div>
@@ -2274,6 +2373,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         v0.9.3 §3：通过的那一面换了写法 —— 标题「定案」、不报用时、不写
         「校验通过」。这一局已经结束，界面该说的是「结案了」，而不是再念一遍
         成绩；用时对玩家没有下一步，对作者也不该出现在玩家的结算卡上。
+        v0.9.7：标题再改成「[庆祝] 恭喜定案！」—— 结案是值得高兴的一刻，
+        不要再板着脸只写两个字。
       */}
       <Dialog
         open={result !== null}
@@ -2285,8 +2386,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           {result?.kind === 'passed' ? (
             <div className="flex items-start justify-between gap-4 pr-6">
               <div className="min-w-0 space-y-1.5">
-                <DialogTitle className="font-kai text-2xl font-semibold tracking-[0.3em]">
-                  定案
+                <DialogTitle className="font-kai text-2xl font-semibold tracking-[0.1em]">
+                  <span aria-hidden="true">🎉</span> 恭喜定案！
                 </DialogTitle>
                 <DialogDescription className="sr-only">
                   这一局已经结束。
