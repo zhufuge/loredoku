@@ -7,7 +7,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
+import { ArrowLeft, FileText, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
   GAME_CHECK_RING_SWEEP_MS,
@@ -464,6 +464,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 只影响渲染，不落盘：转屏、拖窗口都会重新 `fit` 一遍。
    */
   const [portraitFit, setPortraitFit] = useState(false);
+
+  /**
+   * v0.10.1：描述弹框是否开着（见头部那枚「谜题描述」图标）。
+   *
+   * 只跟 `portraitFit` 配套使用：竖屏上面板里不再画描述（`GameBrief` 的
+   * `hideDescription`），改成右上角一枚图标点开。桌面端描述仍留在左栏面板里，
+   * 那枚图标根本不渲染 —— 它比主题开关还不常按。
+   */
+  const [descriptionOpen, setDescriptionOpen] = useState(false);
 
   /**
    * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
@@ -1973,8 +1982,23 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 onClick={() => navigate(source.listHref())}
               />
               <BrandLogo height={16} className="flex shrink-0 items-center gap-2 max-md:hidden" />
+              {/*
+                v0.10.1 竖屏：描述从面板里挪到右上角这枚图标后面（点开是弹框）。
+                面板那时只剩线索与名册，能多让出一段高度。没有描述就不挂按钮 ——
+                点开一张空卡的图标比没有更糟。
+              */}
+              {portraitFit && puzzleDescription.trim().length > 0 ? (
+                <IconButton
+                  variant="ghost"
+                  icon={<FileText className="h-4 w-4" />}
+                  label="谜题描述"
+                  side="bottom"
+                  className={cn(TOOLBAR_ICON_HOVER_CLASS, 'max-md:order-4 max-md:shrink-0')}
+                  onClick={() => setDescriptionOpen(true)}
+                />
+              ) : null}
               {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
-              <ThemeToggle className="ml-auto max-md:order-4 max-md:shrink-0" />
+              <ThemeToggle className="ml-auto max-md:order-5 max-md:shrink-0" />
             </div>
             {/*
               * v0.7.12：计时挪到标题行最右边 —— 它是「这一局」的元信息，与名字、
@@ -2019,7 +2043,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               与名册之间 —— 三样东西同时在视野里，谁也不用滚动去换另一个。
               没有内容时组件自己返回 `null`，所以这里不必先判空。
             */}
-            <GameBrief description={puzzleDescription} clues={puzzleClues} />
+            <GameBrief
+              description={puzzleDescription}
+              clues={puzzleClues}
+              hideDescription={portraitFit}
+            />
 
             <div
               className={cn(
@@ -2253,14 +2281,20 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               height: total,
             }}
           >
-            {/* v0.8.7 §6：这张纸的投影 —— 外框色压一层透明度，向右下偏 6px 的硬影。 */}
+            {/*
+              v0.8.7 §6：这张纸的投影 —— 外框色压一层透明度，向右下偏 6px 的硬影。
+
+              v0.10.1 竖屏：**不画投影**。棋盘这时是按屏宽铺满的，纸比视口宽不了
+              多少，右下那圈硬影只会从格子缝里露出来当脏边；桌面那套投影说的是
+              「一张纸摆在桌上」，铺满屏的纸本来就没有「桌」。
+            */}
             <div
               className="absolute left-0 top-0 bg-background"
               style={{
                 width: total,
                 height: total,
                 zIndex: MAP_LAYER_Z.canvasBase,
-                ...canvasShadowStyle(style),
+                ...(portraitFit ? null : canvasShadowStyle(style)),
               }}
             >
               {/*
@@ -2726,6 +2760,32 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
            */}
         </aside>
       </div>
+
+      {/*
+        v0.10.1 竖屏：谜题描述弹框。触发的是头部那枚 `FileText` 图标。
+
+        为什么弹框而不是留在面板里：竖屏一屏只够放棋盘 + 名册，描述是三行也好
+        三十行也好，只在开局读一遍 —— 占着固定的高度不划算。线索不同，它们要
+        反复对照，仍留在面板里（`GameBrief` 只关掉描述那一段）。
+
+        正文沿用面板里那套写法（`whitespace-pre-wrap`、`text-muted-foreground`），
+        只是不再 `line-clamp-3` —— 弹框就是为了读全文，再收一次反而多一步。
+      */}
+      <Dialog
+        open={descriptionOpen}
+        onOpenChange={(open) => {
+          setDescriptionOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>谜题描述</DialogTitle>
+          </DialogHeader>
+          <p className="max-h-[60svh] overflow-y-auto whitespace-pre-wrap text-sm leading-[1.8] text-muted-foreground">
+            {puzzleDescription.trim()}
+          </p>
+        </DialogContent>
+      </Dialog>
 
       {/*
         v0.7.11：提交的两种结局共用一个弹窗。

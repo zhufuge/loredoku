@@ -1652,4 +1652,90 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
+  /**
+   * v0.10.1：竖屏把描述从题面里拿掉，改挂到头部一枚图标后面的弹框。
+   *
+   * 判据是「描述这段文字出现在哪儿」—— 面板里消失、弹框里有；线索仍在面板里
+   * （线索是解题时要反复对照的，不该跟着描述一起挪走）。
+   */
+  describe('竖屏：描述改由头部图标弹出（v0.10.1）', () => {
+    const VIEWPORT_WIDTH = window.innerWidth;
+    const VIEWPORT_HEIGHT = window.innerHeight;
+
+    /** 让 `fit` 里的 `isPortraitViewport` 判成竖屏；jsdom 默认 1024×768。 */
+    function pretendPortrait(): void {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 375 });
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: 812 });
+    }
+
+    afterEach(() => {
+      Object.defineProperty(window, 'innerWidth', {
+        configurable: true,
+        value: VIEWPORT_WIDTH,
+      });
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: VIEWPORT_HEIGHT,
+      });
+    });
+
+    /** 量一次容器再点「重置视图」—— `fit` 才会拿真实矩形跑一遍、定下竖屏形态。 */
+    function settlePortrait(): void {
+      sizeCanvas();
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click(),
+      );
+    }
+
+    const descriptionOpener = (): HTMLButtonElement | undefined =>
+      Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+        (candidate) => candidate.getAttribute('aria-label') === '谜题描述',
+      );
+
+    it('面板里没有描述，线索还在', () => {
+      pretendPortrait();
+      render();
+      settlePortrait();
+
+      expect(container.querySelector('[data-testid="game-brief-description"]')).toBeNull();
+      expect(container.querySelectorAll('[data-testid="game-brief-clue"]')).toHaveLength(2);
+      expect(container.textContent).not.toContain('三人三行，各归其位。');
+    });
+
+    it('点头部那枚图标，描述在弹框里', () => {
+      pretendPortrait();
+      render();
+      settlePortrait();
+
+      const opener = descriptionOpener();
+      expect(opener).not.toBeUndefined();
+
+      act(() => opener?.click());
+
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog?.textContent).toContain('三人三行，各归其位。');
+    });
+
+    it('没有描述时不挂那枚图标', () => {
+      fixture.detail.puzzle.description = '';
+      try {
+        pretendPortrait();
+        render();
+        settlePortrait();
+
+        expect(descriptionOpener()).toBeUndefined();
+      } finally {
+        fixture.detail.puzzle.description = '三人三行，各归其位。';
+      }
+    });
+
+    it('桌面端：描述仍在面板里，也没有那枚图标', () => {
+      render();
+      settlePortrait();
+
+      expect(container.querySelector('[data-testid="game-brief-description"]')).not.toBeNull();
+      expect(descriptionOpener()).toBeUndefined();
+    });
+  });
+
 });

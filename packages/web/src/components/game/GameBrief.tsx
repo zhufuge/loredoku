@@ -20,16 +20,26 @@ import { cn } from '@/lib/utils';
 export function GameBrief({
   description,
   clues,
+  hideDescription = false,
 }: {
   /** 谜题描述；空串 = 不显示这一段。 */
   description: string;
   /** 全局线索（可能夹着旧数据里的空串，这里再滤一次）。 */
   clues: string[];
+  /**
+   * v0.10.1：只画线索、不画描述。
+   *
+   * 竖屏上描述曾经占掉面板一半高度（三行 clamp 也要 60px），而它只在开局时
+   * 读一遍 —— 挪进右上角那枚图标后面的弹框，面板就能把高度全给线索与名册。
+   * 线索是解题时反复要看的，仍留在原地。
+   */
+  hideDescription?: boolean;
 }): JSX.Element | null {
   const text = description.trim();
   const entries = clues.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+  const showDescription = !hideDescription && text.length > 0;
   // 没有描述也没有线索 → 整块不出现，标题和名册之间不留一段空白。
-  if (text.length === 0 && entries.length === 0) return null;
+  if (!showDescription && entries.length === 0) return null;
 
   return (
     <section
@@ -37,9 +47,9 @@ export function GameBrief({
       aria-label="题面"
       className="max-h-[min(24svh,220px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3 sm:max-h-[min(46vh,340px)]"
     >
-      {text.length > 0 ? <BriefDescription text={text} /> : null}
+      {showDescription ? <BriefDescription text={text} /> : null}
       {entries.length > 0 ? (
-        <ol className={cn('space-y-2', text.length > 0 && 'mt-2.5')}>
+        <ol className={cn('space-y-2', showDescription && 'mt-2.5')}>
           {entries.map((entry, index) => (
             <li
               key={index}
