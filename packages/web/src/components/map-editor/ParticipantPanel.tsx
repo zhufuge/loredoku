@@ -155,11 +155,23 @@ const DRAG_HOVER_LOCK = true;
  * v0.10.1：竖屏横卡里头像的直径。
  *
  * 桌面那张竖卡头像能到 94px，是因为它自己占满一整块 104 高的区域；横卡里
- * 头像只在左边占一列，右边还要放两行字 —— 一格两列合计约 172px 宽，
- * 94 的头像配 70 宽的文字列，线索会挤成一条竖缝。44 是与序号徽标同一量级、
- * 又还认得出人像的下限。
+ * 头像只在左边占一列，右边还要放两行字。第一版给 44（与序号徽标同量级），
+ * 但玩家在手机上要靠这张脸认人 —— 56 是「一眼认得出」与「右边还留得下
+ * 70 多像素给名称和线索」之间的那个数。
  */
-const COMPACT_AVATAR_SIZE = 44;
+const COMPACT_AVATAR_SIZE = 56;
+
+/**
+ * v0.10.1：竖屏横卡的最小高度。
+ *
+ * 卡片高度原本由右边那两行字撑（名称 20 + 线索最多 60），头像只是居中摆着，
+ * 于是「有头像的那一格」和「两行短字的格子」一样高，头像显得局促。给一个
+ * 下限之后整行卡片等高、头像四周也有了呼吸。
+ *
+ * 这个数就是卡片高度本身：网格的 `align-content` 默认 `stretch`，多出来的
+ * 空间会摊到那两条 `auto` 行上，所以调它等于直接调框高。
+ */
+const COMPACT_CARD_MIN_HEIGHT = 80;
 
 /**
  * **选中**的框：一条**连续**的主色边（1px 描边 + 2px 外扩，中间不留纸色）。
@@ -463,12 +475,14 @@ export function ParticipantPanel({
                   style={{
                     touchAction: 'none',
                     // v0.10.1 竖屏：卡片是弹性轨道里的一格，宽度交给轨道，
-                    // 高度由内容（横排的头像与两行文字）决定。
+                    // 高度由内容（横排的头像与两行文字）决定，但不低于
+                    // COMPACT_CARD_MIN_HEIGHT —— 否则短线索那张卡会比旁边矮一截。
                     width: compactPortrait ? '100%' : PANEL_CELL_WIDTH,
                     // FEAT-O12: the name row is added to the card's height.
                     height: compactPortrait
                       ? undefined
                       : PANEL_CELL_HEIGHT + NAME_AREA_HEIGHT + CLUE_AREA_HEIGHT,
+                    minHeight: compactPortrait ? COMPACT_CARD_MIN_HEIGHT : undefined,
                     // The radius is inline (not `rounded-md`) because the
                     // sequence badge rounds its top-left corner with it — the
                     // two must never drift apart.
@@ -587,9 +601,13 @@ export function ParticipantPanel({
                     'relative isolate flex flex-col items-center justify-start border',
                     /* v0.10.1 竖屏：卡片横过来 —— 左头像（纵向跨满两行），右边一列
                        上下两行：名称在上、线索在下。不搬动 DOM，只换一套网格：
-                       头像 `row-span-2` 占第一列，名称与线索顺次落进第二列。 */
+                       头像 `row-span-2` 占第一列，名称与线索顺次落进第二列。
+                       `gap-x-3.5`（14px）：头像与文字之间要有一点间隔，8px 时
+                       56 的头像几乎贴到名字上；横向内边距从 `p-2` 的 8px 收到
+                       `px-1.5` 的 6px，把省下的宽度让给这一列间隔 —— 卡片总宽
+                       不变、右边那列还是 88.5，头像也因此更靠左一点。 */
                     compactPortrait &&
-                      'grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] items-center justify-items-start gap-x-2 gap-y-0.5 p-2',
+                      'grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] content-center items-center justify-items-start gap-x-3.5 gap-y-0 px-1.5 py-2',
                     readOnly
                       ? slot
                         ? 'cursor-pointer'
@@ -694,8 +712,15 @@ export function ParticipantPanel({
                     )}
                     style={
                       compactPortrait
-                        ? // v0.10.1 竖屏：左边留出序号徽标那一小块，否则徽标会压在人脸上。
-                          { padding: '0 0 0 20px' }
+                        ? /*
+                            v0.10.1 竖屏：横卡里不留左侧内边距 —— 卡片够高之后，
+                            序号徽标（左上角 20×20）与居中的头像**纵向错开**，
+                            不必再为它让出 20px；省下来的那一截正好把头像推回左边。
+                            再往右挪 6px 用 `translateX` 而不是 `padding`：网格的
+                            第一列是 `auto` 宽，加内边距会把列撑宽、把右边那列
+                            挤窄，线索于是多折一行、卡片又长回去。
+                          */
+                          { padding: 0, transform: 'translateX(6px)' }
                         : { height: PANEL_CELL_HEIGHT, padding: AVATAR_PADDING }
                     }
                   >
@@ -781,7 +806,14 @@ export function ParticipantPanel({
                     {clueSegments.length > 0 ? (
                       <span
                         className={cn('line-clamp-3 text-center', compactPortrait && 'text-left')}
-                        style={{ fontSize: 11, lineHeight: `${CLUE_LINE_HEIGHT}px` }}
+                        style={{
+                          fontSize: 11,
+                          /* v0.10.1 竖屏：横卡里行距收到 16px。桌面那张竖卡线索区
+                             独占 72px、三行 20px 行距是版式的一部分；横卡里线索
+                             只是头像右边的一小块字，20px 行距在 11px 的字上看是
+                             三条平行的虚线，读不出是一段话。 */
+                          lineHeight: compactPortrait ? '16px' : `${CLUE_LINE_HEIGHT}px`,
+                        }}
                         title={slot?.clue}
                       >
                         {clueSegments.map((seg, i) =>
