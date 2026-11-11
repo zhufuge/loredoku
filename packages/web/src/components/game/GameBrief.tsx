@@ -35,7 +35,7 @@ export function GameBrief({
     <section
       data-testid="game-brief"
       aria-label="题面"
-      className="max-h-[min(46vh,340px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3"
+      className="max-h-[min(24svh,220px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3 sm:max-h-[min(46vh,340px)]"
     >
       {text.length > 0 ? <BriefDescription text={text} /> : null}
       {entries.length > 0 ? (

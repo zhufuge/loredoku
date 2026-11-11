@@ -172,7 +172,7 @@ export function GameCard({
               'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
             )}
           >
-            <span className="text-4xl font-semibold text-muted-foreground/60">{initial}</span>
+            <span className="text-3xl font-semibold text-muted-foreground/60 sm:text-4xl">{initial}</span>
           </div>
         )}
         {/* 光的三层。`aria-hidden` + `pointer-events-none`：纯装饰，既不进
@@ -196,11 +196,11 @@ export function GameCard({
         */}
         {completed ? <CompletionOverlay completion={completed} /> : null}
       </div>
-      <div className="space-y-2 p-4">
+      <div className="space-y-2 p-3 sm:p-4">
         <h3 className="truncate font-medium" title={game.name}>
           {game.name}
         </h3>
-        <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {/*
             v0.9.6：页脚按用户给的版式重排 ——
             左边「n × n」+ 难度，右边【时间图标】+ 时间。

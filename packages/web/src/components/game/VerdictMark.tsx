@@ -94,6 +94,7 @@ export function VerdictMark({
   large = false,
   onDark = false,
   stampOffset,
+  scale = 1,
   className,
 }: {
   stampUrl: string | null;
@@ -101,6 +102,17 @@ export function VerdictMark({
   large?: boolean;
   /** v0.9.7：压在深色遮罩上时文字要用浅色，否则「定案」两个字会糊进黑底。 */
   onDark?: boolean;
+  /**
+   * v0.10.0：整体等比缩小（默认 1 = 原样）。手机上的棋盘只有 250 上下，
+   * 桌面那套 128px 的字会顶出遮罩、印也会偏到棋盘外 —— 调用方按棋盘边长
+   * 算一个比例传进来，字、印、偏移一起缩，相对位置一点都不变。
+   *
+   * 缩的是**外面这一层**，且用的是 `zoom` 而不是 `transform: scale`：
+   * `transform` 会被印自己那条 `stamp-press` 关键帧整条覆盖（关键帧写的就是
+   * 整条 `transform`），而且它只缩视觉、不缩盒子 —— 遮罩里 `gap-6` 排下来的
+   * 按钮会停在按原尺寸算的位置上。`zoom` 连布局尺寸一起缩，两样都省了。
+   */
+  scale?: number;
   /**
    * v0.9.8：把**印章**（不动文字）整体推移，如 `{ x: 150, y: -50 }`（px）。
    *
@@ -115,6 +127,7 @@ export function VerdictMark({
     <div
       data-testid="verdict-mark"
       className={cn('relative flex flex-col items-center justify-center', className)}
+      style={scale === 1 ? undefined : { zoom: scale }}
     >
       <span
         className={cn(

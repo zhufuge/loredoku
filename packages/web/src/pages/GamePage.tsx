@@ -7,7 +7,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
   GAME_CHECK_RING_SWEEP_MS,
@@ -103,6 +103,7 @@ import {
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
 import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
+import { verdictMarkScale } from '@/lib/verdictMark';
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
@@ -424,6 +425,17 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
 
   /**
+   * v0.10.0：窄屏上题面与名册收进一块可开合的抽屉。
+   *
+   * 手机竖屏只有 375 宽、800 出头的高度，三栏并排时左栏写死的 256~375 像素
+   * 会把棋盘挤成一条缝。安卓 / iOS 上的做法是把「读的东西」收起来，先给棋盘
+   * 让位 —— 抽屉关着时左栏只剩一行标题，棋盘吃满中间。
+   *
+   * 桌面端不受它影响：面板那块带 `md:flex`，宽度够了就永远展开。
+   */
+  const [briefOpen, setBriefOpen] = useState(false);
+
+  /**
    * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
    *
    * 它和 `result` 不是一件事：`result` 是「刚刚结算完、结算卡开着」，`finished`
@@ -662,6 +674,13 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
+
+  /*
+   * v0.10.0：手机上棋盘只有 236 见方，而「定案」遮罩那套版式（128px 的两个字）
+   * 是照桌面 480 起的棋盘定的 —— 不缩就会竖着顶出遮罩、印甩到棋盘外，底下那颗
+   * 「再玩一次」也被压住。按棋盘边长等比缩，字、印、偏移的相对位置一点都不变。
+   */
+  const verdictScale = verdictMarkScale(total);
 
   const rulerScale = cellScale(cellSize);
   const rulerMaxFont = scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale);
@@ -1223,6 +1242,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     }
     setMode({ kind: 'placing', participantId });
     setActivation((state) => reduceLinkageActivation(state, { type: 'click', participantId: index }));
+    /* v0.10.0：窄屏上点完人就把抽屉收回去 —— 选了人下一步就是落子，
+       抽屉继续占着上半屏会让棋盘只剩一条缝。桌面端 `md:flex` 恒展开，
+       这个状态对那一侧没有影响。 */
+    setBriefOpen(false);
   };
 
   /** SPEC-G04: leaving the placing state also ends the linkage preview. */
@@ -1748,8 +1771,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const game = gameQuery.data;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <div className="flex min-h-0 flex-1">
+    <div className="flex h-dvh flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/* 左列：上 = 品牌 + 游戏名（v0.5.1 SPEC-L06~L09 精简后的两行），
             中 = 题面（描述 + 全局线索），下 = 参与者面板（与预览页同一个组件）。
 
@@ -1760,6 +1783,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         <aside
           className={cn(
             'relative flex shrink-0 flex-col border-r bg-background',
+            /* v0.10.0：窄屏上这一栏从「左侧竖条」变成「顶部横条」——
+               三栏并排时它写死的 256~375px 会把棋盘挤成一条缝。
+               `!w-full` 带 `!`：宽度是 `rosterPanelWidthFor` 算出的**内联**
+               像素值（`style.width` 有测试钉住），只有 important 能盖掉内联。 */
+            'max-md:!w-full max-md:max-h-[50svh] max-md:border-b max-md:border-r-0',
             /* v0.9.7：结案后名册 / 题面不再接指针（见 interactionLocked）。 */
             interactionLocked && 'pointer-events-none',
           )}
@@ -1827,54 +1855,77 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 {formatElapsed(elapsedMs)}
               </span>
             </div>
+            {/* v0.10.0：窄屏上题面与名册收进这块抽屉，棋盘才能拿到整屏。
+                桌面端 `md:hidden` 不画这枚按钮，抽屉内容靠 `md:flex` 永远展开。 */}
+            <button
+              type="button"
+              className="flex w-full items-center justify-center gap-1 rounded-md border px-2 py-1 text-2xs text-muted-foreground transition-colors duration-base hover:text-foreground md:hidden"
+              aria-label="题面与参与者"
+              aria-expanded={briefOpen}
+              onClick={() => setBriefOpen((open) => !open)}
+            >
+              {briefOpen ? '收起题面与参与者' : '题面与参与者'}
+              {briefOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+            </button>
           </div>
 
           {/*
-            v0.7.14（docs/v0.7.14.md §4）：题面。描述在上、全局线索在下，钉在标题
-            与名册之间 —— 三样东西同时在视野里，谁也不用滚动去换另一个。
-            没有内容时组件自己返回 `null`，所以这里不必先判空。
+            v0.10.0：窄屏上题面与名册装进这块可开合的抽屉 —— 抽屉关着时整块
+            `hidden`，只有桌面端（`md:flex`）永远展开。开合状态在 `briefOpen`。
           */}
-          <GameBrief description={puzzleDescription} clues={puzzleClues} />
+          <div
+            className={cn(
+              'min-h-0 flex-1 flex-col md:flex',
+              briefOpen ? 'flex' : 'hidden',
+            )}
+          >
+            {/*
+              v0.7.14（docs/v0.7.14.md §4）：题面。描述在上、全局线索在下，钉在标题
+              与名册之间 —— 三样东西同时在视野里，谁也不用滚动去换另一个。
+              没有内容时组件自己返回 `null`，所以这里不必先判空。
+            */}
+            <GameBrief description={puzzleDescription} clues={puzzleClues} />
 
-          <div className="flex min-h-0 flex-1">
-            <ParticipantPanel
-              slots={slots}
-              charactersById={charactersById}
-              cols={rosterCols}
-              /*
-               * v0.7.11：游戏页的名册也有「选中」—— 手上正拿着的那位（放置态），
-               * 不是鼠标碰巧路过的那位。选中态是一道 3px 的连续主色边（描边 +
-               * 外扩同色，中间不留缝，见 `PARTICIPANT_SELECTED_RING`），带一次
-               * 180ms 的鼓起。
-               */
-              selectedSlotIndex={mode.kind === 'placing' ? mode.participantId - 1 : null}
-              draggingIndex={null}
-              activeSlotIndex={activation.activeParticipantId}
-              highlightedSlots={highlightedSlots}
-              highlightColors={highlightColors}
-              readOnly
-              // v0.7.11：去掉「参与者 5/5」那行标题 —— 玩家端上面已经有一行。
-              hideHeader
-              placedSlotIndices={placedSlotIndices}
-              onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
-              onDeactivateHover={(index) => {
-                // SPEC-G03+ BUG-G02：放置态下移开
-                // 任意卡片都恢复已武装参与者的激活。必须走幂等的 `restore`——
-                // 用 `click` 时，离开的恰是武装者自己的卡片就等同于「再点一次」，
-                // 激活会被 toggle 关掉。
-                if (mode.kind === 'placing') {
-                  setActivation((state) =>
-                    reduceLinkageActivation(state, {
-                      type: 'restore',
-                      participantId: mode.participantId - 1,
-                    }),
-                  );
-                  return;
-                }
-                handleActivation({ type: 'leave', participantId: index });
-              }}
-              onActivateClick={handleCardClick}
-            />
+            <div className="flex min-h-0 flex-1 max-md:overflow-x-auto">
+              <ParticipantPanel
+                slots={slots}
+                charactersById={charactersById}
+                cols={rosterCols}
+                /*
+                 * v0.7.11：游戏页的名册也有「选中」—— 手上正拿着的那位（放置态），
+                 * 不是鼠标碰巧路过的那位。选中态是一道 3px 的连续主色边（描边 +
+                 * 外扩同色，中间不留缝，见 `PARTICIPANT_SELECTED_RING`），带一次
+                 * 180ms 的鼓起。
+                 */
+                selectedSlotIndex={mode.kind === 'placing' ? mode.participantId - 1 : null}
+                draggingIndex={null}
+                activeSlotIndex={activation.activeParticipantId}
+                highlightedSlots={highlightedSlots}
+                highlightColors={highlightColors}
+                readOnly
+                // v0.7.11：去掉「参与者 5/5」那行标题 —— 玩家端上面已经有一行。
+                hideHeader
+                placedSlotIndices={placedSlotIndices}
+                onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
+                onDeactivateHover={(index) => {
+                  // SPEC-G03+ BUG-G02：放置态下移开
+                  // 任意卡片都恢复已武装参与者的激活。必须走幂等的 `restore`——
+                  // 用 `click` 时，离开的恰是武装者自己的卡片就等同于「再点一次」，
+                  // 激活会被 toggle 关掉。
+                  if (mode.kind === 'placing') {
+                    setActivation((state) =>
+                      reduceLinkageActivation(state, {
+                        type: 'restore',
+                        participantId: mode.participantId - 1,
+                      }),
+                    );
+                    return;
+                  }
+                  handleActivation({ type: 'leave', participantId: index });
+                }}
+                onActivateClick={handleCardClick}
+              />
+            </div>
           </div>
         </aside>
 
@@ -2119,6 +2170,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                    */
                   stampOffset={{ x: 150, y: -50 }}
                   /*
+                   * v0.10.0：手机上的棋盘小得多，这一整套（字、印、让开的偏移）
+                   * 跟着棋盘等比缩，否则会顶出遮罩。桌面棋盘够大时恒为 1。
+                   */
+                  scale={verdictScale}
+                  /*
                    * 刚通过时演一次「印下去」；已完成再进入是既成事实，不演。
                    * 判据只看「是不是这次进来的」，不看 result —— 结算卡弹出后遮罩还
                    * 在（它才是背景），动画类不该因为弹窗出现就被摘掉。
@@ -2282,7 +2338,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         </main>
 
         {/* 右列：工具栏（SPEC-G04） */}
-        <aside className="relative flex w-[84px] shrink-0 flex-col items-center gap-2 border-l bg-background p-2">
+        <aside
+          className={cn(
+            'relative flex shrink-0 flex-col items-center gap-2 border-l bg-background p-2',
+            /* v0.10.0：窄屏上这一栏从「右侧竖条」变成「底部横条」—— 竖条写死的
+               84px 在竖屏手机上正好吃掉棋盘最宝贵的一条宽度；横条沉到底部，
+               四枚工具 + 视图簇按行折行。 */
+            'max-md:w-full max-md:max-w-full max-md:flex-row max-md:flex-wrap max-md:justify-center max-md:gap-1 max-md:border-l-0 max-md:border-t max-md:py-1.5',
+          )}
+        >
           {/* v0.9.4：右栏自己一层完整遮罩 —— 与左栏同一层颜色、同一档层级。
               `-left-px` 越过右栏自己的左边框，把「中列 / 右栏」那条分隔线也压暗
               （理由同左栏，见上方注释）。 */}
@@ -2297,6 +2361,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             variant="ghost"
             className={cn(
               'h-12 w-full',
+              /* v0.10.0：横条上一枚枚落成方钮，不再各占满一行。 */
+              'max-md:h-11 max-md:w-11 max-md:shrink-0',
               mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
             title="标记"
@@ -2330,6 +2396,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             variant="ghost"
             className={cn(
               'relative h-12 w-full',
+              'max-md:h-11 max-md:w-11 max-md:shrink-0',
               mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
             title="清除放置，长按清空全部"
@@ -2368,7 +2435,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             */}
           <span
             className={cn(
-              'block w-full',
+              'block w-full max-md:w-auto max-md:shrink-0',
               (!canUndo(placementState) || toolsLocked) && 'cursor-not-allowed',
             )}
             title={
@@ -2381,7 +2448,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           >
             <Button
               variant="ghost"
-              className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
+              className={cn('h-12 w-full', 'max-md:h-11 max-md:w-11', TOOLBAR_ICON_HOVER_CLASS)}
               title={
                 toolsLocked
                   ? '这一局已结案，点「再玩一次」才能继续'
@@ -2403,7 +2470,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             */}
           <span
             className={cn(
-              'block w-full',
+              'block w-full max-md:w-auto max-md:shrink-0',
               (!readyToSubmit || toolsLocked) && 'cursor-not-allowed',
             )}
             title={
@@ -2416,7 +2483,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           >
             <Button
               variant="ghost"
-              className={cn('h-12 w-full', TOOLBAR_ICON_HOVER_CLASS)}
+              className={cn('h-12 w-full', 'max-md:h-11 max-md:w-11', TOOLBAR_ICON_HOVER_CLASS)}
               title={
                 toolsLocked
                   ? '这一局已结案，点「再玩一次」才能继续'
@@ -2437,7 +2504,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
            * —— 上面四枚是「对棋盘做什么」，下面这簇是「怎么看棋盘」，中间留白正好
            * 把两组分开。分隔线跟着这一簇走，不再横在两枚工具按钮之间。
            */}
-          <div className="mt-auto flex w-full flex-col items-center gap-1 border-t pt-2">
+          <div
+            className={cn(
+              'mt-auto flex w-full flex-col items-center gap-1 border-t pt-2',
+              /* v0.10.0：竖条里这一簇沉在底边（`mt-auto`）；横条里它跟着工具按钮
+                 排成一行，不再占一整行、也不要那条分隔线。 */
+              'max-md:mt-0 max-md:w-auto max-md:flex-row max-md:border-t-0 max-md:pt-0',
+            )}
+          >
             <IconButton
               variant="ghost"
               icon={<Plus className="h-4 w-4" />}
@@ -2447,7 +2521,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               disabled={toolsLocked || zoom >= ZOOM_MAX}
               onClick={() => zoomBy(1)}
             />
-            <span className="w-full text-center text-2xs tabular-nums text-muted-foreground">
+            <span className="w-full text-center text-2xs tabular-nums text-muted-foreground max-md:w-auto">
               {Math.round(zoom * 100)}%
             </span>
             <IconButton

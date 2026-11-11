@@ -69,8 +69,8 @@ export function GamesPage(): JSX.Element {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto w-full max-w-7xl space-y-8 px-6 py-6">
-        <div className="flex items-end justify-between gap-4">
+      <div className="mx-auto w-full max-w-7xl space-y-6 px-4 py-5 sm:space-y-8 sm:px-6 sm:py-6">
+        <div className="flex flex-wrap items-end justify-between gap-3 sm:gap-4">
           <div className="space-y-1">
             <BrandLogo height={22} withWordmark />
             <p className="text-xs text-muted-foreground">
@@ -106,13 +106,13 @@ export function GamesPage(): JSX.Element {
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <Skeleton key={index} className="aspect-square w-full" />
             ))}
           </div>
         ) : error ? (
-          <Card className="flex flex-col items-center gap-3 p-12 text-center">
+          <Card className="flex flex-col items-center gap-3 p-8 text-center sm:p-12">
             <p className="text-sm text-muted-foreground">
               {error instanceof Error ? error.message : '加载失败'}
             </p>
@@ -121,7 +121,7 @@ export function GamesPage(): JSX.Element {
             </Button>
           </Card>
         ) : games.length === 0 ? (
-          <Card className="mx-auto flex max-w-md flex-col items-center gap-4 p-12 text-center">
+          <Card className="mx-auto flex max-w-md flex-col items-center gap-4 p-8 text-center sm:p-12">
             <Gamepad2 className="h-10 w-10 text-muted-foreground/60" />
             <CardContent className="space-y-1 p-0">
               <p className="font-medium">还没有部署任何游戏</p>
@@ -134,7 +134,7 @@ export function GamesPage(): JSX.Element {
             </Button>
           </Card>
         ) : (
-          <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 xl:grid-cols-4">
             {games.map((game) => (
               <GameCard
                 key={game.id}
