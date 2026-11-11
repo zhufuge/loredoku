@@ -109,6 +109,8 @@ import {
   computeCellSizeForInsets,
   computeWidthFitCellSize,
   isPortraitViewport,
+  portraitInsets,
+  portraitStageHeight,
   topAlignedPan,
 } from '@/lib/canvasSize';
 import { verdictMarkScale } from '@/lib/verdictMark';
@@ -288,6 +290,11 @@ function GameToolIcon({
    * 上传的图**共用这一处尺寸** —— 否则「配了图反而变小」会像是上传坏了。
    * 按钮仍是 48px 触屏档，图标四周各留 8px；长按清除的那道扇形是填在按钮
    * 底下的（v0.9.2 §5），不与图标抢地方。
+   *
+   * v0.10.1 竖屏：图标仍是 2rem（`h-8 w-8`，与桌面同档），底栏高度收到 54px ——
+   * 手指点在手机屏上要的是「够大够近」，不是「图标越大越好」：2rem 的图标配
+   * 54 高的长条钮，四枚一排铺满屏宽，比原来 44px 的方钮好按，又不至于把
+   * 棋盘和名册的高度抢掉。桌面端不动。
    */
   if (!render) {
     const Fallback = TOOL_ICON_FALLBACKS[name];
@@ -906,15 +913,16 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     const viewportHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
     const portrait = isPortraitViewport(viewportWidth, viewportHeight);
     setPortraitFit(portrait);
-    const insets = canvasInsets({
-      showRulers: showRulers && !portrait,
-      showBottomBar: false,
-      rulerSize: rulerStrip,
-      /* v0.10.1：竖屏只有 375 宽，左右各留 40 等于白扔 80 像素（棋盘能少一整列）。
-         桌面那圈 `EXTRA_MARGIN` 是为了画面呼吸，手机上呼吸不起 —— 收到 0，
-         只留 `CANVAS_PADDING` 那 16。 */
-      extraMargin: portrait ? 0 : undefined,
-    });
+    /*
+     * v0.10.1：竖屏用自己那一套四边留白（左右 8、上下 12），桌面那套
+     * （`CANVAS_PADDING + EXTRA_MARGIN` = 每边 40）在 375 宽的屏上等于白扔两列半
+     * 格子。上下比左右多 4px：棋盘上边贴着标题、下边贴着题面面板，四面一样宽会
+     * 读成「两块拼在一起」；再多给也不成 —— 竖屏一屏就这么高，上下多占的每一
+     * 像素都是从下面的线索与名册里扣的。
+     */
+    const insets = portrait
+      ? portraitInsets()
+      : canvasInsets({ showRulers, showBottomBar: false, rulerSize: rulerStrip });
     const next = portrait
       ? computeWidthFitCellSize({ width: rect.width, gridSize, insets })
       : computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
@@ -2025,17 +2033,24 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             v0.10.0：窄屏上一度装进可开合抽屉（`briefOpen`）。
 
             v0.10.1：不再折叠。窄屏上它落到「地图下面、工具栏上面」（`order-3`），
-            限高 `max-h-[38svh]` 并整块可滚 —— 手机上一屏只够一件事，棋盘要占大头，
-            但线索与名册必须随时能扫到，翻抽屉这一步省掉。
+            并吃掉棋盘定高之后剩下的**全部**高度（`flex-1` + `min-h-0`），内部整块可滚
+            —— 手机上一屏只够一件事，棋盘按宽度定死之后，多出来的高度就该给线索与
+            名册，而不是在棋盘下面留一片空白。
           */}
           <div
             className={cn(
               'min-h-0 flex-1 flex-col md:flex',
               /*
-               * v0.10.1 竖屏：不折叠、限高、整块可滚。
+               * v0.10.1 竖屏：不折叠、吃掉剩余高度、整块可滚。
                * `order-3` 让它排在棋盘（`order-2`）之后、工具栏（`order-4`）之前。
+               *
+               * 竖屏与「横过来的手机」要分开：竖屏棋盘按宽度定死了高，剩下的高度
+               * 全给这块（`flex-1`）；横屏那台还是老样子 —— 棋盘占大头，这块限高
+               * `38svh` 不参与分配。两者都用 `flex-1` 的话，横屏 360 高会被棋盘和
+               * 这块平分，名册直接压成一条缝。
                */
-              'max-md:order-3 max-md:flex max-md:max-h-[38svh] max-md:flex-none max-md:overflow-y-auto max-md:border-t',
+              'max-md:order-3 max-md:flex max-md:overflow-y-auto max-md:border-t',
+              portraitFit ? 'max-md:flex-1' : 'max-md:max-h-[38svh] max-md:flex-none',
             )}
           >
             {/*
@@ -2113,6 +2128,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                成了同一个 flex 列里的四个兄弟，靠 `order` 排：头 1、棋盘 2（就是
                这里）、题面名册 3、工具栏 4。桌面端 `order` 不参与，三栏照旧。 */
             'max-md:order-2',
+            /* v0.10.1 竖屏：棋盘的高度已经由「格数 × 格子」定死了，不再 `flex-1`
+               吃掉剩下的全部高度 —— 剩下的要留给下面的线索与名册。 */
+            portraitFit && 'max-md:flex-none',
             // v0.9.3 §2：核对期间棋盘只读 —— 圈到一半还能落子就说不清在核对什么。
             checkRun && 'pointer-events-none',
             // v0.9.7：结案后地图 / 物品 / 格子的指针交互全停（遮罩接管这一屏）。
@@ -2122,6 +2140,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             // v0.6.2：按住空格 / 中键时是抓手，格内放东西是 pointer，其余普通光标。
             cursor: spaceHeld ? 'grab' : hoverEffects.cell ? 'pointer' : 'default',
             touchAction: 'none',
+            /* v0.10.1 竖屏：高度正好是棋盘 + 上下各 `PORTRAIT_MARGIN_Y`。
+               桌面端不给这个值，仍旧由 flex 分配。 */
+            height: portraitFit ? portraitStageHeight(gridSize, cellSize) : undefined,
           }}
           onPointerDown={(event) => {
             /*
@@ -2532,7 +2553,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             /* v0.10.0：窄屏上这一栏从「右侧竖条」变成「底部横条」—— 竖条写死的
                84px 在竖屏手机上正好吃掉棋盘最宝贵的一条宽度；横条沉到底部，
                四枚工具 + 视图簇按行折行。 */
-            'max-md:w-full max-md:max-w-full max-md:flex-row max-md:flex-wrap max-md:justify-center max-md:gap-1 max-md:border-l-0 max-md:border-t max-md:py-1.5',
+            'max-md:w-full max-md:max-w-full max-md:flex-row max-md:flex-wrap max-md:justify-center max-md:gap-1 max-md:border-l-0 max-md:border-t max-md:py-1.5 portrait:max-md:h-[54px] portrait:max-md:py-0',
             /* v0.10.1 竖屏：排到最末（`order-4`），跟题面名册（`order-3`）一起
                落在棋盘下面。 */
             'max-md:order-4',
@@ -2552,8 +2573,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             variant="ghost"
             className={cn(
               'h-12 w-full',
-              /* v0.10.0：横条上一枚枚落成方钮，不再各占满一行。 */
-              'max-md:h-11 max-md:w-11 max-md:shrink-0',
+              /*
+               * v0.10.1 竖屏：图标 2rem、底栏 54 高之后，44px 的方钮装不下了。
+               * 底栏改成四枚等宽的长方形 —— 一排放得下、也不必有正方形那套对称。
+               */
+              'max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:shrink max-md:px-0 portrait:max-md:h-full',
               mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
             title="标记"
@@ -2576,7 +2600,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 alt=""
                 draggable={false}
                 data-testid="forbidden-tool-icon"
-                /* v0.9.0 §17：与下面三枚内置图标同一档 32px。 */
+                /* v0.9.0 §17：与下面三枚内置图标同一档 32px（2rem）。 */
                 className="h-8 w-8 select-none object-contain dark:invert dark:hue-rotate-180"
               />
             ) : (
@@ -2587,7 +2611,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             variant="ghost"
             className={cn(
               'relative h-12 w-full',
-              'max-md:h-11 max-md:w-11 max-md:shrink-0',
+              /* v0.10.1 竖屏：同上面那枚标记键 —— 图标 2rem，按钮长到 54 高、四枚等分。 */
+              'max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:px-0 portrait:max-md:h-full',
               mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
             )}
             title="清除放置，长按清空全部"
@@ -2626,7 +2651,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             */}
           <span
             className={cn(
-              'block w-full max-md:w-auto max-md:shrink-0',
+              'block w-full',
+              /* v0.10.1 竖屏：底栏四枚等分，包层跟着一起撑开。`w-auto` 不能少 ——
+                 `w-full` 会把 flex 基准算成整条栏宽，四枚就分不匀。 */
+              'max-md:w-auto max-md:min-w-0 max-md:flex-1 portrait:max-md:h-full',
               (!canUndo(placementState) || toolsLocked) && 'cursor-not-allowed',
             )}
             title={
@@ -2639,7 +2667,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           >
             <Button
               variant="ghost"
-              className={cn('h-12 w-full', 'max-md:h-11 max-md:w-11', TOOLBAR_ICON_HOVER_CLASS)}
+              className={cn(
+                'h-12 w-full',
+                /* v0.10.1 竖屏：底栏四枚等分的长方形，高度 54 容得下 2rem 的图标。 */
+                'max-md:px-0 portrait:max-md:h-full',
+                TOOLBAR_ICON_HOVER_CLASS,
+              )}
               title={
                 toolsLocked
                   ? '这一局已结案，点「再玩一次」才能继续'
@@ -2661,7 +2694,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             */}
           <span
             className={cn(
-              'block w-full max-md:w-auto max-md:shrink-0',
+              'block w-full',
+              'max-md:w-auto max-md:min-w-0 max-md:flex-1 portrait:max-md:h-full',
               (!readyToSubmit || toolsLocked) && 'cursor-not-allowed',
             )}
             title={
@@ -2674,7 +2708,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           >
             <Button
               variant="ghost"
-              className={cn('h-12 w-full', 'max-md:h-11 max-md:w-11', TOOLBAR_ICON_HOVER_CLASS)}
+              className={cn(
+                'h-12 w-full',
+                'max-md:px-0 portrait:max-md:h-full',
+                TOOLBAR_ICON_HOVER_CLASS,
+              )}
               title={
                 toolsLocked
                   ? '这一局已结案，点「再玩一次」才能继续'

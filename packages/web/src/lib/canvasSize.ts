@@ -156,6 +156,51 @@ export const PORTRAIT_BREAKPOINT = 768;
 export const PORTRAIT_MIN_CELL_SIZE = 8;
 
 /**
+ * v0.10.1：竖屏下棋盘四周留多少。
+ *
+ * 左右只留 8px —— 375 宽的屏上每 8px 就是一整列格子，桌面那圈
+ * `CANVAS_PADDING + EXTRA_MARGIN` 的 40px 在手机上等于白扔两列半。
+ *
+ * 上下留 12px，**比左右大一点**：棋盘上边贴着标题栏、下边贴着题面面板，
+ * 上下完全没缝会读成「两块拼在一起」。但也不能多 —— 竖屏一屏就 812 高，
+ * 上下多给的每一像素都是从「全局线索 + 参与者」那块里扣的。
+ */
+export const PORTRAIT_MARGIN_X = 8;
+export const PORTRAIT_MARGIN_Y = 12;
+
+/**
+ * v0.10.1：竖屏棋盘那一块（`<main>`）在「棋盘 + 上下留白」之外再垫多少。
+ *
+ * 棋盘装得下时由 `centeredPan` 居中（每边各摊一半），装不下时由 `topAlignedPan`
+ * 贴上边 —— 所以这 32px 撑开的是「标题栏与棋盘之间」「棋盘与题面面板之间」两条缝，
+ * 让三块钱不至于贴成一片。
+ */
+export const PORTRAIT_STAGE_EXTRA = 32;
+
+/** 竖屏专用的四边内边距（左右 8、上下 12，见上面的常量）。 */
+export function portraitInsets(): CanvasInsets {
+  return {
+    top: PORTRAIT_MARGIN_Y,
+    right: PORTRAIT_MARGIN_X,
+    bottom: PORTRAIT_MARGIN_Y,
+    left: PORTRAIT_MARGIN_X,
+  };
+}
+
+/**
+ * v0.10.1：竖屏下棋盘那一块（`<main>`）应当占多高。
+ *
+ * 竖屏的棋盘是按宽度定死的 —— 宽高都是 `gridSize × cellSize`，上下各留
+ * `PORTRAIT_MARGIN_Y`，再加一段 `PORTRAIT_STAGE_EXTRA`。把这块高度**算出来**
+ * 而不是让它 `flex-1` 吃掉剩余空间，是因为剩下的高度要留给下面的「全局线索 +
+ * 参与者」：棋盘若继续 `flex-1`，小棋盘（2×2）会在下面拖出一大片空白，而面板
+ * 反而只有 38svh。
+ */
+export function portraitStageHeight(gridSize: number, cellSize: number): number {
+  return gridSize * cellSize + PORTRAIT_MARGIN_Y * 2 + PORTRAIT_STAGE_EXTRA;
+}
+
+/**
  * 竖屏判定：**窄**（宽度不到 `md` 断点）**且竖着**（高度大于宽度）。
  *
  * 为什么不是只看宽度：手机横过来（740×360）宽度也在 `md` 以下，但那时受限的

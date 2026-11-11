@@ -18,7 +18,12 @@ import {
   computeWidthFitCellSize,
   isPortraitViewport,
   PORTRAIT_BREAKPOINT,
+  PORTRAIT_MARGIN_X,
+  PORTRAIT_MARGIN_Y,
   PORTRAIT_MIN_CELL_SIZE,
+  PORTRAIT_STAGE_EXTRA,
+  portraitInsets,
+  portraitStageHeight,
   renderedCellSize,
   topAlignedPan,
 } from './canvasSize';
@@ -300,5 +305,46 @@ describe('竖屏按宽度铺满（v0.10.1）', () => {
     const insets = canvasInsets();
     const rect = { width: 375, height: 592 };
     expect(topAlignedPan(rect, insets, 6, 10)).toEqual(centeredPan(rect, insets, 6, 10));
+  });
+});
+
+describe('竖屏四边留白与棋盘高度（v0.10.1）', () => {
+  it('上下比左右宽一点，四面都很小', () => {
+    expect(PORTRAIT_MARGIN_X).toBe(8);
+    expect(PORTRAIT_MARGIN_Y).toBe(12);
+    expect(PORTRAIT_MARGIN_Y).toBeGreaterThan(PORTRAIT_MARGIN_X);
+    // 比桌面那套（左右各 40）小一个量级 —— 竖屏每一像素都从棋盘里扣。
+    expect(PORTRAIT_MARGIN_X).toBeLessThan(CANVAS_PADDING + EXTRA_MARGIN);
+    expect(portraitInsets()).toEqual({
+      top: PORTRAIT_MARGIN_Y,
+      right: PORTRAIT_MARGIN_X,
+      bottom: PORTRAIT_MARGIN_Y,
+      left: PORTRAIT_MARGIN_X,
+    });
+  });
+
+  it('棋盘高度 = 边长 + 上下留白 + 下方那一段', () => {
+    expect(PORTRAIT_STAGE_EXTRA).toBe(32);
+    expect(portraitStageHeight(7, 49)).toBe(7 * 49 + 24 + 32);
+    expect(portraitStageHeight(2, 100)).toBe(224 + 32);
+    // 退化输入不抛 NaN，交给调用处。
+    expect(portraitStageHeight(0, 0)).toBe(PORTRAIT_MARGIN_Y * 2 + PORTRAIT_STAGE_EXTRA);
+  });
+
+  it('按宽度铺满之后，棋盘横向装得进屏、纵向只由格子高度决定', () => {
+    const insets = portraitInsets();
+    for (const width of [320, 375, 414]) {
+      for (let gridSize = 2; gridSize <= 24; gridSize += 1) {
+        const cell = computeWidthFitCellSize({ width, gridSize, insets });
+        const boardWidth = gridSize * cell + (gridSize - 1) * BORDER_WIDTH;
+        expect(boardWidth, `w${width} n${gridSize}`).toBeLessThanOrEqual(
+          width - insets.left - insets.right,
+        );
+        // 纵向没有格间：棋盘高就是格子总高，外加上下各一份留白与下方那段。
+        expect(portraitStageHeight(gridSize, cell)).toBe(
+          gridSize * cell + insets.top + insets.bottom + PORTRAIT_STAGE_EXTRA,
+        );
+      }
+    }
   });
 });

@@ -45,7 +45,12 @@ export function GameBrief({
     <section
       data-testid="game-brief"
       aria-label="题面"
-      className="max-h-[min(24svh,220px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3 sm:max-h-[min(46vh,340px)]"
+      /*
+       * v0.10.1 竖屏：整块往上留一点空。竖屏下面板紧贴着棋盘的下边框（`border-t`），
+       * 线索纸条又只按自己的字宽收身，第一张纸条直接顶着那条线会读成「被切了一半」。
+       * 桌面端不加：标题块自己带 `p-3` 的下边距，再垫一层就成了双重留白。
+       */
+      className="max-h-[min(24svh,220px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3 sm:max-h-[min(46vh,340px)] max-md:pt-3"
     >
       {showDescription ? <BriefDescription text={text} /> : null}
       {entries.length > 0 ? (
