@@ -96,6 +96,15 @@ interface ParticipantPanelProps {
    */
   hideHeader?: boolean;
   /**
+   * v0.10.1：竖屏窄屏下换一套卡片布局 —— 每行固定 2 张、卡片本身横过来
+   * （左头像，右上名称、右下线索）。
+   *
+   * 名册这时不在左栏里，而是横躺在棋盘下面一整条，宽度是屏宽而不是 256 像素；
+   * 竖着的 110×196 卡片在这条里既浪费宽度又占高度。**只有游戏页会传**
+   * （且只在自己判定竖屏时为真），编辑器与作品预览维持原样。
+   */
+  compactPortrait?: boolean;
+  /**
    * v0.7.13：标题行**左侧**可以挂一颗按钮。
    *
    * 谜题编辑器把「角色」列整列收起（连 40px 细条也不留）之后，「展开角色列表」
@@ -142,6 +151,15 @@ const AVATAR_PADDING = 8;
 const AVATAR_MIN_SIZE = PARTICIPANT_AVATAR_MIN;
 /** MOD-802: don't hover-activate while a slot is being dragged. */
 const DRAG_HOVER_LOCK = true;
+/**
+ * v0.10.1：竖屏横卡里头像的直径。
+ *
+ * 桌面那张竖卡头像能到 94px，是因为它自己占满一整块 104 高的区域；横卡里
+ * 头像只在左边占一列，右边还要放两行字 —— 一格两列合计约 172px 宽，
+ * 94 的头像配 70 宽的文字列，线索会挤成一条竖缝。44 是与序号徽标同一量级、
+ * 又还认得出人像的下限。
+ */
+const COMPACT_AVATAR_SIZE = 44;
 
 /**
  * **选中**的框：一条**连续**的主色边（1px 描边 + 2px 外扩，中间不留纸色）。
@@ -200,6 +218,7 @@ export function ParticipantPanel({
   readOnly = false,
   placedSlotIndices,
   hideHeader = false,
+  compactPortrait = false,
   headerLeading,
   onSelect,
   onActivateHover,
@@ -236,7 +255,10 @@ export function ParticipantPanel({
 
   // MOD-803: shrink the column count when the panel can't hold it; when even
   // one column doesn't fit, the scroll container takes over.
+  // v0.10.1 竖屏：横躺的一条名册，固定每行 2 张 —— 谜题配的列数在这条里没有意义
+  // （2 张卡就把屏宽占满了），所以直接压过 `fixedCols`。
   const layout = useMemo<ParticipantLayout>(() => {
+    if (compactPortrait) return deriveLayout(slots.length, 2);
     if (fixedCols !== null) return deriveLayout(slots.length, fixedCols);
     if (panelWidth <= 0) return preferred;
     const fit = fitColumns(
@@ -246,7 +268,7 @@ export function ParticipantPanel({
       CELL_GAP,
     );
     return deriveLayout(slots.length, fit);
-  }, [panelWidth, preferred, slots.length, fixedCols]);
+  }, [panelWidth, preferred, slots.length, fixedCols, compactPortrait]);
 
   /** v0.6.3 §3.3: the panel is as wide as its columns demand. */
   const panelBoxWidth = rosterPanelWidthFor(cols, slots.length);
@@ -297,8 +319,13 @@ export function ParticipantPanel({
   return (
     <aside
       ref={measuredRef}
-      className="flex shrink-0 flex-col border-r bg-background"
-      style={{ width: panelBoxWidth }}
+      className={cn(
+        'flex shrink-0 flex-col border-r bg-background',
+        // v0.10.1 竖屏：这张面板不再是左栏的一条竖条，而是棋盘下面横躺的一整行 ——
+        // 宽度跟着外面的容器走，右边框与「只占自己那点宽度」的收缩都取消。
+        compactPortrait && 'w-full flex-1 border-r-0',
+      )}
+      style={compactPortrait ? undefined : { width: panelBoxWidth }}
     >
       {/* OPT-B06 §6.1: title bar 40px, aligned with the item panel header.
           v0.7.11：游戏页不用（`hideHeader`）—— 玩家端名册头上已经有一行了。
@@ -353,13 +380,18 @@ export function ParticipantPanel({
             className="grid"
             data-testid="roster-matrix"
             style={{
-              gridTemplateColumns: `repeat(${layout.cols}, ${PANEL_CELL_WIDTH}px)`,
+              // v0.10.1 竖屏：两条等宽的弹性轨道（屏宽两边分），而不是 110px 定宽。
+              gridTemplateColumns: compactPortrait
+                ? `repeat(${layout.cols}, minmax(0, 1fr))`
+                : `repeat(${layout.cols}, ${PANEL_CELL_WIDTH}px)`,
               gap: CELL_GAP,
               justifyContent: 'center',
               // v0.6.3 §3.3: never narrower than its own tracks. Without this,
               // a matrix wider than the panel would be centred and its left
               // edge clipped — the part `overflow` can never scroll back to.
-              minWidth: 'max-content',
+              // v0.10.1 竖屏：轨道是弹性的，`max-content` 会让它按内容最小宽度
+              // 撑出去、反而溢出，所以这一条只在定宽轨道时生效。
+              minWidth: compactPortrait ? undefined : 'max-content',
             }}
           >
             {cells.map((item, position) => {
@@ -430,9 +462,13 @@ export function ParticipantPanel({
                   data-tint={slot && (isHovered || isSelected) ? 'on' : undefined}
                   style={{
                     touchAction: 'none',
-                    width: PANEL_CELL_WIDTH,
+                    // v0.10.1 竖屏：卡片是弹性轨道里的一格，宽度交给轨道，
+                    // 高度由内容（横排的头像与两行文字）决定。
+                    width: compactPortrait ? '100%' : PANEL_CELL_WIDTH,
                     // FEAT-O12: the name row is added to the card's height.
-                    height: PANEL_CELL_HEIGHT + NAME_AREA_HEIGHT + CLUE_AREA_HEIGHT,
+                    height: compactPortrait
+                      ? undefined
+                      : PANEL_CELL_HEIGHT + NAME_AREA_HEIGHT + CLUE_AREA_HEIGHT,
                     // The radius is inline (not `rounded-md`) because the
                     // sequence badge rounds its top-left corner with it — the
                     // two must never drift apart.
@@ -549,6 +585,11 @@ export function ParticipantPanel({
                      * 干净的一枚圆。
                      */
                     'relative isolate flex flex-col items-center justify-start border',
+                    /* v0.10.1 竖屏：卡片横过来 —— 左头像（纵向跨满两行），右边一列
+                       上下两行：名称在上、线索在下。不搬动 DOM，只换一套网格：
+                       头像 `row-span-2` 占第一列，名称与线索顺次落进第二列。 */
+                    compactPortrait &&
+                      'grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] items-center justify-items-start gap-x-2 gap-y-0.5 p-2',
                     readOnly
                       ? slot
                         ? 'cursor-pointer'
@@ -646,8 +687,17 @@ export function ParticipantPanel({
 
                   {/* Avatar area (top portion) — MOD-803: 8px padding */}
                   <div
-                    className="flex items-center justify-center"
-                    style={{ height: PANEL_CELL_HEIGHT, padding: AVATAR_PADDING }}
+                    className={cn(
+                      'flex items-center justify-center',
+                      // v0.10.1 竖屏：头像在左，纵向跨两行（名称 + 线索）。
+                      compactPortrait && 'col-start-1 row-span-2 self-center',
+                    )}
+                    style={
+                      compactPortrait
+                        ? // v0.10.1 竖屏：左边留出序号徽标那一小块，否则徽标会压在人脸上。
+                          { padding: '0 0 0 20px' }
+                        : { height: PANEL_CELL_HEIGHT, padding: AVATAR_PADDING }
+                    }
                   >
                     {slot ? (
                       /*
@@ -662,8 +712,8 @@ export function ParticipantPanel({
                         data-testid={`slot-avatar-${index}`}
                         className="flex items-center justify-center overflow-hidden rounded-full"
                         style={{
-                          width: avatarSize,
-                          height: avatarSize,
+                          width: compactPortrait ? COMPACT_AVATAR_SIZE : avatarSize,
+                          height: compactPortrait ? COMPACT_AVATAR_SIZE : avatarSize,
                           backgroundColor: themeColor,
                           // MOD-802 §1.2.5 / FIX-E04: highlighting is shown by
                           // the slot's single outline + this subtle scale-up;
@@ -696,13 +746,20 @@ export function ParticipantPanel({
                   {/* FEAT-O12 §6.1: the character's name, between the avatar
                       and the clue. Empty slots render nothing. */}
                   <div
-                    className="flex w-full items-center justify-center px-1"
-                    style={{ height: NAME_AREA_HEIGHT }}
+                    className={cn(
+                      'flex w-full items-center justify-center px-1',
+                      // v0.10.1 竖屏：名称在右上。
+                      compactPortrait && 'col-start-2 row-start-1 w-auto justify-start px-0',
+                    )}
+                    style={{ height: compactPortrait ? undefined : NAME_AREA_HEIGHT }}
                   >
                     {character ? (
                       <span
                         data-testid={`slot-name-${index}`}
-                        className="max-w-full truncate text-center text-xs font-medium"
+                        className={cn(
+                          'max-w-full truncate text-center text-xs font-medium',
+                          compactPortrait && 'text-left',
+                        )}
                         title={character.name}
                       >
                         {character.name}
@@ -714,12 +771,16 @@ export function ParticipantPanel({
                       v0.9.8：线索短的时候（一两行）也要在 72px 里上下居中 ——
                       原来 items-start 让一两行的卡看着「上半截有字、下半截空」。 */}
                   <div
-                    className="flex w-full items-center justify-center px-1"
-                    style={{ height: CLUE_AREA_HEIGHT }}
+                    className={cn(
+                      'flex w-full items-center justify-center px-1',
+                      // v0.10.1 竖屏：线索在右下。
+                      compactPortrait && 'col-start-2 row-start-2 w-auto justify-start px-0',
+                    )}
+                    style={{ height: compactPortrait ? undefined : CLUE_AREA_HEIGHT }}
                   >
                     {clueSegments.length > 0 ? (
                       <span
-                        className="line-clamp-3 text-center"
+                        className={cn('line-clamp-3 text-center', compactPortrait && 'text-left')}
                         style={{ fontSize: 11, lineHeight: `${CLUE_LINE_HEIGHT}px` }}
                         title={slot?.clue}
                       >

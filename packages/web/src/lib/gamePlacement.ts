@@ -309,7 +309,7 @@ export function autoForbiddenCells(input: {
   blockingCells: Set<string>;
 }): string[] {
   const { board, x, y, gridSize, blockingCells } = input;
-  const keys: string[] = [];
+  const cells: Array<{ key: string; distance: number }> = [];
   const consider = (cx: number, cy: number): void => {
     if (cx === x && cy === y) return;
     const key = cellKey(cx, cy);
@@ -317,12 +317,61 @@ export function autoForbiddenCells(input: {
     const placement = placementAt(board, cx, cy);
     if (placement?.kind === 'forbidden') return;
     if (showsAvatar(placement)) return;
-    keys.push(key);
+    cells.push({ key, distance: Math.abs(cx - x) + Math.abs(cy - y) });
   };
   for (let column = 0; column < gridSize; column += 1) consider(column, y);
   for (let row = 0; row < gridSize; row += 1) consider(x, row);
-  return keys;
+  /*
+   * v0.10.1：**由近及远**。这里的顺序就是界面上那一圈圈扩散的次序（见
+   * `GamePage` 的 `forbiddenWave`）—— 先落在头像脚边，再一格格往外推。
+   *
+   * 距离相同的一圈里再按「上→下、左→右」定序，只为让结果**确定**：同一盘棋
+   * 无论扫多少遍，出来的数组都一样，测试与重放才站得住。
+   */
+  cells.sort((a, b) => a.distance - b.distance || Number(a.key.split(',')[1]) - Number(b.key.split(',')[1]) || Number(a.key.split(',')[0]) - Number(b.key.split(',')[0]));
+  return cells.map((cell) => cell.key);
 }
+
+/** 距落子格几圈（曼哈顿距离）；水波纹拿它换算成延迟。 */
+export function forbiddenWaveRing(key: string, origin: { x: number; y: number }): number {
+  const [x, y] = key.split(',').map(Number) as [number, number];
+  return Math.abs(x - origin.x) + Math.abs(y - origin.y);
+}
+
+/**
+ * v0.10.1：这一手会**新添**哪些 `×`，以及它们各自距落子格几圈。
+ *
+ * 只在 `variant === 'image'` 上有意义 —— 短按放标号不动行列。
+ *
+ * 为什么在**落子之前**算一遍（而不是从 `placeParticipant` 的返回值里挑）：
+ * `placeParticipant` 只回一个 `GamePlacementState`，没有「这次新添了哪几格」的
+ * 信息；而水波纹要的是**按圈分组**的次序。在调用处用同一份输入、同一个
+ * `autoForbiddenCells` 算一次，次序天然与真正落盘的一致，不必另开一条返回通道
+ * 去改那个纯函数的签名。
+ *
+ * 返回 `null` 表示这一手不落头像（没有波纹可演）。
+ */
+export function autoForbiddenWavePlan(input: {
+  board: GamePlacementBoard;
+  x: number;
+  y: number;
+  gridSize: number;
+  blockingCells: Set<string>;
+  variant?: ParticipantPlacementVariant;
+}): Array<{ key: string; ring: number }> | null {
+  if ((input.variant ?? 'number') !== 'image') return null;
+  /*
+   * 先把头像摆上虚拟棋盘再扫 —— `autoForbiddenCells` 会跳过「已有头像」的格子，
+   * 而刚落下的这位就站在 `(x, y)`，它自己也在跳过之列（`consider` 里
+   * `cx === x && cy === y` 直接 return）。所以不必真的写进板子，结果一样。
+   */
+  const origin = { x: input.x, y: input.y };
+  return autoForbiddenCells(input).map((key) => ({
+    key,
+    ring: forbiddenWaveRing(key, origin),
+  }));
+}
+
 
 /**
  * 同行同列自动补出来的 `×` 的清理（v0.7.11）。

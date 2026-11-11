@@ -712,6 +712,70 @@
   }
 
   /*
+   * 落子时那一圈 `×` 的入场（v0.10.1）。
+   *
+   * 放下一枚头像，它的整行整列立刻被 `×` 划掉 —— 一次几十个 `×` 同时出现，看到
+   * 的是「屏幕闪了一下」，不是「这一行这一列被划掉了」。所以给它们**错开的入场**：
+   * 同一圈同时演，下一圈晚一档（每圈 45ms，见 `GAME_FORBIDDEN_WAVE_STEP_MS`），
+   * 从落子那一格向四周推开去。顺序由 `autoForbiddenCells` 的曼哈顿距离排定。
+   *
+   * `both` 是必需的：延迟期间元素要停在第一帧（`opacity: 0`），否则它们会先以
+   * 全亮的样子出现、45ms 后再闪一下重新入场 —— 比不做动效更糟。
+   *
+   * 与 `forbidden-pop` 同规矩：只动 `scale` / `opacity`，`transform-box: fill-box`
+   * 让缩放绕字形自己的中心，不碰 SVG 的 `x` / `y`。
+   */
+  .forbidden-wave,
+  .forbidden-wave-alt {
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+
+  /*
+   * 两支逐帧相同的动画，只为**能重播**：连放两位参与者时，第一波的那些 `×` 已经
+   * 挂过类了，同一个名字再挂一次不会从头播。换 `animation-name` 就能重来，而不
+   * 必换 React `key`（换 key 会让 `<img>` 有一帧空白）。令牌的奇偶决定用哪支，
+   * 与 `forbidden-pop` / `forbidden-pop-alt` 同一套做法。
+   */
+  .forbidden-wave {
+    animation: forbidden-wave var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  .forbidden-wave-alt {
+    animation: forbidden-wave-alt var(--motion-base) var(--motion-ease-out) both;
+  }
+
+  @keyframes forbidden-wave {
+    from {
+      opacity: 0;
+      scale: 0.55;
+    }
+    60% {
+      opacity: 1;
+      scale: 1.06;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
+  @keyframes forbidden-wave-alt {
+    from {
+      opacity: 0;
+      scale: 0.55;
+    }
+    60% {
+      opacity: 1;
+      scale: 1.06;
+    }
+    to {
+      opacity: 1;
+      scale: 1;
+    }
+  }
+
+  /*
    * 名册卡片的「选中」瞬间（v0.7.11）。
    *
    * 选中态本身是一圈双环（见 `ParticipantPanel` 的 `PARTICIPANT_SELECTED_RING`），
@@ -1347,6 +1411,19 @@ html[data-theme-transition] *::after {
    * 停在 `opacity: 0`，等于「点了进来看不到线索」。延迟清零，纸条同时出现。
    */
   .clue-note {
+    animation-delay: 0ms !important;
+  }
+
+  /*
+   * 落子 `×` 的水波纹（v0.10.1）。同上：`*` 只压时长，`animation-delay` 还挂在
+   * 元素的行内样式上（每圈 45ms），不清零的话第 24 圈要白等一千毫秒 —— 而 `both`
+   * 期间它们是 `opacity: 0`，等于「这一行这一列根本没被划掉」。清零后同时出现。
+   *
+   * 行内样式能被这里压住，靠的是 `!important`：样式表里的 important 声明胜过
+   * 行内非 important 声明。
+   */
+  .forbidden-wave,
+  .forbidden-wave-alt {
     animation-delay: 0ms !important;
   }
 

@@ -7,7 +7,7 @@ import {
   type CSSProperties,
 } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ChevronDown, ChevronUp, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import {
   DEFAULT_CELL_SIZE,
   GAME_CHECK_RING_SWEEP_MS,
@@ -50,6 +50,7 @@ import {
   MapGamePressRing,
   MapGameToolHintLayer,
   type GamePlacementPulse,
+  type GamePlacementWave,
 } from '@/components/map/MapGameLayers';
 import {
   MapRegionHighlightLayer,
@@ -133,6 +134,7 @@ import {
   forbiddenCells,
   avatarCellOf,
   avatarPlacedParticipantIds,
+  autoForbiddenWavePlan,
   modeAfterPlacement,
   placeForbidden,
   placeParticipant,
@@ -176,6 +178,26 @@ const GAME_PLACE_PULSE_MS = 400;
  * 那格已经透明却还占着「不可站立」的判定。留 40ms 给动画的收尾帧。
  */
 const GAME_ERASE_MS = 220;
+
+/**
+ * v0.10.1：落子补出来的 `×` 每圈晚多少毫秒 —— 水波纹的波速。
+ *
+ * 45ms 是「看得出一圈一圈，又不至于等到不耐烦」的那一档：一圈最多 24 格，
+ * 最远的格子距落子格 23 圈，末圈在 1035ms 之后才淡入；再快（30ms）就成了「雾
+ * 一样整体浮出来」，再慢（80ms）在 24×24 的棋盘上要等近两秒。
+ *
+ * 与 `place-pop` 的 180ms 同量级 —— 每一圈自己只演 180ms，圈与圈之间留 45ms
+ * 的步进，于是总能看到三四个圈同时在扩散。
+ */
+const GAME_FORBIDDEN_WAVE_STEP_MS = 45;
+
+/**
+ * v0.10.1：一批水波纹挂多久。末圈延迟 + 动画时长 + 一点余量。
+ *
+ * 摘类不是为了让动效停（`both` 已经把它停在末帧），而是让**下一波**能重新挂上
+ * 同名类。这个窗口内玩家再落一子，就直接换 `animation-name`（见 `forbiddenWaveAlt`）。
+ */
+const GAME_FORBIDDEN_WAVE_MS = 1200;
 
 function readStoredRulerVisible(): boolean {
   if (typeof window === 'undefined') return true;
@@ -432,17 +454,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
 
   /**
-   * v0.10.0：窄屏上题面与名册收进一块可开合的抽屉。
-   *
-   * 手机竖屏只有 375 宽、800 出头的高度，三栏并排时左栏写死的 256~375 像素
-   * 会把棋盘挤成一条缝。安卓 / iOS 上的做法是把「读的东西」收起来，先给棋盘
-   * 让位 —— 抽屉关着时左栏只剩一行标题，棋盘吃满中间。
-   *
-   * 桌面端不受它影响：面板那块带 `md:flex`，宽度够了就永远展开。
-   */
-  const [briefOpen, setBriefOpen] = useState(false);
-
-  /**
    * v0.10.1：当前是不是「竖屏窄屏」—— 棋盘按宽度铺满、视图簇收起。
    *
    * 判定口径是**窗口**的宽高（`window.innerWidth < 768 && innerHeight > innerWidth`），
@@ -547,6 +558,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   /** v0.9.8：正在退场的格子（橡皮点掉它了）；见 `MapGamePlacementLayer` 的 `erasing`。 */
   const [erasing, setErasing] = useState<ReadonlySet<string>>(() => new Set());
   const eraseTimersRef = useRef<Map<string, number>>(new Map());
+  /**
+   * v0.10.1：刚落子那一圈自动补出来的 `×` —— 格子键 → 入场延迟（毫秒）。
+   * 见 `MapGamePlacementLayer` 的 `wave`。
+   */
+  const [forbiddenWave, setForbiddenWave] = useState<GamePlacementWave>({});
+  /** 这一波用哪支动画名；每落一子翻转一次，让同名元素也能重播。 */
+  const [forbiddenWaveAlt, setForbiddenWaveAlt] = useState(false);
+  const forbiddenWaveTimerRef = useRef<number | null>(null);
 
   /**
    * v0.6.2：视图缩放与拖拽平移，与只读预览页同一套手感 ——
@@ -1098,6 +1117,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         window.clearTimeout(forbiddenPopTimerRef.current);
         forbiddenPopTimerRef.current = null;
       }
+      // v0.10.1：水波纹的收尾定时器同理。
+      if (forbiddenWaveTimerRef.current !== null) {
+        window.clearTimeout(forbiddenWaveTimerRef.current);
+        forbiddenWaveTimerRef.current = null;
+      }
       // v0.9.6：定案遮罩那颗「停一秒再弹窗」的定时器也要撤 —— 否则离开页面后它
       // 还会对着一个已经卸载的组件 setState。
       if (verdictTimerRef.current !== null) {
@@ -1296,10 +1320,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     }
     setMode({ kind: 'placing', participantId });
     setActivation((state) => reduceLinkageActivation(state, { type: 'click', participantId: index }));
-    /* v0.10.0：窄屏上点完人就把抽屉收回去 —— 选了人下一步就是落子，
-       抽屉继续占着上半屏会让棋盘只剩一条缝。桌面端 `md:flex` 恒展开，
-       这个状态对那一侧没有影响。 */
-    setBriefOpen(false);
   };
 
   /** SPEC-G04: leaving the placing state also ends the linkage preview. */
@@ -1537,6 +1557,31 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   };
 
   /**
+   * v0.10.1：落子之后，让这一手补出来的 `×` 一圈一圈地浮出来。
+   *
+   * `plan` 是 `autoForbiddenWavePlan` 算好的「格子键 → 距落子格几圈」。这里把圈号
+   * 换算成延迟写进 `forbiddenWave`，放置层照延迟给每枚 `×` 挂入场动画 —— 于是
+   * 距落子格 1 圈的先生，2 圈的晚 45ms，依此类推，看起来就是一圈水波推出去。
+   *
+   * 两支动画名交替（`forbiddenWaveAlt`）：连落两位时，第二波如果沿用同名，
+   * 已经在演的元素不会重头播；换 `key` 又会丢一帧。换 `animation-name` 两头都躲开。
+   */
+  const pulseForbiddenWave = (plan: Array<{ key: string; ring: number }>): void => {
+    if (plan.length === 0) return;
+    const next: Record<string, number> = {};
+    for (const cell of plan) next[cell.key] = cell.ring * GAME_FORBIDDEN_WAVE_STEP_MS;
+    setForbiddenWave(next);
+    setForbiddenWaveAlt((previous) => !previous);
+    if (forbiddenWaveTimerRef.current !== null) {
+      window.clearTimeout(forbiddenWaveTimerRef.current);
+    }
+    forbiddenWaveTimerRef.current = window.setTimeout(() => {
+      forbiddenWaveTimerRef.current = null;
+      setForbiddenWave({});
+    }, GAME_FORBIDDEN_WAVE_MS);
+  };
+
+  /**
    * v0.9.8：橡皮点掉一格 —— **先演退场，再删**。
    *
    * 直接 `clearCell` 的话，格子上的东西是瞬间消失的：玩家只看到画面重绘了一次，
@@ -1600,6 +1645,22 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         variant,
       });
       if (block) return false;
+      /**
+       * v0.10.1：落头像（长按 / 拖动确认）之后，同行同列补出来的 `×` 按圈依次
+       * 浮出来，像水波从落点推出去。
+       *
+       * 计划必须在**落子之前**算：`placeParticipant` 只回一个状态，说不出「这一手
+       * 新添了哪几格」，而波纹要的是按圈排好的次序。先用同一份输入算一遍，落盘时
+       * 走的是同一个 `autoForbiddenCells`，两者不会跑偏。
+       */
+      const wavePlan = autoForbiddenWavePlan({
+        board,
+        x,
+        y,
+        gridSize,
+        blockingCells,
+        variant,
+      });
       updatePlacement((state) =>
         placeParticipant(state, {
           x,
@@ -1610,6 +1671,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           variant,
         }),
       );
+      if (wavePlan) pulseForbiddenWave(wavePlan);
       if (variant === 'number') markPulse(cellKey(x, y), mode.participantId);
       /**
        * v0.8.5：头像落下之后，手上就没有东西了 —— 名册那张卡的选中环跟着退掉。
@@ -1837,11 +1899,16 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         <aside
           className={cn(
             'relative flex shrink-0 flex-col border-r bg-background',
-            /* v0.10.0：窄屏上这一栏从「左侧竖条」变成「顶部横条」——
-               三栏并排时它写死的 256~375px 会把棋盘挤成一条缝。
-               `!w-full` 带 `!`：宽度是 `rosterPanelWidthFor` 算出的**内联**
-               像素值（`style.width` 有测试钉住），只有 important 能盖掉内联。 */
-            'max-md:!w-full max-md:max-h-[50svh] max-md:border-b max-md:border-r-0',
+            /*
+             * v0.10.1 竖屏：左栏**不再是一栏**，而是把它的孩子直接摊到外层那一列
+             * 上（`display: contents`）—— 于是「头部留在最上面」「题面 + 名册落到
+             * 地图下面、工具栏上面」只靠 `order` 就能排出来，DOM 一个节点都不用搬。
+             *
+             * 为什么不真的搬 DOM：右栏必须仍是 `querySelectorAll('aside')` 的最后
+             * 一个，左栏必须仍是第一个且 `style.width` 是那一串像素（既有用例钉着）；
+             * 再者 `ParticipantPanel` 与编辑器共用，结构越少动越好。
+             */
+            'max-md:contents',
             /* v0.9.7：结案后名册 / 题面不再接指针（见 interactionLocked）。 */
             interactionLocked && 'pointer-events-none',
           )}
@@ -1860,7 +1927,13 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           {checkRun && !result && !finished ? (
             <CheckScrim
               area="left"
-              className="absolute inset-y-0 left-0 -right-px"
+              /*
+               * v0.10.1 竖屏：左栏是 `display: contents`，没有自己的盒子，
+               * 这一层 `absolute` 找不到可依附的位置 —— 竖屏不画它（桌面端照旧）。
+               * 结案锁指针不受影响：`pointer-events: none` 照常从 `<aside>` 继承
+               * 给它的孩子们，标题块自己的 `pointer-events-auto` 也照常豁免。
+               */
+              className="absolute inset-y-0 left-0 -right-px max-md:hidden"
               style={{ zIndex: UI_Z.saveMask }}
             />
           ) : null}
@@ -1873,64 +1946,72 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             */}
           <div
             className={cn(
-              'shrink-0 space-y-1 p-3',
+              'shrink-0 p-3',
+              /*
+               * v0.10.1 竖屏：头部收成**一行** —— 返回、游戏标题、计时排队，主题
+               * 开关推到最右。桌面仍是「品牌一行、标题一行」两行。
+               *
+               * 实现上没另起一套 DOM：第一行容器在竖屏是 `display: contents`，
+               * 它的孩子（返回按钮、主题开关）直接成为这一行 flex 的成员，再用
+               * `order` 把顺序拨成「返回 → 标题 → 计时 → 主题」。品牌 logo 在竖屏
+               * 藏起来 —— 一行里再塞个 logo，标题就没地方了。
+               */
+              'max-md:flex max-md:items-center max-md:gap-2 max-md:order-1 max-md:py-2',
+              'md:space-y-1',
               interactionLocked && 'pointer-events-auto',
             )}
           >
             {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
                 v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 max-md:contents">
               <IconButton
                 variant="ghost"
                 icon={<ArrowLeft className="h-4 w-4" />}
                 label="返回游戏列表"
                 side="right"
-                className={TOOLBAR_ICON_HOVER_CLASS}
+                className={cn(TOOLBAR_ICON_HOVER_CLASS, 'max-md:order-1 max-md:shrink-0')}
                 onClick={() => navigate(source.listHref())}
               />
-              <BrandLogo height={16} />
+              <BrandLogo height={16} className="flex shrink-0 items-center gap-2 max-md:hidden" />
               {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
-              <ThemeToggle className="ml-auto" />
+              <ThemeToggle className="ml-auto max-md:order-4 max-md:shrink-0" />
             </div>
             {/*
               * v0.7.12：计时挪到标题行最右边 —— 它是「这一局」的元信息，与名字、
               * 尺寸同一行；放在右栏底部被步数挤着，反而像第三条统计。不要图标，
               * 只留粗体淡色的 `mm:ss`。
               */}
-            <div className="flex items-baseline gap-2 pl-1">
+            <div className="flex items-baseline gap-2 pl-1 max-md:order-2 max-md:min-w-0 max-md:flex-1 max-md:items-center max-md:pl-0">
               <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={game.name}>
                 {game.name} {gridSize}x{gridSize}
               </p>
               <span
                 data-testid="game-timer"
-                className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground"
+                className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground max-md:order-3"
                 title="本局用时（提交后停止）"
               >
                 {formatElapsed(elapsedMs)}
               </span>
             </div>
-            {/* v0.10.0：窄屏上题面与名册收进这块抽屉，棋盘才能拿到整屏。
-                桌面端 `md:hidden` 不画这枚按钮，抽屉内容靠 `md:flex` 永远展开。 */}
-            <button
-              type="button"
-              className="flex w-full items-center justify-center gap-1 rounded-md border px-2 py-1 text-2xs text-muted-foreground transition-colors duration-base hover:text-foreground md:hidden"
-              aria-label="题面与参与者"
-              aria-expanded={briefOpen}
-              onClick={() => setBriefOpen((open) => !open)}
-            >
-              {briefOpen ? '收起题面与参与者' : '题面与参与者'}
-              {briefOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-            </button>
           </div>
 
           {/*
-            v0.10.0：窄屏上题面与名册装进这块可开合的抽屉 —— 抽屉关着时整块
-            `hidden`，只有桌面端（`md:flex`）永远展开。开合状态在 `briefOpen`。
+            v0.7.14：题面 + 名册。桌面端钉在左栏、永远展开。
+
+            v0.10.0：窄屏上一度装进可开合抽屉（`briefOpen`）。
+
+            v0.10.1：不再折叠。窄屏上它落到「地图下面、工具栏上面」（`order-3`），
+            限高 `max-h-[38svh]` 并整块可滚 —— 手机上一屏只够一件事，棋盘要占大头，
+            但线索与名册必须随时能扫到，翻抽屉这一步省掉。
           */}
           <div
             className={cn(
               'min-h-0 flex-1 flex-col md:flex',
-              briefOpen ? 'flex' : 'hidden',
+              /*
+               * v0.10.1 竖屏：不折叠、限高、整块可滚。
+               * `order-3` 让它排在棋盘（`order-2`）之后、工具栏（`order-4`）之前。
+               */
+              'max-md:order-3 max-md:flex max-md:max-h-[38svh] max-md:flex-none max-md:overflow-y-auto max-md:border-t',
             )}
           >
             {/*
@@ -1940,11 +2021,23 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             */}
             <GameBrief description={puzzleDescription} clues={puzzleClues} />
 
-            <div className="flex min-h-0 flex-1 max-md:overflow-x-auto">
+            <div
+              className={cn(
+                'flex min-h-0 flex-1',
+                // v0.10.1 竖屏：名册这时横躺成一整条，宽度交给屏宽，不再横向滚动。
+                'max-md:overflow-x-auto',
+              )}
+            >
               <ParticipantPanel
                 slots={slots}
                 charactersById={charactersById}
                 cols={rosterCols}
+                /*
+                 * v0.10.1 竖屏：名册换一套卡片 —— 每行固定 2 张、卡片横过来
+                 * （左头像、右上名称、右下线索）。只有竖屏窄屏才换，桌面端与
+                 * 编辑器、作品预览那两处调用都维持原样。
+                 */
+                compactPortrait={portraitFit}
                 /*
                  * v0.7.11：游戏页的名册也有「选中」—— 手上正拿着的那位（放置态），
                  * 不是鼠标碰巧路过的那位。选中态是一道 3px 的连续主色边（描边 +
@@ -1988,6 +2081,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           ref={containerRef}
           className={cn(
             'relative min-h-0 flex-1 select-none overflow-hidden bg-muted/30',
+            /* v0.10.1 竖屏：左栏 `display: contents` 后，头 / 棋盘 / 面板 / 工具栏
+               成了同一个 flex 列里的四个兄弟，靠 `order` 排：头 1、棋盘 2（就是
+               这里）、题面名册 3、工具栏 4。桌面端 `order` 不参与，三栏照旧。 */
+            'max-md:order-2',
             // v0.9.3 §2：核对期间棋盘只读 —— 圈到一半还能落子就说不清在核对什么。
             checkRun && 'pointer-events-none',
             // v0.9.7：结案后地图 / 物品 / 格子的指针交互全停（遮罩接管这一屏）。
@@ -2342,6 +2439,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               pulse={pulse}
               /* v0.9.8：橡皮点掉的格子先演退场，动效放完才真删。 */
               erasing={erasing}
+              /* v0.10.1：落子补出来的 `×` 按圈错峰浮出，像水波从落点推出去。 */
+              wave={forbiddenWave}
+              waveAlt={forbiddenWaveAlt}
               /* v0.8.6：配置了图片时，放下的标记画那张图而不是 `×`。 */
               mark={mark}
             />
@@ -2399,6 +2499,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                84px 在竖屏手机上正好吃掉棋盘最宝贵的一条宽度；横条沉到底部，
                四枚工具 + 视图簇按行折行。 */
             'max-md:w-full max-md:max-w-full max-md:flex-row max-md:flex-wrap max-md:justify-center max-md:gap-1 max-md:border-l-0 max-md:border-t max-md:py-1.5',
+            /* v0.10.1 竖屏：排到最末（`order-4`），跟题面名册（`order-3`）一起
+               落在棋盘下面。 */
+            'max-md:order-4',
           )}
         >
           {/* v0.9.4：右栏自己一层完整遮罩 —— 与左栏同一层颜色、同一档层级。

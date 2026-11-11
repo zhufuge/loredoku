@@ -9,6 +9,8 @@ import {
 import {
   allParticipantsPlaced,
   autoForbiddenCells,
+  autoForbiddenWavePlan,
+  forbiddenWaveRing,
   canPlaceForbidden,
   canPlaceParticipant,
   canRedo,
@@ -1199,5 +1201,86 @@ describe('modeAfterPlacement (v0.8.5)', () => {
     const forbidden = { kind: 'forbidden' } as const;
     expect(modeAfterPlacement(forbidden, 'image')).toBe(forbidden);
     expect(modeAfterPlacement({ kind: 'idle' }, 'image')).toEqual({ kind: 'idle' });
+  });
+});
+
+/**
+ * v0.10.1：放下头像时，自动补的那些 × 由近及远依次浮现（水波纹）。
+ *
+ * 排序与环号都在纯函数里定死，界面只负责把 `ring` 乘成延迟。
+ */
+describe('自动 × 的水波纹次序（v0.10.1）', () => {
+  it('由近及远：环号等于曼哈顿距离', () => {
+    const x = 3;
+    const y = 3;
+    const rings = sweepOf(x, y, 7).map((key) => forbiddenWaveRing(key, { x, y }));
+    const sorted = [...rings].sort((a, b) => a - b);
+    expect(rings).toEqual(sorted);
+    expect(rings[0]).toBe(1);
+  });
+
+  it('相邻的四个方向都在第一环', () => {
+    const rings = sweepOf(3, 3, 7).map((key) => forbiddenWaveRing(key, { x: 3, y: 3 }));
+    expect(rings.slice(0, 4)).toEqual([1, 1, 1, 1]);
+  });
+
+  it('同环内按上→下、左→右定序（确定性）', () => {
+    const keys = sweepOf(2, 2, 6);
+    const ringOf = (key: string): number => forbiddenWaveRing(key, { x: 2, y: 2 });
+    for (let index = 1; index < keys.length; index += 1) {
+      const previous = keys[index - 1]!;
+      const current = keys[index]!;
+      const ringPrevious = ringOf(previous);
+      const ringCurrent = ringOf(current);
+      if (ringPrevious !== ringCurrent) {
+        expect(ringCurrent).toBeGreaterThan(ringPrevious);
+        continue;
+      }
+      const [px, py] = previous.split(',').map(Number) as [number, number];
+      const [cx, cy] = current.split(',').map(Number) as [number, number];
+      const orderPrevious = py * 1000 + px;
+      const orderCurrent = cy * 1000 + cx;
+      expect(orderCurrent).toBeGreaterThan(orderPrevious);
+    }
+  });
+
+  it('只有长按放头像才产生波次计划，编号与标记都不产生', () => {
+    const base = {
+      board: {},
+      x: 2,
+      y: 3,
+      gridSize: 6,
+      blockingCells: EMPTY_NOSTAND,
+    };
+    expect(autoForbiddenWavePlan({ ...base, variant: 'image' })).not.toBeNull();
+    expect(autoForbiddenWavePlan({ ...base, variant: 'number' })).toBeNull();
+    expect(autoForbiddenWavePlan(base)).toBeNull();
+  });
+
+  it('波次计划与真正落盘的格子完全一致', () => {
+    const next = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6, variant: 'image' });
+    const plan = autoForbiddenWavePlan({
+      board: createGamePlacementState().board,
+      x: 2,
+      y: 3,
+      gridSize: 6,
+      blockingCells: EMPTY_NOSTAND,
+      variant: 'image',
+    });
+    expect(plan?.map((cell) => cell.key).sort()).toEqual([...forbiddenCells(next.board)].sort());
+  });
+
+  it('没有可补的格子时返回空数组（界面据此不启动动效）', () => {
+    const state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 1, variant: 'image' });
+    expect(state.board).toBeDefined();
+    const plan = autoForbiddenWavePlan({
+      board: state.board,
+      x: 0,
+      y: 0,
+      gridSize: 1,
+      blockingCells: EMPTY_NOSTAND,
+      variant: 'image',
+    });
+    expect(plan).toEqual([]);
   });
 });

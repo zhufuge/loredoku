@@ -718,4 +718,60 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     expect(savedBoard()).toEqual({ '2,2': { kind: 'forbidden' } });
     expect(popClass()).toBeNull();
   });
+
+  /**
+   * v0.10.1：放下头像时，补出来的那些 `×` 由近及远依次浮现。
+   *
+   * 钉两件事：**每一格都拿到一个按环号递增的延迟**（这是「水波纹」的全部含义），
+   * 以及**这一遍演完类会退掉** —— 否则下一次落子时，棋盘上原有的 `×` 会跟着再演
+   * 一遍，看起来像整块屏幕闪了一下。
+   */
+  function waveCells(): Array<{ key: string; delay: string; className: string }> {
+    return Array.from(container.querySelectorAll<HTMLElement>('[data-testid^="forbidden-"]'))
+      .map((node) => ({
+        key: node.getAttribute('data-testid') ?? '',
+        delay: node.style.animationDelay,
+        className: node.getAttribute('class') ?? '',
+      }))
+      .filter((cell) => cell.className.includes('forbidden-wave'));
+  }
+
+  it('放下头像：补出的 × 按远近依次入场，演完退掉类', async () => {
+    render();
+    sizeCanvas();
+    enterPlacing(0);
+
+    const at = cellCenter(4, 4);
+    pointer('pointerdown', at);
+    await wait(560);
+    pointer('pointerup', at);
+
+    const waves = waveCells();
+    // 9×9 的棋盘，放 (4,4)：整行剩 8 格、整列剩 8 格。
+    expect(waves.length).toBe(16);
+    const delays = waves.map((cell) => Number.parseFloat(cell.delay));
+    // 最近的一环就是自己那一行的左右邻居 —— 45ms。
+    expect(Math.min(...delays)).toBe(45);
+    // 最远的一环是行的两头、列的两头：4 格距离。
+    expect(Math.max(...delays)).toBe(180);
+    // 两个环之间必须错开，否则一起出现就只是「同时亮了」。
+    expect(new Set(delays).size).toBe(4);
+
+    // 动效结束之后类要退干净：留着它，下一次落子会让老 × 也重演一遍。
+    await wait(1300);
+    expect(waveCells()).toHaveLength(0);
+  });
+
+  it('短按放编号：不补 ×，也就没有水波纹', async () => {
+    render();
+    sizeCanvas();
+    enterPlacing(0);
+
+    const at = cellCenter(4, 4);
+    pointer('pointerdown', at);
+    pointer('pointerup', at);
+    clickAt(at);
+
+    expect(waveCells()).toHaveLength(0);
+  });
 });

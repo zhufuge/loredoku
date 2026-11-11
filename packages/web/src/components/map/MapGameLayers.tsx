@@ -497,7 +497,17 @@ export function MapGameCheckLayer({
  */
 export type GamePlacementPulse = Readonly<Record<string, number>>;
 
+/**
+ * v0.10.1：刚落子那一圈 `×` 的水波纹 —— 格子键 → **入场延迟（毫秒）**。
+ *
+ * 为什么是延迟而不是「第几圈」：一圈多少毫秒是动效参数，页面已经按
+ * `GAME_FORBIDDEN_WAVE_STEP_MS` 换算过一次了，这一层只管照着数字挂样式。
+ * 两层各算一次会让「延迟」与「什么时候清掉这批类」分叉。
+ */
+export type GamePlacementWave = Readonly<Record<string, number>>;
+
 const EMPTY_PULSE: GamePlacementPulse = {};
+const EMPTY_WAVE: GamePlacementWave = {};
 const EMPTY_ERASING: ReadonlySet<string> = new Set();
 
 /**
@@ -527,6 +537,8 @@ export function MapGamePlacementLayer({
   activeParticipantId = null,
   settleKey = null,
   pulse = EMPTY_PULSE,
+  wave = EMPTY_WAVE,
+  waveAlt = false,
   erasing = EMPTY_ERASING,
   mark = null,
 }: {
@@ -552,6 +564,21 @@ export function MapGamePlacementLayer({
    */
   pulse?: GamePlacementPulse;
   /**
+   * v0.10.1：刚落子那一圈自动补出来的 `×` —— 格子键 → 入场延迟（毫秒）。
+   *
+   * 放下一枚头像会同时划掉整行整列，几十个 `×` 一起出现读成「屏幕闪了一下」。
+   * 页面按曼哈顿距离算好每格该晚多少毫秒（见 `GamePage` 的 `forbiddenWave`），
+   * 这一层只负责把数字变成 `animation-delay`，于是看到的是从落子格推开的波纹。
+   */
+  wave?: GamePlacementWave;
+  /**
+   * v0.10.1：这一波用哪支动画名（`forbidden-wave` / `forbidden-wave-alt`）。
+   *
+   * 连放两位参与者时，第一波挂着的类名还在元素上，同名再挂一次不会从头播 ——
+   * 换名字才重播，而不必换 React `key`（换 key 会让 `<img>` 有一帧空白）。
+   */
+  waveAlt?: boolean;
+  /**
    * v0.9.8：**正在退场**的格子。橡皮点掉一格时先演一次缩小淡出，动画放完页面
    * 才真的把它从棋盘上删掉（见 `GamePage` 的 `eraseCell`）。
    *
@@ -576,6 +603,12 @@ export function MapGamePlacementLayer({
       {entries.map(([key, placement]) => {
         const [x, y] = parseKey(key);
         if (!placement) return null;
+        /*
+         * v0.10.1：这一格要不要演水波纹。正在被橡皮擦掉的格子让位给 `erase-out`
+         * —— 两个 `animation` 同时挂是一条竞态，退场比入场要紧。
+         */
+        const waveDelay = erasing.has(key) ? undefined : wave[key];
+        const waveClass = waveAlt ? 'forbidden-wave-alt' : 'forbidden-wave';
         return (
           <div
             key={`place-${key}`}
@@ -670,8 +703,9 @@ export function MapGamePlacementLayer({
                  * `data-testid` 留在同一个元素上，页面测试不必知道这次画的是
                  * 字形还是图片。
                  *
-                 * v0.9.8：放下的 `×` 不再演入场动效（演的是悬停那一枚），但被
-                 * 橡皮擦掉时仍要退场 —— `erase-out` 与放置动效是两件事。
+                 * v0.9.8：手点的那枚 `×` 不再演入场动效（演的是悬停那一枚）。
+                 * v0.10.1：落子自动补出来的那些**要**演 —— 它们是一整行一整列
+                 * 一起出现的，没有入场就是一次闪光。
                  */
                 <img
                   src={mark.imageUrl}
@@ -680,12 +714,14 @@ export function MapGamePlacementLayer({
                   data-testid={`forbidden-${key}`}
                   className={cn(
                     'block h-full w-full select-none',
+                    waveDelay !== undefined && waveClass,
                     erasing.has(key) && 'erase-out',
                   )}
                   style={{
                     objectFit: 'contain',
                     padding: cellSize * FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO,
                     boxSizing: 'border-box',
+                    animationDelay: waveDelay !== undefined ? `${waveDelay}ms` : undefined,
                   }}
                 />
               ) : (
@@ -699,8 +735,13 @@ export function MapGamePlacementLayer({
                     textAnchor="middle"
                     dominantBaseline="central"
                     data-testid={`forbidden-${key}`}
-                    // v0.9.8：入场静默，退场（被擦掉）走 `erase-out`。
-                    className={erasing.has(key) ? 'erase-out' : undefined}
+                    // v0.9.8：手点的入场静默，退场（被擦掉）走 `erase-out`。
+                    // v0.10.1：自动补的那批带延迟入场，见 `.forbidden-wave`。
+                    className={cn(
+                      waveDelay !== undefined && waveClass,
+                      erasing.has(key) && 'erase-out',
+                    )}
+                    style={waveDelay !== undefined ? { animationDelay: `${waveDelay}ms` } : undefined}
                   >
                     ×
                   </text>
