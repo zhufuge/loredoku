@@ -133,6 +133,70 @@ export function computeCellSizeForInsets(input: {
   return computeCellSize({ ...input, availableWidth: box.width, availableHeight: box.height });
 }
 
+// ---- v0.10.1: portrait width-first fitting ----
+
+/**
+ * Tailwind 的 `md` 断点（768px）。
+ *
+ * 写在 TS 里是为了让「收起视图簇」那条 CSS（`portrait:max-md:hidden`）和下面
+ * 的排版判定用同一个数字 —— 两边一旦漂移，就会出现「按钮没了、棋盘还按桌面
+ * 算」或者「棋盘按宽度铺满了、按钮还在」的半吊子状态。`tailwind.config.ts`
+ * 没有自定义 `screens`，所以 `md` 就是 Tailwind 默认的 768。
+ */
+export const PORTRAIT_BREAKPOINT = 768;
+
+/**
+ * 竖屏下格子允许缩到多小。
+ *
+ * 桌面那套 32px 下限（`MIN_CELL_SIZE`）是为了「格子还点得准」；可 24×24 的
+ * 棋盘在 375 宽的屏上按宽度铺满只有 12px 左右一格，还守 32 就必然溢出、必须
+ * 平移 —— 而竖屏把放大 / 缩小 / 重置那一簇收掉了，玩家没有把棋盘挪回来的手段。
+ * 两害相权，允许它缩到 8px：先保证整张图在屏幕里。
+ */
+export const PORTRAIT_MIN_CELL_SIZE = 8;
+
+/**
+ * 竖屏判定：**窄**（宽度不到 `md` 断点）**且竖着**（高度大于宽度）。
+ *
+ * 为什么不是只看宽度：手机横过来（740×360）宽度也在 `md` 以下，但那时受限的
+ * 是**高度** —— 按宽度铺满会把棋盘顶出上下边、而且横屏下放大 / 平移那一簇还
+ * 在，能自己调。只有「竖着拿、按钮又收掉」这一种局面才需要按宽度铺满。
+ *
+ * 也不用 `matchMedia('(orientation: portrait)')`：`testing/matchMedia.ts` 那个
+ * 桩的 `matches` 恒等于「是否深色」，用它判定会让整条分支在测试里失真。
+ * 宽高比是同一件事，且是纯函数。
+ */
+export function isPortraitViewport(width: number, height: number): boolean {
+  if (!Number.isFinite(width) || !Number.isFinite(height)) return false;
+  if (width <= 0 || height <= 0) return false;
+  return width < PORTRAIT_BREAKPOINT && height > width;
+}
+
+/**
+ * 按**宽度**铺满的格子尺寸（竖屏专用）。
+ *
+ * 与 `computeCellSize` 的差别有三处，都是有意的：
+ * 1. 只看宽度、完全忽略高度 —— 竖屏要的是「一屏看全宽」，宁可往下超一点，
+ *    也不为了塞进高度把棋盘缩成一条缝；
+ * 2. 下限是 `PORTRAIT_MIN_CELL_SIZE`（8）而不是 `MIN_CELL_SIZE`（32）；
+ * 3. 用 `Math.floor` 而不是 `Math.round` —— 宁可少半像素，也不让棋盘比可用
+ *    宽度多出一线（多出来就得平移，而竖屏已经没有平移的按钮了）。
+ */
+export function computeWidthFitCellSize(input: {
+  width: number;
+  gridSize: number;
+  insets: CanvasInsets;
+  gap?: number;
+  max?: number;
+}): number {
+  const { width, gridSize, insets, gap = BORDER_WIDTH, max = MAX_CELL_SIZE } = input;
+  if (!Number.isFinite(gridSize) || gridSize < 1) return PORTRAIT_MIN_CELL_SIZE;
+  const available = Math.max(0, width - insets.left - insets.right);
+  const share = (available - (gridSize - 1) * gap) / gridSize;
+  if (!Number.isFinite(share)) return PORTRAIT_MIN_CELL_SIZE;
+  return Math.max(PORTRAIT_MIN_CELL_SIZE, Math.min(max, Math.floor(share)));
+}
+
 /**
  * Centres the board inside the inset content area (not the raw viewport), so
  * the reserved toolbar / ruler bands stay empty.
@@ -150,4 +214,25 @@ export function centeredPan(
     x: Math.round(insets.left + (box.width - board) / 2),
     y: Math.round(insets.top + (box.height - board) / 2),
   };
+}
+
+/**
+ * v0.10.1：竖屏用的居中 —— **横向居中，纵向不许顶出上边**。
+ *
+ * 竖屏把放大 / 缩小 / 重置那一簇收掉了，玩家没有把棋盘挪回来的手段（触屏上
+ * 也没有中键 / 空格平移）。棋盘按宽度铺满之后若比可视高度还高，`centeredPan`
+ * 会把上下两头各切掉一部分、而且顶上一截永远够不着；这里改成贴住上边，让
+ * 「第 1 行」始终看得见。
+ */
+export function topAlignedPan(
+  rect: { width: number; height: number },
+  insets: CanvasInsets,
+  gridSize: number,
+  cellSize: number,
+  zoom = 1,
+): { x: number; y: number } {
+  const centered = centeredPan(rect, insets, gridSize, cellSize, zoom);
+  const box = availableBox(rect, insets);
+  const board = gridSize * cellSize * zoom;
+  return { x: centered.x, y: board > box.height ? Math.round(insets.top) : centered.y };
 }

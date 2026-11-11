@@ -102,7 +102,14 @@ import {
   collectItemCells,
   resolveHoverEffects,
 } from '@/lib/canvasLayers';
-import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canvasSize';
+import {
+  canvasInsets,
+  centeredPan,
+  computeCellSizeForInsets,
+  computeWidthFitCellSize,
+  isPortraitViewport,
+  topAlignedPan,
+} from '@/lib/canvasSize';
 import { verdictMarkScale } from '@/lib/verdictMark';
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
@@ -436,6 +443,18 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [briefOpen, setBriefOpen] = useState(false);
 
   /**
+   * v0.10.1：当前是不是「竖屏窄屏」—— 棋盘按宽度铺满、视图簇收起。
+   *
+   * 判定口径是**窗口**的宽高（`window.innerWidth < 768 && innerHeight > innerWidth`），
+   * 与右栏那串 `portrait:max-md:` 媒体查询是同一个条件；之所以两边都写，是因为
+   * CSS 只能管「显示不显示」，管不了「格子怎么算」。数字必须一致，
+   * `PORTRAIT_BREAKPOINT` 是两边共同的出处（见 `lib/canvasSize.ts`）。
+   *
+   * 只影响渲染，不落盘：转屏、拖窗口都会重新 `fit` 一遍。
+   */
+  const [portraitFit, setPortraitFit] = useState(false);
+
+  /**
    * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
    *
    * 它和 `result` 不是一件事：`result` 是「刚刚结算完、结算卡开着」，`finished`
@@ -672,7 +691,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const gridSize = draft?.gridSize ?? 0;
   const style = useMemo(() => resolveMapStyle(draft?.style), [draft]);
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
-  const cellSize = effectiveCellSize(autoCellSize, style);
+  /*
+   * v0.10.1：竖屏下格子大小只认「按宽度铺满」算出来的那个数 —— 地图样式里写死的
+   * cellSize（比如 36）会让 24×24 又变成 864px 宽，把「自适应宽度」抵消掉。
+   * 横屏与桌面仍然听样式的（作者配了就用他的）。
+   */
+  const cellSize = portraitFit ? autoCellSize : effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
 
   /*
@@ -835,15 +859,45 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     if (!node || gridSize === 0) return;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
+    /*
+     * v0.10.1：竖屏下棋盘**按宽度铺满**，而不是「宽高取小」。
+     *
+     * 窄屏上那一簇放大 / 缩小 / 重置已经收掉（见右栏视图簇的 `portrait:` 类），
+     * 玩家既没法把棋盘缩小、也没有中键 / 空格去平移 —— 一旦按老算法取「宽高较
+     * 小的那个」，24×24 的棋盘会被 32px 的下限撑到 864 宽，屏幕里只看得到左上
+     * 一角，剩下的永远够不着。改成以宽度为准、下限放到 8px，整张图就在屏内。
+     *
+     * 标尺在竖屏下也一起不画：开关都收起来了，还把 28px 的刻度条留着，等于
+     * 让玩家为一条关不掉的边付宽度。
+     *
+     * 量的是 **window** 而不是画布容器 —— 要和 `portrait:max-md:` 那串媒体查询
+     * 判同一件事，否则会出现「按钮收起来了、棋盘还按桌面排」。jsdom 里窗口是
+     * 1024×768，所以既有用例仍走桌面分支。
+     */
+    const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
+    const viewportHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
+    const portrait = isPortraitViewport(viewportWidth, viewportHeight);
+    setPortraitFit(portrait);
     const insets = canvasInsets({
-      showRulers,
+      showRulers: showRulers && !portrait,
       showBottomBar: false,
       rulerSize: rulerStrip,
+      /* v0.10.1：竖屏只有 375 宽，左右各留 40 等于白扔 80 像素（棋盘能少一整列）。
+         桌面那圈 `EXTRA_MARGIN` 是为了画面呼吸，手机上呼吸不起 —— 收到 0，
+         只留 `CANVAS_PADDING` 那 16。 */
+      extraMargin: portrait ? 0 : undefined,
     });
-    const next = computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
+    const next = portrait
+      ? computeWidthFitCellSize({ width: rect.width, gridSize, insets })
+      : computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
     setAutoCellSize((previous) => (previous === next ? previous : next));
     setZoom(1);
-    setPan(centeredPan(rect, insets, gridSize, effectiveCellSize(next, style), 1));
+    const placed = portrait ? next : effectiveCellSize(next, style);
+    setPan(
+      portrait
+        ? topAlignedPan(rect, insets, gridSize, placed, 1)
+        : centeredPan(rect, insets, gridSize, placed, 1),
+    );
   }, [gridSize, showRulers, rulerStrip, style]);
 
   const fitRef = useRef(fit);
@@ -2324,7 +2378,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             />
           </div>
 
-          {showRulers ? (
+          {showRulers && !portraitFit ? (
             <MapRulerStrips
               gridSize={gridSize}
               cellSize={cellSize}
@@ -2510,6 +2564,13 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               /* v0.10.0：竖条里这一簇沉在底边（`mt-auto`）；横条里它跟着工具按钮
                  排成一行，不再占一整行、也不要那条分隔线。 */
               'max-md:mt-0 max-md:w-auto max-md:flex-row max-md:border-t-0 max-md:pt-0',
+              /* v0.10.1：竖屏（窄且竖着）**整簇不显示** —— 棋盘已经按宽度铺满
+                 整屏，没有可放大的余量；收掉放大 / 缩小 / 重置 / 标尺，底部横条
+                 就只剩四枚「对棋盘做什么」的按钮，不再挤第二行。
+                 用 CSS 而不是条件渲染：媒体查询是这件事唯一的真源（转屏即时生效，
+                 不用等一次 `fit`），而且挂在上面的按钮仍留在树里 —— 快捷键、辅助
+                 技术、以及既有用例都还能拿到它们。 */
+              'portrait:max-md:hidden',
             )}
           >
             <IconButton

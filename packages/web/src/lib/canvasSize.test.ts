@@ -15,7 +15,12 @@ import {
   centeredPan,
   computeCellSize,
   computeCellSizeForInsets,
+  computeWidthFitCellSize,
+  isPortraitViewport,
+  PORTRAIT_BREAKPOINT,
+  PORTRAIT_MIN_CELL_SIZE,
   renderedCellSize,
+  topAlignedPan,
 } from './canvasSize';
 
 describe('computeCellSize (OPT-A01 §1.1)', () => {
@@ -209,5 +214,91 @@ describe('centeredPan (OPT-B02 §2.2)', () => {
     const pan = centeredPan(rect, insets, 2, 100, 2);
     // Board = 2 × 100 × 2 = 400 → (600 - 40 - 40 - 400) / 2 = 60
     expect(pan).toEqual({ x: 40 + 60, y: 40 + 60 });
+  });
+});
+
+describe('竖屏按宽度铺满（v0.10.1）', () => {
+  it('只把「窄且竖着」算作竖屏', () => {
+    expect(PORTRAIT_BREAKPOINT).toBe(768);
+    // 手机竖屏。
+    expect(isPortraitViewport(375, 812)).toBe(true);
+    expect(isPortraitViewport(767, 900)).toBe(true);
+    // 到断点就不算。
+    expect(isPortraitViewport(768, 900)).toBe(false);
+    // 桌面的竖窗口也算 —— 收掉视图簇的条件一致，不然按钮没了、棋盘还等宽。
+    expect(isPortraitViewport(1000, 1200)).toBe(false);
+    // 手机横过来：宽度仍不足 768，但受限的是高度，按宽度铺满会把棋盘顶出上下边。
+    expect(isPortraitViewport(740, 360)).toBe(false);
+    // 退化输入不抛。
+    expect(isPortraitViewport(0, 0)).toBe(false);
+    expect(isPortraitViewport(Number.NaN, 812)).toBe(false);
+  });
+
+  it('忽略高度，只按宽度分格子', () => {
+    const insets = canvasInsets();
+    // 375 宽、左右各 40 的留白 ⇒ 可用 295；24 格、格间 2px。
+    // (295 - 23 * 2) / 24 = 10.375 → 向下取整 10。
+    expect(computeWidthFitCellSize({ width: 375, gridSize: 24, insets })).toBe(10);
+    // 同一宽度下「横着铺满」的老算法会因为高度不够而缩到 32 下限，两者不是一回事。
+    expect(computeCellSizeForInsets({ width: 375, height: 200, gridSize: 24, insets })).toBe(
+      MIN_CELL_SIZE,
+    );
+  });
+
+  it('铺满之后棋盘不会比可用宽度宽', () => {
+    const insets = canvasInsets();
+    for (const width of [320, 375, 414, 767]) {
+      for (let gridSize = 2; gridSize <= 24; gridSize += 1) {
+        const cell = computeWidthFitCellSize({ width, gridSize, insets });
+        const board = gridSize * cell + (gridSize - 1) * BORDER_WIDTH;
+        expect(board, `w${width} n${gridSize}`).toBeLessThanOrEqual(width - insets.left - insets.right);
+      }
+    }
+  });
+
+  it('下限比桌面那套低 —— 24×24 在小屏上仍要装得下', () => {
+    expect(PORTRAIT_MIN_CELL_SIZE).toBe(8);
+    expect(PORTRAIT_MIN_CELL_SIZE).toBeLessThan(MIN_CELL_SIZE);
+    const insets = canvasInsets();
+    // 320 宽的屏、可用 240：(240 - 46) / 24 = 8.08 → 8，没被 32 卡住。
+    expect(computeWidthFitCellSize({ width: 320, gridSize: 24, insets })).toBe(8);
+    // 再窄也不掉到 8 以下。
+    expect(computeWidthFitCellSize({ width: 60, gridSize: 24, insets })).toBe(8);
+  });
+
+  it('格子上限仍然生效', () => {
+    const insets = canvasInsets();
+    // 2×2 在 375 宽里本可以铺到 147 一格，但仍受 MAX_CELL_SIZE 约束不至于夸张。
+    expect(computeWidthFitCellSize({ width: 375, gridSize: 2, insets })).toBe(
+      Math.min(MAX_CELL_SIZE, Math.floor((295 - BORDER_WIDTH) / 2)),
+    );
+    expect(computeWidthFitCellSize({ width: 4000, gridSize: 2, insets })).toBe(MAX_CELL_SIZE);
+  });
+
+  it('退化输入退回下限而不是 NaN', () => {
+    const insets = canvasInsets();
+    expect(computeWidthFitCellSize({ width: 375, gridSize: 0, insets })).toBe(PORTRAIT_MIN_CELL_SIZE);
+    expect(computeWidthFitCellSize({ width: Number.NaN, gridSize: 6, insets })).toBe(
+      PORTRAIT_MIN_CELL_SIZE,
+    );
+  });
+
+  it('铺满之后横向居中、纵向贴住上边', () => {
+    const insets = canvasInsets();
+    const rect = { width: 375, height: 592 };
+
+    // 棋盘比可视高度还高（24 × 40 = 960）—— 纵向贴住上边，别把第 1 行推到屏幕外。
+    const tall = topAlignedPan(rect, insets, 24, 40);
+    expect(tall.y).toBe(insets.top);
+    // 横向仍居中，只是居中后是负数（棋盘比屏宽）—— 由父层的 overflow 裁掉。
+    expect(tall.x).toBe(
+      Math.round(insets.left + (375 - insets.left - insets.right - 24 * 40) / 2),
+    );
+  });
+
+  it('装得下时纵向与 centeredPan 完全一致', () => {
+    const insets = canvasInsets();
+    const rect = { width: 375, height: 592 };
+    expect(topAlignedPan(rect, insets, 6, 10)).toEqual(centeredPan(rect, insets, 6, 10));
   });
 });
