@@ -245,6 +245,12 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     return container.querySelector('.press-sweep');
   }
 
+  /** 标记态悬停预览那枚 `×` 身上挂的动效类（两支轮换，统一取「有没有」）。 */
+  function popClass(): string | null {
+    const node = container.querySelector('.forbidden-pop, .forbidden-pop-alt');
+    return node ? node.getAttribute('class') : null;
+  }
+
   function seedSave(payload: Record<string, unknown>): void {
     window.localStorage.setItem(
       gameProgressKey('night-train'),
@@ -653,5 +659,63 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       button.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
     });
     expect(sweep()).toBeNull();
+  });
+
+  /**
+   * v0.9.8：`×` 的动效属于**落笔**，不属于「指针进入方格」。
+   *
+   * 预览的 `key` 一旦绑在格子坐标上，每换一格都重挂载、都弹一次 —— 鼠标扫过
+   * 棋盘像一路在划。玩家要的是点下去那一下。
+   */
+  it('标记态：指针移进方格不演动效', () => {
+    render();
+    sizeCanvas();
+    enterForbidden();
+
+    pointer('pointermove', cellCenter(2, 2));
+    expect(popClass()).toBeNull();
+
+    // 换一格也不演。
+    pointer('pointermove', cellCenter(3, 2));
+    expect(popClass()).toBeNull();
+  });
+
+  /** 落笔那一刻才演：点下去、悬停的那枚 `×` 弹一次，过一会儿类退掉。 */
+  it('标记态：点下去放置时，悬停的 × 弹一次', async () => {
+    render();
+    sizeCanvas();
+    enterForbidden();
+
+    const at = cellCenter(2, 2);
+    pointer('pointermove', at);
+    clickAt(at);
+
+    expect(savedBoard()).toEqual({ '2,2': { kind: 'forbidden' } });
+    expect(popClass()).not.toBeNull();
+
+    // 窗口关上之后类退掉 —— 否则指针再进来时新元素一挂载就带着类又演一遍。
+    await wait(500);
+    expect(popClass()).toBeNull();
+    pointer('pointermove', cellCenter(4, 2));
+    expect(popClass()).toBeNull();
+  });
+
+  /**
+   * 动效钉在**落笔那一格**：点完立刻把指针挪到隔壁，隔壁不能跟着弹。
+   *
+   * 悬停预览是同一个 DOM 节点跟着指针走 —— 只用一个「窗口开着」的布尔量，
+   * 类会被它带过去，新格子莫名其妙也演一遍。
+   */
+  it('标记态：落笔后立刻挪到隔壁格，隔壁不弹', () => {
+    render();
+    sizeCanvas();
+    enterForbidden();
+
+    pointer('pointermove', cellCenter(2, 2));
+    clickAt(cellCenter(2, 2));
+    pointer('pointermove', cellCenter(3, 2));
+
+    expect(savedBoard()).toEqual({ '2,2': { kind: 'forbidden' } });
+    expect(popClass()).toBeNull();
   });
 });

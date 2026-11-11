@@ -497,6 +497,22 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   /** 刚放下的编号 / 标记，按格子键索引；见 `MapGamePlacementLayer` 的 `pulse`。 */
   const [pulse, setPulse] = useState<GamePlacementPulse>({});
   const pulseTimersRef = useRef<Map<string, number>>(new Map());
+  /**
+   * v0.9.8：**落笔令牌 + 落笔格** —— 点下去放一枚 `×` 时两样一起动。
+   *
+   * - `forbiddenPop` 让提示层在**两支同款动画**之间换名字（`forbidden-pop` /
+   *   `forbidden-pop-alt`）：`animation-name` 一变，CSS 动画就从头播。只增不减。
+   * - `forbiddenPopCell` 是**刚落笔的那一格**；动效只在这一格上演，窗口一关归
+   *   `null`。这枚 `×` 跟着指针走、是同一个 DOM 节点 —— 不按格子收窄的话，
+   *   点完立刻挪到隔壁格，它会带着类飞过去又弹一次。
+   *
+   * **不用 React `key` 重挂载来重播**：那样 `<img>` 会有一帧没画出来，身后刚
+   * 落下的那枚 `×` 从缝里露一下再被盖回去 —— 玩家以为「放下的 × 浮上来闪了
+   * 一下」。换 `animation-name` 不碰元素身份，画面不断。
+   */
+  const [forbiddenPop, setForbiddenPop] = useState(0);
+  const [forbiddenPopCell, setForbiddenPopCell] = useState<string | null>(null);
+  const forbiddenPopTimerRef = useRef<number | null>(null);
   /** v0.9.8：正在退场的格子（橡皮点掉它了）；见 `MapGamePlacementLayer` 的 `erasing`。 */
   const [erasing, setErasing] = useState<ReadonlySet<string>>(() => new Set());
   const eraseTimersRef = useRef<Map<string, number>>(new Map());
@@ -1004,6 +1020,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
       // v0.9.8：擦除的定时器同理 —— 到点会对着已卸载的组件 setState。
       for (const timer of eraseTimersRef.current.values()) window.clearTimeout(timer);
       eraseTimersRef.current.clear();
+      // v0.9.8：落笔令牌的归零定时器同理。
+      if (forbiddenPopTimerRef.current !== null) {
+        window.clearTimeout(forbiddenPopTimerRef.current);
+        forbiddenPopTimerRef.current = null;
+      }
       // v0.9.6：定案遮罩那颗「停一秒再弹窗」的定时器也要撤 —— 否则离开页面后它
       // 还会对着一个已经卸载的组件 setState。
       if (verdictTimerRef.current !== null) {
@@ -1417,6 +1438,28 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   };
 
   /**
+   * v0.9.8：让悬停的那枚 `×` 弹一次 —— 令牌 +1，并把动效**钉在刚落笔的那一格**。
+   *
+   * `GAME_PLACE_PULSE_MS`（400ms）之后两样一起收：令牌留着不动（它是 `key` 的
+   * 替代品，改回去也算一次变化），`popCell` 归 `null` —— 窗口一关，指针再进来
+   * 就只是静止的一枚 `×`。
+   *
+   * 为什么要 `popCell`：这枚 `×` 跟着指针走，是**同一个** DOM 节点。只告诉它
+   * 「现在该弹」，玩家点完立刻挪到隔壁格，它就带着类飞过去、在新格子上又弹一次。
+   */
+  const pulseForbiddenHint = (key: string): void => {
+    setForbiddenPop((previous) => previous + 1);
+    setForbiddenPopCell(key);
+    if (forbiddenPopTimerRef.current !== null) {
+      window.clearTimeout(forbiddenPopTimerRef.current);
+    }
+    forbiddenPopTimerRef.current = window.setTimeout(() => {
+      forbiddenPopTimerRef.current = null;
+      setForbiddenPopCell(null);
+    }, GAME_PLACE_PULSE_MS);
+  };
+
+  /**
    * v0.9.8：橡皮点掉一格 —— **先演退场，再删**。
    *
    * 直接 `clearCell` 的话，格子上的东西是瞬间消失的：玩家只看到画面重绘了一次，
@@ -1523,7 +1566,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
       }
       // v0.9.8：放下的 `×` 静默出现，不再挂 `markPulse` —— 演入场动效的是跟着
       // 指针悬停的那一枚（`MapGameToolHintLayer`），放置本身没有可看的动作。
+      //
+      // 而且是**落笔这一刻、在这一格**才演：提示层按 `forbiddenPop` 换动画名，
+      // 并只在自己正停在 `popCell` 时挂类 —— 指针只是移动不该有动效。
       updatePlacement((state) => placeForbidden(state, { x, y, blockingCells }));
+      pulseForbiddenHint(cellKey(x, y));
       return true;
     }
     if (mode.kind === 'clearing') {
@@ -2066,6 +2113,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                   /* 深色遮罩上用浅色文字；印章保持作者上传的原色（v0.9.7 第六批）。 */
                   onDark
                   /*
+                   * v0.9.8：印章在**游戏内**再往右上让开一段（右 150px、上 50px）。
+                   * 遮罩上的印与卡片上的印本来就同款，但这一屏的「定案」字大得多，
+                   * 印压得太正会糊住字心 —— 让它偏出去，像盖在纸的角落。
+                   */
+                  stampOffset={{ x: 150, y: -50 }}
+                  /*
                    * 刚通过时演一次「印下去」；已完成再进入是既成事实，不演。
                    * 判据只看「是不是这次进来的」，不看 result —— 结算卡弹出后遮罩还
                    * 在（它才是背景），动画类不该因为弹窗出现就被摘掉。
@@ -2137,6 +2190,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               mark={mark}
               // v0.9.1 §3：清除工具配了图，指针底下就画同一张（与按钮一致）。
               clearIcon={toolIcons.clear ?? null}
+              /* v0.9.8：落笔令牌与落笔格 —— 只有点下去那一刻、那一格的 `×` 才弹。 */
+              pop={forbiddenPop}
+              popCell={forbiddenPopCell}
             />
 
             {/* v0.7.11：长按进度环 —— 按住 500ms 的等待可见化（SPEC-J02）。

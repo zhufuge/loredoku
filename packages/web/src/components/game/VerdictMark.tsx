@@ -13,6 +13,10 @@ import { cn } from '@/lib/utils';
  * 三处必须是**同一张脸**：玩家在列表上认出的那枚印，进关卡后盖上来的也得是它。
  * 所以这里只管画，位置与动画交给调用方（遮罩里居中、卡片里撑满封面）。
  *
+ * v0.9.8：**字**按用途分两档 —— 卡片上（`onDark === false`）半透明 + 与印同一个
+ * −14°；遮罩上（`onDark`）近白、不倾斜，那是结论本身，要看得清。印始终是原色、
+ * 始终 −14°。
+ *
  * 印的角度固定在 **−14°**（v0.9.8 从 −8° 再斜一点），与 `index.css` 里
  * `stamp-press` 收尾帧一致 —— 同一枚印在两处不会一正一歪。
  */
@@ -24,10 +28,16 @@ import { cn } from '@/lib/utils';
 export function VerdictStamp({
   stampUrl,
   animate = false,
+  offset,
   className,
 }: {
   stampUrl: string | null;
   animate?: boolean;
+  /**
+   * v0.9.8：整体推移（px），挂在 `translate` 属性上 —— 与 `transform`
+   * （`-rotate` 类与 `stamp-press` 关键帧）正交，两者叠加而不是互相覆盖。
+   */
+  offset?: { x: number; y: number };
   className?: string;
 }): JSX.Element | null {
   /**
@@ -60,6 +70,7 @@ export function VerdictStamp({
         animate && 'stamp-press',
         className,
       )}
+      style={offset ? { translate: `${offset.x}px ${offset.y}px` } : undefined}
     />
   );
 }
@@ -82,6 +93,7 @@ export function VerdictMark({
   animate = false,
   large = false,
   onDark = false,
+  stampOffset,
   className,
 }: {
   stampUrl: string | null;
@@ -89,6 +101,14 @@ export function VerdictMark({
   large?: boolean;
   /** v0.9.7：压在深色遮罩上时文字要用浅色，否则「定案」两个字会糊进黑底。 */
   onDark?: boolean;
+  /**
+   * v0.9.8：把**印章**（不动文字）整体推移，如 `{ x: 150, y: -50 }`（px）。
+   *
+   * 用 `translate` 属性而不是 `transform`：`stamp-press` 的关键帧写的就是整条
+   * `transform`（`scale` + `rotate`），挂在那上面会被覆盖，印会先跳回原位再弹。
+   * `translate` 与 `transform` 正交，两者叠加。
+   */
+  stampOffset?: { x: number; y: number };
   className?: string;
 }): JSX.Element {
   return (
@@ -98,7 +118,16 @@ export function VerdictMark({
     >
       <span
         className={cn(
-          'relative z-0 font-kai font-bold tracking-[0.25em]',
+          /*
+           * v0.9.8：**两个字要真的粗**。
+           *
+           * `.font-kai` 里写着 `font-synthesis-weight: none`（v0.7.9 的理由是
+           * 「文楷只有 400 一档，糊边加粗像劣质国风」），所以光挂 `font-bold` 是
+           * 无效的 —— 字重照样 400。这里对这一处显式放开合成粗体：定案是印上去的
+           * 两个大字，细笔压不住印章，也撑不起这一屏的分量。其余用文楷的地方
+           * （页标题、名册、正文）不受影响。
+           */
+          'relative z-0 font-kai font-bold [font-synthesis-weight:auto] tracking-[0.25em]',
           /*
            * v0.9.7：压在固定深色遮罩（bg-black/60）上的字必须**始终浅色**。
            * 不能单用 text-foreground（浅色主题下是墨色）或 text-background
@@ -108,10 +137,15 @@ export function VerdictMark({
            * 两档各自取该主题下的近白：
            *   浅色主题 → --primary-foreground (40 30% 98%)
            *   深色主题 → --foreground        (38 20% 92%)
+           *
+           * v0.9.8：**列表卡片**上的字改成半透明（40%），并跟印章同一个角度 ——
+           * 那是蒙在封面上的一个印迹，不是一条要读的标题。遮罩里的那两处保持
+           * 原样：结案那一刻「定案」就是结论本身，要看得清。
            */
           onDark
             ? 'text-primary-foreground dark:text-foreground'
-            : 'text-foreground',
+            : 'text-foreground/40',
+          !onDark && '-rotate-[14deg]',
           /* v0.9.8：再放大一档（遮罩 8xl → 9xl，卡片 5xl → 7xl）。 */
           large ? 'text-9xl' : 'text-7xl',
         )}
@@ -121,6 +155,7 @@ export function VerdictMark({
       <VerdictStamp
         stampUrl={stampUrl}
         animate={animate}
+        offset={stampOffset}
         /*
          * `z-10` 压在字之上，`-mt-[0.55em]` 上提盖住字的下缘（v0.9.7 第六批
          * 从 0.35em 加大 —— 要明显「压在字上」，不是贴在字下面）。没有配图时

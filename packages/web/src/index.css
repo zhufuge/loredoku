@@ -624,33 +624,63 @@
   }
 
   /*
-   * 划掉的一刻（v0.7.12）—— 标记自己的那一支。
+   * 划掉的一刻（v0.7.12；v0.9.8 §5 改成纯放大缩小）—— 标记自己的那一支。
    *
-   * 与编号的 `place-pop`（0.5 → 1.08，像盖章）分开：`×` 在语义上是「划掉」，
-   * 动作从很小开始、弹出到位再回正几度，读起来才是「一笔划下去」而不是「按了
-   * 一枚章」。旋转用独立的 `rotate` 属性 —— 和 `scale` 一样，它与 SVG 自己的
-   * 坐标（`x` / `y`）正交，不会像 `transform` 那样把元素的坐标整条覆盖。
+   * 与编号的 `place-pop`（0.5 → 1.08，像盖章）分开：`×` 在语义上是「划掉」。
+   *
+   * **两端都停在 1，全程不小于 1**。落笔那一刻悬停的这枚 `×` 与刚刚落下的那枚
+   * 尺寸、位置完全重合（同一格、同一个 `GAME_FORBIDDEN_FONT_RATIO`），它只负责
+   * 盖住身后那枚。原先从 0.35 倍淡入、末尾还转 −18°：动画的头几帧它比身后那枚
+   * 小，落下的一枚就从四周露出来，随后又被盖回去 —— 读成「放下的 × 浮到悬浮的
+   * 上面闪了一下」。只放大缩小就没有会露出来的缝。
+   *
+   * 只动 `scale`（与 SVG 自己的 `x` / `y` 正交，不会像 `transform` 那样把坐标
+   * 整条覆盖），`transform-box: fill-box` 让缩放以字形自己的中心为原点。
    */
-  .forbidden-pop {
+  .forbidden-pop,
+  .forbidden-pop-alt {
     transform-box: fill-box;
     transform-origin: center;
+  }
+
+  /*
+   * 两支同名不同姓的动画：`forbidden-pop` 与 `forbidden-pop-alt` 逐帧相同，
+   * 只是 `animation-name` 不同。
+   *
+   * 为什么需要两支：落笔要**重启动画**。重挂载元素（换 React `key`）也能重启，
+   * 但 `<img>` 一换身份就有一帧没画出来 —— 身后那枚刚落下的 `×` 会从缝里露一下，
+   * 再被盖回去，读成「闪了一下」。换 `animation-name` 不碰元素身份，动画照样从头
+   * 播，画面不会断。页面按落笔令牌的奇偶在两支之间轮换（见 `GamePage`）。
+   */
+  .forbidden-pop {
     animation: forbidden-pop var(--motion-base) var(--motion-ease-out);
+  }
+
+  .forbidden-pop-alt {
+    animation: forbidden-pop-alt var(--motion-base) var(--motion-ease-out);
   }
 
   @keyframes forbidden-pop {
     from {
-      opacity: 0;
-      scale: 0.35;
-      rotate: -18deg;
+      scale: 1;
     }
-    60% {
-      opacity: 1;
-      scale: 1.16;
-      rotate: 4deg;
+    45% {
+      scale: 1.18;
     }
     to {
       scale: 1;
-      rotate: 0deg;
+    }
+  }
+
+  @keyframes forbidden-pop-alt {
+    from {
+      scale: 1;
+    }
+    45% {
+      scale: 1.18;
+    }
+    to {
+      scale: 1;
     }
   }
 

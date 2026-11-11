@@ -74,6 +74,10 @@ function hintOutlineFilter(cellSize: number): string {
  * The layer never receives pointer events, and it survives a completed
  * placement: the hint and the placement layer are independent (SPEC-G02 §3).
  *
+ * v0.9.8 §5：`×` 的动效属于**落笔**，不属于「指针进入方格」。`pop` 是落笔令牌，
+ * 决定用哪一支同款动画（换 `animation-name` 而不是换 `key`，理由见 `imageHint`）；
+ * `popping` 是「此刻挂不挂动效类」的窗口开关。指针只是移动时两个都不动。
+ *
  * v0.6.4 fix (docs/v0.6.4.md §4): the preview number is the same 编号展示 text
  * the placement layer will draw — configured text if the participant has one,
  * their sequence number otherwise — so hovering never promises a different
@@ -86,6 +90,8 @@ export function MapGameToolHintLayer({
   slots,
   mark = null,
   clearIcon = null,
+  pop = 0,
+  popCell = null,
 }: {
   hint: GameToolHint | null;
   cell: CellCoord | null;
@@ -96,9 +102,36 @@ export function MapGameToolHintLayer({
   mark?: MarkRender | null;
   /** v0.9.1 §3：清除工具配的上传图；`null` = 画内置橡皮字形。 */
   clearIcon?: ToolIconRender | null;
+  /**
+   * v0.9.8：落笔令牌 —— 每次点下去放一枚 `×` 就 +1。它决定**用哪一支**动效
+   * （奇偶两支，见 `index.css` 的 `forbidden-pop` / `forbidden-pop-alt`）。
+   *
+   * 靠换 `animation-name` 重启动画，而不是换 React `key` 重挂载元素：重挂载会
+   * 让 `<img>` 有一帧没画出来，身后刚落下的那枚 `×` 从缝里露一下再被盖回去 ——
+   * 玩家看到的就是「闪了一下」。
+   */
+  pop?: number;
+  /**
+   * v0.9.8：**刚落笔的那一格**（`"x,y"`），`null` = 动效窗口已关。
+   *
+   * 动效只演在落笔的这一格上。只用一个「窗口开着」的布尔量是不够的：窗口有
+   * 400ms，玩家点完立刻把指针挪到隔壁格，那枚跟着指针走的 `×`（同一个 DOM 节点）
+   * 会带着类飞过去 —— 新格子莫名其妙也弹一下。按格子比对就没有这个漏洞。
+   */
+  popCell?: string | null;
 }): JSX.Element | null {
   if (!hint || !cell) return null;
   const total = cellSize;
+  /**
+   * 只有「指针正停在被落笔的那一格」时才带类；两支按令牌奇偶轮换 ——
+   * 名字一变，CSS 动画就从头播。
+   */
+  const popClass =
+    popCell !== null && popCell === `${cell.x},${cell.y}`
+      ? pop % 2 === 0
+        ? 'forbidden-pop'
+        : 'forbidden-pop-alt'
+      : undefined;
 
   /**
    * v0.9.1 §3：把一张上传图铺进格子。标记与清除图标共用这一段 —— 两者都是
@@ -108,7 +141,6 @@ export function MapGameToolHintLayer({
     imageUrl: string,
     insetRatio: number,
     filter?: string,
-    pop = false,
   ): JSX.Element => {
     const inset = total * insetRatio;
     return (
@@ -133,17 +165,19 @@ export function MapGameToolHintLayer({
         >
           <img
             /*
-             * v0.9.8：`key` 跟着格子走 —— 指针挪到另一格时强制重挂载，动效才会
-             * 重新播一遍。不重挂载的话 React 复用同一个 `<img>`，动画只在第一次
-             * 悬停时演一次，之后换格子都是「图瞬间跳过去」。
+             * v0.9.8 §5：这个元素**不换 `key`**。
+             *
+             * 换 key（按格子、或按落笔令牌）都会让 `<img>` 丢掉上一次的身份：
+             * 浏览器在新元素画出第一帧之前有一帧空白，身后刚落下的那枚 `×` 就
+             * 从缝里露出来，随即被盖回去 —— 读成「放下的 × 浮上来闪了一下」。
+             * 重播动画改用换 `animation-name`（`popClass`），画面不断。
              */
-            key={`hint-${cell.x},${cell.y}`}
             src={imageUrl}
             alt=""
             draggable={false}
             className={
-              pop
-                ? 'forbidden-pop pointer-events-none absolute select-none'
+              popClass
+                ? `${popClass} pointer-events-none absolute select-none`
                 : 'pointer-events-none absolute select-none'
             }
             style={{
@@ -169,16 +203,14 @@ export function MapGameToolHintLayer({
    */
   if (hint.kind === 'forbidden' && mark) {
     /*
-     * v0.9.8：动效搬到**悬浮的**这一枚上。原先「划掉」那一下演在放置层刚落下的
-     * `×` 上，指针底下的预告却是静止的 —— 玩家手一动，先看到的是静止的图跳过去，
-     * 再看到身后那一格自己弹了一下，因果是反的。现在预告本身带 `forbidden-pop`，
-     * 落下的 `×` 直接出现。
+     * v0.9.8 §5：动效搬到**悬浮的**这一枚上（原先演在放置层刚落下的 `×` 上，
+     * 指针底下的预告却是静止的，因果是反的），并收窄到**只在落笔那一刻**演 ——
+     * 指针进入 / 换格不算动作。见 `imageHint` 的 `key` 注释。
      */
     return imageHint(
       mark.imageUrl,
       FORBIDDEN_SYMBOL_IMAGE_INSET_RATIO,
       hintOutlineFilter(total),
-      true,
     );
   }
   /**
@@ -223,8 +255,8 @@ export function MapGameToolHintLayer({
       const fontSize = cellSize * GAME_FORBIDDEN_FONT_RATIO;
       return (
         <text
-          /* v0.9.8：动效在**悬浮的**这一枚 `×` 上，见上面 `imageHint` 的注释。 */
-          className="forbidden-pop"
+          /* v0.9.8：动效只在**落笔那一刻**演，指针换格不演（见 `imageHint`）。 */
+          className={popClass}
           x={total / 2}
           y={total / 2}
           fill={GAME_TOOL_HINT_FORBIDDEN_COLOR}
@@ -279,8 +311,10 @@ export function MapGameToolHintLayer({
       style={{ zIndex: MAP_LAYER_Z.gameToolHint }}
     >
       <svg
-        /* v0.9.8：同 `imageHint`，`key` 跟着格子走才会换一格重播一次动效。 */
-        key={`hint-${cell.x},${cell.y}`}
+        /*
+         * v0.9.8：不换 `key` —— 同 `imageHint`，重挂载会让元素有一帧没画出来。
+         * 重播靠 `popClass` 换 `animation-name`（类挂在里面的字形上）。
+         */
         className="absolute left-0 top-0"
         width={total}
         height={total}
