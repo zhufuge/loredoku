@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-  type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
-} from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import {
   MAP_LAYER_Z,
   ITEM_HOVER_LIFT_PX,
@@ -99,19 +92,22 @@ export function MapBackgroundLayer({
  * neighbouring cell must not light this item up.
  *
  * v0.7.13 (docs/v0.7.13.md §2): 停一会儿就把资源名报出来。**不走 Radix Tooltip**
- * —— 物品层在非编辑器页面是 `pointer-events: none`（游戏页要把点击留给格子），
+ * —— 物品层不接收指针事件（点击一律留给画布容器按格子分发，见 v0.10.2 那段），
  * `TooltipTrigger` 根本收不到 hover；命中本来就已经由画布坐标算好了，直接复用。
  * 于是这里只借 Tooltip 的**长相**（`TOOLTIP_SURFACE_CLASS`），自己算位置。
  *
  * v0.8.7 §8：位置改成**跟着光标**（`pointer`，画布像素）。原来贴在物品上方，物品被
  * 作者缩放过 / 偏移过之后，纸片飘在离指头很远的地方，读起来像另一件东西的名字；
  * 靠边时按画布边界翻边，不靠估算的物品宽度。
+ *
+ * v0.10.2：这一层整层 `pointer-events: none`，不再有 `interactive` 开关 —— 物品的
+ * 显示框被 `scale` / 偏移撑到脚位之外，让它接管指针会让「压在别的格子上的那圈画」
+ * 抢走本该落在那一格的点击。
  */
 export function MapItemLayer({
   cells,
   assetsById,
   cellSize,
-  interactive = false,
   hover = null,
   pointer = null,
   liftOnHover = true,
@@ -119,15 +115,12 @@ export function MapItemLayer({
   gridSize,
   showNameOnHover = true,
   itemOutline = null,
-  onPointerDown,
-  onClick,
 }: {
   cells: CellMap;
   assetsById: Map<number, Asset>;
   cellSize: number;
   /** v0.9.1 §5：物品描边（宽度 0 或 `null` = 不描边）。 */
   itemOutline?: MapStyleItemOutline | null;
-  interactive?: boolean;
   hover?: CellCoord | null;
   /**
    * v0.8.7 §8：光标的**画布坐标**（像素，原点在画布左上角）。给了就把名称提示贴在
@@ -142,8 +135,6 @@ export function MapItemLayer({
   gridSize?: number;
   /** v0.7.13: 关掉就只有悬停抬手，不报名字。 */
   showNameOnHover?: boolean;
-  onPointerDown?: (coord: CellCoord) => void;
-  onClick?: (coord: CellCoord, event: ReactMouseEvent<HTMLDivElement>) => void;
 }): JSX.Element {
   const hoveredKey = useMemo(
     () => (hover === null ? null : hitItemKey(cells, hover)),
@@ -235,18 +226,21 @@ export function MapItemLayer({
                 // OPT-C06: the padding applies to the whole footprint, not per cell.
                 padding,
                 boxSizing: 'border-box',
-                pointerEvents: interactive ? 'auto' : 'none',
-                cursor: interactive ? 'pointer' : 'inherit',
-              }}
-              onPointerDown={(event: ReactPointerEvent<HTMLDivElement>) => {
-                if (!interactive) return;
-                event.stopPropagation();
-                onPointerDown?.({ x, y });
-              }}
-              onClick={(event) => {
-                if (!interactive) return;
-                event.stopPropagation();
-                onClick?.({ x, y }, event);
+                /*
+                 * v0.10.2：物品层**不再接管点击**（原本选择类工具下是 `auto`）。
+                 *
+                 * 显示框是 `itemRectStyle` 给出的 ── 被 `scale`（25%~400%）与
+                 * `offsetX/Y` 撑到脚位之外后，它的像素范围远大于脚位。原先那层
+                 * `auto` 让「落在溢出画里、却压在别的格子上」的点也命中这件物品，
+                 * 并且回传的还是**锚点格**：作者看到树冠画在隔壁格，点它却选中了
+                 * 树脚下那一格。现在点击一律冒泡到画布容器，由它按 `clientToCell`
+                 * 换算成格子 —— 与盘面上任何一处像素同一条路。
+                 *
+                 * 脚位内的点击不会因此丢掉「选中物品」：画布的 `hitTestCell` 用
+                 * `resolveItemAnchor` 把落在 `w × h` 里的点映射回锚点格，与这里
+                 * 原来的效果一致。
+                 */
+                pointerEvents: 'none',
               }}
             >
               {inner}

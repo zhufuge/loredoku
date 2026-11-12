@@ -584,9 +584,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
   // Cell content is clickable (selection only) unless a brush item is armed or
   // the user is panning; it never carries drag handlers (BUG-405).
-  const selectInteractive =
-    activeTool === 'select' && pendingVariant === null && !spaceHeld;
-
+  // v0.10.2：物品层与区域标签不再各自接管指针，画布容器是唯一的入口。
   const selectionCell =
     selection?.type === 'cell'
       ? { x: selection.x, y: selection.y }
@@ -716,16 +714,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           itemOutline={style.itemOutline}
           // OPT-C06: object artwork is inset inside its footprint.
           padding={itemPadding(cellSize)}
-          interactive={selectInteractive}
           hover={hover}
           pointer={hoverPoint}
-          onClick={(coord, event) => {
-            if (event.shiftKey && selectedRegionId) {
-              onToggleRegionCell(coord);
-              return;
-            }
-            selectCellAt(coord);
-          }}
         />
 
         <MapRegionLabelLayer
@@ -734,10 +724,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={style}
           hoveredRegionId={hoveredRegionId}
           onHover={setLabelRegionId}
-          onSelect={(id) => {
-            onSelect({ type: 'region', regionId: id });
-            onSelectRegion(id);
-          }}
         />
 
         <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />

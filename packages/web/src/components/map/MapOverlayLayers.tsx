@@ -147,14 +147,12 @@ export function MapRegionLabelLayer({
   style,
   hoveredRegionId = null,
   onHover,
-  onSelect,
 }: {
   regions: DraftRegion[];
   cellSize: number;
   style: MapStyle;
   hoveredRegionId?: string | null;
   onHover?: (id: string | null) => void;
-  onSelect?: (id: string) => void;
 }): JSX.Element {
   const scale = cellScale(cellSize);
   return (
@@ -179,11 +177,24 @@ export function MapRegionLabelLayer({
          */
         const offset = resolved.labelOffset;
         const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
+        /*
+         * v0.10.2：标签**不再接管点击**。
+         *
+         * 它原来是一枚 `stopPropagation()` 的 `<button>`，于是「区域标题占的那块
+         * 像素」点下去选中的是区域，而不是标题底下那一格 —— 而标签用
+         * `translate(-50%, -100%)` 悬在格子上沿，盖住的往往根本不是自己区域的格子。
+         * 现在把点击放回画布容器：按下沿 React 树冒泡到容器的 `onPointerDown`，
+         * 由它按 `clientToCell` 换算成格子，再做放置 / 选择 —— 与点盘面上任何
+         * 一处像素完全同一条路。
+         *
+         * 仍留 `pointer-events-auto`：悬停要能点亮它自己那块区域（标签可能被
+         * `labelCell` / 偏移推到盘面之外，那里没有格子可悬停）。`select-none` 是因为
+         * 它已经不是按钮了，按住拖动不该选中文字。
+         */
         return (
-          <button
+          <span
             key={`label-${region.id}`}
-            type="button"
-            className="region-label pointer-events-auto absolute whitespace-nowrap"
+            className="region-label pointer-events-auto absolute select-none whitespace-nowrap"
             style={
               {
                 left: (anchor[0] + 0.5) * cellSize + offset.x,
@@ -204,15 +215,10 @@ export function MapRegionLabelLayer({
             }
             onMouseEnter={() => onHover?.(region.id)}
             onMouseLeave={() => onHover?.(null)}
-            onPointerDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelect?.(region.id);
-            }}
             title={region.name}
           >
             {region.name}
-          </button>
+          </span>
         );
       })}
     </div>
