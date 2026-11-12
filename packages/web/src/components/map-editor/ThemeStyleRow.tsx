@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { ArrowLeftRight, Palette } from 'lucide-react';
-import { diffMapStyle, type MapStyle } from '@loredoku/shared';
+import { MAP_STYLE_DIFF_GROUPS, diffMapStyle, type MapStyle } from '@loredoku/shared';
 import { resolveMapStyle } from '@/lib/mapStyle';
+import { THEME_HIDDEN_STYLE_KEYS, applyThemeStyle, stripThemeHiddenStyle } from '@/lib/themeStyleFields';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useThemeDetail, useUpdateTheme } from '@/hooks/useThemes';
@@ -44,17 +45,28 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
   const themeStyle = storedThemeStyle ? resolveMapStyle(storedThemeStyle) : undefined;
 
   // 差异跟着**草稿**算：改一个线宽，弹窗里的项数当场少一项，这是最直接的反馈。
-  const diffs = useMemo(() => diffMapStyle(style, themeStyle), [style, themeStyle]);
+  //
+  // v0.10.2：主题设置里不出现的项（目前只有方格大小）也不参与比对。它不是风格、
+  // 是这张图自己的尺寸，两张图天然会不一样；把它算成「与主题风格不同」会让弹窗
+  // 常驻一条差异，而「应用主题风格」一按就会把本图定死的尺寸抹成主题那个值。
+  const diffs = useMemo(
+    () =>
+      diffMapStyle(style, themeStyle).filter((entry) => !THEME_HIDDEN_STYLE_KEYS.has(entry.key)),
+    [style, themeStyle],
+  );
 
   // 主题还没读到时什么都不说 —— 闪一句「还没有缺省风格」再改口更糟。
   if (!theme) return null;
 
-  const grouped = ['网格', '边框', '标签', '光标'] as const;
-
   /** 本图成为主题的新缺省。`data` 要整份回写：schema 是 `.strict()` 的。 */
   const setAsThemeStyle = (): Promise<unknown> =>
     updateTheme.mutateAsync({
-      data: { ...theme.data, version: theme.data.version ?? 1, style },
+      data: {
+        ...theme.data,
+        version: theme.data.version ?? 1,
+        // v0.10.2：主题里不留方格大小 —— 它本来就不该出现在主题设置里。
+        style: stripThemeHiddenStyle(style),
+      },
     });
 
   const setAsThemeButton = (
@@ -104,7 +116,7 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
                 </p>
               ) : (
                 <div className="max-h-72 overflow-y-auto rounded-md border">
-                  {grouped.map((group) => {
+                  {MAP_STYLE_DIFF_GROUPS.map((group) => {
                     const rows = diffs.filter((entry) => entry.group === group);
                     if (rows.length === 0) return null;
                     return (
@@ -148,7 +160,8 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
                   disabled={diffs.length === 0}
                   onClick={() => {
                     setDiffOpen(false);
-                    onApplyThemeStyle(themeStyle);
+                    // v0.10.2：只灌主题设置里列得出的那些项，本图的方格大小原样留着。
+                    onApplyThemeStyle(applyThemeStyle(style, themeStyle));
                   }}
                 >
                   <ArrowLeftRight className="mr-1 h-3.5 w-3.5" />

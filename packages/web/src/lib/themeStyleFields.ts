@@ -41,11 +41,15 @@ import {
  * 它不是风格，是这张图自己的事 —— 由画布尺寸与「定尺寸」那一刻算出来的值决定
  * （`null` = 按画布自适应），一张图一个数。要改它就去那张图的「基本信息」。
  *
- * 主题的缺省风格里这一项仍然存在、也仍然有效（新建地图时会拷过去），只是这个
- * 空间级清单不再提供入口。所以这里只做**显示过滤**，不是把字段从 `MapStyle`
- * 里拿掉 —— 差异弹窗还要拿它去比对。
+ * 主题的缺省风格里这一项仍然存在，只是这个空间级清单不再提供入口。所以这里只做
+ * **显示过滤**，不是把字段从 `MapStyle` 里拿掉。
+ *
+ * v0.10.2：这份「主题设置里不出现的键」现在是**共用**的 —— 「基本信息」抽屉底部
+ * 的差异弹窗（`ThemeStyleRow`）原来还会列出「方格大小 168px → 146px」，等于把
+ * 一张图自己的尺寸当成「与主题风格不同」报给作者；两个方向的动作（应用 / 设为）
+ * 也会顺手把它带过去。同一份清单管住这三处，就不会再冒出第四处。
  */
-const THEME_HIDDEN_STYLE_KEYS = new Set(['cellSize']);
+export const THEME_HIDDEN_STYLE_KEYS = new Set(['cellSize']);
 
 export type ThemeStyleFieldKind = 'number' | 'color' | 'shadow' | 'text' | 'unknown';
 
@@ -232,6 +236,35 @@ export function writeStyleValue(
 export function resetThemeStyle(style: MapStyle): MapStyle {
   return THEME_STYLE_FIELDS.reduce(
     (next, field) => writeStyleValue(next, field.key, field.read(DEFAULT_MAP_STYLE)),
+    style,
+  );
+}
+
+/**
+ * v0.10.2：「应用主题风格」只灌**看得见的**字段，本图自己的方格大小原样留着。
+ *
+ * 与 `resetThemeStyle` 是同一个招式（逐项写回，而不是整份替换）：整份替换会把
+ * 主题里可能残留的 `cellSize` 一起盖上来 —— 作者刚把这张图定成 146px，点一下
+ * 「应用主题风格」就变回 168px，而那一项在主题设置里已经看不见了，没处找回来。
+ */
+export function applyThemeStyle(style: MapStyle, themeStyle: MapStyle): MapStyle {
+  return THEME_STYLE_FIELDS.reduce(
+    (next, field) => writeStyleValue(next, field.key, field.read(themeStyle)),
+    style,
+  );
+}
+
+/**
+ * v0.10.2：把一份风格收成「主题该存的样子」—— 看不见的键一律归零。
+ *
+ * 「设为主题风格」原来把本图整份 `MapStyle`（含 `cellSize: 146`）写进主题。服务端
+ * 建新地图时会自己把 `cellSize` 置 `null`（`mapCanvasService.ts` 的 `initialStyle`），
+ * 所以那个数字从来没生效过；但库里留着一个谁也改不到、谁也看不见的值，下一个读
+ * 主题风格的地方就会再踩一次。不如在写进去的那一刻就归零。
+ */
+export function stripThemeHiddenStyle(style: MapStyle): MapStyle {
+  return [...THEME_HIDDEN_STYLE_KEYS].reduce<MapStyle>(
+    (next, key) => writeStyleValue(next, key, null),
     style,
   );
 }

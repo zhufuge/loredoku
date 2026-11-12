@@ -124,4 +124,44 @@ describe('ThemeStyleRow（§16.8）', () => {
     // 「应用主题风格」那时无从取值。
     expect(button('应用主题风格')).toBeUndefined();
   });
+
+  /**
+   * v0.10.2：方格大小不属于主题设置 —— 它是这张图自己的尺寸，两张图天然会不一样。
+   * 差异弹窗列它，等于把「一张图自己的事」报成「与主题风格不同」。
+   */
+  it('方格大小不参与比对 —— 不报差异、不列进弹窗', () => {
+    render({ ...themeStyle, cellSize: 146 });
+    expect(text()).toContain('与主题一致');
+
+    act(() => button('风格')?.click());
+    expect(text()).not.toContain('方格大小');
+  });
+
+  it('差异弹窗不因方格大小而整块列出来', () => {
+    render({ ...themeStyle, cellSize: 168 });
+    expect(text()).toContain('与主题一致');
+  });
+
+  it('「应用主题风格」不改本图的方格大小，只灌看得见的项', () => {
+    const mine: MapStyle = { ...themeStyle, cellSize: 146, gridSeparator: { width: 5, color: themeStyle.gridSeparator.color } };
+    render(mine);
+    act(() => button('查看差异')?.click());
+    act(() => button('应用主题风格')?.click());
+
+    expect(onApply).toHaveBeenCalledWith(
+      expect.objectContaining({ cellSize: 146, gridSeparator: themeStyle.gridSeparator }),
+    );
+  });
+
+  it('「设为主题风格」不把本图的方格大小写进主题', () => {
+    render({ ...themeStyle, cellSize: 146 });
+    act(() => button('风格')?.click());
+    act(() => button('设为主题风格')?.click());
+
+    expect(mutateAsync).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        style: expect.objectContaining({ cellSize: null }),
+      }),
+    });
+  });
 });

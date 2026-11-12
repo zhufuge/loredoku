@@ -7,10 +7,13 @@ import {
   type MapStyle,
 } from '@loredoku/shared';
 import {
+  THEME_HIDDEN_STYLE_KEYS,
   THEME_STYLE_FIELDS,
   THEME_STYLE_GROUP_HINTS,
+  applyThemeStyle,
   isValidThemeStyle,
   resetThemeStyle,
+  stripThemeHiddenStyle,
   writeStyleValue,
 } from './themeStyleFields';
 
@@ -57,8 +60,9 @@ describe('THEME_STYLE_FIELDS', () => {
     expect(width?.format(DEFAULT_MAP_STYLE)).toBe(`${DEFAULT_MAP_STYLE.gridSeparator.width}px`);
 
     /**
-     * 方格大小不在概览页表单里了，但**差异弹窗仍然列它** —— 地图「基本信息」里
-     * 那一项还是作者要改的，跟主题比对时不能装作没这项。
+     * 方格大小不在主题设置里（概览页表单不列、差异弹窗也不列，v0.10.2），但它在
+     * `MAP_STYLE_FIELDS` 里还在 —— 地图「基本信息」那一项仍是作者要改的，格式化
+     * 也得能算出「自适应」。
      */
     const cellSize = MAP_STYLE_FIELDS.find((field) => field.key === 'cellSize');
     expect(cellSize?.format?.(cellSize.read(DEFAULT_MAP_STYLE))).toBe('自适应');
@@ -129,5 +133,46 @@ describe('resetThemeStyle（v0.8.6 §1）', () => {
     const next = resetThemeStyle(mine);
     expect(next.cellSize).toBe(48);
     expect(next.gridSeparator).toEqual(DEFAULT_MAP_STYLE.gridSeparator);
+  });
+});
+
+/**
+ * v0.10.2：方格大小不再出现在主题设置里 —— 概览页表单不列它（v0.8.6 §1），
+ * 「基本信息」抽屉底部那个差异弹窗也不列它。这一组钉的是差异弹窗那侧的三个动作。
+ */
+describe('主题设置里看不见的键（v0.10.2）', () => {
+  const themeStyle: MapStyle = {
+    ...DEFAULT_MAP_STYLE,
+    cellSize: 168,
+    gridSeparator: { width: 2, color: DEFAULT_MAP_STYLE.gridSeparator.color },
+  };
+
+  it('清单只藏方格大小，它仍在 shared 字段表里', () => {
+    expect([...THEME_HIDDEN_STYLE_KEYS]).toEqual(['cellSize']);
+    expect(MAP_STYLE_FIELDS.some((field) => field.key === 'cellSize')).toBe(true);
+  });
+
+  it('「应用主题风格」灌的是看得见的项，本图的方格大小原样留着', () => {
+    const mine: MapStyle = { ...DEFAULT_MAP_STYLE, cellSize: 146 };
+    const next = applyThemeStyle(mine, themeStyle);
+    expect(next.cellSize).toBe(146);
+    expect(next.gridSeparator).toEqual(themeStyle.gridSeparator);
+  });
+
+  it('「应用主题风格」改不动的项一个不漏地跟过来（其余字段整份照抄）', () => {
+    const mine: MapStyle = { ...DEFAULT_MAP_STYLE };
+    const next = applyThemeStyle(mine, themeStyle);
+    for (const field of THEME_STYLE_FIELDS) {
+      expect(field.read(next), field.key).toEqual(field.read(themeStyle));
+    }
+  });
+
+  it('「设为主题风格」写进去的那份没有方格大小', () => {
+    const mine: MapStyle = { ...DEFAULT_MAP_STYLE, cellSize: 146 };
+    const stored = stripThemeHiddenStyle(mine);
+    expect(stored.cellSize).toBeNull();
+    // 其余字段一个不动 —— 归零只针对清单里的键。
+    expect(stored.gridSeparator).toEqual(mine.gridSeparator);
+    expect(stored.regionLabel).toEqual(mine.regionLabel);
   });
 });
