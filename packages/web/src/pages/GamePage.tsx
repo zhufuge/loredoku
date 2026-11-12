@@ -2069,6 +2069,21 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 'flex min-h-0 flex-1',
                 // v0.10.1 竖屏：名册这时横躺成一整条，宽度交给屏宽，不再横向滚动。
                 'max-md:overflow-x-auto',
+                /*
+                 * v0.10.2 竖屏：这一层不再参与高度分配，按内容自己的高走。
+                 *
+                 * 上面的「题面 + 名册」容器是**唯一**滚动区（全局线索要跟着名册
+                 * 一起滚）。这里若继续 `flex-1`，它会被压成容器剩下的那点高，
+                 * 名册内部又已经放开滚动（`overflow-visible`），多出来的卡片只能
+                 * 溢出去 —— 滚动条在祖先上，但高度分配没给内容留位置。改成
+                 * `flex-none` 之后，容器的可滚高度 = 线索 + 全部卡片。
+                 *
+                 * `overflow-x-auto` 也得让位：只要有一个轴是 `auto`，另一轴就会被
+                 * 浏览器算成 `auto`，这一层于是又成了第二个（虽然滚不动的）滚动
+                 * 容器，触屏滑动可能被它吃掉。竖屏名册是 `minmax(0, 1fr)` 的弹性
+                 * 轨道，本来就不横向溢出。
+                 */
+                portraitFit && 'max-md:flex-none portrait:max-md:overflow-visible',
               )}
             >
               <ParticipantPanel

@@ -378,9 +378,14 @@ export function ParticipantPanel({
         because the panel's width is computed from it — a drift between the two
         would make the panel 8px too narrow for its own matrix. `overflow-auto`
         so a column count wider than the cap scrolls instead of clipping.
+
+        v0.10.2 竖屏：这里**不再自己滚**。竖屏下外面的容器（游戏页的「题面 +
+        名册」那一块）已经是唯一滚动区，全局线索要跟着名册一起滚；这一层再
+        套一个滚动条，手指滑到卡片上时线索就停住了。桌面端与编辑器照旧 ——
+        `compactPortrait` 只有游戏页会传。
       */}
       <div
-        className="min-h-0 flex-1 overflow-auto py-2"
+        className={cn('min-h-0 flex-1 py-2', compactPortrait ? 'overflow-visible' : 'overflow-auto')}
         style={{ paddingLeft: ROSTER_PANEL_PADDING, paddingRight: ROSTER_PANEL_PADDING }}
       >
         {slots.length === 0 ? (
@@ -805,7 +810,16 @@ export function ParticipantPanel({
                   >
                     {clueSegments.length > 0 ? (
                       <span
-                        className={cn('line-clamp-3 text-center', compactPortrait && 'text-left')}
+                        className={cn(
+                          /*
+                           * v0.10.2 竖屏：线索要**读全**。桌面那张竖卡有 72px 的
+                           * 线索区，三行之后 `line-clamp` 收成省略号是版式的一部分
+                           * （卡片大小固定、名册像一张表格）；横卡的高度本来就跟着
+                           * 内容走，再截断就只是把玩家最需要的那半句话藏起来。
+                           * 所以竖屏不挂 `line-clamp-3`，卡片自己长高。
+                           */
+                          compactPortrait ? 'text-left' : 'line-clamp-3 text-center',
+                        )}
                         style={{
                           fontSize: 11,
                           /* v0.10.1 竖屏：横卡里行距收到 16px。桌面那张竖卡线索区

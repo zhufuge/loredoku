@@ -49,8 +49,14 @@ export function GameBrief({
        * v0.10.1 竖屏：整块往上留一点空。竖屏下面板紧贴着棋盘的下边框（`border-t`），
        * 线索纸条又只按自己的字宽收身，第一张纸条直接顶着那条线会读成「被切了一半」。
        * 桌面端不加：标题块自己带 `p-3` 的下边距，再垫一层就成了双重留白。
+       *
+       * v0.10.2 竖屏：不再自己滚。这块原本自带 `max-h` 与 `overflow-y-auto`，于是
+       * 「全局线索」和下面的名册各滚各的 —— 手指滑在名册上时线索不动，八条线索
+       * 要滚两遍才看得完。竖屏改成由外面那层容器统一滚：这里放开高度上限、
+       * 交出滚动条，线索与名册连成一段。桌面端与横屏手机不受影响（面板仍限高、
+       * 仍自己滚），所以用 `portrait:max-md:` 而不是裸 `max-md:`。
        */
-      className="max-h-[min(24svh,220px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3 sm:max-h-[min(46vh,340px)] max-md:pt-3"
+      className="max-h-[min(24svh,220px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3 sm:max-h-[min(46vh,340px)] max-md:pt-3 portrait:max-md:max-h-none portrait:max-md:overflow-visible"
     >
       {showDescription ? <BriefDescription text={text} /> : null}
       {entries.length > 0 ? (
