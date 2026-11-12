@@ -180,6 +180,11 @@ function BriefDescription({ text }: { text: string }): JSX.Element {
          * 切成两块。**靠右**是关键 —— 贴着正文左边缘、行距又和正文一样时，「展开
          * 全文」会被读成第四行（第一版实测就是这样）；推到右边，它才从行文里出来，
          * 站到「更多」这个位置上。
+         *
+         * v0.10.2：`pointer-events-auto`。定案之后整条左栏挂 `pointer-events-none`
+         * 锁住名册与题面，只有标题块自己用 `pointer-events-auto` 豁免；这枚按钮在
+         * 题面里，于是跟着一起失灵 —— 而「读全文」不是游戏动作，是读作者写的话，
+         * 定案了也该能读。只放开这一枚按钮，线索纸条的悬停与名册仍然锁着。
          */
         <button
           type="button"
@@ -187,7 +192,7 @@ function BriefDescription({ text }: { text: string }): JSX.Element {
           aria-expanded={expanded}
           onClick={() => setExpanded((current) => !current)}
           className={cn(
-            'ml-auto mt-1 flex w-fit items-center gap-0.5 text-2xs text-muted-foreground',
+            'pointer-events-auto ml-auto mt-1 flex w-fit items-center gap-0.5 text-2xs text-muted-foreground',
             'transition-colors duration-fast ease-out hover:text-foreground',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
           )}
