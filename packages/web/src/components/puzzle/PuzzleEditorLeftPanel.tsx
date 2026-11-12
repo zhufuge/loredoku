@@ -1,12 +1,12 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import type { Character, CharacterSlotEntry } from '@loredoku/shared';
 import { PARTICIPANT_HEADER_HEIGHT } from '@loredoku/shared';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { RefreshButton } from '@/components/common/RefreshButton';
+import { SearchInput } from '@/components/common/SearchInput';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PANEL_ICON_BUTTON_CLASS } from '@/lib/toolbarButtons';
-import { cn } from '@/lib/utils';
 
 interface PuzzleEditorLeftPanelProps {
   characters: Character[] | undefined;
@@ -174,19 +174,13 @@ export const PuzzleEditorLeftPanel = forwardRef<
 
       {/* FEAT-N08: the filter sits right under the header, above the grid. */}
       <div className="shrink-0 border-b p-2">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="搜索名称 / 编码"
-            aria-label="搜索角色"
-            className={cn(
-              'h-8 w-full rounded-md border border-input bg-background pl-8 pr-2 text-xs',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-            )}
-          />
-        </div>
+        <SearchInput
+          size="xs"
+          value={keyword}
+          onValueChange={setKeyword}
+          placeholder="搜索名称 / 编码"
+          aria-label="搜索角色"
+        />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-3">

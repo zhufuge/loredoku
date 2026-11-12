@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { ASSET_TYPES, ASSET_TYPE_LABELS, type Asset, type AssetType } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -13,8 +13,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { SearchInput } from '@/components/common/SearchInput';
 import { AssetDetailForm } from '@/components/asset/AssetDetailForm';
 import { AssetListPanel } from '@/components/asset/AssetListPanel';
 import { CreateAssetDialog } from '@/components/asset/CreateAssetDialog';
@@ -174,15 +174,11 @@ export function AssetsPage(): JSX.Element {
       <div className="space-y-4">
         <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
           <div className="space-y-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={keywordInput}
-                onChange={(event) => setKeywordInput(event.target.value)}
-                placeholder="搜索名称 / 编码"
-                className="pl-9"
-              />
-            </div>
+            <SearchInput
+              value={keywordInput}
+              onValueChange={setKeywordInput}
+              placeholder="搜索名称 / 编码"
+            />
             <div className="flex flex-wrap items-center gap-2">
               {/* FEAT-O11 (docs/v0.5.4.md §5.4): 类型 is three buttons now.
                   v0.7.8 §10：`h-10` 把分段控件抬到和右边下拉一样高 —— 一行里两种

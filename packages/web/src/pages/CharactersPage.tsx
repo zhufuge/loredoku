@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { Character } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -13,10 +13,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { CharacterDetailForm } from '@/components/character/CharacterDetailForm';
+import { SearchInput } from '@/components/common/SearchInput';
 import { CharacterListPanel } from '@/components/character/CharacterListPanel';
 import { CreateCharacterDialog } from '@/components/character/CreateCharacterDialog';
 import { PageHeader } from '@/components/layout/PageHeader';
@@ -168,15 +168,11 @@ export function CharactersPage(): JSX.Element {
       <div className="space-y-4">
         <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
         <div className="space-y-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
-              placeholder="搜索名称 / 编码"
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            value={keywordInput}
+            onValueChange={setKeywordInput}
+            placeholder="搜索名称 / 编码"
+          />
           {/* v0.7.8 §10：`w-auto` —— 与资源页的筛选行同一个处理：下拉按内容收窄，
               在 340px 窄栏里读成一个筛选芯片，而不是一条横贯整栏的空框。 */}
           <Select

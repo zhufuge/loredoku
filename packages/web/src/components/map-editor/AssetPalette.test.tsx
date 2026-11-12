@@ -102,7 +102,10 @@ describe('AssetPalette — 形态瓦片（v0.6.1 §8.5）', () => {
   }
 
   function tiles(): HTMLButtonElement[] {
-    return [...container.querySelectorAll<HTMLButtonElement>('button')];
+    // v0.10.2：搜索框自带一枚 × 清空按钮，它也是 `button` —— 只数瓦片。
+    return [...container.querySelectorAll<HTMLButtonElement>('button')].filter(
+      (node) => node.getAttribute('aria-label') !== '清空搜索',
+    );
   }
 
   it('gives every variant its own tile on the item layer', () => {

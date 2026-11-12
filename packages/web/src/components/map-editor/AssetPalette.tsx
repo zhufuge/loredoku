@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
 import type { Asset, AssetVariant, EditorLayer } from '@loredoku/shared';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { RefreshButton } from '@/components/common/RefreshButton';
+import { SearchInput } from '@/components/common/SearchInput';
 import { cn } from '@/lib/utils';
 
 interface AssetPaletteProps {
@@ -88,15 +87,13 @@ export function AssetPalette({
     <div className="flex h-full flex-col gap-2">
       {/* v0.7.7: 刷新紧跟在搜索框右侧 —— 两者都是「对整份列表」的动作，同一行。 */}
       <div className="flex shrink-0 items-center gap-2">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-            placeholder="搜索资源"
-            className="h-9 pl-9"
-          />
-        </div>
+        <SearchInput
+          className="flex-1"
+          size="sm"
+          value={keyword}
+          onValueChange={setKeyword}
+          placeholder="搜索资源"
+        />
         {onRefresh ? (
           <RefreshButton label="刷新资源" refreshing={refreshing} onRefresh={onRefresh} />
         ) : null}

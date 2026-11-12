@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import type { MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
 import {
   AlertDialog,
@@ -13,11 +13,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { entryPreviewable } from '@/components/common/EntryActionsMenu';
 import { ListPager } from '@/components/common/ListPager';
+import { SearchInput } from '@/components/common/SearchInput';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { fullscreenPath } from '@/lib/workspace';
@@ -329,15 +329,12 @@ export function PuzzlesPage(): JSX.Element {
       {/* v0.7.8 §10：与地图页同构 —— 页头 24px，工具条到列表 16px。 */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full max-w-xs">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
-              placeholder="搜索谜题名称"
-              className="pl-9"
-            />
-          </div>
+          <SearchInput
+            className="w-full max-w-xs"
+            value={keywordInput}
+            onValueChange={setKeywordInput}
+            placeholder="搜索谜题名称"
+          />
           <Select
             value={sort}
             onChange={(event) => {
