@@ -1,4 +1,5 @@
 import { SquarePen, Trash2 } from 'lucide-react';
+import { MAP_COVER_ASPECT } from '@loredoku/shared';
 import type { MapEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
@@ -52,18 +53,24 @@ export function MapGridCard({
         type="button"
         onClick={() => onOpen(entry)}
         title={`${isVersion ? '以此为底稿新建' : '进入编辑'}：${entry.name}`}
-        // 封面是 4:3 缩略图 —— 正方形在四列网格里高得压住了文字区，而封面
-        // 只是缩略图，4:3 足够辨认。
-        className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden border-b bg-muted/40"
+        // v0.10.2：封面框改成 `MAP_COVER_ASPECT`（16:10），与编辑器「基本信息」
+        // 抽屉、新建 / 编辑对话框里的预览框**同一把尺**。此前这里是 `4/3`，
+        // 于是同一张图在编辑器里看到的是 16:10 的裁切、在卡片上看到的是 4:3 的
+        // 裁切 —— 用户配好封面回到列表，认不出是同一张。
+        // 比例写进行内样式而不是 `aspect-[16/10]`：常量才是唯一真源，改一处
+        // 三处一起变。
+        style={{ aspectRatio: String(MAP_COVER_ASPECT) }}
+        className="relative block w-full cursor-pointer overflow-hidden border-b bg-muted/40"
       >
         {entry.coverUrl ? (
-          // 默认放大 1.2 裁中间（overflow-hidden 切掉四边），hover 时缩回
-          // 原尺寸展示全部。
+          // v0.10.2：去掉默认的 `scale-[1.2]`。那一层放大只保留中间 83%，
+          // 等于在 16:10 之上又裁一刀，卡片永远比预览框「更近一点」；
+          // 要让「配置时看到的」和「卡片上看到的」逐像素一致，就不能有它。
           <img
             src={entry.coverUrl}
             alt={entry.name}
             draggable={false}
-            className="h-full w-full object-cover transition-transform duration-image ease-in-out scale-[1.2] group-hover:scale-100"
+            className="h-full w-full object-cover"
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center bg-secondary/40 text-3xl font-semibold text-muted-foreground/60">

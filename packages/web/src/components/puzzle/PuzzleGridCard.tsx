@@ -1,4 +1,5 @@
 import { SquarePen, Trash2 } from 'lucide-react';
+import { MAP_COVER_ASPECT } from '@loredoku/shared';
 import type { PuzzleEntrySummary } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -50,14 +51,19 @@ export function PuzzleGridCard({
         type="button"
         onClick={() => onOpen(entry)}
         title={`${isVersion ? '编辑此版本' : '进入编辑'}：${entry.name}`}
-        className="relative block aspect-[4/3] w-full cursor-pointer overflow-hidden border-b bg-muted/40"
+        // v0.10.2：与地图卡片同一处改动 —— 封面框改用 `MAP_COVER_ASPECT`
+        // （16:10），跟编辑器「基本信息」抽屉和新建 / 编辑对话框的预览框一致。
+        style={{ aspectRatio: String(MAP_COVER_ASPECT) }}
+        className="relative block w-full cursor-pointer overflow-hidden border-b bg-muted/40"
       >
         {entry.coverUrl ? (
+          // v0.10.2：不再默认 `scale-[1.2]` —— 那层放大等于在 16:10 之上
+          // 再裁一刀，卡片永远比配置时看到的更近。
           <img
             src={entry.coverUrl}
             alt={entry.name}
             draggable={false}
-            className="h-full w-full object-cover transition-transform duration-image ease-in-out scale-[1.2] group-hover:scale-100"
+            className="h-full w-full object-cover"
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center bg-secondary/40 text-3xl font-semibold text-muted-foreground/60">
