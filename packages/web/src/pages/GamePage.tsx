@@ -1,124 +1,39 @@
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, FileText, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import {
-  DEFAULT_CELL_SIZE,
-  GAME_CHECK_RING_SWEEP_MS,
   GAME_CHECK_STEP_MS,
   GAME_VERDICT_HOLD_MS,
-  GAME_CLEAR_LONG_PRESS_MS,
-  GAME_LONG_PRESS_MS,
-  GAME_PRESS_RING_DELAY_MS,
   MAP_LAYER_Z,
-  RULER_ACTIVE_FONT_DELTA,
   UI_Z,
   type CellCoord,
-  type Character,
-  type CharacterSlotEntry,
-  type Asset,
   type GamePlacementBoard,
-  type GameToolIconKind,
-  type MapDraft,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
-import { IconButton } from '@/components/ui/icon-button';
-import { PressSweep } from '@/components/common/PressSweep';
-import {
-  DIALOG_OVERLAY_TINT_CLASS,
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
-import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
-import { BrandLogo } from '@/components/layout/BrandLogo';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
-import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
-import {
-  MapGameCheckLayer,
-  MapGamePlacementLayer,
-  MapGamePressRing,
-  MapGameToolHintLayer,
-  type GamePlacementPulse,
-  type GamePlacementWave,
-} from '@/components/map/MapGameLayers';
-import {
-  MapRegionHighlightLayer,
-  MapRegionOutlineLayer,
-} from '@/components/map/MapRegionLayers';
-import {
-  MapHighlightLayer,
-  MapMouseCursorBoxLayer,
-  MapBlockingMaskLayer,
-  MapRegionLabelLayer,
-} from '@/components/map/MapOverlayLayers';
+import { CheckScrim } from '@/components/game/CheckScrim';
+import { GameBoardLayers } from '@/components/game/GameBoardLayers';
+import { GameDescriptionDialog, GameResultDialog } from '@/components/game/GameDialogs';
+import { GamePlayerAside } from '@/components/game/GamePlayerAside';
+import { GameToolRail } from '@/components/game/GameToolRail';
+import { GameVerdictScrim } from '@/components/game/GameVerdictScrim';
 import { MapRulerStrips } from '@/components/map/MapRulerStrips';
-import { GameBrief } from '@/components/game/GameBrief';
-import { VerdictMark } from '@/components/game/VerdictMark';
+import { LoadingScreen } from '@/components/common/LoredokuLoader';
 import { useHighlight } from '@/hooks/useHighlight';
-import {
-  clientToCanvasPoint,
-  clientToCell,
-  clampZoom,
-  isInBounds,
-  zoomAtPoint,
-  ZOOM_MAX,
-  ZOOM_MIN,
-  ZOOM_STEP,
-  type CanvasPoint,
-} from '@/lib/grid';
+import { useGameContent } from '@/hooks/useGameContent';
+import { useGameViewport } from '@/hooks/useGameViewport';
+import { useGameTimer } from '@/hooks/useGameTimer';
+import { usePlacementFx } from '@/hooks/usePlacementFx';
+import { useBoardGestures } from '@/hooks/useBoardGestures';
+import { clampZoom, zoomAtPoint, ZOOM_STEP, type CanvasPoint } from '@/lib/grid';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
-import {
-  clearGameCompletion,
-  readGameCompletion,
-  recordGameCompletion,
-} from '@/lib/gameCompletion';
+import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
 import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
-import {
-  resetGameTimer,
-  formatElapsed,
-  readGameTimer,
-  writeGameTimer,
-} from '@/lib/gameTimer';
-import { resolveMarkImage } from '@/lib/mark';
-import { resolveRingImage } from '@/lib/ring';
-import { resolveCheckColors } from '@/lib/checkStyle';
-import { TOOL_ICON_FALLBACKS, resolveToolIcons, type ToolIconRender } from '@/lib/toolIcons';
-import { rosterPanelWidthFor } from '@/lib/participantLayout';
-import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
-import { cn } from '@/lib/utils';
-import {
-  collectBlockingCells,
-  collectItemCells,
-  resolveHoverEffects,
-} from '@/lib/canvasLayers';
-import {
-  canvasInsets,
-  centeredPan,
-  computeCellSizeForInsets,
-  computeWidthFitCellSize,
-  isPortraitViewport,
-  portraitInsets,
-  portraitStageHeight,
-  topAlignedPan,
-} from '@/lib/canvasSize';
-import { verdictMarkScale } from '@/lib/verdictMark';
-import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
-import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
+import { readGameTimer } from '@/lib/gameTimer';
+import { canvasShadowStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
-import { rulerStripSize } from '@/lib/ruler';
-import { LoadingScreen } from '@/components/common/LoredokuLoader';
+import { verdictMarkScale } from '@/lib/verdictMark';
+import { cn } from '@/lib/utils';
+import { collectBlockingCells, collectItemCells, resolveHoverEffects } from '@/lib/canvasLayers';
 import {
   INACTIVE_ACTIVATION,
   reduceLinkageActivation,
@@ -128,29 +43,18 @@ import {
 import {
   allParticipantsPlaced,
   canUndo,
-  canPlaceForbidden,
   cellKey,
-  clearAll,
-  clearCell,
   createGamePlacementState,
-  forbiddenCells,
-  avatarCellOf,
-  avatarPlacedParticipantIds,
-  autoForbiddenWavePlan,
-  modeAfterPlacement,
-  placeForbidden,
-  placeParticipant,
   placementAt,
-  placementBlockReason,
   resolveToolHint,
-  toggleForbidden,
+  forbiddenCells,
+  avatarPlacedParticipantIds,
   undo,
   validatePlacement,
   type GameOperationMode,
   type GamePlacementState,
-  type ParticipantPlacementVariant,
-  type PlacementIssue,
 } from '@/lib/gamePlacement';
+import { buildCheckItems, type CheckItem } from '@/lib/gameCheck';
 
 /**
  * FEAT-G03 (docs/v0.4.0.md §6): the game page — a player-facing three-column
@@ -164,153 +68,10 @@ import {
 /** FEAT-G03 §6.3: the ruler toggle, persisted per reader like the preview's. */
 const RULER_STORAGE_KEY = 'loredoku.gameview.ruler';
 
-/**
- * v0.7.11：刚放下的编号 / 标记挂多久的 `place-pop` 类。
- *
- * 动画本身只有 180ms；多留一段是为了让**同一帧里放下的另一格**（按住滑动）也
- * 各自挂着自己的类，而不是互相顶掉。过了这个窗口就摘掉，免得以后任何一次重挂载
- * 把旧格子再「盖章」一遍。
- */
-const GAME_PLACE_PULSE_MS = 400;
-
-/**
- * v0.9.8：橡皮擦掉一格时，「退场动效演完」到「真的从棋盘上删掉」之间隔多久。
- *
- * 与 `--motion-base`（180ms）同档：动效是缩小淡出，删早了会被截在半路，删晚了
- * 那格已经透明却还占着「不可站立」的判定。留 40ms 给动画的收尾帧。
- */
-const GAME_ERASE_MS = 220;
-
-/**
- * v0.10.1：落子补出来的 `×` 每圈晚多少毫秒 —— 水波纹的波速。
- *
- * 45ms 是「看得出一圈一圈，又不至于等到不耐烦」的那一档：一圈最多 24 格，
- * 最远的格子距落子格 23 圈，末圈在 1035ms 之后才淡入；再快（30ms）就成了「雾
- * 一样整体浮出来」，再慢（80ms）在 24×24 的棋盘上要等近两秒。
- *
- * 与 `place-pop` 的 180ms 同量级 —— 每一圈自己只演 180ms，圈与圈之间留 45ms
- * 的步进，于是总能看到三四个圈同时在扩散。
- */
-const GAME_FORBIDDEN_WAVE_STEP_MS = 45;
-
-/**
- * v0.10.1：一批水波纹挂多久。末圈延迟 + 动画时长 + 一点余量。
- *
- * 摘类不是为了让动效停（`both` 已经把它停在末帧），而是让**下一波**能重新挂上
- * 同名类。这个窗口内玩家再落一子，就直接换 `animation-name`（见 `forbiddenWaveAlt`）。
- */
-const GAME_FORBIDDEN_WAVE_MS = 1200;
-
 function readStoredRulerVisible(): boolean {
   if (typeof window === 'undefined') return true;
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
 }
-
-/**
- * v0.9.3 §2：提交时逐人圈一遍的**名单** —— 按序号排，只有落了头像的才有格子可圈。
- *
- * 「通过 / 未通过」直接取自判卷结果（`issues` 里有这位的编号就是没过）。判卷与
- * 呈现因此用的是同一份结论，不会出现「圈是绿的、名单里却有他」。
- *
- * 只圈**落了头像**的人：编号格上没有人形，圈住一堆数字说不清是在核对谁。没
- * 落头像的那几位不上动画 —— 棋盘上没有可圈的格子；结论弹窗也不再列名字
- * （v0.9.4），只把绿圈的数量写成 `x/n 正确`。
- */
-interface CheckItem {
-  participantId: number;
-  cell: CellCoord;
-  passed: boolean;
-}
-
-function buildCheckItems(
-  board: GamePlacementBoard,
-  slots: Array<CharacterSlotEntry | null>,
-  issues: readonly PlacementIssue[],
-): CheckItem[] {
-  const failed = new Set(issues.map((issue) => issue.participantId));
-  const items: CheckItem[] = [];
-  slots.forEach((slot, index) => {
-    if (!slot) return;
-    const participantId = index + 1;
-    const cell = avatarCellOf(board, participantId);
-    if (!cell) return;
-    items.push({ participantId, cell, passed: !failed.has(participantId) });
-  });
-  return items;
-}
-
-/**
- * v0.9.4：核对期间四处**各自完整**的遮罩 —— 左栏、右栏、中列留白、画布底色层。
- *
- * 不再用全屏四块挖洞：
- * - 左右两栏本来就是独立的 `aside`，各盖一层即可（挡点击）；
- * - 中列（`main`）那一层铺满整个地图区，`z = saveMask(40)`，压住标尺条带与画布
- *   四周的留白；它**低于**画布纸（`canvasBase` 容器在校验时抬到 `saveMask+1`），
- *   所以棋盘本身照常明亮，只有纸以外的部分被压暗；
- * - 画布底色层那一层塞进 `canvasBase` 里（纸底之上、其余图层之下），只压暗没铺
- *   背景图的格子，铺了图 / 物品 / 头像 / 校验圈的格子照常亮。
- *
- * 颜色统一取弹窗 overlay 的 `DIALOG_OVERLAY_TINT_CLASS`，四处不会各说一套。
- */
-function CheckScrim({
-  area,
-  className,
-  style,
-}: {
-  area: 'left' | 'right' | 'canvas' | 'center';
-  className?: string;
-  style?: CSSProperties;
-}): JSX.Element {
-  return (
-    <div
-      aria-hidden="true"
-      data-testid="check-scrim"
-      data-scrim-area={area}
-      className={cn(DIALOG_OVERLAY_TINT_CLASS, className)}
-      style={style}
-    />
-  );
-}
-
-/**
- * v0.8.7 §7：工具栏上的画 —— 作者给这一枚配了图就画图，没配就是内置的 lucide 图标。
- *
- * 深色界面要翻一次：与标记同一条理由（图多半是「深墨画在透明底上」，按浅色
- * 地图纸挑的），`invert` 翻明度、`hue-rotate-180` 把色相转回来，否则红印会变青。
- */
-function GameToolIcon({
-  render,
-  name,
-}: {
-  render: ToolIconRender | undefined;
-  name: GameToolIconKind;
-}): JSX.Element {
-  /**
-   * v0.9.0 §17：四枚工具按钮的图标统一放大到 32px（`h-8 w-8`）。内置图标与作者
-   * 上传的图**共用这一处尺寸** —— 否则「配了图反而变小」会像是上传坏了。
-   * 按钮仍是 48px 触屏档，图标四周各留 8px；长按清除的那道扇形是填在按钮
-   * 底下的（v0.9.2 §5），不与图标抢地方。
-   *
-   * v0.10.1 竖屏：图标仍是 2rem（`h-8 w-8`，与桌面同档），底栏高度收到 54px ——
-   * 手指点在手机屏上要的是「够大够近」，不是「图标越大越好」：2rem 的图标配
-   * 54 高的长条钮，四枚一排铺满屏宽，比原来 44px 的方钮好按，又不至于把
-   * 棋盘和名册的高度抢掉。桌面端不动。
-   */
-  if (!render) {
-    const Fallback = TOOL_ICON_FALLBACKS[name];
-    return <Fallback className="h-8 w-8" />;
-  }
-  return (
-    <img
-      src={render.imageUrl}
-      alt=""
-      draggable={false}
-      data-testid={`${name}-tool-icon`}
-      className="h-8 w-8 select-none object-contain dark:invert dark:hue-rotate-180"
-    />
-  );
-}
-
 /**
  * v0.9.0（docs/v0.9.0.md §2）：这一层只剩「谁来供数据」这一个决定。
  *
@@ -461,30 +222,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
 
   /**
-   * v0.10.1：当前是不是「竖屏窄屏」—— 棋盘按宽度铺满、视图簇收起。
-   *
-   * 判定口径是**窗口**的宽高（`window.innerWidth < 768 && innerHeight > innerWidth`），
-   * 与右栏那串 `portrait:max-md:` 媒体查询是同一个条件；之所以两边都写，是因为
-   * CSS 只能管「显示不显示」，管不了「格子怎么算」。数字必须一致，
-   * `PORTRAIT_BREAKPOINT` 是两边共同的出处（见 `lib/canvasSize.ts`）。
-   *
-   * 只影响渲染，不落盘：转屏、拖窗口都会重新 `fit` 一遍。
-   */
-  const [portraitFit, setPortraitFit] = useState(false);
-
-  /**
-   * v0.10.2：`<main>` 量出来的可见区，只给「定案」遮罩估缩放用。
-   *
-   * 为什么不能只看棋盘：横屏手机上棋盘按作者配的 `cellSize` 能有 900 多，而
-   * `<main>` 只有一百来像素高 —— 按棋盘算出来是「不用缩」，字就顶出可见区了
-   * （用户：「大小要自适应屏幕」）。这里量的是画布容器本身，`<main>` 就是那个
-   * 容器（`containerRef`），`fit` 与它的 `ResizeObserver` 每次都会经过，顺手同步。
-   *
-   * `null` 表示还没量过；那时 `verdictMarkScale` 只按棋盘算（挂载瞬间不闪小的）。
-   */
-  const [stageBox, setStageBox] = useState<{ width: number; height: number } | null>(null);
-
-  /**
    * v0.10.1：描述弹框是否开着（见头部那枚「谜题描述」图标）。
    *
    * 只跟 `portraitFit` 配套使用：竖屏上面板里不再画描述（`GameBrief` 的
@@ -530,37 +267,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 写成什么，画出来的都是 `NO_HOVER_EFFECTS`。
    */
   const interactionLocked = finished;
-  const [pan, setPan] = useState({ x: 0, y: 0 });
   const [hover, setHover] = useState<CellCoord | null>(null);
   /** v0.8.7 §8：光标在纸上的像素位置 —— 物品名称提示贴它，不贴物品。 */
   const [hoverPoint, setHoverPoint] = useState<CanvasPoint | null>(null);
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
-  /**
-   * v0.7.11：正在被长按的格子 —— 有值时棋盘上画一圈进度环，抬手 / 移出 /
-   * 中断即清。`seq` 每次按下递增，环靠它重新挂载、从头画（同一格连按两次
-   * 也要重来，不能接着上一轮的满环）。
-   */
-  const [pressCell, setPressCell] = useState<{ x: number; y: number; seq: number } | null>(null);
-  /**
-   * v0.7.11：清除按钮上的长按进度环。存的是轮次号（非空 = 环在画），
-   * 与格子环共用 `pressSeqRef` —— 两个环不会同时出现，共用一个递增器足够。
-   */
-  const [clearPress, setClearPress] = useState<number | null>(null);
-  const pressSeqRef = useRef(0);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  /** Long-press on the clear button wipes the whole board (SPEC-G04 §10.2). */
-  const clearPressRef = useRef<{ timer: number; ringTimer: number; fired: boolean } | null>(null);
-  /**
-   * v0.4.0 验收补充 + v0.4.3 CLAR-J01 / SPEC-J02：放置态下在格子上长按 → 放置
-   * **参与者头像**（这才是「把参与者放到格子上」，也只有它补同行同列的 ×）；
-   * 短按放的是**编号**。与工具栏清除按钮同一模式：定时器触发即生效，随后到来的
-   * click 必须被吞掉，否则同一手势会既放头像又放编号。
-   *
-   * v0.7.11：两个长按都多一个 `ringTimer` —— 进度环延迟 160ms 才挂载，单点
-   * （抬手早于 160ms）就什么都不闪。
-   */
-  const cellPressRef = useRef<{ timer: number; ringTimer: number; fired: boolean } | null>(null);
-
   /**
    * v0.7.11：按住滑动连续操作。
    *
@@ -574,43 +284,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     lastKey: string;
     painted: boolean;
   } | null>(null);
-  /** 刚放下的编号 / 标记，按格子键索引；见 `MapGamePlacementLayer` 的 `pulse`。 */
-  const [pulse, setPulse] = useState<GamePlacementPulse>({});
-  const pulseTimersRef = useRef<Map<string, number>>(new Map());
-  /**
-   * v0.9.8：**落笔令牌 + 落笔格** —— 点下去放一枚 `×` 时两样一起动。
-   *
-   * - `forbiddenPop` 让提示层在**两支同款动画**之间换名字（`forbidden-pop` /
-   *   `forbidden-pop-alt`）：`animation-name` 一变，CSS 动画就从头播。只增不减。
-   * - `forbiddenPopCell` 是**刚落笔的那一格**；动效只在这一格上演，窗口一关归
-   *   `null`。这枚 `×` 跟着指针走、是同一个 DOM 节点 —— 不按格子收窄的话，
-   *   点完立刻挪到隔壁格，它会带着类飞过去又弹一次。
-   *
-   * **不用 React `key` 重挂载来重播**：那样 `<img>` 会有一帧没画出来，身后刚
-   * 落下的那枚 `×` 从缝里露一下再被盖回去 —— 玩家以为「放下的 × 浮上来闪了
-   * 一下」。换 `animation-name` 不碰元素身份，画面不断。
-   */
-  const [forbiddenPop, setForbiddenPop] = useState(0);
-  const [forbiddenPopCell, setForbiddenPopCell] = useState<string | null>(null);
-  const forbiddenPopTimerRef = useRef<number | null>(null);
-  /** v0.9.8：正在退场的格子（橡皮点掉它了）；见 `MapGamePlacementLayer` 的 `erasing`。 */
-  const [erasing, setErasing] = useState<ReadonlySet<string>>(() => new Set());
-  const eraseTimersRef = useRef<Map<string, number>>(new Map());
-  /**
-   * v0.10.1：刚落子那一圈自动补出来的 `×` —— 格子键 → 入场延迟（毫秒）。
-   * 见 `MapGamePlacementLayer` 的 `wave`。
-   */
-  const [forbiddenWave, setForbiddenWave] = useState<GamePlacementWave>({});
-  /** 这一波用哪支动画名；每落一子翻转一次，让同名元素也能重播。 */
-  const [forbiddenWaveAlt, setForbiddenWaveAlt] = useState(false);
-  const forbiddenWaveTimerRef = useRef<number | null>(null);
-
-  /**
-   * v0.6.2：视图缩放与拖拽平移，与只读预览页同一套手感 ——
-   * 缩放簇（放大 / 百分比 / 缩小 / 重置）、Ctrl+滚轮、空格或中键拖拽。
-   */
-  const [zoom, setZoom] = useState(1);
-  const [spaceHeld, setSpaceHeld] = useState(false);
   const panRef = useRef<{ x: number; y: number } | null>(null);
   /** 本次指针手势有没有真的拖过画布 —— 拖完那次 click 要吞掉。 */
   const pannedRef = useRef(false);
@@ -620,8 +293,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 被切换两次（放上又取消）。
    */
   const paintedRef = useRef(false);
-  /** 用户手动调过视图后，容器尺寸变化不再强制重排（预览页同款豁免）。 */
-  const userAdjustedRef = useRef(false);
 
   /**
    * 存档的镜像。事件处理器读「此刻」的值，而不是渲染闭包里的那份 ——
@@ -632,129 +303,65 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const placementRef = useRef(placementState);
   placementRef.current = placementState;
 
-  /**
-   * v0.7.1 §7.3: 游戏直接读**谜题版本行**，不再有快照拷贝 —— 画布来自
-   * `detail.map`（谜题自带的那份副本），名册与调色板来自 `detail.puzzle`。
-   * 内容仍然是冻结的：版本行只读，作者改不动已在线的游戏。
-   */
   const detail = gameQuery.data;
-  const draft = detail?.map;
-  const slots = useMemo<Array<CharacterSlotEntry | null>>(
-    () => detail?.puzzle?.characterSlots ?? [],
-    [detail],
-  );
-  const linkageColors = useMemo(() => detail?.puzzle?.linkageColors ?? [], [detail]);
   /**
-   * v0.6.3 (docs/v0.6.3.md §3.4): the deployed game renders the roster the way
-   * the puzzle was laid out. The column count lives in the puzzle row, and the
-   * row is immutable once published — so only re-deploying a new version can
-   * move a board that is already online.
+   * v0.10.4：一关的「内容」（谜题行 + 地图 JSON + 资源 / 角色表）整块交给
+   * `useGameContent` —— 它是纯派生，不碰这一页的任何状态。
    */
-  const rosterCols = detail?.puzzle?.rosterCols ?? null;
-  /**
-   * v0.7.14（docs/v0.7.14.md §3）：题面的两段文字。
-   *
-   * **旧版本行没有这两个键** —— 已发布的游戏是一份冻住的 JSON，v0.7.14 之前
-   * 发布的那批里既没有 `clues` 也没有 `ending`。所以这里一律按「没有」处理：
-   * 绝不假设服务端补过默认值（`absorbLegacyPuzzleDraft` 只归一层级，不补字段）。
-   */
-  const puzzleDescription = detail?.puzzle?.description ?? '';
-  const puzzleClues = useMemo(() => detail?.puzzle?.clues ?? [], [detail]);
-  const puzzleEnding = (detail?.puzzle?.ending ?? '').trim();
-  const rosterWidth = useMemo(
-    () => rosterPanelWidthFor(rosterCols, slots.length),
-    [rosterCols, slots.length],
-  );
+  const {
+    draft,
+    slots,
+    linkageColors,
+    rosterCols,
+    puzzleDescription,
+    puzzleClues,
+    puzzleEnding,
+    rosterWidth,
+    assetsById,
+    charactersById,
+    mark,
+    toolIcons,
+    ringImage,
+    checkStyle,
+    cells,
+    regions,
+    gridSize,
+    style,
+  } = useGameContent({
+    detail,
+    source,
+    assets: assetsQuery.data,
+    characters: charactersQuery.data,
+  });
 
   useEffect(() => {
     document.title = gameQuery.data ? `${gameQuery.data.name} · 格物` : '游戏 · 格物';
   }, [gameQuery.data]);
 
-  const assetsById = useMemo(() => {
-    const map = new Map<number, Asset>();
-    for (const item of assetsQuery.data ?? []) map.set(item.id, item);
-    return map;
-  }, [assetsQuery.data]);
+  /** 中列（`<main>`）—— 量可见区、算坐标、挂 `ResizeObserver` 都认它。 */
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
   /**
-   * v0.8.7 §4：这一局标记画什么 —— **谜题自己配的 → 主题的缺省 → `×`**。
-   *
-   * 主题那一份按**这一局的主题编码**查（§19）；`useWorkspace()` 在播放页是 `null`，
-   * 所以走的是「主题列表摊成表」那条路，与难度分级同一个 hook 家族。
-   * `null` 仍是两边都没有，两个游戏图层退回原来那枚 `×`（放置层黑字、提示层绿字）。
-   *
-   * v0.9.0 §2：查表的活儿挪进 `source` —— 播放器的包里每一关已经烤好了最终结果
-   * （`bundleService` 把主题那张补进了关卡 JSON），所以那边一律返回 `null`。
+   * v0.10.4：视口（格子大小 / 缩放 / 平移 / 竖屏 / 可见区）交给 `useGameViewport`。
+   * 它不读任何一局的状态 —— 只认 `gridSize`、地图样式与标尺开关。
    */
-  const mark = useMemo(
-    () =>
-      resolveMarkImage(
-        detail?.puzzle?.mark,
-        source.themeMark(detail?.themeCode),
-        source.fileUrl,
-      ),
-    [detail, source],
-  );
-
-  /**
-   * v0.8.7 §7：工具栏三枚动作按钮（清除 / 撤回 / 提交）画什么 —— 同一套顺序：
-   * **谜题自己的 → 主题的 → 内置图标**。主题那一份同样按这一局的主题编码查。
-   */
-  const toolIcons = useMemo(
-    () =>
-      resolveToolIcons(
-        detail?.puzzle?.toolIcons,
-        source.themeToolIcons(detail?.themeCode),
-        source.fileUrl,
-      ),
-    [detail, source],
-  );
-
-  /**
-   * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张** —— 所以这里只解析
-   * 一次，两个图层共用。作者在主题里配了图就画那张，没配就是各自的内置细弧。
-   * 只有主题一档：环属于「这个世界的操作手感」，不是某一关的内容。
-   */
-  const ringImage = useMemo(
-    () => resolveRingImage(source.themeRing(detail?.themeCode), source.fileUrl),
-    [detail, source],
-  );
-
-  /**
-   * v0.9.3 §2；v0.9.5 起只剩两档颜色（圈图见上面的 `ringImage`）。主题没配过就是
-   * 内置绿 / 红（见 `lib/checkStyle.ts`），所以这里拿到的永远是一份能直接用的样式。
-   */
-  const checkStyle = useMemo(
-    () => resolveCheckColors(source.themeCheckColors(detail?.themeCode)),
-    [detail, source],
-  );
-
-  const charactersById = useMemo(() => {
-    const map = new Map<number, Character>();
-    for (const character of charactersQuery.data ?? []) map.set(character.id, character);
-    return map;
-  }, [charactersQuery.data]);
-
-  const cells = useMemo(() => {
-    const map = new Map<string, MapDraft['cells'][string]>();
-    for (const key of Object.keys(draft?.cells ?? {})) {
-      const cell = draft?.cells[key];
-      if (cell) map.set(key, cell);
-    }
-    return map;
-  }, [draft]);
-
-  const regions = useMemo(() => draft?.regions ?? [], [draft]);
-  const gridSize = draft?.gridSize ?? 0;
-  const style = useMemo(() => resolveMapStyle(draft?.style), [draft]);
-  const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
-  /*
-   * v0.10.1：竖屏下格子大小只认「按宽度铺满」算出来的那个数 —— 地图样式里写死的
-   * cellSize（比如 36）会让 24×24 又变成 864px 宽，把「自适应宽度」抵消掉。
-   * 横屏与桌面仍然听样式的（作者配了就用他的）。
-   */
-  const cellSize = portraitFit ? autoCellSize : effectiveCellSize(autoCellSize, style);
-  const total = gridSize * cellSize;
+  const {
+    cellSize,
+    total,
+    portraitFit,
+    stageBox,
+    pan,
+    setPan,
+    zoom,
+    setZoom,
+    spaceHeld,
+    fit,
+    zoomBy,
+    toCell,
+    toCanvasPoint,
+    userAdjustedRef,
+    stageHeight,
+  } = useGameViewport({ containerRef, gridSize, style, showRulers });
 
   /*
    * v0.10.0：手机上棋盘只有 236 见方，而「定案」遮罩那套版式（128px 的两个字）
@@ -765,10 +372,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 一百来像素高。再把量出来的可见区传进去，两者取小（用户：「大小要自适应屏幕」）。
    */
   const verdictScale = verdictMarkScale(total, stageBox);
-
-  const rulerScale = cellScale(cellSize);
-  const rulerMaxFont = scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale);
-  const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
   /**
    * v0.6.2 §3：存档指纹。同 slug 重新部署后网格或名单可能变了，旧坐标与旧编号
@@ -826,6 +429,24 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     [saveProgress],
   );
 
+  /**
+   * v0.10.4：四样一次性动效（盖章 / 退场 / 落笔 / 水波）交给 `usePlacementFx`。
+   * 它只负责演 —— 唯一的例外是 `eraseCell`：退场演完才真的删那一格。
+   */
+  const {
+    pulse,
+    forbiddenPop,
+    forbiddenPopCell,
+    erasing,
+    forbiddenWave,
+    forbiddenWaveAlt,
+    markPulse,
+    pulseForbiddenHint,
+    pulseForbiddenWave,
+    eraseCell,
+    resetBoardFx,
+  } = usePlacementFx({ updatePlacement });
+
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 (shared with the preview) ----
   const blockingCells = useMemo(() => collectBlockingCells(cells, assetsById), [cells, assetsById]);
   const itemCells = useMemo(() => collectItemCells(cells), [cells]);
@@ -873,128 +494,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     });
   }, [mode, hover, placementState.board, blockingCells]);
 
-  const toCell = useCallback(
-    (clientX: number, clientY: number): CellCoord | null => {
-      const node = containerRef.current;
-      if (!node || gridSize === 0) return null;
-      const coord = clientToCell(clientX, clientY, {
-        rect: node.getBoundingClientRect(),
-        pan,
-        zoom,
-        cellSize,
-      });
-      return isInBounds(coord, gridSize) ? coord : null;
-    },
-    [gridSize, pan, zoom, cellSize],
-  );
-
-  /**
-   * v0.8.7 §8：同一套换算，但不除格子大小 —— 得到的是「光标在纸上的哪个像素」。
-   * 物品名称提示要用它，格子多大都不影响「指头在哪儿」这件事。
-   */
-  const toCanvasPoint = useCallback(
-    (clientX: number, clientY: number): CanvasPoint | null => {
-      const node = containerRef.current;
-      if (!node) return null;
-      return clientToCanvasPoint(clientX, clientY, {
-        rect: node.getBoundingClientRect(),
-        pan,
-        zoom,
-        cellSize,
-      });
-    },
-    [pan, zoom, cellSize],
-  );
-
-  /**
-   * OPT-A01 §1.2: measure the viewport and re-fit the board. The game page has
-   * no floating bottom toolbar, hence `showBottomBar: false`.
-   *
-   * v0.6.2：这也是「重置视图」——回到 100% 并居中，同时清掉「用户调整过」
-   * 的标记，让容器尺寸变化重新接管布局。
-   */
-  const fit = useCallback((): void => {
-    const node = containerRef.current;
-    userAdjustedRef.current = false;
-    if (!node || gridSize === 0) return;
-    const rect = node.getBoundingClientRect();
-    if (rect.width === 0 || rect.height === 0) return;
-    /* v0.10.2：顺手把可见区记下来，给「定案」遮罩估缩放（见 `stageBox`）。 */
-    setStageBox((previous) =>
-      previous && previous.width === rect.width && previous.height === rect.height
-        ? previous
-        : { width: rect.width, height: rect.height },
-    );
-    /*
-     * v0.10.1：竖屏下棋盘**按宽度铺满**，而不是「宽高取小」。
-     *
-     * 窄屏上那一簇放大 / 缩小 / 重置已经收掉（见右栏视图簇的 `portrait:` 类），
-     * 玩家既没法把棋盘缩小、也没有中键 / 空格去平移 —— 一旦按老算法取「宽高较
-     * 小的那个」，24×24 的棋盘会被 32px 的下限撑到 864 宽，屏幕里只看得到左上
-     * 一角，剩下的永远够不着。改成以宽度为准、下限放到 8px，整张图就在屏内。
-     *
-     * 标尺在竖屏下也一起不画：开关都收起来了，还把 28px 的刻度条留着，等于
-     * 让玩家为一条关不掉的边付宽度。
-     *
-     * 量的是 **window** 而不是画布容器 —— 要和 `portrait:max-md:` 那串媒体查询
-     * 判同一件事，否则会出现「按钮收起来了、棋盘还按桌面排」。jsdom 里窗口是
-     * 1024×768，所以既有用例仍走桌面分支。
-     */
-    const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
-    const viewportHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
-    const portrait = isPortraitViewport(viewportWidth, viewportHeight);
-    setPortraitFit(portrait);
-    /*
-     * v0.10.1：竖屏用自己那一套四边留白（左右 8、上下 12），桌面那套
-     * （`CANVAS_PADDING + EXTRA_MARGIN` = 每边 40）在 375 宽的屏上等于白扔两列半
-     * 格子。上下比左右多 4px：棋盘上边贴着标题、下边贴着题面面板，四面一样宽会
-     * 读成「两块拼在一起」；再多给也不成 —— 竖屏一屏就这么高，上下多占的每一
-     * 像素都是从下面的线索与名册里扣的。
-     */
-    const insets = portrait
-      ? portraitInsets()
-      : canvasInsets({ showRulers, showBottomBar: false, rulerSize: rulerStrip });
-    const next = portrait
-      ? computeWidthFitCellSize({ width: rect.width, gridSize, insets })
-      : computeCellSizeForInsets({ width: rect.width, height: rect.height, gridSize, insets });
-    setAutoCellSize((previous) => (previous === next ? previous : next));
-    setZoom(1);
-    const placed = portrait ? next : effectiveCellSize(next, style);
-    setPan(
-      portrait
-        ? topAlignedPan(rect, insets, gridSize, placed, 1)
-        : centeredPan(rect, insets, gridSize, placed, 1),
-    );
-  }, [gridSize, showRulers, rulerStrip, style]);
-
-  const fitRef = useRef(fit);
-  fitRef.current = fit;
-
+  /** 标尺开关落盘（重排在 `useGameViewport` 那一侧，这里只管记住选择）。 */
   useEffect(() => {
-    const node = containerRef.current;
-    if (!node) return;
-    const apply = (): void => {
-      /* v0.10.2：可见区与「玩家有没有自己调过视图」无关，先记下来再决定要不要重排。 */
-      const rect = node.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) {
-        setStageBox((previous) =>
-          previous && previous.width === rect.width && previous.height === rect.height
-            ? previous
-            : { width: rect.width, height: rect.height },
-        );
-      }
-      // v0.6.2：玩家放大 / 平移之后，改窗口大小不该把视图打回原形。
-      if (userAdjustedRef.current) return;
-      fitRef.current();
-    };
-    apply();
-    const observer = new ResizeObserver(apply);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [gridSize]);
-
-  useEffect(() => {
-    fitRef.current();
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(RULER_STORAGE_KEY, showRulers ? 'visible' : 'hidden');
     }
@@ -1012,44 +513,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   }, []);
 
   /**
-   * v0.6.2 §4：按住空格 + 拖拽 = 平移画布，与只读预览页同一套手感。
-   *
-   * `preventDefault` 挡的是浏览器把空格当成「翻页 / 点击聚焦元素」——
-   * 这一页没有任何输入框，不会误伤打字。
-   */
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.code !== 'Space') return;
-      event.preventDefault();
-      setSpaceHeld(true);
-    };
-    const onKeyUp = (event: KeyboardEvent): void => {
-      if (event.code === 'Space') setSpaceHeld(false);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
-    };
-  }, []);
-
-  /**
-   * v0.7.11：计时（秒级）。
-   *
-   * 需求是「打开游戏时开始、关掉页面记到本地、下次进来接着走、点提交为止」。
-   * 这里存的是**累计用时**而不是开始时间戳：两次会话之间的墙钟差里混着吃饭、
-   * 睡觉、关电脑的时间，那不是玩家在想的时长。每秒 tick 一次只为刷新显示，
-   * 落盘则是每 5 秒 + 页面隐藏 / 卸载时各一次。
-   *
-   * 三个 ref 分工：`elapsedRef` 是已累计的毫秒，`runningSinceRef` 是当前这一段
-   * 的起点（`null` = 停表）。显示值 `elapsedMs` 只是它们的一次投影。
-   */
-  const [elapsedMs, setElapsedMs] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(true);
-  /**
-   * v0.9.5：这一局的水合跑完了吗 —— 计时落盘的那条 effect 靠它挡住「读之前先写」。
-   * 见那条 effect 上的注释（这是 v0.7.11 续计时在真浏览器里失效的根因）。
+   * v0.9.5：这一局的水合跑完了吗 —— 计时落盘的那条 effect 靠它挡住「读之前先写」
+   * （见 `useGameTimer` 里那条落盘 effect 的注释 —— 那是 v0.7.11 续计时在真浏览器里失效的根因）。
    */
   const [hydrated, setHydrated] = useState(false);
 
@@ -1065,122 +530,24 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 其余表现（定案 + 印 + 再玩一次）两版一样。
    */
   const revisitedRef = useRef(false);
-  const elapsedRef = useRef(0);
-  const runningSinceRef = useRef<number | null>(null);
-
-  const currentElapsed = useCallback((): number => {
-    const since = runningSinceRef.current;
-    return since === null ? elapsedRef.current : elapsedRef.current + (Date.now() - since);
-  }, []);
-
-  /** 停表：把当前这一段并进累计值，并立刻落盘。返回停在第几毫秒。 */
-  const pauseTimer = useCallback((): number => {
-    const value = currentElapsed();
-    elapsedRef.current = value;
-    runningSinceRef.current = null;
-    setElapsedMs(value);
-    setTimerRunning(false);
-    if (storageId) writeGameTimer(storageId, progressMeta, value);
-    return value;
-  }, [currentElapsed, storageId, progressMeta]);
-
-  const resumeTimer = useCallback((): void => {
-    if (runningSinceRef.current !== null) return;
-    runningSinceRef.current = Date.now();
-    setElapsedMs(elapsedRef.current);
-    setTimerRunning(true);
-    // v0.9.8：表一旦重新走起来，这一局就不再是「已定案」的了。
-    if (storageId) clearGameCompletion(storageId);
-  }, [storageId]);
-
-  /** 重新计时：清零、清掉本地记录、从这一帧重新走。 */
-  const resetTimer = useCallback((): void => {
-    elapsedRef.current = 0;
-    runningSinceRef.current = Date.now();
-    setElapsedMs(0);
-    setTimerRunning(true);
-    // v0.9.6：只归零用时，保留「最后离开时间」—— 重新开始也算「来玩过」。
-    if (storageId) resetGameTimer(storageId, progressMeta);
-    // v0.9.8：重开一局，完成时间就该跟着一起清掉（计时与完成时间不共存）。
-    if (storageId) clearGameCompletion(storageId);
-  }, [storageId, progressMeta]);
-
-  useEffect(() => {
-    if (!timerRunning) return;
-    const interval = window.setInterval(() => {
-      const since = runningSinceRef.current;
-      if (since === null) return;
-      setElapsedMs(elapsedRef.current + (Date.now() - since));
-    }, 1000);
-    return () => window.clearInterval(interval);
-  }, [timerRunning]);
 
   /**
-   * 落盘的时机：每 5 秒一次（意外关闭最多丢 5 秒），页面隐藏 / 卸载时各补一次。
-   * 为什么不是每秒：localStorage 是同步写，秒针每跳一次就写一条 JSON 没必要。
+   * v0.10.4：秒表交给 `useGameTimer`。
    *
-   * v0.9.5 修：**水合之前不落盘**。
-   *
-   * 真浏览器里 `gameQuery.data` 是异步来的，所以这一页会先渲染一次「画布还没到」
-   * 的形态（`progressMeta.gridSize === 0`），再渲染一次真的。上一次的那条 effect
-   * 在依赖变化时会先跑一次清理 —— 那一刻 `elapsedRef` 还是 0，于是 `persist()`
-   * 写进一个「0 毫秒」，而 `writeGameTimer` 对 0 的处理是**删键**。它跑在下面那条
-   * 水合 effect 之前，删的正是水合要读的那条计时 —— 结果是「关掉页面再回来，
-   * 秒表从 00:00 重新开始」，v0.7.11 的续计时在真浏览器里从来没有生效过。
-   *
-   * jsdom 用例看不出来：那边 `useGameDetail` 的 mock 第一次渲染就有数据。
-   *
-   * 修法只加一道闸：`hydrated` 为假时这条 effect 直接返回（不挂定时器、也不注册
-   * 卸载落盘）。水合跑完才落盘，读与写就不会抢在同一个时刻。
-   *
-   * 同一道闸顺带挡住 v0.9.5 发现的第二个口子：**换关**。从定案卡点「下一关」跳到
-   * 另一关时组件不重建，新一关的数据还在路上（`draft` 为空 ⇒ `gridSize = 0`），
-   * 而秒表里留着上一关的累计值。旧版这里会一次一次把「上一关的用时 + 指纹 0」
-   * 写进**新一关**的计时键，既串了成绩，留下的还是一条读不回来的垃圾。
-   * 现在 `draft` 没到就把 `hydrated` 打回 false，等新一关读完自己的存档再开闸。
-   *
-   * `gridSize > 0` 是最后一道保险：指纹为 0 的条目 `readGameTimer` 永远读不回来，
-   * 写它没有任何意义。
+   * `active` 就是原来那道闸：水合跑完、且网格已经读到，才允许落盘。
    */
-  useEffect(() => {
-    if (!storageId || !hydrated || gridSize <= 0) return;
-    const persist = (): void => {
-      writeGameTimer(storageId, progressMeta, currentElapsed());
-    };
-    const onVisibilityChange = (): void => {
-      if (document.visibilityState === 'hidden') persist();
-    };
-    const interval = window.setInterval(persist, 5000);
-    window.addEventListener('pagehide', persist);
-    document.addEventListener('visibilitychange', onVisibilityChange);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('pagehide', persist);
-      document.removeEventListener('visibilitychange', onVisibilityChange);
-      persist();
-    };
-  }, [storageId, progressMeta, currentElapsed, hydrated, gridSize]);
+  const { elapsedMs, pauseTimer, resumeTimer, resetTimer, hydrateTimer } = useGameTimer({
+    storageId,
+    progressMeta,
+    active: hydrated && gridSize > 0,
+  });
 
-  /** 刚放下的字形动效过期清理（`place-pop` 只在这一小段时间里挂着）。 */
+  /**
+   * v0.9.6：定案遮罩那颗「停一秒再弹窗」的定时器要撤 —— 否则离开页面后它还会
+   * 对着一个已经卸载的组件 setState。动效那一批定时器由 `usePlacementFx` 自己收。
+   */
   useEffect(
     () => () => {
-      for (const timer of pulseTimersRef.current.values()) window.clearTimeout(timer);
-      pulseTimersRef.current.clear();
-      // v0.9.8：擦除的定时器同理 —— 到点会对着已卸载的组件 setState。
-      for (const timer of eraseTimersRef.current.values()) window.clearTimeout(timer);
-      eraseTimersRef.current.clear();
-      // v0.9.8：落笔令牌的归零定时器同理。
-      if (forbiddenPopTimerRef.current !== null) {
-        window.clearTimeout(forbiddenPopTimerRef.current);
-        forbiddenPopTimerRef.current = null;
-      }
-      // v0.10.1：水波纹的收尾定时器同理。
-      if (forbiddenWaveTimerRef.current !== null) {
-        window.clearTimeout(forbiddenWaveTimerRef.current);
-        forbiddenWaveTimerRef.current = null;
-      }
-      // v0.9.6：定案遮罩那颗「停一秒再弹窗」的定时器也要撤 —— 否则离开页面后它
-      // 还会对着一个已经卸载的组件 setState。
       if (verdictTimerRef.current !== null) {
         window.clearTimeout(verdictTimerRef.current);
         verdictTimerRef.current = null;
@@ -1266,17 +633,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     const startFrom = alreadyDone ? 0 : savedElapsed;
     // 已完成再进入：结案遮罩上要多一颗「再玩一次」、且不播印章动效。
     revisitedRef.current = alreadyDone;
-    elapsedRef.current = startFrom;
-    runningSinceRef.current = alreadyDone ? null : Date.now();
-    setElapsedMs(startFrom);
-    setTimerRunning(!alreadyDone);
+    hydrateTimer(startFrom, !alreadyDone);
     setFinished(alreadyDone);
     /**
      * v0.9.5：读完了才允许落盘。这一行必须排在 `readGameProgress` /
      * `readGameTimer` 之后 —— 它一置真，计时那条 effect 立即开始每 5 秒写一次。
      */
     setHydrated(true);
-  }, [draft, storageId, gridSize, slots.length, progressMeta]);
+  }, [draft, storageId, gridSize, slots.length, progressMeta, hydrateTimer]);
 
   /**
    * SPEC-G05 §5.3: the roster cards of participants that are already on the
@@ -1381,6 +745,29 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setActivation((state) => reduceLinkageActivation(state, { type: 'click', participantId: index }));
   };
 
+  /**
+   * v0.10.4：名册卡片移开。
+   *
+   * SPEC-G03+ BUG-G02：放置态下移开**任意卡片**都恢复已武装参与者的激活。必须走
+   * 幂等的 `restore` —— 用 `click` 时，离开的恰是武装者自己的卡片就等同于
+   * 「再点一次」，激活会被 toggle 关掉。
+   *
+   * 这段判断原先写在名册的 `onDeactivateHover` 里；名册搬进 `GamePlayerAside`
+   * 之后，它是**这一页的模式**（`mode` / `activation`）在读，所以跟着留下。
+   */
+  const handleCardHoverLeave = (index: number): void => {
+    if (mode.kind === 'placing') {
+      setActivation((state) =>
+        reduceLinkageActivation(state, {
+          type: 'restore',
+          participantId: mode.participantId - 1,
+        }),
+      );
+      return;
+    }
+    handleActivation({ type: 'leave', participantId: index });
+  };
+
   /** SPEC-G04: leaving the placing state also ends the linkage preview. */
   const applyMode = (next: GameOperationMode): void => {
     setMode(next);
@@ -1392,6 +779,36 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const toggleTool = (tool: 'forbidden' | 'clearing'): void => {
     applyMode(mode.kind === tool ? { kind: 'idle' } : { kind: tool });
   };
+
+  /**
+   * v0.10.4：棋盘手势（一格一落 / 长按放头像 / 清除按钮的单击与长按）交给
+   * `useBoardGestures`。指针事件仍在下面那份 JSX 里 —— 它读的是鼠标 / 手指，
+   * 属于渲染层；「这一手怎么落到棋盘上」才是这个 hook 的事。
+   */
+  const {
+    pressCell,
+    clearPress,
+    cellPressRef,
+    dispatchCell,
+    startCellPress,
+    endCellPress,
+    dropCellPress,
+    cancelCellPress,
+    startClearPress,
+    endClearPress,
+  } = useBoardGestures({
+    mode,
+    applyMode,
+    toggleTool,
+    gridSize,
+    blockingCells,
+    updatePlacement,
+    placementRef,
+    markPulse,
+    pulseForbiddenHint,
+    pulseForbiddenWave,
+    eraseCell,
+  });
 
   const nameOf = useCallback(
     (participantId: number): string | undefined => {
@@ -1522,14 +939,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setFinished(false);
     setMode({ kind: 'idle' });
     setActivation(INACTIVE_ACTIVATION);
-    setPulse({});
-    // v0.9.8：正在退场的格子也一起收 —— 那些 timer 到点会去清一个已经清空的盘。
-    for (const timer of eraseTimersRef.current.values()) window.clearTimeout(timer);
-    eraseTimersRef.current.clear();
-    setErasing(new Set());
+    resetBoardFx();
     saveProgress(fresh.board);
     resetTimer();
-  }, [saveProgress, resetTimer]);
+  }, [saveProgress, resetTimer, resetBoardFx]);
 
   /**
    * v0.9.6：已完成那一版遮罩上的「再玩一次」。
@@ -1575,368 +988,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     resumeTimer();
   };
 
-  /**
-   * v0.7.11：给刚放下的编号挂一次「盖章」动效。
-   *
-   * 用一张「格子键 → 参与者编号」的表而不是单个「最后一格」：按住滑动会连着
-   * 放好几格，单值会让前一格的字形在动画播到一半时被摘掉类，缩放猛地弹回原样。
-   * 每一格 400ms 后自己过期（动画只有 180ms），表不会越积越大。
-   *
-   * v0.9.8：`×` 不再走这里 —— 见 `dispatchCell` 的 forbidden 分支。
-   */
-  const markPulse = (key: string, participantId: number): void => {
-    setPulse((previous) => ({ ...previous, [key]: participantId }));
-    const timers = pulseTimersRef.current;
-    const existing = timers.get(key);
-    if (existing !== undefined) window.clearTimeout(existing);
-    timers.set(
-      key,
-      window.setTimeout(() => {
-        timers.delete(key);
-        setPulse((previous) => {
-          if (!(key in previous)) return previous;
-          const next = { ...previous };
-          delete next[key];
-          return next;
-        });
-      }, GAME_PLACE_PULSE_MS),
-    );
-  };
-
-  /**
-   * v0.9.8：让悬停的那枚 `×` 弹一次 —— 令牌 +1，并把动效**钉在刚落笔的那一格**。
-   *
-   * `GAME_PLACE_PULSE_MS`（400ms）之后两样一起收：令牌留着不动（它是 `key` 的
-   * 替代品，改回去也算一次变化），`popCell` 归 `null` —— 窗口一关，指针再进来
-   * 就只是静止的一枚 `×`。
-   *
-   * 为什么要 `popCell`：这枚 `×` 跟着指针走，是**同一个** DOM 节点。只告诉它
-   * 「现在该弹」，玩家点完立刻挪到隔壁格，它就带着类飞过去、在新格子上又弹一次。
-   */
-  const pulseForbiddenHint = (key: string): void => {
-    setForbiddenPop((previous) => previous + 1);
-    setForbiddenPopCell(key);
-    if (forbiddenPopTimerRef.current !== null) {
-      window.clearTimeout(forbiddenPopTimerRef.current);
-    }
-    forbiddenPopTimerRef.current = window.setTimeout(() => {
-      forbiddenPopTimerRef.current = null;
-      setForbiddenPopCell(null);
-    }, GAME_PLACE_PULSE_MS);
-  };
-
-  /**
-   * v0.10.1：落子之后，让这一手补出来的 `×` 一圈一圈地浮出来。
-   *
-   * `plan` 是 `autoForbiddenWavePlan` 算好的「格子键 → 距落子格几圈」。这里把圈号
-   * 换算成延迟写进 `forbiddenWave`，放置层照延迟给每枚 `×` 挂入场动画 —— 于是
-   * 距落子格 1 圈的先生，2 圈的晚 45ms，依此类推，看起来就是一圈水波推出去。
-   *
-   * 两支动画名交替（`forbiddenWaveAlt`）：连落两位时，第二波如果沿用同名，
-   * 已经在演的元素不会重头播；换 `key` 又会丢一帧。换 `animation-name` 两头都躲开。
-   */
-  const pulseForbiddenWave = (plan: Array<{ key: string; ring: number }>): void => {
-    if (plan.length === 0) return;
-    const next: Record<string, number> = {};
-    for (const cell of plan) next[cell.key] = cell.ring * GAME_FORBIDDEN_WAVE_STEP_MS;
-    setForbiddenWave(next);
-    setForbiddenWaveAlt((previous) => !previous);
-    if (forbiddenWaveTimerRef.current !== null) {
-      window.clearTimeout(forbiddenWaveTimerRef.current);
-    }
-    forbiddenWaveTimerRef.current = window.setTimeout(() => {
-      forbiddenWaveTimerRef.current = null;
-      setForbiddenWave({});
-    }, GAME_FORBIDDEN_WAVE_MS);
-  };
-
-  /**
-   * v0.9.8：橡皮点掉一格 —— **先演退场，再删**。
-   *
-   * 直接 `clearCell` 的话，格子上的东西是瞬间消失的：玩家只看到画面重绘了一次，
-   * 分不清刚擦掉的是哪一格，按住滑过一片时更是完全跟不上。这里先把格子记进
-   * `erasing`（放置层据此挂 `erase-out`：缩小 + 淡出），动画放完才真的删。
-   *
-   * 每一格各记各的 timer：按住滑过好几格时，几段退场应当并排演，而不是后一格
-   * 把前一格的定时器顶掉 —— 那会让前一格永远停在半透明状态。
-   */
-  const eraseCell = (x: number, y: number): void => {
-    const key = cellKey(x, y);
-    const timers = eraseTimersRef.current;
-    // 已经在退场：这一格不再重启动画，否则按住来回蹭会把动画一直按在第一帧。
-    if (timers.has(key)) return;
-    setErasing((previous) => {
-      if (previous.has(key)) return previous;
-      const next = new Set(previous);
-      next.add(key);
-      return next;
-    });
-    timers.set(
-      key,
-      window.setTimeout(() => {
-        timers.delete(key);
-        setErasing((previous) => {
-          if (!previous.has(key)) return previous;
-          const next = new Set(previous);
-          next.delete(key);
-          return next;
-        });
-        updatePlacement((state) => clearCell(state, { x, y }));
-      }, GAME_ERASE_MS),
-    );
-  };
-
-  /**
-   * SPEC-G01 / SPEC-G03 / SPEC-G04 / SPEC-G05 + v0.4.3 SPEC-J02 / SPEC-J03 /
-   * SPEC-J05: one cell interaction, dispatched by mode. 放置态下 `variant` 区分
-   * **短按（切换编号）**与**长按（放头像）**；其余工具态忽略它。
-   *
-   * v0.7.11：
-   * - 棋盘一律读 `placementRef.current`。按住滑动会在**同一个事件循环**里连着
-   *   调用好几次，读渲染闭包里的 `placementState` 会让后一次把前一次覆盖掉。
-   * - 返回**是否真的执行了**：长按的进度环靠它决定收场 —— 环画满却什么都没发生，
-   *   会读成「按成功了但没反应」，比不画环更糟。
-   *
-   * v0.9.1 §4：放置被拒一律**静默** —— 不再弹吐司。原先唯一还会说话的是
-   * 「该格编号已满」，但它和之前删掉的几条一样属于噪音：格子上的编号已经写满
-   * 九个，玩家看得见；再弹一句只是挡住棋盘。`quiet`（滑动时压掉提示）因此也
-   * 一并退场，拒绝路径只剩 `return false`。
-   */
-  const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): boolean => {
-    const board = placementRef.current.board;
-    if (mode.kind === 'placing') {
-      const block = placementBlockReason({
-        board,
-        x,
-        y,
-        participantId: mode.participantId,
-        blockingCells,
-        variant,
-      });
-      if (block) return false;
-      /**
-       * v0.10.1：落头像（长按 / 拖动确认）之后，同行同列补出来的 `×` 按圈依次
-       * 浮出来，像水波从落点推出去。
-       *
-       * 计划必须在**落子之前**算：`placeParticipant` 只回一个状态，说不出「这一手
-       * 新添了哪几格」，而波纹要的是按圈排好的次序。先用同一份输入算一遍，落盘时
-       * 走的是同一个 `autoForbiddenCells`，两者不会跑偏。
-       */
-      const wavePlan = autoForbiddenWavePlan({
-        board,
-        x,
-        y,
-        gridSize,
-        blockingCells,
-        variant,
-      });
-      updatePlacement((state) =>
-        placeParticipant(state, {
-          x,
-          y,
-          participantId: mode.participantId,
-          blockingCells,
-          gridSize,
-          variant,
-        }),
-      );
-      if (wavePlan) pulseForbiddenWave(wavePlan);
-      if (variant === 'number') markPulse(cellKey(x, y), mode.participantId);
-      /**
-       * v0.8.5：头像落下之后，手上就没有东西了 —— 名册那张卡的选中环跟着退掉。
-       * 规则本身在 `modeAfterPlacement` 里（编号不受影响，见那里的注释）。
-       *
-       * v0.8.7：退的还有**触碰态**。之前这里只 `setMode`，于是名册上那道 2px
-       * 主色环、棋盘上这位参与者的联动高亮与放大头像一起留了下来 —— 头像明明
-       * 已经落定，界面还在说「这位正被拿着」。放置态结束就是整手操作结束，
-       * 走 `applyMode`（它已经把「离开放置态 → `escape`」这条规矩收在一处，
-       * 见 SPEC-G04）。
-       */
-      const nextMode = modeAfterPlacement(mode, variant);
-      if (nextMode !== mode) applyMode(nextMode);
-      return true;
-    }
-    if (mode.kind === 'forbidden') {
-      const key = cellKey(x, y);
-      const before = placementRef.current.board[key] ?? null;
-      /**
-       * v0.7.12：`×` 是一支开关 —— 已经有 `×` 的格子再点一下就收回它
-       * （`toggleForbidden`）。这一支要求来自「点错了只好切橡皮」的绕路。
-       */
-      if (before?.kind === 'forbidden') {
-        updatePlacement((state) => toggleForbidden(state, { x, y, blockingCells }));
-        return true;
-      }
-      // v0.7.12：放不进去（不可站立 / 头像格）时什么都不做 —— 那一格本来就没有
-      // `×` 可放。
-      if (!canPlaceForbidden({ board: placementRef.current.board, x, y, blockingCells })) {
-        return false;
-      }
-      // v0.9.8：放下的 `×` 静默出现，不再挂 `markPulse` —— 演入场动效的是跟着
-      // 指针悬停的那一枚（`MapGameToolHintLayer`），放置本身没有可看的动作。
-      //
-      // 而且是**落笔这一刻、在这一格**才演：提示层按 `forbiddenPop` 换动画名，
-      // 并只在自己正停在 `popCell` 时挂类 —— 指针只是移动不该有动效。
-      updatePlacement((state) => placeForbidden(state, { x, y, blockingCells }));
-      pulseForbiddenHint(cellKey(x, y));
-      return true;
-    }
-    if (mode.kind === 'clearing') {
-      const key = cellKey(x, y);
-      // 空格上什么都不会发生 —— 连动效都不该有，那一格本来就没东西可擦。
-      if (!placementRef.current.board[key]) return false;
-      eraseCell(x, y);
-      return true;
-    }
-    return false;
-  };
-
-  /**
-   * 放置态下在格子上按下：启动长按定时器（到点放**头像**）。没到点就抬手的
-   * 短按由随后到来的 `click` 收尾 —— 那一路走 SPEC-J03 的**编号切换**。
-   *
-   * v0.7.11 两件事：
-   * - 环**延迟** 160ms 才挂载。单点根本不会长按，之前它却会在按下的第一帧就
-   *   闪出来 —— 那是在预告一件不会发生的事。因此环只画剩下的 340ms，画满的
-   *   那一帧仍然是头像落下的那一帧。
-   * - 动作被规则拒绝时 `dispatchCell` 返回 false，环立刻收回：不能让一个满环
-   *   停在那里冒充「已经放好了」。
-   */
-  const startCellPress = (x: number, y: number, participantId: number): void => {
-    /**
-     * v0.7.12：这一格根本放不进去 —— 整段手势都不开始。
-     *
-     * 不可站立的格子、已经标了 `×` 的格子、以及这位参与者自己的头像格：长按
-     * 500ms 的**结果**是不存在的（`placeParticipant` 会原样返回）。但环会照画
-     * 一圈满的，画满那一刻却什么都没发生 —— 那是界面在替玩家宣布一件没做成的事。
-     * 需求给的说法是「不出现圆圈，不提示，就是无效果」，所以这里在按下的一刻就
-     * 退回，连定时器都不挂。
-     *
-     * v0.9.1 §4：短按（编号）现在同样静默 —— 放置被拒一律不弹提示，于是两类
-     * 手势在「放不进去」这件事上的反馈完全一致：环不画、话不说、棋盘不动。
-     */
-    const refused = placementBlockReason({
-      board: placementRef.current.board,
-      x,
-      y,
-      participantId,
-      blockingCells,
-      variant: 'image',
-    });
-    if (refused) return;
-
-    const stale = cellPressRef.current;
-    if (stale) {
-      window.clearTimeout(stale.timer);
-      window.clearTimeout(stale.ringTimer);
-    }
-    const press = { timer: 0, ringTimer: 0, fired: false };
-    pressSeqRef.current += 1;
-    const seq = pressSeqRef.current;
-    press.ringTimer = window.setTimeout(() => {
-      // 已经抬手 / 换了手势：这一圈不该再出现。
-      if (cellPressRef.current !== press) return;
-      setPressCell({ x, y, seq });
-    }, GAME_PRESS_RING_DELAY_MS);
-    press.timer = window.setTimeout(() => {
-      press.fired = true;
-      if (!dispatchCell(x, y, 'image')) setPressCell(null);
-    }, GAME_LONG_PRESS_MS);
-    cellPressRef.current = press;
-  };
-
-  /**
-   * 抬手：两个定时器都作废；长按已生效时**保留** `fired`——紧随其后的 click
-   * 还要靠它识别「这一手是长按」并把 click 吞掉。
-   *
-   * 环在抬手时一律收掉：长按已生效的话，满环套在刚放下的头像上只会挡住它。
-   */
-  const endCellPress = (): void => {
-    setPressCell(null);
-    const press = cellPressRef.current;
-    if (!press) return;
-    window.clearTimeout(press.timer);
-    window.clearTimeout(press.ringTimer);
-    if (!press.fired) cellPressRef.current = null;
-  };
-
-  /** 移出画布 / 指针中断：连 `fired` 一起丢——不会再有 click 来收尾。 */
-  const dropCellPress = (): void => {
-    setPressCell(null);
-    const press = cellPressRef.current;
-    if (!press) return;
-    window.clearTimeout(press.timer);
-    window.clearTimeout(press.ringTimer);
-    cellPressRef.current = null;
-  };
-
-  /**
-   * v0.7.11：按住滑动 = 不是长按。定时器与环一起作废，`fired` 也不需要保留 ——
-   * 这一笔后面的 click 由 `paintedRef` 吞掉，不靠 `fired`。
-   */
-  const cancelCellPress = (): void => {
-    setPressCell(null);
-    const press = cellPressRef.current;
-    if (!press) return;
-    window.clearTimeout(press.timer);
-    window.clearTimeout(press.ringTimer);
-    cellPressRef.current = null;
-  };
-
-  const startClearPress = (): void => {
-    const press = { timer: 0, ringTimer: 0, fired: false };
-    pressSeqRef.current += 1;
-    const seq = pressSeqRef.current;
-    // 与格子上的环同一个延迟：单点（切换清除工具）不该闪一圈。
-    press.ringTimer = window.setTimeout(() => {
-      if (clearPressRef.current !== press) return;
-      setClearPress(seq);
-    }, GAME_PRESS_RING_DELAY_MS);
-    press.timer = window.setTimeout(() => {
-      press.fired = true;
-      // 清空是一次性的，棋盘随即变空 —— 满环留在空棋盘上没有意义，立即收。
-      // v0.9.1 §4：不再弹「已清空全部放置」—— 棋盘当场变空本身就是反馈。
-      setClearPress(null);
-      applyMode({ kind: 'clearing' });
-      updatePlacement(clearAll);
-      // v0.9.2 §3：清空是「整盘抹掉」，比棋格的 500ms 更长（800ms）——
-      // 两者后果不是一个量级，触发阈值也不该一样轻。
-    }, GAME_CLEAR_LONG_PRESS_MS);
-    clearPressRef.current = press;
-  };
-
-  const endClearPress = (): void => {
-    setClearPress(null);
-    const press = clearPressRef.current;
-    if (!press) return;
-    window.clearTimeout(press.timer);
-    window.clearTimeout(press.ringTimer);
-    clearPressRef.current = null;
-    // A completed long-press already acted; only a short tap toggles the mode.
-    if (press.fired) return;
-    toggleTool('clearing');
-  };
-
-  /**
-   * v0.6.2 §4：按钮以**视口中心**为锚点缩放。按钮在右栏，但用户看的是画布
-   * 中间；以按钮位置为锚点会让棋盘每点一下就往一边跑。
-   *
-   * 缩小到底 / 放大到顶时 `clampZoom` 返回同一个值，这里直接短路 —— 不做无谓
-   * 的 pan 重算。
-   */
-  const zoomBy = (direction: 1 | -1): void => {
-    const next = clampZoom(zoom + direction * ZOOM_STEP);
-    if (next === zoom) return;
-    userAdjustedRef.current = true;
-    const node = containerRef.current;
-    if (node) {
-      const rect = node.getBoundingClientRect();
-      const center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-      setPan(zoomAtPoint(center, rect, pan, next, zoom));
-    }
-    setZoom(next);
-  };
-
   if (gameQuery.isLoading) {
     return <LoadingScreen caption="正在加载游戏…" />;
   }
@@ -1955,236 +1006,49 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
 
   const game = gameQuery.data;
 
+  /**
+   * v0.10.4：页面与三个面板之间的接口，都是从上面那些状态算一次的投影。
+   *
+   * 为什么宁可多两个短名：面板不该知道「校验进行中」与「结算卡开着」是两件事
+   * （`checking` 要求 `!result`），也不该知道「结案就等于工具都锁了」—— 这两条
+   * 判据在 v0.9.6 / v0.9.7 各改过一次。让它们只在这里出现一次，改的时候只有
+   * 一处要读，面板那边不必跟着再判一遍。
+   */
+  const checking = checkRun !== null && !result && !finished;
+  const canUndoNow = canUndo(placementState);
+
   return (
     <div className="flex h-dvh flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        {/* 左列：上 = 品牌 + 游戏名（v0.5.1 SPEC-L06~L09 精简后的两行），
-            中 = 题面（描述 + 全局线索），下 = 参与者面板（与预览页同一个组件）。
-
-            v0.7.14：这三段之间**不画线**。它们读起来是同一段话的段落 —— 哪一局、
-            要做什么、多出什么条件、这些人怎么站；一条横线会把「条件」和「人」切成
-            两个互不相干的区域，而线索说的正是这些人。
-            （原本标题区有 `border-b`，那条线正好压在参与者框头顶。） */}
-        <aside
-          className={cn(
-            'relative flex shrink-0 flex-col border-r bg-background',
-            /*
-             * v0.10.1 竖屏：左栏**不再是一栏**，而是把它的孩子直接摊到外层那一列
-             * 上（`display: contents`）—— 于是「头部留在最上面」「题面 + 名册落到
-             * 地图下面、工具栏上面」只靠 `order` 就能排出来，DOM 一个节点都不用搬。
-             *
-             * 为什么不真的搬 DOM：右栏必须仍是 `querySelectorAll('aside')` 的最后
-             * 一个，左栏必须仍是第一个且 `style.width` 是那一串像素（既有用例钉着）；
-             * 再者 `ParticipantPanel` 与编辑器共用，结构越少动越好。
-             */
-            'max-md:contents',
-            /* v0.9.7：结案后名册 / 题面不再接指针（见 interactionLocked）。 */
-            interactionLocked && 'pointer-events-none',
-          )}
-          style={{ width: rosterWidth }}
-        >
-          {/*
-            * v0.9.4：左栏自己一层完整遮罩。它是独立的 `relative` 容器，
-            * 不需要和地图区共用全屏遮罩，也不需要挖洞。遮罩接指针 —— 核对期间
-            * 名册 / 题面 / 主题开关都不该还能点。
-            *
-            * v0.9.4（追加）：`-right-px` 让这一层越过左栏自己的右边框 ——
-            * 那条边框正是「左栏 / 中列」的分隔线，`inset-0` 只盖到内边距盒、
-            * 盖不到边框，于是分隔线会比四周更亮地留在那里。越过 1px 之后它与
-            * 中列遮罩（同档同色）在这条线上交叠，分隔线一起被压暗。
-            */}
-          {checkRun && !result && !finished ? (
-            <CheckScrim
-              area="left"
-              /*
-               * v0.10.1 竖屏：左栏是 `display: contents`，没有自己的盒子，
-               * 这一层 `absolute` 找不到可依附的位置 —— 竖屏不画它（桌面端照旧）。
-               * 结案锁指针不受影响：`pointer-events: none` 照常从 `<aside>` 继承
-               * 给它的孩子们，标题块自己的 `pointer-events-auto` 也照常豁免。
-               */
-              className="absolute inset-y-0 left-0 -right-px max-md:hidden"
-              style={{ zIndex: UI_Z.saveMask }}
-            />
-          ) : null}
-          {/*
-            * v0.9.7：结案后名册 / 题面不再接指针；**但这一行是例外** ——
-            * 用户明确「定案游戏里，可以点击返回和切换日夜模式」。
-            * 父层 `pointer-events-none` 之下，子元素用 `pointer-events-auto` 显式
-            * 恢复（CSS 允许），于是返回箭头与主题开关照常可点，下面的题面、
-            * 名册仍然锁着。
-            */}
-          <div
-            className={cn(
-              'shrink-0 p-3',
-              /*
-               * v0.10.1 竖屏：头部收成**一行** —— 返回、游戏标题、计时排队，主题
-               * 开关推到最右。桌面仍是「品牌一行、标题一行」两行。
-               *
-               * 实现上没另起一套 DOM：第一行容器在竖屏是 `display: contents`，
-               * 它的孩子（返回按钮、主题开关）直接成为这一行 flex 的成员，再用
-               * `order` 把顺序拨成「返回 → 标题 → 计时 → 主题」。品牌 logo 在竖屏
-               * 藏起来 —— 一行里再塞个 logo，标题就没地方了。
-               */
-              'max-md:flex max-md:items-center max-md:gap-2 max-md:order-1 max-md:py-2',
-              'md:space-y-1',
-              interactionLocked && 'pointer-events-auto',
-            )}
-          >
-            {/* FEAT-L07: 返回箭头后是品牌名，游戏名放下一行。
-                v0.5.3 FEAT-N03 (§2): the brand name is the logo itself. */}
-            <div className="flex items-center gap-1 max-md:contents">
-              <IconButton
-                variant="ghost"
-                icon={<ArrowLeft className="h-4 w-4" />}
-                label="返回游戏列表"
-                side="right"
-                className={cn(TOOLBAR_ICON_HOVER_CLASS, 'max-md:order-1 max-md:shrink-0')}
-                onClick={() => navigate(source.listHref())}
-              />
-              <BrandLogo height={16} className="flex shrink-0 items-center gap-2 max-md:hidden" />
-              {/*
-                v0.10.1 竖屏：描述从面板里挪到右上角这枚图标后面（点开是弹框）。
-                面板那时只剩线索与名册，能多让出一段高度。没有描述就不挂按钮 ——
-                点开一张空卡的图标比没有更糟。
-              */}
-              {portraitFit && puzzleDescription.trim().length > 0 ? (
-                <IconButton
-                  variant="ghost"
-                  icon={<FileText className="h-4 w-4" />}
-                  label="谜题描述"
-                  side="bottom"
-                  className={cn(TOOLBAR_ICON_HOVER_CLASS, 'max-md:order-4 max-md:shrink-0')}
-                  onClick={() => setDescriptionOpen(true)}
-                />
-              ) : null}
-              {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
-              <ThemeToggle className="ml-auto max-md:order-5 max-md:shrink-0" />
-            </div>
-            {/*
-              * v0.7.12：计时挪到标题行最右边 —— 它是「这一局」的元信息，与名字、
-              * 尺寸同一行；放在右栏底部被步数挤着，反而像第三条统计。不要图标，
-              * 只留粗体淡色的 `mm:ss`。
-              */}
-            <div className="flex items-baseline gap-2 pl-1 max-md:order-2 max-md:min-w-0 max-md:flex-1 max-md:items-center max-md:pl-0">
-              <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={game.name}>
-                {game.name} {gridSize}x{gridSize}
-              </p>
-              <span
-                data-testid="game-timer"
-                className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground max-md:order-3"
-                title="本局用时（提交后停止）"
-              >
-                {formatElapsed(elapsedMs)}
-              </span>
-            </div>
-          </div>
-
-          {/*
-            v0.7.14：题面 + 名册。桌面端钉在左栏、永远展开。
-
-            v0.10.0：窄屏上一度装进可开合抽屉（`briefOpen`）。
-
-            v0.10.1：不再折叠。窄屏上它落到「地图下面、工具栏上面」（`order-3`），
-            并吃掉棋盘定高之后剩下的**全部**高度（`flex-1` + `min-h-0`），内部整块可滚
-            —— 手机上一屏只够一件事，棋盘按宽度定死之后，多出来的高度就该给线索与
-            名册，而不是在棋盘下面留一片空白。
-          */}
-          <div
-            className={cn(
-              'min-h-0 flex-1 flex-col md:flex',
-              /*
-               * v0.10.1 竖屏：不折叠、吃掉剩余高度、整块可滚。
-               * `order-3` 让它排在棋盘（`order-2`）之后、工具栏（`order-4`）之前。
-               *
-               * 竖屏与「横过来的手机」要分开：竖屏棋盘按宽度定死了高，剩下的高度
-               * 全给这块（`flex-1`）；横屏那台还是老样子 —— 棋盘占大头，这块限高
-               * `38svh` 不参与分配。两者都用 `flex-1` 的话，横屏 360 高会被棋盘和
-               * 这块平分，名册直接压成一条缝。
-               */
-              'max-md:order-3 max-md:flex max-md:overflow-y-auto max-md:border-t',
-              portraitFit ? 'max-md:flex-1' : 'max-md:max-h-[38svh] max-md:flex-none',
-            )}
-          >
-            {/*
-              v0.7.14（docs/v0.7.14.md §4）：题面。描述在上、全局线索在下，钉在标题
-              与名册之间 —— 三样东西同时在视野里，谁也不用滚动去换另一个。
-              没有内容时组件自己返回 `null`，所以这里不必先判空。
-            */}
-            <GameBrief
-              description={puzzleDescription}
-              clues={puzzleClues}
-              hideDescription={portraitFit}
-            />
-
-            <div
-              className={cn(
-                'flex min-h-0 flex-1',
-                // v0.10.1 竖屏：名册这时横躺成一整条，宽度交给屏宽，不再横向滚动。
-                'max-md:overflow-x-auto',
-                /*
-                 * v0.10.2 竖屏：这一层不再参与高度分配，按内容自己的高走。
-                 *
-                 * 上面的「题面 + 名册」容器是**唯一**滚动区（全局线索要跟着名册
-                 * 一起滚）。这里若继续 `flex-1`，它会被压成容器剩下的那点高，
-                 * 名册内部又已经放开滚动（`overflow-visible`），多出来的卡片只能
-                 * 溢出去 —— 滚动条在祖先上，但高度分配没给内容留位置。改成
-                 * `flex-none` 之后，容器的可滚高度 = 线索 + 全部卡片。
-                 *
-                 * `overflow-x-auto` 也得让位：只要有一个轴是 `auto`，另一轴就会被
-                 * 浏览器算成 `auto`，这一层于是又成了第二个（虽然滚不动的）滚动
-                 * 容器，触屏滑动可能被它吃掉。竖屏名册是 `minmax(0, 1fr)` 的弹性
-                 * 轨道，本来就不横向溢出。
-                 */
-                portraitFit && 'max-md:flex-none portrait:max-md:overflow-visible',
-              )}
-            >
-              <ParticipantPanel
-                slots={slots}
-                charactersById={charactersById}
-                cols={rosterCols}
-                /*
-                 * v0.10.1 竖屏：名册换一套卡片 —— 每行固定 2 张、卡片横过来
-                 * （左头像、右上名称、右下线索）。只有竖屏窄屏才换，桌面端与
-                 * 编辑器、作品预览那两处调用都维持原样。
-                 */
-                compactPortrait={portraitFit}
-                /*
-                 * v0.7.11：游戏页的名册也有「选中」—— 手上正拿着的那位（放置态），
-                 * 不是鼠标碰巧路过的那位。选中态是一道 3px 的连续主色边（描边 +
-                 * 外扩同色，中间不留缝，见 `PARTICIPANT_SELECTED_RING`），带一次
-                 * 180ms 的鼓起。
-                 */
-                selectedSlotIndex={mode.kind === 'placing' ? mode.participantId - 1 : null}
-                draggingIndex={null}
-                activeSlotIndex={activation.activeParticipantId}
-                highlightedSlots={highlightedSlots}
-                highlightColors={highlightColors}
-                readOnly
-                // v0.7.11：去掉「参与者 5/5」那行标题 —— 玩家端上面已经有一行。
-                hideHeader
-                placedSlotIndices={placedSlotIndices}
-                onActivateHover={(index) => handleActivation({ type: 'enter', participantId: index })}
-                onDeactivateHover={(index) => {
-                  // SPEC-G03+ BUG-G02：放置态下移开
-                  // 任意卡片都恢复已武装参与者的激活。必须走幂等的 `restore`——
-                  // 用 `click` 时，离开的恰是武装者自己的卡片就等同于「再点一次」，
-                  // 激活会被 toggle 关掉。
-                  if (mode.kind === 'placing') {
-                    setActivation((state) =>
-                      reduceLinkageActivation(state, {
-                        type: 'restore',
-                        participantId: mode.participantId - 1,
-                      }),
-                    );
-                    return;
-                  }
-                  handleActivation({ type: 'leave', participantId: index });
-                }}
-                onActivateClick={handleCardClick}
-              />
-            </div>
-          </div>
-        </aside>
+        {/*
+          v0.10.4：左列（品牌 / 游戏名 / 计时 / 题面 / 名册）整块交给
+          `GamePlayerAside`。版式与 v0.10.1 完全一致 —— 连注释一起搬过去，
+          改版时只读那一个文件。
+        */}
+        <GamePlayerAside
+          rosterWidth={rosterWidth}
+          gameName={game.name}
+          gridSize={gridSize}
+          elapsedMs={elapsedMs}
+          interactionLocked={interactionLocked}
+          checking={checking}
+          portraitFit={portraitFit}
+          puzzleDescription={puzzleDescription}
+          puzzleClues={puzzleClues}
+          slots={slots}
+          charactersById={charactersById}
+          rosterCols={rosterCols}
+          mode={mode}
+          activeSlotIndex={activation.activeParticipantId}
+          highlightedSlots={highlightedSlots}
+          highlightColors={highlightColors}
+          placedSlotIndices={placedSlotIndices}
+          onBack={() => navigate(source.listHref())}
+          onOpenDescription={() => setDescriptionOpen(true)}
+          onCardClick={handleCardClick}
+          onCardHoverEnter={(index) => handleActivation({ type: 'enter', participantId: index })}
+          onCardHoverLeave={handleCardHoverLeave}
+        />
 
         {/* 中列：与预览页一致的地图 + 两个游戏图层 */}
         <main
@@ -2209,7 +1073,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             touchAction: 'none',
             /* v0.10.1 竖屏：高度正好是棋盘 + 上下各 `PORTRAIT_MARGIN_Y`。
                桌面端不给这个值，仍旧由 flex 分配。 */
-            height: portraitFit ? portraitStageHeight(gridSize, cellSize) : undefined,
+            height: stageHeight,
           }}
           onPointerDown={(event) => {
             /*
@@ -2347,7 +1211,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           {/* v0.9.4：中列整层遮罩 —— 铺满地图区，压住标尺条带与画布四周留白；
             它低于画布纸（纸在校验时抬到 saveMask+1），所以棋盘照常明亮。
             只在校验进行中、结算弹窗未出时存在，与左右两栏同色同档。 */}
-          {checkRun && !result && !finished ? (
+          {checking ? (
             <CheckScrim
               area="center"
               className="pointer-events-none absolute inset-0"
@@ -2362,7 +1226,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               // v0.9.4：校验期间把这张纸抬到遮罩之上（saveMask+1），于是中列那层
               // 铺满地图区的遮罩只压暗标尺与留白、压不到棋盘；正常游戏时这层不挂，
               // 不影响标尺压在纸边之上的默认层级。
-              zIndex: checkRun && !result && !finished ? UI_Z.saveMask + 1 : undefined,
+              zIndex: checking ? UI_Z.saveMask + 1 : undefined,
               transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
               transformOrigin: '0 0',
               width: total,
@@ -2392,230 +1256,64 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 * 所以这一层只压暗「纸的底色」；铺了背景图 / 物品 / 头像 / 校验圈的
                 * 格子照常亮。不用量矩形、不用挖洞，缩放平移时它跟着纸一起走。
                 */}
-              {checkRun && !result && !finished ? (
+              {checking ? (
                 <CheckScrim area="canvas" className="pointer-events-none absolute inset-0" />
               ) : null}
             </div>
 
-            {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z.
-                SPEC-G01: the game page drops 操作光标框 and adds the two
-                game-only layers above 区域标签. */}
             {/*
-              v0.9.6：**定案遮罩** —— 校验通过（或这一关早就完成了）时，地图方格
-              被整片蒙住，上面盖「定案 + 印章」。
-
-              为什么挂在画布纸里而不是当成第五处独立遮罩：用户要的是「把地图方格用
-              遮罩遮住，上面展示定案+印章（位置和谜题卡片一样）」。位置与卡片一致，
-              意味着它得跟着纸走 —— 挂在 `game-canvas` 里就自动随缩放/平移，不必
-              再量一次矩形。它压在内容层之上（`zIndex` 取最高的鼠标框 +1），所以
-              格子、物品、头像都被蒙住。
-
-              左右两栏**不遮**（用户明确：已完成的再进入只留地图方格遮罩）；校验
-              通过那一瞬的左右遮罩由 `checkRun` 那条路径撤掉 —— 见提交的 effect。
+              v0.10.4：定案遮罩单独一份（`GameVerdictScrim`），图层栈交给
+              `GameBoardLayers`。这一屏剩下的只有「纸 / 遮罩 / 图层栈」三层关系，
+              以及标尺 —— 顺序仍与 v0.9.6 一致。
             */}
             {finished ? (
-              <div
-                data-testid="verdict-scrim"
-                /* v0.9.7：与四处校验遮罩、弹窗 overlay 同一档「一般遮罩颜色」
-                   （`DIALOG_OVERLAY_TINT_CLASS` = bg-black/60）。v0.9.6 用的是
-                   bg-background/85，浅色系、过实，读起来像另一套东西。 */
-                className={cn(
-                  DIALOG_OVERLAY_TINT_CLASS,
-                  /*
-                   * v0.9.7：遮罩自己接住指针 —— 中列容器已经 `pointer-events-none`，
-                   * 这里显式恢复，免得指针穿到下面的格子上去。按钮仍带
-                   * `pointer-events-auto`，是这一屏唯一能点的东西。
-                   */
-                  'pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-6',
-                )}
-                style={{ zIndex: MAP_LAYER_Z.mouseCursorBox + 1 }}
-              >
-                <VerdictMark
-                  stampUrl={toolIcons.submit?.imageUrl ?? null}
-                  /* 棋盘比 291px 的卡大得多，但排法与卡片完全一致。 */
-                  large
-                  /* 深色遮罩上用浅色文字；印章保持作者上传的原色（v0.9.7 第六批）。 */
-                  onDark
-                  /*
-                   * v0.9.8：印章在**游戏内**再让开一段，像盖在纸的角落。
-                   * v0.10.2：「定案」改竖排之后，字块从「宽的两字」变成「窄的一列」，
-                   * 印跟着挪到字列右下侧 —— 往右 8px、往下 40px。往下是让它压住
-                   * 「案」的右上角（原来压的是横向两字的下缘），往右是把字列右侧
-                   * 那截空白用起来；再往右就贴到遮罩边缘了。
-                   */
-                  stampOffset={{ x: 8, y: 40 }}
-                  /*
-                   * v0.10.2：用户「排版整体再靠右一些」—— 字与印一起往右挪，
-                   * 两块的相对位置不变。这一屏原本整块居中，居中读起来偏左
-                   * （字列窄、右侧有印，视觉重心落在左边那半个盒子里）。
-                   * 平移同样交给 `translate`，跟着 `scale` 一起缩，竖屏同比例。
-                   */
-                  shift={{ x: 72 }}
-                  /*
-                   * v0.10.0：手机上的棋盘小得多，这一整套（字、印、让开的偏移）
-                   * 跟着棋盘等比缩，否则会顶出遮罩。桌面棋盘够大时恒为 1。
-                   */
-                  scale={verdictScale}
-                  /*
-                   * 刚通过时演一次「印下去」；已完成再进入是既成事实，不演。
-                   * 判据只看「是不是这次进来的」，不看 result —— 结算卡弹出后遮罩还
-                   * 在（它才是背景），动画类不该因为弹窗出现就被摘掉。
-                   */
-                  animate={!revisitedRef.current}
-                />
-                {/*
-                 * v0.10.2：**「再玩一次」不在这一局的开头就渲染出来**。
-                 *
-                 * 用户：「从一开始就不要渲染，后面再渲染出来」。原先判据是 `!result`
-                 * —— 刚通过的那 1 秒里 `finished` 已真、`result` 还是 null，按钮先画
-                 * 出来；结算卡一弹又被撤掉；关上再补回来。一进一出闪了两下。
-                 *
-                 * 现在只认两种「它该在场」的时机：
-                 * 1. `revisitedRef.current` —— 这是「已完成再进入」那一版，一进来就盖着
-                 *    遮罩、表停在 00:00，按钮就是这一屏的出口（v0.9.6 定的）；
-                 * 2. `verdictDismissed` —— 这一次是刚通过，且结算卡已经关上（`closeResult`
-                 *    里置真、`replay()` 里清）。卡还开着时不画，关了才补。
-                 *
-                 * 两者都不成立（= 刚通过那 1 秒、定案遮罩单独在场）时，这一屏只是
-                 * 结论，不给任何出口。
-                 */}
-                {revisitedRef.current || verdictDismissed ? (
-                  <Button
-                    data-testid="verdict-replay"
-                    onClick={replay}
-                    className="pointer-events-auto"
-                  >
-                    再玩一次
-                  </Button>
-                ) : null}
-              </div>
+              <GameVerdictScrim
+                stampUrl={toolIcons.submit?.imageUrl ?? null}
+                scale={verdictScale}
+                animate={!revisitedRef.current}
+                showReplay={revisitedRef.current || verdictDismissed}
+                onReplay={replay}
+              />
             ) : null}
 
-            <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
-            <MapHighlightLayer
-              highlight={highlight}
-              regions={regions}
-              cellSize={cellSize}
-              style={style}
-              leaving={highlightLeaving}
-            />
-            <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
-            <MapBlockingMaskLayer blockingCells={maskCells} cellSize={cellSize} style={style} />
-            <MapRegionOutlineLayer
-              regions={regions}
-              gridSize={gridSize}
-              cellSize={cellSize}
-              style={style}
-            />
-            <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
-            <MapItemLayer
-              cells={cells}
-              assetsById={assetsById}
-              cellSize={cellSize}
-              gridSize={gridSize}
-              // v0.9.1 §5：物品描边（宽度 0 = 不描边）。
-              itemOutline={style.itemOutline}
-              padding={itemPadding(cellSize)}
-              /* v0.9.7：结案后不给物品层任何悬停 / 指针坐标，物品不会隔着遮罩抬起。 */
-              hover={interactionLocked ? null : hover}
-              pointer={interactionLocked ? null : hoverPoint}
-            />
-
-            <MapRegionLabelLayer
-              regions={regions}
-              cellSize={cellSize}
-              style={style}
-              hoveredRegionId={hoveredRegionId}
-              onHover={setLabelRegionId}
-            />
-
-            {/* 层 4 · 工具提示层 — SPEC-G02 */}
-            <MapGameToolHintLayer
-              hint={toolHint}
-              cell={hoverEffects.cell}
-              cellSize={cellSize}
-              slots={slots}
-              mark={mark}
-              // v0.9.1 §3：清除工具配了图，指针底下就画同一张（与按钮一致）。
-              clearIcon={toolIcons.clear ?? null}
-              /* v0.9.8：落笔令牌与落笔格 —— 只有点下去那一刻、那一格的 `×` 才弹。 */
-              pop={forbiddenPop}
-              popCell={forbiddenPopCell}
-            />
-
-            {/* v0.7.11：长按进度环 —— 按住 500ms 的等待可见化（SPEC-J02）。
-                环延迟 160ms 才挂载，所以只画剩下的 340ms。 */}
-            <MapGamePressRing
-              cell={pressCell}
-              cellSize={cellSize}
-              durationMs={GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
-              seq={pressCell?.seq ?? 0}
-              imageUrl={ringImage}
-            />
-
-            {/* 层 5 · 游戏放置层 — SPEC-G01 */}
-            <MapGamePlacementLayer
+            <GameBoardLayers
               board={placementState.board}
               slots={slots}
               charactersById={charactersById}
+              cells={cells}
+              assetsById={assetsById}
+              regions={regions}
+              style={style}
+              gridSize={gridSize}
               cellSize={cellSize}
-              /*
-               * v0.6.4 §3: 触碰 / 点击参与者时，放大展示地图中该参与者的头像
-               * 与编号，提示当前放置的情况。面板说的是 0 基槽位号，棋盘从 1
-               * 编号——和放置态同样 +1。悬停与点击都走激活态，所以摸一下和
-               * 点一下效果一致。
-               */
+              highlight={highlight}
+              highlightLeaving={highlightLeaving}
+              hoveredRegionId={hoveredRegionId}
+              hoveredRegion={hoveredRegion}
+              maskCells={maskCells}
+              hover={hover}
+              hoverPoint={hoverPoint}
+              hoverEffects={hoverEffects}
+              toolHint={toolHint}
+              mark={mark}
+              toolIcons={toolIcons}
+              forbiddenPop={forbiddenPop}
+              forbiddenPopCell={forbiddenPopCell}
+              ringImage={ringImage}
+              pressCell={pressCell}
               activeParticipantId={
                 activation.activeParticipantId === null
                   ? null
                   : activation.activeParticipantId + 1
               }
-              /*
-               * v0.7.11：正在长按的那一格 —— 长按落地后头像在这里落定。
-               * 环还在（抬手前）就说明这一格是「刚刚」放下的，不需要再记一个
-               * 时间戳：抬手即清环，窗口自然结束。
-               */
-              settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
-              /* v0.7.11：刚放下的编号各「盖章」一次。 */
               pulse={pulse}
-              /* v0.9.8：橡皮点掉的格子先演退场，动效放完才真删。 */
               erasing={erasing}
-              /* v0.10.1：落子补出来的 `×` 按圈错峰浮出，像水波从落点推出去。 */
-              wave={forbiddenWave}
-              waveAlt={forbiddenWaveAlt}
-              /* v0.8.6：配置了图片时，放下的标记画那张图而不是 `×`。 */
-              mark={mark}
-            />
-
-            {/*
-              * v0.9.3 §2：提交后逐人校验的圈。按序号一位一位揭开，颜色取主题的
-              * 「通过 / 未通过」两档；圈留在棋盘上，直到结算弹窗被关掉。
-              */}
-            {checkRun ? (
-              <MapGameCheckLayer
-                marks={checkRun.items.slice(0, checkRun.revealed)}
-                cellSize={cellSize}
-                passColor={checkStyle.passColor}
-                failColor={checkStyle.failColor}
-                ringUrl={ringImage}
-                sweepMs={GAME_CHECK_RING_SWEEP_MS}
-                runId={checkRun.runId}
-              />
-            ) : null}
-
-            <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />
-
-            {/* 层 1 — 鼠标提示框（游戏页无操作提示框）。 A placed `×` counts
-                as blocked too, so the cursor turns red on marked cells. */}
-            <MapMouseCursorBoxLayer
-              cell={hoverEffects.cell}
-              blocked={
-                hoverEffects.blocked ||
-                (hoverEffects.cell !== null &&
-                  maskCells.has(cellKey(hoverEffects.cell.x, hoverEffects.cell.y)))
-              }
-              cellSize={cellSize}
-              style={style}
+              forbiddenWave={forbiddenWave}
+              forbiddenWaveAlt={forbiddenWaveAlt}
+              checkRun={checkRun}
+              checkStyle={checkStyle}
+              interactionLocked={interactionLocked}
+              onLabelHover={setLabelRegionId}
             />
           </div>
 
@@ -2632,399 +1330,51 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           ) : null}
         </main>
 
-        {/* 右列：工具栏（SPEC-G04） */}
-        <aside
-          className={cn(
-            'relative flex shrink-0 flex-col items-center gap-2 border-l bg-background p-2',
-            /* v0.10.0：窄屏上这一栏从「右侧竖条」变成「底部横条」—— 竖条写死的
-               84px 在竖屏手机上正好吃掉棋盘最宝贵的一条宽度；横条沉到底部，
-               四枚工具 + 视图簇按行折行。 */
-            'max-md:w-full max-md:max-w-full max-md:flex-row max-md:flex-wrap max-md:justify-center max-md:gap-1 max-md:border-l-0 max-md:border-t max-md:py-1.5 portrait:max-md:h-[54px] portrait:max-md:py-0',
-            /* v0.10.1 竖屏：排到最末（`order-4`），跟题面名册（`order-3`）一起
-               落在棋盘下面。 */
-            'max-md:order-4',
-          )}
-        >
-          {/* v0.9.4：右栏自己一层完整遮罩 —— 与左栏同一层颜色、同一档层级。
-              `-left-px` 越过右栏自己的左边框，把「中列 / 右栏」那条分隔线也压暗
-              （理由同左栏，见上方注释）。 */}
-          {checkRun && !result && !finished ? (
-            <CheckScrim
-              area="right"
-              className="absolute inset-y-0 -left-px right-0"
-              style={{ zIndex: UI_Z.saveMask }}
-            />
-          ) : null}
-          <Button
-            variant="ghost"
-            className={cn(
-              'h-12 w-full',
-              /*
-               * v0.10.1 竖屏：图标 2rem、底栏 54 高之后，44px 的方钮装不下了。
-               * 底栏改成四枚等宽的长方形 —— 一排放得下、也不必有正方形那套对称。
-               */
-              'max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:shrink max-md:px-0 portrait:max-md:h-full',
-              mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
-            )}
-            title="标记"
-            disabled={toolsLocked}
-            onClick={() => toggleTool('forbidden')}
-          >
-            {/*
-              v0.8.6：这条谜题给标记配了图，工具按钮就画**同一张图** ——
-              按钮上是什么，落下去就是什么（v0.6.4 给编号立下的规矩，v0.8.6 已用
-              在工具提示层）。没配时才退回那枚红色 `×` 字形。
-
-              深色界面要翻一次：这些图多半是「深墨画在透明底上」（作者是按浅色的
-              地图纸挑的），直接放在 `bg-background` 上等于没有。`invert` 把明度
-              翻过来，`hue-rotate-180` 再把色相转回去 —— 只用 `invert` 的话，一枚
-              红印在深色下会变成青色。
-            */}
-            {mark ? (
-              <img
-                src={mark.imageUrl}
-                alt=""
-                draggable={false}
-                data-testid="forbidden-tool-icon"
-                /* v0.9.0 §17：与下面三枚内置图标同一档 32px（2rem）。 */
-                className="h-8 w-8 select-none object-contain dark:invert dark:hue-rotate-180"
-              />
-            ) : (
-              <X className="h-8 w-8 text-destructive" />
-            )}
-          </Button>
-          <Button
-            variant="ghost"
-            className={cn(
-              'relative h-12 w-full',
-              /* v0.10.1 竖屏：同上面那枚标记键 —— 图标 2rem，按钮长到 54 高、四枚等分。 */
-              'max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:px-0 portrait:max-md:h-full',
-              mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
-            )}
-            title="清除放置，长按清空全部"
-            disabled={toolsLocked}
-            onPointerDown={startClearPress}
-            onPointerUp={endClearPress}
-            onPointerLeave={endClearPress}
-          >
-            {/*
-             * v0.9.2 §3：长按 800ms 清空全部 —— 进度画在**按钮方块之内**，
-             * 一个从 12 点开始扫的扇形，不再是棋格那圈细环。48px 的方块里
-             * 已经有 32px 的图标，环套上去会和图标抢地方。
-             *
-             * 时长必须跟着 `GAME_CLEAR_LONG_PRESS_MS` 走（不是棋格那个 500）：
-             * 扫满的那一帧就是清空发生的那一帧，各写一个数就会出现
-             * 「扫满了还没清」或者「清完了还在扫」。
-             *
-             * 顺序要紧：扇形是绝对定位的，会盖在普通流内容之上；图标包一层
-             * `relative` 才是「填色在图标后面」这一层关系。
-             */}
-            {clearPress !== null ? (
-              <PressSweep
-                durationMs={GAME_CLEAR_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}
-                seq={`clear-${clearPress}`}
-              />
-            ) : null}
-            <span className="relative">
-              <GameToolIcon render={toolIcons.clear} name="clear" />
-            </span>
-          </Button>
-          {/*
-            * v0.9.1 §1：不可回退时按钮 `disabled`，而基类的
-            * `disabled:pointer-events-none` 会让它接不到 hover —— 光标与提示一起失效。
-            * 外面包一层 span 接住指针（禁用的按钮不挡事件），由 span 出
-            * `cursor-not-allowed` 与那句「为什么不能点」的提示。
-            */}
-          <span
-            className={cn(
-              'block w-full',
-              /* v0.10.1 竖屏：底栏四枚等分，包层跟着一起撑开。`w-auto` 不能少 ——
-                 `w-full` 会把 flex 基准算成整条栏宽，四枚就分不匀。 */
-              'max-md:w-auto max-md:min-w-0 max-md:flex-1 portrait:max-md:h-full',
-              (!canUndo(placementState) || toolsLocked) && 'cursor-not-allowed',
-            )}
-            title={
-              toolsLocked
-                ? '这一局已结案，点「再玩一次」才能继续'
-                : canUndo(placementState)
-                  ? undefined
-                  : '当前没有可以回退的步骤'
-            }
-          >
-            <Button
-              variant="ghost"
-              className={cn(
-                'h-12 w-full',
-                /* v0.10.1 竖屏：底栏四枚等分的长方形，高度 54 容得下 2rem 的图标。 */
-                'max-md:px-0 portrait:max-md:h-full',
-                TOOLBAR_ICON_HOVER_CLASS,
-              )}
-              title={
-                toolsLocked
-                  ? '这一局已结案，点「再玩一次」才能继续'
-                  : canUndo(placementState)
-                    ? '回退上一步'
-                    : '当前没有可以回退的步骤'
-              }
-              disabled={!canUndo(placementState) || toolsLocked}
-              onClick={() => updatePlacement(undo)}
-            >
-              <GameToolIcon render={toolIcons.undo} name="undo" />
-            </Button>
-          </span>
-          {/*
-            * v0.7.11：提交按钮不再变成勾 —— 提交是一次**结算**，不是一个要记住
-            * 的状态。勾只会在下一次进来时变成一句谎话（玩家看到自己没做过的勾）。
-            * v0.7.12：没放完不能提交（编号不算放置）。
-            * v0.9.1 §1：没放完时同样包一层 span，给禁用光标和提示。
-            */}
-          <span
-            className={cn(
-              'block w-full',
-              'max-md:w-auto max-md:min-w-0 max-md:flex-1 portrait:max-md:h-full',
-              (!readyToSubmit || toolsLocked) && 'cursor-not-allowed',
-            )}
-            title={
-              toolsLocked
-                ? '这一局已结案，点「再玩一次」才能继续'
-                : readyToSubmit
-                  ? undefined
-                  : '尚未将人物放置完全'
-            }
-          >
-            <Button
-              variant="ghost"
-              className={cn(
-                'h-12 w-full',
-                'max-md:px-0 portrait:max-md:h-full',
-                TOOLBAR_ICON_HOVER_CLASS,
-              )}
-              title={
-                toolsLocked
-                  ? '这一局已结案，点「再玩一次」才能继续'
-                  : readyToSubmit
-                    ? '提交'
-                    : '尚未将人物放置完全'
-              }
-              disabled={!readyToSubmit || toolsLocked}
-              onClick={submit}
-            >
-              <GameToolIcon render={toolIcons.submit} name="submit" />
-            </Button>
-          </span>
-
-          {/*
-           * v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。
-           * v0.9.0 §17：右下角那两行统计删掉之后，这一簇由 `mt-auto` 顶到**最下面**
-           * —— 上面四枚是「对棋盘做什么」，下面这簇是「怎么看棋盘」，中间留白正好
-           * 把两组分开。分隔线跟着这一簇走，不再横在两枚工具按钮之间。
-           */}
-          <div
-            className={cn(
-              'mt-auto flex w-full flex-col items-center gap-1 border-t pt-2',
-              /* v0.10.0：竖条里这一簇沉在底边（`mt-auto`）；横条里它跟着工具按钮
-                 排成一行，不再占一整行、也不要那条分隔线。 */
-              'max-md:mt-0 max-md:w-auto max-md:flex-row max-md:border-t-0 max-md:pt-0',
-              /* v0.10.1：竖屏（窄且竖着）**整簇不显示** —— 棋盘已经按宽度铺满
-                 整屏，没有可放大的余量；收掉放大 / 缩小 / 重置 / 标尺，底部横条
-                 就只剩四枚「对棋盘做什么」的按钮，不再挤第二行。
-                 用 CSS 而不是条件渲染：媒体查询是这件事唯一的真源（转屏即时生效，
-                 不用等一次 `fit`），而且挂在上面的按钮仍留在树里 —— 快捷键、辅助
-                 技术、以及既有用例都还能拿到它们。 */
-              'portrait:max-md:hidden',
-            )}
-          >
-            <IconButton
-              variant="ghost"
-              icon={<Plus className="h-4 w-4" />}
-              label="放大"
-              side="right"
-              className={TOOLBAR_ICON_HOVER_CLASS}
-              disabled={toolsLocked || zoom >= ZOOM_MAX}
-              onClick={() => zoomBy(1)}
-            />
-            <span className="w-full text-center text-2xs tabular-nums text-muted-foreground max-md:w-auto">
-              {Math.round(zoom * 100)}%
-            </span>
-            <IconButton
-              variant="ghost"
-              icon={<Minus className="h-4 w-4" />}
-              label="缩小"
-              side="right"
-              className={TOOLBAR_ICON_HOVER_CLASS}
-              disabled={toolsLocked || zoom <= ZOOM_MIN}
-              onClick={() => zoomBy(-1)}
-            />
-            <IconButton
-              variant="ghost"
-              icon={<RotateCcw className="h-4 w-4" />}
-              label="重置视图"
-              side="right"
-              className={TOOLBAR_ICON_HOVER_CLASS}
-              disabled={toolsLocked}
-              onClick={fit}
-            />
-            <IconButton
-              variant="ghost"
-              icon={<Ruler className="h-4 w-4" />}
-              label="显示 / 隐藏标尺"
-              side="right"
-              className={cn(showRulers ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS)}
-              disabled={toolsLocked}
-              onClick={() => setShowRulers((current) => !current)}
-            />
-          </div>
-
-          {/*
-           * v0.9.0 §17：原来这里有两行「已放置 N 个 / 可回退 M 步」的统计。
-           * 删掉的理由：棋盘上的头像、`×`、编号本身就是计数，撤回按钮的
-           * enabled / disabled 本身就是可回退状态 —— 右下角再写一遍是同一份
-           * 信息的第二次表述，还把视图簇从底边挤了上去。计时早在 v0.7.12
-           * 就搬到了标题行，这里不再有任何文字。
-           */}
-        </aside>
+        {/*
+          v0.10.4：右列（四枚动作按钮 + 视图簇）交给 `GameToolRail`。
+          它没有自有状态 —— 按下的时长、缩放的比例、按钮能不能点，全在这里算好。
+        */}
+        <GameToolRail
+          toolsLocked={toolsLocked}
+          mode={mode}
+          checking={checking}
+          canUndoNow={canUndoNow}
+          readyToSubmit={readyToSubmit}
+          clearPress={clearPress}
+          zoom={zoom}
+          showRulers={showRulers}
+          toolIcons={toolIcons}
+          markImageUrl={mark?.imageUrl ?? null}
+          onToggleForbidden={() => toggleTool('forbidden')}
+          onStartClearPress={startClearPress}
+          onEndClearPress={endClearPress}
+          onUndo={() => updatePlacement(undo)}
+          onSubmit={submit}
+          onZoomBy={zoomBy}
+          onResetView={fit}
+          onToggleRulers={() => setShowRulers((current) => !current)}
+        />
       </div>
 
-      {/*
-        v0.10.1 竖屏：谜题描述弹框。触发的是头部那枚 `FileText` 图标。
-
-        为什么弹框而不是留在面板里：竖屏一屏只够放棋盘 + 名册，描述是三行也好
-        三十行也好，只在开局读一遍 —— 占着固定的高度不划算。线索不同，它们要
-        反复对照，仍留在面板里（`GameBrief` 只关掉描述那一段）。
-
-        正文沿用面板里那套写法（`whitespace-pre-wrap`、`text-muted-foreground`），
-        只是不再 `line-clamp-3` —— 弹框就是为了读全文，再收一次反而多一步。
-      */}
-      <Dialog
+      {/* v0.10.4：两个弹框各一份，触发条件仍在上面那些状态里。 */}
+      <GameDescriptionDialog
         open={descriptionOpen}
-        onOpenChange={(open) => {
-          setDescriptionOpen(open);
+        onOpenChange={setDescriptionOpen}
+        description={puzzleDescription}
+      />
+
+      <GameResultDialog
+        result={result}
+        ending={puzzleEnding}
+        hasNextLevel={nextLevel !== null}
+        onClose={closeResult}
+        onContinue={continueGame}
+        onRestart={restart}
+        onNextLevel={() => {
+          if (nextLevel) navigate(source.gameHref(nextLevel.key));
         }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>谜题描述</DialogTitle>
-          </DialogHeader>
-          <p className="max-h-[60svh] overflow-y-auto whitespace-pre-wrap text-sm leading-[1.8] text-muted-foreground">
-            {puzzleDescription.trim()}
-          </p>
-        </DialogContent>
-      </Dialog>
-
-      {/*
-        v0.7.11：提交的两种结局共用一个弹窗。
-        - 通过：定案 + 结束语 + 再玩一次；
-        - 未通过：结果 +「x/n 正确。未能结案」，不列名单位置 + 继续游戏 / 重新开始。
-        两种都用 `Dialog`，不是 `AlertDialog` —— 这里不是「要不要删除」那种确认，
-        而是一局结束后的结算。
-
-        v0.9.3 §3：通过的那一面换了写法 —— 标题「定案」、不报用时、不写
-        「校验通过」。这一局已经结束，界面该说的是「结案了」，而不是再念一遍
-        成绩；用时对玩家没有下一步，对作者也不该出现在玩家的结算卡上。
-        v0.9.7：标题再改成「[庆祝] 恭喜定案！」—— 结案是值得高兴的一刻，
-        不要再板着脸只写两个字。
-      */}
-      <Dialog
-        open={result !== null}
-        onOpenChange={(open) => {
-          if (!open) closeResult();
-        }}
-      >
-        <DialogContent className="max-w-md">
-          {result?.kind === 'passed' ? (
-            <div className="flex items-start justify-between gap-4 pr-6">
-              <div className="min-w-0 space-y-1.5">
-                <DialogTitle className="font-kai text-2xl font-semibold tracking-[0.1em]">
-                  <span aria-hidden="true">🎉</span> 恭喜定案！
-                </DialogTitle>
-                <DialogDescription className="sr-only">
-                  这一局已经结束。
-                </DialogDescription>
-              </div>
-              {/*
-                * v0.9.6：**这一格不再画印章**。用户把它移到了地图遮罩上 ——
-                * 印是「盖在纸上」的东西，弹窗是一张浮起来的卡，把印塞进卡里
-                * 两处各盖一次就成了重复播报。动效也跟着搬过去（见 `VerdictMark`）。
-                */}
-            </div>
-          ) : result?.kind === 'failed' ? (
-            <DialogHeader>
-              {/* v0.9.4：标题与正文都只报结论 —— 谁不对由棋盘上的圈说，这里只报对了几个。 */}
-              <DialogTitle>结果</DialogTitle>
-              <DialogDescription>
-                你没有找出所有人的位置！{result.correct}/{result.total} 正确。未能结案。
-              </DialogDescription>
-            </DialogHeader>
-          ) : null}
-
-          {/*
-            v0.7.14（docs/v0.7.14.md §4）：结束语。作者的一句话，通过时才出现。
-            **不给它加标签**（不写「结束语：」）—— 那是作者的声音，不是界面在说话。
-            v0.9.3 §3：上面那条「用时」拿掉之后，它成了这张卡唯一的正文，于是
-            与标题之间补一条细线 —— 「定案」两个字和作者写的这一段是两件事。
-          */}
-          {result?.kind === 'passed' && puzzleEnding.length > 0 ? (
-            <p className="whitespace-pre-wrap border-t pt-3 font-kai text-sm leading-[1.9] text-foreground/90">
-              {puzzleEnding}
-            </p>
-          ) : null}
-
-          <DialogFooter className="flex-wrap">
-            {result?.kind === 'passed' ? (
-              <>
-                {/*
-                  * v0.9.5：两张结果卡都多一枚「返回谜题列表」—— 一局到此结束，
-                  * 玩家的下一个动作通常不是「再点一次棋盘」，而是挑下一关。
-                  * 落点与左上角那个箭头同一个地址（`source.listHref()`）。
-                  */}
-                <Button variant="outline" onClick={closeResult}>
-                  关闭
-                </Button>
-                {/*
-                  * 「再玩一次」是这一面的**兜底主按钮**：后面没有没做过的关时
-                  * （`nextLevel === null`，比如这是最后一关、或下面的都通过了），
-                  * 结案卡上仍然得有一个实心按钮，否则四枚全是描边、读不出下一步。
-                  * 有「下一关」时它让位，退成 outline。
-                  */}
-                <Button variant={nextLevel ? 'outline' : 'default'} onClick={restart}>
-                  再玩一次
-                </Button>
-                <Button variant="outline" onClick={() => navigate(source.listHref())}>
-                  返回谜题列表
-                </Button>
-                {/*
-                  * v0.9.5：**下一关**。通过之后才出现 —— 未通过时「换一关」是一句
-                  * 逃跑的邀请，通过之后它才是顺理成章的下一步。
-                  *
-                  * 「下一关」＝列表顺序里排在当前之后、**还没通过**的第一关
-                  * （`lib/gameCatalog.ts`）。后面没有了、或下面的关全通过过了，这枚
-                  * 按钮就不画 —— 指不到地方的按钮比没有更糟。
-                  */}
-                {nextLevel ? (
-                  <Button onClick={() => navigate(source.gameHref(nextLevel.key))}>
-                    下一关
-                  </Button>
-                ) : null}
-              </>
-            ) : (
-              <>
-                <Button variant="outline" onClick={continueGame}>
-                  继续游戏
-                </Button>
-                {/*
-                  * v0.9.5：未通过也留一条退路 —— 这一局可以接着改（继续游戏），
-                  * 也可以先去别的关。两枚新按钮都是 `outline`：这一面的主按钮仍是
-                  * 「重新开始」（本版不动它），退出与换关不该比它更抢眼。
-                  */}
-                <Button variant="outline" onClick={() => navigate(source.listHref())}>
-                  返回谜题列表
-                </Button>
-                <Button onClick={restart}>重新开始</Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onBackToList={() => navigate(source.listHref())}
+      />
     </div>
   );
 }

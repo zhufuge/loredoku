@@ -5,7 +5,7 @@
 游戏页面画布（`/games/:gameId`）
 **版本**：v0.4.0（新增「工具提示层」与「游戏放置层」，共 15 层；次序自 v0.3.4 OPT-901 起持续修订）
 ——v0.7.0 fix（2026-10-20）：**区域轮廓线上移到画布外框 / 网格分隔线之上**（层号 7/8/9 换位，15 层不变）
-**实现载体**：`packages/shared/src/constants.ts` 的 `MAP_LAYER_ORDER` / `MAP_LAYER_Z`
+**实现载体**：`packages/shared/src/constants/grid.ts` 的 `MAP_LAYER_ORDER` / `MAP_LAYER_Z`
 
 ---
 

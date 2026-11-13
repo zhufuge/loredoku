@@ -31,7 +31,7 @@
    **不要再写 `text-[Npx]`**（§4.1）。
 4. 想改观感：改 `index.css` 的两套变量，不要改组件。改一处漏一处，深色模式立刻留白疤。
 5. 作品内容（地图背景、资源色块、区域色、区域标签字体、画布高亮）**不随主题变**，它们不是皮肤。
-6. 浮层层级用 `UI_Z`（`shared/constants.ts`），别写 `z-*`；唯一例外是导航栏，见 §5.3。
+6. 浮层层级用 `UI_Z`（`shared/constants/ui.ts`），别写 `z-*`；唯一例外是导航栏，见 §5.3。
 7. 五个工坊页共用 `PageHeader` + 24/16/12 三档间距（§3.1、§4.3）——
    **版式一致是功能，不是偷懒**：同一件事在五页有五种写法，才是真正要修的 bug。
 8. **工坊是桌面工具，玩家页才做移动端**（§3.12）：两个面的适配口径是相反的 ——
@@ -71,7 +71,7 @@
 保持 `bg-secondary` —— 它们是名词，不是状态，染色就变成装饰。
 
 **难度热力档**（`--difficulty-{very-easy,easy,medium,hard,expert}-{bg,fg}`，明暗两套）：
-5 档是「竹青 → 芽绿 → 赭黄 → 柿橙 → 绛」的单向坡，表达一根刻度尺。`shared/constants.ts`
+5 档是「竹青 → 芽绿 → 赭黄 → 柿橙 → 绛」的单向坡，表达一根刻度尺。`shared/constants/game.ts`
 的 `GAME_DIFFICULTY_*_COLORS` 存的是 `var(...)` 字符串，调用处是内联 style，所以自动跟随主题。
 
 v0.8.6 起这条坡是**兜底**：档上没写 `color` 的才走它（内置五档、以及所有没动过颜色的
@@ -193,7 +193,7 @@ v0.7.9 §3：从 8px 压到 6px —— 8px 圆角配通用投影是 SaaS 卡片�
 
 ### 1.5 层级（z-index）
 
-唯一来源 `shared/constants.ts`：
+唯一来源 `shared/constants/ui.ts`（v0.10.4 之前是单文件 `shared/constants.ts`）：
 
 ```ts
 UI_Z = { ruler: 10, infoDrawer: 20, drawer: 30, saveMask: 40 }

@@ -63,6 +63,15 @@ export function resolveToolIcon(
 }
 
 /**
+ * 三枚一起解的结果。
+ *
+ * v0.10.4：给这个形状起了名字 —— 玩家页、工具栏、提示层、图层栈四处都要写它，
+ * 从前各处写成 `Partial<Record<GameToolIconKind, ToolIconRender>>`，改一处总要
+ * 一起改三处。
+ */
+export type ToolIconsRender = Partial<Record<GameToolIconKind, ToolIconRender>>;
+
+/**
  * 三枚一起解 —— 游戏页工具栏一次要画全套。
  *
  * 返回的是一张**只含已配置项**的表：缺席的那一枚不在表里，按钮就画内置图标。
@@ -72,8 +81,8 @@ export function resolveToolIcons(
   puzzleIcons: GameToolIcons | null | undefined,
   themeIcons: GameToolIcons | null | undefined,
   toUrl: (path: string) => string = fileUrlFromPath,
-): Partial<Record<GameToolIconKind, ToolIconRender>> {
-  const result: Partial<Record<GameToolIconKind, ToolIconRender>> = {};
+): ToolIconsRender {
+  const result: ToolIconsRender = {};
   for (const kind of GAME_TOOL_ICON_KINDS) {
     const render = resolveToolIcon(kind, puzzleIcons, themeIcons, toUrl);
     if (render) result[kind] = render;

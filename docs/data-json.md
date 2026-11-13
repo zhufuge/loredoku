@@ -2,7 +2,7 @@
 
 **文档类型**：数据结构参考（当前状态，随代码演进维护；**唯一真源是 zod schema**，本文是它的可读版）
 **适用范围**：`maps.data`、`puzzles.data`，以及编辑器「导出 JSON / 导入 JSON」得到的 `.json` 文件
-**代码落点**：`packages/shared/src/types/domain.ts`、`schemas/mapDraft.ts`、`schemas/puzzle.ts`、`schemas/participant.ts`、`constants.ts`
+**代码落点**：`packages/shared/src/types/domain.ts`、`schemas/mapDraft.ts`、`schemas/puzzle.ts`、`schemas/participant.ts`、`constants/`（v0.10.4 起按主题分文件，总出口仍是 `constants/index.ts`）
 **最后同步**：v0.7.12（`MAP_JSON_VERSION = 8`、`PUZZLE_JSON_VERSION = 2`）
 
 ---
