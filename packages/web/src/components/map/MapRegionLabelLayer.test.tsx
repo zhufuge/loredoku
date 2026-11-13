@@ -92,3 +92,36 @@ describe('区域标签位置偏移（v0.9.6）', () => {
     expect(labelBox()).toEqual({ left: 60, top: 128 });
   });
 });
+
+describe('区域标签点击（v0.10.7）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  function render(regions: DraftRegion[], onSelect: (id: string) => void): void {
+    act(() => {
+      root.render(
+        <MapRegionLabelLayer regions={regions} cellSize={CELL} style={DEFAULT_MAP_STYLE} onSelect={onSelect} />,
+      );
+    });
+  }
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('点击区域标签回调 onSelect 传出区域 id', () => {
+    const ids: string[] = [];
+    render([region()], (id) => ids.push(id));
+    act(() => {
+      document.querySelector<HTMLElement>('.region-label')?.click();
+    });
+    expect(ids).toEqual(['rg_a']);
+  });
+});

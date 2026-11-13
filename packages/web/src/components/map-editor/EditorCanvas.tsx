@@ -114,6 +114,8 @@ interface EditorCanvasProps {
   onAutoCellSize?: (cellSize: number) => void;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
+  /** v0.10.7: 地图编辑点击区域标题弹信息框；谜题/游戏页不传此 prop。 */
+  onSelectRegionLabel?: (id: string) => void;
   onDraftAdd: (cells: Coord[]) => void;
   onDraftRemove: (cells: Coord[]) => void;
   onDraftClear: () => void;
@@ -169,6 +171,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     onAutoCellSize,
     onSelect,
     onSelectRegion,
+    onSelectRegionLabel,
     onDraftAdd,
     onDraftRemove,
     onDraftClear,
@@ -730,6 +733,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={style}
           hoveredRegionId={hoveredRegionId}
           onHover={setLabelRegionId}
+          onSelect={onSelectRegionLabel}
         />
 
         <MapCanvasFrameLayer gridSize={gridSize} cellSize={cellSize} style={style} />

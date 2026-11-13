@@ -135,6 +135,26 @@ describe('computeLabelCell', () => {
   it('returns null for an empty region', () => {
     expect(computeLabelCell([])).toBeNull();
   });
+
+  it('v0.10.7: defaultLabelCell 优先于自动计算的底部行中央', () => {
+    // 区域横跨 (0,0)(1,0)(0,2)(1,2)，自动计算会落到 (1,2)，但指定了 defaultLabelCell (3, 1)。
+    expect(computeLabelCell([[0, 0], [1, 0], [0, 2], [1, 2]], [3, 1])).toEqual([3, 1]);
+  });
+
+  it('v0.10.7: defaultLabelCell 为空时退回底部行中央', () => {
+    expect(
+      computeLabelCell(
+        [
+          [0, 0],
+          [1, 0],
+          [2, 0],
+          [0, 2],
+          [1, 2],
+        ],
+        null,
+      ),
+    ).toEqual([1, 2]);
+  });
 });
 
 describe('contrastTextColor', () => {

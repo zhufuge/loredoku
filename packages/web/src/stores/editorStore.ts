@@ -46,6 +46,7 @@ export interface RegionInput {
   name: string;
   cells: Array<[number, number]>;
   style?: RegionStyle;
+  defaultLabelCell?: [number, number] | null;
 }
 
 export type ConflictMode = 'override' | 'skip';
@@ -399,7 +400,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
                   id,
                   name: input.name,
                   cells: [...cells],
-                  labelCell: computeLabelCell(cells),
+                  labelCell: computeLabelCell(cells, input.defaultLabelCell),
                   ...(styleOverride ? { style: styleOverride } : {}),
                 },
               ];
@@ -430,7 +431,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
                 id: input.id || region.id,
                 name: input.name,
                 cells: [...input.cells],
-                labelCell: computeLabelCell(input.cells),
+                labelCell: computeLabelCell(input.cells, input.defaultLabelCell ?? region.defaultLabelCell ?? null),
                 ...(styleOverride ? { style: styleOverride } : {}),
               }
             : region,
@@ -455,7 +456,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         next.regions = next.regions
           .map((region) => {
             const cells = region.cells.filter(([x, y]) => inBounds(x, y));
-            return { ...region, cells, labelCell: computeLabelCell(cells) };
+            return { ...region, cells, labelCell: computeLabelCell(cells, region.defaultLabelCell ?? null) };
           })
           .filter((region) => region.cells.length > 0);
         next.gridSize = size;

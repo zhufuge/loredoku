@@ -1020,6 +1020,14 @@ export function MapEditorPage(): JSX.Element {
                 // so it leaves the basic-info drawer the same way a cell does.
                 guardMapInfo(() => editor.setSelectedRegion(regionId));
               }}
+              onSelectRegionLabel={(regionId) => {
+                // 地图编辑点击区域标题弹信息框：与谜题/游戏页不同，谜题和游戏
+                // 页的区域标签只做悬停，不弹窗。
+                guardMapInfo(() => {
+                  editor.setSelectedRegion(regionId);
+                  setInfoOpen(true);
+                });
+              }}
               onDraftAdd={editor.addDraftCells}
               onDraftRemove={editor.removeDraftCells}
               onDraftClear={editor.clearDraftSelection}

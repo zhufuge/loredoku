@@ -147,12 +147,14 @@ export function MapRegionLabelLayer({
   style,
   hoveredRegionId = null,
   onHover,
+  onSelect,
 }: {
   regions: DraftRegion[];
   cellSize: number;
   style: MapStyle;
   hoveredRegionId?: string | null;
   onHover?: (id: string | null) => void;
+  onSelect?: (id: string) => void;
 }): JSX.Element {
   const scale = cellScale(cellSize);
   return (
@@ -215,6 +217,7 @@ export function MapRegionLabelLayer({
             }
             onMouseEnter={() => onHover?.(region.id)}
             onMouseLeave={() => onHover?.(null)}
+            onClick={() => onSelect?.(region.id)}
             title={region.name}
           >
             {region.name}

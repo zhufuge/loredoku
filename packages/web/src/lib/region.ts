@@ -270,9 +270,17 @@ export function isConnected(cells: Coord[]): boolean {
 /**
  * Label anchor (see docs/v0.2.1.md §2.1.3): bottom-most row, then the cell at
  * the median x of that row.
+ *
+ * v0.10.7: if `defaultLabelCell` is provided, it takes precedence — this lets
+ * authors pin the title to a specific cell after adding a region, instead of
+ * always falling back to the computed bottom-row median.
  */
-export function computeLabelCell(cells: Coord[]): Coord | null {
+export function computeLabelCell(
+  cells: Coord[],
+  defaultLabelCell?: Coord | null,
+): Coord | null {
   if (cells.length === 0) return null;
+  if (defaultLabelCell) return defaultLabelCell;
   const maxY = Math.max(...cells.map(([, y]) => y));
   const row = cells.filter(([, y]) => y === maxY).map(([x]) => x).sort((a, b) => a - b);
   const middle = row[Math.floor(row.length / 2)];
