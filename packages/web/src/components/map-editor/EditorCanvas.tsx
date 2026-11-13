@@ -13,6 +13,7 @@ import {
   HIGHLIGHT_BLUE,
   MAP_LAYER_Z,
   RULER_ACTIVE_FONT_DELTA,
+  resolveVariantFootprint,
   type CellCoord,
   type DraftRegion,
   type EditorTool,
@@ -99,7 +100,7 @@ interface EditorCanvasProps {
   activeTool: EditorTool;
   spaceHeld: boolean;
   showRulers: boolean;
-  /** v0.6.1: the armed (asset, variant) pair. v0.7.6: 占格恒 1，不再由形态给。 */
+  /** v0.6.1: the armed (asset, variant) pair. v0.10.6: 足迹尺寸在 variant 上。 */
   pendingVariant: { asset: Asset; variant: AssetVariant } | null;
   regionDraftSelection: Set<string>;
   /** Resolved participant highlight (shared with the work preview page). */
@@ -117,7 +118,7 @@ interface EditorCanvasProps {
   onDraftRemove: (cells: Coord[]) => void;
   onDraftClear: () => void;
   onToggleRegionCell: (coord: CellCoord) => void;
-  onPlaceItem: (coord: CellCoord) => void;
+  onPlaceItem: (coord: CellCoord, w?: number, h?: number, fits?: boolean) => void;
   onErase: (coord: CellCoord) => void;
   onZoom: (zoom: number) => void;
   onPan: (pan: { x: number; y: number }) => void;
@@ -457,8 +458,10 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         return;
       }
       if (pendingVariant) {
-        // v0.7.6: 占格恒 1 —— 形态不再声明脚位，放大靠 scale（只影响显示）。
-        if (fits(coord.x, coord.y, 1, 1)) onPlaceItem(coord);
+        // v0.10.6: 尺寸由形态给；左上角 = 点中的格子，放不下交给调用方提示。
+        const size = resolveVariantFootprint(pendingVariant.variant, pendingVariant.asset.type);
+        const fitsHere = fits(coord.x, coord.y, size.w, size.h);
+        onPlaceItem(coord, size.w, size.h, fitsHere);
         return;
       }
       selectCellAt(coord);
@@ -563,6 +566,9 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
   const showPreview =
     activeTool === 'select' && hover !== null && pendingVariant !== null;
+  const previewSize = pendingVariant
+    ? resolveVariantFootprint(pendingVariant.variant, pendingVariant.asset.type)
+    : { w: 1, h: 1 };
 
   // ---- OPT-901 §1.2.5: cells holding a non-standable object ----
   const blockingCells = useMemo(
@@ -630,8 +636,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           style={{
             left: hover.x * cellSize,
             top: hover.y * cellSize,
-            width: cellSize,
-            height: cellSize,
+            width: previewSize.w * cellSize,
+            height: previewSize.h * cellSize,
           }}
         />
       ) : null}

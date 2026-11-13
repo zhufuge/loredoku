@@ -1,7 +1,7 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Asset, DraftRegion } from '@loredoku/shared';
+import type { Asset, AssetVariant, CellCoord, DraftRegion } from '@loredoku/shared';
 import { EditorCanvas } from './EditorCanvas';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/hitTest';
@@ -66,6 +66,19 @@ function asset(id: number): Asset {
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };
+}
+
+function assetWithVariant(id: number): { asset: Asset; variant: AssetVariant } {
+  return {
+    asset: asset(id),
+    variant: asset(id).variants[0]!,
+  };
+}
+
+/** v0.10.6: 尺寸存在形态上，测试里就把 w / h 放进 variant。 */
+function assetWithFootprint(w: number, h: number): { asset: Asset; variant: AssetVariant } {
+  const pair = assetWithVariant(2);
+  return { asset: pair.asset, variant: { ...pair.variant, w, h } };
 }
 
 const picture = asset(2);
@@ -215,5 +228,84 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
     pointerDownAt(box!, 0.5 * cellSize, 0.5 * cellSize);
 
     expect(onSelect).toHaveBeenCalledWith({ type: 'cell', x: 0, y: 0 });
+  });
+
+  /**
+   * v0.10.6：多格物品放置。
+   */
+  describe('EditorCanvas — 多格物品放置（v0.10.6）', () => {
+    let placed: { coord: CellCoord; w?: number; h?: number; fits?: boolean } | null;
+
+    function renderWithSize(size: { w: number; h: number } | null): void {
+      act(() => {
+        root.render(
+          <EditorCanvas
+            gridSize={GRID_SIZE}
+            cells={cells}
+            assetsById={assetsById}
+            regions={regions}
+            style={resolveMapStyle(undefined)}
+            selectedRegionId={null}
+            zoom={1}
+            pan={{ x: 0, y: 0 }}
+            selection={null}
+            activeTool="select"
+            spaceHeld={false}
+            showRulers={false}
+            pendingVariant={size ? assetWithFootprint(size.w, size.h) : assetWithVariant(2)}
+            regionDraftSelection={new Set<string>()}
+            highlight={null}
+            onAutoCellSize={(next) => {
+              cellSize = next;
+            }}
+            onSelect={onSelect}
+            onSelectRegion={onSelectRegion}
+            onDraftAdd={vi.fn()}
+            onDraftRemove={vi.fn()}
+            onDraftClear={vi.fn()}
+            onToggleRegionCell={vi.fn()}
+            onPlaceItem={(coord, w, h, fitsHere) => {
+              placed = { coord, w, h, fits: fitsHere };
+            }}
+            onErase={vi.fn()}
+            onZoom={vi.fn()}
+            onPan={vi.fn()}
+          />,
+        );
+      });
+    }
+
+    function pointerDownInCanvas(clientX: number, clientY: number): void {
+      pointerDownAt(canvasNode(), clientX, clientY);
+    }
+
+    beforeEach(() => {
+      placed = null;
+      cells.clear();
+      cells.set('0,0', { item: { assetId: picture.id, w: 1, h: 1 } });
+    });
+
+    it('放置 2×1 物品：尺寸来自形态，左上角 = 点中的格子', () => {
+      renderWithSize({ w: 2, h: 1 });
+      // (3,3) 的格心：3×cellSize+cellSize/2，足够容纳 2×1 足迹（3+2=5<6）。
+      pointerDownInCanvas(3.5 * cellSize, 3.5 * cellSize);
+
+      expect(placed).toEqual({ coord: { x: 3, y: 3 }, w: 2, h: 1, fits: true });
+    });
+
+    it('放不下（越过边界）：回传 fits=false，由页面提示而不是静默落一半', () => {
+      renderWithSize({ w: 3, h: 1 });
+      // (5,0) 的格心：5+3=8>6，越界。
+      pointerDownInCanvas(5.5 * cellSize, 0.5 * cellSize);
+
+      expect(placed).toEqual({ coord: { x: 5, y: 0 }, w: 3, h: 1, fits: false });
+    });
+
+    it('形态没写尺寸：缺省 1×1', () => {
+      renderWithSize(null);
+      pointerDownInCanvas(3.5 * cellSize, 3.5 * cellSize);
+
+      expect(placed).toEqual({ coord: { x: 3, y: 3 }, w: 1, h: 1, fits: true });
+    });
   });
 });

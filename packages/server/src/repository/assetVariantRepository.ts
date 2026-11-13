@@ -8,8 +8,9 @@ import type { AssetFitMode, AssetVariant, AssetVariantRow, AssetUsage, MapDraft 
  * looks. The repository owns the rows; the rules about *how many* variants an
  * asset may have live in `assetVariantService`.
  *
- * v0.7.6 (docs/v0.7.6.md §9): the footprint columns are gone — a placement is
- * always 1×1 — and so is the upload receipt (mime / size / width / height).
+ * v0.7.6 (docs/v0.7.6.md §9): the upload receipt (mime / size / width / height)
+ * is gone. v0.10.6: the footprint returns as `w` / `h` on the variant (default
+ * 1×1) — a bed spanning two cells belongs to the look, not to one placement.
  */
 
 export interface CreateAssetVariantData {
@@ -17,6 +18,9 @@ export interface CreateAssetVariantData {
   /** Only the initial variant created alongside the asset carries a look. */
   fitMode?: AssetFitMode;
   bgColor?: string | null;
+  /** v0.10.6: 占格足迹；缺省由 DB 列的 DEFAULT 1 落。 */
+  w?: number;
+  h?: number;
 }
 
 export interface UpdateAssetVariantData {
@@ -24,6 +28,9 @@ export interface UpdateAssetVariantData {
   fitMode?: AssetFitMode;
   /** `null` clears the colour block (back to image mode). */
   bgColor?: string | null;
+  /** v0.10.6: 占格足迹。 */
+  w?: number;
+  h?: number;
 }
 
 export function toAssetVariant(row: AssetVariantRow): AssetVariant {
@@ -32,6 +39,8 @@ export function toAssetVariant(row: AssetVariantRow): AssetVariant {
     assetId: Number(row.asset_id),
     name: row.name,
     sortOrder: row.sort_order,
+    w: Number(row.w ?? 1),
+    h: Number(row.h ?? 1),
     fitMode: row.fit_mode,
     imagePath: row.image_path,
     imageUrl: row.image_path ? buildFileUrl(row.image_path) : null,
@@ -116,6 +125,8 @@ export async function create(
       name: data.name,
       fit_mode: data.fitMode ?? 'cover',
       bg_color: data.bgColor ?? null,
+      w: data.w ?? 1,
+      h: data.h ?? 1,
       sort_order: sortOrder,
     })
     .returning('id');
@@ -131,6 +142,8 @@ export async function update(
   if (data.name !== undefined) patch.name = data.name;
   if (data.fitMode !== undefined) patch.fit_mode = data.fitMode;
   if (data.bgColor !== undefined) patch.bg_color = data.bgColor;
+  if (data.w !== undefined) patch.w = data.w;
+  if (data.h !== undefined) patch.h = data.h;
   const affected = await db('asset_variants').where({ id: variantId, asset_id: assetId }).update(patch);
   return affected > 0;
 }

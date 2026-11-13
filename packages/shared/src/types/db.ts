@@ -61,9 +61,10 @@ export interface AssetRow {
  * v0.6.1: one row of `asset_variants` (then `asset_forms`) — how an asset looks.
  * `asset_id` cascades, so deleting the asset deletes its variants.
  *
- * v0.7.6: the table lost six columns (docs/v0.7.6.md §9): the footprint
- * (`width_cells` / `height_cells`, now a per-placement constant of 1) and the
- * upload receipt (`image_mime` / `image_size` / `image_width` / `image_height`).
+ * v0.7.6: the table lost the four upload-receipt columns. The footprint left
+ * the table (`width_cells` / `height_cells`) as a per-placement constant of 1.
+ * v0.10.6: the footprint returns as `w` / `h` (default 1) — owned by the variant
+ * again, but with short names matching `DraftAnchorItem`.
  */
 export interface AssetVariantRow {
   id: string | number;
@@ -73,6 +74,9 @@ export interface AssetVariantRow {
   image_path: string | null;
   /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
+  /** v0.10.6: 占格宽 / 高；旧行没有这两列，读处按 1 兜底。 */
+  w?: number;
+  h?: number;
   sort_order: number;
   created_at: Date | string;
   updated_at: Date | string;

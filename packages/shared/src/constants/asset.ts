@@ -19,5 +19,10 @@ export const ASSET_FIT_MODES = ['cover', 'contain'] as const;
 export const DEFAULT_ASSET_FIT_MODE = 'cover';
 // v0.6.1: 形态（asset_variants，当时叫 asset_forms）—— 一个资源的多种「样子」。
 // v0.7.6: 占格搬到「每次放置」上（恒 1 格），形态只管长相。
+// v0.10.6: 占格又回到形态上（`w` / `h`，缺省 1×1）—— 一张床横跨 2 格，尺寸属于
+// 「这个形态长什么样」，而不是「这一次放哪儿」。上限跟画布最大格数一致。
 export const ASSET_VARIANT_NAME_MAX_LENGTH = 32;
 export const DEFAULT_ASSET_VARIANT_NAME = '默认';
+export const ASSET_VARIANT_FOOTPRINT_MIN = 1;
+export const ASSET_VARIANT_FOOTPRINT_MAX = 24;
+export const ASSET_VARIANT_FOOTPRINT_DEFAULT = 1;

@@ -46,6 +46,9 @@ export interface UpdateAssetVariantPayload {
   fitMode?: AssetFitMode;
   /** v0.5.1 FEAT-L01: `null` drops back to the image mode. */
   bgColor?: string | null;
+  /** v0.10.6: 占格足迹（缺省 1×1），仅物品形态有意义。 */
+  w?: number;
+  h?: number;
 }
 
 export const assetsApi = {

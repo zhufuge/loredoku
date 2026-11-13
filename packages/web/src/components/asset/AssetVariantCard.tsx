@@ -1,6 +1,9 @@
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
+  ASSET_VARIANT_FOOTPRINT_DEFAULT,
+  ASSET_VARIANT_FOOTPRINT_MAX,
+  ASSET_VARIANT_FOOTPRINT_MIN,
   DEFAULT_BG_COLOR,
   type AppearanceMode,
   type Asset,
@@ -34,6 +37,14 @@ const FIT_MODE_LABELS: Record<AssetFitMode, string> = {
   contain: '完整留白（contain）',
 };
 
+function clampFootprint(value: number): number {
+  if (!Number.isFinite(value)) return ASSET_VARIANT_FOOTPRINT_DEFAULT;
+  return Math.min(
+    ASSET_VARIANT_FOOTPRINT_MAX,
+    Math.max(ASSET_VARIANT_FOOTPRINT_MIN, Math.trunc(value)),
+  );
+}
+
 interface AssetVariantCardProps {
   asset: Asset;
   variant: AssetVariant;
@@ -47,9 +58,12 @@ interface AssetVariantCardProps {
  * together; the uploaded file applies immediately, matching the old asset-level
  * rhythm.
  *
- * v0.7.6 (docs/v0.7.6.md §9): the footprint inputs are gone — a variant only
- * describes how the asset **looks**. Where it sits and how big it draws is the
+ * v0.7.6 (docs/v0.7.6.md §9): the footprint inputs were gone — a variant only
+ * described how the asset **looks**. Where it sits and how big it draws was the
  * placement's business (1 cell + `scale`).
+ * v0.10.6: the footprint is back on the variant (item assets only) — a bed
+ * spanning two cells is a property of the look. Editing it here keeps every
+ * placement of this variant the same size; the game page just follows along.
  *
  * v0.7.7 (docs/v0.7.7.md §9): the card folds down to its title line, so an asset
  * with many variants stays scannable. The 背景层 / 物品层 subtitle is gone — the
@@ -67,6 +81,11 @@ export function AssetVariantCard({
     variant.bgColor ? 'color' : 'image',
   );
   const [bgColor, setBgColor] = useState(variant.bgColor ?? DEFAULT_BG_COLOR);
+  const [multiCell, setMultiCell] = useState(
+    (variant.w ?? 1) > 1 || (variant.h ?? 1) > 1,
+  );
+  const [footprintW, setFootprintW] = useState(variant.w ?? ASSET_VARIANT_FOOTPRINT_DEFAULT);
+  const [footprintH, setFootprintH] = useState(variant.h ?? ASSET_VARIANT_FOOTPRINT_DEFAULT);
   const [confirmDeleteImage, setConfirmDeleteImage] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -84,6 +103,9 @@ export function AssetVariantCard({
     setFitMode(variant.fitMode);
     setAppearanceMode(variant.bgColor ? 'color' : 'image');
     setBgColor(variant.bgColor ?? DEFAULT_BG_COLOR);
+    setMultiCell((variant.w ?? 1) > 1 || (variant.h ?? 1) > 1);
+    setFootprintW(variant.w ?? ASSET_VARIANT_FOOTPRINT_DEFAULT);
+    setFootprintH(variant.h ?? ASSET_VARIANT_FOOTPRINT_DEFAULT);
   }, [variant.id]);
 
   const saving = updateMutation.isPending;
@@ -97,6 +119,12 @@ export function AssetVariantCard({
           name: name.trim(),
           fitMode,
           bgColor: appearanceMode === 'color' ? bgColor : null,
+          ...(asset.type === 'item'
+            ? {
+                w: multiCell ? clampFootprint(footprintW) : ASSET_VARIANT_FOOTPRINT_DEFAULT,
+                h: multiCell ? clampFootprint(footprintH) : ASSET_VARIANT_FOOTPRINT_DEFAULT,
+              }
+            : {}),
         },
       });
     } catch {
@@ -184,6 +212,49 @@ export function AssetVariantCard({
                 onDelete={() => setConfirmDeleteImage(true)}
               />
             </AppearanceField>
+
+            {asset.type === 'item' ? (
+              <div className="grid gap-2">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={multiCell}
+                    onChange={(event) => setMultiCell(event.target.checked)}
+                    className="h-4 w-4"
+                  />
+                  占多格
+                </label>
+                {multiCell ? (
+                  <div className="flex flex-wrap items-center gap-3 pl-6">
+                    <label className="flex items-center gap-2 text-sm">
+                      宽
+                      <Input
+                        type="number"
+                        min={ASSET_VARIANT_FOOTPRINT_MIN}
+                        max={ASSET_VARIANT_FOOTPRINT_MAX}
+                        value={footprintW}
+                        onChange={(event) => setFootprintW(Number(event.target.value))}
+                        className="w-20"
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      高
+                      <Input
+                        type="number"
+                        min={ASSET_VARIANT_FOOTPRINT_MIN}
+                        max={ASSET_VARIANT_FOOTPRINT_MAX}
+                        value={footprintH}
+                        onChange={(event) => setFootprintH(Number(event.target.value))}
+                        className="w-20"
+                      />
+                    </label>
+                    <span className="text-xs text-muted-foreground">
+                      放置时以左上角那一格为基准
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="mt-4 flex justify-end">

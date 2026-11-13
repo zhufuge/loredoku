@@ -1,4 +1,32 @@
+import {
+  ASSET_VARIANT_FOOTPRINT_DEFAULT,
+  ASSET_VARIANT_FOOTPRINT_MAX,
+  ASSET_VARIANT_FOOTPRINT_MIN,
+} from './constants';
 import type { Asset, AssetVariant, AssetType } from './types';
+
+/**
+ * v0.10.6: the footprint of a variant, in cells. `w` / `h` are optional on the
+ * DTO (older bundles, literal test fixtures), and a background never spans more
+ * than one cell. One helper, so the editor, the palette and the game can't
+ * disagree about the default or the clamp.
+ */
+export function resolveVariantFootprint(
+  variant: AssetVariant,
+  assetType?: AssetType,
+): { w: number; h: number } {
+  if (assetType === 'background') {
+    return { w: ASSET_VARIANT_FOOTPRINT_DEFAULT, h: ASSET_VARIANT_FOOTPRINT_DEFAULT };
+  }
+  const clamp = (value: number | undefined): number => {
+    const n = Number.isFinite(value) ? Math.trunc(value as number) : ASSET_VARIANT_FOOTPRINT_DEFAULT;
+    return Math.min(
+      ASSET_VARIANT_FOOTPRINT_MAX,
+      Math.max(ASSET_VARIANT_FOOTPRINT_MIN, n),
+    );
+  };
+  return { w: clamp(variant.w), h: clamp(variant.h) };
+}
 
 /**
  * v0.5.2 FEAT-M04 (docs/v0.5.2.md §4): a **background** asset never blocks —

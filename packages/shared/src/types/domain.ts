@@ -105,15 +105,21 @@ export interface AssetAppearance {
  * v0.6.1: one way an asset can look on the canvas. An asset always has at least
  * one.
  *
- * v0.7.6: the **footprint is gone** — a variant no longer says how many cells it
- * covers, because every newly placed item now occupies exactly one cell and
- * draws itself bigger with `scale` (docs/v0.7.5.md §4). Old drafts keep their
- * own `w` / `h`, so published maps render exactly as before.
+ * v0.7.6: the four upload-receipt columns are gone — the image is just its path.
+ * v0.10.6: `w` / `h` come back, but this time on the **variant** as an optional
+ * pair (缺省 1×1) — a bed that spans two cells is a property of the look, not
+ * of one placement. Optional so older bundles and every literal test fixture
+ * keep working; the single default lives in `resolveVariantFootprint()`.
+ * Only items use it; a background variant always resolves to 1×1.
  */
 export interface AssetVariant extends AssetAppearance {
   id: number;
   assetId: number;
   name: string;
+  /** v0.10.6: 占格宽（格）；缺省 1。 */
+  w?: number;
+  /** v0.10.6: 占格高（格）；缺省 1。 */
+  h?: number;
   /** Palette order; the list response is sorted by `sortOrder, id`. */
   sortOrder: number;
   createdAt: string;

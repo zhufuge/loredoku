@@ -2,7 +2,9 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Asset, AssetVariant } from '@loredoku/shared';
+import type { CellCoord } from '@loredoku/shared';
 import type { CellMap } from '@/lib/canvasLayers';
+import type { CanvasPoint } from '@/lib/grid';
 import { MapBackgroundLayer, MapItemLayer } from './MapAssetLayers';
 
 /**
@@ -200,6 +202,86 @@ describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () =>
     expect(painted?.style.backgroundColor).toBe('rgb(255, 136, 0)');
     expect(painted?.parentElement?.getAttribute('style')).toContain('width: 200px');
     expect(container.querySelector('img')).toBeNull();
+  });
+});
+
+/**
+ * v0.10.6：多格物品的整体动效 —— 悬停任一占据格，同一件物品的显示框作为
+ * 整体被悬停（hoveredKey 按锚点命中，被 `scale` 撑出去的那圈画也不抢指针）。
+ * 抬手、名称提示都随这个整体走。
+ */
+describe('层 4 · 物品层 — 多格物品悬停联动（v0.10.6）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const paint = (
+    cells: CellMap,
+    hover: CellCoord | null,
+    pointer?: CanvasPoint | null,
+  ): void => {
+    act(() => {
+      root.render(
+        <MapItemLayer
+          cells={cells}
+          assetsById={assetsById}
+          cellSize={100}
+          hover={hover}
+          pointer={pointer}
+        />,
+      );
+    });
+  };
+
+  it('悬停任一占据格，同一件多格物品整体渲染（带抬手变换）', () => {
+    // 2×1 横跨 (0,0) 和 (1,0)，锚点在 (0,0)，有图片 ⇒ 渲染 img。
+    paint(
+      new Map([['0,0', { item: { assetId: 2, w: 2, h: 1 } }]]),
+      { x: 1, y: 0 },
+    );
+    const img = container.querySelector('img');
+    expect(img).not.toBeNull();
+    expect(img?.style.transform).toContain('translateY(-4px)');
+
+    // 悬停另一个占据格：整体仍然是 hovered。
+    act(() => {
+      root.render(
+        <MapItemLayer
+          cells={new Map([['0,0', { item: { assetId: 2, w: 2, h: 1 } }]])}
+          assetsById={assetsById}
+          cellSize={100}
+          hover={{ x: 0, y: 0 }}
+          pointer={null}
+        />,
+      );
+    });
+    expect(container.querySelector('img')?.style.transform).toContain(
+      'translateY(-4px)',
+    );
+
+    // 离开所有占据格：不再 hovered。
+    act(() => {
+      root.render(
+        <MapItemLayer
+          cells={new Map([['0,0', { item: { assetId: 2, w: 2, h: 1 } }]])}
+          assetsById={assetsById}
+          cellSize={100}
+          hover={null}
+          pointer={null}
+        />,
+      );
+    });
+    expect((container.querySelector('img')?.style.transform ?? '')).toBe('');
   });
 });
 

@@ -1028,12 +1028,15 @@ export function MapEditorPage(): JSX.Element {
                   editor.toggleRegionCell(editor.selectedRegionId, coord.x, coord.y);
                 }
               }}
-              onPlaceItem={(coord) => {
+              onPlaceItem={(coord, w, h, fitsHere) => {
                 if (!pendingVariant) return;
-                // OPT-904 §4.1: the placement layer must match the item category
-                // (the background layer only accepts `type === 'background'`).
                 if (!canPlaceAssetOnLayer(pendingVariant.asset, editor.activeLayer)) {
                   toast.error('该物品不能放在当前图层');
+                  return;
+                }
+                // v0.10.6: 多格物品放不下（越过画布边界）就提示，不静默落一半。
+                if (fitsHere === false) {
+                  toast.error('这个形态占的格子放不下，请换一个位置');
                   return;
                 }
                 if (pendingVariant.asset.type === 'background') {
@@ -1048,9 +1051,8 @@ export function MapEditorPage(): JSX.Element {
                     {
                       assetId: pendingVariant.asset.id,
                       variantId: pendingVariant.variant.id,
-                      // v0.7.6: 占格恒 1，想画大用信息框里的「大小」。
-                      w: 1,
-                      h: 1,
+                      w: w ?? 1,
+                      h: h ?? 1,
                     },
                     coord.x,
                     coord.y,
