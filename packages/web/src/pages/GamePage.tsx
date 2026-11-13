@@ -473,6 +473,18 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [portraitFit, setPortraitFit] = useState(false);
 
   /**
+   * v0.10.2：`<main>` 量出来的可见区，只给「定案」遮罩估缩放用。
+   *
+   * 为什么不能只看棋盘：横屏手机上棋盘按作者配的 `cellSize` 能有 900 多，而
+   * `<main>` 只有一百来像素高 —— 按棋盘算出来是「不用缩」，字就顶出可见区了
+   * （用户：「大小要自适应屏幕」）。这里量的是画布容器本身，`<main>` 就是那个
+   * 容器（`containerRef`），`fit` 与它的 `ResizeObserver` 每次都会经过，顺手同步。
+   *
+   * `null` 表示还没量过；那时 `verdictMarkScale` 只按棋盘算（挂载瞬间不闪小的）。
+   */
+  const [stageBox, setStageBox] = useState<{ width: number; height: number } | null>(null);
+
+  /**
    * v0.10.1：描述弹框是否开着（见头部那枚「谜题描述」图标）。
    *
    * 只跟 `portraitFit` 配套使用：竖屏上面板里不再画描述（`GameBrief` 的
@@ -492,6 +504,16 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * `useMemo` 要读它，必须比那个 `useMemo` 先声明，否则 TDZ。
    */
   const [finished, setFinished] = useState(false);
+  /**
+   * v0.10.2：**结算卡关上之后，遮罩上才补出「再玩一次」**。
+   *
+   * 用户：「从一开始就不要渲染，后面再渲染出来」。以前判据是 `!result`，
+   * 于是刚通过那 1 秒（`finished` 已真、`result` 还是 null）按钮先画出来，
+   * 结算卡一弹又撤掉，关上再补回来 —— 一进一出等于闪了两下。现在它在这一局
+   * 里**一次都不提前出现**：只有「已完成再进入」那一版（`revisitedRef`）或
+   * 「卡已经关过」（本 state）才画。
+   */
+  const [verdictDismissed, setVerdictDismissed] = useState(false);
 
   /**
    * v0.9.7：**结案的那一局，整块画布与名册都不再接指针**。
@@ -738,8 +760,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * v0.10.0：手机上棋盘只有 236 见方，而「定案」遮罩那套版式（128px 的两个字）
    * 是照桌面 480 起的棋盘定的 —— 不缩就会竖着顶出遮罩、印甩到棋盘外，底下那颗
    * 「再玩一次」也被压住。按棋盘边长等比缩，字、印、偏移的相对位置一点都不变。
+   *
+   * v0.10.2：棋盘大不等于屏上够地方 —— 横屏手机棋盘能有 900 多，而中列只剩
+   * 一百来像素高。再把量出来的可见区传进去，两者取小（用户：「大小要自适应屏幕」）。
    */
-  const verdictScale = verdictMarkScale(total);
+  const verdictScale = verdictMarkScale(total, stageBox);
 
   const rulerScale = cellScale(cellSize);
   const rulerMaxFont = scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale);
@@ -894,6 +919,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     if (!node || gridSize === 0) return;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
+    /* v0.10.2：顺手把可见区记下来，给「定案」遮罩估缩放（见 `stageBox`）。 */
+    setStageBox((previous) =>
+      previous && previous.width === rect.width && previous.height === rect.height
+        ? previous
+        : { width: rect.width, height: rect.height },
+    );
     /*
      * v0.10.1：竖屏下棋盘**按宽度铺满**，而不是「宽高取小」。
      *
@@ -943,6 +974,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     const node = containerRef.current;
     if (!node) return;
     const apply = (): void => {
+      /* v0.10.2：可见区与「玩家有没有自己调过视图」无关，先记下来再决定要不要重排。 */
+      const rect = node.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        setStageBox((previous) =>
+          previous && previous.width === rect.width && previous.height === rect.height
+            ? previous
+            : { width: rect.width, height: rect.height },
+        );
+      }
       // v0.6.2：玩家放大 / 平移之后，改窗口大小不该把视图打回原形。
       if (userAdjustedRef.current) return;
       fitRef.current();
@@ -1200,6 +1240,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setLabelRegionId(null);
     setMode({ kind: 'idle' });
     setResult(null);
+    // v0.10.2：换一关 / 重新读档时，上一版「卡关过了」的记号不该跟着走。
+    setVerdictDismissed(false);
     if (!firstLoad) return;
 
     const saved = storageId ? readGameProgress(storageId, progressMeta) : null;
@@ -1497,6 +1539,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    */
   const replay = (): void => {
     setFinished(false);
+    /*
+     * v0.10.2：这一局从头来过，遮罩上那颗按钮收回去 —— 下次再通过时它要等到
+     * 结算卡关上之后才重新出现（见 `verdictDismissed`）。
+     */
+    setVerdictDismissed(false);
     // 下一局若再通过，是新的一次「刚盖上去」—— 动效要重新播。
     revisitedRef.current = false;
     restart();
@@ -1511,6 +1558,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    */
   const closeResult = (): void => {
     if (result?.kind === 'failed') resumeTimer();
+    /*
+     * v0.10.2：通过那一局关上卡 = 这一屏只剩定案与印，此时才让「再玩一次」
+     * 出场（见 `verdictDismissed`）。未通过那一路遮罩上从来就没有这颗按钮。
+     */
+    if (result?.kind === 'passed') setVerdictDismissed(true);
     setResult(null);
     // v0.9.3 §2：棋盘上那几圈结论跟着弹窗一起撤 —— 留着会读成「还在结算中」。
     setCheckRun(null);
@@ -2385,11 +2437,20 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                   /* 深色遮罩上用浅色文字；印章保持作者上传的原色（v0.9.7 第六批）。 */
                   onDark
                   /*
-                   * v0.9.8：印章在**游戏内**再往右上让开一段（右 150px、上 50px）。
-                   * 遮罩上的印与卡片上的印本来就同款，但这一屏的「定案」字大得多，
-                   * 印压得太正会糊住字心 —— 让它偏出去，像盖在纸的角落。
+                   * v0.9.8：印章在**游戏内**再让开一段，像盖在纸的角落。
+                   * v0.10.2：「定案」改竖排之后，字块从「宽的两字」变成「窄的一列」，
+                   * 印跟着挪到字列右下侧 —— 往右 8px、往下 40px。往下是让它压住
+                   * 「案」的右上角（原来压的是横向两字的下缘），往右是把字列右侧
+                   * 那截空白用起来；再往右就贴到遮罩边缘了。
                    */
-                  stampOffset={{ x: 150, y: -50 }}
+                  stampOffset={{ x: 8, y: 40 }}
+                  /*
+                   * v0.10.2：用户「排版整体再靠右一些」—— 字与印一起往右挪，
+                   * 两块的相对位置不变。这一屏原本整块居中，居中读起来偏左
+                   * （字列窄、右侧有印，视觉重心落在左边那半个盒子里）。
+                   * 平移同样交给 `translate`，跟着 `scale` 一起缩，竖屏同比例。
+                   */
+                  shift={{ x: 72 }}
                   /*
                    * v0.10.0：手机上的棋盘小得多，这一整套（字、印、让开的偏移）
                    * 跟着棋盘等比缩，否则会顶出遮罩。桌面棋盘够大时恒为 1。
@@ -2403,12 +2464,22 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                   animate={!revisitedRef.current}
                 />
                 {/*
-                  * v0.9.6：**没有结算卡开着时**，遮罩上必须有「再玩一次」——
-                  * 这是这一局唯一能回到奔跑状态的出口。刚通过 + 结算卡还开着时
-                  * 不画（卡里已经有同一颗按钮，两处各一颗是同一件事说两遍）；
-                  * 关掉弹窗之后就补上，否则按钮全灰、遮罩盖着，玩家会卡在结案页。
-                  */}
-                {!result ? (
+                 * v0.10.2：**「再玩一次」不在这一局的开头就渲染出来**。
+                 *
+                 * 用户：「从一开始就不要渲染，后面再渲染出来」。原先判据是 `!result`
+                 * —— 刚通过的那 1 秒里 `finished` 已真、`result` 还是 null，按钮先画
+                 * 出来；结算卡一弹又被撤掉；关上再补回来。一进一出闪了两下。
+                 *
+                 * 现在只认两种「它该在场」的时机：
+                 * 1. `revisitedRef.current` —— 这是「已完成再进入」那一版，一进来就盖着
+                 *    遮罩、表停在 00:00，按钮就是这一屏的出口（v0.9.6 定的）；
+                 * 2. `verdictDismissed` —— 这一次是刚通过，且结算卡已经关上（`closeResult`
+                 *    里置真、`replay()` 里清）。卡还开着时不画，关了才补。
+                 *
+                 * 两者都不成立（= 刚通过那 1 秒、定案遮罩单独在场）时，这一屏只是
+                 * 结论，不给任何出口。
+                 */}
+                {revisitedRef.current || verdictDismissed ? (
                   <Button
                     data-testid="verdict-replay"
                     onClick={replay}

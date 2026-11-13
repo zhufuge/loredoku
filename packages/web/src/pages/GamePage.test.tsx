@@ -1627,8 +1627,39 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
 
     /**
-     * v0.9.6：关掉结算卡之后，遮罩上必须补出「再玩一次」—— 否则按钮全灰、
-     * 遮罩盖着棋盘，玩家没有出口。
+     * v0.10.2：**「再玩一次」一开始就不渲染**。
+     *
+     * 用户：「从一开始就不要渲染，后面再渲染出来」。判据曾经是 `!result` —— 通过
+     * 之后那 1 秒（定案遮罩在场、结算卡还没落）它会先画出来，卡一弹再撤掉，关上
+     * 又补回来。这里钉住中间那一刻：遮罩在、按钮不在。
+     */
+    it('定案遮罩单独在场的那一秒：还没有「再玩一次」', () => {
+      vi.useFakeTimers();
+      try {
+        seedPassingBoard();
+        render();
+        act(() => container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click());
+        for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+
+        const scrim = container.querySelector('[data-testid="verdict-scrim"]');
+        expect(scrim).not.toBeNull();
+        expect(document.querySelector('[role="dialog"]')).toBeNull();
+        expect(scrim?.querySelector('[data-testid="verdict-replay"]')).toBeNull();
+
+        // 结算卡落下来时依然没有；关上之后才补出来（见下一条用例）。
+        act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
+        expect(scrim?.querySelector('[data-testid="verdict-replay"]')).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    /**
+     * v0.10.2：**结算卡开着时遮罩上不画「再玩一次」，关掉之后补出来**。
+     *
+     * 用户：「游戏校验通过后展示定案和印章时，不展示再玩一次按钮」，紧接着
+     * 补一句「改为关闭弹窗后显示」，再补一句「从一开始就不要渲染，后面再渲染
+     * 出来」。所以这一局头一秒不画、卡开着时不画，`closeResult` 关掉卡之后才补。
      */
     it('关掉通过的结算卡：遮罩仍在，并补出「再玩一次」', () => {
       vi.useFakeTimers();

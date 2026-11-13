@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
+ * v0.10.2：两个字**竖着排**（定在上、案在下）—— 用户「'定案' 2字改为竖着排列，
+ * 印章靠右一点」。竖排之后这一块从「宽的两字」变成「窄的一列」，印就有了贴在
+ * 右侧的余地，不必再压在字心上：印整体往右推、往上让，落在字列的右下角。
+ * 卡片封面与地图遮罩共用这一个组件，所以两处一起竖。
+ *
  * v0.9.6：**定案 + 印章** —— 一局结案的那一张标记，三处共用：
  *
  * | 位置 | 表现 |
@@ -76,14 +81,19 @@ export function VerdictStamp({
 }
 
 /**
- * 「定案」两个字在上、印章在下**压住一点点字**（v0.9.7）—— 印章不是规规矩矩
- * 排在文字下面，而是往上偏一点，盖住「定案」下缘，像真盖上去的。
+ * 「定案」两个字**竖着**排成一列、印章贴在它右侧**压住一点点字**（v0.10.2）。
+ *
+ * v0.9.7 起这一段是「字在上、印在下」，印用负 `margin-top` 压住字的下缘。
+ * 用户 v0.10.2：「'定案' 2字改为竖着排列，印章靠右一点」—— 竖排之后字列只有
+ * 一个字宽，横向反而空出来了，印就顺势挪到字的右边（负 `margin-left` 压住字列
+ * 右缘），读起来是「一张竖写的条幅右下角盖了印」。
  *
  * 卡片封面与地图遮罩共用这一个组件、同一个排法（用户 v0.9.6：「位置也相同」）。
  * `large` 给地图遮罩用（棋盘比 291px 的卡大得多），但**比例与次序不变**。
  *
- * 做法：容器里文字与印各自居中，印用负 `margin-top` 上提；角度仍是 −14°。
- * 上提量按字号比例走（em），`large` 与卡片两处因此自动同比例叠压。
+ * 做法：容器排成一行，文字列（`writing-mode: vertical-rl`）与印各自居中，印用
+ * 负 `margin-left` 往字的右缘压过去；角度仍是 −14°。压过去的量按字号比例走（em），
+ * `large` 与卡片两处因此自动同比例叠压。
  *
  * v0.9.7（第六批）：字再放大一档、印上提更多 —— 用户「定案字体大小可以再大一些，
  * 印章使用原色压在字上。列表卡片封面也一样」。两处都走这个组件，所以一起生效。
@@ -94,6 +104,7 @@ export function VerdictMark({
   large = false,
   onDark = false,
   stampOffset,
+  shift,
   scale = 1,
   className,
 }: {
@@ -121,13 +132,33 @@ export function VerdictMark({
    * `translate` 与 `transform` 正交，两者叠加。
    */
   stampOffset?: { x: number; y: number };
+  /**
+   * v0.10.2：把**整块**（字 + 印）一起推移，如 `{ x: 40 }`（px）—— 用户
+   * 「排版整体再靠右一些」。与 `stampOffset` 分开：那个只挪印、字不动，
+   * 这个是字与印的相对位置不变、整体平移。
+   *
+   * 同样走 `translate` 属性：外层还有 `zoom`（内联 `style`），两者互不干扰；
+   * 而 `transform` 会被印的 `stamp-press` 关键帧那条占着。
+   */
+  shift?: { x: number; y?: number };
   className?: string;
 }): JSX.Element {
   return (
     <div
       data-testid="verdict-mark"
-      className={cn('relative flex flex-col items-center justify-center', className)}
-      style={scale === 1 ? undefined : { zoom: scale }}
+      /*
+       * v0.10.2：由「竖着摞两块」改成「横着排两块」—— 左边是一列竖写的字，
+       * 右边是印。`items-center` 让印在字列里纵向居中，横向靠负 margin 压过去。
+       */
+      className={cn('relative flex items-center justify-center', className)}
+      style={
+        scale === 1 && !shift
+          ? undefined
+          : {
+              ...(scale === 1 ? null : { zoom: scale }),
+              ...(shift ? { translate: `${shift.x}px ${shift.y ?? 0}px` } : null),
+            }
+      }
     >
       <span
         className={cn(
@@ -141,6 +172,17 @@ export function VerdictMark({
            * （页标题、名册、正文）不受影响。
            */
           'relative z-0 font-kai font-bold [font-synthesis-weight:auto] tracking-[0.25em]',
+          /*
+           * v0.10.2：**竖排**。用 `writing-mode` 而不是把字拆成两个 `<span>`：
+           * 拆开就得自己管两行之间的行距（`leading`），而这里要的恰好是
+           * `tracking-[0.25em]` 那点字距 —— 竖排之下它自动作用在「定」「案」
+           * 之间，一行代码就够，字数若变多也不会折错。
+           *
+           * `whitespace-nowrap` 是**必须**的：竖排的换行方向是「换到左边一列」，
+           * 字距一撑、盒子一矮，两个字就并排成两列了（实测正好如此：`定` 在右列、
+           * `案` 在左列）。禁掉换行，两个才老实上下叠。
+           */
+          '[writing-mode:vertical-rl] whitespace-nowrap',
           /*
            * v0.9.7：压在固定深色遮罩（bg-black/60）上的字必须**始终浅色**。
            * 不能单用 text-foreground（浅色主题下是墨色）或 text-background
@@ -170,12 +212,13 @@ export function VerdictMark({
         animate={animate}
         offset={stampOffset}
         /*
-         * `z-10` 压在字之上，`-mt-[0.55em]` 上提盖住字的下缘（v0.9.7 第六批
-         * 从 0.35em 加大 —— 要明显「压在字上」，不是贴在字下面）。没有配图时
+         * `z-10` 压在字之上，`-ml-[0.55em]` 往左压住字列的右缘（v0.9.7 第六批
+         * 定的是 0.35em → 0.55em；v0.10.2 字改成竖排之后，压的轴从「上提」换成
+         * 「左压」，量沿用同一个 em，两档字号仍然同比例叠压）。没有配图时
          * 这个元素不渲染，文字自己居中，不会留下一段空白。
          */
         className={cn(
-          'relative z-10 -mt-[0.55em] max-h-[52%] max-w-[52%]',
+          'relative z-10 -ml-[0.55em] max-h-[52%] max-w-[52%]',
           /* 给一个保底尺寸：没有它 `<img>` 会按原图像素渲染，长边图可能缩成一小块。 */
           large ? 'h-48 w-48' : 'h-24 w-24',
         )}

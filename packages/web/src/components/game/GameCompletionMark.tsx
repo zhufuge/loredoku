@@ -1,5 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
+
 import type { GameCompletion } from '@/lib/gameCompletion';
 import { formatElapsed } from '@/lib/gameTimer';
+import { verdictCardScale } from '@/lib/verdictMark';
 import { cn } from '@/lib/utils';
 import { VerdictMark } from '@/components/game/VerdictMark';
 
@@ -24,18 +27,64 @@ export function CompletionOverlay({
 }: {
   completion: GameCompletion;
 }): JSX.Element {
+  /*
+   * v0.10.2：卡片这一档也要按**封面尺寸**缩，而且缩得比游戏内那档狠。
+   *
+   * 卡片封面是 `aspect-square`，四列网格里只有 136px 见方；而 `text-7xl`（72px）
+   * 竖排的「定案」本身就有 192px 高 —— 整块比封面还高，字探出封面上沿、左边也
+   * 探出去（用户：「字和印大小自适应还不够，在卡片小的占据面积太大了」）。
+   *
+   * 所以这里自己量一次封面：`ref` 挂在按钮那一层（`absolute inset-0`，尺寸就是
+   * 封面的内容区），量到之后交给 `verdictCardScale` 算比例。量不到（首帧、jsdom）
+   * 时为 `null`，`verdictCardScale` 返 1，与老行为一致。
+   */
+  const coverRef = useRef<HTMLDivElement | null>(null);
+  const [coverBox, setCoverBox] = useState<{ width: number; height: number } | null>(null);
+
+  useEffect(() => {
+    const node = coverRef.current;
+    if (!node) return;
+    const measure = (): void => {
+      const rect = node.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      setCoverBox((previous) =>
+        previous && previous.width === rect.width && previous.height === rect.height
+          ? previous
+          : { width: rect.width, height: rect.height },
+      );
+    };
+    measure();
+    /* jsdom 里没有 ResizeObserver；没有它就只量首帧。 */
+    const observer = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    observer?.observe(node);
+    return () => observer?.disconnect();
+  }, []);
+
+  const scale = verdictCardScale(coverBox);
+
   return (
     <div
+      ref={coverRef}
       aria-hidden="true"
       data-testid="game-completion-cover"
       className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/55"
     >
       {/*
-        * v0.9.6：与地图遮罩**同一个组件、同一个排法**（定案在上、印在下、居中）。
+        * v0.9.6：与地图遮罩**同一个组件、同一个排法**。
         * 用户：「上面展示和谜题卡片一样的定案+印章（位置也相同）」—— 各画一遍
         * 迟早会在某一版里一横一竖。卡片上不播印章动效：列表里的印是既成事实。
+        *
+        * v0.10.2：字改竖排之后，印挪到字列右侧、并且往下压住「案」的右上角。
+        * 这一份偏移是游戏内那组（`x: 8, y: 40`）**按字号档位等比缩过来的**：
+        * 这里 `text-7xl`（72px）、遮罩上 `text-9xl`（128px），比例 0.5625
+        * —— 两处看到的是同一个构图，只是大小不同。
         */}
-      <VerdictMark stampUrl={completion.stampUrl} className="h-full w-full" />
+      <VerdictMark
+        stampUrl={completion.stampUrl}
+        stampOffset={{ x: 5, y: 22 }}
+        scale={scale}
+        className="h-full w-full"
+      />
     </div>
   );
 }
