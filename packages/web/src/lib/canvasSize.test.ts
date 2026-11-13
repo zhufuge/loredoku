@@ -25,12 +25,15 @@ import {
   portraitInsets,
   portraitStageHeight,
   renderedCellSize,
+  RENDER_MIN_CELL_SIZE,
   topAlignedPan,
 } from './canvasSize';
 
 describe('computeCellSize (OPT-A01 §1.1)', () => {
-  it('never leaves the 32–240px range', () => {
+  it('never leaves the 8–240px render range', () => {
+    // 作者能写进 `style.cellSize` 的下限仍是 32；渲染允许更小（v0.10.3）。
     expect(MIN_CELL_SIZE).toBe(32);
+    expect(RENDER_MIN_CELL_SIZE).toBe(8);
     expect(MAX_CELL_SIZE).toBe(240);
     expect(DEFAULT_CELL_SIZE).toBe(MIN_CELL_SIZE);
 
@@ -38,25 +41,30 @@ describe('computeCellSize (OPT-A01 §1.1)', () => {
     expect(
       computeCellSize({ availableWidth: 4000, availableHeight: 4000, gridSize: 2 }),
     ).toBe(MAX_CELL_SIZE);
-    // A 24×24 board in a small viewport — clamped to the minimum.
+    // A 24×24 board in a small viewport shrinks below the comfortable 32
+    // instead of overflowing: (600 - 23 * 2) / 24 = 23.08 → 23.
     expect(
       computeCellSize({ availableWidth: 600, availableHeight: 600, gridSize: 24 }),
-    ).toBe(MIN_CELL_SIZE);
+    ).toBe(23);
+    // Only a viewport too small for even that hits the render floor.
+    expect(
+      computeCellSize({ availableWidth: 100, availableHeight: 100, gridSize: 24 }),
+    ).toBe(RENDER_MIN_CELL_SIZE);
   });
 
   it('derives the ideal width from the tighter axis', () => {
     // Wide but short viewport: the height decides.
     const cell = computeCellSize({ availableWidth: 4000, availableHeight: 500, gridSize: 4 });
-    // (500 - 3 * 2) / 4 = 123.5 → 124
-    expect(cell).toBe(Math.round((500 - 3 * BORDER_WIDTH) / 4));
+    // (500 - 3 * 2) / 4 = 123.5 → 123（v0.10.3 起向下取整，宁少不溢）
+    expect(cell).toBe(Math.floor((500 - 3 * BORDER_WIDTH) / 4));
   });
 
   it('accounts for the shared Border between neighbours', () => {
     // Without the gap the ideal would be exactly 100; the two 2px borders
-    // shared by three neighbours push it to 98.5 → 99.
+    // shared by three neighbours push it to 98.5 → 98.
     const cell = computeCellSize({ availableWidth: 400, availableHeight: 400, gridSize: 4 });
-    expect(cell).toBe(Math.round((400 - 3 * BORDER_WIDTH) / 4));
-    expect(cell).toBe(99);
+    expect(cell).toBe(Math.floor((400 - 3 * BORDER_WIDTH) / 4));
+    expect(cell).toBe(98);
   });
 
   it('covers every grid size from 2 to 24 without leaving the range', () => {
@@ -66,9 +74,26 @@ describe('computeCellSize (OPT-A01 §1.1)', () => {
         availableHeight: 900,
         gridSize,
       });
-      expect(cell).toBeGreaterThanOrEqual(MIN_CELL_SIZE);
+      expect(cell).toBeGreaterThanOrEqual(RENDER_MIN_CELL_SIZE);
       expect(cell).toBeLessThanOrEqual(MAX_CELL_SIZE);
       expect(Number.isInteger(cell)).toBe(true);
+    }
+  });
+
+  it('v0.10.3: every grid size fits the viewport instead of overflowing', () => {
+    // 这正是下限从 32 放到 8 的原因：装得下才不会被 `overflow-hidden` 切掉。
+    for (const [width, height] of [
+      [1440, 900],
+      [1280, 800],
+      [1024, 768],
+    ] as const) {
+      const insets = canvasInsets({ showRulers: true, showBottomBar: false });
+      const box = availableBox({ width, height }, insets);
+      for (let gridSize = 2; gridSize <= 24; gridSize += 1) {
+        const cell = computeCellSizeForInsets({ width, height, gridSize, insets });
+        const board = gridSize * cell + (gridSize - 1) * BORDER_WIDTH;
+        expect(board).toBeLessThanOrEqual(Math.min(box.width, box.height));
+      }
     }
   });
 
@@ -89,13 +114,13 @@ describe('computeCellSize (OPT-A01 §1.1)', () => {
     }
   });
 
-  it('falls back to the minimum for degenerate input', () => {
+  it('falls back to the render floor for degenerate input', () => {
     expect(computeCellSize({ availableWidth: 900, availableHeight: 900, gridSize: 0 })).toBe(
-      MIN_CELL_SIZE,
+      RENDER_MIN_CELL_SIZE,
     );
     expect(
       computeCellSize({ availableWidth: Number.NaN, availableHeight: 900, gridSize: 6 }),
-    ).toBe(MIN_CELL_SIZE);
+    ).toBe(RENDER_MIN_CELL_SIZE);
   });
 
   it('honours custom bounds and gap', () => {
@@ -182,12 +207,11 @@ describe('computeCellSizeForInsets (§2.2)', () => {
     ).toBe(computeCellSize({ availableWidth: box.width, availableHeight: box.height, gridSize: 6 }));
   });
 
-  it('§2.3: the bottom reserve can push the cell down to the minimum', () => {
+  it('§2.3: a short viewport shrinks the cell instead of clipping the board', () => {
     const insets = canvasInsets({ showRulers: true, showBottomBar: true });
-    // 24 cells in a short viewport → clamped to the minimum, and the board scrolls.
-    expect(computeCellSizeForInsets({ width: 700, height: 600, gridSize: 24, insets })).toBe(
-      MIN_CELL_SIZE,
-    );
+    // 24 cells in a short viewport: 700×600 minus the bands → (600-68-112-23*2)/24 = 15.9
+    // → 15 (floor). v0.10.3 stops at 8 instead of 32 so the whole board stays visible.
+    expect(computeCellSizeForInsets({ width: 700, height: 600, gridSize: 24, insets })).toBe(15);
     // A roomy viewport still reaches the maximum.
     expect(computeCellSizeForInsets({ width: 3000, height: 3000, gridSize: 2, insets })).toBe(
       MAX_CELL_SIZE,
@@ -244,9 +268,10 @@ describe('竖屏按宽度铺满（v0.10.1）', () => {
     // 375 宽、左右各 40 的留白 ⇒ 可用 295；24 格、格间 2px。
     // (295 - 23 * 2) / 24 = 10.375 → 向下取整 10。
     expect(computeWidthFitCellSize({ width: 375, gridSize: 24, insets })).toBe(10);
-    // 同一宽度下「横着铺满」的老算法会因为高度不够而缩到 32 下限，两者不是一回事。
+    // 同一宽度下「横着铺满」的桌面算法还要看高度：200 高减掉上下留白后只剩
+    // 120，(120 - 46) / 24 = 3.08 → 触到渲染下限 8（v0.10.3 前是 32，会溢出）。
     expect(computeCellSizeForInsets({ width: 375, height: 200, gridSize: 24, insets })).toBe(
-      MIN_CELL_SIZE,
+      RENDER_MIN_CELL_SIZE,
     );
   });
 

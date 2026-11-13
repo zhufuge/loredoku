@@ -45,6 +45,8 @@ import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canva
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { rulerStripSize } from '@/lib/ruler';
+import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 
 /**
@@ -314,7 +316,7 @@ export function MapViewPage(): JSX.Element {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className={cn('flex h-screen flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
         <div className="flex min-w-0 items-center gap-3">
           <IconButton

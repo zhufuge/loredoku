@@ -50,6 +50,8 @@ import { canvasInsets, centeredPan, computeCellSizeForInsets } from '@/lib/canva
 import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
+import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 import { rulerStripSize } from '@/lib/ruler';
 import {
@@ -376,7 +378,7 @@ export function PuzzleViewPage(): JSX.Element {
   const viewed = detailQuery.data;
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className={cn('flex h-screen flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
         <div className="flex min-w-0 items-center gap-3">
           <IconButton

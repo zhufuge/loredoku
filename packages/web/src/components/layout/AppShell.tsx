@@ -5,6 +5,7 @@ import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { Button } from '@/components/ui/button';
+import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
 import { MODULE_ICONS } from '@/lib/moduleIcons';
 import { TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { workshopPath, type ModuleKey } from '@/lib/workspace';
@@ -51,7 +52,19 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
   const config = variant === 'config';
 
   return (
-    <div className="flex min-h-screen flex-col">
+    /*
+     * v0.10.3：工坊是桌面工具，窄屏不做重排，改为整页横向滚动。
+     *
+     * 评审实测（375 宽）：顶栏右侧那一簇（主题切换器 94 + 日夜 36 + 游戏 76
+     * + 两道 8px 间距）固定 222px，`ml-auto` 不给它收缩的余地，于是整份文档
+     * 被撑到 561px —— 多出来的 186px 落在一个**不可滚**的裁切区里。加一条
+     * 下限宽度之后，撑出去的部分至少能滚到。
+     *
+     * 为什么不是 `flex-wrap`：`nav` 已经是 `flex-wrap`，再让右边那簇也换行，
+     * 375 宽上顶栏会长成三四行、每行一两个字（实测 nav 62px 宽 × 356px 高，
+     * 六项各占 56px 高）。桌面工具在手机上「滚」比「碎成条」可读。
+     */
+    <div className={cn('flex min-h-screen flex-col', WORKSHOP_MIN_WIDTH_CLASS)}>
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
         {/* v0.7.8 §10：`h-14` 写死高度 + 导航 `flex-wrap` 是一对矛盾 —— 窄屏
             导航换到第二行时会被 56px 的框裁掉、压在正文上。改 `min-h-14`：

@@ -256,15 +256,20 @@ describe('linkage palette (FEAT-D04)', () => {
   });
 });
 
-describe('cell size override (FEAT-D03)', () => {
+describe('cell size override (FEAT-D03, v0.10.3 降级为上限)', () => {
   it('uses the adaptive value while the override is null', () => {
     const style = resolveMapStyle(undefined);
     expect(effectiveCellSize(123, style)).toBe(123);
   });
 
-  it('lets the override win, clamped to 90 ~ 240', () => {
+  it('v0.10.3: 作者值只压上限 —— 比自适应值大时仍按自适应值渲染', () => {
     const style = resolveMapStyle({ cellSize: 200 } as Partial<MapStyle>);
-    expect(effectiveCellSize(123, style)).toBe(200);
+    // 作者写的 200 装不下（自适应只算出 123），渲染取小的那个。
+    expect(effectiveCellSize(123, style)).toBe(123);
+    // 屏变大、自适应长到 300 时，作者那句「别超过 200」仍然有效。
+    expect(effectiveCellSize(300, style)).toBe(200);
+    // 自适应比作者值小时一律听自适应。
+    expect(effectiveCellSize(90, style)).toBe(90);
     expect(MAP_STYLE_CELL_SIZE_MIN).toBe(MIN_CELL_SIZE);
     expect(MAP_STYLE_CELL_SIZE_MAX).toBe(MAX_CELL_SIZE);
   });

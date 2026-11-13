@@ -4,9 +4,25 @@ import {
   CANVAS_PADDING,
   EXTRA_MARGIN,
   MAX_CELL_SIZE,
-  MIN_CELL_SIZE,
   RULER_SIZE,
 } from '@loredoku/shared';
+
+/**
+ * v0.10.3：渲染下限 —— 桌面与竖屏共用这一档。
+ *
+ * 原来是 32（`MIN_CELL_SIZE`，理由是「格子还点得准」）。可 24×24 的棋盘在
+ * 1280×800 的窗口里，可用高 692 减掉 23 条格间只剩 646，一格最多 26.9——
+ * 守 32 就必然溢出，而 `<main>` 是 `overflow-hidden`，多出来的那截**永远看不见**。
+ * 缩小还有救（缩放按钮随手能放大回来），切掉的一角没救，所以把下限放到 8。
+ *
+ * 8 而不是更小：24×24 在 1024×768 上算出来 22px、在 375 宽的竖屏上 12px，
+ * 都在这一档之上；真正触底只有窗口小到棋盘本就不该整张显示的时候。
+ *
+ * `MIN_CELL_SIZE`（32）留着 —— 它仍然是**作者能写进 `style.cellSize` 的下限**
+ * （`MAP_STYLE_CELL_SIZE_MIN`），只是不再管渲染。两者的分工：作者值表达意图，
+ * 渲染值保证看得全。
+ */
+export const RENDER_MIN_CELL_SIZE = 8;
 
 /**
  * OPT-A01 (docs/v0.3.5.md §1.1): the board fills the editor's available area.
@@ -15,13 +31,15 @@ import {
  * cellByW = (availableW - (gridSize-1) * borderGap) / gridSize
  * cellByH = (availableH - (gridSize-1) * borderGap) / gridSize
  * idealCell = min(cellByW, cellByH)
- * finalCell = clamp(idealCell, 32, 240)
+ * finalCell = clamp(idealCell, RENDER_MIN_CELL_SIZE, 240)
  * ```
  *
  * `borderGap` is the shared Border width between adjacent cells (2px) — see
- * OPT-A04. When the ideal cell would fall below the minimum the board
- * overflows and the editor scrolls (i.e. panning); when it would exceed the
- * maximum the board is centred with whitespace instead of stretching.
+ * OPT-A04. When the ideal cell would fall below the minimum the board is
+ * allowed to shrink below the "comfortable" 32px so the whole of it stays in
+ * the viewport (v0.10.3 — a clipped board is worse than a small one); when it
+ * would exceed the maximum the board is centred with whitespace instead of
+ * stretching.
  */
 export interface CellSizeInput {
   availableWidth: number;
@@ -39,7 +57,7 @@ export function computeCellSize(input: CellSizeInput): number {
     availableHeight,
     gridSize,
     gap = BORDER_WIDTH,
-    min = MIN_CELL_SIZE,
+    min = RENDER_MIN_CELL_SIZE,
     max = MAX_CELL_SIZE,
   } = input;
   if (!Number.isFinite(gridSize) || gridSize < 1) return min;
@@ -47,7 +65,12 @@ export function computeCellSize(input: CellSizeInput): number {
   const share = (available: number): number => (available - (gridSize - 1) * gap) / gridSize;
   const ideal = Math.min(share(availableWidth), share(availableHeight));
   if (!Number.isFinite(ideal)) return min;
-  return Math.round(Math.min(max, Math.max(min, ideal)));
+  /*
+   * v0.10.3：`Math.round` 改成 `Math.floor`。取舍和竖屏那条（`computeWidthFitCellSize`）
+   * 一样 —— 宁可每格少半像素，也不让棋盘比可用区域宽出一线：`<main>` 是
+   * `overflow-hidden`，多出来的那几像素不是「滚一下就能看到」，是永远看不到的。
+   */
+  return Math.floor(Math.min(max, Math.max(min, ideal)));
 }
 
 /**
@@ -148,10 +171,14 @@ export const PORTRAIT_BREAKPOINT = 768;
 /**
  * 竖屏下格子允许缩到多小。
  *
- * 桌面那套 32px 下限（`MIN_CELL_SIZE`）是为了「格子还点得准」；可 24×24 的
- * 棋盘在 375 宽的屏上按宽度铺满只有 12px 左右一格，还守 32 就必然溢出、必须
- * 平移 —— 而竖屏把放大 / 缩小 / 重置那一簇收掉了，玩家没有把棋盘挪回来的手段。
- * 两害相权，允许它缩到 8px：先保证整张图在屏幕里。
+ * 24×24 的棋盘在 375 宽的屏上按宽度铺满只有 12px 左右一格，守 32 就必然溢出、
+ * 必须平移 —— 而竖屏把放大 / 缩小 / 重置那一簇收掉了，玩家没有把棋盘挪回来的
+ * 手段。两害相权，允许它缩到 8px：先保证整张图在屏幕里。
+ *
+ * v0.10.3 起桌面也降到 8（`RENDER_MIN_CELL_SIZE`）—— 桌面虽然还有缩放按钮，
+ * 但 `<main>` 同样是 `overflow-hidden`，切掉的角一样找不回来。两个常量暂时同值，
+ * 仍分开留着：它们回答的是两个问题（「竖屏允许小到什么程度」和「任何地方渲染
+ * 允许小到什么程度」），将来若桌面要更保守只需改一处。
  */
 export const PORTRAIT_MIN_CELL_SIZE = 8;
 
@@ -223,7 +250,7 @@ export function isPortraitViewport(width: number, height: number): boolean {
  * 与 `computeCellSize` 的差别有三处，都是有意的：
  * 1. 只看宽度、完全忽略高度 —— 竖屏要的是「一屏看全宽」，宁可往下超一点，
  *    也不为了塞进高度把棋盘缩成一条缝；
- * 2. 下限是 `PORTRAIT_MIN_CELL_SIZE`（8）而不是 `MIN_CELL_SIZE`（32）；
+ * 2. 下限是 `PORTRAIT_MIN_CELL_SIZE`（8）而不是作者那套 32（`MIN_CELL_SIZE`）；
  * 3. 用 `Math.floor` 而不是 `Math.round` —— 宁可少半像素，也不让棋盘比可用
  *    宽度多出一线（多出来就得平移，而竖屏已经没有平移的按钮了）。
  */

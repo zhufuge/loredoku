@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { MapDraft, RegionStyle } from '@loredoku/shared';
-import { DEFAULT_MAP_STYLE, MAP_JSON_VERSION, MIN_CELL_SIZE } from '@loredoku/shared';
+import { DEFAULT_MAP_STYLE, MAP_JSON_VERSION } from '@loredoku/shared';
 import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();
@@ -320,15 +320,6 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     store().undo();
     // v0.5.2 SPEC-M07: the pre-change default is 12px now.
     expect(store().style.canvasFrame.width).toBe(12);
-  });
-
-  it('setCellSizeOverride stores an integer and null restores adaptivity', () => {
-    store().setCellSizeOverride(123.6);
-    expect(store().style.cellSize).toBe(124);
-    store().setCellSizeOverride(10);
-    expect(store().style.cellSize).toBe(MIN_CELL_SIZE);
-    store().setCellSizeOverride(null);
-    expect(store().style.cellSize).toBeNull();
   });
 
   it('v0.7.0: the map-level outline width no longer writes into regions', () => {

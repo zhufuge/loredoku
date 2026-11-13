@@ -75,7 +75,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
           open
           gridSize={6}
           themeCode="default"
-          autoCellSize={120}
           style={style}
           name="旧名字"
           description="旧描述"
@@ -174,36 +173,6 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     expect(onCommit).toHaveBeenCalledTimes(1);
     // `style` has not re-rendered yet, so this is what the deferred switch reads.
     expect(handle?.isDirty()).toBe(false);
-  });
-
-  it('FEAT-D03: 方格大小 is part of the draft', () => {
-    act(() => typeInto(input('map-info-cell-size'), '150'));
-    expect(handle?.isDirty()).toBe(true);
-    act(() => {
-      container.querySelector<HTMLButtonElement>('footer button:last-child')?.click();
-    });
-    expect((onCommit.mock.calls[0]![0] as MapStyle).cellSize).toBe(150);
-  });
-
-  it('FEAT-D03: 恢复自适应 clears the override and the form goes clean again', () => {
-    act(() => typeInto(input('map-info-cell-size'), '150'));
-    expect(handle?.isDirty()).toBe(true);
-    act(() => {
-      container.querySelector<HTMLButtonElement>('button[title^="恢复自适应"]')?.click();
-    });
-    // Back to the committed value → nothing left to save.
-    expect(handle?.isDirty()).toBe(false);
-    expect(
-      container.querySelector<HTMLButtonElement>('footer button:last-child')?.disabled,
-    ).toBe(true);
-  });
-
-  it('FEAT-D03: 方格大小 clamps to 90 ~ 240', () => {
-    act(() => typeInto(input('map-info-cell-size'), '500'));
-    act(() => {
-      container.querySelector<HTMLButtonElement>('footer button:last-child')?.click();
-    });
-    expect((onCommit.mock.calls[0]![0] as MapStyle).cellSize).toBe(240);
   });
 
   it('画布尺寸 belongs to the same draft (FIX-F01)', () => {

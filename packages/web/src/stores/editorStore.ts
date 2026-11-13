@@ -140,8 +140,6 @@ export interface EditorState {
    * the undo stack as a single step.
    */
   setMapStyle: (updater: (style: MapStyle) => MapStyle) => void;
-  /** FEAT-D03: `null` restores the adaptive cell size. */
-  setCellSizeOverride: (value: number | null) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
   resetView: () => void;
@@ -495,11 +493,6 @@ export const useEditorStore = create<EditorState>((set, get) => {
     setMapStyle: (updater) =>
       commit((next) => {
         next.style = resolveMapStyle(updater(next.style));
-      }),
-
-    setCellSizeOverride: (value) =>
-      commit((next) => {
-        next.style = resolveMapStyle({ ...next.style, cellSize: value });
       }),
 
     setZoom: (zoom) => set({ zoom }),

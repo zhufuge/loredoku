@@ -4,7 +4,6 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { toast } from 'sonner';
 import {
-  DEFAULT_CELL_SIZE,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   mapDraftSchema,
@@ -78,6 +77,8 @@ import type { Coord } from '@/lib/region';
 import { isConnected } from '@/lib/region';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
+import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 
 interface RegionDialogState {
@@ -201,8 +202,6 @@ export function MapEditorPage(): JSX.Element {
   const [infoOpen, setInfoOpen] = useState(false);
   /** v0.3.8 FEAT-D01: the 「地图基本信息」drawer. */
   const [mapInfoOpen, setMapInfoOpen] = useState(false);
-  /** FEAT-D03: the adaptive value the canvas last computed. */
-  const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
     open: false,
     cells: [],
@@ -898,7 +897,7 @@ export function MapEditorPage(): JSX.Element {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className={cn('flex h-screen flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
       <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
       <EditorToolbar
@@ -999,7 +998,6 @@ export function MapEditorPage(): JSX.Element {
               assetsById={assetsById}
               regions={editor.regions}
               style={editor.style}
-              onAutoCellSize={setAutoCellSize}
               selectedRegionId={editor.selectedRegionId}
               zoom={editor.zoom}
               pan={editor.pan}
@@ -1136,7 +1134,6 @@ export function MapEditorPage(): JSX.Element {
             open={mapInfoOpen}
             gridSize={editor.gridSize}
             themeCode={mapEntry.themeCode}
-            autoCellSize={autoCellSize}
             style={editor.style}
             name={entryInfo.name}
             description={entryInfo.description}

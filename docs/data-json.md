@@ -179,7 +179,7 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 
 | 键 | 字段 | 默认 |
 |---|---|---|
-| `cellSize` | `number \| null` | `null` = 自适应；显式值 32–240 |
+| `cellSize` | `number \| null` | `null` = 自适应；显式值 32–240。v0.10.3 起渲染只把它当**上限**（实际格子 = `min(此值, 按窗口算出的自适应值)`），也不再出现在编辑界面里 |
 | `canvasFrame` | `width` 1–12、`color` | `12` / `#000000` |
 | `gridSeparator` | `width` 1–12、`color` | `4` / `#000000` |
 | `mouseCursorBox` | `width` 1–12、`color`、`blockedColor`、`shadowColor` | `8` / `#FFFFFF` / `#EF9A9A` / `rgba(0,0,0,0.15)` |

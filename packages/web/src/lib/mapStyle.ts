@@ -364,11 +364,24 @@ export function countLinkageColorUsage(
 }
 
 /**
- * FEAT-D03: the effective cell width at 100% zoom. An explicit `cellSize`
- * override wins; otherwise the adaptive pass's value is used as-is.
+ * The effective cell width at 100% zoom。
+ *
+ * FEAT-D03 起，作者可以在「地图基本信息」里写死一个 `cellSize`。v0.10.3 把它从
+ * **定值**降级成**上限**：渲染永远不超过视口算出来的那个数。
+ *
+ * 为什么必须降级：`fit()` 先按 `<main>` 的宽高算出一个刚好的格子，旧写法又把这个
+ * 结果整个换成作者写的值 —— 26 关里有 23 关的作者值比视口装得下的大，于是棋盘从
+ * 上下两头被 `overflow-hidden` 切掉（`<main>` 不可滚，也没有任何提示）。棋盘是玩
+ * 这件东西的唯一界面，宁可格子比作者写的略小，也不能缺一角。
+ *
+ * 为什么只压上限、不干脆忽略：存量里 78 张图带着 36 ~ 168 的值，那是作者当时
+ * 「别铺得太大」的意思。屏幕变大时允许它跟着长到 240（`MAX_CELL_SIZE`），但不
+ * 越过作者写的数。界面上这枚输入已经撤掉，新图一律自适应。
  */
 export function effectiveCellSize(autoCellSize: number, style: MapStyle): number {
-  return style.cellSize ?? autoCellSize;
+  const authored = style.cellSize;
+  if (typeof authored !== 'number' || !Number.isFinite(authored)) return autoCellSize;
+  return Math.min(authored, autoCellSize);
 }
 
 /** The scaled line width for one style field, used by every drawing layer. */

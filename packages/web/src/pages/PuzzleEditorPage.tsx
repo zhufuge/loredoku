@@ -5,7 +5,6 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { toast } from 'sonner';
 import {
-  DEFAULT_CELL_SIZE,
   prunePuzzleReferences,
   puzzleDraftSchema,
   validatePuzzleReferences,
@@ -81,6 +80,8 @@ import { versionKeys } from '@/hooks/useVersions';
 import { versionsApi } from '@/api/versions';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
+import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
@@ -209,7 +210,6 @@ export function PuzzleEditorPage(): JSX.Element {
   /** Slot → slot reorder preview (CLAR-603: never drops onto the canvas). */
   const [slotDrag, setSlotDrag] = useState<number | null>(null);
   const [pendingImport, setPendingImport] = useState<PuzzleDraft | null>(null);
-  const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const [rulerVisible, setRulerVisible] = useState<boolean>(readStoredRulerVisible);
   /**
    * FEAT-E01: a drawer switch (or a close) waiting for the user to decide what
@@ -839,7 +839,7 @@ export function PuzzleEditorPage(): JSX.Element {
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
+    <div className={cn('flex h-screen flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
       <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
       <EditorToolbar
@@ -956,7 +956,6 @@ export function PuzzleEditorPage(): JSX.Element {
             assetsById={assetsById}
             regions={regions}
             style={style}
-            onAutoCellSize={setAutoCellSize}
             selectedRegionId={
               puzzle.selection?.type === 'region' ? puzzle.selection.regionId : null
             }

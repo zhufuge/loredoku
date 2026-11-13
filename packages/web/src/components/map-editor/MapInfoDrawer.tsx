@@ -6,12 +6,10 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { RotateCcw, X } from 'lucide-react';
+import { X } from 'lucide-react';
 import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
-  MAP_STYLE_CELL_SIZE_MAX,
-  MAP_STYLE_CELL_SIZE_MIN,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_LINE_WIDTH_MAX,
@@ -40,7 +38,6 @@ import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
 import { ThemeStyleRow } from '@/components/map-editor/ThemeStyleRow';
 import {
   clampCanvasShadowOffset,
-  clampCellSize,
   clampItemOutlineWidth,
   clampLineWidth,
   clampOperationOffset,
@@ -85,8 +82,6 @@ interface MapInfoDrawerProps {
    */
   /** v0.8.0 §19：这张图所属主题的**编码**（`MapEntry.themeCode`）。 */
   themeCode: string;
-  /** The value the adaptive pass currently computes (FEAT-D03 default). */
-  autoCellSize: number;
   /** The committed style — the drawer edits a copy of it. */
   style: MapStyle;
   /** Committed (or already-applied-but-unsaved) map name. */
@@ -167,7 +162,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       open,
       gridSize,
       themeCode,
-      autoCellSize,
       style,
       name,
       description,
@@ -282,13 +276,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       });
     };
 
-    const cellSizeValue = draft.cellSize ?? autoCellSize;
-    const cellSizeHint = `方格边长（px），可指定 ${MAP_STYLE_CELL_SIZE_MIN} ~ ${MAP_STYLE_CELL_SIZE_MAX}，未指定时按窗口自适应。${
-      draft.cellSize === null
-        ? `当前为自适应（本次计算值 ${autoCellSize}px），窗口尺寸变化会重新计算。`
-        : '当前已手动指定，窗口尺寸变化不再改变方格大小。'
-    }`;
-
     /**
      * v0.7.4 (docs/v0.7.4.md §4): 面板**占据**编辑区右侧一块空间，关掉时不渲染
      * 任何东西（不再留一条 `translate-x-full` 的浮层）。关掉不丢东西：草稿本来
@@ -392,35 +379,6 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                   )
                 }
               />
-            </Row>
-            <Row label="方格大小" hint={cellSizeHint}>
-              <div className="flex items-center gap-1">
-                <NumberField
-                  id="map-info-cell-size"
-                  value={cellSizeValue}
-                  min={MAP_STYLE_CELL_SIZE_MIN}
-                  max={MAP_STYLE_CELL_SIZE_MAX}
-                  suffix="px"
-                  commit={(value) =>
-                    patch((current) => ({ ...current, cellSize: clampCellSize(value) }))
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7"
-                  title={
-                    draft.cellSize === null
-                      ? '当前已是自适应'
-                      : `恢复自适应（当前自适应值 ${autoCellSize}px）`
-                  }
-                  disabled={draft.cellSize === null}
-                  onClick={() => patch((current) => ({ ...current, cellSize: null }))}
-                >
-                  <RotateCcw className="h-3.5 w-3.5" />
-                </Button>
-              </div>
             </Row>
           </Section>
 
