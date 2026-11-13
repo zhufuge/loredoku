@@ -17,13 +17,16 @@ import { cn } from '@/lib/utils';
  *
  * v0.10.4：从 `GamePage` 搬到自己的文件 —— 四处的尺寸 / 层级仍由调用方给，
  * 这里只管「一般遮罩颜色 + 一处 aria 标记」。
+ *
+ * v0.10.5：竖屏（`display: contents` 的左栏没有盒子）额外多一处整屏遮罩
+ * `area="portrait"`。它和上面四处不并存：竖屏只画这一处，桌面 / 横屏只画那四处。
  */
 export function CheckScrim({
   area,
   className,
   style,
 }: {
-  area: 'left' | 'right' | 'canvas' | 'center';
+  area: 'left' | 'right' | 'canvas' | 'center' | 'portrait';
   className?: string;
   style?: CSSProperties;
 }): JSX.Element {

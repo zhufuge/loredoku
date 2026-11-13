@@ -1214,7 +1214,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           {checking ? (
             <CheckScrim
               area="center"
-              className="pointer-events-none absolute inset-0"
+              /*
+               * v0.10.5 竖屏：整屏那层遮罩已经把留白一起压暗了，这里再留一层会同档
+               * 同色叠成两层黑。`portrait:max-md:hidden` 与 `isPortraitViewport` 同口径
+               * （宽 < 768 且竖着拿），横屏手机 / 桌面照旧保留这一层。
+               */
+              className="pointer-events-none absolute inset-0 portrait:max-md:hidden"
               style={{ zIndex: UI_Z.saveMask }}
             />
           ) : null}
@@ -1355,6 +1360,26 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           onToggleRulers={() => setShowRulers((current) => !current)}
         />
       </div>
+
+      {/*
+        v0.10.5 竖屏：校验期间一层整屏遮罩，盖住头部 / 题面 / 名册 / 工具栏。
+        左栏在竖屏是 `display: contents`（没有盒子），原来那层 `absolute` 的
+        left 遮罩显式 `max-md:hidden`，竖屏彻底没遮罩；而题面名册那一块又是
+        `overflow-y-auto` 的滚动容器，`absolute inset-0` 的子层会随内容滚走。
+        用 `fixed inset-0` 相对视口、挂在最外层（不进任何滚动容器）一次盖全，
+        两层同档的 center / right 遮罩则用 `portrait:max-md:hidden` 撤掉，避免叠黑。
+
+        `zIndex = saveMask(40)`：画布纸在校验时抬到 `saveMask+1(41)`，所以棋盘
+        照常明亮，压暗的只有纸以外的部分。`pointer-events-auto` 接住点击，
+        校验期间名册卡 / 工具按钮都点不动。
+      */}
+      {portraitFit && checking ? (
+        <CheckScrim
+          area="portrait"
+          className="fixed inset-0"
+          style={{ zIndex: UI_Z.saveMask }}
+        />
+      ) : null}
 
       {/* v0.10.4：两个弹框各一份，触发条件仍在上面那些状态里。 */}
       <GameDescriptionDialog

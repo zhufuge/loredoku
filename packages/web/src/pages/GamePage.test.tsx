@@ -1767,6 +1767,53 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(container.querySelector('[data-testid="game-brief-description"]')).not.toBeNull();
       expect(descriptionOpener()).toBeUndefined();
     });
+
+    /**
+     * v0.10.5：竖屏下左栏是 `display: contents`（没有盒子），那层 `absolute` 的
+     * left 遮罩被 `max-md:hidden` 收掉；题面 / 名册又落在一个 `overflow-y-auto`
+     * 的滚动容器里，给它们挂 `absolute inset-0` 会随内容滚走。改成一层
+     * `fixed inset-0` 的整屏遮罩，挂在最外层、相对视口，校验期间一次盖住
+     * 头部 / 题面 / 名册 / 工具栏。
+     */
+    it('竖屏提交校验时，整屏遮罩盖住题面与名册，结算后撤掉', () => {
+      vi.useFakeTimers();
+      try {
+        pretendPortrait();
+        seedSave({
+          board: {
+            '0,0': { kind: 'participant', index: 1 },
+            '1,1': { kind: 'participant', index: 2 },
+            '2,2': { kind: 'participant', index: 3 },
+          },
+        });
+        render();
+        settlePortrait();
+
+        act(() =>
+          container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click(),
+        );
+
+        const portrait = container.querySelector<HTMLElement>('[data-scrim-area="portrait"]');
+        expect(portrait).not.toBeNull();
+        expect(portrait?.className).toContain('fixed inset-0');
+        expect(portrait?.className).toContain(DIALOG_OVERLAY_TINT_CLASS);
+        expect(Number(portrait?.style.zIndex)).toBe(UI_Z.saveMask);
+        // 竖屏里 center / right 两层同档遮罩要撤掉，否则整屏那层会叠成两层黑。
+        expect(
+          container.querySelector<HTMLElement>('[data-scrim-area="center"]')?.className,
+        ).toContain('portrait:max-md:hidden');
+        expect(
+          container.querySelector<HTMLElement>('[data-scrim-area="right"]')?.className,
+        ).toContain('portrait:max-md:hidden');
+
+        // 结算卡出现后遮罩一起撤掉，不能和弹窗自己的 overlay 叠成两层黑。
+        for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
+        act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
+        expect(container.querySelector('[data-scrim-area="portrait"]')).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
 });

@@ -86,11 +86,14 @@ export function GameToolRail({
     >
       {/* v0.9.4：右栏自己一层完整遮罩 —— 与左栏同一层颜色、同一档层级。
           `-left-px` 越过右栏自己的左边框，把「中列 / 右栏」那条分隔线也压暗
-          （理由同左栏，见 `GamePlayerAside` 里的注释）。 */}
+          （理由同左栏，见 `GamePlayerAside` 里的注释）。
+
+          v0.10.5 竖屏：整屏那层遮罩已经盖住这一栏，同档同色再留一层会叠成
+          两层黑，所以只在非竖屏时画它（桌面 / 横屏手机照旧）。 */}
       {checking ? (
         <CheckScrim
           area="right"
-          className="absolute inset-y-0 -left-px right-0"
+          className="absolute inset-y-0 -left-px right-0 portrait:max-md:hidden"
           style={{ zIndex: UI_Z.saveMask }}
         />
       ) : null}
