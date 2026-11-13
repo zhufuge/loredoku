@@ -33,6 +33,7 @@ import {
   useDeletePuzzle,
   useDeletePuzzleVersion,
   useDuplicatePuzzle,
+  usePuzzleVersions,
   usePuzzles,
 } from '@/hooks/usePuzzles';
 import { useStoredView, type ViewMode } from '@/hooks/useStoredView';
@@ -144,6 +145,23 @@ export function PuzzlesPage(): JSX.Element {
     for (const game of gamesQuery.data ?? []) map.set(game.puzzleId, game);
     return map;
   }, [gamesQuery.data]);
+
+  /**
+   * 部署一条**新版本**时：同一谜题（同一个 rootId）的别的版本若已部署过，把它
+   * 的难度与顺序当作默认值带进弹窗。这里另取整条血统 —— 列表页的 `versions`
+   * 只是当前页 12 条，兄弟版本常在别的页上。
+   */
+  const bloodlineQuery = usePuzzleVersions(deployTarget?.id ?? null);
+  const siblingGame = useMemo<MapGameSummary | null>(() => {
+    if (!deployTarget) return null;
+    for (const entry of bloodlineQuery.data ?? []) {
+      if (entry.id === deployTarget.id) continue;
+      if (entry.rootId !== deployTarget.rootId) continue;
+      const game = gameByPuzzle.get(entry.id);
+      if (game) return game;
+    }
+    return null;
+  }, [deployTarget, bloodlineQuery.data, gameByPuzzle]);
 
   const isVersionEntry = (entry: PuzzleEntrySummary): boolean => entry.kind === 'version';
 
@@ -403,6 +421,7 @@ export function PuzzlesPage(): JSX.Element {
       <GameDeployDialog
         puzzle={deployTarget}
         existingGame={deployTarget ? gameByPuzzle.get(deployTarget.id) ?? null : null}
+        siblingGame={siblingGame}
         open={deployTarget !== null}
         onOpenChange={(open) => {
           if (!open) setDeployTarget(null);

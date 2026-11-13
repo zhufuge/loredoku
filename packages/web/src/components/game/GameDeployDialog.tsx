@@ -67,6 +67,7 @@ export function GameDeployDialog({
   versions = null,
   resolveExistingGame,
   existingGame,
+  siblingGame = null,
   open,
   onOpenChange,
 }: {
@@ -89,6 +90,17 @@ export function GameDeployDialog({
   resolveExistingGame?: (puzzle: PuzzleEntrySummary) => MapGameSummary | null;
   /** OPT-W03: the puzzle's current game, used to prefill the re-deploy. */
   existingGame?: MapGameSummary | null;
+  /**
+   * 同一谜题的**别的版本**已经部署过时，那条部署 —— 只用来兜难度与顺序。
+   *
+   * 部署一个谜题的新版本时，这一行还没有自己的部署（`existingGame` 为空），
+   * 于是难度回到缺省档、顺序回到 0 —— 作者每发一版都要重设一遍，列表里的先后
+   * 也跟着散掉。兄弟版本的部署顶上来，这两项就还是原来那关的值。
+   *
+   * 只借难度与顺序：封面、访问路径、中段反解都属于「这一版自己的内容」，沿用
+   * 旧版本的只会在新版本上留下一张过期的图和一条抢来的地址。
+   */
+  siblingGame?: MapGameSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
@@ -170,6 +182,13 @@ export function GameDeployDialog({
     return list;
   }, [tiers, difficulty]);
 
+  /**
+   * 作者还没动过难度 / 顺序。血统清单是异步来的，晚到时只补这两项，且不覆盖
+   * 作者已经改过的值 —— 见下面那支补填 effect。
+   */
+  const difficultyTouchedRef = useRef(false);
+  const weightTouchedRef = useRef(false);
+
   // Every open starts from the puzzle's own defaults, or from the game's stored
   // values when this version row was deployed before (OPT-W03).
   useEffect(() => {
@@ -181,6 +200,8 @@ export function GameDeployDialog({
     // v0.8.3：重新部署时回填那条部署自己的顺序 —— 否则每次再部署都会把它悄悄
     // 归 0，作者排好的先后在「改个封面」之后就散了。
     setSortWeight(String(activeExisting?.sortWeight ?? GAME_SORT_WEIGHT_DEFAULT));
+    difficultyTouchedRef.current = false;
+    weightTouchedRef.current = false;
     setCover(null);
     setCoverRemoved(false);
     if (activeExisting) {
@@ -199,6 +220,19 @@ export function GameDeployDialog({
       setMiddleTouched(false);
     }
   }, [open, activePuzzle, activeExisting, tiers]);
+
+  /**
+   * 兄弟版本的部署按血统异步查来的，可能**晚到**。它到场时只补难度与顺序，
+   * 不重跑上面那支整表回填 —— 否则作者刚打的名称与路径会被冲掉。上面那支
+   * effect 声明在前、先跑完，这支紧跟其后，同步可用的场景也在同一次提交里盖好。
+   *
+   * 已经手动改过的项不覆盖：默认值只是「默认」，作者一动手就以他为准。
+   */
+  useEffect(() => {
+    if (!open || !activePuzzle || activeExisting || !siblingGame) return;
+    if (!difficultyTouchedRef.current) setDifficulty(siblingGame.difficulty);
+    if (!weightTouchedRef.current) setSortWeight(String(siblingGame.sortWeight));
+  }, [open, activePuzzle, activeExisting, siblingGame]);
 
   /** 关掉弹窗时把冲突与已选版本都收掉 —— 下次打开不该还停在「要覆盖吗」。 */
   useEffect(() => {
@@ -604,7 +638,10 @@ export function GameDeployDialog({
                     key={tier.level}
                     type="button"
                     aria-pressed={difficulty === tier.level}
-                    onClick={() => setDifficulty(tier.level)}
+                    onClick={() => {
+                      difficultyTouchedRef.current = true;
+                      setDifficulty(tier.level);
+                    }}
                     className={cn(
                       // FEAT-O01: tint + dark label (was `text-white`).
                       'rounded-full px-3 py-1 text-xs font-medium transition-opacity',
@@ -650,7 +687,10 @@ export function GameDeployDialog({
                 aria-describedby="game-deploy-sort-hint"
                 aria-invalid={weightProblem !== null}
                 className={cn('h-10 w-24 tabular-nums', weightProblem && 'border-destructive')}
-                onChange={(event) => setSortWeight(event.target.value)}
+                onChange={(event) => {
+                  weightTouchedRef.current = true;
+                  setSortWeight(event.target.value);
+                }}
               />
               <p
                 id="game-deploy-sort-hint"

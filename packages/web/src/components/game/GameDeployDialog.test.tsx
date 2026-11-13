@@ -77,12 +77,14 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
   function render(props: {
     puzzle: PuzzleEntrySummary | null;
     existingGame?: MapGameSummary | null;
+    siblingGame?: MapGameSummary | null;
   }): void {
     act(() => {
       root.render(
         <GameDeployDialog
           puzzle={props.puzzle}
           existingGame={props.existingGame ?? null}
+          siblingGame={props.siblingGame ?? null}
           open
           onOpenChange={() => {}}
         />,
@@ -245,6 +247,63 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
   it('第一次部署时顺序默认 0', () => {
     render({ puzzle: puzzle() });
     expect(sortInput().value).toBe('0');
+  });
+
+  /**
+   * v0.10.5：部署同一谜题的**新版本**时，兄弟版本的部署把难度与顺序顶上来。
+   * 这两项是「这一关」的属性，不是「这一版」的 —— 改题面不该让作者重排一遍列表。
+   */
+  it('新版本部署：默认填兄弟版本的难度与顺序', () => {
+    render({
+      puzzle: puzzle(),
+      siblingGame: existingGame({ difficulty: 5, sortWeight: -7 }),
+    });
+    expect(sortInput().value).toBe('-7');
+    const pressed = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('button[aria-pressed="true"]'),
+    ).map((node) => node.textContent?.trim());
+    expect(pressed).toContain('专家');
+  });
+
+  it('本版本已部署时，兄弟版本不抢它的难度与顺序', () => {
+    render({
+      puzzle: puzzle(),
+      existingGame: existingGame({ difficulty: 2, sortWeight: 4 }),
+      siblingGame: existingGame({ difficulty: 5, sortWeight: -7 }),
+    });
+    expect(sortInput().value).toBe('4');
+  });
+
+  it('兄弟版本不把封面与访问路径带过来（那是这一版自己的内容）', () => {
+    render({
+      puzzle: puzzle(),
+      siblingGame: existingGame({ coverUrl: 'https://cdn.test/game.webp' }),
+    });
+    expect(
+      document.querySelector<HTMLImageElement>('img[alt="当前封面"]'),
+    ).toBeNull();
+    expect(text()).not.toContain('原访问路径');
+    expect(middleInput().value).toBe('midnight-garden');
+  });
+
+  /** 血统清单是异步的：它晚到时作者可能已经自己选过难度 / 打过顺序。 */
+  it('兄弟版本晚到也不覆盖作者已经改过的难度与顺序', () => {
+    // 页面里 deployTarget 是同一个对象引用，只有 siblingGame 是后到的 —— 测试也
+    // 必须复用同一个 puzzle，否则整表回填 effect 会重跑，把 touched 标记清掉。
+    const target = puzzle();
+    render({ puzzle: target });
+    clickButton('困难');
+    setSort('12');
+    // 血统请求这时才回来
+    render({
+      puzzle: target,
+      siblingGame: existingGame({ difficulty: 5, sortWeight: -7 }),
+    });
+    expect(sortInput().value).toBe('12');
+    const pressed = Array.from(
+      document.querySelectorAll<HTMLButtonElement>('button[aria-pressed="true"]'),
+    ).map((node) => node.textContent?.trim());
+    expect(pressed).toContain('困难');
   });
 
   it('清空顺序 = 这次不提（不把 0 发出去）', () => {
