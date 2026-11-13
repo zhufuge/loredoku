@@ -162,6 +162,22 @@ const DRAG_HOVER_LOCK = true;
 const COMPACT_AVATAR_SIZE = 56;
 
 /**
+ * v0.10.5：竖屏横卡的横向内边距（网格那串类里的 `px-1.5`）。
+ *
+ * 单独提出来是因为「头像圆心在哪」要拿它算：主题色那层是从头像圆心长出来的，
+ * 圆心横坐标 = 这个内边距 + 头像半径 + 下面那个右移量。类名里的 `px-1.5` 与
+ * 这个常量必须同步改，否则扩散起点会慢慢偏到头像外面去。
+ */
+const COMPACT_CARD_PADDING_X = 6;
+
+/**
+ * v0.10.5：竖屏横卡里头像相对网格第一列的右移量（见头像那段的 `translateX`）。
+ *
+ * 同样只为「算出头像圆心」而存在 —— 它是纯视觉位移，不参与网格布局。
+ */
+const COMPACT_AVATAR_OFFSET_X = 6;
+
+/**
  * v0.10.1：竖屏横卡的最小高度。
  *
  * 卡片高度原本由右边那两行字撑（名称 20 + 线索最多 60），头像只是居中摆着，
@@ -646,8 +662,15 @@ export function ParticipantPanel({
                     v0.7.14：卡片里那层「主题色的淡透明色」。它是一层**底色**，
                     不是盖在卡片上的一层膜 —— `.participant-tint` 用 `z-index: -1`
                     躲在所有兄弟下面（卡片根节点有 `isolate` 兜住这个负层级）。
-                    半径从头像圆心长出来（`--tint-y` 由组件按头像实际中心算），
-                    铺满整张卡时是均一的一层（`.participant-tint` 的注释里有算式）。
+                    半径从头像圆心长出来（`--tint-x` / `--tint-y` 由组件按头像
+                    实际中心算），铺满整张卡时是均一的一层（`.participant-tint`
+                    的注释里有算式）。
+
+                    v0.10.5：竖屏横卡里头像**不在横向中间**，它贴着左边。原先只有
+                    `--tint-y` 一个量、横坐标写死在 `50%`，扩散就从卡片中线那块
+                    文字区冒出来 —— 现在把横坐标也交出来：竖屏给头像圆心的实际
+                    横坐标（内边距 + 半径 + 右移量），纵向仍是 `50%`（卡片高度
+                    随线索行数变，`content-center` 让头像始终落在中线）。
                   */}
                   {slot ? (
                     <span
@@ -657,7 +680,12 @@ export function ParticipantPanel({
                       style={
                         {
                           '--tint-color': themeTint(themeColor, isWhiteTheme),
-                          '--tint-y': `${AVATAR_PADDING + avatarSize / 2}px`,
+                          '--tint-x': compactPortrait
+                            ? `${COMPACT_CARD_PADDING_X + COMPACT_AVATAR_SIZE / 2 + COMPACT_AVATAR_OFFSET_X}px`
+                            : '50%',
+                          '--tint-y': compactPortrait
+                            ? '50%'
+                            : `${AVATAR_PADDING + avatarSize / 2}px`,
                         } as CSSProperties
                       }
                     />
@@ -724,8 +752,15 @@ export function ParticipantPanel({
                             再往右挪 6px 用 `translateX` 而不是 `padding`：网格的
                             第一列是 `auto` 宽，加内边距会把列撑宽、把右边那列
                             挤窄，线索于是多折一行、卡片又长回去。
+
+                            v0.10.5：这个右移量提成 `COMPACT_AVATAR_OFFSET_X`，
+                            因为主题色那层的扩散起点要拿它和半径、内边距一起算
+                            头像圆心 —— 两处必须同一个数。
                           */
-                          { padding: 0, transform: 'translateX(6px)' }
+                          {
+                            padding: 0,
+                            transform: `translateX(${COMPACT_AVATAR_OFFSET_X}px)`,
+                          }
                         : { height: PANEL_CELL_HEIGHT, padding: AVATAR_PADDING }
                     }
                   >

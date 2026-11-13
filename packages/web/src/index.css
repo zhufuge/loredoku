@@ -1233,6 +1233,12 @@
    * 角约 151px，渐变在 55% 处仍是实色（176px），所以铺到最后整张卡是均一的一层，
    * 不会在右下角留一个没染到的淡角。
    *
+   * **圆心的横坐标也由组件给**（`--tint-x`，v0.10.5）：桌面竖卡里头像横向居中，
+   * 写 `50%` 正好；竖屏横卡 (v0.10.1) 的头像贴着左边、右边是名称与线索，还从
+   * `50%` 起跳的话这层色会从文字区冒出来，不再读作「属于这枚头像」。竖屏下组件
+   * 传头像圆心的实际横坐标，纵向传 `50%`（卡片高度随线索行数变）。默认值仍是
+   * 桌面那套，别处单独用 `.participant-tint` 时不会突然跑偏。
+   *
    * 为什么是「半径变大」而不是「整层淡入」或「整层 scale」：
    *   - 淡入是「颜色本来就在，只是刚才透明的」，读成闪烁；
    *   - 「整层 scale」会把渐变的软边一起放大，中途扫出一圈生硬的边（纸背光踩过）；
@@ -1262,7 +1268,7 @@
     border-radius: inherit;
     pointer-events: none;
     background-image: radial-gradient(
-      circle calc(var(--tint-r) * 1px) at 50% var(--tint-y, 55px),
+      circle calc(var(--tint-r) * 1px) at var(--tint-x, 50%) var(--tint-y, 55px),
       var(--tint-color) 0%,
       var(--tint-color) 55%,
       transparent 100%
