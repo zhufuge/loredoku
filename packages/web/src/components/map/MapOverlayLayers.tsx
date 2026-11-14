@@ -217,7 +217,10 @@ export function MapRegionLabelLayer({
             }
             onMouseEnter={() => onHover?.(region.id)}
             onMouseLeave={() => onHover?.(null)}
-            onClick={() => onSelect?.(region.id)}
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelect?.(region.id);
+            }}
             title={region.name}
           >
             {region.name}
