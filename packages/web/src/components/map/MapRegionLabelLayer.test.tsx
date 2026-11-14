@@ -91,6 +91,100 @@ describe('区域标签位置偏移（v0.9.6）', () => {
     render([region({ style: { label: { offset: { y: 10 } } } })]);
     expect(labelBox()).toEqual({ left: 60, top: 128 });
   });
+
+  it('底部行两格：标签落在两格接缝上，不再右偏半格（v0.10.7）', () => {
+    /*
+     * 17155 的「穿廊」：底部行是 [3,4] 与 [4,4]，`labelCell` 被算成 [4,4]。
+     * 按「锚点格的格心」是 `(4 + 0.5) × 40 = 180`，但这一行跨 x 120–200，
+     * 真正的中点是 160 —— 这里钉的就是后者。
+     */
+    render([
+      region({
+        cells: [
+          [3, 4],
+          [4, 4],
+        ],
+        labelCell: [4, 4],
+      }),
+    ]);
+    expect(labelBox()).toEqual({ left: 160, top: 198 });
+  });
+
+  it('底部行三格：中点仍是原来那个「中间格 + 半格」（v0.10.7 不改奇数行）', () => {
+    render([
+      region({
+        cells: [
+          [0, 4],
+          [1, 4],
+          [2, 4],
+        ],
+        labelCell: [1, 4],
+      }),
+    ]);
+    expect(labelBox()?.left).toBe(60);
+  });
+});
+
+describe('区域标签吃掉按下（v0.10.7）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  function render(props: { onSelect?: (id: string) => void }): void {
+    act(() => {
+      root.render(
+        <MapRegionLabelLayer
+          regions={[region()]}
+          cellSize={CELL}
+          style={DEFAULT_MAP_STYLE}
+          onSelect={props.onSelect}
+        />,
+      );
+    });
+  }
+
+  /**
+   * 从标签发起一次 `pointerdown`，看它有没有冒泡到 React 根之外。
+   *
+   * 监听必须挂在 `document.body` 上，不能挂在这个测试自己的根容器上 ——
+   * React 把合成事件的监听器也挂在根容器那一层，同一节点上的原生监听器照样
+   * 会触发（`stopPropagation()` 只截断后续节点）。真正代表「画布容器收到没有」
+   * 的是「有没有继续往外冒」。
+   */
+  function pointerDownBubbled(): boolean {
+    let bubbled = false;
+    const stop = (): void => {
+      bubbled = true;
+    };
+    document.body.addEventListener('pointerdown', stop);
+    act(() => {
+      document
+        .querySelector<HTMLElement>('.region-label')
+        ?.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true, button: 0 }));
+    });
+    document.body.removeEventListener('pointerdown', stop);
+    return bubbled;
+  }
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('地图编辑（传了 onSelect）里按下被拦下，不会连底板一起选中', () => {
+    render({ onSelect: () => {} });
+    expect(pointerDownBubbled()).toBe(false);
+  });
+
+  it('游戏页 / 谜题预览（没传 onSelect）里按下照常冒泡，仍按底下那一格落点', () => {
+    render({});
+    expect(pointerDownBubbled()).toBe(true);
+  });
 });
 
 describe('区域标签点击（v0.10.7）', () => {

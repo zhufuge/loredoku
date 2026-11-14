@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CELL_SIZE } from '@loredoku/shared';
 import type { DraftRegion } from '@loredoku/shared';
-import { buildRegionEdges, buildRegionHighlightPaths, brushStrokeErases, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, regionAt, regionCellSet } from './region';
+import { buildRegionEdges, buildRegionHighlightPaths, brushStrokeErases, computeLabelCell, contrastTextColor, coordKey, findOverlap, isConnected, labelRowCenterX, regionAt, regionCellSet } from './region';
 
 function region(id: string, cells: Array<[number, number]>): DraftRegion {
   return { id, name: `R${id}`, cells };
@@ -135,25 +135,25 @@ describe('computeLabelCell', () => {
   it('returns null for an empty region', () => {
     expect(computeLabelCell([])).toBeNull();
   });
+});
 
-  it('v0.10.7: defaultLabelCell 优先于自动计算的底部行中央', () => {
-    // 区域横跨 (0,0)(1,0)(0,2)(1,2)，自动计算会落到 (1,2)，但指定了 defaultLabelCell (3, 1)。
-    expect(computeLabelCell([[0, 0], [1, 0], [0, 2], [1, 2]], [3, 1])).toEqual([3, 1]);
+describe('labelRowCenterX', () => {
+  it('returns the middle of the row pixel span, not the middle cell', () => {
+    // 底部行两格 [3,4]：像素跨度是 [3, 5)，中点 4 —— 落在两格接缝上。
+    expect(labelRowCenterX([[3, 4], [4, 4]], 4)).toBe(4);
   });
 
-  it('v0.10.7: defaultLabelCell 为空时退回底部行中央', () => {
-    expect(
-      computeLabelCell(
-        [
-          [0, 0],
-          [1, 0],
-          [2, 0],
-          [0, 2],
-          [1, 2],
-        ],
-        null,
-      ),
-    ).toEqual([1, 2]);
+  it('matches the old behaviour for an odd row', () => {
+    // 三格 [0,1,2]：跨度 [0, 3)，中点 1.5 —— 就是「中间那格 + 半格」。
+    expect(labelRowCenterX([[0, 4], [1, 4], [2, 4]], 4)).toBe(1.5);
+  });
+
+  it('ignores cells outside the anchor row', () => {
+    expect(labelRowCenterX([[0, 4], [4, 4], [9, 0]], 4)).toBe(2.5);
+  });
+
+  it('returns null when the anchor row holds none of the cells', () => {
+    expect(labelRowCenterX([[0, 0]], 4)).toBeNull();
   });
 });
 

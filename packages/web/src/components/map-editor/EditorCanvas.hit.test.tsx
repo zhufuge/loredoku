@@ -111,11 +111,12 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
   const cells: CellMap = new Map();
   let regions: DraftRegion[] = [];
 
-  function render(): void {
+  function render(props: { onSelectRegionLabel?: (id: string) => void } = {}): void {
     act(() => {
       root.render(
         <EditorCanvas
           gridSize={GRID_SIZE}
+          onSelectRegionLabel={props.onSelectRegionLabel}
           cells={cells}
           assetsById={assetsById}
           regions={regions}
@@ -188,6 +189,9 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
      * 区域的格子在第 3 行，标签却配在第 1 行（`labelCell`）—— 这正是真实的
      * 「标签悬在格子上沿、盖住的是上一格」：标签底边落在 `2 × cellSize` 上方
      * 一点点，指头压上去的那块像素属于第 1 行。
+     *
+     * v0.10.7：这条钉的是**游戏页 / 谜题预览**的行为 —— 那里不传
+     * `onSelectRegionLabel`，标签不接管按下，仍按底下那一格落点。
      */
     regions = [{ id: 'rg_a', name: '回廊', cells: [[1, 3]], labelCell: [1, 1] }];
     render();
@@ -201,6 +205,26 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
 
     expect(onSelect).toHaveBeenCalledWith({ type: 'cell', x: 1, y: 1 });
     expect(onSelectRegion).toHaveBeenCalledWith(null);
+  });
+
+  it('地图编辑：点区域标题只选区域，不再顺带选中底下那一格（v0.10.7）', () => {
+    const onSelectRegionLabel = vi.fn();
+    regions = [{ id: 'rg_a', name: '回廊', cells: [[1, 3]], labelCell: [1, 1] }];
+    render({ onSelectRegionLabel });
+    expect(cellSize).toBeGreaterThan(0);
+
+    const label = container.querySelector('.region-label');
+    expect(label).not.toBeNull();
+
+    pointerDownAt(label!, 1.5 * cellSize, 2 * cellSize - 3);
+    act(() => {
+      label!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, button: 0 }));
+    });
+
+    // 关键：按下那一格**没有被选中**（v0.10.2 之前这里会选到 (1,1)）。
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onSelectRegion).not.toHaveBeenCalled();
+    expect(onSelectRegionLabel).toHaveBeenCalledWith('rg_a');
   });
 
   it('点物品被放大后压在隔壁格上的那圈画：选中那一格，不是物品的锚点', () => {

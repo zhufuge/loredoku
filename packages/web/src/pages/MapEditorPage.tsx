@@ -1023,7 +1023,13 @@ export function MapEditorPage(): JSX.Element {
               onSelectRegionLabel={(regionId) => {
                 // 地图编辑点击区域标题弹信息框：与谜题/游戏页不同，谜题和游戏
                 // 页的区域标签只做悬停，不弹窗。
+                //
+                // 必须和左边「区域」列表项走**同一对**动作：抽屉渲染的是
+                // `selection`，只设 `selectedRegionId` 的话会弹出空面板
+                // （v0.7.0 点列表项踩过一次，见 `regionFocusSelection` 的注释）。
                 guardMapInfo(() => {
+                  if (editor.activeTool !== 'select') setTool('select');
+                  editor.setSelection(regionFocusSelection(regionId));
                   editor.setSelectedRegion(regionId);
                   setInfoOpen(true);
                 });

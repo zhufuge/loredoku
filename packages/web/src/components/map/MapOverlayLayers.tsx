@@ -11,7 +11,7 @@ import { cellCursorShadow, operationCursorStyle } from '@/lib/canvasLayers';
 import { cellScale, scaleFontSize } from '@/lib/canvasScale';
 import { HIGHLIGHT_FADEOUT_MS, type HighlightState } from '@/lib/highlight';
 import { styleLineWidth } from '@/lib/mapStyle';
-import { computeLabelCell } from '@/lib/region';
+import { computeLabelCell, labelRowCenterX } from '@/lib/region';
 import { resolveRegionStyle } from '@/lib/regionStyle';
 import { cellRectStyle, parseKey } from './layerGeometry';
 import { RegionHighlightOutline } from './MapRegionLayers';
@@ -165,6 +165,13 @@ export function MapRegionLabelLayer({
       {regions.map((region) => {
         const anchor = region.labelCell ?? computeLabelCell(region.cells);
         if (!anchor) return null;
+        /*
+         * v0.10.7：圆心的横坐标取「锚点这一行里本区域格子的像素跨度中点」，
+         * 不再是「锚点格的格心」。底部行是偶数格时后者右偏半格（17155 的
+         * 「穿廊」压在 [3,4]+[4,4] 上就是典型）。锚点被挪到别的行 / 盘面之外
+         * 时退回格心。
+         */
+        const centerX = labelRowCenterX(region.cells, anchor[1]) ?? anchor[0] + 0.5;
         const hovered = hoveredRegionId === region.id;
         const resolved = resolveRegionStyle(style, region.style);
         const label = resolved.label;
@@ -199,7 +206,7 @@ export function MapRegionLabelLayer({
             className="region-label pointer-events-auto absolute select-none whitespace-nowrap"
             style={
               {
-                left: (anchor[0] + 0.5) * cellSize + offset.x,
+                left: centerX * cellSize + offset.x,
                 top: (anchor[1] + 1) * cellSize - 2 + offset.y,
                 transform: 'translate(-50%, -100%)',
                 color: hovered ? label.hoverColor : label.color,
@@ -217,6 +224,28 @@ export function MapRegionLabelLayer({
             }
             onMouseEnter={() => onHover?.(region.id)}
             onMouseLeave={() => onHover?.(null)}
+            /*
+             * v0.10.7：地图编辑里标签要**吃掉**这次按下，游戏页 / 谜题预览里
+             * 不能吃。
+             *
+             * 画布选格发生在容器自己的 `onPointerDown` 里（`EditorCanvas`
+             * `handlePointerDown` → `selectCellAt`），而 `pointerdown` 早于
+             * `click`。只 `stopPropagation()` 一个 `click` 的话，按下那一刻格子
+             * 已经被选中了，信息框虽然弹出，选区却跑到了标题底下那一格。
+             *
+             * 判据是 `onSelect` 在不在：只有地图编辑器会传它（点击弹信息框），
+             * 游戏页与谜题预览不传 —— 那里仍保持 v0.10.2 的「点标签 = 点底下那格」。
+             *
+             * 不 `preventDefault()`：后者会抑制兼容的 `click`，标签就点不开了
+             * （文字选中已由 `select-none` 挡住）。
+             */
+            onPointerDown={
+              onSelect
+                ? (event) => {
+                    event.stopPropagation();
+                  }
+                : undefined
+            }
             onClick={(event) => {
               event.stopPropagation();
               onSelect?.(region.id);

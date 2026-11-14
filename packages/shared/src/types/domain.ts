@@ -221,12 +221,6 @@ export interface DraftRegion {
   cells: Array<[number, number]>;
   labelCell?: [number, number] | null;
   /**
-   * v0.10.7: 添加区域后默认标题位置，优先于 `computeLabelCell` 的算法结果。
-   * 缺省 `undefined` 表示保持原有“底部行中央”自动计算；设置后作者拖拽
-   * 标题位置可持久化到这儿。仅供编辑器读取，不进服务端持久化字段。
-   */
-  defaultLabelCell?: [number, number] | null;
-  /**
    * v0.7.0 (docs/v0.7.0.md §4): the region's own display style — a deep partial
    * over the map-level defaults (`MapStyle.regionOutline` / `regionHighlight` /
    * `regionLabel`). Absent = the defaults win; a present block records only what

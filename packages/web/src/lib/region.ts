@@ -271,21 +271,36 @@ export function isConnected(cells: Coord[]): boolean {
  * Label anchor (see docs/v0.2.1.md §2.1.3): bottom-most row, then the cell at
  * the median x of that row.
  *
- * v0.10.7: if `defaultLabelCell` is provided, it takes precedence — this lets
- * authors pin the title to a specific cell after adding a region, instead of
- * always falling back to the computed bottom-row median.
+ * The anchor is a **cell**, so the rendered label is only as centered as that
+ * cell allows — see `labelRowCenterX` for the pixel-accurate horizontals.
  */
-export function computeLabelCell(
-  cells: Coord[],
-  defaultLabelCell?: Coord | null,
-): Coord | null {
+export function computeLabelCell(cells: Coord[]): Coord | null {
   if (cells.length === 0) return null;
-  if (defaultLabelCell) return defaultLabelCell;
   const maxY = Math.max(...cells.map(([, y]) => y));
   const row = cells.filter(([, y]) => y === maxY).map(([x]) => x).sort((a, b) => a - b);
   const middle = row[Math.floor(row.length / 2)];
   if (middle === undefined) return null;
   return [middle, maxY];
+}
+
+/**
+ * v0.10.7: 标签圆心的横坐标，单位是**格**（允许 `.5`）。
+ *
+ * `computeLabelCell` 只能整格地给一个锚点，于是「底部行有偶数格」时取到的是
+ * 中位偏右那一格，标签中心落在**那一格的格心**、而不是这一行像素跨度的中心 ——
+ * 看上去就是右偏半格。这里按 `anchorY` 这一行里属于本区域的格子取
+ * `[minX, maxX + 1]` 的中点，把半格补回来：
+ *
+ * - 行内 3 格（0/1/2）→ 1.5，与原来的「中间那格 + 半格」完全一致；
+ * - 行内 2 格（3/4）→ 4，落在两格接缝上，不再偏右。
+ *
+ * 锚点那一行没有本区域的格子时返回 `null`（作者把 `labelCell` 挪到了盘面之外
+ * 或别的行），调用方退回「锚点格 + 半格」。
+ */
+export function labelRowCenterX(cells: Coord[], anchorY: number): number | null {
+  const row = cells.filter(([, y]) => y === anchorY).map(([x]) => x);
+  if (row.length === 0) return null;
+  return (Math.min(...row) + Math.max(...row) + 1) / 2;
 }
 
 export function contrastTextColor(hex: string): string {
