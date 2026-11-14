@@ -38,8 +38,12 @@ export function NumberField({
 }: {
   id: string;
   value: number;
-  min: number;
-  max: number;
+  /**
+   * v0.10.7：上下限改成可选 —— 区域标签的位置偏移不再封顶，那两个框只保留步进。
+   * 其余所有数值字段照旧传死上下限。
+   */
+  min?: number;
+  max?: number;
   step?: number;
   suffix?: string;
   commit: (value: number) => void;
@@ -97,7 +101,7 @@ export function NumberField({
             flush();
           }
         }}
-        className="h-7 w-16 text-xs tabular-nums"
+        className="h-7 w-20 text-xs tabular-nums"
       />
       {suffix ? <span className="text-2xs text-muted-foreground">{suffix}</span> : null}
     </div>
@@ -133,7 +137,7 @@ export function Row({
 }): JSX.Element {
   return (
     <div className="flex items-center justify-between gap-2">
-      <Label className="flex items-center text-2xs font-normal text-muted-foreground">
+      <Label className="flex items-center whitespace-nowrap text-2xs font-normal text-muted-foreground">
         <span>{label}</span>
         {hint ? <Hint text={hint} /> : null}
       </Label>

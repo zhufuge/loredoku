@@ -26,8 +26,6 @@ import {
   MAP_STYLE_REGION_LABEL_FONT_MAX,
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
-  REGION_LABEL_OFFSET_MAX,
-  REGION_LABEL_OFFSET_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
@@ -74,10 +72,12 @@ export function clampRegionLabelStroke(value: number): number {
  * v0.9.6：区域标签位置偏移（画布像素，可正可负，取整）。
  *
  * 与 `clampRegionLabelStroke` 同一条路：输入框里可能是 `-`、空串、小数，这里
- * 统一夹到 `REGION_LABEL_OFFSET_MIN..MAX` 并取整。
+ * 统一取整。v0.10.7 起**不再封顶**（原来的 ±200 会把「推到远处留白」挡死），
+ * 只把非有限数落回 0。
  */
 export function clampRegionLabelOffset(value: number): number {
-  return Math.round(clampNumber(value, REGION_LABEL_OFFSET_MIN, REGION_LABEL_OFFSET_MAX));
+  if (!Number.isFinite(value)) return 0;
+  return Math.round(value);
 }
 
 export function clampOperationOffset(value: number): number {

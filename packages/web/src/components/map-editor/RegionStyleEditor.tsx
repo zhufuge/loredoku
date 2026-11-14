@@ -8,8 +8,6 @@ import {
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
-  REGION_LABEL_OFFSET_MAX,
-  REGION_LABEL_OFFSET_MIN,
 } from '@loredoku/shared';
 import {
   clampLineWidth,
@@ -250,8 +248,6 @@ export function RegionStyleEditor({
               <NumberField
                 id={`${idPrefix}-label-offset-x`}
                 value={value.labelOffset.x}
-                min={REGION_LABEL_OFFSET_MIN}
-                max={REGION_LABEL_OFFSET_MAX}
                 suffix="x"
                 commit={(next) =>
                   patchLabelOffset({ x: clampRegionLabelOffset(next) })
@@ -260,8 +256,6 @@ export function RegionStyleEditor({
               <NumberField
                 id={`${idPrefix}-label-offset-y`}
                 value={value.labelOffset.y}
-                min={REGION_LABEL_OFFSET_MIN}
-                max={REGION_LABEL_OFFSET_MAX}
                 suffix="y"
                 commit={(next) =>
                   patchLabelOffset({ y: clampRegionLabelOffset(next) })

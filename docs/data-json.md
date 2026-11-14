@@ -158,7 +158,7 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 | `id` | string | ✔ | 1–64 字符 | 编辑器生成形如 `rg_45ca41eb`；联动按它引用 |
 | `name` | string | ✔ | 1–100 字符 | 显示为区域标签 |
 | `cells` | array | ✔ | `[[x, y], …]`，≥ 1 项 | 区域覆盖的格子；不同区域**不可重叠**（保存即拒），发布时还要求**连通** |
-| `labelCell` | `[x, y] \| null` | ✘ | 合法坐标 | 标签落在哪一格；缺席 / `null` = 自动算（`computeLabelCell`） |
+| `labelCell` | `[x, y] \| null` | ✘ | 合法坐标 | 标签落在哪一格；缺席 / `null` = 自动算（`computeLabelCell`，取最后一行）。v0.10.7 起渲染按**该行本区域格子的横向跨度中点**放标签，所以底部行是偶数格时也居中（此前取中位那一格，会右偏半格） |
 | `style` | object | ✘ | 见 §4.6 | 只记与地图级缺省的**差异** |
 
 ### 4.6 `region.style` — 区域自己的样式
@@ -169,7 +169,9 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 |---|---|
 | `outline` | `width` 1–12 整数、`color` |
 | `highlight` | `width` 1–12（可小数）、`color` |
-| `label` | `fontFamily`、`fontSize` 9–48 整数、`strokeWidth` 0–12、`color`、`strokeColor`、`hoverFontSize` 9–48 整数、`hoverColor`、`hoverStrokeColor`、`hoverStrokeWidth` 0–12 |
+| `label` | `fontFamily`、`fontSize` 9–48 整数、`strokeWidth` 0–12、`color`、`strokeColor`、`hoverFontSize` 9–48 整数、`hoverColor`、`hoverStrokeColor`、`hoverStrokeWidth` 0–12、`offset`（见下） |
+
+`label.offset` 是这块区域标签相对「格子上沿居中」的像素位移，`{ "x"?: number, "y"?: number }`，两轴都可缺（只改一个方向时另一轴视为 0），整块缺席 = 不偏移。正数向右 / 向下。**v0.10.7 起没有上下限**（原先是 ∓200）：只要求是有限数字，取整在渲染侧做。
 
 `fontFamily` 存的是**字体名**（`"WenKai"`、`"霞鹜文楷"`）或内置 key（`system` / `sans` / `serif` / `kai` / `mono`），不是 CSS 串：长度 ≤ 64，且不能含引号 / 逗号 / 分号（否则会撕开回退链）。本构建没带的字体照原样保留，渲染时退回系统字体。
 

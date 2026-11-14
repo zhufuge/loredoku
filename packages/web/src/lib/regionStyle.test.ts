@@ -165,10 +165,10 @@ describe('区域标签位置偏移（v0.9.6）', () => {
     ).toEqual({ x: -8, y: 20 });
   });
 
-  it('越界夹到 ±200，非数字落回 0（输入框打到一半的值）', () => {
+  it('v0.10.7：不再封顶 —— 越界值原样取整，非数字仍落回 0（输入框打到一半的值）', () => {
     expect(
       resolveRegionStyle(baseStyle(), { label: { offset: { x: 9999, y: -9999 } } }).labelOffset,
-    ).toEqual({ x: 200, y: -200 });
+    ).toEqual({ x: 9999, y: -9999 });
     expect(
       resolveRegionStyle(baseStyle(), {
         label: { offset: { x: Number.NaN, y: 'nope' as never } },

@@ -25,8 +25,6 @@ import {
   MAP_STYLE_REGION_LABEL_FONT_MIN,
   MAP_STYLE_REGION_LABEL_STROKE_MAX,
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
-  REGION_LABEL_OFFSET_MAX,
-  REGION_LABEL_OFFSET_MIN,
   MAP_STYLE_RULER_FONT_MAX,
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
@@ -348,19 +346,16 @@ const regionLabelOverrideSchema = z
      * v0.9.6：这块区域的标签往哪偏（画布像素，相对「格子上沿居中」）。
      *
      * x / y 都可缺：只改一个方向的作者不该被迫填另一个。整块缺席 = 不偏移。
+     *
+     * v0.10.7：**去掉了 ±200 的上下限**。原来那对常量是为了「别让标签跑没」，
+     * 但标签被推到画面外之后照样能点回来（区域列表里点一下就能选中），而这个
+     * 限制反而把「把标签推到远处、让一整块区域留白」这种排版挡死了。现在只要求
+     * 是有限数字，取整的夹取在 web 侧的两处 clamp 里做。
      */
     offset: z
       .object({
-        x: z
-          .number()
-          .min(REGION_LABEL_OFFSET_MIN, `标签横向偏移不能小于 ${REGION_LABEL_OFFSET_MIN}`)
-          .max(REGION_LABEL_OFFSET_MAX, `标签横向偏移不能大于 ${REGION_LABEL_OFFSET_MAX}`)
-          .optional(),
-        y: z
-          .number()
-          .min(REGION_LABEL_OFFSET_MIN, `标签纵向偏移不能小于 ${REGION_LABEL_OFFSET_MIN}`)
-          .max(REGION_LABEL_OFFSET_MAX, `标签纵向偏移不能大于 ${REGION_LABEL_OFFSET_MAX}`)
-          .optional(),
+        x: z.number().finite().optional(),
+        y: z.number().finite().optional(),
       })
       .strict()
       .optional(),

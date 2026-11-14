@@ -207,7 +207,7 @@ describe('区域标签字体 (v0.7.4)', () => {
  * v0.9.6：区域标签的**位置偏移**（每块区域独立配置）。
  *
  * 两件事：只在区域级出现（地图级 `MapStyle.regionLabel` 没有这一项），以及
- * 两轴都可缺、都有范围。
+ * 两轴都可缺（v0.10.7 起不封顶）。
  */
 describe('区域标签位置偏移 (v0.9.6)', () => {
   it('regionStyleOverrideSchema 收 { label: { offset: { x, y } } }', () => {
@@ -222,17 +222,16 @@ describe('区域标签位置偏移 (v0.9.6)', () => {
     expect(regionStyleOverrideSchema.safeParse({ label: { offset: { x: 5 } } }).success).toBe(true);
   });
 
-  it('越界 / 多带键一律拒', () => {
-    for (const bad of [
-      { x: 5000 },
-      { y: -5000 },
-      { x: 1, extra: true },
-    ] as Array<unknown>) {
-      expect(
-        regionStyleOverrideSchema.safeParse({ label: { offset: bad } }).success,
-        JSON.stringify(bad),
-      ).toBe(false);
-    }
+  it('v0.10.7：不再封顶，但多余键一律拒', () => {
+    expect(
+      regionStyleOverrideSchema.safeParse({ label: { offset: { x: 5000, y: -5000 } } }).success,
+    ).toBe(true);
+    expect(
+      regionStyleOverrideSchema.safeParse({ label: { offset: { x: 1, extra: true } } }).success,
+    ).toBe(false);
+    expect(
+      regionStyleOverrideSchema.safeParse({ label: { offset: { x: Number.NaN } } }).success,
+    ).toBe(false);
   });
 
   it('draftRegionSchema 收带偏移的区域', () => {

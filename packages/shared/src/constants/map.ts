@@ -133,14 +133,13 @@ export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
 export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
 export const MAP_STYLE_REGION_LABEL_STROKE_MAX = 12;
 /**
- * v0.9.6：区域标签位置偏移的上下限（画布像素，正负都收）。
+ * v0.9.6：区域标签位置偏移（画布像素，正负都收）。
  *
- * 上下限存在的理由是**别让它跑没**：超过一格半之后，作者自己也说不清标签跑到
- * 哪儿去了，而工具栏里没有「标签在画面外」这种提示。±200 足够把标签推到相邻
- * 两三格之外。
+ * v0.10.7：原本这里有一对 `REGION_LABEL_OFFSET_MIN/MAX = ∓200`，已经删掉 ——
+ * 上下限本是为了「别让标签跑没」，但标签被推到画面外之后照样能从区域列表点回来，
+ * 而作者想把标签推到远处、给整块区域留白时，这个限制先把路堵死了。现在偏移只
+ * 要求是有限数字；web 侧的两处 clamp 只负责取整，不再封顶。
  */
-export const REGION_LABEL_OFFSET_MIN = -200;
-export const REGION_LABEL_OFFSET_MAX = 200;
 
 // ---- v0.7.4 区域标签字体（docs/v0.7.4.md §2） ----
 /**

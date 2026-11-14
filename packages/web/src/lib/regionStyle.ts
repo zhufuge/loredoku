@@ -6,7 +6,6 @@ import type {
   RegionStyleOverride,
 } from '@loredoku/shared';
 import { isMapStyleFontFamilyName } from '@loredoku/shared';
-import { REGION_LABEL_OFFSET_MAX, REGION_LABEL_OFFSET_MIN } from '@loredoku/shared';
 import {
   clampLineWidth,
   clampRegionBorderWidth,
@@ -36,14 +35,14 @@ function pickColor(fallback: string, value: unknown): string {
 }
 
 /**
- * v0.9.6：标签偏移的夹取。`undefined` / 非数字 → 0（不偏移），越界夹到 ±上限。
+ * v0.9.6：标签偏移的取整。`undefined` / 非数字 → 0（不偏移），v0.10.7 起不再封顶。
  *
- * 为什么夹而不是拒：这两个数来自输入框，作者打到一半（空串、`-`）时值会短暂是
+ * 为什么容错而不是拒：这两个数来自输入框，作者打到一半（空串、`-`）时值会短暂是
  * 非数字 —— 那一刻把标签弹回原位再弹回来比留在原地更晃眼。
  */
 function clampLabelOffset(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
-  return Math.min(REGION_LABEL_OFFSET_MAX, Math.max(REGION_LABEL_OFFSET_MIN, Math.round(value)));
+  return Math.round(value);
 }
 
 /** Merges a region's override over the map-level defaults, clamping as it goes. */
