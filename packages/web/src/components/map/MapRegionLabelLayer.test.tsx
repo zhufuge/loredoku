@@ -116,7 +116,7 @@ describe('区域标签点击（v0.10.7）', () => {
     container.remove();
   });
 
-  it('点击区域标签回调 onSelect 传出区域 id', () => {
+  it('点击区域标签回调 onSelect 传出区域 id（click 不被冒泡阻止）', () => {
     const ids: string[] = [];
     render([region()], (id) => ids.push(id));
     act(() => {
