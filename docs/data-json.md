@@ -189,9 +189,11 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 | `regionLabel` | `fontFamily`、`fontSize` 9–48、`strokeWidth` 0–12、`color`、`strokeColor`、`hoverFontSize` 9–48、`hoverColor`、`hoverStrokeColor`、`hoverStrokeWidth` 0–12 | `system` / `32` / `10` / `#FFFFFF` / `#000000` / `36` / `#FFFFFF` / `#3B82F6` / `10` |
 | `regionOutline` | `width` 1–12 整数、`color` | `12` / `#000000` |
 | `regionHighlight` | `width` 1–12、`color` | `12` / `#3B82F6` |
-| `ruler` | `fontSize` 9–32、`gap` 0–32 | `24` / `24` |
+| `ruler` | `fontSize` 9–32、`gap` 0–32、`columnSymbol` / `rowSymbol`（≤ 4 字符，可为空串） | `24` / `24` / `"C"` / `"R"` |
 
 所有尺寸都是**在 `cellSize = 120` 下作者写的值**，渲染时统一乘 `cellSize / 120`，所以同一份配置在 2×2 和 24×24 上读数一致。
+
+`ruler.columnSymbol` / `rowSymbol` 是**文字**不是尺寸（v0.10.8）：列号与行号前面的前缀，默认 `C` / `R`，中文图可填「列」「行」；留空串则只显示数字。
 
 两处**偏移**例外，它们 v0.10.7 起直接按格的百分比记（`100` = 一格），渲染时乘 `cellSize` 换成像素：`canvasShadow.offset`（0–200，出厂 `30`）与 `operationCursorBox.offset`。这样作者写「半格」就是 `50`，不必知道当时的格子有多宽。
 

@@ -36,6 +36,8 @@ describe('基本信息默认值（v0.5.2 SPEC-M07）', () => {
     expect(DEFAULT_MAP_STYLE.ruler).toEqual({
       fontSize: 24,
       gap: 24,
+      columnSymbol: 'C',
+      rowSymbol: 'R',
     });
     expect(DEFAULT_MAP_STYLE.regionOutline.width).toBe(12);
     expect(DEFAULT_MAP_STYLE.regionHighlight).toEqual({

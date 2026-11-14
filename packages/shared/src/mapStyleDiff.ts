@@ -85,6 +85,8 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   { key: 'regionLabel.hoverStrokeColor', group: '标签', label: '悬停描边颜色', read: (style) => style.regionLabel.hoverStrokeColor, format: raw },
   { key: 'ruler.fontSize', group: '标签', label: '标尺字号', read: (style) => style.ruler.fontSize, format: px },
   { key: 'ruler.gap', group: '标签', label: '标尺到地图的间距', read: (style) => style.ruler.gap, format: px },
+  { key: 'ruler.columnSymbol', group: '标签', label: '列标尺符号', read: (style) => style.ruler.columnSymbol, format: raw },
+  { key: 'ruler.rowSymbol', group: '标签', label: '行标尺符号', read: (style) => style.ruler.rowSymbol, format: raw },
 
   // 光标
   { key: 'mouseCursorBox.width', group: '光标', label: '鼠标光标框线宽', read: (style) => style.mouseCursorBox.width, format: px },

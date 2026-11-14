@@ -29,6 +29,7 @@ import {
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
+  MAP_STYLE_RULER_SYMBOL_MAX_LENGTH,
   MAP_STYLE_SHADOW_OFFSET_MAX,
   MAP_STYLE_SHADOW_OFFSET_MIN,
   MAP_NOTE_MAX_LENGTH,
@@ -213,6 +214,15 @@ export const mapStyleSchema = z.object({
         .min(MAP_STYLE_RULER_GAP_MIN)
         .max(MAP_STYLE_RULER_GAP_MAX)
         .default(DEFAULT_MAP_STYLE.ruler.gap),
+      // v0.10.8：标尺前缀符号（默认 C / R）。允许为空串 —— 只显示数字也是一种读法。
+      columnSymbol: z
+        .string()
+        .max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH)
+        .default(DEFAULT_MAP_STYLE.ruler.columnSymbol),
+      rowSymbol: z
+        .string()
+        .max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH)
+        .default(DEFAULT_MAP_STYLE.ruler.rowSymbol),
     })
     .default(() => ({ ...DEFAULT_MAP_STYLE.ruler })),
 })

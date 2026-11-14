@@ -144,5 +144,10 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
     width: STYLE_DEFAULT_REGION_HIGHLIGHT_WIDTH,
     color: STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR,
   },
-  ruler: { fontSize: STYLE_DEFAULT_RULER_FONT_SIZE, gap: STYLE_DEFAULT_RULER_GAP },
+  ruler: {
+    fontSize: STYLE_DEFAULT_RULER_FONT_SIZE,
+    gap: STYLE_DEFAULT_RULER_GAP,
+    columnSymbol: 'C',
+    rowSymbol: 'R',
+  },
 };

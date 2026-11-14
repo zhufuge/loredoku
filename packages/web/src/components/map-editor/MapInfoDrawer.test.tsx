@@ -81,6 +81,7 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
           coverUrl={null}
           coverFile={null}
           coverRemoved={false}
+          autoCellSize={120}
           onRequestClose={onRequestClose}
           onCommit={onCommit}
         />,
@@ -252,7 +253,35 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     act(() => {
       container.querySelector<HTMLButtonElement>('footer button:last-child')?.click();
     });
-    expect((onCommit.mock.calls[0]![0] as MapStyle).ruler).toEqual({ fontSize: 22, gap: 12 });
+    expect((onCommit.mock.calls[0]![0] as MapStyle).ruler).toEqual({
+      fontSize: 22,
+      gap: 12,
+      columnSymbol: 'C',
+      rowSymbol: 'R',
+    });
+  });
+
+  /**
+   * v0.10.8：「方格大小」这行回来了，但语义是**上限**。
+   *
+   * 两件事要钉住：填进去的值进 `style.cellSize`（而不是别处），以及 ↺ 能把它清回
+   * `null`（= 完全按窗口自适应）。
+   */
+  it('v0.10.8: 方格大小是一行「上限」，写进 style.cellSize', () => {
+    act(() => typeInto(input('map-info-cell-size'), '140'));
+    clickSave();
+    expect((onCommit.mock.calls[0]![0] as MapStyle).cellSize).toBe(140);
+  });
+
+  it('v0.10.8: 清除按钮把上限清回 null（完全自适应）', () => {
+    act(() => typeInto(input('map-info-cell-size'), '140'));
+    expect(handle?.isDirty()).toBe(true);
+    const restore = container.querySelector<HTMLButtonElement>('button[title*="清除上限"]');
+    expect(restore).not.toBeNull();
+    act(() => restore?.click());
+    // 回到 null = 与打开时的值相同 ⇒ 不再 dirty，保存按钮也就点不动。
+    expect(handle?.isDirty()).toBe(false);
+    expect(input('map-info-cell-size').value).toBe('120');
   });
 
   it('SPEC-E01: uses the规范 layer names', () => {

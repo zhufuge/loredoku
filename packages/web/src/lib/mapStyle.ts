@@ -19,6 +19,7 @@ import {
   MAP_STYLE_RULER_FONT_MIN,
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
+  MAP_STYLE_RULER_SYMBOL_MAX_LENGTH,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_SHADOW_OFFSET_MAX,
@@ -102,6 +103,18 @@ export function clampRulerFontSize(value: number): number {
 /** v0.3.9 FEAT-E02: gap between the ruler text and the board. */
 export function clampRulerGap(value: number): number {
   return clampNumber(value, MAP_STYLE_RULER_GAP_MIN, MAP_STYLE_RULER_GAP_MAX);
+}
+
+/**
+ * v0.10.8: the prefix printed in front of a ruler number (`C` / `R` by default).
+ *
+ * Not clamped to a range — it is a short piece of text. Only the length is
+ * capped, and an empty string is preserved on purpose: it means "numbers only".
+ * A non-string (hand-edited JSON) falls back to the built-in default.
+ */
+export function clampRulerSymbol(value: unknown, fallback: string): string {
+  if (typeof value !== 'string') return fallback;
+  return value.slice(0, MAP_STYLE_RULER_SYMBOL_MAX_LENGTH);
 }
 
 export function clampRegionBorderWidth(value: number): number {
@@ -262,6 +275,8 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
           ? clampRulerFontSize(ruler.fontSize)
           : fallback.ruler.fontSize,
       gap: typeof ruler.gap === 'number' ? clampRulerGap(ruler.gap) : fallback.ruler.gap,
+      columnSymbol: clampRulerSymbol(ruler.columnSymbol, fallback.ruler.columnSymbol),
+      rowSymbol: clampRulerSymbol(ruler.rowSymbol, fallback.ruler.rowSymbol),
     },
   };
 }

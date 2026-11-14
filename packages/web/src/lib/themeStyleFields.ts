@@ -14,6 +14,7 @@ import {
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_RULER_GAP_MAX,
+  MAP_STYLE_RULER_SYMBOL_MAX_LENGTH,
   MAP_STYLE_RULER_GAP_MIN,
   MAP_STYLE_SHADOW_OFFSET_MAX,
   MAP_STYLE_SHADOW_OFFSET_MIN,
@@ -59,6 +60,15 @@ interface WriteSpec {
   max?: number;
   step?: number;
   suffix?: string;
+  /** v0.10.8：`kind: 'text'` 的输入长度上限（标尺符号 4 个字符）。 */
+  maxLength?: number;
+  /**
+   * v0.10.8：允许把这个文本字段清空。
+   *
+   * 标尺符号留空是**有意义**的（只显示数字），而字体名留空没有意义 —— 所以默认
+   * 不允许清空，只有标尺符号两行打开它。
+   */
+  allowEmpty?: boolean;
 }
 
 /**
@@ -93,6 +103,9 @@ const WRITE_SPECS: Record<string, WriteSpec> = {
   'regionLabel.hoverStrokeColor': { kind: 'color' },
   'ruler.fontSize': { kind: 'number', min: MAP_STYLE_RULER_FONT_MIN, max: MAP_STYLE_RULER_FONT_MAX, suffix: 'px' },
   'ruler.gap': { kind: 'number', min: MAP_STYLE_RULER_GAP_MIN, max: MAP_STYLE_RULER_GAP_MAX, suffix: 'px' },
+  // v0.10.8：列 / 行标尺的前缀符号，默认 `C` / `R`。允许为空（只显示数字）。
+  'ruler.columnSymbol': { kind: 'text', maxLength: MAP_STYLE_RULER_SYMBOL_MAX_LENGTH, allowEmpty: true },
+  'ruler.rowSymbol': { kind: 'text', maxLength: MAP_STYLE_RULER_SYMBOL_MAX_LENGTH, allowEmpty: true },
 
   'mouseCursorBox.width': { kind: 'number', min: MAP_STYLE_LINE_WIDTH_MIN, max: MAP_STYLE_LINE_WIDTH_MAX, suffix: 'px' },
   'mouseCursorBox.color': { kind: 'color' },
@@ -140,6 +153,10 @@ const FIELD_HINTS: Record<string, string> = {
   'regionLabel.hoverStrokeColor': '悬停描边颜色 — 悬停时描边的颜色。',
   'ruler.fontSize': 'Ruler — 沿画布上边缘与左边缘的行列标尺；操作格所在行列比普通文本大 2px。',
   'ruler.gap': 'Ruler Gap — 标尺文本到画布的距离，同时参与标尺条厚度的计算。',
+  'ruler.columnSymbol':
+    '列标尺符号 — 列号前面那个字符，默认 `C`（如 `C1`）。中文图可以填「列」，留空则只显示数字。最多 4 个字符。',
+  'ruler.rowSymbol':
+    '行标尺符号 — 行号前面那个字符，默认 `R`（如 `R1`）。中文图可以填「行」，留空则只显示数字。最多 4 个字符。',
 
   'mouseCursorBox.width':
     'Mouse Cursor Box — 跟随指针移动的方格框，画布最高层，任何内容都盖不住它。',
@@ -172,6 +189,10 @@ export interface ThemeStyleField {
   max?: number;
   step?: number;
   suffix?: string;
+  /** v0.10.8：`kind: 'text'` 的输入长度上限。 */
+  maxLength?: number;
+  /** v0.10.8：允许清空（标尺符号留空 = 只显示数字）。 */
+  allowEmpty?: boolean;
   /** 当前值格式化后的样子（`1.5px` / `#2f2a24` / `自适应`），与差异弹窗同一套写法。 */
   format: (style: MapStyle) => string;
   /** 原始值 —— 表单控件要的是它，不是格式化后的字符串。 */
@@ -192,6 +213,8 @@ export const THEME_STYLE_FIELDS: readonly ThemeStyleField[] = MAP_STYLE_FIELDS.f
     max: spec?.max,
     step: spec?.step,
     suffix: spec?.suffix,
+    maxLength: spec?.maxLength,
+    allowEmpty: spec?.allowEmpty,
     read: field.read,
     format: (style: MapStyle) => (field.format ?? String)(field.read(style)),
   };

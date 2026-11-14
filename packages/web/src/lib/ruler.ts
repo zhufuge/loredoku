@@ -63,6 +63,10 @@ export interface RulerGlyph {
 /**
  * Builds both ruler strips — top = columns (`C1…`), left = rows (`R1…`).
  *
+ * The prefixes come from `style.ruler.columnSymbol` / `rowSymbol` (v0.10.8):
+ * the default is `C` / `R`, but a Chinese map may prefer `列` / `行`. An empty
+ * symbol is allowed — the strip then shows bare numbers.
+ *
  * The ruler strips live **outside** the zoomed board wrapper, so they are the
  * one place that has to multiply by `zoom` itself: §3.3 requires lines and
  * fonts to scale with the container, and the §3.2 guard rails are capped
@@ -77,10 +81,21 @@ export function buildRulerGlyphs(input: {
   zoom?: number;
   /** FEAT-E02: the map's configured base text size. */
   fontSize?: number;
+  /** v0.10.8: the prefix for this axis (`C` / `R` by default). */
+  symbol?: string;
 }): RulerGlyph[] {
-  const { gridSize, axis, hoverIndex, operationIndex, scale, zoom = 1, fontSize = RULER_FONT_SIZE } = input;
+  const {
+    gridSize,
+    axis,
+    hoverIndex,
+    operationIndex,
+    scale,
+    zoom = 1,
+    fontSize = RULER_FONT_SIZE,
+    symbol,
+  } = input;
   if (!Number.isFinite(gridSize) || gridSize < 1) return [];
-  const prefix = axis === 'column' ? 'C' : 'R';
+  const prefix = symbol ?? (axis === 'column' ? 'C' : 'R');
   const zoomFactor = Number.isFinite(zoom) && zoom > 0 ? zoom : 1;
   return Array.from({ length: Math.floor(gridSize) }, (_, index) => {
     const state = rulerState(index, hoverIndex, operationIndex);
@@ -131,11 +146,17 @@ export function rulerStripSize(input: {
 /**
  * v0.7.0 fix: estimated width of the widest label (`C{gridSize}` / `R{gridSize}`)
  * at `fontSize` — both strips share the digit count, so one value covers both.
+ *
+ * v0.10.8: the widest symbol of the two axes wins — `列24` is wider than `行24`,
+ * and sizing the strip for `C` would clip a two-character prefix.
  */
-export function rulerLabelWidth(gridSize: number, fontSize: number): number {
+export function rulerLabelWidth(gridSize: number, fontSize: number, symbols?: readonly string[]): number {
   if (!Number.isFinite(gridSize) || gridSize < 1) return 0;
-  const digits = String(Math.floor(gridSize)).length;
-  return estimateTextWidth(`C${'9'.repeat(digits)}`, fontSize);
+  const digits = '9'.repeat(String(Math.floor(gridSize)).length);
+  const candidates = symbols && symbols.length > 0 ? symbols : ['C', 'R'];
+  // 逐个真实候选算宽度再取最大 —— `列` 是全角（1em），`C` 只有 0.62em，
+  // 按字符个数比较会把两字前缀算窄、行条把标签切掉半截。
+  return Math.max(...candidates.map((symbol) => estimateTextWidth(`${symbol}${digits}`, fontSize)));
 }
 
 /**

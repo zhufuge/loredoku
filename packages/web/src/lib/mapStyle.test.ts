@@ -78,7 +78,7 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(style.regionLabel.hoverFontSize).toBe(36);
     expect(style.regionLabel.hoverFontSize).toBeGreaterThan(style.regionLabel.fontSize);
     expect(style.regionLabel.hoverStrokeColor).toBe(STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR);
-    expect(style.ruler).toEqual({ fontSize: 24, gap: 24 });
+    expect(style.ruler).toEqual({ fontSize: 24, gap: 24, columnSymbol: 'C', rowSymbol: 'R' });
     // v0.5.0 FEAT-K14: the palette left `MapStyle` — see the puzzle section.
     expect(style).not.toHaveProperty('linkageColors');
   });
@@ -376,7 +376,12 @@ describe('layer naming (SPEC-E01)', () => {
 // ---- v0.3.9 FEAT-E02: 标尺文本大小与间距 ----
 describe('ruler style (FEAT-E02)', () => {
   it('SPEC-M07: defaults to 24px / 24px', () => {
-    expect(resolveMapStyle(undefined).ruler).toEqual({ fontSize: 24, gap: 24 });
+    expect(resolveMapStyle(undefined).ruler).toEqual({
+      fontSize: 24,
+      gap: 24,
+      columnSymbol: 'C',
+      rowSymbol: 'R',
+    });
   });
 
   it('clamps the text size and the gap', () => {

@@ -6,10 +6,12 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { X } from 'lucide-react';
+import { X, RotateCcw } from 'lucide-react';
 import {
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
+  MAP_STYLE_CELL_SIZE_MAX,
+  MAP_STYLE_CELL_SIZE_MIN,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_LINE_WIDTH_MAX,
@@ -38,6 +40,7 @@ import { RegionStyleEditor } from '@/components/map-editor/RegionStyleEditor';
 import { ThemeStyleRow } from '@/components/map-editor/ThemeStyleRow';
 import {
   clampCanvasShadowOffset,
+  clampCellSize,
   clampItemOutlineWidth,
   clampLineWidth,
   clampOperationOffset,
@@ -94,6 +97,11 @@ interface MapInfoDrawerProps {
   coverFile: File | null;
   /** The local state already marks the stored cover as removed. */
   coverRemoved: boolean;
+  /**
+   * v0.10.8：画布当前按窗口算出来的格子边长。只用于「方格大小上限」那行的
+   * 提示与 ↺ 按钮的 title —— 真正的上限值在 `style.cellSize` 里。
+   */
+  autoCellSize: number;
   /**
    * FEAT-E01: the drawer never closes itself. Both × and 取消 call this, and
    * `MapEditorPage` decides whether to prompt for unsaved edits first.
@@ -168,6 +176,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
       coverUrl,
       coverFile,
       coverRemoved,
+      autoCellSize,
       onRequestClose,
       onCommit,
       onDirtyChange,
@@ -277,6 +286,19 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
     };
 
     /**
+     * v0.10.8：「方格大小」这行填的是**上限**，不是定值。
+     *
+     * 渲染时走 `effectiveCellSize` = `min(这个值, 按窗口算出的自适应值)` —— 作者
+     * 写 140 的意思是「别铺得比 140 还大」，窗口小的时候仍然会缩下去。留空
+     * （`null`）就是完全交给窗口。
+     */
+    const cellSizeHint = `方格边长的上限（px），可填 ${MAP_STYLE_CELL_SIZE_MIN} ~ ${MAP_STYLE_CELL_SIZE_MAX}。${
+      draft.cellSize === null
+        ? `当前没有上限，完全按窗口自适应（本次算得 ${autoCellSize}px）。`
+        : `当前上限 ${draft.cellSize}px：窗口大时最多长到这么宽，窗口小时会跟着缩小（本次自适应值 ${autoCellSize}px）。`
+    }`;
+
+    /**
      * v0.7.4 (docs/v0.7.4.md §4): 面板**占据**编辑区右侧一块空间，关掉时不渲染
      * 任何东西（不再留一条 `translate-x-full` 的浮层）。关掉不丢东西：草稿本来
      * 就在 `open` 变 true 时重新播种（`useDraft`），关掉只可能是「放弃」或
@@ -379,6 +401,35 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                   )
                 }
               />
+            </Row>
+            <Row label="方格大小上限" hint={cellSizeHint}>
+              <div className="flex items-center gap-1">
+                <NumberField
+                  id="map-info-cell-size"
+                  value={draft.cellSize ?? autoCellSize}
+                  min={MAP_STYLE_CELL_SIZE_MIN}
+                  max={MAP_STYLE_CELL_SIZE_MAX}
+                  suffix="px"
+                  commit={(value) =>
+                    patch((current) => ({ ...current, cellSize: clampCellSize(value) }))
+                  }
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  title={
+                    draft.cellSize === null
+                      ? '当前没有设上限（完全按窗口自适应）'
+                      : `清除上限（按窗口自适应，当前算得 ${autoCellSize}px）`
+                  }
+                  disabled={draft.cellSize === null}
+                  onClick={() => patch((current) => ({ ...current, cellSize: null }))}
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </Row>
           </Section>
 

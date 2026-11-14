@@ -4,6 +4,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { toast } from 'sonner';
 import {
+  DEFAULT_CELL_SIZE,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   mapDraftSchema,
@@ -176,6 +177,12 @@ export function MapEditorPage(): JSX.Element {
    * decide what happens to unsaved 基本信息 edits.
    */
   const [pendingMapInfoAction, setPendingMapInfoAction] = useState<(() => void) | null>(null);
+  /**
+   * v0.10.8：「方格大小上限」那行要显示「本次按窗口算出来是多少」。
+   * `EditorCanvas` 的自适应 pass 通过 `onAutoCellSize` 报上来，这里只存着给抽屉看，
+   * 不参与任何渲染决策 —— 真正生效的格子边长在画布内部算。
+   */
+  const [autoCellSize, setAutoCellSize] = useState(DEFAULT_CELL_SIZE);
   /**
    * 「地图基本信息」里已应用到页面、但**还没写库**的条目字段。
    * 抽屉的「保存」只把值放到这里，右上角「保存」才发请求 —— 所以它是
@@ -1005,6 +1012,7 @@ export function MapEditorPage(): JSX.Element {
               activeTool={editor.activeTool}
               spaceHeld={spaceHeld}
               showRulers={rulerVisible}
+              onAutoCellSize={setAutoCellSize}
               pendingVariant={pendingVariant}
               regionDraftSelection={editor.regionDraftSelection}
               // SPEC-K12 §9.1: the map editor has no participants, so there is
@@ -1156,6 +1164,7 @@ export function MapEditorPage(): JSX.Element {
             coverUrl={entryInfo.coverUrl}
             coverFile={entryInfo.coverFile}
             coverRemoved={entryInfo.coverRemoved}
+            autoCellSize={autoCellSize}
             onRequestClose={closeMapInfo}
             onCommit={commitMapInfo}
           />

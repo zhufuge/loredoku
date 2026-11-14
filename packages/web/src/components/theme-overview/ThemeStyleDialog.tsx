@@ -247,9 +247,11 @@ export function StyleFieldControl({
       value={text}
       onChange={(event) => {
         const next = event.target.value;
-        if (next.trim().length === 0) return;
+        // v0.10.8：标尺符号允许留空（只显示数字），字体名之类仍然不许清空。
+        if (!field.allowEmpty && next.trim().length === 0) return;
         onChange(next);
       }}
+      maxLength={field.maxLength}
       className="h-7 w-40 font-mono text-2xs"
       aria-label={field.label}
     />

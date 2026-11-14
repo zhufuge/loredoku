@@ -290,6 +290,56 @@ describe('ruler style config (FEAT-E02)', () => {
   });
 });
 
+/**
+ * v0.10.8：标尺前缀符号可配（默认 `C` / `R`）。
+ *
+ * 三件事值得钉住：默认值不变（老地图一像素不改）、自定义符号真的进了文本、
+ * 留空 = 只显示数字。
+ */
+describe('ruler symbols (v0.10.8)', () => {
+  it('defaults to `C` for columns and `R` for rows', () => {
+    const base = { gridSize: 2, hoverIndex: null, operationIndex: null, scale: 1 } as const;
+    expect(buildRulerGlyphs({ ...base, axis: 'column' }).map((g) => g.label)).toEqual(['C1', 'C2']);
+    expect(buildRulerGlyphs({ ...base, axis: 'row' }).map((g) => g.label)).toEqual(['R1', 'R2']);
+  });
+
+  it('uses the configured symbol instead of the default', () => {
+    const base = { gridSize: 2, hoverIndex: null, operationIndex: null, scale: 1 } as const;
+    expect(
+      buildRulerGlyphs({ ...base, axis: 'column', symbol: '列' }).map((g) => g.label),
+    ).toEqual(['列1', '列2']);
+    expect(buildRulerGlyphs({ ...base, axis: 'row', symbol: '行' }).map((g) => g.label)).toEqual([
+      '行1',
+      '行2',
+    ]);
+  });
+
+  it('an empty symbol leaves bare numbers', () => {
+    const glyphs = buildRulerGlyphs({
+      gridSize: 1,
+      axis: 'column',
+      hoverIndex: null,
+      operationIndex: null,
+      scale: 1,
+      symbol: '',
+    });
+    expect(glyphs.map((glyph) => glyph.label)).toEqual(['1']);
+  });
+
+  it('rulerLabelWidth takes the widest of the two symbols', () => {
+    // `列` is a full-width glyph (1em), `C` is ~0.62em: sizing the strip for
+    // `C` alone would clip a Chinese prefix.
+    const withSymbols = rulerLabelWidth(24, 24, ['C', 'R']);
+    expect(withSymbols).toBeCloseTo(3 * 0.62 * 24, 6);
+    // `列24` = 1em + 两个数字（各 0.62em）。
+    expect(rulerLabelWidth(24, 24, ['列', '行'])).toBeCloseTo((1 + 2 * 0.62) * 24, 6);
+    // Mixed: the wide one wins.
+    expect(rulerLabelWidth(24, 24, ['C', '行'])).toBeCloseTo((1 + 2 * 0.62) * 24, 6);
+    // No symbols → same as before (column default).
+    expect(rulerLabelWidth(24, 24)).toBeCloseTo(3 * 0.62 * 24, 6);
+  });
+});
+
 // ---- v0.7.0 fix: 标尺薄轴贴边且文本完整（docs/v0.7.0.md §3 / §8） ----
 describe('rulerStripStart', () => {
   it('hugs the board edge when the label fits between it and the viewport', () => {

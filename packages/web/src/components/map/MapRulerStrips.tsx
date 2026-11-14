@@ -58,7 +58,12 @@ export function MapRulerStrips({
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
   // v0.7.0 fix: the row strip's thin axis is horizontal — size it for the
   // widest label, not just the glyph height.
-  const rulerLabel = rulerLabelWidth(gridSize, rulerMaxFont);
+  // v0.10.8: 两轴的符号都可配（默认 `C` / `R`，中文图可能用「列」「行」），
+  // 所以取两者里更宽的那个来定条厚 —— 只按 `C` 算会把 `列24` 切掉半截。
+  const rulerLabel = rulerLabelWidth(gridSize, rulerMaxFont, [
+    style.ruler.columnSymbol,
+    style.ruler.rowSymbol,
+  ]);
   const columnStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: rulerGap });
   const rowStrip = rulerStripSize({
     maxFontSize: rulerMaxFont,
@@ -76,8 +81,9 @@ export function MapRulerStrips({
         scale: rulerScale,
         zoom,
         fontSize: style.ruler.fontSize,
+        symbol: style.ruler.columnSymbol,
       }),
-    [gridSize, hover?.x, operationCell?.x, rulerScale, zoom, style.ruler.fontSize],
+    [gridSize, hover?.x, operationCell?.x, rulerScale, zoom, style.ruler.fontSize, style.ruler.columnSymbol],
   );
 
   const rows = useMemo(
@@ -90,8 +96,9 @@ export function MapRulerStrips({
         scale: rulerScale,
         zoom,
         fontSize: style.ruler.fontSize,
+        symbol: style.ruler.rowSymbol,
       }),
-    [gridSize, hover?.y, operationCell?.y, rulerScale, zoom, style.ruler.fontSize],
+    [gridSize, hover?.y, operationCell?.y, rulerScale, zoom, style.ruler.fontSize, style.ruler.rowSymbol],
   );
 
   return (

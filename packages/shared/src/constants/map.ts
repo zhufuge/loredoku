@@ -369,7 +369,18 @@ export interface RegionLabelOffset {
 export interface MapStyleRuler {
   fontSize: number;
   gap: number;
+  /**
+   * v0.10.8：列 / 行标尺的前缀符号，默认 `C` / `R`。
+   *
+   * 为什么可配：中文地图上「C1 R3」和「列1 行3」是两种完全不同的读法，而标尺是
+   * 玩家定位格子的唯一参照。存在风格里而不是写死，主题就能统一自己的说法。
+   */
+  columnSymbol: string;
+  rowSymbol: string;
 }
+
+/** v0.10.8：标尺符号的长度上限 —— 再长就不是「前缀」而是句子了。 */
+export const MAP_STYLE_RULER_SYMBOL_MAX_LENGTH = 4;
 
 /**
  * v0.9.1（docs/v0.9.1.md §2）：画布这张纸投下的影子。
