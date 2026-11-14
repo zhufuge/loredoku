@@ -171,7 +171,7 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 | `highlight` | `width` 1–12（可小数）、`color` |
 | `label` | `fontFamily`、`fontSize` 9–48 整数、`strokeWidth` 0–12、`color`、`strokeColor`、`hoverFontSize` 9–48 整数、`hoverColor`、`hoverStrokeColor`、`hoverStrokeWidth` 0–12、`offset`（见下） |
 
-`label.offset` 是这块区域标签相对「格子上沿居中」的像素位移，`{ "x"?: number, "y"?: number }`，两轴都可缺（只改一个方向时另一轴视为 0），整块缺席 = 不偏移。正数向右 / 向下。**v0.10.7 起没有上下限**（原先是 ∓200）：只要求是有限数字，取整在渲染侧做。
+`label.offset` 是这块区域标签相对「格子上沿居中」的像素位移，`{ "x"?: number, "y"?: number }`，两轴都可缺（只改一个方向时另一轴视为 0），整块缺席 = 不偏移。正数向右 / 向下。**v0.10.7 起没有上下限**（原先是 ∓200）：只要求是有限数字，取整在渲染侧做。数值以**基准格子 `BASE_CELL = 120px`** 为基准，渲染时乘 `cellSize / 120` —— 所以开 / 关标尺、换窗口大小导致格子被自适应缩放时，偏移量在格子上占的比例不变，标签不会跟着漂。
 
 `fontFamily` 存的是**字体名**（`"WenKai"`、`"霞鹜文楷"`）或内置 key（`system` / `sans` / `serif` / `kai` / `mono`），不是 CSS 串：长度 ≤ 64，且不能含引号 / 逗号 / 分号（否则会撕开回退链）。本构建没带的字体照原样保留，渲染时退回系统字体。
 

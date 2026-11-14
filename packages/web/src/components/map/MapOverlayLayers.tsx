@@ -176,15 +176,22 @@ export function MapRegionLabelLayer({
         const resolved = resolveRegionStyle(style, region.style);
         const label = resolved.label;
         /*
-         * v0.9.6：每块区域自己那份**位置偏移**（画布像素）。
+         * v0.9.6：每块区域自己那份**位置偏移**。
          *
-         * 单位是画布像素而不是格子比例：「往右 12px」在 4×4 和 12×12 的盘面上
-         * 说的是同一件事，而「往右半格」会随格子大小漂移 —— 作者调的是「这一枚
-         * 标签压到别的东西了」，不是「按格算的间距」。
+         * v0.10.7 修：原来它是不缩放的裸像素 —— 于是「左 = 锚点格心 + offset」
+         * 里两项不同口径，`cellSize` 一变（开 / 关标尺、换窗口大小、换一张
+         * 格子更大的图）偏移量在格子上的占比就跟着变，标签肉眼可见地挪位置。
+         * 实测 17155「穿廊」偏移 200：标尺开时占 1.70 格，关掉变成 1.87 格。
+         *
+         * 现在按 `cellScale(cellSize)` 缩放，与这一层其它几何（描边宽度、字号）
+         * 同一口径 —— 作者填的数字以 `BASE_CELL`（120px 格子）为基准，换算后
+         * 偏移量恒定占相同比例的格子，开关标尺不再动。
          *
          * 它跟着纸一起 `transform`（父层带着 zoom / pan），所以缩放时不用另算。
          */
         const offset = resolved.labelOffset;
+        const offsetX = offset.x * scale;
+        const offsetY = offset.y * scale;
         const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
         /*
          * v0.10.2：标签**不再接管点击**。
@@ -206,8 +213,8 @@ export function MapRegionLabelLayer({
             className="region-label pointer-events-auto absolute select-none whitespace-nowrap"
             style={
               {
-                left: centerX * cellSize + offset.x,
-                top: (anchor[1] + 1) * cellSize - 2 + offset.y,
+                left: centerX * cellSize + offsetX,
+                top: (anchor[1] + 1) * cellSize - 2 + offsetY,
                 transform: 'translate(-50%, -100%)',
                 color: hovered ? label.hoverColor : label.color,
                 fontFamily: fontFamilyStack(label.fontFamily),

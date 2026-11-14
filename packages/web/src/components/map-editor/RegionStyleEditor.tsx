@@ -237,12 +237,13 @@ export function RegionStyleEditor({
         </Row>
         {/*
           v0.9.6：位置偏移 —— 只在这一块区域的标签需要避开别的东西时才调。
-          单位是画布像素（正右 / 正下为正），0 就是不偏移，也是出厂值。
+          v0.10.7 起这个数字是**基准格子（120px）上的像素**，渲染时按
+          `cellSize / 120` 缩放，所以开 / 关标尺、换窗口大小都不会让标签挪位。
         */}
         {showOffset ? (
           <Row
             label="位置偏移"
-            hint="Label Offset — 这块区域的标签相对「格子上沿居中」挪多少画布像素（右 / 下为正，0 = 不偏移）。只影响这一块区域的标签。"
+            hint="Label Offset — 这块区域的标签相对「格子上沿居中」挪多少画布像素（右 / 下为正，0 = 不偏移）。按基准格子（120px）折算，格子变大变小时占比不变。只影响这一块区域的标签。"
           >
             <div className="flex items-center gap-1">
               <NumberField
