@@ -1251,7 +1251,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
                 width: total,
                 height: total,
                 zIndex: MAP_LAYER_Z.canvasBase,
-                ...(portraitFit ? null : canvasShadowStyle(style)),
+                ...(portraitFit ? null : canvasShadowStyle(style, cellSize)),
               }}
             >
               {/*

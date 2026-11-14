@@ -417,10 +417,10 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
               </div>
             </Row>
 
-            {/* v0.9.1 §2：画布纸片的投影 —— 偏移 + 颜色，默认 36px。 */}
+            {/* v0.9.1 §2：画布纸片的投影 —— 偏移 + 颜色。v0.10.7 起偏移按格的百分比记。 */}
             <Row
               label="画布阴影"
-              hint="Canvas Shadow — 画布纸片向右下投下的硬影（无模糊），偏移量随缩放一起变。0 就是不投阴影；颜色只收 #RRGGBB，渲染时统一压 30% 透明度。"
+              hint="Canvas Shadow — 画布纸片向右下投下的硬影（无模糊）。偏移按方格大小的百分比算（100% = 一格），格子缩放时占比不变；0 就是不投阴影。颜色只收 #RRGGBB，渲染时统一压 30% 透明度。"
             >
               <div className="flex items-center gap-1">
                 <NumberField
@@ -428,7 +428,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                   value={draft.canvasShadow.offset}
                   min={MAP_STYLE_SHADOW_OFFSET_MIN}
                   max={MAP_STYLE_SHADOW_OFFSET_MAX}
-                  suffix="px"
+                  suffix="%"
                   commit={(value) =>
                     patch((current) => ({
                       ...current,
@@ -594,13 +594,13 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                   }
                 />
               </Row>
-              <Row label="外扩距离">
+              <Row label="外扩距离" hint="框向外扩出多少，按方格大小的百分比算（100% = 一格）。">
                 <NumberField
                   id="map-info-op-offset"
                   value={draft.operationCursorBox.offset}
                   min={MAP_STYLE_OPERATION_OFFSET_MIN}
                   max={MAP_STYLE_OPERATION_OFFSET_MAX}
-                  suffix="px"
+                  suffix="%"
                   commit={(value) =>
                     patch((current) => ({
                       ...current,

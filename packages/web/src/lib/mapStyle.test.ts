@@ -103,7 +103,7 @@ describe('resolveMapStyle (FEAT-D02)', () => {
       gridSeparator: { width: 0 },
       regionHighlight: { width: -4 },
       regionOutline: { width: 40 },
-      operationCursorBox: { offset: 99 },
+      operationCursorBox: { offset: 999 },
       regionLabel: { fontSize: 400, strokeWidth: 99 },
     } as Partial<MapStyle>);
     expect(style.cellSize).toBe(MAP_STYLE_CELL_SIZE_MAX);
@@ -113,7 +113,8 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(style.regionHighlight.width).toBe(MAP_STYLE_LINE_WIDTH_MIN);
     // Region outlines have their own 4 ~ 12 range.
     expect(style.regionOutline.width).toBe(12);
-    expect(style.operationCursorBox.offset).toBe(8);
+    // v0.10.7：外扩距离的区间是 0 ~ 100（格的百分比）。
+    expect(style.operationCursorBox.offset).toBe(100);
     expect(style.regionLabel.fontSize).toBe(48);
     expect(style.regionLabel.strokeWidth).toBe(12);
   });
@@ -151,7 +152,8 @@ describe('clamp helpers (FEAT-D02 §关键规则 6)', () => {
     expect(clampRegionLabelFont(999)).toBe(48);
     expect(clampRegionLabelFont(17.6)).toBe(18);
     expect(clampRegionLabelStroke(-3)).toBe(0);
-    expect(clampOperationOffset(20)).toBe(8);
+    // v0.10.7：外扩距离改成格的百分比，上限 100。
+    expect(clampOperationOffset(200)).toBe(100);
     // v0.7.4: 轮廓线下限 4 → 1，0 仍然被夹到 1。
     expect(clampRegionBorderWidth(0)).toBe(1);
     expect(clampRegionBorderWidth(1)).toBe(1);
@@ -285,25 +287,35 @@ describe('styleLineWidth (FEAT-D02 §关键规则 1)', () => {
   });
 });
 
-describe('canvas shadow (v0.8.7 §6 / v0.9.1 §2)', () => {
-  it('出厂 36px、墨黑 0.3 的右下硬影', () => {
+describe('canvas shadow (v0.8.7 §6 / v0.9.1 §2 / v0.10.7 百分比)', () => {
+  it('出厂 30%、墨黑 0.3 的右下硬影（120px 格子上还是 36px）', () => {
     const style = resolveMapStyle(undefined);
     // 0 模糊，x 与 y 用同一个偏移，别让影子歪掉；透明度取常量。
-    expect(canvasShadowStyle(style).boxShadow).toBe('36px 36px 0 rgba(0, 0, 0, 0.3)');
+    expect(canvasShadowStyle(style, 120).boxShadow).toBe('36px 36px 0 rgba(0, 0, 0, 0.3)');
   });
 
   it('偏移与颜色读 canvasShadow，与画布外框解耦', () => {
     const style = resolveMapStyle({
       // 外框染红也不该把影子带红 —— 这是 v0.9.1 拆开它们的重点。
       canvasFrame: { width: 12, color: '#FF0000' },
-      canvasShadow: { offset: 48, color: '#2F2A24' },
+      canvasShadow: { offset: 40, color: '#2F2A24' },
     } as Partial<MapStyle>);
-    expect(canvasShadowStyle(style).boxShadow).toBe('48px 48px 0 rgba(47, 42, 36, 0.3)');
+    expect(canvasShadowStyle(style, 120).boxShadow).toBe('48px 48px 0 rgba(47, 42, 36, 0.3)');
   });
 
-  it('偏移量被夹在 0 ~ 120 的区间里', () => {
+  it('v0.10.7：偏移按方格大小的百分比算，格子变大影子跟着按比例走', () => {
+    const style = resolveMapStyle({
+      canvasShadow: { offset: 50, color: '#000000' },
+    } as Partial<MapStyle>);
+    expect(canvasShadowStyle(style, 120).boxShadow).toBe('60px 60px 0 rgba(0, 0, 0, 0.3)');
+    expect(canvasShadowStyle(style, 60).boxShadow).toBe('30px 30px 0 rgba(0, 0, 0, 0.3)');
+    // 同一比例：30/60 与 60/120 都是半格。
+    expect(canvasShadowStyle(style, 200).boxShadow).toBe('100px 100px 0 rgba(0, 0, 0, 0.3)');
+  });
+
+  it('偏移量被夹在 0 ~ 200 的区间里', () => {
     expect(resolveMapStyle({ canvasShadow: { offset: -10, color: '#000000' } } as Partial<MapStyle>).canvasShadow.offset).toBe(0);
-    expect(resolveMapStyle({ canvasShadow: { offset: 999, color: '#000000' } } as Partial<MapStyle>).canvasShadow.offset).toBe(120);
+    expect(resolveMapStyle({ canvasShadow: { offset: 999, color: '#000000' } } as Partial<MapStyle>).canvasShadow.offset).toBe(200);
   });
 });
 

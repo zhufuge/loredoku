@@ -126,8 +126,14 @@ export const MAP_STYLE_LINE_WIDTH_MAX = 12;
  */
 export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN = 0;
 export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX = 12;
+/**
+ * v0.10.7：操作光标框的**外扩距离**，单位是**格的百分比**（`100` = 一格）。
+ *
+ * 以前记的是画布像素：同一份 `2` 在大格子上只往外扩一点点、在小格子上却几乎盖住
+ * 邻格。改成百分比后，框与格子的相对关系在任何格子大小下都一样。
+ */
 export const MAP_STYLE_OPERATION_OFFSET_MIN = 0;
-export const MAP_STYLE_OPERATION_OFFSET_MAX = 8;
+export const MAP_STYLE_OPERATION_OFFSET_MAX = 100;
 export const MAP_STYLE_REGION_LABEL_FONT_MIN = 9;
 export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
 export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
@@ -255,12 +261,18 @@ export const STYLE_DEFAULT_CANVAS_FRAME_WIDTH = 12;
  * 它们进了 `MapStyle.canvasShadow`（地图「基本信息」与主题缺省风格都能改）。
  * 下面这几个常量只剩「出厂默认值」与区间，`canvasShadowStyle` 读的是风格里的值。
  */
-export const CANVAS_SHADOW_OFFSET_PX = 36;
+export const CANVAS_SHADOW_OFFSET_PERCENT = 30;
 /** 固定透明度：阴影颜色只配 `#RRGGBB`，落成影子时统一压这一档。 */
 export const CANVAS_SHADOW_ALPHA = 0.3;
-/** v0.9.1：阴影偏移的可调区间（画布像素）。0 = 不投阴影。 */
+/**
+ * v0.9.1：阴影偏移的可调区间。0 = 不投阴影。
+ *
+ * v0.10.7 起单位是**格的百分比**（`100` = 一格）：出厂 `30` 在基准格子（120px）
+ * 上正好是原来的 36px，格子被自适应缩放时阴影跟着按比例走，不会在大图上显得
+ * 像一条细缝、在小图上糊住棋盘。
+ */
 export const MAP_STYLE_SHADOW_OFFSET_MIN = 0;
-export const MAP_STYLE_SHADOW_OFFSET_MAX = 120;
+export const MAP_STYLE_SHADOW_OFFSET_MAX = 200;
 export const STYLE_DEFAULT_GRID_SEPARATOR_WIDTH = 4;
 export const STYLE_DEFAULT_MOUSE_CURSOR_WIDTH = 8;
 export const STYLE_DEFAULT_OPERATION_CURSOR_WIDTH = 8;
@@ -312,7 +324,10 @@ export interface MapStyleMouseCursorBox extends MapStyleLine {
 }
 
 export interface MapStyleOperationCursorBox extends MapStyleLine {
-  /** Distance from the cell edge — an Outline sits outside the grid line. */
+  /**
+   * 相对方格向外扩多少 —— 单位是**格的百分比**（`100` = 一格，v0.10.7 起；原先
+   * 是画布像素）。Outline 画在格子外面，所以这一项通常很小（出厂 `1`）。
+   */
   offset: number;
 }
 
@@ -341,8 +356,9 @@ export interface MapStyleRegionLabel {
  * **每块区域各自一份**，所以放在 `DraftRegion.style.label` 的覆盖里（而不是
  * 地图级缺省）：地图级的缺省偏移对一块区域合适，对另一块就不合适。
  *
- * 单位是**画布像素**（随 `zoom` 缩放、不随格子大小变）：「推开半格」这种意图
- * 会随格子大小漂移，而「往右 12px」不会。`0` = 不偏移（出厂值）。
+ * 单位是**格的百分比**（`100` = 一格，v0.10.7 起）：「往右四分之一格」这种意图
+ * 在任何格子大小下都落在同一个位置；以前记的是画布像素，同一份 `12` 在大格子上
+ * 只挪一小截、在小格子上却能跨过一整格。`0` = 不偏移（出厂值）。
  */
 export interface RegionLabelOffset {
   x: number;

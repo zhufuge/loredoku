@@ -237,19 +237,19 @@ export function RegionStyleEditor({
         </Row>
         {/*
           v0.9.6：位置偏移 —— 只在这一块区域的标签需要避开别的东西时才调。
-          v0.10.7 起这个数字是**基准格子（120px）上的像素**，渲染时按
-          `cellSize / 120` 缩放，所以开 / 关标尺、换窗口大小都不会让标签挪位。
+          v0.10.7 起单位是**格的百分比**（100 = 一格），渲染时乘格子尺寸就是像素，
+          所以开 / 关标尺、换窗口大小、换格子更大的图都不会让标签挪位。
         */}
         {showOffset ? (
           <Row
             label="位置偏移"
-            hint="Label Offset — 这块区域的标签相对「格子上沿居中」挪多少画布像素（右 / 下为正，0 = 不偏移）。按基准格子（120px）折算，格子变大变小时占比不变。只影响这一块区域的标签。"
+            hint="Label Offset — 这块区域的标签相对「格子上沿居中」挪多远，按方格大小的百分比算（100% = 一格；右 / 下为正，0 = 不偏移）。只影响这一块区域的标签。"
           >
             <div className="flex items-center gap-1">
               <NumberField
                 id={`${idPrefix}-label-offset-x`}
                 value={value.labelOffset.x}
-                suffix="x"
+                suffix="% x"
                 commit={(next) =>
                   patchLabelOffset({ x: clampRegionLabelOffset(next) })
                 }
@@ -257,7 +257,7 @@ export function RegionStyleEditor({
               <NumberField
                 id={`${idPrefix}-label-offset-y`}
                 value={value.labelOffset.y}
-                suffix="y"
+                suffix="% y"
                 commit={(next) =>
                   patchLabelOffset({ y: clampRegionLabelOffset(next) })
                 }

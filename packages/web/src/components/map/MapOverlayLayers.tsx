@@ -178,20 +178,19 @@ export function MapRegionLabelLayer({
         /*
          * v0.9.6：每块区域自己那份**位置偏移**。
          *
-         * v0.10.7 修：原来它是不缩放的裸像素 —— 于是「左 = 锚点格心 + offset」
-         * 里两项不同口径，`cellSize` 一变（开 / 关标尺、换窗口大小、换一张
-         * 格子更大的图）偏移量在格子上的占比就跟着变，标签肉眼可见地挪位置。
-         * 实测 17155「穿廊」偏移 200：标尺开时占 1.70 格，关掉变成 1.87 格。
+         * v0.10.7：单位改成**格的百分比**（100 = 一格）。作者填的数直接乘格子
+         * 尺寸就是像素，所以「往右四分之一格」在任何格子大小下都落在同一个位置。
          *
-         * 现在按 `cellScale(cellSize)` 缩放，与这一层其它几何（描边宽度、字号）
-         * 同一口径 —— 作者填的数字以 `BASE_CELL`（120px 格子）为基准，换算后
-         * 偏移量恒定占相同比例的格子，开关标尺不再动。
+         * 在此之前它是画布像素：先是裸像素（开关标尺会重算 `cellSize`，偏移量在
+         * 格子上占的比例就跟着变 —— 实测 17155「穿廊」填 200：标尺开占 1.70 格、
+         * 关掉 1.87 格，标签肉眼可见地挪位），后来按 `BASE_CELL` 折算，占比稳了，
+         * 但作者看到的是「200」这种与格子无关的数字，写不出「半格」这种意图。
          *
          * 它跟着纸一起 `transform`（父层带着 zoom / pan），所以缩放时不用另算。
          */
         const offset = resolved.labelOffset;
-        const offsetX = offset.x * scale;
-        const offsetY = offset.y * scale;
+        const offsetX = (offset.x / 100) * cellSize;
+        const offsetY = (offset.y / 100) * cellSize;
         const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
         /*
          * v0.10.2：标签**不再接管点击**。

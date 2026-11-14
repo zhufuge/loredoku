@@ -72,7 +72,7 @@ const WRITE_SPECS: Record<string, WriteSpec> = {
 
   'canvasFrame.width': { kind: 'number', min: MAP_STYLE_LINE_WIDTH_MIN, max: MAP_STYLE_LINE_WIDTH_MAX, suffix: 'px' },
   'canvasFrame.color': { kind: 'color' },
-  'canvasShadow.offset': { kind: 'number', min: MAP_STYLE_SHADOW_OFFSET_MIN, max: MAP_STYLE_SHADOW_OFFSET_MAX, suffix: 'px' },
+  'canvasShadow.offset': { kind: 'number', min: MAP_STYLE_SHADOW_OFFSET_MIN, max: MAP_STYLE_SHADOW_OFFSET_MAX, suffix: '%' },
   'canvasShadow.color': { kind: 'color' },
   'regionOutline.width': { kind: 'number', min: REGION_BORDER_WIDTH_MIN, max: REGION_BORDER_WIDTH_MAX, suffix: 'px' },
   'regionOutline.color': { kind: 'color' },
@@ -100,7 +100,7 @@ const WRITE_SPECS: Record<string, WriteSpec> = {
   'mouseCursorBox.shadowColor': { kind: 'shadow' },
   'operationCursorBox.width': { kind: 'number', min: MAP_STYLE_LINE_WIDTH_MIN, max: MAP_STYLE_LINE_WIDTH_MAX, suffix: 'px' },
   'operationCursorBox.color': { kind: 'color' },
-  'operationCursorBox.offset': { kind: 'number', min: MAP_STYLE_OPERATION_OFFSET_MIN, max: MAP_STYLE_OPERATION_OFFSET_MAX, suffix: 'px' },
+  'operationCursorBox.offset': { kind: 'number', min: MAP_STYLE_OPERATION_OFFSET_MIN, max: MAP_STYLE_OPERATION_OFFSET_MAX, suffix: '%' },
 };
 
 /**
@@ -118,7 +118,7 @@ const FIELD_HINTS: Record<string, string> = {
   'canvasFrame.width':
     'Canvas Frame — 整张画布最外圈的边框线，画在画布矩形之外，与格内内容不重叠。',
   'canvasFrame.color': '画布外框 — 最外圈那条线的颜色。',
-  'canvasShadow.offset': 'Canvas Shadow — 画布纸片投下的硬影，向右下偏移这么多像素（随缩放）。0 就是不投。',
+  'canvasShadow.offset': 'Canvas Shadow — 画布纸片投下的硬影，向右下偏移这么多；按方格大小的百分比算（100% = 一格），格子缩放时占比不变。0 就是不投。',
   'canvasShadow.color': '画布阴影颜色 — 影子统一压 30% 透明度，所以浅色看起来会比原色淡。',
   'regionOutline.width': 'Region Outline — 区域自己的边界线，与画布外框、网格线都不是一回事。',
   'regionOutline.color': '区域轮廓线 — 区域边界线的颜色。',
@@ -149,7 +149,7 @@ const FIELD_HINTS: Record<string, string> = {
   'operationCursorBox.width':
     'Operation Cursor Box — 固定在「当前操作格」上的框，以外描边画在网格线外侧，不参与布局。',
   'operationCursorBox.color': '操作光标框 — 那个框的颜色。',
-  'operationCursorBox.offset': '外扩距离 — 框相对方格向外扩多少像素。',
+  'operationCursorBox.offset': '外扩距离 — 框相对方格向外扩多少，按方格大小的百分比算（100% = 一格）。',
 };
 
 /** 四组的解释 —— 抽屉里每个分区标题后面的那个问号。 */

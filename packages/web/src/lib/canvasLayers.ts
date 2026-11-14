@@ -178,9 +178,12 @@ export function operationCursorStyle(
   outline: string;
   outlineOffset: string;
 } {
+  // v0.10.7：`offset` 是格的百分比（100 = 一格），乘 `cellSize` 换成像素 ——
+  // 以前它直接就是像素，同一份 `1` 在小格子上几乎贴着线、在大格子上被摊薄。
+  const offset = (cursor.offset / 100) * cellSize;
   return {
     outline: operationCursorOutline(cellSize, cursor),
-    outlineOffset: `${cursor.offset}px`,
+    outlineOffset: `${offset}px`,
   };
 }
 

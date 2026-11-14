@@ -171,7 +171,7 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 | `highlight` | `width` 1–12（可小数）、`color` |
 | `label` | `fontFamily`、`fontSize` 9–48 整数、`strokeWidth` 0–12、`color`、`strokeColor`、`hoverFontSize` 9–48 整数、`hoverColor`、`hoverStrokeColor`、`hoverStrokeWidth` 0–12、`offset`（见下） |
 
-`label.offset` 是这块区域标签相对「格子上沿居中」的像素位移，`{ "x"?: number, "y"?: number }`，两轴都可缺（只改一个方向时另一轴视为 0），整块缺席 = 不偏移。正数向右 / 向下。**v0.10.7 起没有上下限**（原先是 ∓200）：只要求是有限数字，取整在渲染侧做。数值以**基准格子 `BASE_CELL = 120px`** 为基准，渲染时乘 `cellSize / 120` —— 所以开 / 关标尺、换窗口大小导致格子被自适应缩放时，偏移量在格子上占的比例不变，标签不会跟着漂。
+`label.offset` 是这块区域标签相对「格子上沿居中」的位移，`{ "x"?: number, "y"?: number }`，两轴都可缺（只改一个方向时另一轴视为 0），整块缺席 = 不偏移。正数向右 / 向下。**v0.10.7 起没有上下限**（原先是 ∓200），且**单位是格的百分比**（`100` = 一格）：只要求是有限数字，取整在渲染侧做，与格子大小同口径 —— 换窗口、开关标尺导致格子被缩放时标签不会漂。存量像素值由 `20260101000048_v0107_offset_percent` 按各自图的 `cellSize` 换算过。
 
 `fontFamily` 存的是**字体名**（`"WenKai"`、`"霞鹜文楷"`）或内置 key（`system` / `sans` / `serif` / `kai` / `mono`），不是 CSS 串：长度 ≤ 64，且不能含引号 / 逗号 / 分号（否则会撕开回退链）。本构建没带的字体照原样保留，渲染时退回系统字体。
 
@@ -185,13 +185,15 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 | `canvasFrame` | `width` 1–12、`color` | `12` / `#000000` |
 | `gridSeparator` | `width` 1–12、`color` | `4` / `#000000` |
 | `mouseCursorBox` | `width` 1–12、`color`、`blockedColor`、`shadowColor` | `8` / `#FFFFFF` / `#EF9A9A` / `rgba(0,0,0,0.15)` |
-| `operationCursorBox` | `width` 1–12、`color`、`offset` 0–8 | `8` / `#90CAF9` / `1` |
+| `operationCursorBox` | `width` 1–12、`color`、`offset` 0–100（**格的百分比**，100 = 一格，v0.10.7 起） | `8` / `#90CAF9` / `1` |
 | `regionLabel` | `fontFamily`、`fontSize` 9–48、`strokeWidth` 0–12、`color`、`strokeColor`、`hoverFontSize` 9–48、`hoverColor`、`hoverStrokeColor`、`hoverStrokeWidth` 0–12 | `system` / `32` / `10` / `#FFFFFF` / `#000000` / `36` / `#FFFFFF` / `#3B82F6` / `10` |
 | `regionOutline` | `width` 1–12 整数、`color` | `12` / `#000000` |
 | `regionHighlight` | `width` 1–12、`color` | `12` / `#3B82F6` |
 | `ruler` | `fontSize` 9–32、`gap` 0–32 | `24` / `24` |
 
 所有尺寸都是**在 `cellSize = 120` 下作者写的值**，渲染时统一乘 `cellSize / 120`，所以同一份配置在 2×2 和 24×24 上读数一致。
+
+两处**偏移**例外，它们 v0.10.7 起直接按格的百分比记（`100` = 一格），渲染时乘 `cellSize` 换成像素：`canvasShadow.offset`（0–200，出厂 `30`）与 `operationCursorBox.offset`。这样作者写「半格」就是 `50`，不必知道当时的格子有多宽。
 
 ### 4.8 完整示例（3×3）
 

@@ -39,7 +39,9 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
     expect(mapStyleSchema.safeParse({ cellSize: 400 }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ regionOutline: { width: 99 } }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ regionLabel: { fontSize: 400 } }).success).toBe(false);
-    expect(mapStyleSchema.safeParse({ operationCursorBox: { offset: 99 } }).success).toBe(false);
+    // v0.10.7：外扩距离按格的百分比，上限 100。
+    expect(mapStyleSchema.safeParse({ operationCursorBox: { offset: 101 } }).success).toBe(false);
+    expect(mapStyleSchema.safeParse({ operationCursorBox: { offset: 100 } }).success).toBe(true);
   });
 
   it('accepts every documented boundary value', () => {

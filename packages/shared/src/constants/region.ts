@@ -7,7 +7,7 @@ import {
   OPERATION_CURSOR_OUTLINE_OFFSET,
 } from './grid';
 import {
-  CANVAS_SHADOW_OFFSET_PX,
+  CANVAS_SHADOW_OFFSET_PERCENT,
   DEFAULT_REGION_LABEL_FONT_FAMILY,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   STYLE_DEFAULT_CANVAS_FRAME_WIDTH,
@@ -109,8 +109,8 @@ export const DEFAULT_MAP_STYLE: MapStyle = {
   cellSize: null,
   // v0.5.2 SPEC-M07: geometric defaults come from the `STYLE_DEFAULT_*` set.
   canvasFrame: { width: STYLE_DEFAULT_CANVAS_FRAME_WIDTH, color: LINE_COLOR },
-  // v0.9.1：出厂 36px、颜色沿用外框的墨色（#000000），透明度由渲染层固定为 0.3。
-  canvasShadow: { offset: CANVAS_SHADOW_OFFSET_PX, color: LINE_COLOR },
+  // v0.9.1：出厂 30%（基准格子 120px 上 = 原来的 36px），颜色沿用外框的墨色，透明度由渲染层固定为 0.3。
+  canvasShadow: { offset: CANVAS_SHADOW_OFFSET_PERCENT, color: LINE_COLOR },
   // v0.9.1 §5：默认不描边；颜色先给墨色，作者打开描边时不用先去改颜色。
   itemOutline: { width: MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN, color: LINE_COLOR },
   gridSeparator: { width: STYLE_DEFAULT_GRID_SEPARATOR_WIDTH, color: LINE_COLOR },

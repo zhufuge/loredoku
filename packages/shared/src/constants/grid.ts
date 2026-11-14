@@ -131,9 +131,8 @@ export const CELL_CURSOR_SHADOW_COLOR = 'rgba(0,0,0,0.15)';
 /** Operation box colour — OPT-A06 §5.1 pale blue, drawn as an Outline. */
 export const OPERATION_CURSOR_COLOR = HIGHLIGHT_BLUE;
 export const OPERATION_CURSOR_OUTLINE_WIDTH = 2;
-/** Distance from the cell edge (an Outline sits outside the Border). */
+/** Distance from the cell edge, **as a percentage of one cell** (v0.10.7). */
 export const OPERATION_CURSOR_OUTLINE_OFFSET = 1;
-
 // ---- OPT-A03 §3.1 + OPT-A06 §5.2 阻挡物品阴影 ----
 /** Deepened from `rgba(0,0,0,0.08)` to make blocking cells readable. */
 export const BLOCKING_SHADOW_COLOR = 'rgba(0,0,0,0.18)';

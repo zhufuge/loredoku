@@ -106,7 +106,7 @@ export const mapStyleSchema = z.object({
   canvasFrame: styleLineSchema(DEFAULT_MAP_STYLE.canvasFrame).default(() => ({
     ...DEFAULT_MAP_STYLE.canvasFrame,
   })),
-  // v0.9.1：画布阴影 —— 偏移（画布像素）+ 颜色（#RRGGBB，透明度固定 0.3）。
+  // v0.9.1：画布阴影 —— 偏移（格的百分比，v0.10.7 起；100 = 一格）+ 颜色（透明度固定 0.3）。
   canvasShadow: z
     .object({
       offset: z
@@ -143,6 +143,7 @@ export const mapStyleSchema = z.object({
   }).default(() => ({
     ...DEFAULT_MAP_STYLE.mouseCursorBox,
   })),
+  // v0.5.2 SPEC-M07：操作光标框。`offset` 是外扩距离，v0.10.7 起按格的百分比记（100 = 一格）。
   operationCursorBox: z.object({
     width: z
       .number()

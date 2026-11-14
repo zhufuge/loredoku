@@ -506,8 +506,9 @@ describe('OPT-B03: scaled cursor geometry', () => {
     expect(shadow).toContain(`0 0 0 8px ${CELL_CURSOR_SHADOW_COLOR}`);
     // 8 × 2 = 16 → clamped to 12px as well.
     expect(operationCursorOutline(240)).toBe(`12px solid ${OPERATION_CURSOR_COLOR}`);
+    // v0.10.7：外扩距离是格的百分比（1%），240px 格子上 = 2.4px。
     expect(operationCursorStyle(240).outlineOffset).toBe(
-      `${OPERATION_CURSOR_OUTLINE_OFFSET}px`,
+      `${(OPERATION_CURSOR_OUTLINE_OFFSET / 100) * 240}px`,
     );
   });
 

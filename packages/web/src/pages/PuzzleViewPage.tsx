@@ -524,7 +524,7 @@ export function PuzzleViewPage(): JSX.Element {
               width: total,
               height: total,
               zIndex: MAP_LAYER_Z.canvasBase,
-              ...canvasShadowStyle(style),
+              ...canvasShadowStyle(style, cellSize),
             }}
             />
 

@@ -40,6 +40,8 @@ export interface FieldSpec {
 }
 
 const px = (value: StyleLeaf): string => (value === null ? '自适应' : `${value}px`);
+/** v0.10.7：偏移类字段按格的百分比显示（100% = 一格）。 */
+const pc = (value: StyleLeaf): string => (value === null ? '—' : `${value}%`);
 const raw = (value: StyleLeaf): string => (value === null ? '—' : String(value));
 
 /**
@@ -60,7 +62,7 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   { key: 'canvasFrame.width', group: '边框', label: '画布外框线宽', read: (style) => style.canvasFrame.width, format: px },
   { key: 'canvasFrame.color', group: '边框', label: '画布外框颜色', read: (style) => style.canvasFrame.color, format: raw },
   // v0.9.1：画布阴影独立成两项（原来偏移是常量、颜色跟外框走，没法比对也没法改）。
-  { key: 'canvasShadow.offset', group: '边框', label: '画布阴影偏移', read: (style) => style.canvasShadow.offset, format: px },
+  { key: 'canvasShadow.offset', group: '边框', label: '画布阴影偏移', read: (style) => style.canvasShadow.offset, format: pc },
   { key: 'canvasShadow.color', group: '边框', label: '画布阴影颜色', read: (style) => style.canvasShadow.color, format: raw },
   { key: 'regionOutline.width', group: '边框', label: '区域轮廓线线宽', read: (style) => style.regionOutline.width, format: px },
   { key: 'regionOutline.color', group: '边框', label: '区域轮廓线颜色', read: (style) => style.regionOutline.color, format: raw },
@@ -91,7 +93,7 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   { key: 'mouseCursorBox.shadowColor', group: '光标', label: '阴影环颜色', read: (style) => style.mouseCursorBox.shadowColor, format: raw },
   { key: 'operationCursorBox.width', group: '光标', label: '操作光标框线宽', read: (style) => style.operationCursorBox.width, format: px },
   { key: 'operationCursorBox.color', group: '光标', label: '操作光标框颜色', read: (style) => style.operationCursorBox.color, format: raw },
-  { key: 'operationCursorBox.offset', group: '光标', label: '操作光标框外扩距离', read: (style) => style.operationCursorBox.offset, format: px },
+  { key: 'operationCursorBox.offset', group: '光标', label: '操作光标框外扩距离', read: (style) => style.operationCursorBox.offset, format: pc },
 ];
 
 /** 显示顺序也固定下来 —— 差异弹窗的分组顺序不该随字段表顺序漂移。 */

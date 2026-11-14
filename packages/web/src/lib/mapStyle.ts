@@ -69,11 +69,11 @@ export function clampRegionLabelStroke(value: number): number {
 }
 
 /**
- * v0.9.6：区域标签位置偏移（画布像素，可正可负，取整）。
+ * v0.9.6：区域标签位置偏移（可正可负，取整）。
  *
  * 与 `clampRegionLabelStroke` 同一条路：输入框里可能是 `-`、空串、小数，这里
  * 统一取整。v0.10.7 起**不再封顶**（原来的 ±200 会把「推到远处留白」挡死），
- * 只把非有限数落回 0。
+ * 只把非有限数落回 0。单位是格的百分比（100 = 一格，v0.10.7 起）。
  */
 export function clampRegionLabelOffset(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -84,7 +84,7 @@ export function clampOperationOffset(value: number): number {
   return clampNumber(value, MAP_STYLE_OPERATION_OFFSET_MIN, MAP_STYLE_OPERATION_OFFSET_MAX);
 }
 
-/** v0.9.1：画布阴影的偏移量（画布像素），整数 0 ~ 120。 */
+/** v0.9.1：画布阴影的偏移量（格的百分比，v0.10.7 起；100 = 一格），整数 0 ~ 200。 */
 export function clampCanvasShadowOffset(value: number): number {
   return Math.round(clampNumber(value, MAP_STYLE_SHADOW_OFFSET_MIN, MAP_STYLE_SHADOW_OFFSET_MAX));
 }
@@ -402,10 +402,14 @@ export function styleLineWidth(base: number, cellSize: number): number {
  *
  * 返回值直接摊进画布底色那一层（`MAP_LAYER_Z.canvasBase`）的 `style`：它在缩放
  * 容器里，所以偏移量随 `zoom` 一起缩放，和线宽同一套规矩。
+ *
+ * v0.10.7：`canvasShadow.offset` 改成**格的百分比**（100 = 一格），这里乘
+ * `cellSize` 换成像素。以前它直接就是像素，于是同一份 `36` 在 104px 的格子上是
+ * 三分之一格、在 168px 的格子上只有五分之一格 —— 阴影大小跟着格子大小变。
  */
-export function canvasShadowStyle(style: MapStyle): CSSProperties {
+export function canvasShadowStyle(style: MapStyle, cellSize: number): CSSProperties {
   const { r, g, b } = hexToRgb(style.canvasShadow.color);
-  const offset = style.canvasShadow.offset;
+  const offset = (style.canvasShadow.offset / 100) * cellSize;
   return {
     boxShadow: `${offset}px ${offset}px 0 rgba(${r}, ${g}, ${b}, ${CANVAS_SHADOW_ALPHA})`,
   };
