@@ -1,4 +1,5 @@
 import type { MapStyle } from './constants';
+import { MAP_STYLE_RULER_DEFAULT_SYMBOLS } from './constants';
 
 /**
  * v0.8.0（docs/v0.8.0.md §16.8 / §5 的 S3 快照式）—— 地图风格与主题缺省风格的差异。
@@ -85,8 +86,20 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   { key: 'regionLabel.hoverStrokeColor', group: '标签', label: '悬停描边颜色', read: (style) => style.regionLabel.hoverStrokeColor, format: raw },
   { key: 'ruler.fontSize', group: '标签', label: '标尺字号', read: (style) => style.ruler.fontSize, format: px },
   { key: 'ruler.gap', group: '标签', label: '标尺到地图的间距', read: (style) => style.ruler.gap, format: px },
-  { key: 'ruler.columnSymbol', group: '标签', label: '列标尺符号', read: (style) => style.ruler.columnSymbol, format: raw },
-  { key: 'ruler.rowSymbol', group: '标签', label: '行标尺符号', read: (style) => style.ruler.rowSymbol, format: raw },
+  {
+    key: 'ruler.columnSymbol',
+    group: '标签',
+    label: '列标尺符号',
+    read: (style) => style.ruler.columnSymbol ?? MAP_STYLE_RULER_DEFAULT_SYMBOLS.columnSymbol,
+    format: raw,
+  },
+  {
+    key: 'ruler.rowSymbol',
+    group: '标签',
+    label: '行标尺符号',
+    read: (style) => style.ruler.rowSymbol ?? MAP_STYLE_RULER_DEFAULT_SYMBOLS.rowSymbol,
+    format: raw,
+  },
 
   // 光标
   { key: 'mouseCursorBox.width', group: '光标', label: '鼠标光标框线宽', read: (style) => style.mouseCursorBox.width, format: px },

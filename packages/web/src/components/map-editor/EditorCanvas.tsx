@@ -100,6 +100,8 @@ interface EditorCanvasProps {
   activeTool: EditorTool;
   spaceHeld: boolean;
   showRulers: boolean;
+  /** v0.10.8：标尺的行列符号按主题编码查 —— 地图草稿里那份不再参与渲染。 */
+  themeCode: string;
   /** v0.6.1: the armed (asset, variant) pair. v0.10.6: 足迹尺寸在 variant 上。 */
   pendingVariant: { asset: Asset; variant: AssetVariant } | null;
   regionDraftSelection: Set<string>;
@@ -164,6 +166,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     activeTool,
     spaceHeld,
     showRulers,
+    themeCode,
     pendingVariant,
     regionDraftSelection,
     highlight,
@@ -761,6 +764,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           pan={pan}
           total={total}
           style={style}
+          themeCode={themeCode}
           hover={hover}
           operationCell={selectionCell}
         />

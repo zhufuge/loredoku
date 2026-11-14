@@ -1330,6 +1330,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               pan={pan}
               total={total}
               style={style}
+              themeCode={detail?.themeCode}
               hover={interactionLocked ? null : hover}
             />
           ) : null}

@@ -20,6 +20,7 @@ import {
   MAP_STYLE_RULER_GAP_MAX,
   MAP_STYLE_RULER_GAP_MIN,
   MAP_STYLE_RULER_SYMBOL_MAX_LENGTH,
+  MAP_STYLE_RULER_DEFAULT_SYMBOLS,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX,
   MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN,
   MAP_STYLE_SHADOW_OFFSET_MAX,
@@ -115,6 +116,20 @@ export function clampRulerGap(value: number): number {
 export function clampRulerSymbol(value: unknown, fallback: string): string {
   if (typeof value !== 'string') return fallback;
   return value.slice(0, MAP_STYLE_RULER_SYMBOL_MAX_LENGTH);
+}
+
+/**
+ * v0.10.8：把标尺符号从一份**地图草稿的**风格里剥掉。
+ *
+ * 符号只由主题配置（见 `useRulerSymbolsByCode`）：库里那两行旧值既不参与渲染，
+ * 也不该在保存时被重新写回去 —— 否则作者改进主题、某张图的渲染却早已被自己那份
+ * 覆盖，改不动也看不见。字段本身留在 `mapStyleSchema` 里，因为主题也用同一份
+ * schema 存这两个值。
+ */
+export function stripRulerSymbols(style: MapStyle): MapStyle {
+  const { columnSymbol: _columnSymbol, rowSymbol: _rowSymbol, ...rest } = style.ruler;
+  const ruler: MapStyleRuler = { fontSize: rest.fontSize, gap: rest.gap };
+  return { ...style, ruler };
 }
 
 export function clampRegionBorderWidth(value: number): number {
@@ -275,8 +290,11 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
           ? clampRulerFontSize(ruler.fontSize)
           : fallback.ruler.fontSize,
       gap: typeof ruler.gap === 'number' ? clampRulerGap(ruler.gap) : fallback.ruler.gap,
-      columnSymbol: clampRulerSymbol(ruler.columnSymbol, fallback.ruler.columnSymbol),
-      rowSymbol: clampRulerSymbol(ruler.rowSymbol, fallback.ruler.rowSymbol),
+      columnSymbol: clampRulerSymbol(
+        ruler.columnSymbol,
+        MAP_STYLE_RULER_DEFAULT_SYMBOLS.columnSymbol,
+      ),
+      rowSymbol: clampRulerSymbol(ruler.rowSymbol, MAP_STYLE_RULER_DEFAULT_SYMBOLS.rowSymbol),
     },
   };
 }

@@ -214,15 +214,20 @@ export const mapStyleSchema = z.object({
         .min(MAP_STYLE_RULER_GAP_MIN)
         .max(MAP_STYLE_RULER_GAP_MAX)
         .default(DEFAULT_MAP_STYLE.ruler.gap),
-      // v0.10.8：标尺前缀符号（默认 C / R）。允许为空串 —— 只显示数字也是一种读法。
-      columnSymbol: z
-        .string()
-        .max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH)
-        .default(DEFAULT_MAP_STYLE.ruler.columnSymbol),
-      rowSymbol: z
-        .string()
-        .max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH)
-        .default(DEFAULT_MAP_STYLE.ruler.rowSymbol),
+      /**
+       * v0.10.8：标尺前缀符号（默认 C / R）。允许为空串 —— 只显示数字也是一种读法。
+       *
+       * 这两项**只有主题在配**：`mapStyleSchema` 同时被地图草稿与主题的 `data.style`
+       * 用着，所以字段留在 schema 里（主题要靠它存）；但地图草稿里的同名值
+       * v0.10.8 起**不参与渲染**（`MapRulerStrips` 按 `themeCode` 查主题），
+       * 保存地图时也会被剥掉（`stripRulerSymbols`），免得库里留着两处互相矛盾的值。
+       *
+       * **刻意不给 `.default()`**：给了的话，任何一张地图只要存一次盘，就会把
+       * 出厂符号材料化成字面量写进 `maps.data`，正是这次要清掉的东西。缺席 =
+       * 用 `MAP_STYLE_RULER_DEFAULT_SYMBOLS`，读的时候才补。
+       */
+      columnSymbol: z.string().max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH).optional(),
+      rowSymbol: z.string().max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH).optional(),
     })
     .default(() => ({ ...DEFAULT_MAP_STYLE.ruler })),
 })

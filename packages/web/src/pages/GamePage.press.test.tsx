@@ -82,6 +82,8 @@ vi.mock('@/hooks/useThemes', () => ({
   useCheckColorsByCode: () => () => null,
   // v0.8.7 §7：这一套不测工具图标，主题那一套一律当作「没配」。
   useToolIconsByCode: () => () => null,
+  // v0.10.8：标尺符号只由主题配置，这一套不测它 —— 落回出厂的 C / R。
+  useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
 }));
 vi.mock('@/hooks/useCharacters', () => ({ useCharacters: () => ({ data: [] }) }));
 vi.mock('@/hooks/useHighlight', () => ({

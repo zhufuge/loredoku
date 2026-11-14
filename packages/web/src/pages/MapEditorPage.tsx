@@ -1012,6 +1012,7 @@ export function MapEditorPage(): JSX.Element {
               activeTool={editor.activeTool}
               spaceHeld={spaceHeld}
               showRulers={rulerVisible}
+              themeCode={themeCode}
               onAutoCellSize={setAutoCellSize}
               pendingVariant={pendingVariant}
               regionDraftSelection={editor.regionDraftSelection}

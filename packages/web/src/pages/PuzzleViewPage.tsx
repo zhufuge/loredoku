@@ -588,6 +588,7 @@ export function PuzzleViewPage(): JSX.Element {
               pan={pan}
               total={total}
               style={style}
+              themeCode={themeCode}
               hover={hover}
             />
           ) : null}

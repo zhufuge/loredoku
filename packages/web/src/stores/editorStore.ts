@@ -18,7 +18,7 @@ import {
 } from '@loredoku/shared';
 import { computeLabelCell, coordKey } from '@/lib/region';
 import { findItemAnchor, isEmptyCell, itemFootprintKeys, resolveEraseTarget } from '@/lib/erase';
-import { resolveMapStyle } from '@/lib/mapStyle';
+import { resolveMapStyle, stripRulerSymbols } from '@/lib/mapStyle';
 import { regionStyleOverride } from '@/lib/regionStyle';
 
 export type CellKey = `${number},${number}`;
@@ -530,7 +530,10 @@ export const useEditorStore = create<EditorState>((set, get) => {
         gridSize: state.gridSize,
         cells,
         regions: state.regions,
-        style: state.style,
+        // v0.10.8：标尺的行列符号只由主题配置，地图草稿里不留副本 —— 留了就是
+        // 「库里两处互相矛盾的值」，而渲染只认主题那一份。存量草稿里的旧值在读入
+        // 时就被忽略，这一行保证它们也不会被再写回去。
+        style: stripRulerSymbols(state.style),
       };
     },
   };

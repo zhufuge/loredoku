@@ -4,6 +4,7 @@ import type { CellCoord } from '@loredoku/shared';
 import type { MapStyle } from '@loredoku/shared';
 import { buildRulerGlyphs, rulerLabelWidth, rulerStripSize, rulerStripStart } from '@/lib/ruler';
 import { cellScale, scaleFontSize } from '@/lib/canvasScale';
+import { useRulerSymbolsByCode } from '@/hooks/useThemes';
 
 export interface MapRulerStripsProps {
   gridSize: number;
@@ -13,6 +14,14 @@ export interface MapRulerStripsProps {
   /** Rendered board edge length (`gridSize * cellSize`). */
   total: number;
   style: MapStyle;
+  /**
+   * v0.10.8：行列前缀符号**只由主题给**（`.ruler.columnSymbol` / `rowSymbol`）。
+   *
+   * 地图草稿里同名两项不再参与渲染：符号是「这一套世界怎么念行与列」，与主题的
+   * 识别色、难度分级同一层，同一主题下的几十张图不该各自填一遍。这里按编码查表，
+   * 而不是让每个调用方各查一次再传进来 —— 四处调用点已经有六七个别名要传了。
+   */
+  themeCode: string | null | undefined;
   /** Cell under the pointer — its row / column turns dark grey. */
   hover?: CellCoord | null;
   /** Cell the operation cursor box is pinned to (editor only; `null` in preview). */
@@ -49,20 +58,23 @@ export function MapRulerStrips({
   pan,
   total,
   style,
+  themeCode,
   hover = null,
   operationCell = null,
 }: MapRulerStripsProps): JSX.Element {
+  const rulerSymbolsOf = useRulerSymbolsByCode();
+  const symbols = rulerSymbolsOf(themeCode);
   const rulerScale = cellScale(cellSize);
   const rulerGap = style.ruler.gap;
   const rulerMaxFont =
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
   // v0.7.0 fix: the row strip's thin axis is horizontal — size it for the
   // widest label, not just the glyph height.
-  // v0.10.8: 两轴的符号都可配（默认 `C` / `R`，中文图可能用「列」「行」），
+  // v0.10.8: 两轴的符号来自主题（默认 `C` / `R`，中文图可能用「列」「行」），
   // 所以取两者里更宽的那个来定条厚 —— 只按 `C` 算会把 `列24` 切掉半截。
   const rulerLabel = rulerLabelWidth(gridSize, rulerMaxFont, [
-    style.ruler.columnSymbol,
-    style.ruler.rowSymbol,
+    symbols.columnSymbol,
+    symbols.rowSymbol,
   ]);
   const columnStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: rulerGap });
   const rowStrip = rulerStripSize({
@@ -81,9 +93,9 @@ export function MapRulerStrips({
         scale: rulerScale,
         zoom,
         fontSize: style.ruler.fontSize,
-        symbol: style.ruler.columnSymbol,
+        symbol: symbols.columnSymbol,
       }),
-    [gridSize, hover?.x, operationCell?.x, rulerScale, zoom, style.ruler.fontSize, style.ruler.columnSymbol],
+    [gridSize, hover?.x, operationCell?.x, rulerScale, zoom, style.ruler.fontSize, symbols.columnSymbol],
   );
 
   const rows = useMemo(
@@ -96,9 +108,9 @@ export function MapRulerStrips({
         scale: rulerScale,
         zoom,
         fontSize: style.ruler.fontSize,
-        symbol: style.ruler.rowSymbol,
+        symbol: symbols.rowSymbol,
       }),
-    [gridSize, hover?.y, operationCell?.y, rulerScale, zoom, style.ruler.fontSize, style.ruler.rowSymbol],
+    [gridSize, hover?.y, operationCell?.y, rulerScale, zoom, style.ruler.fontSize, symbols.rowSymbol],
   );
 
   return (

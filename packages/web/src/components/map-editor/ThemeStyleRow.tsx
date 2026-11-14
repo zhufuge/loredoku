@@ -2,7 +2,12 @@ import { useMemo, useState } from 'react';
 import { ArrowLeftRight, Palette } from 'lucide-react';
 import { MAP_STYLE_DIFF_GROUPS, diffMapStyle, type MapStyle } from '@loredoku/shared';
 import { resolveMapStyle } from '@/lib/mapStyle';
-import { THEME_HIDDEN_STYLE_KEYS, applyThemeStyle, stripThemeHiddenStyle } from '@/lib/themeStyleFields';
+import {
+  MAP_DRAFT_HIDDEN_STYLE_KEYS,
+  THEME_HIDDEN_STYLE_KEYS,
+  applyThemeStyle,
+  stripThemeHiddenStyle,
+} from '@/lib/themeStyleFields';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useThemeDetail, useUpdateTheme } from '@/hooks/useThemes';
@@ -49,9 +54,15 @@ export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyl
   // v0.10.2：主题设置里不出现的项（目前只有方格大小）也不参与比对。它不是风格、
   // 是这张图自己的尺寸，两张图天然会不一样；把它算成「与主题风格不同」会让弹窗
   // 常驻一条差异，而「应用主题风格」一按就会把本图定死的尺寸抹成主题那个值。
+  //
+  // v0.10.8：标尺的行列符号也一样不比 —— 它们只由主题配置，地图侧从来不留存，
+  // 旧图里残留的值作者在界面上无处可改。
   const diffs = useMemo(
     () =>
-      diffMapStyle(style, themeStyle).filter((entry) => !THEME_HIDDEN_STYLE_KEYS.has(entry.key)),
+      diffMapStyle(style, themeStyle).filter(
+        (entry) =>
+          !THEME_HIDDEN_STYLE_KEYS.has(entry.key) && !MAP_DRAFT_HIDDEN_STYLE_KEYS.has(entry.key),
+      ),
     [style, themeStyle],
   );
 

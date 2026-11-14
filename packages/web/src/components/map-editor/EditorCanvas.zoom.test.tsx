@@ -23,6 +23,15 @@ import type { CellMap } from '@/lib/hitTest';
 // React 18 的 act 需要这个开关，否则每次由 effect 触发的更新都会打印一条警告。
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
+/**
+ * v0.10.8：标尺的行列符号改由主题提供（`useRulerSymbolsByCode` 内部走 TanStack
+ * Query），而这里直接把 `EditorCanvas` 挂进一个裸 `createRoot`，没有 Provider。
+ * 按同一个签名返回常量即可 —— 这一组用例关心的是缩放，不是符号。
+ */
+vi.mock('@/hooks/useThemes', () => ({
+  useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
+}));
+
 const GRID_SIZE = 6;
 
 function rect(width: number, height: number): DOMRect {
@@ -70,6 +79,7 @@ describe('EditorCanvas — 视图缩放按钮（v0.6.3 fix）', () => {
           activeTool="select"
           spaceHeld={false}
           showRulers={showRulers}
+          themeCode="test"
           pendingVariant={null}
           regionDraftSelection={new Set<string>()}
           highlight={null}

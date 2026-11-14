@@ -372,15 +372,29 @@ export interface MapStyleRuler {
   /**
    * v0.10.8：列 / 行标尺的前缀符号，默认 `C` / `R`。
    *
-   * 为什么可配：中文地图上「C1 R3」和「列1 行3」是两种完全不同的读法，而标尺是
-   * 玩家定位格子的唯一参照。存在风格里而不是写死，主题就能统一自己的说法。
+   * **只有主题在配**：符号是「这一套世界怎么念行与列」，与识别色、难度分级同一层，
+   * 同一主题下的几十张图不该各自填一遍。`mapStyleSchema` 同时给地图草稿与主题的
+   * `data.style` 用着，所以字段留在这层接口里；但地图草稿里的旧值不参与渲染
+   * （`MapRulerStrips` 按 `themeCode` 查主题），保存时也会被剥掉。
    */
-  columnSymbol: string;
-  rowSymbol: string;
+  columnSymbol?: string;
+  rowSymbol?: string;
 }
 
 /** v0.10.8：标尺符号的长度上限 —— 再长就不是「前缀」而是句子了。 */
 export const MAP_STYLE_RULER_SYMBOL_MAX_LENGTH = 4;
+
+/**
+ * v0.10.8：标尺行列符号的出厂值。
+ *
+ * 单独提出来是因为 `MapStyleRuler` 上这两个字段是**可选**的：它们只有主题配，
+ * 地图草稿里那份会被剥掉（`stripRulerSymbols`），所以读一份地图的风格时这两个
+ * 键本来就可能是缺席的，任何兜底都该落回这里而不是各自写 `'C'` / `'R'`。
+ */
+export const MAP_STYLE_RULER_DEFAULT_SYMBOLS = {
+  columnSymbol: 'C',
+  rowSymbol: 'R',
+} as const;
 
 /**
  * v0.9.1（docs/v0.9.1.md §2）：画布这张纸投下的影子。

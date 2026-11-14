@@ -7,6 +7,14 @@ import { resolveMapStyle } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/hitTest';
 
 /**
+ * v0.10.8：标尺符号改由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），
+ * 而这里直接挂 `createRoot`，没有 Provider。这组用例关心的是落点，不是符号。
+ */
+vi.mock('@/hooks/useThemes', () => ({
+  useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
+}));
+
+/**
  * v0.10.2：点「区域标题」与「物品溢出位置」，也要按地图方格分割线落点。
  *
  * 这两处原来各自接管指针（区域标签是一枚 `stopPropagation()` 的按钮、物品层在
@@ -128,6 +136,7 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
           activeTool="select"
           spaceHeld={false}
           showRulers={false}
+          themeCode="test"
           pendingVariant={null}
           regionDraftSelection={new Set<string>()}
           highlight={null}
@@ -276,6 +285,7 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
             activeTool="select"
             spaceHeld={false}
             showRulers={false}
+            themeCode="test"
             pendingVariant={size ? assetWithFootprint(size.w, size.h) : assetWithVariant(2)}
             regionDraftSelection={new Set<string>()}
             highlight={null}

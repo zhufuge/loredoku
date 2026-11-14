@@ -1,7 +1,12 @@
 import { useCallback, useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { GAME_TOOL_ICON_LABELS, resolveDifficultyTiers } from '@loredoku/shared';
+import {
+  GAME_TOOL_ICON_LABELS,
+  DEFAULT_MAP_STYLE,
+  MAP_STYLE_RULER_DEFAULT_SYMBOLS,
+  resolveDifficultyTiers,
+} from '@loredoku/shared';
 import type {
   UploadedImage,
   GameToolIconKind,
@@ -310,6 +315,46 @@ export function useRingByCode(): (
 
   return useCallback(
     (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
+    [byCode],
+  );
+}
+
+/**
+ * v0.10.8 —— 按主题编码查**标尺的行列符号**（默认 `C` / `R`，中文图可能是「列」「行」）。
+ *
+ * 与标记 / 工具图标 / 那一圈同一份 `/themes`、同一个理由：游戏页、预览页、全屏编辑器
+ * 都在 `WorkspaceLayout` 外面，`useWorkspace()` 是 `null`，只能按编码查表。
+ *
+ * **为什么只有主题有这一项**：符号是「这一套世界怎么念行与列」，跟主题的识别色、
+ * 难度分级是同一层的东西；同一主题下的几十张图不该各自去填一遍，更不该出现
+ * 「这张图印 C、那张印 列」。地图草稿里即使还留着旧值也**不参与渲染**（v0.10.8 起），
+ * 保存时会被剥掉（`stripRulerSymbols`）。
+ */
+export function useRulerSymbolsByCode(): (
+  code: string | null | undefined,
+) => { columnSymbol: string; rowSymbol: string } {
+  const query = useThemes();
+  const byCode = useMemo(() => {
+    const map = new Map<string, { columnSymbol: string; rowSymbol: string }>();
+    for (const theme of query.data ?? []) {
+      // 主题的 `style` 可能是 `null`（`default` / `xyj` 都是），也可能是 v0.10.8 之前
+      // 存的、根本没有这两个键 —— 那两种都在末尾的兜底里回到内置的 `C` / `R`。
+      const ruler = theme.data.style?.ruler;
+      if (!ruler) continue;
+      map.set(theme.code, {
+        columnSymbol: ruler.columnSymbol ?? MAP_STYLE_RULER_DEFAULT_SYMBOLS.columnSymbol,
+        rowSymbol: ruler.rowSymbol ?? MAP_STYLE_RULER_DEFAULT_SYMBOLS.rowSymbol,
+      });
+    }
+    return map;
+  }, [query.data]);
+
+  return useCallback(
+    (code: string | null | undefined) =>
+      (code ? byCode.get(code) : undefined) ?? {
+        columnSymbol: MAP_STYLE_RULER_DEFAULT_SYMBOLS.columnSymbol,
+        rowSymbol: MAP_STYLE_RULER_DEFAULT_SYMBOLS.rowSymbol,
+      },
     [byCode],
   );
 }

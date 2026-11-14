@@ -39,6 +39,7 @@ import {
   nextLinkageKey,
   resolveLinkageColors,
   resolveMapStyle,
+  stripRulerSymbols,
   retargetLinkageColors,
   styleLineWidth,
 } from './mapStyle';
@@ -401,6 +402,29 @@ describe('ruler style (FEAT-E02)', () => {
     expect(clampRulerFontSize(999)).toBe(32);
     expect(clampRulerGap(-1)).toBe(0);
     expect(clampRulerGap(40)).toBe(32);
+  });
+
+  /**
+   * v0.10.8：符号只由主题配置 —— 地图草稿里那份不参与渲染，保存时也不该留着。
+   * 留着的话，作者改主题的符号，这张图的标尺还是老样子，而界面上没有入口能改。
+   */
+  it('v0.10.8：stripRulerSymbols 把符号从地图草稿的风格里剥掉', () => {
+    const style = resolveMapStyle({
+      ruler: { fontSize: 30, gap: 12, columnSymbol: '列', rowSymbol: '行' },
+    } as Partial<MapStyle>);
+    const stripped = stripRulerSymbols(style);
+    expect(stripped.ruler).toEqual({ fontSize: 30, gap: 12 });
+    // 其它字段一个不动。
+    expect(stripped.gridSeparator).toEqual(style.gridSeparator);
+    expect(stripped.cellSize).toBe(style.cellSize);
+  });
+
+  it('v0.10.8：符号缺席时读成出厂的 C / R，空串仍然保留', () => {
+    expect(resolveMapStyle(undefined).ruler.columnSymbol).toBe('C');
+    expect(resolveMapStyle({ ruler: {} } as Partial<MapStyle>).ruler.rowSymbol).toBe('R');
+    expect(
+      resolveMapStyle({ ruler: { columnSymbol: '' } } as Partial<MapStyle>).ruler.columnSymbol,
+    ).toBe('');
   });
 });
 

@@ -52,6 +52,18 @@ import {
  */
 export const THEME_HIDDEN_STYLE_KEYS = new Set(['cellSize']);
 
+/**
+ * v0.10.8：**地图草稿里**不参与比对、也不该留存的键 —— 目前是标尺的行列符号。
+ *
+ * 符号只由主题配置（`MapRulerStrips` 按 `themeCode` 查主题）。地图的「基本信息」
+ * 抽屉里从来没有这两个输入框，所以一张旧图里残留的 `C` / `R` 与主题的「列」/「行」
+ * 之间的差异，作者在界面上**无处可改** —— 报在差异弹窗里只会让人以为是坏数据。
+ *
+ * 与 {@link THEME_HIDDEN_STYLE_KEYS} 的区别：那份是「主题设置里不给入口」，
+ * 这份是「地图侧根本不留存」，所以主题表单仍然要能配这两项。
+ */
+export const MAP_DRAFT_HIDDEN_STYLE_KEYS = new Set(['ruler.columnSymbol', 'ruler.rowSymbol']);
+
 export type ThemeStyleFieldKind = 'number' | 'color' | 'shadow' | 'text' | 'unknown';
 
 interface WriteSpec {
@@ -271,7 +283,7 @@ export function resetThemeStyle(style: MapStyle): MapStyle {
  * 「应用主题风格」就变回 168px，而那一项在主题设置里已经看不见了，没处找回来。
  */
 export function applyThemeStyle(style: MapStyle, themeStyle: MapStyle): MapStyle {
-  return THEME_STYLE_FIELDS.reduce(
+  return THEME_STYLE_FIELDS.filter((field) => !MAP_DRAFT_HIDDEN_STYLE_KEYS.has(field.key)).reduce(
     (next, field) => writeStyleValue(next, field.key, field.read(themeStyle)),
     style,
   );

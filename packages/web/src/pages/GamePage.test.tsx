@@ -132,6 +132,11 @@ vi.mock('@/hooks/useThemes', () => ({
    * （默认 `null` = 谁都没配，按钮画内置图标）。
    */
   useToolIconsByCode: () => () => fixture.theme.toolIcons,
+  /**
+   * v0.10.8：标尺的行列符号只由主题配置 —— 同样按编码查表。这一套里没配，
+   * 落回出厂的 `C` / `R`。
+   */
+  useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
 }));
 vi.mock('@/hooks/useCharacters', () => ({ useCharacters: () => ({ data: [] }) }));
 vi.mock('@/hooks/useHighlight', () => ({

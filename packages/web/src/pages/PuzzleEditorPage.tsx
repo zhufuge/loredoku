@@ -967,6 +967,7 @@ export function PuzzleEditorPage(): JSX.Element {
             activeTool="select"
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
+            themeCode={themeCode}
             pendingVariant={null}
             regionDraftSelection={new Set<string>()}
             highlight={highlight}

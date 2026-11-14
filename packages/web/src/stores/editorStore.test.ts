@@ -280,6 +280,18 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
     // The linkage palette moved to PuzzleDraft; MapStyle no longer carries it.
     expect(output.style && 'linkageColors' in output.style).toBe(false);
   });
+
+  /**
+   * v0.10.8：标尺的行列符号只由主题配置，地图草稿里不留副本。
+   *
+   * 留着的话库里会出现两处互相矛盾的值（主题写「列」、这张图还是 `C`），而渲染
+   * 只认主题那一份 —— 那张图看起来就像「改不动」。
+   */
+  it('v0.10.8: drops the ruler symbols — they belong to the theme, not the map', () => {
+    const output = store().toDraft();
+    expect(output.style?.ruler).toEqual({ fontSize: 24, gap: 24 });
+    expect(output.style && 'columnSymbol' in output.style.ruler).toBe(false);
+  });
 });
 
 describe('map style (v0.3.8 FEAT-D02/D03)', () => {
