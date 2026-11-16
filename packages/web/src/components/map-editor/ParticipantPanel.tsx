@@ -234,6 +234,25 @@ function themeTint(themeColor: string, isWhite: boolean): string {
   return `rgba(${r}, ${g}, ${b}, 0.16)`;
 }
 
+/**
+ * 联动金色那层的淡透明色（v0.10.11）。
+ *
+ * 与 `themeTint` 同一套解析（`#RGB` / `#RRGGBB`），透明度同档 0.16：联动色与
+ * 主题色都是「铺一层染纸的淡色」，区别只在**谁的颜色**，不在多淡。解不出来
+ * （理论上不会发生 —— `effectColorHex` 总是返回 `#RRGGBB`）退回联动缺省蓝，
+ * 而不是主色：这不是「被选中」，是「被指着」，颜色得跟着那道金框走。
+ */
+function linkTint(color: string): string {
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim());
+  const raw = match?.[1] ?? '';
+  if (raw.length !== 3 && raw.length !== 6) return 'rgba(144, 202, 249, 0.16)';
+  const full = raw.length === 3 ? raw.split('').map((ch) => ch + ch).join('') : raw;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, 0.16)`;
+}
+
 export function ParticipantPanel({
   slots,
   charactersById,
@@ -491,8 +510,14 @@ export function ParticipantPanel({
                     收回交给 CSS 的基线规则（`.participant-tint` 的 `--tint-r`）——
                     属性一撤，颜色自己慢慢缩回头像那枚圆，不必在 React 里留一个
                     「正在收回」的状态。
+
+                    v0.10.11：`data-link-tint` 是另一条轴 —— 被**别人的联动**指着的
+                    那张卡铺一层淡金，从金框向头像蔓延（`.participant-link-tint` 的
+                    `--link-hole`）。两条轴各开各的：联动指着同时也可能正被碰着，
+                    两层色叠一起就是了。
                   */
                   data-tint={slot && (isHovered || isSelected) ? 'on' : undefined}
+                  data-link-tint={slot && isHighlighted ? 'on' : undefined}
                   style={{
                     touchAction: 'none',
                     // v0.10.1 竖屏：卡片是弹性轨道里的一格，宽度交给轨道，
@@ -673,22 +698,51 @@ export function ParticipantPanel({
                     随线索行数变，`content-center` 让头像始终落在中线）。
                   */}
                   {slot ? (
-                    <span
-                      aria-hidden="true"
-                      data-testid={`slot-tint-${index}`}
-                      className="participant-tint"
-                      style={
-                        {
-                          '--tint-color': themeTint(themeColor, isWhiteTheme),
-                          '--tint-x': compactPortrait
-                            ? `${COMPACT_CARD_PADDING_X + COMPACT_AVATAR_SIZE / 2 + COMPACT_AVATAR_OFFSET_X}px`
-                            : '50%',
-                          '--tint-y': compactPortrait
-                            ? '50%'
-                            : `${AVATAR_PADDING + avatarSize / 2}px`,
-                        } as CSSProperties
-                      }
-                    />
+                    <>
+                      <span
+                        aria-hidden="true"
+                        data-testid={`slot-tint-${index}`}
+                        className="participant-tint"
+                        style={
+                          {
+                            '--tint-color': themeTint(themeColor, isWhiteTheme),
+                            '--tint-x': compactPortrait
+                              ? `${COMPACT_CARD_PADDING_X + COMPACT_AVATAR_SIZE / 2 + COMPACT_AVATAR_OFFSET_X}px`
+                              : '50%',
+                            '--tint-y': compactPortrait
+                              ? '50%'
+                              : `${AVATAR_PADDING + avatarSize / 2}px`,
+                          } as CSSProperties
+                        }
+                      />
+                      {/*
+                        v0.10.11：联动金色的那层。与上面那层主题色**同一枚圆心、相反的
+                        方向**：主题色从头像往外长，这层从金框往头像收（`--link-hole`
+                        是「空出来的孔」的半径，见 `index.css` 的注释）。圆心两个变量
+                        原样复用 —— 蔓延的终点必须是头像的边缘，偏一点金色就会从脸的
+                        侧面冒出来。
+
+                        颜色取这一格联动解析出来的 `highlightColor`（联动调色板里那一
+                        支，缺省蓝），透明度与主题色同档（0.16）。`isHighlighted` 只可能
+                        落在有角色的槽位上，所以这里不必再判空。
+                      */}
+                      <span
+                        aria-hidden="true"
+                        data-testid={`slot-link-tint-${index}`}
+                        className="participant-link-tint"
+                        style={
+                          {
+                            '--link-color': linkTint(highlightColor ?? HIGHLIGHT_BLUE),
+                            '--tint-x': compactPortrait
+                              ? `${COMPACT_CARD_PADDING_X + COMPACT_AVATAR_SIZE / 2 + COMPACT_AVATAR_OFFSET_X}px`
+                              : '50%',
+                            '--tint-y': compactPortrait
+                              ? '50%'
+                              : `${AVATAR_PADDING + avatarSize / 2}px`,
+                          } as CSSProperties
+                        }
+                      />
+                    </>
                   ) : null}
                   {/* OPT-B06 §6.3: 1-based sequence, top-left corner.
                       FEAT-O13 (docs/v0.5.4.md §6.2): bigger, and pushed into
@@ -780,11 +834,11 @@ export function ParticipantPanel({
                           width: compactPortrait ? COMPACT_AVATAR_SIZE : avatarSize,
                           height: compactPortrait ? COMPACT_AVATAR_SIZE : avatarSize,
                           backgroundColor: themeColor,
-                          // MOD-802 §1.2.5 / FIX-E04: highlighting is shown by
-                          // the slot's single outline + this subtle scale-up;
-                          // the avatar no longer draws a second ring.
-                          transform: isHighlighted ? 'scale(1.08)' : undefined,
-                          transition: 'transform var(--motion-fast) var(--motion-ease-out)',
+                          // MOD-802 §1.2.5 / FIX-E04：高亮只剩那一道 2px 框 ——
+                          // 头像不画第二道环。v0.10.11 起**也不再放大**：被联动指着的
+                          // 反馈交给那层从金框蔓延过来的淡金（`data-link-tint` 上面的
+                          // `.participant-link-tint`），脸自己不动 —— 放大读成「这位
+                          // 自己要干嘛」，而联动说的是「别人指着他」。
                           // MOD-703: a white theme needs its 1 px grey edge, the
                           // only stroke the spec allows, on this disc alone.
                           border: isWhiteTheme ? '1px solid #D1D5DB' : 'none',

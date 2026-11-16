@@ -49,6 +49,23 @@
 }
 
 /*
+ * 联动金色那层的「孔半径」（v0.10.11，用法见 `.participant-link-tint`）。
+ *
+ * 同样注册成 `<number>` 才能补间 —— 与 `--tint-r` 是镜像的一对：`--tint-r` 是
+ * 涂出来的**圆**从小长大（色从头像往外铺），`--link-hole` 是空出来的**孔**从
+ * 大缩到头像半径（色从金框往头像蔓延）。两个方向都只能靠补间自定义属性，
+ * 否则关键帧动画要换 `animation-name` 重播，而联动是开关、不是一次性的事件。
+ *
+ * 初值 260：联动打开之前整张卡都必须在孔里（卡片对角线的一半最大约 151px，
+ * 软边从 62% 起，260 × 0.78 ≈ 203 > 151），否则静置时远角会留一抹淡金。
+ */
+@property --link-hole {
+  syntax: '<number>';
+  inherits: false;
+  initial-value: 260;
+}
+
+/*
  * 按钮内扇形扫描的角度（v0.9.2 §5，用法见 `.press-sweep`）。
  *
  * 和上面几条同一个理由：`conic-gradient` 的止点用的是一个自定义属性，不注册
@@ -1279,6 +1296,48 @@
   [data-tint='on'] .participant-tint {
     --tint-r: 320;
     transition: --tint-r var(--motion-tint) var(--motion-ease-spread);
+  }
+
+  /*
+   * 联动金色的蔓延（v0.10.11，`components/map-editor/ParticipantPanel.tsx`）。
+   *
+   * 一位参与者被**别人**的联动指着时，他的卡片之外已经有那道 2px 金框（`ringLayers`）；
+   * 卡里再铺一层淡金，从**框**向**头像**蔓延 —— 与 `.participant-tint` 是同一枚
+   * 圆心、相反的方向：主题色往外长，说「我正被碰着」；金色往里收，说「有人指着我」。
+   *
+   * 渐变写成一个「透明的孔」：`--link-hole` 之外全是联动色。孔从 260px 缩到 32px
+   * 的过程中，金色的可见边界从四个角 / 框边一路退到头像边缘 —— 孔缩到位时
+   * （32 × 0.78 ≈ 25px），金色从头像边上长出来，头像那枚圆在普通流里、盖在
+   * 这层之上，所以脸永远是干净的（与 `.participant-tint` 同一条「染纸不染人」）。
+   *
+   * 为什么不沿用「半径从小长大」那一支：色要从**框**开始长，起点在四个角而不
+   * 是圆心，写不成「一个圆从某处长出来」；只有「孔缩小」能让外圈先出现。软边
+   * （62% → 78%）沿用 `.participant-tint` 的同一条规矩 —— 硬边扫过来读成
+   * 「擦过去一圈」，不像蔓延。
+   *
+   * 与主题色可以叠加（联动指着他、手又正碰在这张卡上）：都是 0.16 的透明色、
+   * 各画各的，深一点而已，不互斥。
+   */
+  .participant-link-tint {
+    --link-hole: 260;
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border-radius: inherit;
+    pointer-events: none;
+    background-image: radial-gradient(
+      circle calc(var(--link-hole) * 1px) at var(--tint-x, 50%) var(--tint-y, 55px),
+      transparent 0%,
+      transparent 62%,
+      var(--link-color, rgba(144, 202, 249, 0.16)) 78%,
+      var(--link-color, rgba(144, 202, 249, 0.16)) 100%
+    );
+    transition: --link-hole var(--motion-retract) var(--motion-ease-retract);
+  }
+
+  [data-link-tint='on'] .participant-link-tint {
+    --link-hole: 32;
+    transition: --link-hole var(--motion-tint) var(--motion-ease-spread);
   }
 }
 
