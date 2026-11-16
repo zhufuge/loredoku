@@ -95,12 +95,15 @@ interface TakenGame {
  * 打包一个主题（§11）。入口收的是**编码**（§19）—— 包名、manifest 里的 `theme.code`
  * 都用它，让「地址里的主题」与「包里的主题」是同一个字符串。
  */
-export async function buildThemeBundle(themeCode: string): Promise<BuiltBundle> {
+export async function buildThemeBundle(
+  themeCode: string,
+  options: { gameIds?: readonly number[] } = {},
+): Promise<BuiltBundle> {
   const themeRow = await themeRepo.findByCode(themeCode);
   if (!themeRow) throw AppError.notFound('主题不存在');
   const themeId = Number(themeRow.id);
 
-  const games = await takeGames(themeId);
+  const games = await takeGames(themeId, options.gameIds);
   const ids = buildBundleIdMaps(games.map((game) => game.input));
 
   const problems: BundleProblem[] = [];
@@ -282,24 +285,56 @@ export function zipStream(built: BuiltBundle): Readable {
  * 关卡顺序就是 `listGameRowsByTheme` 自己的那个顺序（`sort_weight` 升序、`slug`
  * 兜底，v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
  */
-async function takeGames(themeId: number): Promise<TakenGame[]> {
+/**
+ * 取材：主题里所有已上线的关卡。
+ *
+ * v0.9.2：`orderByCollection` 没了 —— 合辑（`theme_deployments`）已被删除，包的
+ * 关卡顺序就是 `listGameRowsByTheme` 自己的那个顺序（`sort_weight` 升序、`slug`
+ * 兜底，v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
+ *
+ * v0.10.10：`gameIds` 给了就只打这几关。缺的 id（不在线、或者根本不是这个主题的）
+ * 单独报出来，作者才分得清「我选错了」和「这关出问题了」。
+ */
+async function takeGames(
+  themeId: number,
+  gameIds?: readonly number[],
+): Promise<TakenGame[]> {
   const rows = await gameRepo.listGameRowsByTheme(themeId);
-  if (rows.length === 0) {
-    // 空包是零字节的谜题（§11.1）：导出按钮在界面上就该是灰的，这里是兜底。
-    throw AppError.validation('这个主题还没有上线的关卡，先至少上线一关');
+  if (gameIds === undefined) {
+    if (rows.length === 0) {
+      // 空包是零字节的谜题（§11.1）：导出按钮在界面上就该是灰的，这里是兜底。
+      throw AppError.validation('这个主题还没有上线的关卡，先至少上线一关');
+    }
+    return rows.map(toTaken);
   }
 
-  return rows.map((row) => {
-    const detail = gameRepo.toDetail(row);
-    const puzzle: PuzzleDraft | null = detail.puzzle;
-    if (!puzzle) {
-      throw AppError.validation(`「${row.name}」的谜题数据读不出来，请重新上线这一关`);
-    }
-    return {
-      row,
-      input: { summary: gameRepo.toSummary(row), map: detail.map, puzzle },
-    };
-  });
+  // `row.id` 在 knex 里可能是字符串（bigint），统一成数字再比。
+  const available = new Set(rows.map((row) => Number(row.id)));
+  const wanted = new Set(gameIds);
+  const missing = [...wanted].filter((id) => !available.has(id));
+  if (missing.length > 0) {
+    throw AppError.validation(
+      `选中的第 ${missing.join('、')} 关不在线或不属于这个主题`,
+    );
+  }
+  const picked = rows.filter((row) => wanted.has(Number(row.id)));
+  if (picked.length === 0) {
+    // 前端不允许点了零个就提交，这里是接口被直接调用的兜底。
+    throw AppError.validation('没有选中任何关卡，先勾上至少一关');
+  }
+  return picked.map(toTaken);
+}
+
+function toTaken(row: gameRepo.GameRowWithPuzzle): TakenGame {
+  const detail = gameRepo.toDetail(row);
+  const puzzle: PuzzleDraft | null = detail.puzzle;
+  if (!puzzle) {
+    throw AppError.validation(`「${row.name}」的谜题数据读不出来，请重新上线这一关`);
+  }
+  return {
+    row,
+    input: { summary: gameRepo.toSummary(row), map: detail.map, puzzle },
+  };
 }
 
 // ---- 侧表（assets.json / characters.json） ----

@@ -90,12 +90,18 @@ export const themesApi = {
  * v0.8.0（§11.6）：导出资源包。这个接口回的是 zip 本体，不走 `unwrap`
  * —— 它的成功响应不是 `ApiResponse`，失败响应才是。所以失败时要把 blob
  * 读回文本再解析一次，否则作者只会看到「下载失败」而不知道是「先至少上线一关」。
+ *
+ * v0.10.10：`gameIds` 给了就只打这几关；不给就是全部在线关。
  */
 export async function downloadThemeBundle(
   code: string,
+  gameIds?: readonly number[],
 ): Promise<{ blob: Blob; filename: string }> {
   try {
-    const response = await apiClient.get(`/themes/${code}/bundle`, { responseType: 'blob' });
+    const response = await apiClient.get(`/themes/${code}/bundle`, {
+      responseType: 'blob',
+      params: gameIds && gameIds.length > 0 ? { games: gameIds.join(',') } : undefined,
+    });
     return {
       blob: response.data as Blob,
       filename: filenameOf(response.headers['content-disposition']) ?? `${code}-bundle.zip`,

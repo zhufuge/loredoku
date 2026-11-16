@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
 import {
@@ -41,12 +41,27 @@ interface ExportBundleDialogProps {
  * 2026-11-09（docs/v0.9.0.md §15）：完成屏原来还有一行「包里没有播放页面，
  * 下一版会有纯前端播放页」—— 播放器 v0.9.0 已经落地，那句话反而误导，删掉。
  * 现在只留一行文件名，对话框会自然收一点；不为对齐凭空留一块空白。
+ *
+ * v0.10.10：清单里每一关前面多一个勾选框 —— 主题有十几关时作者经常只想归档
+ * 新的那几关。默认全勾上（与「全部导出」的老行为一致），「全选 / 清空」是
+ * 两头的快捷键，只有一关被取消了导出按钮才会灰掉。
  */
 export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleDialogProps): JSX.Element {
   const [state, setState] = useState<{ phase: 'idle' | 'running' | 'done'; filename?: string }>({
     phase: 'idle',
   });
+  const [selected, setSelected] = useState<Set<number>>(() => new Set(games.map((game) => game.id)));
   const open = theme !== null;
+
+  /**
+   * 每次打开（`theme` 从 null 变回来）都把勾选重置成全选 —— 上一次的取舍不该
+   * 跟到这一次。`theme?.code` 变 null 时也会跑一次，棋盘归零，下次开启干净。
+   */
+  useEffect(() => {
+    setSelected(new Set(games.map((game) => game.id)));
+    // 只在打开/关闭这个节拍上重置；games 列表 refetch 回来不为所动。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [theme?.code]);
 
   const close = (next: boolean): void => {
     if (!next && state.phase === 'running') return;
@@ -58,7 +73,7 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
     if (!theme) return;
     setState({ phase: 'running' });
     try {
-      const { blob, filename } = await downloadThemeBundle(theme.code);
+      const { blob, filename } = await downloadThemeBundle(theme.code, [...selected]);
       saveBlob(blob, filename);
       setState({ phase: 'done', filename });
       toast.success('资源包已开始下载');
@@ -66,6 +81,15 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
       setState({ phase: 'idle' });
       toast.error(error instanceof Error ? error.message : '导出失败');
     }
+  };
+
+  const toggle = (id: number, checked: boolean): void => {
+    setSelected((previous) => {
+      const next = new Set(previous);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
   };
 
   return (
@@ -89,23 +113,51 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
                 这个主题还没有上线的关卡。包是「已经能玩的那几关」，先至少上线一关。
               </p>
             ) : (
-              <ul className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-1">
-                {games.map((game) => (
-                  <li
-                    key={game.id}
-                    className="flex items-center gap-2 rounded px-2 py-1.5 text-xs"
+              <>
+                <div className="flex items-center justify-end gap-1">
+                  <Button
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={selected.size === games.length}
+                    onClick={() => setSelected(new Set(games.map((game) => game.id)))}
                   >
-                    <span className="min-w-0 flex-1 truncate font-medium">{game.name}</span>
-                    <DifficultyBadge difficulty={game.difficulty} />
-                    <span className="w-12 shrink-0 text-right tabular-nums text-muted-foreground">
-                      {game.gridSize} × {game.gridSize}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+                    全选
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    disabled={selected.size === 0}
+                    onClick={() => setSelected(new Set())}
+                  >
+                    清空
+                  </Button>
+                </div>
+                <ul className="max-h-56 space-y-1 overflow-y-auto rounded-md border p-1">
+                  {games.map((game) => (
+                    <li
+                      key={game.id}
+                      className="flex items-center gap-2 rounded px-2 py-1.5 text-xs"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected.has(game.id)}
+                        onChange={(event) => toggle(game.id, event.target.checked)}
+                        className="h-3.5 w-3.5 shrink-0 accent-primary"
+                      />
+                      <span className="min-w-0 flex-1 truncate font-medium">{game.name}</span>
+                      <DifficultyBadge difficulty={game.difficulty} />
+                      <span className="w-12 shrink-0 text-right tabular-nums text-muted-foreground">
+                        {game.gridSize} × {game.gridSize}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
             )}
 
-            <p className="text-xs tabular-nums text-muted-foreground">共 {games.length} 关</p>
+            <p className="text-xs tabular-nums text-muted-foreground">
+              已选 {selected.size} / 共 {games.length} 关
+            </p>
             {state.phase === 'running' ? <InlineLoading caption="正在打包…" /> : null}
           </div>
         )}
@@ -127,7 +179,10 @@ export function ExportBundleDialog({ theme, games, onOpenChange }: ExportBundleD
               >
                 取消
               </Button>
-              <Button disabled={games.length === 0 || state.phase === 'running'} onClick={() => void run()}>
+              <Button
+                disabled={games.length === 0 || selected.size === 0 || state.phase === 'running'}
+                onClick={() => void run()}
+              >
                 <Download className="mr-1 h-4 w-4" />
                 {state.phase === 'running' ? '打包中…' : '导出 zip'}
               </Button>

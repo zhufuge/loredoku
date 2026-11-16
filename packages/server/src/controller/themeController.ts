@@ -2,6 +2,7 @@ import type { Context } from 'koa';
 import {
   createThemeSchema,
   listThemesQuerySchema,
+  themeBundleQuerySchema,
   themeCodeParamSchema,
   toolIconParamSchema,
   updateThemeCheckStyleSchema,
@@ -123,10 +124,13 @@ export async function updateCheckStyle(ctx: Context): Promise<void> {
  * **不落盘、不登记、不托管** —— 所以这一版没有 `bundles` 表，也没有下载地址可
  * 二次访问。体检在 `buildThemeBundle` 里先跑完；出错时这里根本还没碰响应体，
  * 于是得到一个正常的 JSON 错误，而不是一个半截的 zip。
+ *
+ * v0.10.10：`?games=1,2` 只打选中的几关；不给 query 就是全部在线关。
  */
 export async function bundle(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
-  const built = await bundleService.buildThemeBundle(code);
+  const query = parseOrThrow(themeBundleQuerySchema, ctx.query);
+  const built = await bundleService.buildThemeBundle(code, { gameIds: query.games });
   ctx.set('Content-Type', 'application/zip');
   // 文件名是 ASCII（`code` 是 `[a-z0-9_-]`），所以不需要 `filename*` 那一套。
   ctx.set('Content-Disposition', `attachment; filename="${built.filename}"`);

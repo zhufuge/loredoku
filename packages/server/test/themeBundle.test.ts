@@ -537,6 +537,69 @@ describe('资源包导出（§11）', () => {
     expect(body.subarray(0, 4).toString('binary')).toBe('PK\x03\x04');
   });
 
+  /**
+   * v0.10.10：`?games=` 只打勾上的那几关。两关都在线、只给第二关的 id ——
+   * manifest 与关卡 JSON 都只剩这一关，清单的另一头（取消勾选）由前端管。
+   */
+  it('给了 gameIds 就只打选中的那几关', async () => {
+    const themeCode = await createTheme();
+    const kept = await deployedGame(themeCode);
+    const dropped = await deployedGame(themeCode);
+    const keptId = Number(
+      (await db('games').where({ slug: kept.slug }).first('id'))?.id,
+    );
+    expect(Number.isFinite(keptId)).toBe(true);
+
+    const built = await bundleService.buildThemeBundle(themeCode, { gameIds: [keptId] });
+
+    expect(built.manifest.games.map((entry) => entry.key)).toEqual([kept.slug]);
+    expect(built.entries.some((entry) => entry.path === `puzzles/${kept.slug}.json`)).toBe(true);
+    expect(built.entries.some((entry) => entry.path === `puzzles/${dropped.slug}.json`)).toBe(false);
+
+    // HTTP 同一条路：query 里的 id 列表就是选中集。
+    const res = await api
+      .get(`/api/themes/${themeCode}/bundle?games=${keptId}`)
+      .buffer(true)
+      .parse((response, done) => {
+        const chunks: Buffer[] = [];
+        response.on('data', (chunk: Buffer) => chunks.push(chunk));
+        response.on('end', () => done(null, Buffer.concat(chunks)));
+      });
+    expect(res.status).toBe(200);
+    // 内容是压缩的，这里只验「仍然是一个正常的 zip」—— 内容取舍由上面那句断言管。
+    expect((res.body as Buffer).subarray(0, 4).toString('binary')).toBe('PK\x03\x04');
+  });
+
+  /** 选中的 id 不在线 / 不是这个主题的 —— 单独报出来，作者才分得清「选错了」。 */
+  it('选中的关不在线或不属于这个主题 → 400，并列出是哪几关', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode);
+    const other = await deployedGame(await createTheme());
+    const otherId = Number((await db('games').where({ slug: other.slug }).first('id'))?.id);
+
+    const res = await api.get(`/api/themes/${themeCode}/bundle?games=${otherId},999999`);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.message).toContain('999999');
+    expect(res.body.message).toContain(String(otherId));
+
+    // 不给 games query 仍是全部在线关（老调用方不受影响）。
+    const all = await bundleService.buildThemeBundle(themeCode);
+    expect(all.manifest.games.map((entry) => entry.key)).toEqual([game.slug]);
+  });
+
+  /** query 形状不对（空串、非数字）在进服务前就 400，不碰数据库。 */
+  it('games 不是逗号分隔的数字 → 400', async () => {
+    const themeCode = await createTheme();
+    await deployedGame(themeCode);
+
+    for (const value of ['', 'abc', '1,']) {
+      const res = await api.get(`/api/themes/${themeCode}/bundle?games=${value}`);
+      expect(res.status).toBe(400);
+      expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    }
+  });
+
   it('主题不存在 → 404，而不是一个空包', async () => {
     const res = await api.get('/api/themes/999999/bundle');
     expect(res.status).toBe(404);

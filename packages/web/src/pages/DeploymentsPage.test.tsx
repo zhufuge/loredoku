@@ -5,6 +5,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapGameSummary, PuzzleEntrySummary, Theme } from '@loredoku/shared';
 import { DeploymentsPage } from './DeploymentsPage';
 
+/** v0.10.10：导出弹窗的「只导出选中的几关」。弹窗只在点击时才调接口，mock 掉
+ *  `@/api/themes` 才能断言「带上了选中的 id」，而不真的发请求。 */
+const downloadThemeBundleMock = vi.fn().mockResolvedValue({
+  blob: new Blob([]),
+  filename: 'hlm-bundle-20261116.zip',
+});
+vi.mock('@/api/themes', () => ({
+  downloadThemeBundle: (...args: unknown[]) => downloadThemeBundleMock(...args),
+  saveBlob: vi.fn(),
+}));
+
 /**
  * 部署模块（v0.7.1 §7.4）：一行 = 一条在线的东西；取消部署走二次确认，弹窗里
  * 明写「玩家立刻无法访问 / 同一路径可以再用」两件事。
@@ -148,6 +159,11 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     cancelMutate.mockClear();
     deployMutate.mockClear();
     weightMutate.mockClear();
+    downloadThemeBundleMock.mockClear();
+    downloadThemeBundleMock.mockResolvedValue({
+      blob: new Blob([]),
+      filename: 'hlm-bundle-20261116.zip',
+    });
     workspaceRef.value = null;
     themesRef.data = [theme()];
     themesRef.isLoading = false;
@@ -356,5 +372,83 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     type(input, '1.5');
     pressEnter(input);
     expect(weightMutate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * v0.10.10：导出清单的每一关前面有勾选框 —— 主题十几关时作者经常只想归档
+   * 新的那几关。默认全勾上（与「全部导出」的老行为一致），取消后「导出 zip」
+   * 才会灰掉，收起的请求只带选中的 id。
+   */
+  it('导出清单能逐关勾选：全选 / 清空 / 只导出选中的', async () => {
+    const hlm = theme({ code: 'hlm', name: '红楼梦' });
+    workspaceRef.value = {
+      theme: hlm,
+      themes: [theme(), hlm],
+      themeCode: 'hlm',
+      href: (module: string) => `/hlm/${module}`,
+    };
+    gamesRef.data = [
+      game({ id: 3, themeCode: 'hlm', name: '撕扇', slug: 'puzzle-hlm-sishan' }),
+      game({ id: 4, themeCode: 'hlm', name: '葬花', slug: 'puzzle-hlm-zanghua' }),
+    ];
+    render();
+
+    act(() =>
+      Array.from(container.querySelectorAll('button'))
+        .find((node) => node.textContent?.trim() === '导出包')
+        ?.click(),
+    );
+
+    // 弹窗 portal 到 body，所以勾选框也从 document 上找。
+    const checkboxes = (): HTMLInputElement[] =>
+      Array.from(document.querySelectorAll('input[type="checkbox"]'));
+    expect(checkboxes()).toHaveLength(2);
+    expect(checkboxes().every((node) => node.checked)).toBe(true);
+    expect(text()).toContain('已选 2 / 共 2 关');
+    const exportButton = (): HTMLButtonElement | undefined =>
+      Array.from(document.querySelectorAll('button')).find(
+        (node) => node.textContent?.includes('导出 zip'),
+      );
+    const again = (): HTMLButtonElement | undefined =>
+      Array.from(document.querySelectorAll('button')).find(
+        (node) => node.textContent?.trim() === '再导一次',
+      );
+
+    // 默认全选 —— 导出就是两关都带。
+    act(() => exportButton()?.click());
+    await vi.waitFor(() => expect(text()).toContain('已生成'));
+    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [3, 4]);
+    act(() => again()?.click());
+
+    // 取消第一关：计数与请求都跟着变。
+    act(() => checkboxes()[0]!.click());
+    expect(text()).toContain('已选 1 / 共 2 关');
+    act(() => exportButton()?.click());
+    await vi.waitFor(() => expect(text()).toContain('已生成'));
+    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [4]);
+    act(() => again()?.click());
+
+    // 清空：导出按钮灰掉，点也不发请求。
+    act(() =>
+      Array.from(document.querySelectorAll('button'))
+        .find((node) => node.textContent?.trim() === '清空')
+        ?.click(),
+    );
+    expect(checkboxes().every((node) => !node.checked)).toBe(true);
+    expect(text()).toContain('已选 0 / 共 2 关');
+    expect(exportButton()?.disabled).toBe(true);
+    act(() => exportButton()?.click());
+    expect(downloadThemeBundleMock).toHaveBeenCalledTimes(2);
+
+    // 全选：回到默认。
+    act(() =>
+      Array.from(document.querySelectorAll('button'))
+        .find((node) => node.textContent?.trim() === '全选')
+        ?.click(),
+    );
+    expect(checkboxes().every((node) => node.checked)).toBe(true);
+    act(() => exportButton()?.click());
+    await vi.waitFor(() => expect(text()).toContain('已生成'));
+    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [3, 4]);
   });
 });

@@ -318,6 +318,22 @@ export const listThemesQuerySchema = z.object({
     .optional(),
 });
 
+/**
+ * v0.10.10：导出包可以**只打选中的几关**。`games` 是逗号分隔的游戏 id；缺席 =
+ * 这个主题全部在线关（v0.8.0 起的默认行为，老调用方与老包不受影响）。
+ *
+ * 放在 query 上而不是 body：接口仍然是 `GET`，幂等的打包动作没必要改成 POST。
+ */
+export const themeBundleQuerySchema = z.object({
+  games: z
+    .string()
+    .regex(/^\d+(,\d+)*$/, 'games 只能是逗号分隔的游戏 id')
+    .transform((value) => value.split(',').map((part) => Number(part)))
+    .optional(),
+});
+
+export type ThemeBundleQuery = z.infer<typeof themeBundleQuerySchema>;
+
 export type CreateThemeInput = z.infer<typeof createThemeSchema>;
 export type UpdateThemeInput = z.infer<typeof updateThemeSchema>;
 export type ThemeDataInput = z.infer<typeof themeDataSchema>;
