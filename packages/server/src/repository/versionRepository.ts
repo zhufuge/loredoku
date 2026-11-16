@@ -39,6 +39,7 @@ function summarizeData(raw: unknown): {
   for (const cell of Object.values(draft?.cells ?? {})) {
     if (cell?.item) assetIds.add(cell.item.assetId);
     if (cell?.background) assetIds.add(cell.background.assetId);
+    if (cell?.decoration) assetIds.add(cell.decoration.assetId);
   }
   // participants live on puzzles, so this counts only legacy snapshots.
   const participantCount = readLegacyCharacterSlots(raw).filter((slot) => slot !== null).length;

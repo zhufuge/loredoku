@@ -535,6 +535,31 @@ describe('assets API', () => {
     expect(dropped.body.data.blocking).toBe(true);
   });
 
+  /**
+   * v0.10.9 的背景修饰层：占用检查（资源与形态两处）同样要扫 `cell.decoration`，
+   * 否则一张只放了地毯的画布报「0 处使用」，作者就敢把地毯删了。
+   */
+  it('v0.10.9: a decoration-layer placement counts as usage (asset and variant)', async () => {
+    const assetId = await createAsset({ name: 'Rug', type: 'item', decoration: true });
+    const variantId = (await api.get(`/api/assets/${assetId}`)).body.data.variants[0].id as number;
+
+    const mapId = await createMap({ name: `Rug map ${uniqueCode('m')}`, gridSize: 4 });
+    const draft = emptyDraft(4);
+    draft.cells['1,1'] = { decoration: { assetId, variantId } };
+    await saveCanvas(mapId, draft);
+
+    const usages = await api.get(`/api/assets/${assetId}/usages`);
+    expect(usages.status).toBe(200);
+    expect(usages.body.data).toEqual([
+      { mapId, mapName: expect.any(String), cells: [{ x: 1, y: 1 }] },
+    ]);
+
+    const variantUsages = await api.get(`/api/assets/${assetId}/variants/${variantId}/usages`);
+    expect(variantUsages.status).toBe(200);
+    expect(variantUsages.body.data).toHaveLength(1);
+    expect(variantUsages.body.data[0].cells).toEqual([{ x: 1, y: 1 }]);
+  });
+
   it('v0.5.3 FEAT-N06: a create can land enabled, and defaults to 停用', async () => {
     const plain = await api.post('/api/assets').send({
       themeCode: await fixtureTheme(),

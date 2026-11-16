@@ -67,6 +67,30 @@ describe('buildBundleIdMaps', () => {
     expect([...ids.variants.entries()]).toEqual([[4934, 1]]);
     expect([...ids.characters.entries()]).toEqual([[3062, 1]]);
   });
+
+  /**
+   * v0.10.9 的背景修饰层。真实事故（2026-11-17，「一从二令三人木」）：
+   * 修饰层引用没进引用闭包 ⇒ assets.json 少了「地毯」、包里没有它的图，
+   * 播放器那一格画不出东西。
+   */
+  it('背景修饰层的资源与形态也进引用闭包', () => {
+    const source = puzzle();
+    source.map.data.cells['1,1'] = { decoration: { assetId: 13390, variantId: 11920 } };
+    const ids = buildBundleIdMaps([
+      { summary: summary('a'), map: source.map.data, puzzle: source },
+    ]);
+
+    // 出现顺序：背景 4165 → 修饰 13390 → 名册联动 4986。
+    expect([...ids.assets.entries()]).toEqual([
+      [4165, 1],
+      [13390, 2],
+      [4986, 3],
+    ]);
+    expect([...ids.variants.entries()]).toEqual([
+      [4934, 1],
+      [11920, 2],
+    ]);
+  });
 });
 
 describe('renumberPuzzleDraft', () => {
@@ -115,6 +139,19 @@ describe('renumberPuzzleDraft', () => {
     const next = renumberPuzzleDraft(source, ids);
     expect(next.map.mapId).toBe(9);
     expect(next.map.versionNo).toBe(1);
+  });
+
+  it('v0.10.9 的背景修饰层同样重编号 —— 不改它，包里那格指着不存在的 id', () => {
+    const source = puzzle();
+    source.map.data.cells['1,1'] = { decoration: { assetId: 13390, variantId: 11920 } };
+    const ids = buildBundleIdMaps([
+      { summary: summary('a'), map: source.map.data, puzzle: source },
+    ]);
+    const next = renumberPuzzleDraft(source, ids);
+
+    expect(next.map.data.cells['1,1']?.decoration).toEqual({ assetId: 2, variantId: 2 });
+    // 原草稿不被改（导出不该动内存里那一份）。
+    expect(source.map.data.cells['1,1']?.decoration).toEqual({ assetId: 13390, variantId: 11920 });
   });
 });
 

@@ -130,6 +130,14 @@ export function renumberPuzzleDraft(puzzle: PuzzleDraft, ids: BundleIdMaps): Puz
       if (variantId == null) delete cell.item.variantId;
       else cell.item.variantId = variantId;
     }
+    // v0.10.9 的背景修饰层：漏掉它，包里的这一格还指着数据库原 id，
+    // 而 assets.json 里那个资源根本不存在（collectMapThemeRefs 没收它）。
+    if (cell.decoration) {
+      cell.decoration.assetId = remap(ids.assets, cell.decoration.assetId);
+      const variantId = remapOptional(ids.variants, cell.decoration.variantId);
+      if (variantId == null) delete cell.decoration.variantId;
+      else cell.decoration.variantId = variantId;
+    }
   }
 
   next.characterSlots = next.characterSlots.map((slot) => {

@@ -147,11 +147,12 @@ export async function clearAssetFromDrafts(trx: Knex.Transaction, id: number): P
     for (const key of Object.keys(draft.cells)) {
       const cell = draft.cells[key];
       if (!cell) continue;
-      if (cell.item?.assetId === id || cell.background?.assetId === id) {
+      if (cell.item?.assetId === id || cell.background?.assetId === id || cell.decoration?.assetId === id) {
         const next = { ...cell };
         if (cell.item?.assetId === id) delete next.item;
         if (cell.background?.assetId === id) delete next.background;
-        if (!next.item && !next.itemRef && !next.background) delete draft.cells[key];
+        if (cell.decoration?.assetId === id) delete next.decoration;
+        if (!next.item && !next.itemRef && !next.background && !next.decoration) delete draft.cells[key];
         else draft.cells[key] = next;
         changed = true;
       }
@@ -213,7 +214,7 @@ export async function getUsages(assetId: number): Promise<AssetUsage[]> {
     const cells: Array<{ x: number; y: number }> = [];
     for (const key of Object.keys(draft.cells)) {
       const cell = draft.cells[key];
-      if (cell?.item?.assetId === assetId || cell?.background?.assetId === assetId) {
+      if (cell?.item?.assetId === assetId || cell?.background?.assetId === assetId || cell?.decoration?.assetId === assetId) {
         const [xs, ys] = key.split(',');
         cells.push({ x: Number(xs), y: Number(ys) });
       }

@@ -663,6 +663,8 @@ export interface ResizeRemoved {
   background: number;
   /** v0.6.0: was `object` — the item layer. */
   item: number;
+  /** v0.10.9: 背景修饰层 —— 缩画布时同样会被裁掉，得单独计数。 */
+  decoration: number;
   regions: number;
   charactersReturnedToSlot: number;
 }

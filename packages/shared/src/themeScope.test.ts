@@ -41,6 +41,21 @@ describe('collectMapThemeRefs', () => {
     expect(collectMapThemeRefs(null)).toEqual([]);
     expect(collectMapThemeRefs(canvas())).toEqual([]);
   });
+
+  it('v0.10.9 的背景修饰层也是引用 —— 漏了它，导出包就少一个资源', () => {
+    const refs = collectMapThemeRefs(
+      canvas({
+        cells: {
+          '1,0': { decoration: { assetId: 13, variantId: 23 } },
+        },
+      }),
+    );
+
+    expect(refs).toEqual([
+      { kind: 'asset', id: 13, where: '单元格 1,0 的背景修饰' },
+      { kind: 'variant', id: 23, where: '单元格 1,0 的背景修饰形态' },
+    ]);
+  });
 });
 
 describe('collectPuzzleThemeRefs', () => {

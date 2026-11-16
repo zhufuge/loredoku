@@ -357,10 +357,10 @@ export function MapEditorPage(): JSX.Element {
     try {
       const result = await resizeMutation.mutateAsync({ id: targetId, gridSize: editor.gridSize });
       gridTrimRef.current = false;
-      const { background, item, regions } = result.removed;
-      if (background + item + regions > 0) {
+      const { background, item, decoration, regions } = result.removed;
+      if (background + item + decoration + regions > 0) {
         toast.message('画布已调整', {
-          description: `已移除越界内容：背景 ${background}、物品 ${item}、区域 ${regions}`,
+          description: `已移除越界内容：背景 ${background}、背景修饰 ${decoration}、物品 ${item}、区域 ${regions}`,
         });
       }
       return true;

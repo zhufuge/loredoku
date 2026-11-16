@@ -51,6 +51,8 @@ async function assertValidReferences(draft: MapDraft, size: number): Promise<voi
     if (!cell) continue;
     if (cell.item) assetIds.add(cell.item.assetId);
     if (cell.background) assetIds.add(cell.background.assetId);
+    // v0.10.9 的背景修饰层：同样要校验引用存在，否则导出包会被它卡住。
+    if (cell.decoration) assetIds.add(cell.decoration.assetId);
   }
   const existingAssets = await assetRepo.existingAssetIds([...assetIds]);
   const missingAssets = [...assetIds].filter((id) => !existingAssets.has(id));

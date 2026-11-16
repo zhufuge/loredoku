@@ -99,6 +99,7 @@ export async function resizeDraft(
     const removed: ResizeRemoved = {
       background: 0,
       item: 0,
+      decoration: 0,
       regions: 0,
       charactersReturnedToSlot: 0,
     };
@@ -116,6 +117,7 @@ export async function resizeDraft(
       }
       if (cell.background) removed.background += 1;
       if (cell.item) removed.item += 1;
+      if (cell.decoration) removed.decoration += 1;
     }
 
     const nextRegions: DraftRegion[] = [];

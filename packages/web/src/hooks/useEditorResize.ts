@@ -61,6 +61,11 @@ export function useEditorResize(spec: EditorResizeSpec): EditorResizeFlow {
         const item = assetsById.get(cell.background.assetId);
         items.push(`物品「${item?.name ?? `#${cell.background.assetId}`}」位于 C${x + 1},R${y + 1}`);
       }
+      // v0.10.9 的背景修饰层：恒占 1 格，越界时会被 resize 接口裁掉，提前报个数。
+      if (cell.decoration && !inBounds(x, y)) {
+        const item = assetsById.get(cell.decoration.assetId);
+        items.push(`物品「${item?.name ?? `#${cell.decoration.assetId}`}」位于 C${x + 1},R${y + 1}`);
+      }
       if (
         cell.item &&
         !(inBounds(x, y) && x + cell.item.w <= size && y + cell.item.h <= size)
@@ -92,10 +97,10 @@ export function useEditorResize(spec: EditorResizeSpec): EditorResizeFlow {
       try {
         if (dirty) await persist();
         const result = await resizeMutation.mutateAsync({ id, gridSize: size });
-        const { background, item, regions: removedRegions } = result.removed;
-        if (background + item + removedRegions > 0) {
+        const { background, item, decoration, regions: removedRegions } = result.removed;
+        if (background + item + decoration + removedRegions > 0) {
           toast.message('画布已调整', {
-            description: `已移除越界内容：背景 ${background}、物品 ${item}、区域 ${removedRegions}`,
+            description: `已移除越界内容：背景 ${background}、背景修饰 ${decoration}、物品 ${item}、区域 ${removedRegions}`,
           });
         } else {
           toast.success('画布已调整');
