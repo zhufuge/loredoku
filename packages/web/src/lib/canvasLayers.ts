@@ -3,6 +3,7 @@ import {
   DEFAULT_MAP_STYLE,
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
+  assetLayerFor,
   type DraftCell,
   type DraftRegion,
   type EditorLayer,
@@ -225,8 +226,12 @@ export function resolveCursorBoxes(input: {
  * assets and the item layer only accepts `type === 'item'` assets, so a
  * blocking item is still placeable on the item layer while never being
  * placeable on the background layer.
+ *
+ * v0.10.9: a 「背景修饰」 item goes to the decoration layer **instead of** the
+ * item layer — the two are halves of the item world, not aliases, so ticking
+ * the box moves the asset rather than duplicating it.
  */
 export function canPlaceAssetOnLayer(asset: Asset | null, layer: EditorLayer): boolean {
   if (!asset) return false;
-  return asset.type === layer;
+  return assetLayerFor(asset) === layer;
 }

@@ -1,5 +1,5 @@
 import type { Knex } from 'knex';
-import { blockingFor } from '@loredoku/shared';
+import { blockingFor, decorationFor } from '@loredoku/shared';
 import { db } from '../db/knex';
 import * as variantRepo from './assetVariantRepository';
 import type { Asset, AssetRow, AssetType, AssetUsage, MapDraft } from '@loredoku/shared';
@@ -19,6 +19,8 @@ export interface CreateAssetData {
   name: string;
   type: AssetType;
   blocking: boolean;
+  /** v0.10.9: 「背景修饰」— item assets only (see `decorationFor`). */
+  decoration: boolean;
   /**
    * v0.5.3 FEAT-N06: create enabled when the caller already supplied an
    * appearance; omitted keeps the OPT-305 default (`false`).
@@ -32,6 +34,8 @@ export interface UpdateAssetData {
   name?: string;
   type?: AssetType;
   blocking?: boolean;
+  /** v0.10.9: 「背景修饰」— item assets only. */
+  decoration?: boolean;
   isActive?: boolean;
 }
 
@@ -42,6 +46,7 @@ function toAsset(row: AssetRow, variants: Asset['variants']): Asset {
     name: row.name,
     type: row.type,
     blocking: row.blocking,
+    decoration: row.decoration,
     isActive: row.is_active,
     variants,
     createdAt: new Date(row.created_at).toISOString(),
@@ -101,6 +106,8 @@ export async function create(data: CreateAssetData): Promise<number> {
         type: data.type,
         // v0.5.2 FEAT-M04: a background asset never blocks.
         blocking: blockingFor(data.type, data.blocking),
+        // v0.10.9: 同理，背景资源也不可能是「背景修饰」。
+        decoration: decorationFor(data.type, data.decoration),
         // OPT-305: 新建资源未上传图片，初始状态为停用。
         // v0.5.3 FEAT-N06: 上传了图片或选了纯色块 → 直接启用。
         is_active: data.isActive ?? false,
@@ -117,10 +124,13 @@ export async function update(id: number, data: UpdateAssetData): Promise<boolean
   if (data.name !== undefined) patch.name = data.name;
   if (data.type !== undefined) patch.type = data.type;
   if (data.blocking !== undefined) patch.blocking = data.blocking;
+  if (data.decoration !== undefined) patch.decoration = data.decoration;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
   // v0.5.2 FEAT-M04: switching an asset to 「背景」 makes it non-blocking;
   // leaving the type alone keeps whatever `blocking` the caller sent.
   if (data.type === 'background') patch.blocking = false;
+  // v0.10.9: 同上 —— 背景资源既不能阻挡，也不是「背景修饰」。
+  if (data.type === 'background') patch.decoration = false;
   const affected = await db('assets').where({ id }).update(patch);
   return affected > 0;
 }

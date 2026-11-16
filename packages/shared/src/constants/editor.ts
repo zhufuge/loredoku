@@ -12,7 +12,7 @@ export const DEFAULT_ITEM_FIT_MODE = 'cover' as const;
 
 // ---- Editor layers ----
 /** v0.6.0: the canvas layers are `background` and `item` (was `object`). */
-export const EDITOR_LAYERS = ['background', 'item'] as const;
+export const EDITOR_LAYERS = ['background', 'decoration', 'item'] as const;
 
 // Deprecated (v1 rotation no longer used; kept for legacy migration typings).
 export const CARD_ROTATIONS = [0, 90, 180, 270] as const;

@@ -77,6 +77,7 @@ export const GRID_BORDER_WIDTH = OUTLINE_WIDTH;
   'regionOutline',
   'canvasFrame',
   'gridSeparator',
+  'backgroundDecoration',
   'blockingMask',
   'regionHighlight',
   'cellHighlight',
@@ -106,7 +107,12 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   canvasFrame: 34,
   /** 9 网格分隔线（内部分隔线） */
   gridSeparator: 32,
-  /** 10 阻挡遮罩 — below 区域轮廓线, above 区域高亮线. */
+  /**
+   * 10 背景修饰层 — v0.10.9。夹在网格分隔线与阻挡遮罩之间：它盖住格子里的
+   * 底色与纹理，但不该盖住网格线，也不该压住「这格不能站」的遮罩。
+   */
+  backgroundDecoration: 31,
+  /** 11 阻挡遮罩 — below 区域轮廓线, above 区域高亮线. */
   blockingMask: 30,
   /** 11 区域高亮线 */
   regionHighlight: 28,

@@ -5,7 +5,7 @@ import type { Asset, AssetVariant } from '@loredoku/shared';
 import type { CellCoord } from '@loredoku/shared';
 import type { CellMap } from '@/lib/canvasLayers';
 import type { CanvasPoint } from '@/lib/grid';
-import { MapBackgroundLayer, MapItemLayer } from './MapAssetLayers';
+import { MapBackgroundLayer, MapDecorationLayer, MapItemLayer } from './MapAssetLayers';
 
 /**
  * v0.5.1 FEAT-L01 / SPEC-L03 — 「在背景展示该色块」.
@@ -80,6 +80,13 @@ const layers = [
     name: '层 4 · 物品层',
     layer: (cells: CellMap) => <MapItemLayer cells={cells} assetsById={assetsById} cellSize={100} />,
     cells: (assetId: number) => new Map([['0,0', { item: { assetId, w: 1, h: 1 } }]]),
+  },
+  {
+    name: '层 10 · 背景修饰层（v0.10.9）',
+    layer: (cells: CellMap) => (
+      <MapDecorationLayer cells={cells} assetsById={assetsById} cellSize={100} />
+    ),
+    cells: (assetId: number) => new Map([['0,0', { decoration: { assetId } }]]),
   },
 ] as const;
 
@@ -415,5 +422,62 @@ describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
   it('falls back to the first variant when the named variant is gone', () => {
     paint(999);
     expect(paintedColour()).toBe('#33AA33');
+  });
+});
+
+/**
+ * v0.10.9：三种东西可以同格共存，每层只画自己那一份 —— 背景修饰层不会因为
+ * 格子同时还有物品就把物品一起画出来，也不会漏掉自己那格。
+ */
+describe('三层同格共存（v0.10.9）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  const both = new Map([
+    [
+      '0,0',
+      {
+        background: { assetId: 1 },
+        decoration: { assetId: 2 },
+        item: { assetId: 1, w: 1, h: 1 },
+      },
+    ],
+  ]);
+
+  it('每一层各自只画自己那一份', () => {
+    act(() => {
+      root.render(
+        <>
+          <MapBackgroundLayer cells={both} assetsById={assetsById} cellSize={100} />
+          <MapDecorationLayer cells={both} assetsById={assetsById} cellSize={100} />
+          <MapItemLayer cells={both} assetsById={assetsById} cellSize={100} />
+        </>,
+      );
+    });
+    // 背景(1) 与 物品(1) 都是纯色块，修饰(2) 是图片 ⇒ 两块颜色 + 一张图。
+    const colours = Array.from(container.querySelectorAll<HTMLDivElement>('[data-color-block]')).map(
+      (node) => node.dataset.colorBlock,
+    );
+    expect(colours).toEqual(['#FF8800', '#FF8800']);
+    expect(container.querySelectorAll('img')).toHaveLength(1);
+  });
+
+  it('只有修饰层时，物品与背景都不出现在它的输出里', () => {
+    act(() => {
+      root.render(<MapDecorationLayer cells={both} assetsById={assetsById} cellSize={100} />);
+    });
+    expect(container.querySelector('img')?.getAttribute('src')).toBe('/uploads/p.png');
+    expect(container.querySelectorAll('[data-color-block]')).toHaveLength(0);
   });
 });

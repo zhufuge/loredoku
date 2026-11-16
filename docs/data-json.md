@@ -122,13 +122,16 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 
 ### 4.2 `cells` / `DraftCell`
 
-一个格子最多写三样东西（前两样才是「层」）：
+一个格子最多写四样东西（前三样才是「层」）：
 
 | 键 | 类型 | 说明 |
 |---|---|---|
 | `background` | `DraftAssetRef` | 背景层，恒占 1 格（§4.3） |
+| `decoration` | `DraftAssetRef` | **背景修饰层**（v0.10.9），恒占 1 格（§4.3 同构，但 `assetId` 必须是勾了「背景修饰」的 `type = 'item'` 资源） |
 | `item` | `DraftAnchorItem` | 物品层；只有**锚点格**写这一块（§4.4） |
 | `itemRef` | string | **历史字段**（v0.6.0 前的 `objectRef`），1–64 字符。只为兼容老草稿，新数据不写 |
+
+> **三者互不顶替**（v0.10.9）：同一格可以同时写 `background` / `decoration` / `item`，各画各的、各自至多一个。橡皮擦的清除顺序是 **物品 → 背景修饰 → 背景**（`resolveEraseTarget`）。
 
 ### 4.3 背景层 `DraftAssetRef`
 
@@ -143,7 +146,7 @@ schema 给坐标的是一个**很松的上限** `0 … 96`（`GRID_SIZE_MAX × 4
 |---|---|---|---|---|
 | `assetId` | number | ✔ | 正整数 | 必须是 `type = 'item'` 的资源 |
 | `variantId` | number | ✘ | 正整数 | 同上，缺席 / 找不到都回退第一个形态 |
-| `w` | number | ✔ | ≥ 1 的整数 | 脚位宽（格）。**新放置恒为 1**，老草稿保留原值 |
+| `w` | number | ✔ | ≥ 1 的整数 | 脚位宽（格）。v0.10.6 起由**资源形态**的 `w` 决定，背景修饰恒为 1 |
 | `h` | number | ✔ | ≥ 1 的整数 | 脚位高（格） |
 | `scale` | number | ✘ | 0.25–4 | **展示**缩放，`1` = 填满脚位；缺席 = 1 |
 | `offsetX` | number | ✘ | -4–4 | 按**格**的水平偏移，正数向右；缺席 = 0 |

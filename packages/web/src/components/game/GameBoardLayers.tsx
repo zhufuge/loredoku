@@ -11,7 +11,7 @@ import {
   type MapStyle,
 } from '@loredoku/shared';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
+import { MapBackgroundLayer, MapDecorationLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
   MapGameCheckLayer,
   MapGamePlacementLayer,
@@ -129,6 +129,7 @@ export function GameBoardLayers({
   return (
     <>
       <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
+      <MapDecorationLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
       <MapHighlightLayer
         highlight={highlight}
         regions={regions}

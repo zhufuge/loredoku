@@ -42,6 +42,7 @@ export async function createAsset(input: CreateAssetInput): Promise<Asset> {
     name: input.name,
     type: input.type,
     blocking: input.blocking,
+    decoration: input.decoration,
     isActive: input.isActive,
     initialVariant: {
       name: DEFAULT_ASSET_VARIANT_NAME,

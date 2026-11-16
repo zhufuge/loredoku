@@ -25,7 +25,7 @@ import { brushStrokeErases, coordKey, regionAt, type Coord } from '@/lib/region'
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
+import { MapBackgroundLayer, MapDecorationLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
   MapRegionHighlightLayer,
   MapRegionOutlineLayer,
@@ -465,7 +465,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       }
       if (pendingVariant) {
         // v0.10.6: 尺寸由形态给；左上角 = 点中的格子，放不下交给调用方提示。
-        const size = resolveVariantFootprint(pendingVariant.variant, pendingVariant.asset.type);
+        const size = resolveVariantFootprint(
+          pendingVariant.variant,
+          pendingVariant.asset.type,
+          pendingVariant.asset.decoration,
+        );
         const fitsHere = fits(coord.x, coord.y, size.w, size.h);
         onPlaceItem(coord, size.w, size.h, fitsHere);
         return;
@@ -573,7 +577,11 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const showPreview =
     activeTool === 'select' && hover !== null && pendingVariant !== null;
   const previewSize = pendingVariant
-    ? resolveVariantFootprint(pendingVariant.variant, pendingVariant.asset.type)
+    ? resolveVariantFootprint(
+        pendingVariant.variant,
+        pendingVariant.asset.type,
+        pendingVariant.asset.decoration,
+      )
     : { w: 1, h: 1 };
 
   // ---- OPT-901 §1.2.5: cells holding a non-standable object ----
@@ -698,6 +706,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         {/* 《画布图层优先级规范》§2 — rendered bottom-up; the z-index of each
             layer is pinned by MAP_LAYER_Z so the stacking order matches. */}
         <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
+        <MapDecorationLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
         <MapHighlightLayer
           highlight={highlight}
           regions={regions}

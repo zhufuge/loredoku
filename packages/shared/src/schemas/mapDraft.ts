@@ -305,6 +305,8 @@ export const draftAnchorItemSchema = withLegacyAnchorKey(
 export const draftCellSchema = z
   .object({
     background: draftAssetRefSchema.optional(),
+    /** v0.10.9: the 背景修饰 layer — always 1×1, coexists with background / item. */
+    decoration: draftAssetRefSchema.optional(),
     item: draftAnchorItemSchema.optional(),
     itemRef: z.string().trim().min(1).max(64).optional(),
   })

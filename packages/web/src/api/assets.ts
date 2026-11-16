@@ -22,6 +22,8 @@ export interface CreateAssetPayload {
   themeCode: string;
   type?: AssetType;
   blocking?: boolean;
+  /** v0.10.9: 「背景修饰」— an item asset placed on the decoration layer. */
+  decoration?: boolean;
   fitMode?: AssetFitMode;
   /** v0.5.1 FEAT-L01: colour-block colour; `null` = image mode. */
   bgColor?: string | null;
@@ -34,6 +36,8 @@ export interface UpdateAssetPayload {
   name?: string;
   type?: AssetType;
   blocking?: boolean;
+  /** v0.10.9: 「背景修饰」— an item asset placed on the decoration layer. */
+  decoration?: boolean;
   isActive?: boolean;
 }
 

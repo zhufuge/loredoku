@@ -20,6 +20,7 @@ const TABS: Array<{ id: PanelTab; label: string }> = [
 
 const LAYER_LABELS: Record<EditorLayer, string> = {
   background: '背景层',
+  decoration: '背景修饰',
   item: '物品层',
 };
 
@@ -91,7 +92,7 @@ export function EditorLeftPanel({
         {tab === 'assets' ? (
           <div className="flex h-full flex-col gap-3">
             <div className="flex shrink-0 gap-1 rounded-md border p-1">
-              {(['background', 'item'] as EditorLayer[]).map((layer) => (
+              {(['background', 'decoration', 'item'] as EditorLayer[]).map((layer) => (
                 <button
                   key={layer}
                   type="button"

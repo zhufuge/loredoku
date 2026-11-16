@@ -79,6 +79,67 @@ export function MapBackgroundLayer({
 }
 
 /**
+ * v0.10.9 (docs/v0.10.9.md §2) · 层 10 · 背景修饰层（Background Decoration Layer）
+ * — one ornament per cell, sitting **above** the background artwork but below
+ * the grid separators and the blocking mask: it decorates the floor, so the
+ * cell's grid lines stay crisp on top of it.
+ *
+ * It shares the cell with `background` and `item`; whatever it paints is 1×1
+ * (the requirement says so, and a footprint would fight the item's own).
+ */
+export function MapDecorationLayer({
+  cells,
+  assetsById,
+  cellSize,
+}: {
+  cells: CellMap;
+  assetsById: Map<number, Asset>;
+  cellSize: number;
+}): JSX.Element {
+  return (
+    <div
+      className="no-drag pointer-events-none absolute left-0 top-0"
+      style={{ zIndex: MAP_LAYER_Z.backgroundDecoration }}
+    >
+      {[...cells.entries()]
+        .filter(([, cell]) => cell.decoration)
+        .map(([key, cell]) => {
+          const asset = assetsById.get(cell.decoration!.assetId);
+          const look = asset ? resolveAssetVariant(asset, cell.decoration!.variantId) : undefined;
+          if (!look) return null;
+          const [x, y] = parseKey(key);
+          const src = look.imageThumbUrl ?? look.imageUrl;
+          const block = look.bgColor ? (
+            <div
+              data-color-block={look.bgColor}
+              className="block h-full w-full"
+              style={{ backgroundColor: look.bgColor }}
+            />
+          ) : src ? (
+            <img
+              src={src}
+              alt=""
+              draggable={false}
+              className="block h-full w-full"
+              style={{ objectFit: look.fitMode === 'contain' ? 'contain' : 'cover' }}
+            />
+          ) : null;
+          if (!block) return null;
+          return (
+            <div
+              key={`deco-${key}`}
+              className="absolute overflow-hidden"
+              style={{ ...cellRectStyle(x, y, cellSize), zIndex: MAP_LAYER_Z.backgroundDecoration }}
+            >
+              {block}
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
+/**
  * 层 4 · 物品图层（Object Layer）— above the grid separators so items are
  * never visually cut by them.
  *

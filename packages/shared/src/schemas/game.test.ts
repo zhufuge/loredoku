@@ -9,7 +9,7 @@ import {
 import { cellPlacementSchema, gameDeploySchema, gameSlugParamSchema, gameWeightUpdateSchema } from './game';
 
 describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
-  it('lists fifteen layers, the two game-only ones between 区域标签 and 物品图层', () => {
+  it('lists sixteen layers, the two game-only ones between 区域标签 and 物品图层', () => {
     expect(MAP_LAYER_ORDER).toEqual([
       'mouseCursorBox',
       'operationCursorBox',
@@ -20,6 +20,7 @@ describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
       'regionOutline',
       'canvasFrame',
       'gridSeparator',
+      'backgroundDecoration',
       'blockingMask',
       'regionHighlight',
       'cellHighlight',

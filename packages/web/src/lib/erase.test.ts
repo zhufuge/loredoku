@@ -32,6 +32,26 @@ describe('resolveEraseTarget', () => {
     });
   });
 
+  // v0.10.9: 三种东西同格共存时，擦的顺序是 物品 → 背景修饰 → 背景。
+  it('v0.10.9：物品与背景修饰同格时先擦物品', () => {
+    const cells = map({
+      '0,0': { decoration: { assetId: 3 }, item: { assetId: 2, w: 1, h: 1 } },
+    });
+    expect(resolveEraseTarget(cells, 0, 0)?.layer).toBe('item');
+  });
+
+  it('v0.10.9：只剩背景修饰与背景时先擦背景修饰', () => {
+    const cells = map({
+      '0,0': { background: { assetId: 1 }, decoration: { assetId: 3 } },
+    });
+    expect(resolveEraseTarget(cells, 0, 0)?.layer).toBe('decoration');
+  });
+
+  it('v0.10.9：只有背景修饰时擦的就是它', () => {
+    const cells = map({ '0,0': { decoration: { assetId: 3 } } });
+    expect(resolveEraseTarget(cells, 0, 0)?.layer).toBe('decoration');
+  });
+
   it('clears the background when only that layer is present', () => {
     const cells = map({ '0,0': { background: { assetId: 1 } } });
     expect(resolveEraseTarget(cells, 0, 0)).toEqual({
@@ -83,5 +103,6 @@ describe('isEmptyCell', () => {
     expect(isEmptyCell({})).toBe(true);
     expect(isEmptyCell({ background: { assetId: 1 } })).toBe(false);
     expect(isEmptyCell({ item: { assetId: 1, w: 1, h: 1 } })).toBe(false);
+    expect(isEmptyCell({ decoration: { assetId: 1 } })).toBe(false);
   });
 });

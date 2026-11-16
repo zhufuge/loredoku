@@ -5,6 +5,7 @@ import {
   DEFAULT_ASSET_VARIANT_NAME,
   assetHasAppearance,
   blockingFor,
+  decorationFor,
   type Asset,
   type AssetVariant,
 } from '@loredoku/shared';
@@ -55,6 +56,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
   const [name, setName] = useState(asset.name);
   const [type, setType] = useState(asset.type);
   const [blocking, setBlocking] = useState(asset.blocking);
+  const [decoration, setDecoration] = useState(asset.decoration === true);
   const [deleteTarget, setDeleteTarget] = useState<AssetVariant | null>(null);
 
   const updateMutation = useUpdateAsset();
@@ -73,6 +75,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
     setName(asset.name);
     setType(asset.type);
     setBlocking(asset.blocking);
+    setDecoration(asset.decoration === true);
   }, [asset.id]);
 
   const saving = updateMutation.isPending;
@@ -89,6 +92,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
           name: name.trim(),
           type,
           blocking: blockingFor(type, blocking),
+          decoration: decorationFor(type, decoration),
         },
       });
     } catch {
@@ -203,6 +207,19 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
                 className="h-4 w-4"
               />
               阻挡
+            </label>
+          ) : null}
+          {/* v0.10.9: 勾选后这个物品改放「背景修饰层」——与背景、物品同格共存，
+              所以它和「阻挡」一样只对物品开放（背景资源本来就铺满整格）。 */}
+          {blockable ? (
+            <label className="mt-6 flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={decoration}
+                onChange={(event) => setDecoration(event.target.checked)}
+                className="h-4 w-4"
+              />
+              背景修饰
             </label>
           ) : null}
         </div>

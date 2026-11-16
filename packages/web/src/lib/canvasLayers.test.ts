@@ -105,11 +105,11 @@ const region: DraftRegion = {
 
 // ---- OPT-901 §1.1: layer priority ----
 describe('canvas layer priority (OPT-901 §1.1)', () => {
-  // The literal fifteen-layer list lives in shared (`schemas/game.test.ts`), which
+  // The literal sixteen-layer list lives in shared (`schemas/game.test.ts`), which
   // owns MAP_LAYER_ORDER; here we only pin the order `layerStack()` reports.
-  it('stacks the fifteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
+  it('stacks the sixteen layers top-most first, exactly as docs/layer-priority.md §2 numbers them', () => {
     expect(layerStack().map((layer) => layer.name)).toEqual([...MAP_LAYER_ORDER]);
-    expect(layerStack()).toHaveLength(15);
+    expect(layerStack()).toHaveLength(16);
   });
 
   it('assigns a strictly descending z-index along that order', () => {
@@ -447,6 +447,20 @@ describe('placement validation (OPT-904 §4.1)', () => {
 
   it('rejects an unarmed palette', () => {
     expect(canPlaceAssetOnLayer(null, 'item')).toBe(false);
+  });
+
+  // v0.10.9: 「背景修饰」 is a separate home, not a second alias for the item layer.
+  it('v0.10.9：勾了「背景修饰」的物品只能放背景修饰层，不能放物品层', () => {
+    const decoration = item({ decoration: true });
+    expect(canPlaceAssetOnLayer(decoration, 'decoration')).toBe(true);
+    expect(canPlaceAssetOnLayer(decoration, 'item')).toBe(false);
+    expect(canPlaceAssetOnLayer(decoration, 'background')).toBe(false);
+  });
+
+  it('v0.10.9：没勾「背景修饰」的物品仍只属于物品层', () => {
+    const plain = item({ decoration: false });
+    expect(canPlaceAssetOnLayer(plain, 'item')).toBe(true);
+    expect(canPlaceAssetOnLayer(plain, 'decoration')).toBe(false);
   });
 });
 

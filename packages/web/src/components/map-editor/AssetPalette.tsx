@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import type { Asset, AssetVariant, EditorLayer } from '@loredoku/shared';
+import { assetLayerFor, type Asset, type AssetVariant, type EditorLayer } from '@loredoku/shared';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { RefreshButton } from '@/components/common/RefreshButton';
@@ -44,7 +44,7 @@ interface Tile {
 function buildTiles(assets: Asset[], layer: EditorLayer): Tile[] {
   const tiles: Tile[] = [];
   for (const asset of assets) {
-    if (asset.type !== layer) continue;
+    if (assetLayerFor(asset) !== layer) continue;
     const multi = asset.variants.length > 1;
     for (const variant of asset.variants) {
       tiles.push({ key: `a${asset.id}f${variant.id}`, asset, variant, variantId: variant.id, multi });
@@ -114,7 +114,9 @@ export function AssetPalette({
               ? '没有匹配的资源'
               : activeLayer === 'background'
                 ? '暂无背景资源'
-                : '暂无物品资源'}
+                : activeLayer === 'decoration'
+                  ? '暂无背景修饰资源'
+                  : '暂无物品资源'}
           </p>
         ) : (
           <div className="grid grid-cols-3 gap-2">

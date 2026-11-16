@@ -1,7 +1,7 @@
 import type { DraftCell } from '@loredoku/shared';
 import { cellKey, type CellMap } from './hitTest';
 
-export type EraseLayer = 'item' | 'background';
+export type EraseLayer = 'item' | 'decoration' | 'background';
 
 export interface EraseTarget {
   layer: EraseLayer;
@@ -47,8 +47,8 @@ export function findItemAnchor(
 }
 
 /**
- * Eraser resolution order: object layer → background layer (top-most visual
- * layer first). `activeLayer` is deliberately ignored.
+ * Eraser resolution order: object layer → decoration layer → background layer
+ * (top-most visual layer first). `activeLayer` is deliberately ignored.
  *
  * CLAR-603: participants no longer occupy cells, so there is no character
  * layer to clear.
@@ -63,6 +63,7 @@ export function resolveEraseTarget(
   const item = findItemAnchor(cells, x, y);
   if (item) return { layer: 'item', key: item.key, x: item.x, y: item.y };
 
+  if (cells.get(key)?.decoration) return { layer: 'decoration', key, x, y };
   if (cells.get(key)?.background) return { layer: 'background', key, x, y };
   return null;
 }
@@ -80,5 +81,5 @@ export function itemFootprintKeys(anchor: { w: number; h: number }, x: number, y
 
 export function isEmptyCell(cell: DraftCell | undefined): boolean {
   if (!cell) return true;
-  return !cell.background && !cell.item && !cell.itemRef;
+  return !cell.background && !cell.decoration && !cell.item && !cell.itemRef;
 }

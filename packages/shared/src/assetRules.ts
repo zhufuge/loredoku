@@ -10,12 +10,16 @@ import type { Asset, AssetVariant, AssetType } from './types';
  * DTO (older bundles, literal test fixtures), and a background never spans more
  * than one cell. One helper, so the editor, the palette and the game can't
  * disagree about the default or the clamp.
+ *
+ * v0.10.9: a 「背景修饰」 asset is likewise always 1×1 — it shares the cell with
+ * the item, so a footprint would make the two fight over the same squares.
  */
 export function resolveVariantFootprint(
   variant: AssetVariant,
   assetType?: AssetType,
+  decoration?: boolean,
 ): { w: number; h: number } {
-  if (assetType === 'background') {
+  if (assetType === 'background' || decoration === true) {
     return { w: ASSET_VARIANT_FOOTPRINT_DEFAULT, h: ASSET_VARIANT_FOOTPRINT_DEFAULT };
   }
   const clamp = (value: number | undefined): number => {
@@ -39,6 +43,27 @@ export function resolveVariantFootprint(
  */
 export function blockingFor(type: AssetType, blocking: boolean): boolean {
   return type === 'background' ? false : blocking;
+}
+
+/**
+ * v0.10.9 (docs/v0.10.9.md §2): 「背景修饰」 is an item-layer concept — a
+ * background asset already fills the whole cell, so there is nothing left for
+ * an ornament to decorate. Same shape as `blockingFor`, same reason: one
+ * function, three callers (schemas, repository, web form).
+ */
+export function decorationFor(type: AssetType, decoration: boolean): boolean {
+  return type === 'background' ? false : decoration;
+}
+
+/**
+ * v0.10.9: which editor layer an asset may be placed on. A 「背景修饰」 item
+ * belongs to the decoration layer **instead of** the item layer (they are two
+ * halves of the item world, not two aliases), so the palette splits them by
+ * this predicate as well.
+ */
+export function assetLayerFor(asset: Asset): 'background' | 'decoration' | 'item' {
+  if (asset.type === 'background') return 'background';
+  return asset.decoration ? 'decoration' : 'item';
 }
 
 /**

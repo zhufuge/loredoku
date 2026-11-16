@@ -108,6 +108,11 @@ export interface EditorState {
    */
   placeBackground: (assetId: number, variantId: number | undefined, x: number, y: number) => void;
   /**
+   * v0.10.9 (docs/v0.10.9.md §2): 「背景修饰」— one ornament per cell, always 1×1,
+   * and it never evicts the background or the item already sitting there.
+   */
+  placeDecoration: (assetId: number, variantId: number | undefined, x: number, y: number) => void;
+  /**
    * v0.6.1: the caller hands over the chosen variant's id; the anchor freezes the
    * footprint, so later variant edits never move placed items. v0.7.6: 新放置的
    * `w` / `h` 恒为 1（调用方显式传 1，让老草稿的多格锚点仍是合法值）。
@@ -267,6 +272,19 @@ export const useEditorStore = create<EditorState>((set, get) => {
         next.cells.set(key, cell);
       }),
 
+    placeDecoration: (assetId, variantId, x, y) =>
+      commit((next) => {
+        const key = cellKey(x, y);
+        const cell: DraftCell = {
+          ...(next.cells.get(key) ?? {}),
+          decoration: {
+            assetId,
+            ...(variantId === undefined ? {} : { variantId }),
+          },
+        };
+        next.cells.set(key, cell);
+      }),
+
     placeItem: (item, x, y) =>
       commit((next) => {
         for (let dy = 0; dy < item.h; dy += 1) {
@@ -320,7 +338,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
       });
     },
 
-    // Eraser order: object layer → background layer (CLAR-603: no character layer).
+    // Eraser order: object layer → decoration layer → background layer
+    // (top-most visual layer first; CLAR-603: no character layer).
     eraseAt: (x, y) => {
       const state = get();
       const target = resolveEraseTarget(state.cells, x, y);
@@ -346,7 +365,8 @@ export const useEditorStore = create<EditorState>((set, get) => {
         const cell = next.cells.get(targetKey);
         if (!cell) return;
         const copy = { ...cell };
-        delete copy.background;
+        if (target.layer === 'decoration') delete copy.decoration;
+        else delete copy.background;
         if (isEmptyCell(copy)) next.cells.delete(targetKey);
         else next.cells.set(targetKey, copy);
       });

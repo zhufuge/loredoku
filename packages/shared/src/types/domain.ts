@@ -134,6 +134,16 @@ export interface Asset {
   type: AssetType;
   /** v0.6.0: was `canStand`, inverted — `true` = 阻挡（不可站立/不可放置）. */
   blocking: boolean;
+  /**
+   * v0.10.9: 「背景修饰」— an item asset marked this way is placed on the
+   * **背景修饰** layer instead of the item layer, and only ever occupies one
+   * cell. Always `false` for `type === 'background'` (same rule as `blocking`).
+   *
+   * Optional for the same reason as `AssetVariant.w` / `h` (v0.10.6): an
+   * exported bundle written before this version has no such key, and absent
+   * means `false` — read it through `assetLayerFor`.
+   */
+  decoration?: boolean;
   isActive: boolean;
   /** v0.6.1: never empty; ordered by `sortOrder, id`. */
   variants: AssetVariant[];
@@ -209,6 +219,13 @@ export interface DraftAnchorItem {
 
 export interface DraftCell {
   background?: DraftAssetRef;
+  /**
+   * v0.10.9: the 背景修饰 layer — one ornament per cell, on top of the
+   * background but under the grid lines and the blocking mask. It shares the
+   * cell with `background` and `item` (at most one of each); it never occupies
+   * or blocks the cell.
+   */
+  decoration?: DraftAssetRef;
   /** v0.6.0: was `object` — the item layer. */
   item?: DraftAnchorItem;
   /** v0.6.0: was `objectRef`. */

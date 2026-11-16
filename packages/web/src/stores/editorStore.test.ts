@@ -44,6 +44,24 @@ describe('placement', () => {
     expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7 } });
   });
 
+  // v0.10.9: 背景修饰与背景 / 物品各占一格、互不顶替。
+  it('v0.10.9: places a background decoration without touching the other two', () => {
+    store().placeBackground(7, 41, 2, 3);
+    store().placeItem({ assetId: 5, variantId: 1, w: 1, h: 1 }, 2, 3);
+    store().placeDecoration(9, 42, 2, 3);
+    expect(store().cells.get('2,3')).toEqual({
+      background: { assetId: 7, variantId: 41 },
+      item: { assetId: 5, variantId: 1, w: 1, h: 1 },
+      decoration: { assetId: 9, variantId: 42 },
+    });
+  });
+
+  it('v0.10.9: a second decoration on the same cell replaces the first', () => {
+    store().placeDecoration(9, 42, 2, 3);
+    store().placeDecoration(10, 43, 2, 3);
+    expect(store().cells.get('2,3')?.decoration).toEqual({ assetId: 10, variantId: 43 });
+  });
+
   it('places a multi-cell object with a single anchor', () => {
     store().placeItem({ assetId: 5, variantId: 1, w: 2, h: 2 }, 0, 0);
     expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, variantId: 1, w: 2, h: 2 });
@@ -80,6 +98,25 @@ describe('eraseAt', () => {
     expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, variantId: 11 } });
 
     store().setLayer('item');
+    store().eraseAt(0, 0);
+    expect(store().cells.has('0,0')).toBe(false);
+  });
+
+  // v0.10.9: 三样东西同格时，橡皮按 物品 → 背景修饰 → 背景 一路擦下去。
+  it('v0.10.9: erases item, then decoration, then background', () => {
+    store().placeBackground(1, 11, 0, 0);
+    store().placeDecoration(3, 31, 0, 0);
+    store().placeItem({ assetId: 2, variantId: 1, w: 1, h: 1 }, 0, 0);
+
+    store().eraseAt(0, 0);
+    expect(store().cells.get('0,0')).toEqual({
+      background: { assetId: 1, variantId: 11 },
+      decoration: { assetId: 3, variantId: 31 },
+    });
+
+    store().eraseAt(0, 0);
+    expect(store().cells.get('0,0')).toEqual({ background: { assetId: 1, variantId: 11 } });
+
     store().eraseAt(0, 0);
     expect(store().cells.has('0,0')).toBe(false);
   });

@@ -13,7 +13,7 @@ import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
-import { MapBackgroundLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
+import { MapBackgroundLayer, MapDecorationLayer, MapItemLayer } from '@/components/map/MapAssetLayers';
 import {
   MapRegionHighlightLayer,
   MapRegionOutlineLayer,
@@ -451,6 +451,7 @@ export function MapViewPage(): JSX.Element {
 
           {/* 《画布图层优先级规范》§2 — bottom-up, pinned by MAP_LAYER_Z. */}
           <MapBackgroundLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
+          <MapDecorationLayer cells={cells} assetsById={assetsById} cellSize={cellSize} />
           <MapRegionHighlightLayer region={hoveredRegion} cellSize={cellSize} style={style} />
           <MapBlockingMaskLayer blockingCells={blockingCells} cellSize={cellSize} style={style} />
           <MapRegionOutlineLayer

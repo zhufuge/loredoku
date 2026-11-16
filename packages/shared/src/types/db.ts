@@ -51,6 +51,8 @@ export interface AssetRow {
   name: string;
   type: AssetType;
   blocking: boolean;
+  /** v0.10.9: 「背景修饰」— an item asset placed on the decoration layer. */
+  decoration: boolean;
   /** v0.5.2 FEAT-M03: the free-form `meta` blob was dropped with the column. */
   is_active: boolean;
   created_at: Date | string;

@@ -1069,6 +1069,14 @@ export function MapEditorPage(): JSX.Element {
                     coord.x,
                     coord.y,
                   );
+                } else if (pendingVariant.asset.decoration) {
+                  // v0.10.9: 背景修饰恒占 1 格，与背景 / 物品同格共存。
+                  editor.placeDecoration(
+                    pendingVariant.asset.id,
+                    pendingVariant.variant.id,
+                    coord.x,
+                    coord.y,
+                  );
                 } else {
                   editor.placeItem(
                     {
