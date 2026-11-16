@@ -82,7 +82,7 @@ const layers = [
     cells: (assetId: number) => new Map([['0,0', { item: { assetId, w: 1, h: 1 } }]]),
   },
   {
-    name: '层 10 · 背景修饰层（v0.10.9）',
+    name: '层 11 · 背景修饰层（v0.10.9）',
     layer: (cells: CellMap) => (
       <MapDecorationLayer cells={cells} assetsById={assetsById} cellSize={100} />
     ),

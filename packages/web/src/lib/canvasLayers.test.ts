@@ -133,6 +133,11 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
     // v0.3.8 SPEC-D01: the mask moves below 区域边界线, above 区域高亮线.
     expect(layerZ('blockingMask')).toBeLessThan(layerZ('regionOutline'));
     expect(layerZ('blockingMask')).toBeGreaterThan(layerZ('regionHighlight'));
+    // v0.10.9: 阻挡遮罩压在背景修饰层之上（用户指定次序）——「这格不能站」的提示
+    // 得盖住底下的修饰图；修饰层则压在网格分隔线之下、区域高亮线之上。
+    expect(layerZ('blockingMask')).toBeGreaterThan(layerZ('backgroundDecoration'));
+    expect(layerZ('backgroundDecoration')).toBeLessThan(layerZ('gridSeparator'));
+    expect(layerZ('backgroundDecoration')).toBeGreaterThan(layerZ('regionHighlight'));
     // 区域高亮线 / 方块高亮 / 背景高亮 / 背景
     expect(layerZ('regionHighlight')).toBeGreaterThan(layerZ('cellHighlight'));
     expect(layerZ('cellHighlight')).toBeGreaterThan(layerZ('backgroundHighlight'));

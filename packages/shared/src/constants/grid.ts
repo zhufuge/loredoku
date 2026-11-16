@@ -77,8 +77,8 @@ export const GRID_BORDER_WIDTH = OUTLINE_WIDTH;
   'regionOutline',
   'canvasFrame',
   'gridSeparator',
-  'backgroundDecoration',
   'blockingMask',
+  'backgroundDecoration',
   'regionHighlight',
   'cellHighlight',
   'backgroundHighlight',
@@ -108,12 +108,17 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   /** 9 网格分隔线（内部分隔线） */
   gridSeparator: 32,
   /**
-   * 10 背景修饰层 — v0.10.9。夹在网格分隔线与阻挡遮罩之间：它盖住格子里的
-   * 底色与纹理，但不该盖住网格线，也不该压住「这格不能站」的遮罩。
+   * 10 阻挡遮罩 — below 区域轮廓线, above 背景修饰层。
+   *
+   * v0.10.9 起它压在背景修饰层上面：一格被标成「不能站」时，先是网格线，
+   * 然后是遮罩，最后才是修饰 —— 遮罩的意思是「这格不通」，它得盖住底下的画。
    */
-  backgroundDecoration: 31,
-  /** 11 阻挡遮罩 — below 区域轮廓线, above 区域高亮线. */
-  blockingMask: 30,
+  blockingMask: 31,
+  /**
+   * 11 背景修饰层 — v0.10.9。夹在网格分隔线与阻挡遮罩之间：它盖住格子里的
+   * 底色与纹理，但既不该盖住网格线，也不该盖住「这格不能站」的遮罩。
+   */
+  backgroundDecoration: 30,
   /** 11 区域高亮线 */
   regionHighlight: 28,
   /** 12 方块高亮 */
