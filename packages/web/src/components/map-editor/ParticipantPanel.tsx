@@ -286,6 +286,12 @@ export function ParticipantPanel({
     active: boolean;
     pointerId: number | null;
   } | null>(null);
+  /**
+   * v0.10.12：每一格**最近一次**的联动色。`--link-hole` 撤回要跑完整条
+   * `--motion-retract`，而 `highlightColors` 在撤掉的那一帧就空了 —— 不记着，
+   * 退场的那几百毫秒就变成缺省蓝（见 `.participant-link-tint` 的注释）。
+   */
+  const lastLinkColorsRef = useRef<Map<number, string>>(new Map());
 
   const preferred = useMemo<ParticipantLayout>(
     () => computeParticipantLayout(slots.length),
@@ -459,6 +465,8 @@ export function ParticipantPanel({
               const isActive = activeSlotIndex === index;
               const isHighlighted = highlightedSlots?.has(index) ?? false;
               const highlightColor = highlightColors?.get(index);
+              if (highlightColor) lastLinkColorsRef.current.set(index, highlightColor);
+              const linkColor = highlightColor ?? lastLinkColorsRef.current.get(index) ?? HIGHLIGHT_BLUE;
               /** SPEC-H14 §1.3: already on the game board → the whole card dims. */
               const isPlaced = placedSlotIndices?.has(index) ?? false;
               /**
@@ -725,6 +733,10 @@ export function ParticipantPanel({
                         颜色取这一格联动解析出来的 `highlightColor`（联动调色板里那一
                         支，缺省蓝），透明度与主题色同档（0.16）。`isHighlighted` 只可能
                         落在有角色的槽位上，所以这里不必再判空。
+
+                        v0.10.12：撤掉高亮的那一帧 `highlightColors` 就空了，而孔要过
+                        完整条 `--motion-retract` 才缩回去 —— 用 `lastLinkColorsRef` 记
+                        住的最近一支，退场才仍是金色（否则变成缺省蓝）。
                       */}
                       <span
                         aria-hidden="true"
@@ -732,7 +744,7 @@ export function ParticipantPanel({
                         className="participant-link-tint"
                         style={
                           {
-                            '--link-color': linkTint(highlightColor ?? HIGHLIGHT_BLUE),
+                            '--link-color': linkTint(linkColor),
                             '--tint-x': compactPortrait
                               ? `${COMPACT_CARD_PADDING_X + COMPACT_AVATAR_SIZE / 2 + COMPACT_AVATAR_OFFSET_X}px`
                               : '50%',

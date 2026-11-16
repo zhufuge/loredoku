@@ -137,4 +137,30 @@ describe('ParticipantPanel — 联动指向的淡金（v0.10.11）', () => {
     // 要干嘛」；联动说的是「别人指着他」，脸自己不动。
     expect(container.querySelector('[style*="scale(1.08)"]')).toBeNull();
   });
+
+  it('撤掉高亮后，淡金仍是上一次的联动色（退场不能换成缺省蓝）', () => {
+    render(new Set([1]), new Map([[1, '#AA0000']]));
+
+    const tint = () => card(1).querySelector<HTMLElement>('.participant-link-tint');
+    expect(tint()?.style.getPropertyValue('--link-color')).toBe('rgba(170, 0, 0, 0.16)');
+
+    // `--link-hole` 撤回要跑完整条退场动画，这一帧 `highlightColors` 已经空了：
+    // 没有记忆的话颜色立刻翻回缺省蓝，退场就变了色（v0.10.12）。
+    render(new Set(), new Map());
+
+    expect(card(1).getAttribute('data-link-tint')).toBeNull();
+    expect(tint()?.style.getPropertyValue('--link-color')).toBe('rgba(170, 0, 0, 0.16)');
+
+    //下一次换一支联动色，记忆跟着更新，不是永远钉在第一支上。
+    render(new Set([1]), new Map([[1, '#F1AB44']]));
+
+    expect(tint()?.style.getPropertyValue('--link-color')).toBe('rgba(241, 171, 68, 0.16)');
+  });
+
+  it('从没被指过的卡，淡金仍是缺省蓝', () => {
+    render(new Set([0]), new Map([[0, '#AA0000']]));
+
+    const tint = () => card(1).querySelector<HTMLElement>('.participant-link-tint');
+    expect(tint()?.style.getPropertyValue('--link-color')).toBe('rgba(144, 202, 249, 0.16)');
+  });
 });
