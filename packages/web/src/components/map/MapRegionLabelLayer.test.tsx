@@ -252,3 +252,61 @@ describe('区域标签点击（v0.10.7）', () => {
     expect(ids).toEqual(['rg_a']);
   });
 });
+
+describe('区域标签的点击按页面分流（v0.10.8）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  function render(onSelect?: (id: string) => void): void {
+    act(() => {
+      root.render(
+        <MapRegionLabelLayer
+          regions={[region()]}
+          cellSize={CELL}
+          style={DEFAULT_MAP_STYLE}
+          onSelect={onSelect}
+        />,
+      );
+    });
+  }
+
+  /**
+   * 从标签发起一次 `click`，看它有没有冒泡到 `document.body`。
+   *
+   * 与 `pointerdown` 那条同一道理：监听挂 `document.body`，因为 React 的合成
+   * 事件监听器就在根容器那一层，挂同一节点测不出「有没有继续往外冒」。
+   */
+  function clickBubbled(): boolean {
+    let bubbled = false;
+    const stop = (): void => {
+      bubbled = true;
+    };
+    document.body.addEventListener('click', stop);
+    act(() => {
+      document.querySelector<HTMLElement>('.region-label')?.click();
+    });
+    document.body.removeEventListener('click', stop);
+    return bubbled;
+  }
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('没传 onSelect（谜题编辑 / 游戏 / 预览）时 click 照常冒泡，等于点底下那一格', () => {
+    render();
+    expect(clickBubbled()).toBe(true);
+  });
+
+  it('传了 onSelect（地图编辑）时 click 被拦下，只选区域', () => {
+    render(() => {});
+    expect(clickBubbled()).toBe(false);
+  });
+});

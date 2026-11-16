@@ -252,10 +252,23 @@ export function MapRegionLabelLayer({
                   }
                 : undefined
             }
-            onClick={(event) => {
-              event.stopPropagation();
-              onSelect?.(region.id);
-            }}
+            /*
+             * v0.10.8：`click` 的拦截也要跟着 `onSelect` 走。
+             *
+             * v0.10.7 只按需拦了 `pointerdown`，`click` 那层却是无条件
+             * `stopPropagation()`。于是没传 `onSelect` 的页面（谜题编辑器、游戏页、
+             * 预览页）里，按下能冒到画布、抬手那一下却断在标签上 —— 游戏页的
+             * 数字落笔就在容器的 `onClick` 里（`dispatchCell`），点标签等于什么都没
+             * 发生。用户报的正是这个：标签在这些页面应当「等于点它底下那一格」。
+             */
+            onClick={
+              onSelect
+                ? (event) => {
+                    event.stopPropagation();
+                    onSelect(region.id);
+                  }
+                : undefined
+            }
             title={region.name}
           >
             {region.name}
