@@ -257,3 +257,33 @@ export function registerBundledFonts(): void {
     }
   }
 }
+
+/**
+ * v0.11.3（docs/v0.11.3.md §2）—— 等自带字体真的能画了再放内容出来。
+ *
+ * `registerBundledFonts()` 只是**登记**，下载发生在第一次有文字用到它的时候；
+ * 而播放器列表页的主题名、卡片关卡名全是 `.font-kai`，于是首帧先按回退链画一遍
+ * （宋体/楷体），字体到了再换 —— 玩家看到的是整页文字「刷」地变一次字形。
+ *
+ * 这里显式 `load()` 一遍再等 `document.fonts.ready`：等到之后，首帧就是最终字形。
+ * 任何一步失败都当作「已经就绪」—— 字体取不到不该把玩家卡在加载页，回退链
+ * 本来就是设计的一部分。
+ *
+ * 采样字串带上这一页一定会画的字（主题名 / 关卡名几乎都是汉字），避免用纯 ASCII
+ * 触发加载时命中的是字体里的拉丁子集、汉字仍要二次下载。
+ */
+export async function loadBundledFonts(): Promise<void> {
+  if (typeof document === 'undefined' || !document.fonts) return;
+  const families = bundledFontFamilies();
+  if (families.length === 0) return;
+
+  const sample = '格物定案解题成功红楼梦';
+  await Promise.all(
+    families.map((family) =>
+      document.fonts
+        .load(`400 16px "${family}"`, sample)
+        .catch(() => null),
+    ),
+  );
+  await document.fonts.ready.catch(() => undefined);
+}

@@ -7,6 +7,7 @@ import {
   toolIconParamSchema,
   updateThemeCheckStyleSchema,
   updateThemeSchema,
+  updateThemeVerdictSchema,
 } from '@loredoku/shared';
 import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
@@ -116,6 +117,34 @@ export async function updateCheckStyle(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
   const patch = parseOrThrow(updateThemeCheckStyleSchema, ctx.request.body);
   success(ctx, await themeService.updateCheckStyle(code, patch), '校验颜色已保存');
+}
+
+/**
+ * v0.11.3：结算卡上那枚图标图。与圆环同一个形状 —— 一次一张、即时保存、
+ * 回执是更新后的整份主题；「移除」是回到内置的庆祝 emoji，不是把配置清空。
+ */
+export async function uploadVerdictIcon(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
+  if (!file) {
+    throw themeService.verdictIconRequired();
+  }
+  success(ctx, await themeService.uploadVerdictIcon(code, file.buffer), '结算图标已保存');
+}
+
+export async function removeVerdictIcon(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  success(ctx, await themeService.removeVerdictIcon(code), '结算图标已恢复默认');
+}
+
+/**
+ * v0.11.3：结算卡的两句文字。与校验颜色同一条理由：单独一个端点，避免两个输入框
+ * 每敲一个字就把整份 `data` 覆盖一遍。
+ */
+export async function updateVerdict(ctx: Context): Promise<void> {
+  const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);
+  const patch = parseOrThrow(updateThemeVerdictSchema, ctx.request.body);
+  success(ctx, await themeService.updateVerdictText(code, patch), '结算文案已保存');
 }
 
 /**

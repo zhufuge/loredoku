@@ -3,6 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 // eslint-disable-next-line import/extensions
 import { bundleAssets } from './scripts/bundleAssets.mjs';
+import { fontSubsetPlugin } from './scripts/fontSubset.mjs';
 import { resolveBundlePath } from './scripts/playerEnv.mjs';
 
 /**
@@ -37,7 +38,15 @@ export default defineConfig(({ mode, isPreview }) => {
   const bundlePath = isPreview ? null : resolveBundlePath({ mode });
 
   return {
-    plugins: [react(), bundleAssets(bundlePath)],
+    plugins: [
+      react(),
+      bundleAssets(bundlePath),
+      /**
+       * v0.11.3（docs/v0.11.3.md §1）—— 必须排在 `bundleAssets` **后面**：字符集要
+       * 算上包里的 JSON，而那是它在 `generateBundle` 里才 `emitFile` 进来的。
+       */
+      fontSubsetPlugin(),
+    ],
     base: '/loredoku/',
     resolve: {
       alias: {

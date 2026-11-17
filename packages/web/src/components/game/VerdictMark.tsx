@@ -35,6 +35,7 @@ export function VerdictStamp({
   animate = false,
   offset,
   className,
+  style,
 }: {
   stampUrl: string | null;
   animate?: boolean;
@@ -44,6 +45,11 @@ export function VerdictStamp({
    */
   offset?: { x: number; y: number };
   className?: string;
+  /**
+   * v0.11.3：调用方按比例算好的边长（`width` / `height`）。与 `translate`
+   * 合到同一个 `style` 里 —— 两处都写 `style` 会互相覆盖，只有一个生效。
+   */
+  style?: { width: string; height: string };
 }): JSX.Element | null {
   /**
    * 地址可能已经不在了：作者换过那枚图、包重新导出过（`files/icons/` 里的文件名
@@ -75,7 +81,10 @@ export function VerdictStamp({
         animate && 'stamp-press',
         className,
       )}
-      style={offset ? { translate: `${offset.x}px ${offset.y}px` } : undefined}
+      style={{
+        ...style,
+        ...(offset ? { translate: `${offset.x}px ${offset.y}px` } : null),
+      }}
     />
   );
 }
@@ -118,10 +127,16 @@ export function VerdictMark({
    * 桌面那套 128px 的字会顶出遮罩、印也会偏到棋盘外 —— 调用方按棋盘边长
    * 算一个比例传进来，字、印、偏移一起缩，相对位置一点都不变。
    *
-   * 缩的是**外面这一层**，且用的是 `zoom` 而不是 `transform: scale`：
-   * `transform` 会被印自己那条 `stamp-press` 关键帧整条覆盖（关键帧写的就是
-   * 整条 `transform`），而且它只缩视觉、不缩盒子 —— 遮罩里 `gap-6` 排下来的
-   * 按钮会停在按原尺寸算的位置上。`zoom` 连布局尺寸一起缩，两样都省了。
+   * v0.11.3：改成缩**字号**，不再用 `zoom`。
+   *
+   * `zoom` 在 iOS Safari 上不可靠（旧版本直接不认，认了的版本也把它当缩放整页
+   * 处理）：实测 iPhone 上这一块字反而变大、印整体往右偏 —— 因为比例没生效，
+   * 而 `translate` 那点位移仍是绝对像素，视觉上就成了「字大 + 印偏」。
+   *
+   * 现在这一块内部所有尺寸都是 em：字号即比例，字的 `tracking`、印的
+   * `-ml`、印的方形尺寸跟着一起缩，盒子也真的变小（`gap-6` 排下来的按钮
+   * 因此落在正确的位置）。纯字号缩放不碰 `transform`，与印的
+   * `stamp-press` 关键帧互不干扰，也不需要任何浏览器特性检测。
    */
   scale?: number;
   /**
@@ -137,12 +152,29 @@ export function VerdictMark({
    * 「排版整体再靠右一些」。与 `stampOffset` 分开：那个只挪印、字不动，
    * 这个是字与印的相对位置不变、整体平移。
    *
-   * 同样走 `translate` 属性：外层还有 `zoom`（内联 `style`），两者互不干扰；
+   * 同样走 `translate` 属性：外层还有字号缩放（内联 `style`），两者互不干扰；
    * 而 `transform` 会被印的 `stamp-press` 关键帧那条占着。
+   *
+   * v0.11.3：位移也跟着比例走 —— 传进来的 px 是「按 1 倍字号算的」，这里乘上
+   * 比例再落到 `translate`，否则缩小之后同样的 72px 会把印推出字列外。
    */
   shift?: { x: number; y?: number };
   className?: string;
 }): JSX.Element {
+  /*
+   * v0.11.3：比例改成缩字号。`scale` 只在 0.5–1 之间出现，兜住异常值 ——
+   * 传 0 / NaN 会让字号变成 0（整块消失），那是比「比例不准」更糟的失败。
+   */
+  const ratio = Number.isFinite(scale) && scale > 0 ? scale : 1;
+  /*
+   * v0.11.3：字号即比例。基准字号写在**容器**上（原来挂在字 `<span>` 上的
+   * `text-9xl` / `text-7xl` 分别是 8rem / 4.5rem），容器里所有尺寸都用 em ——
+   * 字的 `tracking`、印的左压量、印的边长因此一起缩，不必逐个乘比例。
+   */
+  const baseRem = large ? 8 : 4.5;
+  const shiftX = `${(shift?.x ?? 0) * ratio}px`;
+  const shiftY = `${(shift?.y ?? 0) * ratio}px`;
+
   return (
     <div
       data-testid="verdict-mark"
@@ -151,14 +183,10 @@ export function VerdictMark({
        * 右边是印。`items-center` 让印在字列里纵向居中，横向靠负 margin 压过去。
        */
       className={cn('relative flex items-center justify-center', className)}
-      style={
-        scale === 1 && !shift
-          ? undefined
-          : {
-              ...(scale === 1 ? null : { zoom: scale }),
-              ...(shift ? { translate: `${shift.x}px ${shift.y ?? 0}px` } : null),
-            }
-      }
+      style={{
+        fontSize: `${baseRem * ratio}rem`,
+        ...(shift ? { translate: `${shiftX} ${shiftY}` } : null),
+      }}
     >
       <span
         className={cn(
@@ -201,8 +229,11 @@ export function VerdictMark({
             ? 'text-primary-foreground dark:text-foreground'
             : 'text-foreground/40',
           !onDark && '-rotate-[14deg]',
-          /* v0.9.8：再放大一档（遮罩 8xl → 9xl，卡片 5xl → 7xl）。 */
-          large ? 'text-9xl' : 'text-7xl',
+          /*
+           * v0.11.3：字号由容器统一给（`style.fontSize`），这里**不再写
+           * `text-9xl` / `text-7xl`** —— Tailwind 的 `text-*` 自带字号，会把容器
+           * 那个值盖掉，比例就只对印生效、对字无效。
+           */
         )}
       >
         定案
@@ -210,7 +241,9 @@ export function VerdictMark({
       <VerdictStamp
         stampUrl={stampUrl}
         animate={animate}
-        offset={stampOffset}
+        offset={
+          stampOffset ? { x: stampOffset.x * ratio, y: stampOffset.y * ratio } : undefined
+        }
         /*
          * `z-10` 压在字之上，`-ml-[0.55em]` 往左压住字列的右缘（v0.9.7 第六批
          * 定的是 0.35em → 0.55em；v0.10.2 字改成竖排之后，压的轴从「上提」换成
@@ -219,9 +252,16 @@ export function VerdictMark({
          */
         className={cn(
           'relative z-10 -ml-[0.55em] max-h-[52%] max-w-[52%]',
-          /* 给一个保底尺寸：没有它 `<img>` 会按原图像素渲染，长边图可能缩成一小块。 */
-          large ? 'h-48 w-48' : 'h-24 w-24',
         )}
+        /*
+         * v0.11.3：边长跟着比例走。原来是 `h-48 w-48` / `h-24 w-24`（12rem / 6rem），
+         * 那是**固定 rem**，`zoom` 撤掉之后必须自己乘比例，否则手机上印比字还大。
+         * 用 rem 而不是 em：em 会叠到字自己的字号上（`font-size` 一改就双重缩放）。
+         */
+        style={{
+          width: `${(large ? 12 : 6) * ratio}rem`,
+          height: `${(large ? 12 : 6) * ratio}rem`,
+        }}
       />
     </div>
   );

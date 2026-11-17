@@ -145,9 +145,26 @@ export function GameToolRail({
         )}
         title="清除放置，长按清空全部"
         disabled={toolsLocked}
-        onPointerDown={onStartClearPress}
-        onPointerUp={onEndClearPress}
-        onPointerLeave={onEndClearPress}
+        /*
+         * v0.11.3：指针事件**不外传**。
+         *
+         * 竖屏下这一枚沉在底部横条里，与棋盘同在一个 `flex` 列 —— 按住不放的
+         * 800ms 里，指针事件会沿 React 树冒泡上去，让外层当成「在棋盘上按住了
+         * 一格」，于是长按清空的同时又在格子上下了一手。这里在按钮这一层截住：
+         * 长按清空是按钮自己的手势，与棋盘无关。
+         */
+        onPointerDown={(event) => {
+          event.stopPropagation();
+          onStartClearPress();
+        }}
+        onPointerUp={(event) => {
+          event.stopPropagation();
+          onEndClearPress();
+        }}
+        onPointerLeave={(event) => {
+          event.stopPropagation();
+          onEndClearPress();
+        }}
       >
         {/*
          * v0.9.2 §3：长按 800ms 清空全部 —— 进度画在**按钮方块之内**，

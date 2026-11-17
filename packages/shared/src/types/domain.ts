@@ -791,6 +791,43 @@ export interface ThemeData {
    * 缺失 / `null` = 内置的绿（通过）/ 红（未通过）。
    */
   checkStyle?: ThemeCheckColors | null;
+  /**
+   * v0.11.3：**结算卡通过那一面**的样子 —— 一枚图标 + 一句标题。
+   *
+   * 与 `mark` / `toolIcons` / `ring` / `checkStyle` 同一条规矩：**读取时**兜底，
+   * 不是「新建时拷一份」。改一句标题，所有关卡（含已发布的）下次结案就是新的。
+   *
+   * 为什么拆成两份而不是让作者把「🎉 恭喜结案」写在一格里：图标将来可能换成一张
+   * 上传的小图，而标题永远是一句字 —— 挤在一个字符串里，换图就得做字符串手术。
+   *
+   * 缺失 / `null` = 内置的庆祝 emoji + 「{@link THEME_VERDICT_TITLE_FALLBACK}」。
+   */
+  verdict?: ThemeVerdict | null;
+}
+
+/**
+ * v0.11.3：结算卡（通过那一面）的两份配置。
+ *
+ * 「图标」可以是一段文字（含 emoji），也可以是一张上传的图；**配了图就用图**，
+ * 不再画文字 —— 图能表达的东西文字表达不了，两者同时出现只会让标题行挤成两截。
+ */
+export interface ThemeVerdict {
+  /**
+   * 图标位置的文字，可以就是一个 emoji（默认是「🎉」）。配了 `icon` 图之后不画它。
+   */
+  iconText?: string;
+  /**
+   * 图标位置的那张图。落 `storage/uploads`，数据里只记相对路径。
+   * 缺失 = 画 `iconText`（或内置的庆祝 emoji）。
+   */
+  icon?: UploadedImage | null;
+  /**
+   * 标题文字。缺失 = 「{@link THEME_VERDICT_TITLE_FALLBACK}」。
+   *
+   * 图标与标题是**同一行**的两截：图标在前、标题在后 —— 所以标题里不要再写一遍
+   * 那个 emoji。
+   */
+  title?: string;
 }
 
 /**

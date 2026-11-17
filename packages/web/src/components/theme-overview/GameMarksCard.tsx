@@ -1,24 +1,32 @@
 import { useRef, useState } from 'react';
-import { CircleDashed, Trash2, Upload, X } from 'lucide-react';
+import { CircleDashed, PartyPopper, Trash2, Upload, X } from 'lucide-react';
 import {
   GAME_TOOL_ICON_KINDS,
   GAME_TOOL_ICON_LABELS,
+  THEME_VERDICT_ICON_FALLBACK,
+  THEME_VERDICT_TEXT_MAX_LENGTH,
+  THEME_VERDICT_TITLE_FALLBACK,
   fileUrlFromPath,
+  resolveVerdictStyle,
   type GameToolIconKind,
   type Theme,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { ColorField } from '@/components/ui/color-input';
+import { Input } from '@/components/ui/input';
 import { CardHead } from '@/components/theme-overview/ThemeOverviewParts';
 import {
   useRemoveThemeMark,
   useRemoveThemeRing,
   useRemoveThemeToolIcon,
+  useRemoveThemeVerdictIcon,
   useUploadThemeMark,
   useUploadThemeRing,
   useUploadThemeToolIcon,
+  useUploadThemeVerdictIcon,
   useUpdateThemeCheckStyle,
+  useUpdateThemeVerdict,
 } from '@/hooks/useThemes';
 import { resolveCheckColors } from '@/lib/checkStyle';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
@@ -48,6 +56,7 @@ export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
   const markInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const ringInputRef = useRef<HTMLInputElement>(null);
+  const verdictInputRef = useRef<HTMLInputElement>(null);
   const [pendingIcon, setPendingIcon] = useState<GameToolIconKind | null>(null);
 
   const uploadMark = useUploadThemeMark(theme.code);
@@ -57,14 +66,28 @@ export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
   const uploadRingImage = useUploadThemeRing(theme.code);
   const removeRingImage = useRemoveThemeRing(theme.code);
   const updateCheckStyle = useUpdateThemeCheckStyle(theme.code);
+  const uploadVerdictIcon = useUploadThemeVerdictIcon(theme.code);
+  const removeVerdictIcon = useRemoveThemeVerdictIcon(theme.code);
+  const updateVerdict = useUpdateThemeVerdict(theme.code);
 
   const mark = theme.data.mark ?? null;
   const icons = theme.data.toolIcons ?? {};
   const ring = theme.data.ring?.image ?? null;
   const checkStyle = resolveCheckColors(theme.data.checkStyle);
+  /**
+   * v0.11.3：结算卡的两句文字。
+   *
+   * 输入框里放的是「作者显式填的那份」，空串时退回内置默认值 —— 空输入框加上
+   * placeholder 里的默认值，比直接把默认值填进 state 更诚实：后者会让人以为
+   * 这个主题存了「解题成功」，其实存的是 `undefined`。
+   */
+  const verdict = resolveVerdictStyle(theme.data.verdict);
+  const [verdictIconText, setVerdictIconText] = useState(theme.data.verdict?.iconText ?? '');
+  const [verdictTitle, setVerdictTitle] = useState(theme.data.verdict?.title ?? '');
 
   const markBusy = uploadMark.isPending || removeMarkImage.isPending;
   const ringBusy = uploadRingImage.isPending || removeRingImage.isPending;
+  const verdictBusy = uploadVerdictIcon.isPending || removeVerdictIcon.isPending;
 
   /** 一行的骨架：预览 + 名字与说明 + 右侧两枚按钮。五项共用，尺寸才一致。 */
   const row = (
@@ -206,6 +229,105 @@ export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
         </div>
       </div>
 
+      {/*
+       * v0.11.3：**结算卡的那一行** —— 图标 + 标题。
+       *
+       * 为什么单开一段而不是塞进上面那个 `row()` 列表：`row()` 是「一张图 + 上传」
+       * 的固定形状，而这里一半是图、一半是两句文字，形状不一样，硬塞进去只会让
+       * 那一列的按钮宽度不齐。
+       */}
+      <div className="space-y-2 border-t pt-3">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted/30">
+            {verdict.iconPath ? (
+              <img
+                src={fileUrlFromPath(verdict.iconPath)}
+                alt="结算图标"
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <span aria-hidden className="text-base leading-none">
+                {verdict.iconText}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs">结算图标</p>
+            <p className="text-2xs leading-relaxed text-muted-foreground">
+              {verdict.iconPath
+                ? '已上传图片，图片覆盖文字'
+                : `默认 ${THEME_VERDICT_ICON_FALLBACK}；可改文字（支持 emoji）`}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={verdictBusy}
+              onClick={() => verdictInputRef.current?.click()}
+            >
+              <Upload className="mr-1 h-3.5 w-3.5" />
+              {verdictBusy ? '上传中…' : verdict.iconPath ? '更换' : '上传'}
+            </Button>
+            {verdict.iconPath ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-muted-foreground hover:text-destructive"
+                disabled={verdictBusy}
+                onClick={() => removeVerdictIcon.mutate()}
+              >
+                <Trash2 className="mr-1 h-3.5 w-3.5" />
+                移除
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="w-16 shrink-0 text-xs text-muted-foreground">图标文字</span>
+          <Input
+            aria-label="结算图标文字"
+            className="h-8"
+            maxLength={THEME_VERDICT_TEXT_MAX_LENGTH}
+            placeholder={THEME_VERDICT_ICON_FALLBACK}
+            value={verdictIconText}
+            disabled={updateVerdict.isPending}
+            onChange={(event) => setVerdictIconText(event.target.value)}
+            onBlur={() => {
+              const next = verdictIconText.trim();
+              if (next === (theme.data.verdict?.iconText ?? '')) return;
+              updateVerdict.mutate({ iconText: next });
+            }}
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="w-16 shrink-0 text-xs text-muted-foreground">标题</span>
+          <Input
+            aria-label="结算标题"
+            className="h-8"
+            maxLength={THEME_VERDICT_TEXT_MAX_LENGTH}
+            placeholder={THEME_VERDICT_TITLE_FALLBACK}
+            value={verdictTitle}
+            disabled={updateVerdict.isPending}
+            onChange={(event) => setVerdictTitle(event.target.value)}
+            onBlur={() => {
+              const next = verdictTitle.trim();
+              if (next === (theme.data.verdict?.title ?? '')) return;
+              updateVerdict.mutate({ title: next });
+            }}
+          />
+        </div>
+
+        <p className="flex items-center gap-1.5 text-2xs leading-relaxed text-muted-foreground">
+          <PartyPopper className="h-3.5 w-3.5 shrink-0" aria-hidden />
+          玩家结案时看到的就是这一行：{verdict.title}
+        </p>
+      </div>
+
       <p className="text-2xs leading-relaxed text-muted-foreground">
         谜题里单独上传过的仍用自己那张。圆环同时管「按住等放头像」与「提交后的校验」两处。
       </p>
@@ -247,6 +369,18 @@ export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
           event.target.value = '';
           if (!file) return;
           uploadRingImage.mutate(file);
+        }}
+      />
+      <input
+        ref={verdictInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        className="hidden"
+        onChange={(event) => {
+          const file = event.target.files?.[0] ?? null;
+          event.target.value = '';
+          if (!file) return;
+          uploadVerdictIcon.mutate(file);
         }}
       />
     </Card>

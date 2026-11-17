@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { AlertTriangle, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { LoadingScreen } from '@/components/common/LoredokuLoader';
 import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
@@ -16,6 +16,7 @@ import {
 } from './bundleLoad';
 import { readGameCompletion, type GameCompletion } from '@/lib/gameCompletion';
 import { readLastLeftAt, readLastLeftElapsed } from '@/lib/gameTimer';
+import { useBundledFontsReady } from '@/hooks/useBundledFontsReady';
 import { useImagePreload } from '@/hooks/useImagePreload';
 import { gameCoverUrls } from '@/lib/pageImages';
 import { useBundleManifest } from './PlayerBundleProvider';
@@ -85,16 +86,43 @@ export function PlayerHomePage(): JSX.Element {
   /**
    * v0.11.2：与工坊那边的列表页同一条 —— 封面都预加载完才把骨架屏换成卡片。
    * 播放器是玩家真正打开的那一页，这一帧尤其不该出现「卡片先出、封面后跳」。
+   *
+   * v0.11.3：骨架屏换成整屏加载件。玩家从站外点进来，第一眼看到的是骨架屏还是
+   * 品牌字标，是两件不同的事 —— 骨架屏说的是「内容马上到」，而这里要等的是
+   * 包 + 字体 + 六张封面，可能是几百 KB；先亮字标再看内容，中间不会有「半天没动静」
+   * 的空白。`useImagePreload` 的契约不变（封面都到 / 出错都算完）。
    */
+  const fontsReady = useBundledFontsReady();
   const coversReady = useImagePreload(gameCoverUrls(games));
-  const showSkeleton = isLoading || (games.length > 0 && !coversReady);
+  const loading = isLoading || !fontsReady || (games.length > 0 && !coversReady);
+
+  /**
+   * v0.11.3：loading 期间整页只有加载件 —— 页头也不先画。
+   *
+   * 放在页头之前是刻意的：主题名本身是 `.font-kai`，先画出来再换字形就是这里要
+   * 消灭的那一帧。等包、字体、封面都齐了，一次画成。
+   *
+   * `!isError`：包读不出来是配置错误，那一刻已经没什么可等 —— 立刻把原因说清楚，
+   * 别让玩家对着字标等一份永远不会到的包。
+   */
+  if (loading && !isError) {
+    return <LoadingScreen caption="正在加载主题…" />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-6xl space-y-8 px-6 py-6">
-        <div className="flex items-end justify-between gap-4">
-          <div className="min-w-0 space-y-2">
+        <div className="flex flex-col gap-2">
+          {/*
+            v0.11.3：日夜切换跟着 LOGO 这一行走 —— 它管的是「这一页怎么显示」，
+            与主题标题不是一件事；原先它挂在整块页头的右端（`items-end`），
+            标题一长就会被挤到描述文字的旁边，看着像另一栏的东西。
+          */}
+          <div className="flex items-center justify-between gap-4">
             <BrandLogo height={16} withWordmark />
+            <ThemeToggle className="h-9 w-9 shrink-0" />
+          </div>
+          <div className="min-w-0 space-y-2">
             <h1 className="truncate font-kai text-2xl leading-tight">
               {manifest?.theme.name ?? '主题'}
             </h1>
@@ -107,16 +135,9 @@ export function PlayerHomePage(): JSX.Element {
               <p className="text-xs text-muted-foreground">{manifest.games.length} 关可玩</p>
             ) : null}
           </div>
-          <ThemeToggle className="h-9 w-9 shrink-0" />
         </div>
 
-        {showSkeleton ? (
-          <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, index) => (
-              <Skeleton key={index} className="aspect-square w-full" />
-            ))}
-          </div>
-        ) : isError ? (
+        {isError ? (
           <Card className="flex flex-col items-center gap-3 p-12 text-center">
             <AlertTriangle className="h-8 w-8 text-muted-foreground/60" />
             <p className="text-sm text-muted-foreground">

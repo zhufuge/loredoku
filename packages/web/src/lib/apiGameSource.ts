@@ -8,6 +8,7 @@ import {
   useMarkByCode,
   useRingByCode,
   useToolIconsByCode,
+  useVerdictByCode,
 } from '@/hooks/useThemes';
 import type { GameLevelRef } from '@/lib/gameCatalog';
 import type { GameSource } from '@/lib/gameSource';
@@ -30,6 +31,7 @@ export function useApiGameSource(): GameSource {
   const toolIconsOf = useToolIconsByCode();
   const ringOf = useRingByCode();
   const checkColorsOf = useCheckColorsByCode();
+  const verdictOf = useVerdictByCode();
 
   return useMemo<GameSource>(
     () => ({
@@ -63,6 +65,7 @@ export function useApiGameSource(): GameSource {
       themeToolIcons: (themeCode) => toolIconsOf(themeCode),
       themeRing: (themeCode) => ringOf(themeCode),
       themeCheckColors: (themeCode) => checkColorsOf(themeCode),
+      themeVerdict: (themeCode) => verdictOf(themeCode),
       storageId: (key) => key,
       listHref: () => '/play',
       gameHref: (key) => `/play/${key}`,
@@ -84,6 +87,6 @@ export function useApiGameSource(): GameSource {
         return { data, isLoading: query.isLoading, isError: query.isError };
       },
     }),
-    [markOf, toolIconsOf, ringOf, checkColorsOf],
+    [markOf, toolIconsOf, ringOf, checkColorsOf, verdictOf],
   );
 }

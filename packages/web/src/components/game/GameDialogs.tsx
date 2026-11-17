@@ -58,6 +58,15 @@ export interface GameResultDialogProps {
   result: GameResult | null;
   /** 作者写的一句结束语（只在通过那一面出现）。 */
   ending: string;
+  /**
+   * v0.11.3：通过那一面的图标与标题（主题里可改）。
+   *
+   * 拆成两截而不是一个字符串：图标将来可能换成一张上传的小图，标题永远是一句字
+   * —— 挤在一格里，换图就得做字符串手术。`iconUrl` 有值时画图、不画 `iconText`。
+   */
+  verdictIconUrl: string | null;
+  verdictIconText: string;
+  verdictTitle: string;
   /** 「下一关」有没有地方可指；没有时不画那枚按钮。 */
   hasNextLevel: boolean;
   onClose: () => void;
@@ -84,6 +93,9 @@ export interface GameResultDialogProps {
 export function GameResultDialog({
   result,
   ending,
+  verdictIconUrl,
+  verdictIconText,
+  verdictTitle,
   hasNextLevel,
   onClose,
   onContinue,
@@ -102,8 +114,26 @@ export function GameResultDialog({
         {result?.kind === 'passed' ? (
           <div className="flex items-start justify-between gap-4 pr-6">
             <div className="min-w-0 space-y-1.5">
-              <DialogTitle className="font-kai text-2xl font-semibold tracking-[0.1em]">
-                <span aria-hidden="true">🎉</span> 恭喜定案！
+              <DialogTitle className="flex items-center gap-2 font-kai text-2xl font-semibold tracking-[0.1em]">
+                {/*
+                  v0.11.3：图标与标题是主题里的两份配置。配了图就用图，不再画文字
+                  —— 图能表达的东西文字表达不了，两者同时出现只会把标题行挤成两截。
+                */}
+                {verdictIconUrl ? (
+                  <img
+                    data-testid="verdict-icon"
+                    src={verdictIconUrl}
+                    alt=""
+                    aria-hidden="true"
+                    draggable={false}
+                    className="h-6 w-6 shrink-0 select-none object-contain"
+                  />
+                ) : (
+                  <span data-testid="verdict-icon" aria-hidden="true">
+                    {verdictIconText}
+                  </span>
+                )}
+                <span data-testid="verdict-title">{verdictTitle}</span>
               </DialogTitle>
               <DialogDescription className="sr-only">这一局已经结束。</DialogDescription>
             </div>

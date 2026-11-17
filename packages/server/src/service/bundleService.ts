@@ -30,6 +30,7 @@ import {
   type ThemeData,
   type ThemeRefTarget,
   type ThemeRing,
+  type ThemeVerdict,
   type UploadedImage,
 } from '@loredoku/shared';
 import * as assetRepo from '../repository/assetRepository';
@@ -205,6 +206,39 @@ export async function buildThemeBundle(
       }
     : null;
 
+  /**
+   * v0.11.3：结算卡那枚图标（若作者传过图）。与圆环同一条 —— 主题级只装一份，
+   * 路径进 `manifest.theme.verdict.icon`。
+   *
+   * 文字（`iconText` / `title`）本身是字符串，原样进 manifest 即可；只有图要落盘。
+   */
+  const verdictData = themeData?.verdict ?? null;
+  const verdictIconSource = verdictData?.icon?.path ?? null;
+  let manifestVerdict: ThemeVerdict | null = null;
+  if (verdictData) {
+    let iconTaken: string | null = null;
+    if (verdictIconSource) {
+      iconTaken = await files.take(
+        verdictIconSource,
+        `files/verdict/verdict${extension(verdictIconSource)}`,
+      );
+      if (!iconTaken) {
+        problems.push({
+          game: themeRow.name,
+          where: '结算图标',
+          kind: 'file',
+          message: `图片 ${verdictIconSource} 不在了`,
+        });
+        throw incomplete(problems);
+      }
+    }
+    manifestVerdict = {
+      ...(verdictData.iconText ? { iconText: verdictData.iconText } : {}),
+      ...(iconTaken ? { icon: { path: iconTaken } } : {}),
+      ...(verdictData.title ? { title: verdictData.title } : {}),
+    };
+  }
+
   const exportedAt = new Date().toISOString();
   const themeFile: BundleThemeFile = {
     code: themeRow.code,
@@ -226,6 +260,7 @@ export async function buildThemeBundle(
       ...(themeDifficultyLevels ? { difficultyLevels: themeDifficultyLevels } : {}),
       ...(manifestRing ? { ring: manifestRing } : {}),
       ...(manifestCheckStyle ? { checkStyle: manifestCheckStyle } : {}),
+      ...(manifestVerdict ? { verdict: manifestVerdict } : {}),
     },
     exportedAt,
     games: manifestGames,

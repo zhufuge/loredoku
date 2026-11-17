@@ -195,6 +195,19 @@ export const THEME_CHECK_PASS_COLOR = '#16A34A';
 export const THEME_CHECK_FAIL_COLOR = '#DC2626';
 
 /**
+ * v0.11.3：结算卡通过那一面的**内置图标与标题**（主题里可改，这里是缺省）。
+ *
+ * 标题从 v0.9.7 那句「恭喜定案！」改成「解题成功」：定案说的是「已落槌」，
+ * 而玩家刚做完的是一道题 —— 这一屏在夸的是解题这件事本身。
+ *
+ * 图标与标题分开配，所以这个 emoji **不写进** `THEME_VERDICT_TITLE_FALLBACK`。
+ */
+export const THEME_VERDICT_ICON_FALLBACK = '🎉';
+export const THEME_VERDICT_TITLE_FALLBACK = '解题成功';
+/** 两项都可留空（= 用内置），所以只限上界：足够长，又不至于把一行撑断。 */
+export const THEME_VERDICT_TEXT_MAX_LENGTH = 24;
+
+/**
  * v0.7.11：长按进度环的**出场延迟**。
  *
  * 环此前在 pointerdown 的第一帧就画出来，于是「点一下放编号」也会闪一下环 ——

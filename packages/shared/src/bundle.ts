@@ -12,6 +12,7 @@ import type {
   // v0.9.5：原来的 `ForbiddenSymbolImage` / `ThemeCheckStyle` 改名为 `UploadedImage`
   // 与 `ThemeCheckColors`，圈图并进 `ThemeRing`。
   ThemeRing,
+  ThemeVerdict,
 } from './types/domain';
 import {
   collectPuzzleThemeRefs,
@@ -230,6 +231,16 @@ export interface BundleManifestTheme {
    * 可选：没配过的主题没有这个键，播放器按内置绿 / 红处理。
    */
   checkStyle?: ThemeCheckColors | null;
+  /**
+   * v0.11.3：结算卡通过那一面的图标与标题。
+   *
+   * 与 `ring` / `checkStyle` 同一条「主题级共用一份」：它不随关卡变，进 manifest
+   * 之后播放器结算时不必再读一次 theme.json。`icon.path`（若配了图）是**包内相对
+   * 路径**（`files/verdict/verdict.webp`）。
+   *
+   * 可选：没配过的主题没有这个键，结算卡画内置 🎉 + 「解题成功」。
+   */
+  verdict?: ThemeVerdict | null;
 }
 
 export interface BundleManifest {
@@ -281,6 +292,8 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
       ...(input.theme.ring ? { ring: input.theme.ring } : {}),
       // v0.9.3 §3：校验颜色同理。只配了颜色没配图是常态。
       ...(input.theme.checkStyle ? { checkStyle: input.theme.checkStyle } : {}),
+      // v0.11.3：结算卡的图标与标题，同一条「没配就不写键」。
+      ...(input.theme.verdict ? { verdict: input.theme.verdict } : {}),
     },
     games: input.games,
     assets: 'assets.json',

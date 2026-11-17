@@ -17,6 +17,7 @@ import {
   type UpdateThemeInput,
   type GameToolIconKind,
   type GameToolIcons,
+  type ThemeVerdict,
 } from '@loredoku/shared';
 import * as repo from '../repository/themeRepository';
 import { AppError } from '../utils/AppError';
@@ -24,6 +25,7 @@ import {
   processMarkImage,
   processRingImage,
   processToolIconImage,
+  processVerdictIconImage,
 } from '../utils/image';
 
 /**
@@ -200,6 +202,60 @@ export async function removeRing(code: string): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
   const next: ThemeData = { ...data };
   delete next.ring;
+  await repo.updateTheme(id, { data: next });
+  return getTheme(code);
+}
+
+/**
+ * v0.11.3：结算卡上那枚**图标图**。与标记 / 圆环同一档（上传即生效、回整份主题）。
+ *
+ * 只碰 `verdict.icon` —— 同一格里那句文字（`iconText`）与标题（`title`）原样留着：
+ * 作者传一张图只是「先用这张」，把图删掉之后应该回到他自己写的那句 emoji。
+ */
+export function verdictIconRequired(): AppError {
+  return AppError.validation('请选择结算图标图片');
+}
+
+export async function uploadVerdictIcon(code: string, buffer: Buffer): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const image = await processVerdictIconImage({ kind: 'theme', id }, buffer);
+  await repo.updateTheme(id, {
+    data: { ...data, verdict: { ...(data.verdict ?? {}), icon: { path: image.relativePath } } },
+  });
+  return getTheme(code);
+}
+
+/** 移除那枚图（保留文字与标题）；三项都空了就把整个 `verdict` 删掉。 */
+export async function removeVerdictIcon(code: string): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const next: ThemeData = { ...data };
+  const rest: ThemeVerdict = { ...(next.verdict ?? {}) };
+  delete rest.icon;
+  const hasText = (rest.iconText ?? '').trim().length > 0;
+  const hasTitle = (rest.title ?? '').trim().length > 0;
+  if (!hasText && !hasTitle) delete next.verdict;
+  else next.verdict = rest;
+  await repo.updateTheme(id, { data: next });
+  return getTheme(code);
+}
+
+/**
+ * v0.11.3：结算卡上那两句文字。与校验颜色同一种「只改给的项」：改标题不该顺手
+ * 抹掉图标文字，反之亦然。给空串 = 恢复内置（三项都空时整个键删掉）。
+ */
+export async function updateVerdictText(
+  code: string,
+  patch: { iconText?: string; title?: string },
+): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  const current: ThemeVerdict = { ...(data.verdict ?? {}) };
+  if (patch.iconText !== undefined) current.iconText = patch.iconText.trim();
+  if (patch.title !== undefined) current.title = patch.title.trim();
+  const next: ThemeData = { ...data };
+  const hasText = (current.iconText ?? '').length > 0;
+  const hasTitle = (current.title ?? '').length > 0;
+  if (!hasText && !hasTitle && !current.icon?.path) delete next.verdict;
+  else next.verdict = current;
   await repo.updateTheme(id, { data: next });
   return getTheme(code);
 }

@@ -86,8 +86,11 @@ npm run build:player -- --bundle=other.zip # 临时换包，不改 .env
 
 v0.11.1 起产物里**每个路由都是一份真 `index.html`**（`<code>/play/`、
 `<code>/play/<key>/`），所以深链刷新不需要任何 rewrite 规则，也不需要 404 兜底页。
-发布到站点仓库用 `npm run publish:player`。细节见 [`docs/v0.11.1.md`](./docs/v0.11.1.md)
-（打包与部署）与 [`docs/v0.9.0.md`](./docs/v0.9.0.md)（播放器本身）。
+v0.11.3 起构建时按「这一包真正用到的字」裁剪自带字体（930 KB → 约 160 KB）。
+发布到站点仓库用 `npm run publish:player`。细节见
+[`docs/v0.11.3.md`](./docs/v0.11.3.md)（字体、首屏与结算卡）、
+[`docs/v0.11.1.md`](./docs/v0.11.1.md)（打包与部署）与
+[`docs/v0.9.0.md`](./docs/v0.9.0.md)（播放器本身）。
 
 ---
 

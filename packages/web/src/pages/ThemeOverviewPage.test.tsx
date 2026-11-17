@@ -42,6 +42,10 @@ const removeRingMutate = vi.fn(() => Promise.resolve());
 const updateCheckStyleMutate = vi.fn((_patch: unknown) => Promise.resolve());
 const uploadCheckRingMutate = vi.fn((_file: File) => Promise.resolve());
 const removeCheckRingMutate = vi.fn(() => Promise.resolve());
+/** v0.11.3：结算卡的图标图与两句话。 */
+const uploadVerdictIconMutate = vi.fn((_file: File) => Promise.resolve());
+const removeVerdictIconMutate = vi.fn(() => Promise.resolve());
+const updateVerdictMutate = vi.fn((_patch: unknown) => Promise.resolve());
 
 vi.mock('@/components/layout/WorkspaceContext', () => ({
   useWorkspace: () => workspaceRef.value,
@@ -59,6 +63,12 @@ vi.mock('@/hooks/useThemes', () => ({
   useRemoveThemeRing: () => ({ mutate: removeRingMutate, isPending: false }),
   /** v0.9.3 §3：两档颜色走同一个 mutate。 */
   useUpdateThemeCheckStyle: () => ({ mutate: updateCheckStyleMutate, isPending: false }),
+  /**
+   * v0.11.3：结算卡的图标图上传 / 移除，以及那两句文字的 PATCH —— 三个动作分开。
+   */
+  useUploadThemeVerdictIcon: () => ({ mutate: uploadVerdictIconMutate, isPending: false }),
+  useRemoveThemeVerdictIcon: () => ({ mutate: removeVerdictIconMutate, isPending: false }),
+  useUpdateThemeVerdict: () => ({ mutate: updateVerdictMutate, isPending: false }),
 }));
 
 describe('ThemeOverviewPage（v0.8.3）', () => {
@@ -339,6 +349,118 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
 
     expect(document.querySelector('[aria-label*="校验通过色"]')).not.toBeNull();
     expect(document.querySelector('[aria-label*="校验未通过色"]')).not.toBeNull();
+  });
+
+  /**
+   * v0.11.3 §6 —— 结算卡的图标与标题。
+   *
+   * 判据是「空输入框 + placeholder 里的默认值」：默认值只在内置那一层，作者没填过
+   * 的东西不该被写成一份存进库。改文字走失焦提交（一次输入不发一串请求），
+   * 换图与改字分开 —— 换图不该顺手把标题也写一遍。
+   */
+  describe('结算卡的图标与标题（v0.11.3）', () => {
+    function box(label: string): HTMLInputElement {
+      const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+      if (!input) throw new Error(`没找到输入框：${label}`);
+      return input;
+    }
+
+    function blur(input: HTMLInputElement): void {
+      act(() => {
+        input.dispatchEvent(new FocusEvent('focusout', { bubbles: true }));
+      });
+    }
+
+    beforeEach(() => {
+      uploadVerdictIconMutate.mockClear();
+      removeVerdictIconMutate.mockClear();
+      updateVerdictMutate.mockClear();
+    });
+
+    it('没配：输入框空着、placeholder 是内置默认值，预览画默认图标', () => {
+      render();
+
+      expect(box('结算图标文字').value).toBe('');
+      expect(box('结算图标文字').placeholder).toBe('🎉');
+      expect(box('结算标题').value).toBe('');
+      expect(box('结算标题').placeholder).toBe('解题成功');
+      // 预览里画的是内置 🎉，没配的时候不该出现 img。
+      expect(document.querySelector('img[alt="结算图标"]')).toBeNull();
+    });
+
+    it('配了文字：输入框与静态文案都读得到', () => {
+      render({
+        ...themeRef,
+        data: { version: 1, verdict: { iconText: '🏮', title: '此案已了' } },
+      });
+
+      expect(box('结算图标文字').value).toBe('🏮');
+      expect(box('结算标题').value).toBe('此案已了');
+      // 卡里那句「玩家看到的就是这一行」用的是解析后的标题。
+      expect(text()).toContain('此案已了');
+    });
+
+    it('配了图标图：画那张图并说明「图片覆盖文字」，给移除入口', () => {
+      render({
+        ...themeRef,
+        data: { version: 1, verdict: { icon: { path: 'themes/3/verdict/icon.webp' } } },
+      });
+
+      const image = document.querySelector<HTMLImageElement>('img[alt="结算图标"]');
+      expect(image?.getAttribute('src')).toBe('/api/files/themes/3/verdict/icon.webp');
+      expect(text()).toContain('图片覆盖文字');
+    });
+
+    it('改了标题、失焦才发请求 —— 输入过程中一个都不发', () => {
+      render();
+
+      type(box('结算标题'), '此案已了');
+      expect(updateVerdictMutate).not.toHaveBeenCalled();
+
+      blur(box('结算标题'));
+      expect(updateVerdictMutate).toHaveBeenCalledTimes(1);
+      expect(updateVerdictMutate.mock.calls[0]?.[0]).toEqual({ title: '此案已了' });
+    });
+
+    it('改回空串也发 —— 那是「恢复默认」的表达', () => {
+      render({
+        ...themeRef,
+        data: { version: 1, verdict: { iconText: '🏮', title: '此案已了' } },
+      });
+
+      type(box('结算标题'), '');
+      blur(box('结算标题'));
+
+      expect(updateVerdictMutate).toHaveBeenCalledWith({ title: '' });
+    });
+
+    it('没改动就失焦，不发请求', () => {
+      render({
+        ...themeRef,
+        data: { version: 1, verdict: { title: '此案已了' } },
+      });
+
+      blur(box('结算标题'));
+      expect(updateVerdictMutate).not.toHaveBeenCalled();
+    });
+
+    it('换图标图：选好文件立刻上传，不碰文字那次 PATCH', () => {
+      render();
+
+      // 四个隐藏 file input：mark → 三枚图标 → ring → 结算图标。
+      const inputs = document.querySelectorAll<HTMLInputElement>('input[type="file"]');
+      const verdictInput = inputs[inputs.length - 1] as HTMLInputElement;
+      expect(verdictInput).toBeDefined();
+      const file = new File(['icon'], 'icon.webp', { type: 'image/webp' });
+      Object.defineProperty(verdictInput, 'files', { value: [file], configurable: true });
+      act(() => {
+        verdictInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+
+      expect(uploadVerdictIconMutate).toHaveBeenCalledTimes(1);
+      expect(uploadVerdictIconMutate.mock.calls[0]?.[0]).toBe(file);
+      expect(updateVerdictMutate).not.toHaveBeenCalled();
+    });
   });
 
   it('主题里还有东西时「删除」不可点 —— 先把数量说清楚再拦', () => {

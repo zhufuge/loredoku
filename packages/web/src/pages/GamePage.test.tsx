@@ -11,7 +11,7 @@ import {
   ITEM_NAME_TIP_DELAY_MS,
 } from '@loredoku/shared';
 import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
-import type { Asset, UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing } from '@loredoku/shared';
+import type { Asset, UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing, ThemeVerdict } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { imageTintMatrix } from '@/components/common/PressRing';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
@@ -61,6 +61,11 @@ const fixture = vi.hoisted(() => ({
     checkStyle: null as ThemeCheckColors | null,
     /** v0.9.2 §2；v0.9.5 合并：主题的**那一圈**图（长按 + 校验共用）；默认没配。 */
     ring: null as ThemeRing | null,
+    /**
+     * v0.11.3：结算卡的图标与标题。默认没配 —— 落回内置的 🎉 +「解题成功」，
+     * 正是老主题的行为，所以既有的结算卡断言不用改。
+     */
+    verdict: null as ThemeVerdict | null,
   },
   detail: {
     id: 1,
@@ -183,6 +188,11 @@ vi.mock('@/hooks/useThemes', () => ({
   // v0.9.3 §3：校验的两档颜色 —— 默认不配，落回内置绿 / 红。
   useCheckColorsByCode: () => () => fixture.theme.checkStyle,
   /**
+   * v0.11.3：结算卡的图标与标题 —— 同样按编码查表。默认「没配」，
+   * `resolveVerdictStyle` 会填 🎉 +「解题成功」。
+   */
+  useVerdictByCode: () => () => fixture.theme.verdict,
+  /**
    * v0.8.7 §7：三枚工具按钮图标。同样按编码查表，这里返回 fixture 里那一套
    * （默认 `null` = 谁都没配，按钮画内置图标）。
    */
@@ -257,6 +267,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     fixture.theme.checkStyle = null;
     // v0.9.5：那一圈同样是可变夹具（长按 + 校验共用）。
     fixture.theme.ring = null;
+    // v0.11.3：结算卡的图标与标题也是夹具，别漏到后面的用例。
+    fixture.theme.verdict = null;
     vi.stubGlobal(
       'ResizeObserver',
       class {
@@ -616,7 +628,11 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(document.querySelector('[role="dialog"]')).toBeNull();
 
       act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
-      expect(document.querySelector('[role="dialog"]')?.textContent).toContain('定案');
+      /*
+       * v0.11.3：结算卡的标题现在是主题里的一份配置（默认「解题成功」），
+       * 所以这里只钉「卡出现了」，不再钉某一句文案。
+       */
+      expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     } finally {
       vi.useRealTimers();
     }
@@ -1671,7 +1687,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         submitAndSettle();
 
         const dialog = document.querySelector('[role="dialog"]');
-        expect(dialog?.textContent).toContain('定案');
+        // v0.11.3：标题文案改由主题配置（默认「解题成功」），这里只确认卡开了。
+        expect(dialog?.querySelector('[data-testid="verdict-title"]')).not.toBeNull();
         expect(dialog?.querySelector('[data-testid="verdict-stamp"]')).toBeNull();
         // 印在遮罩上，而且是「刚盖上去」的那一版（带动效类）。
         const scrim = container.querySelector('[data-testid="verdict-scrim"]');
@@ -1740,6 +1757,79 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    /**
+     * v0.11.3（docs/v0.11.3.md §6）—— 结算卡那一行的图标与标题**是主题里配的**。
+     *
+     * 判据三件事：没配时落回内置的 🎉 +「解题成功」（老主题原样可用）、配了文字
+     * 就换成文字、配了图就只画图不再写文字。第三件是这条的要点 —— 两个都画会把
+     * 标题挤开，用户要的是「上传图片会覆盖文字」。
+     */
+    describe('结算卡的图标与标题由主题给（v0.11.3）', () => {
+      function verdictScope(): Element | null {
+        return document.querySelector('[role="dialog"]');
+      }
+
+      it('主题没配：🎉 +「解题成功」', () => {
+        vi.useFakeTimers();
+        try {
+          seedPassingBoard();
+          render();
+          submitAndSettle();
+
+          const dialog = verdictScope();
+          expect(dialog?.querySelector('[data-testid="verdict-icon"]')?.textContent).toBe('🎉');
+          expect(dialog?.querySelector('[data-testid="verdict-title"]')?.textContent).toBe(
+            '解题成功',
+          );
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it('主题配了文字：图标换成那段文字，标题换成作者写的', () => {
+        vi.useFakeTimers();
+        try {
+          fixture.theme.verdict = { iconText: '🏮', title: '此案已了' };
+          seedPassingBoard();
+          render();
+          submitAndSettle();
+
+          const dialog = verdictScope();
+          expect(dialog?.querySelector('[data-testid="verdict-icon"]')?.textContent).toBe('🏮');
+          expect(dialog?.querySelector('[data-testid="verdict-title"]')?.textContent).toBe(
+            '此案已了',
+          );
+        } finally {
+          vi.useRealTimers();
+        }
+      });
+
+      it('主题配了图标图：只画图，那段文字不再出现', () => {
+        vi.useFakeTimers();
+        try {
+          fixture.theme.verdict = {
+            iconText: '🏮',
+            icon: { path: 'themes/2/verdict/b.webp' },
+            title: '此案已了',
+          };
+          seedPassingBoard();
+          render();
+          submitAndSettle();
+
+          const dialog = verdictScope();
+          const icon = dialog?.querySelector('[data-testid="verdict-icon"]');
+          expect(icon?.tagName).toBe('IMG');
+          expect(icon?.getAttribute('src')).toBe('/api/files/themes/2/verdict/b.webp');
+          expect(dialog?.textContent).not.toContain('🏮');
+          expect(dialog?.querySelector('[data-testid="verdict-title"]')?.textContent).toBe(
+            '此案已了',
+          );
+        } finally {
+          vi.useRealTimers();
+        }
+      });
     });
   });
 

@@ -16,6 +16,7 @@ import type {
   ThemeDifficultyTier,
   ThemeOption,
   ThemeRing,
+  ThemeVerdict,
 } from '@loredoku/shared';
 import { themesApi, type CreateThemePayload, type UpdateThemePayload } from '@/api/themes';
 import { forgetThemeCode } from '@/lib/workspace';
@@ -385,6 +386,79 @@ export function useCheckColorsByCode(): (
     (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
     [byCode],
   );
+}
+
+/**
+ * v0.11.3 —— 按主题编码查**结算卡**的配置（图标 + 标题）。
+ *
+ * 与上面几个 `*ByCode` 同一个理由：游戏页在工作空间外面，只能按编码查表。
+ * 整份 `verdict` 一起给 —— 图与文字是同一张卡的两半，分开取会让「刚换了图、
+ * 标题还是旧的」这种半新半旧出现在同一帧里。
+ *
+ * 返回值可能是 `null`（主题没配过），由 `resolveVerdictStyle` 填内置的
+ * 🎉 + 「解题成功」。
+ */
+export function useVerdictByCode(): (
+  code: string | null | undefined,
+) => ThemeVerdict | null {
+  const query = useThemes();
+  const byCode = useMemo(() => {
+    const map = new Map<string, ThemeVerdict>();
+    for (const theme of query.data ?? []) {
+      const verdict = theme.data.verdict;
+      if (verdict) map.set(theme.code, verdict);
+    }
+    return map;
+  }, [query.data]);
+
+  return useCallback(
+    (code: string | null | undefined) => (code ? (byCode.get(code) ?? null) : null),
+    [byCode],
+  );
+}
+
+/**
+ * v0.11.3：改结算卡的两句文字。与上传图标图分开 —— 换图不该顺手改标题。
+ */
+export function useUpdateThemeVerdict(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (patch: { iconText?: string; title?: string }) =>
+      themesApi.updateVerdict(code, patch),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('结算文案已保存');
+    },
+    onError: (error: Error) => toast.error(error.message || '结算文案保存失败'),
+  });
+}
+
+/**
+ * v0.11.3：结算卡那枚图标图，即时保存 —— 回执是更新后的整份主题。
+ */
+export function useUploadThemeVerdictIcon(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (file: File) => themesApi.uploadVerdictIcon(code, file),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('已设为本主题的结算图标');
+    },
+    onError: (error: Error) => toast.error(error.message || '结算图标上传失败'),
+  });
+}
+
+/** 移除图标 = 回到文字（或内置的庆祝 emoji），标题与那段文字都留着。 */
+export function useRemoveThemeVerdictIcon(code: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => themesApi.removeVerdictIcon(code),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: themeKeys.all });
+      toast.success('结算图标已恢复默认');
+    },
+    onError: (error: Error) => toast.error(error.message || '移除失败'),
+  });
 }
 
 /**

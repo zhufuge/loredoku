@@ -438,6 +438,91 @@ describe('资源包导出（§11）', () => {
   });
 
   /**
+   * v0.11.3：结算卡的图标图与圆环同一条路 —— 搬进 `files/verdict/`，manifest 指过去；
+   * 只配文字时也进 manifest，但不产生任何文件。
+   */
+  it('结算卡配置进包：图标图搬进 files/verdict、文字与标题原样进 manifest', async () => {
+    const themeCode = await createTheme();
+    await deployedGame(themeCode);
+    const uploaded = await api
+      .post(`/api/themes/${themeCode}/verdict-icon`)
+      .attach('file', TINY_PNG, 'icon.png');
+    expect(uploaded.status).toBe(200);
+    const row = (await db('themes').where({ code: themeCode }).first('id')) as
+      | { id: string | number }
+      | undefined;
+    symbolDirs.push(resolveUploadPath(`themes/${Number(row!.id)}`));
+
+    const textSaved = await api
+      .patch(`/api/themes/${themeCode}/verdict`)
+      .send({ iconText: '🏮', title: '此案已了' });
+    expect(textSaved.status).toBe(200);
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    const entries = built.entries.filter((entry) => entry.path.startsWith('files/verdict/'));
+    expect(entries).toHaveLength(1);
+    const target = 'files/verdict/verdict.webp';
+    expect(entries[0]!.path).toBe(target);
+    // 一张图只装一份，不因为「主题里有 1 关」就多出来。
+    expect(built.manifest.theme.verdict).toEqual({
+      iconText: '🏮',
+      icon: { path: target },
+      title: '此案已了',
+    });
+
+    const manifestFile = built.manifest.files.find((entry) => entry.path === target);
+    expect(manifestFile?.bytes).toBe(entries[0]!.data.length);
+    expect(manifestFile?.sha256).toMatch(/^[0-9a-f]{64}$/);
+
+    // 只配文字：进 manifest，但包里一条 files/verdict 都没有。
+    const textOnlyCode = await createTheme();
+    await deployedGame(textOnlyCode);
+    expect(
+      (
+        await api
+          .patch(`/api/themes/${textOnlyCode}/verdict`)
+          .send({ title: '此案已了' })
+      ).status,
+    ).toBe(200);
+    const textOnly = await bundleService.buildThemeBundle(textOnlyCode);
+    expect(textOnly.manifest.theme.verdict).toEqual({ title: '此案已了' });
+    expect(textOnly.entries.filter((entry) => entry.path.startsWith('files/verdict/'))).toHaveLength(
+      0,
+    );
+
+    // 没配的主题：一个键都不多。
+    const plainCode = await createTheme();
+    await deployedGame(plainCode);
+    const plain = await bundleService.buildThemeBundle(plainCode);
+    expect('verdict' in plain.manifest.theme).toBe(false);
+  });
+
+  /**
+   * v0.11.3：文件不在了要在打包时中止 —— 与标记、工具图标同一条规矩，
+   * 免得流出一个「玩家打开才发现图 404」的包。
+   */
+  it('结算图标图不在了 → 打包中止（400 + bundle-incomplete）', async () => {
+    const themeCode = await createTheme();
+    await deployedGame(themeCode);
+    const uploaded = await api
+      .post(`/api/themes/${themeCode}/verdict-icon`)
+      .attach('file', TINY_PNG, 'icon.png');
+    expect(uploaded.status).toBe(200);
+    const row = (await db('themes').where({ code: themeCode }).first('id')) as
+      | { id: string | number }
+      | undefined;
+    const dir = resolveUploadPath(`themes/${Number(row!.id)}`);
+    symbolDirs.push(dir);
+    await rm(dir, { recursive: true, force: true });
+
+    const res = await api.get(`/api/themes/${themeCode}/bundle`);
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(res.body.data).toMatchObject({ kind: 'bundle-incomplete' });
+  });
+
+  /**
    * v0.8.7 §7：三枚工具按钮图标与标记同一条路 —— 搬文件、改写为包内路径。
    * 文件名带 `-<icon>`：一关最多三张，解压后一眼能看出是哪一枚。
    */

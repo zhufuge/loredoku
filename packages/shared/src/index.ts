@@ -9,5 +9,6 @@ export * from './puzzleDraft';
 export * from './themeScope';
 export * from './mapStyleDiff';
 export * from './bundle';
+export * from './verdict';
 export * from './types';
 export * from './schemas';

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { createThemeSchema, themeCodeSchema, themeDataSchema } from './theme';
+import {
+  createThemeSchema,
+  themeCodeSchema,
+  themeDataSchema,
+  updateThemeVerdictSchema,
+} from './theme';
 
 /**
  * v0.8.0 §18：主题编码是工作空间的地址前缀（`/hlm/maps`），所以除了字符集，还要拦
@@ -306,5 +311,72 @@ describe('themeDataSchema.checkStyle（v0.9.3）', () => {
     expect(
       themeDataSchema.safeParse({ version: 1, checkStyle: { passColor: '#123456', x: 1 } }).success,
     ).toBe(false);
+  });
+});
+
+/**
+ * v0.11.3：结算卡的图标与标题进主题配置。
+ *
+ * 三件事要在这一层钉住：可整块不写、文字有长度上限、多出来的键一律拒 —— `data` 是
+ * 一份 JSONB，写进去的脏值没人能改回来。
+ */
+describe('themeDataSchema.verdict（v0.11.3）', () => {
+  it('不写就是没有 —— 老主题原样合法', () => {
+    expect(themeDataSchema.parse({ version: 1 }).verdict).toBeUndefined();
+    expect(themeDataSchema.parse({ version: 1, verdict: null }).verdict).toBeNull();
+  });
+
+  it('图标文字与标题都能单独填', () => {
+    expect(themeDataSchema.parse({ version: 1, verdict: { iconText: '🏮' } }).verdict).toEqual({
+      iconText: '🏮',
+    });
+    expect(themeDataSchema.parse({ version: 1, verdict: { title: '此案已了' } }).verdict).toEqual({
+      title: '此案已了',
+    });
+  });
+
+  it('图标可以是一张上传的图', () => {
+    expect(
+      themeDataSchema.parse({ version: 1, verdict: { icon: { path: 'themes/2/verdict/a.webp' } } })
+        .verdict,
+    ).toEqual({ icon: { path: 'themes/2/verdict/a.webp' } });
+  });
+
+  it('文字两头的空白被削掉', () => {
+    expect(
+      themeDataSchema.parse({ version: 1, verdict: { title: '  此案已了  ' } }).verdict?.title,
+    ).toBe('此案已了');
+  });
+
+  it('长度有上限，多出来的键一律拒', () => {
+    expect(
+      themeDataSchema.safeParse({ version: 1, verdict: { title: '字'.repeat(25) } }).success,
+    ).toBe(false);
+    expect(
+      themeDataSchema.safeParse({ version: 1, verdict: { iconText: '字'.repeat(25) } }).success,
+    ).toBe(false);
+    expect(themeDataSchema.safeParse({ version: 1, verdict: { x: 1 } }).success).toBe(false);
+  });
+});
+
+/**
+ * v0.11.3：改文字走单独的 PATCH（与换图分开），至少要给一项 —— 空补丁不该发出请求。
+ */
+describe('updateThemeVerdictSchema（v0.11.3）', () => {
+  it('给一项就通过', () => {
+    expect(updateThemeVerdictSchema.safeParse({ title: '此案已了' }).success).toBe(true);
+    expect(updateThemeVerdictSchema.safeParse({ iconText: '🏮' }).success).toBe(true);
+  });
+
+  it('什么都不给要报错', () => {
+    expect(updateThemeVerdictSchema.safeParse({}).success).toBe(false);
+  });
+
+  it('空串是合法值 —— 那是「改回默认」的表达', () => {
+    expect(updateThemeVerdictSchema.safeParse({ title: '' }).success).toBe(true);
+  });
+
+  it('多出来的键一律拒', () => {
+    expect(updateThemeVerdictSchema.safeParse({ title: '此案已了', x: 1 }).success).toBe(false);
   });
 });

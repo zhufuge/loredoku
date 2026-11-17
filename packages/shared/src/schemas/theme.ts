@@ -14,6 +14,7 @@ import {
   THEME_DIFFICULTY_TIER_MAX,
   THEME_CHECK_FAIL_COLOR,
   THEME_CHECK_PASS_COLOR,
+  THEME_VERDICT_TEXT_MAX_LENGTH,
   THEME_NAME_MAX_LENGTH,
 } from '../constants';
 import { mapLinkageColorSchema, mapStyleSchema } from './mapDraft';
@@ -115,6 +116,30 @@ export const themeRingSchema = z
   .optional();
 
 /**
+ * v0.11.3：结算卡的两份配置 —— 图标（文字 / emoji 或一张图）+ 标题。
+ *
+ * 三项都可缺，且每一项都**允许空串**：作者把标题删空就是「用内置那句」，
+ * 不必再点一次「恢复默认」。空串在上层按缺省处理（见 `resolveVerdictStyle`）。
+ */
+export const themeVerdictSchema = z
+  .object({
+    iconText: z
+      .string()
+      .trim()
+      .max(THEME_VERDICT_TEXT_MAX_LENGTH, `图标文字最多 ${THEME_VERDICT_TEXT_MAX_LENGTH} 个字`)
+      .optional(),
+    icon: optionalUploadedImageSchema,
+    title: z
+      .string()
+      .trim()
+      .max(THEME_VERDICT_TEXT_MAX_LENGTH, `标题最多 ${THEME_VERDICT_TEXT_MAX_LENGTH} 个字`)
+      .optional(),
+  })
+  .strict()
+  .nullable()
+  .optional();
+
+/**
  * `themes.data` 的**对象那一半**（不含旧键预处理，见下面的 `themeDataSchema`）。
  *
  * `.strict()` 与其余 schema 一致：多出来的键是写错了名字，不是新功能。
@@ -152,6 +177,10 @@ const themeDataObjectSchema = z
      * `themeRingSchema` 的预处理搬过来。
      */
     ring: themeRingSchema,
+    /**
+     * v0.11.3：结算卡通过那一面的图标与标题。缺了 = 内置 🎉 + 「解题成功」。
+     */
+    verdict: themeVerdictSchema,
     /**
      * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。缺了 = 内置绿 / 红。
      */
@@ -308,6 +337,30 @@ export const updateThemeCheckStyleSchema = z
   .refine(
     (value) => value.passColor !== undefined || value.failColor !== undefined,
     '请提供需要更新的颜色',
+  );
+
+/**
+ * v0.11.3：结算卡的两句文字（图标位置的文字 + 标题）—— 与上传图标图分开。
+ *
+ * 与校验颜色同一个口径：两项都可选、**至少给一项**；给空串就是恢复内置。
+ */
+export const updateThemeVerdictSchema = z
+  .object({
+    iconText: z
+      .string()
+      .trim()
+      .max(THEME_VERDICT_TEXT_MAX_LENGTH, `图标文字最多 ${THEME_VERDICT_TEXT_MAX_LENGTH} 个字`)
+      .optional(),
+    title: z
+      .string()
+      .trim()
+      .max(THEME_VERDICT_TEXT_MAX_LENGTH, `标题最多 ${THEME_VERDICT_TEXT_MAX_LENGTH} 个字`)
+      .optional(),
+  })
+  .strict()
+  .refine(
+    (value) => value.iconText !== undefined || value.title !== undefined,
+    '请提供需要更新的文字',
   );
 
 export const listThemesQuerySchema = z.object({

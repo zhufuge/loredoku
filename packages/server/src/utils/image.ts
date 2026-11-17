@@ -154,6 +154,19 @@ export async function processRingImage(
   return processSymbolImage(owner, 'ring', buffer);
 }
 
+/**
+ * v0.11.3：结算卡上那枚图标 —— 与标记同一档小图（画在结算标题前面，20px 上下），
+ * 目录是 `.../verdict/`。
+ *
+ * 只有主题有这一项（结算是主题级的话术），所以所有者固定是主题。
+ */
+export async function processVerdictIconImage(
+  owner: { kind: 'puzzle' | 'theme'; id: number },
+  buffer: Buffer,
+): Promise<ProcessedImage> {
+  return processSymbolImage(owner, 'verdict', buffer);
+}
+
 /** 三种「符号级小图」共用的一条路：按所有者分目录，长边缩到 256。 */
 async function processSymbolImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },

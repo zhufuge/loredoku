@@ -5,6 +5,7 @@ import {
   GAME_VERDICT_HOLD_MS,
   MAP_LAYER_Z,
   UI_Z,
+  resolveVerdictStyle,
   type CellCoord,
   type GamePlacementBoard,
 } from '@loredoku/shared';
@@ -421,6 +422,17 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 一百来像素高。再把量出来的可见区传进去，两者取小（用户：「大小要自适应屏幕」）。
    */
   const verdictScale = verdictMarkScale(total, stageBox);
+
+  /**
+   * v0.11.3：结算卡通过那一面的图标与标题 —— 主题级的、读取时兜底（同标记 / 圆环 /
+   * 校验色那一套）。`resolveVerdictStyle` 把「没配」「配了空串」一并收成默认的
+   * 🎉 +「解题成功」，所以这里拿到的永远是能直接画的值。
+   *
+   * 图走 `source.fileUrl` 拼地址：api 是 `/api/files/…`，播放器是包根 —— 与印章、
+   * 标记同一条路。
+   */
+  const verdictStyle = resolveVerdictStyle(source.themeVerdict(detail?.themeCode));
+  const verdictIconUrl = verdictStyle.iconPath ? source.fileUrl(verdictStyle.iconPath) : null;
 
   /**
    * v0.6.2 §3：存档指纹。同 slug 重新部署后网格或名单可能变了，旧坐标与旧编号
@@ -1464,6 +1476,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
       <GameResultDialog
         result={result}
         ending={puzzleEnding}
+        verdictIconUrl={verdictIconUrl}
+        verdictIconText={verdictStyle.iconText}
+        verdictTitle={verdictStyle.title}
         hasNextLevel={nextLevel !== null}
         onClose={closeResult}
         onContinue={continueGame}

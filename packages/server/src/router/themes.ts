@@ -57,5 +57,20 @@ themesRouter.delete('/:code/ring', controller.removeRing);
  */
 themesRouter.patch('/:code/check-style', controller.updateCheckStyle);
 
+/**
+ * v0.11.3：结算卡通过那一面的**图标图**与**两句文字**。
+ *
+ * 与圆环 / 校验颜色同一个分工：图走上传删除，文字走 PATCH —— 换图不该顺手把作者
+ * 写的标题覆盖掉，改标题也不该动那张图。图只影响图标位置；「移除」之后回到文字
+ * （或内置的庆祝 emoji），不会把标题一起清掉。
+ */
+themesRouter.post(
+  '/:code/verdict-icon',
+  symbolImageUpload.single('file'),
+  controller.uploadVerdictIcon,
+);
+themesRouter.delete('/:code/verdict-icon', controller.removeVerdictIcon);
+themesRouter.patch('/:code/verdict', controller.updateVerdict);
+
 /** 导出资源包（§11）：本版只打包，不解包、不导入、不托管。 */
 themesRouter.get('/:code/bundle', controller.bundle);

@@ -84,6 +84,21 @@ export const themesApi = {
    */
   updateCheckStyle: (code: string, patch: { passColor?: string; failColor?: string }) =>
     apiPatch<Theme>(`/themes/${code}/check-style`, patch),
+
+  /**
+   * v0.11.3 —— 结算卡通过那一面：一枚图标图 + 两句文字。
+   *
+   * 与圆环 / 校验颜色同一个分工：图走上传删除、文字走 PATCH。换图不该覆盖作者写的
+   * 标题，改标题也不该动那张图；「移除」之后回到文字（或内置的庆祝 emoji）。
+   */
+  uploadVerdictIcon: (code: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return apiPost<Theme>(`/themes/${code}/verdict-icon`, form);
+  },
+  removeVerdictIcon: (code: string) => apiDelete<Theme>(`/themes/${code}/verdict-icon`),
+  updateVerdict: (code: string, patch: { iconText?: string; title?: string }) =>
+    apiPatch<Theme>(`/themes/${code}/verdict`, patch),
 };
 
 /**

@@ -7,6 +7,7 @@ import type {
   MapGameDetail,
   ThemeCheckColors,
   ThemeRing,
+  ThemeVerdict,
 } from '@loredoku/shared';
 import type { GameLevelRef } from './gameCatalog';
 
@@ -67,6 +68,13 @@ export interface GameSource {
    * 填内置绿 / 红。bundle 从 `manifest.theme.checkStyle` 取，api 从主题列表查。
    */
   themeCheckColors(themeCode: string | null | undefined): ThemeCheckColors | null;
+  /**
+   * v0.11.3：主题级的**结算卡配置** —— 图标（文字 / emoji 或一张图）与标题。
+   *
+   * 同一条「读取时兜底」：`null` 表示没配过，由 `resolveVerdictStyle` 补内置的
+   * 🎉 + 「解题成功」。bundle 从 `manifest.theme.verdict` 取，api 从主题列表查。
+   */
+  themeVerdict(themeCode: string | null | undefined): ThemeVerdict | null;
   /**
    * 包内 / 库内相对路径 → 能塞进 `<img src>` 的地址。
    *

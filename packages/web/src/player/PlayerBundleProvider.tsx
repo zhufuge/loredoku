@@ -116,6 +116,11 @@ export function useBundleGameSource(code: string): GameSource {
        * `files/check/...`）。老包没有这个键 → `null`，游戏页落回内置绿 / 红。
        */
       themeCheckColors: () => manifest?.theme.checkStyle ?? null,
+      /**
+       * v0.11.3：结算卡的图标与标题也只在 manifest 里一份（`manifest.theme.verdict`）。
+       * 「没配就不写键」，所以老包与没配过的主题都是 `null` → 内置 🎉 +「解题成功」。
+       */
+      themeVerdict: () => manifest?.theme.verdict ?? null,
       storageId: (key) => bundleStorageId(code, key),
       listHref: () => themeHrefOf(code),
       gameHref: (key) => gameHrefOf(code, key),

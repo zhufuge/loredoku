@@ -28,6 +28,16 @@ vi.mock('./PlayerBundleProvider', () => ({
   useBundleManifest: () => manifestRef,
 }));
 
+/**
+ * v0.11.3：列表页要等自带字体就绪才放内容。真去 `document.fonts.load()` 在 jsdom
+ * 里永远等不到，所以这里换成一根可控的开关；字体本身的行为在
+ * `src/lib/fonts.test.ts` 那边单独钉。
+ */
+const fontsRef: { ready: boolean } = { ready: true };
+vi.mock('@/hooks/useBundledFontsReady', () => ({
+  useBundledFontsReady: () => fontsRef.ready,
+}));
+
 function manifest(theme: BundleManifest['theme']): BundleManifest {
   return {
     format: BUNDLE_FORMAT,
@@ -95,6 +105,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     manifestRef.isLoading = false;
     manifestRef.isError = false;
     manifestRef.error = null;
+    fontsRef.ready = true;
   });
 
   afterEach(() => {
@@ -176,5 +187,51 @@ describe('PlayerHomePage 的难度徽章', () => {
     const times = document.querySelectorAll('[data-testid="game-completion-time"]');
     expect(times).toHaveLength(1);
     expect(times[0]?.textContent).toContain('03:07');
+  });
+
+  /**
+   * v0.11.3（docs/v0.11.3.md §2）：列表页进入时先亮品牌字标，等包、字体、封面
+   * 都到齐再放卡片。
+   *
+   * 判据用「有没有卡片」而不是断言某个类名：卡片是这一页最终要展示的东西，
+   * 它在与不在，就是玩家看到的两种状态。
+   */
+  it('字体还没就绪 → 只出加载件，卡片一张都不画', () => {
+    manifestRef.data = manifest(identity);
+    fontsRef.ready = false;
+    mount();
+
+    expect(document.querySelectorAll('[role="button"]')).toHaveLength(0);
+    expect(document.body.textContent).toContain('正在加载主题');
+  });
+
+  it('包还没到 → 同样只出加载件', () => {
+    manifestRef.data = null;
+    manifestRef.isLoading = true;
+    mount();
+
+    expect(document.querySelectorAll('[role="button"]')).toHaveLength(0);
+    expect(document.body.textContent).toContain('正在加载主题');
+  });
+
+  it('字体与包都就绪 → 卡片出来，加载件退场', () => {
+    manifestRef.data = manifest(identity);
+    mount();
+
+    expect(document.querySelectorAll('[role="button"]').length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain('正在加载主题');
+  });
+
+  /**
+   * 包读失败不能躲在加载件后面 —— 那时已经没什么可等，得立刻把原因说出来。
+   */
+  it('包读失败 → 直接出错，不停在加载件上', () => {
+    manifestRef.data = null;
+    manifestRef.isError = true;
+    manifestRef.error = new Error('manifest 404');
+    fontsRef.ready = false;
+    mount();
+
+    expect(document.body.textContent).not.toContain('正在加载主题');
   });
 });
