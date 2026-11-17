@@ -501,14 +501,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const itemCells = useMemo(() => collectItemCells(cells), [cells]);
 
   /**
-   * v0.11.2：**没拿任何工具时，指针不点亮棋盘**。
+   * v0.11.2：**结案之后，指针不点亮棋盘**。
    *
-   * 之前只有 `onPointerDown` 在 idle 下提前返回（不落笔），可 `onPointerMove` 照旧写
-   * `hover`，于是空手划过格子也会冒出光标框、物品抬起与名称 tip —— 看着像已经选好了
-   * 东西要放。这里给渲染层一道门：`hover` 状态照记（切到工具后马上生效），但**画出来
-   * 的东西一律按「没有悬停」算**。`MapItemLayer` 的抬起与 tip 也吃的是这个空值。
+   * 空手时悬停也照常画 —— 光标框、物品抬起与名称 tip 与「已经选好工具」时一样，
+   * 玩家不必先点一个工具才能看清这一格是什么。触屏没有 hover，由
+   * `onPointerDown` 在按下那一拍补写同样的状态，于是「点一下」与「划过去」
+   * 得到的是同一组反馈。
    */
-  const hoverEnabled = !interactionLocked && mode.kind !== 'idle';
+  const hoverEnabled = !interactionLocked;
   const boardHover = hoverEnabled ? hover : null;
 
   const hoverEffects = useMemo(
@@ -1155,8 +1155,17 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               return;
             }
             if (event.button !== 0) return;
+            /*
+             * 触屏点一下不会先给一次 `pointermove`：手指按下、抬起，中间没有悬停。
+             * 按下这一拍就把悬停状态写上，于是「点一下」与「划过去」看到的是同一组
+             * 反馈 —— 光标框、物品抬起、名称 tip 都在。空手时也写，玩家不必先选工具
+             * 才知道这一格是什么。
+             */
+            const pressed = toCell(event.clientX, event.clientY);
+            setHover(pressed);
+            setHoverPoint(toCanvasPoint(event.clientX, event.clientY));
             if (mode.kind === 'idle') return;
-            const cell = toCell(event.clientX, event.clientY);
+            const cell = pressed;
             if (!cell) return;
             /**
              * v0.7.11：按住滑动连续操作。按下这一刻**不落任何东西** ——

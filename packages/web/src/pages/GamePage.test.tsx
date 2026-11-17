@@ -2072,15 +2072,14 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   });
 
   /**
-   * v0.11.2（本轮）：用户报「还没选参与者、也没选工具时，鼠标点格子照样冒出光标
-   * 框、物品抬起动效和物品名 tip」。
+   * v0.11.2（本轮）：用户要的是「**空手时点格子也要有效果**」—— 没选参与者、也没
+   * 选工具，指针划过去或按下去，同样要有光标框、物品抬起与名字 tip，玩家不必先
+   * 点一个工具才知道这一格是什么。
    *
-   * 规则是**只有选中了参与者或工具，指针扫过棋盘才有反馈**。做法是把交给渲染层
-   * 的悬停状态收在源头（`hoverEffects` 与图层拿到的 `hover` 一起按 idle 归零），
-   * 于是光标框 / 工具预览 / 物品抬起 / 名字 tip 一并消失；`onPointerMove` 仍然照
-   * 旧记坐标，所以切到工具后同一格立刻又能亮 —— 后一条用例钉的就是这件事。
+   * 触屏点一下不会先给 `pointermove`，全靠 `onPointerDown` 在按下那一拍把悬停状态
+   * 写上；后一条用例钉的就是这条通道（只派发 `pointerdown`、不派发 `pointermove`）。
    */
-  describe('v0.11.2 没选工具时格子不给悬停反馈', () => {
+  describe('v0.11.2 空手时格子照常有悬停反馈', () => {
     beforeEach(() => {
       assetsRef.data = [asset(2, '画上的船', '/uploads/boat.webp')];
       // 9×9 的正中那格放一件带图的物品，指针放到画布中心就能扫到它。
@@ -2102,6 +2101,16 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       });
     }
 
+    function pressCenter(): void {
+      act(() => {
+        container
+          .querySelector('main')
+          ?.dispatchEvent(
+            new MouseEvent('pointerdown', { bubbles: true, clientX: 450, clientY: 350 }),
+          );
+      });
+    }
+
     function openBoard(): HTMLElement {
       render();
       sizeCanvas();
@@ -2119,33 +2128,32 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         (node) => node.getAttribute('src') === '/uploads/boat.webp',
       );
 
-    it('空闲时扫过带物品的格子：没有光标框、物品不抬、也不出名字 tip', () => {
+    function expectFeedback(main: HTMLElement): void {
+      expect(main.style.cursor).toBe('pointer');
+      expect(container.querySelector('[data-testid="item-name-tip"]')).not.toBeNull();
+      expect(boatImage()?.style.transform ?? '').toContain(`translateY(-${ITEM_HOVER_LIFT_PX}px)`);
+    }
+
+    it('没选工具时扫过带物品的格子：光标框、物品抬起、名字 tip 都在', () => {
       vi.useFakeTimers();
       try {
         const main = openBoard();
         hoverCenter();
-        // tip 有一段延迟，等过它才排除「只是还没到时间」。
+        // tip 有一段延迟，等过它才说明它真的会来。
         act(() => vi.advanceTimersByTime(ITEM_NAME_TIP_DELAY_MS));
-
-        expect(main.style.cursor).not.toBe('pointer');
-        expect(container.querySelector('[data-testid="item-name-tip"]')).toBeNull();
-        expect(boatImage()?.style.transform ?? '').not.toContain(`translateY(-${ITEM_HOVER_LIFT_PX}px)`);
+        expectFeedback(main);
       } finally {
         vi.useRealTimers();
       }
     });
 
-    it('选了工具之后同一格马上有反馈（说明上一条不是把悬停整体关掉）', () => {
+    it('触屏只有按下、没有悬停：按下去那一刻同样出全部反馈', () => {
       vi.useFakeTimers();
       try {
         const main = openBoard();
-        act(() => container.querySelector<HTMLButtonElement>('button[title="标记"]')?.click());
-        hoverCenter();
+        pressCenter();
         act(() => vi.advanceTimersByTime(ITEM_NAME_TIP_DELAY_MS));
-
-        expect(main.style.cursor).toBe('pointer');
-        expect(container.querySelector('[data-testid="item-name-tip"]')).not.toBeNull();
-        expect(boatImage()?.style.transform ?? '').toContain(`translateY(-${ITEM_HOVER_LIFT_PX}px)`);
+        expectFeedback(main);
       } finally {
         vi.useRealTimers();
       }
