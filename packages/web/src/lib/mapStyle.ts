@@ -455,14 +455,22 @@ export function canvasShadowStyle(style: MapStyle, cellSize: number): CSSPropert
  * 用 4 向硬 `drop-shadow` 叠成一圈**剪影描边**：跟着物品图片的 alpha 走，透明
  * 背景的物品得到的是一圈贴着实物的边，而不是一个矩形框。宽度先按方格尺寸缩放
  * （`styleLineWidth`，与线宽同一套规矩），颜色直接用配置的 `#RRGGBB`。
+ *
+ * v0.11.2：缩放后的宽度**取整、且至少 1px**。原来直接把 `styleLineWidth` 的小数
+ * 塞进 `drop-shadow`，竖屏 7×7 时格子约 49px（`cellScale = 49/120`），作者写的 6
+ * 缩成 2.45px —— Safari 对小数偏移的离屏渲染会把这个边缘整个抹掉，于是 Chrome 有
+ * 描边、Safari 没有。取整到整数像素后各引擎算出来的都是同一条硬边；下限 1px 保证
+ * 小格子下不会缩成 0（与 `MapGameLayers.tsx` 里清除图标白描边的
+ * `Math.max(1, Math.round(cellSize * 0.02))` 同一处理方式）。
  */
 export function itemOutlineFilter(
   outline: MapStyleItemOutline,
   cellSize: number,
 ): string | undefined {
   if (!(outline.width > 0)) return undefined;
-  const px = styleLineWidth(outline.width, cellSize);
-  if (!(px > 0)) return undefined;
+  const scaled = styleLineWidth(outline.width, cellSize);
+  if (!(scaled > 0)) return undefined;
+  const px = Math.max(1, Math.round(scaled));
   const { color } = outline;
   return [
     `drop-shadow(${px}px 0 0 ${color})`,

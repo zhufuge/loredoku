@@ -177,6 +177,21 @@ describe('层 4 · 物品层 — 物品描边（v0.9.1 §5）', () => {
     const painted = container.querySelector<HTMLDivElement>('[data-color-block]');
     expect(painted?.style.filter ?? '').toContain('drop-shadow');
   });
+
+  /*
+   * v0.11.2：Safari 在元素没有自己的合成层时会整条 filter 不画。有描边时才要求
+   * 提升合成层（`will-change: filter`），没描边的物品不要白拿一层 —— 盘面上物品
+   * 多，多出来的层直接换成滚动掉帧。
+   */
+  it('有描边时把这一层提升成独立合成层', () => {
+    paint(2, { width: 4, color: '#FF0000' });
+    expect(container.querySelector('img')?.style.willChange).toBe('filter');
+  });
+
+  it('没描边时不提升合成层', () => {
+    paint(2, { width: 0, color: '#FF0000' });
+    expect(container.querySelector('img')?.style.willChange ?? '').toBe('');
+  });
 });
 
 describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () => {

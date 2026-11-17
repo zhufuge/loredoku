@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-rou
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GAME_CHECK_STEP_MS, GAME_VERDICT_HOLD_MS, UI_Z } from '@loredoku/shared';
 import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
-import type { UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing } from '@loredoku/shared';
+import type { Asset, UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { imageTintMatrix } from '@/components/common/PressRing';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
@@ -113,7 +113,26 @@ vi.mock('@/hooks/useGames', () => ({
       : { data: fixture.detail, isLoading: false, isError: false },
   useGames: () => ({ data: fixture.catalog, isLoading: false, isError: false, error: null }),
 }));
-vi.mock('@/hooks/useAssets', () => ({ useAssets: () => ({ data: [] }) }));
+const assetsRef: { data: Asset[] | null; isLoading: boolean; isError: boolean } = {
+  data: [],
+  isLoading: false,
+  isError: false,
+};
+vi.mock('@/hooks/useAssets', () => ({ useAssets: () => assetsRef }));
+
+/**
+ * v0.11.2：图片预加载由 `useImagePreload` 负责（它自己的用例在
+ * `src/hooks/useImagePreload.test.tsx`，替掉全局 `Image` 自己派发 load）。
+ * 这一层只钉「页面把这些图交给它等、等到才撤 loading」，所以换成开关，
+ * 顺手把传进去的地址记下来。
+ */
+const preloadRef: { ready: boolean; urls: string[] } = { ready: true, urls: [] };
+vi.mock('@/hooks/useImagePreload', () => ({
+  useImagePreload: (urls: string[]) => {
+    preloadRef.urls = urls;
+    return preloadRef.ready;
+  },
+}));
 vi.mock('@/hooks/useThemes', () => ({
   /**
    * v0.8.7 §4；v0.9.5 更名：标记的「跟随主题」那一档。真实 hook 返回「按编码查表」
@@ -1818,6 +1837,64 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  /** v0.11.2：loading 等「当前页资源全部加载完」才撤。 */
+  describe('v0.11.2 loading 等页面资源', () => {
+    beforeEach(() => {
+      assetsRef.isLoading = false;
+      assetsRef.data = [];
+      fixture.detailPending = false;
+      preloadRef.ready = true;
+      preloadRef.urls = [];
+    });
+
+    afterEach(() => {
+      assetsRef.isLoading = false;
+      fixture.detailPending = false;
+      preloadRef.ready = true;
+    });
+
+    const hasBoard = (): boolean => container.querySelector('main') !== null;
+
+    it('detail 还在加载：loading 先撑着，不渲染画布', () => {
+      fixture.detailPending = true;
+      render();
+      expect(hasBoard()).toBe(false);
+
+      fixture.detailPending = false;
+      render();
+      expect(hasBoard()).toBe(true);
+    });
+
+    it('detail 已到但资源表还在路上：loading 仍撑着，资源到才撤', () => {
+      assetsRef.isLoading = true;
+      render();
+      expect(hasBoard()).toBe(false);
+
+      assetsRef.isLoading = false;
+      render();
+      expect(hasBoard()).toBe(true);
+    });
+
+    it('数据都到了、图还没就绪：loading 仍撑着，图都加载完才进画布', () => {
+      preloadRef.ready = false;
+      render();
+      expect(hasBoard()).toBe(false);
+
+      preloadRef.ready = true;
+      render();
+      expect(hasBoard()).toBe(true);
+    });
+
+    it('画布上要画的图都交给预加载去等', () => {
+      fixture.theme.ring = {
+        image: { path: 'themes/1/check-ring/seal.webp' },
+      } as (typeof fixture.theme)['ring'];
+      render();
+
+      expect(preloadRef.urls).toContain('/api/files/themes/1/check-ring/seal.webp');
     });
   });
 

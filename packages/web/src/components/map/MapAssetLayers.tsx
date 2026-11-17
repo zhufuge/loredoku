@@ -246,12 +246,25 @@ export function MapItemLayer({
            * 无描边的物品在 DOM 上和一个 `filter` 都没有时完全一样。
            */
           const outlineFilter = itemOutline ? itemOutlineFilter(itemOutline, cellSize) : undefined;
+          /*
+           * v0.11.2：有描边时把这层提升成独立的合成层。
+           *
+           * Safari（含 iOS）在元素没有自己的合成层时，会**整条** filter 不画 —— 表现
+           * 就是「Chrome 有描边、Safari 没有」。`will-change: filter` 强制它先落到
+           * 一块自己的离屏缓冲里再合成，filter 链因此一定会被光栅化。
+           *
+           * 只在这一件物品真有描边时才加：没描边的物品不该为了这事白拿一块合成层
+           * （盘面上物品数量多，多出来的层会直接换成滚动时的掉帧）。
+           */
+          const outlineLayer: CSSProperties | undefined = outlineFilter
+            ? { willChange: 'filter' }
+            : undefined;
           // v0.5.1 FEAT-L01 / SPEC-L03: colour blocks render as a solid block.
           const inner = look?.bgColor ? (
             <div
               data-color-block={look.bgColor}
               className="block h-full w-full"
-              style={{ backgroundColor: look.bgColor, filter: outlineFilter }}
+              style={{ backgroundColor: look.bgColor, filter: outlineFilter, ...outlineLayer }}
             />
           ) : src ? (
             <img
@@ -266,6 +279,7 @@ export function MapItemLayer({
                 transition: `transform ${ITEM_HOVER_TRANSITION_MS}ms var(--motion-ease-out)`,
                 // v0.9.1 §5：描边跟着图片的 alpha 走。
                 filter: outlineFilter,
+                ...outlineLayer,
               }}
             />
           ) : null;

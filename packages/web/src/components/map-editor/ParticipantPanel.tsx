@@ -527,7 +527,10 @@ export function ParticipantPanel({
                   data-tint={slot && (isHovered || isSelected) ? 'on' : undefined}
                   data-link-tint={slot && isHighlighted ? 'on' : undefined}
                   style={{
-                    touchAction: 'none',
+                    // 竖屏名册（compactPortrait）里卡片不拦截触摸滚动：
+                    // touchAction: 'none' 会把手指上下划动锁在卡片上，导致整块名册划不动。
+                    // 非竖屏（编辑器等）仍保留 'none'，避免卡片被意外拖动/缩放。
+                    touchAction: compactPortrait ? 'auto' : 'none',
                     // v0.10.1 竖屏：卡片是弹性轨道里的一格，宽度交给轨道，
                     // 高度由内容（横排的头像与两行文字）决定，但不低于
                     // COMPACT_CARD_MIN_HEIGHT —— 否则短线索那张卡会比旁边矮一截。

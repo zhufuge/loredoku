@@ -197,11 +197,10 @@ export function useGameViewport({
     const portrait = isPortraitViewport(viewportWidth, viewportHeight);
     setPortraitFit(portrait);
     /*
-     * v0.10.1：竖屏用自己那一套四边留白（左右 8、上下 12），桌面那套
+     * v0.10.1：竖屏用自己那一套四边留白（四面都是 8），桌面那套
      * （`CANVAS_PADDING + EXTRA_MARGIN` = 每边 40）在 375 宽的屏上等于白扔两列半
-     * 格子。上下比左右多 4px：棋盘上边贴着标题、下边贴着题面面板，四面一样宽会
-     * 读成「两块拼在一起」；再多给也不成 —— 竖屏一屏就这么高，上下多占的每一
-     * 像素都是从下面的线索与名册里扣的。
+     * 格子。v0.11.2 起上下不再比左右多 4px —— 那条缝已经由 `PORTRAIT_STAGE_EXTRA`
+     * 撑开，再各多 4px 只是从下面的线索与名册里硬扣。
      */
     const insets = portrait
       ? portraitInsets()

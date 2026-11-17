@@ -188,12 +188,14 @@ export const PORTRAIT_MIN_CELL_SIZE = 8;
  * 左右只留 8px —— 375 宽的屏上每 8px 就是一整列格子，桌面那圈
  * `CANVAS_PADDING + EXTRA_MARGIN` 的 40px 在手机上等于白扔两列半。
  *
- * 上下留 12px，**比左右大一点**：棋盘上边贴着标题栏、下边贴着题面面板，
- * 上下完全没缝会读成「两块拼在一起」。但也不能多 —— 竖屏一屏就 812 高，
- * 上下多给的每一像素都是从「全局线索 + 参与者」那块里扣的。
+ * 上下同样 8px（v0.11.2）：原先上下留 12px，想的是「棋盘上边贴着标题栏、
+ * 下边贴着题面面板，完全没缝会读成两块拼在一起」。但竖屏一屏就 812 高，
+ * 上下多给的每一像素都是从「全局线索 + 参与者」那块里扣的 —— 而那条缝本来
+ * 已经由 `PORTRAIT_STAGE_EXTRA` 撑开了，再各多 4px 纯属浪费，还会让 7×7 的
+ * 棋盘被压到更小的格子、小倍率下描边更容易被抹掉。四面一致也更好看。
  */
 export const PORTRAIT_MARGIN_X = 8;
-export const PORTRAIT_MARGIN_Y = 12;
+export const PORTRAIT_MARGIN_Y = PORTRAIT_MARGIN_X;
 
 /**
  * v0.10.1：竖屏棋盘那一块（`<main>`）在「棋盘 + 上下留白」之外再垫多少。
@@ -204,7 +206,7 @@ export const PORTRAIT_MARGIN_Y = 12;
  */
 export const PORTRAIT_STAGE_EXTRA = 32;
 
-/** 竖屏专用的四边内边距（左右 8、上下 12，见上面的常量）。 */
+/** 竖屏专用的四边内边距（四面都是 8，见上面的常量）。 */
 export function portraitInsets(): CanvasInsets {
   return {
     top: PORTRAIT_MARGIN_Y,

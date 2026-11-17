@@ -19,6 +19,7 @@ import { MapRulerStrips } from '@/components/map/MapRulerStrips';
 import { LoadingScreen } from '@/components/common/LoredokuLoader';
 import { useHighlight } from '@/hooks/useHighlight';
 import { useGameContent } from '@/hooks/useGameContent';
+import { useImagePreload } from '@/hooks/useImagePreload';
 import { useGameViewport } from '@/hooks/useGameViewport';
 import { useGameTimer } from '@/hooks/useGameTimer';
 import { usePlacementFx } from '@/hooks/usePlacementFx';
@@ -29,6 +30,7 @@ import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
 import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
 import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
 import { readGameTimer } from '@/lib/gameTimer';
+import { boardImageUrls } from '@/lib/pageImages';
 import { canvasShadowStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import { verdictMarkScale } from '@/lib/verdictMark';
@@ -337,6 +339,24 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   useEffect(() => {
     document.title = gameQuery.data ? `${gameQuery.data.name} · 格物` : '游戏 · 格物';
   }, [gameQuery.data]);
+
+  /**
+   * v0.11.2：进这一页要等的图 —— 画布上的资源 / 角色、标记、工具图标、校验圈。
+   * 等它们**都就绪**才撤 loading，玩家看到的第一帧就是画好的盘面，不会先空一
+   * 下再一张张跳出来。
+   */
+  const pageImages = useMemo(
+    () =>
+      boardImageUrls({
+        assets: assetsQuery.data,
+        characters: charactersQuery.data,
+        mark,
+        toolIcons,
+        ringImage,
+      }),
+    [assetsQuery.data, charactersQuery.data, mark, toolIcons, ringImage],
+  );
+  const imagesReady = useImagePreload(pageImages);
 
   /** 中列（`<main>`）—— 量可见区、算坐标、挂 `ResizeObserver` 都认它。 */
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -988,7 +1008,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     resumeTimer();
   };
 
-  if (gameQuery.isLoading) {
+  const resourcesLoading =
+    gameQuery.isLoading ||
+    assetsQuery.isLoading ||
+    charactersQuery.isLoading ||
+    catalogQuery.isLoading ||
+    !imagesReady;
+
+  if (resourcesLoading) {
     return <LoadingScreen caption="正在加载游戏…" />;
   }
 

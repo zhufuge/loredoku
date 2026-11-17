@@ -333,25 +333,27 @@ describe('竖屏按宽度铺满（v0.10.1）', () => {
   });
 });
 
-describe('竖屏四边留白与棋盘高度（v0.10.1）', () => {
-  it('上下比左右宽一点，四面都很小', () => {
+describe('竖屏四边留白与棋盘高度（v0.10.1，v0.11.2 起四面一致）', () => {
+  it('四面留白一样宽，都很小', () => {
     expect(PORTRAIT_MARGIN_X).toBe(8);
-    expect(PORTRAIT_MARGIN_Y).toBe(12);
-    expect(PORTRAIT_MARGIN_Y).toBeGreaterThan(PORTRAIT_MARGIN_X);
+    // v0.11.2：上下从 12 收到与左右相同的 8。
+    expect(PORTRAIT_MARGIN_Y).toBe(PORTRAIT_MARGIN_X);
     // 比桌面那套（左右各 40）小一个量级 —— 竖屏每一像素都从棋盘里扣。
     expect(PORTRAIT_MARGIN_X).toBeLessThan(CANVAS_PADDING + EXTRA_MARGIN);
     expect(portraitInsets()).toEqual({
-      top: PORTRAIT_MARGIN_Y,
+      top: PORTRAIT_MARGIN_X,
       right: PORTRAIT_MARGIN_X,
-      bottom: PORTRAIT_MARGIN_Y,
+      bottom: PORTRAIT_MARGIN_X,
       left: PORTRAIT_MARGIN_X,
     });
   });
 
   it('棋盘高度 = 边长 + 上下留白 + 下方那一段', () => {
     expect(PORTRAIT_STAGE_EXTRA).toBe(32);
-    expect(portraitStageHeight(7, 49)).toBe(7 * 49 + 24 + 32);
-    expect(portraitStageHeight(2, 100)).toBe(224 + 32);
+    expect(portraitStageHeight(7, 49)).toBe(7 * 49 + PORTRAIT_MARGIN_Y * 2 + 32);
+    expect(portraitStageHeight(2, 100)).toBe(
+      2 * 100 + PORTRAIT_MARGIN_Y * 2 + PORTRAIT_STAGE_EXTRA,
+    );
     // 退化输入不抛 NaN，交给调用处。
     expect(portraitStageHeight(0, 0)).toBe(PORTRAIT_MARGIN_Y * 2 + PORTRAIT_STAGE_EXTRA);
   });

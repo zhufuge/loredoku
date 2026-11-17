@@ -16,6 +16,8 @@ import {
 } from './bundleLoad';
 import { readGameCompletion, type GameCompletion } from '@/lib/gameCompletion';
 import { readLastLeftAt, readLastLeftElapsed } from '@/lib/gameTimer';
+import { useImagePreload } from '@/hooks/useImagePreload';
+import { gameCoverUrls } from '@/lib/pageImages';
 import { useBundleManifest } from './PlayerBundleProvider';
 
 /**
@@ -80,6 +82,13 @@ export function PlayerHomePage(): JSX.Element {
     return map;
   }, [manifest, code]);
 
+  /**
+   * v0.11.2：与工坊那边的列表页同一条 —— 封面都预加载完才把骨架屏换成卡片。
+   * 播放器是玩家真正打开的那一页，这一帧尤其不该出现「卡片先出、封面后跳」。
+   */
+  const coversReady = useImagePreload(gameCoverUrls(games));
+  const showSkeleton = isLoading || (games.length > 0 && !coversReady);
+
   return (
     <div className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-6xl space-y-8 px-6 py-6">
@@ -101,7 +110,7 @@ export function PlayerHomePage(): JSX.Element {
           <ThemeToggle className="h-9 w-9 shrink-0" />
         </div>
 
-        {isLoading ? (
+        {showSkeleton ? (
           <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
             {Array.from({ length: 4 }).map((_, index) => (
               <Skeleton key={index} className="aspect-square w-full" />

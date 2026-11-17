@@ -9,9 +9,11 @@ import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useGames } from '@/hooks/useGames';
+import { useImagePreload } from '@/hooks/useImagePreload';
 import { useDifficultyTiersByCode } from '@/hooks/useThemes';
 import { readGameCompletion, type GameCompletion } from '@/lib/gameCompletion';
 import { readLastLeftAt, readLastLeftElapsed } from '@/lib/gameTimer';
+import { gameCoverUrls } from '@/lib/pageImages';
 import { workshopPath } from '@/lib/workspace';
 
 /**
@@ -31,6 +33,14 @@ export function GamesPage(): JSX.Element {
   const gamesQuery = useGames();
   const tiersFor = useDifficultyTiersByCode();
   const games = useMemo(() => gamesQuery.data ?? [], [gamesQuery.data]);
+
+  /**
+   * v0.11.2：loading 等「当前页资源全部加载完」才撤。列表页的资源就是每张卡的
+   * 封面图 —— 数据到齐且封面都预加载完，骨架屏才换成卡片，中间不会出现
+   * 「卡片先出、封面一张张跳出来」的那一帧。没有封面的卡视为已加载。
+   */
+  const coversReady = useImagePreload(gameCoverUrls(games));
+  const loading = gamesQuery.isLoading || (games.length > 0 && !coversReady);
 
   /**
    * v0.9.6：每一关的**最后离开时间**。它与通过记录分两条键（完成是既成事实、
@@ -64,7 +74,6 @@ export function GamesPage(): JSX.Element {
     document.title = '格物';
   }, []);
 
-  const loading = gamesQuery.isLoading;
   const error = gamesQuery.error;
 
   return (

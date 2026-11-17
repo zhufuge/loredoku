@@ -342,6 +342,30 @@ describe('item outline (v0.9.1 §5)', () => {
     expect(resolveMapStyle({ itemOutline: { width: -3, color: '#000000' } } as Partial<MapStyle>).itemOutline.width).toBe(0);
     expect(resolveMapStyle({ itemOutline: { width: 99, color: '#000000' } } as Partial<MapStyle>).itemOutline.width).toBe(12);
   });
+
+  // v0.11.2：缩放后的宽度取整、且不小于 1px —— Safari 对小数偏移的 drop-shadow
+  // 会整条不画，竖屏小格子下尤其明显。
+  it('宽度取整到整数像素，不把小数交给 drop-shadow', () => {
+    const style = resolveMapStyle({
+      itemOutline: { width: 6, color: '#000000' },
+    } as Partial<MapStyle>);
+    // 49px 的格子：6 × 49/120 = 2.45 → 2
+    const filter = itemOutlineFilter(style.itemOutline, 49);
+    expect(filter?.match(/drop-shadow/g)).toHaveLength(4);
+    expect(filter).toContain('2px');
+    expect(filter).not.toContain('2.45');
+    expect(filter).not.toMatch(/\.\d+px/);
+  });
+
+  it('小格子下宽度至少 1px，不会缩成 0 而看不见', () => {
+    const style = resolveMapStyle({
+      itemOutline: { width: 1, color: '#000000' },
+    } as Partial<MapStyle>);
+    // 8px 的格子：1 × 8/120 = 0.067，取整会是 0 —— 必须托到 1。
+    const filter = itemOutlineFilter(style.itemOutline, 8);
+    expect(filter).toContain('1px');
+    expect(filter).not.toContain('0px');
+  });
 });
 
 // ---- v0.3.9 SPEC-E01: 规范图层命名 ----

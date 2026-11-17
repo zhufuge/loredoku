@@ -76,6 +76,7 @@ describe('ParticipantPanel — 联动指向的淡金（v0.10.11）', () => {
   function render(
     highlightedSlots: Set<number>,
     highlightColors: Map<number, string>,
+    compactPortrait = false,
   ): void {
     act(() => {
       root.render(
@@ -86,6 +87,7 @@ describe('ParticipantPanel — 联动指向的淡金（v0.10.11）', () => {
           draggingIndex={null}
           highlightedSlots={highlightedSlots}
           highlightColors={highlightColors}
+          compactPortrait={compactPortrait}
         />,
       );
     });
@@ -162,5 +164,58 @@ describe('ParticipantPanel — 联动指向的淡金（v0.10.11）', () => {
 
     const tint = () => card(1).querySelector<HTMLElement>('.participant-link-tint');
     expect(tint()?.style.getPropertyValue('--link-color')).toBe('rgba(144, 202, 249, 0.16)');
+  });
+});
+
+/**
+ * v0.11.2（用户反馈）：竖屏玩家页里，名册上下划不动 —— 手指落在参与者框上时
+ * 手势被卡片吃掉了。卡片的 `touch-action: none` 是编辑器里拖拽换位要的（不能让
+ * 浏览器把拖动解释成滚动），但竖屏玩家页是只读的，那一条只剩副作用。
+ */
+describe('ParticipantPanel — 竖屏名册不拦触摸滚动（v0.11.2）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function render(compactPortrait: boolean): void {
+    act(() => {
+      root.render(
+        <ParticipantPanel
+          slots={SLOTS}
+          charactersById={new Map(CHARACTERS.map((character) => [character.id, character]))}
+          selectedSlotIndex={null}
+          draggingIndex={null}
+          compactPortrait={compactPortrait}
+        />,
+      );
+    });
+  }
+
+  function card(index: number): HTMLElement {
+    const node = container.querySelector<HTMLElement>(`[data-slot-index="${index}"]`);
+    if (!node) throw new Error(`名册第 ${index} 张卡没渲染出来`);
+    return node;
+  }
+
+  it('竖屏玩家页：卡片把手势还给浏览器，上下能划', () => {
+    render(true);
+    expect(card(0).style.touchAction).not.toBe('none');
+    expect(card(1).style.touchAction).not.toBe('none');
+  });
+
+  it('编辑器里仍然自己吃掉手势 —— 拖拽换位不能被浏览器解释成滚动', () => {
+    render(false);
+    expect(card(0).style.touchAction).toBe('none');
+    expect(card(1).style.touchAction).toBe('none');
   });
 });

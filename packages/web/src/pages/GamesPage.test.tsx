@@ -27,7 +27,21 @@ const gamesRef: { data: MapGameSummary[]; isLoading: boolean; error: null; refet
 /** `themeCode → 分级`，由各用例自己摆。 */
 const tiersByCode = new Map<string, readonly ThemeDifficultyTier[]>();
 
+/**
+ * v0.11.2：预加载由 `useImagePreload` 负责（它自己的用例在
+ * `src/hooks/useImagePreload.test.tsx`，替掉全局 `Image` 自己派发 load）。
+ * 这一层只钉「页面拿这些地址去等、等到才撤 loading」，所以把 hook 换成开关，
+ * 顺手把传进去的地址记下来。
+ */
+const preloadRef: { ready: boolean; urls: string[] } = { ready: true, urls: [] };
+
 vi.mock('@/hooks/useGames', () => ({ useGames: () => gamesRef }));
+vi.mock('@/hooks/useImagePreload', () => ({
+  useImagePreload: (urls: string[]) => {
+    preloadRef.urls = urls;
+    return preloadRef.ready;
+  },
+}));
 vi.mock('@/hooks/useThemes', () => ({
   useDifficultyTiersByCode: () => (code: string | null | undefined) =>
     code ? tiersByCode.get(code) : undefined,
@@ -323,6 +337,79 @@ describe('GamesPage', () => {
 
       expect(document.querySelector('svg.lucide-clock')).toBeNull();
       expect(document.querySelector('[data-testid="game-last-left"]')).toBeNull();
+    });
+  });
+
+  /** v0.11.2：loading 等「当前页资源全部加载完」才撤。列表页的资源是封面图。 */
+  describe('v0.11.2 loading 等封面图', () => {
+    const covers = (): number =>
+      document.querySelectorAll('[data-testid="game-cover"]').length;
+
+    beforeEach(() => {
+      gamesRef.isLoading = false;
+      gamesRef.error = null;
+      preloadRef.ready = true;
+      preloadRef.urls = [];
+      gamesRef.data = [];
+    });
+
+    afterEach(() => {
+      preloadRef.ready = true;
+    });
+
+    it('数据到了但封面还没就绪：仍是加载态，卡片不先跳出来', () => {
+      preloadRef.ready = false;
+      gamesRef.data = [
+        game({ id: 1, slug: 'cover-one', gridSize: 5, coverUrl: '/api/files/themes/1/cover-a.webp' }),
+      ];
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(covers()).toBe(0);
+
+      preloadRef.ready = true;
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(covers()).toBe(1);
+    });
+
+    it('把这一页的封面地址交给预加载去等', () => {
+      gamesRef.data = [
+        game({ id: 1, slug: 'cover-a', gridSize: 5, coverUrl: '/api/files/themes/1/cover-a.webp' }),
+        game({ id: 2, slug: 'no-cover', gridSize: 5, coverUrl: null }),
+        game({ id: 3, slug: 'cover-b', gridSize: 5, coverUrl: '/api/files/themes/1/cover-b.webp' }),
+      ];
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(preloadRef.urls).toEqual([
+        '/api/files/themes/1/cover-a.webp',
+        '/api/files/themes/1/cover-b.webp',
+      ]);
+    });
+
+    it('没有封面的关卡不拖住整页：没有图要等，数据到就出', () => {
+      gamesRef.data = [game({ id: 1, slug: 'no-cover', gridSize: 5, coverUrl: null })];
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(preloadRef.urls).toEqual([]);
+      expect(covers()).toBe(1);
+    });
+
+    it('数据本身还在路上时，光封面就绪也不算完', () => {
+      gamesRef.isLoading = true;
+      gamesRef.data = [];
+      act(() => root.unmount());
+      container.remove();
+      mount();
+
+      expect(covers()).toBe(0);
     });
   });
 
