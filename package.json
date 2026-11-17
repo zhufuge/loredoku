@@ -18,6 +18,7 @@
     "build": "npm run build --workspaces --if-present",
     "build:player": "npm run build:player --workspace @loredoku/web --",
     "preview:player": "npm run preview:player --workspace @loredoku/web --",
+    "publish:player": "node scripts/publish-player.mjs",
     "start": "npm run start --workspace @loredoku/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",

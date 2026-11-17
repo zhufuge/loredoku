@@ -114,6 +114,15 @@ export const GAME_SORT_WEIGHT_DEFAULT = 0;
 /** FEAT-G02: covers are the widest artwork in the app, so they get their own cap. */
 export const GAME_COVER_MAX_DIMENSION = 960;
 
+/**
+ * v0.11.0（docs/v0.11.0.md §3）：导出包里关卡封面的统一长边。
+ *
+ * 上传时那份 960 是**展示**用的（工坊卡片、详情页）；下载包里的封面只在播放器
+ * 列表卡片上画几百像素，搬原图进包只是让 zip 变大、多花一次流量。768 是
+ * 「列表卡片 ×2 倍屏仍够」与「体积」之间的折中，导出时从原图现转 webp。
+ */
+export const BUNDLE_COVER_MAX_DIMENSION = 768;
+
 /** FEAT-H03 / OPT-H04: map covers share the 16:10 frame with game covers. */
 export const MAP_COVER_ASPECT = 16 / 10;
 /** FEAT-H03: stored map covers are capped like game covers. */

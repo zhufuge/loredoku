@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { PassThrough, type Readable } from 'node:stream';
 import { ZipArchive } from 'archiver';
+import sharp from 'sharp';
 import {
+  BUNDLE_COVER_MAX_DIMENSION,
   BUNDLE_FORMAT_VERSION,
   GAME_TOOL_ICON_KINDS,
   GAME_TOOL_ICON_LABELS,
@@ -342,9 +344,12 @@ function toTaken(row: gameRepo.GameRowWithPuzzle): TakenGame {
 /**
  * 引用闭包 → 资源 / 角色两行。
  *
- * 为了让 `assets.json` 自带**整张形态表**（而不是只带被引用的那一个形态），
- * 未被引用的形态也在这里补发序号：播放器要画资源面板时，缺形态就等于缺选项；
- * 而且「只带被引用形态」还会撞上 `Asset.variants` 永不为空的约定。
+ * v0.11.0 改（docs/v0.11.0.md §2）：形态不再整表进包。以前给每个被引资源的**全部**
+ * 形态补发序号，理由是「播放器要画资源面板」—— 这个面板从来没做过，播放器只按
+ * 格子画图，未引用的形态于是白占体积（实测 3 张 163 KB，形态越多的主题浪费越多）。
+ * 现在只保留**被格子引用**的形态，外加每个被引资源的首形态：`Asset.variants` 永不
+ * 为空是约定（`resolveAssetVariant` 的兜底也指着它），首形态画的就是那些没写
+ * `variantId` 的格子。
  */
 async function collectSideTables(
   games: TakenGame[],
@@ -398,11 +403,13 @@ async function collectSideTables(
     }
   }
 
-  // 序号补齐：先给被引用的形态（`buildBundleIdMaps` 已经发过），再按资源序号给其余的。
+  // 序号补齐（v0.11.0 改）：被格子引用的形态 `buildBundleIdMaps` 已经发过号，
+  // 这里只给每个被引资源的**首形态**补一个 —— 没写 variantId 的格子画的就是它。
   for (const assetId of [...ids.assets.keys()]) {
     if (!assets.has(assetId)) continue;
-    for (const variant of assets.get(assetId)!.variants) {
-      if (!ids.variants.has(variant.id)) ids.variants.set(variant.id, ids.variants.size + 1);
+    const first = assets.get(assetId)!.variants[0];
+    if (first && !ids.variants.has(first.id)) {
+      ids.variants.set(first.id, ids.variants.size + 1);
     }
   }
   return { assets, characters };
@@ -429,6 +436,9 @@ async function rewriteAssets(
 
     const variants: AssetVariant[] = [];
     for (const [index, variant] of asset.variants.entries()) {
+      // v0.11.0（docs/v0.11.0.md §2）：没被任何格子引用、也不是首形态的形态不进包。
+      // `collectSideTables` 给保留集都发过号，没有号的就是被裁掉的。
+      if (!ids.variants.has(variant.id)) continue;
       const name = multiImage ? `${base}-${index + 1}` : base;
       const image = await rewriteImage(variant, name, files);
       if (variant.imagePath && !image.imageUrl) {
@@ -530,21 +540,43 @@ async function rewriteCharacters(
   return out;
 }
 
-/** 关卡封面：卡片要（§11.2），地图封面不要 —— 游戏页不显示它。 */
+/**
+ * 关卡封面：卡片要（§11.2），地图封面不要 —— 游戏页不显示它。
+ *
+ * v0.11.0 改（docs/v0.11.0.md §3）：以前搬**原图**（实测 5 张近 4 MB，占整个包的三成），
+ * 现在统一裁到 768px 长边、转 webp —— 播放器的列表卡片只有几百像素宽，原图进包
+ * 只是让 zip 变大、首屏多花一次流量。从原图现转，不用上传时那份 960 的缩略图：
+ * 那是给工坊展示用的，尺寸和这里要的不一样，二次压缩还掉画质。
+ */
 async function takeCover(
   row: gameRepo.GameRowWithPuzzle,
   index: number,
   files: FileSink,
 ): Promise<string | null> {
   if (!row.cover_path) return null;
-  return files.take(row.cover_path, `files/covers/${index}${extension(row.cover_path)}`);
+  return files.takeProcessed(row.cover_path, `files/covers/${index}.webp`, scaleBundleCover);
+}
+
+/** v0.11.0 §3：封面统一 768 / webp。`fit: 'inside'` + `withoutEnlargement` 与上传侧同一条规矩。 */
+async function scaleBundleCover(data: Buffer): Promise<Buffer> {
+  return sharp(data, { density: 96 })
+    .resize(BUNDLE_COVER_MAX_DIMENSION, BUNDLE_COVER_MAX_DIMENSION, {
+      fit: 'inside',
+      withoutEnlargement: true,
+    })
+    .webp({ quality: 80 })
+    .toBuffer();
 }
 
 /**
  * v0.8.6 §4：一关的禁止符号图进包，并把该关 JSON 里的 `path` 改写成包内相对路径
  * （与资源图同一条「包内相对地址」约定，由播放器的 `resolveFile` 拼到包根）。
  *
- * 目标文件名只用 `gameKey`：一关最多一张符号图，slug 已经唯一且只含 `[a-z0-9-]`。
+ * v0.11.0 改（docs/v0.11.0.md §1）：用主题那张兜底的关，**全都指向同一个包内地址**
+ * `files/marks/theme.webp` —— 以前每关复制一份（实测 18 关 = 18 份同字节文件），
+ * `FileSink` 本来就按目标路径去重，这里只是把名字取成同一串。自己配过的关仍是
+ * `files/marks/<slug>.webp`，两边的图本来就不一样。
+ *
  * 源文件缺失时**不改写**，只记一条 `file` 问题 —— 反正 `problems` 非空时打包会在
  * 构造下一律中止（§11.2），产出的 `path` 不会被交给任何人。
  *
@@ -562,10 +594,12 @@ async function takeMark(
    * v0.8.7 §4：自己配了用自己的，没配就用主题那张（与玩家侧同一个顺序）。
    * 只有一条出路 —— 两边都没有，这一关进包时就不带标记图，播放器画 `×`。
    */
-  const sourcePath = game.puzzle.mark?.path ?? fallback?.path;
+  const own = game.puzzle.mark?.path;
+  const sourcePath = own ?? fallback?.path;
   if (!sourcePath) return game;
 
-  const taken = await files.take(sourcePath, `files/marks/${gameKey}${extension(sourcePath)}`);
+  const target = `files/marks/${own ? gameKey : 'theme'}${extension(sourcePath)}`;
+  const taken = await files.take(sourcePath, target);
   if (!taken) {
     problems.push({
       game: game.summary.name,
@@ -583,8 +617,9 @@ async function takeMark(
  * 相对路径。解析顺序与玩家侧一致：谜题自己的 → 主题的 → （都没有就不带，播放器用
  * 内置图标）。
  *
- * 目标文件名带 `-<icon>`：一关最多三张，`<slug>-clear.webp` 这样的名字既唯一又能在
- * 解压后一眼看出是哪一枚。某一枚的源文件缺失**只跳过那一枚** —— 另外两枚照样进包，
+ * v0.11.0 改（docs/v0.11.0.md §1）：与标记图同一条规矩 —— 用主题兜底的那枚指向
+ * `files/icons/theme-<icon>.webp`，全主题只存一份；谜题自己配的仍是
+ * `<slug>-<icon>.webp`。某一枚的源文件缺失**只跳过那一枚** —— 另外两枚照样进包，
  * 打包仍会因为 `problems` 非空而中止（§11.2）。
  */
 async function takeToolIcons(
@@ -597,12 +632,11 @@ async function takeToolIcons(
   const resolved: GameToolIcons = {};
   let touched = false;
   for (const icon of GAME_TOOL_ICON_KINDS) {
-    const sourcePath = game.puzzle.toolIcons?.[icon]?.path ?? themeIcons?.[icon]?.path;
+    const own = game.puzzle.toolIcons?.[icon]?.path;
+    const sourcePath = own ?? themeIcons?.[icon]?.path;
     if (!sourcePath) continue;
-    const taken = await files.take(
-      sourcePath,
-      `files/icons/${gameKey}-${icon}${extension(sourcePath)}`,
-    );
+    const target = `files/icons/${own ? gameKey : 'theme'}-${icon}${extension(sourcePath)}`;
+    const taken = await files.take(sourcePath, target);
     if (!taken) {
       problems.push({
         game: game.summary.name,
@@ -633,6 +667,22 @@ class FileSink {
     const data = await readQuietly(resolveUploadPath(sourcePath));
     if (!data) return null;
     this.push(targetPath, data);
+    return targetPath;
+  }
+
+  /**
+   * v0.11.0（docs/v0.11.0.md §3）：读出来过一道转换再存（封面缩到 768 / 转 webp）。
+   * 去重规矩和 `take` 一样按目标路径走。
+   */
+  async takeProcessed(
+    sourcePath: string,
+    targetPath: string,
+    transform: (data: Buffer) => Promise<Buffer>,
+  ): Promise<string | null> {
+    if (this.byPath.has(targetPath)) return targetPath;
+    const data = await readQuietly(resolveUploadPath(sourcePath));
+    if (!data) return null;
+    this.push(targetPath, await transform(data));
     return targetPath;
   }
 

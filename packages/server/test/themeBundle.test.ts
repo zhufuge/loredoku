@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest';
 import { rm } from 'node:fs/promises';
+import sharp from 'sharp';
 import { ErrorCode, MAP_JSON_VERSION } from '@loredoku/shared';
 import type { MapDraft } from '@loredoku/shared';
 import { api } from './helpers';
@@ -18,8 +19,10 @@ import { resolveUploadPath } from '../src/utils/paths';
  * 2. 一关已上线就能导出，且包里的引用已经是包内序号（§11.3）；
  * 3. HTTP 层真的流出一个 zip，文件名是 `<code>-bundle-<时间>.zip`（§11.6）。
  *
- * 素材全部用**纯色块**资源与角色：没有图片文件，包的内容完全确定，也不会往
- * `storage/uploads` 里写东西。
+ * v0.11.0 的三条优化（共享主题图 / 按引用裁形态 / 封面 768 webp）各有一条用例。
+ *
+ * 大部分素材用**纯色块**资源与角色：没有图片文件，包的内容完全确定；只有形态裁剪
+ * 与封面两条用例需要真的传图（写进 `storage/uploads`，由 `symbolDirs` 兜底扫掉）。
  */
 
 /** 主题在测试里只以**编码**出现 —— 接口没有别的名字（v0.8.0 §19）。 */
@@ -266,7 +269,8 @@ describe('资源包导出（§11）', () => {
     ) as { assets: Array<{ id: number; variants: Array<{ id: number }> }> };
     expect(assets.assets).toHaveLength(1);
     expect(assets.assets[0]!.id).toBe(1);
-    // 包里带整张形态表，所以形态序号也直接从 1 起
+    // v0.11.0 §2：形态按引用裁，不再整表进包。这个夹具只有一形态且被格子引用，
+    // 所以它就是被保留的那一个，序号从 1 起。
     expect(assets.assets[0]!.variants[0]!.id).toBe(1);
 
     const level = JSON.parse(
@@ -357,10 +361,15 @@ describe('资源包导出（§11）', () => {
   /**
    * v0.8.7 §4：谜题没配标记就**跟随主题**。包里必须把它一起装上 —— 否则
    * 「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
+   *
+   * v0.11.0 §1：主题那张图只装**一份**，所有跟随的关都指向同一个包内地址
+   * `files/marks/theme.webp` —— 以前每关复制一份（实测 18 关 = 18 份同字节文件，
+   * 占 0.4 MB），`FileSink` 本来就按目标路径去重，这里只是把名字取成同一串。
    */
-  it('谜题没配 → 打包装上主题那张，关卡 JSON 里补出包内路径', async () => {
+  it('谜题没配 → 打包装上主题那张，多关共用同一份文件', async () => {
     const themeCode = await createTheme();
-    const game = await deployedGame(themeCode);
+    const first = await deployedGame(themeCode);
+    const second = await deployedGame(themeCode);
     // 关卡先建、主题后配：跟随是读取时的，不是建题那一刻的快照。
     const uploaded = await api
       .post(`/api/themes/${themeCode}/mark`)
@@ -374,14 +383,17 @@ describe('资源包导出（§11）', () => {
     const built = await bundleService.buildThemeBundle(themeCode);
 
     const symbolEntries = built.entries.filter((entry) => entry.path.startsWith('files/marks/'));
+    // 两关都跟随主题，图只有一份 —— 请求也跟着从两次合成一次。
     expect(symbolEntries).toHaveLength(1);
-    const target = `files/marks/${game.slug}.webp`;
+    const target = 'files/marks/theme.webp';
     expect(symbolEntries[0]!.path).toBe(target);
 
-    const level = JSON.parse(
-      built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
-    ) as { puzzle: { mark?: { path: string } } };
-    expect(level.puzzle.mark).toEqual({ path: target });
+    for (const game of [first, second]) {
+      const level = JSON.parse(
+        built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
+      ) as { puzzle: { mark?: { path: string } } };
+      expect(level.puzzle.mark).toEqual({ path: target });
+    }
   });
 
   /**
@@ -460,10 +472,14 @@ describe('资源包导出（§11）', () => {
   /**
    * 谜题没配就跟随主题 —— 与标记 §4 的理由一字不差：线上画主题那一套，包里
    * 若没有，同一关的按钮在两种运行环境里长得不一样。
+   *
+   * v0.11.0 §1：与标记同一条规矩 —— 主题的图只装一份，路径是
+   * `files/icons/theme-<icon>.webp`，所有跟随的关共用。
    */
-  it('谜题没配工具图标 → 打包装上主题那三枚', async () => {
+  it('谜题没配工具图标 → 打包装上主题那三枚，多关共用一份', async () => {
     const themeCode = await createTheme();
-    const game = await deployedGame(themeCode);
+    const first = await deployedGame(themeCode);
+    const second = await deployedGame(themeCode);
     const row = (await db('themes').where({ code: themeCode }).first('id')) as
       | { id: string | number }
       | undefined;
@@ -477,14 +493,24 @@ describe('资源包导出（§11）', () => {
 
     const built = await bundleService.buildThemeBundle(themeCode);
 
-    const level = JSON.parse(
-      built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
-    ) as { puzzle: { toolIcons?: Record<string, { path: string }> } };
-    expect(level.puzzle.toolIcons).toEqual({
-      clear: { path: `files/icons/${game.slug}-clear.webp` },
-      undo: { path: `files/icons/${game.slug}-undo.webp` },
-      submit: { path: `files/icons/${game.slug}-submit.webp` },
-    });
+    // 三枚图标各一份，不因为「两关都跟随」就变成六份。
+    const entries = built.entries.filter((entry) => entry.path.startsWith('files/icons/'));
+    expect(entries.map((entry) => entry.path).sort()).toEqual([
+      'files/icons/theme-clear.webp',
+      'files/icons/theme-submit.webp',
+      'files/icons/theme-undo.webp',
+    ]);
+
+    for (const game of [first, second]) {
+      const level = JSON.parse(
+        built.entries.find((entry) => entry.path === `puzzles/${game.slug}.json`)!.data.toString('utf8'),
+      ) as { puzzle: { toolIcons?: Record<string, { path: string }> } };
+      expect(level.puzzle.toolIcons).toEqual({
+        clear: { path: 'files/icons/theme-clear.webp' },
+        undo: { path: 'files/icons/theme-undo.webp' },
+        submit: { path: 'files/icons/theme-submit.webp' },
+      });
+    }
   });
 
   /** 某一枚的源文件不在了 → 只跳过那一枚，但 `problems` 非空，打包照样中止。 */
@@ -511,6 +537,80 @@ describe('资源包导出（§11）', () => {
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect(res.body.data).toMatchObject({ kind: 'bundle-incomplete' });
+  });
+
+  /**
+   * v0.11.0 §2：形态按引用裁。以前给每个被引资源的**全部**形态发号进包，理由是
+   * 「播放器要画资源面板」—— 那个面板从来没做过（播放器只按格子画图），未引用的
+   * 形态只是白占体积。现在只留被格子引用的形态，外加每个被引资源的首形态
+   * （`resolveAssetVariant` 的兜底指着它，`Asset.variants` 也不能为空）。
+   */
+  it('资源的第二形态没被任何格子引用 → 形态和图都不进包', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode);
+    // 夹具里两个格子引用的都是**首**形态；再加一个第二形态，它哪都不被引用。
+    const created = await api
+      .post(`/api/assets/${game.assetId}/variants`)
+      .send({ name: '第二形态' });
+    expect(created.status).toBe(200);
+    const secondId = created.body.data.id as number;
+    // 两形态各传一张图：文件名才会带 -1 / -2 后缀，砍掉第二张才有断言可下。
+    for (const variantId of [game.variantId, secondId]) {
+      const uploaded = await api
+        .post(`/api/assets/${game.assetId}/variants/${variantId}/image`)
+        .attach('file', TINY_PNG, `${variantId}.png`);
+      expect(uploaded.status).toBe(200);
+    }
+    symbolDirs.push(resolveUploadPath(`assets/${game.assetId}/variants`));
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    const assets = JSON.parse(
+      built.entries.find((entry) => entry.path === 'assets.json')!.data.toString('utf8'),
+    ) as { assets: Array<{ variants: Array<{ id: number }> }> };
+    expect(assets.assets[0]!.variants).toHaveLength(1);
+    // 保留的是被引用的首形态（重编号后仍是 1）。
+    expect(assets.assets[0]!.variants[0]!.id).toBe(1);
+
+    // 图也一样：只有 -1 那一份，-2 不在包里。
+    const imageEntries = built.entries.filter((entry) => entry.path.startsWith('files/assets/'));
+    expect(imageEntries).toHaveLength(1);
+    expect(imageEntries[0]!.path).toMatch(/-1\.webp$/);
+  });
+
+  /**
+   * v0.11.0 §3：封面统一裁到 768px 长边、转 webp。以前搬**原图**（实测 5 张近 4 MB，
+   * 占整个包的三成），播放器的列表卡片只有几百像素宽，原图进包只是让 zip 变大、
+   * 首屏多花一次流量。
+   */
+  it('关卡封面进包：统一 768px webp，不再搬原图', async () => {
+    const themeCode = await createTheme();
+    const game = await deployedGame(themeCode);
+    const row = (await db('games').where({ slug: game.slug }).first('id')) as
+      | { id: string | number }
+      | undefined;
+    const gameId = Number(row!.id);
+    // 900×600 —— 比新上限宽，才能验出「真的裁了」。
+    const wide = await sharp({
+      create: { width: 900, height: 600, channels: 4, background: '#8C7B6B' },
+    })
+      .png()
+      .toBuffer();
+    const uploaded = await api.post(`/api/games/${gameId}/cover`).attach('file', wide, 'cover.png');
+    expect(uploaded.status).toBe(200);
+    symbolDirs.push(resolveUploadPath(`games/${gameId}`));
+
+    const built = await bundleService.buildThemeBundle(themeCode);
+
+    // manifest 指的是裁过的那个包内地址。
+    expect(built.manifest.games[0]!.cover).toBe('files/covers/1.webp');
+    const entry = built.entries.find((item) => item.path === 'files/covers/1.webp');
+    expect(entry).toBeTruthy();
+    const meta = await sharp(entry!.data).metadata();
+    expect(meta.format).toBe('webp');
+    // `fit: 'inside'`：900×600 → 768×512，画幅不裁、不放大。
+    expect(meta.width).toBe(768);
+    expect(meta.height).toBe(512);
   });
 
   it('HTTP 层流出的是 zip，文件名带主题 code', async () => {
