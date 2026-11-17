@@ -72,11 +72,28 @@ export function useGameViewport({
   gridSize,
   style,
   showRulers,
+  ready,
 }: {
   containerRef: MutableRefObject<HTMLDivElement | null>;
   gridSize: number;
   style: MapStyle;
   showRulers: boolean;
+  /**
+   * v0.11.2：中列（`<main>`）**这一拍是不是真的挂在文档里**。
+   *
+   * 为什么不能只看 `containerRef.current`：进游戏页时，页面在 loading 期间整个
+   * `<main>` 都不渲染（数据 / 图片没齐就先给 loading），而「挂载」只发生一次 ——
+   * 主 effect 若只依赖 `containerRef` 这个**引用稳定的**对象，它会在 `<main>` 还
+   * 不存在的那一拍跑完并 `return`（`if (!node) return`），之后 `<main>` 长出来
+   * 也没有任何依赖变化把它叫醒：`fit()` 一次都没跑过，格子停在 `DEFAULT_CELL_SIZE`
+   * 的 32、`pan` 停在 `{0, 0}`，棋盘就小小地贴在左上角（用户报的「地图缩小在左
+   * 上方」）。
+   *
+   * 所以要由**页面**告诉它「可以量了」：这个标志从 `false` 翻到 `true` 的那一拍，
+   * 主 effect 重新跑一次，`fit()` 拿真实矩形算格子与居中偏移，ResizeObserver 也
+   * 才真正挂上。
+   */
+  ready: boolean;
 }): GameViewport {
   /**
    * v0.10.1：当前是不是「竖屏窄屏」—— 棋盘按宽度铺满、视图簇收起。
@@ -221,6 +238,11 @@ export function useGameViewport({
   const fitRef = useRef(fit);
   fitRef.current = fit;
 
+  /*
+   * v0.11.2：`ready` 为什么必须在依赖里，见它上面的入参注释 —— 一句话：loading
+   * 期间 `<main>` 不存在，这一拍 `apply()` 与 `observer.observe()` 全没跑，只有
+   * `ready` 翻成 `true` 才能把它们补上。
+   */
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
@@ -242,7 +264,7 @@ export function useGameViewport({
     const observer = new ResizeObserver(apply);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [containerRef, gridSize]);
+  }, [containerRef, gridSize, ready]);
 
   /** 标尺开关一变就要重排（标尺条带占了四边留白）。落盘在页面那一侧。 */
   useEffect(() => {

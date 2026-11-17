@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GAME_CHECK_STEP_MS, GAME_VERDICT_HOLD_MS, UI_Z } from '@loredoku/shared';
+import { GAME_CHECK_STEP_MS, GAME_VERDICT_HOLD_MS, UI_Z, DEFAULT_CELL_SIZE } from '@loredoku/shared';
 import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
 import type { Asset, UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
@@ -1895,6 +1895,122 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       render();
 
       expect(preloadRef.urls).toContain('/api/files/themes/1/check-ring/seal.webp');
+    });
+  });
+
+  /**
+   * v0.11.2（本轮）：用户报「`/play/:puzzle-name` 的地图缩小在左上方」。
+   *
+   * 成因不是算错，而是**算的时机早了一拍**：进页面时数据 / 图片还没齐，整页先给
+   * loading，`<main>` 根本不渲染；而视口那条挂载 effect 只在 `containerRef`（引用
+   * 稳定）与 `gridSize` 变化时跑 —— 它跑的那一拍 `containerRef.current` 还是
+   * `null`，`fit()` 与 `ResizeObserver` 全都没落地。等 loading 撤掉、`<main>` 长
+   * 出来时没有任何依赖变化把它叫醒，格子就停在 `DEFAULT_CELL_SIZE`、`pan` 停在
+   * `{0, 0}`，棋盘小小地贴在左上角。
+   *
+   * 这三条用例钉「loading → 就绪」这条路真的把视口接上了：观察者挂到了真实的
+   * `<main>` 上，并且拿到尺寸后重排出了「按可用区铺满 + 居中」的格子与偏移。
+   */
+  describe('v0.11.2 loading 结束后的视口自适应', () => {
+    let observed: Element[] = [];
+    let callbacks: ResizeObserverCallback[] = [];
+
+    beforeEach(() => {
+      observed = [];
+      callbacks = [];
+      assetsRef.isLoading = false;
+      assetsRef.data = [];
+      fixture.detailPending = false;
+      preloadRef.ready = true;
+      // 记下「观察了谁」「回调是什么」，好在拿到真实尺寸后手动触发一次重排。
+      vi.stubGlobal(
+        'ResizeObserver',
+        class {
+          private readonly callback: ResizeObserverCallback;
+          constructor(callback: ResizeObserverCallback) {
+            this.callback = callback;
+            callbacks.push(callback);
+          }
+          observe(target: Element): void {
+            observed.push(target);
+          }
+          unobserve(): void {}
+          disconnect(): void {}
+        },
+      );
+    });
+
+    afterEach(() => {
+      assetsRef.isLoading = false;
+      fixture.detailPending = false;
+      preloadRef.ready = true;
+    });
+
+    /** 画布纸（`total × total` 那张，带平移缩放）。 */
+    function canvas(): HTMLElement | null {
+      return container.querySelector<HTMLElement>('[data-testid="game-canvas"]');
+    }
+
+    it('loading 期间没有画布，也就没东西可量', () => {
+      fixture.detailPending = true;
+      render();
+
+      expect(container.querySelector('main')).toBeNull();
+      expect(observed).toHaveLength(0);
+    });
+
+    it('loading 撤掉后观察者挂到了真实的 <main> 上', () => {
+      fixture.detailPending = true;
+      render();
+      expect(observed).toHaveLength(0);
+
+      fixture.detailPending = false;
+      render();
+
+      const main = container.querySelector('main');
+      expect(main).not.toBeNull();
+      expect(observed).toContain(main);
+    });
+
+    it('拿到尺寸后按可用区铺满并居中，不留在左上角', () => {
+      /*
+       * 关键在于**先后顺序**，不是「一起就绪」：
+       *   ① 关卡 JSON 还在路上 → gridSize 0、没有 `<main>`；
+       *   ② JSON 到了（gridSize 0 → 9），但资源表还在路上 → 仍然没有 `<main>`；
+       *   ③ 资源表到了 → `<main>` 出现，而此时 gridSize 没有变化。
+       *
+       * ② 那一拍会让只看 `gridSize` 的实现跑一次空转（容器还是 `null`），③ 又
+       * 没有任何依赖变化 —— 视口永远不重排。三拍都要真的渲染一遍才算还原现场。
+       */
+      assetsRef.isLoading = true;
+      fixture.detailPending = true;
+      render();
+      expect(container.querySelector('main')).toBeNull();
+
+      // ② JSON 到、资源表没到：gridSize 变了，但画布还没资格出现。
+      fixture.detailPending = false;
+      render();
+      expect(container.querySelector('main')).toBeNull();
+
+      // ③ 资源表到：画布出现，gridSize 没有变化。
+      assetsRef.isLoading = false;
+      render();
+      // 真浏览器里元素一进文档就有尺寸；这里补上，再像 ResizeObserver 那样通知一次。
+      sizeCanvas();
+      act(() => {
+        for (const callback of callbacks) {
+          callback([], {} as ResizeObserver);
+        }
+      });
+
+      const paper = canvas();
+      expect(paper).not.toBeNull();
+      const width = Number.parseFloat(paper?.style.width ?? '0');
+      // 自适应算出来的格子不可能还是「没量过」的那个初值。
+      expect(width).not.toBe(fixture.detail.gridSize * DEFAULT_CELL_SIZE);
+      expect(width).toBeGreaterThan(fixture.detail.gridSize * DEFAULT_CELL_SIZE);
+      // 居中意味着有偏移；`0, 0` 正是「贴在左上角」的形态。
+      expect(paper?.style.transform).not.toContain('translate(0px, 0px)');
     });
   });
 

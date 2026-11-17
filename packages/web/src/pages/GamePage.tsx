@@ -358,12 +358,30 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   );
   const imagesReady = useImagePreload(pageImages);
 
+  /**
+   * v0.11.2：这一页要的东西齐了没有 —— 关卡的 JSON、资源表、角色表、清单，以及
+   * 画布上要画的那些图。没齐就先给 loading，不渲染半张盘面。
+   *
+   * 它同时是「`<main>` 挂上了没有」的信号：`useGameViewport` 要靠它才知道什么
+   * 时候能量（见那里的 `ready` 注释）。所以这份判定算在视口调用**之前**。
+   */
+  const resourcesLoading =
+    gameQuery.isLoading ||
+    assetsQuery.isLoading ||
+    charactersQuery.isLoading ||
+    catalogQuery.isLoading ||
+    !imagesReady;
+
   /** 中列（`<main>`）—— 量可见区、算坐标、挂 `ResizeObserver` 都认它。 */
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   /**
    * v0.10.4：视口（格子大小 / 缩放 / 平移 / 竖屏 / 可见区）交给 `useGameViewport`。
    * 它不读任何一局的状态 —— 只认 `gridSize`、地图样式与标尺开关。
+   *
+   * v0.11.2：`ready` 传「资源齐了、`<main>` 这一拍存在」，否则 loading 期间那次
+   * 挂载会白跑（容器还是 `null`），棋盘事后不会自己重排 —— 用户报的「地图缩小在
+   * 左上方」就是这么来的。
    */
   const {
     cellSize,
@@ -381,7 +399,13 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     toCanvasPoint,
     userAdjustedRef,
     stageHeight,
-  } = useGameViewport({ containerRef, gridSize, style, showRulers });
+  } = useGameViewport({
+    containerRef,
+    gridSize,
+    style,
+    showRulers,
+    ready: !resourcesLoading,
+  });
 
   /*
    * v0.10.0：手机上棋盘只有 236 见方，而「定案」遮罩那套版式（128px 的两个字）
@@ -1007,13 +1031,6 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setCheckRun(null);
     resumeTimer();
   };
-
-  const resourcesLoading =
-    gameQuery.isLoading ||
-    assetsQuery.isLoading ||
-    charactersQuery.isLoading ||
-    catalogQuery.isLoading ||
-    !imagesReady;
 
   if (resourcesLoading) {
     return <LoadingScreen caption="正在加载游戏…" />;
