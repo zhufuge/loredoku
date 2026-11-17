@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
@@ -48,8 +48,11 @@ export function VerdictStamp({
   /**
    * v0.11.3：调用方按比例算好的边长（`width` / `height`）。与 `translate`
    * 合到同一个 `style` 里 —— 两处都写 `style` 会互相覆盖，只有一个生效。
+   *
+   * 也可以放别的声明（`position` / `left` / `top`）：遮罩上那一档现在是
+   * **绝对定位挂在字列右缘外**，见 `VerdictMark` 的 `hangStamp`。
    */
-  style?: { width: string; height: string };
+  style?: CSSProperties;
 }): JSX.Element | null {
   /**
    * 地址可能已经不在了：作者换过那枚图、包重新导出过（`files/icons/` 里的文件名
@@ -113,7 +116,6 @@ export function VerdictMark({
   large = false,
   onDark = false,
   stampOffset,
-  shift,
   scale = 1,
   className,
 }: {
@@ -147,18 +149,6 @@ export function VerdictMark({
    * `translate` 与 `transform` 正交，两者叠加。
    */
   stampOffset?: { x: number; y: number };
-  /**
-   * v0.10.2：把**整块**（字 + 印）一起推移，如 `{ x: 40 }`（px）—— 用户
-   * 「排版整体再靠右一些」。与 `stampOffset` 分开：那个只挪印、字不动，
-   * 这个是字与印的相对位置不变、整体平移。
-   *
-   * 同样走 `translate` 属性：外层还有字号缩放（内联 `style`），两者互不干扰；
-   * 而 `transform` 会被印的 `stamp-press` 关键帧那条占着。
-   *
-   * v0.11.3：位移也跟着比例走 —— 传进来的 px 是「按 1 倍字号算的」，这里乘上
-   * 比例再落到 `translate`，否则缩小之后同样的 72px 会把印推出字列外。
-   */
-  shift?: { x: number; y?: number };
   className?: string;
 }): JSX.Element {
   /*
@@ -169,24 +159,39 @@ export function VerdictMark({
   /*
    * v0.11.3：字号即比例。基准字号写在**容器**上（原来挂在字 `<span>` 上的
    * `text-9xl` / `text-7xl` 分别是 8rem / 4.5rem），容器里所有尺寸都用 em ——
-   * 字的 `tracking`、印的左压量、印的边长因此一起缩，不必逐个乘比例。
+   * 字的 `tracking`、印的边长因此一起缩，不必逐个乘比例。
    */
   const baseRem = large ? 8 : 4.5;
-  const shiftX = `${(shift?.x ?? 0) * ratio}px`;
-  const shiftY = `${(shift?.y ?? 0) * ratio}px`;
+  /*
+   * v0.11.3（补）：**印章不再参与横向排版**。
+   *
+   * 起因：v0.10.2 的 `-ml-[0.55em]` 写在印章上，`em` 解析的是**继承来的字号**。
+   * v0.11.3 之前容器的字号是浏览器默认的 16px，`0.55em` 就是 8.8px（一点点叠压）；
+   * v0.11.3 把字号提到容器上之后同一个 `0.55em` 变成 70.4px，印章被往左拉了 62px，
+   * 整行跟着变窄，`justify-center` 于是把这一行**往右推** —— 用户看到的「定案两字
+   * 没有居中」（实测字心在遮罩中心右侧 26px，印章右缘顶到遮罩边）。
+   *
+   * 所以大字档改成：字列自己居中（印章绝对定位挂在字列右缘外，不占行宽），
+   * 叠压量按 v0.11.2 在浏览器里**实际渲染的 8.8px** 重新落成 px。这样「定案」在
+   * 遮罩里真正居中，印仍压住字列右缘、整块相对位置与 v0.11.2 一致。
+   *
+   * 卡片档（`large === false`）仍走行内叠压：那一档要跟封面同宽同高、撑满
+   * 封面（`className="h-full w-full"`），绝对定位反而会把它顶出封面。
+   */
+  const overlap = 0.55 * 16 * ratio;
+  const stampSide = (large ? 12 : 6) * ratio;
+  const offsetX = (stampOffset?.x ?? 0) * ratio;
+  const offsetY = (stampOffset?.y ?? 0) * ratio;
 
   return (
     <div
       data-testid="verdict-mark"
       /*
        * v0.10.2：由「竖着摞两块」改成「横着排两块」—— 左边是一列竖写的字，
-       * 右边是印。`items-center` 让印在字列里纵向居中，横向靠负 margin 压过去。
+       * 右边是印。
        */
       className={cn('relative flex items-center justify-center', className)}
-      style={{
-        fontSize: `${baseRem * ratio}rem`,
-        ...(shift ? { translate: `${shiftX} ${shiftY}` } : null),
-      }}
+      style={{ fontSize: `${baseRem * ratio}rem` }}
     >
       <span
         className={cn(
@@ -242,26 +247,62 @@ export function VerdictMark({
         stampUrl={stampUrl}
         animate={animate}
         offset={
-          stampOffset ? { x: stampOffset.x * ratio, y: stampOffset.y * ratio } : undefined
+          large
+            ? undefined
+            : stampOffset
+              ? { x: stampOffset.x * ratio, y: stampOffset.y * ratio }
+              : undefined
         }
         /*
-         * `z-10` 压在字之上，`-ml-[0.55em]` 往左压住字列的右缘（v0.9.7 第六批
-         * 定的是 0.35em → 0.55em；v0.10.2 字改成竖排之后，压的轴从「上提」换成
-         * 「左压」，量沿用同一个 em，两档字号仍然同比例叠压）。没有配图时
-         * 这个元素不渲染，文字自己居中，不会留下一段空白。
+         * 卡片档（`large === false`）：`z-10` 压在字之上，`-ml-[0.55em]` 往左压住
+         * 字列的右缘（v0.9.7 第六批定的是 0.35em → 0.55em；v0.10.2 字改成竖排之后，
+         * 压的轴从「上提」换成「左压」，量沿用同一个 em）。这一档的字号没变过
+         * （仍是 `text-7xl` 那 4.5rem 由容器给），`em` 的解析结果与 v0.11.2 一致，
+         * 所以照旧走行内叠压 —— 它要跟封面同宽同高撑满封面，脱离文档流会顶出去。
+         *
+         * 大字档（`large`）：**脱离文档流**，挂在字列右缘外（见下面 `style`）。
+         * 这样行里只剩字列一个，`justify-center` 才真的是「字居中」。
          */
         className={cn(
-          'relative z-10 -ml-[0.55em] max-h-[52%] max-w-[52%]',
+          'z-10 max-h-[52%] max-w-[52%]',
+          large
+            ? 'absolute left-full top-1/2'
+            : 'relative -ml-[0.55em]',
         )}
         /*
          * v0.11.3：边长跟着比例走。原来是 `h-48 w-48` / `h-24 w-24`（12rem / 6rem），
          * 那是**固定 rem**，`zoom` 撤掉之后必须自己乘比例，否则手机上印比字还大。
          * 用 rem 而不是 em：em 会叠到字自己的字号上（`font-size` 一改就双重缩放）。
          */
-        style={{
-          width: `${(large ? 12 : 6) * ratio}rem`,
-          height: `${(large ? 12 : 6) * ratio}rem`,
-        }}
+        style={
+          large
+            ? {
+                /*
+                 * 大字档的印宽用 `em` 而不是 rem：`em` 跟着容器字号走，
+                 * 字号本来就是比例，所以不必再乘一次 `ratio`。
+                 *
+                 * 1.1em 是「比字列窄一点」的尺寸。v0.11.2 那个 12rem 正好是
+                 * 1.5em —— 那时印在行内、行宽因此撑大，整行被 `justify-center`
+                 * 往右推；现在印挂在字列外面，1.5em 在 390px 宽的遮罩里会溢出去
+                 * 五十多像素，收到 1.1em 两档才都留在遮罩里。
+                 */
+                width: '1.1em',
+                height: '1.1em',
+                /* 百分比夹取会按「字列」算，印会被夹成一小块 —— 尺寸已经算好，
+                   这里不要那两道夹取。 */
+                maxWidth: 'none',
+                maxHeight: 'none',
+                /*
+                 * `left-full` 把印的左缘放在字列右缘上，然后：
+                 * - 往左咬 `overlap`（v0.11.2 在浏览器里实际渲染的 8.8px，
+                 *   那时 `0.55em` 解析的是浏览器默认的 16px）—— 压住字列右缘一点；
+                 * - 再让开 8% 印宽（`-8%` 是相对印自己的宽度，与字号的换算无关，
+                 *   所以两档的观感一致）—— 只咬住字列右缘，不糊到「案」字身上。
+                 */
+                translate: `calc(-8% + ${offsetX - overlap}px) calc(-50% + ${offsetY}px)`,
+              }
+            : { width: `${stampSide}rem`, height: `${stampSide}rem` }
+        }
       />
     </div>
   );
