@@ -94,9 +94,9 @@ export function PlayerHomePage(): JSX.Element {
       <div className="mx-auto w-full max-w-6xl space-y-8 px-6 py-6">
         <div className="flex items-end justify-between gap-4">
           <div className="min-w-0 space-y-2">
-            <BrandLogo height={16} />
+            <BrandLogo height={16} withWordmark />
             <h1 className="truncate font-kai text-2xl leading-tight">
-              {(manifest?.theme.name ?? '主题') + ' · 格物'}
+              {manifest?.theme.name ?? '主题'}
             </h1>
             {manifest?.theme.description ? (
               <p className="max-w-2xl text-sm text-muted-foreground">

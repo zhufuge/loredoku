@@ -341,20 +341,25 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   }, [gameQuery.data]);
 
   /**
-   * v0.11.2：进这一页要等的图 —— 画布上的资源 / 角色、标记、工具图标、校验圈。
-   * 等它们**都就绪**才撤 loading，玩家看到的第一帧就是画好的盘面，不会先空一
-   * 下再一张张跳出来。
+   * v0.11.2：进这一页要等的图 —— 画布上这一关**用到的**资源、名册里**坐着的**
+   * 角色、标记、工具图标、校验圈。等它们都就绪才撤 loading，玩家看到的第一帧
+   * 就是画好的盘面，不会先空一下再一张张跳出来。
+   *
+   * 注意不是「整张资源表」：资源与角色表是全主题共用的，别关用过的图没有理由
+   * 拖住这一页（用户明确要求「当前页面用到的」）。
    */
   const pageImages = useMemo(
     () =>
       boardImageUrls({
-        assets: assetsQuery.data,
-        characters: charactersQuery.data,
+        cells,
+        assetsById,
+        slots,
+        charactersById,
         mark,
         toolIcons,
         ringImage,
       }),
-    [assetsQuery.data, charactersQuery.data, mark, toolIcons, ringImage],
+    [cells, assetsById, slots, charactersById, mark, toolIcons, ringImage],
   );
   const imagesReady = useImagePreload(pageImages);
 
@@ -494,6 +499,18 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   // ---- OPT-901 §1.2.5 / OPT-902 §2.1~2.4 (shared with the preview) ----
   const blockingCells = useMemo(() => collectBlockingCells(cells, assetsById), [cells, assetsById]);
   const itemCells = useMemo(() => collectItemCells(cells), [cells]);
+
+  /**
+   * v0.11.2：**没拿任何工具时，指针不点亮棋盘**。
+   *
+   * 之前只有 `onPointerDown` 在 idle 下提前返回（不落笔），可 `onPointerMove` 照旧写
+   * `hover`，于是空手划过格子也会冒出光标框、物品抬起与名称 tip —— 看着像已经选好了
+   * 东西要放。这里给渲染层一道门：`hover` 状态照记（切到工具后马上生效），但**画出来
+   * 的东西一律按「没有悬停」算**。`MapItemLayer` 的抬起与 tip 也吃的是这个空值。
+   */
+  const hoverEnabled = !interactionLocked && mode.kind !== 'idle';
+  const boardHover = hoverEnabled ? hover : null;
+
   const hoverEffects = useMemo(
     () =>
       resolveHoverEffects({
@@ -505,13 +522,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
          * `setHover` 照样写状态，光标框 / 物品抬起 / 区域高亮就会隔着遮罩亮起来。
          * 这里从源头给 `resolveHoverEffects` 一个 `hover: null`，让三样效果一起
          * 归零 —— 不管冒泡把状态写成什么，画出来的都是 `NO_HOVER_EFFECTS`。
+         *
+         * v0.11.2：同一个口子也用来挡「空手悬停」，见上面 `hoverEnabled`。
          */
-        hover: interactionLocked ? null : hover,
+        hover: hoverEnabled ? hover : null,
         blockingCells,
         itemCells,
         regions,
       }),
-    [hover, interactionLocked, blockingCells, itemCells, regions],
+    [hover, hoverEnabled, blockingCells, itemCells, regions],
   );
   const hoveredRegionId = labelRegionId ?? hoverEffects.regionId;
   const hoveredRegion = hoveredRegionId
@@ -1340,8 +1359,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               hoveredRegionId={hoveredRegionId}
               hoveredRegion={hoveredRegion}
               maskCells={maskCells}
-              hover={hover}
-              hoverPoint={hoverPoint}
+              hover={boardHover}
+              hoverPoint={hoverEnabled ? hoverPoint : null}
               hoverEffects={hoverEffects}
               toolHint={toolHint}
               mark={mark}
@@ -1375,7 +1394,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               total={total}
               style={style}
               themeCode={detail?.themeCode}
-              hover={interactionLocked ? null : hover}
+              hover={boardHover}
             />
           ) : null}
         </main>

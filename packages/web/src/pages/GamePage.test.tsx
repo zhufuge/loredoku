@@ -2,7 +2,14 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GAME_CHECK_STEP_MS, GAME_VERDICT_HOLD_MS, UI_Z, DEFAULT_CELL_SIZE } from '@loredoku/shared';
+import {
+  GAME_CHECK_STEP_MS,
+  GAME_VERDICT_HOLD_MS,
+  UI_Z,
+  DEFAULT_CELL_SIZE,
+  ITEM_HOVER_LIFT_PX,
+  ITEM_NAME_TIP_DELAY_MS,
+} from '@loredoku/shared';
 import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
 import type { Asset, UploadedImage, GameToolIcons, ThemeCheckColors, ThemeRing } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
@@ -119,6 +126,35 @@ const assetsRef: { data: Asset[] | null; isLoading: boolean; isError: boolean } 
   isError: false,
 };
 vi.mock('@/hooks/useAssets', () => ({ useAssets: () => assetsRef }));
+
+/** 一件带一张图的物品资源 —— 只填这一页会读到的那几个字段。 */
+function asset(id: number, name: string, imageUrl: string | null): Asset {
+  return {
+    id,
+    code: `asset_${id}`,
+    name,
+    type: 'item',
+    blocking: false,
+    isActive: true,
+    variants: [
+      {
+        id: id * 10,
+        assetId: id,
+        name: `${name}的形态`,
+        sortOrder: 0,
+        fitMode: 'contain',
+        imagePath: null,
+        imageUrl,
+        imageThumbUrl: imageUrl,
+        bgColor: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+    ],
+    createdAt: '2026-01-01T00:00:00.000Z',
+    updatedAt: '2026-01-01T00:00:00.000Z',
+  };
+}
 
 /**
  * v0.11.2：图片预加载由 `useImagePreload` 负责（它自己的用例在
@@ -1846,12 +1882,15 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       assetsRef.isLoading = false;
       assetsRef.data = [];
       fixture.detailPending = false;
+      fixture.detail.map.cells = {};
       preloadRef.ready = true;
       preloadRef.urls = [];
     });
 
     afterEach(() => {
       assetsRef.isLoading = false;
+      assetsRef.data = [];
+      fixture.detail.map.cells = {};
       fixture.detailPending = false;
       preloadRef.ready = true;
     });
@@ -1895,6 +1934,24 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       render();
 
       expect(preloadRef.urls).toContain('/api/files/themes/1/check-ring/seal.webp');
+    });
+
+    /**
+     * 用户口径是「**当前页面用到的**全部资源」，不是整张资源表。
+     *
+     * 资源表里躺着这一关没用到的几百张图时，等它们等于白等 —— 玩家盯着
+     * loading，等的却是别关的素材。
+     */
+    it('只等这一关用到的资源，没用到的图案不拖住 loading', () => {
+      assetsRef.data = [
+        asset(2, '画上的船', '/uploads/used.webp'),
+        asset(3, '别关的树', '/uploads/unused.webp'),
+      ];
+      fixture.detail.map.cells = { '0,0': { item: { assetId: 2, w: 1, h: 1 } } };
+      render();
+
+      expect(preloadRef.urls).toContain('/uploads/used.webp');
+      expect(preloadRef.urls).not.toContain('/uploads/unused.webp');
     });
   });
 
@@ -2011,6 +2068,87 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(width).toBeGreaterThan(fixture.detail.gridSize * DEFAULT_CELL_SIZE);
       // 居中意味着有偏移；`0, 0` 正是「贴在左上角」的形态。
       expect(paper?.style.transform).not.toContain('translate(0px, 0px)');
+    });
+  });
+
+  /**
+   * v0.11.2（本轮）：用户报「还没选参与者、也没选工具时，鼠标点格子照样冒出光标
+   * 框、物品抬起动效和物品名 tip」。
+   *
+   * 规则是**只有选中了参与者或工具，指针扫过棋盘才有反馈**。做法是把交给渲染层
+   * 的悬停状态收在源头（`hoverEffects` 与图层拿到的 `hover` 一起按 idle 归零），
+   * 于是光标框 / 工具预览 / 物品抬起 / 名字 tip 一并消失；`onPointerMove` 仍然照
+   * 旧记坐标，所以切到工具后同一格立刻又能亮 —— 后一条用例钉的就是这件事。
+   */
+  describe('v0.11.2 没选工具时格子不给悬停反馈', () => {
+    beforeEach(() => {
+      assetsRef.data = [asset(2, '画上的船', '/uploads/boat.webp')];
+      // 9×9 的正中那格放一件带图的物品，指针放到画布中心就能扫到它。
+      fixture.detail.map.cells = { '4,4': { item: { assetId: 2, w: 1, h: 1 } } };
+    });
+
+    afterEach(() => {
+      assetsRef.data = [];
+      fixture.detail.map.cells = {};
+    });
+
+    function hoverCenter(): void {
+      act(() => {
+        container
+          .querySelector('main')
+          ?.dispatchEvent(
+            new MouseEvent('pointermove', { bubbles: true, clientX: 450, clientY: 350 }),
+          );
+      });
+    }
+
+    function openBoard(): HTMLElement {
+      render();
+      sizeCanvas();
+      // jsdom 没有真实布局：先按视口重排一次，指针坐标才落得到格子上。
+      act(() =>
+        container.querySelector<HTMLButtonElement>('button[aria-label="重置视图"]')?.click(),
+      );
+      const main = container.querySelector<HTMLElement>('main');
+      if (!main) throw new Error('画布容器没渲染出来');
+      return main;
+    }
+
+    const boatImage = (): HTMLElement | null | undefined =>
+      Array.from(container.querySelectorAll<HTMLElement>('main img')).find(
+        (node) => node.getAttribute('src') === '/uploads/boat.webp',
+      );
+
+    it('空闲时扫过带物品的格子：没有光标框、物品不抬、也不出名字 tip', () => {
+      vi.useFakeTimers();
+      try {
+        const main = openBoard();
+        hoverCenter();
+        // tip 有一段延迟，等过它才排除「只是还没到时间」。
+        act(() => vi.advanceTimersByTime(ITEM_NAME_TIP_DELAY_MS));
+
+        expect(main.style.cursor).not.toBe('pointer');
+        expect(container.querySelector('[data-testid="item-name-tip"]')).toBeNull();
+        expect(boatImage()?.style.transform ?? '').not.toContain(`translateY(-${ITEM_HOVER_LIFT_PX}px)`);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('选了工具之后同一格马上有反馈（说明上一条不是把悬停整体关掉）', () => {
+      vi.useFakeTimers();
+      try {
+        const main = openBoard();
+        act(() => container.querySelector<HTMLButtonElement>('button[title="标记"]')?.click());
+        hoverCenter();
+        act(() => vi.advanceTimersByTime(ITEM_NAME_TIP_DELAY_MS));
+
+        expect(main.style.cursor).toBe('pointer');
+        expect(container.querySelector('[data-testid="item-name-tip"]')).not.toBeNull();
+        expect(boatImage()?.style.transform ?? '').toContain(`translateY(-${ITEM_HOVER_LIFT_PX}px)`);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

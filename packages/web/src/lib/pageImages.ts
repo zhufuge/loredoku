@@ -1,4 +1,10 @@
-import type { Asset, Character } from '@loredoku/shared';
+import {
+  resolveAssetVariant,
+  type Asset,
+  type Character,
+  type CharacterSlotEntry,
+} from '@loredoku/shared';
+import type { CellMap } from '@/lib/canvasLayers';
 import type { MarkRender } from '@/lib/mark';
 import type { ToolIconsRender } from '@/lib/toolIcons';
 
@@ -10,13 +16,17 @@ import type { ToolIconsRender } from '@/lib/toolIcons';
  * 预加载的也应当是同一张，否则等完缩略图、画的时候还要再等一次原图。
  *
  * 各处口径：
- * - 资源：每个形态（variant）各一张 —— 一关用哪个形态要到画的时候才知道。
- * - 角色：头像缩略图优先，没有就取原图。
+ * - 资源：**只看这一关的画布**（`cells` 里每个格子的背景 / 装饰 / 物品），
+ *   每个锚点按 `resolveAssetVariant` 取到的那一个形态一张 —— 与图层画的是
+ *   同一张。整张资源表里别关用过的资源不该拖着这一页等（v0.11.2 收紧）。
+ * - 角色：只看名册里那些位子（`slots`）点到的角色，头像缩略图优先。
  * - 标记 / 工具图标 / 校验圈：各一张。
  */
 export function boardImageUrls(input: {
-  assets?: Asset[] | null;
-  characters?: Character[] | null;
+  cells?: CellMap | null;
+  assetsById?: Map<number, Asset> | null;
+  slots?: Array<CharacterSlotEntry | null> | null;
+  charactersById?: Map<number, Character> | null;
   mark?: MarkRender | null;
   toolIcons?: ToolIconsRender | null;
   ringImage?: string | null;
@@ -27,14 +37,30 @@ export function boardImageUrls(input: {
     urls.push(url);
   };
 
-  for (const asset of input.assets ?? []) {
-    for (const variant of asset.variants) {
-      push(variant.imageThumbUrl ?? variant.imageUrl);
-    }
+  /*
+   * 画布上的资源：只认 `cells` 里真正落过的那几个锚点。兜底规则必须与图层
+   * 一致 —— 那里也是 `resolveAssetVariant(asset, variantId)`（`variantId`
+   * 缺失或悬空时退回第一个形态），否则「等的图」与「画的图」会错开。
+   */
+  const pushAsset = (assetId: number, variantId?: number | null): void => {
+    const asset = input.assetsById?.get(assetId);
+    if (!asset) return;
+    const variant = resolveAssetVariant(asset, variantId);
+    push(variant?.imageThumbUrl ?? variant?.imageUrl);
+  };
+  for (const cell of input.cells?.values() ?? []) {
+    if (cell.background) pushAsset(cell.background.assetId, cell.background.variantId);
+    if (cell.decoration) pushAsset(cell.decoration.assetId, cell.decoration.variantId);
+    if (cell.item) pushAsset(cell.item.assetId, cell.item.variantId);
   }
-  for (const character of input.characters ?? []) {
+
+  for (const slot of input.slots ?? []) {
+    if (!slot) continue;
+    const character = input.charactersById?.get(slot.characterId);
+    if (!character) continue;
     push(character.avatarThumbUrl ?? character.avatarUrl);
   }
+
   push(input.mark?.imageUrl);
   for (const icon of Object.values(input.toolIcons ?? {})) {
     push(icon?.imageUrl);

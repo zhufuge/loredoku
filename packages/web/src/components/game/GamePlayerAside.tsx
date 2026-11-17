@@ -136,7 +136,7 @@ export function GamePlayerAside({
            * `order` 把顺序拨成「返回 → 标题 → 计时 → 主题」。品牌 logo 在竖屏
            * 藏起来 —— 一行里再塞个 logo，标题就没地方了。
            */
-          'max-md:flex max-md:items-center max-md:gap-2 max-md:order-1 max-md:py-2',
+          'max-md:flex max-md:items-center max-md:gap-2 max-md:order-1 max-md:py-1',
           'md:space-y-1',
           interactionLocked && 'pointer-events-auto',
         )}
@@ -152,7 +152,11 @@ export function GamePlayerAside({
             className={cn(TOOLBAR_ICON_HOVER_CLASS, 'max-md:order-1 max-md:shrink-0')}
             onClick={onBack}
           />
-          <BrandLogo height={16} className="flex shrink-0 items-center gap-2 max-md:hidden" />
+          <BrandLogo
+            height={16}
+            withWordmark
+            className="flex shrink-0 items-center gap-2 max-md:hidden"
+          />
           {/*
             v0.10.1 竖屏：描述从面板里挪到右上角这枚图标后面（点开是弹框）。
             面板那时只剩线索与名册，能多让出一段高度。没有描述就不挂按钮 ——
@@ -177,12 +181,19 @@ export function GamePlayerAside({
           * 只留粗体淡色的 `mm:ss`。
           */}
         <div className="flex items-baseline gap-2 pl-1 max-md:order-2 max-md:min-w-0 max-md:flex-1 max-md:items-center max-md:pl-0">
-          <p className="min-w-0 flex-1 truncate text-sm font-semibold" title={gameName}>
+          {/*
+            v0.11.2：竖屏标题行再收一档 —— 名字与计时都用 `text-xs`、行高压到
+            `leading-tight`，把省下的高度让给下面的棋盘。
+          */}
+          <p
+            className="min-w-0 flex-1 truncate text-sm font-semibold max-md:text-xs max-md:leading-tight"
+            title={gameName}
+          >
             {gameName} {gridSize}x{gridSize}
           </p>
           <span
             data-testid="game-timer"
-            className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground max-md:order-3"
+            className="shrink-0 text-sm font-semibold tabular-nums text-muted-foreground max-md:order-3 max-md:text-xs"
             title="本局用时（提交后停止）"
           >
             {formatElapsed(elapsedMs)}
