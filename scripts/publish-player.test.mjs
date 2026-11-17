@@ -8,6 +8,7 @@ import {
   countFiles,
   isDirectRun,
   listThemeCodes,
+  missingPlayerPages,
   parsePublishArgs,
   resolveSiteDir,
 } from './publish-player.mjs';
@@ -48,12 +49,11 @@ describe('isDirectRun — 单测 import 这个模块时绝不能触发真正的�
 });
 
 describe('parsePublishArgs — 默认值与合法参数', () => {
-  it('无参数时什么都不改：构建、写 404、真写盘', () => {
+  it('无参数时什么都不改：构建、真写盘', () => {
     expect(parsePublishArgs([])).toEqual({
       site: null,
       bundle: null,
       noBuild: false,
-      no404: false,
       dryRun: false,
     });
   });
@@ -68,20 +68,22 @@ describe('parsePublishArgs — 默认值与合法参数', () => {
     expect(parsePublishArgs(['--bundle', './hlm.zip']).bundle).toBe('./hlm.zip');
   });
 
-  it('三个开关各自独立生效', () => {
+  it('两个开关各自独立生效', () => {
     expect(parsePublishArgs(['--no-build']).noBuild).toBe(true);
-    expect(parsePublishArgs(['--no-404']).no404).toBe(true);
     expect(parsePublishArgs(['--dry-run']).dryRun).toBe(true);
   });
 
   it('参数顺序无关，可混用', () => {
-    expect(parsePublishArgs(['--dry-run', '--site', 'D:/a', '--no-404', '--bundle=x.zip'])).toEqual({
+    expect(parsePublishArgs(['--dry-run', '--site', 'D:/a', '--bundle=x.zip'])).toEqual({
       site: 'D:/a',
       bundle: 'x.zip',
       noBuild: false,
-      no404: true,
       dryRun: true,
     });
+  });
+
+  it('v0.11.1 起没有 --no-404：深链靠真页面，不再有 404.html 这一路', () => {
+    expect(() => parsePublishArgs(['--no-404'])).toThrow(/不认识的参数/);
   });
 });
 
@@ -92,8 +94,7 @@ describe('parsePublishArgs — 非法输入一律抛中文错误', () => {
     { name: '--site 缺值（结尾）', argv: ['--site'] },
     { name: '--bundle 缺值（结尾）', argv: ['--bundle'] },
     { name: '多余的裸参数', argv: ['D:/a'] },
-  ];
-  for (const { name, argv } of cases) {
+  ];  for (const { name, argv } of cases) {
     it(name, () => {
       expect(() => parsePublishArgs(argv)).toThrow();
     });
@@ -261,6 +262,52 @@ describe('listThemeCodes — 只认带 manifest.json 的一级子目录', () => 
 
   it('产物目录不存在时返回空数组', () => {
     expect(listThemeCodes(path.join(tempDir(), 'missing'))).toEqual([]);
+  });
+});
+
+describe('missingPlayerPages — 发布前核对静态页齐不齐（v0.11.1）', () => {
+  const manifest = {
+    theme: { code: 'hlm', name: '红楼梦' },
+    games: [
+      { key: 'puzzle-a', name: '第一关' },
+      { key: 'puzzle-b', name: '第二关' },
+    ],
+  };
+
+  /** 造一份「产物」：`<dist>/<code>/manifest.json`，页面按需给。 */
+  function makeDist(pages) {
+    const dist = tempDir();
+    const themeDir = path.join(dist, 'hlm');
+    mkdirSync(themeDir, { recursive: true });
+    writeFileSync(path.join(themeDir, 'manifest.json'), JSON.stringify(manifest));
+    for (const page of pages) {
+      mkdirSync(path.join(themeDir, 'play', page), { recursive: true });
+      writeFileSync(path.join(themeDir, 'play', page, 'index.html'), '<html></html>');
+    }
+    return dist;
+  }
+
+  it('页面齐全时返回空数组', () => {
+    const dist = makeDist(['puzzle-a', 'puzzle-b']);
+    // 列表页在 hlm/play/index.html
+    writeFileSync(path.join(dist, 'hlm', 'play', 'index.html'), '<html></html>');
+    expect(missingPlayerPages(dist, 'hlm')).toEqual([]);
+  });
+
+  it('缺列表页时点名它', () => {
+    const dist = makeDist(['puzzle-a', 'puzzle-b']);
+    expect(missingPlayerPages(dist, 'hlm')).toEqual(['hlm/play/index.html']);
+  });
+
+  it('缺某一关的页面时点名它（少一份就是一处深链 404）', () => {
+    const dist = makeDist(['puzzle-a']);
+    writeFileSync(path.join(dist, 'hlm', 'play', 'index.html'), '<html></html>');
+    expect(missingPlayerPages(dist, 'hlm')).toEqual(['hlm/play/puzzle-b/index.html']);
+  });
+
+  it('没有 manifest.json 时直接点名（连核对都无从核对）', () => {
+    const dist = tempDir();
+    expect(missingPlayerPages(dist, 'hlm')).toEqual(['hlm/manifest.json']);
   });
 });
 

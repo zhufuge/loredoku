@@ -7,7 +7,6 @@
  * npm run publish:player -- --site=D:\code\other-site   # 指定站点仓库
  * npm run publish:player -- --no-build                  # 发布现有 dist-player（不再构建）
  * npm run publish:player -- --bundle=/path/to/hlm.zip   # 临时换包（递给 build:player）
- * npm run publish:player -- --no-404                    # 不生成 loredoku/404.html
  * npm run publish:player -- --dry-run                   # 只打印计划，不动磁盘
  * ```
  *
@@ -31,13 +30,12 @@
  *    每次发布都先删掉站点里的 `loredoku/` 再整体写入，保证「发布后目录 = 产物」。
  *    （这也是它比 `Copy-Item` 多出来的、真正需要脚本的语义。）
  *
- * 2. **深链 404**。播放器是 SPA，刷新 `/loredoku/hlm/play/xxx` 时 GitHub Pages
- *    找不到对应文件，需要一份 `404.html` 兜底（部署契约见 `docs/v0.9.0.md` §9）。
- *    GitHub Pages 只在文档里保证**站点根**的 `404.html`，子目录那份是否被服务
- *    并无官方证据 —— 所以这里只是「成了更好」：生效则深链可用，不生效与不加
- *    相同（站点根 404 兜底）。副本与 `index.html` **逐字节一致**，React Router
- *    （basename `/loredoku`）直接读 `location.pathname` 恢复路由，不需要重定向
- *    脚本。代价是深链的 HTTP 状态码仍是 404 —— 小游戏可以接受，不在本脚本范围。
+ * 2. **深链**。v0.11.1 起播放器产物是「每个路由一份真 `index.html`」
+ *    （`packages/web/scripts/staticPages.mjs`）：`<code>/play/index.html` 与
+ *    `<code>/play/<key>/index.html` 都由构建生成，发布时照抄即可 —— 部署后每个
+ *    地址都是真实存在的文件，不需要任何 rewrite 规则，也不再需要 404 兜底页
+ *    （v0.11.0 那版的 `loredoku/404.html` 就是为此加的，且状态码仍是 404）。
+ *    站点里残留的旧 `404.html` 会在清空 `loredoku/` 时一并消失。
  *
  * 3. **安全**。删目录之前先校验：站点必须是 git 仓库、不能指回本仓库自己 ——
  *    避免一个写错的 `--site` 把别的东西递归删掉。
@@ -48,9 +46,9 @@
  */
 import { spawnSync } from 'node:child_process';
 import {
-  copyFileSync,
   cpSync,
   existsSync,
+  readFileSync,
   readdirSync,
   rmSync,
 } from 'node:fs';
@@ -59,6 +57,8 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 // 读 `.env` 的方式（覆盖顺序、不写 process.env）在播放器那边已经定好了，不重复实现。
 import { loadRootEnv } from '../packages/web/scripts/playerEnv.mjs';
+// 「产物里该有哪几个页面」只由这一处回答（v0.11.1）；发布脚本照它核对，不另写一份。
+import { playerPages } from '../packages/web/scripts/staticPages.mjs';
 
 /** `scripts/` 上一级 = 仓库根。 */
 export const REPO_ROOT = path.resolve(
@@ -75,12 +75,11 @@ export const SITE_SUBDIR = 'loredoku';
 
 const USAGE = [
   '用法：npm run publish:player [-- --site=<站点仓库>] [-- --no-build]',
-  '                       [-- --bundle=<资源包>] [-- --no-404] [-- --dry-run]',
+  '                       [-- --bundle=<资源包>] [-- --dry-run]',
   '',
   '  --site=<目录>     站点仓库（默认读仓库根 .env 的 LOREDOKU_SITE）',
   '  --no-build        不构建，直接发布现有的 packages/web/dist-player/',
   '  --bundle=<路径>   临时换主题资源包（递给 build:player）',
-  '  --no-404          不生成 loredoku/404.html',
   '  --dry-run         只打印计划，不写盘',
 ].join('\n');
 
@@ -88,10 +87,10 @@ const USAGE = [
  * 解析命令行参数。`--flag=value` 与 `--flag value` 都收；不认识的参数直接抛错，
  * 避免把笔误（例如 `--ste`）当成「用默认值」悄悄放过去。
  * @param {string[]} argv
- * @returns {{ site: string | null, bundle: string | null, noBuild: boolean, no404: boolean, dryRun: boolean }}
+ * @returns {{ site: string | null, bundle: string | null, noBuild: boolean, dryRun: boolean }}
  */
 export function parsePublishArgs(argv) {
-  const options = { site: null, bundle: null, noBuild: false, no404: false, dryRun: false };
+  const options = { site: null, bundle: null, noBuild: false, dryRun: false };
   const needValue = (flag, next) => {
     if (next === undefined) throw new Error(`${flag} 后面要跟一个值`);
     return next;
@@ -104,7 +103,6 @@ export function parsePublishArgs(argv) {
     else if (arg.startsWith('--bundle=')) options.bundle = arg.slice('--bundle='.length) || null;
     else if (arg === '--bundle') options.bundle = needValue('--bundle', next), (i += 1);
     else if (arg === '--no-build') options.noBuild = true;
-    else if (arg === '--no-404') options.no404 = true;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--help' || arg === '-h') {
       console.log(USAGE);
@@ -219,6 +217,28 @@ export function listThemeCodes(distDir) {
 }
 
 /**
+ * 产物里**该有但没有**的静态页（相对产物根的 `<dir>/index.html`）。
+ *
+ * 清单来自 `playerPages()`（与构建时生成页面的那一段是同一个函数），所以这里只
+ * 回答「有没有」，不重新推导一遍路由。空数组 = 齐了。
+ * @param {string} distDir
+ * @param {string} code
+ * @returns {string[]}
+ */
+export function missingPlayerPages(distDir, code) {
+  const manifestPath = path.join(distDir, code, 'manifest.json');
+  if (!existsSync(manifestPath)) return [`${code}/manifest.json`];
+  const manifest = JSON.parse(readFileSync(manifestPath, 'utf8'));
+  return playerPages({
+    code,
+    themeName: manifest?.theme?.name ?? code,
+    games: Array.isArray(manifest?.games) ? manifest.games : [],
+  })
+    .map((page) => `${page.dir}/index.html`)
+    .filter((relPath) => !existsSync(path.join(distDir, relPath)));
+}
+
+/**
  * 递归数一个目录下的普通文件数（发布后用来和源产物对账）。
  * @param {string} dir
  * @returns {number}
@@ -274,11 +294,10 @@ async function main() {
   console.log(`站点仓库：${siteDir}`);
   console.log(`发布目标：${targetDir}`);
   console.log(`构建：${options.noBuild ? '跳过（发布现有产物）' : '先 build:player'}`);
-  console.log(`深链 404：${options.no404 ? '不生成' : '复制 index.html 为 404.html'}`);
   if (options.dryRun) console.log('（--dry-run：只打印，不动磁盘）');
 
   if (!options.noBuild) {
-    console.log('\n[1/4] 清空旧的 packages/web/dist-player/ 并重新构建 ……');
+    console.log('\n[1/3] 清空旧的 packages/web/dist-player/ 并重新构建 ……');
     if (!options.dryRun) {
       removeTree(DIST_PLAYER);
       runBuild(options.bundle);
@@ -298,7 +317,23 @@ async function main() {
     );
   }
 
-  const sourceCount = countFiles(DIST_PLAYER) + (options.no404 ? 0 : 1);
+  // 深链靠的是产物里那些真页面（v0.11.1）；少一份就少一个能直接打开的地址，
+  // 所以在写盘之前就把「路由清单齐不齐」验掉 —— 发布完才发现更麻烦。
+  //
+  // `--dry-run` 不构建，手上是**上一次**的产物，这时缺页面说明不了什么（真正发布
+  // 会先重建），所以降级成一句提示，不拦人。
+  const missingPages = missingPlayerPages(DIST_PLAYER, themes[0]);
+  if (missingPages.length > 0) {
+    const detail = [
+      `产物里缺少静态页，深链会 404：${missingPages.join('、')}`,
+      '预期由 build:player 的 bundleAssets 插件在 closeBundle 时生成（packages/web/scripts/staticPages.mjs）。',
+      '如果这是一个 v0.11.0 之前的旧产物，请去掉 --no-build 重新构建一次。',
+    ];
+    if (!options.dryRun) throw new Error(detail.join('\n'));
+    console.log(`提示：当前产物还没有静态页（${missingPages.length} 个）—— 正式发布会先重建。`);
+  }
+
+  const sourceCount = countFiles(DIST_PLAYER);
 
   if (options.dryRun) {
     console.log(`\n[dry-run] 将清空并重写 ${targetDir}（${sourceCount} 个文件）`);
@@ -306,18 +341,14 @@ async function main() {
     return;
   }
 
-  console.log(`\n[2/4] 清空站点里的 ${SITE_SUBDIR}/ ……`);
+  console.log(`\n[2/3] 清空站点里的 ${SITE_SUBDIR}/ ……`);
   removeTree(targetDir);
 
-  console.log('[3/4] 复制产物 ……');
+  console.log('[3/3] 复制产物 ……');
   cpSync(DIST_PLAYER, targetDir, { recursive: true, force: true });
 
-  if (!options.no404) {
-    copyFileSync(path.join(targetDir, 'index.html'), path.join(targetDir, '404.html'));
-  }
-
   const targetCount = countFiles(targetDir);
-  console.log(`[4/4] 对账：源 ${sourceCount} 个文件，目标 ${targetCount} 个${
+  console.log(`      对账：源 ${sourceCount} 个文件，目标 ${targetCount} 个${
     targetCount === sourceCount ? ' —— 一致' : ' —— 数量不一致，请检查'
   }`);
 

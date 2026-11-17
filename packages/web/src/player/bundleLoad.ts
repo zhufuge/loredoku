@@ -66,15 +66,21 @@ export function bundleStorageId(code: string, key: string): string {
 
 /**
  * 路由地址。返回值是**站内路径**（相对 router 的 basename）：播放器的 router 挂在
- * `/loredoku` 下，所以这里写 `/<code>/play`，浏览器里看到的完整地址是
- * `/loredoku/<code>/play`。
+ * `/loredoku` 下，所以这里写 `/<code>/play/`，浏览器里看到的完整地址是
+ * `/loredoku/<code>/play/`。
+ *
+ * 结尾那个斜杠是 v0.11.1 起有意为之：产物里每个路由都是一份**真目录**
+ * （`<code>/play/index.html`、`<code>/play/<key>/index.html`，见
+ * `packages/web/scripts/staticPages.mjs`），静态服务器对目录的标准地址就是带斜杠
+ * 的那一个。少了它会先吃一个 301 再回来 —— 地址栏里也会从「不带斜杠」跳成
+ * 「带斜杠」，复制分享时像是两个地址。
  */
 export function themeHrefOf(code: string): string {
-  return `/${code}/play`;
+  return `/${code}/play/`;
 }
 
 export function gameHrefOf(code: string, key: string): string {
-  return `/${code}/play/${key}`;
+  return `/${code}/play/${key}/`;
 }
 
 /** 列表页卡片要的字段 —— 只要manifest 里那几项，不必打开关卡文件。 */

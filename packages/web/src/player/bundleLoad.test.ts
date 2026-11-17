@@ -83,8 +83,14 @@ describe('bundleStorageId', () => {
 
 describe('路由地址', () => {
   it('列表页与关卡页都在 basename 内（不带 /loredoku）', () => {
-    expect(themeHrefOf('hlm')).toBe('/hlm/play');
-    expect(gameHrefOf('hlm', 'puzzle-sishan')).toBe('/hlm/play/puzzle-sishan');
+    expect(themeHrefOf('hlm')).toBe('/hlm/play/');
+    expect(gameHrefOf('hlm', 'puzzle-sishan')).toBe('/hlm/play/puzzle-sishan/');
+  });
+
+  it('带结尾斜杠 —— 产物里每个路由是一份真目录（v0.11.1）', () => {
+    for (const href of [themeHrefOf('hlm'), gameHrefOf('hlm', 'puzzle-sishan')]) {
+      expect(href.endsWith('/')).toBe(true);
+    }
   });
 });
 

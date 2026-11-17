@@ -1,5 +1,6 @@
 import { Navigate, createBrowserRouter } from 'react-router-dom';
 import { BUNDLE_CODE, playerBasename } from './bundleCode';
+import { themeHrefOf } from './bundleLoad';
 import { PlayerGamePage } from './PlayerGamePage';
 import { PlayerHomePage } from './PlayerHomePage';
 
@@ -18,19 +19,18 @@ import { PlayerHomePage } from './PlayerHomePage';
  * 根地址直接跳到**构建时烤进去的那个主题** —— 一个产物只装一个包，`/loredoku/`
  * 没有第二个合理去处。`BUNDLE_CODE` 为空（有人绕过构建直接跑 vite）时退回
  * 列表页，让页面自己报「没有这个包」。
+ *
+ * 跳转目标用 `themeHrefOf()` 而不是手拼 `/code/play`：那里带着结尾斜杠
+ * （v0.11.1 起每个路由都是产物里的一份真目录），手拼一份迟早会漏。
  */
+const listHref = BUNDLE_CODE ? themeHrefOf(BUNDLE_CODE) : '/play';
+
 export const playerRouter = createBrowserRouter(
   [
-    {
-      path: '/',
-      element: <Navigate to={BUNDLE_CODE ? `/${BUNDLE_CODE}/play` : '/play'} replace />,
-    },
+    { path: '/', element: <Navigate to={listHref} replace /> },
     { path: '/:code/play', element: <PlayerHomePage /> },
     { path: '/:code/play/:key', element: <PlayerGamePage /> },
-    {
-      path: '*',
-      element: <Navigate to={BUNDLE_CODE ? `/${BUNDLE_CODE}/play` : '/play'} replace />,
-    },
+    { path: '*', element: <Navigate to={listHref} replace /> },
   ],
   { basename: playerBasename() },
 );

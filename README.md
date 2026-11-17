@@ -83,7 +83,11 @@ npm run build:player -- --bundle=other.zip # 临时换包，不改 .env
 **包本身不进仓库**（`resources/themes/` 被 gitignore），克隆后先导出一份放到那个路径，
 或改 `.env` 指向自己的包。产物落在 `packages/web/dist-player/`（入口 `index.html`、
 包在 `<code>/` 下），拷到静态服务器的 `/loredoku/` 就能玩；一个产物对应一个主题。
-细节见 [`docs/v0.9.0.md`](./docs/v0.9.0.md)。
+
+v0.11.1 起产物里**每个路由都是一份真 `index.html`**（`<code>/play/`、
+`<code>/play/<key>/`），所以深链刷新不需要任何 rewrite 规则，也不需要 404 兜底页。
+发布到站点仓库用 `npm run publish:player`。细节见 [`docs/v0.11.1.md`](./docs/v0.11.1.md)
+（打包与部署）与 [`docs/v0.9.0.md`](./docs/v0.9.0.md)（播放器本身）。
 
 ---
 

@@ -9,12 +9,16 @@
  *   递出去 —— 与产物里**同一个 URL 形状**，所以「dev 能跑、build 404」这种错不会出现。
  *
  * 顺带做 SPA fallback：`/loredoku/hlm/play` 在磁盘上没有对应文件，dev server 默认
- * 会 404。这里把「看起来像页面」的请求改写成 `player.html`，与产物部署时那条
- * rewrite 规则一一对应（见 §9 的部署说明）。
+ * 会 404。这里把「看起来像页面」的请求改写成 `player.html`（见 §9 的部署说明）。
+ *
+ * 2026-11-17 补（docs/v0.11.1.md）：**产物**不再依赖任何 rewrite 规则 ——
+ * `closeBundle` 按路由清单给每个地址落一份真 `index.html`（`staticPages.mjs`）。
+ * dev 那边仍用上面的 fallback：改一行代码就能刷新，没必要每次重新摊页。
  */
-import { existsSync, renameSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { readBundle } from './readBundle.mjs';
+import { playerPages, withTitle } from './staticPages.mjs';
 
 /**
  * 2026-11-09 补（docs/v0.9.0.md §14）：「包在哪」的解析已经收进
@@ -98,12 +102,35 @@ export function bundleAssets(bundlePath) {
      * 访问的是 `/loredoku/` —— 静态服务器（含 `vite preview`）只认 `index.html`。
      * 改名比「把入口文件就叫 index.html」干净：那个名字会让工坊与播放器两份入口
      * 在同名文件上打架，`tsc` / IDE 里也难看出哪个是哪个。
+     *
+     * 改名之后再做 v0.11.1 那件事：**给每个路由落一份真 `index.html`**。用改好的
+     * 入口 HTML 当模板（资源是 `base` 开头的绝对路径，放多深都对），只按页面换标题。
      */
     closeBundle() {
       if (!outDir) return;
       const from = path.join(outDir, 'player.html');
       const to = path.join(outDir, 'index.html');
       if (existsSync(from)) renameSync(from, to);
+      if (!existsSync(to)) return;
+
+      // `vite preview` 服务的是已经摊过页的旧产物，那时没有包路径（`peek()` 返回 null）。
+      // 已有的页面就留着，不因为「这次没包」把它们清掉。
+      const bundle = peek();
+      if (!bundle) return;
+
+      const { code, manifest } = bundle;
+      const template = readFileSync(to, 'utf8');
+      const pages = playerPages({
+        code,
+        themeName: manifest.theme.name,
+        games: manifest.games,
+      });
+      for (const page of pages) {
+        const dir = path.join(outDir, page.dir);
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(path.join(dir, 'index.html'), withTitle(template, page.title));
+      }
+      this.info(`静态页：${pages.length} 个（1 个列表页 + ${pages.length - 1} 个关卡页）`);
     },
 
     configureServer(server) {
