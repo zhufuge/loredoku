@@ -310,3 +310,76 @@ describe('区域标签的点击按页面分流（v0.10.8）', () => {
     expect(clickBubbled()).toBe(false);
   });
 });
+
+/**
+ * v0.11.4：联动高亮（参与者 → 关联区域）也要点亮区域**标题**。
+ *
+ * 断言的是「两种触发方式等价」而不是某个颜色值：悬停与联动高亮在作者眼里是同一
+ * 件事 —— 这块区域正被指着，标题就该变成它自己的 hover 那套。所以这里只比较
+ * 「悬停时」与「被联动高亮时」两个状态是否一致，将来改配色也不用改这些用例。
+ */
+describe('区域标签跟着联动高亮一起亮（v0.11.4）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  function render(props: {
+    regions?: DraftRegion[];
+    hoveredRegionId?: string | null;
+    highlightedRegionIds?: readonly string[];
+  }): void {
+    act(() => {
+      root.render(
+        <MapRegionLabelLayer
+          regions={props.regions ?? [region()]}
+          cellSize={CELL}
+          style={DEFAULT_MAP_STYLE}
+          hoveredRegionId={props.hoveredRegionId ?? null}
+          highlightedRegionIds={props.highlightedRegionIds}
+        />,
+      );
+    });
+  }
+
+  function looks(): string[] {
+    return Array.from(document.querySelectorAll<HTMLElement>('.region-label')).map(
+      (node) => node.getAttribute('style') ?? '',
+    );
+  }
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('被联动高亮命中时，标题与「鼠标停在它上面」一模一样', () => {
+    render({});
+    const plain = looks()[0];
+
+    render({ hoveredRegionId: 'rg_a' });
+    const hovered = looks()[0];
+    expect(hovered).not.toBe(plain);
+
+    render({ highlightedRegionIds: ['rg_a'] });
+    expect(looks()[0]).toBe(hovered);
+  });
+
+  it('只亮清单里的那块区域，没命中的保持原样', () => {
+    const regions = [
+      region({ id: 'rg_a', cells: [[0, 0]], labelCell: [0, 0] }),
+      region({ id: 'rg_b', cells: [[3, 3]], labelCell: [3, 3] }),
+    ];
+    render({ regions });
+    const plain = looks();
+
+    render({ regions, highlightedRegionIds: ['rg_b'] });
+    const lit = looks();
+    expect(lit[0]).toBe(plain[0]);
+    expect(lit[1]).not.toBe(plain[1]);
+  });
+});

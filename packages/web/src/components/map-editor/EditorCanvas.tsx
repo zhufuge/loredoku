@@ -744,6 +744,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           cellSize={cellSize}
           style={style}
           hoveredRegionId={hoveredRegionId}
+          /* v0.11.4：联动高亮的区域，标题跟着亮（不只是边框线）。 */
+          highlightedRegionIds={highlight?.regionBorders.map((border) => border.regionId)}
           onHover={setLabelRegionId}
           onSelect={onSelectRegionLabel}
         />

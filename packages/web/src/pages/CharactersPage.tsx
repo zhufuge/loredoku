@@ -24,6 +24,7 @@ import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { ScopedEmpty } from '@/components/theme/ScopedEmpty';
 import { useCharacterUsages, useCharacters, useDeleteCharacter } from '@/hooks/useCharacters';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
+import { sortByName } from '@/lib/nameOrder';
 
 type StatusFilter = 'all' | 'active' | 'inactive';
 
@@ -54,7 +55,15 @@ export function CharactersPage(): JSX.Element {
     [keyword, status, themeCode],
   );
 
-  const { data: characters, isLoading, isError, error, refetch } = useCharacters(params);
+  const { data: rows, isLoading, isError, error, refetch } = useCharacters(params);
+  /**
+   * v0.11.4：列表按名字排序（中文按拼音首字母）。
+   *
+   * 排在页面这一层而不是面板里 —— 下面那段「没选中就选第一个」挑的是
+   * `characters[0]`，它得和列表第一行是同一份数据，否则打开页面时高亮的是一条、
+   * 详情里是另一条。
+   */
+  const characters = useMemo(() => (rows ? sortByName(rows) : rows), [rows]);
   const { data: usages } = useCharacterUsages(deleteTarget?.id ?? null);
   const deleteMutation = useDeleteCharacter();
   const deleting = deleteMutation.isPending;

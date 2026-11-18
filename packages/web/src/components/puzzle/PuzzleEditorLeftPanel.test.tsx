@@ -254,3 +254,71 @@ describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
     expect(button?.querySelector('svg')?.getAttribute('class')).toContain('animate-spin');
   });
 });
+
+/**
+ * v0.11.4：角色库按名字排序（中文按拼音首字母）。
+ *
+ * 排的是**角色库这一列**。参与者槽位那一列（`ParticipantPanel`）的顺序是作者排
+ * 的「1 号、2 号」，那是谜题内容，不能跟着字母走 —— 这里只钉角色库这一边。
+ */
+describe('PuzzleEditorLeftPanel — 角色库按名字排序（v0.11.4）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  function character(id: number, name: string): Character {
+    return {
+      id,
+      code: `c_${id}`,
+      name,
+      gender: 'female',
+      description: null,
+      avatarPath: null,
+      avatarUrl: null,
+      avatarThumbUrl: null,
+      bgColor: null,
+      color: null,
+      displayName: null,
+      isActive: true,
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+  }
+
+  function render(characters: Character[]): void {
+    act(() => {
+      root.render(
+        <PuzzleEditorLeftPanel
+          characters={characters}
+          charactersLoading={false}
+          charactersError={false}
+          charactersRefreshing={false}
+          onRefreshCharacters={vi.fn()}
+          characterSlots={roster(0)}
+          selectedCharacterId={null}
+          onAssignSlot={vi.fn()}
+          onSelectCharacter={vi.fn()}
+        />,
+      );
+    });
+  }
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('云郎 / 宝钗 / 阿玉 按拼音排成 阿玉、宝钗、云郎', () => {
+    // 故意按「云郎、宝钗、阿玉」喂进去。
+    render([character(1, '云郎'), character(2, '宝钗'), character(3, '阿玉')]);
+
+    const text = container.textContent ?? '';
+    expect(text.indexOf('阿玉')).toBeLessThan(text.indexOf('宝钗'));
+    expect(text.indexOf('宝钗')).toBeLessThan(text.indexOf('云郎'));
+  });
+});

@@ -6,6 +6,7 @@ import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { RefreshButton } from '@/components/common/RefreshButton';
 import { SearchInput } from '@/components/common/SearchInput';
 import { Skeleton } from '@/components/ui/skeleton';
+import { sortByName } from '@/lib/nameOrder';
 import { PANEL_ICON_BUTTON_CLASS } from '@/lib/toolbarButtons';
 
 interface PuzzleEditorLeftPanelProps {
@@ -124,7 +125,13 @@ export const PuzzleEditorLeftPanel = forwardRef<
 
   /** FEAT-N08: 名称 / 业务 ID, case-insensitive. */
   const visible = useMemo(() => {
-    const list = characters ?? [];
+    /*
+     * v0.11.4：先按名字排序（中文按拼音首字母），再过滤。
+     *
+     * 排的是角色库这一份 —— 参与者槽位那一列（`ParticipantPanel`）的顺序是
+     * 作者排的「1 号、2 号」，动它等于改谜题本身，不能跟着字母走。
+     */
+    const list = sortByName(characters ?? []);
     const needle = keyword.trim().toLowerCase();
     if (!needle) return list;
     return list.filter(

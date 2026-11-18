@@ -131,6 +131,9 @@ export function MapOperationCursorBoxLayer({
   );
 }
 
+/** 没有联动高亮时的空清单 —— 免得每次渲染都造一个 `[]`。 */
+const NO_HIGHLIGHTED_REGIONS: readonly string[] = [];
+
 /**
  * 层 3 · 区域标签（Region Label）— the region name text, drawn above the
  * artwork with stroke + fill colours and a hover pair.
@@ -146,6 +149,7 @@ export function MapRegionLabelLayer({
   cellSize,
   style,
   hoveredRegionId = null,
+  highlightedRegionIds = NO_HIGHLIGHTED_REGIONS,
   onHover,
   onSelect,
 }: {
@@ -153,6 +157,14 @@ export function MapRegionLabelLayer({
   cellSize: number;
   style: MapStyle;
   hoveredRegionId?: string | null;
+  /**
+   * v0.11.4：联动高亮（参与者 → 关联区域）命中的区域 id。
+   *
+   * 在此之前只有边框线会亮，标题不动 —— 作者配的 `hoverColor` /
+   * `hoverFontSize` / `hoverStrokeColor` 那一套就等于白配了一半。现在这两件事
+   * 都是「这块区域正被指着」，用同一套样式。
+   */
+  highlightedRegionIds?: readonly string[];
   onHover?: (id: string | null) => void;
   onSelect?: (id: string) => void;
 }): JSX.Element {
@@ -173,6 +185,8 @@ export function MapRegionLabelLayer({
          */
         const centerX = labelRowCenterX(region.cells, anchor[1]) ?? anchor[0] + 0.5;
         const hovered = hoveredRegionId === region.id;
+        /** v0.11.4：悬停与联动高亮是同一件事 —— 这块区域正被指着，标题就亮。 */
+        const lit = hovered || highlightedRegionIds.includes(region.id);
         const resolved = resolveRegionStyle(style, region.style);
         const label = resolved.label;
         /*
@@ -215,13 +229,13 @@ export function MapRegionLabelLayer({
                 left: centerX * cellSize + offsetX,
                 top: (anchor[1] + 1) * cellSize - 2 + offsetY,
                 transform: 'translate(-50%, -100%)',
-                color: hovered ? label.hoverColor : label.color,
+                color: lit ? label.hoverColor : label.color,
                 fontFamily: fontFamilyStack(label.fontFamily),
                 fontWeight: 700,
-                fontSize: scaleFontSize(hovered ? label.hoverFontSize : label.fontSize, scale),
+                fontSize: scaleFontSize(lit ? label.hoverFontSize : label.fontSize, scale),
                 lineHeight: 1.1,
                 WebkitTextStroke: `${strokeWidth}px ${
-                  hovered ? label.hoverStrokeColor : label.strokeColor
+                  lit ? label.hoverStrokeColor : label.strokeColor
                 }`,
                 paintOrder: 'stroke fill',
                 transition:

@@ -220,3 +220,61 @@ describe('AssetPalette — 刷新按钮（v0.7.7）', () => {
     expect(button?.querySelector('svg')?.getAttribute('class')).toContain('animate-spin');
   });
 });
+
+/**
+ * v0.11.4：调色板按资源名排序（中文按拼音首字母），同一资源的形态挨在一起。
+ *
+ * 断言里读的是**资源名**（夹具给的，不是界面文案）—— 排序要验的就是「哪个资源
+ * 排在哪」，而形态必须跟着自己的资源走，不能被别的资源隔开。
+ */
+describe('AssetPalette — 按资源名排序、多形态成组（v0.11.4）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  function render(assets: Asset[]): void {
+    act(() => {
+      root.render(
+        <AssetPalette
+          assets={assets}
+          isLoading={false}
+          isError={false}
+          activeLayer="item"
+          selectedAssetId={null}
+          selectedVariantId={null}
+          onSelect={vi.fn()}
+        />,
+      );
+    });
+  }
+
+  /** 每个瓦片第一行文字 = 它属于哪个资源。 */
+  function tileAssetNames(): string[] {
+    return [...container.querySelectorAll<HTMLButtonElement>('button')]
+      .filter((node) => node.getAttribute('aria-label') !== '清空搜索')
+      .map((node) => node.querySelector('span')?.textContent ?? '');
+  }
+
+  it('案几 < 宝箱 < 船：按拼音首字母排，不看查询返回的次序', () => {
+    const boat = asset(7, [variant(71, 7)], { name: '船' });
+    const desk = asset(8, [variant(81, 8)], { name: '案几' });
+    const chestMulti = asset(9, [variant(91, 9, { name: '关着' }), variant(92, 9, { name: '打开' })], {
+      name: '宝箱',
+    });
+
+    // 故意按「船、宝箱、案几」喂进去。
+    render([boat, chestMulti, desk]);
+
+    expect(tileAssetNames()).toEqual(['案几', '宝箱', '宝箱', '船']);
+  });
+});

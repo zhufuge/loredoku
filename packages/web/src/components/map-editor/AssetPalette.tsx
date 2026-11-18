@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AssetThumbnail } from '@/components/asset/AssetThumbnail';
 import { RefreshButton } from '@/components/common/RefreshButton';
 import { SearchInput } from '@/components/common/SearchInput';
+import { sortByName } from '@/lib/nameOrder';
 import { cn } from '@/lib/utils';
 
 interface AssetPaletteProps {
@@ -43,7 +44,14 @@ interface Tile {
  */
 function buildTiles(assets: Asset[], layer: EditorLayer): Tile[] {
   const tiles: Tile[] = [];
-  for (const asset of assets) {
+  /*
+   * v0.11.4：按资源名排序（中文按拼音首字母）。
+   *
+   * 排的是**资源**、不是 tile —— 一个资源的几个形态必须挨在一起，否则
+   * 「宝箱·关着」和「宝箱·打开」会被别的资源隔开，作者找形态时得来回扫。
+   * 排序放在建 tile 之前，形态之间的相对次序仍是资源自己声明的那个。
+   */
+  for (const asset of sortByName(assets)) {
     if (assetLayerFor(asset) !== layer) continue;
     const multi = asset.variants.length > 1;
     for (const variant of asset.variants) {
