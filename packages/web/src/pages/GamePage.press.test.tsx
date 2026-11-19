@@ -561,10 +561,13 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
   });
 
   /**
-   * 滑动也走同一条开关：按住划过的 `×` 格一起收回，与「划过的格子执行对应
-   * 点击」是同一句话。
+   * v0.11.6：**按住拖动的一笔只做添加**。
+   *
+   * 开关（v0.7.12）是单击的语义：点错一枚 `×`，再点一下就收回，不必绕去橡皮。
+   * 但按住拖动时手指来回划过同一格是常态 —— 划回来就把刚画的擦掉，等于这一笔
+   * 自己跟自己打架。所以笔画里遇到已经有 `×` 的格子直接跳过，只有单击才走开关。
    */
-  it('按住划过几格 ×：划过的都收回', () => {
+  it('按住划过已有 × 的格子：不再收回，那一笔只是白划', () => {
     seedSave({
       board: {
         '3,4': { kind: 'forbidden' },
@@ -580,8 +583,69 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     pointer('pointermove', cellCenter(4, 4));
     pointer('pointermove', cellCenter(5, 4));
     pointer('pointerup', cellCenter(5, 4));
-    // 抬手后浏览器补的那记 click 是这一笔的尾巴，不能再反着放一个 × 回去。
+    // 抬手后浏览器补的那记 click 是这一笔的尾巴，不该被当成一次单击。
     clickAt(cellCenter(5, 4));
+
+    expect(savedBoard()).toEqual({
+      '3,4': { kind: 'forbidden' },
+      '4,4': { kind: 'forbidden' },
+      '5,4': { kind: 'forbidden' },
+    });
+  });
+
+  /** 笔画之后单独来的一记单击，仍然是开关 —— 上一笔的尾巴已被吞掉。 */
+  it('笔画之后再单击同一格：照样把那一枚 × 收回', () => {
+    seedSave({ board: { '4,4': { kind: 'forbidden' } } });
+    render();
+    sizeCanvas();
+    enterForbidden();
+
+    pointer('pointerdown', cellCenter(3, 4));
+    pointer('pointermove', cellCenter(4, 4));
+    pointer('pointerup', cellCenter(4, 4));
+    clickAt(cellCenter(4, 4)); // 这一笔的尾巴
+    // 笔画只加了空格 `3,4`，已有的 `4,4` 原样留着。
+    expect(savedBoard()).toEqual({
+      '3,4': { kind: 'forbidden' },
+      '4,4': { kind: 'forbidden' },
+    });
+
+    clickAt(cellCenter(4, 4)); // 真正的单击
+
+    expect(savedBoard()).toEqual({ '3,4': { kind: 'forbidden' } });
+  });
+
+  /**
+   * 编号那一半：同一格再点一下会取消编号（SPEC-J03 §3.2 的开关），但拖动时
+   * 划回自己刚写过的格子不该把它抹掉 —— 画一串编号时手指必然压回上一格。
+   */
+  it('按住划编号时重复滑过同一格：编号留着，前后的格子照常写上', () => {
+    seedSave({ board: { '1,1': { kind: 'numbers', entries: [1] } } });
+    render();
+    sizeCanvas();
+    enterPlacing(0);
+
+    pointer('pointerdown', cellCenter(0, 1));
+    pointer('pointermove', cellCenter(1, 1));
+    pointer('pointermove', cellCenter(2, 1));
+    pointer('pointerup', cellCenter(2, 1));
+    clickAt(cellCenter(2, 1)); // 这一笔的尾巴
+
+    expect(savedBoard()).toEqual({
+      '0,1': { kind: 'numbers', entries: [1] },
+      '1,1': { kind: 'numbers', entries: [1] },
+      '2,1': { kind: 'numbers', entries: [1] },
+    });
+  });
+
+  /** 单击同一格仍是开关：编号再点一下取消（上一条只改了笔画）。 */
+  it('单击已有自己编号的格子：编号照样取消', () => {
+    seedSave({ board: { '1,1': { kind: 'numbers', entries: [1] } } });
+    render();
+    sizeCanvas();
+    enterPlacing(0);
+
+    clickAt(cellCenter(1, 1));
 
     expect(savedBoard()).toEqual({});
   });

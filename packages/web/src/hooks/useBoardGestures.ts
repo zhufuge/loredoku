@@ -34,7 +34,16 @@ export interface BoardGestures {
   clearPress: number | null;
   /** 长按状态本体 —— 指针处理器要读 `fired` 判断「这一手已经生效」。 */
   cellPressRef: MutableRefObject<{ timer: number; ringTimer: number; fired: boolean } | null>;
-  dispatchCell: (x: number, y: number, variant: ParticipantPlacementVariant) => boolean;
+  /**
+   * 落一格。`stroke` 表示这一下属于**按住拖动的一笔**（而不是单击）——
+   * 见实现里那段「拖动只加不清」的说明。
+   */
+  dispatchCell: (
+    x: number,
+    y: number,
+    variant: ParticipantPlacementVariant,
+    stroke?: boolean,
+  ) => boolean;
   startCellPress: (x: number, y: number, participantId: number) => void;
   endCellPress: () => void;
   dropCellPress: () => void;
@@ -109,10 +118,31 @@ export function useBoardGestures({
    * 「该格编号已满」，但它和之前删掉的几条一样属于噪音：格子上的编号已经写满
    * 九个，玩家看得见；再弹一句只是挡住棋盘。`quiet`（滑动时压掉提示）因此也
    * 一并退场，拒绝路径只剩 `return false`。
+   *
+   * v0.11.5 §6：**按住拖动的一笔只做添加**。单击是开关 —— 同一格再点一下收回编号
+   * （SPEC-J03 §3.2）、已有 `×` 再点一下收回它（v0.7.12）；但按住拖动时手指
+   * 来回划过同一格是常态，开关语义会让玩家眼睁睁看着自己刚写下的东西被抹掉，
+   * 而且拖动本意是「一次画一串」。所以笔画里遇到「这一格已经是这个状态」就跳过，
+   * 只有单击才走开关那一支。
    */
-  const dispatchCell = (x: number, y: number, variant: ParticipantPlacementVariant): boolean => {
+  const dispatchCell = (
+    x: number,
+    y: number,
+    variant: ParticipantPlacementVariant,
+    stroke = false,
+  ): boolean => {
     const board = placementRef.current.board;
     if (mode.kind === 'placing') {
+      /**
+       * 笔画里重复滑过已经写着这位编号的格子：什么都不做。不返回 `true` ——
+       * 这一下确实没落笔，长按环 / 动效都不该当成成功。
+       */
+      if (stroke && variant === 'number') {
+        const current = board[cellKey(x, y)] ?? null;
+        if (current?.kind === 'numbers' && current.entries.includes(mode.participantId)) {
+          return false;
+        }
+      }
       const block = placementBlockReason({
         board,
         x,
@@ -170,8 +200,12 @@ export function useBoardGestures({
       /**
        * v0.7.12：`×` 是一支开关 —— 已经有 `×` 的格子再点一下就收回它
        * （`toggleForbidden`）。这一支要求来自「点错了只好切橡皮」的绕路。
+       *
+       * v0.11.5 §6：但只在**单击**时是开关。按住拖动划回来时这一格已经有 `×`，
+       * 玩家要的是「别再画一遍」，不是「把它擦掉」—— 见 `dispatchCell` 头上那段。
        */
       if (before?.kind === 'forbidden') {
+        if (stroke) return false;
         updatePlacement((state) => toggleForbidden(state, { x, y, blockingCells }));
         return true;
       }

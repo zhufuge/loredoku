@@ -1217,10 +1217,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               // 滑出了第一格 = 拖动，不是长按。
               cancelCellPress();
               // 起点那一格也要落：它同样是「划过的格子」。
-              dispatchCell(paint.start.x, paint.start.y, 'number');
+              dispatchCell(paint.start.x, paint.start.y, 'number', true);
             }
             paint.lastKey = key;
-            dispatchCell(cell.x, cell.y, 'number');
+            dispatchCell(cell.x, cell.y, 'number', true);
           }}
           onPointerUp={(event) => {
             if (interactionLocked) return;
@@ -1236,8 +1236,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               if (cell && cellKey(cell.x, cell.y) !== paint.lastKey) {
                 paint.painted = true;
                 cancelCellPress();
-                dispatchCell(paint.start.x, paint.start.y, 'number');
-                dispatchCell(cell.x, cell.y, 'number');
+                dispatchCell(paint.start.x, paint.start.y, 'number', true);
+                dispatchCell(cell.x, cell.y, 'number', true);
               }
             }
             if (paint?.painted) paintedRef.current = true;
