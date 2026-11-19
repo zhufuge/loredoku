@@ -16,7 +16,7 @@ import {
   type RegionStyle,
   type RegionStyleOverride,
 } from '@loredoku/shared';
-import { computeLabelCell, coordKey } from '@/lib/region';
+import { computeLabelCell, coordKey, type Coord } from '@/lib/region';
 import { findItemAnchor, isEmptyCell, itemFootprintKeys, resolveEraseTarget } from '@/lib/erase';
 import { resolveMapStyle, stripRulerSymbols } from '@/lib/mapStyle';
 import { regionStyleOverride } from '@/lib/regionStyle';
@@ -135,6 +135,14 @@ export interface EditorState {
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
   toggleRegionCell: (id: string, x: number, y: number) => void;
   updateRegion: (regionId: string, input: RegionInput) => void;
+  /**
+   * v0.11.5: 把一块区域的格子整体换成 `cells` —— 区域格子编辑会话的提交。
+   *
+   * 与逐格 `toggleRegionCell` 的差别就是「一步」：编辑十格撤销一次就回到原样。
+   * 顺带处理占用：`cells` 里若含别的区域已经占着的格子，从那些区域移走（与创建
+   * 时的「覆盖」同义），被搬空的那块区域随之删除。
+   */
+  setRegionCells: (id: string, cells: Coord[]) => void;
   deleteRegion: (id: string) => void;
 
   setGridSize: (size: number) => void;
@@ -456,6 +464,26 @@ export const useEditorStore = create<EditorState>((set, get) => {
             : region,
         );
       }),
+
+    setRegionCells: (id, cells) => {
+      // 区域已经没了（撤销、换版本、别处删掉）就别记一步空撤销。
+      if (!get().regions.some((region) => region.id === id)) return;
+      commit((next) => {
+        const keys = new Set(cells.map(([x, y]) => coordKey(x, y)));
+        next.regions = next.regions
+          .map((region) => {
+            if (region.id === id) {
+              return { ...region, cells: [...cells], labelCell: computeLabelCell(cells) };
+            }
+            // 占用了别的区域的格子 → 从那边移走（创建时的「覆盖」同义）。
+            const kept = region.cells.filter(([x, y]) => !keys.has(coordKey(x, y)));
+            if (kept.length === region.cells.length) return region;
+            return { ...region, cells: kept, labelCell: computeLabelCell(kept) };
+          })
+          // 被搬空的区域没有意义，连同区域本身一起收掉。
+          .filter((region) => region.cells.length > 0);
+      });
+    },
 
     deleteRegion: (id) => {
       commit((next) => {

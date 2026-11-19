@@ -213,6 +213,50 @@ describe('regions', () => {
     expect(store().regions).toHaveLength(0);
     expect(store().selectedRegionId).toBeNull();
   });
+
+  describe('setRegionCells（v0.11.5 区域格子编辑的提交）', () => {
+    it('换成新格子并重算标签格', () => {
+      const id = store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+      store().setRegionCells(id, [[0, 0], [0, 1], [0, 2]]);
+      expect(store().regions[0]?.cells).toEqual([[0, 0], [0, 1], [0, 2]]);
+      // labelCell 落在最底行（`computeLabelCell`）。
+      expect(store().regions[0]?.labelCell).toEqual([0, 2]);
+    });
+
+    it('把别人的格子挪过来，被搬空的那块随之删掉', () => {
+      const a = store().createRegion(regionInput('rg_a', [[0, 0], [1, 0]]), 'override');
+      store().createRegion(regionInput('rg_b', [[1, 0]]), 'override');
+      // 甲区把乙区唯一那格吃进来。
+      store().setRegionCells(a, [[0, 0], [1, 0]]);
+      expect(store().regions.find((region) => region.id === 'rg_b')).toBeUndefined();
+      expect(store().regions.find((region) => region.id === a)?.cells).toEqual([[0, 0], [1, 0]]);
+    });
+
+    it('只从别人身上摘掉被占的那几格，不整块搬空', () => {
+      const a = store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+      store().createRegion(regionInput('rg_b', [[1, 0], [2, 0]]), 'override');
+      store().setRegionCells(a, [[0, 0], [1, 0]]);
+      expect(store().regions.find((region) => region.id === 'rg_b')?.cells).toEqual([[2, 0]]);
+    });
+
+    it('整段编辑只占一步撤销', () => {
+      const id = store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+      const before = store().past.length;
+      store().setRegionCells(id, [[0, 0], [0, 1], [0, 2]]);
+      expect(store().past.length).toBe(before + 1);
+      store().undo();
+      expect(store().regions[0]?.cells).toEqual([[0, 0]]);
+    });
+
+    it('区域不存在时什么都不做（不记空撤销）', () => {
+      store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+      const before = store().regions;
+      const steps = store().past.length;
+      store().setRegionCells('nope', [[5, 5]]);
+      expect(store().regions).toBe(before);
+      expect(store().past.length).toBe(steps);
+    });
+  });
 });
 
 describe('region draft selection', () => {

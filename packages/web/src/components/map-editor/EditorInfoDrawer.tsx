@@ -59,6 +59,15 @@ interface EditorInfoDrawerProps {
   /** Reports the region branch's dirty flag so the page can guard a leave. */
   onRegionDirtyChange?: (dirty: boolean) => void;
   /**
+   * v0.11.5: 这块区域的格子正在画布上编辑（草稿会话进行中）。
+   *
+   * 只影响区域分支里那个「编辑格子」按钮的字样与可点性 —— 会话本身由页面
+   * 与画布负责，抽屉不该知道草稿长什么样。
+   */
+  cellEditActive?: boolean;
+  /** v0.11.5: 点「编辑格子」。缺省 = 不提供入口（谜题编辑器的只读画布）。 */
+  onStartCellEdit?: (regionId: string) => void;
+  /**
    * v0.5.0 SPEC-K06 (docs/v0.5.0.md §4.3): the puzzle editor renders this same
    * drawer against its **read-only** canvas, so every action button
    * (清空本格 / 清空物品层 / 保存 / 删除) must disappear. Default `false`
@@ -94,6 +103,8 @@ function RegionEditBranch({
   region,
   regions,
   style,
+  cellEditActive = false,
+  onStartCellEdit,
   onSubmitRegion,
   onDeleteRegion,
   onDirtyChange,
@@ -101,6 +112,9 @@ function RegionEditBranch({
   region: DraftRegion;
   regions: DraftRegion[];
   style: MapStyle;
+  /** v0.11.5：这块区域的格子编辑会话正在进行。 */
+  cellEditActive?: boolean;
+  onStartCellEdit?: (regionId: string) => void;
   onSubmitRegion: (regionId: string, input: RegionInput) => void;
   onDeleteRegion: (region: DraftRegion) => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -171,7 +185,30 @@ function RegionEditBranch({
         <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-2xs tabular-nums text-muted-foreground">
           包含 {region.cells.length} 格
         </span>
+        {/*
+         * v0.11.5：改格子的入口。在此之前只有「选中区域后 Shift + 点击」这一条
+         * 没写在任何界面上的捷径，作者找不到；这里把它做成一个按钮，点进去
+         * 就是草稿式的编辑会话（画布上蓝加红减，上方工具条保存）。
+         */}
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-6 shrink-0 px-2 text-2xs"
+          disabled={cellEditActive}
+          onClick={() => onStartCellEdit?.(region.id)}
+        >
+          {cellEditActive ? '编辑中…' : '编辑格子'}
+        </Button>
       </div>
+
+      {cellEditActive ? (
+        <p
+          className="rounded-md border border-primary/40 bg-primary/5 px-2 py-1.5 text-2xs text-muted-foreground"
+          data-testid="region-cell-edit-hint"
+        >
+          在画布上点按或拖动：点空格加入，点已选格移除。改完在上方工具条点「保存格子」。
+        </p>
+      ) : null}
 
       <div className="grid gap-1.5">
         <Label htmlFor="region-info-name" className="text-2xs font-normal text-muted-foreground">
@@ -500,6 +537,8 @@ export function EditorInfoDrawer({
   onSubmitRegion,
   onDeleteRegion,
   onRegionDirtyChange,
+  cellEditActive = false,
+  onStartCellEdit,
   readOnly = false,
   layout = 'split',
 }: EditorInfoDrawerProps): JSX.Element {
@@ -565,6 +604,8 @@ export function EditorInfoDrawer({
               region={region}
               regions={regions}
               style={style}
+              cellEditActive={cellEditActive}
+              onStartCellEdit={onStartCellEdit}
               onSubmitRegion={onSubmitRegion}
               onDeleteRegion={onDeleteRegion}
               onDirtyChange={onRegionDirtyChange}

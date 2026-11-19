@@ -55,6 +55,7 @@ import {
 } from '@/components/map-editor/MapInfoDrawer';
 import { MapInitDialog } from '@/components/map-editor/MapInitDialog';
 import { RegionDialog } from '@/components/map-editor/RegionDialog';
+import { RegionCellEditBar } from '@/components/map-editor/RegionCellEditBar';
 import { RegionSelectionBar } from '@/components/map-editor/RegionSelectionBar';
 import { VersionHistoryDialog } from '@/components/map-editor/VersionHistoryDialog';
 import { useAssets } from '@/hooks/useAssets';
@@ -75,7 +76,15 @@ import { canPlaceAssetOnLayer } from '@/lib/canvasLayers';
 import { infoDrawerOpen, reduceEditorFocus, regionFocusSelection } from '@/lib/editorFocus';
 import { resolveEditorInit } from '@/lib/editorInit';
 import type { Coord } from '@/lib/region';
-import { isConnected } from '@/lib/region';
+import { findOverlap, isConnected } from '@/lib/region';
+import {
+  regionCellEditCells,
+  regionCellEditDelta,
+  regionCellEditProblem,
+  seedRegionCellEdit,
+  strokeRegionCellEdit,
+  type RegionCellEdit,
+} from '@/lib/regionEdit';
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
 import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
@@ -214,6 +223,11 @@ export function MapEditorPage(): JSX.Element {
     cells: [],
   });
   const [deleteRegionTarget, setDeleteRegionTarget] = useState<DraftRegion | null>(null);
+  /**
+   * v0.11.5: 区域格子的编辑会话。非 null 时画布上的点按/拖动改的是这份草稿，
+   * 而不是选格、落笔或擦除；保存前一律可取消。
+   */
+  const [regionCellEdit, setRegionCellEdit] = useState<RegionCellEdit | null>(null);
   const [regionError, setRegionError] = useState<string | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<MapDraft | null>(null);
@@ -537,6 +551,16 @@ export function MapEditorPage(): JSX.Element {
   }, [editor.selection, editor.selectedRegionId, mapInfoOpen]);
 
   /**
+   * v0.11.5：被编辑的那块区域没了（删除、撤销、换版本）就结束格子编辑会话 ——
+   * 草稿挂在一个不存在的区域上，保存时只会被静默丢掉。
+   */
+  useEffect(() => {
+    if (!regionCellEdit) return;
+    if (editor.regions.some((item) => item.id === regionCellEdit.regionId)) return;
+    setRegionCellEdit(null);
+  }, [editor.regions, regionCellEdit]);
+
+  /**
    * fork 态（`?v={n}`）整段让位给版本快照 —— 快照是已发布版本
    * 的完整 data，装进本地 store 即可开改，**不写任何库表**。草稿删除 /
    * 未初始化都不影响这条路：数据源是 `map_versions` 行，不是工作条目。
@@ -690,6 +714,8 @@ export function MapEditorPage(): JSX.Element {
     editor.setTool(tool);
     if (tool !== 'select') {
       editor.setSelectedItem(null);
+      // v0.11.5：换掉选择工具之后画布的点击语义变了，格子编辑会话就此结束。
+      setRegionCellEdit(null);
     }
   };
 
@@ -708,6 +734,68 @@ export function MapEditorPage(): JSX.Element {
   const submitRegionEdit = (regionId: string, input: RegionInput): void => {
     editor.updateRegion(regionId, input);
   };
+
+  /*
+   * v0.11.5：区域格子编辑。
+   *
+   * 开会话时先把这块区域的格子抄成一份草稿（`seedRegionCellEdit`），之后画布上
+   * 的每一笔只改草稿 —— 作者可以先补成凸字形、再削掉一条边，看准了才保存。
+   * 保存时一次性写进 store（**一步撤销**），取消则一点痕迹都不留。
+   *
+   * 为什么不复用「Shift + 点击逐格 toggle」那条老捷径：它每一下都是一步撤销，
+   * 而且没有预览、没有提交前的连通性检查 —— 手一滑把区域切成两块也照样落库。
+   */
+  const startRegionCellEdit = (regionId: string): void => {
+    const region = editor.regions.find((item) => item.id === regionId);
+    if (!region) return;
+    setRegionCellEdit(seedRegionCellEdit(region));
+    // 会话期间必须是「选择」工具：区域工具会把点击当圈选、橡皮会擦掉格内容。
+    setTool('select');
+    editor.setSelection(regionFocusSelection(regionId));
+  };
+
+  const cancelRegionCellEdit = (): void => {
+    setRegionCellEdit(null);
+  };
+
+  const strokeRegionCellEditOnCanvas = (keys: string[], erase: boolean): void => {
+    setRegionCellEdit((current) =>
+      current ? strokeRegionCellEdit(current, keys, erase) : current,
+    );
+  };
+
+  const commitRegionCellEdit = (): void => {
+    if (!regionCellEdit) return;
+    const region = editor.regions.find((item) => item.id === regionCellEdit.regionId);
+    if (!region) {
+      setRegionCellEdit(null);
+      return;
+    }
+    const cells = regionCellEditCells(regionCellEdit);
+    const problem = regionCellEditProblem(cells);
+    if (problem) {
+      toast.error(problem);
+      return;
+    }
+    // 占用了别人的格子就从那边挪走（与创建时的「覆盖」同义），先记下数量好回话。
+    const overlap = findOverlap(editor.regions, { id: region.id, cells });
+    editor.setRegionCells(region.id, cells);
+    setRegionCellEdit(null);
+    if (overlap.length > 0) {
+      toast.success(`已保存格子，另从别的区域挪走 ${overlap.length} 格`);
+    } else {
+      toast.success('已保存格子');
+    }
+  };
+
+  /** v0.11.5：工具条要显示的名字与差量（草稿相对已提交的格子）。 */
+  const regionCellEditInfo = useMemo(() => {
+    if (!regionCellEdit) return null;
+    const region = editor.regions.find((item) => item.id === regionCellEdit.regionId);
+    if (!region) return null;
+    const delta = regionCellEditDelta(regionCellEdit, region);
+    return { name: region.name, total: delta.total, added: delta.added, removed: delta.removed };
+  }, [regionCellEdit, editor.regions]);
 
   const previewCellSize = Math.max(3, Math.floor(180 / editor.gridSize));
 
@@ -1091,6 +1179,8 @@ export function MapEditorPage(): JSX.Element {
                 }
               }}
               onErase={(coord) => editor.eraseAt(coord.x, coord.y)}
+              regionEdit={regionCellEdit}
+              onRegionEditStroke={strokeRegionCellEditOnCanvas}
               onZoom={editor.setZoom}
               onPan={editor.setPan}
             />
@@ -1117,6 +1207,17 @@ export function MapEditorPage(): JSX.Element {
                   editor.clearDraftSelection();
                   setTool('select');
                 }}
+              />
+            ) : null}
+
+            {regionCellEditInfo ? (
+              <RegionCellEditBar
+                regionName={regionCellEditInfo.name}
+                total={regionCellEditInfo.total}
+                added={regionCellEditInfo.added}
+                removed={regionCellEditInfo.removed}
+                onCancel={cancelRegionCellEdit}
+                onConfirm={commitRegionCellEdit}
               />
             ) : null}
 
@@ -1160,6 +1261,8 @@ export function MapEditorPage(): JSX.Element {
             onSubmitRegion={submitRegionEdit}
             onDeleteRegion={setDeleteRegionTarget}
             onRegionDirtyChange={setRegionInfoDirty}
+            cellEditActive={regionCellEdit !== null}
+            onStartCellEdit={startRegionCellEdit}
           />
 
           <MapInfoDrawer

@@ -22,6 +22,7 @@ import {
   type MapStyle,
 } from '@loredoku/shared';
 import { brushStrokeErases, coordKey, regionAt, type Coord } from '@/lib/region';
+import type { RegionCellEdit } from '@/lib/regionEdit';
 import { hitTestCell, type CellMap } from '@/lib/hitTest';
 import type { HighlightState } from '@/lib/highlight';
 import { MapCanvasFrameLayer, MapGridSeparatorLayer } from '@/components/map/MapGridLayers';
@@ -105,6 +106,15 @@ interface EditorCanvasProps {
   /** v0.6.1: the armed (asset, variant) pair. v0.10.6: 足迹尺寸在 variant 上。 */
   pendingVariant: { asset: Asset; variant: AssetVariant } | null;
   regionDraftSelection: Set<string>;
+  /**
+   * v0.11.5：区域格子编辑会话（`null` = 没在编辑）。
+   *
+   * 有值时点按 / 拖动格子不再是「选中」，而是往这份草稿里增删 —— 画布同时把
+   * 草稿画出来（蓝 = 将要加入、红 = 将要移除），作者在提交前就能看到结果。
+   */
+  regionEdit?: RegionCellEdit | null;
+  /** 一笔结束时的结果（`erase` 为真表示这一笔是移除）。 */
+  onRegionEditStroke?: (keys: string[], erase: boolean) => void;
   /** Resolved participant highlight (shared with the work preview page). */
   highlight: HighlightState | null;
   /** MOD-802: true while the highlight is fading out (150ms). */
@@ -150,6 +160,11 @@ type Interaction =
    * makes a wrong single cell correctable without a separate clear step.
    */
   | { kind: 'brush'; keys: Set<string>; erase: boolean }
+  /**
+   * v0.11.5：区域格子编辑的一笔。形状与 `brush` 一样，区别只在松手后交给
+   * `onRegionEditStroke`（改的是编辑草稿，不是创建选区）。
+   */
+  | { kind: 'regionEdit'; keys: Set<string>; erase: boolean }
   | null;
 
 export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(function EditorCanvas(
@@ -169,6 +184,8 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     themeCode,
     pendingVariant,
     regionDraftSelection,
+    regionEdit = null,
+    onRegionEditStroke,
     highlight,
     highlightLeaving = false,
     onAutoCellSize,
@@ -450,6 +467,21 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       return;
     }
 
+    /*
+     * v0.11.5：区域格子编辑优先于其它工具 —— 会话期间点格子就是在增减它，
+     * 不是在选格、落笔或擦除。起点格已在草稿里则这一笔整段移除（`Alt` 永远
+     * 强制移除），与区域笔刷 `brushStrokeErases` 同一条规则。
+     */
+    if (regionEdit) {
+      node.setPointerCapture(event.pointerId);
+      const key = coordKey(coord.x, coord.y);
+      const erase = brushStrokeErases(regionEdit.cells.has(key), event.altKey);
+      const keys = new Set<string>([key]);
+      interactionRef.current = { kind: 'regionEdit', keys, erase };
+      setBrushCells([[coord.x, coord.y]]);
+      return;
+    }
+
     if (activeTool === 'eraser') {
       node.setPointerCapture(event.pointerId);
       const visited = new Set<string>([`${coord.x},${coord.y}`]);
@@ -533,6 +565,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       setBrushCells(Array.from(interaction.keys).map((item) => item.split(',').map(Number) as Coord));
       return;
     }
+
+    if (interaction.kind === 'regionEdit') {
+      if (!inBounds) return;
+      const key = coordKey(coord.x, coord.y);
+      interaction.keys.add(key);
+      setBrushCells(Array.from(interaction.keys).map((item) => item.split(',').map(Number) as Coord));
+      return;
+    }
   };
 
   const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
@@ -561,6 +601,13 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       }
       return;
     }
+
+    if (interaction?.kind === 'regionEdit') {
+      const keys = Array.from(interaction.keys);
+      setBrushCells([]);
+      if (keys.length > 0) onRegionEditStroke?.(keys, interaction.erase);
+      return;
+    }
   };
 
   /**
@@ -575,7 +622,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       : 'grab';
 
   const showPreview =
-    activeTool === 'select' && hover !== null && pendingVariant !== null;
+    activeTool === 'select' && hover !== null && pendingVariant !== null && regionEdit === null;
   const previewSize = pendingVariant
     ? resolveVariantFootprint(
         pendingVariant.variant,
@@ -641,6 +688,66 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       })}
     </div>
   );
+
+  /**
+   * v0.11.5：区域格子编辑的预览 —— 蓝 = 将要加入，红 = 将要移除。
+   *
+   * 移除的那部分**不在**草稿里（草稿存的是编辑之后的完整集合），所以必须拿
+   * 已提交的格子减一次才画得出来；否则作者只能看到「加了什么」，看不到
+   * 「少了什么」，而这次编辑恰恰最怕手滑删掉一块。
+   */
+  const regionEditOverlay = regionEdit
+    ? (() => {
+        const region = regions.find((item) => item.id === regionEdit.regionId);
+        const before = new Set((region?.cells ?? []).map(([x, y]) => coordKey(x, y)));
+        const added: Coord[] = [];
+        for (const key of regionEdit.cells) {
+          if (!before.has(key)) added.push(key.split(',').map(Number) as Coord);
+        }
+        const removed: Coord[] = [];
+        for (const key of before) {
+          if (!regionEdit.cells.has(key)) removed.push(key.split(',').map(Number) as Coord);
+        }
+        return (
+          <div
+            className="pointer-events-none absolute left-0 top-0"
+            style={{ zIndex: DRAFT_OVERLAY_Z }}
+            data-testid="region-edit-preview"
+          >
+            {added.map(([x, y]) => (
+              <div
+                key={`edit-add-${x}-${y}`}
+                data-region-edit="add"
+                className="absolute"
+                style={{
+                  left: x * cellSize,
+                  top: y * cellSize,
+                  width: cellSize,
+                  height: cellSize,
+                  backgroundColor: 'rgba(34,197,94,0.28)',
+                  boxShadow: 'inset 0 0 0 1px rgb(22,163,74)',
+                }}
+              />
+            ))}
+            {removed.map(([x, y]) => (
+              <div
+                key={`edit-remove-${x}-${y}`}
+                data-region-edit="remove"
+                className="absolute"
+                style={{
+                  left: x * cellSize,
+                  top: y * cellSize,
+                  width: cellSize,
+                  height: cellSize,
+                  backgroundColor: 'rgba(220,38,38,0.24)',
+                  boxShadow: 'inset 0 0 0 1px rgb(220,38,38)',
+                }}
+              />
+            ))}
+          </div>
+        );
+      })()
+    : null;
 
   const selectionOverlay = (
     <div className="pointer-events-none absolute left-0 top-0" style={{ zIndex: EDITOR_OVERLAY_Z }}>
@@ -724,6 +831,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           selectedRegionId={selectedRegionId}
         />
         {draftOverlay}
+        {regionEditOverlay}
 
         <MapGridSeparatorLayer gridSize={gridSize} cellSize={cellSize} style={style} />
         <MapItemLayer

@@ -290,3 +290,110 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
     }
   });
 });
+
+/**
+ * v0.11.5：改格子的入口长在区域分支上。
+ *
+ * 它只是把「我要改这块的格子」这件事喊给页面听 —— 会话本身（草稿、预览、
+ * 提交校验）都在页面与画布那边，抽屉不该知道草稿长什么样。所以这里只验
+ * 两件能看见的事：按钮存在且带上了正确的区域 id；会话进行中按钮变成
+ * 「编辑中…」且不可再点，同时露出操作提示。
+ */
+describe('EditorInfoDrawer — 编辑格子入口（v0.11.5）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  const style: MapStyle = resolveMapStyle(undefined);
+  const region: DraftRegion = {
+    id: 'forest',
+    name: '森林区',
+    cells: [
+      [0, 0],
+      [1, 0],
+    ],
+  };
+
+  const onStartCellEdit = vi.fn();
+
+  function mount(cellEditActive: boolean): void {
+    act(() => {
+      root.render(
+        <EditorInfoDrawer
+          open
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+          selection={{ type: 'region', regionId: region.id }}
+          cells={new Map()}
+          regions={[region]}
+          assetsById={new Map()}
+          style={style}
+          onClearCell={vi.fn()}
+          onClearItem={vi.fn()}
+          onSubmitRegion={vi.fn()}
+          onDeleteRegion={vi.fn()}
+          cellEditActive={cellEditActive}
+          onStartCellEdit={onStartCellEdit}
+        />,
+      );
+    });
+  }
+
+  const button = (label: string): HTMLButtonElement | undefined =>
+    Array.from(container.querySelectorAll<HTMLButtonElement>('button')).find(
+      (item) => item.textContent === label,
+    );
+
+  beforeEach(() => {
+    onStartCellEdit.mockClear();
+    container = document.createElement('div');
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+  });
+
+  it('点「编辑格子」把这块区域的 id 报给页面', () => {
+    mount(false);
+    act(() => button('编辑格子')?.click());
+    expect(onStartCellEdit).toHaveBeenCalledWith('forest');
+  });
+
+  it('会话进行中：按钮变「编辑中…」且不可再点，并露出操作提示', () => {
+    mount(true);
+    expect(button('编辑格子')).toBeUndefined();
+    const active = button('编辑中…');
+    expect(active).toBeDefined();
+    expect(active?.disabled).toBe(true);
+    expect(container.querySelector('[data-testid="region-cell-edit-hint"]')).not.toBeNull();
+  });
+
+  it('没有会话时不显示操作提示', () => {
+    mount(false);
+    expect(container.querySelector('[data-testid="region-cell-edit-hint"]')).toBeNull();
+  });
+
+  it('没给 onStartCellEdit 时按钮点了也不炸（谜题编辑器的只读画布）', () => {
+    act(() => {
+      root.render(
+        <EditorInfoDrawer
+          open
+          onClose={vi.fn()}
+          onOpen={vi.fn()}
+          selection={{ type: 'region', regionId: region.id }}
+          cells={new Map()}
+          regions={[region]}
+          assetsById={new Map()}
+          style={style}
+          onClearCell={vi.fn()}
+          onClearItem={vi.fn()}
+          onSubmitRegion={vi.fn()}
+          onDeleteRegion={vi.fn()}
+        />,
+      );
+    });
+    expect(() => act(() => button('编辑格子')?.click())).not.toThrow();
+  });
+});
