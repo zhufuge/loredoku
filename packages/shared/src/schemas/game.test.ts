@@ -3,6 +3,7 @@ import {
   GAME_DIFFICULTY_LEVELS,
   GAME_NAME_MAX_LENGTH,
   GAME_SLUG_MAX_LENGTH,
+  ITEM_NAME_TIP_Z,
   MAP_LAYER_ORDER,
   MAP_LAYER_Z,
 } from '../constants';
@@ -46,6 +47,15 @@ describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
     expect(MAP_LAYER_Z.regionLabel).toBeGreaterThan(MAP_LAYER_Z.gameToolHint);
     expect(MAP_LAYER_Z.gameToolHint).toBeGreaterThan(MAP_LAYER_Z.gamePlacement);
     expect(MAP_LAYER_Z.gamePlacement).toBeGreaterThan(MAP_LAYER_Z.itemLayer);
+  });
+
+  /*
+   * v0.11.4：物品名称提示要「出现在地图最上层」。它**不进**上面那 16 层
+   * （`MAP_LAYER_ORDER` 是画布内容的次序，纸片是 affordance），所以单独立一个
+   * 常量；这里只钉住「它确实比光标框高」这一条，别的层号一个都不用动。
+   */
+  it('keeps the item name tip above the mouse box', () => {
+    expect(ITEM_NAME_TIP_Z).toBeGreaterThan(MAP_LAYER_Z.mouseCursorBox);
   });
 });
 

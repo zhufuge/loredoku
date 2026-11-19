@@ -131,6 +131,20 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   canvasBase: 10,
 };
 
+/**
+ * 物品名称提示的 z-index（v0.11.4）—— 悬停物品 0.32 秒后浮出的那张纸片。
+ *
+ * 它**不在**上面那 16 层里：`MAP_LAYER_Z` 管的是**画布内容**的叠放次序，而这张
+ * 纸片是「读物品名字」的标注，与编辑器那些拖拽 / 框选反馈同一类 affordance。
+ * 作者要求它「出现在地图最上层」，所以取鼠标光标框之上 —— 纸片会压住光标框的
+ * 一条边，这是有意的：它不透明，且只在悬停时出现。
+ *
+ * 它仍然是一个**登记过的常量**，不写裸数字（`docs/layer-priority.md` §1 末尾那条
+ * 「禁止表外 z-index」指的是随手编一个值，不是禁止为 affordance 单独立一个名字）。
+ * 定案遮罩再压在它之上，见 `GameVerdictScrim` 的 `ITEM_NAME_TIP_Z + 1`。
+ */
+export const ITEM_NAME_TIP_Z = MAP_LAYER_Z.mouseCursorBox + 1;
+
 // ---- OPT-A05 当前方格辅助提示框（鼠标框 / 操作框） ----
 /** OPT-A05 (docs/v0.3.5.md §4): the v0.3.4 single cursor box split into a mouse box and an operation box. */
 /** Mouse box inner line on a free cell (§4.1). */

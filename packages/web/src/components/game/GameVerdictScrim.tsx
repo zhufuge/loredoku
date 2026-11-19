@@ -1,4 +1,4 @@
-import { MAP_LAYER_Z } from '@loredoku/shared';
+import { ITEM_NAME_TIP_Z } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
 import { VerdictMark } from '@/components/game/VerdictMark';
@@ -11,7 +11,8 @@ import { cn } from '@/lib/utils';
  * 为什么挂在画布纸里而不是当成第五处独立遮罩：用户要的是「把地图方格用遮罩遮住，
  * 上面展示定案+印章（位置和谜题卡片一样）」。位置与卡片一致，意味着它得跟着纸走
  * —— 挂在 `game-canvas` 里就自动随缩放/平移，不必再量一次矩形。它压在内容层
- * 之上（`zIndex` 取最高的鼠标框 +1），所以格子、物品、头像都被蒙住。
+ * 之上（`zIndex` 取物品名称提示再 +1，于是比鼠标框、比提示纸片都高），所以格子、
+ * 物品、头像都被蒙住。
  *
  * 左右两栏**不遮**（用户明确：已完成的再进入只留地图方格遮罩）；校验通过那一瞬的
  * 左右遮罩由 `checkRun` 那条路径撤掉 —— 见 `GamePage` 提交后的 effect。
@@ -53,7 +54,11 @@ export function GameVerdictScrim({
          */
         'pointer-events-auto absolute inset-0 flex flex-col items-center justify-center gap-6',
       )}
-      style={{ zIndex: MAP_LAYER_Z.mouseCursorBox + 1 }}
+      /*
+       * v0.11.4：物品名称提示挪到 `ITEM_NAME_TIP_Z`（鼠标光标框 +1）之后，这一层
+       * 得再抬一格 —— 结案遮罩压在所有 affordance 之上，纸片也不例外。
+       */
+      style={{ zIndex: ITEM_NAME_TIP_Z + 1 }}
     >
       <VerdictMark
         stampUrl={stampUrl}

@@ -1,7 +1,8 @@
 import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Asset, AssetVariant } from '@loredoku/shared';
+import { ITEM_NAME_TIP_DELAY_MS, ITEM_NAME_TIP_Z, MAP_LAYER_Z } from '@loredoku/shared';
 import type { CellCoord } from '@loredoku/shared';
 import type { CellMap } from '@/lib/canvasLayers';
 import type { CanvasPoint } from '@/lib/grid';
@@ -494,5 +495,99 @@ describe('三层同格共存（v0.10.9）', () => {
     });
     expect(container.querySelector('img')?.getAttribute('src')).toBe('/uploads/p.png');
     expect(container.querySelectorAll('[data-color-block]')).toHaveLength(0);
+  });
+});
+
+/**
+ * v0.11.4：作者要求「物品提示出现在地图最上层，且标签默认在鼠标上方」。
+ *
+ * 改之前纸片渲染在物品自己那个 `div` 里 —— 那层带 `zIndex`，是个层叠上下文，
+ * 于是纸片永远压在区域标签、工具提示之下，鼠标光标框更是画在它上面；位置也是
+ * 贴指针**右下** `+14 / +18`。
+ */
+describe('层 4 · 物品层 — 名称提示在最上层、默认在指针上方（v0.11.4）', () => {
+  let container: HTMLDivElement;
+  let root: Root;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    vi.useRealTimers();
+  });
+
+  /** 画一块 5×5（cellSize 100）、悬停命中 `hover`，并把 0.32 秒的计时推过去。 */
+  const paint = (
+    cells: CellMap,
+    pointer: CanvasPoint | null,
+    hover: CellCoord = { x: 0, y: 0 },
+  ): void => {
+    act(() => {
+      root.render(
+        <MapItemLayer
+          cells={cells}
+          assetsById={assetsById}
+          cellSize={100}
+          gridSize={5}
+          hover={hover}
+          pointer={pointer}
+        />,
+      );
+    });
+    act(() => {
+      vi.advanceTimersByTime(ITEM_NAME_TIP_DELAY_MS);
+    });
+  };
+
+  const picture = (): CellMap => new Map([['0,0', { item: { assetId: 2, w: 1, h: 1 } }]]);
+  const tip = (): HTMLElement | null =>
+    container.querySelector('[data-testid="item-name-tip"]');
+
+  it('纸片自己挂一层，压得比物品层高', () => {
+    paint(picture(), { x: 50, y: 50 });
+    const span = tip();
+    expect(span).not.toBeNull();
+
+    const layer = span!.parentElement as HTMLElement;
+    expect(layer.style.zIndex).toBe(String(ITEM_NAME_TIP_Z));
+    expect(ITEM_NAME_TIP_Z).toBeGreaterThan(MAP_LAYER_Z.itemLayer);
+    // 与物品**不在**同一层：纸片那个壳子里没有任何物品的画。
+    expect(layer.contains(container.querySelector('img'))).toBe(false);
+  });
+
+  it('有光标坐标时，纸片落在指针正上方', () => {
+    paint(picture(), { x: 250, y: 300 });
+    const style = tip()!.style;
+    expect(style.left).toBe('250px');
+    // 底边贴在指针上方 18px 处 —— `translateY(-100%)` 把纸片往上提。
+    expect(style.top).toBe('282px');
+    expect(style.transform).toBe('translate(-50%, -100%)');
+  });
+
+  it('指针贴着画布顶边时翻到下方，仍然水平居中', () => {
+    paint(picture(), { x: 250, y: 20 });
+    const style = tip()!.style;
+    expect(style.top).toBe('38px');
+    expect(style.transform).toBe('translate(-50%, 0)');
+  });
+
+  it('指针贴着画布右边时从锚点向左展开', () => {
+    paint(picture(), { x: 480, y: 300 });
+    expect(tip()!.style.transform).toBe('translate(-100%, -100%)');
+  });
+
+  it('没有光标坐标（触屏、测试）时挂在物品显示框上方', () => {
+    paint(new Map([['2,2', { item: { assetId: 2, w: 1, h: 1 } }]]), null, { x: 2, y: 2 });
+    const style = tip()!.style;
+    // 第三行第二列的显示框：上边 200、中线 250，纸片底边落在它上方 6px。
+    expect(style.top).toBe('194px');
+    expect(style.left).toBe('250px');
+    expect(style.transform).toBe('translate(-50%, -100%)');
   });
 });
