@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { CheckScrim } from '@/components/game/CheckScrim';
 import { GameBoardLayers } from '@/components/game/GameBoardLayers';
 import { GameDescriptionDialog, GameResultDialog } from '@/components/game/GameDialogs';
+import { GameHelpDialog } from '@/components/game/GameHelpDialog';
 import { GamePlayerAside } from '@/components/game/GamePlayerAside';
 import { GameToolRail } from '@/components/game/GameToolRail';
 import { GameVerdictScrim } from '@/components/game/GameVerdictScrim';
@@ -29,6 +30,7 @@ import { clampZoom, zoomAtPoint, ZOOM_STEP, type CanvasPoint } from '@/lib/grid'
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
 import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
+import { markGameHelpSeen, readGameHelpSeen } from '@/lib/gameHelp';
 import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
 import { readGameTimer } from '@/lib/gameTimer';
 import { boardImageUrls } from '@/lib/pageImages';
@@ -234,6 +236,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [descriptionOpen, setDescriptionOpen] = useState(false);
 
   /**
+   * v0.11.7：玩法说明弹框是否开着。
+   *
+   * 三处能打开它：右栏最下面那枚问号（桌面）、头部日夜模式左边那枚（竖屏）、
+   * 以及**第一次进任意关卡时自动弹一次**（见下面那个 effect）。三处共用一个
+   * `open`，所以「自动弹过的那次」也是这枚问号的关闭状态 —— 不会出现两层。
+   */
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  /**
    * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
    *
    * 它和 `result` 不是一件事：`result` 是「刚刚结算完、结算卡开着」，`finished`
@@ -386,6 +397,22 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     charactersQuery.isLoading ||
     catalogQuery.isLoading ||
     !imagesReady;
+
+  /*
+   * v0.11.7：第一次进**任意**关卡时自动弹一次玩法说明。
+   *
+   * 三个条件：这一关的数据到了（说明里说的「点参与者」「长按格子」得有对象可指）、
+   * 资源齐了（别让弹框压在骨架屏上）、这台设备还没看过（`lib/gameHelp.ts`）。
+   *
+   * 记账在**打开这一刻**就写，而不是等玩家点「知道了」：他可能直接点遮罩外的
+   * 返回、或者直接开始下棋，那两种也都算「看过一次」—— 若等到关闭才记，
+   * 每次刷新都会再弹一遍，那就成了挡路的浮层而不是说明。
+   */
+  useEffect(() => {
+    if (!detail || resourcesLoading || readGameHelpSeen()) return;
+    markGameHelpSeen();
+    setHelpOpen(true);
+  }, [detail, resourcesLoading]);
 
   /** 中列（`<main>`）—— 量可见区、算坐标、挂 `ResizeObserver` 都认它。 */
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -1129,6 +1156,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           placedSlotIndices={placedSlotIndices}
           onBack={() => navigate(backHref)}
           onOpenDescription={() => setDescriptionOpen(true)}
+          onOpenHelp={() => setHelpOpen(true)}
           onCardClick={handleCardClick}
           onCardHoverEnter={(index) => handleActivation({ type: 'enter', participantId: index })}
           onCardHoverLeave={handleCardHoverLeave}
@@ -1452,6 +1480,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           onZoomBy={zoomBy}
           onResetView={fit}
           onToggleRulers={() => setShowRulers((current) => !current)}
+          onOpenHelp={() => setHelpOpen(true)}
         />
       </div>
 
@@ -1480,6 +1509,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         open={descriptionOpen}
         onOpenChange={setDescriptionOpen}
         description={puzzleDescription}
+      />
+
+      {/* v0.11.7：玩法说明（自动弹的那一次与问号按钮共用这一个）。 */}
+      <GameHelpDialog
+        open={helpOpen}
+        onOpenChange={setHelpOpen}
+        toolIcons={toolIcons}
+        markImageUrl={mark?.imageUrl ?? null}
       />
 
       <GameResultDialog

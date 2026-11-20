@@ -1,4 +1,4 @@
-import { Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
+import { HelpCircle, Minus, Plus, RotateCcw, Ruler, X } from 'lucide-react';
 import { GAME_CLEAR_LONG_PRESS_MS, GAME_PRESS_RING_DELAY_MS, UI_Z } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { IconButton } from '@/components/ui/icon-button';
@@ -45,6 +45,8 @@ export interface GameToolRailProps {
   onZoomBy: (direction: 1 | -1) => void;
   onResetView: () => void;
   onToggleRulers: () => void;
+  /** v0.11.7：打开玩法说明。竖屏那枚在头部（见 `GamePlayerAside`），这里只管桌面。 */
+  onOpenHelp: () => void;
 }
 
 export function GameToolRail({
@@ -66,6 +68,7 @@ export function GameToolRail({
   onZoomBy,
   onResetView,
   onToggleRulers,
+  onOpenHelp,
 }: GameToolRailProps): JSX.Element {
   const lockedHint = '这一局已结案，点「再玩一次」才能继续';
   const undoHint = toolsLocked ? lockedHint : canUndoNow ? undefined : '当前没有可以回退的步骤';
@@ -309,6 +312,23 @@ export function GameToolRail({
           onClick={onToggleRulers}
         />
       </div>
+
+      {/*
+       * v0.11.7：玩法说明沉在这一栏**最下面**，与上面两组都不挤在一起 ——
+       * 四枚动作是「对棋盘做什么」，视图簇是「怎么看棋盘」，这一枚是「这些都是
+       * 干什么的」，三种问题不同类。
+       *
+       * 竖屏不画：那时这一栏是底部横条，问号改挂在头部（日夜模式按钮左边），
+       * 见 `GamePlayerAside`。两边各画一枚、各管一个断点，不必把按钮搬到别处。
+       */}
+      <IconButton
+        variant="ghost"
+        icon={<HelpCircle className="h-4 w-4" />}
+        label="玩法说明"
+        side="right"
+        className={cn(TOOLBAR_ICON_HOVER_CLASS, 'mt-2 max-md:mt-0 portrait:max-md:hidden')}
+        onClick={onOpenHelp}
+      />
 
       {/*
        * v0.9.0 §17：原来这里有两行「已放置 N 个 / 可回退 M 步」的统计。

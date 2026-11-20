@@ -197,7 +197,15 @@ export function GameCard({
         {completed ? <CompletionOverlay completion={completed} /> : null}
       </div>
       <div className="space-y-2 p-3 sm:p-4">
-        <h3 className="truncate font-medium" title={game.name}>
+        {/*
+          v0.11.7：定案卡的标题降一档颜色 —— 封面已经盖了「定案 + 印」，
+          这一关的结论写在封面上；标题再和没做过的那几张一样黑，整张卡会
+          读成「还能再挑一次」。名字仍要看得清，所以只退到 muted，不写更淡。
+        */}
+        <h3
+          className={cn('truncate font-medium', completed ? 'text-muted-foreground' : undefined)}
+          title={game.name}
+        >
           {game.name}
         </h3>
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">

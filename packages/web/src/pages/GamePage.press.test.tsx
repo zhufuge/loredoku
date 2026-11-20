@@ -5,6 +5,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE } from '@loredoku/shared';
 import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
+import { GAME_HELP_SEEN_KEY } from '@/lib/gameHelp';
 import ApiGamePage from './ApiGamePage';
 
 /**
@@ -123,6 +124,8 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    /* v0.11.7：这些用例验的是按压与笔画，别让「首次进入自动弹玩法说明」的浮层挡住棋盘。 */
+    window.localStorage.setItem(GAME_HELP_SEEN_KEY, '1');
     toasts.errors.length = 0;
     vi.stubGlobal(
       'ResizeObserver',

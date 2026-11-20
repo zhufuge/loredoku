@@ -1,4 +1,4 @@
-import { ArrowLeft, FileText } from 'lucide-react';
+import { ArrowLeft, FileText, HelpCircle } from 'lucide-react';
 import { UI_Z, type Character, type CharacterSlotEntry } from '@loredoku/shared';
 import { IconButton } from '@/components/ui/icon-button';
 import { ParticipantPanel } from '@/components/map-editor/ParticipantPanel';
@@ -46,6 +46,8 @@ export interface GamePlayerAsideProps {
   placedSlotIndices: Set<number>;
   onBack: () => void;
   onOpenDescription: () => void;
+  /** v0.11.7：打开玩法说明（竖屏那枚问号挂在头部，日夜模式按钮左边）。 */
+  onOpenHelp: () => void;
   onCardClick: (index: number) => void;
   onCardHoverEnter: (index: number) => void;
   onCardHoverLeave: (index: number) => void;
@@ -71,6 +73,7 @@ export function GamePlayerAside({
   placedSlotIndices,
   onBack,
   onOpenDescription,
+  onOpenHelp,
   onCardClick,
   onCardHoverEnter,
   onCardHoverLeave,
@@ -172,8 +175,24 @@ export function GamePlayerAside({
               onClick={onOpenDescription}
             />
           ) : null}
+          {/*
+            v0.11.7：玩法说明 —— 只在竖屏出现，紧挨着日夜模式按钮左边。
+            桌面端那枚沉在右栏最下面（`GameToolRail`）：桌面右栏有地方，
+            竖屏的头部这一行才是空着的。
+          */}
+          <IconButton
+            variant="ghost"
+            icon={<HelpCircle className="h-4 w-4" />}
+            label="玩法说明"
+            side="bottom"
+            className={cn(
+              TOOLBAR_ICON_HOVER_CLASS,
+              'hidden max-md:order-5 max-md:flex max-md:shrink-0',
+            )}
+            onClick={onOpenHelp}
+          />
           {/* v0.5.7: 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
-          <ThemeToggle className="ml-auto max-md:order-5 max-md:shrink-0" />
+          <ThemeToggle className="ml-auto max-md:order-6 max-md:shrink-0" />
         </div>
         {/*
           * v0.7.12：计时挪到标题行最右边 —— 它是「这一局」的元信息，与名字、

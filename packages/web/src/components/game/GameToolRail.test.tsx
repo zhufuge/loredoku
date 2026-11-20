@@ -58,6 +58,7 @@ describe('GameToolRail — 长按清除不外传（v0.11.3）', () => {
     onZoomBy: () => undefined,
     onResetView: () => undefined,
     onToggleRulers: () => undefined,
+    onOpenHelp: () => undefined,
   };
 
   function clearButton(): HTMLButtonElement {
@@ -135,5 +136,25 @@ describe('GameToolRail — 长按清除不外传（v0.11.3）', () => {
       button.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
     });
     expect(end).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * v0.11.7：玩法说明那枚问号。
+   *
+   * 钉两件事：它在这一栏里**排在最后**（用户说的是「最下方」），点它把回调
+   * 传出去。位置用「在整栏里是不是最后一个按钮」判断 —— 不去数 class 里的
+   * `mt-auto` 之类，那些是排版手段，不是这件事。
+   */
+  it('玩法说明那枚问号排在最下面，点了把回调传出去', () => {
+    const open = vi.fn();
+    mount({ onOpenHelp: open });
+    const buttons = Array.from(container.querySelectorAll<HTMLButtonElement>('button'));
+    const help = buttons.find((button) => button.getAttribute('aria-label') === '玩法说明');
+    if (!help) throw new Error('玩法说明按钮没渲染出来');
+
+    expect(buttons[buttons.length - 1]).toBe(help);
+
+    act(() => help.click());
+    expect(open).toHaveBeenCalledTimes(1);
   });
 });

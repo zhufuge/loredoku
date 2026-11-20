@@ -16,6 +16,7 @@ import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { imageTintMatrix } from '@/components/common/PressRing';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
 import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
+import { GAME_HELP_SEEN_KEY } from '@/lib/gameHelp';
 import { gameTimerKey } from '@/lib/gameTimer';
 import ApiGamePage from './ApiGamePage';
 
@@ -252,6 +253,15 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
   beforeEach(() => {
     window.localStorage.clear();
+    /*
+     * v0.11.7：默认把「玩法说明看过了」摆上。
+     *
+     * 这些用例都在验别的行为，而**没看过就会自动弹一层弹框**（下面
+     * 「首次进入自动弹」那组专门验它）。不预置的话，一个 `role="dialog"`
+     * 会压在棋盘上，`pointerdown` 打到遮罩、按钮被 `aria-hidden` 掉，
+     * 几十条用例会一起红 —— 而它们其实一点都没坏。
+     */
+    window.localStorage.setItem(GAME_HELP_SEEN_KEY, '1');
     fixture.detailPending = false;
     // 换关用例改过 slug / gridSize —— 它们是同一个夹具对象，必须逐条还原，
     // 否则后面所有用例都在「5×5 的 day-boat」上跑。
@@ -1434,16 +1444,24 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(container.textContent).not.toContain('可回退');
     });
 
-    it('放大 / 缩小 / 重置 / 标尺这一簇是右栏的最后一个子元素', () => {
+    /**
+     * v0.11.7：问号沉到了最下面，视图簇因此从「最后一个子元素」变成
+     * 「倒数第二个」。`mt-auto` 仍挂在视图簇上 —— 它把「视图簇 + 问号」这
+     * 一组一起顶到底边，所以视图簇紧贴着问号上面，而不是贴着栏底。
+     */
+    it('放大 / 缩小 / 重置 / 标尺这一簇仍在最下面那一组（v0.11.7 起问号在它下面）', () => {
       render();
       const last = toolbar().lastElementChild;
       expect(last).not.toBeNull();
+      expect(last?.getAttribute('aria-label')).toBe('玩法说明');
+
+      const cluster = last?.previousElementSibling;
       // `mt-auto` 是「沉到底边」的唯一手段：统计那块删掉后，不能再靠它顶下去。
-      expect(last?.className).toContain('mt-auto');
+      expect(cluster?.className).toContain('mt-auto');
       for (const label of ['放大', '缩小', '重置视图', '显示 / 隐藏标尺']) {
-        expect(last?.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
+        expect(cluster?.querySelector(`button[aria-label="${label}"]`)).not.toBeNull();
       }
-      expect(last?.textContent).toContain('100%');
+      expect(cluster?.textContent).toContain('100%');
     });
 
     it('四枚工具按钮的图标都是 32px（h-8 w-8）', () => {
@@ -2270,6 +2288,68 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  /**
+   * v0.11.7：玩法说明。
+   *
+   * 判据只钉「玩家看得见的三件事」：第一次进来自己弹、第二次不弹、两枚问号
+   * 随时能再打开。记账的键名与读写失败的行为在 `lib/gameHelp.test.ts` 里。
+   */
+  describe('v0.11.7 玩法说明', () => {
+    function helpDialog(): HTMLElement | null {
+      // Radix 把弹框内容 portal 到 `document.body`，不在 `container` 里。
+      return document.querySelector<HTMLElement>('[data-testid="game-help-dialog"]');
+    }
+
+    function helpButtons(): HTMLButtonElement[] {
+      return Array.from(
+        container.querySelectorAll<HTMLButtonElement>('button[aria-label="玩法说明"]'),
+      );
+    }
+
+    it('第一次进关卡：自动弹一次，并记下「看过了」', () => {
+      window.localStorage.removeItem(GAME_HELP_SEEN_KEY);
+      render();
+      expect(helpDialog()).not.toBeNull();
+      expect(window.localStorage.getItem(GAME_HELP_SEEN_KEY)).toBe('1');
+    });
+
+    it('看过之后再进来：不弹了，棋盘直接可以下', () => {
+      render();
+      expect(helpDialog()).toBeNull();
+    });
+
+    it('关掉之后再点问号：还能再打开（桌面右栏与竖屏头部各一枚）', () => {
+      window.localStorage.removeItem(GAME_HELP_SEEN_KEY);
+      render();
+      expect(helpDialog()).not.toBeNull();
+      act(() => footerButton('知道了')?.click());
+      expect(helpDialog()).toBeNull();
+
+      const buttons = helpButtons();
+      // 两枚都在 DOM 里，只是断点不同：桌面那枚沉在右栏最下面，竖屏那枚在头部。
+      expect(buttons).toHaveLength(2);
+      for (const button of buttons) {
+        act(() => button.click());
+        expect(helpDialog()).not.toBeNull();
+        act(() => footerButton('知道了')?.click());
+        expect(helpDialog()).toBeNull();
+      }
+    });
+
+    it('自动弹出的那一次也算看过了：刷新页面不再弹', () => {
+      window.localStorage.removeItem(GAME_HELP_SEEN_KEY);
+      render();
+      expect(helpDialog()).not.toBeNull();
+      act(() => root.unmount());
+      container.remove();
+      container = document.createElement('div');
+      document.body.append(container);
+      root = createRoot(container);
+      render();
+      expect(helpDialog()).toBeNull();
     });
   });
 
