@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MapGameSummary, ThemeDifficultyTier } from '@loredoku/shared';
+import type { MapGameSummary, Theme, ThemeData, ThemeDifficultyTier } from '@loredoku/shared';
 import { recordGameCompletion } from '@/lib/gameCompletion';
 import { gameTimerKey } from '@/lib/gameTimer';
 import { GamesPage } from './GamesPage';
@@ -24,8 +24,19 @@ const gamesRef: { data: MapGameSummary[]; isLoading: boolean; error: null; refet
   refetch: () => undefined,
 };
 
-/** `themeCode → 分级`，由各用例自己摆。 */
-const tiersByCode = new Map<string, readonly ThemeDifficultyTier[]>();
+/**
+ * v0.11.6：这一页从「全站游戏平铺」变成「一个主题的关卡列表」—— 主题自己带
+ * 名字、描述、分级和那两行文案，所以 `useThemes` 也得摆一份出来。
+ */
+const themesRef: { data: Theme[]; isLoading: boolean; error: null } = {
+  data: [],
+  isLoading: false,
+  error: null,
+};
+
+function theme(code: string, data: Partial<ThemeData> = {}, name = code): Theme {
+  return { id: 1, code, name, description: null, data } as unknown as Theme;
+}
 
 /**
  * v0.11.2：预加载由 `useImagePreload` 负责（它自己的用例在
@@ -42,10 +53,7 @@ vi.mock('@/hooks/useImagePreload', () => ({
     return preloadRef.ready;
   },
 }));
-vi.mock('@/hooks/useThemes', () => ({
-  useDifficultyTiersByCode: () => (code: string | null | undefined) =>
-    code ? tiersByCode.get(code) : undefined,
-}));
+vi.mock('@/hooks/useThemes', () => ({ useThemes: () => themesRef }));
 
 function game(overrides: Partial<MapGameSummary> & { id: number }): MapGameSummary {
   return {
@@ -80,15 +88,16 @@ describe('GamesPage', () => {
       (node) => node.textContent?.trim().includes(label) === true,
     );
 
-  function mount(): void {
+  function mount(path = '/play'): void {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
     act(() => {
       root.render(
-        <MemoryRouter initialEntries={['/play']}>
-          <GamesPage />
+        <MemoryRouter initialEntries={[path]}>
           <Routes>
+            <Route path="/play" element={<GamesPage />} />
+            <Route path="/:themeCode/play" element={<GamesPage />} />
             <Route path="*" element={<PathProbe />} />
           </Routes>
         </MemoryRouter>,
@@ -101,7 +110,11 @@ describe('GamesPage', () => {
     // `workshopPath` 靠这个记住的工作空间拼地址（没有它只会回 `/`）。
     window.localStorage.setItem('loredoku.lastTheme', 'hlm');
     gamesRef.data = [];
-    tiersByCode.clear();
+    // 上一个用例可能把开关拨到「还在加载」/「封面没就绪」，这里拨回来。
+    gamesRef.isLoading = false;
+    preloadRef.ready = true;
+    preloadRef.urls = [];
+    themesRef.data = [];
     mount();
   });
 
@@ -120,43 +133,40 @@ describe('GamesPage', () => {
   });
 
   /**
-   * 两个主题的关卡并排站在「单个游戏」段里，第 2 档一个叫「通」、一个叫「圣」。
+   * v0.11.6：`/:code/play` 只列这个主题的关卡，徽章用这个主题配的分级。
    *
-   * 按主题查而不是取第一份分级：这正是 `themeCode` 存在的意义 —— 同一张页上不可能
-   * 只有一个主题的关卡，写死一份就会让另一半显示成别人的叫法。
+   * 原来这一页是全站平铺的，同一个第 2 档在一张页上有两个叫法；现在地址里带着
+   * 主题编码，分级只有一份 —— 别的主题的关卡连出现的机会都不该有。
    */
-  it('难度用每关所属主题配的字样，不用内置五档', () => {
+  it('按主题展示：只列这个主题的关卡，用它的分级叫法', () => {
     gamesRef.data = [
-      game({ id: 1, themeCode: 'hlm', difficulty: 2 }),
-      game({ id: 2, themeCode: 'xyj', difficulty: 2 }),
+      game({ id: 1, themeCode: 'hlm', difficulty: 2, slug: 'in-hlm' }),
+      game({ id: 2, themeCode: 'xyj', difficulty: 2, slug: 'in-xyj' }),
     ];
-    tiersByCode.set('hlm', [
-      { level: 1, label: '初' },
-      { level: 2, label: '通' },
-    ]);
-    tiersByCode.set('xyj', [
-      { level: 1, label: '凡' },
-      { level: 2, label: '圣' },
-    ]);
+    themesRef.data = [
+      theme('hlm', { difficultyLevels: [{ level: 1, label: '初' }, { level: 2, label: '通' }] }, '红楼梦'),
+    ];
 
     act(() => root.unmount());
     container.remove();
-    mount();
+    mount('/hlm/play');
 
     const text = document.body.textContent ?? '';
+    expect(text).toContain('红楼梦');
     expect(text).toContain('通');
-    expect(text).toContain('圣');
-    // 内置五档里第 2 档叫「简单」—— 它一次都不该出现。
-    expect(text).not.toContain('简单');
+    // 另一个主题的关卡与它的叫法都不该出现。
+    expect(text).not.toContain('圣');
+    expect(document.body.textContent).not.toContain('关卡 2');
   });
 
-  /** 主题还没取回来（或主题里根本没配）时退回内置五档，画面不能空着。 */
-  it('查不到分级时退回内置五档', () => {
+  /** 主题没配分级时退回内置五档，画面不能空着。 */
+  it('主题没配分级时退回内置五档', () => {
     gamesRef.data = [game({ id: 1, themeCode: 'hlm', difficulty: 2 })];
+    themesRef.data = [theme('hlm')];
 
     act(() => root.unmount());
     container.remove();
-    mount();
+    mount('/hlm/play');
 
     expect(document.body.textContent).toContain('简单');
   });
@@ -411,6 +421,134 @@ describe('GamesPage', () => {
 
       expect(covers()).toBe(0);
     });
+  });
+
+  /**
+   * v0.11.6：列表页顶上那两行字。
+   *
+   * 它们是**主题的口气**，不是全站统一文案 —— 与难度分级同一类东西。默认那两句
+   * 是内置的，主题配过就用配的（`{n}` 换成数字）。
+   */
+  describe('v0.11.6 计数行：N 关可玩 / 已通过 N 关', () => {
+    const passedCount = (): string =>
+      document.querySelector('[data-testid="games-passed-count"]')?.textContent ?? '';
+
+    it('没配过就用内置那两句', () => {
+      gamesRef.data = [game({ id: 1, themeCode: 'hlm' }), game({ id: 2, themeCode: 'hlm' })];
+      themesRef.data = [theme('hlm', {}, '红楼梦')];
+      act(() => root.unmount());
+      container.remove();
+      mount('/hlm/play');
+
+      expect(document.body.textContent).toContain('2 关可玩');
+      expect(passedCount()).toBe('已通过 0 关');
+    });
+
+    it('主题配过就用配的，{n} 换成关数', () => {
+      gamesRef.data = [game({ id: 1, themeCode: 'hlm' }), game({ id: 2, themeCode: 'hlm' })];
+      themesRef.data = [
+        theme('hlm', { gameList: { playable: '共 {n} 回', passed: '已了 {n} 桩' } }, '红楼梦'),
+      ];
+      act(() => root.unmount());
+      container.remove();
+      mount('/hlm/play');
+
+      expect(document.body.textContent).toContain('共 2 回');
+      expect(passedCount()).toBe('已了 0 桩');
+    });
+
+    it('通过一关，那个数字跟着变', () => {
+      gamesRef.data = [game({ id: 1, themeCode: 'hlm', slug: 'done', gridSize: 5 })];
+      themesRef.data = [theme('hlm', {}, '红楼梦')];
+      recordGameCompletion('done', { gridSize: 5 }, { elapsedMs: 61000, stampUrl: null });
+      act(() => root.unmount());
+      container.remove();
+      mount('/hlm/play');
+
+      expect(passedCount()).toBe('已通过 1 关');
+    });
+  });
+
+  /**
+   * v0.11.6：难度过滤。默认「全部」；点某一档只留那一档；再点「全部」回来。
+   *
+   * 切档时**计数行不跟着变** —— 「已通过 N 关」说的是这个主题一共过了几关，
+   * 换个看法不该让它变小。
+   */
+  describe('v0.11.6 难度过滤', () => {
+    const chips = (): HTMLButtonElement[] =>
+      Array.from(document.querySelectorAll<HTMLButtonElement>('[data-testid="games-difficulty-filter"] button'));
+    const covers = (): number => document.querySelectorAll('[data-testid="game-cover"]').length;
+
+    function setup(): void {
+      gamesRef.data = [
+        game({ id: 1, themeCode: 'hlm', difficulty: 1, slug: 'easy-one' }),
+        game({ id: 2, themeCode: 'hlm', difficulty: 2, slug: 'hard-one' }),
+      ];
+      themesRef.data = [
+        theme('hlm', { difficultyLevels: [{ level: 1, label: '初' }, { level: 2, label: '通' }] }, '红楼梦'),
+      ];
+      act(() => root.unmount());
+      container.remove();
+      mount('/hlm/play');
+    }
+
+    it('「全部」在最前，后面是这个主题的每一档', () => {
+      setup();
+
+      expect(chips().map((chip) => chip.textContent?.trim())).toEqual(['全部', '初', '通']);
+      expect(chips()[0]?.getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('点某一档只留那一档，点「全部」回来', () => {
+      setup();
+      expect(covers()).toBe(2);
+
+      act(() => chips()[2]?.click());
+      expect(covers()).toBe(1);
+      expect(document.body.textContent).not.toContain('关卡 1');
+
+      act(() => chips()[0]?.click());
+      expect(covers()).toBe(2);
+    });
+
+    it('切档不改变「已通过 N 关」', () => {
+      setup();
+      const before = document.querySelector('[data-testid="games-passed-count"]')?.textContent;
+
+      act(() => chips()[2]?.click());
+
+      expect(document.querySelector('[data-testid="games-passed-count"]')?.textContent).toBe(before);
+    });
+
+    it('这一档没有关卡时给回「全部」的出口', () => {
+      gamesRef.data = [game({ id: 1, themeCode: 'hlm', difficulty: 1, slug: 'easy-one' })];
+      themesRef.data = [
+        theme('hlm', { difficultyLevels: [{ level: 1, label: '初' }, { level: 2, label: '通' }] }, '红楼梦'),
+      ];
+      act(() => root.unmount());
+      container.remove();
+      mount('/hlm/play');
+
+      act(() => chips()[2]?.click());
+
+      expect(covers()).toBe(0);
+      expect(document.body.textContent).toContain('这一档还没有关卡');
+      act(() => button('看全部')?.click());
+      expect(covers()).toBe(1);
+    });
+  });
+
+  /** v0.11.6：卡片与「进入工坊」都带着当前主题编码走，不再落到全站那页。 */
+  it('带主题编码进来时，进工坊落到这个主题的概览', () => {
+    themesRef.data = [theme('hlm', {}, '红楼梦')];
+    act(() => root.unmount());
+    container.remove();
+    mount('/hlm/play');
+
+    act(() => button('进入工坊')?.click());
+
+    expect(path()).toBe('/hlm/overview');
   });
 
 });

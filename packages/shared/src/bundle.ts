@@ -13,6 +13,7 @@ import type {
   // 与 `ThemeCheckColors`，圈图并进 `ThemeRing`。
   ThemeRing,
   ThemeVerdict,
+  ThemeGameListTexts,
 } from './types/domain';
 import {
   collectPuzzleThemeRefs,
@@ -241,6 +242,14 @@ export interface BundleManifestTheme {
    * 可选：没配过的主题没有这个键，结算卡画内置 🎉 + 「解题成功」。
    */
   verdict?: ThemeVerdict | null;
+  /**
+   * v0.11.6：游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。
+   *
+   * 与 `verdict` 同一条规矩：没配过的主题没有这个键，列表页用内置那两句。
+   * 文案随包走，于是**不重新导出**就改不掉 —— 这是有意的：包是一份可离线运行的
+   * 快照，它说的话应该和导出那一刻一致。
+   */
+  gameList?: ThemeGameListTexts | null;
 }
 
 export interface BundleManifest {
@@ -294,6 +303,8 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
       ...(input.theme.checkStyle ? { checkStyle: input.theme.checkStyle } : {}),
       // v0.11.3：结算卡的图标与标题，同一条「没配就不写键」。
       ...(input.theme.verdict ? { verdict: input.theme.verdict } : {}),
+      // v0.11.6：列表页那两行字的模板，同一条「没配就不写键」。
+      ...(input.theme.gameList ? { gameList: input.theme.gameList } : {}),
     },
     games: input.games,
     assets: 'assets.json',

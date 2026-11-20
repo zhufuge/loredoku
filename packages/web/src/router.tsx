@@ -210,8 +210,16 @@ export const routes: RouteObject[] = [
   { path: '/maps/:mapId/view', element: <FullscreenLegacyRedirect kind="map" view /> },
   { path: '/puzzles/:puzzleId/edit', element: <FullscreenLegacyRedirect kind="puzzle" view={false} /> },
   { path: '/puzzles/:puzzleId/view', element: <FullscreenLegacyRedirect kind="puzzle" view /> },
-  { path: '/play', element: <GamesPage /> },
+  { path: '/play', element: <ThemeEntryRedirect module="play" /> },
   { path: '/play/:slug', element: <GamePage /> },
+  /**
+   * v0.11.6：玩家侧也按主题分（与播放器的 `/:code/play` 同一副骨架）。
+   *
+   * 这两条必须排在 `/:themeCode` 那一组**之后**也没关系 —— react-router 按段的
+   * 具体程度排序，`/:themeCode/play` 比 `/:themeCode/*` 更具体，不会掉进工作空间。
+   */
+  { path: '/:themeCode/play', element: <GamesPage /> },
+  { path: '/:themeCode/play/:slug', element: <GamePage /> },
   /** v0.9.2：合辑的两条旧地址改成重定向（见 `PlayThemeLegacyRedirect`）。 */
   { path: '/play/theme/:themeSlug', element: <PlayThemeLegacyRedirect to="list" /> },
   { path: '/play/theme/:themeSlug/:slug', element: <PlayThemeLegacyRedirect to="game" /> },

@@ -1,9 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, Layers } from 'lucide-react';
+import { formatGameListCount, resolveGameListTexts } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { LoadingScreen } from '@/components/common/LoredokuLoader';
+import { DifficultyFilter } from '@/components/game/DifficultyFilter';
 import { GameCard } from '@/components/game/GameCard';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
@@ -84,6 +86,23 @@ export function PlayerHomePage(): JSX.Element {
   }, [manifest, code]);
 
   /**
+   * v0.11.6：两行字（「N 关可玩」/「已通过 N 关」）由主题配置，包导出时已经冻进
+   * `manifest.theme.gameList`；没配过就退回内置那两句。与工坊那边同一份解析，
+   * 免得同一句话在两处长得不一样。
+   */
+  const texts = useMemo(() => resolveGameListTexts(manifest?.theme.gameList), [manifest]);
+
+  /**
+   * v0.11.6：难度过滤。默认「全部」—— 玩家第一次进来该看到所有关，而不是被
+   * 按在一个档位上。「已通过 N 关」跟着**全部**走：切档不该让这个数字变小。
+   */
+  const [difficulty, setDifficulty] = useState<number | null>(null);
+  const visibleGames = useMemo(
+    () => (difficulty === null ? games : games.filter((game) => game.difficulty === difficulty)),
+    [games, difficulty],
+  );
+
+  /**
    * v0.11.2：与工坊那边的列表页同一条 —— 封面都预加载完才把骨架屏换成卡片。
    * 播放器是玩家真正打开的那一页，这一帧尤其不该出现「卡片先出、封面后跳」。
    *
@@ -91,10 +110,12 @@ export function PlayerHomePage(): JSX.Element {
    * 品牌字标，是两件不同的事 —— 骨架屏说的是「内容马上到」，而这里要等的是
    * 包 + 字体 + 六张封面，可能是几百 KB；先亮字标再看内容，中间不会有「半天没动静」
    * 的空白。`useImagePreload` 的契约不变（封面都到 / 出错都算完）。
+   *
+   * v0.11.6：只等**当前这一档**的封面 —— 切档时不该为别的档的封面再挡一次屏。
    */
   const fontsReady = useBundledFontsReady();
-  const coversReady = useImagePreload(gameCoverUrls(games));
-  const loading = isLoading || !fontsReady || (games.length > 0 && !coversReady);
+  const coversReady = useImagePreload(gameCoverUrls(visibleGames));
+  const loading = isLoading || !fontsReady || (visibleGames.length > 0 && !coversReady);
 
   /**
    * v0.11.3：loading 期间整页只有加载件 —— 页头也不先画。
@@ -132,10 +153,21 @@ export function PlayerHomePage(): JSX.Element {
               </p>
             ) : null}
             {manifest ? (
-              <p className="text-xs text-muted-foreground">{manifest.games.length} 关可玩</p>
+              <p className="text-xs text-muted-foreground">
+                {formatGameListCount(texts.playable, games.length)}
+                <span className="mx-1.5 text-muted-foreground/50">·</span>
+                <span data-testid="games-passed-count">
+                  {formatGameListCount(texts.passed, completions.size)}
+                </span>
+              </p>
             ) : null}
           </div>
         </div>
+
+        {/* v0.11.6：难度过滤 —— 与工坊列表页同一个组件，档名就是这个主题自己的。 */}
+        {isError || mismatched || games.length === 0 ? null : (
+          <DifficultyFilter tiers={tiers ?? []} value={difficulty} onChange={setDifficulty} />
+        )}
 
         {isError ? (
           <Card className="flex flex-col items-center gap-3 p-12 text-center">
@@ -166,9 +198,21 @@ export function PlayerHomePage(): JSX.Element {
               重新加载
             </Button>
           </Card>
+        ) : visibleGames.length === 0 ? (
+          /*
+           * v0.11.6：这一档确实没有关卡。给回「全部」的出口 —— 否则玩家会以为
+           * 包坏了（列表刚才还在，点一下档位就空了）。
+           */
+          <Card className="flex flex-col items-center gap-3 p-12 text-center">
+            <Layers className="h-8 w-8 text-muted-foreground/60" />
+            <p className="text-sm text-muted-foreground">这一档还没有关卡。</p>
+            <Button variant="outline" onClick={() => setDifficulty(null)}>
+              看全部
+            </Button>
+          </Card>
         ) : (
           <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
-            {games.map((game) => (
+            {visibleGames.map((game) => (
               <GameCard
                 key={game.slug}
                 game={game}

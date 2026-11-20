@@ -234,4 +234,101 @@ describe('PlayerHomePage 的难度徽章', () => {
 
     expect(document.body.textContent).not.toContain('正在加载主题');
   });
+
+  /**
+   * v0.11.6：顶上那两行字与工坊那边同一份配置（包导出时已经冻进
+   * `manifest.theme.gameList`），没配过就退回内置那两句。
+   */
+  describe('v0.11.6 计数行与难度过滤', () => {
+    const passedCount = (): string =>
+      document.querySelector('[data-testid="games-passed-count"]')?.textContent ?? '';
+    const cards = (): number => document.querySelectorAll('[role="button"]').length;
+    const chips = (): HTMLButtonElement[] =>
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>('[data-testid="games-difficulty-filter"] button'),
+      );
+
+    const tiers = [
+      { level: 1, label: '初' },
+      { level: 2, label: '通' },
+      { level: 3, label: '精' },
+    ];
+
+    it('没配过就用内置那两句', () => {
+      manifestRef.data = manifest({ ...identity, difficultyLevels: tiers });
+      mount();
+
+      expect(document.body.textContent).toContain('2 关可玩');
+      expect(passedCount()).toBe('已通过 0 关');
+    });
+
+    it('主题配过就用配的，{n} 换成关数', () => {
+      manifestRef.data = manifest({
+        ...identity,
+        difficultyLevels: tiers,
+        gameList: { playable: '共 {n} 回', passed: '已了 {n} 桩' },
+      });
+      mount();
+
+      expect(document.body.textContent).toContain('共 2 回');
+      expect(passedCount()).toBe('已了 0 桩');
+    });
+
+    it('通过一关，那个数字跟着变', () => {
+      manifestRef.data = manifest({ ...identity, difficultyLevels: tiers });
+      recordGameCompletion(bundleStorageId('hlm', 'puzzle-sishan'), { gridSize: 4 }, {
+        elapsedMs: 61_000,
+        stampUrl: null,
+      });
+      mount();
+
+      expect(passedCount()).toBe('已通过 1 关');
+    });
+
+    it('过滤条：「全部」在前，后面是主题的每一档；点某一档只剩那一档', () => {
+      manifestRef.data = manifest({ ...identity, difficultyLevels: tiers });
+      mount();
+
+      expect(chips().map((chip) => chip.textContent?.trim())).toEqual(['全部', '初', '通', '精']);
+      expect(cards()).toBe(2);
+
+      act(() => chips()[3]?.click());
+      expect(cards()).toBe(1);
+
+      act(() => chips()[0]?.click());
+      expect(cards()).toBe(2);
+    });
+
+    it('切档不改变「已通过 N 关」', () => {
+      manifestRef.data = manifest({ ...identity, difficultyLevels: tiers });
+      recordGameCompletion(bundleStorageId('hlm', 'puzzle-sishan'), { gridSize: 4 }, {
+        elapsedMs: 61_000,
+        stampUrl: null,
+      });
+      mount();
+      const before = passedCount();
+
+      act(() => chips()[3]?.click());
+
+      expect(passedCount()).toBe(before);
+      expect(before).toBe('已通过 1 关');
+    });
+
+    it('这一档没有关卡时给回「全部」的出口', () => {
+      manifestRef.data = manifest({ ...identity, difficultyLevels: tiers });
+      mount();
+
+      act(() => chips()[1]?.click());
+
+      expect(cards()).toBe(0);
+      expect(document.body.textContent).toContain('这一档还没有关卡');
+
+      act(() =>
+        Array.from(document.querySelectorAll('button'))
+          .find((node) => node.textContent?.trim() === '看全部')
+          ?.click(),
+      );
+      expect(cards()).toBe(2);
+    });
+  });
 });

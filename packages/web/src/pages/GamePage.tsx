@@ -142,7 +142,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 一起删了，于是这里不再有「从哪个主题进来」这一档 —— 顶栏恒为 `loredoku` 与
    * 「返回游戏列表」，与播放器、工坊单局入口三处一致。
    */
-  const params = useParams<{ slug?: string; key?: string; code?: string }>();
+  const params = useParams<{ slug?: string; key?: string; code?: string; themeCode?: string }>();
   const slug = (params.slug ?? params.key) || null;
   const navigate = useNavigate();
 
@@ -307,6 +307,15 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   placementRef.current = placementState;
 
   const detail = gameQuery.data;
+  /**
+   * v0.11.6：「返回游戏列表」落在**这一关所属主题**的列表页上（`/:code/play`）。
+   *
+   * 优先用数据里的 `themeCode`（它顺着谜题查出来，最可信），其次才是地址里的
+   * 主题段 —— 工坊那条路是 `/:themeCode/play/:slug`，播放器那条路是 `:code`，
+   * 两个参数名都收在这里。都没有（旧地址 `/play/:slug`）时由 source 退回 `/play`，
+   * 路由表会再把它送到记住的那个主题。
+   */
+  const backHref = source.listHref(detail?.themeCode ?? params.themeCode ?? params.code ?? null);
   /**
    * v0.10.4：一关的「内容」（谜题行 + 地图 JSON + 资源 / 角色表）整块交给
    * `useGameContent` —— 它是纯派生，不碰这一页的任何状态。
@@ -1118,7 +1127,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           highlightedSlots={highlightedSlots}
           highlightColors={highlightColors}
           placedSlotIndices={placedSlotIndices}
-          onBack={() => navigate(source.listHref())}
+          onBack={() => navigate(backHref)}
           onOpenDescription={() => setDescriptionOpen(true)}
           onCardClick={handleCardClick}
           onCardHoverEnter={(index) => handleActivation({ type: 'enter', participantId: index })}
@@ -1486,7 +1495,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         onNextLevel={() => {
           if (nextLevel) navigate(source.gameHref(nextLevel.key));
         }}
-        onBackToList={() => navigate(source.listHref())}
+        onBackToList={() => navigate(backHref)}
       />
     </div>
   );

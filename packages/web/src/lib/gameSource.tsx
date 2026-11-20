@@ -99,7 +99,8 @@ export interface GameSource {
    * v0.9.2：`themeHref` 随合辑一起删了 —— `/play/theme/:slug` 那个「回到主题」的
    * 落点已经不存在，顶栏也不再显示主题名。
    */
-  listHref(): string;
+  /** v0.11.6：列表页带主题段（/:code/play）；传 null 时由实现退回老地址。 */
+  listHref(themeCode?: string | null): string;
   gameHref(key: string): string;
   /**
    * v0.9.5：**这个列表里全部关卡**，按玩家在列表页看到的顺序。

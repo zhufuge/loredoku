@@ -15,6 +15,8 @@ import {
   THEME_CHECK_FAIL_COLOR,
   THEME_CHECK_PASS_COLOR,
   THEME_VERDICT_TEXT_MAX_LENGTH,
+  THEME_GAME_LIST_COUNT_TOKEN,
+  THEME_GAME_LIST_TEXT_MAX_LENGTH,
   THEME_NAME_MAX_LENGTH,
 } from '../constants';
 import { mapLinkageColorSchema, mapStyleSchema } from './mapDraft';
@@ -140,6 +142,31 @@ export const themeVerdictSchema = z
   .optional();
 
 /**
+ * v0.11.6：游戏列表页那两行字的模板。
+ *
+ * 与结算卡那三项一样**允许空串**（= 用内置那句）。比它多一条：文案里必须留一个
+ * `{n}` —— 数字没地方落，这两行就成了与这一页无关的废话，而这种「配了但没配全」
+ * 的错静默失败最难查，不如在写入口就拦下来。
+ */
+const gameListTextSchema = z
+  .string()
+  .trim()
+  .max(THEME_GAME_LIST_TEXT_MAX_LENGTH, `文案最多 ${THEME_GAME_LIST_TEXT_MAX_LENGTH} 个字`)
+  .refine(
+    (value) => value.length === 0 || value.includes(THEME_GAME_LIST_COUNT_TOKEN),
+    `文案里要留一个 ${THEME_GAME_LIST_COUNT_TOKEN}，它会换成关数`,
+  );
+
+export const themeGameListSchema = z
+  .object({
+    playable: gameListTextSchema.optional(),
+    passed: gameListTextSchema.optional(),
+  })
+  .strict()
+  .nullable()
+  .optional();
+
+/**
  * `themes.data` 的**对象那一半**（不含旧键预处理，见下面的 `themeDataSchema`）。
  *
  * `.strict()` 与其余 schema 一致：多出来的键是写错了名字，不是新功能。
@@ -181,6 +208,10 @@ const themeDataObjectSchema = z
      * v0.11.3：结算卡通过那一面的图标与标题。缺了 = 内置 🎉 + 「解题成功」。
      */
     verdict: themeVerdictSchema,
+    /**
+     * v0.11.6：游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。缺了 = 内置。
+     */
+    gameList: themeGameListSchema,
     /**
      * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。缺了 = 内置绿 / 红。
      */

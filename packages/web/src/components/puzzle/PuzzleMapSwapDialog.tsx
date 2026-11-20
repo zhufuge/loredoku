@@ -47,7 +47,9 @@ export function PuzzleMapSwapDialog({
   onConfirm,
   busy = false,
 }: PuzzleMapSwapDialogProps): JSX.Element {
-  const versionsQuery = usePublishedVersions();
+  // v0.11.6：只在弹窗打开时取版本列表 —— 这个组件跟着编辑页常挂，不传 `open`
+  // 就等于一进编辑页先把全部已发布版本拉一遍。
+  const versionsQuery = usePublishedVersions(open);
   const navigate = useNavigate();
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 

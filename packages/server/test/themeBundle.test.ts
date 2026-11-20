@@ -499,6 +499,41 @@ describe('资源包导出（§11）', () => {
   });
 
   /**
+   * v0.11.6：列表页那两行字（「N 关可玩」/「已通过 N 关」）随包走。
+   *
+   * 与难度分级同一条规矩：配了就进 manifest（zip 里那份也得有），没配就一个键
+   * 都不多 —— 播放器那边按「有没有这个键」决定用内置那句还是用配的。
+   */
+  it('列表页文案进包：配了就带上，没配就一个键都不多', async () => {
+    const gameList = { playable: '共 {n} 回', passed: '已了 {n} 桩' };
+    const themedCode = await createTheme();
+    const patched = await api
+      .patch(`/api/themes/${themedCode}`)
+      .send({ data: { version: 1, gameList } });
+    expect(patched.status).toBe(200);
+    await deployedGame(themedCode);
+
+    const built = await bundleService.buildThemeBundle(themedCode);
+    expect(built.manifest.theme.gameList).toEqual(gameList);
+    const fromZip = JSON.parse(
+      built.entries.find((entry) => entry.path === 'manifest.json')!.data.toString('utf8'),
+    ) as { theme: { gameList?: unknown } };
+    expect(fromZip.theme.gameList).toEqual(gameList);
+
+    // 少了 `{n}` 的文案在写库这一步就该被拒 —— 那句话会失去关数。
+    const badCode = await createTheme();
+    const rejected = await api
+      .patch(`/api/themes/${badCode}`)
+      .send({ data: { version: 1, gameList: { playable: '共若干回' } } });
+    expect(rejected.status).toBe(400);
+
+    const plainCode = await createTheme();
+    await deployedGame(plainCode);
+    const plain = await bundleService.buildThemeBundle(plainCode);
+    expect('gameList' in plain.manifest.theme).toBe(false);
+  });
+
+  /**
    * v0.11.3：文件不在了要在打包时中止 —— 与标记、工具图标同一条规矩，
    * 免得流出一个「玩家打开才发现图 404」的包。
    */

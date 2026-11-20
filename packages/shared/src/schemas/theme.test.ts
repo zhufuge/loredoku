@@ -360,6 +360,58 @@ describe('themeDataSchema.verdict（v0.11.3）', () => {
 });
 
 /**
+ * v0.11.6：列表页那两行字（「N 关可玩」/「已通过 N 关」）进主题配置。
+ *
+ * 这一层要钉住的是**占位符**：文案里少了 `{n}`，那一句就再也说不出关数，
+ * 界面上只剩一句与这一页无关的话 —— 所以非空文案必须含一个 `{n}`。
+ * 空串是合法的，意思是「用内置那句」。
+ */
+describe('themeDataSchema.gameList（v0.11.6）', () => {
+  it('不写就是没有 —— 老主题原样合法', () => {
+    expect(themeDataSchema.parse({ version: 1 }).gameList).toBeUndefined();
+    expect(themeDataSchema.parse({ version: 1, gameList: null }).gameList).toBeNull();
+  });
+
+  it('两句都能单独填，{n} 留着', () => {
+    expect(
+      themeDataSchema.parse({ version: 1, gameList: { playable: '共 {n} 回' } }).gameList,
+    ).toEqual({ playable: '共 {n} 回' });
+    expect(
+      themeDataSchema.parse({ version: 1, gameList: { passed: '已了 {n} 桩' } }).gameList,
+    ).toEqual({ passed: '已了 {n} 桩' });
+  });
+
+  it('空串 = 用内置那句', () => {
+    expect(
+      themeDataSchema.parse({ version: 1, gameList: { playable: '', passed: '' } }).gameList,
+    ).toEqual({ playable: '', passed: '' });
+  });
+
+  it('非空文案少了 {n} 就拒 —— 那句话会失去关数', () => {
+    expect(
+      themeDataSchema.safeParse({ version: 1, gameList: { playable: '共若干回' } }).success,
+    ).toBe(false);
+    expect(
+      themeDataSchema.safeParse({ version: 1, gameList: { passed: '已全部了结' } }).success,
+    ).toBe(false);
+  });
+
+  it('文字两头的空白被削掉，长度有上限，多出来的键一律拒', () => {
+    expect(
+      themeDataSchema.parse({ version: 1, gameList: { playable: '  共 {n} 回  ' } }).gameList
+        ?.playable,
+    ).toBe('共 {n} 回');
+    expect(
+      themeDataSchema.safeParse({ version: 1, gameList: { playable: `${'{n}'}${'字'.repeat(24)}` } })
+        .success,
+    ).toBe(false);
+    expect(themeDataSchema.safeParse({ version: 1, gameList: { total: '{n} 关' } }).success).toBe(
+      false,
+    );
+  });
+});
+
+/**
  * v0.11.3：改文字走单独的 PATCH（与换图分开），至少要给一项 —— 空补丁不该发出请求。
  */
 describe('updateThemeVerdictSchema（v0.11.3）', () => {

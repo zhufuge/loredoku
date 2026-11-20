@@ -803,6 +803,16 @@ export interface ThemeData {
    * 缺失 / `null` = 内置的庆祝 emoji + 「{@link THEME_VERDICT_TITLE_FALLBACK}」。
    */
   verdict?: ThemeVerdict | null;
+  /**
+   * v0.11.6：游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。
+   *
+   * 与 `verdict` 同一条规矩：**读取时**兜底 —— 改一句文案，工坊的 `/play` 与
+   * 播放器里的列表页同时变，不必重新导出包。
+   *
+   * 缺失 / `null` = 内置的两句（见 `THEME_GAME_LIST_PLAYABLE_FALLBACK` 与
+   * `THEME_GAME_LIST_PASSED_FALLBACK`）。
+   */
+  gameList?: ThemeGameListTexts | null;
 }
 
 /**
@@ -828,6 +838,23 @@ export interface ThemeVerdict {
    * 那个 emoji。
    */
   title?: string;
+}
+
+/**
+ * v0.11.6：游戏列表页那两行字的模板。
+ *
+ * 为什么要可配：这两行是**这个主题自己**的话。「6 关可玩」在红楼里也许该说
+ * 「六出戏可点」，在别的主题里也许该说「6 张地图」。写死在界面里，作者只能
+ * 接受一种口气；而它们又确实是同一个数字的两种说法，所以给模板而不是给整句。
+ *
+ * `{n}` 是关数的占位符，**必须留一个** —— 少了它数字就没地方落，界面上只剩一句
+ * 与这一页无关的话（schema 会拦下这种文案）。缺失整份配置时用内置那两句。
+ */
+export interface ThemeGameListTexts {
+  /** 「N 关可玩」那一行的模板，`{n}` 换成总关数。缺省见 `THEME_GAME_LIST_PLAYABLE_FALLBACK`。 */
+  playable?: string;
+  /** 「已通过 N 关」那一行的模板，`{n}` 换成已通过的关数。缺省见 `THEME_GAME_LIST_PASSED_FALLBACK`。 */
+  passed?: string;
 }
 
 /**

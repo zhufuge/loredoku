@@ -14,10 +14,15 @@ const state = vi.hoisted(() => ({
   versions: [] as PublishedMapVersion[],
   isLoading: false,
   navigate: vi.fn(),
+  /** v0.11.6：组件把 `open` 当作 `usePublishedVersions` 的开关传下来。 */
+  enabledArgs: [] as boolean[],
 }));
 
 vi.mock('@/hooks/useMaps', () => ({
-  usePublishedVersions: () => ({ data: state.versions, isLoading: state.isLoading }),
+  usePublishedVersions: (enabled = true) => {
+    state.enabledArgs.push(enabled);
+    return { data: state.versions, isLoading: state.isLoading };
+  },
 }));
 
 vi.mock('react-router-dom', () => ({
@@ -45,11 +50,11 @@ describe('PuzzleMapSwapDialog (v0.7.3 §3.2)', () => {
   const onConfirm = vi.fn();
   const onOpenChange = vi.fn();
 
-  function render(busy = false): void {
+  function render(busy = false, open = true): void {
     act(() => {
       root.render(
         <PuzzleMapSwapDialog
-          open
+          open={open}
           onOpenChange={onOpenChange}
           current={current}
           busy={busy}
@@ -69,6 +74,7 @@ describe('PuzzleMapSwapDialog (v0.7.3 §3.2)', () => {
   beforeEach(() => {
     state.versions = [];
     state.isLoading = false;
+    state.enabledArgs = [];
     state.navigate.mockClear();
     onConfirm.mockClear();
     onOpenChange.mockClear();
@@ -136,5 +142,22 @@ describe('PuzzleMapSwapDialog (v0.7.3 §3.2)', () => {
     expect(cancel?.disabled).toBe(true);
     act(() => cancel?.click());
     expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
+  /**
+   * v0.11.6：这枚弹窗是**常挂**在谜题编辑页上的（`open` 只控制内容显不显示），
+   * 所以已发布版本列表不能跟着页面一起取 —— 只有真的点开那一刻才该发请求。
+   */
+  it('关着的时候不请求已发布版本', () => {
+    render(false, false);
+
+    expect(state.enabledArgs.length).toBeGreaterThan(0);
+    expect(state.enabledArgs.every((enabled) => enabled === false)).toBe(true);
+  });
+
+  it('打开就请求', () => {
+    render();
+
+    expect(state.enabledArgs.every((enabled) => enabled === true)).toBe(true);
   });
 });

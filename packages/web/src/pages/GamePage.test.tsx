@@ -1045,9 +1045,12 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   /**
    * v0.9.5：两张结果卡各多一枚「返回谜题列表」—— 一局结束，玩家的下一个动作通常
    * 不是再点棋盘，而是挑下一关。落点与左上角那个箭头同一个地址（`listHref`）。
+   *
+   * v0.11.6：落点带上这一关所属的主题 —— 返回的是**这个主题**的关卡列表，
+   * 不是全站那页（那边还要再挑一次主题）。
    */
-  describe('结果卡的出口（v0.9.5）', () => {
-    it('通过：返回谜题列表 → /play', () => {
+  describe('结果卡的出口（v0.9.5 / v0.11.6）', () => {
+    it('通过：返回谜题列表 → 这个主题的列表页', () => {
       vi.useFakeTimers();
       try {
         seedPassingBoard();
@@ -1057,7 +1060,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         const back = footerButton('返回谜题列表');
         expect(back).toBeDefined();
         act(() => back?.click());
-        expect(path()).toBe('/play');
+        expect(path()).toBe('/hlm/play');
       } finally {
         vi.useRealTimers();
       }
@@ -1077,7 +1080,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
         const back = footerButton('返回谜题列表');
         expect(back).toBeDefined();
         act(() => back?.click());
-        expect(path()).toBe('/play');
+        expect(path()).toBe('/hlm/play');
       } finally {
         vi.useRealTimers();
       }
@@ -1895,6 +1898,26 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
       const dialog = document.querySelector('[role="dialog"]');
       expect(dialog?.textContent).toContain('三人三行，各归其位。');
+    });
+
+    /**
+     * v0.11.6：竖屏里那个弹框不再显示「谜题描述」这一行标题 —— 玩家刚点的就是
+     * 那枚图标，标题只是把同一件事又说一遍，还占掉一行高度。
+     *
+     * 但**读屏仍要知道这个弹框叫什么**，所以标题元素留着、只是不可见。这里钉的是
+     * 那条无障碍约定：删掉标题会让 Radix 报警，读屏也只会念出一段没有名字的文本。
+     */
+    it('弹框的标题不再占位，但读屏仍拿得到名字', () => {
+      pretendPortrait();
+      render();
+      settlePortrait();
+
+      act(() => descriptionOpener()?.click());
+
+      const dialog = document.querySelector('[role="dialog"]');
+      const labelledBy = dialog?.getAttribute('aria-labelledby');
+      expect(labelledBy).toBeTruthy();
+      expect(document.getElementById(labelledBy ?? '')?.textContent).toBe('谜题描述');
     });
 
     it('没有描述时不挂那枚图标', () => {

@@ -67,7 +67,8 @@ export function useApiGameSource(): GameSource {
       themeCheckColors: (themeCode) => checkColorsOf(themeCode),
       themeVerdict: (themeCode) => verdictOf(themeCode),
       storageId: (key) => key,
-      listHref: () => '/play',
+      /** v0.11.6：主题编码进地址，于是「返回列表」回到的是这一关所在的那个世界。 */
+      listHref: (themeCode) => (themeCode ? `/${themeCode}/play` : '/play'),
       gameHref: (key) => `/play/${key}`,
       /**
        * v0.9.5：定案卡的「下一关」要知道整份清单。这里读的就是列表页那一份

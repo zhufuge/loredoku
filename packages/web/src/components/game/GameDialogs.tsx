@@ -38,7 +38,12 @@ export function GameDescriptionDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
+        {/*
+          v0.11.6：竖屏这块地方本来就窄，作者写的那段描述才是内容 —— 顶上再压一行
+          「谜题描述」，等于用一行字重复了用户刚点的那枚图标。标题仍留给读屏：
+          `sr-only` 之后它不进视觉，Radix 也仍然知道这个弹窗叫什么。
+        */}
+        <DialogHeader className="sr-only">
           <DialogTitle>谜题描述</DialogTitle>
         </DialogHeader>
         <p className="max-h-[60svh] overflow-y-auto whitespace-pre-wrap text-sm leading-[1.8] text-muted-foreground">

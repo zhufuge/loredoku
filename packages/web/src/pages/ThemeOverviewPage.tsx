@@ -16,6 +16,7 @@ import { GameMarksCard } from '@/components/theme-overview/GameMarksCard';
 import { EditThemeDialog } from '@/components/theme-overview/EditThemeDialog';
 import { ThemeStyleDialog } from '@/components/theme-overview/ThemeStyleDialog';
 import { DifficultyTiersDialog } from '@/components/theme-overview/DifficultyTiersDialog';
+import { GameListTextsCard } from '@/components/theme-overview/GameListTextsCard';
 import { DeleteThemeDialog } from '@/components/theme-overview/DeleteThemeDialog';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import { THEME_STYLE_FIELDS } from '@/lib/themeStyleFields';
@@ -270,6 +271,15 @@ export function ThemeOverviewPage(): JSX.Element {
             <DifficultyBadge key={tier.level} difficulty={tier.level} tiers={tiers} className="px-2.5 py-1 text-xs" />
           ))}
         </div>
+      </Card>
+
+      {/*
+        v0.11.6：玩家侧列表页顶上那两行字。它们是**这个主题**的口气，不是全站的
+        统一文案 —— 与难度分级挨着放，因为两者都是「这个主题怎么描述自己的关卡」。
+      */}
+      <Card className="space-y-3 px-4 py-4">
+        <CardHead title="游戏列表文案" />
+        <GameListTextsCard theme={theme} />
       </Card>
 
       <EditThemeDialog theme={theme} open={editOpen} onOpenChange={setEditOpen} />

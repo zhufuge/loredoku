@@ -208,6 +208,20 @@ export const THEME_VERDICT_TITLE_FALLBACK = '解题成功';
 export const THEME_VERDICT_TEXT_MAX_LENGTH = 24;
 
 /**
+ * v0.11.6：游戏列表页那两行字的内置模板（主题里可改，这里是缺省）。
+ *
+ * 模板里那个 `{n}` 是**关数**的占位符，界面渲染时换成数字 —— 给模板而不是给整句，
+ * 是因为同一个数字在这两行里说的事不一样（一共几关 / 已经过了几关），作者要改的
+ * 是说法，不是那个数。
+ */
+export const THEME_GAME_LIST_PLAYABLE_FALLBACK = '{n} 关可玩';
+export const THEME_GAME_LIST_PASSED_FALLBACK = '已通过 {n} 关';
+/** 模板里的占位符。schema 会要求文案里至少出现一次，否则数字没地方落。 */
+export const THEME_GAME_LIST_COUNT_TOKEN = '{n}';
+/** 与结算卡同一档上界：一句列表说明，超过这个长度会把这行挤成两行。 */
+export const THEME_GAME_LIST_TEXT_MAX_LENGTH = 24;
+
+/**
  * v0.7.11：长按进度环的**出场延迟**。
  *
  * 环此前在 pointerdown 的第一帧就画出来，于是「点一下放编号」也会闪一下环 ——

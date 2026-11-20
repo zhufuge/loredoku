@@ -116,8 +116,14 @@ function MissingWorkspace({ code, reason }: { code: string; reason: string | nul
  *
  * 优先顺序：**记住的那个** → 列表第一个（按创建顺序，服务端排好）。§19 起没有
  * 「默认主题」这一档 —— 记住值可能是被删掉的主题，所以每次都要在现有列表里验一遍。
+ *
+ * v0.11.6：`'play'` 不是工作空间的一个模块（它不在 `ModuleKey` 里，页面也不在
+ * `WorkspaceLayout` 底下），但「先挑一个主题再换成带编码的地址」这件事一模一样 ——
+ * 老地址 `/play` 用它落到 `/hlm/play`，比复制一份挑主题的逻辑更不容易走偏。
  */
-export function ThemeEntryRedirect({ module }: { module?: ModuleKey } = {}): JSX.Element {
+export function ThemeEntryRedirect({
+  module,
+}: { module?: ModuleKey | 'play' } = {}): JSX.Element {
   const themesQuery = useThemes();
   const themes = themesQuery.data ?? [];
 

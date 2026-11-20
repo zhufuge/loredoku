@@ -10,5 +10,6 @@ export * from './themeScope';
 export * from './mapStyleDiff';
 export * from './bundle';
 export * from './verdict';
+export * from './gameList';
 export * from './types';
 export * from './schemas';

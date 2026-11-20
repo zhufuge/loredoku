@@ -261,6 +261,8 @@ export async function buildThemeBundle(
       ...(manifestRing ? { ring: manifestRing } : {}),
       ...(manifestCheckStyle ? { checkStyle: manifestCheckStyle } : {}),
       ...(manifestVerdict ? { verdict: manifestVerdict } : {}),
+      // v0.11.6：列表页那两行字。纯字符串，不落盘，没配就不写键。
+      ...(themeData?.gameList ? { gameList: themeData.gameList } : {}),
     },
     exportedAt,
     games: manifestGames,
