@@ -6,25 +6,14 @@ import type { MapStyle } from '@loredoku/shared';
 import { MapInfoDrawer, type MapInfoDrawerHandle } from './MapInfoDrawer';
 import { resolveMapStyle } from '@/lib/mapStyle';
 
-/**
- * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a **form** — every
- * control writes a local draft and the map only changes when 保存 is pressed.
- * These are real render tests (jsdom + `react-dom/client`), because the whole
- * point of the fix is that editing no longer touches the store.
- *
- * FIX-F01 (the canvas size joins the draft), FIX-F02 (every change writes through).
- */
+/** FEAT-E01 (docs/v0.3.9.md §3)：抽屉是表单 —— 控件只写本地草稿，按保存才落到地图（要真实渲染测试，因为「编辑不再碰 store」正是修复点）；FIX-F01 画布尺寸也进草稿。 */
 
 function setValue(element: HTMLInputElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(element), 'value')?.set;
   setter?.call(element, value);
 }
 
-/**
- * v0.8.0 §16.8：抽屉底部多了一行「风格来自主题…」，它要读主题。这里给一个**没有
- * 缺省风格**的主题 —— 于是那一行只说「主题还没有缺省风格」，不会与任何既有断言抢
- * 文字（差异清单另有 `ThemeStyleRow` 自己的测试）。
- */
+/** v0.8.0 §16.8：抽屉底部多了一行「风格来自主题…」，它要读主题。这里给一个**没有缺省风格**的主题 —— 于是那一行只说「主题还没有缺省风格」，不会与任何既有断言抢文字（差异清单另有 `ThemeStyleRow` 自己的测试）。 */
 vi.mock('@/hooks/useThemes', () => ({
   useThemeDetail: () => ({
     data: {
@@ -261,12 +250,7 @@ describe('MapInfoDrawer (FEAT-E01)', () => {
     });
   });
 
-  /**
-   * 「方格大小」这一行的语义是**上限**。
-   *
-   * 两件事要钉住：填进去的值进 `style.cellSize`（而不是别处），以及 ↺ 能把它清回
-   * `null`（= 完全按窗口自适应）。
-   */
+  /** 「方格大小」这一行的语义是**上限**。 两件事要钉住：填进去的值进 `style.cellSize`（而不是别处），以及 ↺ 能把它清回 `null`（= 完全按窗口自适应）。 */
   it('v0.10.8: 方格大小是一行「上限」，写进 style.cellSize', () => {
     act(() => typeInto(input('map-info-cell-size'), '140'));
     clickSave();

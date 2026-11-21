@@ -6,12 +6,7 @@ import {
   readLegacyLinkageColors,
 } from '../src/service/mapDraftCompat';
 
-/**
- * FEAT-K14 (docs/v0.5.0.md §8.3) — the absorption layer. Stored map drafts may
- * still be the v2 shape (roster + palette inside them); the v3 schemas are
- * `.strict()`, so every read path runs the raw JSON through these helpers
- * instead of rewriting the database.
- */
+/** FEAT-K14 (docs/v0.5.0.md §8.3)：库里可能还是 v2 草稿（roster / palette 内嵌），而 v3 schema 是 `.strict()` —— 读路径先过这些吸收函数，不改库。 */
 
 /** A v0.4.x-style payload: the roster and the palette live inside the map. */
 function v2Draft(): Record<string, unknown> {

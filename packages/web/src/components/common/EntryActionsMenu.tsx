@@ -5,25 +5,7 @@ import { UI_Z } from '@loredoku/shared';
 import { IconButton } from '@/components/ui/icon-button';
 import { cn } from '@/lib/utils';
 
-/**
- * 列表卡片 / 行上的「三点」菜单。地图与谜题共用一套按钮顺序：
- *
- * - 编辑信息 / 复制：**只给草稿行** —— 版本是发布时冻结的快照，复制一份既改不了
- *   也产不出有用的新行，改名则破坏「版本不可变」。想基于某个版本继续做事，走
- *   「编辑此版本」（谜题 fork 出新草稿行 / 地图 `?v=` 进编辑器）。
- * - 预览：两种行都有；草稿未初始化画布时可预览性为假。
- * - 部署：**只给版本行**，而且只有调用方（谜题列表）提供 `onDeploy` 时才渲染。
- *   草稿行连按钮都不渲染 —— 草稿永远不满足「已发布」，禁用按钮只会让人猜原因。
- *
- * 菜单浮层 **portal 到 `<body>`** 并 `position: fixed` 跟随按钮：卡片带
- * `overflow-hidden`（封面圆角需要），把菜单当卡片内的 `absolute` 子元素会被
- * 裁掉，网格最后一行尤其明显。自己实现而不用浮层库：本仓库没有 dropdown
- * 依赖，菜单只有几项，portal + 一个 rect 同步比引入 Radix 便宜。
- *
- * 点击容器外关闭（pointerdown，比 click 更早，不会先触发菜单项）；菜单自身
- * 已不在容器内（portal），所以外部关闭必须**同时排除菜单节点**，否则
- * pointerdown 先卸载浮层、菜单项的 click 就永远不触发。
- */
+/** 列表卡片 / 行上的「三点」菜单。 地图与谜题共用一套按钮顺序：；编辑信息 / 复制：**只给草稿行** —— 版本是发布时冻结的快照，复制一份既改不了 也产不出有用的新行，改名则破坏「版本不可变」。 想基于某个版本继续做事，走 「编辑此版本」（谜题 fork 出新草稿行 / 地图 `?v=` 进编辑器）。；预览：两种行都有； 草稿行连按钮都不渲染 —— 草稿永远不满足「已发布」，禁用按钮只会让人猜原因。 菜单自身 已不在容器内（portal），所以外部关闭必须**同时排除菜单节点**，否则 pointerdown 先卸载浮层、菜单项的 click 就永远不触发。 */
 export interface EntryLike {
   kind: 'draft' | 'version';
   versionNo: number | null;
@@ -46,10 +28,7 @@ export function entryPreviewable(entry: EntryLike): boolean {
   return entry.kind === 'version' ? true : entry.gridSize !== null;
 }
 
-/**
- * 预览按钮的 `title`。只在这里分 kind —— 列表行、卡片菜单共用，
- * 避免各处各写一套文案。
- */
+/** 预览按钮的 `title`。只在这里分 kind —— 列表行、卡片菜单共用， 避免各处各写一套文案。 */
 export function entryPreviewTitle(entry: EntryLike): string {
   if (entry.kind === 'version') return '预览版本';
   return entry.gridSize !== null ? '预览草稿' : '草稿还没初始化画布';
@@ -122,18 +101,7 @@ export function EntryActionsMenu<E extends EntryLike>({
       ref={menuRef}
       role="menu"
       style={{ position: 'fixed', top: position?.top ?? 0, left: position?.left ?? 0, zIndex: UI_Z.drawer }}
-      /*
-       * 入场 120ms 淡入 + 从右上角轻微放大。
-       *
-       * 这是列表行上最常点的浮层（每行一枚「更多操作」）—— 突然整块出现在鼠标边，
-       * 眼睛还没从按钮上移开，一列菜单已经压在那儿了。
-       * `origin-top-right` 对齐它的定位方式：菜单右边缘贴着按钮右边缘、向下展开，
-       * 所以放大要从那个角长出来，否则会像被别人推过来。
-       *
-       * **没有出场动画**：关闭时这个节点直接卸载（`open && position ? ... : null`），
-       * 要做退场就得按住卸载 100ms 左右，而菜单项点下即执行 —— 让人等它消失
-       * 是净损失。退场本来就该比入场快。
-       */
+      /* 入场 120ms 淡入 + 从右上角轻微放大。 这是列表行上最常点的浮层（每行一枚「更多操作」）—— 突然整块出现在鼠标边， 眼睛还没从按钮上移开，一列菜单已经压在那儿了。 `origin-top-right` 对齐它的定位方式：菜单右边缘贴着按钮右边缘、向下展开， 所以放大要从那个角长出来，否则会像被别人推过来。 **没有出场动画**：关闭时这个节点直接卸载（`open && position ? ... : null`）， 要做退场就得按住卸载 100ms 左右，而菜单项点下即执行 —— 让人等它消失 是净损失。 退场本来就该比入场快。 */
       className="w-32 origin-top-right overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lifted animate-in fade-in-0 zoom-in-95 duration-fast"
     >
       {!isVersion ? (

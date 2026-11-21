@@ -67,10 +67,7 @@ const DEFAULTS: FormValues = {
   bgColor: DEFAULT_BG_COLOR,
 };
 
-/**
- * 编码预填 `主题编码_`。同一个编码在不同主题里各自存在，作者敲的
- * 其实只有后半段 —— 前缀替他写好，顺手就把「这东西属于哪个世界」带进了 ID。
- */
+/** 编码预填 `主题编码_`。同一个编码在不同主题里各自存在，作者敲的其实只有后半段 —— 前缀替他写好，顺手就把「这东西属于哪个世界」带进了 ID。 */
 function defaultsFor(themeCode: string | null): FormValues {
   return { ...DEFAULTS, code: themeCode ? `${themeCode}_` : '' };
 }
@@ -110,10 +107,7 @@ export function CreateAssetDialog({
   // The picked file waits for the create call to hand back an id; a colour
   // block needs no image at all.
   const [file, setFile] = useState<File | null>(null);
-  /**
-   * v0.8.0 §18：在工作空间里主题已经由地址定了（`/hlm/assets`），对话框里不再让人换
-   * —— 换了就等于把东西建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。
-   */
+  /** v0.8.0 §18：在工作空间里主题已经由地址定了（`/hlm/assets`），对话框里不再让人换 —— 换了就等于把东西建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。 */
   const createMutation = useCreateAsset();
   const uploadMutation = useUploadAssetVariantImage();
   /** FEAT-N06 §5.4: reverts an auto-enable whose image never landed. */
@@ -132,12 +126,7 @@ export function CreateAssetDialog({
   const onSubmit = handleSubmit(async (values) => {
     // Colour block → colour; image mode → null.
     const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;
-    /**
-     * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an appearance handed over at create
-     * time enables the asset right away — 「建完还得再点一次启用」 was pure
-     * repetition. `hasAppearance` is the same predicate v0.5.1 uses when an
-     * image is deleted, so the two can never disagree.
-     */
+    /** v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an appearance handed over at create time enables the asset right away — 「建完还得再点一次启用」 was pure repetition. `hasAppearance` is the same predicate v0.5.1 uses when an image is deleted, so the two can never disagree. */
     const isActive = hasAppearance(file !== null, bgColor);
     let asset: { id: number; variants: Array<{ id: number }> };
     try {
@@ -163,11 +152,7 @@ export function CreateAssetDialog({
         .mutateAsync({ assetId: asset.id, variantId: asset.variants[0]!.id, file })
         .then(() => true)
         .catch(() => false);
-      /**
-       * §5.4: the only reason this asset is enabled is the image that just
-       * failed to land — put it back to 停用 so no「启用但无外观」row is left.
-       * A colour block needs no image, so it stays enabled.
-       */
+      /** §5.4: the only reason this asset is enabled is the image that just failed to land — put it back to 停用 so no「启用但无外观」row is left. A colour block needs no image, so it stays enabled. */
       if (!uploaded && isActive && !bgColor) {
         await updateMutation.mutateAsync({ id: asset.id, payload: { isActive: false } });
       }
@@ -206,11 +191,7 @@ export function CreateAssetDialog({
             {errors.code ? (
               <p className="text-xs text-destructive">{errors.code.message}</p>
             ) : (
-              /*
-               * 编码框预填 `主题编码_`，但那个值在框里就是普通文字 —— 作者看不出
-               * 它是前缀，可以整段删掉，也可以改成别的主题的。这条小字把「已经替你
-               * 写好了什么」说清，剩下的仍然是他的自由。
-               */
+              /* 编码框预填 `主题编码_`，但那个值在框里就是普通文字 —— 作者看不出它是前缀，可以整段删掉，也可以改成别的主题的。这条小字把「已经替你写好了什么」说清，剩下的仍然是他的自由。 */
               <p id="asset-code-hint" className="text-2xs text-muted-foreground">
                 {themeCode ? `前缀 ${themeCode}_ 已填好，接着写后半段` : '只允许字母、数字与下划线'}
               </p>

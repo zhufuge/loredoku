@@ -5,13 +5,7 @@ import {
 } from './constants/game';
 import { resolveVerdictStyle } from './verdict';
 
-/**
- * 结算卡那两行「读取时兜底」。
- *
- * 为什么不是「新建主题时抄一份默认值进库」：默认值将来还会变（比如换一个 emoji），
- * 抄进库里的那些主题就永远停在旧那一版了。这里只在**画的时候**填，库里存的是
- * 作者显式填过的那份 —— 没填就是 `undefined`。
- */
+/** 结算卡那两行「读取时兜底」。 为什么不是「新建主题时抄一份默认值进库」：默认值将来还会变（比如换一个 emoji）， 抄进库里的那些主题就永远停在旧那一版了。这里只在**画的时候**填，库里存的是作者显式填过的那份 —— 没填就是 `undefined`。 */
 describe('resolveVerdictStyle（v0.11.3）', () => {
   it('没配主题：内置的 🎉 +「解题成功」', () => {
     expect(resolveVerdictStyle(null)).toEqual({

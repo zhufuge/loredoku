@@ -7,11 +7,7 @@ export interface MatchMediaStub {
   restore: () => void;
 }
 
-/**
- * jsdom 没有 `matchMedia`，而主题的三态逻辑完全建立在
- * `(prefers-color-scheme: dark)` 之上。测试里必须在**任何订阅之前**装好它 ——
- * `lib/theme.ts` 的全局监听只在第一次 subscribe 时注册一次。
- */
+/** jsdom 没有 `matchMedia`，而主题的三态逻辑完全建立在 `(prefers-color-scheme: dark)` 之上。测试里必须在**任何订阅之前**装好它 —— `lib/theme.ts` 的全局监听只在第一次 subscribe 时注册一次。 */
 export function installMatchMedia(initialDark = false): MatchMediaStub {
   const original = window.matchMedia;
   const listeners = new Set<(event: MediaQueryListEvent) => void>();

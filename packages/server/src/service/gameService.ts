@@ -34,19 +34,7 @@ export interface DeployGameInput {
   sortWeight?: number;
 }
 
-/**
- * 部署 = 把一个**已发布的谜题版本行**变成可玩的游戏（v0.7.1 §7.1）。
- *
- * 四层拦截的第三层就在下面第一段：草稿行直接 400。前三层（UI 不渲染按钮 /
- * 弹窗只收版本条目）是给人看的，这一层才是真正管用的 —— 草稿行不能部署意味着
- * 玩家永远碰不到「作者还在改」的内容，冻结性也就不需要 `snapshot` 拷贝。
- *
- * 再次部署**同一版本** = 覆盖那一行（`upsertGame` 的 delete-then-insert），
- * 不同版本各有一个游戏、各有一个访问路径，可以同时在线。
- *
- * 路径撞车可覆盖 —— `overwriteSlug` 为真时把占位的那条部署假删
- * （`deleted_at`），slug 随之释放，再落自己的行。
- */
+/** 部署 = 已发布版本行变游戏；草稿行在这里 400，同版本重部署 = 覆盖（`overwriteSlug` 时假删占位）（v0.7.1 §7.1）。 */
 export async function deployGame(puzzleId: number, input: DeployGameInput): Promise<MapGameSummary> {
   const body = parseOrThrow(gameDeploySchema, input);
 
@@ -89,17 +77,7 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
   });
 }
 
-/**
- * OPT-W04 §4.3 / §4.4: 空就推导、填了就校验，再确认没有别的谜题版本占着这条
- * 路径。Q13（v0.4.1）：名称 slug 化之后什么都不剩时**不发明**路径，让作者自己填。
- *
- * 路径由前端按「前缀 + 中段」拼好再提交（§7.6.1；v0.8.1 起难度不进路径），
- * 这里只做最后一道格式与占用检查 —— 服务端不再二次加工。
- *
- * 撞车时返回 `replaceGameId`（要被覆盖的那条部署），而不是只抛错。
- * 抛出来的错的 `details` 是一份 {@link GameSlugConflict} —— 前端的覆盖弹窗
- * 靠它说明「覆盖谁」，不靠正则去猜中文消息。
- */
+/** 空就推导、填了就校验再查占用；全中文名推不出时不发明，抛带 {@link GameSlugConflict} 的错给覆盖弹窗。 */
 async function resolveSlug(
   puzzleId: number,
   rawSlug: string | undefined,
@@ -113,10 +91,7 @@ async function resolveSlug(
   }
 
   /**
-   * 难度不进路径 —— 部署兜底也只从名称派生。
-   * v0.8.5 §7.4：**先看谜题编码**。编码本来就是路径形状（`hlm-sishan`），拿它当兜底
-   * 比拿名称靠谱 —— 中文名 slug 化之后什么都不剩，而那正是「作者得自己填」的
-   * 老毛病。没有编码的存量谜题照旧退回名称。
+   * 难度不进路径；兜底**先看谜题编码**（它本来就是路径形状），没有编码才退回名称（v0.8.5 §7.4）。
    */
   const slug =
     typed.length > 0 ? typed.toLowerCase() : buildDefaultSlug({ name: code ?? name });
@@ -149,19 +124,7 @@ async function resolveSlug(
   return { slug, replaceGameId: Number(owner.id) };
 }
 
-/**
- * 难度档位必须是**这个谜题所属主题**里的一档。
- *
- * `gameDeploySchema` 只把守「1…99 的整数」，因为「这一档存不存在」的答案在
- * `themes.data.difficultyLevels` 里，而 schema 不认识数据库。这一层拿主题去核对。
- *
- * **没提难度时**由这里补上这个主题的默认档（`defaultDifficultyLevel`：有第 3 档
- * 就用它，否则取正中间那一档）—— 不能在 schema 里写死 3，否则一个只有
- * 「热身 / 地狱」两档的主题连部署都做不了：默认值不在它自己的分级里。
- *
- * 主题没有配分级时 `resolveDifficultyTiers` 给出内置五档 —— 存量主题照旧能部署
- * 第 3 档，而 7 这种从没定义过的档位照样被拒。
- */
+/** 档位必须是本主题的一档（schema 只看 1…99）；没提难度补主题默认档，不能写死 3，否则两档主题部署不了。 */
 async function resolveDifficulty(themeId: number, requested: number | undefined): Promise<number> {
   const theme = await themeRepo.findById(themeId);
   if (!theme) {
@@ -212,15 +175,7 @@ export async function uploadGameCover(id: number, buffer: Buffer): Promise<MapGa
   return gameRepo.toSummary(row);
 }
 
-/**
- * 部署页就地改展示顺序（`PATCH /api/games/:id`）。
- *
- * 只认 `sortWeight` 一个键：这条端点是「排序」这一个动作，不是「编辑部署」。
- * 校验交给 shared 的 `gameWeightUpdateSchema`（区间 ±999、必须是整数），
- * 越界在这里就是 400，而不是写进库里再让列表看起来「没反应」。
- *
- * 返回更新后的摘要 —— 前端拿它刷新缓存，顺序也随之重排。
- */
+/** 只认 `sortWeight`（区间 ±999）：这条端点是排序，不是编辑部署；越界 400 而非静默。 */
 export async function updateGameSortWeight(
   id: number,
   input: unknown,
@@ -233,10 +188,7 @@ export async function updateGameSortWeight(
   return updated;
 }
 
-/**
- * 取消部署 = 假删（§7.4）。玩家手里的链接立刻 404，但行还在、slug 被释放
- * —— 用同一个访问路径重新部署，链接复活。
- */
+/** 取消部署 = 假删（§7.4）：链接立刻 404，但行还在、slug 释放，同路径重部署即复活。 */
 export async function cancelGame(id: number): Promise<void> {
   const cancelled = await gameRepo.cancelGame(id);
   if (!cancelled) {

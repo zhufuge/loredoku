@@ -9,12 +9,7 @@ export interface ListAssetsParams {
   themeCode?: string;
 }
 
-/**
- * What is left here is identity, behaviour,
- * and the **initial** variant's look (docs/v0.6.1.md §5.2). v0.7.6: the
- * footprint left too, so creating an asset says nothing about size — every
- * placement is 1×1 and 「大小」 only changes how big it looks.
- */
+/** 建资源只写身份 / 行为 / **初始**形态的样子（docs/v0.6.1.md §5.2）；v0.7.6 起也不写「占地」—— 每次放置都是 1×1，「大小」只改看着多大。 */
 export interface CreateAssetPayload {
   code: string;
   name: string;

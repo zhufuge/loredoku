@@ -15,11 +15,7 @@ import {
   truncateSlug,
 } from './gameSlug';
 
-/**
- * OPT-W04 (docs/v0.4.1.md §4 / §12.6): the access path is a pure-function
- * concern, so the whole rule table is pinned here — the server validates with
- * these and the dialog previews with these.
- */
+/** OPT-W04 (docs/v0.4.1.md §4 / §12.6): the access path is a pure-function concern, so the whole rule table is pinned here — the server validates with these and the dialog previews with these. */
 
 describe('slugify (OPT-W04 §4.3)', () => {
   it('lowercases and turns separators into a single hyphen', () => {
@@ -153,11 +149,7 @@ describe('truncateSlug (OPT-W04 §4.3)', () => {
   });
 });
 
-/**
- * v0.7.1 §7.6.1: the deploy dialog edits only the **middle** — the `puzzle-`
- * prefix is read-only text around the input, composed on save and split back on
- * prefill. v0.8.1：难度不再参与拼接。
- */
+/** v0.7.1 §7.6.1: the deploy dialog edits only the **middle** — the `puzzle-` prefix is read-only text around the input, composed on save and split back on prefill. v0.8.1：难度不再参与拼接。 */
 describe('composeSlug (v0.7.1 §7.6.1, v0.8.1 无难度后缀)', () => {
   it('wraps the middle with the fixed prefix, and nothing else', () => {
     expect(composeSlug('flower-garden')).toBe('puzzle-flower-garden');

@@ -44,7 +44,7 @@ describe('clientToCanvasPoint (v0.8.7 §8)', () => {
       zoom: 2,
       cellSize: 100,
     })
-    // (40 - (-20)) / 2 = 30；(60 - (-10)) / 2 = 35。
+    // (40；(-20)) / 2 = 30；(60；(-10)) / 2 = 35。
     expect(point).toEqual({ x: 30, y: 35 })
   })
 })

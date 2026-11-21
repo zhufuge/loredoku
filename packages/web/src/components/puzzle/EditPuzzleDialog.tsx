@@ -22,16 +22,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { useRemovePuzzleCover, useUpdatePuzzle, useUploadPuzzleCover } from '@/hooks/usePuzzles';
 
-/**
- * 编辑谜题信息（名称 / 编码 / 描述 / 封面）—— 只服务**草稿行**：版本行是发布时
- * 冻住的快照，改名会破坏「版本不可变」，所以列表里那个按钮根本不给版本行渲染。
- *
- * v0.8.5 §7：多一格编码。它同时是**存量谜题的补写入口** —— v0.8.5 之前建的谜题
- * 没有编码，部署时只能退回「按名称推导」。留空 = 不改（不会把已有的编码清掉）。
- *
- * 改名 / 改描述是 JSON 请求，封面是二进制，所以是两步：先 PATCH，再按需传 /
- * 删封面（同 `EditMapDialog`）。
- */
+/** 编辑谜题信息（名称 / 编码 / 描述 / 封面）—— 只服务**草稿行**：版本行是发布时 冻住的快照，改名会破坏「版本不可变」，所以列表里那个按钮根本不给版本行渲染。 v0.8.5 §7：多一格编码。 它同时是**存量谜题的补写入口** —— v0.8.5 之前建的谜题 没有编码，部署时只能退回「按名称推导」。 留空 = 不改（不会把已有的编码清掉）。 改名 / 改描述是 JSON 请求，封面是二进制，所以是两步：先 PATCH，再按需传 / 删封面（同 `EditMapDialog`）。 */
 interface EditPuzzleDialogProps {
   entry: PuzzleEntrySummary | null;
   onOpenChange: (open: boolean) => void;

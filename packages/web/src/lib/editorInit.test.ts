@@ -1,10 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { resolveEditorInit, type EditorInitInput } from './editorInit';
 
-/**
- * 判定只有三种结果：「换图 → init」「同图但版本元数据变了 → sync-version」
- * 「什么都没变 → none」。草稿内容不参与判定。
- */
+/** 判定只有三种结果：「换图 → init」「同图但版本元数据变了 → sync-version」 「什么都没变 → none」。草稿内容不参与判定。 */
 const base: EditorInitInput = {
   loadedMapId: 7,
   mapId: 7,

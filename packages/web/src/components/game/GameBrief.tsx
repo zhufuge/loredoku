@@ -2,21 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-/**
- * v0.7.14（docs/v0.7.14.md §4）：游戏页左栏的「题面」—— 描述 + 全局线索。
- *
- * **它排在标题下面、名册上面，中间不画线。** 玩家进一局要按同一个顺序知道三件事：
- * 这是哪一局（标题）→ 这一局想让我做什么（描述）→ 这一局比基本规则多出了什么
- * 条件（线索）→ 这些人各自该站哪儿（名册）。它们是**同一段话的四个段落**，不是
- * 四个区域；一条横线会把「条件」和「人」切开，可线索说的正是这些人该怎么站。
- *
- * 为什么不浮在画布上（初稿是一张压在盘面左上角的纸片）：那张纸要么
- * 盖住玩家最常看的一角，要么被收起 —— 两种都得付代价。而左栏本来就空着一段：
- * 题面钉在名册**上方**，名册自己滚动，两边都不用让位。
- *
- * 左边距 16px —— 不是随手写的：标题行是 12px 内边距再叠 4px 左缩进，游戏名正好落在 16px；
- * 描述若从 12px 起头，4px 的错位在五行文字旁边会读成「没对齐」。
- */
+/** v0.7.14（docs/v0.7.14.md §4）：左栏「题面」= 描述 + 全局线索，排标题下、名册上且中间不画线（同一段话的段落）；左边距 16px 与标题行对齐。 */
 export function GameBrief({
   description,
   clues,
@@ -26,13 +12,7 @@ export function GameBrief({
   description: string;
   /** 全局线索（可能夹着旧数据里的空串，这里再滤一次）。 */
   clues: string[];
-  /**
-   * 只画线索、不画描述。
-   *
-   * 竖屏上描述曾经占掉面板一半高度（三行 clamp 也要 60px），而它只在开局时
-   * 读一遍 —— 挪进右上角那枚图标后面的弹框，面板就能把高度全给线索与名册。
-   * 线索是解题时反复要看的，仍留在原地。
-   */
+  /** 只画线索不画描述：竖屏时描述挪进右上角弹框，把高度让给线索与名册。 */
   hideDescription?: boolean;
 }): JSX.Element | null {
   const text = description.trim();
@@ -45,16 +25,7 @@ export function GameBrief({
     <section
       data-testid="game-brief"
       aria-label="题面"
-      /*
-       * 竖屏整块往上留一点空：竖屏下面板紧贴着棋盘的下边缘（面板自己的上边框），
-       * 线索纸条又只按自己的字宽收身，第一张纸条直接顶着那条线会读成「被切了一半」。
-       * 桌面端不加：标题块自己带 12px 的下边距，再垫一层就成了双重留白。
-       *
-       * 竖屏由外面那层容器统一滚：这里放开高度上限、交出滚动条，线索与名册连成一段
-       * —— 各自带高度上限与纵向滚动的话，手指滑在名册上时线索不动，
-       * 八条线索要滚两遍才看得完。桌面端与横屏手机不受影响（面板仍限高、
-       * 仍自己滚），所以只限竖屏的中小屏，不限所有中小屏。
-       */
+      /* 竖屏留一点上边距（否则首张纸条像被切了一半）；竖屏由外层统一滚，这里放开限高与滚动条，否则线索与名册要滚两遍。 */
       className="max-h-[min(24svh,220px)] shrink-0 overflow-y-auto pb-3 pl-4 pr-3 sm:max-h-[min(46vh,340px)] max-md:pt-3 portrait:max-md:max-h-none portrait:max-md:overflow-visible"
     >
       {showDescription ? <BriefDescription text={text} /> : null}
@@ -64,35 +35,10 @@ export function GameBrief({
             <li
               key={index}
               data-testid="game-brief-clue"
-              /*
-               * 每条线索是一张**纸条**：外框 + 静置纸影，落在左栏的纸面上。
-               *
-               * 序号去掉了：纸条本身一条一条地摞着，边界已经说明「换了一条」；
-               * 再给 1 / 2 / 3，读起来像步骤，而它们是**同时成立的条件** ——
-               * 顺序是作者的写法，不是解题的次序。
-               *
-               * 错峰 45ms、封顶 6 条（再往后一起落）：八条同时冒出来只能读到
-               * 「一堆」，错开才数得清有几条；封顶是为了不让最后一条等太久。
-               *
-               * 悬停抬起 2px、纸影换成抬升态的影子（v0.7.14 §4.3，作者要的）。
-               * 它**不是按钮**，所以只做物理动作：没有手型指针、
-               * 没有主色描边、没有放大 —— 那三样是「点下去会发生点什么」的假承诺。
-               * 影子加深 + 一两像素的位移读作「这张纸被抬起来一点」，
-               * 用的还是它落下时那套纸的语言。
-               *
-               * 180ms（基准时长）而不是 120ms：这段位移只有 2px，太快会像
-               * 抖动；和入场那 260ms 也接得上。
-               */
+              /* 纸条：外框 + 纸影、无序号（并列条件）；错峰 45ms / 封顶 6 条；悬停抬 2px 换抬升影子 180ms —— 不是按钮，不加手型、主色与放大。 */
               style={{ animationDelay: `${Math.min(index, 6) * 45}ms` }}
               className={cn(
-                /*
-                 * 纸条**按自己的字宽收身**，在栏里居中，文字也居中。
-                 *
-                 * 撑满 228px 的栏、文字靠左时，一条十几字的线索右边会空出
-                 * 半张纸，读起来像「表格里的一行」。收成 fit-content 之后它就是一张
-                 * 标签：长短由内容决定，摆在正中间。最大宽度留给长线索，让它
-                 * 换行而不是溢出到名册上去。
-                 */
+                /* 按字宽收身（w-fit）并居中：撑满栏宽会像表格行；max-w-full 让长线索换行。 */
                 'clue-note mx-auto w-fit max-w-full rounded-md border bg-card px-2.5 py-1.5',
                 'text-center text-xs leading-[1.7] text-foreground/90 shadow-paper',
                 'transition-[box-shadow,transform] duration-base ease-out',
@@ -108,20 +54,7 @@ export function GameBrief({
   );
 }
 
-/**
- * 描述可折叠（v0.7.14 §4.3）。
- *
- * 描述上限 500 字，在 228px 的栏里能占 28 行 —— 名册得让路，但「让」到什么程度
- * 不该由作者的字数决定。所以默认收到三行（三行截断），想读全文的点一下。
- *
- * **只有真的溢出才挂按钮**：`scrollHeight > clientHeight` 量一次（三行截断
- * 在 Chrome 下 `scrollHeight` 仍是整段的高度，这个判据成立）。短描述不会挂一个
- * 点了没反应的「展开全文」。
- *
- * 量的时候**只在收起态量**：展开后 `clientHeight` 等于全文高度，量出来的结论是
- * 「没溢出」，按钮就会消失 —— 然后再也收不回去。所以 `expanded` 为真时直接跳过；
- * 代价是展开着的时候窗口变化不会重判，而侧栏宽度本来只随参与者列数变。
- */
+/* 默认收三行；只在收起态量 `scrollHeight > clientHeight`，没溢出就不挂按钮 —— 展开后量会把按钮永久弄丢。 */
 function BriefDescription({ text }: { text: string }): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const [overflows, setOverflows] = useState(false);
@@ -153,15 +86,7 @@ function BriefDescription({ text }: { text: string }): JSX.Element {
 
   return (
     <>
-      {/*
-       * 描述是**作者的话**：颜色退一档、行距松一点，先把这一局讲清楚。
-       * 保留连续空白、保住作者自己敲的换行 —— 说明里的分段是有意义的。
-       *
-       * **收起态一律上三行截断，不先问「会不会溢出」。** 先问的话就是个
-       * 死循环：没 clamp 时 `scrollHeight === clientHeight`，量出来永远是「放得下」，
-       * 于是永远不 clamp —— 四行长文就那么摊着（第一版实测就是这样）。三行以内的
-       * 短描述被 clamp 也没有任何变化，所以「先夹上、再量」才是最省事的顺序。
-       */}
+      {/* 保留作者换行与连续空白；收起态必须先 clamp 三行再量 —— 先量时 scrollHeight === clientHeight，永远判为放得下。 */}
       <p
         ref={ref}
         data-testid="game-brief-description"
@@ -174,17 +99,7 @@ function BriefDescription({ text }: { text: string }): JSX.Element {
         {text}
       </p>
       {expanded || overflows ? (
-        /*
-         * 一枚文字的开关，不做按钮外观：描述本身就是正文，给它加边框反而把一段话
-         * 切成两块。**靠右**是关键 —— 贴着正文左边缘、行距又和正文一样时，「展开
-         * 全文」会被读成第四行（第一版实测就是这样）；推到右边，它才从行文里出来，
-         * 站到「更多」这个位置上。
-         *
-         * **这一枚要单独放开指针事件**：定案之后整条左栏不接指针事件，
-         * 锁住名册与题面，只有标题块自己豁免；这枚按钮在
-         * 题面里，于是跟着一起失灵 —— 而「读全文」不是游戏动作，是读作者写的话，
-         * 定案了也该能读。只放开这一枚按钮，线索纸条的悬停与名册仍然锁着。
-         */
+        /* 纯文字开关、靠右（否则读成正文第四行）；必须单独放开 `pointer-events-auto` —— 定案后整条左栏不接指针。 */
         <button
           type="button"
           data-testid="game-brief-description-toggle"

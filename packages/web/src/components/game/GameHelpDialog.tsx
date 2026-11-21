@@ -12,18 +12,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 
-/**
- * 玩法说明。右栏最下面那枚圆形问号打开它；**第一次进任意关卡时自动
- * 打开一次**（`lib/gameHelp.ts` 记着「已经看过」）。
- *
- * 为什么是一段静态说明而不是从谜题里读：这四段说的是**这套界面怎么操作** ——
- * 点谁、按什么、哪个按钮管什么。它不随谜题变，作者也不必为每一关重写一遍。
- * 谜题自己的规则（谁在场、谁能和谁同处一室）由题面与线索回答，弹框里只留一句
- * 「一局的具体规则以题面为准」把它们分开。
- *
- * 写法对齐 `GameDescriptionDialog`：正文 `text-sm`、行高放宽，整块可滚 ——
- * 手机上这一段比一屏长，弹框里再套一个滚动容器就够了。
- */
+/** 玩法说明。 右栏最下面那枚圆形问号打开它； **第一次进任意关卡时自动 打开一次**（`lib/gameHelp.ts` 记着「已经看过」）。 为什么是一段静态说明而不是从谜题里读：这四段说的是**这套界面怎么操作** —— 点谁、按什么、哪个按钮管什么。 它不随谜题变，作者也不必为每一关重写一遍。 谜题自己的规则（谁在场、谁能和谁同处一室）由题面与线索回答，弹框里只留一句 「一局的具体规则以题面为准」把它们分开。 写法对齐 `GameDescriptionDialog`：正文 `text-sm`、行高放宽，整块可滚 —— 手机上这一段比一屏长，弹框里再套一个滚动容器就够了。 */
 export interface GameHelpDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,10 +56,7 @@ const HELP_TOOL_FALLBACKS: Record<HelpToolKind, LucideIcon> = {
   submit: Send,
 };
 
-/**
- * 图标按「关卡 → 主题 → 内置」的顺序取（`lib/toolIcons.ts`）——
- * 工具条上画的是什么，说明里就是什么，换成主题的图之后两边不会各说各的。
- */
+/** 图标按「关卡 → 主题 → 内置」的顺序取（`lib/toolIcons.ts`）—— 工具条上画的是什么，说明里就是什么，换成主题的图之后两边不会各说各的。 */
 function ToolLines({
   items,
   toolIcons,

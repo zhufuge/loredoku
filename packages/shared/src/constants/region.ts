@@ -35,12 +35,7 @@ import {
 // ---- Region ----
 export const REGION_NAME_MAX_LENGTH = 100;
 export const REGION_DESCRIPTION_MAX_LENGTH = 500;
-/**
- * 区域轮廓线线宽边界：与地图级缺省同一套，区域只能在区间内覆盖。
- *
- * 下限是 1：作者可以自己决定细到什么程度（线宽一律按 `cellSize / BASE_CELL`
- * 缩放，1 在大格子上仍然看得见）。
- */
+/** 区域轮廓线线宽边界：与地图级缺省同一套，区域只能在区间内覆盖。 下限是 1：作者可以自己决定细到什么程度（线宽一律按 `cellSize / BASE_CELL` 缩放，1 在大格子上仍然看得见）。 */
 export const REGION_BORDER_WIDTH_MIN = 1;
 export const REGION_BORDER_WIDTH_MAX = 12;
 /** 区域轮廓线的地图级缺省颜色。 */
@@ -61,23 +56,13 @@ export const REGION_LABEL_STROKE_COLOR = '#000000';
 export const REGION_LABEL_HOVER_FONT_SIZE = 19;
 
 // ---- v0.7.0 区域自有样式（docs/v0.7.0.md §4） ----
-/**
- * 一条线的区域级覆盖：形状与它覆盖的地图级缺省相同（轮廓线线宽是整数，
- * 高亮线线宽可以是小数，边界由 zod 分别把守）。
- */
+/** 一条线的区域级覆盖：形状与它覆盖的地图级缺省相同（轮廓线线宽是整数， 高亮线线宽可以是小数，边界由 zod 分别把守）。 */
 export type RegionLineStyle = MapStyleLine;
 
 /** 区域标签的区域级覆盖：与 `MapStyleRegionLabel` 同字段。 */
 export type RegionLabelStyle = MapStyleRegionLabel;
 
-/**
- * The resolved region style: the map-level defaults with the region's overrides merged in.
- *
- * `labelOffset` 挂在**这一层**而不是 `label` 里面 —— 它只在区域级存在，
- * 地图级没有对应项。挂进来的话 `RegionLabelStyle`（= `MapStyleRegionLabel`）就
- * 得为它加一个地图级永远没有的字段，`DEFAULT_MAP_STYLE` 与两处共用编辑器都会
- * 被牵连。放在这里则只多一份「这块区域的标签往哪偏」，读点也直白。
- */
+/** 合成后的区域样式：地图级缺省 + 区域覆盖。`labelOffset` 挂在**这一层**而非 `label` 里 —— 它只在区域级存在，塞进 `MapStyleRegionLabel` 就得给地图级加一个永远没有的字段，连带 `DEFAULT_MAP_STYLE` 与两处编辑器。 */
 export interface RegionStyle {
   outline: RegionLineStyle;
   highlight: RegionLineStyle;
@@ -86,14 +71,7 @@ export interface RegionStyle {
   labelOffset: RegionLabelOffset;
 }
 
-/**
- * 区域样式的**存储变体**：对地图级缺省的深 partial，只记差异。渲染时
- * `resolveRegionStyle(地图级缺省, override)` 合成完整值；三者全等于缺省时
- * 整个 `style` 键不落盘（`regionStyleOverride` 助手负责这件事）。
- *
- * `label.offset` 与 `label` 其它字段同一条规矩 —— 只有非 0 的那一轴
- * 才记，两轴都 0 时整块 `offset` 不落盘。
- */
+/** 区域样式的**存储变体**：对地图级缺省的深 partial，只记差异。渲染时 `resolveRegionStyle(地图级缺省, override)` 合成完整值；三者全等于缺省时整个 `style` 键不落盘（`regionStyleOverride` 助手负责这件事）。 `label.offset` 与 `label` 其它字段同一条规矩 —— 只有非 0 的那一轴才记，两轴都 0 时整块 `offset` 不落盘。 */
 export interface RegionStyleOverride {
   outline?: Partial<RegionLineStyle>;
   highlight?: Partial<RegionLineStyle>;

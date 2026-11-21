@@ -1,16 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.6.0 —— 补齐 `maps` / `games` 表改名遗漏的 PG 隐式命名对象。
- *
- * v0.5.8（迁移 `…00020`）把 `map_projects` -> `maps`、`map_games` -> `games`，
- * 但 `RENAME TABLE` 不跟着改由表派生 / 显式命名的约束、索引与自增序列，于是这两张
- * 表上至今仍残留 `map_projects_*` / `map_games_*` 前缀。与 `assets` 表的收口
- * （迁移 `…00026`）同源，这里把前缀统一换成 `maps_` / `games_`。
- *
- * 列名本身（如 `games.project_id`、`maps.root_id`）不在本次范围内 —— 那是 API / 代码
- * 层面的命名，改动面远大于「约束名对齐」。此处只把表名前缀残留收口。
- */
+/** v0.6.0：v0.5.8（00020）改名 map_projects→maps、map_games→games 但 RENAME TABLE 不改派生约束/索引/序列名，残留前缀在这里统一换成 maps_ / games_（同 00026 口径）；列名本身不在范围内。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.transaction(async (trx) => {
     // —— games：map_games_* -> games_* ——

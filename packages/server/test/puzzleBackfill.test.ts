@@ -6,12 +6,7 @@ import {
   slotsFromLegacyDraft,
 } from '../src/service/puzzleBackfill';
 
-/**
- * v0.5.0 §11.2 (docs/v0.5.0.md) — the pure half of the puzzle backfill
- * migration. The knex migration reads `map_projects` / `map_versions` and
- * delegates every shape decision to these functions, which is why they are
- * unit tested here rather than against a database.
- */
+/** v0.5.0 §11.2 (docs/v0.5.0.md)：回填迁移的纯函数部分 —— knex 迁移读 `map_projects` / `map_versions`，形状判断全交给这些函数，所以这里不碰库。 */
 
 /** A v0.4.x version snapshot: the roster and the palette live inside it. */
 function v2VersionData(overrides: Record<string, unknown> = {}): Record<string, unknown> {

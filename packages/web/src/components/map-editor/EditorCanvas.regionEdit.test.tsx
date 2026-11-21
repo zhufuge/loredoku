@@ -7,16 +7,7 @@ import { resolveMapStyle } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/hitTest';
 import { seedRegionCellEdit, type RegionCellEdit } from '@/lib/regionEdit';
 
-/**
- * 区域格子的编辑会话里，画布上的点按 / 拖动只做一件事 —— 把这一笔的
- * 格子报给页面（`onRegionEditStroke`），由页面改草稿。
- *
- * 三条要钉住的行为：
- * 1. 起点格**不在**草稿里 → 这一笔是「加入」；起点格在草稿里 → 整笔「移除」
- *    （与区域笔刷同一条 `brushStrokeErases` 规则，一笔之内方向不变）；
- * 2. 按住 `Alt` 永远移除，不管起点格在不在草稿里；
- * 3. 会话期间点格子**不再选格** —— 否则每点一下就顺手改掉了右边抽屉的对象。
- */
+/** 区域格子编辑会话：画布只把这一笔的格子报给 `onRegionEditStroke`。起点格不在草稿 → 整笔加入，在 → 整笔移除（同 `brushStrokeErases`）；`Alt` 永远移除；会话期间点格子不再选格。 */
 
 // 标尺符号走 `useRulerSymbolsByCode`（内部是 TanStack Query），这里没有 Provider。
 vi.mock('@/hooks/useThemes', () => ({
@@ -148,10 +139,7 @@ describe('EditorCanvas — 区域格子编辑的笔画（v0.11.5）', () => {
         disconnect(): void {}
       },
     );
-    /*
-     * jsdom 不实现指针捕获 —— 笔画一开始就会 `setPointerCapture`，没有它整条
-     * 路径直接抛错。这里补两个空实现，捕获本身在测试里没有观察价值。
-     */
+    /* jsdom 不实现指针捕获 —— 笔画一开始就会 `setPointerCapture`，没有它整条路径直接抛错。这里补两个空实现，捕获本身在测试里没有观察价值。 */
     Object.assign(HTMLElement.prototype, {
       setPointerCapture: () => undefined,
       releasePointerCapture: () => undefined,

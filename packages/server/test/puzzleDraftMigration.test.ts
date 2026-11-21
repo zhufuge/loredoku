@@ -6,10 +6,7 @@ import {
   type PuzzleCanvasSource,
 } from '../src/service/puzzleDraftMigration';
 
-/**
- * v0.7.1 §5.3 / §5.4：谜题 JSON v1 ⇄ v2 的纯转换，`up()` / `down()` 共用同一
- * 组函数（往返必须对得上，所以这里钉住往返本身）。
- */
+/** v0.7.1 §5.3 / §5.4：谜题 JSON v1 ⇄ v2 的纯转换，`up()` / `down()` 共用同一组函数（往返必须对得上，所以这里钉住往返本身）。 */
 
 /** v1：引用式底图，画布靠 join —— 迁移前的存量形状。 */
 function legacyDraft(gridSize = 4): Record<string, unknown> {

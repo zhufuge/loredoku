@@ -203,12 +203,7 @@ describe('区域标签字体 (v0.7.4)', () => {
   });
 });
 
-/**
- * 区域标签的**位置偏移**（每块区域独立配置）。
- *
- * 两件事：只在区域级出现（地图级 `MapStyle.regionLabel` 没有这一项），以及
- * 两轴都可缺（v0.10.7 起不封顶）。
- */
+/** 区域标签的**位置偏移**（每块区域独立配置）。 两件事：只在区域级出现（地图级 `MapStyle.regionLabel` 没有这一项），以及两轴都可缺（v0.10.7 起不封顶）。 */
 describe('区域标签位置偏移 (v0.9.6)', () => {
   it('regionStyleOverrideSchema 收 { label: { offset: { x, y } } }', () => {
     const parsed = regionStyleOverrideSchema.parse({

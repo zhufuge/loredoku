@@ -8,13 +8,7 @@ import { mapsApi } from '@/api/maps';
 import { useMapCanvas } from './useMapCanvas';
 import { mapKeys, mapCanvasKeys, useUpdateMap } from './useMaps';
 
-/**
- * 改名要顺带把编辑器的缓存也打脏。
- *
- * 编辑器标题读的是 `GET /maps/:id/map` 里的 `map` 快照，而那份查询挂
- * 着 `staleTime: Infinity`：只失效列表（`mapKeys`）时，从列表改完名再进
- * 编辑器，标题仍是旧名，直到整页刷新。
- */
+/** 改名要顺带把编辑器的缓存也打脏。 编辑器标题读的是 `GET /maps/:id/map` 里的 `map` 快照，而那份查询挂着 `staleTime: Infinity`：只失效列表（`mapKeys`）时，从列表改完名再进编辑器，标题仍是旧名，直到整页刷新。 */
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/api/maps', () => ({
   mapsApi: { update: vi.fn() },

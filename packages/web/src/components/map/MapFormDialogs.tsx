@@ -55,11 +55,7 @@ export function CreateMapDialog({
   });
 
   const [cover, setCover] = useState<File | null>(null);
-  /**
-   * §3.2(b): when the map is created but the cover upload fails, the dialog
-   * **stays open** holding the new id — the retry button then only re-uploads,
-   * instead of creating a second map.
-   */
+  /** §3.2(b): when the map is created but the cover upload fails, the dialog **stays open** holding the new id — the retry button then only re-uploads, instead of creating a second map. */
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [coverFailed, setCoverFailed] = useState(false);
   /** v0.8.0 §18：主题由工作空间定；没有上下文时才可改（见下面的胶囊）。 */
@@ -210,10 +206,7 @@ interface EditMapDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/**
- * OPT-H02 + FEAT-H03: this dialog no longer only renames — it edits the map's
- * name, description **and** cover, so it is 「编辑地图」 now.
- */
+/** OPT-H02 + FEAT-H03: this dialog no longer only renames — it edits the map's name, description **and** cover, so it is 「编辑地图」 now. */
 export function EditMapDialog({ mapEntry, onOpenChange }: EditMapDialogProps): JSX.Element {
   const {
     register,

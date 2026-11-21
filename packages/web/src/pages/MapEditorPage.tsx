@@ -95,18 +95,7 @@ interface RegionDialogState {
   cells: Coord[];
 }
 
-/**
- * FEAT-F01 的标尺开关，偏好落在 `localStorage`（同 `MapViewPage` / `PuzzleEditorPage`
- * 的 `RULER_STORAGE_KEY` 模式）。
- *
- * v0.8.6 §2：**缺省不展示**。标尺画在画布外面那两条边带上，它占的正是画布
- * 能用的高度与宽度 —— 一张 20×20 的图在窗口里能不能一屏放下，取决于这两条带子
- * 在不在。而它回答的问题（「第几列」）只在数格子时才有意义，不是每次打开都要看。
- *
- * 「可配置」就是底栏右上角那枚标尺按钮：点开一次，`localStorage` 记成 `visible`，
- * 之后一直是展示的。判断条件因此是「等于 `visible`」—— 存着 `visible` 就展示，
- * 否则收起来。
- */
+/** FEAT-F01 的标尺开关，偏好落在 `localStorage`（同 `MapViewPage` / `PuzzleEditorPage` 的 `RULER_STORAGE_KEY` 模式）。 v0.8.6 §2：**缺省不展示**。 标尺画在画布外面那两条边带上，它占的正是画布 能用的高度与宽度 —— 一张 20×20 的图在窗口里能不能一屏放下，取决于这两条带子 在不在。 而它回答的问题（「第几列」）只在数格子时才有意义，不是每次打开都要看。 判断条件因此是「等于 `visible`」—— 存着 `visible` 就展示， 否则收起来。 */
 const RULER_STORAGE_KEY = 'loredoku.editor.ruler';
 
 function readStoredRulerVisible(): boolean {
@@ -114,14 +103,7 @@ function readStoredRulerVisible(): boolean {
   return window.localStorage.getItem(RULER_STORAGE_KEY) === 'visible';
 }
 
-/**
- * v0.5.0 SPEC-K12 (docs/v0.5.0.md §9.1): the map editor is 只编辑地图 again.
- *
- * The roster, the participant panel, the participant drawer and the whole
- * linkage-highlight chain moved to the puzzle editor — the map no longer owns a
- * participant. `editorStore` follows suit (§9.2), so everything below reads
- * canvas state only.
- */
+/** v0.5.0 SPEC-K12 (docs/v0.5.0.md §9.1): the map editor is 只编辑地图 again. The roster, the participant panel, the participant drawer and the whole linkage-highlight chain moved to the puzzle editor — the map no longer owns a participant. `editorStore` follows suit (§9.2), so everything below reads canvas state only. */
 export function MapEditorPage(): JSX.Element {
   // 主题段在地址里 —— 它同时是资源选板的筛选值（只看本工作空间的料）。
   const { mapId, themeCode = '' } = useParams<{ mapId: string; themeCode: string }>();
@@ -129,11 +111,7 @@ export function MapEditorPage(): JSX.Element {
   const [searchParams] = useSearchParams();
   const id = Number(mapId);
 
-  /**
-   * `?v={n}` = 「以此为底稿新建」的 fork 态 —— 版本条目从列表
-   * 直达这里，快照装进本地 store，**保存时才生成草稿**。没有 `?v=` 就是
-   * 普通的工作条目编辑。
-   */
+  /** `?v={n}` = 「以此为底稿新建」的 fork 态 —— 版本条目从列表直达这里，快照装进本地 store，**保存时才生成草稿**。没有 `?v=` 就是普通的工作条目编辑。 */
   const forkFrom = useMemo(() => {
     const raw = searchParams.get('v');
     const parsed = raw === null ? Number.NaN : Number(raw);
@@ -145,10 +123,7 @@ export function MapEditorPage(): JSX.Element {
   const mapQuery = useMapCanvas(id);
   const assetsQuery = useAssets({ isActive: true, themeCode });
   const versionsQuery = useVersions(Number.isFinite(id) ? id : null);
-  /**
-   * fork 态的数据源是**版本快照**，不是工作条目草稿 —— 草稿可能
-   * 还没初始化（`null`），而能发布出去的版本必然带完整 data。
-   */
+  /** fork 态的数据源是**版本快照**，不是工作条目草稿 —— 草稿可能还没初始化（`null`），而能发布出去的版本必然带完整 data。 */
   const versionQuery = useVersionDetail(forkFrom !== null && Number.isFinite(id) ? id : null, forkFrom);
   const saveMutation = useSaveMap();
   const resizeMutation = useUpdateGridSize();
@@ -160,10 +135,7 @@ export function MapEditorPage(): JSX.Element {
   const updateMapMutation = useUpdateMap();
   const uploadCoverMutation = useUploadMapCover();
   const removeCoverMutation = useRemoveMapCover();
-  /**
-   * 抽屉里改过尺寸、但服务端还没裁剪过。失败时保留，下一次保存接着补 ——
-   * 否则草稿里会一直留着被截断的物品。
-   */
+  /** 抽屉里改过尺寸、但服务端还没裁剪过。失败时保留，下一次保存接着补 —— 否则草稿里会一直留着被截断的物品。 */
   const gridTrimRef = useRef(false);
   /** 一次「保存」要连发多个请求，用这个标记把整段算作「保存中」。 */
   const busyRef = useRef(false);
@@ -173,40 +145,18 @@ export function MapEditorPage(): JSX.Element {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const initKeyRef = useRef<number | null>(null);
   const mapInfoRef = useRef<MapInfoDrawerHandle | null>(null);
-  /**
-   * 「初始化地图」弹窗的两件事 —— 写尺寸进行中，以及「这次文件选择
-   * 来自初始化弹窗」（那条路直接调导入接口，不走「覆盖当前画布」的二次确认，
-   * 因为此时画布还是空的）。
-   */
+  /** 「初始化地图」弹窗的两件事 —— 写尺寸进行中，以及「这次文件选择来自初始化弹窗」（那条路直接调导入接口，不走「覆盖当前画布」的二次确认， 因为此时画布还是空的）。 */
   const [initPending, setInitPending] = useState(false);
   const initImportRef = useRef(false);
-  /**
-   * FEAT-E01: a drawer switch (or a close) that is waiting for the user to
-   * decide what happens to unsaved 基本信息 edits.
-   */
+  /** FEAT-E01: a drawer switch (or a close) that is waiting for the user to decide what happens to unsaved 基本信息 edits. */
   const [pendingMapInfoAction, setPendingMapInfoAction] = useState<(() => void) | null>(null);
-  /**
-   * 「方格大小上限」那行要显示「本次按窗口算出来是多少」。
-   * `EditorCanvas` 的自适应 pass 通过 `onAutoCellSize` 报上来，这里只存着给抽屉看，
-   * 不参与任何渲染决策 —— 真正生效的格子边长在画布内部算。
-   */
+  /** 「方格大小上限」那行要显示「本次按窗口算出来是多少」。 `EditorCanvas` 的自适应 pass 通过 `onAutoCellSize` 报上来，这里只存着给抽屉看， 不参与任何渲染决策 —— 真正生效的格子边长在画布内部算。 */
   const [autoCellSize, setAutoCellSize] = useState(DEFAULT_CELL_SIZE);
-  /**
-   * 「地图基本信息」里已应用到页面、但**还没写库**的条目字段。
-   * 抽屉的「保存」只把值放到这里，右上角「保存」才发请求 —— 所以它是
-   * dirty 的一部分，也要参与离开编辑器时的拦截。
-   */
+  /** 「地图基本信息」里已应用到页面、但**还没写库**的条目字段。 抽屉的「保存」只把值放到这里，右上角「保存」才发请求 —— 所以它是 dirty 的一部分，也要参与离开编辑器时的拦截。 */
   const [pendingEntryInfo, setPendingEntryInfo] = useState<MapInfoEntryDraft | null>(null);
-  /**
-   * 同一份值的同步副本。右上角「保存」可能在抽屉还开着的时候被点：那里先
-   * 把抽屉的草稿提交到本地，随后立刻要写库 —— 但 state 要等下一次渲染才更新，
-   * 直接读 `pendingEntryInfo` 会漏掉刚提交的内容。
-   */
+  /** 同一份值的同步副本。右上角「保存」可能在抽屉还开着的时候被点：那里先把抽屉的草稿提交到本地，随后立刻要写库 —— 但 state 要等下一次渲染才更新， 直接读 `pendingEntryInfo` 会漏掉刚提交的内容。 */
   const pendingEntryRef = useRef<MapInfoEntryDraft | null>(null);
-  /**
-   * 离开编辑器时的拦截：画布 dirty **或** 有未写库的基本信息 / 区域表单，都算
-   * 没保存。`entryDirty` 在下面派生，这里直接读 state，免得把拦截放到后面。
-   */
+  /** 离开编辑器时的拦截：画布 dirty **或** 有未写库的基本信息 / 区域表单，都算没保存。`entryDirty` 在下面派生，这里直接读 state，免得把拦截放到后面。 */
   const [regionInfoDirty, setRegionInfoDirty] = useState(false);
   const leaveGuard = useUnsavedChangesGuard(
     editor.dirty || pendingEntryInfo !== null || regionInfoDirty,
@@ -222,10 +172,7 @@ export function MapEditorPage(): JSX.Element {
     cells: [],
   });
   const [deleteRegionTarget, setDeleteRegionTarget] = useState<DraftRegion | null>(null);
-  /**
-   * 区域格子的编辑会话。非 null 时画布上的点按/拖动改的是这份草稿，
-   * 而不是选格、落笔或擦除；保存前一律可取消。
-   */
+  /** 区域格子的编辑会话。非 null 时画布上的点按/拖动改的是这份草稿， 而不是选格、落笔或擦除；保存前一律可取消。 */
   const [regionCellEdit, setRegionCellEdit] = useState<RegionCellEdit | null>(null);
   const [regionError, setRegionError] = useState<string | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -244,10 +191,7 @@ export function MapEditorPage(): JSX.Element {
     return map;
   }, [assetsQuery.data]);
 
-  /**
-   * The palette selects a (asset, variant) pair — the variant supplies the
-   * footprint, the asset supplies the layer rules and the name.
-   */
+  /** The palette selects a (asset, variant) pair — the variant supplies the footprint, the asset supplies the layer rules and the name. */
   const pendingVariant = useMemo(() => {
     if (editor.selectedAssetId === null) return null;
     const asset = assetsById.get(editor.selectedAssetId);
@@ -256,11 +200,7 @@ export function MapEditorPage(): JSX.Element {
     return variant ? { asset, variant } : null;
   }, [editor.selectedAssetId, editor.selectedVariantId, assetsById]);
 
-  /**
-   * the save / publish / resize flows are hooks now. The page keeps
-   * only what is specific to the map editor: the 基本信息 variant, the FIX-F03
-   * first-entry save, the canvas callbacks and the dialogs' JSX.
-   */
+  /** the save / publish / resize flows are hooks now. The page keeps only what is specific to the map editor: the 基本信息 variant, the FIX-F03 first-entry save, the canvas callbacks and the dialogs' JSX. */
   const { persist: persistDraft, saving: savePending, saveMaskVisible } = useEditorSave({
     id,
     mutation: saveMutation,
@@ -274,17 +214,7 @@ export function MapEditorPage(): JSX.Element {
     },
   });
 
-  /**
-   * fork 态的保存 = 「fork 一行新草稿（带上编辑器当前画布）→ 把
-   * store 标记成已保存 → replace 到新行的编辑器 URL」。换 URL 而不是留在原地
-   * 是因为此后所有操作（再保存 / 发布 / 调整尺寸）都必须落在新行 id 上；
-   * replace 不留历史，用户按返回不会回到这个中间态。
-   *
-   * 返回新草稿的 id（失败 `null`）—— 同一轮保存里紧跟其后的基本信息
-   * 与尺寸都要写到这个新行上。
-   *
-   * 没保存就离开 → 什么都没发生（这正是「保存时才生成草稿」的意义）。
-   */
+  /** fork 态的保存 = 「fork 一行新草稿（带上编辑器当前画布）→ 把 store 标记成已保存 → replace 到新行的编辑器 URL」。 换 URL 而不是留在原地 是因为此后所有操作（再保存 / 发布 / 调整尺寸）都必须落在新行 id 上； replace 不留历史，用户按返回不会回到这个中间态。 返回新草稿的 id（失败 `null`）—— 同一轮保存里紧跟其后的基本信息 与尺寸都要写到这个新行上。 没保存就离开 → 什么都没发生（这正是「保存时才生成草稿」的意义）。 */
   const forkAndSave = async (): Promise<number | null> => {
     if (forkFrom === null || forkSaveMutation.isPending) return null;
     try {
@@ -316,12 +246,7 @@ export function MapEditorPage(): JSX.Element {
     }
   };
 
-  /**
-   * 名称 / 描述 / 封面 —— 抽屉只把它们留在本地，这里才发请求。
-   *
-   * 名与描述用 PATCH，封面是第二步（先有行、再传文件）；只有真正变了的
-   * 那一项才写，避免「只换了封面」也回一句「地图已更新」。
-   */
+  /** 名称 / 描述 / 封面 —— 抽屉只把它们留在本地，这里才发请求。 名与描述用 PATCH，封面是第二步（先有行、再传文件）；只有真正变了的那一项才写，避免「只换了封面」也回一句「地图已更新」。 */
   const persistEntryInfo = async (
     targetId: number,
     pending: MapInfoEntryDraft | null,
@@ -358,12 +283,7 @@ export function MapEditorPage(): JSX.Element {
     return true;
   };
 
-  /**
-   * 画布尺寸的落库：草稿保存已经把新尺寸写进 `data.gridSize`，但缩小尺寸
-   * 时被截断的物品 / 区域要由 resize 接口抹掉（前端只裁了整格越界的内容）。
-   * 基线取**保存前**缓存里的尺寸：保存之后缓存里的值就是刚写进去的新尺寸，
-   * 拿它比较会永远相等。
-   */
+  /** 画布尺寸的落库：草稿保存已经把新尺寸写进 `data.gridSize`，但缩小尺寸时被截断的物品 / 区域要由 resize 接口抹掉（前端只裁了整格越界的内容）。 基线取**保存前**缓存里的尺寸：保存之后缓存里的值就是刚写进去的新尺寸， 拿它比较会永远相等。 */
   const persistGridSize = async (targetId: number, beforeSave: number | null): Promise<boolean> => {
     const needed = gridTrimRef.current || (beforeSave !== null && editor.gridSize !== beforeSave);
     if (!needed) return true;
@@ -382,13 +302,7 @@ export function MapEditorPage(): JSX.Element {
     }
   };
 
-  /**
-   * 唯一的写入口：草稿 → 基本信息 → 尺寸，顺序固定（后一步都依赖前一步
-   * 已经落在同一个 id 上）。抽屉的「保存」不经过这里 —— 它只应用本地草稿。
-   *
-   * 这一轮可能连发 3~4 个请求，`busyRef` 把它们盖成一次保存：中途不许再进，
-   * 遮罩与按钮也不会在两个请求之间闪一下。
-   */
+  /** 唯一的写入口：草稿 → 基本信息 → 尺寸，顺序固定（后一步都依赖前一步已经落在同一个 id 上）。抽屉的「保存」不经过这里 —— 它只应用本地草稿。 这一轮可能连发 3~4 个请求，`busyRef` 把它们盖成一次保存：中途不许再进， 遮罩与按钮也不会在两个请求之间闪一下。 */
   const persist = async (entryOverride?: MapInfoEntryDraft | null): Promise<boolean> => {
     if (busyRef.current) return false;
     busyRef.current = true;
@@ -417,23 +331,14 @@ export function MapEditorPage(): JSX.Element {
   };
 
   const save = (): void => {
-    /**
-     * 右上角「保存」是用户的「保存」动作 —— 抽屉还开着、里面又有改动时，
-     * 先把那份草稿应用到本地，再一起写库，免得「点了保存但名字没存」。
-     */
+    /** 右上角「保存」是用户的「保存」动作 —— 抽屉还开着、里面又有改动时， 先把那份草稿应用到本地，再一起写库，免得「点了保存但名字没存」。 */
     if (mapInfoOpen && mapInfoRef.current?.isDirty()) {
       if (mapInfoRef.current.save() === false) return;
     }
     void persist(pendingEntryRef.current);
   };
 
-  /**
-   * v0.7.4 §3：头部「预览」= **先落库、再进只读预览页**。
-   *
-   * 预览页读的是服务端那一行的 `data`，不先保存就等于给用户看上一版；而弹一句
-   * 「有未保存的修改，离开将丢失」再让用户选一次，只是把同一个念头问两遍 ——
-   * 「我想看现在的样子」本身就是那个问题的答案。
-   */
+  /** v0.7.4 §3：头部「预览」= **先落库、再进只读预览页**。 预览页读的是服务端那一行的 `data`，不先保存就等于给用户看上一版；而弹一句「有未保存的修改，离开将丢失」再让用户选一次，只是把同一个念头问两遍 —— 「我想看现在的样子」本身就是那个问题的答案。 */
   const openPreview = async (): Promise<void> => {
     if (mapInfoOpen && mapInfoRef.current?.isDirty()) {
       if (mapInfoRef.current.save() === false) return;
@@ -447,10 +352,7 @@ export function MapEditorPage(): JSX.Element {
     window.setTimeout(() => navigate(`/${themeCode}/maps/${id}/view`, { state: { from: 'editor' } }), 0);
   };
 
-  /**
-   * 「保存中」覆盖这一轮可能连发的四个请求；mask 跟着它们一起亮，用户眼里
-   * 仍然是一次保存。
-   */
+  /** 「保存中」覆盖这一轮可能连发的四个请求；mask 跟着它们一起亮，用户眼里仍然是一次保存。 */
   const saving =
     savingBusy ||
     savePending ||
@@ -505,12 +407,7 @@ export function MapEditorPage(): JSX.Element {
     publishMutation,
   });
 
-  /**
-   * 左面板刷新（以及别处改资源后触发的失效重取）之后，选中项可能已经
-   * 不在列表里 —— 资源被删 / 被停用，或者只是那个形态被删。悬空选中会让画布
-   * 把一个不存在的 `variantId` 写进草稿，渲染再回退到首形态，看着像「点了没
-   * 反应」。这里清掉选中，让作者从新列表里重挑。
-   */
+  /** 左面板刷新（以及别处改资源后触发的失效重取）之后，选中项可能已经不在列表里 —— 资源被删 / 被停用，或者只是那个形态被删。悬空选中会让画布把一个不存在的 `variantId` 写进草稿，渲染再回退到首形态，看着像「点了没反应」。这里清掉选中，让作者从新列表里重挑。 */
   useEffect(() => {
     if (editor.selectedAssetId === null) return;
     const list = assetsQuery.data;
@@ -523,13 +420,7 @@ export function MapEditorPage(): JSX.Element {
     if (!stillThere) editor.setSelectedItem(null, null);
   }, [assetsQuery.data, editor, editor.selectedAssetId, editor.selectedVariantId]);
 
-  /**
-   * BUG-G01 (docs/v0.4.0.md §1): a click on a cell writes **both** `selection`
-   * and `selectedRegionId` (see `EditorCanvas.selectCellAt`), so this effect
-   * must not blindly re-open the info drawer — otherwise closing the
-   * 「地图基本信息」drawer (which clears those axes) makes the empty-state info
-   * drawer pop back up underneath it.
-   */
+  /** BUG-G01 (docs/v0.4.0.md §1): a click on a cell writes **both** `selection` and `selectedRegionId` (see `EditorCanvas.selectCellAt`), so this effect must not blindly re-open the info drawer — otherwise closing the 「地图基本信息」drawer (which clears those axes) makes the empty-state info drawer pop back up underneath it. */
   useEffect(() => {
     if (mapInfoOpen) {
       setInfoOpen(false);
@@ -542,21 +433,14 @@ export function MapEditorPage(): JSX.Element {
     }
   }, [editor.selection, editor.selectedRegionId, mapInfoOpen]);
 
-  /**
-   * 被编辑的那块区域没了（删除、撤销、换版本）就结束格子编辑会话 ——
-   * 草稿挂在一个不存在的区域上，保存时只会被静默丢掉。
-   */
+  /** 被编辑的那块区域没了（删除、撤销、换版本）就结束格子编辑会话 —— 草稿挂在一个不存在的区域上，保存时只会被静默丢掉。 */
   useEffect(() => {
     if (!regionCellEdit) return;
     if (editor.regions.some((item) => item.id === regionCellEdit.regionId)) return;
     setRegionCellEdit(null);
   }, [editor.regions, regionCellEdit]);
 
-  /**
-   * fork 态（`?v={n}`）整段让位给版本快照 —— 快照是已发布版本
-   * 的完整 data，装进本地 store 即可开改，**不写任何库表**。草稿删除 /
-   * 未初始化都不影响这条路：数据源是 `map_versions` 行，不是工作条目。
-   */
+  /** fork 态（`?v={n}`）整段让位给版本快照 —— 快照是已发布版本的完整 data，装进本地 store 即可开改，**不写任何库表**。草稿删除 / 未初始化都不影响这条路：数据源是 `map_versions` 行，不是工作条目。 */
   useEffect(() => {
     if (forkFrom !== null) {
       const snapshot = versionQuery.data;
@@ -584,18 +468,9 @@ export function MapEditorPage(): JSX.Element {
 
     const data = mapQuery.data;
     if (!data) return;
-    /**
-     * `draft === null` = 这张地图还没初始化。此时不 init、不保存 ——
-     * 页面主体让位给 {@link MapInitDialog}，由用户决定填尺寸还是导入。
-     */
+    /** `draft === null` = 这张地图还没初始化：不 init、不保存，交给 {@link MapInitDialog}。 */
     if (data.draft === null) return;
-    /**
-     * FIX-E01 (docs/v0.3.9.md §1): publishing bumps `currentVersionNo` /
-     * `status` on the map row and invalidates this query, but it does **not**
-     * touch the draft. Only a changed draft triggers a real re-init (which
-     * resets zoom / pan); a metadata-only change just refreshes the version
-     * badge, so the canvas stays exactly where the user left it.
-     */
+    /** FIX-E01 (docs/v0.3.9.md §1): publishing bumps `currentVersionNo` / `status` on the map row and invalidates this query, but it does **not** touch the draft. */
     const action = resolveEditorInit({
       loadedMapId: initKeyRef.current,
       mapId: id,
@@ -619,15 +494,7 @@ export function MapEditorPage(): JSX.Element {
     });
   }, [forkFrom, versionQuery.data, mapQuery.data, id, editor]);
 
-  /**
-   * FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a variant, so
-   * leaving it with unsaved edits has to be confirmed. Every path that closes
-   * the drawer or hands focus to another panel goes through this guard.
-   *
-   * BUG-G01: leaving for a cell / region label must **close**
-   * the drawer, not just run the action — otherwise the drawer stays on top and
-   * keeps the info drawer suppressed.
-   */
+  /** FEAT-E01 (docs/v0.3.9.md §3): the 「地图基本信息」drawer is a variant, so leaving it with unsaved edits has to be confirmed. BUG-G01: leaving for a cell / region label must **close** the drawer, not just run the action — otherwise the drawer stays on top and keeps the info drawer suppressed. */
   const guardMapInfo = (proceed: () => void): void => {
     if (!mapInfoOpen) {
       proceed();
@@ -641,14 +508,7 @@ export function MapEditorPage(): JSX.Element {
     setPendingMapInfoAction(() => proceed);
   };
 
-  /**
-   * 抽屉的「保存」= **只应用本地草稿**，一个请求都不发。
-   *
-   * 画布尺寸与样式直接进 store（可撤销、立即看到效果）；名称 / 描述 / 封面
-   * 不在 store 里，所以落进 `pendingEntryInfo` 作为 dirty 的一部分，等右上角
-   * 「保存」时由 {@link persist} 统一写库。基线取视图层当前生效的值
-   * （`pendingEntryInfo` 优先），这样连改两次也只留最后一次。
-   */
+  /** 抽屉「保存」只应用本地草稿：尺寸/样式进 store（可撤销），名称/描述/封面进 pendingEntryInfo 等右上角保存写库。 */
   const commitMapInfo = (
     next: MapStyle,
     nextGridSize: number,
@@ -711,10 +571,7 @@ export function MapEditorPage(): JSX.Element {
     }
   };
 
-  /**
-   * 区域的外观编辑在右边信息框里完成（默认填入「地图基本信息」的
-   * 缺省值，保存时只记差异）；对话框只剩「创建」这一步 ——  ID 与名称。
-   */
+  /** 区域的外观编辑在右边信息框里完成（默认填入「地图基本信息」的缺省值，保存时只记差异）；对话框只剩「创建」这一步 —— ID 与名称。 */
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
     editor.createRegion(input, conflictMode);
     editor.clearDraftSelection();
@@ -727,16 +584,7 @@ export function MapEditorPage(): JSX.Element {
     editor.updateRegion(regionId, input);
   };
 
-  /*
-   * 区域格子编辑。
-   *
-   * 开会话时先把这块区域的格子抄成一份草稿（`seedRegionCellEdit`），之后画布上
-   * 的每一笔只改草稿 —— 作者可以先补成凸字形、再削掉一条边，看准了才保存。
-   * 保存时一次性写进 store（**一步撤销**），取消则一点痕迹都不留。
-   *
-   * 为什么不复用「Shift + 点击逐格 toggle」那条老捷径：它每一下都是一步撤销，
-   * 而且没有预览、没有提交前的连通性检查 —— 手一滑把区域切成两块也照样落库。
-   */
+  /* 区域格子编辑。 开会话时先把这块区域的格子抄成一份草稿（`seedRegionCellEdit`），之后画布上 的每一笔只改草稿 —— 作者可以先补成凸字形、再削掉一条边，看准了才保存。 保存时一次性写进 store（**一步撤销**），取消则一点痕迹都不留。 为什么不复用「Shift + 点击逐格 toggle」那条老捷径：它每一下都是一步撤销， 而且没有预览、没有提交前的连通性检查 —— 手一滑把区域切成两块也照样落库。 */
   const startRegionCellEdit = (regionId: string): void => {
     const region = editor.regions.find((item) => item.id === regionId);
     if (!region) return;
@@ -810,11 +658,7 @@ export function MapEditorPage(): JSX.Element {
     toast.success('已导入地图，可撤销');
   };
 
-  /**
-   * 初始化弹窗的「填尺寸」。复用改尺寸那条路 —— 服务端在草稿为空时新建一份
-   * 只带 `gridSize` 的草稿，成功后 query 失效重拉，`draft` 不再是 `null`，
-   * 页面主体随即渲染。
-   */
+  /** 初始化弹窗的「填尺寸」。复用改尺寸那条路 —— 服务端在草稿为空时新建一份只带 `gridSize` 的草稿，成功后 query 失效重拉，`draft` 不再是 `null`， 页面主体随即渲染。 */
   const handleInitSize = (gridSize: number): void => {
     setInitPending(true);
     resizeMutation.mutateAsync({ id, gridSize }).finally(() => setInitPending(false));
@@ -833,13 +677,7 @@ export function MapEditorPage(): JSX.Element {
     void (async () => {
       try {
         const parsed: unknown = JSON.parse(await file.text());
-        /**
-         * SPEC-K14 §8.4 (Q12): a v2 file still carries `characterSlots` /
-         * `style.linkageColors`. `mapDraftSchema` is `.strict()`, so it is
-         * rejected — and the author is told **why** instead of being left with
-         * a bare 「JSON 格式不正确」 (a silent strip would look like the
-         * participants had been imported).
-         */
+        /** SPEC-K14 §8.4 (Q12): a v2 file still carries `characterSlots` / `style.linkageColors`. `mapDraftSchema` is `.strict()`, so it is rejected — and the author is told **why** instead of being left with a bare 「JSON 格式不正确」 (a silent strip would look like the participants had been imported). */
         const raw =
           typeof parsed === 'object' && parsed !== null
             ? (parsed as Record<string, unknown>)
@@ -870,21 +708,12 @@ export function MapEditorPage(): JSX.Element {
     })();
   };
 
-  /**
-   * The zoom maths lives in the canvas (next to the wheel handler) so
-   * the button path marks the view as user-adjusted too — otherwise the
-   * adaptive auto-centre pass centres the new zoom away on the next render
-   * and the buttons look dead until a wheel zoom sets that flag.
-   */
+  /** The zoom maths lives in the canvas (next to the wheel handler) so the button path marks the view as user-adjusted too — otherwise the adaptive auto-centre pass centres the new zoom away on the next render and the buttons look dead until a wheel zoom sets that flag. */
   function zoomBy(direction: 1 | -1): void {
     canvasRef.current?.zoomByStep(direction);
   }
 
-  /**
-   * the keys both canvases share live in `useEditorShortcuts`
-   * (Ctrl+S / Space / Ctrl+Z / Ctrl+0 / arrows); what stays here is the part
-   * that is specific to the writable map canvas.
-   */
+  /** the keys both canvases share live in `useEditorShortcuts` (Ctrl+S / Space / Ctrl+Z / Ctrl+0 / arrows); what stays here is the part that is specific to the writable map canvas. */
   const handleEditorEscape = (): void => {
     if (mapInfoOpen) {
       // FEAT-E01: Esc leaves the info drawer first — and asks when there
@@ -953,10 +782,7 @@ export function MapEditorPage(): JSX.Element {
     return <EditorLoadingState />;
   }
 
-  /**
-   * 页面上生效的条目信息：先在本地改的值优先，其次才是库里读到的。
-   * 抽屉的「保存」不发请求，所以标题 / 封面就得靠这一层先改过来。
-   */
+  /** 页面上生效的条目信息：先在本地改的值优先，其次才是库里读到的。 抽屉的「保存」不发请求，所以标题 / 封面就得靠这一层先改过来。 */
   const entryInfo = {
     name: pendingEntryInfo?.name ?? mapEntry.name,
     description: pendingEntryInfo?.description ?? (mapEntry.description ?? ''),
@@ -965,13 +791,7 @@ export function MapEditorPage(): JSX.Element {
     coverRemoved: pendingEntryInfo?.coverRemoved ?? false,
   };
 
-  /**
-   * 没初始化过的地图没有画布可渲染 —— 整个页面主体让位给初始化
-   * 弹窗（所有 hooks 都已在上面跑完，这里的提前返回不违反 hooks 规则）。
-   *
-   * fork 态跳过这条 —— 画布来自版本快照（必然带 data），与工作
-   * 条目草稿初始化与否无关。
-   */
+  /** 没初始化过的地图没有画布可渲染 —— 整个页面主体让位给初始化弹窗（所有 hooks 都已在上面跑完，这里的提前返回不违反 hooks 规则）。 fork 态跳过这条 —— 画布来自版本快照（必然带 data），与工作条目草稿初始化与否无关。 */
   if (forkFrom === null && mapQuery.data?.draft == null) {
     return (
       <MapInitDialog
@@ -992,11 +812,7 @@ export function MapEditorPage(): JSX.Element {
         dirty={editor.dirty || entryDirty}
         saving={saving}
         publishing={publishMutation.isPending}
-        /**
-         * fork 态（`?v={n}`，还没保存）这一屏是「以 v{n} 为底稿」，不是草稿：
-         * 徽标与发布按钮都不出现。保存成功 → replace 到新草稿行的 URL →
-         * `forkFrom` 变 null，二者一起回来。
-         */
+        /** fork 态（`?v={n}`，还没保存）这一屏是「以 v{n} 为底稿」，不是草稿： 徽标与发布按钮都不出现。保存成功 → replace 到新草稿行的 URL → `forkFrom` 变 null，二者一起回来。 */
         status={forkFrom !== null ? null : editor.status}
         currentVersionNo={editor.currentVersionNo}
         // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点。
@@ -1012,11 +828,7 @@ export function MapEditorPage(): JSX.Element {
             closeMapInfo();
             return;
           }
-          // FEAT-D01: opening it drops any cell / region focus.
-          // BUG-G01: `selectedRegionId` belongs to the same set of focus axes —
-          // a click on a cell inside a region sets it too (EditorCanvas
-          // .selectCellAt), so leaving it behind re-opened the info drawer
-          // through the effect below and left an empty panel on screen.
+          // FEAT-D01: opening it drops any cell / region focus. BUG-G01: `selectedRegionId` belongs to the same set of focus axes — a click on a cell inside a region sets it too (EditorCanvas .selectCellAt), so leaving it behind re-opened the info drawer through the effect below and left an empty panel on screen.
           setMapInfoOpen(true);
           editor.setSelection(null);
           editor.setSelectedRegion(null);
@@ -1109,12 +921,7 @@ export function MapEditorPage(): JSX.Element {
                 guardMapInfo(() => editor.setSelectedRegion(regionId));
               }}
               onSelectRegionLabel={(regionId) => {
-                // 地图编辑点击区域标题弹信息框：与谜题/游戏页不同，谜题和游戏
-                // 页的区域标签只做悬停，不弹窗。
-                //
-                // 必须和左边「区域」列表项走**同一对**动作：抽屉渲染的是
-                // `selection`，只设 `selectedRegionId` 的话会弹出空面板
-                // （v0.7.0 点列表项踩过一次，见 `regionFocusSelection` 的注释）。
+                // 地图编辑点击区域标题弹信息框：与谜题/游戏页不同，谜题和游戏页的区域标签只做悬停，不弹窗。 必须和左边「区域」列表项走**同一对**动作：抽屉渲染的是 `selection`，只设 `selectedRegionId` 的话会弹出空面板（v0.7.0 点列表项踩过一次，见 `regionFocusSelection` 的注释）。
                 guardMapInfo(() => {
                   if (editor.activeTool !== 'select') setTool('select');
                   editor.setSelection(regionFocusSelection(regionId));

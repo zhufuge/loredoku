@@ -1,21 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.6.1 续 —— 背景资源也允许多个形态。
- *
- * 上一支迁移 `…00028` 把「一个资源一个形态」写进了数据与文档；本支把它放开：
- *   - `maps.data` / `games.snapshot.map` 的 `cells[k].background` 补 `formId`，
- *     `version` 5 → 6；
- *   - 表结构不动（`asset_forms` 早就能容纳任意多个形态，服务端的限制在代码里）。
- *
- * 补 `formId` 的手法与 `…00028` 完全一致：逐行读 JSON → 就地改 → 回写，值取
- * 「资源 → 首形态」（按 `sort_order, id`，与 API 响应的排序一致）。存量背景资源
- * 都只有一个形态，补的就是它；没有对应形态（资源已删）的格子保持原样，渲染时
- * 由 `resolveAssetForm` 兜底。
- *
- * `formId` 是可选的，所以不补数据也能跑——补只是为了「v6 画布里背景格都显式
- * 带着自己选的是哪个形态」，与 `…00028` 对物品锚点的处理保持同一个口径。
- */
+/** v0.6.1 续：背景资源也允许多形态——cells[k].background 补 formId、version 5→6，取「资源→首形态」（ORDER BY sort_order, id，与 API 一致）；表结构不动，formId 可空、不补也能跑，无对应形态（资源已删）的格子留给 resolveAssetForm 兜底。 */
 
 export async function up(knex: Knex): Promise<void> {
   await knex.transaction(async (trx) => {

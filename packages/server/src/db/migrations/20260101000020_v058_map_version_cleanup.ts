@@ -1,22 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.5.8 地图版本管理优化专项 —— 数据库侧（docs/v0.5.8.md §6）
- *
- * 三件事，顺序即依赖：
- *
- * 1. **`map_projects` → `maps`，并删除 `grid_size`**。画布尺寸从此只活在
- *    `draft_data.gridSize` 里（「放到 data 中」），创建地图时不再填写，改由
- *    编辑器首次进入时的初始化弹窗写入。
- * 2. **`map_versions` 删除 `grid_size` 与 `notes`**。版本快照 `data` 自带
- *    `gridSize`；发布弹窗的去备注化让 `notes` 再无写入方。
- * 3. **`map_games` → `games`**。谜题才是部署单位，表名跟着改名。
- *
- * PG 的 `ALTER TABLE ... RENAME TO` **不会**重命名索引、约束与序列 ——
- * `map_projects_root_id_index` / `map_projects_id_seq` 之类会原样留着，
- * 与 v0.2.0 `cards → items` 时 `cards_id_seq` 的遗留同源。功能不受影响，
- * 故不做额外重命名（多一条 raw SQL 就多一个可失败点）。
- */
+/** v0.5.8 版本管理专项（docs/v0.5.8.md §6）：map_projects→maps 并删 grid_size（尺寸只留在 draft_data.gridSize）、map_versions 删 grid_size/notes、map_games→games；PG 的 RENAME TO 不改索引/约束/序列名，功能不受影响故不额外重命名。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.renameTable('map_projects', 'maps');
 

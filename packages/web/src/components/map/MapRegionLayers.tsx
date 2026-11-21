@@ -8,22 +8,9 @@ import { buildRegionEdges, buildRegionHighlightPaths } from '@/lib/region';
 import { styleLineWidth } from '@/lib/mapStyle';
 import { resolveRegionStyle } from '@/lib/regionStyle';
 
-/**
- * the region layers, split out of the old `MapLayers.tsx`.
- *
- * v0.7.0 (docs/v0.7.0.md §4): a region carries only the **differences** from
- * the map-level defaults (`DraftRegion.style`), so every layer resolves its own
- * values through `resolveRegionStyle`. The v0.6.x fill layer is gone — 填充
- * retired together with the region's `color` / `fillOpacity`.
- */
+/** 区域各层；区域只带相对地图默认的差异，故一律经 `resolveRegionStyle` 解析（docs/v0.7.0.md §4）。 */
 
-/**
- * OPT-B01 (docs/v0.3.6.md §1): the highlight hugs the **inner** side of the
- * region boundary and grows inwards, never covering it. The boundary itself
- * is a `outline.width × scale` stroke centred on the contour, so it eats
- * `outline.width × scale / 2` into the region; the highlight starts exactly
- * there.
- */
+/** OPT-B01（docs/v0.3.6.md §1）：高亮贴边界内侧 —— 边界线居中描边吃掉半宽，高亮从此处起算。 */
 function regionHighlightInset(
   outlineWidth: number,
   cellSize: number,
@@ -32,23 +19,7 @@ function regionHighlightInset(
   return styleLineWidth(outlineWidth, cellSize) / 2 + styleLineWidth(highlightWidth, cellSize) / 2;
 }
 
-/**
- * 区域高亮线（Region Highlight）— FIX-E02 (docs/v0.3.9.md §2).
- *
- * The outline is produced by `buildRegionHighlightPaths`, which traces the
- * region's closed rectilinear contour and offsets each supporting line inward
- * by `inset`. Rendering one closed `<path>` per loop is what makes the highlight
- * **continuous**: the v0.3.8 implementation drew one independently inset
- * segment per cell edge, leaving a gap at every cell boundary and every
- * concave corner.
- */
-/**
- * Exported for {@link MapHighlightLayer} (`MapOverlayLayers.tsx`), which draws
- * the same continuous outline for linkage-targeted regions.
- *
- * Takes the region's **resolved** style — the highlight width / colour
- * and the outline width the inset nests inside may all be region-specific.
- */
+/** 每个闭合环渲一条整 path 才连续（FIX-E02，docs/v0.3.9.md §2）；`MapHighlightLayer` 复用，需传已解析 style。 */
 export function RegionHighlightOutline({
   cells,
   cellSize,
@@ -84,26 +55,7 @@ export function RegionHighlightOutline({
   );
 }
 
-/**
- * 层 7 · 区域轮廓线（Region Outline）— the region's outer contour, wider than a
- * grid separator (4 ~ 12px) and drawn above the canvas frame / grid lines so a
- * region boundary is never cut into dashes; only item artwork still sits on top.
- *
- * v0.7.0 (docs/v0.7.0.md §4): **both** the width and the colour come from the
- * region's resolved style — the map-level block is the default, the region's
- * own `style.outline` overrides it. (The v0.6.x split, map colour + per-region
- * width, is gone with the flat `color` field.)
- *
- * Adjacent regions each draw their own outline, so a shared edge renders both
- * lines. Nothing is merged and no priority is applied — a thicker junction is
- * the expected result.
- *
- * `overflow: visible` is required, not cosmetic: the stroke is centred on the
- * contour, so an edge lying on the board boundary (`x = 0` / `total`) puts half
- * its width outside the SVG viewport. Without it the browser clips that half
- * and the boundary edge renders as a half-width line that no longer matches the
- * rest of the contour — the canvas frame solves the same problem the same way.
- */
+/** `overflow: visible` 必须：描边居中于轮廓，贴板边那半宽否则被裁成半宽线；相邻区域各画各的，共边双线是预期。 */
 export function MapRegionOutlineLayer({
   regions,
   gridSize,
@@ -153,11 +105,7 @@ export function MapRegionOutlineLayer({
   );
 }
 
-/**
- * 层 9 · 区域高亮线（Region Highlight）— the inner highlight shown while a
- * region is hovered or targeted by a linkage. Geometry comes from
- * {@link RegionHighlightOutline}, so the outline is always continuous.
- */
+/** 层 9 · 悬停 / 联动高亮；几何取自 {@link RegionHighlightOutline}，轮廓必连续。 */
 export function MapRegionHighlightLayer({
   region,
   cellSize,

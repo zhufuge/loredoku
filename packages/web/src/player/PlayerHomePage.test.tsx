@@ -8,12 +8,7 @@ import { recordGameCompletion } from '@/lib/gameCompletion';
 import { bundleStorageId } from './bundleLoad';
 import { PlayerHomePage } from './PlayerHomePage';
 
-/**
- * 2026-11-09 补（docs/v0.9.0.md §13）：列表页徽章上的字必须来自主题配置。
- *
- * 这里从**渲染出来的文字**钉住它，
- * 而不是只测某个函数返回了什么：漏传 props 这种错，纯函数测试是抓不到的。
- */
+/** 2026-11-09 补（docs/v0.9.0.md §13）：列表页徽章上的字必须来自主题配置。 这里从**渲染出来的文字**钉住它， 而不是只测某个函数返回了什么：漏传 props 这种错，纯函数测试是抓不到的。 */
 
 const manifestRef: {
   data: BundleManifest | null;
@@ -26,11 +21,7 @@ vi.mock('./PlayerBundleProvider', () => ({
   useBundleManifest: () => manifestRef,
 }));
 
-/**
- * 列表页要等自带字体就绪才放内容。真去 `document.fonts.load()` 在 jsdom
- * 里永远等不到，所以这里换成一根可控的开关；字体本身的行为在
- * `src/lib/fonts.test.ts` 那边单独钉。
- */
+/** 列表页要等自带字体就绪才放内容。真去 `document.fonts.load()` 在 jsdom 里永远等不到，所以这里换成一根可控的开关；字体本身的行为在 `src/lib/fonts.test.ts` 那边单独钉。 */
 const fontsRef: { ready: boolean } = { ready: true };
 vi.mock('@/hooks/useBundledFontsReady', () => ({
   useBundledFontsReady: () => fontsRef.ready,
@@ -156,13 +147,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     expect(texts).toContain('中等');
   });
 
-  /**
-   * 通过的关卡在播放器的列表页也留「印 + 用时」。
-   *
-   * 关键是**存档键**：离线包用的是 `bundle:<code>:<key>`，与线上那套（裸 slug）
-   * 互不相通（v0.8.0 §11.6）。这里按包键写一条，再确认卡片认得出它 —— 顺手守住
-   * 「别把线上那套键也读进来」的边界。
-   */
+  /** 通过的关卡在播放器的列表页也留「印 + 用时」。 关键是**存档键**：离线包用的是 `bundle:<code>:<key>`，与线上那套（裸 slug） 互不相通（v0.8.0 §11.6）。这里按包键写一条，再确认卡片认得出它 —— 顺手守住「别把线上那套键也读进来」的边界。 */
   it('通过记录按包键读：封面盖上那枚印、页脚写出用时', () => {
     manifestRef.data = manifest(identity);
     recordGameCompletion(bundleStorageId('hlm', 'puzzle-sishan'), { gridSize: 4 }, {
@@ -187,13 +172,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     expect(times[0]?.textContent).toContain('03:07');
   });
 
-  /**
-   * v0.11.3（docs/v0.11.3.md §2）：列表页进入时先亮品牌字标，等包、字体、封面
-   * 都到齐再放卡片。
-   *
-   * 判据用「有没有卡片」而不是断言某个类名：卡片是这一页最终要展示的东西，
-   * 它在与不在，就是玩家看到的两种状态。
-   */
+  /** v0.11.3（docs/v0.11.3.md §2）：列表页进入时先亮品牌字标，等包、字体、封面都到齐再放卡片。 判据用「有没有卡片」而不是断言某个类名：卡片是这一页最终要展示的东西， 它在与不在，就是玩家看到的两种状态。 */
   it('字体还没就绪 → 只出加载件，卡片一张都不画', () => {
     manifestRef.data = manifest(identity);
     fontsRef.ready = false;
@@ -233,10 +212,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     expect(document.body.textContent).not.toContain('正在加载主题');
   });
 
-  /**
-   * 顶上那两行字与工坊那边同一份配置（包导出时已经冻进
-   * `manifest.theme.gameList`），没配过就退回内置那两句。
-   */
+  /** 顶上那两行字与工坊那边同一份配置（包导出时已经冻进 `manifest.theme.gameList`），没配过就退回内置那两句。 */
   describe('v0.11.6 计数行与难度过滤', () => {
     const passedCount = (): string =>
       document.querySelector('[data-testid="games-passed-count"]')?.textContent ?? '';

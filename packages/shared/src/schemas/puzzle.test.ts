@@ -113,13 +113,7 @@ describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
     ).toBe(true);
   });
 
-  /**
-   * v0.6.3 (docs/v0.6.3.md §3.1) — the roster's column count.
-   *
-   * The point of the field being optional: a puzzle saved before this version
-   * has no such key and must still load, and it loads as 自动 — which is
-   * exactly the layout it had. That is also why the JSON version stays put.
-   */
+  /** v0.6.3 (docs/v0.6.3.md §3.1)：列数可缺 —— 本版之前的谜题没有此键，必须能载入，载入即「自动」（正是它原本的布局），故 JSON 版本也不动。 */
   it('keeps the roster column count optional and bounded', () => {
     const older = puzzleDraftSchema.parse(draft());
     expect(older.rosterCols).toBeUndefined();
@@ -137,14 +131,7 @@ describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
     }
   });
 
-  /**
-   * v0.6.4 (docs/v0.6.4.md §2) — the per-participant 编号展示 text.
-   *
-   * Same optional-field rule as `rosterCols`: a payload saved before this
-   * version has no such key and still parses, and the badge then shows the
-   * sequence number — which is what it always showed. Trimmed on the way in,
-   * bounded, and `null` is accepted so "cleared" round-trips.
-   */
+  /** v0.6.4 (docs/v0.6.4.md §2)：`displayNumber` 与 `rosterCols` 同一条可选规则 —— 旧行无此键照样解析、徽章退回序号；入参 trim、有上限，`null` 可回写。 */
   it('keeps the participant 编号展示 text optional, trimmed and bounded', () => {
     const older = puzzleDraftSchema.parse(draft());
     expect(older.characterSlots[0]).not.toHaveProperty('displayNumber');
@@ -172,15 +159,7 @@ describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
     }
   });
 
-  /**
-   * v0.8.6（docs/v0.8.6.md §4）；v0.9.5 起字段名为 `mark` —— **标记**用哪张图。
-   *
-   * 与 `rosterCols` 同一条可选字段规则：老版本行没有这个键照样解析，值缺席 =
-   * 默认的 `×`。`null` 与缺席等价（= 跟随主题）。
-   *
-   * 旧键 `forbiddenSymbol` 仍读得出来（冻结的版本行、旧导出包），由
-   * `withLegacyImageKeys` 在读入时搬成 `mark`。
-   */
+  /** v0.8.6 §4；v0.9.5 起字段名为 `mark`：与 `rosterCols` 同一条可选规则 —— 旧行无此键照样解析，缺席 = 默认 `×`，`null` 等价于跟随主题；旧键 `forbiddenSymbol` 由 `withLegacyImageKeys` 搬成 `mark`。 */
   it('keeps the mark image optional and strict', () => {
     const older = puzzleDraftSchema.parse(draft());
     expect(older.mark).toBeUndefined();
@@ -304,11 +283,7 @@ describe('puzzleDraftSchema 自洽引用校验 (§5.2 第一半)', () => {
 });
 
 describe('谜题的三个写入 schema', () => {
-  /**
-   * v0.8.5 §7：`code` 是**必填**的，而且形状必须是路径中段（小写 / 数字 / 连字符）——
-   * 部署时它原样落进 `/play/puzzle-{code}`，允许大写或下划线等于允许一条打不开的
-   * 链接。
-   */
+  /** v0.8.5 §7：`code` **必填**且须为路径中段（小写 / 数字 / 连字符）—— 它原样落进 `/play/puzzle-{code}`，大写或下划线等于一条打不开的链接。 */
   it('createPuzzleSchema requires name + code + mapId + mapVersionNo', () => {
     const ok = { name: '午夜花园', code: 'midnight-garden', mapId: 217, mapVersionNo: 3 };
     expect(createPuzzleSchema.safeParse(ok).success).toBe(true);
@@ -371,13 +346,7 @@ describe('谜题的三个写入 schema', () => {
   });
 });
 
-/**
- * v0.7.14（docs/v0.7.14.md §2）：题面 —— 全局线索与结束语。
- *
- * 两个都是**缺键即默认**：v0.7.14 之前发布出去的谜题版本行是一份冻住的 JSON，
- * 里面没有这两个键，读的时候必须能过（`clues` → `[]`、`ending` → `''`）。
- * 上限拦在解析这一层，因为导入的文件可以绕过界面。
- */
+/** v0.7.14 §2：题面（全局线索 + 结束语）缺键即默认（`[]` / `''`），因为之前发布的版本行是冻住的 JSON；上限拦在解析层，导入的文件能绕过界面。 */
 describe('puzzleDraftSchema —— 题面（v0.7.14）', () => {
   it('a payload written before this version parses with an empty 题面', () => {
     const parsed = puzzleDraftSchema.parse(draft());

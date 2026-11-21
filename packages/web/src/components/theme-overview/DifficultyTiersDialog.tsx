@@ -17,21 +17,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { DifficultyBadge } from '@/components/game/DifficultyBadge';
 import { useUpdateTheme } from '@/hooks/useThemes';
 
-/**
- * v0.8.6 §3：难度分级。
- *
- * 一档 = **数字 + 名字 + 可选颜色**。
- *
- * 数字落进 `games.difficulty`，所以**不给改**：库里那些关只记得数字，改一次就
- * 全对不上了。它同时是顺序 —— 列表按它排，删掉中间一档也不必给后面重新编号
- * （重编号等于把已经在用的关卡集体搬走）。新档的数字接在最大一档后面。
- *
- * 颜色可以不给：不给就按位置落在内置五档那条热力坡上，存量主题因此一个像素都
- * 不变；给了就是一颗 `#rrggbb`，徽章拿它混出淡底与深字（浅色、深色界面各取各的）。
- *
- * 「恢复内置五档」= 把 `difficultyLevels` 这个键删掉，回到「没配过」的状态 ——
- * 比写一份和内置一模一样的数组干净：以后内置改了，这类主题跟着改。
- */
+/** v0.8.6 §3：难度分级。 一档 = **数字 + 名字 + 可选颜色**。 数字落进 `games.difficulty`，所以**不给改**：库里那些关只记得数字，改一次就 全对不上了。 它同时是顺序 —— 列表按它排，删掉中间一档也不必给后面重新编号 （重编号等于把已经在用的关卡集体搬走）。 新档的数字接在最大一档后面。 颜色可以不给：不给就按位置落在内置五档那条热力坡上，存量主题因此一个像素都 不变； 「恢复内置五档」= 把 `difficultyLevels` 这个键删掉，回到「没配过」的状态 —— 比写一份和内置一模一样的数组干净：以后内置改了，这类主题跟着改。 */
 export function DifficultyTiersDialog({
   theme,
   open,
@@ -60,12 +46,7 @@ export function DifficultyTiersDialog({
 
   async function submit(): Promise<void> {
     const data: Record<string, unknown> = { ...theme.data };
-    /**
-     * 「和内置五档一模一样」才删键 —— 名字和**颜色**都要比。
-     *
-     * 少比一样就会把自定义档误判成内置档：改过名的档保存后名字变回内置名，
-     * 只改过颜色的档删掉键之后颜色也跟着没了。
-     */
+    /** 「和内置五档一模一样」才删键 —— 名字和**颜色**都要比。 少比一样就会把自定义档误判成内置档：改过名的档保存后名字变回内置名， 只改过颜色的档删掉键之后颜色也跟着没了。 */
     const isBuiltIn =
       tiers.length === DEFAULT_DIFFICULTY_TIERS.length &&
       tiers.every((tier, index) => {

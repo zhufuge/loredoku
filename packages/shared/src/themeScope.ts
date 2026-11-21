@@ -1,15 +1,6 @@
 import type { MapDraft, PuzzleDraft } from './types/domain';
 
-/**
- * v0.8.0 (docs/v0.8.0.md §8 护栏 1) —— 主题边界的**唯一判定点**。
- *
- * 服务端在 `mapService.save` / `puzzleService.save` / 发布校验里调它，前端在保存前
- * 也调一次（同一份判定，两处提示一致）。判定本身是纯函数：给一个「这条引用属于
- * 哪个主题」的查询回调，还你所有越界的引用。
- *
- * 为什么不在 shared 里抛 `AppError`：shared 不依赖任何运行时（AGENTS §1）。
- * 消息由调用方按自己的语言组装 —— 服务端要 400，前端要行内标记，两边说的话不一样。
- */
+/** v0.8.0 (docs/v0.8.0.md §8 护栏 1) —— 主题边界的**唯一判定点**：服务端（save / 发布校验）与前端保存前都调它。纯函数，不抛 `AppError`（shared 不依赖运行时，AGENTS §1）：消息由调用方组装 —— 服务端要 400，前端要行内标记。 */
 
 export type ThemeRefKind = 'asset' | 'variant' | 'character';
 
@@ -20,10 +11,7 @@ export interface ThemeRefTarget {
   where: string;
 }
 
-/**
- * 一张地图草稿里引用到的资源 / 形态。按「首次出现顺序」产出 —— 资源包的重编号
- * （§11.3）拿到的顺序因此是确定的，同一份输入永远得到同一份包。
- */
+/** 一张地图草稿里引用到的资源 / 形态。按「首次出现顺序」产出 —— 资源包的重编号（§11.3）拿到的顺序因此是确定的，同一份输入永远得到同一份包。 */
 export function collectMapThemeRefs(draft: MapDraft | null | undefined): ThemeRefTarget[] {
   const refs: ThemeRefTarget[] = [];
   if (!draft) return refs;
@@ -100,13 +88,7 @@ export function dedupeThemeRefs(refs: ReadonlyArray<ThemeRefTarget>): ThemeRefTa
   return out;
 }
 
-/**
- * 越界 = 引用存在、但属于**另一个**主题。
- *
- * `resolveThemeId` 返回 `null` / `undefined` 表示「这一行不存在」—— 那不是越界，
- * 是悬空引用，由既有的 `collectReferenceIssues` / 发布校验负责。两件事分开，
- * 否则一条坏引用会同时得到两条自相矛盾的提示。
- */
+/** 越界 = 引用存在、但属于**另一个**主题。 `resolveThemeId` 返回 `null` / `undefined` 表示「这一行不存在」—— 那不是越界， 是悬空引用，由既有的 `collectReferenceIssues` / 发布校验负责。两件事分开， 否则一条坏引用会同时得到两条自相矛盾的提示。 */
 export function findOutOfScopeRefs(
   refs: ReadonlyArray<ThemeRefTarget>,
   themeId: number,

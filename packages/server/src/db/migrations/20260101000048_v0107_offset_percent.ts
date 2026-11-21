@@ -1,30 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.10.7 —— 三处「偏移」从**画布像素**改成**格的百分比**（`100` = 一格）。
- *
- * 三处分别是：
- *
- * - `style.canvasShadow.offset`（画布纸片向右下投的硬影）
- * - `style.operationCursorBox.offset`（操作光标框的外扩距离）
- * - `regions[].style.label.offset.{x,y}`（区域标签相对「格子上沿居中」的位移）
- *
- * 为什么要改：作者写「往右 36」时心里想的是「挪一小段」，但这个 36 换成多少格
- * 取决于图上的格子多大 —— 104px 的格子上是三分之一格，168px 的格子上只有五分之
- * 一格。于是同一套美术参数搬到另一张图上就完全不成样子；区域标签更糟，开关标尺
- * 会重算 `cellSize`，标签肉眼可见地挪位置（v0.10.7 上一版靠 `BASE_CELL` 折算压制
- * 了漂移，但作者看到的数字仍与格子无关）。改成百分比之后，「半格」就是 `50`，
- * 在任何格子尺寸、任何缩放下都落在同一处。
- *
- * 换算用的格子大小取该行 `style.cellSize`；没写（`null` / 缺省）时按
- * `BASE_CELL`（120，见 `packages/shared/src/constants/grid.ts`）算 —— 那是作者
- * 配置视觉参数的基准格子，也是渲染侧算自适应格子时的起点。
- *
- * **这是有损迁移**：结果取整（与写库 schema 的整数口径一致），而且真实渲染用的
- * 格子尺寸是「作者的 `cellSize` 与视口算出的自适应值取小」，同一份数据在不同窗口
- * 下原本就不是同一个像素数。这里按作者值折算，保住的是**作者当时的意图比例**，
- * 不是某一次截图里的像素。
- */
+/** v0.10.7：三处偏移（style.canvasShadow.offset、style.operationCursorBox.offset、regions[].style.label.offset.{x,y}）从画布像素改成「格的百分比」（100 = 一格），否则同一套数值随格子大小与标尺开关漂移；折算用该行 style.cellSize，缺省 BASE_CELL = 120（packages/shared/src/constants/grid.ts）；**有损**：结果取整、往返不保证逐位相等（docs/v0.10.7.md §9）。 */
 export async function up(knex: Knex): Promise<void> {
   await rewrite(knex, (style, regions, cell) =>
     convertStyle(style, regions, cell, (v) => toPercent(v, cell)),
@@ -32,11 +8,7 @@ export async function up(knex: Knex): Promise<void> {
 }
 
 /**
- * 回退 = 百分比换回像素（同样取整）。
- *
- * 往返不保证逐位相等：`36px / 168px * 100 → 21%`，再回退是 `21 * 168 / 100 →
- * 35px`。差 1px 在这个尺度上看不出来，但确实不是原值 —— 想精确回退只能从备份
- * 恢复。写在 `docs/v0.10.7.md` §9。
+ * 回退 = 百分比换回像素（同样取整）。 往返不保证逐位相等：`36px / 168px * 100 → 21%`，再回退是 `21 * 168 / 100 → 35px`。差 1px 在这个尺度上看不出来，但确实不是原值 —— 想精确回退只能从备份恢复。写在 `docs/v0.10.7.md` §9。
  */
 export async function down(knex: Knex): Promise<void> {
   await rewrite(knex, (style, regions, cell) =>
@@ -78,10 +50,7 @@ async function rewrite(
   }
 }
 
-/**
- * 把三处偏移就地换算。返回「有没有改动」—— 全空的行不写库，省得给每一行都盖一个
- * 新的 `updated_at` 语义（这里不动 `updated_at`，只是避免无意义的 UPDATE）。
- */
+/** 把三处偏移就地换算。返回「有没有改动」—— 全空的行不写库，省得给每一行都盖一个新的 `updated_at` 语义（这里不动 `updated_at`，只是避免无意义的 UPDATE）。 */
 function convertStyle(
   style: Record<string, unknown>,
   regions: unknown,

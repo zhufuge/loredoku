@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { compareByName, sortByName } from './nameOrder';
 
-/**
- * 资源 / 角色列表按名字排序，中文按拼音首字母。
- *
- * 断言的是**次序**（谁在谁前面），不是某个具体排序算法的实现 —— 换成拼音表或
- * 别的 collator 只要次序不变，这些用例仍然成立。
- */
+/** 资源 / 角色列表按名字排序，中文按拼音首字母。 断言的是**次序**（谁在谁前面），不是某个具体排序算法的实现 —— 换成拼音表或别的 collator 只要次序不变，这些用例仍然成立。 */
 describe('sortByName — 按名字排序（v0.11.4）', () => {
   it('中文按拼音首字母：B < D < J < L < P < Q < S < T < W < X < Y', () => {
     const names = [

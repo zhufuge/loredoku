@@ -8,24 +8,12 @@ import type {
 } from '@loredoku/shared';
 import { buildFileUrl } from '../utils/paths';
 
-/**
- * `games` 仓储（v0.7.1 §7.2 / §7.3）。
- *
- * 一行 = 一个**已部署**的游戏，只指向一个谜题**版本行**（`puzzle_id`：
- * `puzzle_id` 全域唯一 ⇒ 一个版本行 ⇄ 一个 game 行；不同版本各有一个游戏、各有
- * 一个 slug，可以同时在线）。画布与名册都从谜题行读 —— 没有 `snapshot` 拷贝，
- * 冻结性由「版本行只读」保证。
- *
- * 取消部署 = **假删**（`deleted_at`）：行保留、列表与详情一律过滤、slug 随
- * 部分唯一索引释放，可以再用同一路径重新部署。
- */
+/** `games` 仓储（v0.7.1 §7.2/§7.3）：一行 = 一个已部署游戏，只指向一个谜题版本行（`puzzle_id` 全域唯一 ⇒ 一版本 ⇄ 一游戏，不同版本可各有 slug 同时在线）。
+ *  画布与名册直接读谜题行、无 snapshot（冻结靠版本行只读）；取消部署 = 软删，slug 由部分唯一索引释放、可复用。 */
 
 /** 列表 / 详情共用的 join 结果：game 行 + 它挂着的谜题行。 */
 export interface GameRowWithPuzzle extends MapGameRow {
-  /**
-   * v0.8.0 §19：`games` 不存主题，这个字段顺着 `puzzles.theme_id` 查出来的是**编码**
-   * —— 接口只认编码，`theme_id` 停在仓储层。
-   */
+  /** v0.8.0 §19：`games` 不存主题，这个字段顺着 `puzzles.theme_id` 查出来的是**编码** —— 接口只认编码，`theme_id` 停在仓储层。 */
   puzzle_theme_code: string;
   puzzle_name: string;
   puzzle_version: string;
@@ -73,14 +61,7 @@ export async function getGameRowBySlug(slug: string): Promise<GameRowWithPuzzle 
   >;
 }
 
-/**
- * v0.8.0（docs/v0.8.0.md §11.1）：资源包的取材 —— 某个主题下**已上线**的游戏。
- *
- * `games` 自己不存 `theme_id`（§3.1：主题只挂在四个内容表上），所以走
- * `join puzzles.theme_id`。排序与列表同一条规矩（v0.8.3）：`sort_weight` 升序、
- * 同权重按 `slug` —— 包里那一份和界面上那一份顺序一致，作者排好的先后在包外层
- * 也成立（有合辑时调用方仍按合辑的 `sort_order` 重排）。
- */
+/** v0.8.0（docs/v0.8.0.md §11.1）：资源包的取材 —— 某个主题下**已上线**的游戏。 `games` 自己不存 `theme_id`（§3.1：主题只挂在四个内容表上），所以走 `join puzzles.theme_id`。排序与列表同一条规矩（v0.8.3）：`sort_weight` 升序、 同权重按 `slug` —— 包里那一份和界面上那一份顺序一致，作者排好的先后在包外层也成立（有合辑时调用方仍按合辑的 `sort_order` 重排）。 */
 export async function listGameRowsByTheme(themeId: number): Promise<GameRowWithPuzzle[]> {
   return (await liveQuery()
     .where('pz.theme_id', themeId)
@@ -107,37 +88,18 @@ export interface UpsertGameData {
   name: string;
   /** OPT-W04: 已由 service 校验过格式与占用。 */
   slug: string;
-  /**
-   * OPT-W03 §3: 新封面路径（`null` = 没换）。`clearCover` 为真时显式清除；
-   * 两者都没有就沿用上一行的封面 —— 重新部署不该悄悄丢掉作者上传的图。
-   */
+  /** OPT-W03 §3: 新封面路径（`null` = 没换）。`clearCover` 为真时显式清除； 两者都没有就沿用上一行的封面 —— 重新部署不该悄悄丢掉作者上传的图。 */
   coverPath: string | null;
   clearCover: boolean;
   /** v0.8.6：`gameService` 已按主题分级校验过档位，这里只负责写数字。 */
   difficulty: number;
-  /**
-   * 展示顺序。`undefined` = 这次没提 —— 沿用上一行的值（重新部署不该
-   * 把作者排好的顺序清零）；都没有就落 `0`。
-   *
-   * 注意这个值必须在这里兜住：`upsertGame` 是 delete-then-insert，行换新 id，
-   * 数据库默认值救不了「重新部署后被排到最后」。
-   */
+  /** 展示顺序。`undefined` = 这次没提 —— 沿用上一行的值（重新部署不该把作者排好的顺序清零）；都没有就落 `0`。 注意这个值必须在这里兜住：`upsertGame` 是 delete-then-insert，行换新 id， 数据库默认值救不了「重新部署后被排到最后」。 */
   sortWeight?: number;
-  /**
-   * 这条 slug 原本归另一条部署所有，作者选择了**覆盖**。
-   *
-   * 覆盖 = 把对方假删（`deleted_at`），部分唯一索引随即释放 —— 与「取消部署」
-   * 同一种退场方式，只是由一次部署顺带完成。硬删会让对方连审计记录都不剩。
-   */
+  /** 这条 slug 原本归另一条部署所有，作者选择了**覆盖**。 覆盖 = 把对方假删（`deleted_at`），部分唯一索引随即释放 —— 与「取消部署」 同一种退场方式，只是由一次部署顺带完成。硬删会让对方连审计记录都不剩。 */
   replaceGameId?: number | null;
 }
 
-/**
- * 同一版本行再次部署 = **覆盖**（delete-then-insert，行换新 id）；取消部署后
- * 再部署是新增行（旧行已假删，`puzzle_id` 唯一约束不拦）。
- *
- * `replaceGameId` 在场时先让出那条被占用的部署（假删），再把新行插进去。
- */
+/** 同一版本行再次部署 = **覆盖**（delete-then-insert，行换新 id）；取消部署后再部署是新增行（旧行已假删，`puzzle_id` 唯一约束不拦）。 `replaceGameId` 在场时先让出那条被占用的部署（假删），再把新行插进去。 */
 export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> {
   const id = await db.transaction(async (trx) => {
     if (data.replaceGameId != null) {
@@ -184,15 +146,7 @@ export async function updateGameCover(
   return getGameRow(id);
 }
 
-/**
- * 部署页就地改展示顺序。
- *
- * 只写 `sort_weight` 一列 —— 这是「排序」这件事最小的一次写，走部署端点重发
- * 整份负载会把 `name` / `slug` / `difficulty` 一起带回去，任何一个字段在弹窗
- * 里过时都会顺手把别的改掉。
- *
- * 返回更新后的摘要（`undefined` = 没有这条活行），调用方据此刷新列表。
- */
+/** 部署页就地改展示顺序。 只写 `sort_weight` 一列 —— 这是「排序」这件事最小的一次写，走部署端点重发整份负载会把 `name` / `slug` / `difficulty` 一起带回去，任何一个字段在弹窗里过时都会顺手把别的改掉。 返回更新后的摘要（`undefined` = 没有这条活行），调用方据此刷新列表。 */
 export async function updateGameSortWeight(
   id: number,
   sortWeight: number,

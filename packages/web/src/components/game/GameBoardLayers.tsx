@@ -40,14 +40,7 @@ import type { ToolIconsRender } from '@/lib/toolIcons';
 import { itemPadding } from '@/lib/canvasScale';
 import type { CanvasPoint } from '@/lib/grid';
 
-/**
- * 游戏页画布纸上的**整个图层栈**（自下而上，钉在 `MAP_LAYER_Z` 上）。
- *
- * 每层都在读同一批 props（格子、资源、样式、格子大小），与放置 / 计时 / 判卷的
- * 状态机没有一行耦合 —— 它只是「这一帧的棋盘长什么样」。
- *
- * 顺序是规范的一部分（docs/layer-priority.md 是唯一权威）。
- */
+/** 游戏页画布纸上的**整个图层栈**（自下而上，钉在 `MAP_LAYER_Z` 上）。 每层都在读同一批 props（格子、资源、样式、格子大小），与放置 / 计时 / 判卷的状态机没有一行耦合 —— 它只是「这一帧的棋盘长什么样」。 顺序是规范的一部分（docs/layer-priority.md 是唯一权威）。 */
 export interface GameBoardLayersProps {
   board: GamePlacementBoard;
   slots: Array<CharacterSlotEntry | null>;
@@ -196,18 +189,9 @@ export function GameBoardLayers({
         slots={slots}
         charactersById={charactersById}
         cellSize={cellSize}
-        /*
-         * v0.6.4 §3: 触碰 / 点击参与者时，放大展示地图中该参与者的头像
-         * 与编号，提示当前放置的情况。面板说的是 0 基槽位号，棋盘从 1
-         * 编号——和放置态同样 +1。悬停与点击都走激活态，所以摸一下和
-         * 点一下效果一致。
-         */
+        /* v0.6.4 §3: 触碰 / 点击参与者时，放大展示地图中该参与者的头像与编号，提示当前放置的情况。面板说的是 0 基槽位号，棋盘从 1 编号——和放置态同样 +1。悬停与点击都走激活态，所以摸一下和点一下效果一致。 */
         activeParticipantId={activeParticipantId}
-        /*
-         * 正在长按的那一格 —— 长按落地后头像在这里落定。
-         * 环还在（抬手前）就说明这一格是「刚刚」放下的，不需要再记一个
-         * 时间戳：抬手即清环，窗口自然结束。
-         */
+        /* 正在长按的那一格 —— 长按落地后头像在这里落定。 环还在（抬手前）就说明这一格是「刚刚」放下的，不需要再记一个时间戳：抬手即清环，窗口自然结束。 */
         settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
         /* 刚放下的编号各「盖章」一次。 */
         pulse={pulse}

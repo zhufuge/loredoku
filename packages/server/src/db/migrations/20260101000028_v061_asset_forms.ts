@@ -1,19 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.6.1 —— 资源多形态：`assets` 的外观与占格下沉到新表 `asset_forms`。
- *
- * 改名映射（docs/v0.6.1.md §7）：
- *   - 新建 `asset_forms`，每个资源搬出一个「默认」形态（宽高 + 外观照搬旧列）；
- *   - `maps.data` / `games.snapshot.map` 的画布锚点补 `formId`，`version` 4 → 5；
- *   - `assets` 删掉九列（宽高 ×2、外观 ×7）。
- *
- * 三件必须一起做：形态表、画布引用、资产列的删除——少了任何一件，要么外观无处
- * 安放，要么锚点指不到形态。整个迁移在一个事务里，任一步失败都整体回滚。
- *
- * 磁盘上的图片**不搬**：`image_path` 是相对路径字符串，搬到形态行后指向的还是
- * 同一个文件。
- */
+/** v0.6.1（docs/v0.6.1.md §7）：外观与占格下沉到新表 asset_forms（每资源搬一个「默认」形态）；画布锚点补 formId、version 4→5；assets 删九列；三件必须同做且单事务，否则外观无处安放或锚点指不到形态；磁盘图片不搬（image_path 相对路径不变）。 */
 
 /** 被搬走的九列；down 时按同一个清单加回来。 */
 const MOVED_COLUMNS = [
@@ -30,7 +17,7 @@ const MOVED_COLUMNS = [
 
 export async function up(knex: Knex): Promise<void> {
   await knex.transaction(async (trx) => {
-    // 1. 形态表。
+    // 形态表。
     await trx.schema.createTable('asset_forms', (table) => {
       table.bigIncrements('id').primary();
       table
@@ -58,11 +45,7 @@ export async function up(knex: Knex): Promise<void> {
     );
     await trx.raw(`CREATE INDEX asset_forms_asset_id_index ON asset_forms (asset_id)`);
 
-    // 2. 每个资源搬出一个「默认」形态。背景资源的宽高照搬旧值——它不参与渲染
-    //    （背景格恒 1 格），保留原值只为 down 能原样搬回。
-    //
-    //    `ORDER BY id` 不是可选的：形态 id 由插入顺序决定，`sort_order` 全是 0，
-    //    没有它「同资源的首形态」就随执行计划漂移，up→down→up 的往返将不再可复现。
+    // 每个资源搬出一个「默认」形态。背景资源的宽高照搬旧值——它不参与渲染（背景格恒 1 格），保留原值只为 down 能原样搬回。 `ORDER BY id` 不是可选的：形态 id 由插入顺序决定，`sort_order` 全是 0， 没有它「同资源的首形态」就随执行计划漂移，up→down→up 的往返将不再可复现。
     await trx.raw(`
       INSERT INTO asset_forms (
         asset_id, name, width_cells, height_cells,
@@ -76,10 +59,10 @@ export async function up(knex: Knex): Promise<void> {
        ORDER BY id
     `);
 
-    // 3. 画布锚点补 formId（形态 id 由「资源 → 首形态」映射给出），version 4 → 5。
+    // 画布锚点补 formId（形态 id 由「资源 → 首形态」映射给出），version 4 → 5。
     await rewriteAnchors(trx, false);
 
-    // 4. 资产行瘦身。
+    // 资产行瘦身。
     await trx.schema.alterTable('assets', (table) => {
       table.dropColumns(...MOVED_COLUMNS);
     });
@@ -126,11 +109,7 @@ export async function down(knex: Knex): Promise<void> {
   });
 }
 
-/**
- * 给 `maps.data` 与 `games.snapshot.map` 的每个 `cells[k].item` 补（或摘掉）
- * `formId`，并把画布 `version` 在 4 与 5 之间来回切。手法照抄 `…00025`：
- * 逐行读 JSON → 就地改 → 回写。
- */
+/** 给 `maps.data` 与 `games.snapshot.map` 的每个 `cells[k].item` 补（或摘掉） `formId`，并把画布 `version` 在 4 与 5 之间来回切。手法照抄 `…00025`： 逐行读 JSON → 就地改 → 回写。 */
 async function rewriteAnchors(trx: Knex.Transaction, reverse: boolean): Promise<void> {
   const firstFormByAsset = await firstFormIds(trx);
 

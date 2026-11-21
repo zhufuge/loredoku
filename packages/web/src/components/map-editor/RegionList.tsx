@@ -2,10 +2,7 @@ import { Trash2 } from 'lucide-react';
 import type { DraftRegion } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 
-/**
- * 点条目即在右边信息框里改（与点画布上的区域标签同一个面板），这里只留选择
- * 与删除。
- */
+/** 点条目即在右边信息框里改（与点画布上的区域标签同一个面板），这里只留选择与删除。 */
 interface RegionListProps {
   regions: DraftRegion[];
   selectedRegionId: string | null;
@@ -48,17 +45,7 @@ export function RegionList({
           <Button
             variant="ghost"
             size="icon"
-            /*
-             * 三处补丁。
-             *
-             * ① `transition-opacity duration-fast`：不做过场的话，鼠标扫过列表时
-             *    一串删除图标会集体闪一下。
-             * ② `focus-visible:opacity-100`：键盘用户 tab 到这枚按钮时它是**全透明**
-             *    的 —— 焦点环画在一个看不见的按钮上，等于这行删不掉。
-             * ③ 为什么它不换成 `<IconButton>`：24px 的行内微按钮属于
-             *    v0.7.9 §5 记下的三条例外之一（悬停才出现，套悬浮提示会跟着闪），
-             *    所以这里的 `title` 是刻意留的。
-             */
+            /* 三处补丁。 ① `transition-opacity duration-fast`：不做过场的话，鼠标扫过列表时 一串删除图标会集体闪一下。 ② `focus-visible:opacity-100`：键盘用户 tab 到这枚按钮时它是**全透明** 的 —— 焦点环画在一个看不见的按钮上，等于这行删不掉。 ③ 为什么它不换成 `<IconButton>`：24px 的行内微按钮属于 v0.7.9 §5 记下的三条例外之一（悬停才出现，套悬浮提示会跟着闪）， 所以这里的 `title` 是刻意留的。 */
             className="h-6 w-6 text-destructive opacity-0 transition-opacity duration-fast hover:text-destructive group-hover:opacity-100 focus-visible:opacity-100"
             onClick={(event) => {
               event.stopPropagation();

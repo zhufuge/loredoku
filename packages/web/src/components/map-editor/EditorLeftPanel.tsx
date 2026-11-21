@@ -7,10 +7,7 @@ import { RegionList } from '@/components/map-editor/RegionList';
 import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
-/**
- * v0.5.0 SPEC-K12 (docs/v0.5.0.md §4.1 / §9.1): the map editor is 只编辑地图 —
- * the 「角色」tab moved to the puzzle. Only 资源 / 区域 remain.
- */
+/** v0.5.0 SPEC-K12（docs/v0.5.0.md §4.1 / §9.1）：地图编辑器只编辑地图 —— 「角色」标签已移到谜题，这里只剩资源 / 区域。 */
 type PanelTab = 'assets' | 'regions';
 
 const TABS: Array<{ id: PanelTab; label: string }> = [
@@ -28,10 +25,7 @@ interface EditorLeftPanelProps {
   assets: Asset[] | undefined;
   assetsLoading: boolean;
   assetsError: boolean;
-  /**
-   * 资源列表来自共享查询，别处可能刚加过资源 —— 搜索框右侧给了个刷新
-   * 按钮，不用整页重载（重载会丢掉撤销栈与视口）。
-   */
+  /** 资源列表来自共享查询，别处可能刚加过资源 —— 搜索框右侧给了个刷新按钮，不用整页重载（重载会丢掉撤销栈与视口）。 */
   assetsRefreshing: boolean;
   onRefreshAssets: () => void;
   activeLayer: EditorLayer;

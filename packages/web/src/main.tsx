@@ -10,10 +10,7 @@ import { router } from '@/router';
 import { registerBundledFonts } from '@/lib/fonts';
 import '@/index.css';
 
-/**
- * 把 `src/assets/fonts/` 里的字体注册进 `document.fonts`。注册本身不
- * 下载文件，真正的请求发生在第一次有文字用到那款字体时 —— 所以放启动时最省心。
- */
+/** 把 `src/assets/fonts/` 里的字体注册进 `document.fonts`。注册本身不下载文件，真正的请求发生在第一次有文字用到那款字体时 —— 所以放启动时最省心。 */
 registerBundledFonts();
 
 function shouldRetry(failureCount: number, error: unknown): boolean {

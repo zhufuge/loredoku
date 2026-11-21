@@ -110,10 +110,7 @@ export function CreateCharacterDialog({
   const updateMutation = useUpdateCharacter();
   // The avatar can be picked before the character exists.
   const [file, setFile] = useState<File | null>(null);
-  /**
-   * v0.8.0 §18：在工作空间里主题已由地址定了（`/hlm/characters`），对话框不再让人换
-   * —— 换了就等于建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。
-   */
+  /** v0.8.0 §18：在工作空间里主题已由地址定了（`/hlm/characters`），对话框不再让人换 —— 换了就等于建到隔壁去，而 `theme_id` 建行后不可改（§8 护栏 2）。 */
   useEffect(() => {
     if (!open) {
       reset(defaultsFor(boundaryThemeCode));
@@ -128,10 +125,7 @@ export function CreateCharacterDialog({
   const onSubmit = handleSubmit(async (values) => {
     // Colour block → colour; image mode → null.
     const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;
-    /**
-     * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an avatar or a colour block handed
-     * over at create time enables the character right away.
-     */
+    /** v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an avatar or a colour block handed over at create time enables the character right away. */
     const isActive = hasAppearance(file !== null, bgColor);
     let character: { id: number };
     try {

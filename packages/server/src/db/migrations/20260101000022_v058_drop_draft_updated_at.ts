@@ -1,18 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * 删掉 `maps.draft_updated_at`。
- *
- * 这一列唯一的用处是「草稿修订号」——编辑器保存时把它回传当乐观并发的 CAS
- * 令牌（不一致就 409「草稿已被其他会话修改」）。既然定下「先不做锁」，保存
- * 改成后写覆盖，修订号就没有消费者了：
- *
- * - 列表排序用 `updated_at`（改名 / 换封面 / 保存草稿都会推它），与本列无关；
- * - 地图详情响应不再带 `updatedAt`，前端 store 里也没有这个字段了。
- *
- * 所以不是「留着不用」，而是整列移除 —— 留着会诱使后来人以为并发保护还在。
- * down 只把列加回来（历史值无法重建，全是 NULL，与「从没保存过」同义）。
- */
+/** 删 maps.draft_updated_at：它只是草稿修订号（保存时当乐观并发 CAS 令牌），「先不做锁」后改后写覆盖、已无消费者，整列移除以免后来人误以为有并发保护；down 只加回空列（历史值不可重建）。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable('maps', (table) => {
     table.dropColumn('draft_updated_at');

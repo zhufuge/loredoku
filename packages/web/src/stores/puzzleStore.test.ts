@@ -22,13 +22,7 @@ import {
 
 const store = () => usePuzzleStore.getState();
 
-/**
- * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.6): the puzzle editor's store. Everything
- * the map editor used to own about participants (`characterSlots`,
- * `setParticipantConfig`, `assignSlot`, the activation machine, the linkage
- * palette) moved here **verbatim** — the tests moved with it, so a regression
- * in the搬来的 logic is still caught.
- */
+/** v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.6): participant state moved here verbatim from the map editor, and its tests moved with it. */
 const CONDITIONS = [
   { x: 1, y: 2 },
   { x: 3, y: 0 },
@@ -332,13 +326,7 @@ describe('character roster', () => {
   });
 });
 
-/**
- * v0.7.13（docs/v0.7.13.md §11）—— 角色的 `color` / `displayName` 在「加入」
- * 这一刻抄进槽位。
- *
- * 关键在于**只在有值时覆盖**：绝大多数角色两个字段都是 `null`，那必须得到和
- * 今天完全一样的槽位（白色 + 无 `displayNumber` 键），否则老谜题的存档会变。
- */
+/** v0.7.13（docs/v0.7.13.md §11）—— 角色的 `color` / `displayName` 在「加入」 这一刻抄进槽位。 关键在于**只在有值时覆盖**：绝大多数角色两个字段都是 `null`，那必须得到和今天完全一样的槽位（白色 + 无 `displayNumber` 键），否则老谜题的存档会变。 */
 describe('assignSlot 套用角色默认值（v0.7.13 §11）', () => {
   it('不传默认值 = 今天的行为：白色主题色，没有 displayNumber 键', () => {
     store().assignSlot(9);
@@ -493,21 +481,13 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
     expect(store().rosterCols).toBeNull();
   });
 
-  /**
-   * v0.6.3 §3.1: the fixture carries no `rosterCols`, which is what a puzzle
-   * saved before this version looks like. It must load as 自动, not as 0.
-   */
+  /** v0.6.3 §3.1: the fixture carries no `rosterCols`, which is what a puzzle saved before this version looks like. It must load as 自动, not as 0. */
   it('reads a legacy puzzle as 自动', () => {
     expect(store().rosterCols).toBeNull();
   });
 });
 
-/**
- * v0.8.6（docs/v0.8.6.md §4）：玩家侧「标记」用哪张上传图。
- *
- * 约定的两条：默认 `×` 用「草稿里缺席」表达（不是 `mark: null`），
- * 作者上传过图之后才写出 `{ path }`；它跟其余基本信息同一个撤销步。
- */
+/** v0.8.6（docs/v0.8.6.md §4）：玩家侧「标记」用哪张上传图。 约定的两条：默认 `×` 用「草稿里缺席」表达（不是 `mark: null`）， 作者上传过图之后才写出 `{ path }`；它跟其余基本信息同一个撤销步。 */
 describe('mark（v0.8.6 §4）', () => {
   const chosen = { path: 'puzzles/42/forbidden-symbol/chosen.webp' };
 
@@ -568,10 +548,7 @@ describe('mark（v0.8.6 §4）', () => {
   });
 });
 
-/**
- * v0.7.3 §3.3：引入新地图。换的只是底图（连同它的名称 / 版本 / 画布），谜题
- * 自己的字段一个不动；底图进快照，所以撤销能把旧底图换回来。
- */
+/** v0.7.3 §3.3：引入新地图。换的只是底图（连同它的名称 / 版本 / 画布），谜题自己的字段一个不动；底图进快照，所以撤销能把旧底图换回来。 */
 describe('replaceMapContext (v0.7.3 §3.3)', () => {
   /** 另一张同尺寸地图 —— 区域 id 与旧画布不重叠。 */
   function swapped(): PuzzleMapContext {
@@ -799,14 +776,7 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
   });
 });
 
-/**
- * v0.6.4 (docs/v0.6.4.md §2): the per-participant 编号展示 text.
- *
- * The field lives on the slot entry, so the same rules that kept
- * `positionConditions` alive across BUG-J04 apply: it must survive init, an
- * unrelated commit and `toDraft` — and a cleared one is stored absent, the
- * same "no dead array" discipline.
- */
+/** v0.6.4 (docs/v0.6.4.md §2): 编号展示 lives on the slot entry — must survive init, an unrelated commit and `toDraft`; a cleared value is stored absent. */
 describe('displayNumber survives (v0.6.4 §2)', () => {
   function withRoster(): PuzzleDraft {
     return {
@@ -906,10 +876,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(output.characterSlots[0]).toMatchObject({ characterId: 4, linkages: [] });
   });
 
-  /**
-   * v0.6.3 §3.1: the column count has to leave the editor, because the game
-   * page reads it straight out of the deployed snapshot.
-   */
+  /** v0.6.3 §3.1: the column count has to leave the editor, because the game page reads it straight out of the deployed snapshot. */
   it('carries the layout column count to the server', () => {
     store().setBasicInfo({
       name: '午夜花园',
@@ -940,10 +907,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(store().toDraft().rosterCols).toBeNull();
   });
 
-  /**
-   * 题面必须跟着草稿走 —— 全局线索与结束语不到服务端，游戏页拿到的
-   * 就永远是一张只有描述的纸片，玩家侧的结束语也无从出现。
-   */
+  /** 题面必须跟着草稿走 —— 全局线索与结束语不到服务端，游戏页拿到的就永远是一张只有描述的纸片，玩家侧的结束语也无从出现。 */
   it('carries the 题面 to the server (全局线索 + 结束语)', () => {
     store().setBasicInfo({
       name: '午夜花园',
@@ -962,11 +926,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(draft.ending).toBe('灯灭了，花园还在。');
   });
 
-  /**
-   * 旧数据没有这两个键（v0.7.14 之前保存的草稿、已发布的版本行）。导入或恢复
-   * 之后 store 里必须是「空」而不是 `undefined` —— 抽屉的草稿与 dirty 比较都
-   * 假设它们是 `string[]` / `string`。
-   */
+  /** 旧数据没有这两个键（v0.7.14 之前保存的草稿、已发布的版本行）。导入或恢复之后 store 里必须是「空」而不是 `undefined` —— 抽屉的草稿与 dirty 比较都假设它们是 `string[]` / `string`。 */
   it('absorbs a v0.7.14-less draft as empty 题面', () => {
     const legacy: PuzzleDraft = {
       version: PUZZLE_JSON_VERSION,

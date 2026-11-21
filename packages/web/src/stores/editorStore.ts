@@ -35,11 +35,7 @@ export interface EditorMeta {
   status: 'draft' | 'published';
 }
 
-/**
- * v0.7.0 (docs/v0.7.0.md §4): the editor hands over the region's **resolved**
- * style; the store records only what differs from the map-level defaults, so a
- * region that agrees everywhere carries no `style` key at all.
- */
+/** v0.7.0 (docs/v0.7.0.md §4): the editor hands over the region's **resolved** style; the store records only what differs from the map-level defaults, so a region that agrees everywhere carries no `style` key at all. */
 export interface RegionInput {
   id: string;
   name: string;
@@ -49,11 +45,7 @@ export interface RegionInput {
 
 export type ConflictMode = 'override' | 'skip';
 
-/**
- * CLAR-603: the only selection types are `cell` and `region`. v0.5.0 SPEC-K12
- * moved the roster out of the map editor entirely, so a canvas selection is the
- * only kind left.
- */
+/** CLAR-603: the only selection types are `cell` and `region`. v0.5.0 SPEC-K12 moved the roster out of the map editor entirely, so a canvas selection is the only kind left. */
 export type Selection =
   | { type: 'cell'; x: number; y: number }
   | { type: 'region'; regionId: string };
@@ -100,32 +92,17 @@ export interface EditorState {
   removeDraftCells: (cells: Array<[number, number]>) => void;
   clearDraftSelection: () => void;
 
-  /**
-   * The background cell records which variant was painted. `variantId` is
-   * optional so a payload written before background assets could own several
-   * variants keeps loading — rendering falls back to the asset's first variant.
-   */
+  /** The background cell records which variant was painted. `variantId` is optional so a payload written before background assets could own several variants keeps loading — rendering falls back to the asset's first variant. */
   placeBackground: (assetId: number, variantId: number | undefined, x: number, y: number) => void;
-  /**
-   * v0.10.9 (docs/v0.10.9.md §2): 「背景修饰」— one ornament per cell, always 1×1,
-   * and it never evicts the background or the item already sitting there.
-   */
+  /** v0.10.9 (docs/v0.10.9.md §2): 「背景修饰」— one ornament per cell, always 1×1, and it never evicts the background or the item already sitting there. */
   placeDecoration: (assetId: number, variantId: number | undefined, x: number, y: number) => void;
-  /**
-   * The caller hands over the chosen variant's id; the anchor freezes the
-   * footprint, so later variant edits never move placed items. v0.7.6: 新放置的
-   * `w` / `h` 恒为 1（调用方显式传 1，让老草稿的多格锚点仍是合法值）。
-   */
+  /** The caller hands over the chosen variant's id; the anchor freezes the footprint, so later variant edits never move placed items. v0.7.6: 新放置的 `w` / `h` 恒为 1（调用方显式传 1，让老草稿的多格锚点仍是合法值）。 */
   placeItem: (
     item: { assetId: number; variantId?: number; w: number; h: number },
     x: number,
     y: number,
   ) => void;
-  /**
-   * v0.7.5 (docs/v0.7.5.md §5): 改已放置物品的**展示**变换（等比例缩放 + 按格
-   * 偏移）。`x, y` 可以是脚位里的任意一格，内部会先解析到锚点；与默认值相同的
-   * 字段不写进草稿，三个字段全默认时 `item` 上没有这三个键。
-   */
+  /** v0.7.5 (docs/v0.7.5.md §5): 改已放置物品的**展示**变换（等比例缩放 + 按格偏移）。`x, y` 可以是脚位里的任意一格，内部会先解析到锚点；与默认值相同的字段不写进草稿，三个字段全默认时 `item` 上没有这三个键。 */
   setItemTransform: (x: number, y: number, patch: ItemTransformOverride) => void;
   eraseAt: (x: number, y: number) => void;
   clearCell: (x: number, y: number) => void;
@@ -134,23 +111,13 @@ export interface EditorState {
   createRegion: (input: RegionInput, mode: ConflictMode) => string;
   toggleRegionCell: (id: string, x: number, y: number) => void;
   updateRegion: (regionId: string, input: RegionInput) => void;
-  /**
-   * 把一块区域的格子整体换成 `cells` —— 区域格子编辑会话的提交。
-   *
-   * 与逐格 `toggleRegionCell` 的差别就是「一步」：编辑十格撤销一次就回到原样。
-   * 顺带处理占用：`cells` 里若含别的区域已经占着的格子，从那些区域移走（与创建
-   * 时的「覆盖」同义），被搬空的那块区域随之删除。
-   */
+  /** 把一块区域的格子整体换成 `cells` —— 区域格子编辑会话的提交。 与逐格 `toggleRegionCell` 的差别就是「一步」：编辑十格撤销一次就回到原样。 顺带处理占用：`cells` 里若含别的区域已经占着的格子，从那些区域移走（与创建时的「覆盖」同义），被搬空的那块区域随之删除。 */
   setRegionCells: (id: string, cells: Coord[]) => void;
   deleteRegion: (id: string) => void;
 
   setGridSize: (size: number) => void;
   applyDraft: (draft: MapDraft) => void;
-  /**
-   * Composes the whole 「地图基本信息」drawer. The updater
-   * receives the resolved style and returns the next one; the change lands in
-   * the undo stack as a single step.
-   */
+  /** Composes the whole 「地图基本信息」drawer. The updater receives the resolved style and returns the next one; the change lands in the undo stack as a single step. */
   setMapStyle: (updater: (style: MapStyle) => MapStyle) => void;
   setZoom: (zoom: number) => void;
   setPan: (pan: { x: number; y: number }) => void;
@@ -530,13 +497,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         };
       }),
 
-    /**
-     * v0.3.8 FEAT-D02 §关键规则 4 + v0.3.9: the map style is committed in one
-     * step. v0.7.0 (docs/v0.7.0.md §4): the map-level block is only the
-     * **default** — a region keeps whatever it explicitly overrides, so writing
-     * `regionOutline.width` no longer rewrites every region (regions without an
-     * override simply follow the new default).
-     */
+    /**  */
     setMapStyle: (updater) =>
       commit((next) => {
         next.style = resolveMapStyle(updater(next.style));

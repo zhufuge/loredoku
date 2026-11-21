@@ -2,19 +2,7 @@ import type { Knex } from 'knex';
 import type { GameDifficulty } from '@loredoku/shared';
 import { backfillGameSlugs } from '../../service/gameSlugBackfill';
 
-/**
- * v0.4.1 OPT-W04 (docs/v0.4.1.md §4.5): every deployed game gets a
- * human-readable access path — `/games/{slug}` replaces `/games/{id}`.
- *
- * The column is added nullable, filled for the rows that already exist (their
- * path is derived from the name + difficulty they were deployed with), and
- * only then tightened to `NOT NULL UNIQUE`. Two maps may derive the same path,
- * so the backfill walks the rows in id order and appends `-2`, `-3`, … to the
- * later one; a fresh deploy never does that — it reports the clash instead
- * (docs/v0.4.1.md §4.4, §14 Q12). The derivation itself lives in
- * `server/src/service/gameSlugBackfill.ts`, where it is unit tested (helpers
- * must not sit inside this directory — see README「约定」).
- */
+/** v0.4.1 OPT-W04（docs/v0.4.1.md §4.5）：路由 /games/{slug} 取代 {id}；slug 先可空回填（按 id 顺序给撞名的后者加 -2/-3）再收紧 NOT NULL UNIQUE，新部署撞名报错不自动加后缀（§4.4、§14 Q12）。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable('map_games', (table) => {
     table.string('slug', 80);

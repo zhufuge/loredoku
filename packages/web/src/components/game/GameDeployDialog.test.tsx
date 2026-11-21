@@ -4,15 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSlugConflict, MapGameSummary, PuzzleEntrySummary } from '@loredoku/shared';
 import { GameDeployDialog } from './GameDeployDialog';
 
-/**
- * 部署弹窗的访问路径输入组（v0.7.1 §7.6.1）。
- *
- * 路径拆成「只读前缀 `puzzle-` + 可编辑中段」：中段是唯一可编辑的部分。
- * 难度不进路径 —— 改难度不改地址；已部署过的游戏回填时反解出中段
- * （存量路径的难度后缀会被剥掉），改掉之后明写「原访问路径将失效」。
- *
- * Radix 把面板 portal 到 `document.body`，所以查询走 `document`。
- */
+/** 部署弹窗的访问路径输入组（v0.7.1 §7.6.1）。 路径拆成「只读前缀 `puzzle-` + 可编辑中段」：中段是唯一可编辑的部分。 难度不进路径 —— 改难度不改地址；已部署过的游戏回填时反解出中段（存量路径的难度后缀会被剥掉），改掉之后明写「原访问路径将失效」。 Radix 把面板 portal 到 `document.body`，所以查询走 `document`。 */
 const deployMutate = vi.fn();
 /** 弹窗交给 hook 的冲突回调 —— 测试里手动触发一次「路径被占」。 */
 const hook = vi.hoisted(() => ({
@@ -153,10 +145,7 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     expect(text()).not.toContain('-medium');
   });
 
-  /**
-   * v0.8.5 §7.4：中段默认值来自**谜题编码**（作者建谜题时写的那一串），没有编码的
-   * 存量谜题才退回名称 —— 上一条测的正是退回那一路。
-   */
+  /** v0.8.5 §7.4：中段默认值来自**谜题编码**（作者建谜题时写的那一串），没有编码的存量谜题才退回名称 —— 上一条测的正是退回那一路。 */
   it('中段默认取谜题编码，改名不跟着变', () => {
     render({ puzzle: puzzle({ code: 'hlm-sishan' }) });
     expect(middleInput().value).toBe('hlm-sishan');
@@ -234,11 +223,7 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     );
   });
 
-  /**
-   * 顺序（`sort_weight`）。三种提交语义分别测 —— 回填、清空、越界。
-   * 「清空」那条最要紧：它必须是「这次不提」，而不是「就排 0」，否则重新部署
-   * 会把作者排好的先后冲掉。
-   */
+  /** 顺序（`sort_weight`）。三种提交语义分别测 —— 回填、清空、越界。 「清空」那条最要紧：它必须是「这次不提」，而不是「就排 0」，否则重新部署会把作者排好的先后冲掉。 */
   it('重新部署时回填那条部署自己的顺序', () => {
     render({ puzzle: puzzle(), existingGame: existingGame({ sortWeight: -3 }) });
     expect(sortInput().value).toBe('-3');
@@ -249,10 +234,7 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     expect(sortInput().value).toBe('0');
   });
 
-  /**
-   * 部署同一谜题的**新版本**时，兄弟版本的部署把难度与顺序顶上来。
-   * 这两项是「这一关」的属性，不是「这一版」的 —— 改题面不该让作者重排一遍列表。
-   */
+  /** 部署同一谜题的**新版本**时，兄弟版本的部署把难度与顺序顶上来。 这两项是「这一关」的属性，不是「这一版」的 —— 改题面不该让作者重排一遍列表。 */
   it('新版本部署：默认填兄弟版本的难度与顺序', () => {
     render({
       puzzle: puzzle(),
@@ -371,10 +353,7 @@ describe('GameDeployDialog (v0.7.1 §7.6.1)', () => {
     );
   });
 
-  /**
-   * 路径撞车时弹窗问一次要不要**覆盖**，
-   * 说清被占的是哪条路径、占位的是谁；确认后原样重发，只多一个 `overwriteSlug`。
-   */
+  /** 路径撞车时弹窗问一次要不要**覆盖**， 说清被占的是哪条路径、占位的是谁；确认后原样重发，只多一个 `overwriteSlug`。 */
   it('路径被占时弹窗问「覆盖」，确认后原样重发并带上 overwriteSlug', () => {
     render({ puzzle: puzzle() });
     clickButton('部署');

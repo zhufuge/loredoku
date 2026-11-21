@@ -1,16 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.6.0 —— 补齐资源库改名遗漏的 PG 隐式命名对象。
- *
- * `assets` 表源自 v0.2.0 的 `cards` 表，两次 `renameTable`（cards -> items ->
- * assets）都不会跟着改主键约束 / 唯一约束 / NOT NULL 约束 / 自增序列的名字，于是
- * 这些对象至今仍带着 `cards_`（建表时）或 `items_`（v0.2.0 加列时）前缀。它们
- * 只是名字残留、功能不受影响，这里统一收口成 `assets_*`，与表名对齐。
- *
- * 其中 `can_stand` / `category` 两列在 v0.6.0 已改名为 `blocking` / `type`，它们
- * 的 NOT NULL 约束名也一并按新列名收口。
- */
+/** v0.6.0：assets 源自 cards，两次 renameTable（cards→items→assets）都不会改 PG 隐式命名，主键/唯一/NOT NULL 约束与自增序列仍带 cards_ / items_ 前缀，这里统一收口成 assets_*（blocking/type 的 NOT NULL 约束按新列名）；单事务。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.transaction(async (trx) => {
     // 主键 / 唯一约束。

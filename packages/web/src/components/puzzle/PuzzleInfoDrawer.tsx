@@ -50,26 +50,7 @@ import {
 } from '@/lib/mapStyle';
 import { cn } from '@/lib/utils';
 
-/**
- * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 drawer.
- *
- * It holds what the puzzle owns — **名称 / 封面**（v0.7.3）、the **description**,
- * the **题面**（v0.7.14：全局线索 + 结束语）, the **联动主题色 palette** and
- * (v0.6.3 §3) the **参与者布局** column count — and nothing else. Everything the
- * map drawer carries (画布尺寸 / `cellSize` /
- * `canvasFrame` / `gridSeparator` / `mouseCursorBox` / `operationCursorBox` /
- * `regionLabel` / `regionOutline` / `regionHighlight` / `ruler`) belongs to the
- * map and is deliberately absent: the puzzle only **references** a map version
- * (§5.1).
- *
- * 名称与其余字段一起进草稿（撤销 + 随保存落库）；封面不同 —— 它没有 JSON 通道，
- * 且 fork 态（`?v=`）下还没有可写的行，所以这里只产出 `{ file, removed }`，
- * 由页面留在本地、等草稿保存成功后再上传（与 `MapInfoDrawer` 同一套契约）。
- *
- * The draft-then-commit contract: every control writes a local draft, the store
- * is only touched on 保存, and the imperative handle lets the page defer a panel
- * switch until the user has decided.
- */
+/** SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 drawer. The draft-then-commit contract: every control writes a local draft, the store is only touched on 保存, and the imperative handle lets the page defer a panel switch until the user has decided. */
 export interface PuzzleInfoDrawerHandle {
   /** True while the draft differs from the committed name / description / palette / cover. */
   isDirty: () => boolean;
@@ -92,10 +73,7 @@ export interface PuzzleBasicInfo {
   characterSlots: Array<CharacterSlotEntry | null>;
   /** v0.6.3 (docs/v0.6.3.md §3): `null` = 自动. */
   rosterCols: number | null;
-  /**
-   * v0.8.6 (docs/v0.8.6.md §4): 玩家侧「标记」用的那张上传图。
-   * `null` = 默认的 `×` 字形。
-   */
+  /** v0.8.6 (docs/v0.8.6.md §4): 玩家侧「标记」用的那张上传图。 `null` = 默认的 `×` 字形。 */
   mark: UploadedImage | null;
   /** v0.8.7 §7：三枚工具按钮图标；`null` = 三枚都跟随主题。 */
   toolIcons: GameToolIcons | null;
@@ -118,38 +96,20 @@ interface PuzzleInfoDrawerProps {
   characterSlots: Array<CharacterSlotEntry | null>;
   /** v0.6.3 §3: the committed column count. `null` = 自动. */
   rosterCols: number | null;
-  /**
-   * v0.8.6 §4 / v0.8.7 §4: 已提交的标记图；`null` = 这一题没单独配置
-   * （跟随主题，见 `themeMark`；两边都没有才是 `×`）。
-   * 值形状是 `{ path }` —— `path` 是 `storage/uploads` 下的相对路径。
-   */
+  /** v0.8.6 §4 / v0.8.7 §4: 已提交的标记图；`null` = 这一题没单独配置（跟随主题，见 `themeMark`；两边都没有才是 `×`）。 值形状是 `{ path }` —— `path` 是 `storage/uploads` 下的相对路径。 */
   mark: UploadedImage | null;
-  /**
-   * v0.8.7 §4：主题的「标记」缺省 —— 这一题没配时**玩家看到的就是这张**。
-   *
-   * 抽屉拿它只做两件事：预览画这张（否则作者看到的 `×` 与玩家看到的图对不上），
-   * 以及那句「未单独配置，跟随主题」的说明。`null` = 主题也没配。
-   */
+  /** v0.8.7 §4：主题的「标记」缺省 —— 这一题没配时**玩家看到的就是这张**。 抽屉拿它只做两件事：预览画这张（否则作者看到的 `×` 与玩家看到的图对不上）， 以及那句「未单独配置，跟随主题」的说明。`null` = 主题也没配。 */
   themeMark: UploadedImage | null;
-  /**
-   * v0.8.7 §7：这一题提交过的工具按钮图标（清除 / 撤回 / 提交）。`null` = 三枚都
-   * 没单独配 —— 玩家看到的是主题那一套。形状与标记相同：`{ path }`。
-   */
+  /** v0.8.7 §7：这一题提交过的工具按钮图标（清除 / 撤回 / 提交）。`null` = 三枚都没单独配 —— 玩家看到的是主题那一套。形状与标记相同：`{ path }`。 */
   toolIcons: GameToolIcons | null;
   /** v0.8.7 §7：主题的那一套；这一题没配的那几枚，预览与说明都靠它。 */
   themeToolIcons: GameToolIcons | null;
-  /**
-   * v0.8.7 §7：选中文件后**立即上传**，返回落盘路径 —— 抽屉把它写进本地草稿的
-   * `toolIcons[icon]`，随「保存」一个撤销步。失败返回 `null`。
-   */
+  /** v0.8.7 §7：选中文件后**立即上传**，返回落盘路径 —— 抽屉把它写进本地草稿的 `toolIcons[icon]`，随「保存」一个撤销步。失败返回 `null`。 */
   onUploadToolIcon: (
     icon: GameToolIconKind,
     file: File,
   ) => Promise<{ path: string; url: string } | null>;
-  /**
-   * v0.8.6 §4: 选中文件后**立即上传**。成功返回落盘路径（抽屉把它写进本地草稿，
-   * 与其它字段同一个「保存」/ 撤销步）；失败返回 `null` —— 抽屉保留原值并提示。
-   */
+  /** v0.8.6 §4: 选中文件后**立即上传**。成功返回落盘路径（抽屉把它写进本地草稿， 与其它字段同一个「保存」/ 撤销步）；失败返回 `null` —— 抽屉保留原值并提示。 */
   onUploadMark: (file: File) => Promise<{ path: string; url: string } | null>;
   /** The cover currently on the server (`null` when it has none). */
   coverUrl: string | null;
@@ -157,10 +117,7 @@ interface PuzzleInfoDrawerProps {
   coverFile: File | null;
   /** The page's local state already marks the stored cover as removed. */
   coverRemoved: boolean;
-  /**
-   * The drawer never closes itself: both × and 取消 call this, and the page
-   * decides whether to prompt for unsaved edits first.
-   */
+  /** The drawer never closes itself: both × and 取消 call this, and the page decides whether to prompt for unsaved edits first. */
   onRequestClose: () => void;
   /** Applies the whole draft in a single undo step. */
   onCommit: (next: PuzzleBasicInfo) => void;
@@ -216,14 +173,7 @@ function paletteEquals(a: MapLinkageColor[], b: MapLinkageColor[]): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/**
- * 线索按**落库后的样子**比较 —— trim 掉首尾空格、丢掉空行。
- *
- * 少了这一步会有一种很别扭的状态：作者点「新增线索」又什么都没写就点保存，
- * 数组长度变了、dirty 为真，于是白白多一个撤销步；而落库时那行又会被过滤掉，
- * 撤销按下去看不出任何变化。比较用归一化后的值，保存时也交归一化后的值，
- * 两边才是同一件事。
- */
+/** 线索按**落库后的样子**比较 —— trim 掉首尾空格、丢掉空行。 少了这一步会有一种很别扭的状态：作者点「新增线索」又什么都没写就点保存， 数组长度变了、dirty 为真，于是白白多一个撤销步；而落库时那行又会被过滤掉， 撤销按下去看不出任何变化。比较用归一化后的值，保存时也交归一化后的值， 两边才是同一件事。 */
 function normalizeClues(list: readonly string[]): string[] {
   return list.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
 }
@@ -240,10 +190,7 @@ function markEquals(
   return (a?.path ?? null) === (b?.path ?? null);
 }
 
-/**
- * v0.8.7 §7：三枚图标逐枚比 `path`。用 `every` 而不是比对象 —— 键的**顺序**不该参与
- * 「改没改」的判断，作者先换「提交」再换「清除」和反过来是同一份结果。
- */
+/** v0.8.7 §7：三枚图标逐枚比 `path`。用 `every` 而不是比对象 —— 键的**顺序**不该参与「改没改」的判断，作者先换「提交」再换「清除」和反过来是同一份结果。 */
 function toolIconsEqual(a: GameToolIcons | null, b: GameToolIcons | null): boolean {
   return GAME_TOOL_ICON_KINDS.every(
     (kind) => (a?.[kind]?.path ?? null) === (b?.[kind]?.path ?? null),
@@ -291,23 +238,14 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     );
     /** v0.8.7 §7：三枚工具按钮图标也走草稿 —— 同一套提交时机、同一个撤销步。 */
     const [draftToolIcons, setDraftToolIcons] = useDraft<GameToolIcons | null>(toolIcons, open);
-    /**
-     * v0.8.7 §4：预览画「这一题最终会用的那张」—— 自己配了就是它，没配就是主题的。
-     * `null` = 两边都没有，玩家侧是 `×`。
-     */
+    /** v0.8.7 §4：预览画「这一题最终会用的那张」—— 自己配了就是它，没配就是主题的。 `null` = 两边都没有，玩家侧是 `×`。 */
     const previewMark = draftMark ?? themeMark;
-    /**
-     * v0.8.6 §4: 上传在选完文件那一刻就发生，所以「上传中 / 失败」是控件的短暂状态，
-     * 不进草稿、也不算一次编辑。
-     */
+    /** v0.8.6 §4: 上传在选完文件那一刻就发生，所以「上传中 / 失败」是控件的短暂状态， 不进草稿、也不算一次编辑。 */
     const [markUploading, setMarkUploading] = useState(false);
     const [markUploadError, setMarkUploadError] = useState<string | null>(null);
     /** 上传控件的真身：一个隐藏的 `<input type="file">`。 */
     const markInputRef = useRef<HTMLInputElement | null>(null);
-    /**
-     * v0.8.7 §7：三枚工具图标共用**一个**隐藏 input —— `pendingToolIcon` 记住这次点的是
-     * 哪一枚，选完文件才知道往哪个键上放。上传中 / 失败同样是控件的短暂状态。
-     */
+    /** v0.8.7 §7：三枚工具图标共用**一个**隐藏 input —— `pendingToolIcon` 记住这次点的是哪一枚，选完文件才知道往哪个键上放。上传中 / 失败同样是控件的短暂状态。 */
     const [toolIconUploading, setToolIconUploading] = useState<GameToolIconKind | null>(null);
     const [toolIconError, setToolIconError] = useState<string | null>(null);
     const [pendingToolIcon, setPendingToolIcon] = useState<GameToolIconKind | null>(null);
@@ -315,11 +253,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     /** v0.7.3 §2: the cover is drafted as `{ file, removed }` and uploaded on save. */
     const [draftCoverFile, setDraftCoverFile] = useDraft<File | null>(coverFile, open);
     const [draftCoverRemoved, setDraftCoverRemoved] = useDraft<boolean>(coverRemoved, open);
-    /**
-     * The roster the draft carries. It only ever differs from the committed one
-     * because a palette key was renamed or deleted — the drawer never edits a
-     * participant itself.
-     */
+    /** The roster the draft carries. It only ever differs from the committed one because a palette key was renamed or deleted — the drawer never edits a participant itself. */
     const [draftSlots, setDraftSlots] = useDraft<Array<CharacterSlotEntry | null>>(
       characterSlots,
       open,
@@ -462,11 +396,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       );
     };
 
-    /**
-     * FEAT-D04 §UI 规则 (kept from the map drawer): renaming a `key` re-points
-     * every linkage that referenced the old one, so no participant is left
-     * holding a dangling colour key.
-     */
+    /** FEAT-D04 §UI 规则 (kept from the map drawer): renaming a `key` re-points every linkage that referenced the old one, so no participant is left holding a dangling colour key. */
     const renameKey = (index: number, nextKey: string): void => {
       const entry = draftPalette[index];
       if (!entry) return;
@@ -501,11 +431,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
 
     const descriptionOverLimit = draftDescription.length > PUZZLE_DESCRIPTION_MAX_LENGTH;
 
-    /**
-     * 线索的增删改都只动草稿。**新增**会先插一条空行 —— 作者点一下
-     * 就有地方写，不必先想好措辞再找入口。空行在提交时消失（见 `normalizeClues`），
-     * 所以「点错了又没写」不会在数据里留下一条空线索。
-     */
+    /** 线索的增删改都只动草稿。**新增**会先插一条空行 —— 作者点一下就有地方写，不必先想好措辞再找入口。空行在提交时消失（见 `normalizeClues`）， 所以「点错了又没写」不会在数据里留下一条空线索。 */
     const patchClue = (index: number, text: string): void => {
       setDraftClues(draftClues.map((entry, i) => (i === index ? text : entry)));
     };
@@ -519,10 +445,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       setDraftClues(draftClues.filter((_, i) => i !== index));
     };
 
-    /**
-     * v0.8.6 §4：选中文件后**立即上传**，成功才把 `{ path }` 写进抽屉草稿。
-     * 失败像没选过一样 —— 原值留着，控件旁给一行错误（不静默）。
-     */
+    /** v0.8.6 §4：选中文件后**立即上传**，成功才把 `{ path }` 写进抽屉草稿。 失败像没选过一样 —— 原值留着，控件旁给一行错误（不静默）。 */
     const uploadMark = async (file: File): Promise<void> => {
       setMarkUploading(true);
       setMarkUploadError(null);
@@ -540,10 +463,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       }
     };
 
-    /**
-     * v0.8.7 §7：一枚工具图标的上传。与标记同一条时序 —— 选中即上传，成功才写进
-     * 草稿；失败保留原值、只在那一枚下面报一句。三枚互不影响，所以状态按枚记。
-     */
+    /** v0.8.7 §7：一枚工具图标的上传。与标记同一条时序 —— 选中即上传，成功才写进草稿；失败保留原值、只在那一枚下面报一句。三枚互不影响，所以状态按枚记。 */
     const uploadToolIcon = async (icon: GameToolIconKind, file: File): Promise<void> => {
       setToolIconUploading(icon);
       setToolIconError(null);
@@ -561,23 +481,13 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
       }
     };
 
-    /**
-     * v0.6.3 §3.2: the row count is never typed, only shown — it is
-     * `ceil(参与者数 / 列数)`, recomputed on every keystroke. With no column
-     * count (自动) the preview shows the golden-ratio layout the panel will
-     * pick, so the two agree before the user commits to a number.
-     */
+    /** v0.6.3 §3.2: the row count is never typed, only shown — it is `ceil(参与者数 / 列数)`, recomputed on every keystroke. With no column count (自动) the preview shows the golden-ratio layout the panel will pick, so the two agree before the user commits to a number. */
     const slotTotal = characterSlots.length;
     const autoLayout = useMemo(() => computeParticipantLayout(slotTotal), [slotTotal]);
     const previewCols = draftCols ?? autoLayout.cols;
     const previewRows = draftCols === null ? autoLayout.rows : rosterRows(slotTotal, draftCols);
 
-    /**
-     * An empty field means 自动 (the stored value is `null`); anything else is
-     * forced into `[1, min(参与者数, ROSTER_COLS_MAX)]` so the preview can
-     * never describe a matrix with more columns than it has people, and the
-     * panel never has to scroll to show them.
-     */
+    /** An empty field means 自动 (the stored value is `null`); anything else is forced into `[1, min(参与者数, ROSTER_COLS_MAX)]` so the preview can never describe a matrix with more columns than it has people, and the panel never has to scroll to show them. */
     const changeCols = (raw: string): void => {
       if (raw.trim() === '') {
         setDraftCols(null);

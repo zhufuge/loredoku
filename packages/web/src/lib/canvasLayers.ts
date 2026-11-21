@@ -17,12 +17,7 @@ import { regionAt } from '@/lib/region';
 
 export type CellMap = Map<string, DraftCell>;
 
-/**
- * OPT-901 §1.1: the spec numbers the layers top-most first. `MAP_LAYER_ORDER`
- * is that list and `MAP_LAYER_Z` maps each name to its CSS `z-index`, so
- * "later in the list" ⇔ "smaller z-index". Exposed through this helper so
- * both the renderer and the unit tests read the same source of truth.
- */
+/** OPT-901 §1.1: the spec numbers the layers top-most first. `MAP_LAYER_ORDER` is that list and `MAP_LAYER_Z` maps each name to its CSS `z-index`, so "later in the list" ⇔ "smaller z-index". Exposed through this helper so both the renderer and the unit tests read the same source of truth. */
 export function layerZ(name: MapLayerName): number {
   return MAP_LAYER_Z[name];
 }
@@ -45,10 +40,7 @@ function parseKey(key: string): [number, number] {
   return key.split(',').map(Number) as [number, number];
 }
 
-/**
- * Every cell covered by an object, anchor cells included. A multi-cell
- * object occupies `w × h` cells even though only the anchor is stored.
- */
+/** Every cell covered by an object, anchor cells included. A multi-cell object occupies `w × h` cells even though only the anchor is stored. */
 export function collectItemCells(cells: CellMap): Set<string> {
   const covered = new Set<string>();
   for (const [key, cell] of cells.entries()) {
@@ -64,16 +56,7 @@ export function collectItemCells(cells: CellMap): Set<string> {
   return covered;
 }
 
-/**
- * OPT-901 §1.2.5: cells whose **物品层** item has `blocking === true` get a
- * super-low-opacity grey mask. An item that is missing from `assetsById`
- * (inactive or deleted) is treated as non-blocking so stale drafts don't grow
- * a shadow.
- *
- * Because §4.1 keeps the mask purely presentational, changing `blocking` in
- * the asset manager takes effect on the next render — nothing is removed from
- * the board.
- */
+/** OPT-901 §1.2.5: cells whose **物品层** item has `blocking === true` get a super-low-opacity grey mask. Because §4.1 keeps the mask purely presentational, changing `blocking` in the asset manager takes effect on the next render — nothing is removed from the board. */
 export function collectBlockingCells(
   cells: CellMap,
   assetsById: Map<number, Asset>,
@@ -111,10 +94,7 @@ export const NO_HOVER_EFFECTS: HoverEffects = {
   hasItem: false,
 };
 
-/**
- * OPT-902 §2.4: the cursor box, the region emphasis and the item lift are
- * resolved independently so all three can fire for the same cell.
- */
+/** OPT-902 §2.4: the cursor box, the region emphasis and the item lift are resolved independently so all three can fire for the same cell. */
 export function resolveHoverEffects(input: {
   hover: { x: number; y: number } | null;
   blockingCells: Set<string>;
@@ -132,18 +112,7 @@ export function resolveHoverEffects(input: {
   };
 }
 
-/**
- * The mouse box geometry is driven by the map style
- * (`style.mouseCursorBox` + `style.border`) rather than module constants, so the
- * 「地图基本信息」drawer can retune it per map.
- *
- * §4.1/§3.3.1 (mouse box) — an Inner Line in the state colour (white for a
- * free cell, the blocked colour for a non-standable one) plus a grey ring
- * covering the Border. Returned as one `box-shadow` so the shape never moves.
- *
- * OPT-B03 §3.2: both widths are multiplied by `cellSize / BASE_CELL`, so the
- * default `cellSize` reproduces the v0.3.5 look exactly.
- */
+/** Returned as one `box-shadow` so the shape never moves. OPT-B03 §3.2: both widths are multiplied by `cellSize / BASE_CELL`, so the default `cellSize` reproduces the v0.3.5 look exactly. */
 export function cellCursorShadow(
   blocked: boolean,
   cellSize: number,
@@ -157,13 +126,7 @@ export function cellCursorShadow(
   return `inset 0 0 0 ${inner}px ${stroke}, 0 0 0 ${gap}px ${cursor.shadowColor}`;
 }
 
-/**
- * OPT-A05 §4.1/§4.3 (operation box) — a pale blue Outline pinned to the
- * clicked cell. §3.2.2 defines the Outline as sitting **outside** the Border
- * and not participating in layout, which is why it is a CSS `outline` with an
- * offset rather than another inset ring: with both boxes on the same cell the
- * white mouse line ends up inside and the blue outline outside.
- */
+/**  */
 export function operationCursorOutline(
   cellSize: number,
   cursor: MapStyleOperationCursorBox = DEFAULT_MAP_STYLE.operationCursorBox,
@@ -188,13 +151,7 @@ export function operationCursorStyle(
   };
 }
 
-/**
- * OPT-A05 §4.1/§4.3: the two cursor boxes are independent elements that can
- * coexist. The mouse box tracks the pointer; the operation box is pinned to
- * the clicked cell (the cell the info drawer points at). Resolving both from
- * one place keeps the stacking rule — mouse box on top, blue outline outside
- * — expressed exactly once.
- */
+/** OPT-A05 §4.1/§4.3: the two cursor boxes are independent elements that can coexist. Resolving both from one place keeps the stacking rule — mouse box on top, blue outline outside — expressed exactly once. */
 export interface CursorBoxes {
   /** §4.1 鼠标提示框 — follows the pointer, `null` when off the board. */
   mouse: { x: number; y: number; blocked: boolean } | null;
@@ -221,16 +178,7 @@ export function resolveCursorBoxes(input: {
   };
 }
 
-/**
- * OPT-904 §4.1: the background layer only accepts `type === 'background'`
- * assets and the item layer only accepts `type === 'item'` assets, so a
- * blocking item is still placeable on the item layer while never being
- * placeable on the background layer.
- *
- * A 「背景修饰」 item goes to the decoration layer **instead of** the
- * item layer — the two are halves of the item world, not aliases, so ticking
- * the box moves the asset rather than duplicating it.
- */
+/** OPT-904 §4.1: the background layer only accepts `type === 'background'` assets and the item layer only accepts `type === 'item'` assets, so a blocking item is still placeable on the item layer while never being placeable on the background layer. */
 export function canPlaceAssetOnLayer(asset: Asset | null, layer: EditorLayer): boolean {
   if (!asset) return false;
   return assetLayerFor(asset) === layer;

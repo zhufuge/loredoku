@@ -13,10 +13,7 @@ interface PuzzleEditorLeftPanelProps {
   characters: Character[] | undefined;
   charactersLoading: boolean;
   charactersError: boolean;
-  /**
-   * 角色列表来自共享查询，角色页可能刚加过角色 —— 头部给了个刷新按钮，
-   * 不用整页重载（重载会丢掉撤销栈与视口）。
-   */
+  /** 角色列表来自共享查询，角色页可能刚加过角色 —— 头部给了个刷新按钮， 不用整页重载（重载会丢掉撤销栈与视口）。 */
   charactersRefreshing: boolean;
   onRefreshCharacters: () => void;
   characterSlots: Array<CharacterSlotEntry | null>;
@@ -24,13 +21,7 @@ interface PuzzleEditorLeftPanelProps {
   selectedCharacterId: number | null;
   onAssignSlot: (characterId: number) => void;
   onSelectCharacter: (id: number | null) => void;
-  /**
-   * 收起状态一变化就通知出去。
-   *
-   * 收起之后这一列**整列不渲染**，「展开角色列表」
-   * 的按钮挪到参与者面板的标题行上 —— 那一行是它唯一还站着的邻居。页面据此
-   * 决定要不要在那个位置挂按钮。
-   */
+  /** 收起状态一变化就通知出去。 收起之后这一列**整列不渲染**，「展开角色列表」 的按钮挪到参与者面板的标题行上 —— 那一行是它唯一还站着的邻居。页面据此决定要不要在那个位置挂按钮。 */
   onCollapsedChange?: (collapsed: boolean) => void;
 }
 
@@ -42,32 +33,7 @@ export interface PuzzleEditorLeftPanelHandle {
   expand: () => void;
 }
 
-/**
- * SPEC-K04 (docs/v0.5.0.md §4.1): the puzzle editor's left panel keeps the
- * 「角色」 tab **only** — the 物品 / 区域 tabs (and their `onSetLayer` /
- * `onSelectAsset` / `onSelectRegion` / `onEditRegion` / `onDeleteRegion` props)
- * belong to the map editor, which owns the canvas those tools write to. The
- * canvas here is read-only, so the content is the old 「角色」 branch verbatim.
- *
- * v0.5.3 FEAT-N08 (docs/v0.5.3.md §6.1): the panel **collapses** (more canvas)
- * and gains a **filter** over 名称 / 业务 ID — a puzzle with a few dozen
- * characters was unsearchable before. Both are view-only state and stay in the
- * component: they must never reach `puzzleStore`, whose undo stack holds the
- * puzzle's own data only.
- *
- * A full roster collapses the panel **by default**. Every 加入
- * button is disabled at that point, so the list has nothing left to offer and
- * the canvas deserves the width. It is a default, not a lock: the first manual
- * 展开 / 收起 takes over for the rest of the session (tracked by
- * `userTookOverRef`, never in the store).
- *
- * 收起时**整列消失**。展开箭头在参与者面板的标题行左侧（`ParticipantPanel` 的
- * `headerLeading`），画布因此收回那 40px。状态的归属没变：`collapsed` /
- * `userTookOverRef` 仍然只在这个组件
- * 里，页面通过 `onCollapsedChange` 知道要不要挂那颗箭头，通过 ref 的
- * `expand()` 把面板叫回来 —— 收起后组件仍挂载（返回 `null`），所以「手动展开过
- * 就锁住自动收起」这条记忆不会因为一次收起而丢失。
- */
+/** Both are view-only state and stay in the component: they must never reach `puzzleStore`, whose undo stack holds the puzzle's own data only. 状态的归属没变：`collapsed` / `userTookOverRef` 仍然只在这个组件 里，页面通过 `onCollapsedChange` 知道要不要挂那颗箭头，通过 ref 的 `expand()` 把面板叫回来 —— 收起后组件仍挂载（返回 `null`），所以「手动展开过 就锁住自动收起」这条记忆不会因为一次收起而丢失。 */
 export const PuzzleEditorLeftPanel = forwardRef<
   PuzzleEditorLeftPanelHandle,
   PuzzleEditorLeftPanelProps
@@ -91,16 +57,10 @@ export const PuzzleEditorLeftPanel = forwardRef<
 
   const rosterIds = new Set(characterSlots.filter(Boolean).map((slot) => slot!.characterId));
 
-  /**
-   * Every slot taken = the roster is full. An empty roster is not
-   * "full" — there is nothing to collapse for yet.
-   */
+  /** Every slot taken = the roster is full. An empty roster is not "full" — there is nothing to collapse for yet. */
   const rosterFull =
     characterSlots.length > 0 && characterSlots.every((slot) => slot !== null);
-  /**
-   * Set the moment the user clicks 展开 / 收起: from then on the panel's state
-   * is theirs alone, and the auto-collapse below stops touching it.
-   */
+  /** Set the moment the user clicks 展开 / 收起: from then on the panel's state is theirs alone, and the auto-collapse below stops touching it. */
   const userTookOverRef = useRef(false);
   useEffect(() => {
     if (userTookOverRef.current) return;
@@ -114,22 +74,14 @@ export const PuzzleEditorLeftPanel = forwardRef<
 
   useImperativeHandle(ref, () => ({ expand: () => takeOver(false) }), [takeOver]);
 
-  /**
-   * 页面靠它决定要不要在参与者标题行上挂那颗「展开」—— 面板自己不
-   * 再留下任何收起态的痕迹，这个回调就是唯一的通知渠道。
-   */
+  /** 页面靠它决定要不要在参与者标题行上挂那颗「展开」—— 面板自己不再留下任何收起态的痕迹，这个回调就是唯一的通知渠道。 */
   useEffect(() => {
     onCollapsedChange?.(collapsed);
   }, [collapsed, onCollapsedChange]);
 
   /** FEAT-N08: 名称 / 业务 ID, case-insensitive. */
   const visible = useMemo(() => {
-    /*
-     * 先按名字排序（中文按拼音首字母），再过滤。
-     *
-     * 排的是角色库这一份 —— 参与者槽位那一列（`ParticipantPanel`）的顺序是
-     * 作者排的「1 号、2 号」，动它等于改谜题本身，不能跟着字母走。
-     */
+    /* 先按名字排序（中文按拼音首字母），再过滤。 排的是角色库这一份 —— 参与者槽位那一列（`ParticipantPanel`）的顺序是作者排的「1 号、2 号」，动它等于改谜题本身，不能跟着字母走。 */
     const list = sortByName(characters ?? []);
     const needle = keyword.trim().toLowerCase();
     if (!needle) return list;
@@ -142,10 +94,7 @@ export const PuzzleEditorLeftPanel = forwardRef<
 
   const filtered = keyword.trim().length > 0;
 
-  /*
-   * 收起 = 整列不渲染。竖排细条只为「把自己展开」而存在，却占着一条边 ——
-   * 展开箭头挂在参与者标题行的左侧（见组件头的说明）。
-   */
+  /* 收起 = 整列不渲染。竖排细条只为「把自己展开」而存在，却占着一条边 —— 展开箭头挂在参与者标题行的左侧（见组件头的说明）。 */
   if (collapsed) return null;
 
   return (
@@ -247,14 +196,7 @@ export const PuzzleEditorLeftPanel = forwardRef<
   );
 });
 
-/**
- * 收起之后那颗箭头挂在**参与者面板的标题行**上（`ParticipantPanel` 的
- * `headerLeading`），所以得能被别的组件渲染。
- *
- * 单独导出而不是让页面自己写一遍 button：这三行 `title` / `aria-label` /
- * `aria-expanded` 是「面板的一个出口」，跟面板内部那颗「收起」是一对；散在
- * 页面里，将来改一处忘一处。
- */
+/** 收起之后那颗箭头挂在**参与者面板的标题行**上（`ParticipantPanel` 的 `headerLeading`），所以得能被别的组件渲染。 单独导出而不是让页面自己写一遍 button：这三行 `title` / `aria-label` / `aria-expanded` 是「面板的一个出口」，跟面板内部那颗「收起」是一对；散在页面里，将来改一处忘一处。 */
 export function RosterExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
   return (
     <button

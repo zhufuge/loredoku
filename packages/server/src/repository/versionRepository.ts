@@ -3,21 +3,8 @@ import type { MapDraft, MapVersionSummary, MapRow } from '@loredoku/shared';
 import { absorbLegacyMapDraft, readLegacyCharacterSlots } from '../service/mapDraftCompat';
 import * as versioning from './versioning';
 
-/**
- * `map_versions` 已并入 `maps`
- * （docs/map-table-merge-design.md）。本模块的每个函数都改查 `maps`，
- * 「版本行」= `version <> 'draft'` 的行。
- *
- * 三条铁律：
- *
- * 1. **`version` 是 text**，`Number('draft')` 是 `NaN`、`CAST('draft' AS int)` 直接
- *    抛错 —— 所有 cast 前必须前置 `version <> 'draft'`，转换只走
- *    {@link versionToNo} / {@link nextVersionNo} 两个入口（设计 §15 P0-2）。
- * 2. **默认查询带 `deleted_at IS NULL`**（列表可见性），只有 fork 源与 `MAX` 不过滤
- *    （设计 §5：过滤管可见性，不管直达读取 / 号不回收）。
- * 3. **URL 的 `:id` 一律指 `maps.id`**，可以是草稿行也可以是版本行 —— 所以版本
- *    查询先用它解析血统根，再在血统内按版本号定位（设计 §15 P0-1）。
- */
+/** `map_versions` 已并入 `maps`（docs/map-table-merge-design.md）：版本行 = `version <> 'draft'`。
+ *  `version` 是 text，cast 前必须先排除 `'draft'`；默认查 `deleted_at IS NULL`（fork 源与 MAX 除外）；`:id` 指 `maps.id`。 */
 
 /** `'draft'` → `null`，`'3'` → `3`。禁止在别处直接 `Number()`。 */
 export function versionToNo(row: { version: string }): number | null {
@@ -64,10 +51,7 @@ function toSummary(row: MapRow): MapVersionSummary {
 /** Exported so the service can map lineage rows without duplicating the counts. */
 export const toVersionSummary = toSummary;
 
-/**
- * `:id` → 血统根。**不过滤 `deleted_at`**：软删行仍可按 id 解析（设计 §15 P0-1）。
- * 返回 `undefined` = 这个 id 根本不存在。
- */
+/** `:id` → 血统根。**不过滤 `deleted_at`**：软删行仍可按 id 解析（设计 §15 P0-1）。 返回 `undefined` = 这个 id 根本不存在。 */
 async function resolveRootId(id: number): Promise<number | undefined> {
   const row = (await db('maps').where({ id }).select('root_id').first()) as
     | { root_id: string | number }
@@ -84,12 +68,7 @@ async function versionRowsOfRoot(rootId: number): Promise<MapRow[]> {
     .orderByRaw('CAST(version AS integer) DESC')) as MapRow[];
 }
 
-/**
- * Q3 = B (docs/v0.5.0.md §7.1): the version history lists the **whole blood
- * lineage**, not just one `maps` row — a map forked from a published
- * version shares the original's `root_id`, and its own publishes belong to the
- * same list.
- */
+/** Q3 = B (docs/v0.5.0.md §7.1): the version history lists the **whole blood lineage**, not just one `maps` row — a map forked from a published version shares the original's `root_id`, and its own publishes belong to the same list. */
 export async function listVersionsForRoot(rootId: number): Promise<VersionRow[]> {
   const rows = await versionRowsOfRoot(rootId);
   return rows;
@@ -102,18 +81,8 @@ export async function listVersions(id: number): Promise<MapVersionSummary[]> {
   return (await versionRowsOfRoot(rootId)).map(toSummary);
 }
 
-/**
- * OPT-G01 (docs/v0.4.0.md §2): the version detail carries the map name too, so
- * the preview page can title itself with it. v0.5.8: 名字就是这一行自己的
- * 快照名。
- *
- * 两个口径必须分开（设计 §5 与 §5.1）：
- *
- * - {@link getVersion} **过滤** `deleted_at`，供版本详情 API 用 —— 软删行的
- *   直达入口也要 404（「不可见」包含直达链接）。
- * - {@link findVersionRow} **不过滤**，供 fork 源、谜题 / 游戏的快照提升用 ——
- *   过滤只管可见性，不管「这行数据还在不在」。
- */
+/** 版本详情带上快照名，预览页可自命名（docs/v0.4.0.md §2）；v0.5.8 起名字就是该行自己的快照名。
+ *  {@link getVersion} 过滤 `deleted_at`（软删行直达也 404）；{@link findVersionRow} 不过滤，供 fork 源与快照提升。 */
 export async function getVersion(
   id: number,
   versionNo: number,
@@ -135,10 +104,7 @@ export async function findVersionRow(
   return row;
 }
 
-/**
- * SPEC-K11 + Q3 = B: 血统内下一个版本号。SQL 统一在 `repository/versioning.ts`
- * （`puzzles` 用同一份实现），这里只把表名钉成 `maps`。
- */
+/** SPEC-K11 + Q3 = B: 血统内下一个版本号。SQL 统一在 `repository/versioning.ts` （`puzzles` 用同一份实现），这里只把表名钉成 `maps`。 */
 export async function nextVersionNo(rootId: number): Promise<number> {
   return versioning.nextVersionNo('maps', rootId);
 }
@@ -173,10 +139,7 @@ export async function createVersion(data: CreateVersionData): Promise<MapVersion
   return toSummary(row!);
 }
 
-/**
- * FEAT-503: 删版本 = **软删**（`deleted_at`）：界面不展示，但行还在、号仍占
- * MAX、谜题引用仍可解析（设计 §2）。
- */
+/** FEAT-503: 删版本 = **软删**（`deleted_at`）：界面不展示，但行还在、号仍占 MAX、谜题引用仍可解析（设计 §2）。 */
 export async function deleteVersion(id: number, versionNo: number): Promise<boolean> {
   const rootId = await resolveRootId(id);
   if (rootId === undefined) return false;

@@ -4,10 +4,7 @@ import * as versionController from '../controller/puzzleVersionController';
 import * as gameController from '../controller/gameController';
 import { symbolImageUpload, puzzleCoverUpload } from '../middleware/upload';
 
-/**
- * 谜题模块（v0.7.1 §5 / §6.3）：谜题、它的版本，以及「部署为游戏」——
- * 部署挂在谜题版本上，因为一个 game 行就是一个谜题版本行。
- */
+/** 谜题模块（v0.7.1 §5 / §6.3）：谜题、它的版本，以及「部署为游戏」—— 部署挂在谜题版本上，因为一个 game 行就是一个谜题版本行。 */
 export const puzzlesRouter = new Router();
 
 puzzlesRouter.get('/', controller.list);
@@ -24,10 +21,7 @@ puzzlesRouter.post('/:id/duplicate', controller.duplicate);
 puzzlesRouter.post('/:id/cover', puzzleCoverUpload.single('file'), controller.uploadCover);
 puzzlesRouter.delete('/:id/cover', controller.removeCover);
 
-/**
- * v0.8.6 §4：禁止符号是**上传图**，只写文件、不写库 —— 草稿里那个 `path` 由
- * 随后的保存请求带回来。所以这里也允许版本行 id（编辑器 `?v=` 的 fork 态）。
- */
+/** v0.8.6 §4：禁止符号是**上传图**，只写文件、不写库 —— 草稿里那个 `path` 由随后的保存请求带回来。所以这里也允许版本行 id（编辑器 `?v=` 的 fork 态）。 */
 puzzlesRouter.post(
   '/:id/mark',
   symbolImageUpload.single('file'),

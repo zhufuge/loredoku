@@ -3,19 +3,7 @@ import {
   type GamePlacementBoard,
 } from '@loredoku/shared';
 
-/**
- * docs/v0.6.2.md §3: 游戏页的摆放进度落在 localStorage 里，键按 slug 分，
- * 玩家关掉页面再回来接着摆 —— 头像、编号、标记三样都在。
- *
- * 为什么是 localStorage 而不是服务端：玩家没有账号，进度只对这台浏览器有意义。
- *
- * 存档带**指纹**（`gridSize` + `participantCount`）。同一 slug 重新部署后网格或
- * 名单可能变了，此时旧坐标与新编号都不再有意义，整条存档按失效处理，不尝试
- * 「尽量恢复」——恢复出来的半截棋盘比空白更让人困惑。
- *
- * 存档只画**棋盘**，不落「提交状态」。棋盘是进度，提交是一次核对 —— 把「核对过」
- * 写进存档，只会让玩家下次进来看到一个自己没做过的勾。
- */
+/** docs/v0.6.2.md §3: 游戏页的摆放进度落在 localStorage 里，键按 slug 分， 玩家关掉页面再回来接着摆 —— 头像、编号、标记三样都在。 为什么是 localStorage 而不是服务端：玩家没有账号，进度只对这台浏览器有意义。 存档带**指纹**（`gridSize` + `participantCount`）。 同一 slug 重新部署后网格或 名单可能变了，此时旧坐标与新编号都不再有意义，整条存档按失效处理，不尝试 「尽量恢复」——恢复出来的半截棋盘比空白更让人困惑。 棋盘是进度，提交是一次核对 —— 把「核对过」 写进存档，只会让玩家下次进来看到一个自己没做过的勾。 */
 
 /** 存档结构变了就 +1；旧版本的存档一律丢弃（宁可空白，不可错乱）。 */
 export const GAME_PROGRESS_VERSION = 2;
@@ -40,22 +28,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-/**
- * `"x,y"` 的严格解析。棋盘键只有这一种写法，别的一律当无效格。
- *
- * 注意 `Number('')` 是 0、`Number(' 1')` 是 1，`split` + 隐式转换会把
- * 稀奇古怪的键悄悄变成合法坐标，所以这里走正则。
- */
+/** `"x,y"` 的严格解析。棋盘键只有这一种写法，别的一律当无效格。 注意 `Number('')` 是 0、`Number(' 1')` 是 1，`split` + 隐式转换会把稀奇古怪的键悄悄变成合法坐标，所以这里走正则。 */
 function parseCellKey(key: string): { x: number; y: number } | null {
   const match = /^(\d+),(\d+)$/.exec(key);
   if (!match) return null;
   return { x: Number(match[1]), y: Number(match[2]) };
 }
 
-/**
- * 按指纹清掉说不通的放置：越界的坐标、超出名单的编号、清空了的编号格。
- * 纯函数，读写两侧共用 —— 写之前也清一遍，存档里就不会留垃圾。
- */
+/** 按指纹清掉说不通的放置：越界的坐标、超出名单的编号、清空了的编号格。 纯函数，读写两侧共用 —— 写之前也清一遍，存档里就不会留垃圾。 */
 export function sanitizeBoard(
   board: GamePlacementBoard,
   meta: GameProgressMeta,
@@ -86,11 +66,7 @@ export function sanitizeBoard(
   return clean;
 }
 
-/**
- * 把读到的 JSON 变成存档，或 `null`（= 当作没有存档）。
- *
- * 分开导出是因为它不碰 `window`：测试能直接喂各种坏数据，不用搭 localStorage。
- */
+/** 把读到的 JSON 变成存档，或 `null`（= 当作没有存档）。 分开导出是因为它不碰 `window`：测试能直接喂各种坏数据，不用搭 localStorage。 */
 export function parseStoredProgress(
   value: unknown,
   meta: GameProgressMeta,
@@ -136,12 +112,7 @@ export function readGameProgress(
   }
 }
 
-/**
- * 写存档。空盘 → 删掉整条键：玩家清空棋盘后不该在 localStorage 里留一条空
- * 记录（下次读到它还得再判一次空）。
- *
- * 写失败（配额满、隐私模式）静默吞掉：**玩得下去**比存得下来重要。
- */
+/** 写存档。空盘 → 删掉整条键：玩家清空棋盘后不该在 localStorage 里留一条空记录（下次读到它还得再判一次空）。 写失败（配额满、隐私模式）静默吞掉：**玩得下去**比存得下来重要。 */
 export function writeGameProgress(slug: string, progress: StoredGameProgress): void {
   if (typeof window === 'undefined' || slug.length === 0) return;
   const key = gameProgressKey(slug);

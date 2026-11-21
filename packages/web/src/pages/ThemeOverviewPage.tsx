@@ -23,12 +23,7 @@ import { THEME_STYLE_FIELDS } from '@/lib/themeStyleFields';
 import { SETTINGS_THEMES_PATH, type ModuleKey } from '@/lib/workspace';
 import { MODULE_ICONS } from '@/lib/moduleIcons';
 
-/**
- * 入口只写「去哪、叫什么」，图标从 `MODULE_ICONS` 取 —— 与顶栏同一枚。
- *
- * 五个子组件（清单卡片头 / 一行事实 / 操作提示卡 / 三个设置弹窗）各自
- * 成文件，这一页只剩「这一屏由哪些卡片组成」。
- */
+/** 入口只写「去哪、叫什么」，图标从 `MODULE_ICONS` 取 —— 与顶栏同一枚。 五个子组件（清单卡片头 / 一行事实 / 操作提示卡 / 三个设置弹窗）各自成文件，这一页只剩「这一屏由哪些卡片组成」。 */
 const COUNT_LINKS = [
   { module: 'assets', label: '资源', field: 'assets' },
   { module: 'maps', label: '地图', field: 'maps' },
@@ -41,24 +36,7 @@ const COUNT_LINKS = [
   field: keyof ThemeCounts;
 }>;
 
-/**
- * v0.8.0 §18：`/:code/overview` —— 一个工作空间自己的那页（导航第一项「概览」）。
- *
- * 上一版这一屏是「主题工作台」：顶栏里一条面包屑 + 四个带计数的 tab + 一列平铺
- * 内容。有了工作空间之后，那四个 tab 就是顶栏的四个模块 —— 同一件事说两遍。
- *
- * 所以这一页只回答「这个空间是什么、按什么规矩长」：
- *
- * - **五格计数**当入口（大数字 + 箭头），点了就去对应模块；第五格是部署；
- * - **四行信息**：名称、编码、描述、识别色 —— 都是「别处改、这里看」的；
- * - **地图初始样式**：二十几项按网格 / 边框 / 标签 / 光标列成清单，可整份编辑（v0.8.3）；
- * - **难度分级**：这个空间认可哪几档，可增删改（v0.8.3）；
- * - **动作平铺**：编辑信息、删除各是一个按钮（v0.8.3 去掉了 `⋯`）。
- *
- * 「上线」与「导出资源包」在**部署页** —— 那才是「出门」这件事发生的地方，
- * 而概览页回答的是静态问题。这一页的动作只有编辑信息、删除两个，`⋯` 也就没有
- * 必要了：一个装两个按钮的菜单，比两个按钮贵。
- */
+/** v0.8.0 §18：`/:code/overview` —— 一个工作空间自己的那页（导航第一项「概览」）。 上一版这一屏是「主题工作台」：顶栏里一条面包屑 + 四个带计数的 tab + 一列平铺 内容。 有了工作空间之后，那四个 tab 就是顶栏的四个模块 —— 同一件事说两遍。 所以这一页只回答「这个空间是什么、按什么规矩长」：；**五格计数**当入口（大数字 + 箭头），点了就去对应模块； 第五格是部署；；**四行信息**：名称、编码、描述、识别色 —— 都是「别处改、这里看」的； 这一页的动作只有编辑信息、删除两个，`⋯` 也就没有 必要了：一个装两个按钮的菜单，比两个按钮贵。 */
 export function ThemeOverviewPage(): JSX.Element {
   const workspace = useWorkspace();
   const theme = workspace?.theme ?? null;
@@ -83,11 +61,7 @@ export function ThemeOverviewPage(): JSX.Element {
   }
 
   const accent = theme.data.accent ?? null;
-  /**
-   * 没有初始样式的主题，渲染的是**新建地图时会拿到的**那份 —— 清单不能是空的。
-   * 走 `resolveMapStyle` 而不是 `?? DEFAULT_MAP_STYLE` —— 老主题存的是
-   * 旧形状（缺 `canvasShadow`），直接读字段会炸；解析一遍把缺的键补齐。
-   */
+  /** 没有初始样式的主题，渲染的是**新建地图时会拿到的**那份 —— 清单不能是空的。 走 `resolveMapStyle` 而不是 `?? DEFAULT_MAP_STYLE` —— 老主题存的是旧形状（缺 `canvasShadow`），直接读字段会炸；解析一遍把缺的键补齐。 */
   const style = resolveMapStyle(theme.data.style);
   const tiers = resolveDifficultyTiers(theme.data.difficultyLevels);
 

@@ -5,12 +5,7 @@ import {
 } from './constants/game';
 import { formatGameListCount, resolveGameListTexts } from './gameList';
 
-/**
- * 列表页顶上那两行字。
- *
- * 这一层是纯函数，只回答两个问题：没配过时用哪句、配过时怎么把关数塞进去。
- * 页面那边只负责把它们画出来。
- */
+/** 列表页顶上那两行字。 这一层是纯函数，只回答两个问题：没配过时用哪句、配过时怎么把关数塞进去。 页面那边只负责把它们画出来。 */
 describe('resolveGameListTexts', () => {
   it('没配过就是内置那两句', () => {
     expect(resolveGameListTexts(undefined)).toEqual({

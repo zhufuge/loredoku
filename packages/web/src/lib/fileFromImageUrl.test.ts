@@ -1,15 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fileFromImageUrl } from './fileFromImageUrl';
 
-/**
- * v0.7.2 §4：「默认用谜题封面」要把已经在服务器上的那张图读成 `File` 再走同一条
- * 上传端点。读不到（404 / 非图片 / 网络炸）返回 `null` —— 封面本来就可以留空，
- * 这一步失败不该把已经成功的部署带崩。
- */
-/**
- * 注意：响应体用**字符串**而不是 `new Blob(...)` —— jsdom 的 Blob 不是合法的
- * `BodyInit`，会被 `String()` 成 `[object Blob]`，type 也跟着丢。
- */
+/** v0.7.2 §4：「默认用谜题封面」要把已经在服务器上的那张图读成 `File` 再走同一条上传端点。读不到（404 / 非图片 / 网络炸）返回 `null` —— 封面本来就可以留空， 这一步失败不该把已经成功的部署带崩。 */
+/** 注意：响应体用**字符串**而不是 `new Blob(...)` —— jsdom 的 Blob 不是合法的 `BodyInit`，会被 `String()` 成 `[object Blob]`，type 也跟着丢。 */
 function stubFetch(impl: () => Promise<Response>): void {
   vi.stubGlobal('fetch', vi.fn(impl));
 }

@@ -4,24 +4,7 @@ import {
   upgradeRegionStyleDraft,
 } from '../../service/regionStyleMigration';
 
-/**
- * v0.7.0 (docs/v0.7.0.md §4) — 区域自有样式。
- *
- * 区域的 `color` / `borderWidth` / `fillOpacity` 三件套退役，换成对地图级缺省
- * 的深 partial `style`（轮廓线 / 高亮线 / 标签），填充整体移除：
- *   - `maps.data` 与 `games.snapshot.map` 的每个区域删掉三件套，旧
- *     `borderWidth` 与地图级 `regionOutline.width` 不同时才记
- *     `style.outline.width`（相同不记，渲染走缺省）；
- *   - `version` 6 → 7。
- *
- * 手法与 `…00028` / `…00029` 一致：逐行读 JSON → 就地换 → 回写。纯转换在
- * `service/regionStyleMigration.ts`（可脱离数据库单测），`mapDraftCompat.ts`
- * 里的吸收层走同一个函数，所以没跑迁移的存量行读出来也是新形状。
- *
- * down 是三件套的还原：`borderWidth` 取 `style.outline.width`（没有则取地图级
- * 缺省），`color` / `fillOpacity` 回到旧默认值——自定义填充随字段一起消失，
- * 找不回来。
- */
+/** v0.7.0（docs/v0.7.0.md §4）：区域三件套 color/borderWidth/fillOpacity 退役，换深 partial style（轮廓/高亮/标签），填充整体移除；仅当 borderWidth 与地图级 regionOutline.width 不同才记 style.outline.width；version 6→7；down 只还原成旧默认，自定义填充找不回。 */
 
 function asRecord(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;

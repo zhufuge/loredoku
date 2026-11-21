@@ -18,10 +18,7 @@ export function coverRequired(): AppError {
   return AppError.validation('请选择封面图片');
 }
 
-/**
- * FEAT-K09 (docs/v0.5.0.md §7.1): the list is the **union of work entries and
- * version entries**, so a `MapDetail[]` is no longer the right shape.
- */
+/** 列表是工作条目与版本条目的并集，所以返回 `MapEntrySummary[]` 而不是 `MapDetail[]`（v0.5.0 §7.1）。 */
 export async function listMapEntries(
   query: ListMapsQuery & { page: number; pageSize: number },
 ): Promise<{ list: MapEntrySummary[]; total: number }> {
@@ -43,10 +40,7 @@ export async function getMapDetail(id: number): Promise<MapDetail> {
   return { ...repo.toMapEntry(row), ...counts };
 }
 
-/**
- * 合并后版本行也是合法的 `maps` 行，改名 / 描
- * 述 / 封面这些「条目级」写操作必须把版本行拦下来 —— 版本是冻结快照。
- */
+/** 版本行也是合法的 `maps` 行，改名 / 描述 / 封面这些条目级写操作必须把版本行拦下来 —— 版本是冻结快照。 */
 async function findWritable(id: number): Promise<repo.MapRowWithLineage> {
   const row = await repo.findById(id);
   if (!row) {
@@ -58,10 +52,7 @@ async function findWritable(id: number): Promise<repo.MapRowWithLineage> {
   return row;
 }
 
-/**
- * **名称可以重复**。一个血统里「草稿 + 发布过的一堆版本」本来同名，用户凭
- * 版本号与更新时间区分；创建 / 改名都不查重，DB 侧也没有唯一约束。
- */
+/** **名称可以重复**：一个血统里草稿与各版本本来就同名，创建 / 改名都不查重，DB 无唯一约束。 */
 export async function createMap(input: CreateMapInput): Promise<MapEntry> {
   return repo.createMap({
     // v0.8.0：地图是边界的第二公民。§19：主题必填且用编码。
@@ -80,11 +71,7 @@ export async function updateMap(id: number, input: UpdateMapInput): Promise<MapE
   return updated;
 }
 
-/**
- * `DELETE /api/maps/:id` 对两种行分流（设计 §5.1）：草稿行**硬删**（不牵连
- * 版本），版本行**软删**（界面消失、数据保留、号仍占 MAX）。版本删除另有专属
- * 端点，这里兜住「拿着版本行 id 直接调通用删除」的情况。
- */
+/** 设计 §5.1：草稿行**硬删**（不牵连版本）、版本行**软删**（界面消失、数据保留、号仍占 MAX）。 */
 export async function deleteMap(id: number): Promise<void> {
   const row = await repo.findById(id);
   if (!row) {
@@ -113,10 +100,7 @@ export async function duplicateMap(id: number): Promise<MapEntry> {
   return created;
 }
 
-/**
- * 复制 / fork 的取名兜底：`{base} 副本`、`{base} 副本 2`… 直到不撞名。
- * fork 也走它（以「{name} (自 v{n})」为 base），故导出复用。
- */
+/** 复制 / fork 的取名兜底：`{base} 副本`、`{base} 副本 2`… 直到不撞名；fork 以「{name} (自 v{n})」为 base。 */
 export async function uniqueCopyName(baseName: string): Promise<string> {
   let candidate = `${baseName} 副本`;
   let index = 2;
@@ -127,21 +111,13 @@ export async function uniqueCopyName(baseName: string): Promise<string> {
   return candidate;
 }
 
-/**
- * `base` 本身不撞名就用它，撞了再走 {@link uniqueCopyName} 的副本序列。
- * fork 的命名（「{name} (自 v{n})」）—— 血统内多草稿时第二次
- * fork 同一版本才需要加副本。
- */
+/** `base` 不撞名就用它，撞了走 {@link uniqueCopyName}；血统内多草稿时第二次 fork 同一版本才加副本。 */
 export async function uniqueName(baseName: string): Promise<string> {
   if (!(await repo.existsByName(baseName))) return baseName;
   return uniqueCopyName(baseName);
 }
 
-/**
- * FEAT-H03 §3.2(c) (docs/v0.4.2.md §3): the cover is a binary file while create /
- * update are JSON, so it travels in its own multipart request. Both routes
- * return the refreshed detail, so the card repaints straight from the response.
- */
+/** 封面是二进制而创建 / 更新是 JSON，故单独走 multipart；两个方向都返回刷新后的详情（v0.4.2 §3）。 */
 export async function uploadCover(id: number, buffer: Buffer): Promise<MapDetail> {
   await findWritable(id);
   const image = await processMapCover(id, buffer);

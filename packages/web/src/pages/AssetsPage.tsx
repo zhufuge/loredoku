@@ -66,13 +66,7 @@ export function AssetsPage(): JSX.Element {
   );
 
   const { data: rows, isLoading, isError, error, refetch } = useAssets(params);
-  /**
-   * 列表按名字排序（中文按拼音首字母）。
-   *
-   * 排在页面这一层而不是面板里 —— 下面那段「没选中就选第一个」挑的是
-   * `assets[0]`，它得和列表第一行是同一份数据，否则打开页面时高亮的是一条、
-   * 详情里是另一条。
-   */
+  /** 列表按名字排序（中文按拼音首字母）。 排在页面这一层而不是面板里 —— 下面那段「没选中就选第一个」挑的是 `assets[0]`，它得和列表第一行是同一份数据，否则打开页面时高亮的是一条、 详情里是另一条。 */
   const assets = useMemo(() => (rows ? sortByName(rows) : rows), [rows]);
   const { data: usages } = useAssetUsages(deleteTarget?.id ?? null);
   const deleteMutation = useDeleteAsset();

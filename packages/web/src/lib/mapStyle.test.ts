@@ -428,10 +428,7 @@ describe('ruler style (FEAT-E02)', () => {
     expect(clampRulerGap(40)).toBe(32);
   });
 
-  /**
-   * 符号只由主题配置 —— 地图草稿里那份不参与渲染，保存时也不该留着。
-   * 留着的话，作者改主题的符号，这张图的标尺还是老样子，而界面上没有入口能改。
-   */
+  /** 符号只由主题配置 —— 地图草稿里那份不参与渲染，保存时也不该留着。 留着的话，作者改主题的符号，这张图的标尺还是老样子，而界面上没有入口能改。 */
   it('v0.10.8：stripRulerSymbols 把符号从地图草稿的风格里剥掉', () => {
     const style = resolveMapStyle({
       ruler: { fontSize: 30, gap: 12, columnSymbol: '列', rowSymbol: '行' },

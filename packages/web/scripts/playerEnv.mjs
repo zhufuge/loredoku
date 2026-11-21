@@ -1,20 +1,4 @@
-/**
- * v0.9.0 §8 / 2026-11-09 补（docs/v0.9.0.md §14）—— 播放器「包在哪」的**单一答案**。
- *
- * 默认路径在仓库根的 `.env` 里，`scripts/player.mjs` 与 `scripts/bundleAssets.mjs`
- * 各自再读一遍必然走岔，所以收成一个函数，优先级只写在一处：
- *
- * ```
- * --bundle=<路径>  >  显式环境变量 LOREDOKU_BUNDLE  >  .env 里的 LOREDOKU_BUNDLE  >  没有
- * ```
- *
- * **为什么自己读 `.env` 而不用 Vite 的 `loadEnv`**：`loadEnv` 有副作用 —— 它会把
- * `.env` 里的 `NODE_ENV` 写进 `process.env.VITE_USER_NODE_ENV`（Vite 5 源码
- * `dep-*.js` 的 `loadEnv`）。本仓库 `.env` 写的是 `NODE_ENV=development`，
- * 包装脚本里调一次，这个值就被继承给 vite 子进程，构建会打出 **development 版的
- * React**（实测 `vendor-react` 从 205 KB 涨到 416 KB）。读配置不该改环境，而且
- * 我们只需要一个键 —— 所以按 Vite 的文件顺序自己扫，零副作用、零新依赖。
- */
+/** v0.9.0 §8 / 2026-11-09 补（docs/v0.9.0.md §14）：播放器「包在哪」的单一答案 —— `--bundle` > 显式 `LOREDOKU_BUNDLE` > 仓库根 `.env`。不用 Vite 的 `loadEnv` 是因为它有副作用：会把 `.env` 的 `NODE_ENV` 带进 vite 子进程，构建打进 development 版 React。 */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,10 +21,7 @@ export function envFileNames(mode = 'production') {
   return ['.env', '.env.local', `.env.${mode}`, `.env.${mode}.local`];
 }
 
-/**
- * 够用的 `.env` 解析：注释、`export`、单行 `KEY=VALUE`、成对的单双引号、行尾 `# 注释`。
- * 不做变量展开（`$FOO`）—— 包路径用不上，而展开正是 dotenv 那类库最容易踩的坑。
- */
+/** 够用的 `.env` 解析：注释、`export`、单行 `KEY=VALUE`、成对的单双引号、行尾 `# 注释`。 不做变量展开（`$FOO`）—— 包路径用不上，而展开正是 dotenv 那类库最容易踩的坑。 */
 export function parseEnv(text) {
   const out = {};
   for (const raw of text.split(/\r?\n/)) {
@@ -65,10 +46,7 @@ export function parseEnv(text) {
   return out;
 }
 
-/**
- * 读那几份 `.env`，返回合并后的普通对象（**不写 `process.env`**）。
- * `root` 可换，单测因此在临时目录里就能验覆盖顺序，不依赖本机那份 `.env`。
- */
+/** 读那几份 `.env`，返回合并后的普通对象（**不写 `process.env`**）。 `root` 可换，单测因此在临时目录里就能验覆盖顺序，不依赖本机那份 `.env`。 */
 export function loadRootEnv(mode = 'production', root = REPO_ROOT) {
   const merged = {};
   for (const name of envFileNames(mode)) {
@@ -84,14 +62,7 @@ export function loadRootEnv(mode = 'production', root = REPO_ROOT) {
   return merged;
 }
 
-/**
- * 按优先级取**原始**路径字符串（不检查文件在不在、不转绝对路径 —— 那是
- * `player.mjs` 的事，配置层只回答「配的是哪个字符串」）。
- *
- * `argv` 那段是给「不经过包装脚本、直接 `vite --config vite.player.config.ts`」兜底的：
- * 正常路径下 `player.mjs` 已经把 `--bundle` 摘掉，这里不会看到它。
- * `dotenv` 可注入，单测因此不必真的去碰磁盘上的 `.env`。
- */
+/** 按优先级取**原始**路径字符串（不检查文件在不在、不转绝对路径 —— 那是 `player.mjs` 的事，配置层只回答「配的是哪个字符串」）。 `argv` 那段是给「不经过包装脚本、直接 `vite --config vite.player.config.ts`」兜底的： 正常路径下 `player.mjs` 已经把 `--bundle` 摘掉，这里不会看到它。 `dotenv` 可注入，单测因此不必真的去碰磁盘上的 `.env`。 */
 export function resolveBundlePath({
   argv = process.argv,
   env = process.env,

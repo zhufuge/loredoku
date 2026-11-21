@@ -3,11 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GameBrief } from './GameBrief';
 
-/**
- * 竖屏下描述挪进弹框，`GameBrief` 要能「只画线索」。
- *
- * 这里断言的是**画了什么**（描述那段文字在不在、线索在不在），不是类名或尺寸。
- */
+/** 竖屏下描述挪进弹框，`GameBrief` 要能「只画线索」。 这里断言的是**画了什么**（描述那段文字在不在、线索在不在），不是类名或尺寸。 */
 describe('GameBrief（v0.10.1）', () => {
   let container: HTMLDivElement;
   let root: Root;

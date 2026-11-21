@@ -11,26 +11,7 @@ import {
   type PuzzleSeedMap,
 } from '../../service/puzzleBackfill';
 
-/**
- * v0.5.0 (docs/v0.5.0.md §11.1 / §11.2) — the puzzle module and the blood
- * lineage.
- *
- * Two changes, in one migration because they both belong to "v0.5.0 introduces
- * the puzzle":
- *
- * 1. `map_projects.root_id` (Q3 = B). A map forked from a published version
- *    keeps the original's root, so the list groups them together and the
- *    version numbering continues instead of restarting at v1. Existing rows
- *    backfill `root_id = id`, which is exactly the old behaviour.
- * 2. The `puzzles` table, plus a **one-off backfill**: every map whose highest
- *    published version carried a roster gets a puzzle holding it, so the
- *    participants the author already wrote stay visible.
- *
- * The backfill deliberately does **not** rewrite `map_projects.draft_data` or
- * `map_versions.data` — the old JSON is left exactly as it was, and the reader
- * absorbs it (`service/mapDraftCompat.ts`). That is what keeps `down()`
- * lossless.
- */
+/** v0.5.0（docs/v0.5.0.md §11.1/§11.2）：map_projects.root_id 让 fork 续用原根、版本号续编（旧行回填 root_id=id）；新建 puzzles 表并一次性回填「最高发布版本带名册」的地图；回填不改旧 drafts/data（读者侧兼容），故 down 无损。 */
 export async function up(knex: Knex): Promise<void> {
   // ---- 1) map_projects.root_id ----
   await knex.schema.alterTable('map_projects', (table) => {

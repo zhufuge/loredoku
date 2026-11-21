@@ -5,10 +5,7 @@ export interface ClueSegment {
   bold: boolean;
 }
 
-/**
- * Splits a clue into bold / normal segments: `'a**b**c'` → a, b(bold), c;
- * `'un**closed'` → one literal segment; `'**a**b**c**'` → a(bold), b, c(bold).
- */
+/** Splits a clue into bold / normal segments: `'a**b**c'` → a, b(bold), c; `'un**closed'` → one literal segment; `'**a**b**c**'` → a(bold), b, c(bold). */
 export function parseClue(clue: string): ClueSegment[] {
   if (!clue) return [];
 
@@ -50,10 +47,7 @@ export function parseClue(clue: string): ClueSegment[] {
   return segments;
 }
 
-/**
- * Inline rendering: renders segments as React children.
- * Bold segments get `font-weight: 700`.
- */
+/** Inline rendering: renders segments as React children. Bold segments get `font-weight: 700`. */
 export function renderClueSegments(segments: ClueSegment[]): Array<{ text: string; bold: boolean }> {
   return segments;
 }

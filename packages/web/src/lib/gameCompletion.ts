@@ -1,25 +1,4 @@
-/**
- * **已完成的谜题**。玩家通过一关之后，把「用时 + 完成时刻 + 那枚印」
- * 记到 localStorage，列表页据此在卡片上盖印并写出完成用时。
- *
- * 为什么是 localStorage 而不是服务端：玩家没有账号（v0.6.2 的摆放存档、v0.7.11
- * 的计时都是这条理由）。进度只对这台浏览器有意义，通过记录也是进度的一部分。
- *
- * 键按存档键（`storageId`）分：
- *
- * | 入口 | 存档键 |
- * |---|---|
- * | 线上 / 工坊（api） | 游戏 slug（原样） |
- * | 播放器（bundle） | `bundle:<主题code>:<key>` |
- *
- * 两套键**刻意不通**（v0.8.0 §11.6）：离线包里通了关，不该让线上那一关也变成
- * 「已完成」。
- *
- * 存档带**指纹**（只带 `gridSize`）：同一存档键重新部署后网格可能变了，那就是
- * 另一道题了，旧记录整条作废。`participantCount` 不进指纹 —— 列表页的两份数据
- * （`MapGameSummary` / 播放器卡片）都只有 `gridSize` 可对，多存一个对不上的字段
- * 只会让「读得回来吗」多一个不确定的分支。
- */
+/** **已完成的谜题**。 键按存档键（`storageId`）分： | 入口 | 存档键 | |---|---| | 线上 / 工坊（api） | 游戏 slug（原样） | | 播放器（bundle） | `bundle:<主题code>:<key>` | 两套键**刻意不通**（v0.8.0 §11.6）：离线包里通了关，不该让线上那一关也变成 「已完成」。 `participantCount` 不进指纹 —— 列表页的两份数据 （`MapGameSummary` / 播放器卡片）都只有 `gridSize` 可对，多存一个对不上的字段 只会让「读得回来吗」多一个不确定的分支。 */
 
 /** 存档结构变了就 +1；旧记录一律丢弃（宁可没盖印，不可错盖）。 */
 export const GAME_COMPLETION_VERSION = 1;
@@ -35,18 +14,7 @@ export interface GameCompletion {
   elapsedMs: number;
   /** 通关那一刻的墙钟（ISO），只进 `title`，不占卡片版面。 */
   completedAt: string;
-  /**
-   * 通过时定案卡上盖的那枚印（作者给「提交」配的图）的地址。
-   *
-   * **存地址而不是「那一刻再去查」**：列表页拿不到谜题级的工具图标（api 侧的
-   * `MapGameSummary` 只有卡面那几项，播放器的 manifest 也只装清单），为了盖一枚
-   * 印去逐关打开关卡 JSON 不划算；而通过那一刻游戏页手里正好有解析好的最终地址
-   * （谜题 → 主题 → 内置，`lib/toolIcons.ts`）。没配图就是 `null` —— 那一档不盖印，
-   * 只写完成用时。
-   *
-   * 代价：作者事后换掉那枚图，旧记录里的地址可能 404。卡片对加载失败的那张图
-   * 静默不画（见 `GameCard`），不会留一个破图标。
-   */
+  /** 通过时定案卡上盖的那枚印（作者给「提交」配的图）的地址。 **存地址而不是「那一刻再去查」**：列表页拿不到谜题级的工具图标（api 侧的 `MapGameSummary` 只有卡面那几项，播放器的 manifest 也只装清单），为了盖一枚 印去逐关打开关卡 JSON 不划算； 而通过那一刻游戏页手里正好有解析好的最终地址 （谜题 → 主题 → 内置，`lib/toolIcons.ts`）。 没配图就是 `null` —— 那一档不盖印， 只写完成用时。 代价：作者事后换掉那枚图，旧记录里的地址可能 404。 卡片对加载失败的那张图 静默不画（见 `GameCard`），不会留一个破图标。 */
   stampUrl: string | null;
 }
 
@@ -71,12 +39,7 @@ function parseCompletedAt(value: unknown): string {
   return Number.isNaN(new Date(value).getTime()) ? '' : value;
 }
 
-/**
- * 读到的 JSON → 通过记录，或 `null`（= 当作没通过）。
- *
- * 与 `parseStoredProgress` / `parseStoredTimer` 同一个形状：不碰 `window`，
- * 测试可以直接喂坏数据。
- */
+/** 读到的 JSON → 通过记录，或 `null`（= 当作没通过）。 与 `parseStoredProgress` / `parseStoredTimer` 同一个形状：不碰 `window`， 测试可以直接喂坏数据。 */
 export function parseStoredCompletion(
   value: unknown,
   meta: GameCompletionMeta,
@@ -115,15 +78,7 @@ export function readGameCompletion(
   }
 }
 
-/**
- * 记下这一关通过了 —— **以最后一次为准**。
- *
- * 规则：「完成时间：记录最后一次完成时间（重复完成，仅记录最后一次）」—— 重玩
- * 通关就是又结了一次案，卡片该跟着最新的那一次走。
- *
- * 指纹对不上（`gridSize <= 0`，画布还没算出来）时不写：写下去的每一条都必须
- * 能被 `readGameCompletion` 读回来，否则列表页永远看不见它。
- */
+/** 记下这一关通过了 —— **以最后一次为准**。 规则：「完成时间：记录最后一次完成时间（重复完成，仅记录最后一次）」—— 重玩通关就是又结了一次案，卡片该跟着最新的那一次走。 指纹对不上（`gridSize <= 0`，画布还没算出来）时不写：写下去的每一条都必须能被 `readGameCompletion` 读回来，否则列表页永远看不见它。 */
 export function recordGameCompletion(
   storageId: string,
   meta: GameCompletionMeta,

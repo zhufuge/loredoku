@@ -2,16 +2,8 @@ import Router from '@koa/router';
 import * as controller from '../controller/themeController';
 import { symbolImageUpload } from '../middleware/upload';
 
-/**
- * v0.8.0（docs/v0.8.0.md §7 / §19）—— `/api/themes` 只负责「边界」本身与它的缺省
- * 风格，内容仍然住在各自的接口下（带 `?themeCode=`）。
- *
- * **`:code` 而不是 `:id`**：主题在前端地址（`/hlm/maps`）、资源包 manifest、将来的
- * 导入对账里都是编码，接口再收数字主键就得多一层「这不是同一个东西」的解释。
- *
- * 没有 `PUT /:code/move` 之类的入口，也不会有：`theme_id` 建行后不可改（§8 护栏 2），
- * 「换个主题」只能新建。
- */
+/** v0.8.0（docs/v0.8.0.md §7/§19）：`/api/themes` 只管「边界」与缺省风格，内容在各自接口（`?themeCode=`）；用 `:code` 不用 `:id`。
+ *  无 move 入口也不会有：`theme_id` 建行后不可改（§8 护栏 2），换主题只能新建。 */
 export const themesRouter = new Router();
 
 themesRouter.get('/', controller.list);
@@ -20,19 +12,11 @@ themesRouter.get('/:code', controller.detail);
 themesRouter.patch('/:code', controller.update);
 themesRouter.delete('/:code', controller.remove);
 
-/**
- * v0.8.6 §4；v0.9.5 更名：主题级的**标记**缺省。
- *
- * 它和 `style` / `linkageColors` 一样是缺省，不是内容：改即时生效，但只影响
- * **之后新建**的谜题。本主题里跟随的谜题读到的也是它。
- */
+/** v0.8.6 §4；v0.9.5 更名：主题级的**标记**缺省。 它和 `style` / `linkageColors` 一样是缺省，不是内容：改即时生效，但只影响 **之后新建**的谜题。本主题里跟随的谜题读到的也是它。 */
 themesRouter.post('/:code/mark', symbolImageUpload.single('file'), controller.uploadMark);
 themesRouter.delete('/:code/mark', controller.removeMark);
 
-/**
- * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。与标记同一种「读取时兜底」，
- * 一次一枚 —— `:icon` 是 `GAME_TOOL_ICON_KINDS` 里的一个。
- */
+/** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。与标记同一种「读取时兜底」， 一次一枚 —— `:icon` 是 `GAME_TOOL_ICON_KINDS` 里的一个。 */
 themesRouter.post(
   '/:code/tool-icons/:icon',
   symbolImageUpload.single('file'),
@@ -40,30 +24,14 @@ themesRouter.post(
 );
 themesRouter.delete('/:code/tool-icons/:icon', controller.removeToolIcon);
 
-/**
- * v0.9.2 §2 / v0.9.5：**那一圈** —— 长按计时环与提交校验圈合并成一张图。
- *
- * 一次一张、主题级。与标记同一种「读取时兜底」：不配就各自画内置细弧，配了则
- * 所有关卡都换（含已发布的）。
- */
+/** v0.9.2 §2 / v0.9.5：**那一圈** —— 长按计时环与提交校验圈合并成一张图。 一次一张、主题级。与标记同一种「读取时兜底」：不配就各自画内置细弧，配了则所有关卡都换（含已发布的）。 */
 themesRouter.post('/:code/ring', symbolImageUpload.single('file'), controller.uploadRing);
 themesRouter.delete('/:code/ring', controller.removeRing);
 
-/**
- * v0.9.3 §3：提交校验的**两档颜色**（圈图已并进 `ring`）。
- *
- * 颜色走 PATCH、圈图走上面的上传 / 删除 —— 配色与换图是两个动作。颜色单独开一个
- * 端点，是为了不把「改一个颜色」变成「整份 data 覆盖」。
- */
+/** v0.9.3 §3：提交校验的**两档颜色**（圈图已并进 `ring`）。 颜色走 PATCH、圈图走上面的上传 / 删除 —— 配色与换图是两个动作。颜色单独开一个端点，是为了不把「改一个颜色」变成「整份 data 覆盖」。 */
 themesRouter.patch('/:code/check-style', controller.updateCheckStyle);
 
-/**
- * 结算卡通过那一面的**图标图**与**两句文字**。
- *
- * 与圆环 / 校验颜色同一个分工：图走上传删除，文字走 PATCH —— 换图不该顺手把作者
- * 写的标题覆盖掉，改标题也不该动那张图。图只影响图标位置；「移除」之后回到文字
- * （或内置的庆祝 emoji），不会把标题一起清掉。
- */
+/** 结算卡通过那一面的**图标图**与**两句文字**。 与圆环 / 校验颜色同一个分工：图走上传删除，文字走 PATCH —— 换图不该顺手把作者写的标题覆盖掉，改标题也不该动那张图。图只影响图标位置；「移除」之后回到文字（或内置的庆祝 emoji），不会把标题一起清掉。 */
 themesRouter.post(
   '/:code/verdict-icon',
   symbolImageUpload.single('file'),

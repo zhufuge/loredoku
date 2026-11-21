@@ -41,63 +41,29 @@ interface EditorInfoDrawerProps {
   cells: Map<string, DraftCell>;
   regions: DraftRegion[];
   assetsById: Map<number, Asset>;
-  /**
-   * The map-level style block. The region branch edits **resolved**
-   * values, and this is the default every field falls back to (docs/v0.7.0.md §5).
-   */
+  /** 地图级样式块：区域分支编辑的是**解析后**的值，这里是每个字段的回退默认（docs/v0.7.0.md §5）。 */
   style: MapStyle;
   onClearCell: (x: number, y: number) => void;
   onClearItem: (x: number, y: number) => void;
-  /**
-   * v0.7.5 (docs/v0.7.5.md §5): 改物品的展示变换。`x, y` 传当前格即可 —— store
-   * 会自己解析到脚位锚点。缺省 = 只读环境，控件不渲染。
-   */
+  /** v0.7.5 (docs/v0.7.5.md §5): 改物品展示变换；`x, y` 传当前格，store 自己解析到脚位锚点。缺省 = 只读，控件不渲染。 */
   onItemTransform?: (x: number, y: number, patch: ItemTransformOverride) => void;
   /** Saves the region's name / id / style. The store derives the minimal override. */
   onSubmitRegion: (regionId: string, input: RegionInput) => void;
   onDeleteRegion: (region: DraftRegion) => void;
   /** Reports the region branch's dirty flag so the page can guard a leave. */
   onRegionDirtyChange?: (dirty: boolean) => void;
-  /**
-   * 这块区域的格子正在画布上编辑（草稿会话进行中）。
-   *
-   * 只影响区域分支里那个「编辑格子」按钮的字样与可点性 —— 会话本身由页面
-   * 与画布负责，抽屉不该知道草稿长什么样。
-   */
+  /** 这块区域的格子正在画布上编辑；只决定「编辑格子」按钮的字样与可点性，会话本身归页面与画布。 */
   cellEditActive?: boolean;
   /** 点「编辑格子」。缺省 = 不提供入口（谜题编辑器的只读画布）。 */
   onStartCellEdit?: (regionId: string) => void;
-  /**
-   * v0.5.0 SPEC-K06 (docs/v0.5.0.md §4.3): the puzzle editor renders this same
-   * drawer against its **read-only** canvas, so every action button
-   * (清空本格 / 清空物品层 / 保存 / 删除) must disappear. Default `false`
-   * keeps the map editor's behaviour untouched.
-   */
+  /** SPEC-K06 (docs/v0.5.0.md §4.3): 谜题编辑器用同一抽屉配**只读**画布，所有操作按钮（清空本格 / 清空物品层 / 保存 / 删除）必须消失。 */
   readOnly?: boolean;
-  /**
-   * v0.7.4 (docs/v0.7.4.md §4): how the host arranges the panel.
-   *
-   * `split`（默认）— 面板**占据**编辑区右侧一块空间，画布跟着收窄。地图编辑器的
-   * 两个右侧面板都是这个形态。
-   *
-   * `overlay` — 浮在画布上。谜题编辑器用它：那边的参与者面板与谜题基本信息面板
-   * 都是浮层，只把信息框做成占据空间反而更不一致。
-   */
+  /** v0.7.4 (docs/v0.7.4.md §4): `split`（默认）占据编辑区右侧、画布跟着收窄；`overlay` 浮在画布上（谜题编辑器用）。 */
   layout?: 'split' | 'overlay';
 }
 
 /**
- * v0.7.0 (docs/v0.7.0.md §5): the region branch **is** the editor now.
- *
- * The old 「编辑」dialog (颜色 / 边界线宽 / 填充透明度) moved here and became the
- * three style groups; the left panel's pencil button is gone, so clicking a
- * region in the list and clicking its label on the canvas open the same box.
- *
- * Every control edits a local draft seeded from the **resolved** style — the
- * region's own override merged over the map-level defaults — and 保存 hands the
- * resolved values to the store, which keeps only the fields that differ from the
- * map default (`regionStyleOverride`). A region that agrees everywhere therefore
- * carries no `style` key at all.
+ * v0.7.0 (docs/v0.7.0.md §5): 区域分支**就是**编辑器本身（旧「编辑」对话框并成三组样式）。每个控件改的是从**解析后**样式种下的本地草稿，保存只留与地图默认不同的字段。
  */
 function RegionEditBranch({
   region,
@@ -126,11 +92,7 @@ function RegionEditBranch({
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Re-seed when the committed region changes **what the variant shows**: another
-   * region, a renamed one, or new committed style values (a save, an undo, a
-   * changed map-level default). A pure **cell** edit does not re-seed —
-   * shift+clicking more cells into the region must not drop the style the
-   * author is in the middle of typing.
+   * 只有「这个分支展示的内容」变了才重置草稿（换区域、改名、已提交样式变）；纯**格子**编辑不重置，否则 Shift+点击加格会丢掉正在输的样式。
    */
   const seedKey = `${region.id}\u0000${region.name}\u0000${JSON.stringify(resolved)}`;
   const seedRef = useRef(seedKey);
@@ -185,11 +147,7 @@ function RegionEditBranch({
         <span className="ml-auto shrink-0 rounded-full border bg-background px-1.5 py-0.5 text-2xs tabular-nums text-muted-foreground">
           包含 {region.cells.length} 格
         </span>
-        {/*
-         * 改格子的入口是一个按钮：点进去就是草稿式的编辑会话（画布上蓝加红减，
-         * 上方工具条保存）。「选中区域后 Shift + 点击」这条捷径没写在任何界面上，
-         * 作者找不到 —— 所以摆在区域分支的标题行上。
-         */}
+        {/* 改格子入口做成按钮：点进去就是草稿会话（画布蓝加红减、工具条保存）；「Shift+点击」界面上没有，作者找不到，所以摆在标题行。 */}
         <Button
           size="sm"
           variant="outline"
@@ -270,11 +228,7 @@ function RegionEditBranch({
   );
 }
 
-/**
- * SPEC-K06: the puzzle canvas is read-only, so the region branch is a summary
- * of the **resolved** style (the map default stands in for anything the region
- * does not override).
- */
+/** SPEC-K06: 谜题画布只读，区域分支只给**解析后**样式的摘要（区域没覆盖的字段由地图默认顶上）。 */
 function RegionSummary({
   region,
   style,
@@ -332,10 +286,7 @@ function CellBranch({
 }: {
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
-  /**
-   * The item anchor covering this cell — the selected cell itself, or
-   * the anchor of a multi-cell footprint it sits inside.
-   */
+  /** 覆盖本格的物品锚点 —— 可能是本格自己，也可能是它所在多格物品的脚位。 */
   item: DraftAnchorItem | undefined;
   region: DraftRegion | undefined;
   style: MapStyle;
@@ -515,10 +466,7 @@ function CellBranch({
   );
 }
 
-/**
- * SPEC-K06 (docs/v0.5.0.md §4.3): the drawer shows cell / region detail only.
- * The empty state is a single line of guidance.
- */
+/** SPEC-K06 (docs/v0.5.0.md §4.3): 抽屉只展示格子 / 区域详情，空态是一行引导。 */
 export function EditorInfoDrawer({
   open,
   onClose,
@@ -615,10 +563,7 @@ export function EditorInfoDrawer({
     </div>
   );
 
-  /**
-   * `overlay` — the v0.7.0 behaviour, kept whole for the puzzle editor: the
-   * panel stays mounted and slides in / out over the canvas.
-   */
+  /** `overlay` —— v0.7.0 的行为，原样留给谜题编辑器：面板常挂载，在画布上滑入滑出。 */
   if (layout === 'overlay') {
     return (
       <>
@@ -640,9 +585,7 @@ export function EditorInfoDrawer({
   }
 
   /**
-   * `split` (v0.7.4) — a real flex child of the editor row: opening it takes
-   * 320px away from the canvas instead of covering it, and the canvas's own
-   * ResizeObserver re-fits the board into what is left.
+   * `split` (v0.7.4) —— 编辑行里的真 flex 子项：展开时从画布拿走 320px 而不是盖住它，画布自己的 ResizeObserver 重排棋盘。
    */
   return (
     <>

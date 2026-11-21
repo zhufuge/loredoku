@@ -13,11 +13,7 @@ import {
   subscribeTheme,
 } from './theme';
 
-/**
- * 日夜主题的三态规则。这些用例钉的是**规则**，不是实现：
- * 非法存储值不能把页面钉死在某个主题上、`system` 必须跟着操作系统走、
- * `applyTheme` 必须同时写 class 与 `color-scheme`。
- */
+/** 日夜主题的三态规则。这些用例钉的是**规则**，不是实现： 非法存储值不能把页面钉死在某个主题上、`system` 必须跟着操作系统走、 `applyTheme` 必须同时写 class 与 `color-scheme`。 */
 
 let media: MatchMediaStub;
 

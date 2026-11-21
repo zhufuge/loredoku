@@ -30,11 +30,7 @@ describe('computeParticipantLayout', () => {
     expect(computeParticipantLayout(-3)).toMatchObject({ cols: 1, rows: 0, total: 0 });
   });
 
-  // Expected (cols, rows) pairs produced by the simple rule
-  // `min |cols/rows - 1/φ|` with tie-break toward smaller `cols`.
-  // Note: the spec's example table in docs/v0.3.1.md §2.2 is illustrative
-  // and disagrees with the simple rule for n ∈ {4, 8, 9, 16}; the rule is
-  // what we implement, so the test pins the rule's actual output.
+  // Expected (cols, rows) pairs produced by the simple rule `min |cols/rows；1/φ|` with tie-break toward smaller `cols`. Note: the spec's example table in docs/v0.3.1.md §2.2 is illustrative and disagrees with the simple rule for n ∈ {4, 8, 9, 16}; the rule is what we implement, so the test pins the rule's actual output.
   it.each([
     [2, 1, 2],
     [3, 1, 3],
@@ -73,7 +69,7 @@ describe('computeParticipantLayout', () => {
     const odd = computeParticipantLayout(5); // cols=2, rows=3, last row 1
     expect(odd.cols).toBe(2);
     expect(odd.lastRowCount).toBe(1);
-    // floor((2 - 1) / 2) = 0
+    // floor((2；1) / 2) = 0
     expect(odd.leadingOffset).toBe(0);
 
     const gap = computeParticipantLayout(7); // cols=2, rows=4, last row 1
@@ -120,12 +116,7 @@ describe('slotPosition / slotIndex round-trip', () => {
   });
 
   it('returns null for cells in the centred gap of the last row', () => {
-    // n=5 → cols=1, rows=5; no gap. Use n=11 → cols=3, rows=4, last row 2,
-    // offset 0 → no gap either. Construct a synthetic case with n=8, cols=3,
-    // rows=3, last row 2, offset floor((3-2)/2) = 0 → still no gap on either
-    // side. The leading offset is always floor((cols - lastRowCount)/2), so
-    // there can only be a gap when cols - lastRowCount is odd. The function
-    // must return null when col lands inside that gap.
+    // n=5 → cols=1, rows=5; no gap. Use n=11 → cols=3, rows=4, last row 2, offset 0 → no gap either. Construct a synthetic case with n=8, cols=3, rows=3, last row 2, offset floor((3-2)/2) = 0 → still no gap on either side. The leading offset is always floor((cols；lastRowCount)/2), so there can only be a gap when cols；lastRowCount is odd. The function must return null when col lands inside that gap.
     const layout = computeParticipantLayout(8); // cols=3, rows=3, last row 2
     // Index 6 (first cell of last row) → row=2, col=leadingOffset+0.
     const first = slotPosition(6, layout);
@@ -341,11 +332,7 @@ describe('rosterPanelWidth (v0.6.3 §3.3)', () => {
   });
 
   it('fits every column count up to the maximum exactly — no scrollbar', () => {
-    // The panel is as wide as its own matrix **plus its own 1px separator
-    // border** (the aside is border-box, so the border comes out of the
-    // computed width): the scroll container's content box then equals the
-    // matrix's width to the pixel, and nothing can overflow. Leaving the
-    // border out is what brought the scrollbar back at three columns.
+    // The panel is as wide as its own matrix **plus its own 1px separator border** (the aside is border-box, so the border comes out of the computed width): the scroll container's content box then equals the matrix's width to the pixel, and nothing can overflow. Leaving the border out is what brought the scrollbar back at three columns.
     for (let cols = 1; cols <= ROSTER_COLS_MAX; cols += 1) {
       const needed =
         cols * PARTICIPANT_MIN_WIDTH +

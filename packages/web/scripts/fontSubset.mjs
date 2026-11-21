@@ -1,31 +1,7 @@
-/**
- * v0.11.3（docs/v0.11.3.md §1）—— 播客字体按「这一包真正用到的字」裁剪。
- *
- * 起因：`src/assets/fonts/霞鹜文楷-Regular.woff2` 是整份 GB2312 一级字表（952 KB），
- * 而一个主题包实际用到的汉字只有几百个 —— 主题名、关卡名、线索、结语、区域名，
- * 再加上界面自己的那几十句文案。整份打进产物，玩家要为一个用不到的字表付 900 KB
- * 的流量。
- *
- * 做法放在**构建期**而不是运行时：`subset-font` 是 Node 侧的依赖（`devDependencies`），
- * 浏览器里没有它；而「用到了哪些字」在构建那一拍已经全部可见 ——
- *  ① 包里的 JSON（主题、关卡、资源、角色）逐字段扫一遍；
- *  ② 产物里的 JS chunk（界面的那些中文文案，压缩后仍是字符串字面量）。
- * 两者合起来就是这一份产物可能画出来的全部字符，多收几个不会错，少收一个就会
- * 变成豆腐块 —— 所以另外无条件带上 ASCII 与常用标点（见 {@link ALWAYS_INCLUDED}）。
- *
- * 与 `scripts/build-fonts.mjs` 的分工：那个是**作者侧**的一次性裁剪（把 25 MB 的
- * TTF 按 GB2312 切成 952 KB 的 woff2，进 `src/assets/fonts/`）；这里是**每份产物**
- * 的再裁剪（把 952 KB 按实际用到的字切成几十 KB，进 `dist-player/`）。两层都不改
- * 源文件。
- */
+/** v0.11.3（docs/v0.11.3.md §1）：构建期按产物实际用到的字符裁字体（`subset-font` 只在 Node 侧）。
+ *  另无条件带 ASCII 与常用标点，少收一个字就是豆腐块。 */
 
-/**
- * 无条件保留的字符：ASCII 可打印区 + 中文排版常用的那几个符号。
- *
- * 为什么不能只靠「扫描到的字」：数字、拉丁字母会在运行时拼出来（计时、`9x9`、
- * `correct/total`），扫描不到但一定会画；破折号、引号、间隔号这类是作者正文里的
- * 常客，漏一个就是豆腐块。
- */
+/** 无条件保留的字符：ASCII 可打印区 + 中文排版常用的那几个符号。 为什么不能只靠「扫描到的字」：数字、拉丁字母会在运行时拼出来（计时、`9x9`、 `correct/total`），扫描不到但一定会画；破折号、引号、间隔号这类是作者正文里的常客，漏一个就是豆腐块。 */
 export const ALWAYS_INCLUDED =
   Array.from({ length: 0x7e - 0x20 + 1 }, (_, index) => String.fromCharCode(0x20 + index)).join('') +
   '　、。〃々〈〉《》「」『』【】〔〕〖〗〜·—…‰′″‹›⁄×÷°±§¶†‡•‥';
@@ -46,12 +22,8 @@ export function collectCharacters(value, into = new Set()) {
   return into;
 }
 
-/**
- * 把若干段文本合成一份裁剪用的字符集：去重、按码位排序、带上 {@link ALWAYS_INCLUDED}。
- *
- * 排序不是为了好看 —— 同样的输入必须产出同样的字节，否则每次构建的字体哈希都变，
- * 发布出去就是「一个字节没改也整包重传」。
- */
+/** 合成裁剪用的字符集：去重、按码位排序、带上 {@link ALWAYS_INCLUDED}。
+ *  必须排序 —— 同样输入要产出同样字节，否则每次构建的字体哈希都变。 */
 export function buildSubsetText(sources) {
   const chars = new Set();
   collectCharacters(ALWAYS_INCLUDED, chars);
@@ -72,13 +44,7 @@ export function findFontAssets(bundle) {
   return found;
 }
 
-/**
- * 产物里的 JS / CSS / JSON 全文 —— 裁剪字符集的来源之二。
- *
- * 不读 `src/` 下的源码：压缩之后的 chunk 才是**真正会跑在浏览器里**的那份，
- * 界面文案、条件里拼出来的字串都在里面；读源码反而要自己判断「这个文件进不进
- * 播放器」。
- */
+/** 产物里的 JS / CSS / JSON 全文 —— 裁剪字符集的来源之二。 不读 `src/` 下的源码：压缩之后的 chunk 才是**真正会跑在浏览器里**的那份， 界面文案、条件里拼出来的字串都在里面；读源码反而要自己判断「这个文件进不进播放器」。 */
 export function collectOutputText(bundle) {
   const parts = [];
   for (const output of Object.values(bundle)) {
@@ -93,15 +59,8 @@ export function collectOutputText(bundle) {
   return parts;
 }
 
-/**
- * 裁剪后的字体换个带内容哈希的文件名。
- *
- * 为什么必须换名：Vite 给资源起的哈希是**原文件**的，而这里替换掉了文件内容 ——
- * 名字不变就成了「同名不同内容」，浏览器会拿缓存里那份旧字表继续画，新主题里
- * 多出来的字就是豆腐块。换名之后，引用它的 chunk 里那个地址也跟着换（见
- * {@link replaceReferences}），旧缓存最多是引用一个已经不存在的字体 ——
- * `font-family` 那串栈里还有楷体兜着，是「换个字体」而不是「画出方块」。
- */
+/** 给裁剪后的字体换带内容哈希的文件名：Vite 的哈希算的是原文件，内容已换，不换名会命中旧缓存画出豆腐块。
+ *  换名后由 {@link replaceReferences} 同步 chunk 里的地址。 */
 export function renamedFontFile(fileName, hash) {
   const dot = fileName.lastIndexOf('.');
   if (dot < 0) return `${fileName}-${hash}`;
@@ -117,16 +76,8 @@ export function replaceReferences(source, from, to) {
   return next.split(from).join(to);
 }
 
-/**
- * 构建期插件：`generateBundle` 之后再裁一刀字体。
- *
- * 位置讲究 —— 必须排在 `bundleAssets()` **后面**（同一个 `plugins` 数组里的先后
- * 就是 `generateBundle` 的先后），因为字符集要算上包里的 JSON（主题名、关卡名、
- * 线索、结语），而那是 `bundleAssets` 在 `generateBundle` 里 `emitFile` 进来的。
- *
- * 用 `renderStart`/`load` 都不可行：字符集依赖「压缩后的 chunk 全文」，只有
- * `generateBundle` 这一拍才真的齐。
- */
+/** 构建期插件：`generateBundle` 之后再裁一刀字体。
+ *  必须排在 `bundleAssets()` 后面（同数组的先后即 generateBundle 先后），字符集要算上它 emit 的 JSON。 */
 export function fontSubsetPlugin() {
   return {
     name: 'loredoku:font-subset',

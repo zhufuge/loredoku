@@ -13,19 +13,7 @@ import {
   isValidStyleColor,
 } from './mapStyle';
 
-/**
- * v0.7.0 (docs/v0.7.0.md §4) — a region's own display style.
- *
- * The map-level block (`MapStyle.regionOutline` / `regionHighlight` /
- * `regionLabel`) is the **default**; a region stores only what differs from it
- * (`DraftRegion.style`, a deep partial). {@link resolveRegionStyle} is the
- * single place that merges the two, so every renderer reads resolved values and
- * never defends itself against a half-filled override.
- *
- * The reverse direction, {@link regionStyleOverride}, is what the editor calls
- * on save: a field equal to the map default is **not recorded**, so a region
- * that agrees with the defaults everywhere carries no `style` key at all.
- */
+/** v0.7.0 §4：区域自身样式是对地图默认值的深偏量；{@link resolveRegionStyle} 合并，{@link regionStyleOverride} 反向只存差异。 */
 
 function pickColor(fallback: string, value: unknown): string {
   if (typeof value !== 'string') return fallback;
@@ -33,12 +21,7 @@ function pickColor(fallback: string, value: unknown): string {
   return isValidStyleColor(trimmed) ? trimmed : fallback;
 }
 
-/**
- * 标签偏移的取整。`undefined` / 非数字 → 0（不偏移），也不封顶。
- *
- * 为什么容错而不是拒：这两个数来自输入框，作者打到一半（空串、`-`）时值会短暂是
- * 非数字 —— 那一刻把标签弹回原位再弹回来比留在原地更晃眼。
- */
+/** 标签偏移的取整。`undefined` / 非数字 → 0（不偏移），也不封顶。 为什么容错而不是拒：这两个数来自输入框，作者打到一半（空串、`-`）时值会短暂是非数字 —— 那一刻把标签弹回原位再弹回来比留在原地更晃眼。 */
 function clampLabelOffset(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0;
   return Math.round(value);
@@ -75,10 +58,7 @@ export function resolveRegionStyle(
       color: pickColor(base.regionHighlight.color, highlight.color),
     },
     label: {
-      // The typeface is a font name, so the only failure mode is a
-      // malformed name — that falls back to the map-level value, not to the
-      // shipped default. A name this build does not ship is still honoured:
-      // the renderer quotes it and lets the browser walk the fallback chain.
+      // The typeface is a font name, so the only failure mode is a malformed name — that falls back to the map-level value, not to the shipped default. A name this build does not ship is still honoured: the renderer quotes it and lets the browser walk the fallback chain.
       fontFamily:
         label.fontFamily !== undefined && isMapStyleFontFamilyName(label.fontFamily)
           ? label.fontFamily
@@ -115,11 +95,7 @@ export function resolveRegionStyle(
   };
 }
 
-/**
- * The minimal override that reproduces `style` on top of `base`: only fields
- * that differ are kept. Returns `undefined` when nothing differs — the caller
- * then stores no `style` key at all.
- */
+/** The minimal override that reproduces `style` on top of `base`: only fields that differ are kept. Returns `undefined` when nothing differs — the caller then stores no `style` key at all. */
 export function regionStyleOverride(
   style: RegionStyle,
   base: MapStyle,
@@ -168,10 +144,7 @@ export function regionStyleOverride(
   if (style.label.hoverStrokeWidth !== base.regionLabel.hoverStrokeWidth) {
     label.hoverStrokeWidth = style.label.hoverStrokeWidth;
   }
-  /*
-   * 偏移没有「地图级缺省」可比 —— 缺省永远是 0，所以只有**非 0 的那一侧**
-   * 才记进覆盖。两轴都 0 时整块 `offset` 不落盘，与「从没调过」同一个口径。
-   */
+  /* 偏移没有「地图级缺省」可比 —— 缺省永远是 0，所以只有**非 0 的那一侧** 才记进覆盖。两轴都 0 时整块 `offset` 不落盘，与「从没调过」同一个口径。 */
   const offset: { x?: number; y?: number } = {};
   if (style.labelOffset.x !== 0) offset.x = style.labelOffset.x;
   if (style.labelOffset.y !== 0) offset.y = style.labelOffset.y;
@@ -184,10 +157,7 @@ export function regionStyleOverride(
   return Object.keys(override).length > 0 ? override : undefined;
 }
 
-/**
- * Round-trip guard used by the tests and the editor's dirty check: resolving an
- * override and re-deriving it must land back on the same override.
- */
+/** Round-trip guard used by the tests and the editor's dirty check: resolving an override and re-deriving it must land back on the same override. */
 export function regionStyleEquals(a: RegionStyle, b: RegionStyle): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }

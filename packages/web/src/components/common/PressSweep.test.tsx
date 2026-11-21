@@ -4,15 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PressSweep } from './PressSweep';
 
 /**
- * v0.9.2 §5：清除按钮的扇形扫描。
- *
- * 这里钉的不是「长什么样」，而是两件**会让手势失灵**的事：
- *
- * 1. 进度刻度由页面给（时长与 `GAME_LONG_PRESS_MS` 同源，切点走那条注册成
- *    `<angle>` 的属性、从 12 点开始）—— 各写一个魔法数就会「扫满了却没执行」
- *    或「执行了还没扫满」；换个起点，「顺时针还剩多少」这套读法就不成立。
- * 2. `seq` 变了必须重建节点。同一枚按钮连按两次，动画得从头播；不重建的话
- *    第二次按住会看到一块已经填满的方块，等于没有反馈。
+ * v0.9.2 §5：进度刻度由页面给（与 `GAME_LONG_PRESS_MS` 同源、`<angle>` 从 12 点起）；`seq` 变了必须重建节点，否则连按第二次看到一块已填满的方块、等于没有反馈。
  */
 describe('PressSweep', () => {
   let container: HTMLDivElement;

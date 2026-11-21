@@ -13,12 +13,7 @@ export const mapKeys = {
   publishedVersions: () => [...mapKeys.all, 'published-versions'] as const,
 };
 
-/**
- * The editor's own query (`GET /maps/:id/map`) — a **different** key from
- * `mapKeys.detail`: it carries the canvas draft on top of the map row.
- * It is cached with `staleTime: Infinity`, so nothing refreshes it by accident;
- * whoever writes the map row has to invalidate it explicitly.
- */
+/** The editor's own query (`GET /maps/:id/map`) — a **different** key from `mapKeys.detail` (it carries the canvas draft) and cached `staleTime: Infinity`, so whoever writes the map row must invalidate it explicitly. */
 export const mapCanvasKeys = {
   detail: (id: number) => ['map', id] as const,
 };
@@ -27,11 +22,7 @@ function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error ? error.message : fallback;
 }
 
-/**
- * 编辑器的 `GET /maps/:id/map` 把地图行**快照**放在 `map` 上，且缓存
- * `staleTime: Infinity`。改名 / 换封面后先就地改这份缓存，标题与封面不会
- * 在重取回来前闪回旧值；失效仍然照发，保证列表与别处的数据对齐。
- */
+/** 编辑器的 `GET /maps/:id/map` 把地图行**快照**放在 `map` 上，且缓存 `staleTime: Infinity`。改名 / 换封面后先就地改这份缓存，标题与封面不会在重取回来前闪回旧值；失效仍然照发，保证列表与别处的数据对齐。 */
 function patchCanvasEntry(queryClient: QueryClient, entry: MapEntry): void {
   queryClient.setQueryData<MapResponse>(mapCanvasKeys.detail(entry.id), (previous) =>
     previous ? { ...previous, map: entry } : previous,
@@ -55,14 +46,7 @@ export function useMapEntry(id: number | null) {
 }
 
 /**
- * FEAT-K03 (docs/v0.5.0.md §2.4): every **published** map version, for the
- * 「地图版本」 picker of the create-puzzle dialog.
- *
- * `enabled` 由调用方决定 —— 谜题编辑页那枚「切换地图」弹窗是**常挂**的
- * （`open` 只控制内容显示与否），于是打开编辑页就等于请求了一次全部已发布版本，
- * 而作者可能整场编辑都没碰过那个按钮。传 `open` 之后，请求推迟到真的点开那一刻；
- * `staleTime` 没设，所以每次重新打开都会再取一次（版本列表随时会被别处发布改写，
- * 缓存十分钟的旧清单只会让人选到一张已经作废的图）。
+ * FEAT-K03 (docs/v0.5.0.md §2.4): every **published** map version, for the 「地图版本」 picker. `enabled` 由调用方给（弹窗常挂，传 `open` 才能把请求推迟到真点开）；不设 `staleTime`，每次重开重取，免得选到已作废的图。
  */
 export function usePublishedVersions(enabled = true) {
   return useQuery({
@@ -128,12 +112,7 @@ export function useDuplicateMap() {
   });
 }
 
-/**
- * FEAT-H03 §3.2(b) (docs/v0.4.2.md §3): the cover follows the **two-step** rule —
- * the map row is created / updated first, then the artwork is uploaded against
- * its id. These two mutations are the second step, and both write the refreshed
- * detail straight into the cache so the card repaints without a refetch.
- */
+/** FEAT-H03 §3.2(b) (docs/v0.4.2.md §3): covers follow the **two-step** rule — the map row exists first, the artwork is uploaded against its id; both mutations write the refreshed detail straight into the cache. */
 export function useUploadMapCover() {
   const queryClient = useQueryClient();
   return useMutation({

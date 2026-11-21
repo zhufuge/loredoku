@@ -1,11 +1,4 @@
-/**
- * Colour helpers shared by the zod schemas (server-side validation) and the
- * editor UI (theme colour picker) — docs/v0.3.0.md FEAT-502.
- *
- * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed.
- * MOD-801 (docs/v0.3.3.md): the high-luminance warning is removed too —
- * any valid hex is accepted with no hints.
- */
+/** Colour helpers shared by the zod schemas (server-side validation) and the editor UI (theme colour picker) — docs/v0.3.0.md FEAT-502. 任何合法 hex 都接受：MOD-710 去掉蓝色限制，MOD-801 去掉高亮度警告（docs/v0.3.2.md / docs/v0.3.3.md）。 */
 
 export interface Hsv {
   h: number;
@@ -61,10 +54,7 @@ export function hexToHsv(hex: string): Hsv {
   return { h, s: max === 0 ? 0 : delta / max, v: max };
 }
 
-/**
- * @deprecated MOD-710 removes the blue restriction. This function always
- * returns `false` and is kept only for callers that haven't been updated.
- */
+/** @deprecated MOD-710 removes the blue restriction. This function always returns `false` and is kept only for callers that haven't been updated. */
 export function isReservedBlueColor(_hex: string): boolean {
   return false;
 }

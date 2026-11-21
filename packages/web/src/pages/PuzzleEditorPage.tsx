@@ -99,26 +99,7 @@ function readStoredRulerVisible(): boolean {
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
 }
 
-/**
- * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.5 / §4 / §5): the puzzle editor.
- *
- * It is the map editor's skeleton with the canvas turned into a **read-only
- * reference** (`GET /api/puzzles/:id/map`), the roster / palette / participant
- * drawer moved back in from the map side, and every canvas-writing affordance
- * removed (§4.1 / §4.4). Two stores therefore cooperate:
- *
- * - `usePuzzleStore` — the puzzle's own data (undoable) + the read-only
- *   `mapContext` (never in the undo stack, §2.6);
- * - nothing else writes the canvas, which is what SPEC-K07's 「尺寸仅展示」
- *   and SPEC-K06's read-only info box both rest on.
- *
- * There is no 「调整画布尺寸」 dialog: the canvas inside the puzzle is a copy the
- * author never edits from here (SPEC-K11).
- *
- * v0.7.2 §3：`?v={n}` = 「编辑此版本」的 fork 态。进来**不建行**（版本行只读，
- * 谁都写不脏），点「保存」才带着当前草稿 fork 出一条新草稿行，随后 replace 到
- * 新行的 URL。没落库之前没有发布按钮 —— 这一屏既不是草稿也不是版本。
- */
+/** v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.5 / §4 / §5): the puzzle editor. There is no 「调整画布尺寸」 dialog: the canvas inside the puzzle is a copy the author never edits from here (SPEC-K11). v0.7.2 §3：`?v={n}` = 「编辑此版本」的 fork 态。 没落库之前没有发布按钮 —— 这一屏既不是草稿也不是版本。 */
 export function PuzzleEditorPage(): JSX.Element {
   // 主题段在地址里 —— 角色 / 资源列表按它隔离（选料只属于这个工作空间）。
   const { puzzleId, themeCode = '' } = useParams<{ puzzleId: string; themeCode: string }>();
@@ -127,10 +108,7 @@ export function PuzzleEditorPage(): JSX.Element {
   const id = Number(puzzleId);
   const valid = Number.isFinite(id) && id > 0;
 
-  /**
-   * `?v={n}` = fork 态：`:puzzleId` 仍然是**被点的那一行自己的 id**（版本行是
-   * 一条完整的 `puzzles` 行，带整份画布副本），`?v=` 只用来标记「这一屏还没落库」。
-   */
+  /** `?v={n}` = fork 态：`:puzzleId` 仍然是**被点的那一行自己的 id**（版本行是一条完整的 `puzzles` 行，带整份画布副本），`?v=` 只用来标记「这一屏还没落库」。 */
   const forkFrom = useMemo(() => {
     const raw = searchParams.get('v');
     const parsed = raw === null ? Number.NaN : Number(raw);
@@ -147,10 +125,7 @@ export function PuzzleEditorPage(): JSX.Element {
   // preview page). v0.8.1：主题段在地址里，两个列表都只取这个工作空间的。
   const assetsQuery = useAssets({ themeCode });
   const charactersQuery = useCharacters({ themeCode });
-  /**
-   * v0.8.7 §4：标记「没配就跟随主题」，抽屉要显示这一题**最终**会画的那张。
-   * 编码就在地址里，走「主题列表摊成表」那条路（与播放页同一个 hook）。
-   */
+  /** v0.8.7 §4：标记「没配就跟随主题」，抽屉要显示这一题**最终**会画的那张。 编码就在地址里，走「主题列表摊成表」那条路（与播放页同一个 hook）。 */
   const themeMarkOf = useMarkByCode();
   /** v0.8.7 §7：主题那一套工具按钮图标 —— 三枚一起查，抽屉逐枚说明「跟随」。 */
   const themeToolIconsOf = useToolIconsByCode();
@@ -162,20 +137,14 @@ export function PuzzleEditorPage(): JSX.Element {
   /** 封面没有 JSON 通道，落库是「先保存草稿、再传文件」两步。 */
   const uploadCoverMutation = useUploadPuzzleCover();
   const removeCoverMutation = useRemovePuzzleCover();
-  /**
-   * v0.8.6 §4：标记图在**选中那一刻**就上传（路径要先进草稿），所以它不走
-   * `pendingCover` 那套「保存后再传」的时序；fork 态用版本行 id 上传，端点允许。
-   */
+  /** v0.8.6 §4：标记图在**选中那一刻**就上传（路径要先进草稿），所以它不走 `pendingCover` 那套「保存后再传」的时序；fork 态用版本行 id 上传，端点允许。 */
   const uploadMarkMutation = useUploadPuzzleMark();
   /** v0.8.7 §7：三枚工具按钮图标同样「选中即上传」，一次一枚。 */
   const uploadToolIconMutation = useUploadPuzzleToolIcon();
   /** v0.7.3 §3：引入新地图的弹窗 + 取新画布时的忙碌态。 */
   const [swapOpen, setSwapOpen] = useState(false);
   const [swapBusy, setSwapBusy] = useState(false);
-  /**
-   * v0.7.3 §2.2：抽屉提交的封面改动。它是**行字段**、不是草稿的一部分，且 fork 态
-   * 下还没有可写的行，所以留在这里等草稿保存成功之后再上传。
-   */
+  /** v0.7.3 §2.2：抽屉提交的封面改动。它是**行字段**、不是草稿的一部分，且 fork 态下还没有可写的行，所以留在这里等草稿保存成功之后再上传。 */
   const [pendingCover, setPendingCover] = useState<{ file: File | null; removed: boolean } | null>(
     null,
   );
@@ -185,11 +154,7 @@ export function PuzzleEditorPage(): JSX.Element {
   const canvasRef = useRef<EditorCanvasHandle | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const puzzleInfoRef = useRef<PuzzleInfoDrawerHandle | null>(null);
-  /**
-   * 角色列收起后整列都不渲染，「展开」的按钮搬到参与者标题行上。
-   * 面板自己是这条状态的 owner（自动收起的记忆在里面），页面只拿一个镜像，
-   * 用来决定那颗箭头要不要出现；真的展开还是叫面板自己做（`expand()`）。
-   */
+  /** 角色列收起后整列都不渲染，「展开」的按钮搬到参与者标题行上。 面板自己是这条状态的 owner（自动收起的记忆在里面），页面只拿一个镜像， 用来决定那颗箭头要不要出现；真的展开还是叫面板自己做（`expand()`）。 */
   const leftPanelRef = useRef<PuzzleEditorLeftPanelHandle | null>(null);
   const [rosterCollapsed, setRosterCollapsed] = useState(false);
 
@@ -200,20 +165,14 @@ export function PuzzleEditorPage(): JSX.Element {
   /** The character whose detail the info drawer shows (the old 「未落地角色」). */
   const [unplacedCharacterId, setUnplacedCharacterId] = useState<number | null>(null);
   const [removeParticipantTarget, setRemoveParticipantTarget] = useState<number | null>(null);
-  /**
-   * FEAT-E01 §7.3(a): while the participant drawer is picking a position
-   * condition, the next canvas click sets it instead of moving focus.
-   */
+  /** FEAT-E01 §7.3(a): while the participant drawer is picking a position condition, the next canvas click sets it instead of moving focus. */
   const [positionPickSlot, setPositionPickSlot] = useState<number | null>(null);
   const [pickedPosition, setPickedPosition] = useState<{ x: number; y: number } | null>(null);
   /** Slot → slot reorder preview (CLAR-603: never drops onto the canvas). */
   const [slotDrag, setSlotDrag] = useState<number | null>(null);
   const [pendingImport, setPendingImport] = useState<PuzzleDraft | null>(null);
   const [rulerVisible, setRulerVisible] = useState<boolean>(readStoredRulerVisible);
-  /**
-   * FEAT-E01: a drawer switch (or a close) waiting for the user to decide what
-   * happens to unsaved 基本信息 edits.
-   */
+  /** FEAT-E01: a drawer switch (or a close) waiting for the user to decide what happens to unsaved 基本信息 edits. */
   const [pendingPuzzleInfoAction, setPendingPuzzleInfoAction] = useState<(() => void) | null>(null);
   /** 「版本历史」面板（§5.5）。 */
   const [versionsOpen, setVersionsOpen] = useState(false);
@@ -242,33 +201,16 @@ export function PuzzleEditorPage(): JSX.Element {
   const style = useMemo(() => resolveMapContextStyle(mapContext), [mapContext]);
   const gridSize = mapContext?.gridSize ?? 0;
 
-  /**
-   * Seeds the store once both halves have landed. `mapContext` is stable
-   * (`staleTime: Infinity`), so this effect fires on the detail's first arrival
-   * — and again only if the puzzle was re-fetched with a newer `updatedAt`.
-   */
+  /** Seeds the store once both halves have landed. `mapContext` is stable (`staleTime: Infinity`), so this effect fires on the detail's first arrival — and again only if the puzzle was re-fetched with a newer `updatedAt`. */
   const initKeyRef = useRef<string | null>(null);
-  /**
-   * FIX-O18 (docs/v0.5.4.md §7.5): the `updatedAt` this session's own 保存
-   * wrote back. `useSavePuzzle` seeds the detail query with the server's answer,
-   * so `detailQuery.data.updatedAt` changes on **every** save — which used to
-   * re-run `init()` and throw the board back to the top-left (and wipe the undo
-   * stack). A save is not a reason to re-seed; only a foreign write is.
-   */
+  /** A save is not a reason to re-seed; only a foreign write is. */
   const lastSavedAtRef = useRef<string | null>(null);
-  /**
-   * v0.7.3 §3.4：底图**来源**恒发。服务端按「与存量相同就短路」处理，所以没换过
-   * 底图时零查询、也不会因为地图版本后来被删而存不进去；换过之后这里就是新版本，
-   * 保存时服务端据此重读一次画布（画布永远不由客户端提供）。
-   */
+  /** v0.7.3 §3.4：底图**来源**恒发。服务端按「与存量相同就短路」处理，所以没换过底图时零查询、也不会因为地图版本后来被删而存不进去；换过之后这里就是新版本， 保存时服务端据此重读一次画布（画布永远不由客户端提供）。 */
   const mapSource = puzzle.mapContext
     ? { mapId: puzzle.mapContext.mapId, versionNo: puzzle.mapContext.versionNo }
     : undefined;
 
-  /**
-   * 封面的第二步：草稿已经落库（fork 态时是刚生成的新行），现在才有 id 可传。
-   * 失败由 mutation 自己 toast —— 草稿本身已经保存成功，不该因此拦下整次保存。
-   */
+  /** 封面的第二步：草稿已经落库（fork 态时是刚生成的新行），现在才有 id 可传。 失败由 mutation 自己 toast —— 草稿本身已经保存成功，不该因此拦下整次保存。 */
   const applyPendingCover = async (
     targetId: number,
     choice: { file: File | null; removed: boolean },
@@ -282,18 +224,10 @@ export function PuzzleEditorPage(): JSX.Element {
     }
   };
 
-  /**
-   * FIX-F01's single writer is shared with the map editor. The puzzle side keeps
-   * its FIX-O18 bookkeeping (remember the `updatedAt` this very save wrote back,
-   * so the detail query's answer is not mistaken for a foreign write).
-   */
+  /** FIX-F01's single writer is shared with the map editor. The puzzle side keeps its FIX-O18 bookkeeping (remember the `updatedAt` this very save wrote back, so the detail query's answer is not mistaken for a foreign write). */
   const { persist, save, saving, saveMaskVisible } = useEditorSave({
     id,
-    /**
-     * fork 态把「保存」换成 fork：同一个按钮、同一个遮罩，落库后由 `onSaved`
-     * 收尾（换身份 + replace 到新行）。两条路都返回 `PuzzleDetail`，所以调用方
-     * 看到的是一次保存。
-     */
+    /** fork 态把「保存」换成 fork：同一个按钮、同一个遮罩，落库后由 `onSaved` 收尾（换身份 + replace 到新行）。两条路都返回 `PuzzleDetail`，所以调用方看到的是一次保存。 */
     mutation: {
       isPending: saveMutation.isPending || forkSaveMutation.isPending,
       mutateAsync: async (vars) => {
@@ -312,35 +246,21 @@ export function PuzzleEditorPage(): JSX.Element {
     onSaved: (data) => {
       const savedAt = data.updatedAt ?? new Date().toISOString();
       lastSavedAtRef.current = savedAt;
-      /**
-       * 封面在草稿之后：fork 态这一刻才有新行 id，普通保存也是「先写 JSON、
-       * 再传文件」（上传端点认 id）。
-       */
+      /** 封面在草稿之后：fork 态这一刻才有新行 id，普通保存也是「先写 JSON、 再传文件」（上传端点认 id）。 */
       if (pendingCover) void applyPendingCover(data.id, pendingCover);
       if (forkFrom !== null) {
-        /**
-         * 这一屏刚落库成一条**新草稿行**：只换身份，画布 / 撤销栈 / 视口都不动
-         * （重新 `init` 会把缩放打回 1×、把历史清空，而内容一个字节都没变）。
-         * `initKeyRef` 记下新 key，随后的 detail 到达不会再把 store 重播一遍。
-         */
+        /** 这一屏刚落库成一条**新草稿行**：只换身份，画布 / 撤销栈 / 视口都不动（重新 `init` 会把缩放打回 1×、把历史清空，而内容一个字节都没变）。 `initKeyRef` 记下新 key，随后的 detail 到达不会再把 store 重播一遍。 */
         initKeyRef.current = `${data.id}:${data.updatedAt ?? ''}`;
         puzzle.adoptSavedEntry(data);
         toast.success(`已基于 v${forkFrom} 生成新谜题`);
-        /**
-         * 换 URL 要等 React 把 dirty=false flush 掉：`useUnsavedChangesGuard`
-         * 读的是渲染闭包里的 dirty，同一 continuation 里 navigate 会拿旧值把
-         * 自己拦下。setTimeout(0) 落在 flush 之后；replace 不留中间态。
-         */
+        /** 换 URL 要等 React 把 dirty=false flush 掉：`useUnsavedChangesGuard` 读的是渲染闭包里的 dirty，同一 continuation 里 navigate 会拿旧值把自己拦下。setTimeout(0) 落在 flush 之后；replace 不留中间态。 */
         window.setTimeout(() => navigate(`/${themeCode}/puzzles/${data.id}/edit`, { replace: true }), 0);
         return;
       }
       puzzle.markSaved(savedAt);
     },
   });
-  /**
-   * 发布流程与地图共用 `useEditorPublish`：下一个版本号取自整个血统的版本历史，
-   * 版本号可手填（填空洞号），dirty 时先保存再发布。
-   */
+  /** 发布流程与地图共用 `useEditorPublish`：下一个版本号取自整个血统的版本历史， 版本号可手填（填空洞号），dirty 时先保存再发布。 */
   const {
     publishOpen,
     setPublishOpen,
@@ -399,13 +319,7 @@ export function PuzzleEditorPage(): JSX.Element {
       ? null
       : puzzle.characterSlots[puzzle.activeParticipantId] ?? null;
 
-  /**
-   * MOD-802 §1.2.4: the highlight is a pure projection of the single-active
-   * state machine — persistent while active, faded out (150ms) afterwards.
-   *
-   * The palette is the puzzle's own, so it is passed explicitly
-   * instead of being read off `MapStyle`.
-   */
+  /** MOD-802 §1.2.4: the highlight is a pure projection of the single-active state machine — persistent while active, faded out (150ms) afterwards. The palette is the puzzle's own, so it is passed explicitly instead of being read off `MapStyle`. */
   useEffect(() => {
     if (!activeSlot) {
       clearHighlight();
@@ -450,12 +364,7 @@ export function PuzzleEditorPage(): JSX.Element {
     return list;
   }, [cells, assetsById]);
 
-  /**
-   * OPT-C07 (docs/v0.3.7.md §OPT-C07): the participant activation and the cell
-   * selection are mutually exclusive. The rule lives in `lib/editorFocus.ts`
-   * so it can be unit-tested without a DOM — reused verbatim from the map
-   * editor, only the store it drives changed.
-   */
+  /** OPT-C07 (docs/v0.3.7.md §OPT-C07): the participant activation and the cell selection are mutually exclusive. The rule lives in `lib/editorFocus.ts` so it can be unit-tested without a DOM — reused verbatim from the map editor, only the store it drives changed. */
   const applyFocus = (event: Parameters<typeof reduceEditorFocus>[1]): void => {
     const current: EditorFocus = {
       activation: {
@@ -476,11 +385,7 @@ export function PuzzleEditorPage(): JSX.Element {
     if (next.selection !== current.selection) puzzle.setSelection(next.selection);
   };
 
-  /**
-   * SPEC-K05: the puzzle's 基本信息 drawer is a variant, so leaving it with
-   * unsaved edits has to be confirmed (v0.3.9 FEAT-E01 + BUG-G01, moved here
-   * verbatim).
-   */
+  /** SPEC-K05: the puzzle's 基本信息 drawer is a variant, so leaving it with unsaved edits has to be confirmed (v0.3.9 FEAT-E01 + BUG-G01, moved here verbatim). */
   const guardPuzzleInfo = (proceed: () => void): void => {
     if (!puzzleInfoOpen) {
       proceed();
@@ -494,10 +399,7 @@ export function PuzzleEditorPage(): JSX.Element {
     setPendingPuzzleInfoAction(() => proceed);
   };
 
-  /**
-   * v0.6.3 §3 + v0.7.3 §2：基本信息抽屉的「保存」只应用本地草稿 —— 名称 / 描述 /
-   * 布局 / 调色板进 store（可撤销），封面留成 `pendingCover`，等草稿落库后上传。
-   */
+  /** v0.6.3 §3 + v0.7.3 §2：基本信息抽屉的「保存」只应用本地草稿 —— 名称 / 描述 / 布局 / 调色板进 store（可撤销），封面留成 `pendingCover`，等草稿落库后上传。 */
   const commitPuzzleInfo = (next: PuzzleBasicInfo): void => {
     puzzle.setBasicInfo({
       name: next.name,
@@ -554,12 +456,7 @@ export function PuzzleEditorPage(): JSX.Element {
     },
   ): void => {
     puzzle.setParticipantConfig(slotIndex, patch);
-    /**
-     * FIX-N13 (docs/v0.5.3.md §6.6): 保存 closes the drawer and leaves no focus
-     * behind — neither the pick mode, nor the slot, nor a cell / region
-     * selection. Any one of them would let the 方格信息框 spring back up the
-     * moment the drawer is gone.
-     */
+    /** FIX-N13 (docs/v0.5.3.md §6.6): 保存 closes the drawer and leaves no focus behind — neither the pick mode, nor the slot, nor a cell / region selection. Any one of them would let the 方格信息框 spring back up the moment the drawer is gone. */
     setPositionPickSlot(null);
     puzzle.setSelectedSlot(null);
     puzzle.setSelection(null);
@@ -625,12 +522,7 @@ export function PuzzleEditorPage(): JSX.Element {
     }
   };
 
-  /**
-   * FEAT-E01 §7.3(a): `Esc` leaves the position-selection mode (and the slot
-   * drag, and the info drawer first). v0.5.6: these used to be two extra window
-   * listeners next to the main shortcut handler; the shared hook's Escape now
-   * walks the same cascade — see `handlePuzzleEscape` below.
-   */
+  /** FEAT-E01 §7.3(a): `Esc` leaves the position-selection mode (and the slot drag, and the info drawer first). v0.5.6: these used to be two extra window listeners next to the main shortcut handler; the shared hook's Escape now walks the same cascade — see `handlePuzzleEscape` below. */
 
   // ---- SPEC-K06 / BUG-G01: the info drawer follows the focus axes ----
   useEffect(() => {
@@ -710,13 +602,7 @@ export function PuzzleEditorPage(): JSX.Element {
     })();
   };
 
-  /**
-   * v0.7.3 §3：引入新地图。
-   *
-   * 只换底图 —— 画布取那份已发布版本的快照（`GET /api/maps/:id/versions/:n`），
-   * 谜题自己的字段一个不动。指向旧画布的联动目标（`asset` / `region`）在新画布
-   * 上不存在，与换底图**同一个撤销步**摘掉，否则这份草稿再也存不进去。
-   */
+  /** v0.7.3 §3：引入新地图。 只换底图 —— 画布取那份已发布版本的快照（`GET /api/maps/:id/versions/:n`）， 谜题自己的字段一个不动。指向旧画布的联动目标（`asset` / `region`）在新画布上不存在，与换底图**同一个撤销步**摘掉，否则这份草稿再也存不进去。 */
   const swapMap = async (version: PublishedMapVersion): Promise<void> => {
     setSwapBusy(true);
     try {
@@ -758,22 +644,12 @@ export function PuzzleEditorPage(): JSX.Element {
     }
   };
 
-  /**
-   * The zoom maths lives in the canvas (next to the wheel handler) so
-   * the button path marks the view as user-adjusted too — otherwise the
-   * adaptive auto-centre pass centres the new zoom away on the next render
-   * and the buttons look dead until a wheel zoom sets that flag.
-   */
+  /** The zoom maths lives in the canvas (next to the wheel handler) so the button path marks the view as user-adjusted too — otherwise the adaptive auto-centre pass centres the new zoom away on the next render and the buttons look dead until a wheel zoom sets that flag. */
   function zoomBy(direction: 1 | -1): void {
     canvasRef.current?.zoomByStep(direction);
   }
 
-  /**
-   * the shared keys live in `useEditorShortcuts`. The puzzle canvas is
-   * read-only (SPEC-K07 §4.4), so there is no `onKey` — no V / R / E tool
-   * switches, and `Delete` / `Backspace` no longer erase a selected cell — and
-   * Escape walks the page's own cascade.
-   */
+  /** the shared keys live in `useEditorShortcuts`. The puzzle canvas is read-only (SPEC-K07 §4.4), so there is no `onKey` — no V / R / E tool switches, and `Delete` / `Backspace` no longer erase a selected cell — and Escape walks the page's own cascade. */
   const handlePuzzleEscape = (): void => {
     if (puzzleInfoOpen) {
       // SPEC-K05: Esc leaves the info drawer first — and asks when there
@@ -846,11 +722,7 @@ export function PuzzleEditorPage(): JSX.Element {
         dirty={puzzle.dirty}
         saving={saving}
         publishing={publishMutation.isPending}
-        /**
-         * fork 态（`?v={n}`，还没落库）这一屏既不是草稿也不是版本：状态徽标与
-         * 发布按钮都不出现。保存生成新草稿行 → replace 到新行 URL →
-         * `forkFrom` 变 null，二者一起回来。
-         */
+        /** fork 态（`?v={n}`，还没落库）这一屏既不是草稿也不是版本：状态徽标与发布按钮都不出现。保存生成新草稿行 → replace 到新行 URL → `forkFrom` 变 null，二者一起回来。 */
         status={forkFrom !== null ? null : puzzle.status}
         currentVersionNo={detail?.currentVersionNo ?? null}
         // fork 态下「保存」就是「生成新草稿」，没改过东西也要能点；只换了封面也一样。
@@ -905,10 +777,7 @@ export function PuzzleEditorPage(): JSX.Element {
         />
 
         <ParticipantPanel
-          /*
-           * 角色列收起之后，「展开角色列表」只剩这一个落点 —— 那颗
-           * 箭头挂在「参与者 n/n」标题行的左侧（绝对定位，标题仍然居中）。
-           */
+          /* 角色列收起之后，「展开角色列表」只剩这一个落点 —— 那颗箭头挂在「参与者 n/n」标题行的左侧（绝对定位，标题仍然居中）。 */
           headerLeading={
             rosterCollapsed ? (
               <RosterExpandButton onClick={() => leftPanelRef.current?.expand()} />
@@ -992,13 +861,7 @@ export function PuzzleEditorPage(): JSX.Element {
               });
             }}
             onSelectRegion={(regionId) => {
-              /**
-               * FIX-N13 (docs/v0.5.3.md §6.6): `selectCellAt` reports the cell
-               * **and** the region it belongs to. `onSelect` already ignored the
-               * click while a position condition was being picked; this one did
-               * not — so picking a cell inside a region set a region selection
-               * and the 方格信息框 popped up as soon as the drawer closed.
-               */
+              /** FIX-N13 (docs/v0.5.3.md §6.6): `selectCellAt` reports the cell **and** the region it belongs to. `onSelect` already ignored the click while a position condition was being picked; this one did not — so picking a cell inside a region set a region selection and the 方格信息框 popped up as soon as the drawer closed. */
               if (positionPickSlot !== null) return;
               guardPuzzleInfo(() => {
                 puzzle.setSelection(regionId === null ? null : { type: 'region', regionId });
@@ -1046,10 +909,7 @@ export function PuzzleEditorPage(): JSX.Element {
             onClearItem={() => undefined}
             onSubmitRegion={() => undefined}
             onDeleteRegion={() => undefined}
-            /**
-             * 与地图编辑器不同：那边面板占据空间，这边保持浮层 —— 参与者面板与
-             * 谜题基本信息都是浮层，只改一个反而更不一致。
-             */
+            /** 与地图编辑器不同：那边面板占据空间，这边保持浮层 —— 参与者面板与谜题基本信息都是浮层，只改一个反而更不一致。 */
             layout="overlay"
             readOnly
           />

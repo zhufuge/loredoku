@@ -31,16 +31,8 @@ redirectLegacyPrefix('/cards', '/assets');
 // /api/items -> /api/assets (permanent redirect).
 redirectLegacyPrefix('/items', '/assets');
 
-/**
- * 旧前缀的永久重定向，余下路径与查询串原样带过去。
- *
- * 不用 `router.redirect()`：它把目标里的 `:path*` 原样写进 `Location`（不展开参数），
- * 子路径会跳到字面量 `/api/maps/:path*`。而 `router.use()` 挂的中间件只在某条路由
- * 命中时才会执行 —— 旧前缀没有任何路由，所以这里注册成 `all` 路由。
- *
- * `from` / `to` 不含 `API_PREFIX`：`router.all()` 会自己加前缀，重复拼会得到
- * `/api/api/projects`。
- */
+/** 旧前缀永久重定向，余路径与查询串原样带过去。
+ *  不用 `router.redirect()`（不展开 `:path*` 参数），旧前缀无路由故注册成 `all`；`from`/`to` 不含 `API_PREFIX`，避免拼成 `/api/api/...`。 */
 function redirectLegacyPrefix(from: string, to: string): void {
   const legacy = `${API_PREFIX}${from}`;
   const handler = (ctx: Context): void => {

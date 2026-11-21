@@ -18,24 +18,11 @@ interface VersionHistoryDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   currentVersionNo: number | null;
-  /**
-   * SPEC-K13 §7.4: a version row's 「查看效果」 opens this read-only preview.
-   * 预览路由只认 `:mapId`，所以这里把**版本行自己的 `id`** 一起交出去。
-   */
+  /** SPEC-K13 §7.4: a version row's 「查看效果」 opens this read-only preview. 预览路由只认 `:mapId`，所以这里把**版本行自己的 `id`** 一起交出去。 */
   onPreview: (version: MapVersionSummary) => void;
 }
 
-/**
- * SPEC-K13 (docs/v0.5.0.md §7.4): the version rows of the **whole blood lineage**
- * (Q3 = B), each naming the `maps` row that owns it — that is what
- * 「编辑此版本」 forks from.
- *
- * 「回滚」 does not exist (§15 Q10): forking *is* "start from an old version", so
- * a rollback would be a second way to say the same thing — and the destructive
- * one, since it would overwrite the work-in-progress entry.
- *
- * A version row can be deleted from here.
- */
+/** A version row can be deleted from here. */
 export function VersionHistoryDialog({
   mapId,
   open,

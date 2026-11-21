@@ -5,13 +5,7 @@ import {
 } from '@/lib/linkageActivation';
 import type { Selection } from '@/stores/editorStore';
 
-/**
- * OPT-C07 (docs/v0.3.7.md §OPT-C07): clicking the board drops the participant
- * focus, so the two highlight sources never fight. Two independent axes —
- * `activation` (linkage preview, MOD-802) and `selection` (operation box + info
- * drawer, OPT-A05). `activation`'s own state machine is unchanged; this module
- * only encodes the mutual-exclusion rule, in one testable place.
- */
+/** OPT-C07 (docs/v0.3.7.md §OPT-C07): clicking the board drops the participant focus, so the two highlight sources never fight. */
 export interface EditorFocus {
   activation: LinkageActivationState;
   selection: Selection | null;
@@ -53,27 +47,12 @@ export function reduceEditorFocus(focus: EditorFocus, event: FocusEvent): Editor
   }
 }
 
-/**
- * What a click on a region **list item** (left panel) focuses.
- *
- * The canvas label click sets both axes — `onSelect({ type: 'region' })` plus
- * `onSelectRegion(id)`. The list used to set only `selectedRegionId`, so the
- * info drawer opened with `selection === null` and rendered an empty panel
- * (「点列表项，信息框弹出来但是空白」). Both entry points must therefore end
- * with the same pair; this helper is the shared half.
- *
- * A store-level `setSelectedRegion` that also wrote `selection` would be
- * wrong: `selectCellAt` sets `selection` (cell) **before** `selectedRegionId`
- * (the containing region), so it would overwrite the cell focus.
- */
+/** What a click on a region **list item** (left panel) focuses. The list used to set only `selectedRegionId`, so the info drawer opened with `selection === null` and rendered an empty panel (「点列表项，信息框弹出来但是空白」). Both entry points must therefore end with the same pair; this helper is the shared half. */
 export function regionFocusSelection(regionId: string | null): Selection | null {
   return regionId === null ? null : { type: 'region', regionId };
 }
 
-/**
- * Who currently owns the drawer. Hover never changes it (MOD-802) — only a
- * click-pinned participant takes the drawer away from a selected cell.
- */
+/** Who currently owns the drawer. Hover never changes it (MOD-802) — only a click-pinned participant takes the drawer away from a selected cell. */
 export function focusOwner(focus: EditorFocus): 'participant' | 'cell' | 'region' | 'none' {
   const { activation, selection } = focus;
   if (activation.activeParticipantId !== null && activation.activationMode === 'click') {
@@ -84,14 +63,7 @@ export function focusOwner(focus: EditorFocus): 'participant' | 'cell' | 'region
   return 'none';
 }
 
-/**
- * BUG-G01 (docs/v0.4.0.md §1): whether the cell / region / participant info
- * drawer is open. The focus axes live in the store while `infoOpen` is page
- * state, and a cell click sets **both** `selection` and `selectedRegionId`, so
- * an effect mirroring "any axis is non-null" re-opens the drawer after the page
- * handler closed it. Rule: while `mapInfoOpen` is true the info drawer is
- * **always closed**.
- */
+/** BUG-G01 (docs/v0.4.0.md §1): whether the cell / region / participant info drawer is open. Rule: while `mapInfoOpen` is true the info drawer is **always closed**. */
 export function infoDrawerOpen(input: {
   infoOpen: boolean;
   mapInfoOpen: boolean;

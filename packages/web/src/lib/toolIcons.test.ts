@@ -2,12 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { GameToolIcons } from '@loredoku/shared';
 import { resolveToolIcon, resolveToolIcons } from './toolIcons';
 
-/**
- * v0.8.7 §7 —— 三枚工具按钮图标的解析顺序：**谜题自己的 → 主题的 → 内置图标**。
- *
- * 只钉「选哪一张」与「算作谁配的」：地址怎么拼是 `fileUrlFromPath` 的事，颜色 / 尺寸
- * 是观感（v0.8.4 §2 不写外观断言）。
- */
+/** v0.8.7 §7 —— 三枚工具按钮图标的解析顺序：**谜题自己的 → 主题的 → 内置图标**。 只钉「选哪一张」与「算作谁配的」：地址怎么拼是 `fileUrlFromPath` 的事，颜色 / 尺寸是观感（v0.8.4 §2 不写外观断言）。 */
 const own: GameToolIcons = { clear: { path: 'puzzles/1/tool-icons/clear/a.webp' } };
 const inherited: GameToolIcons = {
   clear: { path: 'themes/2/tool-icons/clear/b.webp' },

@@ -64,11 +64,7 @@ import {
 } from '@/lib/grid';
 import type { Selection } from '@/stores/editorStore';
 
-/**
- * The two cursor boxes are 层 1 / 层 2 of 《画布图层优先级规范》, so the editor's
- * own affordances (brush preview, region draft) live just under them and never
- * cover the hover / operation indicators.
- */
+/** 两个光标框是图层规范的层 1 / 层 2；编辑器自己的预览只能压在它们下面，绝不能盖住悬停 / 操作指示。 */
 const EDITOR_OVERLAY_Z = MAP_LAYER_Z.operationCursorBox - 1;
 const DRAFT_OVERLAY_Z = MAP_LAYER_Z.operationCursorBox - 2;
 
@@ -78,12 +74,7 @@ export interface EditorCanvasHandle {
   containsPoint: (clientX: number, clientY: number) => boolean;
   getRect: () => DOMRect | null;
   centerView: () => void;
-  /**
-   * One zoom step around the viewport centre — the bottom bar's ±
-   * buttons. It lives here, next to the wheel path, because both have to do
-   * the same one extra thing: mark the view as user-adjusted (see
-   * `zoomByStep`'s comment).
-   */
+  /** 视口中心 ± 一格缩放（底栏按钮）：必须与滚轮路径一样把视图标记为用户调整过（见 `zoomByStep` 实现）。 */
   zoomByStep: (direction: 1 | -1) => void;
 }
 
@@ -107,10 +98,7 @@ interface EditorCanvasProps {
   pendingVariant: { asset: Asset; variant: AssetVariant } | null;
   regionDraftSelection: Set<string>;
   /**
-   * 区域格子编辑会话（`null` = 没在编辑）。
-   *
-   * 有值时点按 / 拖动格子不再是「选中」，而是往这份草稿里增删 —— 画布同时把
-   * 草稿画出来（蓝 = 将要加入、红 = 将要移除），作者在提交前就能看到结果。
+   * 区域格子编辑会话（`null` = 不在编辑）：有值时点 / 拖格子是往草稿里增删而不是选中，画布同时画出蓝(加) / 红(删)预览。
    */
   regionEdit?: RegionCellEdit | null;
   /** 一笔结束时的结果（`erase` 为真表示这一笔是移除）。 */
@@ -119,10 +107,7 @@ interface EditorCanvasProps {
   highlight: HighlightState | null;
   /** MOD-802: true while the highlight is fading out (150ms). */
   highlightLeaving?: boolean;
-  /**
-   * FEAT-D03: reports the value the adaptive pass computed, so the 「地图基本
-   * 信息」drawer can show it as the default of the 方格大小 field.
-   */
+  /** FEAT-D03: 上报自适应算出的值，供「地图基本信息」抽屉作为方格大小的默认值。 */
   onAutoCellSize?: (cellSize: number) => void;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
@@ -145,25 +130,16 @@ type Interaction =
       startY: number;
       panX: number;
       panY: number;
-      /**
-       * FEAT-E03: the gesture started on the empty area **outside** the board.
-       * A plain click there still clears the selection; a drag pans the canvas.
-       */
+      /** FEAT-E03: 手势起于棋盘外的空白处 —— 普通点击仍清空选择，拖动则平移画布。 */
       outside: boolean;
       moved: boolean;
     }
   | { kind: 'erase'; visited: Set<string> }
   /**
-   * The region tool is a free brush only.
-   * `erase` is fixed for the whole stroke: `Alt` always removes, otherwise the
-   * first cell decides (already selected → the stroke subtracts), which is what
-   * makes a wrong single cell correctable without a separate clear step.
+   * 区域工具只是自由笔刷：`erase` 整笔固定 —— `Alt` 恒移除，否则由首格决定（已选中 → 这一笔是减），这样单格点错无需另一步清除就能纠正。
    */
   | { kind: 'brush'; keys: Set<string>; erase: boolean }
-  /**
-   * 区域格子编辑的一笔。形状与 `brush` 一样，区别只在松手后交给
-   * `onRegionEditStroke`（改的是编辑草稿，不是创建选区）。
-   */
+  /** 区域格子编辑的一笔：形状同 `brush`，区别只在松手后交给 `onRegionEditStroke`（改草稿，不创建选区）。 */
   | { kind: 'regionEdit'; keys: Set<string>; erase: boolean }
   | null;
 
@@ -206,10 +182,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const containerRef = useRef<HTMLDivElement | null>(null);
   const interactionRef = useRef<Interaction>(null);
   const userPannedRef = useRef(false);
-  /**
-   * FEAT-D03: the adaptive pass writes `autoCellSize`; the map style may
-   * override it. The effective width is what every layer and hit test uses.
-   */
+  /** FEAT-D03: 自适应写 `autoCellSize`，地图样式可覆盖它；各图层与命中测试都用生效宽度。 */
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const [hover, setHover] = useState<CellCoord | null>(null);
@@ -229,24 +202,14 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
   const total = gridSize * cellSize;
 
-  /**
-   * FEAT-E02: ruler geometry comes from the map style — the text size
-   * scales like every other font (× `cellSize / BASE_CELL` × `zoom`) and `gap`
-   * is the literal text→board distance, so the strip has to grow with them.
-   */
+  /** FEAT-E02: 标尺几何取自地图样式 —— 字号按 `cellSize / BASE_CELL × zoom` 缩放，`gap` 是字到版面的实际距离，条带要跟着一起长。 */
   const rulerScale = cellScale(cellSize);
   const rulerMaxFont =
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
   const rulerStrip = rulerStripSize({ maxFontSize: rulerMaxFont, gap: style.ruler.gap });
 
   /**
-   * OPT-A01 §1.2: recompute the adaptive cell size and re-centre the board.
-   * Clearing `userPannedRef` is what re-arms the automatic pass, so this is
-   * also what "重置视图" (Ctrl+0) does.
-   *
-   * OPT-B02 §2.2: the inset is asymmetric — the ruler strips run along the
-   * top / left edges and the bottom toolbar floats over the viewport, so the
-   * adaptive height subtracts 72px for it (`BOTTOM_BAR_RESERVE`).
+   * OPT-A01 §1.2: 重算自适应格宽并重新居中；清 `userPannedRef` 就是重新武装自动适配，「重置视图」（Ctrl+0）也走这里。OPT-B02 §2.2: 内边距不对称 —— 底栏悬浮，高度要多减 72px。
    */
   const centerView = useCallback((): void => {
     const node = containerRef.current;
@@ -276,16 +239,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   }, [gridSize, showRulers, rulerStrip]);
 
   /**
-   * One zoom step around the viewport centre — the bottom bar's ±
-   * buttons. It is the button-shaped twin of the Ctrl+wheel handler below
-   * (same anchor maths, pointer swapped for the viewport centre), and it has
-   * to live here for one reason the pages cannot supply: a zoom step changes
-   * the ruler strip, which re-creates `centerView`, which re-runs the
-   * adaptive auto-centre effect above. That effect resets the view back to
-   * 100% unless the view is marked as user-adjusted — so the button path sets
-   * the same flag the wheel path sets. Without it the buttons appear dead:
-   * the store takes the new zoom for one render and the effect immediately
-   * centres it away, and only a wheel zoom (which sets the flag) sticks.
+   * 视口中心缩放一格（底栏 ± 按钮），与下面 Ctrl+滚轮同构。**必须**在这里置 `userPannedRef`:缩放改标尺 → 重建 `centerView` → 重跑自适应,不标记的话按钮会被立刻居中回 100%（看着像死了）。
    */
   const zoomByStep = useCallback((direction: 1 | -1): void => {
     const node = containerRef.current;
@@ -325,10 +279,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   /**
-   * OPT-A01 §1.2 生效时机: adapt on mount and on every resize, but only while
-   * the user has not taken the view over (Ctrl+wheel, the ± buttons, or a
-   * canvas drag). A manual interaction flips `userPannedRef`; "重置视图"
-   * re-arms it.
+   * OPT-A01 §1.2 生效时机：挂载与每次 resize 都适配，但只在用户没接管视图（Ctrl+滚轮 / ± / 拖画布）时；「重置视图」重新武装。
    */
   useEffect(() => {
     const node = containerRef.current;
@@ -467,9 +418,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
 
     /*
-     * 区域格子编辑优先于其它工具 —— 会话期间点格子就是在增减它，
-     * 不是在选格、落笔或擦除。起点格已在草稿里则这一笔整段移除（`Alt` 永远
-     * 强制移除），与区域笔刷 `brushStrokeErases` 同一条规则。
+     * 区域格子编辑优先于其它工具：会话期间点格子就是增减它，不是选格 / 落笔 / 擦除。起点格已在草稿里则整笔移除（`Alt` 恒移除）。
      */
     if (regionEdit) {
       node.setPointerCapture(event.pointerId);
@@ -609,11 +558,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
   };
 
-  /**
-   * FEAT-E04: the cursor is `pointer` over every board cell (whatever the
-   * active tool) and `grab` on the empty area outside it, which doubles as the
-   * pan handle (FEAT-E03).
-   */
+  /** FEAT-E04: 棋盘格上一律 `pointer`，棋盘外空白是 `grab`（兼作平移手柄，FEAT-E03）。 */
   const cursor = panning || spaceHeld || activeTool === 'pan'
     ? 'grabbing'
     : hover !== null
@@ -656,10 +601,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       ? { x: selection.x, y: selection.y }
       : null;
 
-  /**
-   * OPT-A05 §4: the mouse box follows the pointer, the operation box stays on
-   * the selected cell. Both are rendered from one resolution step.
-   */
+  /** OPT-A05 §4: 鼠标框跟指针，操作框停在选中的格子上；两者由一次解析产出。 */
   const cursorBoxes = resolveCursorBoxes({
     hover: hoverEffects.cell,
     blocked: hoverEffects.blocked,
@@ -689,11 +631,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   /**
-   * 区域格子编辑的预览 —— 蓝 = 将要加入，红 = 将要移除。
-   *
-   * 移除的那部分**不在**草稿里（草稿存的是编辑之后的完整集合），所以必须拿
-   * 已提交的格子减一次才画得出来；否则作者只能看到「加了什么」，看不到
-   * 「少了什么」，而这次编辑恰恰最怕手滑删掉一块。
+   * 区域格子编辑预览：蓝 = 加入、红 = 移除。移除部分**不在**草稿里（草稿存编辑后的全集），必须拿已提交的格子减一次才画得出 —— 否则看不到「少了什么」。
    */
   const regionEditOverlay = regionEdit
     ? (() => {
@@ -771,12 +709,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     </div>
   );
 
-  /**
-   * FEAT-F01: the ruler strips are a shared component
-   * (`MapRulerStrips`) so the work preview renders the identical geometry.
-   * Their thickness comes from the same `rulerStripSize` pass the editor uses
-   * to reserve the top / left bands (FEAT-E02).
-   */
+  /** FEAT-F01: 标尺条抽成共享组件 `MapRulerStrips`，作品预览才能渲染同一套几何；厚度与编辑器预留的上下左带同源。 */
   return (
     <div
       ref={containerRef}

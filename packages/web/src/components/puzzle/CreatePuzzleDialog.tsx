@@ -31,22 +31,7 @@ import { useWorkspace } from '@/components/layout/WorkspaceContext';
 import { fullscreenPath } from '@/lib/workspace';
 import { workshopPath } from '@/lib/workspace';
 
-/**
- * FEAT-K03 (docs/v0.5.0.md §2.4): the 「新建谜题」 dialog. Three fields —
- * 名称 (required) / 描述 (optional) / 地图版本 (required).
- *
- * The 地图版本 picker lists **published** map versions and nothing else: a
- * puzzle draws on a frozen snapshot, so an unpublished work entry has no canvas
- * to reference yet. Selecting one pins the canvas size (`n × n`), which is why
- * the dialog says so out loud before the puzzle exists.
- *
- * `?new={mapId}:{versionNo}` (from the map list's version entries, §7.1) is
- * read here so 「以此版本新建谜题」 arrives with the version already picked.
- *
- * v0.8.5 §7：多一格**编码**。它不跟着名称长 —— 名称是中文（`午夜花园`），编码要
- * 是地址（`midnight-garden`），从前者推不出后者，硬推只会推出一串空。所以这一格
- * 由作者自己写，写什么就变成部署时预填的那条路径。
- */
+/** FEAT-K03 (docs/v0.5.0.md §2.4): the 「新建谜题」 dialog. Three fields — 名称 (required) / 描述 (optional) / 地图版本 (required). The 地图版本 picker lists **published** map versions and nothing else: a puzzle draws on a frozen snapshot, so an unpublished work entry has no canvas to reference yet. 所以这一格 由作者自己写，写什么就变成部署时预填的那条路径。 */
 export function CreatePuzzleDialog({
   open,
   onOpenChange,
@@ -102,10 +87,7 @@ export function CreatePuzzleDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, searchParams, versions]);
 
-  /**
-   * 编码只在作者已经开始写的时候才报错 —— 一个刚打开的弹窗没必要先红一片。
-   * 「必填」这件事由 `canSubmit` 表达：没填就是按不下去。
-   */
+  /** 编码只在作者已经开始写的时候才报错 —— 一个刚打开的弹窗没必要先红一片。 「必填」这件事由 `canSubmit` 表达：没填就是按不下去。 */
   const codeProblem = code.trim().length > 0 ? puzzleCodeError(code) : null;
 
   const canSubmit =

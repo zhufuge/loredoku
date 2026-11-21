@@ -27,16 +27,7 @@ import {
   processVerdictIconImage,
 } from '../utils/image';
 
-/**
- * v0.8.0（docs/v0.8.0.md）—— 主题的三件事，按重要性排：
- *
- * 1. **边界**：`theme_id` 建行后不可改（§8 护栏 2），所以这里没有任何「搬迁」入口，
- *    只有「新建到某个主题」；
- * 2. **缺省**：`themes.data.style` / `linkageColors` 只在新建地图 / 谜题那一刻被拷贝，
- *    主题之后怎么改都不追溯（§5 的 S3）；
- * 3. **交付**：v0.9.2 起只剩「单局部署」—— 合辑（`theme_deployments`）连同它的
- *    「一键整主题上线」一起删掉了，上线一关就是 `POST /api/puzzles/:id/games`。
- */
+/** 三件事：`theme_id` 建行后不可改（§8 护栏 2）、缺省只在新建时拷贝不追溯（§5 S3）、交付只剩单局部署（v0.9.2 §2）。 */
 
 export interface ThemeScopeIssueView {
   kind: ThemeRefTarget['kind'];
@@ -97,12 +88,7 @@ export function markRequired(): AppError {
   return AppError.validation('请选择标记图片');
 }
 
-/**
- * 主题 `data` 的读 → 改 → 写（禁止符号的两个端点用）。
- *
- * 数据库默认值是 `{}`（v0.8.0 之前的行），而 `ThemeData.version` 是必填 —— 不补
- * 一个版本戳就写不回去。`repo.toTheme` 也会补，但它顺带数五张表，这里不需要。
- */
+/** 主题 `data` 的读 → 改 → 写；老行默认 `{}` 没有版本戳，得补一个才写得回去。 */
 async function themeDataOf(code: string): Promise<{ id: number; data: ThemeData }> {
   const row = await repo.findByCode(code);
   if (!row) throw AppError.notFound('主题不存在');
@@ -113,12 +99,7 @@ async function themeDataOf(code: string): Promise<{ id: number; data: ThemeData 
   };
 }
 
-/**
- * v0.8.6 §4 / v0.8.7 §4；v0.9.5 更名：给主题配一张**标记**图。
- *
- * 主题不版本化，所以改完即时生效；读的时候才落地 —— 本主题里没单独配置的谜题
- * 下次打开就是新的。旧图不删：存量谜题与版本行可能还指着它。
- */
+/** 主题不版本化，改完即时生效；旧图不删 —— 存量谜题与版本行可能还指着它（v0.8.6 §4）。 */
 export async function uploadMark(code: string, buffer: Buffer): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
   const image = await processMarkImage({ kind: 'theme', id }, buffer);
@@ -142,12 +123,7 @@ export function toolIconRequired(): AppError {
   return AppError.validation('请选择图标图片');
 }
 
-/**
- * v0.8.7 §7：主题级的工具按钮图标 —— 与禁止符号同一种「读取时兜底」。
- *
- * 一次只改一枚：`toolIcons` 里的其它两枚原样留着（作者换「清除」不该把「撤回」抹掉）。
- * 三枚都清空时整个 `toolIcons` 键删掉，与「从没配过」同一个口径。
- */
+/** 一次只改一枚，另外两枚原样留着；三枚都清空就整个删键，与「从没配过」同口径（v0.8.7 §7）。 */
 export async function uploadToolIcon(
   code: string,
   icon: GameToolIconKind,
@@ -175,13 +151,7 @@ export async function removeToolIcon(code: string, icon: GameToolIconKind): Prom
 }
 
 /**
- * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张**（`ThemeData.ring`）。
- *
- * 玩家看到的都是「一圈绕着一格走」：长按是等它装满（放头像）、校验是等它扫完
- * （宣布这一位对错）。同一世界的同一种回应，配两张图只会让作者传两次、而且很难
- * 保证两张看起来是一家人。
- *
- * 换一张对**所有**关卡立刻生效：游戏页按主题编码查这份数据，不经过谜题。
+ * v0.9.5：长按计时环与提交校验圈合并成一张（`ThemeData.ring`），换一张对所有关卡立即生效。
  */
 export function ringRequired(): AppError {
   return AppError.validation('请选择圆环图片');
@@ -205,12 +175,7 @@ export async function removeRing(code: string): Promise<Theme> {
   return getTheme(code);
 }
 
-/**
- * 结算卡上那枚**图标图**。与标记 / 圆环同一档（上传即生效、回整份主题）。
- *
- * 只碰 `verdict.icon` —— 同一格里那句文字（`iconText`）与标题（`title`）原样留着：
- * 作者传一张图只是「先用这张」，把图删掉之后应该回到他自己写的那句 emoji。
- */
+/** 结算卡图标图：只碰 `verdict.icon`，同一格的 `iconText` / `title` 原样留着（删图回到作者写的 emoji）。 */
 export function verdictIconRequired(): AppError {
   return AppError.validation('请选择结算图标图片');
 }
@@ -238,10 +203,7 @@ export async function removeVerdictIcon(code: string): Promise<Theme> {
   return getTheme(code);
 }
 
-/**
- * 结算卡上那两句文字。与校验颜色同一种「只改给的项」：改标题不该顺手
- * 抹掉图标文字，反之亦然。给空串 = 恢复内置（三项都空时整个键删掉）。
- */
+/** 只改给的项（改标题不该抹掉图标文字）；给空串 = 恢复内置，三项都空就删整个键。 */
 export async function updateVerdictText(
   code: string,
   patch: { iconText?: string; title?: string },
@@ -259,11 +221,7 @@ export async function updateVerdictText(
   return getTheme(code);
 }
 
-/**
- * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。
- *
- * 配色与换图是两个动作，各改各的 —— 改颜色不该顺手动那一圈图。
- */
+/** 配色与换图各改各的：改颜色不该顺手动那一圈图（v0.9.3 §3）。 */
 export async function updateCheckStyle(
   code: string,
   patch: { passColor?: string; failColor?: string },
@@ -282,13 +240,7 @@ export async function updateCheckStyle(
   return getTheme(code);
 }
 
-/**
- * 删主题。只有一条规矩：还有东西就先把数量说清楚，再拦（§8 护栏 3）。
- *
- * 这一层守的是**看得见的东西**（§15），删下去是 `DELETE`。计数只数活跃行，
- * 外键却看所有行；地图 / 谜题软删的版本行由 `repo.deleteTheme` 顺手抬走（注释写在
- * 那儿），这里只管「还有没有活的」—— 拦的就是卡片上看得见的那四类。
- */
+/** 还有东西就拦（§8 护栏 3）：只数活跃行，软删版本行由 `repo.deleteTheme` 顺手抬走。 */
 export async function deleteTheme(code: string): Promise<void> {
   const id = await repo.idOfCode(code);
   if (id === undefined) throw AppError.notFound('主题不存在');
@@ -315,36 +267,20 @@ export async function deleteTheme(code: string): Promise<void> {
   }
 }
 
-/**
- * 列表筛选（`?themeCode=`）→ `theme_id`。没给 = 不筛（全部主题）。
- *
- * 编码不存在时**报错而不是返回空列表**：空列表会被读成「这个主题里没有东西」，
- * 而真相是「没有这个主题」—— 前者会让作者去新建，后者才会让他去检查地址。
- */
+/** 编码不存在时报错而不是返回空列表：空列表会被读成「这个主题里没有东西」。 */
 export async function filterThemeId(code?: string): Promise<number | undefined> {
   if (!code) return undefined;
   return requireThemeId(code);
 }
 
-/**
- * 新建内容时把「哪个主题」翻译成 `theme_id`（§19）。
- *
- * **必填，没有兜底。** §19 之前这里没给就落默认主题 —— 那等于替作者猜一个世界，
- * 猜错的表现是「刚建的东西不在当前页里」（工作空间按主题过滤）。宁可 400。
- */
+/** 新建内容时必填、没有兜底：猜一个主题会让刚建的东西不在当前工作空间，宁可 400（§19）。 */
 export async function requireThemeId(code: string): Promise<number> {
   const id = await repo.idOfCode(code);
   if (id === undefined) throw AppError.validation('主题不存在');
   return id;
 }
 
-/**
- * v0.8.0 §5（S3 快照式）—— 主题的缺省风格，只在**新建地图那一步**取一次。
- *
- * `null` 有两种来路，处理方式相同：主题没设过风格（`data.style` 缺键），或者
- * 主题根本不存在（旧数据里的 `theme_id` 指向已删主题）。两种情况都不该让「新建
- * 地图」失败 —— 拿不到就用 `DEFAULT_MAP_STYLE`，作者进编辑器自己调。
- */
+/** 主题缺省风格只在新建地图那一刻取一次；拿不到（没设过 / 主题已删）就退 `DEFAULT_MAP_STYLE`（§5 S3）。 */
 export async function defaultStyleOf(themeId: number): Promise<MapStyle | null> {
   if (!Number.isFinite(themeId)) return null;
   const row = await repo.findById(themeId);
@@ -360,12 +296,7 @@ async function namesOf(kind: ThemeRefTarget['kind'], ids: number[]): Promise<Map
   return new Map(rows.map((row) => [Number(row.id), row.name]));
 }
 
-/**
- * 护栏 1（§8）：收集草稿里的引用，逐个核对 `theme_id`。
- *
- * 判定在 `shared/themeScope`（前端保存前调的是同一份）；这里只负责把 id 翻译成
- * 人话 —— 作者认的是「石板地属于红楼梦」，不是 `#4165`（§16.11）。
- */
+/** 护栏 1（§8）：判定在 `shared/themeScope`（前端保存前调同一份），这里只把 id 翻成人话。 */
 export async function collectScopeIssues(
   themeId: number,
   refs: ReadonlyArray<ThemeRefTarget>,

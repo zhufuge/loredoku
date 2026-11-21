@@ -2,13 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_MAP_STYLE, type MapStyle } from './constants';
 import { MAP_STYLE_DIFF_GROUPS, diffMapStyle } from './mapStyleDiff';
 
-/**
- * v0.8.0 §16.8：差异弹窗只列**不同的项**。这个文件钉三件事：
- *
- * 1. 完全相同时返回空（弹窗据此把状态写成「与主题风格一致」）；
- * 2. 每一项差异都带分组与中文标签（作者看的不是字段路径）；
- * 3. 值按屏幕上的写法格式化（`1.5px` / `自适应`），而不是原始数字。
- */
+/** v0.8.0 §16.8：差异弹窗只列**不同的项**。这个文件钉三件事： 1. 完全相同时返回空（弹窗据此把状态写成「与主题风格一致」）； 每一项差异都带分组与中文标签（作者看的不是字段路径）； 值按屏幕上的写法格式化（`1.5px` / `自适应`），而不是原始数字。 */
 
 function style(patch: (style: MapStyle) => MapStyle): MapStyle {
   return patch(structuredClone(DEFAULT_MAP_STYLE));

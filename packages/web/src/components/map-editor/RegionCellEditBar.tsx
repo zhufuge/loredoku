@@ -1,15 +1,6 @@
 import { Button } from '@/components/ui/button';
 
-/**
- * 区域格子编辑的浮动工具条 —— 与创建区域时的 `RegionSelectionBar`
- * 同一处、同一副样子，作者不用学第二套位置。
- *
- * 它比创建那条多两件事：
- *
- * 1. 说清**在编辑哪一块**（画布上同时有好几块区域，蓝/红预览不一定指着名字）；
- * 2. 把「加了几格 / 减了几格」摆出来 —— 编辑是**改**一块已有区域，作者真正想
- *    确认的是差量，而不是总数。
- */
+/** 区域格子编辑的浮动工具条：与创建区域时的 `RegionSelectionBar` 同处同一副样子；多出的两件事是点名「在编辑哪一块」和把**差量**（加几格 / 减几格）摆出来 —— 编辑是改已有区域，作者要确认的是差量不是总数。 */
 interface RegionCellEditBarProps {
   regionName: string;
   total: number;

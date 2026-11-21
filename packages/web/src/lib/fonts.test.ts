@@ -6,11 +6,7 @@ import {
   parseFontFileName,
 } from './fonts';
 
-/**
- * v0.7.4 (docs/v0.7.4.md §2): 字体选择器列的是**具体字体**，清单来自
- * `src/assets/fonts/` 目录。目录是构建期扫的，所以这里测两件与目录内容无关的事：
- * 文件名怎么读成一个字族，以及选项列表在「本构建没有这款字体」时怎么收场。
- */
+/** v0.7.4 (docs/v0.7.4.md §2): 字体选择器列的是**具体字体**，清单来自 `src/assets/fonts/` 目录。目录是构建期扫的，所以这里测两件与目录内容无关的事： 文件名怎么读成一个字族，以及选项列表在「本构建没有这款字体」时怎么收场。 */
 describe('parseFontFileName', () => {
   it('reads a family with an explicit weight', () => {
     expect(parseFontFileName('WenKai-Bold.woff2')).toEqual({

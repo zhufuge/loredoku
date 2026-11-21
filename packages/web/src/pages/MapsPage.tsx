@@ -36,28 +36,12 @@ import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 const PAGE_SIZE = 12;
 
-/**
- * 视图选择持久化。网格 / 列表是纯展示偏好，刷新后应保持
- * （同 `MapViewPage` 的标尺开关，RULER_STORAGE_KEY 模式）。
- */
+/** 视图选择持久化。网格 / 列表是纯展示偏好，刷新后应保持（同 `MapViewPage` 的标尺开关，RULER_STORAGE_KEY 模式）。 */
 const VIEW_STORAGE_KEY = 'loredoku.maps.view';
 
 type SortOption = 'updatedAt' | 'name';
 
-/**
- * 列表正文拆「草稿」「版本」两块（设计 §17）：分块天然实现「只看草稿 / 只看
- * 版本」，工具栏只剩关键词 / 排序 / 视图切换。
- *
- * **两块各自分页**：同一端点带 `kind` 发两个请求，各带自己的页号与 `total`，
- * 两块各有翻页条。并集分页时期两块共享一页，版本密集时某一页可能只出现版本
- * 块、草稿全在别页，页码也对不上任何一块。
- *
- * 排序两块共用一套（`sort` / `order`，在服务端）；默认按更新时间倒序，所以
- * 刚发布的版本在最上面。要看同一张图的各版本，用搜索框筛名称。
- *
- * FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work entries
- * and version entries**, so the response is `PaginatedData<MapEntrySummary>`.
- */
+/** 列表正文拆「草稿」「版本」两块（设计 §17）：分块天然实现「只看草稿 / 只看 版本」，工具栏只剩关键词 / 排序 / 视图切换。 **两块各自分页**：同一端点带 `kind` 发两个请求，各带自己的页号与 `total`， 两块各有翻页条。 默认按更新时间倒序，所以 刚发布的版本在最上面。 FEAT-K09 (docs/v0.5.0.md §7.1): the map list is the **union of work entries and version entries**, so the response is `PaginatedData<MapEntrySummary>`. */
 export function MapsPage(): JSX.Element {
   const navigate = useNavigate();
   const [draftPage, setDraftPage] = useState(1);
@@ -126,10 +110,7 @@ export function MapsPage(): JSX.Element {
     void versionQuery.refetch();
   };
 
-  /**
-   * 删完当页最后一条时页号会越过新的总页数 —— 收敛到最后一页，否则用户看到
-   * 空白块还以为数据没了。
-   */
+  /** 删完当页最后一条时页号会越过新的总页数 —— 收敛到最后一页，否则用户看到空白块还以为数据没了。 */
   useEffect(() => {
     if (draftPage > draftPages) setDraftPage(draftPages);
   }, [draftPage, draftPages]);
@@ -140,19 +121,12 @@ export function MapsPage(): JSX.Element {
 
   const isVersionEntry = (entry: MapEntrySummary): boolean => entry.kind === 'version';
 
-  /**
-   * 封面 / 名称的主点击：工作条目进编辑器。**版本条目不从这里走** —— v0.7.2
-   * 起版本行的封面 / 名称是「预览」（见 `MapListRow`），改版本走独立的「编辑」
-   * 按钮（{@link handleEdit}）。
-   */
+  /** 封面/名称的主点击：工作条目进编辑器；版本条目走「预览」，改版本走 {@link handleEdit}（带 ?v= 的 fork 态）。 */
   const handleOpen = (entry: MapEntrySummary): void => {
     navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'edit'));
   };
 
-  /**
-   * v0.7.2 §5：版本条目的「编辑」= 带 `?v=` 进编辑器的 fork 态 —— 进去**不建
-   * 行**，点保存才 fork 出新草稿。
-   */
+  /** v0.7.2 §5：版本条目的「编辑」= 带 `?v=` 进编辑器的 fork 态 —— 进去**不建行**，点保存才 fork 出新草稿。 */
   const handleEdit = (entry: MapEntrySummary): void => {
     if (entry.kind === 'version' && entry.versionNo !== null) {
       navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'edit', `v=${entry.versionNo}`));
@@ -161,10 +135,7 @@ export function MapsPage(): JSX.Element {
     navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'edit'));
   };
 
-  /**
-   * 预览统一去 `/maps/:id/views`，一条 URL 只由 `:mapId` 决定看什么：
-   * 草稿条目看草稿自己的画布，版本条目看自己那一行。没有 `?v=`。
-   */
+  /** 预览统一去 `/maps/:id/views`，一条 URL 只由 `:mapId` 决定看什么： 草稿条目看草稿自己的画布，版本条目看自己那一行。没有 `?v=`。 */
   const handlePreview = (entry: MapEntrySummary): void => {
     if (!entryPreviewable(entry)) return;
     navigate(fullscreenPath(workspace?.themeCode, 'maps', entry.mapId, 'view'));
@@ -185,11 +156,7 @@ export function MapsPage(): JSX.Element {
 
   const deleting = deleteMutation.isPending || deleteVersionMutation.isPending;
 
-  /**
-   * v0.7.9 §1.1（修正）：草稿块与版本块共用一套渲染，但**视图不同** ——
-   * 草稿跟着开关走，版本恒为列表（冻结快照不需要封面大图，「以此为底稿新建」
-   * 这种做法在列表里读起来更省地方）。两块只差数据来源与 `viewMode`。
-   */
+  /** v0.7.9 §1.1（修正）：草稿块与版本块共用一套渲染，但**视图不同** —— 草稿跟着开关走，版本恒为列表（冻结快照不需要封面大图，「以此为底稿新建」 这种做法在列表里读起来更省地方）。两块只差数据来源与 `viewMode`。 */
   function renderOrderBlock(
     entries: MapEntrySummary[],
     page: number,

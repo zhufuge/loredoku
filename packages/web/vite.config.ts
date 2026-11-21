@@ -12,11 +12,7 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    /*
-     * Vitest 改文件时会在源码目录留下 `.<file>.<pid>.<hash>.tmpdir/` 原子写入目录。
-     * Windows 上 Vite 的 watcher 去 watch 那个临时文件会因 EBUSY 直接崩掉整个 dev
-     * server（跑测试时尤其容易撞上）。 ignore 掉，只盯着真正的源码。
-     */
+    // Vitest 留下的 `.<file>.<pid>.<hash>.tmpdir/` 会让 Windows 上 Vite 的 watcher 因 EBUSY 崩掉 dev server。
     watch: {
       ignored: ['**/*.tmpdir/**'],
     },

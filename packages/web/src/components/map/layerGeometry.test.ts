@@ -2,14 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ITEM_OFFSET_MAX, ITEM_SCALE_MAX } from '@loredoku/shared';
 import { cellRectStyle, itemRectStyle } from './layerGeometry';
 
-/**
- * v0.7.5 (docs/v0.7.5.md §4): 物品的展示矩形 = 脚位按中心缩放 + 按格偏移。
- *
- * 两条不能破的约定：
- * 1. 恒等变换与原 `cellRectStyle` **逐像素相同**（老草稿一个像素都不许动）；
- * 2. 缩放围绕中心，所以 `scale` 只改大小、不偷偷改位置 —— 否则作者要同时拧
- *    大小和偏移才能把物品摆回原处。
- */
+/** v0.7.5 (docs/v0.7.5.md §4): 物品的展示矩形 = 脚位按中心缩放 + 按格偏移。 两条不能破的约定： 1. 恒等变换与原 `cellRectStyle` **逐像素相同**（老草稿一个像素都不许动）； 缩放围绕中心，所以 `scale` 只改大小、不偷偷改位置 —— 否则作者要同时拧大小和偏移才能把物品摆回原处。 */
 describe('itemRectStyle', () => {
   it('matches the plain cell rect when there is no transform', () => {
     expect(itemRectStyle(3, 2, 100, { w: 2, h: 1 })).toEqual(cellRectStyle(3, 2, 100, 2, 1));

@@ -1,10 +1,7 @@
 import type { Knex } from 'knex';
 import { CHARACTER_GENDERS, DEFAULT_CHARACTER_GENDER } from '@loredoku/shared';
 
-/**
- * FEAT-501: characters gain a `gender` column
- * (`male` / `female` / `other` / `unknown`).
- */
+/** FEAT-501: characters gain a `gender` column (`male` / `female` / `other` / `unknown`). */
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable('characters', (table) => {
     table.string('gender', 16).notNullable().defaultTo(DEFAULT_CHARACTER_GENDER);

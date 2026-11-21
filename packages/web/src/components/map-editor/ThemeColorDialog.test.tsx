@@ -4,12 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_THEME_COLOR } from '@loredoku/shared';
 import { ThemeColorDialog } from './ThemeColorDialog';
 
-/**
- * FEAT-H08（docs/v0.4.2.md §8）：主题色弹窗是**受控**组件 —— 抽屉只展示当前选中，
- * 选色在这里完成，且只把结果交回抽屉，自己绝不写 store。
- *
- * 选色只走统一取色控件（色块 + hex）。
- */
+/** FEAT-H08（docs/v0.4.2.md §8）：主题色弹窗是**受控**组件 —— 抽屉只展示当前选中， 选色在这里完成，且只把结果交回抽屉，自己绝不写 store。 选色只走统一取色控件（色块 + hex）。 */
 
 describe('ThemeColorDialog — 渲染行为（FEAT-H08）', () => {
   let container: HTMLDivElement;

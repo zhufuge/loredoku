@@ -1,10 +1,7 @@
 import { GRID_SIZE_MAX, GRID_SIZE_MIN, MAP_JSON_VERSION, PUZZLE_JSON_VERSION } from './constants';
 import type { MapDraft, PuzzleDraft } from './types/domain';
 
-/**
- * 谜题草稿的两个纯函数（v0.7.1 §5.3）。放在 shared 是为了让「尺寸从哪来」
- * 只有一处答案 —— 列表、游戏摘要、名册长度校验、schema 全都走同一个入口。
- */
+/** 谜题草稿的两个纯函数（v0.7.1 §5.3）。放在 shared 是为了让「尺寸从哪来」 只有一处答案 —— 列表、游戏摘要、名册长度校验、schema 全都走同一个入口。 */
 
 /** 画布尺寸的唯一真源：`data.map.data.gridSize`（高压线 4，没有列）。 */
 export function puzzleGridSize(draft: PuzzleDraft): number {
@@ -22,16 +19,7 @@ function emptyCanvas(gridSize: number): MapDraft {
   return { version: MAP_JSON_VERSION, gridSize, cells: {}, regions: [] };
 }
 
-/**
- * 把存量 `puzzles.data` 升到 v2。
- *
- * 迁移 `20260101000031` 已经把每一行改写成 v2（画布从引用版本复制进来），所以
- * 这里只兜两种边角：迁移之后才出现的脏数据，以及把 v1 payload 读进内存的场景。
- * v1 的 `{ mapId, versionNo, gridSize }` 里**没有画布**，无法凭空还原 ——
- * 给一份空画布，名册长度不变（否则参与者与格子对不上，编辑器会崩）。
- *
- * 返回 `null` = 这份 data 根本不是谜题草稿。
- */
+/** 把存量 `puzzles.data` 升到 v2。 迁移 `20260101000031` 已经把每一行改写成 v2（画布从引用版本复制进来），所以这里只兜两种边角：迁移之后才出现的脏数据，以及把 v1 payload 读进内存的场景。 v1 的 `{ mapId, versionNo, gridSize }` 里**没有画布**，无法凭空还原 —— 给一份空画布，名册长度不变（否则参与者与格子对不上，编辑器会崩）。 返回 `null` = 这份 data 根本不是谜题草稿。 */
 export function absorbLegacyPuzzleDraft(raw: unknown): PuzzleDraft | null {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
   const record = raw as Record<string, unknown>;

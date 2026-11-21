@@ -5,23 +5,7 @@ import {
   upgradeRegionStyleDraft,
 } from './regionStyleMigration';
 
-/**
- * v0.5.0 FEAT-K14 (docs/v0.5.0.md §8.3) — the absorption layer for stored map
- * drafts. Until v0.4.3 a draft owned the roster (`characterSlots`) and the palette
- * (`style.linkageColors`); both moved to the puzzle and the v3 schemas are
- * `.strict()`, so a v2 payload would fail to parse. Instead of rewriting the
- * database (which would make v0.5.0 irreversible), every read path passes the raw
- * JSON through `absorbLegacyMapDraft` first. The old fields stay in the database,
- * simply no longer read — `readLegacyCharacterSlots` / `readLegacyLinkageColors`
- * are the two accessors that still look, for backfill and snapshot upgrade.
- *
- * v0.7.0 (docs/v0.7.0.md §4): the same deal for a region's flat
- * `color` / `borderWidth` / `fillOpacity` trio — stripped on read, with
- * `borderWidth` carried over as `style.outline.width` when it disagreed with
- * the map-level default. Migration `20260101000030` rewrites the stored rows;
- * this keeps a payload written by an older client (or restored by `down`)
- * readable without a second migration.
- */
+/** v0.5.0 §8.3 / v0.7.0 §4 读取兼容层：旧字段留在库里但不再读，各读路径先过这里；迁移 `20260101000030` 会改写存量行。 */
 
 function asRecord(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
@@ -53,17 +37,7 @@ export function readLegacyLinkageColors(raw: unknown): MapLinkageColor[] {
 }
 
 /**
- * Rewrites a v2 payload into the v3 shape: drops `characterSlots`, drops
- * `style.linkageColors`, and stamps `version = MAP_JSON_VERSION`. Every other
- * field is passed through untouched.
- *
- * A region still carrying the retired `color` / `borderWidth` /
- * `fillOpacity` trio is upgraded the same way (see
- * `service/regionStyleMigration.ts`).
- *
- * **Idempotent**: a payload that is already v3 (nothing to strip, version
- * matches) is returned as the **same reference**, so re-running this on every
- * read costs nothing.
+ * v2 → v3：去掉名单、老调色板与区域三元组，并写 `version = MAP_JSON_VERSION`；已合规时返回**同一引用**（幂等，每次读都能跑）。
  */
 export function absorbLegacyMapDraft(raw: unknown): unknown {
   const record = asRecord(raw);

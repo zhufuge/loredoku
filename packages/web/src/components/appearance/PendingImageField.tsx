@@ -14,14 +14,7 @@ interface PendingImageFieldProps {
 
 const DEFAULT_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
 
-/**
- * v0.5.2 FEAT-M05 (docs/v0.5.2.md §5): a **create-time** uploader.
- *
- * The record does not exist yet, so there is no `/:id/image` to POST to — the
- * file is held locally and uploaded right after the create call succeeds.
- * Hence `File | null` state instead of a URL, and an object-URL preview that is
- * revoked on unmount / replacement.
- */
+/** v0.5.2 FEAT-M05 (docs/v0.5.2.md §5): a **create-time** uploader. Hence `File | null` state instead of a URL, and an object-URL preview that is revoked on unmount / replacement. */
 export function PendingImageField({
   id,
   label,

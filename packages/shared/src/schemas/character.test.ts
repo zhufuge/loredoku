@@ -3,11 +3,7 @@ import { createCharacterSchema, updateCharacterSchema } from './character'
 import { CHARACTER_DISPLAY_NAME_MAX, DEFAULT_THEME_COLOR } from '../constants'
 import { characterSlotEntrySchema } from './mapDraft'
 
-/**
- * 角色表没有 `characters.avatar_mime` / `characters.meta` 两列
- * （docs/v0.7.6.md）。schema 这边只做一件事——**不再声明 `meta`**，
- * 于是老前端多塞的键被 zod 默认剥掉，而不是把请求打成 400。
- */
+/** 角色表没有 `characters.avatar_mime` / `characters.meta` 两列（docs/v0.7.6.md）。schema 这边只做一件事——**不再声明 `meta`**， 于是老前端多塞的键被 zod 默认剥掉，而不是把请求打成 400。 */
 describe('createCharacterSchema / updateCharacterSchema — v0.7.6 删掉 meta', () => {
   const base = { code: 'legacy_c', name: '旧客户端', themeCode: 'fixture' }
 
@@ -28,13 +24,7 @@ describe('createCharacterSchema / updateCharacterSchema — v0.7.6 删掉 meta',
   })
 })
 
-/**
- * v0.7.13（docs/v0.7.13.md §11）—— 角色的参与者默认值 `color` / `displayName`。
- *
- * 关键字是**「空 = 没有默认」的三种写法都要落到同一个值**：缺席、`null`、
- * 空串。少一种就会漏一条路径 —— 前端「清除」按钮发的是 `null`，输入框清空后
- * 发的是 `''`，老客户端压根不发这个键。
- */
+/** v0.7.13（docs/v0.7.13.md §11）—— 角色的参与者默认值 `color` / `displayName`。 关键字是**「空 = 没有默认」的三种写法都要落到同一个值**：缺席、`null`、 空串。少一种就会漏一条路径 —— 前端「清除」按钮发的是 `null`，输入框清空后发的是 `''`，老客户端压根不发这个键。 */
 describe('角色参与者默认值（v0.7.13 §11）', () => {
   const base = { code: 'pc_1', name: '侦探', themeCode: 'fixture' }
 
@@ -48,10 +38,7 @@ describe('角色参与者默认值（v0.7.13 §11）', () => {
     expect(createCharacterSchema.parse({ ...base, color: '#aabbcc' }).color).toBe('#AABBCC')
   })
 
-  /**
-   * §11.4：白色是「未指定」的显示值，不落库。大小写都要塌 —— 取色器在某些
-   * 浏览器里给小写，手写 JSON 更是随便写。
-   */
+  /** §11.4：白色是「未指定」的显示值，不落库。大小写都要塌 —— 取色器在某些浏览器里给小写，手写 JSON 更是随便写。 */
   it('白色 = 没有默认，不进库', () => {
     expect(createCharacterSchema.parse({ ...base, color: DEFAULT_THEME_COLOR }).color).toBeNull()
     expect(createCharacterSchema.parse({ ...base, color: '#ffffff' }).color).toBeNull()
@@ -89,11 +76,7 @@ describe('角色参与者默认值（v0.7.13 §11）', () => {
     expect(updateCharacterSchema.safeParse({ displayName: '一'.repeat(7) }).success).toBe(false)
   })
 
-  /**
-   * 这条是两端上限的**实际**耦合：角色默认值要原样抄进槽位，若角色的上限比
-   * 槽位宽，一个合法的角色默认值会在保存谜题时被 400 拒掉。比断言「常量等于
-   * 6」有用 —— 那只是把数字抄一遍。
-   */
+  /** 这条是两端上限的**实际**耦合：角色默认值要原样抄进槽位，若角色的上限比槽位宽，一个合法的角色默认值会在保存谜题时被 400 拒掉。比断言「常量等于 6」有用 —— 那只是把数字抄一遍。 */
   it('最长的合法默认值能原样搬进槽位', () => {
     const longest = '一'.repeat(CHARACTER_DISPLAY_NAME_MAX)
     const character = createCharacterSchema.parse({ ...base, displayName: longest })

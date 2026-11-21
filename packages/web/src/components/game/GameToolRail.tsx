@@ -11,16 +11,7 @@ import { TOOLBAR_ICON_ACTIVE_CLASS, TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolb
 import { ZOOM_MAX, ZOOM_MIN } from '@/lib/grid';
 import { cn } from '@/lib/utils';
 
-/**
- * 玩家页右列：四枚「对棋盘做什么」（标记 / 清除 / 撤回 / 提交）+「怎么看棋盘」
- * 的视图簇。
- *
- * 这一栏没有任何自有状态 —— 按下的时长、缩放的
- * 比例、按钮能不能点，全都是外面算好递进来的；留在这里的只有「哪一枚该亮成
- * 选中色」「禁用时为什么点不动」这些**呈现规则**。
- *
- * 窄屏上它是底部横条（`max-md:flex-row`），竖屏再收成 54 高的一排。
- */
+/** 玩家页右列：四枚「对棋盘做什么」（标记 / 清除 / 撤回 / 提交）+「怎么看棋盘」 的视图簇。 这一栏没有任何自有状态 —— 按下的时长、缩放的比例、按钮能不能点，全都是外面算好递进来的；留在这里的只有「哪一枚该亮成选中色」「禁用时为什么点不动」这些**呈现规则**。 窄屏上它是底部横条（`max-md:flex-row`），竖屏再收成 54 高的一排。 */
 export interface GameToolRailProps {
   /** 这一局已结案：四枚动作按钮全部置灰。 */
   toolsLocked: boolean;
@@ -101,10 +92,7 @@ export function GameToolRail({
         variant="ghost"
         className={cn(
           'h-12 w-full',
-          /*
-           * 竖屏：图标 2rem、底栏 54 高，44px 的方钮装不下 —— 底栏用四枚等宽
-           * 的长方形，一排放得下，也不必有正方形那套对称。
-           */
+          /* 竖屏：图标 2rem、底栏 54 高，44px 的方钮装不下 —— 底栏用四枚等宽的长方形，一排放得下，也不必有正方形那套对称。 */
           'max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:shrink max-md:px-0 portrait:max-md:h-full',
           mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
         )}
@@ -145,14 +133,7 @@ export function GameToolRail({
         )}
         title="清除放置，长按清空全部"
         disabled={toolsLocked}
-        /*
-         * 指针事件**不外传**。
-         *
-         * 竖屏下这一枚沉在底部横条里，与棋盘同在一个 `flex` 列 —— 按住不放的
-         * 800ms 里，指针事件会沿 React 树冒泡上去，让外层当成「在棋盘上按住了
-         * 一格」，于是长按清空的同时又在格子上下了一手。这里在按钮这一层截住：
-         * 长按清空是按钮自己的手势，与棋盘无关。
-         */
+        /* 指针事件**不外传**。 竖屏下这一枚沉在底部横条里，与棋盘同在一个 `flex` 列 —— 按住不放的 800ms 里，指针事件会沿 React 树冒泡上去，让外层当成「在棋盘上按住了一格」，于是长按清空的同时又在格子上下了一手。这里在按钮这一层截住： 长按清空是按钮自己的手势，与棋盘无关。 */
         onPointerDown={(event) => {
           event.stopPropagation();
           onStartClearPress();
@@ -260,12 +241,7 @@ export function GameToolRail({
           /* 竖条里这一簇沉在底边；横条里它跟着工具按钮排成一行，不再占一整行、
              也不要那条分隔线。 */
           'max-md:mt-0 max-md:w-auto max-md:flex-row max-md:border-t-0 max-md:pt-0',
-          /* 竖屏（窄且竖着）**整簇不显示** —— 棋盘已经按宽度铺满
-             整屏，没有可放大的余量；收掉放大 / 缩小 / 重置 / 标尺，底部横条
-             就只剩四枚「对棋盘做什么」的按钮，不再挤第二行。
-             用 CSS 而不是条件渲染：媒体查询是这件事唯一的真源（转屏即时生效，
-             不用等一次 `fit`），而且挂在上面的按钮仍留在树里 —— 快捷键、辅助
-             技术、以及既有用例都还能拿到它们。 */
+          /* 竖屏（窄且竖着）**整簇不显示** —— 棋盘已经按宽度铺满 整屏，没有可放大的余量； 收掉放大 / 缩小 / 重置 / 标尺，底部横条 就只剩四枚「对棋盘做什么」的按钮，不再挤第二行。 用 CSS 而不是条件渲染：媒体查询是这件事唯一的真源（转屏即时生效， 不用等一次 `fit`），而且挂在上面的按钮仍留在树里 —— 快捷键、辅助 技术、以及既有用例都还能拿到它们。 */
           'portrait:max-md:hidden',
         )}
       >

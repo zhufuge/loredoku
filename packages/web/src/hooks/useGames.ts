@@ -22,10 +22,7 @@ export function useGames() {
   });
 }
 
-/**
- * v0.7.1 §7.4：取消部署 = 假删。玩家的 `/play/{slug}` 立刻 404，谜题列表的
- * 「已部署」徽标同步消失，slug 随之可被重新使用。
- */
+/** 取消部署 = 假删：`/play/{slug}` 立刻 404，「已部署」徽标消失，slug 可重新使用。 */
 export function useCancelGame() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -54,20 +51,7 @@ function errorMessage(error: unknown, fallback: string): string {
 }
 
 /**
- * CONS-K16 (docs/v0.5.0.md §10.2): deploy a **puzzle** as a game. The cover
- * (when one was picked) is uploaded right after the row exists, so both steps
- * share one pending state and a single success toast.
- *
- * OPT-W03 §3: `clearCover` rides along with the deploy (`true` only when the
- * author explicitly removed the existing cover) — omitting the cover entirely
- * keeps whatever the game already had.
- *
- * v0.7.2 §4：`coverFromPuzzleUrl` = 作者没选文件、游戏也还没有封面，于是把
- * **谜题自己的封面**复制成游戏封面（读成 File 再走同一条上传端点）。
- *
- * 路径冲突可以在 toast 之外由调用方接管。传了 `onSlugConflict` 的调用方（部署
- * 弹窗）会收到一份结构化说明，由它弹出「覆盖 / 取消」；没传的调用方保持原样
- * —— 直接 toast 报错。冲突本身不会被这条 hook 吞掉，`isError` 仍然成立。
+ * 部署谜题为游戏（CONS-K16）：行建好后再传封面，两步共用一个 pending 与一次成功 toast；`clearCover` 只在作者明确移除时传，`coverFromPuzzleUrl` = 没选文件时复制谜题封面；路径冲突可经 `onSlugConflict` 交给调用方问「覆盖 / 取消」，否则直接 toast。
  */
 export interface SlugConflictHandler {
   /** 冲突说明 + 触发这次冲突的负载，交给弹窗去问。 */
@@ -135,11 +119,7 @@ export function useDeployGame(options: { onSlugConflict?: SlugConflictHandler } 
 }
 
 /**
- * 部署页把某一行的权重改掉。
- *
- * 成功后只刷列表（服务端按 `sort_weight` 重新排过，本地不需要再排一次）—— 顺序
- * 是服务端的一件事实，前端照抄就好。失败照样 toast：这一格是**就地编辑**，没有
- * 弹窗可以承载错误，静默失败会让人以为改上了。
+ * 改某一行的权重：成功后只刷列表（排序是服务端事实）；就地编辑，失败必须 toast。
  */
 export function useUpdateGameWeight() {
   const queryClient = useQueryClient();

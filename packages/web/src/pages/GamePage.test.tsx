@@ -20,40 +20,20 @@ import { GAME_HELP_SEEN_KEY } from '@/lib/gameHelp';
 import { gameTimerKey } from '@/lib/gameTimer';
 import ApiGamePage from './ApiGamePage';
 
-/**
- * v0.6.2（docs/v0.6.2.md §3 / §4）开出的页面级测试，v0.7.11 按新行为重写：
- *
- * 1. 进页面时把本地存档恢复成棋盘 —— **不再**有「已提交」这个可恢复的状态，
- *    取而代之的是**计时**：关掉页面再回来，秒表接着走；
- * 2. 右栏的缩放簇真的能改比例，重置能回到 100%；
- * 3. 提交是一次结算：未通过时弹窗报结论与 `x/n 正确`，不再列谁不对。
- *
- * 页面级只钉**对外可观察**的结果（用时 / 百分比 / 弹窗文案 / 棋盘画了什么），
- * 存档与计时的清洗规则分别在 `gameProgress.test.ts` / `gameTimer.test.ts` 里覆盖。
- *
- * v0.9.0 §17：右下角「已放置 / 可回退」两行统计被删掉，原先靠这两行断言存档
- * 水合的用例改成看**棋盘本身**（放置层与 `forbidden-*` 标记）—— 少一层文案，
- * 断言反而更贴近玩家真正看见的东西。
- */
+/** 页面级只钉对外可观察结果（用时 / 百分比 / 弹窗 / 棋盘）；存档与计时的清洗规则见 `gameProgress.test.ts` / `gameTimer.test.ts`（docs/v0.6.2.md §3 / §4）。 */
 
 const fixture = vi.hoisted(() => ({
   /**
    * 这一关的数据还在路上（真浏览器里的第一拍）。用例用完记得放回 `false`。
    */
   detailPending: false,
-  /**
-   * 整份关卡清单（`/api/games` 那一份，按作者排好的先后）。定案卡的
-   * 「下一关」从它算出来；每个用例可以改它（`useGames` 的 mock 读同一份）。
-   */
+  /** 整份关卡清单（`/api/games` 那一份，按作者排好的先后）。定案卡的「下一关」从它算出来；每个用例可以改它（`useGames` 的 mock 读同一份）。 */
   catalog: [
     { slug: 'night-train', gridSize: 9 },
     { slug: 'day-boat', gridSize: 5 },
     { slug: 'dusk-tower', gridSize: 6 },
   ] as Array<{ slug: string; gridSize: number }>,
-  /**
-   * v0.8.7 §4：主题的标记（主题概览页那份）。`useForbiddenSymbolByCode` 的 mock
-   * 读它，于是「谜题没配 → 跟随主题」这条能在页面级断言。
-   */
+  /** v0.8.7 §4：主题的标记（主题概览页那份）。`useForbiddenSymbolByCode` 的 mock 读它，于是「谜题没配 → 跟随主题」这条能在页面级断言。 */
   theme: {
     mark: null as UploadedImage | null,
     /** v0.8.7 §7：主题那一套工具按钮图标；默认没配。 */
@@ -62,10 +42,7 @@ const fixture = vi.hoisted(() => ({
     checkStyle: null as ThemeCheckColors | null,
     /** v0.9.2 §2；v0.9.5 合并：主题的**那一圈**图（长按 + 校验共用）；默认没配。 */
     ring: null as ThemeRing | null,
-    /**
-     * 结算卡的图标与标题。默认没配 —— 落回内置的 🎉 +「解题成功」，
-     * 正是老主题的行为，所以既有的结算卡断言不用改。
-     */
+    /** 结算卡的图标与标题。默认没配 —— 落回内置的 🎉 +「解题成功」， 正是老主题的行为，所以既有的结算卡断言不用改。 */
     verdict: null as ThemeVerdict | null,
   },
   detail: {
@@ -113,13 +90,7 @@ const fixture = vi.hoisted(() => ({
 }));
 
 vi.mock('@/hooks/useGames', () => ({
-  /**
-   * `useCatalog` 读的是**同一个** `useGames()`（`ApiGameSource` 里就是它）。
-   * 这里给一份清单，「下一关」才有的可算；`catalog` 是可变夹具，用例按需改。
-   *
-   * `detailPending` 也是夹具：真浏览器里数据是异步到的，页面会先渲染一次
-   * 「画布还没到」（`gridSize = 0`）的形态。续计时那个 bug 只在那一拍上出现。
-   */
+  /** `useCatalog` 读的是**同一个** `useGames()`（`ApiGameSource` 里就是它）。 这里给一份清单，「下一关」才有的可算；`catalog` 是可变夹具，用例按需改。 `detailPending` 也是夹具：真浏览器里数据是异步到的，页面会先渲染一次「画布还没到」（`gridSize = 0`）的形态。续计时那个 bug 只在那一拍上出现。 */
   useGameDetail: () =>
     fixture.detailPending
       ? { data: undefined, isLoading: true, isError: false }
@@ -162,12 +133,7 @@ function asset(id: number, name: string, imageUrl: string | null): Asset {
   };
 }
 
-/**
- * 图片预加载由 `useImagePreload` 负责（它自己的用例在
- * `src/hooks/useImagePreload.test.tsx`）。
- * 这一层只钉「页面把这些图交给它等、等到才撤 loading」，所以这里放一个开关，
- * 顺手把传进去的地址记下来。
- */
+/** 图片预加载由 `useImagePreload` 负责（它自己的用例在 `src/hooks/useImagePreload.test.tsx`）。 这一层只钉「页面把这些图交给它等、等到才撤 loading」，所以这里放一个开关， 顺手把传进去的地址记下来。 */
 const preloadRef: { ready: boolean; urls: string[] } = { ready: true, urls: [] };
 vi.mock('@/hooks/useImagePreload', () => ({
   useImagePreload: (urls: string[]) => {
@@ -176,32 +142,17 @@ vi.mock('@/hooks/useImagePreload', () => ({
   },
 }));
 vi.mock('@/hooks/useThemes', () => ({
-  /**
-   * v0.8.7 §4；v0.9.5 更名：标记的「跟随主题」那一档。真实 hook 返回「按编码查表」
-   * 的函数，这里按同一个签名返回一个常量。
-   */
+  /** v0.8.7 §4；v0.9.5 更名：标记的「跟随主题」那一档。真实 hook 返回「按编码查表」 的函数，这里按同一个签名返回一个常量。 */
   useMarkByCode: () => () => fixture.theme.mark,
-  /**
-   * v0.9.2 §2；v0.9.5：**那一圈** —— 长按计时环与校验圈共用一张。这一套里由
-   * `fixture.theme.ring` 决定，默认「没配」。
-   */
+  /** v0.9.2 §2；v0.9.5：**那一圈** —— 长按计时环与校验圈共用一张。这一套里由 `fixture.theme.ring` 决定，默认「没配」。 */
   useRingByCode: () => () => fixture.theme.ring,
   // v0.9.3 §3：校验的两档颜色 —— 默认不配，落回内置绿 / 红。
   useCheckColorsByCode: () => () => fixture.theme.checkStyle,
-  /**
-   * 结算卡的图标与标题 —— 同样按编码查表。默认「没配」，
-   * `resolveVerdictStyle` 会填 🎉 +「解题成功」。
-   */
+  /** 结算卡的图标与标题 —— 同样按编码查表。默认「没配」， `resolveVerdictStyle` 会填 🎉 +「解题成功」。 */
   useVerdictByCode: () => () => fixture.theme.verdict,
-  /**
-   * v0.8.7 §7：三枚工具按钮图标。同样按编码查表，这里返回 fixture 里那一套
-   * （默认 `null` = 谁都没配，按钮画内置图标）。
-   */
+  /** v0.8.7 §7：三枚工具按钮图标。同样按编码查表，这里返回 fixture 里那一套（默认 `null` = 谁都没配，按钮画内置图标）。 */
   useToolIconsByCode: () => () => fixture.theme.toolIcons,
-  /**
-   * 标尺的行列符号只由主题配置 —— 同样按编码查表。这一套里没配，
-   * 落回出厂的 `C` / `R`。
-   */
+  /** 标尺的行列符号只由主题配置 —— 同样按编码查表。这一套里没配， 落回出厂的 `C` / `R`。 */
   useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
 }));
 vi.mock('@/hooks/useCharacters', () => ({ useCharacters: () => ({ data: [] }) }));
@@ -234,12 +185,7 @@ function PathProbe(): JSX.Element {
   return <p data-testid="route-path">{location.pathname}</p>;
 }
 
-/**
- * 「下一关」的真实路径 = **同一个 router 内换地址**。
- *
- * 把 `useNavigate()` 挂到一个不渲染任何东西的组件上，用例就能在同一个 router
- * 实例里跳转 —— 这是「组件不重建、状态可能串过去」唯一能被测到的形态。
- */
+/** 「下一关」的真实路径 = **同一个 router 内换地址**。 把 `useNavigate()` 挂到一个不渲染任何东西的组件上，用例就能在同一个 router 实例里跳转 —— 这是「组件不重建、状态可能串过去」唯一能被测到的形态。 */
 let routerNavigate: ((target: string) => void) | null = null;
 
 function NavigateProbe(): null {
@@ -253,14 +199,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    /*
-     * 默认把「玩法说明看过了」摆上。
-     *
-     * 这些用例都在验别的行为，而**没看过就会自动弹一层弹框**（下面
-     * 「首次进入自动弹」那组专门验它）。不预置的话，一个 `role="dialog"`
-     * 会压在棋盘上，`pointerdown` 打到遮罩、按钮被 `aria-hidden` 掉，
-     * 几十条用例会一起红 —— 而它们其实一点都没坏。
-     */
+    // 预置「玩法说明看过了」：否则首次进入自动弹窗压住棋盘，几十条用例一起红。
     window.localStorage.setItem(GAME_HELP_SEEN_KEY, '1');
     fixture.detailPending = false;
     // 换关用例改过 slug / gridSize —— 它们是同一个夹具对象，必须逐条还原，
@@ -317,12 +256,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   }
 
-  /**
-   * 在**同一个 router** 里换关 —— 模拟「下一关」的真实路径。
-   *
-   * 用 `<MemoryRouter>` + `navigate()` 而不是重新 `root.render(...)`：后者会换掉
-   * 整棵树，测不到「组件不重建 → 状态串过去」这件事，而那正是这一组用例要抓的。
-   */
+  /** 在**同一个 router** 里换关 —— 模拟「下一关」的真实路径。 用 `<MemoryRouter>` + `navigate()` 而不是重新 `root.render(...)`：后者会换掉整棵树，测不到「组件不重建 → 状态串过去」这件事，而那正是这一组用例要抓的。 */
   function navigateTo(nextSlug: string): void {
     act(() => {
       routerNavigate?.(`/play/${nextSlug}`);
@@ -332,10 +266,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   const path = (): string =>
     document.querySelector('[data-testid="route-path"]')?.textContent ?? '';
 
-  /**
-   * jsdom 的元素尺寸恒为 0，而 `fit` / `zoomBy` 都要读真实矩形才有意义。
-   * 给中列一个固定视口，缩放与重置才会落到可断言的数值上。
-   */
+  /** jsdom 的元素尺寸恒为 0，而 `fit` / `zoomBy` 都要读真实矩形才有意义。 给中列一个固定视口，缩放与重置才会落到可断言的数值上。 */
   function sizeCanvas(): void {
     const main = container.querySelector('main');
     if (!main) throw new Error('画布容器没渲染出来');
@@ -393,12 +324,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   }
 
   /** 点提交、把逐人校验推完，等结算卡落下来。 */
-  /**
-   * 点提交、把逐人校验推完，等结算卡落下来。
-   *
-   * **通过**时多一段「定案遮罩停一秒再弹窗」，所以这里最后再推一次
-   * `GAME_VERDICT_HOLD_MS`。未通过不受影响（那一路立刻弹）。
-   */
+  /** 点提交、把逐人校验推完，等结算卡落下来。 **通过**时多一段「定案遮罩停一秒再弹窗」，所以这里最后再推一次 `GAME_VERDICT_HOLD_MS`。未通过不受影响（那一路立刻弹）。 */
   function submitAndSettle(): void {
     act(() => container.querySelector<HTMLButtonElement>('button[title="提交"]')?.click());
     for (let i = 0; i < 4; i += 1) act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
@@ -428,10 +354,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(Object.keys(kept.board ?? {})).toHaveLength(3);
   });
 
-  /**
-   * 恢复的是**用时**，不是提交状态。
-   * 存档里写的是累计毫秒，所以「03:07」进页面就该在右栏亮着，并且从这里继续走。
-   */
+  /** 恢复的是**用时**，不是提交状态。 存档里写的是累计毫秒，所以「03:07」进页面就该在右栏亮着，并且从这里继续走。 */
   it('restores the accumulated time instead of a submitted tick', () => {
     window.localStorage.setItem(
       gameTimerKey('night-train'),
@@ -444,16 +367,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     ).toBeNull();
   });
 
-  /**
-   * 续计时落盘被自己清掉的那个口子：
-   *
-   * 页面第一次渲染时数据还没到（`gridSize = 0`），计时落盘那条 effect 的依赖随后
-   * 变一次，于是**清理函数**先跑了一次 —— 它写的是 `elapsedRef`（那时还是 0），
-   * 而 `writeGameTimer(…, 0)` 的语义是**删键**。删的正是紧接着要读的那条存档。
-   *
-   * 这条用例模拟「数据晚一拍才到」：先给一份空 detail 渲染一次，再换成真的。
-   * 水合之后秒表必须还是存档里的 03:07 —— 而且落盘不能把它清掉。
-   */
+  /** 数据晚一拍才到时，计时 effect 的清理函数先以 `elapsedRef = 0` 落盘 —— 而 0 的语义是删键，会删掉刚要读的存档。 */
   it('数据晚一拍才到时，存档里的计时不会被抢在读取之前删掉', () => {
     window.localStorage.setItem(
       gameTimerKey('night-train'),
@@ -473,13 +387,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(stored?.elapsedMs ?? 0).toBeGreaterThanOrEqual(187_000);
   });
 
-  /**
-   * 第二个口子：**换关**。
-   *
-   * 从定案卡点「下一关」时组件不重建，新一关的数据还在路上。若此时拿上一关的
-   * 累计毫秒去写新一关的键（指纹 `gridSize: 0`）—— 成绩串了关，留下的还是一条
-   * 永远读不回来的垃圾。所以换关时先关闸，等新一关读完自己的存档。
-   */
+  /** 第二个口子：**换关**。 从定案卡点「下一关」时组件不重建，新一关的数据还在路上。若此时拿上一关的累计毫秒去写新一关的键（指纹 `gridSize: 0`）—— 成绩串了关，留下的还是一条永远读不回来的垃圾。所以换关时先关闸，等新一关读完自己的存档。 */
   it('换关时不把上一关的用时写进下一关的计时键', () => {
     window.localStorage.setItem(
       gameTimerKey('night-train'),
@@ -504,19 +412,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(kept?.elapsedMs ?? 0).toBeGreaterThanOrEqual(187_000);
   });
 
-  /**
-   * 「进入下一关时，应该加载这一关的状态和数据，
-   * 不要复用上一关的状态和数据」。
-   *
-   * 真实路径是**同一个 router 内换地址** —— 组件不重建，于是逐关状态全都留在
-   * 原地：缩放 / 平移、放置模式、联动激活、长按环、脉冲表……真浏览器实测过，
-   * 在 130% 的 A 关点「下一关」，B 关仍停在 130% 与 A 的平移量（B 是 6×6，那张
-   * 纸直接被摆到了屏幕外）。
-   *
-   * 修法是在渲染层外面套一层按关卡变化的 `key`：换关 = 卸载重建，状态自然归零，
-   * 新一关再由自己的数据水合。这里钉「重建过」这一件事 —— 缩放回到 100% 是
-   * 最直观的投影，但真正要保证的是**全部**状态归零，所以下面再加一条棋盘断言。
-   */
+  /** 换关是同一 router 内换地址，组件不重建会继承上一关的缩放 / 平移等全部状态；渲染层按关卡套 `key` 卸载重建，这里钉「真的重建过」。 */
   it('换关时缩放 / 平移回到这一关自己的初值，不继承上一关', () => {
     window.localStorage.setItem(
       gameTimerKey('night-train'),
@@ -540,12 +436,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(container.textContent).toContain('100%');
   });
 
-  /**
-   * 同一件事的另一面：**结案状态**也不该跟到下一关。
-   *
-   * 结算卡开着的时候点「下一关」，新一关若复用了 `result` / `checkRun`，那张
-   * 「定案」卡会跟着过去。这里钉它不跟 —— 换关之后画面上没有结算卡。
-   */
+  /** 同一件事的另一面：**结案状态**也不该跟到下一关。 结算卡开着的时候点「下一关」，新一关若复用了 `result` / `checkRun`，那张「定案」卡会跟着过去。这里钉它不跟 —— 换关之后画面上没有结算卡。 */
   it('换关时上一关的结算卡与校验圈不跟过去', () => {
     vi.useFakeTimers();
     try {
@@ -569,21 +460,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
-  /**
-   * 提交未通过时弹窗**只报结论 + 一个计数**，不列谁不对 / 哪里不对。
-   *
-   * 没放完已经交不上去（按钮禁用），所以「未通过」只剩一种局面 ——
-   * 三位都放了，但 1 和 2 撞在同一列、3 独自站对，因此是 `1/3 正确`。
-   * 棋盘上的圈已经把这两位圈成红色，弹窗里再列一遍编号是重复信息。
-   */
-  /**
-   * v0.9.3 §2：提交后**先逐人校验**，结论要等圈完最后一位才出来。
-   *
-   * 钉三件能看见的事：
-   *   1. 点下提交的那一刻不弹窗，左栏先压一层遮罩（地图除外）；
-   *   2. 圈是一拍一位加上去的 —— 不是一次性全亮；
-   *   3. 圈到最后一位之后再一拍，结论才落下来，而且那几圈**还留在棋盘上**。
-   */
+  /** 提交未通过时弹窗**只报结论 + 一个计数**，不列谁不对 / 哪里不对。 没放完已经交不上去（按钮禁用），所以「未通过」只剩一种局面 —— 三位都放了，但 1 和 2 撞在同一列、3 独自站对，因此是 `1/3 正确`。 棋盘上的圈已经把这两位圈成红色，弹窗里再列一遍编号是重复信息。 */
+  /** v0.9.3 §2：提交后**先逐人校验**，结论要等圈完最后一位才出来。 钉三件能看见的事： 1. 点下提交的那一刻不弹窗，左栏先压一层遮罩（地图除外）； 圈是一拍一位加上去的 —— 不是一次性全亮； 圈到最后一位之后再一拍，结论才落下来，而且那几圈**还留在棋盘上**。 */
   it('提交后先逐人圈一遍，圈完才给结论', () => {
     vi.useFakeTimers();
     try {
@@ -623,36 +501,22 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
       // 最后再一拍才到结论阶段（v0.9.6：先撤圈、盖定案遮罩）。
       act(() => vi.advanceTimersByTime(GAME_CHECK_STEP_MS));
-      /*
-       * 通过之后弹窗背后不留一圈圈结论 —— 用户要的是「把地图方格
-       * 用遮罩遮住，上面展示定案 + 印章」。圈是过程（谁被圈成什么色），定案是结论；
-       * 两样同时在场会读成「还在校验」。
-       */
+      /* 通过之后弹窗背后不留一圈圈结论 —— 用户要的是「把地图方格用遮罩遮住，上面展示定案 + 印章」。圈是过程（谁被圈成什么色），定案是结论； 两样同时在场会读成「还在校验」。 */
       expect(rings()).toBe(0);
       expect(container.querySelector('[data-testid="verdict-scrim"]')).not.toBeNull();
       expect(container.querySelector('[data-testid="verdict-mark"]')?.textContent).toContain('定案');
-      /*
-       * 结算卡要等定案遮罩停一拍才出现。注意这里查的是 **dialog 元素**而不是
-       * `document.body.textContent` —— 遮罩上本来就写着「定案」两个字。
-       */
+      /* 结算卡要等定案遮罩停一拍才出现。注意这里查的是 **dialog 元素**而不是 `document.body.textContent` —— 遮罩上本来就写着「定案」两个字。 */
       expect(document.querySelector('[role="dialog"]')).toBeNull();
 
       act(() => vi.advanceTimersByTime(GAME_VERDICT_HOLD_MS));
-      /*
-       * 结算卡的标题是主题里的一份配置（默认「解题成功」），
-       * 所以这里只钉「卡出现了」，不钉某一句文案。
-       */
+      /* 结算卡的标题是主题里的一份配置（默认「解题成功」）， 所以这里只钉「卡出现了」，不钉某一句文案。 */
       expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  /**
-   * 四处独立完整遮罩 —— 左右两栏各自一层（挡点击），中列一层铺满地图区
-   * （压住留白与标尺、低于画布纸所以棋盘明亮），画布底色层那一层嵌在 `canvasBase`
-   * 里（只压暗纸底）。
-   */
+  /** 四处独立完整遮罩 —— 左右两栏各自一层（挡点击），中列一层铺满地图区（压住留白与标尺、低于画布纸所以棋盘明亮），画布底色层那一层嵌在 `canvasBase` 里（只压暗纸底）。 */
   it('校验遮罩分成左栏 / 右栏 / 中列留白 / 画布底色层四处，结算后一起撤掉', () => {
     vi.useFakeTimers();
     try {
@@ -744,10 +608,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
-  /**
-   * `x/n` 是算出来的，不是写死的一句。三人同列时三位都带
-   * column issue —— 绿圈一个也没有，正文就得是 `0/3 正确`。
-   */
+  /** `x/n` 是算出来的，不是写死的一句。三人同列时三位都带 column issue —— 绿圈一个也没有，正文就得是 `0/3 正确`。 */
   it('未通过时的正确数随棋盘变化：三人同列是 0/3', () => {
     vi.useFakeTimers();
     try {
@@ -774,10 +635,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
-  /**
-   * 没有全部放好之前，提交按钮是**禁用**的；编号（候选标记）不算
-   * 放好 —— 它只是自己数格子时的草稿。
-   */
+  /** 没有全部放好之前，提交按钮是**禁用**的；编号（候选标记）不算放好 —— 它只是自己数格子时的草稿。 */
   it('keeps submit disabled until every participant has an avatar', () => {
     seedSave({
       board: {
@@ -811,12 +669,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(ready?.disabled).toBe(false);
   });
 
-  /**
-   * 提交未通过 →「继续游戏」，秒表接着走。
-   *
-   * 这里用假定时器把时间「推」过去，比真的等 2 秒稳，也能顺便确认停表那一刻
-   * 数字确实冻住（而不是悄悄继续数）。
-   */
+  /** 提交未通过 →「继续游戏」，秒表接着走。 这里用假定时器把时间「推」过去，比真的等 2 秒稳，也能顺便确认停表那一刻数字确实冻住（而不是悄悄继续数）。 */
   it('resumes the clock when the player chooses 继续游戏', () => {
     vi.useFakeTimers();
     try {
@@ -864,11 +717,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
-  /**
-   * v0.6.3 §3.4: the deployed game renders the roster the puzzle was published
-   * with — the column count is frozen into the snapshot, so what the author
-   * typed in 「基本信息」 is what players see.
-   */
+  /** v0.6.3 §3.4: the deployed game renders the roster the puzzle was published with — the column count is frozen into the snapshot, so what the author typed in 「基本信息」 is what players see. */
   it('renders the roster in the columns the snapshot carries', () => {
     render();
     const matrix = container.querySelector('[data-testid="roster-matrix"]');
@@ -913,20 +762,8 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(Object.values(stored.board ?? {})).toEqual([{ kind: 'forbidden' }]);
   });
 
-  /**
-   * v0.7.14（docs/v0.7.14.md §4）：题面与结束语。
-   *
-   * 留下的这一半是**剧透**：没提交之前，结束语一个字都不该出现在页面里。
-   */
-  /**
-   * v0.9.3 §5：配了圈图时，**只画那张被染成结果色的图**，不再另画一道本色弧。
-   *
-   * 棋盘里让 1、2 同排（未通过）、3 独自站对角线（通过），一次提交就能同时
-   * 看到两档颜色。断言走 DOM：每位的 `<image filter>` 指向一条
-   * `feColorMatrix`，矩阵值等于对应结果色的纯色矩阵；同时 `press-ring-arc`
-   * 只剩遮罩里那 3 条白色的（扇形刻度），没有结果色的进度弧 —— 颜色完全由
-   * 已上传的图片承载。
-   */
+  /** v0.7.14（docs/v0.7.14.md §4）：题面与结束语。 留下的这一半是**剧透**：没提交之前，结束语一个字都不该出现在页面里。 */
+  /** v0.9.3 §5：配了圈图时，**只画那张被染成结果色的图**，不再另画一道本色弧。 棋盘里让 1、2 同排（未通过）、3 独自站对角线（通过），一次提交就能同时看到两档颜色。断言走 DOM：每位的 `<image filter>` 指向一条 `feColorMatrix`，矩阵值等于对应结果色的纯色矩阵；同时 `press-ring-arc` 只剩遮罩里那 3 条白色的（扇形刻度），没有结果色的进度弧 —— 颜色完全由已上传的图片承载。 */
   it('配了圈图：每位的结果色染到那张图上', () => {
     vi.useFakeTimers();
     try {
@@ -1007,10 +844,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
-  /**
-   * v0.9.3 §3：印章。只有**作者给提交按钮配了图**时才盖 —— 内置那枚 lucide 勾是
-   * 界面图标，盖上去像把按钮按进纸里，不是一个印。
-   */
+  /** v0.9.3 §3：印章。只有**作者给提交按钮配了图**时才盖 —— 内置那枚 lucide 勾是界面图标，盖上去像把按钮按进纸里，不是一个印。 */
   it('作者给提交配了图，定案卡右上角才盖那一枚印', () => {
     vi.useFakeTimers();
     try {
@@ -1051,13 +885,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     }
   });
 
-  /**
-   * 两张结果卡各有一枚「返回谜题列表」—— 一局结束，玩家的下一个动作通常
-   * 不是再点棋盘，而是挑下一关。落点与左上角那个箭头同一个地址（`listHref`）。
-   *
-   * 落点带上这一关所属的主题 —— 返回的是**这个主题**的关卡列表，
-   * 不是全站那页（那边还要再挑一次主题）。
-   */
+  /** 两张结果卡各有一枚「返回谜题列表」—— 一局结束，玩家的下一个动作通常不是再点棋盘，而是挑下一关。落点与左上角那个箭头同一个地址（`listHref`）。 落点带上这一关所属的主题 —— 返回的是**这个主题**的关卡列表， 不是全站那页（那边还要再挑一次主题）。 */
   describe('结果卡的出口（v0.9.5 / v0.11.6）', () => {
     it('通过：返回谜题列表 → 这个主题的列表页', () => {
       vi.useFakeTimers();
@@ -1095,10 +923,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       }
     });
 
-    /**
-     * 「下一关」＝清单里排在当前之后、还没通过的第一关。当前是 `night-train`
-     * （清单第 0 条），后面那两关都没做过 → 跳 `day-boat`。
-     */
+    /** 「下一关」＝清单里排在当前之后、还没通过的第一关。当前是 `night-train` （清单第 0 条），后面那两关都没做过 → 跳 `day-boat`。 */
     it('通过：下一关跳到清单里第一个还没做的关', () => {
       vi.useFakeTimers();
       try {
@@ -1150,11 +975,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       }
     });
 
-    /**
-     * 后面没有没做过的关时，「再玩一次」重新当主按钮 —— 四枚全是描边的话，
-     * 结案卡上就读不出「下一步建议做什么」了。这里只看类名里的实心底色，
-     * 不钉具体 token。
-     */
+    /** 后面没有没做过的关时，「再玩一次」重新当主按钮 —— 四枚全是描边的话， 结案卡上就读不出「下一步建议做什么」了。这里只看类名里的实心底色， 不钉具体 token。 */
     it('通过但没有下一关：再玩一次仍是主按钮', () => {
       vi.useFakeTimers();
       try {
@@ -1174,12 +995,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /**
-   * 通过时落一条记录，列表页据此盖印并写出完成用时。
-   *
-   * 三条行为分开钉：写得对（用时 + 印地址）、没配印也能通过（`stampUrl` 为 null）、
-   * 未通过不写。
-   */
+  /** 通过时落一条记录，列表页据此盖印并写出完成用时。 三条行为分开钉：写得对（用时 + 印地址）、没配印也能通过（`stampUrl` 为 null）、 未通过不写。 */
   describe('通过记录（v0.9.5）', () => {
     it('通过 → 记下用时与那枚印的地址', () => {
       vi.useFakeTimers();
@@ -1253,13 +1069,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(container.textContent).toContain('100%');
   });
 
-  /**
-   * v0.8.6（docs/v0.8.6.md §4）：标记可以上传一张图。
-   *
-   * 只钉**画出来的是谁**：棋盘上那一格从 `×` 字形换成 `<img>`，地址由上传文件的
-   * 相对路径拼出来；没配置时仍然是原来那个 `×`。尺寸、内缩、类名都是外观，
-   * 不在这里钉。
-   */
+  /** v0.8.6（docs/v0.8.6.md §4）：标记可以上传一张图。 只钉**画出来的是谁**：棋盘上那一格从 `×` 字形换成 `<img>`，地址由上传文件的相对路径拼出来；没配置时仍然是原来那个 `×`。尺寸、内缩、类名都是外观， 不在这里钉。 */
   describe('标记用上传的图片（v0.8.6）', () => {
     const symbolPath = 'puzzles/12/forbidden-symbol/red.webp';
     const symbolUrl = '/api/files/puzzles/12/forbidden-symbol/red.webp';
@@ -1285,10 +1095,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(placed?.textContent).toBe('×');
     });
 
-    /**
-     * v0.8.7 §4：「谜题不配置标记图标，则默认使用主题的配置，谜题无需额外配置」。
-     * 页面级只认结果 —— 这一格画出来的到底是哪张图。
-     */
+    /** v0.8.7 §4：「谜题不配置标记图标，则默认使用主题的配置，谜题无需额外配置」。 页面级只认结果 —— 这一格画出来的到底是哪张图。 */
     it('follows the theme when the puzzle configures nothing', () => {
       const themePath = 'themes/3/forbidden-symbol/ink.webp';
       fixture.theme.mark = { path: themePath };
@@ -1342,10 +1149,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /**
-   * v0.8.7 §7：「清除 / 撤回 / 提交」三枚按钮的画。页面级只认结果 —— 按钮里到底是
-   * 一张 `<img>` 还是内置图标（`data-testid` 只在画图时出现）。
-   */
+  /** v0.8.7 §7：「清除 / 撤回 / 提交」三枚按钮的画。页面级只认结果 —— 按钮里到底是一张 `<img>` 还是内置图标（`data-testid` 只在画图时出现）。 */
   describe('工具按钮图标（v0.8.7）', () => {
     beforeEach(() => {
       fixture.theme.toolIcons = null;
@@ -1381,10 +1185,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(iconSrc('clear')).toBe('/api/files/puzzles/7/tool-icons/clear/own.webp');
     });
 
-    /**
-     * v0.9.1 §3 / §5：清除工具的悬停预览必须与按钮**同一张图** —— 作者配了图，
-     * 指针底下就不能还画内置橡皮。§5 起它还比内置字形大一圈（60%）并带白描边。
-     */
+    /** v0.9.1 §3 / §5：清除工具的悬停预览必须与按钮**同一张图** —— 作者配了图， 指针底下就不能还画内置橡皮。§5 起它还比内置字形大一圈（60%）并带白描边。 */
     it('清除工具触碰方格时预览的是按钮那张图（更大 + 白描边）', () => {
       fixture.detail.puzzle.toolIcons = { clear: { path: 'puzzles/7/tool-icons/clear/own.webp' } };
       render();
@@ -1422,12 +1223,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /**
-   * v0.9.0 §17：右栏的三处收纳 —— 统计删掉、视图簇沉底、四枚图标放大。
-   *
-   * 这三件事都发生在**共享**的 `GamePage.tsx`：工坊 `/play/:slug` 与播放器
-   * `/loredoku/:code/play/:key` 挂的是同一个组件，所以不存在两份布局要同步。
-   */
+  /** v0.9.0 §17：右栏的三处收纳 —— 统计删掉、视图簇沉底、四枚图标放大。 这三件事都发生在**共享**的 `GamePage.tsx`：工坊 `/play/:slug` 与播放器 `/loredoku/:code/play/:key` 挂的是同一个组件，所以不存在两份布局要同步。 */
   describe('右栏布局（v0.9.0 §17）', () => {
     /** 右栏是第二个 `<aside>`（第一个是左列的题面 / 名册）。 */
     function toolbar(): Element {
@@ -1443,11 +1239,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(container.textContent).not.toContain('可回退');
     });
 
-    /**
-     * 问号在最下面，视图簇因此是「倒数第二个」子元素。`mt-auto` 挂在
-     * 视图簇上 —— 它把「视图簇 + 问号」这一组一起顶到底边，所以视图簇紧贴着
-     * 问号上面，而不是贴着栏底。
-     */
+    /** 问号在最下面，视图簇因此是「倒数第二个」子元素。`mt-auto` 挂在视图簇上 —— 它把「视图簇 + 问号」这一组一起顶到底边，所以视图簇紧贴着问号上面，而不是贴着栏底。 */
     it('放大 / 缩小 / 重置 / 标尺这一簇仍在最下面那一组（v0.11.7 起问号在它下面）', () => {
       render();
       const last = toolbar().lastElementChild;
@@ -1480,13 +1272,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       }
     });
 
-    /**
-     * v0.9.1 §1：按钮不可用时，光标变成「禁用」并给一句「为什么不能点」。
-     *
-     * 禁用的 `<button>` 因基类的 `disabled:pointer-events-none` 接不到 hover，
-     * 所以光标与提示都挂在**外面那层 span** 上 —— 这条测试钉住「span 才是响应者」，
-     * 免得哪天顺手把 span 去掉、工具栏又变回「点了没反应也没解释」。
-     */
+    /** v0.9.1 §1：按钮不可用时，光标变成「禁用」并给一句「为什么不能点」。 禁用的 `<button>` 因基类的 `disabled:pointer-events-none` 接不到 hover， 所以光标与提示都挂在**外面那层 span** 上 —— 这条测试钉住「span 才是响应者」， 免得哪天顺手把 span 去掉、工具栏又变回「点了没反应也没解释」。 */
     describe('禁用状态的光标与提示（v0.9.1 §1）', () => {
       function expectDisabledHint(selector: string, text: string): void {
         const button = container.querySelector<HTMLButtonElement>(selector);
@@ -1527,15 +1313,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /**
-   * **计时的规范** + 结案遮罩。
-   *
-   * 用户给的规则：
-   * - 首次进入从 00:00 计时；离开记录时间 a；再进从 a 继续；
-   * - 提交暂停 b；通过记为完成时间 c，之后都是 00:00 开始；
-   * - 未通过点「继续游戏」从 b 继续；「重新开始」从 00:00；
-   * - **已完成再次进入 → 定格 00:00，点「再玩一次」才开跑**。
-   */
+  /** **计时的规范** + 结案遮罩。 用户给的规则：；首次进入从 00:00 计时；离开记录时间 a；再进从 a 继续；；提交暂停 b；通过记为完成时间 c，之后都是 00:00 开始；；未通过点「继续游戏」从 b 继续；「重新开始」从 00:00；；**已完成再次进入 → 定格 00:00，点「再玩一次」才开跑**。 */
   describe('计时与结案遮罩（v0.9.6）', () => {
     it('已完成再次进入：定格 00:00、盖定案遮罩、多一颗「再玩一次」', () => {
       recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
@@ -1554,18 +1332,11 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(scrim).not.toBeNull();
       expect(scrim?.textContent).toContain('定案');
       expect(scrim?.querySelector('[data-testid="verdict-replay"]')).not.toBeNull();
-      /*
-       * 地图遮罩用「一般遮罩颜色」—— 与四处校验遮罩、弹窗 overlay 同一个 token
-       * （DIALOG_OVERLAY_TINT_CLASS）。
-       */
+      /* 地图遮罩用「一般遮罩颜色」—— 与四处校验遮罩、弹窗 overlay 同一个 token （DIALOG_OVERLAY_TINT_CLASS）。 */
       expect(scrim?.className).toContain(DIALOG_OVERLAY_TINT_CLASS);
     });
 
-    /**
-     * **结案后整块画布与名册不接指针**（地图 / 物品 / 人物交互全停）。
-     * 断言的是行为 —— 往画布派发点击，棋盘存档一个字都不变；视图簇按钮禁用；
-     * 「再玩一次」仍能点。
-     */
+    /** **结案后整块画布与名册不接指针**（地图 / 物品 / 人物交互全停）。 断言的是行为 —— 往画布派发点击，棋盘存档一个字都不变；视图簇按钮禁用； 「再玩一次」仍能点。 */
     it('定案后：画布与名册不接指针，视图簇禁用，再玩一次仍可用', () => {
       recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
       render();
@@ -1597,13 +1368,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(container.querySelector('[data-testid="verdict-scrim"]')).toBeNull();
     });
 
-    /**
-     * 例外：结案后**返回与切换日夜模式仍可用**。
-     *
-     * 左栏整体 `pointer-events-none`，头部那一行用 `pointer-events-auto` 恢复。
-     * jsdom 不做 CSS hit-testing，所以这里钉的是「按钮没有被 disabled」这一半；
-     * `pointer-events` 的实际放行在真浏览器里验（读 `getComputedStyle` 与点击）。
-     */
+    /** 例外：结案后**返回与切换日夜模式仍可用**。 左栏整体 `pointer-events-none`，头部那一行用 `pointer-events-auto` 恢复。 jsdom 不做 CSS hit-testing，所以这里钉的是「按钮没有被 disabled」这一半； `pointer-events` 的实际放行在真浏览器里验（读 `getComputedStyle` 与点击）。 */
     it('定案后：返回按钮与主题开关仍未被禁用', () => {
       recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
       render();
@@ -1625,14 +1390,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       );
     });
 
-    /**
-     * **隔着遮罩冒泡的指针不点亮 hover**。
-     *
-     * 遮罩自己 `pointer-events-auto` 接住指针之后，事件会沿 React 树冒泡到
-     * `<main>` 的 `onPointerMove`。之前只靠 CSS `pointer-events-none` 挡住
-     * hit-testing，没挡住冒泡，于是光标框 / 物品抬起 / 区域高亮会隔着遮罩亮起来。
-     * 现在 handler 入口短路 + `hoverEffects` 从源头收 `hover: null`。
-     */
+    /** **隔着遮罩冒泡的指针不点亮 hover**。 遮罩自己 `pointer-events-auto` 接住指针之后，事件会沿 React 树冒泡到 `<main>` 的 `onPointerMove`。之前只靠 CSS `pointer-events-none` 挡住 hit-testing，没挡住冒泡，于是光标框 / 物品抬起 / 区域高亮会隔着遮罩亮起来。 现在 handler 入口短路 + `hoverEffects` 从源头收 `hover: null`。 */
     it('定案后：从遮罩冒泡的 pointermove 不点亮任何格子 hover', () => {
       recordGameCompletion('night-train', { gridSize: 9 }, { elapsedMs: 90_000, stampUrl: null });
       render();
@@ -1723,13 +1481,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       }
     });
 
-    /**
-     * **「再玩一次」一开始就不渲染**。
-     *
-     * 用户：「从一开始就不要渲染，后面再渲染出来」。判据曾经是 `!result` —— 通过
-     * 之后那 1 秒（定案遮罩在场、结算卡还没落）它会先画出来，卡一弹再撤掉，关上
-     * 又补回来。这里钉住中间那一刻：遮罩在、按钮不在。
-     */
+    /** **「再玩一次」一开始就不渲染**。 用户：「从一开始就不要渲染，后面再渲染出来」。判据曾经是 `!result` —— 通过之后那 1 秒（定案遮罩在场、结算卡还没落）它会先画出来，卡一弹再撤掉，关上又补回来。这里钉住中间那一刻：遮罩在、按钮不在。 */
     it('定案遮罩单独在场的那一秒：还没有「再玩一次」', () => {
       vi.useFakeTimers();
       try {
@@ -1751,13 +1503,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       }
     });
 
-    /**
-     * **结算卡开着时遮罩上不画「再玩一次」，关掉之后补出来**。
-     *
-     * 用户：「游戏校验通过后展示定案和印章时，不展示再玩一次按钮」，紧接着
-     * 补一句「改为关闭弹窗后显示」，再补一句「从一开始就不要渲染，后面再渲染
-     * 出来」。所以这一局头一秒不画、卡开着时不画，`closeResult` 关掉卡之后才补。
-     */
+    /** **结算卡开着时遮罩上不画「再玩一次」，关掉之后补出来**。 用户：「游戏校验通过后展示定案和印章时，不展示再玩一次按钮」，紧接着补一句「改为关闭弹窗后显示」，再补一句「从一开始就不要渲染，后面再渲染出来」。所以这一局头一秒不画、卡开着时不画，`closeResult` 关掉卡之后才补。 */
     it('关掉通过的结算卡：遮罩仍在，并补出「再玩一次」', () => {
       vi.useFakeTimers();
       try {
@@ -1779,13 +1525,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       }
     });
 
-    /**
-     * v0.11.3（docs/v0.11.3.md §6）—— 结算卡那一行的图标与标题**是主题里配的**。
-     *
-     * 判据三件事：没配时落回内置的 🎉 +「解题成功」（老主题原样可用）、配了文字
-     * 就换成文字、配了图就只画图不再写文字。第三件是这条的要点 —— 两个都画会把
-     * 标题挤开，用户要的是「上传图片会覆盖文字」。
-     */
+    /** v0.11.3（docs/v0.11.3.md §6）—— 结算卡那一行的图标与标题**是主题里配的**。 判据三件事：没配时落回内置的 🎉 +「解题成功」（老主题原样可用）、配了文字就换成文字、配了图就只画图不再写文字。第三件是这条的要点 —— 两个都画会把标题挤开，用户要的是「上传图片会覆盖文字」。 */
     describe('结算卡的图标与标题由主题给（v0.11.3）', () => {
       function verdictScope(): Element | null {
         return document.querySelector('[role="dialog"]');
@@ -1853,12 +1593,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /**
-   * 竖屏：描述挂在头部一枚图标后面的弹框里，不在题面里。
-   *
-   * 判据是「描述这段文字出现在哪儿」—— 面板里没有、弹框里有；线索仍在面板里
-   * （线索是解题时要反复对照的，不该跟着描述一起挪走）。
-   */
+  /** 竖屏：描述挂在头部一枚图标后面的弹框里，不在题面里。 判据是「描述这段文字出现在哪儿」—— 面板里没有、弹框里有；线索仍在面板里（线索是解题时要反复对照的，不该跟着描述一起挪走）。 */
   describe('竖屏：描述改由头部图标弹出（v0.10.1）', () => {
     const VIEWPORT_WIDTH = window.innerWidth;
     const VIEWPORT_HEIGHT = window.innerHeight;
@@ -1917,13 +1652,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(dialog?.textContent).toContain('三人三行，各归其位。');
     });
 
-    /**
-     * 竖屏里那个弹框不显示「谜题描述」这一行标题 —— 玩家刚点的就是
-     * 那枚图标，标题只是把同一件事又说一遍，还占掉一行高度。
-     *
-     * 但**读屏仍要知道这个弹框叫什么**，所以标题元素留着、只是不可见。这里钉的是
-     * 那条无障碍约定：删掉标题会让 Radix 报警，读屏也只会念出一段没有名字的文本。
-     */
+    /** 竖屏里那个弹框不显示「谜题描述」这一行标题 —— 玩家刚点的就是那枚图标，标题只是把同一件事又说一遍，还占掉一行高度。 但**读屏仍要知道这个弹框叫什么**，所以标题元素留着、只是不可见。这里钉的是那条无障碍约定：删掉标题会让 Radix 报警，读屏也只会念出一段没有名字的文本。 */
     it('弹框的标题不再占位，但读屏仍拿得到名字', () => {
       pretendPortrait();
       render();
@@ -1958,13 +1687,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(descriptionOpener()).toBeUndefined();
     });
 
-    /**
-     * 竖屏下左栏是 `display: contents`（没有盒子），那层 `absolute` 的
-     * left 遮罩被 `max-md:hidden` 收掉；题面 / 名册又落在一个 `overflow-y-auto`
-     * 的滚动容器里，给它们挂 `absolute inset-0` 会随内容滚走。所以竖屏用一层
-     * `fixed inset-0` 的整屏遮罩，挂在最外层、相对视口，校验期间一次盖住
-     * 头部 / 题面 / 名册 / 工具栏。
-     */
+    /** 竖屏下左栏是 `display: contents`（没有盒子），那层 `absolute` 的 left 遮罩被 `max-md:hidden` 收掉；题面 / 名册又落在一个 `overflow-y-auto` 的滚动容器里，给它们挂 `absolute inset-0` 会随内容滚走。所以竖屏用一层 `fixed inset-0` 的整屏遮罩，挂在最外层、相对视口，校验期间一次盖住头部 / 题面 / 名册 / 工具栏。 */
     it('竖屏提交校验时，整屏遮罩盖住题面与名册，结算后撤掉', () => {
       vi.useFakeTimers();
       try {
@@ -2066,12 +1789,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       expect(preloadRef.urls).toContain('/api/files/themes/1/check-ring/seal.webp');
     });
 
-    /**
-     * 用户口径是「**当前页面用到的**全部资源」，不是整张资源表。
-     *
-     * 资源表里躺着这一关没用到的几百张图时，等它们等于白等 —— 玩家盯着
-     * loading，等的却是别关的素材。
-     */
+    /** 用户口径是「**当前页面用到的**全部资源」，不是整张资源表。 资源表里躺着这一关没用到的几百张图时，等它们等于白等 —— 玩家盯着 loading，等的却是别关的素材。 */
     it('只等这一关用到的资源，没用到的图案不拖住 loading', () => {
       assetsRef.data = [
         asset(2, '画上的船', '/uploads/used.webp'),
@@ -2086,17 +1804,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
   });
 
   /**
-   * 用户报「`/play/:puzzle-name` 的地图缩小在左上方」。
-   *
-   * 成因不是算错，而是**算的时机早了一拍**：进页面时数据 / 图片还没齐，整页先给
-   * loading，`<main>` 根本不渲染；而视口那条挂载 effect 只在 `containerRef`（引用
-   * 稳定）与 `gridSize` 变化时跑 —— 它跑的那一拍 `containerRef.current` 还是
-   * `null`，`fit()` 与 `ResizeObserver` 全都没落地。等 loading 撤掉、`<main>` 长
-   * 出来时没有任何依赖变化把它叫醒，格子就停在 `DEFAULT_CELL_SIZE`、`pan` 停在
-   * `{0, 0}`，棋盘小小地贴在左上角。
-   *
-   * 这三条用例钉「loading → 就绪」这条路真的把视口接上了：观察者挂到了真实的
-   * `<main>` 上，并且拿到尺寸后重排出了「按可用区铺满 + 居中」的格子与偏移。
+   * loading 期间 `<main>` 不渲染，视口 effect 跑在 `containerRef.current === null` 那一拍，`fit()` 与 `ResizeObserver` 都没落地，棋盘就卡在左上角。
    */
   describe('v0.11.2 loading 结束后的视口自适应', () => {
     let observed: Element[] = [];
@@ -2160,15 +1868,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
 
     it('拿到尺寸后按可用区铺满并居中，不留在左上角', () => {
-      /*
-       * 关键在于**先后顺序**，不是「一起就绪」：
-       *   ① 关卡 JSON 还在路上 → gridSize 0、没有 `<main>`；
-       *   ② JSON 到了（gridSize 0 → 9），但资源表还在路上 → 仍然没有 `<main>`；
-       *   ③ 资源表到了 → `<main>` 出现，而此时 gridSize 没有变化。
-       *
-       * ② 那一拍会让只看 `gridSize` 的实现跑一次空转（容器还是 `null`），③ 又
-       * 没有任何依赖变化 —— 视口永远不重排。三拍都要真的渲染一遍才算还原现场。
-       */
+      /* 顺序才是关键：gridSize 变化那一拍画布还没出现，画布出现时 gridSize 没变 —— 只依赖 gridSize 的实现会永远空转。 */
       assetsRef.isLoading = true;
       fixture.detailPending = true;
       render();
@@ -2201,13 +1901,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /**
-   * **空手时点格子也要有效果** —— 没选参与者、也没选工具，指针划过去或按下去，
-   * 同样要有光标框、物品抬起与名字 tip，玩家不必先点一个工具才知道这一格是什么。
-   *
-   * 触屏点一下不会先给 `pointermove`，全靠 `onPointerDown` 在按下那一拍把悬停状态
-   * 写上；后一条用例钉的就是这条通道（只派发 `pointerdown`、不派发 `pointermove`）。
-   */
+  /** **空手时点格子也要有效果** —— 没选参与者、也没选工具，指针划过去或按下去， 同样要有光标框、物品抬起与名字 tip，玩家不必先点一个工具才知道这一格是什么。 触屏点一下不会先给 `pointermove`，全靠 `onPointerDown` 在按下那一拍把悬停状态写上；后一条用例钉的就是这条通道（只派发 `pointerdown`、不派发 `pointermove`）。 */
   describe('v0.11.2 空手时格子照常有悬停反馈', () => {
     beforeEach(() => {
       assetsRef.data = [asset(2, '画上的船', '/uploads/boat.webp')];
@@ -2289,12 +1983,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /**
-   * 玩法说明。
-   *
-   * 判据只钉「玩家看得见的三件事」：第一次进来自己弹、第二次不弹、两枚问号
-   * 随时能再打开。记账的键名与读写失败的行为在 `lib/gameHelp.test.ts` 里。
-   */
+  /** 玩法说明。 判据只钉「玩家看得见的三件事」：第一次进来自己弹、第二次不弹、两枚问号随时能再打开。记账的键名与读写失败的行为在 `lib/gameHelp.test.ts` 里。 */
   describe('v0.11.7 玩法说明', () => {
     function helpDialog(): HTMLElement | null {
       // Radix 把弹框内容 portal 到 `document.body`，不在 `container` 里。

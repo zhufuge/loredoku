@@ -46,12 +46,7 @@ import {
 import type { CSSProperties } from 'react';
 import { cellScale, scaleFontSize, scaleLineWidth } from '@/lib/canvasScale';
 
-/**
- * v0.3.8 FEAT-D02 (docs/v0.3.8.md §FEAT-D02): the map style is a set of
- * **map-level defaults**. `resolveMapStyle` is the single place that turns a
- * possibly-missing / possibly-out-of-range block into a fully populated,
- * clamped `MapStyle`, so the renderer never has to defend itself.
- */
+/** v0.3.8 FEAT-D02 (docs/v0.3.8.md §FEAT-D02): the map style is a set of **map-level defaults**. `resolveMapStyle` is the single place that turns a possibly-missing / possibly-out-of-range block into a fully populated, clamped `MapStyle`, so the renderer never has to defend itself. */
 export function clampNumber(value: number, min: number, max: number): number {
   if (!Number.isFinite(value)) return min;
   return Math.min(max, Math.max(min, value));
@@ -69,13 +64,7 @@ export function clampRegionLabelStroke(value: number): number {
   return clampNumber(value, MAP_STYLE_REGION_LABEL_STROKE_MIN, MAP_STYLE_REGION_LABEL_STROKE_MAX);
 }
 
-/**
- * 区域标签位置偏移（可正可负，取整）。
- *
- * 与 `clampRegionLabelStroke` 同一条路：输入框里可能是 `-`、空串、小数，这里
- * 统一取整。**不封顶** —— 封顶会把「推到远处留白」挡死；只把非有限数落回 0。
- * 单位是格的百分比（100 = 一格）。
- */
+/** 区域标签位置偏移（可正可负，取整）。 与 `clampRegionLabelStroke` 同一条路：输入框里可能是 `-`、空串、小数，这里统一取整。**不封顶** —— 封顶会把「推到远处留白」挡死；只把非有限数落回 0。 单位是格的百分比（100 = 一格）。 */
 export function clampRegionLabelOffset(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.round(value);
@@ -105,26 +94,13 @@ export function clampRulerGap(value: number): number {
   return clampNumber(value, MAP_STYLE_RULER_GAP_MIN, MAP_STYLE_RULER_GAP_MAX);
 }
 
-/**
- * The prefix printed in front of a ruler number (`C` / `R` by default).
- *
- * Not clamped to a range — it is a short piece of text. Only the length is
- * capped, and an empty string is preserved on purpose: it means "numbers only".
- * A non-string (hand-edited JSON) falls back to the built-in default.
- */
+/** The prefix printed in front of a ruler number (`C` / `R` by default). Not clamped to a range — it is a short piece of text. Only the length is capped, and an empty string is preserved on purpose: it means "numbers only". A non-string (hand-edited JSON) falls back to the built-in default. */
 export function clampRulerSymbol(value: unknown, fallback: string): string {
   if (typeof value !== 'string') return fallback;
   return value.slice(0, MAP_STYLE_RULER_SYMBOL_MAX_LENGTH);
 }
 
-/**
- * 把标尺符号从一份**地图草稿的**风格里剥掉。
- *
- * 符号只由主题配置（见 `useRulerSymbolsByCode`）：库里那两行旧值既不参与渲染，
- * 也不该在保存时被重新写回去 —— 否则作者改进主题、某张图的渲染却早已被自己那份
- * 覆盖，改不动也看不见。字段本身留在 `mapStyleSchema` 里，因为主题也用同一份
- * schema 存这两个值。
- */
+/** 把标尺符号从一份**地图草稿的**风格里剥掉。 符号只由主题配置（见 `useRulerSymbolsByCode`）：库里那两行旧值既不参与渲染， 也不该在保存时被重新写回去 —— 否则作者改进主题、某张图的渲染却早已被自己那份覆盖，改不动也看不见。字段本身留在 `mapStyleSchema` 里，因为主题也用同一份 schema 存这两个值。 */
 export function stripRulerSymbols(style: MapStyle): MapStyle {
   const { columnSymbol: _columnSymbol, rowSymbol: _rowSymbol, ...rest } = style.ruler;
   const ruler: MapStyleRuler = { fontSize: rest.fontSize, gap: rest.gap };
@@ -135,13 +111,7 @@ export function clampRegionBorderWidth(value: number): number {
   return Math.round(clampNumber(value, REGION_BORDER_WIDTH_MIN, REGION_BORDER_WIDTH_MAX));
 }
 
-/**
- * The label typeface is a **font name**, so there is nothing to clamp —
- * only a shape to check. A name that fails it (a hand-edited JSON, a draft
- * written by a newer build, an empty string) falls back to the shipped default
- * instead of leaking into `style.fontFamily`; a well-formed name that this
- * build does not ship still renders, the browser falls back along its stack.
- */
+/** The label typeface is a **font name**, so there is nothing to clamp — only a shape to check. */
 export function resolveFontFamilyName(value: unknown): string {
   if (typeof value === 'string') {
     const name = value.trim();
@@ -175,11 +145,7 @@ function width(fallback: number, value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? clampLineWidth(value) : fallback;
 }
 
-/**
- * Fills in every missing field from `DEFAULT_MAP_STYLE`, clamping anything the
- * caller supplied. `version = 1` drafts (no `style` at all) therefore render
- * exactly like v0.3.7.
- */
+/** Fills in every missing field from `DEFAULT_MAP_STYLE`, clamping anything the caller supplied. `version = 1` drafts (no `style` at all) therefore render exactly like v0.3.7. */
 export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
   const source = (style ?? {}) as Partial<MapStyle>;
   const fallback = DEFAULT_MAP_STYLE;
@@ -298,14 +264,7 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
   };
 }
 
-/**
- * FEAT-D04: keeps only well-formed, uniquely-keyed entries and caps the list.
- *
- * The 2-entry minimum is enforced by the **schema** (`mapStyleSchema`) and by
- * the drawer (delete is disabled at the minimum) — `resolveMapStyle` must NOT
- * re-add a removed colour, or deleting an entry would silently resurrect it.
- * The shipped palette is only used when nothing usable is left at all.
- */
+/** FEAT-D04: keeps only well-formed, uniquely-keyed entries and caps the list. The shipped palette is only used when nothing usable is left at all. */
 export function resolveLinkageColors(
   value?: Array<Partial<MapLinkageColor>> | null,
 ): MapLinkageColor[] {
@@ -330,12 +289,7 @@ export function resolveLinkageColors(
   return list.slice(0, LINKAGE_COLOR_MAX_COUNT);
 }
 
-/**
- * v0.5.0 FEAT-K14 (docs/v0.5.0.md §2.6 / Q16): the palette left `MapStyle` —
- * a puzzle owns it now. The editor merges the puzzle's `linkageColors` back in
- * at render time, which is why both lookups below take the palette directly
- * instead of a whole `MapStyle`.
- */
+/** v0.5.0 FEAT-K14 (docs/v0.5.0.md §2.6 / Q16): the palette left `MapStyle` — a puzzle owns it now. The editor merges the puzzle's `linkageColors` back in at render time, which is why both lookups below take the palette directly instead of a whole `MapStyle`. */
 export function linkageColorFor(palette: MapLinkageColor[], key: string): string {
   return (
     palette.find((entry) => entry.key === key)?.color ??
@@ -358,11 +312,7 @@ export function nextLinkageKey(existing: MapLinkageColor[]): string {
   return `c${Date.now()}`;
 }
 
-/**
- * FEAT-D04 §UI 规则: when a palette entry is deleted, every linkage that
- * referenced it is re-pointed at `toKey` so no draft is left with a dangling
- * colour. Pure so it can be unit-tested without a store.
- */
+/** FEAT-D04 §UI 规则: when a palette entry is deleted, every linkage that referenced it is re-pointed at `toKey` so no draft is left with a dangling colour. Pure so it can be unit-tested without a store. */
 export function retargetLinkageColors(
   slots: Array<CharacterSlotEntry | null>,
   fromKey: string,
@@ -395,21 +345,7 @@ export function countLinkageColorUsage(
   return count;
 }
 
-/**
- * The effective cell width at 100% zoom。
- *
- * 作者可以在「地图基本信息」里写死一个 `cellSize`，它是**上限**：渲染永远不超过
- * 视口算出来的那个数。
- *
- * 为什么是上限：`fit()` 先按 `<main>` 的宽高算出一个刚好的格子；若把结果整个换成
- * 作者写的值，作者值大于视口时棋盘就从上下两头被 `overflow-hidden` 切掉（`<main>`
- * 不可滚，也没有任何提示）。棋盘是玩这件东西的唯一界面，宁可格子比作者写的略小，
- * 也不能缺一角。
- *
- * 为什么只压上限、不干脆忽略：存量里 78 张图带着 36 ~ 168 的值，那是作者当时
- * 「别铺得太大」的意思。屏幕变大时允许它跟着长到 240（`MAX_CELL_SIZE`），但不
- * 越过作者写的数。界面上这枚输入已经撤掉，新图一律自适应。
- */
+/** The effective cell width at 100% zoom。 作者可以在「地图基本信息」里写死一个 `cellSize`，它是**上限**：渲染永远不超过 视口算出来的那个数。 为什么是上限：`fit()` 先按 `<main>` 的宽高算出一个刚好的格子； 若把结果整个换成 作者写的值，作者值大于视口时棋盘就从上下两头被 `overflow-hidden` 切掉（`<main>` 不可滚，也没有任何提示）。 棋盘是玩这件东西的唯一界面，宁可格子比作者写的略小， 也不能缺一角。 屏幕变大时允许它跟着长到 240（`MAX_CELL_SIZE`），但不 越过作者写的数。 界面上这枚输入已经撤掉，新图一律自适应。 */
 export function effectiveCellSize(autoCellSize: number, style: MapStyle): number {
   const authored = style.cellSize;
   if (typeof authored !== 'number' || !Number.isFinite(authored)) return autoCellSize;
@@ -421,24 +357,7 @@ export function styleLineWidth(base: number, cellSize: number): number {
   return scaleLineWidth(base, cellScale(cellSize));
 }
 
-/**
- * v0.8.7 §6：画布纸片的投影。偏移量与颜色都读 `style.canvasShadow`（v0.9.1 §2）
- * —— 作者能在「地图基本信息」或主题缺省风格里各配各的，不跟着外框色走。
- *
- * 为什么是硬影（`blur = 0`）：这张图的气质是一条线画到底的（网格、框、标签都在
- * 1 ~ 12px 的细线里），一团弥散阴影会第一个跳出来抢注意力。向右下偏移的硬影说的
- * 是「一叠纸」，不是「浮窗」。
- *
- * 透明度仍是固定值 {@link CANVAS_SHADOW_ALPHA}（0.3）：颜色只收 `#RRGGBB`，不开放
- * alpha —— 影子是「颜色 + 固定一层淡度」，不让人去调第二个数。
- *
- * 返回值直接摊进画布底色那一层（`MAP_LAYER_Z.canvasBase`）的 `style`：它在缩放
- * 容器里，所以偏移量随 `zoom` 一起缩放，和线宽同一套规矩。
- *
- * `canvasShadow.offset` 是**格的百分比**（100 = 一格），这里乘 `cellSize` 换成
- * 像素 —— 同一份 `36` 在 104px 的格子上是三分之一格、在 168px 的格子上是五分之一
- * 格，阴影大小跟着格子大小同步变化。
- */
+/** v0.8.7 §6 / v0.9.1 §2：画布纸片硬投影（blur=0），偏移按格百分比 × cellSize，颜色取 style.canvasShadow，alpha 固定 {@link CANVAS_SHADOW_ALPHA}。 */
 export function canvasShadowStyle(style: MapStyle, cellSize: number): CSSProperties {
   const { r, g, b } = hexToRgb(style.canvasShadow.color);
   const offset = (style.canvasShadow.offset / 100) * cellSize;
@@ -447,21 +366,7 @@ export function canvasShadowStyle(style: MapStyle, cellSize: number): CSSPropert
   };
 }
 
-/**
- * v0.9.1 §5：物品描边。返回 CSS `filter`；宽度为 0（出厂默认）时返回 `undefined`，
- * 调用方据此不挂 filter —— 零宽描边不该在 DOM 上留一条 `drop-shadow(0px 0 0 …)`。
- *
- * 用 4 向硬 `drop-shadow` 叠成一圈**剪影描边**：跟着物品图片的 alpha 走，透明
- * 背景的物品得到的是一圈贴着实物的边，而不是一个矩形框。宽度先按方格尺寸缩放
- * （`styleLineWidth`，与线宽同一套规矩），颜色直接用配置的 `#RRGGBB`。
- *
- * 缩放后的宽度**取整、且至少 1px**。小数宽度塞进 `drop-shadow` 时，竖屏 7×7 的
- * 格子约 49px（`cellScale = 49/120`），作者写的 6 缩成 2.45px —— Safari 对小数偏移
- * 的离屏渲染会把这个边缘整个抹掉，于是 Chrome 有描边、Safari 没有。取整到整数像素
- * 后各引擎算出来的都是同一条硬边；下限 1px 保证
- * 小格子下不会缩成 0（与 `MapGameLayers.tsx` 里清除图标白描边的
- * `Math.max(1, Math.round(cellSize * 0.02))` 同一处理方式）。
- */
+/** v0.9.1 §5：物品描边。 返回 CSS `filter`； 宽度为 0（出厂默认）时返回 `undefined`， 调用方据此不挂 filter —— 零宽描边不该在 DOM 上留一条 `drop-shadow(0px 0 0 …)`。 用 4 向硬 `drop-shadow` 叠成一圈**剪影描边**：跟着物品图片的 alpha 走，透明 背景的物品得到的是一圈贴着实物的边，而不是一个矩形框。 下限 1px 保证 小格子下不会缩成 0（与 `MapGameLayers.tsx` 里清除图标白描边的 `Math.max(1, Math.round(cellSize * 0.02))` 同一处理方式）。 */
 export function itemOutlineFilter(
   outline: MapStyleItemOutline,
   cellSize: number,
@@ -479,13 +384,7 @@ export function itemOutlineFilter(
   ].join(' ');
 }
 
-/**
- * The 「地图基本信息」drawer keeps a draft and only commits on save, so it needs
- * to know whether anything actually changed. Comparing the two resolved styles
- * field by field is enough — both sides have already been normalised by
- * {@link resolveMapStyle}. The palette is not part of `MapStyle`, so it is out
- * of scope here.
- */
+/** 比较两个已 resolve 的 MapStyle 是否相等（调色板不在 MapStyle 内），「基本信息」抽屉用它判断是否有改动。 */
 export function mapStyleEquals(a: MapStyle, b: MapStyle): boolean {
   if (a === b) return true;
   return JSON.stringify(a) === JSON.stringify(b);

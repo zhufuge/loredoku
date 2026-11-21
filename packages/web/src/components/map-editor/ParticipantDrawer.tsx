@@ -59,15 +59,9 @@ interface ParticipantDrawerProps {
   placedItems: PlacedItemOption[];
   regions: DraftRegion[];
   gridSize: number;
-  /**
-   * FEAT-D04 + v0.5.0 FEAT-K14 (Q16): the linkage palette. It used to hang off
-   * `MapStyle`; the puzzle owns it now, so it is passed directly.
-   */
+  /** FEAT-D04 + v0.5.0 FEAT-K14 (Q16): 联动调色板 —— 以前挂在 `MapStyle` 上，现在由谜题持有，直接传进来。 */
   linkageColors: MapLinkageColor[];
-  /**
-   * FEAT-E01 (docs/v0.4.1.md §7.3): picking a position happens on the canvas,
-   * so the drawer only owns the intent — the page owns the pointer.
-   */
+  /** FEAT-E01 (docs/v0.4.1.md §7.3): 选位置发生在画布上，抽屉只管意图，指针归页面。 */
   positionPickActive?: boolean;
   onTogglePositionPick?: () => void;
   /** The cell the page just reported from the canvas; consumed via the callback. */
@@ -88,13 +82,7 @@ interface ParticipantDrawerProps {
 }
 
 /**
- * CLAR-603 + MOD-702/801 (docs/v0.3.2.md + v0.3.3.md): right-side info drawer.
- * MOD-801:
- * - theme colour palette (no luminance hint, no hex hints)
- * - clue editor without the `**bold**` hint (char count kept)
- * - 「联动」 module: one flat list (no click/touch tabs), add / edit via
- *   LinkageDialog, delete via AlertDialog with loading (OPT-210)
- * - no preview buttons (MOD-802 moved previews to the roster panel)
+ * CLAR-603 + MOD-702/801 (docs/v0.3.2.md + v0.3.3.md): 右侧信息抽屉。MOD-801: 主题色板（无亮度 / hex 提示）、线索编辑器（保留字数）、「联动」一个平铺列表（增改走 LinkageDialog、删走 AlertDialog 带 loading），无预览按钮（MOD-802 已挪到名册面板）。
  */
 export function ParticipantDrawer({
   open,
@@ -148,9 +136,7 @@ export function ParticipantDrawer({
   }, [open, slot]);
 
   /**
-   * FEAT-E01 §7.3(a): the page reports the picked cell. Duplicates are ignored
-   * (§7.2 去重) and the page is told the pick was consumed either way, so the
-   * selection mode can end.
+   * FEAT-E01 §7.3(a): 页面报来的选中格子；重复的忽略（§7.2 去重），无论加没加都告诉页面这次选已被消费，好结束选择模式。
    */
   useEffect(() => {
     if (!pickedPosition) return;
@@ -194,13 +180,7 @@ export function ParticipantDrawer({
     return [...byId.values()];
   }, [placedItems]);
 
-  /**
-   * FEAT-H09 §9.2(3~4) (docs/v0.4.2.md §9): 「取消」, the × button and `Esc` all
-   * mean the same thing — drop this drawer's local edits and close. The store is
-   * never touched, so no undo step appears. (The page closes the drawer on `Esc`
-   * by clearing the selection, and the seeding effect above guarantees a fresh
-   * open reads the stored slot again.)
-   */
+  /** FEAT-H09 §9.2(3~4) (docs/v0.4.2.md §9): 「取消」, the × button and `Esc` all mean the same thing — drop this drawer's local edits and close. The store is never touched, so no undo step appears. */
   const cancel = (): void => {
     if (slot) {
       setThemeColor(slot.themeColor ?? DEFAULT_THEME_COLOR);
@@ -262,14 +242,7 @@ export function ParticipantDrawer({
         'absolute inset-y-0 right-0 w-80 max-w-[85vw] border-l bg-background/95 shadow-lifted backdrop-blur transition-transform duration-slow ' +
         (open ? 'pointer-events-auto translate-x-0' : 'pointer-events-none translate-x-full')
       }
-      /**
-       * FIX-N10 (docs/v0.5.3.md §6.3): `inset-y-0` is measured against the
-       * nearest positioned ancestor — which must be the row **below** the
-       * header bar, never the page root. The page renders this drawer inside
-       * that row for exactly this reason.
-       *
-       * FIX-N11 §6.4: `UI_Z.drawer` — the top-most of the three panels.
-       */
+      /** FIX-N10 (docs/v0.5.3.md §6.3): `inset-y-0` is measured against the nearest positioned ancestor — which must be the row **below** the header bar, never the page root. The page renders this drawer inside that row for exactly this reason. FIX-N11 §6.4: `UI_Z.drawer` — the top-most of the three panels. */
       style={{ zIndex: UI_Z.drawer }}
       aria-hidden={!open}
       data-testid="participant-drawer"

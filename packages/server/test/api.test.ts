@@ -22,19 +22,12 @@ function uniqueCode(prefix: string): string {
   return `${prefix}_${Math.random().toString(16).slice(2, 10)}`;
 }
 
-/**
- * OPT-W04: a game access path must match `^[a-z0-9-]+$`, so `uniqueCode` (which
- * contains `_`) cannot be used for one. Hex keeps it unique and slug-safe.
- */
+/** OPT-W04: a game access path must match `^[a-z0-9-]+$`, so `uniqueCode` (which contains `_`) cannot be used for one. Hex keeps it unique and slug-safe. */
 function uniqueSlug(prefix = 'game'): string {
   return `${prefix}-${Math.random().toString(16).slice(2, 10)}`;
 }
 
-/**
- * The map draft is pure canvas — the roster and the palette live on the
- * puzzle, so `characterSlots` is gone and `version` is the v3 stamp
- * (`MAP_JSON_VERSION`).
- */
+/** The map draft is pure canvas — the roster and the palette live on the puzzle, so `characterSlots` is gone and `version` is the v3 stamp (`MAP_JSON_VERSION`). */
 function emptyDraft(gridSize: number): MapDraft {
   return {
     version: MAP_JSON_VERSION,
@@ -44,21 +37,14 @@ function emptyDraft(gridSize: number): MapDraft {
   };
 }
 
-/**
- * 创建地图不带画布尺寸（`maps.grid_size` 已不存在）。测试里的
- * `createMap({ name, gridSize: n })` 语义不变 —— helper 把 gridSize 转成
- * 建后的一次初始化调用，这样所有既有用例一行不用改。
- */
+/** 创建地图不带画布尺寸（`maps.grid_size` 已不存在）。测试里的 `createMap({ name, gridSize: n })` 语义不变 —— helper 把 gridSize 转成建后的一次初始化调用，这样所有既有用例一行不用改。 */
 async function initMap(mapId: number, gridSize: number): Promise<void> {
   const res = await api.patch(`/api/maps/${mapId}/grid-size`).send({ gridSize });
   expect(res.status).toBe(200);
   expect(res.body.code).toBe(ErrorCode.OK);
 }
 
-/**
- * 保存画布不需要先读 revision，服务端直接后写覆盖。这个 helper 只负责
- * 「写一次并且必须成功」。
- */
+/** 保存画布不需要先读 revision，服务端直接后写覆盖。这个 helper 只负责「写一次并且必须成功」。 */
 /** supertest 的 Response（不是 DOM 那个）—— 用推断类型，避免撞名。 */
 type ApiResponse = Awaited<ReturnType<typeof api.get>>;
 
@@ -126,10 +112,7 @@ async function publish(mapId: number): Promise<number> {
   return res.body.data.versionNo as number;
 }
 
-/**
- * 发布 = INSERT 一条 `maps` 行，所以版本行的 id 也要单独记账 —— 这些用例会软删 /
- * 硬删工作条目，`root_id` 扫不到它们。
- */
+/** 发布 = INSERT 一条 `maps` 行，所以版本行的 id 也要单独记账 —— 这些用例会软删 / 硬删工作条目，`root_id` 扫不到它们。 */
 const createdVersionRows: number[] = [];
 
 async function publishVersion(mapId: number, version?: number): Promise<ApiResponse> {
@@ -143,10 +126,7 @@ async function publishVersion(mapId: number, version?: number): Promise<ApiRespo
 
 /** FEAT-K01: a puzzle bound to a published map version. */
 async function createPuzzle(body: Record<string, unknown>): Promise<number> {
-  /**
-   * v0.8.5 §7：编码必填（部署时预填路径的那一串）。绝大多数用例不关心它，这里补一个
-   * 合法的唯一值；要断言编码的用例自己传，传了就盖掉这个默认。
-   */
+  /** v0.8.5 §7：编码必填（部署时预填路径的那一串）。绝大多数用例不关心它，这里补一个合法的唯一值；要断言编码的用例自己传，传了就盖掉这个默认。 */
   const res = await api.post('/api/puzzles').send({ code: uniqueSlug('pc'), ...body });
   expect(res.status).toBe(200);
   expect(res.body.code).toBe(ErrorCode.OK);
@@ -309,12 +289,7 @@ describe('maps API', () => {
     expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
-  /**
-   * FEAT-K09 (docs/v0.5.0.md §7.1) — with Q3 = B the list is a **union** of the
-   * work entry and every version entry of the same blood lineage, keyed by
-   * `map_projects.root_id`. The keyword filter matches both kinds, which is how
-   * this test isolates a single lineage in a shared dev database.
-   */
+  /** FEAT-K09 (docs/v0.5.0.md §7.1)：列表是同一血脉（`map_projects.root_id`）的 work entry 与全部版本条目的并集，关键词同时匹配两类 —— 用例靠它隔离单条血脉。 */
   it('groups a work entry with its version entries in one list (FEAT-K09)', async () => {
     const name = `Union ${uniqueCode('p')}`;
     const mapId = await createMap({ name, gridSize: 6 });
@@ -382,11 +357,7 @@ describe('maps API', () => {
     expect(res.status).toBe(404);
   });
 
-  /**
-   * FEAT-H03（docs/v0.4.2.md §3.2c）：封面是二进制，走自己的 `POST` / `DELETE`。
-   * `cover_path` 是唯一真相，`coverUrl` 由它拼出来（`buildFileUrl`），所以换端口
-   * 时必须同步 `PUBLIC_BASE_URL` —— 这里顺带验证 URL 真的能取到文件。
-   */
+  /** FEAT-H03（docs/v0.4.2.md §3.2c）：封面是二进制，走自己的 `POST` / `DELETE`。 `cover_path` 是唯一真相，`coverUrl` 由它拼出来（`buildFileUrl`），所以换端口时必须同步 `PUBLIC_BASE_URL` —— 这里顺带验证 URL 真的能取到文件。 */
   it('uploads a cover, serves it, then clears it (FEAT-H03)', async () => {
     const id = await createMap({ name: `Cover ${uniqueCode('p')}` });
     uploadedMapCoverDirs.push(resolveUploadPath(`maps/${id}`));
@@ -535,10 +506,7 @@ describe('assets API', () => {
     expect(dropped.body.data.blocking).toBe(true);
   });
 
-  /**
-   * 背景修饰层：占用检查（资源与形态两处）同样要扫 `cell.decoration`，
-   * 否则一张只放了地毯的画布报「0 处使用」，作者就敢把地毯删了。
-   */
+  /** 背景修饰层：占用检查（资源与形态两处）同样要扫 `cell.decoration`， 否则一张只放了地毯的画布报「0 处使用」，作者就敢把地毯删了。 */
   it('v0.10.9: a decoration-layer placement counts as usage (asset and variant)', async () => {
     const assetId = await createAsset({ name: 'Rug', type: 'item', decoration: true });
     const variantId = (await api.get(`/api/assets/${assetId}`)).body.data.variants[0].id as number;
@@ -793,11 +761,7 @@ describe('map draft API', () => {
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
-  /**
-   * docs/v0.5.0.md §8.4: a v2 file must be **rejected with a pointer**, not
-   * silently stripped — otherwise the author would believe their participants
-   * came along with the canvas.
-   */
+  /** docs/v0.5.0.md §8.4: a v2 file must be **rejected with a pointer**, not silently stripped — otherwise the author would believe their participants came along with the canvas. */
   it('rejects a v2 map JSON on import and points at the puzzle module (§8.4)', async () => {
     const mapId = await createMap({ name: `Import ${uniqueCode('p')}`, gridSize: 6 });
     const res = await api.post(`/api/maps/${mapId}/map/import`).send({
@@ -891,10 +855,7 @@ describe('versions API', () => {
     expect(res.body.data.versionNo).toBe(1);
   });
 
-  /**
-   * @deprecated v0.5.0 §15 Q9 — superseded by `/fork`. No UI reaches it, but a
-   * historical caller still restores a version into the working draft.
-   */
+  /** @deprecated v0.5.0 §15 Q9 — superseded by `/fork`. No UI reaches it, but a historical caller still restores a version into the working draft. */
   it('restores a version into the working draft via the deprecated route (Q9)', async () => {
     const mapId = await createMap({ name: `Restore ${uniqueCode('p')}`, gridSize: 6 });
     const assetId = await createAsset({ type: 'item', blocking: false });
@@ -911,12 +872,7 @@ describe('versions API', () => {
   });
 });
 
-/**
- * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3) — 「编辑此版本」 opens a version for
- * editing as a **new work entry in the same blood lineage**. `map_versions` is
- * never written, and the lineage keeps counting so the next publish is `v3`,
- * not a restarted `v1`.
- */
+/** SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3)：fork 在同一血脉里新增 work entry，绝不写 `map_versions`，版本号继续累计（下一次发布是 v3 而非重开 v1）。 */
 describe('version fork (SPEC-K11 / Q3 = B)', () => {
   it('adds a work entry in the same lineage without touching map_versions', async () => {
     const name = `Fork ${uniqueCode('p')}`;
@@ -1039,11 +995,7 @@ describe('version fork (SPEC-K11 / Q3 = B)', () => {
   });
 });
 
-/**
- * FEAT-K01 (docs/v0.5.0.md §2) — the puzzle module. It replaces the old works
- * table (the list keeps the same 5 columns) and owns the roster + palette and
- * the reference to one **published** map version.
- */
+/** FEAT-K01 (docs/v0.5.0.md §2) — the puzzle module. It replaces the old works table (the list keeps the same 5 columns) and owns the roster + palette and the reference to one **published** map version. */
 describe('puzzles API (FEAT-K01)', () => {
   it('creates a puzzle bound to a published version and reads it back', async () => {
     const { mapId, versionNo, assetId } = await publishedMapWithItem(`Pz ${uniqueCode('p')}`);
@@ -1243,12 +1195,7 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(res.body.data.data.description).toBe('新描述');
   });
 
-  /**
-   * v0.8.5 §7（docs/v0.8.5.md）：编码在主题内不重，且写整条血统。
-   *
-   * 「同血统共用」这一条是这次最容易写错的地方：版本行是快照，编码却不是版本的
-   * 属性 —— 只写草稿行的话，部署那条版本时预填的还是旧编码。
-   */
+  /** v0.8.5 §7（docs/v0.8.5.md）：编码在主题内不重，且写整条血统。 「同血统共用」这一条是这次最容易写错的地方：版本行是快照，编码却不是版本的属性 —— 只写草稿行的话，部署那条版本时预填的还是旧编码。 */
   it('编码在主题内不重；改编码写整条血统', async () => {
     const { draftId, versionId, code } = await deployablePuzzle(`Code ${uniqueCode('p')}`);
     // 版本行继承草稿的编码（发布时抄过去）。
@@ -1314,15 +1261,7 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
-  /**
-   * v0.8.6（docs/v0.8.6.md §4）：禁止符号是一张**上传图**（不是资源引用），
-   * 主题还可以配一份「新建谜题缺省」。四件事一起钉：
-   *
-   * ① 谜题上传 → `{ path, url }`，随草稿保存后读回一致；
-   * ② 主题上传 / 删除 → `themes.data.mark`；
-   * ③ 新建谜题拷贝主题缺省，之后主题换图不追溯；
-   * ④ 版本行 id 也能上传（fork 态只写文件、不写库）。
-   */
+  /** v0.8.6（docs/v0.8.6.md §4）：禁止符号是一张**上传图**（不是资源引用）， 主题还可以配一份「新建谜题缺省」。四件事一起钉： ① 谜题上传 → `{ path, url }`，随草稿保存后读回一致； ② 主题上传 / 删除 → `themes.data.mark`； ③ 新建谜题拷贝主题缺省，之后主题换图不追溯； ④ 版本行 id 也能上传（fork 态只写文件、不写库）。 */
   describe('标记的上传与主题缺省 (v0.8.6 §4)', () => {
     const THEME_CODE = 'test-mark';
 
@@ -1429,10 +1368,7 @@ describe('puzzles API (FEAT-K01)', () => {
       ).toBeUndefined();
     });
 
-    /**
-     * v0.8.7 §4：新建谜题**不再拷贝**主题的禁止符号 —— 不配就跟随，读取侧解析。
-     * 这一条钉的是「库里的草稿保持干净」，以及「主题换图对跟随的谜题立刻生效」。
-     */
+    /** v0.8.7 §4：新建谜题**不再拷贝**主题的禁止符号 —— 不配就跟随，读取侧解析。 这一条钉的是「库里的草稿保持干净」，以及「主题换图对跟随的谜题立刻生效」。 */
     it('新建谜题不拷贝主题的禁止符号（跟随），主题换图后仍没有自己的那份', async () => {
       const created = await theme();
       uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
@@ -1491,16 +1427,7 @@ describe('puzzles API (FEAT-K01)', () => {
     });
   });
 
-  /**
-   * v0.9.3 §3；v0.9.6 起**圈图并进 `ring`**（与长按计时环共用一张），`checkStyle`
-   * 只剩两档颜色。
-   *
-   * 三件事一起钉：
-   *
-   * ① PATCH 只改给的那一档，另一档原样保留；
-   * ② 主题还没有 `checkStyle` 时，改一个颜色会把两档都补齐；
-   * ③ 空 body / 非法颜色都是 400。
-   */
+  /** v0.9.3 §3；v0.9.6 起**圈图并进 `ring`**（与长按计时环共用一张），`checkStyle` 只剩两档颜色。 三件事一起钉： ① PATCH 只改给的那一档，另一档原样保留； ② 主题还没有 `checkStyle` 时，改一个颜色会把两档都补齐； ③ 空 body / 非法颜色都是 400。 */
   describe('提交校验的两档颜色 (v0.9.3 / v0.9.6)', () => {
     const THEME_CODE = 'test-check-style';
 
@@ -1555,10 +1482,7 @@ describe('puzzles API (FEAT-K01)', () => {
       });
     });
 
-    /**
-     * 圈图并进主题的 `ring`，所以这里钉的是**两者互不干扰**：改颜色不碰 `ring`，
-     * 换圆环也不碰颜色。
-     */
+    /** 圈图并进主题的 `ring`，所以这里钉的是**两者互不干扰**：改颜色不碰 `ring`， 换圆环也不碰颜色。 */
     it('换圆环不动两档颜色，改颜色也不碰圆环', async () => {
       const created = await theme();
       uploadedThemeSymbolDirs.push(resolveUploadPath(`themes/${created.id}`));
@@ -1591,14 +1515,7 @@ describe('puzzles API (FEAT-K01)', () => {
     });
   });
 
-  /**
-   * v0.8.7 §7：「清除 / 撤回 / 提交」三枚按钮的图标，主题与谜题两级配置，与禁止符号
-   * 同一条路（只写一张 webp、读取侧兜底）。这里钉的是**接口契约**：
-   *
-   * ① 主题三枚逐枚写、互不干扰，删掉一枚另两枚还在，三枚都删干净则整个键消失；
-   * ② 谜题只写文件（`{ path, url }`），草稿里要保存才落地；
-   * ③ `:icon` 是枚举 —— 拼错是 400，不是「传上去了但哪儿也没变」。
-   */
+  /** v0.8.7 §7：「清除 / 撤回 / 提交」三枚按钮的图标，主题与谜题两级配置，与禁止符号同一条路（只写一张 webp、读取侧兜底）。这里钉的是**接口契约**： ① 主题三枚逐枚写、互不干扰，删掉一枚另两枚还在，三枚都删干净则整个键消失； ② 谜题只写文件（`{ path, url }`），草稿里要保存才落地； ③ `:icon` 是枚举 —— 拼错是 400，不是「传上去了但哪儿也没变」。 */
   describe('工具按钮图标的上传 (v0.8.7 §7)', () => {
     const THEME_CODE = 'test-tool-icons';
 
@@ -1760,10 +1677,7 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
     expect(deploy.body.data.difficulty).toBe(3);
   });
 
-  /**
-   * v0.8.5 §7.4：请求里没有路径时，兜底**先看谜题编码**（`puzzle-{code}`），
-   * 没有编码的存量谜题才退回按名称推导 —— 中文名推不出东西。
-   */
+  /** v0.8.5 §7.4：请求里没有路径时，兜底**先看谜题编码**（`puzzle-{code}`）， 没有编码的存量谜题才退回按名称推导 —— 中文名推不出东西。 */
   it('不给访问路径时用谜题编码派生', async () => {
     const { versionId, code } = await deployablePuzzle(`Coded ${uniqueCode('p')}`);
 
@@ -2014,10 +1928,7 @@ describe('games API slug (OPT-W04)', () => {
 
   it('asks for a manual path when the puzzle has no code and the name derives nothing (Q13)', async () => {
     const { versionId, draftId } = await deployablePuzzle(`汉字项目 ${token()}`);
-    /**
-     * v0.8.5 §7.4：这一格现在兜得住中文名了（编码就是路径形状）。要复现 Q13 得退回
-     * **没有编码的存量谜题** —— 接口已经造不出这种行，所以直接抹掉那一列。
-     */
+    /** v0.8.5 §7.4：这一格现在兜得住中文名了（编码就是路径形状）。要复现 Q13 得退回 **没有编码的存量谜题** —— 接口已经造不出这种行，所以直接抹掉那一列。 */
     await db('puzzles').where({ root_id: draftId }).update({ code: null });
 
     const res = await api
@@ -2046,13 +1957,7 @@ describe('games API slug (OPT-W04)', () => {
   });
 });
 
-/**
- * 展示顺序（`games.sort_weight`）。
- *
- * 三件事必须钉住：排序的两级（权重 → 路径）、重新部署**不**把顺序清掉、越界的
- * 数字被拒而不是静默改成 0。第三条最容易悄悄坏掉 —— 一个 `.default(0)` 就能让
- * 「这次没提」变成「就排 0」，作者排好的先后在下次改封面时就散了。
- */
+/** 展示顺序（`games.sort_weight`）。 三件事必须钉住：排序的两级（权重 → 路径）、重新部署**不**把顺序清掉、越界的数字被拒而不是静默改成 0。第三条最容易悄悄坏掉 —— 一个 `.default(0)` 就能让「这次没提」变成「就排 0」，作者排好的先后在下次改封面时就散了。 */
 describe('games API 展示顺序 (v0.8.3)', () => {
   function token(): string {
     return Math.random().toString(16).slice(2, 10);
@@ -2128,13 +2033,7 @@ describe('games API 展示顺序 (v0.8.3)', () => {
   });
 });
 
-/**
- * 部署页的顺序列直接 `PATCH /api/games/:id`，不经部署弹窗重发整份负载。
- *
- * 这条端点只认 `sortWeight` 一个键 —— 重发整份负载会把名称 / 路径 / 难度一起写
- * 回去，而列表上的那些值可能已经比弹窗里的新。所以第一条用例顺手钉住「别的字段
- * 一个都不动」。
- */
+/** 部署页的顺序列直接 `PATCH /api/games/:id`，不经部署弹窗重发整份负载。 这条端点只认 `sortWeight` 一个键 —— 重发整份负载会把名称 / 路径 / 难度一起写回去，而列表上的那些值可能已经比弹窗里的新。所以第一条用例顺手钉住「别的字段一个都不动」。 */
 describe('部署页就地改顺序 (v0.8.5)', () => {
   function token(): string {
     return Math.random().toString(16).slice(2, 10);
@@ -2210,15 +2109,7 @@ describe('部署页就地改顺序 (v0.8.5)', () => {
   });
 });
 
-/**
- * v0.8.3（docs/v0.8.3.md §3）：难度分级归主题。
- *
- * 三个断言各钉一件事：自定义档能部署、没提难度时用主题的默认档（不是写死的
- * `medium`）、内置档在自定义主题里**同样**不合法（分级是整份替换，不是追加）。
- *
- * 主题用固定编码 + PATCH 覆盖 data：每跑一次都新建一个主题会把库变成垃圾场
- * （`fixtureTheme` 的注释里已经记过这笔账）。
- */
+/** v0.8.3（docs/v0.8.3.md §3）：难度分级归主题。 三个断言各钉一件事：自定义档能部署、没提难度时用主题的默认档（不是写死的 `medium`）、内置档在自定义主题里**同样**不合法（分级是整份替换，不是追加）。 主题用固定编码 + PATCH 覆盖 data：每跑一次都新建一个主题会把库变成垃圾场（`fixtureTheme` 的注释里已经记过这笔账）。 */
 describe('难度分级由主题定义 (v0.8.3)', () => {
   const THEME_CODE = 'test-tiers';
 
@@ -2286,12 +2177,7 @@ describe('难度分级由主题定义 (v0.8.3)', () => {
   });
 });
 
-/**
- * v0.7.1 §5.2 / §7.1：谜题有了版本，部署的单位从「谜题」变成「谜题版本行」。
- *
- * 这一组钉住四层拦截的第三层（服务端 400）与两个唯一约束的分工：
- * 草稿行不能部署、版本行只读、号不回收、删掉的 slug 可以重用。
- */
+/** v0.7.1 §5.2 / §7.1：谜题有了版本，部署的单位从「谜题」变成「谜题版本行」。 这一组钉住四层拦截的第三层（服务端 400）与两个唯一约束的分工： 草稿行不能部署、版本行只读、号不回收、删掉的 slug 可以重用。 */
 describe('v0.7.1 谜题版本与部署', () => {
   it('草稿行不能部署 —— 只有已发布的版本可以', async () => {
     const { draftId } = await puzzleWithVersion(`DraftDeploy ${uniqueCode('p')}`);
@@ -2359,10 +2245,7 @@ describe('v0.7.1 谜题版本与部署', () => {
     expect(lineage.body.data.map((row: { versionNo: number }) => row.versionNo)).toEqual([6, 1]);
   });
 
-  /**
-   * v0.7.2 §3.3：编辑器 `?v=` 态「保存才 fork」，所以 fork 端点要能接住作者
-   * 此刻的草稿。底图不认客户端那份 —— 永远以版本行里的 `map` 为准。
-   */
+  /** v0.7.2 §3.3：编辑器 `?v=` 态「保存才 fork」，所以 fork 端点要能接住作者此刻的草稿。底图不认客户端那份 —— 永远以版本行里的 `map` 为准。 */
   it('fork 可以带着编辑后的草稿落库，底图仍取版本自己的画布', async () => {
     const { versionId } = await deployablePuzzle(`ForkData ${uniqueCode('p')}`);
     const version = await api.get(`/api/puzzles/${versionId}/versions/1`);
@@ -2386,10 +2269,7 @@ describe('v0.7.1 谜题版本与部署', () => {
     expect(draft.data.map).toEqual(version.body.data.data.map);
   });
 
-  /**
-   * v0.7.3 §3.4：「引入新地图」只交**来源**，画布由服务端从那份已发布版本读。
-   * 换的只是 `data.map`，谜题自己的字段一个都不许动。
-   */
+  /** v0.7.3 §3.4：「引入新地图」只交**来源**，画布由服务端从那份已发布版本读。 换的只是 `data.map`，谜题自己的字段一个都不许动。 */
   it('保存带 mapSource 换底图：画布来自新版本，谜题字段一个不动', async () => {
     const { draftId } = await deployablePuzzle(`Swap ${uniqueCode('p')}`);
     const otherMapId = await createMap({ name: `Other ${uniqueCode('p')}`, gridSize: 6 });
@@ -2561,12 +2441,7 @@ describe('v0.7.1 谜题版本与部署', () => {
   });
 });
 
-/**
- * v0.5.8 第三阶段（docs/map-table-merge-design.md）：`map_versions` 并入
- * `maps` 之后，版本行就是合法的 `maps` 行 —— 于是有两条新契约要钉住：
- * 号可自定义但不可复用（软删行仍占号），以及版本行虽然能被 id 直达，但写
- * 入口一律 400。
- */
+/** v0.5.8 第三阶段（docs/map-table-merge-design.md）：`map_versions` 并入 `maps` 之后，版本行就是合法的 `maps` 行 —— 于是有两条新契约要钉住： 号可自定义但不可复用（软删行仍占号），以及版本行虽然能被 id 直达，但写入口一律 400。 */
 describe('v0.5.8 第三阶段：版本行与草稿行同表', () => {
   it('自定义版本号：能填空洞号，活行与软删行重号都 400', async () => {
     const name = `MergeNo ${uniqueCode('p')}`;
@@ -2805,12 +2680,7 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
   });
 });
 
-/**
- * v0.8.3（docs/v0.8.3.md §15）：删主题 = **物理删除**，编码立刻回到可用状态。
- *
- * 行真的没了，同编码重建不会撞 `themes.code` 的唯一约束。四条用例各钉一件事：编码
- * 释放、数量护栏、软删子行（外键）不挡路。
- */
+/** v0.8.3（docs/v0.8.3.md §15）：删主题 = **物理删除**，编码立刻回到可用状态。 行真的没了，同编码重建不会撞 `themes.code` 的唯一约束。四条用例各钉一件事：编码释放、数量护栏、软删子行（外键）不挡路。 */
 describe('删除主题是硬删 (v0.8.3 §15)', () => {
   /** 用例自己建的主题：跑完一律物理清掉（游戏 / 谜题的外键也由它一并处理）。 */
   const createdThemes: string[] = [];

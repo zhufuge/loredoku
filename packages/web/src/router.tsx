@@ -6,20 +6,8 @@ import { LoadingBlock, LoadingScreen } from '@/components/common/LoredokuLoader'
 import { readLastThemeCode, SETTINGS_THEMES_PATH } from '@/lib/workspace';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
-/**
- * 编辑 / 预览这些整屏页在 `/:themeCode` 前缀下，书签里的旧地址（`/maps/12/edit`）
- * 没有主题段 —— 先落到**记住的**工作空间，让链接至少还能用；记不住（换了浏览器、
- * 清了存储）就去挑主题的入口，地图 id 保不住 —— 宁可多一跳，也不编一个不存在的
- * 编码出来。
- */
-/**
- * `/play/theme/:slug`（合辑页）与 `/play/theme/:slug/:key`（合辑里的一关）这两条
- * 地址可能是玩家收藏过的，直接删会让它们匹配到 `/play/:slug` 里、把 `theme` 当成
- * 一个游戏 —— 所以留两条重定向：
- *
- * - 合辑页 → `/play`（单局列表里仍然有那几关）；
- * - 合辑里的一关 → `/play/:key`（**存档键一直是游戏 slug，进度不丢**）。
- */
+/** 编辑 / 预览这些整屏页在 `/:themeCode` 前缀下，书签里的旧地址（`/maps/12/edit`） 没有主题段 —— 先落到**记住的**工作空间，让链接至少还能用；记不住（换了浏览器、 清了存储）就去挑主题的入口，地图 id 保不住 —— 宁可多一跳，也不编一个不存在的编码出来。 */
+/** `/play/theme/:slug`（合辑页）与 `/play/theme/:slug/:key`（合辑里的一关）这两条地址可能是玩家收藏过的，直接删会让它们匹配到 `/play/:slug` 里、把 `theme` 当成一个游戏 —— 所以留两条重定向：；合辑页 → `/play`（单局列表里仍然有那几关）；；合辑里的一关 → `/play/:key`（**存档键一直是游戏 slug，进度不丢**）。 */
 function PlayThemeLegacyRedirect({ to }: { to: 'list' | 'game' }): JSX.Element {
   const params = useParams<{ slug?: string }>();
   const target = to === 'game' && params.slug ? `/play/${params.slug}` : '/play';
@@ -42,18 +30,7 @@ function FullscreenLegacyRedirect({
 }
 
 /**
- * 分包还没到位时的那一屏是品牌字标。
- *
- * 这是全站**第一笔**会动的东西 —— 从工坊里点进任何一页，先看到的就是它。
- * 正因如此它不该是一个任何模板都有的圈。
- *
- * 高度仍是 `min-h-[60vh]`：字标比一行文字高，用 flex 居中之后内容不会跳。
- * 这一版是给**外壳里的页**用的（列表 / 资源 / 角色），它们的等待都发生在
- * `AppShell` 里面，不该占满整屏。
- *
- * 第二参数给整屏页用（编辑器、查看页、游戏）：那些路由在 `AppShell` 之外，
- * 页面自己还有一道数据门（`正在加载画布…` / `正在加载地图…`），两道门必须长得
- * 一模一样、落在同一个位置，否则用户会看到「字标 → 换了个位置的字标」。
+ * 分包未到位时的那一屏。外壳里的页用 `min-h-[60vh]` 的品牌字标；整屏页（编辑器 / 查看页 / 游戏）传第二参数，让页面自己那道数据门与它长得一样、落在同一位置，否则会看到「字标 → 换了个位置的字标」。
  */
 function lazyPage(
   load: () => Promise<{ default: ComponentType }>,
@@ -77,13 +54,7 @@ function lazyPage(
   };
 }
 
-/**
- * 整屏路由的「分包还没到」那一屏。
- *
- * 文案直接借用页面自己那道数据门的那一句：进入编辑器看到的**永远**是
- * 「正在加载画布…」，不管这一屏等的是代码还是地图数据 —— 对用户来说就是
- * 「编辑器还没好」，没必要分两句话把同一段等待说两遍（v0.7.12 §10）。
- */
+/** 整屏路由的「分包还没到」那一屏。 文案直接借用页面自己那道数据门的那一句：进入编辑器看到的**永远**是「正在加载画布…」，不管这一屏等的是代码还是地图数据 —— 对用户来说就是「编辑器还没好」，没必要分两句话把同一段等待说两遍（v0.7.12 §10）。 */
 function screenFallback(caption: string): JSX.Element {
   return <LoadingScreen caption={caption} />;
 }
@@ -96,9 +67,7 @@ const MapEditorPage = lazyPage(
   screenFallback('正在加载画布…'),
 );
 /**
- * v0.9.0 §2：工坊 / 线上挂的是**接口模式**那一份（`ApiGamePage`），它自己套一层
- * api source 再交给 `GamePage` 的渲染层。`GamePage` 本身不含 axios —— 播放器直接
- * 用它，于是那个产物的 chunk 图里根本没有 `src/api/*`。
+ * v0.9.0 §2：工坊 / 线上挂的是**接口模式**那一份（`ApiGamePage`），它自己套一层 api source 再交给 `GamePage` 的渲染层。`GamePage` 本身不含 axios —— 播放器直接用它，于是那个产物的 chunk 图里根本没有 `src/api/*`。
  */
 const GamePage = lazyPage(
   () => import('@/pages/ApiGamePage'),
@@ -135,27 +104,7 @@ const ThemeOverviewPage = lazyPage(() =>
 const ThemesPage = lazyPage(() => import('@/pages/ThemesPage').then((m) => ({ default: m.ThemesPage })));
 
 /**
- * 路由表（v0.8.0 §18）。
- *
- * ```
- * /                              → 记住的主题 · 概览
- * /hlm/overview                  工作空间 · 概览（索引也落这里）
- * /hlm/maps                      工作空间 · 地图
- * /settings/themes               系统配置 · 主题
- * /hlm/maps/:mapId/edit          整屏：编辑器（v0.8.1 起带主题段）
- * /play[/:slug]                  玩家侧
- * ```
- *
- * **为什么主题进了地址**：上一版主题只存在 `localStorage` 里，`/maps` 换台机器
- * 打开就是另一批数据，链接也发不出去。主题是工作空间，不是个人偏好（见
- * `lib/workspace.ts`）。
- *
- * **静态段永远压过动态段**：`/settings` 与 `/play` 都比 `/:themeCode` 更「具体」，
- * 所以不会被当成主题编码。旧地址（`/maps`、`/assets` …）也靠这一点留在最外层做
- * 重定向 —— 书签不至于 404。
- *
- * 导出成数组是为了测试能用 `createMemoryRouter(routes)` 走**同一张表**：路由表
- * 与生产不一致的测试，测的是测试自己。
+ * 路由表（v0.8.0 §18）。主题进了地址（`/hlm/overview` 之类），因为它是工作空间而非个人偏好，只存 `localStorage` 的话链接发不出去、换台机器就是另一批数据；**静态段永远压过动态段**，`/settings` `/play` 不会被当成主题编码，旧地址也靠这一点留在最外层重定向。导出成数组是为了测试能用 `createMemoryRouter(routes)` 走同一张表。
  */
 export const routes: RouteObject[] = [
   // ---- 入口与旧地址：都先挑一个主题，再换成带编码的地址 ----
@@ -212,12 +161,7 @@ export const routes: RouteObject[] = [
   { path: '/puzzles/:puzzleId/view', element: <FullscreenLegacyRedirect kind="puzzle" view /> },
   { path: '/play', element: <ThemeEntryRedirect module="play" /> },
   { path: '/play/:slug', element: <GamePage /> },
-  /**
-   * 玩家侧也按主题分（与播放器的 `/:code/play` 同一副骨架）。
-   *
-   * 这两条必须排在 `/:themeCode` 那一组**之后**也没关系 —— react-router 按段的
-   * 具体程度排序，`/:themeCode/play` 比 `/:themeCode/*` 更具体，不会掉进工作空间。
-   */
+  /** 玩家侧也按主题分（与播放器的 `/:code/play` 同一副骨架）。 这两条必须排在 `/:themeCode` 那一组**之后**也没关系 —— react-router 按段的具体程度排序，`/:themeCode/play` 比 `/:themeCode/*` 更具体，不会掉进工作空间。 */
   { path: '/:themeCode/play', element: <GamesPage /> },
   { path: '/:themeCode/play/:slug', element: <GamePage /> },
   /** 合辑的两条旧地址走重定向（见 `PlayThemeLegacyRedirect`）。 */

@@ -9,15 +9,7 @@ import type {
 } from '@loredoku/shared';
 import { THEME_DATA_VERSION } from '@loredoku/shared';
 
-/**
- * v0.8.0（docs/v0.8.0.md §4 / §19）：主题的读写。
- *
- * 这一层只做 SQL。**`theme_id` 到此为止** —— 接口、资源包、前端地址用的都是
- * `code`（§19），数字主键只在 `theme_id` 外键列与服务端内部事务里流通。
- *
- * §19 删掉了 `is_default`：没有「默认主题」这个落点，也没有「恰好一个」的约束。
- * 主题只是一个容器，容器的先后按创建顺序（`id`）排。
- */
+/** v0.8.0（docs/v0.8.0.md §4 / §19）：主题的读写。 这一层只做 SQL。**`theme_id` 到此为止** —— 接口、资源包、前端地址用的都是 `code`（§19），数字主键只在 `theme_id` 外键列与服务端内部事务里流通。 §19 删掉了 `is_default`：没有「默认主题」这个落点，也没有「恰好一个」的约束。 主题只是一个容器，容器的先后按创建顺序（`id`）排。 */
 
 function toData(raw: unknown): ThemeData {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
@@ -98,20 +90,8 @@ export async function updateTheme(
   return affected > 0;
 }
 
-/**
- * 删主题 = **物理删除**（docs/v0.8.3.md §15）。
- *
- * 主题没有版本号，也没有任何行按 id 引用它 —— `theme_id` 全是 `ON DELETE RESTRICT`，
- * 删之前必须清空。软删反而添麻烦：`themes.code` 是普通 UNIQUE，尸体行永远占着编码，
- * 同编码重建直接撞唯一约束（→ 500），尸体还会一直堆在库里。
- *
- * **顺手清掉这个主题的「僵尸子行」**：地图与谜题删的是草稿行，版本行是软删留下的；
- * 这些行肉眼看不见（所有列表都过滤 `deleted_at`），却仍然挂着 `theme_id` —— 不先
- * 抬走它们，主题会以 23503（外键 RESTRICT）失败，而作者看到的是「一个空主题删不掉」。
- * 只删**已软删**的行：还活着的子行说明护栏没跑或数据在变，外键该响就让它响。
- *
- * 外键是最后一道闸：调用方必须已经确认主题下没有活着的子行（护栏在 `themeService`）。
- */
+/** 删主题 = 物理删除（docs/v0.8.3.md §15）：`theme_id` 全是 RESTRICT，删前必须清引用；
+ *  软删会让 `themes.code` 的 UNIQUE 被尸体行永久占用。顺手清已软删的子行，活着的子行仍让外键报错。 */
 export async function deleteTheme(id: number): Promise<boolean> {
   return db.transaction(async (trx) => {
     const zombiePuzzles = (await trx('puzzles')
@@ -129,17 +109,8 @@ export async function deleteTheme(id: number): Promise<boolean> {
   });
 }
 
-/**
- * 卡片上的五个计数。地图与谜题数的是**血统**（`root_id`），不是行数 ——
- * 一张图发过 5 个版本仍然只算一张图，否则数字会随手一发布就跳。
- *
- * 资源与角色**没有** `deleted_at`（它们是硬删，停用只翻 `is_active`），所以这两
- * 条不加过滤：停用的资源仍然属于这个主题，卡片上也要数进去。地图 / 谜题 / 游戏
- * 走软删，就必须过滤 —— 否则作者会看到「3 个谜题」却一个都点不开，`deleteTheme`
- * 拿这份计数当护栏也会把人锁死。
- *
- * 主题自己是硬删（§15），所以这张表里没有「已删主题」的行要跳。
- */
+/** 主题卡片五项计数：地图与谜题数血统（`root_id`）不数行数，否则一发布数字就跳。
+ *  地图/谜题/游戏走软删必须过滤 `deleted_at`（否则 `deleteTheme` 的护栏会把人锁死）；资源/角色无 deleted_at 不过滤。 */
 export async function countsByTheme(): Promise<Map<number, ThemeCounts>> {
   const result = new Map<number, ThemeCounts>();
   const empty = (): ThemeCounts => ({ assets: 0, maps: 0, characters: 0, puzzles: 0, games: 0 });

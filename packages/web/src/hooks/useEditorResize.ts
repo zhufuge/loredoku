@@ -4,13 +4,7 @@ import type { DraftRegion, Asset } from '@loredoku/shared';
 import type { CellMap } from '@/lib/highlight';
 import type { useUpdateGridSize } from '@/hooks/useMapCanvas';
 
-/**
- * the map editor's 调整画布尺寸 flow, lifted out of `MapEditorPage`.
- *
- * The dialog previews exactly what the resize would remove (out-of-bounds
- * items and partially clipped regions) before it is confirmed, and a dirty
- * canvas is persisted first so the server re-seeds from the current draft.
- */
+/** 地图编辑器的「调整画布尺寸」流程：确认前列出这次 resize 会删掉什么（越界物品 / 被裁区域）；dirty 画布先落盘，服务端才从当前草稿重算。 */
 export interface EditorResizeSpec {
   id: number;
   gridSize: number;

@@ -18,12 +18,7 @@ import { readLastLeftAt, readLastLeftElapsed } from '@/lib/gameTimer';
 import { gameCoverUrls } from '@/lib/pageImages';
 import { workshopPath } from '@/lib/workspace';
 
-/**
- * 这一页是**一个主题一张表**（`/:code/play`，docs/v0.8.0.md §10 / §16.5），与播放器
- * 里那页同一副骨架 —— 同一批关卡在两个入口里长得一样，玩家不必猜「线上那版和工坊
- * 这版是不是同一个东西」。地址里的编码就是筛选条件，于是：主题名成了标题，难度
- * 分级只列**这个主题**那几档，工坊的门也落在这个主题上。
- */
+/** 这一页是**一个主题一张表**（`/:code/play`，docs/v0.8.0.md §10 / §16.5），与播放器里那页同一副骨架 —— 同一批关卡在两个入口里长得一样，玩家不必猜「线上那版和工坊这版是不是同一个东西」。地址里的编码就是筛选条件，于是：主题名成了标题，难度分级只列**这个主题**那几档，工坊的门也落在这个主题上。 */
 export function GamesPage(): JSX.Element {
   const navigate = useNavigate();
   const params = useParams<{ themeCode?: string }>();
@@ -36,10 +31,7 @@ export function GamesPage(): JSX.Element {
     [themesQuery.data, code],
   );
 
-  /**
-   * 地址里的编码就是筛选条件。`code` 缺席（单测、或有人手敲了一条没有主题段的
-   * 旧地址）时退回「全站」—— 那条老地址由路由表重定向，这里只是兜底。
-   */
+  /** 地址里的编码就是筛选条件。`code` 缺席（单测、或有人手敲了一条没有主题段的旧地址）时退回「全站」—— 那条老地址由路由表重定向，这里只是兜底。 */
   const allGames = useMemo(
     () => (gamesQuery.data ?? []).filter((game) => code === null || game.themeCode === code),
     [gamesQuery.data, code],
@@ -58,22 +50,12 @@ export function GamesPage(): JSX.Element {
   const tiers = useMemo(() => resolveDifficultyTiers(theme?.data.difficultyLevels), [theme]);
   const texts = useMemo(() => resolveGameListTexts(theme?.data.gameList), [theme]);
 
-  /**
-   * loading 等「当前页资源全部加载完」才撤。列表页的资源就是每张卡的
-   * 封面图 —— 数据到齐且封面都预加载完，骨架屏才换成卡片，中间不会出现
-   * 「卡片先出、封面一张张跳出来」的那一帧。没有封面的卡视为已加载。
-   *
-   * 只等**当前这一档**的封面 —— 切到某一档不该等别的档的图。
-   */
+  /** loading 等「当前页资源全部加载完」才撤。列表页的资源就是每张卡的封面图 —— 数据到齐且封面都预加载完，骨架屏才换成卡片，中间不会出现「卡片先出、封面一张张跳出来」的那一帧。没有封面的卡视为已加载。 只等**当前这一档**的封面 —— 切到某一档不该等别的档的图。 */
   const coversReady = useImagePreload(gameCoverUrls(games));
   const loading =
     gamesQuery.isLoading || themesQuery.isLoading || (games.length > 0 && !coversReady);
 
-  /**
-   * 每一关的**最后离开时间**。它与通过记录分两条键（完成是既成事实、
-   * 离开是上次玩到几点），所以这里分开算一张表；卡片按「完成优先，否则离开」
-   * 自己挑一个。
-   */
+  /** 每一关的**最后离开时间**。它与通过记录分两条键（完成是既成事实、 离开是上次玩到几点），所以这里分开算一张表；卡片按「完成优先，否则离开」 自己挑一个。 */
   const lastLeft = useMemo(() => {
     const map = new Map<string, { elapsedMs: number; at: string | null }>();
     for (const game of allGames) {
@@ -122,16 +104,7 @@ export function GamesPage(): JSX.Element {
               variant="outline"
               size="sm"
               className="gap-1.5"
-              /*
-               * 进工坊落到**概览**，不是地图。
-               *
-               * 每个工作空间有自己的首页（`/:code/overview`），导航第一项也是它。
-               * 概览本来就是回答「这个空间是什么、有什么」的那一页，从外面进来先看
-               * 它，比先看一张画布合理。
-               *
-               * 带上主题编码 —— 从 A 主题的列表页进工坊，该落到 A 的概览，
-               * 而不是「上一次待过的那个主题」。
-               */
+              /* 进工坊落到**概览**，不是地图。 每个工作空间有自己的首页（`/:code/overview`），导航第一项也是它。 概览本来就是回答「这个空间是什么、有什么」的那一页，从外面进来先看 它，比先看一张画布合理。 带上主题编码 —— 从 A 主题的列表页进工坊，该落到 A 的概览， 而不是「上一次待过的那个主题」。 */
               onClick={() => navigate(workshopPath('overview', code))}
               title="进入工坊（制作端）"
             >
@@ -205,10 +178,7 @@ export function GamesPage(): JSX.Element {
             </Button>
           </Card>
         ) : games.length === 0 ? (
-          /*
-           * 过滤之后空了 —— 与「这个主题一关都没有」是两件事：前者换个档就有，
-           * 后者要去工坊。混成一句会把人送去错误的地方。
-           */
+          /* 过滤之后空了 —— 与「这个主题一关都没有」是两件事：前者换个档就有， 后者要去工坊。混成一句会把人送去错误的地方。 */
           <Card className="flex flex-col items-center gap-3 p-8 text-center sm:p-12">
             <p className="text-sm text-muted-foreground">这一档还没有关卡。</p>
             <Button variant="outline" size="sm" onClick={() => setDifficulty(null)}>

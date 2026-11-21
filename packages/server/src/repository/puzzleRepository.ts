@@ -4,15 +4,7 @@ import type { PuzzleDraft, PuzzleEntrySummary, PuzzleRow } from '@loredoku/share
 import { buildFileUrl } from '../utils/paths';
 import { versionToNo } from './versionRepository';
 
-/**
- * `puzzles` 仓储（v0.7.1 §5.1 / §6.3）。
- *
- * 一行 = 一个谜题条目：`version = 'draft'` 是工作条目，纯数字串是已发布版本；
- * 草稿行**硬删**、版本行**软删**（版本行的写入口在 `puzzleVersionRepository`）。
- *
- * 谜题自带底图画布（`data.map.data`），所以这里没有 `map_project_id` 的 join，
- * 尺寸也只有一个来源：`puzzleGridSize(draft)`。
- */
+/** `puzzles` 仓储（v0.7.1 §5.1 / §6.3）。 一行 = 一个谜题条目：`version = 'draft'` 是工作条目，纯数字串是已发布版本； 草稿行**硬删**、版本行**软删**（版本行的写入口在 `puzzleVersionRepository`）。 谜题自带底图画布（`data.map.data`），所以这里没有 `map_project_id` 的 join， 尺寸也只有一个来源：`puzzleGridSize(draft)`。 */
 
 export interface ListPuzzlesParams {
   page: number;
@@ -50,10 +42,7 @@ function isDeployed(value: unknown): boolean {
   return value === true || value === 't' || value === 1;
 }
 
-/**
- * `PuzzleEntrySummary` 的单点映射。底图来源（`mapId` / `mapName` /
- * `mapVersionNo`）读自 JSON 快照 —— 没有列，也不该有列。
- */
+/** `PuzzleEntrySummary` 的单点映射。底图来源（`mapId` / `mapName` / `mapVersionNo`）读自 JSON 快照 —— 没有列，也不该有列。 */
 export function toPuzzleEntry(row: PuzzleRowWithLineage): PuzzleEntrySummary {
   const draft = absorbLegacyPuzzleDraft(row.data);
   const versionNo = versionToNo(row);
@@ -84,13 +73,7 @@ export function toPuzzleEntry(row: PuzzleRowWithLineage): PuzzleEntrySummary {
   };
 }
 
-/**
- * 谜题列表：与地图列表同构 —— 一条单表查询取两块的并集，`kind` 由 `version`
- * 列判定，`kind` 参数让「草稿」「版本」各自分页（前端发两个请求，各自的总数才准）。
- *
- * 排序必须在服务端做：客户端只能排当前页，跨页会乱。同键时次序固定 —— 草稿行
- * 排在它自己的版本前面，版本之间新号在前。
- */
+/** 谜题列表：与地图列表同构 —— 一条单表查询取两块的并集，`kind` 由 `version` 列判定，`kind` 参数让「草稿」「版本」各自分页（前端发两个请求，各自的总数才准）。 排序必须在服务端做：客户端只能排当前页，跨页会乱。同键时次序固定 —— 草稿行排在它自己的版本前面，版本之间新号在前。 */
 export async function listPuzzleEntries(
   params: ListPuzzlesParams,
 ): Promise<{ list: PuzzleEntrySummary[]; total: number }> {
@@ -169,10 +152,7 @@ export interface CreatePuzzleData {
   data: PuzzleDraft;
 }
 
-/**
- * 新谜题 = 一条草稿行，`root_id` 指向自己（与 `createMap` 同款的两句事务）。
- * `version` 由 DB 默认值 `'draft'` 兜住。
- */
+/** 新谜题 = 一条草稿行，`root_id` 指向自己（与 `createMap` 同款的两句事务）。 `version` 由 DB 默认值 `'draft'` 兜住。 */
 export async function createPuzzle(input: CreatePuzzleData): Promise<PuzzleRowWithLineage> {
   const createdId = await db.transaction(async (trx) => {
     const [row] = (await trx<PuzzleRow>('puzzles')
@@ -195,12 +175,7 @@ export async function createPuzzle(input: CreatePuzzleData): Promise<PuzzleRowWi
   return created;
 }
 
-/**
- * 乐观并发的保存（照 `mapRepository.saveDraft`）：`undefined` = 不存在，
- * `null` = `expectedUpdatedAt` 过期。
- *
- * `name` / `description` 从 JSON 镜像回行 —— 列表行与导出的文件不能各说一套。
- */
+/** 乐观并发的保存（照 `mapRepository.saveDraft`）：`undefined` = 不存在， `null` = `expectedUpdatedAt` 过期。 `name` / `description` 从 JSON 镜像回行 —— 列表行与导出的文件不能各说一套。 */
 export async function savePuzzleDraft(
   id: number,
   expectedUpdatedAt: string | null,
@@ -243,13 +218,7 @@ export async function updatePuzzle(
     if (patch.name !== undefined) columns['name'] = patch.name;
     if (patch.description !== undefined) columns['description'] = patch.description;
 
-    /**
-     * v0.8.5 §7：编码写**整条血统**，不只这一行。
-     *
-     * 版本行是发布时的快照，但快照的是**内容**（画布、名册、名称）—— 「这一关
-     * 的对外身份」不是版本之间的差异。只写草稿行的话，列表里同一条谜题的版本行
-     * 会显示旧编码，部署那条版本时预填出来的路径也跟着旧。
-     */
+    /** v0.8.5 §7：编码写**整条血统**，不只这一行。 版本行是发布时的快照，但快照的是**内容**（画布、名册、名称）—— 「这一关的对外身份」不是版本之间的差异。只写草稿行的话，列表里同一条谜题的版本行会显示旧编码，部署那条版本时预填出来的路径也跟着旧。 */
     if (patch.code !== undefined) {
       await trx('puzzles').where({ root_id: row.root_id }).update({ code: patch.code });
     }
@@ -274,14 +243,7 @@ export async function deletePuzzle(id: number): Promise<boolean> {
   return affected > 0;
 }
 
-/**
- * 「复制」create an independent puzzle：副本是它自己血统的根（与 fork 不同，
- * fork 留在原血统里续号）。底图画布随之整份复制 —— 谜题自带画布，所以复制
- * 不需要再问地图要数据。
- *
- * v0.8.5 §7：副本**不能沿用**原编码（那是另一条谜题的对外身份，而且部署路径会撞），
- * 由 service 算一个没被占用的传进来（`-2`、`-3` …）。
- */
+/** 「复制」create an independent puzzle：副本是它自己血统的根（与 fork 不同， fork 留在原血统里续号）。底图画布随之整份复制 —— 谜题自带画布，所以复制不需要再问地图要数据。 v0.8.5 §7：副本**不能沿用**原编码（那是另一条谜题的对外身份，而且部署路径会撞）， 由 service 算一个没被占用的传进来（`-2`、`-3` …）。 */
 export async function duplicatePuzzle(
   sourceId: number,
   newName: string,
@@ -314,12 +276,7 @@ export async function duplicatePuzzle(
   return createdId === undefined ? undefined : findById(createdId);
 }
 
-/**
- * v0.8.5 §7：这个编码在主题内是否已被**另一条**谜题占用。
- *
- * 同血统的版本行不算 —— 它们本来就共用同一个编码（见 `updatePuzzle`）。
- * 查重只看未删行：删掉的谜题不该永久占着一个编码。
- */
+/** v0.8.5 §7：这个编码在主题内是否已被**另一条**谜题占用。 同血统的版本行不算 —— 它们本来就共用同一个编码（见 `updatePuzzle`）。 查重只看未删行：删掉的谜题不该永久占着一个编码。 */
 export async function codeTaken(themeId: number, code: string): Promise<boolean> {
   const row = await db('puzzles')
     .where({ theme_id: themeId, code })
@@ -328,10 +285,7 @@ export async function codeTaken(themeId: number, code: string): Promise<boolean>
   return Boolean(row);
 }
 
-/**
- * 只服务**自动取名**（复制 / fork 的「副本 N」序列）。限定 `version='draft'`：
- * 版本名是发布时的快照，拿版本名占位会让副本序号莫名跳号。
- */
+/** 只服务**自动取名**（复制 / fork 的「副本 N」序列）。限定 `version='draft'`： 版本名是发布时的快照，拿版本名占位会让副本序号莫名跳号。 */
 export async function existsByName(name: string): Promise<boolean> {
   const row = await db('puzzles').where({ name, version: 'draft' }).first('id');
   return Boolean(row);

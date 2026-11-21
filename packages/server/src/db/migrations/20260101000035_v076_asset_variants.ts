@@ -4,27 +4,7 @@ import { join } from 'node:path';
 import type { Knex } from 'knex';
 import { uploadRoot } from '../../utils/paths';
 
-/**
- * v0.7.6 —— `asset_forms` 改名 `asset_variants`，并瘦身到「只描述长相」
- * （docs/v0.7.6.md）。
- *
- * 四件事必须一起做，否则要么外键/索引指向旧名字，要么画布里的锚点指不到形态：
- *
- *   1. 表名 `asset_forms` → `asset_variants`，主键 / 外键 / 两个索引同步改名；
- *   2. 删六列：占格 `width_cells` / `height_cells`（放置恒 1 格，放大交给
- *      `scale`）、上传回执 `image_mime` / `image_size` / `image_width` /
- *      `image_height`（mime 就是路径扩展名，其余只喂过上传区一行说明）；
- *   3. 磁盘目录 `assets/<id>/forms/` → `assets/<id>/variants/`，`image_path`
- *      前缀同步（只改字符串，文件本身跟着目录搬）；
- *   4. 画布锚点的键 `formId` → `variantId`（`maps.data` 与 `puzzles.data`
- *      里内嵌的地图草稿），地图草稿 `version` 7 → 8。
- *
- * 第 4 步为什么必须落库：`draftCellSchema` 是 `.strict()`，旧键会被拒。schema
- * 那边另有一个 `formId` 别名兜底（读取旧导出文件用），但库里存的东西要干净。
- *
- * `w` / `h` 留在锚点上不动 —— 它们描述的是**这一次放置**，不是形态；老草稿里
- * 的 2×2 因此照旧渲染、照旧占格，已发布的地图一像素不变。
- */
+/** v0.7.6（docs/v0.7.6.md）：asset_forms→asset_variants（约束/索引同步改名）、删六列（占格恒 1 格、放大交 scale；mime 即路径扩展名）、目录 forms/→variants/、画布锚点 formId→variantId 且 version 7→8（draftCellSchema 是 .strict()，旧键会被拒）；锚点上的 w/h 不动——它们描述这一次放置；四件必须同做。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.transaction(async (trx) => {
     await trx.schema.renameTable('asset_forms', 'asset_variants');
@@ -119,12 +99,7 @@ export async function down(knex: Knex): Promise<void> {
   });
 }
 
-/**
- * 把 `table` 上仍以 `fromPrefix` 开头的约束改名，前缀换成 `toPrefix`。
- *
- * 只碰约束（`pg_constraint`），不碰索引——索引名在上面显式改过。用 DO 块逐条
- * 判断，缺了不会炸：不同 Postgres 版本给 NOT NULL 约束起名的规则不完全一样。
- */
+/** 把 `table` 上仍以 `fromPrefix` 开头的约束改名，前缀换成 `toPrefix`。 只碰约束（`pg_constraint`），不碰索引——索引名在上面显式改过。用 DO 块逐条判断，缺了不会炸：不同 Postgres 版本给 NOT NULL 约束起名的规则不完全一样。 */
 async function renameLeftoverConstraints(
   trx: Knex.Transaction,
   table: string,
@@ -146,12 +121,7 @@ async function renameLeftoverConstraints(
   `);
 }
 
-/**
- * `assets/<assetId>/<from>/` → `assets/<assetId>/<to>/`。
- *
- * 目录不存在（没传过图的资源）或目标已存在时跳过——重复跑不会炸，也不会把
- * 已经搬好的东西搬回去。
- */
+/** `assets/<assetId>/<from>/` → `assets/<assetId>/<to>/`。 目录不存在（没传过图的资源）或目标已存在时跳过——重复跑不会炸，也不会把已经搬好的东西搬回去。 */
 async function moveVariantDirs(from: string, to: string): Promise<void> {
   const assetsDir = join(uploadRoot, 'assets');
   if (!existsSync(assetsDir)) return;
@@ -169,13 +139,7 @@ interface AnchorShape {
   [key: string]: unknown;
 }
 
-/**
- * 把 `cells[*].item` / `cells[*].background` 上的锚点键在两代名字之间来回切，
- * 同时把地图草稿的 `version` 在 7 与 8 之间切。
- *
- * 读的是 `maps.data`（草稿行与版本行都有）和 `puzzles.data.map.data`（谜题
- * 自带一份地图画布副本）。逐行读 → 就地改 → 回写，手法照抄 `…00028`。
- */
+/** 把 `cells[*].item` / `cells[*].background` 上的锚点键在两代名字之间来回切， 同时把地图草稿的 `version` 在 7 与 8 之间切。 读的是 `maps.data`（草稿行与版本行都有）和 `puzzles.data.map.data`（谜题自带一份地图画布副本）。逐行读 → 就地改 → 回写，手法照抄 `…00028`。 */
 async function rewriteAnchorKeys(trx: Knex.Transaction, reverse: boolean): Promise<void> {
   const fromKey = reverse ? 'variantId' : 'formId';
   const toKey = reverse ? 'formId' : 'variantId';

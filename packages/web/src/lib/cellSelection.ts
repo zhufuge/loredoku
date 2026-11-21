@@ -1,8 +1,4 @@
-/**
- * MOD-801 (docs/v0.3.3.md §1.1.3): pure helpers behind the linkage dialog's
- * cell matrix picker. All operations return a new set so React state updates
- * stay immutable, and every branch can be unit tested without a DOM.
- */
+/** MOD-801 (docs/v0.3.3.md §1.1.3): pure helpers behind the linkage dialog's cell matrix picker. All operations return a new set so React state updates stay immutable, and every branch can be unit tested without a DOM. */
 
 export type CellSelection = Set<string>;
 
@@ -76,11 +72,7 @@ export function clearCells(): CellSelection {
   return new Set<string>();
 }
 
-/**
- * Rectangle quick-select state machine: the first click stores the anchor,
- * the second click applies the rectangle and clears the anchor.
- * Returns the next selection plus the (possibly unchanged) anchor.
- */
+/** Rectangle quick-select state machine: the first click stores the anchor, the second click applies the rectangle and clears the anchor. Returns the next selection plus the (possibly unchanged) anchor. */
 export function applyRectClick(
   selected: CellSelection,
   anchor: [number, number] | null,

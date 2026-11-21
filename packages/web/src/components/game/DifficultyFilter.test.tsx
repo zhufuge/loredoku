@@ -4,12 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_DIFFICULTY_TIERS, type ThemeDifficultyTier } from '@loredoku/shared';
 import { DifficultyFilter } from './DifficultyFilter';
 
-/**
- * 列表页多一排难度过滤 —— 「全部」打头，后面是这个主题自己的分级叫法。
- *
- * 钉的是「点下去报出哪一档」这条约定：`null` 表示全部（不是 0），因为难度 `level`
- * 从 1 起，0 在这套数据里不是一个合法档位。
- */
+/** 列表页多一排难度过滤 —— 「全部」打头，后面是这个主题自己的分级叫法。 钉的是「点下去报出哪一档」这条约定：`null` 表示全部（不是 0），因为难度 `level` 从 1 起，0 在这套数据里不是一个合法档位。 */
 describe('DifficultyFilter（v0.11.6）', () => {
   let container: HTMLDivElement;
   let root: Root;

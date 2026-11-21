@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { playerPages, withTitle } from './staticPages.mjs';
 
-/**
- * v0.11.1（docs/v0.11.1.md）：每个路由一份真 HTML。
- *
- * 这里钉的是**产物里会出现哪些地址、标题是什么**，不是 HTML 长什么样 —— 页面内容
- * 就是同一份入口模板。最重要的是「地址清单与路由一致」：清单少一个就是一处深链
- * 404，多一个就是一份白拿的文件。
- */
+/** v0.11.1（docs/v0.11.1.md）：每个路由一份真 HTML。 这里钉的是**产物里会出现哪些地址、标题是什么**，不是 HTML 长什么样 —— 页面内容就是同一份入口模板。最重要的是「地址清单与路由一致」：清单少一个就是一处深链 404，多一个就是一份白拿的文件。 */
 
 const MANIFEST = {
   code: 'hlm',

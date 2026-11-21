@@ -1,28 +1,7 @@
 import type { Knex } from 'knex';
 import { DEFAULT_CHARACTER_GENDER } from '@loredoku/shared';
 
-/**
- * CLAR-601 / CLAR-603 (docs/v0.3.1.md)
- *
- * 1. Normalise the `characters.gender` column to `male` / `female` only.
- *    - Existing rows where `gender ∈ ('other', 'unknown')` or NULL → `'male'`.
- *    - Drop the v0.3.0 CHECK constraint that allowed four enum values.
- *    - Add a new CHECK `gender IN ('male', 'female')` and default `'male'`.
- *
- * 2. Migrate map JSON:
- *    - For every `map_projects.draft_data` and `map_versions.data`:
- *      - Walk legacy `placedCharacters[]` entries; for each, locate the
- *        `characterSlots[]` element whose `characterId` matches and copy
- *        `themeColor` + `triggers` onto it. If no matching slot exists,
- *        write to the first empty (`null`) slot (per the spec's fallback).
- *      - Drop the legacy `placedCharacters` field.
- *      - Ensure every non-null slot entry carries `themeColor` + `triggers`
- *        (apply defaults when missing).
- *      - Truncate / pad `characterSlots` length to `gridSize`.
- *
- * The migration runs inside a transaction. Setting `MIGRATION_DRY_RUN=true`
- * prints the count summary without committing (rolls back at the end).
- */
+/** CLAR-601/CLAR-603（docs/v0.3.1.md）：characters.gender 归一为 male/female（other/unknown/NULL→male）并换 CHECK+默认；map JSON 把 placedCharacters 合入 characterSlots 后删除、长度对齐 gridSize；全程单事务，MIGRATION_DRY_RUN=true 只打印统计并回滚。 */
 export async function up(knex: Knex): Promise<void> {
   const dryRun = process.env.MIGRATION_DRY_RUN === 'true';
 

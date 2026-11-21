@@ -68,10 +68,7 @@ export function usePuzzleVersions(id: number | null) {
   });
 }
 
-/**
- * 建谜题时选的封面在建行**之后**才传（上传端点认 id），所以创建与上传合成
- * 一次 mutation，共用一个 pending 状态和一条成功提示。
- */
+/** 建谜题时选的封面在建行**之后**才传（上传端点认 id），所以创建与上传合成一次 mutation，共用一个 pending 状态和一条成功提示。 */
 export function useCreatePuzzle(onSuccess?: (id: number) => void) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -158,12 +155,7 @@ export function useUploadPuzzleCover() {
   });
 }
 
-/**
- * v0.8.6 §4：标记图上传。
- *
- * 失败**不在这里 toast**：调用方（抽屉）要把「原值保留 + 一行错误」画在控件旁边，
- * 同一次失败在页角和控件旁各报一遍只会吵。这里只负责成功后刷新谜题详情。
- */
+/** v0.8.6 §4：标记图上传。 失败**不在这里 toast**：调用方（抽屉）要把「原值保留 + 一行错误」画在控件旁边， 同一次失败在页角和控件旁各报一遍只会吵。这里只负责成功后刷新谜题详情。 */
 export function useUploadPuzzleMark() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -175,12 +167,7 @@ export function useUploadPuzzleMark() {
   });
 }
 
-/**
- * v0.8.7 §7：工具按钮图标上传（清除 / 撤回 / 提交）。
- *
- * 与标记逐条相同：失败不 toast（抽屉在控件旁报），成功刷新谜题详情。一次一枚，
- * 所以 `icon` 跟着参数走 —— 三枚的 `path` 各自独立，不能合成一次请求。
- */
+/** v0.8.7 §7：工具按钮图标上传（清除 / 撤回 / 提交）。 与标记逐条相同：失败不 toast（抽屉在控件旁报），成功刷新谜题详情。一次一枚， 所以 `icon` 跟着参数走 —— 三枚的 `path` 各自独立，不能合成一次请求。 */
 export function useUploadPuzzleToolIcon() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -203,10 +190,7 @@ export function useRemovePuzzleCover() {  const queryClient = useQueryClient();
   });
 }
 
-/**
- * 发布：与地图同一套结果约定 —— 校验未通过（422）折成 `{ ok: false }` 让调用方
- * 展开问题清单，其余错误照常抛给 mutation 的 `onError`。
- */
+/** 发布：与地图同一套结果约定 —— 校验未通过（422）折成 `{ ok: false }` 让调用方展开问题清单，其余错误照常抛给 mutation 的 `onError`。 */
 export function usePublishPuzzle(id: number) {
   const queryClient = useQueryClient();
   return useMutation<PublishResult<PuzzleEntrySummary>, unknown, number | undefined>({
@@ -232,13 +216,7 @@ export function usePublishPuzzle(id: number) {
   });
 }
 
-/**
- * 「编辑此版本」= fork 出一条新草稿行，版本行不动。
- *
- * v0.7.2 §3.3：编辑器 `?v=` 态下「保存才 fork」，所以 `data` 可选（不带就用
- * 版本快照）。`navigate: false` 供编辑器自己接管落盘后的跳转 —— 它要 replace
- * 到新行、并且先把 store 的身份换成新行；这里再跳一次就成了双跳。
- */
+/** 「编辑此版本」= fork 出一条新草稿行，版本行不动。 v0.7.2 §3.3：编辑器 `?v=` 态下「保存才 fork」，所以 `data` 可选（不带就用版本快照）。`navigate: false` 供编辑器自己接管落盘后的跳转 —— 它要 replace 到新行、并且先把 store 的身份换成新行；这里再跳一次就成了双跳。 */
 export function useForkPuzzleVersion(options: { navigate?: boolean } = {}) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();

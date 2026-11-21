@@ -27,16 +27,7 @@ import {
   withLegacyImageKeys,
 } from './common';
 
-/**
- * v0.8.6（docs/v0.8.6.md §3）：主题自己的一档难度 = **数字 + 名字 + 可选颜色**。
- *
- * `level` 是身份，落进 `games.difficulty`。数字自带顺序（难度本来就是一条轴），
- * 删掉中间一档也不必给后面的重新编号。
- *
- * `color` 可缺 —— 缺了仍按位置落在内置五档热力坡上，存量主题因此不用补数据。
- * 填了则是一个**绝对的** `#rrggbb`：徽章的底色与字色都由它混出来（`difficultyBadge`），
- * 于是同一颗色在浅色与深色界面里都读得下去，不必存两套。
- */
+/** 难度档位：`level` 是身份、落进 `games.difficulty`；`color` 缺省按内置五档（docs/v0.8.6.md §3）。 */
 export const themeDifficultyTierSchema = z
   .object({
     level: z
@@ -57,38 +48,20 @@ export const themeDifficultyTierSchema = z
   })
   .strict();
 
-/**
- * v0.8.0 (docs/v0.8.0.md §4) —— 主题的写入口。
- *
- * `code` 与 `name` 分开，理由和地图 slug 一样：作者会想改显示名，但 URL 与
- * 资源包 manifest 不能跟着变。所以 `code` 只在**创建时**可给，之后不可改。
- */
+/** 主题写入口（v0.8.0 §4）：`code` 只在创建时可给，之后不可改 —— URL 与 manifest 依赖它。 */
 export const themeCodeSchema = z
   .string()
   .trim()
   .min(1, '主题编码不能为空')
   .max(THEME_CODE_MAX_LENGTH, `主题编码长度不能超过 ${THEME_CODE_MAX_LENGTH}`)
   .regex(THEME_CODE_PATTERN, '主题编码只能包含小写字母、数字、下划线与连字符，且以字母或数字开头')
-  /*
-   * v0.8.0 §18：编码现在是工作空间的地址前缀（`/hlm/maps`）。`settings` / `play` /
-   * `maps` … 这些顶层路径比 `/:themeCode` 更「具体」，会先被匹配 —— 用了它们的
-   * 主题谁也进不去。所以创建时就拦，并直接说出被占用的那个词。
-   */
+  /* 编码是地址前缀；与 `settings` / `play` / `maps` 等顶层路由重名的主题谁也进不去，创建时即拦。 */
   .refine(
     (code) => !THEME_CODE_RESERVED.includes(code),
     (code) => ({ message: `「${code}」是系统页面占用的路径，换一个编码` }),
   );
 
-/**
- * v0.9.3（docs/v0.9.3.md §3）：校验的两档颜色。
- *
- * 颜色给了 `.default()`：作者只换环图、没动颜色时，写进去的仍是一份**完整**的
- * `{ passColor, failColor }`。好处是不必在服务端再补一遍默认值 —— 缺什么
- * 解析时就补齐了，库里不会出现「有 checkStyle 但缺一个颜色」的半成品。
- *
- * 圈图在 `ThemeData.ring`（与长按计时环共用）；旧数据里的 `checkStyle.ring`
- * 仍能读出来 —— 见下面 `themeRingSchema` 的兜底。
- */
+/** 校验两档颜色（v0.9.3 §3）：`.default()` 让解析时补齐，库里不会出现缺色的半成品。 */
 export const themeCheckColorsSchema = z
   .object({
     passColor: z.string().regex(BG_COLOR_PATTERN, '校验通过色需为 #RRGGBB 格式')
@@ -100,29 +73,14 @@ export const themeCheckColorsSchema = z
   .nullable()
   .optional();
 
-/**
- * 主题的**那一圈**（长按计时环 + 提交校验圈共用）。
- *
- * 形状是 `{ image?: { path } }` 而不是直接一张 `{ path }`：那一圈将来可能不只
- * 「一张图」（比如速度、粗细），而现在先把「图」这一格留出名字，读点就不必写
- * `ring.path` 这种把结构焊死的样子。
- *
- * 旧键搬运**不在这里**做：同级字段（顶层 `pressRing`、`checkStyle.ring`）在这个
- * 字段的 `preprocess` 里看不见，所以统一由外面的 `stripLegacyThemeKeys` 在对象
- * 那一层搬完，这里只认搬好的形状。
- */
+/** 那一圈（计时环 + 校验圈共用）：形状特意留 `image` 一层；旧键由 `stripLegacyThemeKeys` 在外层搬。 */
 export const themeRingSchema = z
   .object({ image: optionalUploadedImageSchema })
   .strict()
   .nullable()
   .optional();
 
-/**
- * 结算卡的两份配置 —— 图标（文字 / emoji 或一张图）+ 标题。
- *
- * 三项都可缺，且每一项都**允许空串**：作者把标题删空就是「用内置那句」，
- * 不必再点一次「恢复默认」。空串在上层按缺省处理（见 `resolveVerdictStyle`）。
- */
+/** 结算卡配置：三项都可缺且允许空串（= 用内置那句），空串在上层按缺省处理。 */
 export const themeVerdictSchema = z
   .object({
     iconText: z
@@ -141,13 +99,7 @@ export const themeVerdictSchema = z
   .nullable()
   .optional();
 
-/**
- * 游戏列表页那两行字的模板。
- *
- * 与结算卡那三项一样**允许空串**（= 用内置那句）。比它多一条：文案里必须留一个
- * `{n}` —— 数字没地方落，这两行就成了与这一页无关的废话，而这种「配了但没配全」
- * 的错静默失败最难查，不如在写入口就拦下来。
- */
+/** 列表页文案：允许空串；非空时必须含 `{n}`，否则会静默失败，故在写入口就拦。 */
 const gameListTextSchema = z
   .string()
   .trim()
@@ -166,43 +118,19 @@ export const themeGameListSchema = z
   .nullable()
   .optional();
 
-/**
- * `themes.data` 的**对象那一半**（不含旧键预处理，见下面的 `themeDataSchema`）。
- *
- * `.strict()` 与其余 schema 一致：多出来的键是写错了名字，不是新功能。
- */
+/** `themes.data` 的对象那一半（旧键预处理在外层）；`.strict()`：多出来的键是写错了名字。 */
 const themeDataObjectSchema = z
   .object({
     version: z.number().int().positive().default(THEME_DATA_VERSION),
-    /**
-     * 主题的**识别色**。
-     *
-     * 它和 `style` / `linkageColors` 不是一类东西：那两个是「新建内容时拷贝过去的
-     * 初始值」，会进画布、进导出包；`accent` 只回答「这一屏属于哪个世界」——
-     * 系统配置页的卡片色带、概览页的识别色事实行用它，**不进包、不参与渲染**。
-     *
-     * 可选：没选过就没有门牌，卡片也就不画色带 —— 不替作者编一个颜色出来。
-     */
+    /** 识别色：只管配置页色带 / 概览页，**不进包、不参与渲染**；可选，不替作者编颜色。 */
     accent: z.string().regex(BG_COLOR_PATTERN, '识别色需为 #RRGGBB 格式').optional(),
     style: mapStyleSchema.optional(),
     linkageColors: z.array(mapLinkageColorSchema).optional(),
-    /**
-     * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4；v0.9.5 更名）：这个空间的**标记**。
-     *
-     * 与 `style` / `linkageColors` 的「新建时拷一份」不同：它是**读取时**的兜底 ——
-     * 谜题自己没配就用这一张（谜题 → 主题 → ×）。所以换图对跟随的关卡立刻生效。
-     * 缺失 / `null` = 本主题里跟随的谜题画默认的 `×` 字形。
-     *
-     * 旧键 `forbiddenSymbol` 由 `withLegacyImageKeys` 在读入时搬过来。
-     */
+    /** 标记：**读取时**兜底（谜题 → 主题 → ×），故换图对跟随关卡立刻生效；旧键 `forbiddenSymbol` 读入时搬入。 */
     mark: withLegacyImageKeys(optionalUploadedImageSchema),
     /** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），解析顺序同标记。 */
     toolIcons: gameToolIconsSchema,
-    /**
-     * 主题的**那一圈** —— 长按计时环与提交校验圈共用一张图。缺了 = 各自的内置
-     * 细弧（长按白弧 / 校验本色环）。旧键 `pressRing` 与 `checkStyle.ring` 由
-     * `themeRingSchema` 的预处理搬过来。
-     */
+    /** 那一圈：计时环与校验圈共用一张图；缺了 = 各自的内置细弧，旧键由 `stripLegacyThemeKeys` 搬入。 */
     ring: themeRingSchema,
     /**
      * 结算卡通过那一面的图标与标题。缺了 = 内置 🎉 + 「解题成功」。
@@ -216,10 +144,7 @@ const themeDataObjectSchema = z
      * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。缺了 = 内置绿 / 红。
      */
     checkStyle: themeCheckColorsSchema,
-    /**
-     * 难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
-     * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。
-     */
+    /** 难度分级：缺省 = 内置五档；给了就整份替换（追加会让作者删不掉「专家」这一档）。 */
     difficultyLevels: z
       .array(themeDifficultyTierSchema)
       .min(1, '至少保留一档难度')
@@ -227,10 +152,7 @@ const themeDataObjectSchema = z
       .optional(),
   })
   .strict()
-  /**
-   * 重复的 `level` 是**数据坏了**，不是样式问题：两档共用同一个数字，`games.difficulty`
-   * 就指不出是哪一档，而库里没有外键能替我们拦下它。所以在这里就说清楚是第几档。
-   */
+  /** 重复 `level` 是数据坏了（`games.difficulty` 指不出哪档，库无外键可拦），故在此报出是第几档。 */
   .refine(
     (data) => {
       const levels = (data.difficultyLevels ?? []).map((tier) => tier.level);
@@ -249,42 +171,21 @@ const themeDataObjectSchema = z
   )
   .default({ version: THEME_DATA_VERSION });
 
-/**
- * `themes.data`：主题级**缺省**，几个键都可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE`
- * 补齐，缺 `linkageColors` 沿用谜题 schema 的默认调色板（§5 的 S3 快照式）。
- *
- * 另有一个 `accent`：它**不是**缺省，是这个空间的门牌色。
- *
- * 外面包一层「旧键搬运」（`stripLegacyThemeKeys`）。读的顺序很重要 ——
- * `.strict()` 不接受未知键，而旧主题的顶层带着 `pressRing` / `checkStyle.ring`，
- * 所以必须**先**搬再校验，于是把 `preprocess` 套在最外层。
- */
+/** `themes.data`：缺省补齐，且必须**先搬旧键再校验** —— `.strict()` 不接受未知键，故 `preprocess` 在最外层。 */
 export const themeDataSchema = z.preprocess(
   (raw) => stripLegacyThemeKeys(raw),
   themeDataObjectSchema,
 );
 
-/**
- * 把 `themes.data` 的**旧键**搬到新键上，丢掉已经不存在的那几个。
- *
- * 三件事：
- * 1. `forbiddenSymbol → mark`（与谜题侧同一对，复用 `moveLegacyImageKeys`）；
- * 2. `pressRing → ring.image`、`checkStyle.ring → ring.image`（`pressRing` 优先：
- *    校验圈是后加的补充）；
- * 3. 摘掉 `checkStyle.ring` 本身 —— `checkStyle` 只剩两档颜色，
- *    留着它会被 `themeCheckColorsSchema` 的 `.strict()` 判成多余键。
- *
- * 为什么在**外层**预处理而不是各字段自己搬：`.strict()` 是在对象层判「有没有多余
- * 的键」的，字段级的 `preprocess` 只能改那个字段自己的值，看不到同级的旧键。
- */
+/** 旧键搬运：`forbiddenSymbol → mark`、`pressRing` / `checkStyle.ring → ring.image`，并摘掉 `checkStyle.ring`；必在对象层做，字段级看不到同级旧键。 */
 export function stripLegacyThemeKeys(raw: unknown): unknown {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return raw;
   const record = { ...(raw as Record<string, unknown>) };
 
-  // 1. 标记：`forbiddenSymbol → mark`
+  // 标记：`forbiddenSymbol → mark`
   const withMark = moveLegacyImageKeys(record) as Record<string, unknown>;
 
-  // 2. 那一圈：`pressRing` / `checkStyle.ring` → `ring.image`（已有 `ring` 就不动）
+  // 那一圈：`pressRing` / `checkStyle.ring` → `ring.image`（已有 `ring` 就不动）
   const existingRing = withMark['ring'];
   const hasNewRing =
     existingRing &&
@@ -304,7 +205,7 @@ export function stripLegacyThemeKeys(raw: unknown): unknown {
   }
   delete withMark['pressRing'];
 
-  // 3. `checkStyle` 只剩颜色
+  // `checkStyle` 只剩颜色
   const checkStyle = withMark['checkStyle'];
   if (checkStyle && typeof checkStyle === 'object' && !Array.isArray(checkStyle)) {
     const { ring: _ring, ...colors } = checkStyle as Record<string, unknown>;
@@ -326,12 +227,7 @@ function imagePathOf(value: unknown): string | null {
   return null;
 }
 
-/**
- * `/api/themes/:code` 的路径参数（§19）。
- *
- * 编码是**唯一**的主题寻址方式，所以路径上也走同一套规则 —— 字符集不对的请求在
- * 进入服务前就 400，而不是让服务端拿一个畸形字符串去查库。
- */
+/** `/api/themes/:code` 路径参数：字符集不对的请求进服务前就 400，不拿畸形串查库。 */
 export const themeCodeParamSchema = z.object({ code: themeCodeSchema });
 
 export const createThemeSchema = z.object({
@@ -341,10 +237,7 @@ export const createThemeSchema = z.object({
   data: themeDataSchema,
 });
 
-/**
- * 改名 / 改描述 / 改风格缺省。**`code` 不在里面** —— 它进 URL 与 manifest，
- * 改了等于换了身份，而 `theme_id` 又不可搬迁（§8 护栏 2），改名是唯一安全的编辑。
- */
+/** 改名 / 改描述 / 改风格缺省。**`code` 不在里面** —— 它进 URL 与 manifest，改名是唯一安全的编辑。 */
 export const updateThemeSchema = z
   .object({
     name: z.string().trim().min(1, '主题名称不能为空').max(THEME_NAME_MAX_LENGTH).optional(),
@@ -353,12 +246,7 @@ export const updateThemeSchema = z
   })
   .refine((value) => Object.keys(value).length > 0, '请提供需要更新的字段');
 
-/**
- * v0.9.3 §3：只说「改哪一档颜色」—— 与上传圈图分开。
- *
- * 两个字段都可选（作者可能只改通过色），但**至少要给一个**：空 body 是一次没有
- * 意义的写库，应该 400 而不是悄悄成功。
- */
+/** 只改两档颜色：两个字段都可选，但**至少要给一个**，空 body 是一次无意义的写库。 */
 export const updateThemeCheckStyleSchema = z
   .object({
     passColor: z.string().regex(BG_COLOR_PATTERN, '校验通过色需为 #RRGGBB 格式').optional(),
@@ -370,11 +258,7 @@ export const updateThemeCheckStyleSchema = z
     '请提供需要更新的颜色',
   );
 
-/**
- * 结算卡的两句文字（图标位置的文字 + 标题）—— 与上传图标图分开。
- *
- * 与校验颜色同一个口径：两项都可选、**至少给一项**；给空串就是恢复内置。
- */
+/** 结算卡两句文字：两项都可选、**至少给一项**；给空串就是恢复内置。 */
 export const updateThemeVerdictSchema = z
   .object({
     iconText: z
@@ -402,12 +286,7 @@ export const listThemesQuerySchema = z.object({
     .optional(),
 });
 
-/**
- * 导出包可以**只打选中的几关**。`games` 是逗号分隔的游戏 id；缺席 =
- * 这个主题全部在线关（v0.8.0 起的默认行为，老调用方与老包不受影响）。
- *
- * 放在 query 上而不是 body：接口仍然是 `GET`，幂等的打包动作没必要改成 POST。
- */
+/** 导出可只打选中的几关：`games` 是逗号分隔的游戏 id；缺席 = 全部在线关（老包不受影响）。 */
 export const themeBundleQuerySchema = z.object({
   games: z
     .string()

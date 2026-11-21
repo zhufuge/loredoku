@@ -5,16 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Asset, AssetVariant } from '@loredoku/shared';
 import { AssetDetailForm } from './AssetDetailForm';
 
-/**
- * v0.6.1 (docs/v0.6.1.md §8.4): the detail pane splits into 资源区 and 形态区.
- * These are render-only assertions — what differs between an asset with one
- * variant, an asset with several, and a background:
- *
- * - one card per variant;
- * - 添加形态 / 删除 are offered to both types;
- * - 删除 disabled on the last variant;
- * - no footprint inputs on any card (v0.7.6 removed them from the data too).
- */
+/** v0.6.1 (docs/v0.6.1.md §8.4)：详情面板拆成资源区 / 形态区；这里只做渲染断言（每形态一张卡、末张不可删、无占用输入 —— 占用字段 v0.7.6 已从数据里删掉）。 */
 
 function variant(id: number, assetId: number, overrides: Partial<AssetVariant> = {}): AssetVariant {
   return {
@@ -131,10 +122,7 @@ describe('AssetDetailForm — 形态管理区（v0.6.1 §8.4）', () => {
     expect(container.querySelector('[aria-label="展开形态"]')).not.toBeNull();
   });
 
-  /**
-   * 启用 / 停用、增删形态都会让资源重取（`updatedAt` 变），
-   * 表单不该跟着回滚 —— 否则「改完名字点了停用，名字自己变回去」。
-   */
+  /** 启用 / 停用、增删形态都会让资源重取（`updatedAt` 变）， 表单不该跟着回滚 —— 否则「改完名字点了停用，名字自己变回去」。 */
   it('keeps an unsaved rename when the asset refreshes', () => {
     render(asset([variant(11, 1)]));
     const input = container.querySelector<HTMLInputElement>('input');

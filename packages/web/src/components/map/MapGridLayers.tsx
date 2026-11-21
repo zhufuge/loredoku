@@ -2,16 +2,7 @@ import type { MapStyle } from '@loredoku/shared';
 import { MAP_LAYER_Z } from '@loredoku/shared';
 import { styleLineWidth } from '@/lib/mapStyle';
 
-/**
- * the grid chrome layers, split out of the old `MapLayers.tsx`.
- *
- * 层 6 · 网格分隔线（Grid Separator）: adjacent cells **share** one separator,
- * so an `n × n` board draws `n-1` lines per axis — never four lines per cell.
- * The board outline is a separate layer (see {@link MapCanvasFrameLayer}).
- *
- * Width and colour come from `style.gridSeparator`; the
- * width is a base value and is still multiplied by `cellSize / BASE_CELL`.
- */
+/** 层 6 · 网格分隔线：相邻格共用一条线（n×n 画 n-1 条/轴）；线宽按 cellSize / BASE_CELL 缩放；外框见 {@link MapCanvasFrameLayer}。 */
 export function MapGridSeparatorLayer({
   gridSize,
   cellSize,
@@ -59,19 +50,7 @@ export function MapGridSeparatorLayer({
   );
 }
 
-/**
- * 层 5 · 画布外框（Canvas Frame）: the board's outermost frame.
- *
- * v0.7.0 (docs/v0.7.0.md §3): the stroke is **centred on the canvas boundary**,
- * exactly like the internal separators — so the grid's outermost line and the
- * canvas frame are one and the same line (「网格框最外描边线 = 画布外框」). Half
- * the stroke therefore falls inside the board, which is why the SVG still needs
- * `overflow: visible`.
- *
- * This is the outer frame only; the lines *between* cells are 网格分隔线
- * ({@link MapGridSeparatorLayer}). Width and colour come from
- * `style.canvasFrame`.
- */
+/** 层 5 · 画布外框：描边以画布边界为中心，与外圈网格线重合，故 SVG 需 overflow: visible；线宽/颜色取 style.canvasFrame。 */
 export function MapCanvasFrameLayer({
   gridSize,
   cellSize,

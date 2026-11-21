@@ -11,13 +11,7 @@ export const GRID_SIZE_MIN = 2;
 export const GRID_SIZE_MAX = 24;
 export const GRID_SIZE_DEFAULT = 6;
 
-/**
- * OPT-A01 (docs/v0.3.5.md §1.1): cell width range; `MIN` is also the pre-measure
- * fallback. v0.7.2 §7 把下限从 90 一路放到 32：它同时是「基本信息 → 方格边长」的
- * 可填最小值与自适应缩放的**下限**，下限太高会让 24×24 的板子在笔记本上必然溢出
- * 视口。32px 时 `cellScale` ≈ 0.267，线宽（2 × 0.267 = 0.53）刚好还在
- * `LINE_WIDTH_MIN` 之上，字号则一律被 `FONT_SIZE_MIN` 兜住。
- */
+/** OPT-A01 (docs/v0.3.5.md §1.1): cell width range; `MIN` is also the pre-measure fallback. v0.7.2 §7 lowered the floor to 32 — it is both the fillable minimum and the adaptive lower bound: at 32px `cellScale` ≈ 0.267, so a 2px line scales to 0.53 and still clears `LINE_WIDTH_MIN`; a higher floor makes 24×24 overflow laptop viewports. */
 export const MIN_CELL_SIZE = 32;
 export const MAX_CELL_SIZE = 240;
 /** Alias used as the default cell width before the adaptive pass runs. */
@@ -38,10 +32,7 @@ export const FONT_SIZE_MIN = 9;
 // v0.5.2 FIX-M08 (docs/v0.5.2.md §8): no font ceiling — the old 28px cap made
 // "32px" render as 28px. Only the lower guard stays, so scale can't draw 0px text.
 
-/**
- * OPT-A04 (docs/v0.3.5.md §3.2), named as 《方框要素定义与命名规范 v1.0》:
- * Border = the shared grid line, Outline = outside it, InnerLine = inside it.
- */
+/** OPT-A04 (docs/v0.3.5.md §3.2), named as 《方框要素定义与命名规范 v1.0》: Border = the shared grid line, Outline = outside it, InnerLine = inside it. */
 export const LINE_COLOR = '#000000';
 export const BORDER_WIDTH = 2;
 /** @deprecated OPT-B04 → {@link CANVAS_OUTER_BORDER_WIDTH}; alias kept for old imports. */
@@ -59,13 +50,7 @@ export const GRID_LINE_WIDTH = BORDER_WIDTH;
 export const GRID_BORDER_WIDTH = OUTLINE_WIDTH;
 
 // ---- Canvas layer stacking (docs/layer-priority.md, the single authority) ----
-/**
- * The canvas layers, **top-most first**, numbered exactly as
- * 《画布图层优先级规范》 (`docs/layer-priority.md` §2) — the single authority.
- * Keys are that document's 代码常量 names, so code, docs and
- * UI share one vocabulary. v0.4.0 SPEC-G01/G02 inserted the two game-only
- * layers between 区域标签 and 物品图层, renumbering the stack.
- */export const MAP_LAYER_ORDER = [
+/** Canvas layers, **top-most first**, numbered exactly as 《画布图层优先级规范》 (`docs/layer-priority.md` §2, the single authority); keys are that document's 代码常量 names. */export const MAP_LAYER_ORDER = [
   'mouseCursorBox',
   'operationCursorBox',
   'regionLabel',
@@ -105,17 +90,9 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   canvasFrame: 34,
   /** 9 网格分隔线（内部分隔线） */
   gridSeparator: 32,
-  /**
-   * 10 阻挡遮罩 — below 区域轮廓线, above 背景修饰层。
-   *
-   * 它压在背景修饰层上面：一格被标成「不能站」时，先是网格线，
-   * 然后是遮罩，最后才是修饰 —— 遮罩的意思是「这格不通」，它得盖住底下的画。
-   */
+  /** 10 阻挡遮罩 — below 区域轮廓线, above 背景修饰层。 它压在背景修饰层上面：一格被标成「不能站」时，先是网格线， 然后是遮罩，最后才是修饰 —— 遮罩的意思是「这格不通」，它得盖住底下的画。 */
   blockingMask: 31,
-  /**
-   * 11 背景修饰层 — v0.10.9。夹在网格分隔线与阻挡遮罩之间：它盖住格子里的
-   * 底色与纹理，但既不该盖住网格线，也不该盖住「这格不能站」的遮罩。
-   */
+  /** 11 背景修饰层 — v0.10.9。夹在网格分隔线与阻挡遮罩之间：它盖住格子里的底色与纹理，但既不该盖住网格线，也不该盖住「这格不能站」的遮罩。 */
   backgroundDecoration: 30,
   /** 11 区域高亮线 */
   regionHighlight: 28,
@@ -129,18 +106,7 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   canvasBase: 10,
 };
 
-/**
- * 物品名称提示的 z-index（v0.11.4）—— 悬停物品 0.32 秒后浮出的那张纸片。
- *
- * 它**不在**上面那 16 层里：`MAP_LAYER_Z` 管的是**画布内容**的叠放次序，而这张
- * 纸片是「读物品名字」的标注，与编辑器那些拖拽 / 框选反馈同一类 affordance。
- * 作者要求它「出现在地图最上层」，所以取鼠标光标框之上 —— 纸片会压住光标框的
- * 一条边，这是有意的：它不透明，且只在悬停时出现。
- *
- * 它仍然是一个**登记过的常量**，不写裸数字（`docs/layer-priority.md` §1 末尾那条
- * 「禁止表外 z-index」指的是随手编一个值，不是禁止为 affordance 单独立一个名字）。
- * 定案遮罩再压在它之上，见 `GameVerdictScrim` 的 `ITEM_NAME_TIP_Z + 1`。
- */
+/** 物品名称提示的 z-index（v0.11.4）—— 故意压在鼠标光标框之上（作者要求「最上层」）：纸片不透明且只在悬停时出现；它不在 `MAP_LAYER_Z` 那 16 层里，但必须登记成常量、不写裸数字（`docs/layer-priority.md` §1），定案遮罩取 `ITEM_NAME_TIP_Z + 1`。 */
 export const ITEM_NAME_TIP_Z = MAP_LAYER_Z.mouseCursorBox + 1;
 
 // ---- OPT-A05 当前方格辅助提示框（鼠标框 / 操作框） ----
@@ -169,10 +135,7 @@ export const RULER_FONT_SIZE = 17;
 export const RULER_FONT_SIZE_ACTIVE = 19;
 /** OPT-C02 + v0.3.9 FEAT-E02: gap between the ruler text and the board. */
 export const RULER_GAP = 6;
-/**
- * FEAT-E02: the operated row / column glyph is always this many px above
- * the idle one, so the relationship survives a custom `style.ruler.fontSize`.
- */
+/** FEAT-E02: the operated row / column glyph is always this many px above the idle one, so the relationship survives a custom `style.ruler.fontSize`. */
 export const RULER_ACTIVE_FONT_DELTA = RULER_FONT_SIZE_ACTIVE - RULER_FONT_SIZE;
 /** Idle colour — a light grey (§5.1). */
 export const RULER_COLOR = '#9CA3AF';

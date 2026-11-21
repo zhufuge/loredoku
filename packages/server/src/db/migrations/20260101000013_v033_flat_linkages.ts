@@ -1,16 +1,7 @@
 import type { Knex } from 'knex';
 import { emptyStats, migrateDraftLinkages } from '../../service/draftLinkageMigration';
 
-/**
- * MOD-801 (docs/v0.3.3.md §2) — flat `linkages`. For every `map_projects.draft_data`
- * and `map_versions.data`: fold `characterSlots[i].triggers` into one flat
- * `linkages` array (same object + colour = one entry, later wins), delete the legacy
- * `triggers`; default `clue` to `''`; default item `scope: 'all'`; legacy cell
- * `{ x, y }` → `{ cells: [[x, y]] }`. The transform lives in
- * `service/draftLinkageMigration.ts` so it unit-tests without a database.
- * Idempotent (union, deduped, `triggers` deleted after folding). Transactional;
- * `MIGRATION_DRY_RUN=true` prints a summary and rolls back.
- */
+/** MOD-801（docs/v0.3.3.md §2）：characterSlots[i].triggers 折成扁平 linkages（同对象+颜色并一条、后者胜）后删 triggers；补 clue: ''、item scope: 'all'、cell {x,y}→cells:[[x,y]]；幂等、单事务，MIGRATION_DRY_RUN=true 打印统计并回滚。 */
 export async function up(knex: Knex): Promise<void> {
   const dryRun = process.env.MIGRATION_DRY_RUN === 'true';
 

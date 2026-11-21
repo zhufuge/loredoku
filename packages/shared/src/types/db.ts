@@ -14,21 +14,13 @@ export interface MapRow {
   name: string;
   description: string | null;
   cover_path: string | null;
-  /**
-   * The blood-lineage root. A plain map points at itself; a map forked from a
-   * published version keeps the original's root, so both stay in one group and
-   * share one version numbering.
-   */
+  /** The blood-lineage root. A plain map points at itself; a map forked from a published version keeps the original's root, so both stay in one group and share one version numbering. */
   root_id: string | number;
   /**
    * 画布数据。草稿行可为 `NULL`（未初始化），版本行必非空（CHECK 兜住）。
    */
   data: MapDraft | null;
-  /**
-   * `'draft'` = 工作条目，纯数字字符串 = 已发布版本。
-   * **不要**直接 `Number()`：`Number('draft')` 是 NaN，转换统一走
-   * `versionToNo()`（docs/map-table-merge-design.md §15 P0-2）。
-   */
+  /** `'draft'` = 工作条目，纯数字字符串 = 已发布版本。 **不要**直接 `Number()`：`Number('draft')` 是 NaN，转换统一走 `versionToNo()`（docs/map-table-merge-design.md §15 P0-2）。 */
   version: string;
   /** 软删标记：只有版本行会被设置；草稿行是硬删。 */
   deleted_at: Date | string | null;
@@ -36,10 +28,7 @@ export interface MapRow {
   updated_at: Date | string;
 }
 
-/**
- * The asset row keeps only identity + behaviour; the appearance lives on
- * {@link AssetVariantRow} (docs/v0.6.1.md §3).
- */
+/** Identity + behaviour only; the appearance lives on {@link AssetVariantRow} (docs/v0.6.1.md §3). */
 export interface AssetRow {
   id: string | number;
   /** v0.8.0：边界。`(theme_id, code)` 唯一，全局唯一已放开（docs/v0.8.0.md §3.2）。 */
@@ -55,13 +44,7 @@ export interface AssetRow {
   updated_at: Date | string;
 }
 
-/**
- * One row of `asset_variants` — how an asset looks. `asset_id` cascades, so
- * deleting the asset deletes its variants.
- *
- * The variant owns the footprint: `w` / `h`, default 1, with short names
- * matching `DraftAnchorItem`.
- */
+/** One row of `asset_variants` — how an asset looks. `asset_id` cascades, so deleting the asset deletes its variants. The variant owns the footprint: `w` / `h`, default 1, with short names matching `DraftAnchorItem`. */
 export interface AssetVariantRow {
   id: string | number;
   asset_id: string | number;
@@ -78,13 +61,7 @@ export interface AssetVariantRow {
   updated_at: Date | string;
 }
 
-/**
- * v0.7.6: the avatar is **one path and nothing else** (docs/v0.7.6.md).
- * `avatar_mime` / `meta` went first (zero readers, zero information); the
- * `avatar_size` / `avatar_width` / `avatar_height` trio followed — they only
- * fed one line of uploader copy, and every cover in this repo (maps / games /
- * puzzles) already stores nothing but `cover_path`.
- */
+/** v0.7.6: the avatar is one path and nothing else — `avatar_mime` / `meta` / the `avatar_size` trio went; every cover already stores only `cover_path` (docs/v0.7.6.md). */
 export interface CharacterRow {
   id: string | number;
   /** 边界，同 `AssetRow.theme_id`。 */
@@ -105,15 +82,7 @@ export interface CharacterRow {
   updated_at: Date | string;
 }
 
-/**
- * v0.7.1 §7.2: a deployed game only points at **one puzzle row**.
- *
- * `puzzle_id` is unique across live rows, so re-deploying the same version
- * replaces that row (`gameRepository.upsertGame` does delete-then-insert);
- * different versions of the same puzzle each get their own game and slug.
- * Cancelling a deployment sets `deleted_at` — the row stays, the slug becomes
- * reusable (partial unique index) and the player link 404s.
- */
+/** v0.7.1 §7.2: one puzzle row only — `puzzle_id` is unique across live rows, so re-deploying replaces that row (delete-then-insert); cancelling keeps the row and frees the slug. */
 export interface MapGameRow {
   id: string | number;
   puzzle_id: string | number;
@@ -123,10 +92,7 @@ export interface MapGameRow {
   cover_path: string | null;
   /** 难度**档位数字**（`smallint`）。文字与颜色由主题的分级映射。 */
   difficulty: number;
-  /**
-   * 作者手填的展示顺序。**升序** —— 数字小的排前面，同权重按 `slug`；
-   * 默认 `0`，所以存量行等于「按访问路径排」。
-   */
+  /** 作者手填的展示顺序。**升序** —— 数字小的排前面，同权重按 `slug`； 默认 `0`，所以存量行等于「按访问路径排」。 */
   sort_weight: number;
   /** 取消部署 = 假删；列表与详情一律过滤掉。 */
   deleted_at: Date | string | null;
@@ -134,15 +100,7 @@ export interface MapGameRow {
   updated_at: Date | string;
 }
 
-/**
- * v0.7.1 §5.1: `puzzles` is versioned exactly like `maps` — `root_id` groups a
- * blood lineage, `version` is `'draft'` or a numeric string, and version rows
- * are soft-deleted (draft rows are hard-deleted).
- *
- * `data` carries the whole `PuzzleDraft` **including the copied canvas**, so the
- * row is self-contained: no `map_project_id` / `map_version_no` / `grid_size` /
- * `status` columns any more.
- */
+/** v0.7.1 §5.1: versioned like `maps` (root_id lineage, version rows soft-deleted, drafts hard-deleted); `data` carries the whole `PuzzleDraft` incl. the copied canvas. */
 export interface PuzzleRow {
   id: string | number;
   /** v0.8.0：边界。谜题的主题由底图决定，界面上只读（docs/v0.8.0.md §7.1）。 */
@@ -155,13 +113,7 @@ export interface PuzzleRow {
   deleted_at: Date | string | null;
   name: string;
   description: string | null;
-  /**
-   * v0.8.5 §7（docs/v0.8.5.md）：这一关的编码 —— 部署时预填访问路径的那一串。
-   *
-   * 可空：v0.8.5 之前的谜题没有它，迁移也不会凭空造一个。**同血统共用**：
-   * 草稿行与版本行各存一份同样的值（版本行是快照，编码不是版本属性），改编码
-   * 一次写整条血统。
-   */
+  /** v0.8.5 §7（docs/v0.8.5.md）：这一关的编码 —— 部署时预填访问路径的那一串。 可空：v0.8.5 之前的谜题没有它，迁移也不会凭空造一个。**同血统共用**： 草稿行与版本行各存一份同样的值（版本行是快照，编码不是版本属性），改编码一次写整条血统。 */
   code: string | null;
   cover_path: string | null;
   /** `PuzzleDraft`（v2）；读之前过 `absorbLegacyPuzzleDraft`。 */
@@ -200,12 +152,7 @@ export interface MapRegionCellRow {
   y: number;
 }
 
-/**
- * v0.8.0：主题（docs/v0.8.0.md §4）。
- *
- * 不版本化 —— 地图与谜题已经有一套 `draft` / `version` 的冻结机制，主题再版本化
- * 就得把资源、地图、谜题全部快照一遍，而第二遍没有真相（§2）。
- */
+/** v0.8.0：主题（docs/v0.8.0.md §4）。 不版本化 —— 地图与谜题已经有一套 `draft` / `version` 的冻结机制，主题再版本化就得把资源、地图、谜题全部快照一遍，而第二遍没有真相（§2）。 */
 export interface ThemeRow {
   id: string | number;
   /** 稳定标识：URL / manifest / 导入对账。显示名可改，它不能。 */

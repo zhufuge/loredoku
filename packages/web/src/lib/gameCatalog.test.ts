@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { nextUnfinishedLevel, type GameLevelRef } from './gameCatalog';
 
-/**
- * 定案卡的「下一关」。
- *
- * 「下一关」＝列表顺序里排在当前这一关之后、**还没通过**的第一关。三件行为分开钉：
- * 跳过已通过的、不回头、不缠绕。
- */
+/** 定案卡的「下一关」。 「下一关」＝列表顺序里排在当前这一关之后、**还没通过**的第一关。三件行为分开钉： 跳过已通过的、不回头、不缠绕。 */
 
 const levels: GameLevelRef[] = [
   { key: 'a', gridSize: 4 },
@@ -39,10 +34,7 @@ describe('下一关（v0.9.5）', () => {
     expect(nextUnfinishedLevel(levels, 'b', completedOf(['a', 'b', 'c', 'd']))).toBeNull();
   });
 
-  /**
-   * 当前这一关不在清单里：地址过时（那一关已被取消部署）或清单比它新。
-   * 这时从清单开头找**第一关还没通过的** —— 那才是「下一个还没做的」。
-   */
+  /** 当前这一关不在清单里：地址过时（那一关已被取消部署）或清单比它新。 这时从清单开头找**第一关还没通过的** —— 那才是「下一个还没做的」。 */
   it('当前这一关不在清单里：从头找第一关没通过的', () => {
     expect(nextUnfinishedLevel(levels, 'gone', completedOf(['a']))?.key).toBe('b');
     expect(nextUnfinishedLevel(levels, 'gone', completedOf([]))?.key).toBe('a');

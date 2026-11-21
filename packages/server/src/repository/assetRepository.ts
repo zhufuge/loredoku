@@ -21,10 +21,7 @@ export interface CreateAssetData {
   blocking: boolean;
   /** 「背景修饰」— item assets only (see `decorationFor`). */
   decoration: boolean;
-  /**
-   * Create enabled when the caller already supplied an
-   * appearance; omitted keeps the OPT-305 default (`false`).
-   */
+  /** Create enabled when the caller already supplied an appearance; omitted keeps the OPT-305 default (`false`). */
   isActive?: boolean;
   /** The initial variant the create call writes alongside the asset. */
   initialVariant: variantRepo.CreateAssetVariantData;
@@ -76,10 +73,7 @@ export async function findById(id: number): Promise<AssetRow | undefined> {
   return db<AssetRow>('assets').where({ id }).first();
 }
 
-/**
- * `code` 的唯一性在**主题内**，所以查重必须带主题。
- * 不传 `themeId` 时查全局（只给「这条 code 有没有人用过」这类提示用，不用于写入判断）。
- */
+/** `code` 的唯一性在**主题内**，所以查重必须带主题。 不传 `themeId` 时查全局（只给「这条 code 有没有人用过」这类提示用，不用于写入判断）。 */
 export async function findByCode(code: string, themeId?: number): Promise<AssetRow | undefined> {
   const query = db<AssetRow>('assets').where({ code });
   if (themeId !== undefined) query.where('theme_id', themeId);
@@ -92,10 +86,7 @@ export async function getAsset(id: number): Promise<Asset | null> {
   return toAsset(row, await variantRepo.listByAsset(id));
 }
 
-/**
- * The asset and its first variant are one step for the caller, two rows for
- * the database — hence the transaction.
- */
+/** The asset and its first variant are one step for the caller, two rows for the database — hence the transaction. */
 export async function create(data: CreateAssetData): Promise<number> {
   return db.transaction(async (trx) => {
     const [row] = await trx('assets')
@@ -232,12 +223,7 @@ export async function existingAssetIds(ids: number[]): Promise<Set<number>> {
   return new Set(rows.map((row) => Number(row.id)));
 }
 
-/**
- * v0.8.0（docs/v0.8.0.md §11.2）：打包时按 id 闭包取资源（含形态）。
- *
- * 软删的行也要取得到 —— 已上线的游戏引用着一个后来被软删的资源时，包里仍要有它，
- * 否则那一关的画布会缺图。所以这里**不加** `deleted_at` 过滤。
- */
+/** v0.8.0（docs/v0.8.0.md §11.2）：打包时按 id 闭包取资源（含形态）。 软删的行也要取得到 —— 已上线的游戏引用着一个后来被软删的资源时，包里仍要有它， 否则那一关的画布会缺图。所以这里**不加** `deleted_at` 过滤。 */
 export async function assetsByIds(ids: number[]): Promise<Map<number, Asset>> {
   if (ids.length === 0) return new Map();
   const rows = (await db<AssetRow>('assets').whereIn('id', ids).select('*')) as AssetRow[];

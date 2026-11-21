@@ -17,18 +17,7 @@ import {
   writeStyleValue,
 } from './themeStyleFields';
 
-/**
- * 概览页「地图初始样式」表单的字段表。
- *
- * 这里只钉两件在别处看不出来的事：
- *
- * 1. 字段表是 `MAP_STYLE_FIELDS` 的**派生**，不是抄本 —— 那边加一项而这边没写
- *    「怎么改」，`kind` 会落成 `unknown`，这条断言当场红，而不是界面上少一行；
- * 2. `writeStyleValue` 只改目标那一层，兄弟字段原样保留（手写展开最容易在这里出错）。
- *
- * v0.8.6 §1：`cellSize` 从表单里拿掉了，于是「一一对应」变成「是同序的子序列」——
- * 但**不能**变成「随便缺几项都行」：这里同时钉住唯一的例外就是它。
- */
+/** 概览页「地图初始样式」字段表：由 `MAP_STYLE_FIELDS` 派生（缺项会落 `unknown`），`writeStyleValue` 只改目标层、兄弟字段原样保留；v0.8.6 §1 拿掉 `cellSize` 是唯一例外。 */
 
 describe('THEME_STYLE_FIELDS', () => {
   it('是 shared 字段表同序的子序列 —— 唯一少的是方格大小', () => {
@@ -59,19 +48,12 @@ describe('THEME_STYLE_FIELDS', () => {
     const width = THEME_STYLE_FIELDS.find((field) => field.key === 'gridSeparator.width');
     expect(width?.format(DEFAULT_MAP_STYLE)).toBe(`${DEFAULT_MAP_STYLE.gridSeparator.width}px`);
 
-    /**
-     * 方格大小不在主题设置里（概览页表单不列、差异弹窗也不列，v0.10.2），但它在
-     * `MAP_STYLE_FIELDS` 里还在 —— 地图「基本信息」那一项仍是作者要改的，格式化
-     * 也得能算出「自适应」。
-     */
+    /** 方格大小不在主题设置里（概览页表单不列、差异弹窗也不列，v0.10.2），但它在 `MAP_STYLE_FIELDS` 里还在 —— 地图「基本信息」那一项仍是作者要改的，格式化也得能算出「自适应」。 */
     const cellSize = MAP_STYLE_FIELDS.find((field) => field.key === 'cellSize');
     expect(cellSize?.format?.(cellSize.read(DEFAULT_MAP_STYLE))).toBe('自适应');
   });
 
-  /**
-   * v0.8.6 §1.6：弹窗照抽屉的骨架重排，每个字段后面跟着一个问号。问号的内容来自
-   * 这张表 —— 漏一条不会报错，界面上只是那一行没有解释，比「多写一行」更难发现。
-   */
+  /** v0.8.6 §1.6：弹窗照抽屉的骨架重排，每个字段后面跟着一个问号。问号的内容来自这张表 —— 漏一条不会报错，界面上只是那一行没有解释，比「多写一行」更难发现。 */
   it('每一项都带一句解释，四组都有组解释', () => {
     expect(THEME_STYLE_FIELDS.filter((field) => !field.hint).map((field) => field.key)).toEqual([]);
     expect(MAP_STYLE_DIFF_GROUPS.filter((group) => !THEME_STYLE_GROUP_HINTS[group])).toEqual([]);
@@ -131,10 +113,7 @@ describe('resetThemeStyle（v0.8.6 §1）', () => {
   });
 });
 
-/**
- * v0.10.2：方格大小不再出现在主题设置里 —— 概览页表单不列它（v0.8.6 §1），
- * 「基本信息」抽屉底部那个差异弹窗也不列它。这一组钉的是差异弹窗那侧的三个动作。
- */
+/** v0.10.2：方格大小不再出现在主题设置里 —— 概览页表单不列它（v0.8.6 §1）， 「基本信息」抽屉底部那个差异弹窗也不列它。这一组钉的是差异弹窗那侧的三个动作。 */
 describe('主题设置里看不见的键（v0.10.2）', () => {
   const themeStyle: MapStyle = {
     ...DEFAULT_MAP_STYLE,

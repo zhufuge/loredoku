@@ -21,41 +21,17 @@ interface ThemeStyleRowProps {
   onApplyThemeStyle: (style: MapStyle) => void;
 }
 
-/**
- * v0.8.0（docs/v0.8.0.md §16.8，改写 §5 的落点）—— 「基本信息」抽屉底部的那一行。
- *
- * 常态也写一句，只是不可点：只在「与主题风格有差异时」出现的话，**正常状态看不见**，
- * 作者反而没法确认「这张图吃的是主题风格」，只有出问题时才有一行字。
- *
- * 两个动作的方向是这功能的全部，所以文案里不许出现「同步」：
- *
- * - `应用主题风格` → 改**本图**（把它拉回主题的缺省）；
- * - `设为主题风格` → 改**主题**（本图成为新缺省）。
- *
- * 反向那个动作不是附赠品：作者刚把一张图的网格线调舒服，下一步一定是「以后新建的
- * 图都长这样」。没有它，只能回主题抽屉里手抄二十几个值。
- */
+/** v0.8.0（docs/v0.8.0.md §16.8，改写 §5 的落点）—— 「基本信息」抽屉底部的那一行。 常态也写一句，只是不可点：只在「与主题风格有差异时」出现的话，**正常状态看不见**， 作者反而没法确认「这张图吃的是主题风格」，只有出问题时才有一行字。 两个动作的方向是这功能的全部，所以文案里不许出现「同步」：；`应用主题风格` → 改**本图**（把它拉回主题的缺省）；；`设为主题风格` → 改**主题**（本图成为新缺省）。 反向那个动作不是附赠品：作者刚把一张图的网格线调舒服，下一步一定是「以后新建的 图都长这样」。 没有它，只能回主题抽屉里手抄二十几个值。 */
 export function ThemeStyleRow({ themeCode, style, onApplyThemeStyle }: ThemeStyleRowProps): JSX.Element | null {
   const themeQuery = useThemeDetail(themeCode);
   const updateTheme = useUpdateTheme(themeCode);
   const [diffOpen, setDiffOpen] = useState(false);
   const theme = themeQuery.data;
-  /**
-   * 老主题存的是旧形状（缺 `canvasShadow`），`diffMapStyle` 会去读
-   * `style.canvasShadow.offset` —— 先解析补齐再比对。`undefined` 原样保留，那是
-   * 「主题还没设缺省风格」的信号，不能补成默认值（否则会误报「与主题一致」）。
-   */
+  /** 老主题存的是旧形状（缺 `canvasShadow`），`diffMapStyle` 会去读 `style.canvasShadow.offset` —— 先解析补齐再比对。`undefined` 原样保留，那是「主题还没设缺省风格」的信号，不能补成默认值（否则会误报「与主题一致」）。 */
   const storedThemeStyle = theme?.data.style;
   const themeStyle = storedThemeStyle ? resolveMapStyle(storedThemeStyle) : undefined;
 
-  // 差异跟着**草稿**算：改一个线宽，弹窗里的项数当场少一项，这是最直接的反馈。
-  //
-  // 主题设置里不出现的项（目前只有方格大小）也不参与比对。它不是风格、
-  // 是这张图自己的尺寸，两张图天然会不一样；把它算成「与主题风格不同」会让弹窗
-  // 常驻一条差异，而「应用主题风格」一按就会把本图定死的尺寸抹成主题那个值。
-  //
-  // 标尺的行列符号也一样不比 —— 它们只由主题配置，地图侧从来不留存，
-  // 旧图里残留的值作者在界面上无处可改。
+  // 差异跟着**草稿**算：改一个线宽，弹窗里的项数当场少一项，这是最直接的反馈。 主题设置里不出现的项（目前只有方格大小）也不参与比对。它不是风格、 是这张图自己的尺寸，两张图天然会不一样；把它算成「与主题风格不同」会让弹窗常驻一条差异，而「应用主题风格」一按就会把本图定死的尺寸抹成主题那个值。 标尺的行列符号也一样不比 —— 它们只由主题配置，地图侧从来不留存， 旧图里残留的值作者在界面上无处可改。
   const diffs = useMemo(
     () =>
       diffMapStyle(style, themeStyle).filter(

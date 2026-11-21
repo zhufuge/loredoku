@@ -5,17 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_MAP_STYLE, type Theme } from '@loredoku/shared';
 import { ThemeOverviewPage } from './ThemeOverviewPage';
 
-/**
- * 概览页只回答两件事 —— 「这个空间是什么」与「它按什么规矩长」。
- *
- * v0.8.3 精简（docs/v0.8.3.md §16）：这里只留**写回数据的契约** —— 缺省风格改成
- * `data.style`、难度分级改成 `data.difficultyLevels`（含两条边界：什么都没改就
- * 不带这个键、恢复内置五档是删键而不是写一份一样的数组），以及「还有东西的
- * 主题删不掉」。
- *
- * 五格计数、信息卡四行、页头有哪两个按钮、清单里列了哪几组、识别色怎么显示 ——
- * 全是文案与布局，界面还要改，钉在这里只会每天早上叫一次。
- */
+/** v0.8.3 §16（docs/v0.8.3.md）：只钉写回契约 —— 缺省风格→`data.style`、难度→`data.difficultyLevels`（未改不带键、恢复内置五档是删键）、有内容的主题删不掉。 */
 
 const themeRef: Theme = {
   code: 'hlm',
@@ -158,11 +148,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     expect(payload.data.difficultyLevels?.[5]).toEqual({ level: 6, label: '第 6 档' });
   });
 
-  /**
-   * 颜色是**可选**的：选了才写进 `data`。而「改了色」必须让它不再等于内置五档 ——
-   * 否则 `isBuiltIn` 会把 `difficultyLevels` 删掉，保存后颜色跟着没了，界面上就是
-   * 「改了色但没生效」（同一个坑 v0.8.3 在名字上踩过一次）。
-   */
+  /** 颜色是**可选**的：选了才写进 `data`。而「改了色」必须让它不再等于内置五档 —— 否则 `isBuiltIn` 会把 `difficultyLevels` 删掉，保存后颜色跟着没了，界面上就是「改了色但没生效」（同一个坑 v0.8.3 在名字上踩过一次）。 */
   it('改一档的颜色：hex 提交后写回带 color 的那一档', () => {
     render();
     act(() => button('编辑难度分级')?.click());
@@ -184,10 +170,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     expect(payload.data.difficultyLevels?.[1]?.color).toBeUndefined();
   });
 
-  /**
-   * v0.8.6 §1：方格大小从清单里拿掉了，「恢复默认」就不能再顺手把它拨回 `null`。
-   * 作者看不见那一项，也改不到它 —— 那它就不该被改掉。
-   */
+  /** v0.8.6 §1：方格大小从清单里拿掉了，「恢复默认」就不能再顺手把它拨回 `null`。 作者看不见那一项，也改不到它 —— 那它就不该被改掉。 */
   it('恢复默认只动清单上的字段，方格大小原样写回', () => {
     render({
       ...themeRef,
@@ -211,11 +194,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     expect(payload.data.style.gridSeparator).toEqual(DEFAULT_MAP_STYLE.gridSeparator);
   });
 
-  /**
-   * 回归：改名字**不改 key**，所以第一版那道 `isBuiltIn` 判断（只比 key）把这次
-   * 编辑当成了「还是内置五档」，`difficultyLevels` 被删掉 → 保存后名字又变回去。
-   * 作者看到的就是「保存不生效」。名字恰恰是这一屏唯一能自定义的东西之一。
-   */
+  /** 回归：改名字**不改 key**，所以第一版那道 `isBuiltIn` 判断（只比 key）把这次编辑当成了「还是内置五档」，`difficultyLevels` 被删掉 → 保存后名字又变回去。 作者看到的就是「保存不生效」。名字恰恰是这一屏唯一能自定义的东西之一。 */
   it('只改名字也要写回 —— 名字正是要存的东西', () => {
     render();
     act(() => button('编辑难度分级')?.click());
@@ -241,10 +220,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     expect('difficultyLevels' in payload.data).toBe(false);
   });
 
-  /**
-   * 「恢复内置五档」不是写一份和内置一模一样的数组 —— 它把 `difficultyLevels`
-   * 这个键**删掉**，回到「没配过」。以后内置改了，这类主题跟着改。
-   */
+  /** 「恢复内置五档」不是写一份和内置一模一样的数组 —— 它把 `difficultyLevels` 这个键**删掉**，回到「没配过」。以后内置改了，这类主题跟着改。 */
   it('恢复内置五档后保存，payload 里没有 difficultyLevels 这个键', () => {
     render({
       ...themeRef,
@@ -258,12 +234,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     expect('difficultyLevels' in payload.data).toBe(false);
   });
 
-  /**
-   * **操作提示**这一张卡把五项并到一起（标记 / 清除 / 回退 / 提交 / 圆环）。
-   *
-   * 这几条钉的是数据契约而不是排版：哪一项配了、页面就拿那项的地址去画，
-   * 点上传 / 移除就直接发请求（即时保存，没有「编辑 → 保存」那一层）。
-   */
+  /** **操作提示**这一张卡把五项并到一起（标记 / 清除 / 回退 / 提交 / 圆环）。 这几条钉的是数据契约而不是排版：哪一项配了、页面就拿那项的地址去画， 点上传 / 移除就直接发请求（即时保存，没有「编辑 → 保存」那一层）。 */
   it('五项都在同一张卡里：标记、清除、回退、提交、圆环', () => {
     render();
 
@@ -308,11 +279,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     expect(removeMarkMutate).not.toHaveBeenCalled();
   });
 
-  /**
-   * v0.9.2 §2；v0.9.5：**那一圈** —— 长按计时环与提交校验圈共用一张图。
-   *
-   * 这一条同时守住合并本身：配一次，两个消费点都读它；页面里只有一个圆环入口。
-   */
+  /** v0.9.2 §2；v0.9.5：**那一圈** —— 长按计时环与提交校验圈共用一张图。 这一条同时守住合并本身：配一次，两个消费点都读它；页面里只有一个圆环入口。 */
   it('圆环：配一次两处共用，移除直接发请求', () => {
     render();
     expect(button('上传')).toBeDefined();
@@ -349,13 +316,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
     expect(document.querySelector('[aria-label*="校验未通过色"]')).not.toBeNull();
   });
 
-  /**
-   * v0.11.3 §6 —— 结算卡的图标与标题。
-   *
-   * 判据是「空输入框 + placeholder 里的默认值」：默认值只在内置那一层，作者没填过
-   * 的东西不该被写成一份存进库。改文字走失焦提交（一次输入不发一串请求），
-   * 换图与改字分开 —— 换图不该顺手把标题也写一遍。
-   */
+  /** v0.11.3 §6 —— 结算卡的图标与标题。 判据是「空输入框 + placeholder 里的默认值」：默认值只在内置那一层，作者没填过的东西不该被写成一份存进库。改文字走失焦提交（一次输入不发一串请求）， 换图与改字分开 —— 换图不该顺手把标题也写一遍。 */
   describe('结算卡的图标与标题（v0.11.3）', () => {
     function box(label: string): HTMLInputElement {
       const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);

@@ -3,17 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ClampedText } from './ClampedText';
 
-/**
- * 描述被截断时，触碰 / 悬停能看到全文。
- *
- * jsdom 不排版，所有尺寸恒为 0，所以「有没有溢出」在这里是**造**出来的：给
- * span 覆盖一对 `scrollHeight / clientHeight`，再让组件重新量一次。真正要钉的
- * 是三条逻辑 ——
- *
- * 1. 没溢出时不挂浮层（否则每个短描述都会弹出一片和原文一字不差的纸）；
- * 2. 溢出时打上 `data-clipped`，触摸抬手把全文浮层打开；
- * 3. 视口变大、文字不再溢出时，浮层跟着收掉。
- */
+/** 描述被截断时，触碰 / 悬停能看到全文。 jsdom 不排版，所有尺寸恒为 0，所以「有没有溢出」在这里是**造**出来的：给 span 覆盖一对 `scrollHeight / clientHeight`，再让组件重新量一次。真正要钉的是三条逻辑 —— 1. 没溢出时不挂浮层（否则每个短描述都会弹出一片和原文一字不差的纸）； 溢出时打上 `data-clipped`，触摸抬手把全文浮层打开； 视口变大、文字不再溢出时，浮层跟着收掉。 */
 
 const LONG = '这是一段很长的描述，长到两行放不下，必须点一下才能读完剩下的部分。';
 

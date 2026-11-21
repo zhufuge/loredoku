@@ -62,7 +62,7 @@ describe('verdictMarkScale 按可见区再收一道（v0.10.2）', () => {
   });
 
   it('可见区按「宽 / 整块宽」与「高减按钮 / 整块高」取小', () => {
-    // 宽够、高不够：高度那一支是 (320 - 64) / 320 = 0.8。
+    // 宽够、高不够：高度那一支是 (320；64) / 320 = 0.8。
     const narrowHeight = verdictMarkScale(VERDICT_BASE_BOARD, {
       width: VERDICT_MARK_WIDTH * 4,
       height: VERDICT_MARK_HEIGHT + VERDICT_BUTTON_BLOCK,

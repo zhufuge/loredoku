@@ -1,26 +1,6 @@
 import type { MapStatus } from '@loredoku/shared';
 
-/**
- * FIX-E01 (docs/v0.3.9.md §1).
- *
- * `MapEditorPage` re-reads `/map` whenever the query is invalidated. Publishing used
- * to bump `currentVersionNo` / `status` on the map row (and invalidated the
- * query) **without touching the draft**, and the old code treated that as "the
- * map changed", re-running `editor.init()` — which resets zoom / pan and made
- * the canvas jump right after a successful publish.
- *
- * The decision is a pure function so the rule is covered by tests instead of
- * being buried in an effect.
- *
- * 判定只有两条：
- *
- * - 换了一张图（`mapId` 变了）→ 整份重载；
- * - 同一张图、只是版本号 / 状态变了（发布、删版本、恢复）→ 只刷版本徽标，
- *   视口原地不动。
- *
- * 草稿内容本身不参与判定：另一个会话保存了草稿，本页也不会自动重载 —— 与其
- * 在用户画到一半时把画布换掉，不如让最后一次保存胜出。
- */
+/** FIX-E01 (docs/v0.3.9.md §1). `MapEditorPage` re-reads `/map` whenever the query is invalidated. The decision is a pure function so the rule is covered by tests instead of being buried in an effect. 判定只有两条：；换了一张图（`mapId` 变了）→ 整份重载； 草稿内容本身不参与判定：另一个会话保存了草稿，本页也不会自动重载 —— 与其 在用户画到一半时把画布换掉，不如让最后一次保存胜出。 */
 export type EditorInitAction =
   /** Load the draft into the editor (resets the viewport). */
   | 'init'

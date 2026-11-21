@@ -2,14 +2,7 @@ import type { GameToolIconKind, Theme, ThemeOption } from '@loredoku/shared';
 import { ApiError, apiClient, apiDelete, apiGet, apiPatch, apiPost } from './client';
 
 /**
- * v0.8.0（docs/v0.8.0.md §7 / §19）—— 主题只提供「边界本身」的接口；内容仍然住在
- * `/assets` `/maps` `/characters` `/puzzles` 下（带 `?themeCode=`）。
- *
- * **主题的一切寻址都用编码**：`detail` / `update` / `remove` / `bundle`
- * 都收 `code`。理由与地址里那一段相同 —— `code` 才是能进 URL、进 manifest、
- * 将来能拿去对账的那个字符串；数字主键只在服务端内部流通。
- *
- * 没有 `move`：`theme_id` 建行后不可改（§8 护栏 2），换主题只能新建。
+ * v0.8.0（docs/v0.8.0.md §7 / §19）—— 主题只提供「边界本身」的接口，内容仍住在 `/assets` `/maps` `/characters` `/puzzles` 下（带 `?themeCode=`）。主题的一切寻址都用 `code`（能进 URL / manifest 的那个字符串，数字主键只在服务端内部流通）；没有 `move` —— `theme_id` 建行后不可改（§8 护栏 2），换主题只能新建。
  */
 export interface CreateThemePayload {
   code: string;
@@ -34,14 +27,7 @@ export const themesApi = {
     apiPatch<Theme>(`/themes/${code}`, payload),
   remove: (code: string) => apiDelete<null>(`/themes/${code}`),
 
-  /**
-   * v0.8.6 §4 / v0.8.7 §4；v0.9.5 更名 —— 主题级的**标记**：本主题里**没有单独配置**
-   * 的谜题读取时都用这张（谜题自己配了则覆盖）。
-   *
-   * 与其它 `data` 修改不同，这两个端点**即时保存**：上传 / 移除当场写进 `themes.data`
-   * 并回更新后的整份主题，概览页因此不需要「保存」。图落在 `storage/uploads` 下，
-   * `data.mark.path` 只记相对路径（渲染时 `fileUrlFromPath` 拼地址）。
-   */
+  /** v0.8.6 §4 / v0.8.7 §4；v0.9.5 更名 —— 主题级的**标记**：本主题里**没有单独配置** 的谜题读取时都用这张（谜题自己配了则覆盖）。 与其它 `data` 修改不同，这两个端点**即时保存**：上传 / 移除当场写进 `themes.data` 并回更新后的整份主题，概览页因此不需要「保存」。图落在 `storage/uploads` 下， `data.mark.path` 只记相对路径（渲染时 `fileUrlFromPath` 拼地址）。 */
   uploadMark: (code: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -49,12 +35,7 @@ export const themesApi = {
   },
   removeMark: (code: string) => apiDelete<Theme>(`/themes/${code}/mark`),
 
-  /**
-   * v0.8.7 §7 —— 主题的工具按钮图标（清除 / 撤回 / 提交），**一次一枚**、即时保存。
-   *
-   * 与标记同一套：回执是更新后的整份主题，概览页那一屏直接换掉；点「移除」就是
-   * 把那一枚从 `data.toolIcons` 里删掉（另外两枚不动）。
-   */
+  /** v0.8.7 §7 —— 主题的工具按钮图标（清除 / 撤回 / 提交），**一次一枚**、即时保存。 与标记同一套：回执是更新后的整份主题，概览页那一屏直接换掉；点「移除」就是把那一枚从 `data.toolIcons` 里删掉（另外两枚不动）。 */
   uploadToolIcon: (code: string, icon: GameToolIconKind, file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -63,12 +44,7 @@ export const themesApi = {
   removeToolIcon: (code: string, icon: GameToolIconKind) =>
     apiDelete<Theme>(`/themes/${code}/tool-icons/${icon}`),
 
-  /**
-   * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张** —— 所以这里只有一个
-   * `ring` 端点、没有 `:kind` 那一段。
-   *
-   * 与标记同一种「读取时兜底」：上传即覆盖、移除即回到各自的内置细弧。
-   */
+  /** v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张** —— 所以这里只有一个 `ring` 端点、没有 `:kind` 那一段。 与标记同一种「读取时兜底」：上传即覆盖、移除即回到各自的内置细弧。 */
   uploadRing: (code: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -76,21 +52,11 @@ export const themesApi = {
   },
   removeRing: (code: string) => apiDelete<Theme>(`/themes/${code}/ring`),
 
-  /**
-   * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。
-   *
-   * 颜色走 PATCH（只带要改的那一档），圈图走上面的上传 / 删除 —— 配色与换图是两个
-   * 动作，分开之后「改一个颜色」不会把整份 `data` 覆盖一遍。
-   */
+  /** v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。 颜色走 PATCH（只带要改的那一档），圈图走上面的上传 / 删除 —— 配色与换图是两个动作，分开之后「改一个颜色」不会把整份 `data` 覆盖一遍。 */
   updateCheckStyle: (code: string, patch: { passColor?: string; failColor?: string }) =>
     apiPatch<Theme>(`/themes/${code}/check-style`, patch),
 
-  /**
-   * 结算卡通过那一面：一枚图标图 + 两句文字。
-   *
-   * 与圆环 / 校验颜色同一个分工：图走上传删除、文字走 PATCH。换图不该覆盖作者写的
-   * 标题，改标题也不该动那张图；「移除」之后回到文字（或内置的庆祝 emoji）。
-   */
+  /** 结算卡通过那一面：一枚图标图 + 两句文字。 与圆环 / 校验颜色同一个分工：图走上传删除、文字走 PATCH。换图不该覆盖作者写的标题，改标题也不该动那张图；「移除」之后回到文字（或内置的庆祝 emoji）。 */
   uploadVerdictIcon: (code: string, file: File) => {
     const form = new FormData();
     form.append('file', file);
@@ -101,13 +67,7 @@ export const themesApi = {
     apiPatch<Theme>(`/themes/${code}/verdict`, patch),
 };
 
-/**
- * v0.8.0（§11.6）：导出资源包。这个接口回的是 zip 本体，不走 `unwrap`
- * —— 它的成功响应不是 `ApiResponse`，失败响应才是。所以失败时要把 blob
- * 读回文本再解析一次，否则作者只会看到「下载失败」而不知道是「先至少上线一关」。
- *
- * `gameIds` 给了就只打这几关；不给就是全部在线关。
- */
+/** v0.8.0（§11.6）：导出资源包。这个接口回的是 zip 本体，不走 `unwrap` —— 它的成功响应不是 `ApiResponse`，失败响应才是。所以失败时要把 blob 读回文本再解析一次，否则作者只会看到「下载失败」而不知道是「先至少上线一关」。 `gameIds` 给了就只打这几关；不给就是全部在线关。 */
 export async function downloadThemeBundle(
   code: string,
   gameIds?: readonly number[],

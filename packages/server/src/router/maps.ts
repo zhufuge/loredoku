@@ -9,11 +9,7 @@ export const mapsRouter = new Router();
 mapsRouter.get('/', controller.list);
 mapsRouter.post('/', controller.create);
 
-/**
- * FEAT-K03 (docs/v0.5.0.md §2.4): every published map version, for the puzzle
- * creation picker. Declared **before** `/:id` — otherwise 「versions」 would be
- * matched as an id and rejected.
- */
+/** FEAT-K03 (docs/v0.5.0.md §2.4): every published map version, for the puzzle creation picker. Declared **before** `/:id` — otherwise 「versions」 would be matched as an id and rejected. */
 mapsRouter.get('/versions', controller.listPublishedVersions);
 
 mapsRouter.get('/:id', controller.detail);

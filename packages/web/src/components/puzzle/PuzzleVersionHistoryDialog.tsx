@@ -25,13 +25,7 @@ interface PuzzleVersionHistoryDialogProps {
   onPreview: (version: PuzzleEntrySummary) => void;
 }
 
-/**
- * 谜题版本历史（v0.7.1 §5.5）：血统内所有活着的版本行，版本号倒序。
- *
- * 与地图的版本面板同一套动作：「编辑此版本」进编辑器 `?v=` 的 fork 态（v0.7.2
- * 起不再当场 fork —— 保存时才生成新草稿行）。删除会被服务端挡住：挂着未取消
- * 部署的游戏时返回 400「该版本已部署为游戏，请先取消部署」。
- */
+/** 谜题版本历史（v0.7.1 §5.5）：血统内所有活着的版本行，版本号倒序。 与地图的版本面板同一套动作：「编辑此版本」进编辑器 `?v=` 的 fork 态（v0.7.2 起不再当场 fork —— 保存时才生成新草稿行）。删除会被服务端挡住：挂着未取消部署的游戏时返回 400「该版本已部署为游戏，请先取消部署」。 */
 export function PuzzleVersionHistoryDialog({
   themeCode,
   puzzleId,

@@ -9,14 +9,7 @@ import {
 } from '@loredoku/shared';
 import { ParticipantDrawer } from './ParticipantDrawer';
 
-/**
- * v0.6.4 (docs/v0.6.4.md §2): the 编号展示 field in the 参与者信息 drawer.
- *
- * Render-level assertions on the three things that matter: the field is seeded
- * from the stored entry (and empty when there is none), and 保存 is the only
- * path that carries the text into the store — the same rule every other module
- * in this drawer follows.
- */
+/** v0.6.4 (docs/v0.6.4.md §2)：编号展示由存储条目回填（没有则为空），只有保存这一条路把它写进 store —— 与抽屉里其它模块同一条规则。 */
 
 const CHARACTER: Character = {
   id: 8,

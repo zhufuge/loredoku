@@ -18,18 +18,7 @@ interface ThemeColorDialogProps {
   onConfirm: (color: string) => void;
 }
 
-/**
- * FEAT-H08 §8.2(b) (docs/v0.4.2.md §8): the participant's theme colour gets its
- * own layer. The drawer only shows **what is selected now**; picking a colour
- * happens here.
- *
- * 界面不提供调色板，这一层只把统一取色控件放在一块够大的地方 —— 原生取色器 +
- * hex 输入。
- *
- * Fully **controlled**: it holds a draft, never touches the store, and never
- * creates an undo step. 「确定」 hands the colour back to the drawer, whose own
- * 保存 is still the only thing that writes (`setParticipantConfig`).
- */
+/** FEAT-H08 §8.2(b) (docs/v0.4.2.md §8): the participant's theme colour gets its own layer. The drawer only shows **what is selected now**; picking a colour happens here. 界面不提供调色板，这一层只把统一取色控件放在一块够大的地方 —— 原生取色器 + hex 输入。 */
 export function ThemeColorDialog({
   open,
   value,

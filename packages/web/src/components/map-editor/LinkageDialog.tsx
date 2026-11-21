@@ -27,12 +27,7 @@ import {
   type CellSelection,
 } from '@/lib/cellSelection';
 
-/**
- * MOD-801 (docs/v0.3.3.md §1.1.3): add / edit dialog for one participant's
- * linkages. Multi-select lists expand to one stored linkage per object;
- * the cell type embeds a matrix picker with row / column / rectangle
- * quick selection.
- */
+/** MOD-801 (docs/v0.3.3.md §1.1.3): add / edit dialog for one participant's linkages. Multi-select lists expand to one stored linkage per object; the cell type embeds a matrix picker with row / column / rectangle quick selection. */
 
 export interface LinkageCharacterOption {
   id: number;
@@ -42,11 +37,7 @@ export interface LinkageCharacterOption {
 export interface LinkageAssetOption {
   assetId: number;
   name: string;
-  /**
-   * v0.5.3 FIX-N12 (docs/v0.5.3.md §6.5): the item's **业务 ID**. The list used
-   * to lead with `#${assetId}` — a database primary key the author never sees.
-   * `''` means the item carries no code, and the label degrades to the name.
-   */
+  /** v0.5.3 FIX-N12 (docs/v0.5.3.md §6.5): the item's **业务 ID**. The list used to lead with `#${assetId}` — a database primary key the author never sees. `''` means the item carries no code, and the label degrades to the name. */
   code: string;
   /** Anchor coords of every placed instance of this item. */
   instances: Array<[number, number]>;
@@ -116,11 +107,7 @@ export function draftFromLinkage(linkage: ParticipantTarget | null): LinkageDraf
   }
 }
 
-/**
- * Expands the draft into stored linkages. Multi-select character / region
- * lists produce one entry per object (spec: "保存时按角色 ID 逐条存储").
- * Returns an empty array when the draft has no selectable object.
- */
+/** Expands the draft into stored linkages. Multi-select character / region lists produce one entry per object (spec: "保存时按角色 ID 逐条存储"). Returns an empty array when the draft has no selectable object. */
 export function buildLinkages(draft: LinkageDraft): ParticipantTarget[] {
   const effect = 'highlight' as const;
   switch (draft.type) {

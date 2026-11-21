@@ -6,26 +6,12 @@ import { EditorCanvas, type EditorCanvasHandle } from './EditorCanvas';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/hitTest';
 
-/**
- * The bottom bar's ± buttons must zoom the canvas like the wheel does.
- *
- * A zoom step changes the ruler strip, which re-creates `centerView`, which
- * re-runs the adaptive auto-centre effect — and that effect resets the view
- * to 100% unless the view is marked as user-adjusted. Both the wheel path and
- * the button path set that flag (`userPannedRef`).
- *
- * These tests pin the observable contract: a button zoom reaches the store,
- * and the adaptive pass that re-runs right after must leave it alone.
- */
+/** ± 按钮必须像滚轮一样缩放：一次缩放会重建 `centerView`、触发自适应居中 effect，后者会把视图重置回 100% —— 滚轮与按钮两条路都要置 `userPannedRef`。 */
 
 // React 18 的 act 需要这个开关，否则每次由 effect 触发的更新都会打印一条警告。
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-/**
- * 标尺的行列符号由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），而
- * 这里直接把 `EditorCanvas` 挂进一个裸 `createRoot`，没有 Provider。按同一个签名
- * 返回常量即可 —— 这一组用例关心的是缩放，不是符号。
- */
+/** 标尺的行列符号由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），而这里直接把 `EditorCanvas` 挂进一个裸 `createRoot`，没有 Provider。按同一个签名返回常量即可 —— 这一组用例关心的是缩放，不是符号。 */
 vi.mock('@/hooks/useThemes', () => ({
   useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
 }));

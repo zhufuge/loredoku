@@ -3,16 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ColorField } from './color-input';
 
-/**
- * 统一取色控件。
- *
- * 这一版把几种长相收成一种：色块（原生取色器）+ hex 输入框。钉三件事：
- *
- * 1. 只有这两件 —— v0.8.3 收尾时按用户要求去掉了调色板，谁再往这里塞一份固定
- *    色板，界面上就会重新出现「十几种预设」那套东西；
- * 2. hex 是草稿：非法中间态留在框里，失焦时才回滚到当前值；
- * 3. 取色器给的色即时提交。
- */
+/** 统一取色控件。 这一版把几种长相收成一种：色块（原生取色器）+ hex 输入框。钉三件事： 1. 只有这两件 —— v0.8.3 收尾时按用户要求去掉了调色板，谁再往这里塞一份固定色板，界面上就会重新出现「十几种预设」那套东西； hex 是草稿：非法中间态留在框里，失焦时才回滚到当前值； 取色器给的色即时提交。 */
 
 describe('ColorField（v0.8.3 统一取色控件）', () => {
   let container: HTMLDivElement;

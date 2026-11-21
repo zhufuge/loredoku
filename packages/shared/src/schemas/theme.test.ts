@@ -6,10 +6,7 @@ import {
   updateThemeVerdictSchema,
 } from './theme';
 
-/**
- * v0.8.0 §18：主题编码是工作空间的地址前缀（`/hlm/maps`），所以除了字符集，还要拦
- * **顶层静态路径** —— 一个叫 `settings` 的主题永远打不开自己的工作台。
- */
+/** v0.8.0 §18：编码是工作空间地址前缀，除字符集外还要拦**顶层静态路径**（`settings` 等），否则该主题打不开自己的工作台。 */
 
 function codeError(input: string): string | null {
   const parsed = themeCodeSchema.safeParse(input);
@@ -49,10 +46,7 @@ describe('themeCodeSchema（v0.8.0 §18）', () => {
   });
 });
 
-/**
- * `data.accent` 是主题的识别色 —— 只给界面认人用，不进包、不参与渲染。
- * 它可选，且只收 `#RRGGBB`：颜色以字符串进 JSONB，写错了就是一个没人能改的脏值。
- */
+/** `data.accent`：只给界面认人，不进包、不参与渲染；可选，只收 `#RRGGBB`（JSONB 里的脏值没人能改）。 */
 describe('themeDataSchema.accent（v0.8.2）', () => {
   it('不写就是没有 —— 没设过色带的主题是合法的', () => {
     const parsed = themeDataSchema.parse({ version: 1 });
@@ -80,13 +74,7 @@ describe('themeDataSchema.accent（v0.8.2）', () => {
   });
 });
 
-/**
- * v0.8.6（docs/v0.8.6.md §3）：难度分级进 `data`，一档 = 数字 + 名字 + 可选颜色。
- *
- * 四个硬约束各有理由：至少一档（零档的难度体系等于没有难度）、档位数字唯一
- * （否则 `games.difficulty` 指不出是哪一档）、最多 12 档（再多一屏放不下）、
- * 颜色只收 `#rrggbb`（取色器给的就是这个，别的写法混不出可预期的淡色）。
- */
+/** v0.8.6 §3：一档 = 数字 + 名字 + 可选颜色。至少一档、档位唯一（否则 `games.difficulty` 指不出档）、≤12 档、颜色只收 `#rrggbb`。 */
 describe('themeDataSchema.difficultyLevels（v0.8.6）', () => {
   const tiers = [
     { level: 1, label: '热身' },
@@ -158,12 +146,7 @@ describe('themeDataSchema.difficultyLevels（v0.8.6）', () => {
   });
 });
 
-/**
- * v0.8.6（docs/v0.8.6.md §4）；v0.9.5 字段名 `forbiddenSymbol → mark`（界面上的
- * 名字也从「禁止符号」改成「标记」）。
- *
- * 缺失 / null 都表示「默认 ×」。旧键由 `stripLegacyThemeKeys` 搬过来。
- */
+/** v0.8.6 §4；v0.9.5 改名 `forbiddenSymbol → mark`。缺失 / null = 默认 `×`，旧键由 `stripLegacyThemeKeys` 搬过来。 */
 describe('themeDataSchema 的标记（v0.8.6 §4 / v0.9.5 更名）', () => {
   it('缺省 / null 与一张上传图都合法', () => {
     expect(themeDataSchema.safeParse({ version: 1 }).success).toBe(true);
@@ -203,12 +186,7 @@ describe('themeDataSchema 的标记（v0.8.6 §4 / v0.9.5 更名）', () => {
   });
 });
 
-/**
- * **那一圈** —— 长按计时环与提交校验圈共用一个配置键。
- *
- * 旧数据两条来路都要读得出来：主题顶层的 `pressRing: { path }`、
- * 校验的 `checkStyle.ring: { path }`；新形状是 `ring: { image: { path } }`。
- */
+/** 那一圈：计时环与校验圈共用一个键；旧来路 `pressRing` / `checkStyle.ring` 都要能读，新形状是 `ring: { image: { path } }`。 */
 describe('themeDataSchema.ring（v0.9.5 合并）', () => {
   it('缺省是 undefined；null 与 { image: { path } } 都收', () => {
     expect(themeDataSchema.parse({ version: 1 }).ring).toBeUndefined();
@@ -290,10 +268,7 @@ describe('themeDataSchema.checkStyle（v0.9.3 / v0.9.5 收敛为颜色）', () =
   });
 });
 
-/**
- * v0.9.3 §3：提交校验的样式。两个颜色带 `.default()` —— 作者只换圈图时，写进
- * 库里的仍是一份完整的三键，服务端不必再补一遍默认值。
- */
+/** v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`），两色都带 `.default()`。 */
 describe('themeDataSchema.checkStyle（v0.9.3）', () => {
   it('缺省是 undefined；给空对象也会补齐两档颜色', () => {
     expect(themeDataSchema.parse({ version: 1 }).checkStyle).toBeUndefined();
@@ -314,12 +289,7 @@ describe('themeDataSchema.checkStyle（v0.9.3）', () => {
   });
 });
 
-/**
- * 结算卡的图标与标题进主题配置。
- *
- * 三件事要在这一层钉住：可整块不写、文字有长度上限、多出来的键一律拒 —— `data` 是
- * 一份 JSONB，写进去的脏值没人能改回来。
- */
+/** 结算卡的图标与标题：可整块不写、文字有上限、多出的键一律拒 —— `data` 是 JSONB，写进去的脏值没人能改回来。 */
 describe('themeDataSchema.verdict（v0.11.3）', () => {
   it('不写就是没有 —— 老主题原样合法', () => {
     expect(themeDataSchema.parse({ version: 1 }).verdict).toBeUndefined();
@@ -359,13 +329,7 @@ describe('themeDataSchema.verdict（v0.11.3）', () => {
   });
 });
 
-/**
- * 列表页那两行字（「N 关可玩」/「已通过 N 关」）进主题配置。
- *
- * 这一层要钉住的是**占位符**：文案里少了 `{n}`，那一句就再也说不出关数，
- * 界面上只剩一句与这一页无关的话 —— 所以非空文案必须含一个 `{n}`。
- * 空串是合法的，意思是「用内置那句」。
- */
+/** 列表页那两行字：非空文案必须含 `{n}`，否则那句话失去关数；空串 = 用内置那句。 */
 describe('themeDataSchema.gameList（v0.11.6）', () => {
   it('不写就是没有 —— 老主题原样合法', () => {
     expect(themeDataSchema.parse({ version: 1 }).gameList).toBeUndefined();

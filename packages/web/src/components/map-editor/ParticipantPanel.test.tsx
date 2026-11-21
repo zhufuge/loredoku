@@ -4,15 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HIGHLIGHT_BLUE, type Character, type CharacterSlotEntry } from '@loredoku/shared';
 import { ParticipantPanel } from './ParticipantPanel';
 
-/**
- * 被联动指着的参与者：反馈是「一层淡金从那道 2px 金框向头像蔓延」。
- *
- * 页面那一层把 `resolveHighlight` 解析出的 `{ slotIndex, color }` 收成两个 prop
- * 传进来（`highlightedSlots` / `highlightColors`），这里只钉**面板拿到这两个 prop
- * 之后画什么**：金框还在、淡金那层的开关 `data-link-tint` 与它的颜色（`--link-color`
- * 由联动色解析，透明度与主题色同档 0.16）、以及头像不再放大。蔓延的几何（圆心、
- * 孔的半径）是 CSS，在 jsdom 里没有布局可读，按「界面外观不写断言」交给真浏览器。
- */
+/** 联动高亮：页面传入 `highlightedSlots` / `highlightColors`，这里只钉面板拿到后画什么 —— 金框仍在、淡金层 `data-link-tint` 与其 `--link-color`（透明度 0.16）、头像不再放大；蔓延几何是 CSS，留给真浏览器。 */
 
 const CHARACTERS: Character[] = [
   {
@@ -165,11 +157,7 @@ describe('ParticipantPanel — 联动指向的淡金（v0.10.11）', () => {
   });
 });
 
-/**
- * 竖屏玩家页里名册可以上下划动 —— 手指落在参与者框上时手势不会被卡片吃掉。卡片
- * 的 `touch-action: none` 是编辑器里拖拽换位要的（不能让浏览器把拖动解释成滚动），
- * 但竖屏玩家页是只读的，那一条只剩副作用，必须放开。
- */
+/** 竖屏玩家页里名册可以上下划动 —— 手指落在参与者框上时手势不会被卡片吃掉。卡片的 `touch-action: none` 是编辑器里拖拽换位要的（不能让浏览器把拖动解释成滚动）， 但竖屏玩家页是只读的，那一条只剩副作用，必须放开。 */
 describe('ParticipantPanel — 竖屏名册不拦触摸滚动（v0.11.2）', () => {
   let container: HTMLDivElement;
   let root: Root;

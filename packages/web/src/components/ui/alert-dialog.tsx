@@ -7,16 +7,7 @@ export const AlertDialog = AlertDialogPrimitive.Root;
 export const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
 export const AlertDialogPortal = AlertDialogPrimitive.Portal;
 
-/*
- * 进 / 出动画与 Dialog 完全对齐：遮罩淡入、面板淡入，时长 180ms。
- *
- * 这是全仓最常出现的弹层之一（12 个文件在用，删除类操作全走它），动画必须与
- * 普通 Dialog 同款，否则确认删除「啪」地出现，看着像两代人写的。
- *
- * **刻意不做位移与缩放**：面板靠 `-translate-x-1/2 -translate-y-1/2` 居中，而
- * `animate-in` 的 transform 关键帧会覆盖这条居中规则、让面板在动画期间整体
- * 偏移半屏 —— 200ms 内斜着滑进来再跳回中心，比不动更糟。所以这里只用透明度。
- */
+/* 进 / 出动画与 Dialog 完全对齐：遮罩淡入、面板淡入，时长 180ms。 这是全仓最常出现的弹层之一（12 个文件在用，删除类操作全走它），动画必须与 普通 Dialog 同款，否则确认删除「啪」地出现，看着像两代人写的。 **刻意不做位移与缩放**：面板靠 `-translate-x-1/2 -translate-y-1/2` 居中，而 `animate-in` 的 transform 关键帧会覆盖这条居中规则、让面板在动画期间整体 偏移半屏 —— 200ms 内斜着滑进来再跳回中心，比不动更糟。 所以这里只用透明度。 */
 export const AlertDialogOverlay = forwardRef<
   ElementRef<typeof AlertDialogPrimitive.Overlay>,
   ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>

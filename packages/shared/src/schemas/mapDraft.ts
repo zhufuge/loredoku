@@ -70,18 +70,7 @@ const regionOutlineWidthSchema = z
   .max(REGION_BORDER_WIDTH_MAX)
   .default(DEFAULT_MAP_STYLE.regionOutline.width);
 
-/**
- * The region label's typeface — a **font name** (`WenKai`, `霞鹜文楷`)
- * or one of the built-in keys (`system` / `serif` …).
- *
- * The set of selectable fonts is whatever lives in
- * `packages/web/src/assets/fonts/`, which `shared` must not know about. What is
- * enforced is the *shape* of the name — length plus a character set that
- * cannot break out of the quoted slot in the CSS fallback chain
- * (`MAP_STYLE_FONT_FAMILY_NAME_PATTERN`). A name that survives here is safe to
- * render, and a name that came from another build simply falls back at render
- * time instead of failing the parse.
- */
+/** Region label typeface: a font **name** (`WenKai`) or built-in key (`system`); only its *shape* is enforced (charset cannot break the CSS fallback chain), unknown names fall back at render. */
 const fontFamilySchema = z
   .string()
   .trim()
@@ -213,39 +202,16 @@ export const mapStyleSchema = z.object({
         .min(MAP_STYLE_RULER_GAP_MIN)
         .max(MAP_STYLE_RULER_GAP_MAX)
         .default(DEFAULT_MAP_STYLE.ruler.gap),
-      /**
-       * 标尺前缀符号（默认 C / R）。允许为空串 —— 只显示数字也是一种读法。
-       *
-       * 这两项**只有主题在配**：`mapStyleSchema` 同时被地图草稿与主题的 `data.style`
-       * 用着，所以字段留在 schema 里（主题要靠它存）；但地图草稿里的同名值
-       * **不参与渲染**（`MapRulerStrips` 按 `themeCode` 查主题），
-       * 保存地图时也会被剥掉（`stripRulerSymbols`），免得库里留着两处互相矛盾的值。
-       *
-       * **刻意不给 `.default()`**：给了的话，任何一张地图只要存一次盘，就会把
-       * 出厂符号材料化成字面量写进 `maps.data`，正是这次要清掉的东西。缺席 =
-       * 用 `MAP_STYLE_RULER_DEFAULT_SYMBOLS`，读的时候才补。
-       */
+      /** 标尺前缀符号（默认 C / R，空串合法）：**只有主题在配**；地图草稿里的值不渲染、保存时被剥掉（`stripRulerSymbols`），且**刻意无 `.default()`** —— 否则一次存盘就把出厂符号写进 `maps.data`。缺席 = `MAP_STYLE_RULER_DEFAULT_SYMBOLS`。 */
       columnSymbol: z.string().max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH).optional(),
       rowSymbol: z.string().max(MAP_STYLE_RULER_SYMBOL_MAX_LENGTH).optional(),
     })
     .default(() => ({ ...DEFAULT_MAP_STYLE.ruler })),
 })
-  /**
-   * FEAT-K14: `.strict()` so a v2 `style.linkageColors` block is
-   * **rejected** instead of silently stripped — the web import path relies on
-   * that to tell the author "this JSON is the old shape" (docs/v0.5.0.md §8.4).
-   */
+  /** FEAT-K14: `.strict()` so a v2 `style.linkageColors` block is **rejected**, not stripped — the web import path uses that to say "this is the old shape" (docs/v0.5.0.md §8.4). */
   .strict();
 
-/**
- * v0.7.6 (docs/v0.7.6.md §10): the anchor key used to be `formId`, back when the
- * table was `asset_forms`. Stored drafts are rewritten by migration
- * `20260101000035`, but a JSON file exported before that still carries the old
- * key — accept it and normalise, the same way `projectId` is accepted for
- * `mapId` in `puzzleMapRefSchema`. Without this the key would be **silently
- * stripped** (inner anchors are not `.strict()`) and a multi-variant asset would
- * quietly fall back to its first look.
- */
+/** 旧键 `formId → variantId`（v0.7.6 §10；迁移 `20260101000035` 已改写存量）：不收它会被静默剥掉（内层非 `.strict()`），多变体素材退回第一种样式。 */
 function withLegacyAnchorKey<T extends z.ZodTypeAny>(schema: T): T {
   return z.preprocess((raw) => {
     if (raw && typeof raw === 'object' && 'formId' in raw && !('variantId' in raw)) {
@@ -260,40 +226,20 @@ function withLegacyAnchorKey<T extends z.ZodTypeAny>(schema: T): T {
 export const draftAssetRefSchema = withLegacyAnchorKey(
   z.object({
     assetId: z.number().int().positive(),
-    /**
-     * Optional for the same reason as the item anchor — a payload
-     * written before background assets could have several variants keeps
-     * validating, and rendering falls back to the asset's first variant.
-     * `draftCellSchema` is `.strict()`, so the key has to be declared here.
-     */
+    /** 可缺：早于多变体背景的旧数据仍要用；渲染退回素材第一变体，`draftCellSchema` 是 `.strict()` 故须在此声明。 */
     variantId: z.number().int().positive().optional(),
   }),
 );
 
-/**
- * The item layer — the anchor cell carries the footprint.
- *
- * `variantId` is **optional on purpose** — a v4 payload has no such key and
- * must keep validating; rendering falls back to the asset's first variant.
- * `draftCellSchema` is `.strict()`, so the key has to be declared here or new
- * writes would be rejected.
- */
+/** 物品层：占位尺寸挂在锚点格。`variantId` 可缺（v4 无此键），渲染退回第一变体；`.strict()` 故须声明。 */
 export const draftAnchorItemSchema = withLegacyAnchorKey(
   z.object({
     assetId: z.number().int().positive(),
     variantId: z.number().int().positive().optional(),
-    /**
-     * The footprint is stored **per placement** (every new placement writes 1).
-     * Old drafts keep their 2×2 so published maps render exactly as before.
-     */
+    /** 占位尺寸**按次存**（新放置一律 1）；旧草稿保留 2×2，已发布地图照旧渲染。 */
     w: z.number().int().min(1),
     h: z.number().int().min(1),
-  /**
-   * v0.7.5 (docs/v0.7.5.md §3): the display transform. Optional so every draft
-   * written before this version keeps validating — absent means identity.
-   * Offsets are in **cells** and may be negative (artwork poking out to the
-   * left / up); the renderer clamps again through `resolveItemTransform`.
-   */
+  /** 显示变换（v0.7.5 §3）：可缺 = 恒等；偏移单位是**格**、可为负，渲染再由 `resolveItemTransform` 夹取。 */
     scale: z.number().min(ITEM_SCALE_MIN).max(ITEM_SCALE_MAX).optional(),
     offsetX: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
     offsetY: z.number().min(ITEM_OFFSET_MIN).max(ITEM_OFFSET_MAX).optional(),
@@ -311,10 +257,7 @@ export const draftCellSchema = z
   .strict();
 
 // ---- v0.7.0 区域自有样式（docs/v0.7.0.md §4） ----
-/**
- * 区域级覆盖：与地图级缺省同一套边界，但**没有默认值**——缺省在地图级，
- * 区域只记自己改过的字段（深 partial）。三个子对象都可整个缺席。
- */
+/** 区域级覆盖：与地图级同一套边界但**无默认值**（缺省在地图级），只记改过的字段（深 partial）。 */
 const regionOutlineOverrideSchema = z
   .object({
     width: z.number().int().min(REGION_BORDER_WIDTH_MIN).max(REGION_BORDER_WIDTH_MAX).optional(),
@@ -358,16 +301,7 @@ const regionLabelOverrideSchema = z
       .min(MAP_STYLE_REGION_LABEL_STROKE_MIN)
       .max(MAP_STYLE_REGION_LABEL_STROKE_MAX)
       .optional(),
-    /**
-     * 这块区域的标签往哪偏（画布像素，相对「格子上沿居中」）。
-     *
-     * x / y 都可缺：只改一个方向的作者不该被迫填另一个。整块缺席 = 不偏移。
-     *
-     * 不设上下限：±200 那对常量本是为了「别让标签跑没」，但标签被推到画面外之后
-     * 照样能点回来（区域列表里点一下就能选中），这个限制反而把「把标签推到远处、
-     * 让一整块区域留白」这种排版挡死了。只要求是有限数字，取整的夹取在 web 侧的
-     * 两处 clamp 里做。
-     */
+    /** 标签偏移（画布像素，相对「格子上沿居中」）：x / y 各自可缺；**不设上下限** —— 推到画面外也能在区域列表点回来，取整夹取在 web 侧 clamp。 */
     offset: z
       .object({
         x: z.number().finite().optional(),
@@ -403,20 +337,8 @@ export const characterSlotSchema = z.object({
   characterId: z.number().int().positive(),
 });
 
-/**
- * CLAR-603 + MOD-702/801 + FEAT-E01: a roster slot carries participant linkage
- * directly. The roster length equals `gridSize`; null entries represent empty
- * slots. `clue` is an optional one-line clue text (0-200 chars, supports
- * `**bold**`). `linkages` is the flat MOD-801 list (no click/touch grouping).
- *
- * FEAT-E01 (docs/v0.4.1.md §7.4): `positionConditions` is the optional set of
- * cells this participant may occupy (OR-ed). Old drafts without the field stay
- * valid — an absent list means "no positional constraint".
- *
- * v0.6.4 (docs/v0.6.4.md §2): `displayNumber` is the optional 编号展示 text.
- * It is trimmed, bounded by {@link PARTICIPANT_DISPLAY_NUMBER_MAX} and stored
- * absent when cleared — the badge then falls back to the sequence number.
- */
+/** 名册槽（CLAR-603 / MOD-702 / FEAT-E01）：长度 = `gridSize`，null = 空槽；`clue` ≤200 字、支持 `**bold**`，
+ * `positionConditions` 可缺（= 无位置约束），`displayNumber` 清空即缺席、徽章退回序号。 */
 export const characterSlotEntrySchema = z
   .object({
     characterId: z.number().int().positive(),
@@ -436,25 +358,14 @@ export const characterSlotEntrySchema = z
   // MOD-801: legacy `triggers` payloads are rejected, not silently stripped.
   .strict();
 
-/**
- * The map draft is pure canvas — `characterSlots` and
- * `style.linkageColors` belong to {@link PuzzleDraft}. Every remaining
- * reference (regions / cells) is inside this payload, which is why the schema
- * is a plain `.strict()` object.
- *
- * `.strict()` also means a **v2 payload is rejected**; the server absorbs those
- * on read (`service/mapDraftCompat.ts`) rather than rewriting stored data.
- */
+/** 地图草稿是纯画布：`characterSlots` / `style.linkageColors` 归谜题。`.strict()` 连 v2 payload 也拒；服务端读取时经 `service/mapDraftCompat.ts` 吸收，不改存量。 */
 export const mapDraftSchema = z
   .object({
     version: z.number().int().positive(),
     gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
     cells: z.record(cellKeySchema, draftCellSchema),
     regions: z.array(draftRegionSchema),
-    /**
-     * Optional so `version = 1` drafts keep validating; a
-     * missing block resolves to `DEFAULT_MAP_STYLE` at render time.
-     */
+    /** 可缺：`version = 1` 草稿仍要能校验；缺省在渲染时解析为 `DEFAULT_MAP_STYLE`。 */
     style: mapStyleSchema.optional(),
   })
   .strict();
@@ -462,11 +373,7 @@ export const mapDraftSchema = z
 export const createRegionInputSchema = draftRegionSchema.omit({ id: true });
 export const updateRegionInputSchema = draftRegionSchema.omit({ id: true }).partial();
 
-/**
- * 保存整份草稿：只收 `data`，服务端直接后写覆盖（不做并发比对）。
- * 刻意**不加** `.strict()`：旧客户端若还带着 `updatedAt`，会被 zod 忽略而
- * 不是报 400。
- */
+/** 保存整份草稿：只收 `data`、后写覆盖（无并发比对）；刻意**不加** `.strict()`，旧客户端的 `updatedAt` 被忽略而非 400。 */
 export const saveMapDraftSchema = z.object({
   data: mapDraftSchema,
 });
@@ -479,12 +386,7 @@ export const updateGridSizeSchema = z.object({
   gridSize: z.number().int().min(GRID_SIZE_MIN).max(GRID_SIZE_MAX),
 });
 
-/**
- * the parts of a v2 map payload that now belong to a puzzle. A
- * `.strict()` parse would reject such a file with a generic message, so both
- * the web (before sending) and the server (before parsing) call this to say
- * **what** is wrong and where to import it instead.
- */
+/** v2 地图里已归属谜题的部分：`.strict()` 只会报「无效」，故 web 与 server 都先调它说清**哪里**错了、该去导入谜题。 */
 export function legacyMapDraftBlocks(data: unknown): string[] {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return [];
   const record = data as Record<string, unknown>;
@@ -497,26 +399,14 @@ export function legacyMapDraftBlocks(data: unknown): string[] {
   return blocks;
 }
 
-/**
- * 发布入参（设计 §4.2）：版本号默认 `MAX+1`，也允许用户填任意正整数（可以
- * 填空洞号），所以 `version` 是可选的 —— 不传就用默认值。上限 9999 只是让
- * `CAST(version AS integer)` 永远安全（`version` 是 text 列）。
- *
- * `.strict()` 保留：多传的 `notes` 会被明确拒绝。
- */
+/** 发布入参（§4.2）：`version` 可缺（默认 `MAX+1`，可填空洞号）；上限 9999 保证 text 列 `CAST(version AS integer)` 安全；`.strict()` 明确拒绝 `notes`。 */
 export const publishSchema = z
   .object({
     version: z.number().int().min(1).max(9999).optional(),
   })
   .strict();
 
-/**
- * 「以此为底稿新建」把 fork 的触发时机从「点击即生成」延后到
- * **编辑器里点保存**。版本条目进编辑器（`/maps/:id/edit?v={n}`）只把快照
- * 装进本地 store，保存时才调 fork，并把**编辑器当前画布**写进新行 ——
- * body 的 `data` 就是那一刻的 `editor.toDraft()`。不传（版本历史面板的
- * 「编辑此版本」）时仍用版本快照的 data。
- */
+/** 「以此为底稿新建」延后到在编辑器点保存才 fork：`data` 不传 = 用版本快照（版本历史面板的老行为）。 */
 export const forkVersionBodySchema = z.object({
   data: mapDraftSchema.optional(),
 });

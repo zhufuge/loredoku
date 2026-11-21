@@ -4,16 +4,8 @@ import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
 import * as gameService from '../service/gameService';
 
-/**
- * CONS-K16 (docs/v0.5.0.md §10.2): deploy a **puzzle** as a game
- * (`POST /api/puzzles/:id/games`). v0.5.0 moved deployment off the map version
- * because the puzzle is what owns the participants a game plays with.
- *
- * The full body (name / cover / difficulty) is validated by the shared
- * `gameDeploySchema` inside the service — that is where the difficulty default
- * and the "name falls back to the puzzle name" rule live, so the controller
- * only forwards the parsed object.
- */
+/** CONS-K16 (docs/v0.5.0.md §10.2)：把谜题部署成游戏（`POST /api/puzzles/:id/games`）—— v0.5.0 从地图版本移过来，因为参与者归谜题。
+ *  请求体由 service 里的 `gameDeploySchema` 校验（难度默认值、名字回退到谜题名），controller 只转发。 */
 export async function deploy(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   const body = (ctx.request.body ?? {}) as Parameters<typeof gameService.deployGame>[1];
@@ -46,10 +38,7 @@ export async function uploadCover(ctx: Context): Promise<void> {
   success(ctx, await gameService.uploadGameCover(id, file.buffer), '封面上传成功');
 }
 
-/**
- * 部署页就地改权重。body 只有 `{ sortWeight }`，校验在 service ——
- * 控制器把整个 body 原样交过去，同 `deploy` 的做法。
- */
+/** 部署页就地改权重。body 只有 `{ sortWeight }`，校验在 service —— 控制器把整个 body 原样交过去，同 `deploy` 的做法。 */
 export async function updateSortWeight(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   success(ctx, await gameService.updateGameSortWeight(id, ctx.request.body ?? {}), '顺序已更新');

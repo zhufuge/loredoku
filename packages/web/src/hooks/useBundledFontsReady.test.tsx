@@ -6,12 +6,7 @@ import {
   useBundledFontsReady,
 } from './useBundledFontsReady';
 
-/**
- * v0.11.3（docs/v0.11.3.md §2）—— 列表页等字体就绪的那根开关。
- *
- * jsdom 没有真正的字体下载：`document.fonts.load()` 返回的 promise 永远不 settle。
- * 所以这里替掉 `loadBundledFonts`，由用例自己决定「字体什么时候能画」。
- */
+/** v0.11.3（docs/v0.11.3.md §2）—— 列表页等字体就绪的那根开关。 jsdom 没有真正的字体下载：`document.fonts.load()` 返回的 promise 永远不 settle。 所以这里替掉 `loadBundledFonts`，由用例自己决定「字体什么时候能画」。 */
 const fontsRef: {
   settle: ((ok: boolean) => void) | null;
   calls: number;

@@ -49,11 +49,7 @@ describe('MAP_LAYER_ORDER / MAP_LAYER_Z (SPEC-G01 / SPEC-G02)', () => {
     expect(MAP_LAYER_Z.gamePlacement).toBeGreaterThan(MAP_LAYER_Z.itemLayer);
   });
 
-  /*
-   * 物品名称提示要「出现在地图最上层」。它**不进**上面那 16 层
-   * （`MAP_LAYER_ORDER` 是画布内容的次序，纸片是 affordance），所以单独立一个
-   * 常量；这里只钉住「它确实比光标框高」这一条，别的层号一个都不用动。
-   */
+  /* 物品名称提示要「出现在地图最上层」。它**不进**上面那 16 层（`MAP_LAYER_ORDER` 是画布内容的次序，纸片是 affordance），所以单独立一个常量；这里只钉住「它确实比光标框高」这一条，别的层号一个都不用动。 */
   it('keeps the item name tip above the mouse box', () => {
     expect(ITEM_NAME_TIP_Z).toBeGreaterThan(MAP_LAYER_Z.mouseCursorBox);
   });
@@ -71,11 +67,7 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
     expect(parsed.clearCover).toBe(false);
   });
 
-  /**
-   * 缺省难度**不由 schema 决定** —— 由服务端按谜题所属主题分级补
-   * （内置五档给第 3 档，自定义分级给正中间那一档）。schema 里写死一个值，
-   * 只会让「只有两档」的主题连部署都做不了。
-   */
+  /** 缺省难度**不由 schema 决定** —— 由服务端按谜题所属主题分级补（内置五档给第 3 档，自定义分级给正中间那一档）。schema 里写死一个值， 只会让「只有两档」的主题连部署都做不了。 */
   it('leaves the difficulty to the service and the name to the service', () => {
     const parsed = gameDeploySchema.parse({});
     expect(parsed.difficulty).toBeUndefined();
@@ -87,12 +79,7 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
     expect(gameDeploySchema.safeParse({ versionNo: 3 }).success).toBe(true);
   });
 
-  /**
-   * 难度是**档位数字**，schema 只判断「1…99 的整数」。
-   * 某个数字是不是这个主题的一档，由服务端拿着主题去核对（`api.test.ts` 的
-   * 「自定义分级」一组）。字符串在这里一律不合法 —— 连 `'3'` 也不收，接口是
-   * JSON，不是查询串。
-   */
+  /** 难度是**档位数字**，schema 只判断「1…99 的整数」。 某个数字是不是这个主题的一档，由服务端拿着主题去核对（`api.test.ts` 的「自定义分级」一组）。字符串在这里一律不合法 —— 连 `'3'` 也不收，接口是 JSON，不是查询串。 */
   it('rejects a difficulty that is not an integer level', () => {
     for (const bad of ['3', 'expert', 0, 100, 2.5, -1, null]) {
       expect(gameDeploySchema.safeParse({ difficulty: bad }).success, String(bad)).toBe(false);
@@ -116,12 +103,7 @@ describe('gameDeploySchema (FEAT-G02 §5.2, CONS-K16 起按谜题部署)', () =>
   });
 });
 
-/**
- * `sortWeight` 的**不给默认值**是刻意的 —— 缺省与 0 是两句话。
- *
- * 缺省 = 「这次没提」，服务端沿用上一行的值；0 = 「就排 0」。两者混成一个，
- * 重新部署（delete-then-insert）就会把作者排好的顺序冲掉。
- */
+/** `sortWeight` 的**不给默认值**是刻意的 —— 缺省与 0 是两句话。 缺省 = 「这次没提」，服务端沿用上一行的值；0 = 「就排 0」。两者混成一个， 重新部署（delete-then-insert）就会把作者排好的顺序冲掉。 */
 describe('gameDeploySchema sortWeight (v0.8.3)', () => {
   it('缺省时不落 0，交给仓储沿用上一行', () => {
     expect(gameDeploySchema.parse({}).sortWeight).toBeUndefined();
@@ -144,11 +126,7 @@ describe('gameDeploySchema sortWeight (v0.8.3)', () => {
   });
 });
 
-/**
- * `PATCH /api/games/:id` 的入参 —— 与部署 schema 的唯一区别是
- * `sortWeight` **必填**：这条端点只做「改顺序」一件事，少一个键的意思只能是
- * 请求写错了，静默成功只会让作者以为改上了。
- */
+/** `PATCH /api/games/:id` 的入参 —— 与部署 schema 的唯一区别是 `sortWeight` **必填**：这条端点只做「改顺序」一件事，少一个键的意思只能是请求写错了，静默成功只会让作者以为改上了。 */
 describe('gameWeightUpdateSchema (v0.8.5)', () => {
   it('接受区间内的整数（含负数）', () => {
     for (const value of [-999, -3, 0, 42, 999]) {

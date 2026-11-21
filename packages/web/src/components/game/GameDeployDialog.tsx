@@ -49,19 +49,7 @@ import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
 const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
 
-/**
- * 部署弹窗（v0.4.0 FEAT-G02 起，v0.7.1 §7.6 / §7.6.1 定稿）。封面在这里暂存，
- * 行建好之后才上传 —— 上传端点认的是新游戏的 id。
- *
- * - OPT-W03：重新部署时回填难度并展示现有封面，三态（保留 / 替换 / 移除）；
- * - **部署单元是一个谜题版本行**（§7.1 第 2 层拦截）：草稿行进不来，因为
- *   `puzzle` prop 的形状就是版本条目；
- * - 访问路径拆成「只读前缀 `puzzle-` + 可编辑中段」（v0.8.1 起难度不进路径）：
- *   已部署过的路径被改掉时明写「原访问路径将失效」。
- * - v0.8.5 §7.4：中段默认值来自**谜题编码**（作者建谜题时写的那一串），没有编码的
- *   存量谜题才退回按名称推导。前缀留在地址里、列表里不显示（`stripSlugPrefix`）——
- *   它是个命名空间，不是这一关的信息。
- */
+/** 部署弹窗（v0.7.1 §7.6）：封面暂存到行建好后才上传；部署单元是版本行，草稿行进不来；路径 = 只读 `puzzle-` 前缀 + 中段（难度不进路径，改时须提示原路径失效），中段默认取谜题编码。 */
 export function GameDeployDialog({
   puzzle,
   versions = null,
@@ -71,35 +59,15 @@ export function GameDeployDialog({
   open,
   onOpenChange,
 }: {
-  /**
-   * 第 2 层拦截（v0.7.1 §7.1）：只有**版本条目**能进来 —— 草稿行不满足「已发布」，
-   * 部署单元就是一个谜题版本行。
-   *
-   * 部署页从「自己挑一个版本」出发，所以这里允许传 `null`，由
-   * `versions` 在弹窗里选（见下）。
-   */
+  /** 第 2 层拦截（v0.7.1 §7.1）：只收版本条目，草稿行进不来；部署页从「自己挑版本」出发，允许 `null` 由 `versions` 选。 */
   puzzle: PuzzleEntrySummary | null;
-  /**
-   * 可选版本列表 —— 只有部署页会传。
-   *
-   * 它一在场，弹窗顶部就多一个「谜题版本」下拉；选中之后名称 / 路径 / 封面 /
-   * 难度全部按那个版本回填（作者在部署页并不先选谜题，是先按「部署」）。
-   */
+  /** 可选版本列表，只有部署页传；一在场弹窗顶部就多一个版本下拉，选中后四项按它回填。 */
   versions?: PuzzleEntrySummary[] | null;
   /** 某个版本已经部署过时，用那条部署回填（同一个版本再部署 = 覆盖它）。 */
   resolveExistingGame?: (puzzle: PuzzleEntrySummary) => MapGameSummary | null;
   /** OPT-W03: the puzzle's current game, used to prefill the re-deploy. */
   existingGame?: MapGameSummary | null;
-  /**
-   * 同一谜题的**别的版本**已经部署过时，那条部署 —— 只用来兜难度与顺序。
-   *
-   * 部署一个谜题的新版本时，这一行还没有自己的部署（`existingGame` 为空），
-   * 于是难度回到缺省档、顺序回到 0 —— 作者每发一版都要重设一遍，列表里的先后
-   * 也跟着散掉。兄弟版本的部署顶上来，这两项就还是原来那关的值。
-   *
-   * 只借难度与顺序：封面、访问路径、中段反解都属于「这一版自己的内容」，沿用
-   * 旧版本的只会在新版本上留下一张过期的图和一条抢来的地址。
-   */
+  /** 同一谜题别的版本已部署过时的那条 —— 只借难度与顺序，封面 / 路径属这一版自己。 */
   siblingGame?: MapGameSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -114,12 +82,7 @@ export function GameDeployDialog({
     return versions.find((entry) => entry.id === choiceId) ?? null;
   }, [puzzle, chooseable, versions, choiceId]);
 
-  /**
-   * 已经部署过的那个版本 → 用它回填。
-   *
-   * 解析函数放进 ref：调用方多半写成内联箭头，把它塞进 `useMemo` 的依赖会让
-   * 回填 effect 每次渲染都重跑，作者刚打的字瞬间被冲掉。
-   */
+  /** 已部署版本 → 用它回填。解析函数放 ref：内联箭头进 `useMemo` 依赖会让回填 effect 每次渲染重跑、冲掉作者刚打的字。 */
   const resolverRef = useRef(resolveExistingGame);
   resolverRef.current = resolveExistingGame;
   const activeExisting = useMemo<MapGameSummary | null>(() => {
@@ -129,51 +92,30 @@ export function GameDeployDialog({
   }, [existingGame, puzzle, activePuzzle]);
 
   const [name, setName] = useState('');
-  /**
-   * v0.7.1 §7.6.1：访问路径拆成「前缀 + 可编辑中段」。前缀（`puzzle-`）是只读
-   * 文本，唯一可编辑的是中段。**难度不是后缀** —— 改难度不该把
-   * 对外的地址改掉，路径只表达「这是哪一关」。
-   */
+  /* v0.7.1 §7.6.1：路径 = 只读前缀 + 可编辑中段；难度不是后缀，改难度不得改对外地址。 */
   const [middle, setMiddle] = useState('');
-  /**
-   * 难度选项来自**当前主题**的分级（概览页可改）。缺省仍是内置五档 ——
-   * 没配过分级的主题照旧。
-   */
+  /* 难度选项来自当前主题的分级（概览页可改）；没配过则用内置五档。 */
   const workspace = useWorkspace();
   const tiers = useMemo(
     () => resolveDifficultyTiers(workspace?.theme.data.difficultyLevels),
     [workspace?.theme.data.difficultyLevels],
   );
   const [difficulty, setDifficulty] = useState<number>(() => defaultDifficultyLevel(tiers));
-  /**
-   * 展示顺序。存成**字符串**而不是数字 —— 输入框里允许出现「空」这个
-   * 中间状态（清空再重打），用数字承载会把空读成 0，于是作者清空的那一瞬就已经
-   * 决定「排 0」，而他还没打完。空串在提交时才翻译成「这次不提，沿用原值」。
-   */
+  /* 存成字符串：空串是合法中间态，用数字会把「清空」读成 0 并提前定序。 */
   const [sortWeight, setSortWeight] = useState(String(GAME_SORT_WEIGHT_DEFAULT));
   const [cover, setCover] = useState<File | null>(null);
-  /**
-   * OPT-W03 §3: the cover has three states — keep the stored one (default),
-   * replace it with `cover`, or drop it (`coverRemoved`).
-   */
+  /* OPT-W03 §3: 封面三态 —— 保留已有 / `cover` 替换 / `coverRemoved` 移除。 */
   const [coverRemoved, setCoverRemoved] = useState(false);
   const [middleTouched, setMiddleTouched] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  /**
-   * 路径撞车时问一次要不要**覆盖**，而不是只报一句 toast。
-   * 存的是服务端给的冲突说明（被占的路径 + 占位的那条部署），`null` = 没冲突。
-   */
+  /* 路径撞车时问一次是否覆盖；存服务端的冲突说明，`null` = 没冲突。 */
   const [conflict, setConflict] = useState<GameSlugConflict | null>(null);
   /** 冲突那一刻的提交内容 —— 确认覆盖时原样重发，只多一个 `overwriteSlug`。 */
   const pendingDeployRef = useRef<DeployRequest | null>(null);
 
   const deploy = useDeployGame({ onSlugConflict: (info) => setConflict(info) });
 
-  /**
-   * 选项 = 主题的这几档；如果这条部署当前的难度**已经不在**分级里（作者后来删了
-   * 那一档），把它补在最后 —— 否则打开弹窗时没有任何一个按钮是选中的，作者会
-   * 以为这关没有难度。
-   */
+  /* 当前难度若已不在分级里（作者删了那一档），补在最后，否则打开时没有任何按钮选中。 */
   const difficultyOptions = useMemo(() => {
     const list = tiers.map((tier) => ({ level: tier.level, label: tier.label }));
     if (!list.some((tier) => tier.level === difficulty)) {
@@ -182,10 +124,7 @@ export function GameDeployDialog({
     return list;
   }, [tiers, difficulty]);
 
-  /**
-   * 作者还没动过难度 / 顺序。血统清单是异步来的，晚到时只补这两项，且不覆盖
-   * 作者已经改过的值 —— 见下面那支补填 effect。
-   */
+  /* 作者还没动过难度 / 顺序：血统清单异步晚到时只补这两项，不覆盖已改的值。 */
   const difficultyTouchedRef = useRef(false);
   const weightTouchedRef = useRef(false);
 
@@ -211,23 +150,13 @@ export function GameDeployDialog({
       setMiddle(splitSlug(activeExisting.slug));
       setMiddleTouched(true);
     } else {
-      /**
-       * v0.8.5 §7.4：**先看编码**。编码就是路径的中段（作者建谜题时写的就是地址形状），
-       * 有它就用它；没有（v0.8.5 之前的谜题）才退回按名称推导 —— 中文名推不出
-       * 东西，那时仍然需要作者自己填。
-       */
+      /* v0.8.5 §7.4：先看编码 —— 有编码用它作路径中段，没有才退回按名称推导。 */
       setMiddle(activePuzzle.code ? slugify(activePuzzle.code) : slugify(startName));
       setMiddleTouched(false);
     }
   }, [open, activePuzzle, activeExisting, tiers]);
 
-  /**
-   * 兄弟版本的部署按血统异步查来的，可能**晚到**。它到场时只补难度与顺序，
-   * 不重跑上面那支整表回填 —— 否则作者刚打的名称与路径会被冲掉。上面那支
-   * effect 声明在前、先跑完，这支紧跟其后，同步可用的场景也在同一次提交里盖好。
-   *
-   * 已经手动改过的项不覆盖：默认值只是「默认」，作者一动手就以他为准。
-   */
+  /* 兄弟部署可能晚到：只补难度与顺序，不重跑整表回填（会冲掉刚打的名称 / 路径）；已改过的不覆盖。 */
   useEffect(() => {
     if (!open || !activePuzzle || activeExisting || !siblingGame) return;
     if (!difficultyTouchedRef.current) setDifficulty(siblingGame.difficulty);
@@ -242,13 +171,7 @@ export function GameDeployDialog({
     setChoiceId(null);
   }, [open]);
 
-  /**
-   * 作者没手动改过中段时，它跟着名称走 —— 直接写在名称输入的 onChange 里，而不是
-   * 用一个「同步」effect：两个 effect 抢着写同一个 state 时，初始化的那次回填会
-   * 被随后的一次覆盖（已部署游戏的中段被清成默认值）。
-   *
-   * v0.8.5 §7.4：有编码时**不跟名称走** —— 路径由编码定，改名只改显示名。
-   */
+  /* 中段没被手动改过就跟着名称走；写在 onChange 里而非同步 effect（两支 effect 抢写会冲掉回填）。有编码时不跟名称。 */
   const changeName = (next: string): void => {
     setName(next);
     if (middleTouched) return;
@@ -267,11 +190,7 @@ export function GameDeployDialog({
     return () => URL.revokeObjectURL(coverPreview);
   }, [coverPreview]);
 
-  /**
-   * v0.7.2 §4：封面来源分四档 —— 新选的文件 / 游戏已有的 / **谜题自己的** / 无。
-   * 谜题封面是「默认值」：作者不选文件，就把谜题那张复制成游戏封面，省掉每次
-   * 部署都重选一次图。
-   */
+  /* v0.7.2 §4：封面四档 —— 新选文件 / 游戏已有 / 谜题自带 / 无；谜题封面是默认值。 */
   const puzzleCoverUrl = activePuzzle?.coverUrl ?? null;
   const coverSource: 'picked' | 'game' | 'puzzle' | 'none' = cover
     ? 'picked'
@@ -291,11 +210,7 @@ export function GameDeployDialog({
         : null;
   const showStoredCover = !cover && inheritedCover !== null;
 
-  /**
-   * §4.4 / Q13: the line under the input. An untouched name that slugifies to
-   * nothing derives no path at all, so the author is told to type one instead
-   * of being left with a bare `/play/`.
-   */
+  /* 没名称也推不出路径时提示手填，而不是留下光杆 `/play/`。 */
   const slugProblem =
     slug.length > 0
       ? slugError(slug)
@@ -307,13 +222,7 @@ export function GameDeployDialog({
   const slugReplaced =
     activeExisting != null && slug.length > 0 && slug !== activeExisting.slug;
 
-  /**
-   * 顺序的三种提交语义，别把它们混成一个值。
-   *
-   * - 空串 → `undefined`：这次不提，服务端沿用上一行（第一次部署则落 0）；
-   * - 合法整数 → 就排这个数；
-   * - 其它 → 拦住并说清区间，不是静默改成 0。
-   */
+  /* 顺序三种语义：空串 → `undefined`（沿用原值）；合法整数 → 用之；其它 → 拦住并报区间。 */
   const weightText = sortWeight.trim();
   const weightValue = weightText === '' ? undefined : Number(weightText);
   const weightProblem =
@@ -324,11 +233,7 @@ export function GameDeployDialog({
       ? `顺序需为 ${GAME_SORT_WEIGHT_MIN} 到 ${GAME_SORT_WEIGHT_MAX} 之间的整数`
       : null;
 
-  /**
-   * 一次部署请求的完整形状。抽成类型是因为冲突时要用**同一份**内容
-   * 重发一遍（只多一个 `overwriteSlug`）—— 让作者只回答「覆盖吗」，而不是
-   * 重新填一遍表单。
-   */
+  /* 一次部署请求的完整形状；抽成类型是为了冲突时能用同一份内容重发（只多 `overwriteSlug`）。 */
   interface DeployRequest {
     puzzleId: number;
     name: string;
@@ -399,10 +304,7 @@ export function GameDeployDialog({
     );
   };
 
-  /**
-   * 还没选版本时，整张表单都是「还没轮到它」—— 禁用而不是只让提交失败，
-   * 免得作者填完名称才发现上面那格是空的。
-   */
+  /* 没选版本时整张表单禁用，免得作者填完才发现上面那格是空的。 */
   const busy = deploy.isPending || activePuzzle === null;
 
   return (
@@ -418,11 +320,7 @@ export function GameDeployDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/*
-            部署页不先挑谜题，而是先按「部署」—— 版本选择因此搬进
-            弹窗第一位。选中之后下面四项（名称 / 路径 / 封面 / 难度）全部按那个
-            版本回填：作者改的永远是「这一次部署」，不是重新描述一遍谜题。
-          */}
+          {/* 部署页先按「部署」再挑谜题，版本选择因此在第一位；选中后下面四项全部按它回填。 */}
           {chooseable ? (
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="game-deploy-version">
@@ -664,11 +562,7 @@ export function GameDeployDialog({
             </div>
           </div>
 
-          {/*
-            展示顺序。玩家首页、部署页与资源包里的游戏都按它排 ——
-            数字小的在前，同权重按访问路径。放在难度之后：它是「这次部署」
-            的第五项，不是「这个谜题」的属性。
-          */}
+          {/* 顺序：小的在前，同权重按访问路径；放难度之后，是本次部署的第五项。 */}
           <div className="space-y-1.5">
             <label className="text-sm font-medium" htmlFor="game-deploy-sort">
               顺序
@@ -721,11 +615,7 @@ export function GameDeployDialog({
         </DialogFooter>
       </DialogContent>
 
-      {/*
-        路径撞车时，冲突是一个**选择**：说清是谁占着，给出「覆盖」；
-        确认后原样重发（只多 `overwriteSlug`），占位那条被假删。
-        用 AlertDialog 而不是又把主弹窗换一套表单：这不是编辑，是一次确认。
-      */}
+      {/* 撞车时冲突是一个选择：说清谁占着，确认后原样重发（多 `overwriteSlug`），占位那条假删。 */}
       <AlertDialog
         open={conflict !== null}
         onOpenChange={(next) => {

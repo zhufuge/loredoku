@@ -66,11 +66,7 @@ export function detectImageType(buffer: Buffer): DetectedImage | null {
   return null;
 }
 
-/**
- * The variant owns the appearance, so the file lands one level deeper —
- * `assets/<assetId>/variants/<variantId>/` — and the directory stays owned by the
- * asset (a hard delete of the asset still takes the whole subtree with it).
- */
+/** The variant owns the appearance, so the file lands one level deeper — `assets/<assetId>/variants/<variantId>/` — and the directory stays owned by the asset (a hard delete of the asset still takes the whole subtree with it). */
 export async function processAssetVariantImage(
   assetId: number,
   variantId: number,
@@ -104,17 +100,8 @@ export async function processPuzzleCover(
   return processImage('puzzles', puzzleId, buffer, PUZZLE_COVER_MAX_DIMENSION);
 }
 
-/**
- * v0.8.6（docs/v0.8.6.md §4）；v0.9.5 更名：**标记**的上传图 —— 谜题自己那一张，
- * 或主题的「新建谜题缺省」。
- *
- * 路径按**谁拥有它**分目录（`puzzles/<id>/mark/` / `themes/<id>/mark/`）：这样看得出
- * 这张图是从哪来的。v0.9.5 之前落在 `forbidden-symbol/` 里的老图**不动** —— 数据里
- * 存的是完整相对路径，目录名只是「新上传写到哪」，改名不影响读。
- *
- * 注意删行**不会**删文件（与封面同策略）：复制谜题、fork 出来的草稿会共用同一个
- * `path`，删了就把别人还在引用的图弄丢了。
- */
+/** v0.8.6（docs/v0.8.6.md §4）；v0.9.5 更名：标记上传图（谜题自己那张 / 主题的新建谜题缺省），路径按所有者分目录。
+ *  旧 `forbidden-symbol/` 图不动（数据存完整相对路径）。删行不删文件 —— 复制/fork 的草稿共用同一 `path`。 */
 export async function processMarkImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   buffer: Buffer,
@@ -122,13 +109,7 @@ export async function processMarkImage(
   return processSymbolImage(owner, 'mark', buffer);
 }
 
-/**
- * v0.8.7 §7：工具按钮的图标（清除 / 撤回 / 提交）。
- *
- * 与标记同一档尺寸（按钮上画 20px，256 已经富余）：所以复用那条「只写一张
- * webp」的通道，只是目录再深一层 `.../tool-icons/<icon>/`。作者换一张图，旧文件
- * 留在原地不删 —— 版本行、复制出来的谜题可能还指着它。
- */
+/** v0.8.7 §7：工具按钮的图标（清除 / 撤回 / 提交）。 与标记同一档尺寸（按钮上画 20px，256 已经富余）：所以复用那条「只写一张 webp」的通道，只是目录再深一层 `.../tool-icons/<icon>/`。作者换一张图，旧文件留在原地不删 —— 版本行、复制出来的谜题可能还指着它。 */
 export async function processToolIconImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   icon: GameToolIconKind,
@@ -137,16 +118,7 @@ export async function processToolIconImage(
   return processSymbolImage(owner, `tool-icons/${icon}`, buffer);
 }
 
-/**
- * v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张**。
- *
- * 尺寸比标记大一点：环的外接方形最大就是格子（`cellSize`，实测 152px 上下），
- * 上传图会被缩到格子直径再画 —— 256 的长边仍然富余，所以同走这条小图通道，
- * 目录是 `.../ring/`。
- *
- * 旧的两个目录（`press-ring/` 与 `check-ring/`）里的图仍在原处、仍能被读 ——
- * 数据里记的是各自的相对路径。
- */
+/** v0.9.2 §2；v0.9.5 起长按计时环与提交校验圈**合并成一张**。 尺寸比标记大一点：环的外接方形最大就是格子（`cellSize`，实测 152px 上下）， 上传图会被缩到格子直径再画 —— 256 的长边仍然富余，所以同走这条小图通道， 目录是 `.../ring/`。 旧的两个目录（`press-ring/` 与 `check-ring/`）里的图仍在原处、仍能被读 —— 数据里记的是各自的相对路径。 */
 export async function processRingImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   buffer: Buffer,
@@ -154,12 +126,7 @@ export async function processRingImage(
   return processSymbolImage(owner, 'ring', buffer);
 }
 
-/**
- * 结算卡上那枚图标 —— 与标记同一档小图（画在结算标题前面，20px 上下），
- * 目录是 `.../verdict/`。
- *
- * 只有主题有这一项（结算是主题级的话术），所以所有者固定是主题。
- */
+/** 结算卡上那枚图标 —— 与标记同一档小图（画在结算标题前面，20px 上下）， 目录是 `.../verdict/`。 只有主题有这一项（结算是主题级的话术），所以所有者固定是主题。 */
 export async function processVerdictIconImage(
   owner: { kind: 'puzzle' | 'theme'; id: number },
   buffer: Buffer,
@@ -177,13 +144,8 @@ async function processSymbolImage(
   return processScaledImage(folder, buffer, SYMBOL_IMAGE_MAX_DIMENSION);
 }
 
-/**
- * 只写一张缩放后的 webp 的通道（v0.8.6 §4 的禁止符号用）。
- *
- * 与 {@link processImage} 的「原图 + 缩略图」不同：那张图最终画在棋盘上只有几十
- * 像素，留一份原图只是让同一张图在磁盘上多存一遍。所以这里处理失败就直接报
- * 415 —— 返回一个指向不存在文件的 `path`，比当场说「这张图用不了」难查得多。
- */
+/** 只写一张缩放后 webp 的通道（v0.8.6 §4 禁止符号用）：不存原图，小图最终只画几十像素。
+ *  处理失败直接 415 —— 返回指向不存在文件的 path 比当场报错更难查。 */
 async function processScaledImage(
   folder: string,
   buffer: Buffer,

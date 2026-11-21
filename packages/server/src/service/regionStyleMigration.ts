@@ -1,27 +1,6 @@
 import { DEFAULT_REGION_COLOR, STYLE_DEFAULT_REGION_OUTLINE_WIDTH } from '@loredoku/shared';
 
-/**
- * v0.7.0 (docs/v0.7.0.md §4) — pure draft transform behind migration
- * `20260101000030_v070_region_style`, and the absorption half of
- * `mapDraftCompat.ts`.
- *
- * Kept out of the migration directory so the transform can be unit tested
- * without a database (knex treats every file in `db/migrations` as a
- * migration and requires `up` / `down` exports).
- *
- * A region's flat `color` / `borderWidth` / `fillOpacity` trio is replaced by
- * `style`, a deep partial over the map-level defaults:
- *
- * - `borderWidth` survives only when it **disagreed** with the map-level
- *   `regionOutline.width`, recorded as `style.outline.width`. A region that
- *   matched the default records nothing and renders from the default.
- * - `color` only ever drove the (now retired) fill and the list dot, and
- *   `fillOpacity` is gone with the fill — neither crosses over.
- *
- * Both directions return a **new** draft record (or `null` when there is
- * nothing to do), never mutating the input: `mapDraftCompat` runs the upgrade
- * on JSON shared with the caller's raw row.
- */
+/** v0.7.0 §4：迁移 `20260101000030_v070_region_style` 的纯变换，放这里以便无库单测（knex 把 migrations 下每个文件都当迁移）；两个方向都返回新记录或 `null`。 */
 
 function asRecord(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
@@ -47,11 +26,7 @@ export function hasLegacyRegionStyle(regions: unknown): boolean {
   });
 }
 
-/**
- * v0.6.x → v0.7.0: strips the trio and records `style.outline.width` when the
- * old `borderWidth` disagreed with the map-level default. Returns `null` when
- * no region carries the trio (idempotent).
- */
+/** v0.6.x → v0.7.0：去掉三元组，`borderWidth` 与地图默认不同才记成 `style.outline.width`；无三元组返回 `null`。 */
 export function upgradeRegionStyleDraft(
   draft: Record<string, unknown>,
 ): Record<string, unknown> | null {
@@ -86,14 +61,7 @@ export function upgradeRegionStyleDraft(
   };
 }
 
-/**
- * Restores the flat trio. `borderWidth` comes back from
- * `style.outline.width` when the region recorded one, otherwise from the
- * map-level default — the exact inverse of {@link upgradeRegionStyleDraft}.
- * `color` / `fillOpacity` return as their old defaults (`#000000` / `0`); a
- * custom fill is unrecoverable because the field is gone. Returns `null` when
- * every region is already v0.6.x-shaped (idempotent).
- */
+/** 还原三元组：`borderWidth` 取 `style.outline.width`，没有就取地图默认；`color`/`fillOpacity` 回旧默认（自定义填充不可逆）。 */
 export function downgradeRegionStyleDraft(
   draft: Record<string, unknown>,
 ): Record<string, unknown> | null {

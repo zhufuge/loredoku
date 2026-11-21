@@ -40,15 +40,5 @@ export const APPEARANCE_MODE_LABELS: Record<(typeof APPEARANCE_MODES)[number], s
 export const BG_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 /** Default colour of a freshly created colour block. */
 export const DEFAULT_BG_COLOR = '#FFFFFF';
-/**
- * v0.7.13 (docs/v0.7.13.md §11): a character's **default participant colour**
- * (`characters.color`). Distinct from `bgColor`: that one is how the character
- * *looks* as a colour block, this one is the 主题色 it hands to a roster slot
- * when it is 加入'd as a participant.
- *
- * `null` = no default, the slot keeps `DEFAULT_THEME_COLOR`. **白 = 未指定**
- * （§11.4）：取色器常驻，没有复选框，白色就是它显示「没指定」的那个颜色，
- * 于是白色不落库 —— 代价是一个角色无法要求「白色槽位」，而它本来也区分不出
- * 「指定白」和「没指定」。
- */
+/** v0.7.13 (docs/v0.7.13.md §11)：角色的**默认参与者主题色**（区别于 `bgColor` —— 那个是色块外观）。`null` = 无默认，槽位保持 `DEFAULT_THEME_COLOR`；**白 = 未指定**（§11.4），白色不落库。 */
 export const CHARACTER_COLOR_PATTERN = BG_COLOR_PATTERN;

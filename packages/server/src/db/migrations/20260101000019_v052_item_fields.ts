@@ -1,19 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.5.2 — 物品字段瘦身（docs/v0.5.2.md §3 / §4 / §9.1）
- *
- * 三件事，顺序即依赖：
- *
- * 1. **FEAT-M04 回填**：背景类型物品恒定可站立 —— 存量行里 `can_stand = false`
- *    的背景物品一律抬成 `true`。先做这一步，后面的删除不会影响它。
- * 2. **FEAT-M03 删表**：`item_triggers` 整表删除（两个索引随之消失）。
- *    触发信息在 v0.5.0 起就已不在任何读写路径上被消费。
- * 3. **FEAT-M03 删列**：`items.meta` 删除。自由扩展信息没有业务读路径。
- *
- * 两张结构都不进任何 JSON 快照（物品本体不进 `MapDraft` / `PuzzleDraft`，
- * v0.5.1 已确认），因此对已部署游戏零影响，无需回填 JSON。
- */
+/** v0.5.2（docs/v0.5.2.md §3/§4/§9.1）：顺序即依赖——先把背景物品 can_stand 回填 true，再 DROP TABLE item_triggers 与 items.meta（二者自 v0.5.0 起无读写路径）；都不进 JSON 快照，无需回填；down 只重建空结构，数据不可恢复。 */
 export async function up(knex: Knex): Promise<void> {
   await knex('items').where({ category: 'background' }).update({ can_stand: true });
 

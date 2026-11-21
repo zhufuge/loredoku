@@ -65,11 +65,7 @@ export function createApp(): Koa {
       },
     }),
   );
-  // notFoundHandler runs first and its next() enters spaFallback: once the
-  // fallback answers, notFound sees a body and stands down; requests the
-  // fallback leaves 404-marked fall through to the JSON 404. Registering the
-  // fallback *after* notFound is deliberate — the other order lets notFound
-  // fill in the JSON body first, and the fallback would never see a miss.
+  // notFoundHandler runs first and its next() enters spaFallback: once the fallback answers, notFound sees a body and stands down; requests the fallback leaves 404-marked fall through to the JSON 404. Registering the fallback *after* notFound is deliberate — the other order lets notFound fill in the JSON body first, and the fallback would never see a miss.
   app.use(notFoundHandler);
   app.use(spaFallback);
 

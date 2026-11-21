@@ -5,10 +5,7 @@ import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
 import * as puzzleService from '../service/puzzleService';
 
-/**
- * 谜题版本端点（v0.7.1 §5.5）—— 与 `versionController`（地图）同形，只是
- * 版本号不参与 URL：`:id` 先解析出血统根，再在血统内按号定位。
- */
+/** 谜题版本端点（v0.7.1 §5.5）—— 与 `versionController`（地图）同形，只是版本号不参与 URL：`:id` 先解析出血统根，再在血统内按号定位。 */
 
 const versionParamSchema = z.object({
   id: z.coerce.number().int().positive(),
@@ -33,12 +30,7 @@ export async function detail(ctx: Context): Promise<void> {
   success(ctx, await puzzleService.getVersion(id, versionNo));
 }
 
-/**
- * 「编辑此版本」= fork 出一条新草稿行，版本行不动。
- *
- * v0.7.2 §3.3：body 可带 `data` —— 编辑器 `?v=` 态下点「保存」时才走到这里，
- * 带的是作者此刻的草稿；不带就用版本快照（版本历史面板的老行为）。
- */
+/** 「编辑此版本」= fork 出一条新草稿行，版本行不动。 v0.7.2 §3.3：body 可带 `data` —— 编辑器 `?v=` 态下点「保存」时才走到这里， 带的是作者此刻的草稿；不带就用版本快照（版本历史面板的老行为）。 */
 export async function fork(ctx: Context): Promise<void> {
   const { id, versionNo } = parseOrThrow(versionParamSchema, ctx.params);
   const body = parseOrThrow(forkPuzzleVersionBodySchema, ctx.request.body ?? {});

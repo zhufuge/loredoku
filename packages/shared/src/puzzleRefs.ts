@@ -5,16 +5,7 @@ import type {
   PuzzleDraft,
 } from './types/domain';
 
-/**
- * v0.5.0 FEAT-K01 (docs/v0.5.0.md §5.2) — the **cross-table** half of the puzzle
- * reference check. `puzzleDraftSchema` can check `character` / `cell` (inside the
- * payload), but `asset` / `region` live in the referenced **map version snapshot**.
- * Web (before save / import) and server (`puzzleService.save`) both call this, so
- * an imported JSON cannot slip past a front-end-only check.
- *
- * 判定本身收在 {@link collectReferenceIssues}，因为「引入新地图」要拿同
- * 一份判定做**反向**用途 —— 不是报错，而是把换底图后悬空的联动摘掉。
- */
+/** v0.5.0 FEAT-K01 (docs/v0.5.0.md §5.2) — 引用检查的**跨表**那一半：`asset` / `region` 的目标在引用的地图版本快照里，前后端都调它，导入的 JSON 才绕不过只在前端做的检查。 */
 
 /** The canvas part of a map version snapshot — everything this check needs. */
 export interface PuzzleRefContext {
@@ -31,11 +22,7 @@ export interface PuzzleRefIssue {
   message: string;
 }
 
-/**
- * Every linkage whose `asset` / `region` target is missing from the referenced
- * map version; `[]` means all resolve. Empty `cells` / `regions` is not an
- * error — a bare canvas legitimately has neither.
- */
+/** Every linkage whose `asset` / `region` target is missing from the referenced map version; `[]` means all resolve. Empty `cells` / `regions` is not an error — a bare canvas legitimately has neither. */
 export function collectReferenceIssues(
   slots: ReadonlyArray<CharacterSlotEntry | null>,
   context: PuzzleRefContext,
@@ -84,16 +71,7 @@ export interface PuzzleRefPruneResult {
   removed: PuzzleRefIssue[];
 }
 
-/**
- * Drops every linkage that points at an item / region the given canvas does not
- * have (v0.7.3 §3.5).
- *
- * 「引入新地图」只换底图，但联动里的 `asset` / `region` 目标是**指向底图**的：
- * 旧画布上的区域 id 在新画布上通常不存在，留着这份草稿就再也存不进去
- * （`assertReferenceIssues` 会 400）。所以换底图时一并摘掉这些目标。
- *
- * 没东西可摘时返回**同一个数组引用**，调用方可以据此跳过无谓的写回。
- */
+/** v0.7.3 §3.5：「引入新地图」只换底图，联动目标却指向底图 —— 旧区域/资源不再存在会让草稿再也存不进去（`assertReferenceIssues` 会 400），所以一并摘掉；没东西可摘时返回**同一个数组引用**，调用方可跳过写回。 */
 export function prunePuzzleReferences(
   slots: ReadonlyArray<CharacterSlotEntry | null>,
   context: PuzzleRefContext,

@@ -42,7 +42,7 @@ describe('computeCellSize (OPT-A01 §1.1)', () => {
       computeCellSize({ availableWidth: 4000, availableHeight: 4000, gridSize: 2 }),
     ).toBe(MAX_CELL_SIZE);
     // A 24×24 board in a small viewport shrinks below the comfortable 32
-    // instead of overflowing: (600 - 23 * 2) / 24 = 23.08 → 23.
+    // instead of overflowing: (600；23 * 2) / 24 = 23.08 → 23.
     expect(
       computeCellSize({ availableWidth: 600, availableHeight: 600, gridSize: 24 }),
     ).toBe(23);
@@ -55,7 +55,7 @@ describe('computeCellSize (OPT-A01 §1.1)', () => {
   it('derives the ideal width from the tighter axis', () => {
     // Wide but short viewport: the height decides.
     const cell = computeCellSize({ availableWidth: 4000, availableHeight: 500, gridSize: 4 });
-    // (500 - 3 * 2) / 4 = 123.5 → 123（v0.10.3 起向下取整，宁少不溢）
+    // (500；3 * 2) / 4 = 123.5 → 123（v0.10.3 起向下取整，宁少不溢）
     expect(cell).toBe(Math.floor((500 - 3 * BORDER_WIDTH) / 4));
   });
 
@@ -241,7 +241,7 @@ describe('centeredPan (OPT-B02 §2.2)', () => {
     const insets = canvasInsets();
     const rect = { width: 600, height: 600 };
     const pan = centeredPan(rect, insets, 2, 100, 2);
-    // Board = 2 × 100 × 2 = 400 → (600 - 40 - 40 - 400) / 2 = 60
+    // Board = 2 × 100 × 2 = 400 → (600；40；40；400) / 2 = 60
     expect(pan).toEqual({ x: 40 + 60, y: 40 + 60 });
   });
 });
@@ -266,10 +266,10 @@ describe('竖屏按宽度铺满（v0.10.1）', () => {
   it('忽略高度，只按宽度分格子', () => {
     const insets = canvasInsets();
     // 375 宽、左右各 40 的留白 ⇒ 可用 295；24 格、格间 2px。
-    // (295 - 23 * 2) / 24 = 10.375 → 向下取整 10。
+    // (295；23 * 2) / 24 = 10.375 → 向下取整 10。
     expect(computeWidthFitCellSize({ width: 375, gridSize: 24, insets })).toBe(10);
     // 同一宽度下「横着铺满」的桌面算法还要看高度：200 高减掉上下留白后只剩
-    // 120，(120 - 46) / 24 = 3.08 → 触到渲染下限 8（v0.10.3 前是 32，会溢出）。
+    // 120，(120；46) / 24 = 3.08 → 触到渲染下限 8（v0.10.3 前是 32，会溢出）。
     expect(computeCellSizeForInsets({ width: 375, height: 200, gridSize: 24, insets })).toBe(
       RENDER_MIN_CELL_SIZE,
     );
@@ -290,7 +290,7 @@ describe('竖屏按宽度铺满（v0.10.1）', () => {
     expect(PORTRAIT_MIN_CELL_SIZE).toBe(8);
     expect(PORTRAIT_MIN_CELL_SIZE).toBeLessThan(MIN_CELL_SIZE);
     const insets = canvasInsets();
-    // 320 宽的屏、可用 240：(240 - 46) / 24 = 8.08 → 8，没被 32 卡住。
+    // 320 宽的屏、可用 240：(240；46) / 24 = 8.08 → 8，没被 32 卡住。
     expect(computeWidthFitCellSize({ width: 320, gridSize: 24, insets })).toBe(8);
     // 再窄也不掉到 8 以下。
     expect(computeWidthFitCellSize({ width: 60, gridSize: 24, insets })).toBe(8);

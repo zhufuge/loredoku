@@ -45,11 +45,7 @@ import {
   type ParticipantPlacementVariant,
 } from './gamePlacement';
 
-/**
- * SPEC-G01 / SPEC-G03 / SPEC-G04 (docs/v0.4.0.md §7 ~ §10) plus
- * SPEC-G05 / SPEC-G06 / FEAT-V01 (docs/v0.4.1.md §5 / §6 / §8) — the placement
- * rules as pure functions, so the page only has to dispatch.
- */
+/** SPEC-G01 / SPEC-G03 / SPEC-G04 (docs/v0.4.0.md §7 ~ §10) plus SPEC-G05 / SPEC-G06 / FEAT-V01 (docs/v0.4.1.md §5 / §6 / §8) — the placement rules as pure functions, so the page only has to dispatch. */
 
 const EMPTY_NOSTAND = new Set<string>();
 const nostand = (...keys: string[]): Set<string> => new Set(keys);
@@ -112,10 +108,7 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
     expect(placementAt(next.board, 2, 3)).toEqual({ kind: 'participant', index: 1 });
   });
 
-  /**
-   * 需求：「已放置参与者和标记的格子，参与者编号点击时
-   * 无效果」：短按在头像格上一律无效果 —— 要换人请长按（那是另一条规则）。
-   */
+  /** 需求：「已放置参与者和标记的格子，参与者编号点击时无效果」：短按在头像格上一律无效果 —— 要换人请长按（那是另一条规则）。 */
   it('ignores a short press on somebody else’s avatar cell', () => {
     const first = place(createGamePlacementState(), 1, 1, 1, { variant: 'image' });
     const second = place(first, 1, 1, 2);
@@ -195,11 +188,7 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
   });
 });
 
-/**
- * SPEC-J05 §3.6（docs/v0.4.3.md）：唯一性从「编号 / 头像」**收窄到只有头像**。
- * 编号是候选标记，同一位参与者可以同时留在多个格子上；短按既不看唯一性，
- * 也不会再报「编号 N 已放置在 R{r} C{c}」。
- */
+/** SPEC-J05 §3.6（docs/v0.4.3.md）：唯一性从「编号 / 头像」**收窄到只有头像**。 编号是候选标记，同一位参与者可以同时留在多个格子上；短按既不看唯一性， 也不会再报「编号 N 已放置在 R{r} C{c}」。 */
 describe('uniqueness is about the avatar only (SPEC-J05 §3.6)', () => {
   it('lets the same 编号 sit on several cells at once', () => {
     const first = place(createGamePlacementState(), 1, 1, 1);
@@ -514,12 +503,7 @@ describe('the forbidden × (SPEC-G04 §10.1)', () => {
   });
 });
 
-/**
- * 需求：「标记点已经放置了标记的格子时，清空该格子的标记」。
- *
- * `×` 工具是一支开关：同一格再点一次就收回 —— 撤销一个点错的 `×` 不必先切橡皮、
- * 再切回来。
- */
+/** 需求：「标记点已经放置了标记的格子时，清空该格子的标记」。 `×` 工具是一支开关：同一格再点一次就收回 —— 撤销一个点错的 `×` 不必先切橡皮、 再切回来。 */
 describe('toggleForbidden（v0.7.12）', () => {
   it('puts a × down on an empty cell', () => {
     const state = toggleForbidden(createGamePlacementState(), {
@@ -741,10 +725,7 @@ describe('submit validation (FEAT-V01 §8)', () => {
     ]);
   });
 
-  /**
-   * 需求：「点击提交校验时，参与者标号不能代表参与者」：编号是草稿。
-   * 两位参与者各点了一格编号、都没长按确认头像 —— 这一局就是**两个人都没放**。
-   */
+  /** 需求：「点击提交校验时，参与者标号不能代表参与者」：编号是草稿。 两位参与者各点了一格编号、都没长按确认头像 —— 这一局就是**两个人都没放**。 */
   it('does not let a 编号 stand in for the participant', () => {
     let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
     state = place(state, 2, 2, 2, { gridSize: 5 });
@@ -883,11 +864,7 @@ describe('the tool hint (SPEC-G02 §2)', () => {
     ).toBeNull();
   });
 
-  /**
-   * `×` 工具在**已经有 `×`** 的格子上一按是**收回**，但预告仍是 `×`
-   * —— 不能把字形换成橡皮。指针压到哪一格，工具就还是那一支；换字形会让同一支
-   * 笔在格子之间改变身份，比「按下去方向反过来」更难解释。
-   */
+  /** `×` 工具在**已经有 `×`** 的格子上一按是**收回**，但预告仍是 `×` —— 不能把字形换成橡皮。指针压到哪一格，工具就还是那一支；换字形会让同一支笔在格子之间改变身份，比「按下去方向反过来」更难解释。 */
   it('keeps previewing the × on a cell that already carries one (v0.7.12)', () => {
     expect(
       resolveToolHint({
@@ -959,10 +936,7 @@ describe('helpers', () => {
   });
 });
 
-/**
- * SPEC-H01（docs/v0.4.2.md §1.2）+ CLAR-H13 §1.1：一位参与者的**编号**只能留在
- * 一个格子上。落位时把该编号从其它格子清除，并与放置合并成同一个历史步。
- */
+/** SPEC-H01（docs/v0.4.2.md §1.2）+ CLAR-H13 §1.1：一位参与者的**编号**只能留在一个格子上。落位时把该编号从其它格子清除，并与放置合并成同一个历史步。 */
 describe('number cleanup on placement (SPEC-H01 §1.2)', () => {
   it('keeps the number on the cell just placed and clears it elsewhere', () => {
     const board: GamePlacementBoard = {
@@ -1035,11 +1009,7 @@ describe('number cleanup on placement (SPEC-H01 §1.2)', () => {
   });
 });
 
-/**
- * SPEC-J05 §3.6（docs/v0.4.3.md）：编号 = 候选标记，**可以重复落在多个格子上**；
- * 唯一的是头像。连带两处口径：`participantPlacementAt` 先看头像（没有头像时只有
- * 「恰好一个候选」才算数），提交校验把「只有候选、没确认」与「完全没动」分开讲。
- */
+/** SPEC-J05 §3.6（docs/v0.4.3.md）：编号 = 候选标记，**可以重复落在多个格子上**； 唯一的是头像。连带两处口径：`participantPlacementAt` 先看头像（没有头像时只有「恰好一个候选」才算数），提交校验把「只有候选、没确认」与「完全没动」分开讲。 */
 describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
   it('keeps a copy on every cell the 编号 was tapped on', () => {
     let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
@@ -1099,12 +1069,7 @@ describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
   });
 });
 
-/**
- * 提交按钮的可用条件 —— 名单上每位都**已经有头像**。
- *
- * 「编号不算参与者」在这里是同一句话的另一个说法：点出来的一格编号只是草稿，
- * 不能把按钮点亮。
- */
+/** 提交按钮的可用条件 —— 名单上每位都**已经有头像**。 「编号不算参与者」在这里是同一句话的另一个说法：点出来的一格编号只是草稿， 不能把按钮点亮。 */
 describe('allParticipantsPlaced（v0.7.12）', () => {
   it('needs an avatar for every slot — 编号 顶不上', () => {
     let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
@@ -1125,13 +1090,7 @@ describe('allParticipantsPlaced（v0.7.12）', () => {
   });
 });
 
-/**
- * v0.5.1 SPEC-L05（docs/v0.5.1.md §5.1）：参与者框的变淡只对**头像**生效。
- *
- * `placedParticipantIds`（「有任何标记」）语义不变，新增的
- * `avatarPlacedParticipantIds`（「只有头像」）才是游戏页变淡用的集合 ——
- * 所以放编号时卡片保持原样，确认头像后才淡下去。
- */
+/** v0.5.1 SPEC-L05（docs/v0.5.1.md §5.1）：参与者框的变淡只对**头像**生效。 `placedParticipantIds`（「有任何标记」）语义不变，新增的 `avatarPlacedParticipantIds`（「只有头像」）才是游戏页变淡用的集合 —— 所以放编号时卡片保持原样，确认头像后才淡下去。 */
 describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
   it('ignores a plain 编号 — the card must not fade', () => {
     const state = place(createGamePlacementState(), 2, 2, 1);
@@ -1203,11 +1162,7 @@ describe('modeAfterPlacement (v0.8.5)', () => {
   });
 });
 
-/**
- * 放下头像时，自动补的那些 × 由近及远依次浮现（水波纹）。
- *
- * 排序与环号都在纯函数里定死，界面只负责把 `ring` 乘成延迟。
- */
+/** 放下头像时，自动补的那些 × 由近及远依次浮现（水波纹）。 排序与环号都在纯函数里定死，界面只负责把 `ring` 乘成延迟。 */
 describe('自动 × 的水波纹次序（v0.10.1）', () => {
   it('由近及远：环号等于曼哈顿距离', () => {
     const x = 3;

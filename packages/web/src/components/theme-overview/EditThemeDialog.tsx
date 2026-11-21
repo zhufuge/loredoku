@@ -7,22 +7,11 @@ import { Label } from '@/components/ui/label';
 import { ColorField } from '@/components/ui/color-input';
 import { useUpdateTheme } from '@/hooks/useThemes';
 
-/**
- * 选色的起点。石青是浅色下的 `--primary`，第一次按下取色器就从这里开始 ——
- * 它不是「默认识别色」，只是不让取色器从一个随机黑开始。
- *
- * 放在这里，是因为它只在这一个弹窗里用到。
- */
+/** 选色的起点。石青是浅色下的 `--primary`，第一次按下取色器就从这里开始 —— 它不是「默认识别色」，只是不让取色器从一个随机黑开始。 放在这里，是因为它只在这一个弹窗里用到。 */
 const ACCENT_FALLBACK = '#326385';
 
 /**
- * 编辑主题信息 —— 改 `name` / `description` / `accent`。
- *
- * `code` 仍不在这里：它进 URL 与资源包 manifest（§4），改一次就让所有已发出的
- * 链接与包对不上号，所以它从建行起就是只读的。
- *
- * `data` 是**整份覆盖**（`themeRepository.updateTheme` 直接写 JSONB），所以保存时
- * 要把当前 `data` 铺开再改 `accent` —— 只发 `{accent}` 会把 `style` 一起抹掉。
+ * 编辑主题信息 —— 改 `name` / `description` / `accent`。 `code` 仍不在这里：它进 URL 与资源包 manifest（§4），改一次就让所有已发出的链接与包对不上号，所以它从建行起就是只读的。 `data` 是**整份覆盖**（`themeRepository.updateTheme` 直接写 JSONB），所以保存时要把当前 `data` 铺开再改 `accent` —— 只发 `{accent}` 会把 `style` 一起抹掉。
  */
 export function EditThemeDialog({
   theme,

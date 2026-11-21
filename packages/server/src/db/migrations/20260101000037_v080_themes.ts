@@ -1,27 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.8.0 —— 主题：给四个作品模块划一条边界（docs/v0.8.0.md §3 / §4 / §12）。
- *
- * 三件事必须一起做，否则中途数据不合法：
- *
- *   1. 建 `themes` 并写入两条（默认 + 红楼梦），拿到 id；
- *   2. `assets` / `characters` / `maps` / `puzzles` 加 `theme_id`（**先可空**）→ backfill；
- *   3. 换唯一约束（`assets_code_unique` → `(theme_id, code)`）→ `SET NOT NULL`。
- *
- * 反过来的顺序会得到一个「已 NOT NULL 但还没回填」的表，第二次运行就卡死。
- *
- * **backfill 是一次性的历史归档，不是通用规则。** 现网数据里主题已经靠命名约定
- * （`hlm_` 前缀）维持着：实测 8 个红楼梦谜题引用的资源与角色 100% 是 `hlm_`，
- * 5 个默认谜题 100% 不是。所以：
- *
- *   ① 资源与角色按 `code` 前缀分；
- *   ② 谜题与地图按**引用投票**分（引用到的资源 / 角色全属 `hlm` 且至少有一条 → `hlm`）；
- *   ③ 剩下的全落 `default`。
- *
- * 别让后人以为「主题归属靠前缀推断」—— ② 之后主题由 `theme_id` 列决定，前缀只是这次
- * 迁移的判据。
- */
+/** v0.8.0（docs/v0.8.0.md §3/§4/§9/§12）：顺序必须建 themes→加可空 theme_id→backfill→换 (theme_id, code) 唯一→SET NOT NULL，反过来会留下「已 NOT NULL 未回填」而二次运行卡死；backfill 一次性——资源/角色按 code 的 hlm_ 前缀，谜题/地图按引用投票（引用全属 hlm 且至少一条才判 hlm），其余 default；前缀只是本次判据，之后看 theme_id。 */
 
 const THEME_TABLES = ['assets', 'characters', 'maps', 'puzzles'] as const;
 
@@ -230,11 +209,7 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>;
 }
 
-/**
- * `PuzzleDraft` 的形状随版本漂移过（旧草稿的 placement 字段名不同），但
- * 「`data.map.data` 是画布、`data.characterSlots` 是名册」从 v0.7.1 起没变。
- * 读不动的行一律当「没有引用」——它会被投到 `default`，不会丢数据。
- */
+/** `PuzzleDraft` 的形状随版本漂移过（旧草稿的 placement 字段名不同），但「`data.map.data` 是画布、`data.characterSlots` 是名册」从 v0.7.1 起没变。 读不动的行一律当「没有引用」——它会被投到 `default`，不会丢数据。 */
 function puzzleCanvas(raw: unknown): PuzzleCanvasSnapshot | null {
   const record = asRecord(raw);
   const map = asRecord(record?.['map']);
@@ -271,10 +246,7 @@ function slotCharacterIds(puzzle: unknown): number[] {
   return ids;
 }
 
-/**
- * 引用投票：引用的资源与角色**全部**属于 `hlm` 且至少有一条 → `hlm`，其余 → `default`。
- * 混合归属的行也落 `default` —— 宁可把一关留在大池子里，也不要把它关进一个它并不全属的主题。
- */
+/** 引用投票：引用的资源与角色**全部**属于 `hlm` 且至少有一条 → `hlm`，其余 → `default`。 混合归属的行也落 `default` —— 宁可把一关留在大池子里，也不要把它关进一个它并不全属的主题。 */
 function voteTheme(
   groups: [number[], number[]],
   assetTheme: Map<number, number>,

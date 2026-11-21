@@ -26,31 +26,7 @@ import { formatDateTime } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import { InlineLoading, LoredokuTick } from '@/components/common/LoredokuLoader';
 
-/**
- * 部署模块（v0.7.1 §7.4）—— **一行 = 一条在线的东西**，列表是平铺的一张卡。
- *
- * 这一页**只在一个工作空间里**：标题就是这个主题，分组头「红楼梦 · 8 关在线 ·
- * 导出包」等于把页头抄了一遍。所以一张卡、行即一切；「导出包」在页头（它本来
- * 就是主题级动作）。
- *
- * 这一页只剩**单局**；关卡顺序只剩 `sort_weight` 一列（v0.8.3 §6.2：顺序的唯一
- * 真源）。
- *
- * 取消部署是**假删**（`deleted_at`）：玩家的 `/play/{slug}` 立刻打不开，但同一个
- * 访问路径可以再用。
- *
- * 这一行不承担「给你一条可复制的链接」。
- * - 路径只显示**尾部**（`puzzle-xxxx`），前缀 `/play/` 在每一行都一样，占着最宽的
- *   一列却不提供任何信息；要真去玩，右边那颗新标签页按钮一直在。
- * - 路径不是一个完整的地址，所以没有复制按钮 —— 复制它没有意义。
- * - 「顺序」列（`sort_weight`）：点开就地改，回车或失焦时**值真的变了**才写回。
- *
- * v0.8.5 §3：路径不显示 `puzzle-` 那段（`stripSlugPrefix`）。
- * - 它是给 `/play/` 底下留的命名空间，不是这一关的信息 —— 每行都以它开头，
- *   读起来像页头的复读。完整路径仍在 `title` 里。
- * - 名称下面没有「来源：xxx vN」那一行：部署页回答的是「在线的是什么」，
- *   不是「它是从哪一版谜题生成的」—— 后者要追溯，去谜题列表看版本号。
- */
+/** 部署模块（v0.7.1 §7.4）—— **一行 = 一条在线的东西**，列表是平铺的一张卡。 所以一张卡、行即一切； 「导出包」在页头（它本来 就是主题级动作）。 关卡顺序只剩 `sort_weight` 一列（v0.8.3 §6.2：顺序的唯一 真源）。；路径不是一个完整的地址，所以没有复制按钮 —— 复制它没有意义。 v0.8.5 §3：路径不显示 `puzzle-` 那段（`stripSlugPrefix`）。；名称下面没有「来源：xxx vN」那一行：部署页回答的是「在线的是什么」， 不是「它是从哪一版谜题生成的」—— 后者要追溯，去谜题列表看版本号。 */
 export function DeploymentsPage(): JSX.Element {
   const workspace = useWorkspace();
   const gamesQuery = useGames();
@@ -60,14 +36,7 @@ export function DeploymentsPage(): JSX.Element {
   const [exportOpen, setExportOpen] = useState(false);
   const [deployOpen, setDeployOpen] = useState(false);
 
-  /**
-   * 部署弹窗要的版本列表。只取已发布的版本行（`kind: 'version'`）——草稿行
-   * 部署不了，列出来只会让人点了才发现。100 条足够覆盖任何真实工坊。
-   *
-   * §19：在工作空间里**只列这个主题的版本**。否则下拉里会混进别的主题的关，
-   * 部署完它落回自己那个主题 —— 作者在红楼梦里点了一个默认主题的谜题，
-   * 结果新游戏不出现在当前这一屏，看起来像「部署失败了」。
-   */
+  /** 部署弹窗要的版本列表。只取已发布的版本行（`kind: 'version'`）——草稿行部署不了，列出来只会让人点了才发现。100 条足够覆盖任何真实工坊。 §19：在工作空间里**只列这个主题的版本**。否则下拉里会混进别的主题的关， 部署完它落回自己那个主题 —— 作者在红楼梦里点了一个默认主题的谜题， 结果新游戏不出现在当前这一屏，看起来像「部署失败了」。 */
   const versionsQuery = usePuzzles({
     kind: 'version',
     pageSize: 100,
@@ -85,13 +54,7 @@ export function DeploymentsPage(): JSX.Element {
     return workspace ? all.filter((game) => game.themeCode === workspace.themeCode) : all;
   }, [gamesQuery.data, workspace]);
 
-  /**
-   * 导出清单要的是**当前主题全部的在线关** —— 包的范围由服务端定，界面就照同一
-   * 把尺子取数。
-   *
-   * 把全站的 `gamesQuery.data` 交给导出弹窗，清单会列出别的主题的关，而服务端只打
-   * 当前主题，于是「清单 12 关、包里 8 关」；当前主题一关都没有时按钮还能点。
-   */
+  /** 导出清单要的是**当前主题全部的在线关** —— 包的范围由服务端定，界面就照同一把尺子取数。 把全站的 `gamesQuery.data` 交给导出弹窗，清单会列出别的主题的关，而服务端只打当前主题，于是「清单 12 关、包里 8 关」；当前主题一关都没有时按钮还能点。 */
   const deployedGames = useMemo(() => {
     const all = gamesQuery.data ?? [];
     return workspace ? all.filter((game) => game.themeCode === workspace.themeCode) : [];
@@ -99,20 +62,11 @@ export function DeploymentsPage(): JSX.Element {
 
   const versions = versionsQuery.data?.list ?? null;
 
-  /**
-   * 某个版本已经部署过 → 用那条部署回填（同一个版本再部署就是覆盖它）。
-   * 传函数而不是预先算一张表：列表和版本列表各自刷新时，弹窗永远读到最新的那份。
-   */
+  /** 某个版本已经部署过 → 用那条部署回填（同一个版本再部署就是覆盖它）。 传函数而不是预先算一张表：列表和版本列表各自刷新时，弹窗永远读到最新的那份。 */
   const existingGameFor = (entry: PuzzleEntrySummary): MapGameSummary | null =>
     (gamesQuery.data ?? []).find((game) => game.puzzleId === entry.id) ?? null;
 
-  /**
-   * 单局行：缩略图 64×40、名称 192、难度、尺寸 64、顺序 56、路径（弹性）、
-   * 时间 208、操作 160。
-   *
-   * v0.8.5：路径只剩 slug。v0.8.5 §3：连 slug 里的 `puzzle-` 也剥掉 —— 列里的字
-   * 只剩「这一关是谁」，完整地址在 `title` 里，要真打开就在右边那颗按钮上。
-   */
+  /** 单局行：缩略图 64×40、名称 192、难度、尺寸 64、顺序 56、路径（弹性）、 时间 208、操作 160。 v0.8.5：路径只剩 slug。v0.8.5 §3：连 slug 里的 `puzzle-` 也剥掉 —— 列里的字只剩「这一关是谁」，完整地址在 `title` 里，要真打开就在右边那颗按钮上。 */
   function renderGameRow(game: MapGameSummary): JSX.Element {
     const initial = game.name.trim().charAt(0) || '游';
     const path = `/play/${game.slug}`;

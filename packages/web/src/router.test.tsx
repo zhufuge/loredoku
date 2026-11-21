@@ -2,16 +2,7 @@ import { matchRoutes, type RouteObject } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import { routes } from './router';
 
-/**
- * 游戏列表是「一个主题一页」。
- *
- * 这一层只钉**地址表**：哪条路径落在哪个路由上、参数是什么。页面内部的行为在
- * `src/pages/GamesPage.test.tsx` 里钉 —— 两边合起来才说明「点进来看到的是什么」。
- * 页面都是懒加载的（`LazyPage`），所以这里比对路由而不是组件本身。
- *
- * 特别要守住的是 `/play` 与 `/:themeCode/play` 的先后：静态段永远压过动态段，
- * 但两条都带 `play` 之后，`/:themeCode` 那条布局路由不能再把它们抢走。
- */
+/** 这一层只钉地址表（页面行为在 `src/pages/GamesPage.test.tsx`）；`/play` 与 `/:themeCode/play` 的先后：静态段压过动态段，`/:themeCode` 布局路由不得抢走它们。 */
 function leaf(path: string): { route: RouteObject; params: Record<string, string | undefined> } | undefined {
   const matches = matchRoutes(routes, path);
   const last = matches?.[matches.length - 1];

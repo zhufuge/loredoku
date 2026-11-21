@@ -17,24 +17,12 @@ interface AppearanceFieldProps {
   /** Colour-block colour; only meaningful when `mode === 'color'`. */
   bgColor: string;
   onBgColorChange: (value: string) => void;
-  /**
-   * The uploader (or any image-mode content). Rendered only in image mode; a
-   * colour block hides it, but the uploaded file itself is **kept** so
-   * switching back restores it (docs/v0.5.1.md §1.2).
-   */
+  /** The uploader (or any image-mode content). Rendered only in image mode; a colour block hides it, but the uploaded file itself is **kept** so switching back restores it (docs/v0.5.1.md §1.2). */
   children?: ReactNode;
   className?: string;
 }
 
-/**
- * FEAT-L01 / FEAT-L02 — the shared 「外观」 control for items and
- * characters.
- *
- * Two mutually exclusive modes:
- * - `image` — an uploaded image; the caller's uploader is shown.
- * - `color` — a colour block: only a colour picker, **no upload needed**. The
- *   colour defaults to {@link DEFAULT_BG_COLOR} (white) and is required.
- */
+/** FEAT-L01 / FEAT-L02 — 共用的「外观」控件；`image` 用上传图，`color` 用取色器（默认 {@link DEFAULT_BG_COLOR}，必填）。 */
 export function AppearanceField({
   id,
   mode,

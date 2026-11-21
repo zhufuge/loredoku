@@ -2,50 +2,22 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { GamePlacementPulse, GamePlacementWave } from '@/components/map/MapGameLayers';
 import { cellKey, clearCell, type GamePlacementState } from '@/lib/gamePlacement';
 
-/**
- * 刚放下的编号 / 标记挂多久的 `place-pop` 类。
- *
- * 动画本身只有 180ms；多留一段是为了让**同一帧里放下的另一格**（按住滑动）也
- * 各自挂着自己的类，而不是互相顶掉。过了这个窗口就摘掉，免得以后任何一次重挂载
- * 把旧格子再「盖章」一遍。
- */
+/** 刚放下的编号 / 标记挂 `place-pop` 类的时长：动画 180ms，多留一段让同帧放下的另一格也各自挂着。 */
 const GAME_PLACE_PULSE_MS = 400;
 
-/**
- * 橡皮擦掉一格时，「退场动效演完」到「真的从棋盘上删掉」之间隔多久。
- *
- * 与 `--motion-base`（180ms）同档：动效是缩小淡出，删早了会被截在半路，删晚了
- * 那格已经透明却还占着「不可站立」的判定。留 40ms 给动画的收尾帧。
- */
+/** 橡皮退场演完到真删的间隔：与 `--motion-base`（180ms）同档，留 40ms 收尾帧。 */
 const GAME_ERASE_MS = 220;
 
 /**
- * 落子补出来的 `×` 每圈晚多少毫秒 —— 水波纹的波速。
- *
- * 45ms 是「看得出一圈一圈，又不至于等到不耐烦」的那一档：一圈最多 24 格，
- * 最远的格子距落子格 23 圈，末圈在 1035ms 之后才淡入；再快（30ms）就成了「雾
- * 一样整体浮出来」，再慢（80ms）在 24×24 的棋盘上要等近两秒。
- *
- * 与 `place-pop` 的 180ms 同量级 —— 每一圈自己只演 180ms，圈与圈之间留 45ms
- * 的步进，于是总能看到三四个圈同时在扩散。
+ * 落子补的 `×` 每圈晚多少毫秒（水波波速）：45ms 可辨圈又不至等太久，与 `place-pop` 同量级。
  */
 const GAME_FORBIDDEN_WAVE_STEP_MS = 45;
 
-/**
- * 一批水波纹挂多久。末圈延迟 + 动画时长 + 一点余量。
- *
- * 摘类不是为了让动效停（`both` 已经把它停在末帧），而是让**下一波**能重新挂上
- * 同名类。这个窗口内玩家再落一子，就直接换 `animation-name`（见 `waveAlt`）。
- */
+/** 一批水波纹挂多久：末圈延迟 + 动画时长 + 余量；摘类是为了下一波能重挂同名类。 */
 const GAME_FORBIDDEN_WAVE_MS = 1200;
 
 /**
- * 棋盘上的**一次性动效**：刚落下的编号盖章、橡皮的退场、落笔的 `×` 弹一下、
- * 落子补出来的 `×` 按圈浮出。
- *
- * 四样东西各有各的令牌与定时器，却共享同一条
- * 规矩 —— **类只挂一小会儿，到点自己摘**；谁都不改棋盘，改棋盘是调用方的事
- * （唯一的例外是 `eraseCell`：它要等退场演完才真的删）。
+ * 棋盘上的一次性动效：编号盖章、橡皮退场、落笔 `×` 弹一下、补出的 `×` 按圈浮出；类只挂一小会儿到点自摘，不改棋盘（例外 `eraseCell` 要等退场演完才删）。
  */
 export interface GamePlacementFx {
   pulse: GamePlacementPulse;
@@ -75,17 +47,7 @@ export function usePlacementFx({
   const [pulse, setPulse] = useState<GamePlacementPulse>({});
   const pulseTimersRef = useRef<Map<string, number>>(new Map());
   /**
-   * **落笔令牌 + 落笔格** —— 点下去放一枚 `×` 时两样一起动。
-   *
-   * - `forbiddenPop` 让提示层在**两支同款动画**之间换名字（`forbidden-pop` /
-   *   `forbidden-pop-alt`）：`animation-name` 一变，CSS 动画就从头播。只增不减。
-   * - `forbiddenPopCell` 是**刚落笔的那一格**；动效只在这一格上演，窗口一关归
-   *   `null`。这枚 `×` 跟着指针走、是同一个 DOM 节点 —— 不按格子收窄的话，
-   *   点完立刻挪到隔壁格，它会带着类飞过去又弹一次。
-   *
-   * **不用 React `key` 重挂载来重播**：那样 `<img>` 会有一帧没画出来，身后刚
-   * 落下的那枚 `×` 从缝里露一下再被盖回去 —— 玩家以为「放下的 × 浮上来闪了
-   * 一下」。换 `animation-name` 不碰元素身份，画面不断。
+   * 落笔令牌 + 落笔格：换 `animation-name` 重播（只增不减），`forbiddenPopCell` 把动效钉在刚落笔的格子；不用 React `key` 重挂载——那样 `<img>` 会丢一帧。
    */
   const [forbiddenPop, setForbiddenPop] = useState(0);
   const [forbiddenPopCell, setForbiddenPopCell] = useState<string | null>(null);
@@ -93,24 +55,13 @@ export function usePlacementFx({
   /** 正在退场的格子（橡皮点掉它了）；见 `MapGamePlacementLayer` 的 `erasing`。 */
   const [erasing, setErasing] = useState<ReadonlySet<string>>(() => new Set());
   const eraseTimersRef = useRef<Map<string, number>>(new Map());
-  /**
-   * 刚落子那一圈自动补出来的 `×` —— 格子键 → 入场延迟（毫秒）。
-   * 见 `MapGamePlacementLayer` 的 `wave`。
-   */
+  /** 刚落子那一圈自动补出的 `×`：格子键 → 入场延迟（ms）。 */
   const [forbiddenWave, setForbiddenWave] = useState<GamePlacementWave>({});
   /** 这一波用哪支动画名；每落一子翻转一次，让同名元素也能重播。 */
   const [forbiddenWaveAlt, setForbiddenWaveAlt] = useState(false);
   const forbiddenWaveTimerRef = useRef<number | null>(null);
 
-  /**
-   * 给刚放下的编号挂一次「盖章」动效。
-   *
-   * 用一张「格子键 → 参与者编号」的表而不是单个「最后一格」：按住滑动会连着
-   * 放好几格，单值会让前一格的字形在动画播到一半时被摘掉类，缩放猛地弹回原样。
-   * 每一格 400ms 后自己过期（动画只有 180ms），表不会越积越大。
-   *
-   * `×` 的弹动走 `pulseForbiddenHint`，不经过这张盖章表。
-   */
+  /** 给刚放下的编号挂「盖章」，按格子键存表（按住滑动时每格各自 400ms 过期）。 */
   const markPulse = useCallback((key: string, participantId: number): void => {
     setPulse((previous) => ({ ...previous, [key]: participantId }));
     const timers = pulseTimersRef.current;
@@ -130,16 +81,7 @@ export function usePlacementFx({
     );
   }, []);
 
-  /**
-   * 让悬停的那枚 `×` 弹一次 —— 令牌 +1，并把动效**钉在刚落笔的那一格**。
-   *
-   * `GAME_PLACE_PULSE_MS`（400ms）之后两样一起收：令牌留着不动（它是 `key` 的
-   * 替代品，改回去也算一次变化），`popCell` 归 `null` —— 窗口一关，指针再进来
-   * 就只是静止的一枚 `×`。
-   *
-   * 为什么要 `popCell`：这枚 `×` 跟着指针走，是**同一个** DOM 节点。只告诉它
-   * 「现在该弹」，玩家点完立刻挪到隔壁格，它就带着类飞过去、在新格子上又弹一次。
-   */
+  /** 令牌 +1 让悬停的 `×` 弹一次，并把动效钉在刚落笔的格子（否则指针挪格会又弹一次）。 */
   const pulseForbiddenHint = useCallback((key: string): void => {
     setForbiddenPop((previous) => previous + 1);
     setForbiddenPopCell(key);
@@ -152,16 +94,7 @@ export function usePlacementFx({
     }, GAME_PLACE_PULSE_MS);
   }, []);
 
-  /**
-   * 落子之后，让这一手补出来的 `×` 一圈一圈地浮出来。
-   *
-   * `plan` 是 `autoForbiddenWavePlan` 算好的「格子键 → 距落子格几圈」。这里把圈号
-   * 换算成延迟写进 `forbiddenWave`，放置层照延迟给每枚 `×` 挂入场动画 —— 于是
-   * 距落子格 1 圈的先生，2 圈的晚 45ms，依此类推，看起来就是一圈水波推出去。
-   *
-   * 两支动画名交替（`forbiddenWaveAlt`）：连落两位时，第二波如果沿用同名，
-   * 已经在演的元素不会重头播；换 `key` 又会丢一帧。换 `animation-name` 两头都躲开。
-   */
+  /** 把圈号换算成延迟写进 `forbiddenWave`，并按 `forbiddenWaveAlt` 换动画名重播。 */
   const pulseForbiddenWave = useCallback((plan: Array<{ key: string; ring: number }>): void => {
     if (plan.length === 0) return;
     const next: Record<string, number> = {};
@@ -178,14 +111,7 @@ export function usePlacementFx({
   }, []);
 
   /**
-   * 橡皮点掉一格 —— **先演退场，再删**。
-   *
-   * 直接 `clearCell` 的话，格子上的东西是瞬间消失的：玩家只看到画面重绘了一次，
-   * 分不清刚擦掉的是哪一格，按住滑过一片时更是完全跟不上。这里先把格子记进
-   * `erasing`（放置层据此挂 `erase-out`：缩小 + 淡出），动画放完才真的删。
-   *
-   * 每一格各记各的 timer：按住滑过好几格时，几段退场应当并排演，而不是后一格
-   * 把前一格的定时器顶掉 —— 那会让前一格永远停在半透明状态。
+   * 先演退场再删：先记进 `erasing`（挂 `erase-out`），`GAME_ERASE_MS` 后才 `clearCell`；每格各记各的 timer，避免按住滑过多格时互相顶掉。
    */
   const eraseCell = useCallback(
     (x: number, y: number): void => {
@@ -216,12 +142,7 @@ export function usePlacementFx({
     [updatePlacement],
   );
 
-  /**
-   * 重开一局时把「正在演的东西」收干净。
-   *
-   * 退场中的格子必须连定时器一起撤 —— 那些 timer 到点会去清一个已经清空的盘，
-   * 把下一局刚放下的东西删掉。盖章表同理：一张空棋盘上不该还挂着一格「刚放下」。
-   */
+  /** 重开一局：撤掉退场中的格子及其定时器（到点会清掉下一局刚放的东西）。 */
   const resetBoardFx = useCallback((): void => {
     setPulse({});
     for (const timer of eraseTimersRef.current.values()) window.clearTimeout(timer);

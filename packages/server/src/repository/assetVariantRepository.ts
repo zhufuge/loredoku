@@ -3,15 +3,8 @@ import { db } from '../db/knex';
 import { buildFileUrl, buildThumbUrl } from '../utils/paths';
 import type { AssetFitMode, AssetVariant, AssetVariantRow, AssetUsage, MapDraft } from '@loredoku/shared';
 
-/**
- * v0.6.1 (docs/v0.6.1.md §3): `asset_variants` (then `asset_forms`) — how an asset
- * looks. The repository owns the rows; the rules about *how many* variants an
- * asset may have live in `assetVariantService`.
- *
- * v0.7.6 (docs/v0.7.6.md §9): the upload receipt (mime / size / width / height)
- * is gone. v0.10.6: the footprint returns as `w` / `h` on the variant (default
- * 1×1) — a bed spanning two cells belongs to the look, not to one placement.
- */
+/** `asset_variants` 仓储（docs/v0.6.1.md §3）：只负责行，「一个资源能有几个变体」的规则在 `assetVariantService`。
+ *  v0.7.6 起上传回执（mime/size/宽高）不再存；v0.10.6 的占格足迹为 `w`/`h`（默认 1×1，属外观不属摆放）。 */
 
 export interface CreateAssetVariantData {
   name: string;
@@ -72,10 +65,7 @@ export async function listByAsset(assetId: number): Promise<AssetVariant[]> {
   return grouped.get(assetId) ?? [];
 }
 
-/**
- * v0.8.0（§11.2）：打包时按 id 取形态 —— 用来补「只被 variantId 引用、没被
- * assetId 引用」的资源（正常草稿不会这样，但体检要能兜住）。
- */
+/** v0.8.0（§11.2）：打包时按 id 取形态 —— 用来补「只被 variantId 引用、没被 assetId 引用」的资源（正常草稿不会这样，但体检要能兜住）。 */
 export async function listByIds(ids: number[]): Promise<AssetVariant[]> {
   if (ids.length === 0) return [];
   const rows = (await db<AssetVariantRow>('asset_variants')
@@ -109,10 +99,7 @@ export async function nextSortOrder(assetId: number): Promise<number> {
   return Number(row?.max ?? -1) + 1;
 }
 
-/**
- * 建资源时用同一个事务插首形态；后续单独加形态时传 `db` 即可（没有配套写入，
- * 一行自成事务）。
- */
+/** 建资源时用同一个事务插首形态；后续单独加形态时传 `db` 即可（没有配套写入， 一行自成事务）。 */
 export async function create(
   runner: Knex | Knex.Transaction,
   assetId: number,
@@ -166,10 +153,7 @@ export async function setImage(
     });
 }
 
-/**
- * 删图不删纯色块：`bg_color` 在的话这个形态仍有外观，`updated_at` 之外什么都不变。
- * 资源是否因此停用由 service 判定（要看**所有**形态）。
- */
+/** 删图不删纯色块：`bg_color` 在的话这个形态仍有外观，`updated_at` 之外什么都不变。 资源是否因此停用由 service 判定（要看**所有**形态）。 */
 export async function clearImage(assetId: number, variantId: number): Promise<void> {
   await db('asset_variants')
     .where({ id: variantId, asset_id: assetId })

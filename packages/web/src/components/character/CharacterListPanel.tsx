@@ -10,11 +10,7 @@ interface CharacterListPanelProps {
   onSelect: (id: number) => void;
 }
 
-/**
- * v0.5.2 FEAT-M01 (docs/v0.5.2.md §1.3): windowed — only the rows inside the
- * viewport are mounted, so a long roster no longer fires every avatar request
- * at once.
- */
+/** v0.5.2 FEAT-M01 (docs/v0.5.2.md §1.3): windowed — only the rows inside the viewport are mounted, so a long roster no longer fires every avatar request at once. */
 export function CharacterListPanel({
   characters,
   selectedId,

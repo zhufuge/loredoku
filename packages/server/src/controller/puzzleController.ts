@@ -12,10 +12,7 @@ import { success } from '../utils/response';
 import { parseOrThrow } from '../utils/validate';
 import * as puzzleService from '../service/puzzleService';
 
-/**
- * 谜题模块的 HTTP 层（v0.7.1 §6.3）。每个 handler 都是薄壳 —— 规则（版本行只读、
- * 底图自带、发布校验）全在 `puzzleService`。
- */
+/** 谜题模块的 HTTP 层（v0.7.1 §6.3）。每个 handler 都是薄壳 —— 规则（版本行只读、 底图自带、发布校验）全在 `puzzleService`。 */
 
 export async function list(ctx: Context): Promise<void> {
   const query = parseOrThrow(listPuzzlesQuerySchema, ctx.query);
@@ -77,13 +74,7 @@ export async function removeCover(ctx: Context): Promise<void> {
   success(ctx, await puzzleService.removeCover(id), '封面已移除');
 }
 
-/**
- * v0.8.6 §4：禁止符号图（multipart）。只写文件、不写库 —— 草稿里的 `path` 由
- * 下一次保存请求带回来（和封面不同：它不是行上的列）。
- *
- * 版本行 id 也接受：编辑器 `?v=` 的 fork 态拿到的就是版本行 id，而上传发生在
- * 保存草稿之前，这里只写文件，不触碰版本行的不可变语义。
- */
+/** v0.8.6 §4：禁止符号图（multipart）。只写文件、不写库 —— 草稿里的 `path` 由下一次保存请求带回来（和封面不同：它不是行上的列）。 版本行 id 也接受：编辑器 `?v=` 的 fork 态拿到的就是版本行 id，而上传发生在保存草稿之前，这里只写文件，不触碰版本行的不可变语义。 */
 export async function uploadMark(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   const file = (ctx as Context & { file?: { buffer: Buffer } }).file;
@@ -93,10 +84,7 @@ export async function uploadMark(ctx: Context): Promise<void> {
   success(ctx, await puzzleService.uploadMark(id, file.buffer), '上传成功');
 }
 
-/**
- * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），与禁止符号逐条相同 —— 只写文件，
- * `path` 随保存请求回草稿。`:icon` 走枚举校验，拼错即 400。
- */
+/** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），与禁止符号逐条相同 —— 只写文件， `path` 随保存请求回草稿。`:icon` 走枚举校验，拼错即 400。 */
 export async function uploadToolIcon(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   const { icon } = parseOrThrow(toolIconParamSchema, ctx.params);

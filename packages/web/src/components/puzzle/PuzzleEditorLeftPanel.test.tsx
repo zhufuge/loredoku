@@ -10,15 +10,7 @@ import {
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-/**
- * A full roster collapses the 角色 panel **by default** — every 加入 button is
- * disabled at that point, so the list has nothing left to offer and the canvas
- * deserves the width. It is a default, not a lock: the first manual 展开 / 收起
- * takes over for the rest of the session.
- *
- * 收起 = **整列不渲染**，所以这一组用例里「是否收起」的观察点是容器里有没有
- * `aside`，展开动作用 `ref.expand()`。展开那颗箭头挂在参与者面板的标题行上。
- */
+/** 满员时角色面板**默认收起**（加入按钮全禁用，画布该占宽），但只是默认 —— 首次手动展开 / 收起后由用户接管；收起 = 整列不渲染，所以观察点是容器里有没有 `aside`。 */
 
 const CHARACTERS: Character[] = [
   {
@@ -154,10 +146,7 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
   });
 });
 
-/**
- * 那颗箭头由参与者面板的标题行渲染，不在这个组件里。
- * 这里只验它自己：标签、折叠语义、点击回传。
- */
+/** 那颗箭头由参与者面板的标题行渲染，不在这个组件里。 这里只验它自己：标签、折叠语义、点击回传。 */
 describe('RosterExpandButton（v0.7.13）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -186,13 +175,7 @@ describe('RosterExpandButton（v0.7.13）', () => {
   });
 });
 
-/**
- * 角色面板头部的刷新按钮。角色列表是共享查询，角色页刚加过角色时
- * 不用整页重载（重载会丢撤销栈与视口）。
- *
- * 收起后整个面板不渲染，刷新按钮自然也不在 —— 而收起出现的时机（参与者已满）
- * 本来也没法再加入角色。
- */
+/** 角色面板头部的刷新按钮。角色列表是共享查询，角色页刚加过角色时不用整页重载（重载会丢撤销栈与视口）。 收起后整个面板不渲染，刷新按钮自然也不在 —— 而收起出现的时机（参与者已满） 本来也没法再加入角色。 */
 describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -253,12 +236,7 @@ describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
   });
 });
 
-/**
- * 角色库按名字排序（中文按拼音首字母）。
- *
- * 排的是**角色库这一列**。参与者槽位那一列（`ParticipantPanel`）的顺序是作者排
- * 的「1 号、2 号」，那是谜题内容，不能跟着字母走 —— 这里只钉角色库这一边。
- */
+/** 角色库按名字排序（中文按拼音首字母）。 排的是**角色库这一列**。参与者槽位那一列（`ParticipantPanel`）的顺序是作者排的「1 号、2 号」，那是谜题内容，不能跟着字母走 —— 这里只钉角色库这一边。 */
 describe('PuzzleEditorLeftPanel — 角色库按名字排序（v0.11.4）', () => {
   let container: HTMLDivElement;
   let root: Root;

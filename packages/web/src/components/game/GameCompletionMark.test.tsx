@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { formatRelativeTime } from './GameCompletionMark';
 import { formatElapsed } from '@/lib/gameTimer';
 
-/**
- * 卡片上「最后离开谜题时间」用相对时间，以及超过一小时的时间格式。
- *
- * 这两条都是**输出断言**（给一个输入，看渲染出的字符串），不是界面外观断言。
- */
+/** 卡片上「最后离开谜题时间」用相对时间，以及超过一小时的时间格式。 这两条都是**输出断言**（给一个输入，看渲染出的字符串），不是界面外观断言。 */
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;

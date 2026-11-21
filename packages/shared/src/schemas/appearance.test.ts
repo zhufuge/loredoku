@@ -5,14 +5,7 @@ import { createCharacterSchema, updateCharacterSchema } from './character'
 import { createAssetSchema } from './asset'
 import { updateAssetVariantSchema } from './assetVariant'
 
-/**
- * FEAT-L01 / FEAT-L02 — the colour-block field.
- *
- * `bgColor` is optional and nullable: omitted / `null` means image mode (the
- * pre-v0.5.1 behaviour), a `#RRGGBB` string means colour block. Anything else
- * must be rejected by **both** the asset and the character schema, because the
- * server never validates it a second time.
- */
+/** FEAT-L01 / FEAT-L02：`bgColor` 可选可空 —— 省略 / `null` 是图片模式，`#RRGGBB` 是纯色；非法值必须被资源与角色 schema 同时拒绝（服务端不再校验第二次）。 */
 
 describe('bgColorSchema', () => {
   it('accepts a full #RRGGBB colour', () => {

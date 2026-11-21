@@ -4,43 +4,30 @@ import { join } from 'node:path';
 import type { Knex } from 'knex';
 import { uploadRoot } from '../../utils/paths';
 
-/**
- * v0.6.0 —— 规范命名：资源库 / 画布物品层 / 阻挡标记。
- *
- * 改名映射（docs/v0.6.0.md）：
- *   - `items` 表 → `assets`；`category` 列 → `type`，取值 `object` → `item`；
- *   - `can_stand` 列 → `blocking`，语义**取反**（可站立 → 阻挡）；
- *   - 图片目录 `storage/uploads/items/` → `assets/`，`image_path` 前缀同步；
- *   - `maps.data` / `games.snapshot` 里的画布：`cells.*.object` → `item`、
- *     `itemId` → `assetId`、`objectRef` → `itemRef`，并把 `version` 3 → 4；
- *   - `puzzles.data` / `games.snapshot` 里的联动目标 `type: 'item'` → `'asset'`。
- *
- * 两件必须一起改（否则旧图 404 / 旧引用失配）：磁盘目录与库里前缀；列名与
- * JSON 里的键名。整个迁移在一个事务里，任一步失败都整体回滚。
- */
+/** v0.6.0 规范命名（docs/v0.6.0.md）：items→assets、category→type（object→item）、can_stand→blocking（语义取反）、图片目录 items/→assets/、画布 JSON object→item / itemId→assetId / objectRef→itemRef 且 version 3→4、联动 type item→asset；磁盘目录与前缀、列名与 JSON 键必须同批改，否则旧图 404 / 引用失配；全程单事务。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.transaction(async (trx) => {
-    // 1. 表与列：items -> assets，category -> type，can_stand -> blocking。
+    // 表与列：items -> assets，category -> type，can_stand -> blocking。
     await trx.schema.renameTable('items', 'assets');
     await trx.schema.alterTable('assets', (table) => {
       table.renameColumn('category', 'type');
       table.renameColumn('can_stand', 'blocking');
     });
-    // 2. 列值：type 的 `object` -> `item`；blocking 取反。
+    // 列值：type 的 `object` -> `item`；blocking 取反。
     await trx.raw(`UPDATE assets SET type = 'item' WHERE type = 'object'`);
     await trx.raw(`UPDATE assets SET blocking = NOT blocking`);
-    // 3. 索引跟着列名走：idx_items_category -> idx_assets_type。
+    // 索引跟着列名走：idx_items_category -> idx_assets_type。
     await trx.raw('ALTER INDEX IF EXISTS idx_items_category RENAME TO idx_assets_type');
-    // 4. 图片目录与 image_path 前缀（两个目录名都是 5 字符）。
+    // 图片目录与 image_path 前缀（两个目录名都是 5 字符）。
     await moveImageDir(trx, 'items', 'assets');
     await trx.raw(`
       UPDATE assets
          SET image_path = 'assets/' || substring(image_path from 7)
        WHERE image_path LIKE 'items/%'
     `);
-    // 5. 画布 JSON：cells 里的 object -> item、itemId -> assetId、objectRef -> itemRef。
+    // 画布 JSON：cells 里的 object -> item、itemId -> assetId、objectRef -> itemRef。
     await rewriteMapCells(trx);
-    // 6. 联动目标：type 'item' -> 'asset'（puzzles.data 与 games.snapshot）。
+    // 联动目标：type 'item' -> 'asset'（puzzles.data 与 games.snapshot）。
     await rewriteLinkageTargets(trx);
   });
 }
@@ -257,10 +244,7 @@ async function rewriteLinkageTargets(trx: Knex.Transaction, reverse = false): Pr
   }
 }
 
-/**
- * 就地改一份 roster 数据里所有联动目标的 `type` 值；`input` 可以是
- * puzzle 草稿（有 `characterSlots`）或 roster 数组本身。返回是否改动。
- */
+/** 就地改一份 roster 数据里所有联动目标的 `type` 值；`input` 可以是 puzzle 草稿（有 `characterSlots`）或 roster 数组本身。返回是否改动。 */
 function rewriteLinkages(input: unknown, from: string, to: string): boolean {
   if (!input || typeof input !== 'object') return false;
   const record = input as Record<string, unknown>;

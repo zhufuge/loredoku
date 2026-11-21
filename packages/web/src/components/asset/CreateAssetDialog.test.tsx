@@ -3,16 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CreateAssetDialog } from './CreateAssetDialog';
 
-/**
- * v0.8.2 §14：新建弹窗里的「主题」一行，只在**真的能选**时出现。
- *
- * 工作空间里主题由地址定（`/hlm/assets`）—— 地址说了、顶栏说了，弹窗里再说
- * 第三遍，却不让人做任何决定。
- *
- * 所以这里测的是**两条分支都存在**：有工作空间时整行不画；没有工作空间上下文
- * （旧地址、整屏入口）时仍然要问，因为那时没有别的地方能回答「建到哪个世界」。
- * 只测「不出现」是不够的 —— 把整个组件删掉也能让那条断言通过。
- */
+/** v0.8.2 §14：新建弹窗里的「主题」一行，只在**真的能选**时出现。 工作空间里主题由地址定（`/hlm/assets`）—— 地址说了、顶栏说了，弹窗里再说第三遍，却不让人做任何决定。 所以这里测的是**两条分支都存在**：有工作空间时整行不画；没有工作空间上下文（旧地址、整屏入口）时仍然要问，因为那时没有别的地方能回答「建到哪个世界」。 只测「不出现」是不够的 —— 把整个组件删掉也能让那条断言通过。 */
 
 let workspaceValue: { themeCode: string } | null = { themeCode: 'hlm' };
 

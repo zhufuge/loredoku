@@ -8,19 +8,7 @@ import { GameSourceScope } from '@/lib/gameSource';
 import { themeHrefOf } from './bundleLoad';
 import { useBundleGameSource, useBundleManifest } from './PlayerBundleProvider';
 
-/**
- * v0.9.0（docs/v0.9.0.md §7）—— 一关 `/loredoku/:code/play/:key`。
- *
- * 这个组件只做**三道门**，然后就把画布交给 `GamePage`：
- *
- * 1. 包在不在（`manifest` 取得到吗）；
- * 2. 目录名与包的身份对不对得上（`/loredoku/hlm/` 里装的必须真是 hlm）；
- * 3. 包里有没有这一关（`manifest.games` 是唯一的清单，没有就是没有）。
- *
- * 三道门之后是**同一个** `GamePage`（工坊里那个），只换了一层 `GameSource`。
- * 这就是 v0.8.0 §11.6 那句「不要复制一份 GamePage」的落地：1500 行渲染逻辑
- * 一行没抄。
- */
+/** v0.9.0（docs/v0.9.0.md §7）—— 一关 `/loredoku/:code/play/:key`。 这个组件只做**三道门**，然后就把画布交给 `GamePage`： 1. 包在不在（`manifest` 取得到吗）； 目录名与包的身份对不对得上（`/loredoku/hlm/` 里装的必须真是 hlm）； 包里有没有这一关（`manifest.games` 是唯一的清单，没有就是没有）。 这就是 v0.8.0 §11.6 那句「不要复制一份 GamePage」的落地：1500 行渲染逻辑 一行没抄。 */
 export function PlayerGamePage(): JSX.Element {
   const { code = '', key = '' } = useParams<{ code: string; key: string }>();
   const source = useBundleGameSource(code);
@@ -65,10 +53,7 @@ export function PlayerGamePage(): JSX.Element {
   );
 }
 
-/**
- * 播放器的三个错误页。它们长得一样，因为对玩家来说都是「打不开」——
- * 差别只在第二行那句给作者看的说明。
- */
+/** 播放器的三个错误页。它们长得一样，因为对玩家来说都是「打不开」—— 差别只在第二行那句给作者看的说明。 */
 function PlayerNotice({
   title,
   detail,

@@ -6,15 +6,7 @@ import { AssetPalette } from './AssetPalette';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-/**
- * v0.6.1 (docs/v0.6.1.md §8.5): the tiles are **variants** — a chest with
- * 「关闭」 and 「打开」 offers two tiles, and searching 「打开」 finds it. The
- * background layer works the same way: a background asset may own several
- * variants, and each look is its own tile.
- *
- * The tile prints no footprint (a variant does not have one).
- * Several variants → the tile reads the variant name; a single variant → 「1 格」.
- */
+/** v0.6.1 (docs/v0.6.1.md §8.5)：每个形态一块瓦片（背景同理），搜索按形态名命中；瓦片不印占用格（形态没有这个字段）。 */
 
 function variant(id: number, assetId: number, overrides: Partial<AssetVariant> = {}): AssetVariant {
   return {
@@ -154,11 +146,7 @@ describe('AssetPalette — 形态瓦片（v0.6.1 §8.5）', () => {
   });
 });
 
-/**
- * 搜索框右侧的刷新。按钮是**可选**的 —— 调色板不认识 react-query，取数
- * 由调用方负责；不传 `onRefresh` 就没有按钮（上面 6 例都走这条路，所以 `tiles()`
- * 按 `button` 计数不受影响）。
- */
+/** 搜索框右侧的刷新。按钮是**可选**的 —— 调色板不认识 react-query，取数由调用方负责；不传 `onRefresh` 就没有按钮（上面 6 例都走这条路，所以 `tiles()` 按 `button` 计数不受影响）。 */
 describe('AssetPalette — 刷新按钮（v0.7.7）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -221,12 +209,7 @@ describe('AssetPalette — 刷新按钮（v0.7.7）', () => {
   });
 });
 
-/**
- * 调色板按资源名排序（中文按拼音首字母），同一资源的形态挨在一起。
- *
- * 断言里读的是**资源名**（夹具给的，不是界面文案）—— 排序要验的就是「哪个资源
- * 排在哪」，而形态必须跟着自己的资源走，不能被别的资源隔开。
- */
+/** 调色板按资源名排序（中文按拼音首字母），同一资源的形态挨在一起。 断言里读的是**资源名**（夹具给的，不是界面文案）—— 排序要验的就是「哪个资源排在哪」，而形态必须跟着自己的资源走，不能被别的资源隔开。 */
 describe('AssetPalette — 按资源名排序、多形态成组（v0.11.4）', () => {
   let container: HTMLDivElement;
   let root: Root;

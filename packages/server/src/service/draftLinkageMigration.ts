@@ -1,11 +1,5 @@
-/**
- * MOD-801 (docs/v0.3.3.md §2) — pure draft transform behind migration
- * `20260101000013_v033_flat_linkages`.
- *
- * Kept out of the migration directory so the transform can be unit tested
- * without a database (knex treats every file in `db/migrations` as a
- * migration and requires `up` / `down` exports).
- */
+/** MOD-801 (docs/v0.3.3.md §2)：迁移 `20260101000013_v033_flat_linkages` 背后的纯转换。
+ *  放在 migrations 外才能脱离数据库单测 —— knex 会把该目录每个文件当迁移要求 up/down。 */
 
 /** Counters describing what one draft transform changed. */
 export interface LinkageMigrationStats {
@@ -78,18 +72,8 @@ function normalizeLinkage(
   return changed;
 }
 
-/**
- * Patches one draft JSON object in place:
- *  1. `characterSlots[i].clue` → `''` when missing;
- *  2. merge `characterSlots[i].triggers[].targets` into a flat `linkages`
- *     array (same object + colour counts as one entry, later wins) and drop
- *     the legacy `triggers` field;
- *  3. normalise `linkages` (asset `scope`, legacy cell shape).
- *
- * Idempotent: the legacy `triggers` field is deleted after folding, and any
- * `linkages` already present are kept as the starting point (union, deduped),
- * so re-running the transform never drops data.
- */
+/** 就地修补一份草稿：`clue` 缺省补 `''`；`triggers[].targets` 并入扁平 `linkages`（同对象+颜色算一条，后者胜）并删 triggers；
+ *  再规整 `linkages`（asset scope、旧 cell 形状）。幂等：重复跑不丢数据。 */
 export function migrateDraftLinkages(
   draft: Record<string, unknown>,
   stats: LinkageMigrationStats = emptyStats(),
@@ -147,10 +131,7 @@ export function migrateDraftLinkages(
   return stats;
 }
 
-/**
- * Migrates every non-null `characterSlots` entry of one persisted draft.
- * Returns `null` for rows that never held a draft object.
- */
+/** Migrates every non-null `characterSlots` entry of one persisted draft. Returns `null` for rows that never held a draft object. */
 export function migrateStoredDraft(
   value: unknown,
 ): LinkageMigrationStats | null {

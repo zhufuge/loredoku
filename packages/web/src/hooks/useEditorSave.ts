@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react';
 
 /**
- * the save flow both editors share (FIX-F01's single writer, plus the
- * 保存中 mask), lifted out of `MapEditorPage` / `PuzzleEditorPage`.
- *
- * FIX-F01 (docs/v0.3.10.md §1): one code path persists the **whole** draft, so
- * the toolbar's 保存 and the 基本信息 drawer's 保存 can never disagree about
- * what "saved" means. Each page supplies its own mutation, payload builder and
- * post-save bookkeeping; everything else — the in-flight guard, the toast-free
- * error handling, the delayed mask fade — is identical on both sides.
+ * 两个编辑器共用的保存流程（FIX-F01, docs/v0.3.10.md §1）：**一条**代码路径落**整份**草稿，工具栏的保存与基本信息抽屉的保存因此不可能对「已保存」有分歧；在途守卫、错误交给 mutation toast、遮罩延迟淡出，两边完全一致。
  */
 export interface EditorSaveSpec<TData, TPayload> {
   id: number;
@@ -28,11 +21,7 @@ export interface EditorSaveFlow {
   /** Fire-and-forget 保存 (toolbar button, Ctrl+S). */
   save: () => void;
   saving: boolean;
-  /**
-   * Mask visibility with the delayed fade: stays mounted for 150ms after the
-   * request lands so the opacity transition can finish. The puzzle editor used
-   * to unmount it instantly; both pages now share the map editor's version.
-   */
+  /** Mask visibility with the delayed fade: stays mounted for 150ms after the request lands so the opacity transition can finish. The puzzle editor used to unmount it instantly; both pages now share the map editor's version. */
   saveMaskVisible: boolean;
 }
 

@@ -25,16 +25,7 @@ import {
   toGameDetail,
 } from './bundleLoad';
 
-/**
- * v0.9.0（docs/v0.9.0.md §5）：包内路径与身份的几条纯函数。
- *
- * 这些函数的共同点是「拼一次、到处用」：一旦 `bundleFileUrl` 少一个斜杠或
- * `bundleStorageId` 多一个冒号，症状是「图全是破的」或「进度下次进来没了」——
- * 两种都不容易一眼看出根因，所以在这里钉死。
- *
- * `import.meta.env.BASE_URL` 在 vitest 下是 `/`，所以下面断言里的包根是 `/hlm/`；
- * 产物里它是 `/loredoku/`，同一个函数。
- */
+/** v0.9.0 §5（docs/v0.9.0.md）：包内路径/身份纯函数；vitest 下 `import.meta.env.BASE_URL` 是 `/`，断言里的包根为 `/hlm/`（产物里是 `/loredoku/`）。 */
 
 function manifest(overrides: Partial<BundleManifest> = {}): BundleManifest {
   return {
@@ -112,10 +103,7 @@ describe('toGameCard', () => {
   });
 });
 
-/**
- * 2026-11-09 补（docs/v0.9.0.md §13）：徽章上的字来自主题，不是内置五档。
- * 这一组只钉「包 → 分级」这一段；真正画出来是 PlayerHomePage.test.tsx 的事。
- */
+/** 2026-11-09 补（docs/v0.9.0.md §13）：徽章上的字来自主题，不是内置五档。 这一组只钉「包 → 分级」这一段；真正画出来是 PlayerHomePage.test.tsx 的事。 */
 describe('bundleDifficultyTiers', () => {
   it('包里配了分级 → 名字、颜色都在，且按 level 升序（顺序由读包方统一）', () => {
     const levels = [

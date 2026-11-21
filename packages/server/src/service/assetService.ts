@@ -24,11 +24,7 @@ export async function getAsset(id: number): Promise<Asset> {
   return asset;
 }
 
-/**
- * Creating an asset creates its first variant in the same transaction
- * (docs/v0.6.1.md §5.2). v0.7.6: that variant says nothing about size — every
- * placement is 1×1 and 「大小」 only changes how big it looks.
- */
+/** Creating an asset creates its first variant in the same transaction (docs/v0.6.1.md §5.2). v0.7.6: that variant says nothing about size — every placement is 1×1 and 「大小」 only changes how big it looks. */
 export async function createAsset(input: CreateAssetInput): Promise<Asset> {
   // v0.8.0：`code` 只在主题内唯一（docs/v0.8.0.md §3.2），所以查重带主题。
   // §19：主题必填且用编码 —— 没有默认主题可落。
@@ -53,12 +49,7 @@ export async function createAsset(input: CreateAssetInput): Promise<Asset> {
   return getAsset(id);
 }
 
-/**
- * Switching the type keeps every variant — a background asset may own
- * several variants just like an item, so there is nothing to ask the caller to
- * drop first. (v0.7.6: the footprint clause is gone — no variant declares one
- * any more, and every placement is 1×1.)
- */
+/** 切换类型保留所有变体 —— 背景资源也可以有多个变体，调用方无需先删。 */
 export async function updateAsset(id: number, input: UpdateAssetInput): Promise<Asset> {
   const row = await repo.findById(id);
   if (!row) {

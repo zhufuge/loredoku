@@ -6,16 +6,7 @@ import type { Theme } from '@loredoku/shared';
 import { WorkspaceLayout } from './WorkspaceLayout';
 import { AppShell } from './AppShell';
 
-/**
- * v0.8.0 §18：`/:themeCode` 的解析与两种外壳。
- *
- * v0.8.3 精简（docs/v0.8.3.md §16）：只留**地址契约** —— 模块链接带当前编码、
- * 编码不存在时点名、两个「回工坊」都指向入口（`/`）。这三条各自对应一个已经
- * 踩过的死链，界面怎么排都不该变。
- *
- * 顶栏写什么名字、概览是不是排第一、品牌后面有没有斜杠、按钮谁在谁右边 ——
- * 这些都是布局与文案，删掉（它们会随界面改）。
- */
+/** v0.8.0 §18：`/:themeCode` 的解析与两种外壳。 v0.8.3 精简（docs/v0.8.3.md §16）：只留**地址契约** —— 模块链接带当前编码、 编码不存在时点名、两个「回工坊」都指向入口（`/`）。这三条各自对应一个已经踩过的死链，界面怎么排都不该变。 顶栏写什么名字、概览是不是排第一、品牌后面有没有斜杠、按钮谁在谁右边 —— 这些都是布局与文案，删掉（它们会随界面改）。 */
 
 const themesRef: { data: Theme[] | undefined; isLoading: boolean; isError: boolean; error: unknown } = {
   data: undefined,
@@ -106,14 +97,7 @@ describe('WorkspaceLayout（v0.8.0 §18）', () => {
     expect(text()).not.toContain('地图正文');
   });
 
-  /**
-   * v0.8.3（docs/v0.8.3.md §13）：这一页最常见的来路就是「地址里那间刚被删掉」，
-   * 而 `workshopPath()` 拼的正是「记住的编码」—— 也就是被删的那一个。若这里仍
-   * 用 `workshopPath('overview')`，这个按钮会把自己指回自己，点几下都出不去。
-   *
-   * 回**入口**（`/`）：`ThemeEntryRedirect` 会把记住的编码对着现有列表验一遍，
-   * 失效就落到还开着的第一间。
-   */
+  /** v0.8.3（docs/v0.8.3.md §13）：这一页最常见的来路就是「地址里那间刚被删掉」， 而 `workshopPath()` 拼的正是「记住的编码」—— 也就是被删的那一个。若这里仍用 `workshopPath('overview')`，这个按钮会把自己指回自己，点几下都出不去。 回**入口**（`/`）：`ThemeEntryRedirect` 会把记住的编码对着现有列表验一遍， 失效就落到还开着的第一间。 */
   it('「回到工坊」去入口，不去记忆里那个已失效的编码', () => {
     window.localStorage.setItem('loredoku.lastTheme', 'nope');
     render('/nope/maps');
@@ -149,12 +133,7 @@ describe('AppShell · config（v0.8.0 §18）', () => {
     container.remove();
   });
 
-  /**
-   * v0.8.3（docs/v0.8.3.md §13）：删完主题就落在这张列表上；「返回工坊」指向 `/`，
-   * 不拼「记住的编码」—— 那正好可能是刚被删掉的那个。
-   *
-   * 选哪一间由入口统一裁定（记住且还在 → 它；否则第一间）。
-   */
+  /** v0.8.3（docs/v0.8.3.md §13）：删完主题就落在这张列表上；「返回工坊」指向 `/`， 不拼「记住的编码」—— 那正好可能是刚被删掉的那个。 选哪一间由入口统一裁定（记住且还在 → 它；否则第一间）。 */
   it('「返回工坊」去入口，不自己拼一个可能已被删掉的编码', () => {
     const back = Array.from(document.querySelectorAll('header a')).find(
       (node) => node.textContent?.trim() === '返回工坊',

@@ -6,17 +6,7 @@ import { EditorInfoDrawer } from './EditorInfoDrawer';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import type { RegionInput } from '@/stores/editorStore';
 
-/**
- * v0.7.0 (docs/v0.7.0.md §5): the region branch of the info drawer **is** the
- * region editor now — the old 「编辑」dialog (颜色 / 边界线宽 / 填充透明度) is
- * gone and the three style groups took its place.
- *
- * Two contracts matter here and neither is visible in the lib tests:
- * 1. the form seeds itself from the **map-level defaults**, so a region with no
- *    override shows the 「地图基本信息」 values;
- * 2. 保存 hands the **resolved** values to the store, which derives the minimal
- *    override — a field left at the default must not reach the region record.
- */
+/** v0.7.0 (docs/v0.7.0.md §5)：区域分支就是区域编辑器（旧「编辑」弹窗已并入三组样式）；表单用地图级默认值回填，保存交**解析后**的值、由 store 求最小覆盖 —— 停在默认的字段不得写进区域记录。 */
 
 // React 18 的 act 需要这个开关，否则每次由 effect 触发的更新都会打印一条警告。
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -291,14 +281,7 @@ describe('EditorInfoDrawer — 区域信息框（v0.7.0）', () => {
   });
 });
 
-/**
- * 改格子的入口长在区域分支上。
- *
- * 它只是把「我要改这块的格子」这件事喊给页面听 —— 会话本身（草稿、预览、
- * 提交校验）都在页面与画布那边，抽屉不该知道草稿长什么样。所以这里只验
- * 两件能看见的事：按钮存在且带上了正确的区域 id；会话进行中按钮变成
- * 「编辑中…」且不可再点，同时露出操作提示。
- */
+/** 改格子的入口长在区域分支上。 它只是把「我要改这块的格子」这件事喊给页面听 —— 会话本身（草稿、预览、 提交校验）都在页面与画布那边，抽屉不该知道草稿长什么样。所以这里只验两件能看见的事：按钮存在且带上了正确的区域 id；会话进行中按钮变成「编辑中…」且不可再点，同时露出操作提示。 */
 describe('EditorInfoDrawer — 编辑格子入口（v0.11.5）', () => {
   let container: HTMLDivElement;
   let root: Root;

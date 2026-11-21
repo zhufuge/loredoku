@@ -3,13 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEditorShortcuts, type EditorShortcuts } from './useEditorShortcuts';
 
-/**
- * v0.7.9 §2：快捷键的**边界**，不是快捷键本身。
- *
- * Ctrl+S / Ctrl+Z / Ctrl+Shift+Z 在 v0.7.0 就有了；这一轮修的是三个会咬人的场景：
- * 焦点在下拉里按字母、弹窗打开时按 Ctrl+Z、以及 Space 抢掉按钮的激活键。
- * 这三条都只有在「谁拿到了这次按键」这一层才看得见，所以逐个钉住。
- */
+/** v0.7.9 §2：快捷键的**边界**，不是快捷键本身。 Ctrl+S / Ctrl+Z / Ctrl+Shift+Z 在 v0.7.0 就有了；这一轮修的是三个会咬人的场景： 焦点在下拉里按字母、弹窗打开时按 Ctrl+Z、以及 Space 抢掉按钮的激活键。 这三条都只有在「谁拿到了这次按键」这一层才看得见，所以逐个钉住。 */
 describe('useEditorShortcuts (v0.7.9 §2)', () => {
   let container: HTMLDivElement;
   let root: Root;

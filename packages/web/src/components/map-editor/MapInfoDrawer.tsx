@@ -60,12 +60,7 @@ export interface MapInfoDrawerHandle {
   discard: () => void;
 }
 
-/**
- * 名称 / 描述 / 封面 —— 条目行上的字段，与画布无关。
- *
- * 它们和样式一样只是**本地草稿**：抽屉的「保存」把它们交给页面，页面更新本地
- * 显示并标脏，真正的请求等右上角「保存」一起发（用户裁定：抽屉不触发请求）。
- */
+/** 名称 / 描述 / 封面 —— 条目行上的字段，与画布无关；同样只是**本地草稿**，抽屉的「保存」只交给页面，不触发请求（用户裁定）。 */
 export interface MapInfoEntryDraft {
   name: string;
   description: string;
@@ -78,10 +73,6 @@ export interface MapInfoEntryDraft {
 interface MapInfoDrawerProps {
   open: boolean;
   gridSize: number;
-  /**
-   * v0.8.0 §16.8：这张地图属于哪个主题。抽屉底部那一行「风格来自主题…」靠它
-   * 去读主题的缺省风格。
-   */
   /** v0.8.0 §19：这张图所属主题的**编码**（`MapEntry.themeCode`）。 */
   themeCode: string;
   /** The committed style — the drawer edits a copy of it. */
@@ -96,21 +87,11 @@ interface MapInfoDrawerProps {
   coverFile: File | null;
   /** The local state already marks the stored cover as removed. */
   coverRemoved: boolean;
-  /**
-   * 画布当前按窗口算出来的格子边长。只用于「方格大小上限」那行的
-   * 提示与 ↺ 按钮的 title —— 真正的上限值在 `style.cellSize` 里。
-   */
+  /** 画布当前按窗口算出的格子边长：只喂「方格大小上限」的提示与 ↺ 的 title，真正的上限在 `style.cellSize`。 */
   autoCellSize: number;
-  /**
-   * FEAT-E01: the drawer never closes itself. Both × and 取消 call this, and
-   * `MapEditorPage` decides whether to prompt for unsaved edits first.
-   */
+  /** FEAT-E01: 抽屉从不自己关闭 —— × 与取消都走这里，由 `MapEditorPage` 决定是否先问未保存改动。 */
   onRequestClose: () => void;
-  /**
-   * 「保存不请求」：applies the whole draft locally — style,
-   * canvas size and the map's own fields. `MapEditorPage` closes the drawer and
-   * writes everything on the toolbar's 保存.
-   */
+  /** 「保存不请求」：把整份草稿（样式、画布尺寸、地图自身字段）应用到本地，真正写库等工具条的「保存」。 */
   onCommit: (style: MapStyle, gridSize: number, entry: MapInfoEntryDraft) => void;
   /** FEAT-E01: reports the dirty flag so the parent can gate drawer switches. */
   onDirtyChange?: (dirty: boolean) => void;
@@ -150,17 +131,7 @@ function Section({
 }
 
 /**
- * The 「地图基本信息」drawer.
- *
- * The drawer is a **form**: every control edits a local draft (written through in
- * real time), the canvas only changes when 保存 is pressed, and 取消 / × /
- * switching to another info panel ask for confirmation first (the parent owns
- * that dialog). 画布尺寸 is part of the same draft since v0.3.10.
- *
- * 名称 / 描述 / 封面 也在这个草稿里。抽屉的「保存」只把草稿交给页面 ——
- * **不发请求**；落库统一等右上角「保存」。这样一次编辑只产生一次写库，
- * 也不会出现「点了保存却只改了一半」的半成品状态。
- * Layer names follow 《画布图层优先级规范》§1.
+ * The 「地图基本信息」drawer. 表单式：控件写本地草稿，画布只在按下保存时才变；取消 / × / 切换面板先确认（对话框归父级）。名称 / 描述 / 封面也在同一草稿里，抽屉的「保存」只交给页面、**不发请求**，一次编辑只写一次库。Layer names follow 《画布图层优先级规范》§1.
  */
 export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>(
   function MapInfoDrawer(
@@ -188,9 +159,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
     const [draftCover, setDraftCover] = useDraft<File | null>(coverFile, open);
     const [draftCoverRemoved, setDraftCoverRemoved] = useDraft<boolean>(coverRemoved, open);
     /**
-     * Set while committing / discarding. `style` only reaches this component on
-     * the next render, so without this the (stale) dirty flag would still read
-     * `true` when the parent immediately runs a deferred switch.
+     * 提交 / 放弃期间置位：`style` 要到下一次渲染才到，否则父级紧接着做延迟切换时脏标记还是旧的 `true`。
      */
     const settledRef = useRef(false);
 
@@ -284,11 +253,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
     };
 
     /**
-     * 「方格大小」这行填的是**上限**，不是定值。
-     *
-     * 渲染时走 `effectiveCellSize` = `min(这个值, 按窗口算出的自适应值)` —— 作者
-     * 写 140 的意思是「别铺得比 140 还大」，窗口小的时候仍然会缩下去。留空
-     * （`null`）就是完全交给窗口。
+     * 「方格大小」填的是**上限**不是定值：渲染走 `min(这个值, 窗口自适应值)`，留空（`null`）即完全交给窗口。
      */
     const cellSizeHint = `方格边长的上限（px），可填 ${MAP_STYLE_CELL_SIZE_MIN} ~ ${MAP_STYLE_CELL_SIZE_MAX}。${
       draft.cellSize === null
@@ -297,10 +262,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
     }`;
 
     /**
-     * v0.7.4 (docs/v0.7.4.md §4): 面板**占据**编辑区右侧一块空间，关掉时不渲染
-     * 任何东西（不再留一条 `translate-x-full` 的浮层）。关掉不丢东西：草稿本来
-     * 就在 `open` 变 true 时重新播种（`useDraft`），关掉只可能是「放弃」或
-     * 「已提交」。
+     * v0.7.4 (docs/v0.7.4.md §4): 面板**占据**右侧一块空间，关掉时什么都不渲染；关掉不丢东西 —— 草稿在 `open` 变 true 时重新播种。
      */
     if (!open) return null;
 

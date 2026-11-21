@@ -13,26 +13,11 @@ export const ITEM_HOVER_LIFT_PX = 4;
 export const ITEM_HOVER_TRANSITION_MS = 120;
 
 // ---- v0.7.13 物品名称提示（docs/v0.7.13.md §2 / v0.8.7 §8） ----
-/**
- * 悬停多久之后报出物品名称。
- *
- * 取 320ms，与全站 Tooltip 对齐 —— 同一块屏上不该有两套「多久算停下来」。提示
- * **跟着光标走**，一块跟着指头的纸片是「我在看这个」，不是「路上冒出来一张卡片」，
- * 所以墙面上的物品按格密排也不会变成提示雨。路过仍然不会触发：320ms 内划过去，
- * 计时器连开都来不及。
- */
+/** 悬停多久之后报出物品名称。 取 320ms，与全站 Tooltip 对齐 —— 同一块屏上不该有两套「多久算停下来」。提示 **跟着光标走**，一块跟着指头的纸片是「我在看这个」，不是「路上冒出来一张卡片」， 所以墙面上的物品按格密排也不会变成提示雨。路过仍然不会触发：320ms 内划过去， 计时器连开都来不及。 */
 export const ITEM_NAME_TIP_DELAY_MS = 320;
 
 // ---- v0.7.5 物品展示变换（docs/v0.7.5.md §3） ----
-/**
- * 已放置物品的**展示**变换：等比例缩放 + 按格偏移。
- *
- * 只影响画出来的那一块，不动脚位（`w` × `h`）—— 脚位是占格 / 擦除 / 碰撞的依据，
- * 展示是「这张图看起来多大、歪到哪儿」。两者分开，作者可以放大一幅装饰树而不
- * 让它变成 3×3 的占格物。
- *
- * 单位是**格**而不是像素：地图的 `cellSize` 可调，像素偏移换个格子大小就错位了。
- */
+/** 已放置物品的**展示**变换：等比例缩放 + 按格偏移。 只影响画出来的那一块，不动脚位（`w` × `h`）—— 脚位是占格 / 擦除 / 碰撞的依据， 展示是「这张图看起来多大、歪到哪儿」。两者分开，作者可以放大一幅装饰树而不让它变成 3×3 的占格物。 单位是**格**而不是像素：地图的 `cellSize` 可调，像素偏移换个格子大小就错位了。 */
 export const ITEM_SCALE_MIN = 0.25;
 export const ITEM_SCALE_MAX = 4;
 export const ITEM_SCALE_STEP = 0.05;
@@ -65,11 +50,7 @@ const clampRound = (value: number | undefined, min: number, max: number, fallbac
   return Math.round(clamped * 100) / 100;
 };
 
-/**
- * 缺键 / 手改 JSON / 老草稿的唯一收口：把三个字段夹到合法区间，缺省给默认值。
- *
- * 渲染与 store 都走这里，所以「画布上看到的」和「写回草稿的」永远是同一个数。
- */
+/** 缺键 / 手改 JSON / 老草稿的唯一收口：把三个字段夹到合法区间，缺省给默认值。 渲染与 store 都走这里，所以「画布上看到的」和「写回草稿的」永远是同一个数。 */
 export function resolveItemTransform(item?: ItemTransformOverride | null): ItemTransform {
   return {
     scale: clampRound(item?.scale, ITEM_SCALE_MIN, ITEM_SCALE_MAX, DEFAULT_ITEM_SCALE),

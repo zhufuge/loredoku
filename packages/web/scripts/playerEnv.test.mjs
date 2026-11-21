@@ -11,11 +11,7 @@ import {
   viteModeOf,
 } from './playerEnv.mjs';
 
-/**
- * 2026-11-09 补（docs/v0.9.0.md §14）：包路径进 `.env` 之后，优先级与「读配置不改环境」
- * 这两件事必须有测试钉住 —— 后者踩过一次真的坑（`VITE_USER_NODE_ENV` 让产物打进了
- * development 版 React，vendor-react 从 205 KB 涨到 416 KB）。
- */
+/** 2026-11-09 补（docs/v0.9.0.md §14）：包路径进 `.env` 之后，优先级与「读配置不改环境」 这两件事必须有测试钉住 —— 后者踩过一次真的坑（`VITE_USER_NODE_ENV` 让产物打进了 development 版 React，vendor-react 从 205 KB 涨到 416 KB）。 */
 
 const tempDirs = [];
 function envDir(files) {

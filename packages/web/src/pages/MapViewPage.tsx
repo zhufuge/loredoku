@@ -49,10 +49,7 @@ import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
 import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 
-/**
- * FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this
- * key only persists the reader's preference across reloads.
- */
+/** FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this key only persists the reader's preference across reloads. */
 const RULER_STORAGE_KEY = 'loredoku.mapview.ruler';
 
 /** Reads the persisted toggle, defaulting to visible (the editor's default). */
@@ -61,25 +58,7 @@ function readStoredRulerVisible(): boolean {
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
 }
 
-/**
- * 只读画布预览，路由 `/:themeCode/maps/:mapId/view`（v0.8.1 起带主题段）。
- *
- * **一条 URL 只由 `:mapId` 决定看什么**。草稿行与版本行都自带 `data`，
- * 直接渲染即可，没有「草稿行 → 去血统里找最新版本号」这一步，也没有 `?v=`
- * 参数：
- *
- * | `:mapId` 命中 | 渲染 |
- * |---|---|
- * | 版本行 | 该行 `data`（发布时冻结的快照） |
- * | 草稿行 | 该行 `data`；`null` 时显示「该草稿还没有画布」 |
- * | 软删版本行 | 照常渲染（读取口不过滤软删，与 fork 源同口径） |
- *
- * It is the old work preview page with the participant half removed: a map
- * version is a frozen canvas, and participants moved to puzzles in v0.5.0
- * (SPEC-K12 / §5.1), so there is no roster to show here — the canvas is the
- * whole entry. Everything else (layout, rulers, hover affordances, the OPT-A01
- * adaptive fit) is unchanged from the page this replaced.
- */
+/** 只读画布预览，路由 `/:themeCode/maps/:mapId/view`（v0.8.1 起带主题段）。 **一条 URL 只由 `:mapId` 决定看什么**。 Everything else (layout, rulers, hover affordances, the OPT-A01 adaptive fit) is unchanged from the page this replaced. */
 export function MapViewPage(): JSX.Element {
   // 主题段在地址里，资源列表按它隔离。
   const { mapId: mapIdParam, themeCode = '' } = useParams<{ mapId: string; themeCode: string }>();
@@ -89,11 +68,7 @@ export function MapViewPage(): JSX.Element {
   const mapId = Number(mapIdParam);
   const valid = Number.isFinite(mapId) && mapId > 0;
 
-  /**
-   * v0.7.4 (docs/v0.7.4.md §3)：从编辑器头部的「预览」进来时（`state.from =
-   * 'editor'`），返回键回编辑器 —— 预览就是为了「看一眼再改」，退到地图列表等于
-   * 把作者丢出去。直接打开这条 URL 的读者仍回列表。
-   */
+  /** v0.7.4 (docs/v0.7.4.md §3)：从编辑器头部的「预览」进来时（`state.from = 'editor'`），返回键回编辑器 —— 预览就是为了「看一眼再改」，退到地图列表等于把作者丢出去。直接打开这条 URL 的读者仍回列表。 */
   const fromEditor = (location.state as { from?: string } | null)?.from === 'editor';
   const backTarget = fromEditor ? `/${themeCode}/maps/${mapId}/edit` : `/${themeCode}/maps`;
   const backTitle = fromEditor ? '返回编辑器' : '返回地图列表';
@@ -107,10 +82,7 @@ export function MapViewPage(): JSX.Element {
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
-  /**
-   * 手形开关：打开后左键直接拖动视图，不必按空格或中键。**默认打开** —— 预览页
-   * 只读，左键没有别的含义，默认能拖才符合「看画」的直觉。
-   */
+  /** 手形开关：打开后左键直接拖动视图，不必按空格或中键。**默认打开** —— 预览页只读，左键没有别的含义，默认能拖才符合「看画」的直觉。 */
   const [panMode, setPanMode] = useState(true);
   /** OPT-902: the cell under the cursor, driving the hover affordances. */
   const [hover, setHover] = useState<CellCoord | null>(null);
@@ -147,21 +119,13 @@ export function MapViewPage(): JSX.Element {
 
   const regions = useMemo(() => draft?.regions ?? [], [draft]);
   const gridSize = draft?.gridSize ?? 0;
-  /**
-   * FEAT-D02: the snapshot carries the map's display constants, so a
-   * published version renders exactly like the editor it came from.
-   */
+  /** FEAT-D02: the snapshot carries the map's display constants, so a published version renders exactly like the editor it came from. */
   const style = useMemo(() => resolveMapStyle(draft?.style), [draft]);
   /** OPT-A01 §1.1: adaptive cell width at 100% zoom (shared with the editor). */
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
-  /**
-   * FEAT-F01 / FEAT-F02: the strip thickness is derived from the snapshot's
-   * `style.ruler` with the **same** `rulerStripSize` pass the editor uses, and
-   * the result is fed back into the adaptive insets so the reserved top / left
-   * bands match the rendered strips pixel for pixel.
-   */
+  /** FEAT-F01 / FEAT-F02: the strip thickness is derived from the snapshot's `style.ruler` with the **same** `rulerStripSize` pass the editor uses, and the result is fed back into the adaptive insets so the reserved top / left bands match the rendered strips pixel for pixel. */
   const rulerScale = cellScale(cellSize);
   const rulerMaxFont =
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
@@ -207,14 +171,7 @@ export function MapViewPage(): JSX.Element {
     });
   };
 
-  /**
-   * OPT-A01 §1.2: measure the viewport and re-fit the board. Clears the
-   * manual-adjustment flag, so this doubles as "重置视图".
-   *
-   * FEAT-F02: the inset carries `showRulers` / `rulerSize`, so the adaptive
-   * pass reserves exactly the bands the ruler strips occupy. The preview has no
-   * floating bottom toolbar, hence `showBottomBar: false`.
-   */
+  /** OPT-A01 §1.2: measure the viewport and re-fit the board. FEAT-F02: the inset carries `showRulers` / `rulerSize`, so the adaptive pass reserves exactly the bands the ruler strips occupy. The preview has no floating bottom toolbar, hence `showBottomBar: false`. */
   const fit = useCallback((): void => {
     const node = containerRef.current;
     userAdjustedRef.current = false;

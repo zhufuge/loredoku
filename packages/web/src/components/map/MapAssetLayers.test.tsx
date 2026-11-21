@@ -8,19 +8,7 @@ import type { CellMap } from '@/lib/canvasLayers';
 import type { CanvasPoint } from '@/lib/grid';
 import { MapBackgroundLayer, MapDecorationLayer, MapItemLayer } from './MapAssetLayers';
 
-/**
- * FEAT-L01 / SPEC-L03 — 「在背景展示该色块」.
- *
- * A colour-block variant fills its cell(s) with the colour on **both** item layers
- * (层 12 背景层 / 层 4 物品层), with no `<img>` anywhere. An ordinary image variant
- * keeps rendering its `<img>`.
- *
- * The look lives on a variant, and an item anchor names one — with the first variant
- * as the fallback for v4 payloads and for variants deleted after publication.
- *
- * **回退规则**（docs/v0.8.3.md §16）：锚点没写 variantId、或写了一个已经不存在的
- * id 时，画第一个形态。那条规则错了，玩家的物品会整块消失。
- */
+/** FEAT-L01 / SPEC-L03：纯色块形态在层 12 与层 4 上都只填色、不画 `<img>`；形态缺失或已删时画第一个（docs/v0.8.3.md §16），错了物品会整块消失。 */
 
 function variant(id: number, overrides: Partial<AssetVariant> = {}): AssetVariant {
   return {
@@ -63,10 +51,7 @@ const assetsById = new Map<number, Asset>([
   [3, bare],
 ]);
 
-/**
- * Both item layers answer the same three questions about an item, so they share
- * one harness — only the cell key that carries the item differs.
- */
+/** 各层对同一件物品的答案一致，只有承载物品的格子键不同 —— 故共用一个 harness。 */
 const layers = [
   {
     name: '层 12 · 背景层',
@@ -177,11 +162,7 @@ describe('层 4 · 物品层 — 物品描边（v0.9.1 §5）', () => {
     expect(painted?.style.filter ?? '').toContain('drop-shadow');
   });
 
-  /*
-   * Safari 在元素没有自己的合成层时会整条 filter 不画。有描边时才要求
-   * 提升合成层（`will-change: filter`），没描边的物品不要白拿一层 —— 盘面上物品
-   * 多，多出来的层直接换成滚动掉帧。
-   */
+  /* Safari 在元素没有独立合成层时整条 filter 不画；只在有描边时提层，物品多的盘面白拿层会掉帧。 */
   it('有描边时把这一层提升成独立合成层', () => {
     paint(2, { width: 4, color: '#FF0000' });
     expect(container.querySelector('img')?.style.willChange).toBe('filter');
@@ -226,11 +207,7 @@ describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () =>
   });
 });
 
-/**
- * 多格物品的整体动效 —— 悬停任一占据格，同一件物品的显示框作为
- * 整体被悬停（hoveredKey 按锚点命中，被 `scale` 撑出去的那圈画也不抢指针）。
- * 抬手、名称提示都随这个整体走。
- */
+/** 多格物品是整体：悬停任一占据格，整件物品的显示框一起抬手（`scale` 撑出的画不抢指针）。 */
 describe('层 4 · 物品层 — 多格物品悬停联动（v0.10.6）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -306,11 +283,7 @@ describe('层 4 · 物品层 — 多格物品悬停联动（v0.10.6）', () => {
   });
 });
 
-/**
- * v0.6.1 (docs/v0.6.1.md §6.2): the anchor names a variant; the first variant is the
- * fallback. One asset with two visibly different variants makes all three branches
- * observable.
- */
+/** v0.6.1（docs/v0.6.1.md §6.2）：锚点命名形态、第一个形态兜底；两个可辨形态让三条分支都可观察。 */
 describe('层 4 · 物品层 — 形态回退（v0.6.1 §6.2）', () => {
   const closed = variant(100, { assetId: 9, name: '关闭', bgColor: '#111111' });
   const open = variant(101, { assetId: 9, name: '打开', bgColor: '#EEEEEE' });
@@ -373,10 +346,7 @@ describe('层 4 · 物品层 — 形态回退（v0.6.1 §6.2）', () => {
   });
 });
 
-/**
- * v0.6.1 (docs/v0.6.1.md §6.2): the background cell names a variant too, now that a
- * background asset may own several. Same three branches, same fallback.
- */
+/** v0.6.1（docs/v0.6.1.md §6.2）：背景格也命名形态，同样是三条分支、同一个兜底。 */
 describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
   const grass = variant(200, { assetId: 19, name: '草地', bgColor: '#33AA33' });
   const sand = variant(201, { assetId: 19, name: '沙地', bgColor: '#DDCC88' });
@@ -439,10 +409,7 @@ describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
   });
 });
 
-/**
- * 三种东西可以同格共存，每层只画自己那一份 —— 背景修饰层不会因为
- * 格子同时还有物品就把物品一起画出来，也不会漏掉自己那格。
- */
+/** 背景、背景修饰、物品可同格共存：每层只画自己那一份，不多画也不漏画。 */
 describe('三层同格共存（v0.10.9）', () => {
   let container: HTMLDivElement;
   let root: Root;

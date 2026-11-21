@@ -8,16 +8,7 @@ import {
   DEFAULT_ASSET_VARIANT_NAME,
 } from '../constants'
 
-/**
- * v0.6.1: variant CRUD payloads (docs/v0.6.1.md §5.3). The asset-level rules —
- * 「an asset keeps at least one variant」「the variant name is unique within its
- * asset」 — live in the service, because they need the sibling rows, not just
- * the payload.
- *
- * The footprint is optional `w` / `h` on the variant — a bed spanning two cells is
- * a property of the look. Optional (not `.default()`!): a default would make an
- * empty PATCH pass the "at least one field" refine. Defaults live in the repo.
- */
+/** v0.6.1 (docs/v0.6.1.md §5.3): variant CRUD payloads; the asset-level rules (≥1 variant, unique name) live in the service, which needs sibling rows. Footprint must stay `.optional()` — `.default()` would let an empty PATCH pass the "at least one field" refine; defaults live in the repo. */
 const footprintSchema = z
   .number()
   .int()

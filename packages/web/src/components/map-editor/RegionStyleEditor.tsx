@@ -21,20 +21,7 @@ import { Hint, NumberField, Row } from '@/components/map-editor/StyleFields';
 import { fontFamilyOptions, hasBundledFonts } from '@/lib/fonts';
 import { Select } from '@/components/ui/select';
 
-/**
- * v0.7.0 (docs/v0.7.0.md §5) — the one layout both info boxes use for a
- * region's display style.
- *
- * The map-level block in 「地图基本信息」 is the **default**; a region stores
- * only what differs from it (`DraftRegion.style`). Editing therefore always
- * happens on **resolved** values — the region box seeds itself from the
- * map-level defaults — and the store re-derives the minimal override on save
- * (`regionStyleOverride`), so a field left at the default never reaches the
- * region record.
- *
- * The label block mirrors the map-level names: 字体（具体字体，v0.7.4）/ 字号 /
- * 描边 / 高亮 / 高亮描边，后四行各是一个大小 + 一个颜色。
- */
+/** v0.7.0 (docs/v0.7.0.md §5) — the one layout both info boxes use for a region's display style. The map-level block in 「地图基本信息」 is the **default**; a region stores only what differs from it (`DraftRegion.style`). The label block mirrors the map-level names: 字体（具体字体，v0.7.4）/ 字号 / 描边 / 高亮 / 高亮描边，后四行各是一个大小 + 一个颜色。 */
 export function RegionStyleEditor({
   idPrefix,
   value,
@@ -45,14 +32,7 @@ export function RegionStyleEditor({
   /** Resolved values — the region's own override already merged over the map default. */
   value: RegionStyle;
   onChange: (next: RegionStyle) => void;
-  /**
-   * **位置偏移只在区域信息里出现**。
-   *
-   * 偏移是「这块区域的标签该往哪挪一点」—— 它只对某一块区域有意义，地图级缺省
-   * 里没有这一项（`MapStyle.regionLabel` 不带 offset）。所以编辑器在「地图基本
-   * 信息」那一处不画这两格，在两个入口共用同一个组件的前提下多加一个开关，
-   * 而不是把组件抄一份。
-   */
+  /** **位置偏移只在区域信息里出现**。 偏移是「这块区域的标签该往哪挪一点」—— 它只对某一块区域有意义，地图级缺省里没有这一项（`MapStyle.regionLabel` 不带 offset）。所以编辑器在「地图基本信息」那一处不画这两格，在两个入口共用同一个组件的前提下多加一个开关， 而不是把组件抄一份。 */
   showOffset?: boolean;
 }): JSX.Element {
   const patchLabel = (
@@ -76,11 +56,7 @@ export function RegionStyleEditor({
     onChange({ ...value, labelOffset: { ...value.labelOffset, ...patch } });
   };
 
-  /**
-   * The picker lists **concrete fonts** — whatever lives in
-   * `src/assets/fonts/` — plus 系统默认. Resolved once per render: the list is a
-   * build-time constant, so there is nothing to subscribe to.
-   */
+  /** The picker lists **concrete fonts** — whatever lives in `src/assets/fonts/` — plus 系统默认. Resolved once per render: the list is a build-time constant, so there is nothing to subscribe to. */
   const fontOptions = fontFamilyOptions(value.label.fontFamily);
 
   return (

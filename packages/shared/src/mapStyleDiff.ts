@@ -1,19 +1,7 @@
 import type { MapStyle } from './constants';
 import { MAP_STYLE_RULER_DEFAULT_SYMBOLS } from './constants';
 
-/**
- * v0.8.0（docs/v0.8.0.md §16.8 / §5 的 S3 快照式）—— 地图风格与主题缺省风格的差异。
- *
- * 主题风格只在**新建地图那一刻**被拷进草稿（§5），之后两边各走各的。所以作者随时
- * 可能需要回答一个问题：「这张图还吃着主题的风格吗？差在哪？」这个函数就是那个
- * 答案：**只列不同的项**，二十几项全列出来没人看。
- *
- * 分四组，用的是作者在「地图基本信息」抽屉里看到的分区名（网格 / 边框 / 标签 /
- * 光标）—— 差异弹窗里说「标签描边颜色」，作者才知道去哪一栏改。
- *
- * 值统一格式化成**屏幕上那种写法**（`1.5px`、`#2f2a24`、`自适应`），而不是原始
- * 数字：这个列表的用途是让人确认「差的是不是我以为的那一项」，不是给人改库。
- */
+/** v0.8.0（docs/v0.8.0.md §16.8 / §5 的 S3 快照式）：地图风格与主题缺省风格的差异 —— **只列不同的项**，分组用「地图基本信息」抽屉里的分区名，值按屏幕上的写法格式化（`1.5px`、`#2f2a24`、`自适应`）。 */
 
 export type MapStyleDiffGroup = '网格' | '边框' | '物品' | '标签' | '光标';
 
@@ -45,14 +33,7 @@ const px = (value: StyleLeaf): string => (value === null ? '自适应' : `${valu
 const pc = (value: StyleLeaf): string => (value === null ? '—' : `${value}%`);
 const raw = (value: StyleLeaf): string => (value === null ? '—' : String(value));
 
-/**
- * 字段表 —— **顺序即显示顺序**。新增一个 `MapStyle` 字段时在这里加一行，否则
- * 弹窗会悄悄漏掉它（漏掉比多一行更糟：作者会以为那一项相同）。
- *
- * 导出：概览页的「缺省风格」表单要按同一份顺序与同一套中文名列出
- * 这二十几项 —— 两份表迟早会漂。`web` 那边只额外带一个「怎么写回去」的表，
- * 标签与顺序仍然只有这里一份。
- */
+/** 字段表 —— **顺序即显示顺序**。新增一个 `MapStyle` 字段时在这里加一行，否则弹窗会悄悄漏掉它（漏掉比多一行更糟：作者会以为那一项相同）。 导出：概览页的「缺省风格」表单要按同一份顺序与同一套中文名列出这二十几项 —— 两份表迟早会漂。`web` 那边只额外带一个「怎么写回去」的表， 标签与顺序仍然只有这里一份。 */
 export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   // 网格
   { key: 'cellSize', group: '网格', label: '方格大小', read: (style) => style.cellSize, format: px },
@@ -114,11 +95,7 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
 /** 显示顺序也固定下来 —— 差异弹窗的分组顺序不该随字段表顺序漂移。 */
 export const MAP_STYLE_DIFF_GROUPS: readonly MapStyleDiffGroup[] = ['网格', '边框', '物品', '标签', '光标'];
 
-/**
- * 两张风格之间有哪几项不一样。`theme` 为 `undefined`（主题还没设缺省风格）时
- * 返回空数组 —— 那时候「差几项」是个没有意义的问题，界面该问的是「要不要把
- * 这张图设成主题的缺省」。
- */
+/** 两张风格之间有哪几项不一样。`theme` 为 `undefined`（主题还没设缺省风格）时返回空数组 —— 那时候「差几项」是个没有意义的问题，界面该问的是「要不要把这张图设成主题的缺省」。 */
 export function diffMapStyle(
   map: MapStyle | undefined,
   theme: MapStyle | undefined,

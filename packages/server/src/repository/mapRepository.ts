@@ -43,39 +43,27 @@ export type MapRowWithLineage = MapRow & {
   version_count?: number | string;
 };
 
-/**
- * `status` / `current_version_no` 两列已删，改由血统推导 ——
- * 每个读单行的查询都带上这两个子查询，比在 service 里补查询少一趟往返。
- */
+/** `status` / `current_version_no` 两列已删，改由血统推导 —— 每个读单行的查询都带上这两个子查询，比在 service 里补查询少一趟往返。 */
 const LINEAGE_MAX_VERSION = db.raw(
   "(SELECT MAX(CAST(v.version AS integer)) FROM maps v WHERE v.root_id = m.root_id AND v.version <> 'draft') AS current_version_no",
 );
 const LINEAGE_VERSION_COUNT = db.raw(
   "(SELECT COUNT(*) FROM maps v WHERE v.root_id = m.root_id AND v.version <> 'draft' AND v.deleted_at IS NULL) AS version_count",
 );
-/**
- * v0.8.0 §19：接口只认主题**编码**，而 `maps` 只存 `theme_id`。与上面两个血统子查询
- * 同一套写法 —— 在主键上做一次标量子查询，省掉「service 里再拼一张 id→code 表」。
- */
+/** v0.8.0 §19：接口只认主题**编码**，而 `maps` 只存 `theme_id`。与上面两个血统子查询同一套写法 —— 在主键上做一次标量子查询，省掉「service 里再拼一张 id→code 表」。 */
 export const THEME_CODE = db.raw(
   '(SELECT t.code FROM themes t WHERE t.id = m.theme_id) AS theme_code',
 );
 
 type CountRow = { count?: string | number } | undefined;
 
-/**
- * 画布尺寸不是列，读草稿即可。`null` = 这张地图还没初始化（创建时不问
- * 尺寸，第一次进编辑器时才写）。
- */
+/** 画布尺寸不是列，读草稿即可。`null` = 这张地图还没初始化（创建时不问尺寸，第一次进编辑器时才写）。 */
 export function draftGridSize(draft: MapDraft | null): number | null {
   const size = draft?.gridSize;
   return typeof size === 'number' && Number.isFinite(size) ? size : null;
 }
 
-/**
- * `status` / `currentVersionNo` 在合并后都是**推导值**（设计 §3）：血统里有版本
- * 行就是 `published` + 最高号，否则 `draft` + `null`。字段名保留，前端零改动。
- */
+/** `status` / `currentVersionNo` 在合并后都是**推导值**（设计 §3）：血统里有版本行就是 `published` + 最高号，否则 `draft` + `null`。字段名保留，前端零改动。 */
 export function toMapEntry(row: MapRowWithLineage): MapEntry {
   const versionNo = versionToNo(row);
   const lineageMax =
@@ -120,21 +108,8 @@ function draftCounts(draft: MapDraft | null): {
   };
 }
 
-/**
- * FEAT-K09 (docs/v0.5.0.md §7.1) — the map list is a union of **work entries**
- * and **version entries**. 两者是同一张表的行，所以并集查询塌成
- * **一条单表查询**（`kind` 由 `version` 列判定），血统聚合用两个子查询。
- *
- * 软删的版本行不出现（设计 §5 四个过滤面之一）：漏掉这个条件，删掉的版本会
- * 「又冒出来」。
- *
- * `params.kind` 让「草稿」「版本」两块各自分页 —— 先按 kind 过滤再算 total，
- * 前端两个请求各拿各的页码与总数。
- *
- * 两块共用一套排序（`sort` / `order`），默认 `updatedAt` 倒序，即最新发布的
- * 版本在最上面。顺序必须由服务端定：客户端只能排当前页，跨页会乱。版本行
- * 插入后不写库，`updated_at` 恒等于发布时刻。
- */
+/** 地图列表 = 工作条目 ∪ 版本行：同一张表，`kind` 由 `version` 列判定（docs/v0.5.0.md §7.1）。
+ *  必须过滤 `deleted_at`（否则删掉的版本又冒出来）；`params.kind` 分开分页，排序只能服务端定。 */
 export async function listMapEntries(
   params: ListMapsParams,
 ): Promise<{ list: MapEntrySummary[]; total: number }> {
@@ -218,10 +193,7 @@ function compareEntries(
   return (b.versionNo ?? 0) - (a.versionNo ?? 0);
 }
 
-/**
- * 软删的行（只可能是版本行）在这里一律不可见 —— 详情、改名、封面、画布写入
- * 全部走这条路，语义统一成「不存在」。
- */
+/** 软删的行（只可能是版本行）在这里一律不可见 —— 详情、改名、封面、画布写入全部走这条路，语义统一成「不存在」。 */
 export async function findById(id: number): Promise<MapRowWithLineage | undefined> {
   return db('maps as m')
     .select('m.*', LINEAGE_MAX_VERSION, LINEAGE_VERSION_COUNT, THEME_CODE)
@@ -230,10 +202,7 @@ export async function findById(id: number): Promise<MapRowWithLineage | undefine
     .first() as Promise<MapRowWithLineage | undefined>;
 }
 
-/**
- * 不过滤软删的按 id 读取 —— 只有 fork 用得上：设计 §5.1 明确「fork 源读取不过滤
- * `deleted_at`」（过滤管可见性，不管直达读取）。
- */
+/** 不过滤软删的按 id 读取 —— 只有 fork 用得上：设计 §5.1 明确「fork 源读取不过滤 `deleted_at`」（过滤管可见性，不管直达读取）。 */
 export async function findByIdIncludingDeleted(
   id: number,
 ): Promise<MapRowWithLineage | undefined> {
@@ -243,11 +212,7 @@ export async function findByIdIncludingDeleted(
     .first() as Promise<MapRowWithLineage | undefined>;
 }
 
-/**
- * FEAT-K03 §2.4: the 「地图版本」 picker's data source — **every published
- * version across every map**, newest first. 合并后版本行就是 maps 行，一次
- * 单表查询即可；软删行过滤掉，名字用发布时的快照（§15 P0-3）。
- */
+/** FEAT-K03 §2.4: the 「地图版本」 picker's data source — **every published version across every map**, newest first. 合并后版本行就是 maps 行，一次单表查询即可；软删行过滤掉，名字用发布时的快照（§15 P0-3）。 */
 export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
   const rows = (await db('maps as m')
     .select('m.*', THEME_CODE)
@@ -266,13 +231,7 @@ export async function listPublishedVersions(): Promise<PublishedMapVersion[]> {
   }));
 }
 
-/**
- * 只服务**自动取名**：复制 / fork 时拼「{base} 副本 N」要用它避开重复。
- *
- * 它**不是唯一性约束**——创建与改名都不查名，同名是允许的（血统里草稿与
- * 版本同名本来就是常态）。查询限定 `version='draft'`：版本名是发布时的
- * 快照，不改名连发十个都同名，拿版本名占位会让副本序列莫名跳号。
- */
+/** 只服务**自动取名**：复制 / fork 时拼「{base} 副本 N」要用它避开重复。 它**不是唯一性约束**——创建与改名都不查名，同名是允许的（血统里草稿与版本同名本来就是常态）。查询限定 `version='draft'`：版本名是发布时的快照，不改名连发十个都同名，拿版本名占位会让副本序列莫名跳号。 */
 export async function existsByName(name: string): Promise<boolean> {
   const row = await db('maps').where({ name, version: 'draft' }).first();
   return Boolean(row);
@@ -300,11 +259,7 @@ export async function getMapCounts(
   };
 }
 
-/**
- * a new map has **no** draft and no canvas size — the first editor
- * entry initialises both (尺寸弹窗 / 导入). `root_id = id` still needs the
- * two-statement transaction. `version` 由 DB 默认值 `'draft'` 兜住。
- */
+/** a new map has **no** draft and no canvas size — the first editor entry initialises both (尺寸弹窗 / 导入). `root_id = id` still needs the two-statement transaction. `version` 由 DB 默认值 `'draft'` 兜住。 */
 export async function createMap(data: CreateMapData): Promise<MapEntry> {
   return db.transaction(async (trx) => {
     const [row] = (await trx<MapRow>('maps')
@@ -340,21 +295,14 @@ export async function updateMap(
   return row ? toMapEntry(row) : undefined;
 }
 
-/**
- * 删工作条目 = **硬删草稿行**，版本行不牵连（软删是另一条路）——「删地图」
- * 不会级联删掉历史版本（设计 §2）。
- */
+/** 删工作条目 = **硬删草稿行**，版本行不牵连（软删是另一条路）——「删地图」 不会级联删掉历史版本（设计 §2）。 */
 export async function deleteMap(id: number): Promise<boolean> {
   const affected = await db('maps').where({ id, version: 'draft' }).del();
   return affected > 0;
 }
 
-/**
- * FEAT-H03 §3.2(c) (docs/v0.4.2.md §3): the only writer of `cover_path`. `null`
- * clears the cover (the `DELETE` route); a path stores the freshly processed
- * image. Map covers keep no mime/size metadata — the column was created before
- * that idea existed, and the card only needs the URL.
- */
+/** `cover_path` 的唯一写入点：`null` 清空封面（DELETE 路由），否则存处理后的图片路径（docs/v0.4.2.md §3）。
+ *  地图封面不存 mime/size —— 列早于那套元数据，卡片只用 URL。 */
 export async function updateCoverPath(
   id: number,
   path: string | null,
@@ -367,12 +315,7 @@ export async function updateCoverPath(
   return findById(id);
 }
 
-/**
- * 「复制」creates an **independent map**: the copy is its own lineage root
- * (unlike `forkFromVersion`, which deliberately stays in the original's
- * lineage). The draft is copied wholesale — its roster / palette, if any, are
- * simply no longer read.
- */
+/** 「复制」creates an **independent map**: the copy is its own lineage root (unlike `forkFromVersion`, which deliberately stays in the original's lineage). The draft is copied wholesale — its roster / palette, if any, are simply no longer read. */
 export async function duplicateMap(
   sourceId: number,
   newName: string,
@@ -410,21 +353,8 @@ export async function duplicateMap(
   });
 }
 
-/**
- * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): opens a published version for
- * editing **without touching the version row**. A new work entry (`version =
- * 'draft'`) is created in the same lineage, seeded with the version's snapshot
- * and inheriting the map's cover (same convention as `duplicate`).
- *
- * `name` 由 service 传入（「{owner.name} (自 v{versionNo})」+
- * 查重兜底，血统内可能有多条草稿，命名必须带来源）；`data` 可传编辑器当前
- * 画布（「保存时才生成草稿」那条路），不传则用快照 data。
- *
- * fork 源**不过滤软删**（设计 §5.1）：过滤管可见性，不管直达读取。
- *
- * Returns the created row's `MapDetail`, or `undefined` when the version
- * does not exist.
- */
+/** SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3)：把已发布版本开成同血统的新草稿（快照 + 封面），不动版本行本身。
+ *  fork 源不过滤软删（过滤只管可见性）；版本不存在返回 undefined。 */
 export async function forkFromVersion(
   id: number,
   versionNo: number,

@@ -5,11 +5,7 @@ import { MAP_COVER_ASPECT, UPLOAD_ALLOWED_MIME, UPLOAD_MAX_SIZE } from '@loredok
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-/**
- * FEAT-H03 (docs/v0.4.2.md §3): a map's cover is optional, and it is a **file**,
- * while create / edit are JSON. So the picker only ever hands the caller a
- * `File` — uploading is the caller's second step.
- */
+/** FEAT-H03 (docs/v0.4.2.md §3): a map's cover is optional, and it is a **file**, while create / edit are JSON. So the picker only ever hands the caller a `File` — uploading is the caller's second step. */
 const COVER_ACCEPT = 'image/png,image/jpeg,image/webp,image/svg+xml';
 /** §3.2(a): the same ceiling the server enforces. */
 const COVER_MAX_MB = Math.round(UPLOAD_MAX_SIZE / 1024 / 1024);
@@ -32,10 +28,7 @@ export interface CoverPickerProps {
   /** §3.2(a): the explicit 「移除」 — the stored cover is dropped on save. */
   removed: boolean;
   disabled?: boolean;
-  /**
-   * `row` = the dialogs' side-by-side frame; `stack` = the editor drawer's
-   * narrow column (the preview takes the full width, buttons go underneath).
-   */
+  /** `row` = the dialogs' side-by-side frame; `stack` = the editor drawer's narrow column (the preview takes the full width, buttons go underneath). */
   layout?: 'row' | 'stack';
   /** 「当前为该{noun}的封面」里的名词 —— 地图与谜题各说各的。 */
   noun?: string;
@@ -45,10 +38,7 @@ export interface CoverPickerProps {
   onRestore?: () => void;
 }
 
-/**
- * §3.2(a): four states, one frame — nothing / a picked file / the stored cover /
- * explicitly removed. 16:10, `object-cover`, same shape as the game deploy box.
- */
+/** §3.2(a): four states, one frame — nothing / a picked file / the stored cover / explicitly removed. 16:10, `object-cover`, same shape as the game deploy box. */
 export function CoverPicker({
   storedUrl,
   file,

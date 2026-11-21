@@ -5,17 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PublishedMapVersion } from '@loredoku/shared';
 import { CreatePuzzleDialog } from './CreatePuzzleDialog';
 
-/**
- * FEAT-K03 (docs/v0.5.0.md §2.4): the 「新建谜题」 dialog.
- *
- * The picker must list **published** map versions and nothing else — that is
- * the whole requirement ("只能选已发布的地图，带版本"), so both the "no
- * published version at all" state and the "n×n is pinned" confirmation are
- * asserted here.
- *
- * Radix portals the panel to `document.body`, so every query goes through
- * `document` (same convention as `ThemeColorDialog.test.tsx`).
- */
+/** FEAT-K03 (docs/v0.5.0.md §2.4)：新建谜题的选择器只能列**已发布**的地图版本 —— 连带验「一个都没有」与「n×n 已钉死」；Radix 挂到 `document.body`，查询一律走 `document`。 */
 
 const versionsRef: { data: PublishedMapVersion[]; isLoading: boolean } = {
   data: [],
@@ -27,11 +17,7 @@ vi.mock('@/hooks/useMaps', () => ({
   usePublishedVersions: () => versionsRef,
 }));
 
-/**
- * v0.8.2 §14：底图选中后不出现主题那一行。主题由地址与底图共同决定，没有别的
- * 选择 —— 复述一遍不换来任何决定。这里给一份主题列表，正是为了让「没渲染」
- * 不成立在「列表没到」这个借口上。
- */
+/** v0.8.2 §14：底图选中后不出现主题那一行。主题由地址与底图共同决定，没有别的选择 —— 复述一遍不换来任何决定。这里给一份主题列表，正是为了让「没渲染」 不成立在「列表没到」这个借口上。 */
 vi.mock('@/hooks/useThemes', () => ({
   useThemes: () => ({
     data: [

@@ -14,15 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
 
-/**
- * 第一次进入编辑器时的「初始化地图」弹窗。
- *
- * 创建地图不问画布尺寸，所以新图的草稿是空的。此时只有两条出路：**填一个
- * 尺寸**开一块空画布，或**导入一份地图**（导出文件的逆操作）。
- *
- * 它不是一个可以关掉的弹窗 —— 关掉它编辑器也没有可渲染的画布，所以没有取消
- * 按钮，返回列表要走左上角的返回键。
- */
+/** 第一次进编辑器时的「初始化地图」弹窗：新图草稿是空的，只有两条出路 —— **填尺寸**开一块空画布，或**导入**一份地图。它不能关（关掉编辑器就没有可渲染的画布），所以没有取消按钮，返回列表走左上角返回键。 */
 interface MapInitDialogProps {
   mapName: string;
   pending: boolean;

@@ -14,10 +14,7 @@ export interface ViewTransform {
   rect: DOMRect;
   pan: { x: number; y: number };
   zoom: number;
-  /**
-   * OPT-A01: the adaptive cell width at 100% zoom. The rendered cell is
-   * `cellSize × zoom` (§1.3).
-   */
+  /** OPT-A01: the adaptive cell width at 100% zoom. The rendered cell is `cellSize × zoom` (§1.3). */
   cellSize: number;
 }
 
@@ -35,13 +32,7 @@ export interface CanvasPoint {
   y: number;
 }
 
-/**
- * v0.8.7 §8：屏幕坐标 → **画布**坐标。
- *
- * 与 {@link clientToCell} 的差别只有一处：不除 `cellSize`。物品名称提示要贴在光标
- * 旁边，它需要的是「光标在纸上的哪个像素」，而不是「第几格」—— 格子大小可调，
- * 像素位置在任何 `cellSize` 下都是同一个点。
- */
+/** v0.8.7 §8：屏幕坐标 → 画布坐标；与 {@link clientToCell} 只差“不除 cellSize”，用于把名称提示贴在光标旁。 */
 export function clientToCanvasPoint(
   clientX: number,
   clientY: number,
@@ -64,10 +55,7 @@ export interface PanGesture {
   panMode: boolean;
 }
 
-/**
- * 一次按下是否开始平移视图。三条入口并存、互不排斥：中键拖动、空格按住拖
- * 左键、手形开关打开后直接拖左键。
- */
+/** 一次按下是否开始平移视图。三条入口并存、互不排斥：中键拖动、空格按住拖左键、手形开关打开后直接拖左键。 */
 export function startsPan(gesture: PanGesture): boolean {
   if (gesture.button === 1) return true;
   if (gesture.button !== 0) return false;

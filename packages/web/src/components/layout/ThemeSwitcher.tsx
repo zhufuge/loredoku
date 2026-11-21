@@ -14,15 +14,7 @@ const MENU_WIDTH = 208;
 const itemClass =
   'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent hover:text-accent-foreground';
 
-/**
- * 门牌色圆点 —— 触发器与菜单里每一行共用一枚，尺寸与描边不许各写一套。
- *
- * 外圈用 `ring-foreground/15` 而不是 `ring-border`：border 在深色下比多数 accent
- * 还深，圈等于没画；foreground 一个 token 在两种明暗里都成立。
- *
- * 没设识别色就画灰点：诚实地说「这间还没挑颜色」，不拿模板色顶上 —— 伪造成
- * 已有的答案比空着更糟。
- */
+/** 门牌色圆点 —— 触发器与菜单里每一行共用一枚，尺寸与描边不许各写一套。 外圈用 `ring-foreground/15` 而不是 `ring-border`：border 在深色下比多数 accent 还深，圈等于没画；foreground 一个 token 在两种明暗里都成立。 没设识别色就画灰点：诚实地说「这间还没挑颜色」，不拿模板色顶上 —— 伪造成已有的答案比空着更糟。 */
 function AccentDot({
   accent,
   testId,
@@ -43,24 +35,7 @@ function AccentDot({
   );
 }
 
-/**
- * v0.8.0 §18：顶栏里的**主题切换器**，位置在日夜图标之前。
- *
- * 「换个主题」是换个世界接着干活，不是去另一个页面：你在 `hlm/puzzles`，
- * 换到默认主题就该落到 `default/puzzles`，而不是主题列表 —— 所以它不该藏在
- * 导航里。
- *
- * 它是一个**下拉**，与日夜图标并列（两者都是「外壳的开关」，不是内容），
- * 触发器直接写出当前主题名 —— 顶栏里始终有一句「你在哪个世界」。
- *
- * 菜单里只有两件事：
- *
- * 1. 换到另一个主题（**保留当前模块**，找不到同名模块就回地图）；
- * 2. 去系统配置页管主题（新建 / 改名 / 删）。
- *
- * 第二件事单独在菜单底部、隔着一条分隔线：它是一个出口，不是第三个主题。出口
- * 不需要副标题解释自己。
- */
+/** v0.8.0 §18：顶栏里的**主题切换器**，位置在日夜图标之前。 「换个主题」是换个世界接着干活，不是去另一个页面：你在 `hlm/puzzles`， 换到默认主题就该落到 `default/puzzles`，而不是主题列表 —— 所以它不该藏在 导航里。 它是一个**下拉**，与日夜图标并列（两者都是「外壳的开关」，不是内容）， 触发器直接写出当前主题名 —— 顶栏里始终有一句「你在哪个世界」。 菜单里只有两件事： 1. 换到另一个主题（**保留当前模块**，找不到同名模块就回地图）； 去系统配置页管主题（新建 / 改名 / 删）。 出口 不需要副标题解释自己。 */
 export function ThemeSwitcher(): JSX.Element | null {
   const workspace = useWorkspace();
   const navigate = useNavigate();

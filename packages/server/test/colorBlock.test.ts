@@ -4,18 +4,7 @@ import { ErrorCode } from '@loredoku/shared';
 import { api, fixtureTheme } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
 
-/**
- * Colour blocks, end to end through the HTTP API.
- *
- * The two rules that matter:
- * - `bgColor` round-trips through create / patch and is rejected when malformed;
- * - deleting the media no longer deactivates an entry that is a colour block
- *   (the v0.3.5 OPT-305 rule is narrowed, not removed).
- *
- * 角色 carries the colour on the row itself. 资源 carries it on a **variant**, so its
- * contract runs through `/api/assets/:id/variants/:variantId` — same
- * rules, one level deeper.
- */
+/** 纯色块走 HTTP 端到端：`bgColor` 往返且非法值被拒；删媒体不再让纯色条目失效（v0.3.5 OPT-305 只是收窄）。角色色在行上，资源色在 variant 上（`/variants/:variantId`）。 */
 
 const created: Array<{ table: 'assets' | 'characters'; id: number }> = [];
 const uploadedDirs: string[] = [];

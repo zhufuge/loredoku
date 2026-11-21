@@ -19,11 +19,7 @@ export async function publish(ctx: Context): Promise<void> {
   success(ctx, version, '发布成功');
 }
 
-/**
- * SPEC-K13 §7.4 (docs/v0.5.0.md): the editor's 版本历史 panel. With Q3 = B this
- * is the **whole blood lineage**, not just this `maps` row, so each
- * entry carries the row that owns it.
- */
+/** SPEC-K13 §7.4 (docs/v0.5.0.md): the editor's 版本历史 panel. With Q3 = B this is the **whole blood lineage**, not just this `maps` row, so each entry carries the row that owns it. */
 export async function list(ctx: Context): Promise<void> {
   const { id } = parseOrThrow(idParamSchema, ctx.params);
   success(ctx, await versionService.listMapVersions(id));
@@ -34,14 +30,7 @@ export async function detail(ctx: Context): Promise<void> {
   success(ctx, await versionService.getVersion(id, versionNo));
 }
 
-/**
- * SPEC-K11 (docs/v0.5.0.md §7.3): "edit this version" creates a **new work
- * entry** in the same lineage; `map_versions` is never written.
- *
- * body 可带 `data` —— 版本条目进编辑器后「保存时才生成草稿」，
- * 那一刻的编辑器画布随 fork 一起写进新行（不传则用快照 data，即版本历史
- * 面板「编辑此版本」的老行为）。
- */
+/** SPEC-K11 (docs/v0.5.0.md §7.3): "edit this version" creates a **new work entry** in the same lineage; `map_versions` is never written. body 可带 `data` —— 版本条目进编辑器后「保存时才生成草稿」， 那一刻的编辑器画布随 fork 一起写进新行（不传则用快照 data，即版本历史面板「编辑此版本」的老行为）。 */
 export async function fork(ctx: Context): Promise<void> {
   const { id, versionNo } = parseOrThrow(versionParamSchema, ctx.params);
   const body = parseOrThrow(forkVersionBodySchema, ctx.request.body ?? {});
@@ -49,10 +38,7 @@ export async function fork(ctx: Context): Promise<void> {
   success(ctx, mapEntry, `已从 v${versionNo} 新增一个条目`);
 }
 
-/**
- * @deprecated v0.5.0 §15 Q9 — superseded by {@link fork}. Kept for historical
- * callers only; no UI entry point reaches it.
- */
+/** @deprecated v0.5.0 §15 Q9 — superseded by {@link fork}；no UI entry reaches it, kept for historical callers. */
 export async function createDraft(ctx: Context): Promise<void> {
   const { id, versionNo } = parseOrThrow(versionParamSchema, ctx.params);
   success(ctx, await versionService.createDraftFromVersion(id, versionNo), '已基于此版本创建草稿');

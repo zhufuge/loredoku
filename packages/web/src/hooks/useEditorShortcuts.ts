@@ -1,22 +1,7 @@
 import { useEffect } from 'react';
 
 /**
- * the keyboard flow both editors share, lifted out of `MapEditorPage` /
- * `PuzzleEditorPage`.
- *
- * The shared keys are the ones that mean the same thing on both canvases:
- * Ctrl/Cmd+S 保存, Space 平移预备, Ctrl/Cmd+Z 撤销（+Shift 重做）, Ctrl/Cmd+0
- * 居中, and the arrow keys moving the cell selection.
- *
- * Everything that differs stays with the page: `onEscape` owns the whole
- * cascade (the map editor leaves the 基本信息 drawer first and asks when it is
- * dirty; the puzzle editor walks slot-drag → position-pick → focus), and
- * `onKey` owns the map-only tool switches (V / R / E) and Delete / Backspace.
- * The puzzle canvas is read-only (SPEC-K07 §4.4), so it passes no `onKey`.
- *
- * The effect deliberately has **no dependency array** — the same choice the
- * pages made: the handlers close over live store state, and re-registering two
- * window listeners per render is cheaper than a stale closure.
+ * 两个编辑器共用的键盘流：Ctrl/Cmd+S 保存、Space 平移预备、Ctrl/Cmd+Z 撤销（+Shift 重做）、Ctrl/Cmd+0 居中、方向键选中格；差异项留页面；effect 故意不写依赖数组（闭包读实时 store）。
  */
 export interface EditorShortcuts {
   save: () => void;
@@ -38,13 +23,7 @@ const ARROW_STEPS: Record<string, [number, number]> = {
   ArrowRight: [1, 0],
 };
 
-/**
- * **焦点在原生下拉里时，字母键不该落到画布上**。
- *
- * `<select>` 获得焦点后按 V / R / E（选地区、选形态时很自然会按）会顺带切换编辑
- * 工具，而屏幕上看不出任何原因 —— 工具条离得远，用户只会觉得「按了个键，工具
- * 自己变了」。
- */
+/** 焦点在原生下拉 / 输入里时，字母键不该落到画布上（否则按 V/R/E 会莫名切工具）。 */
 function isTextEntry(target: EventTarget | null): boolean {
   const node = target as HTMLElement | null;
   if (!node) return false;
@@ -56,13 +35,7 @@ function isTextEntry(target: EventTarget | null): boolean {
   );
 }
 
-/**
- * 有模态框时，画布快捷键整体让位。Radix 的 `Dialog` / `AlertDialog` 打开时会在
- * 内容节点上写 `data-state="open"`，判定不需要拿到 dialog 的引用。
- *
- * 不做这层判断的后果：在「联动条件」「版本历史」这类弹窗里按 Ctrl+Z，撤销的是
- * **弹窗背后**的画布，弹窗里看到的输入却不变 —— 一次误按改掉了看不见的东西。
- */
+/** 有模态框时快捷键整体让位：Radix Dialog 打开时写 `data-state="open"`，不用拿引用。 */
 function hasOpenModal(): boolean {
   if (typeof document === 'undefined') return false;
   return (

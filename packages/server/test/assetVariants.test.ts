@@ -3,13 +3,7 @@ import { ErrorCode } from '@loredoku/shared';
 import { db } from '../src/db/knex';
 import { api, fixtureTheme } from './helpers';
 
-/**
- * v0.6.1 (docs/v0.6.1.md §4 / §5.3) — the variant rules, end to end.
- *
- * Everything here is a rule that needs the sibling rows, so it cannot live in
- * zod: how many variants an asset keeps, whether the name is taken, and whether a
- * draft canvas still points at the variant being deleted.
- */
+/** v0.6.1 (docs/v0.6.1.md §4 / §5.3): variant rules that need sibling rows (数量 / 名称占用 / 草稿仍引用被删的形态) — cannot live in zod. */
 
 const createdAssets: number[] = [];
 const createdMaps: number[] = [];

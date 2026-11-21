@@ -8,20 +8,7 @@ import type { CellMap } from '@/lib/canvasLayers';
 import type { MarkRender } from '@/lib/mark';
 import type { ToolIconsRender } from '@/lib/toolIcons';
 
-/**
- * **这一页会画到的图**清单 —— 交给 `useImagePreload` 去等。
- *
- * 只收「画布 / 名册真的会画」的那些，不收上传原图：图层里取的一直是
- * `imageThumbUrl ?? imageUrl`（见 `components/map/MapAssetLayers.tsx`），
- * 预加载的也应当是同一张，否则等完缩略图、画的时候还要再等一次原图。
- *
- * 各处口径：
- * - 资源：**只看这一关的画布**（`cells` 里每个格子的背景 / 装饰 / 物品），
- *   每个锚点按 `resolveAssetVariant` 取到的那一个形态一张 —— 与图层画的是
- *   同一张。整张资源表里别关用过的资源不该拖着这一页等（v0.11.2 收紧）。
- * - 角色：只看名册里那些位子（`slots`）点到的角色，头像缩略图优先。
- * - 标记 / 工具图标 / 校验圈：各一张。
- */
+/** **这一页会画到的图**清单 —— 交给 `useImagePreload` 去等。 只收「画布 / 名册真的会画」的那些，不收上传原图：图层里取的一直是 `imageThumbUrl ?? imageUrl`（见 `components/map/MapAssetLayers.tsx`）， 预加载的也应当是同一张，否则等完缩略图、画的时候还要再等一次原图。 各处口径：；资源：**只看这一关的画布**（`cells` 里每个格子的背景 / 装饰 / 物品）， 每个锚点按 `resolveAssetVariant` 取到的那一个形态一张 —— 与图层画的是 同一张。；标记 / 工具图标 / 校验圈：各一张。 */
 export function boardImageUrls(input: {
   cells?: CellMap | null;
   assetsById?: Map<number, Asset> | null;
@@ -37,11 +24,7 @@ export function boardImageUrls(input: {
     urls.push(url);
   };
 
-  /*
-   * 画布上的资源：只认 `cells` 里真正落过的那几个锚点。兜底规则必须与图层
-   * 一致 —— 那里也是 `resolveAssetVariant(asset, variantId)`（`variantId`
-   * 缺失或悬空时退回第一个形态），否则「等的图」与「画的图」会错开。
-   */
+  /* 画布上的资源：只认 `cells` 里真正落过的那几个锚点。兜底规则必须与图层一致 —— 那里也是 `resolveAssetVariant(asset, variantId)`（`variantId` 缺失或悬空时退回第一个形态），否则「等的图」与「画的图」会错开。 */
   const pushAsset = (assetId: number, variantId?: number | null): void => {
     const asset = input.assetsById?.get(assetId);
     if (!asset) return;

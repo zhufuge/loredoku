@@ -21,14 +21,7 @@ import { themesApi, type CreateThemePayload, type UpdateThemePayload } from '@/a
 import { forgetThemeCode } from '@/lib/workspace';
 
 /**
- * v0.8.0（docs/v0.8.0.md §7 / §19）—— 主题的取数与写入。
- *
- * 两个细节：
- *
- * 1. `themeKeys.options` 与 `themeKeys.list` 是两个键。切换器只关心「有哪几个主题」，
- *    卡片网格还要四个计数；把它们塞进同一个键会让「改一个主题的名字」把整页的计数
- *    一起重取。
- * 2. 每个键的**第二个参数都是编码**（§19）。主题没有 id 可传 —— 那是服务端的事。
+ * 主题的取数与写入（docs/v0.8.0.md §7 / §19）；`options` 与 `list` 分开是为了改名字不重取整页计数，每个键第二参都是编码。
  */
 export const themeKeys = {
   all: ['themes'] as const,
@@ -77,24 +70,13 @@ export function useUpdateTheme(code: string) {
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
       toast.success('已保存');
     },
-    /**
-     * 失败必须说出来。没有这一条时，400 表现为「点了保存、弹窗不关、什么也没提示」——
-     * 作者会以为是自己没点到，再点两次，然后报「保存不生效」。
-     */
+    /** 失败必须说出来，否则 400 会表现成「点了保存、弹窗不关、什么也没提示」。 */
     onError: (error: Error) => toast.error(error.message || '保存失败'),
   });
 }
 
 /**
- * v0.8.6 §4 / v0.8.7 §4；v0.9.5 更名 —— 主题级的「标记」，**即时保存**。
- *
- * 它不是「新建时抄一份」的缺省，而是本主题里**没单独配置**的谜题读取时的兜底：
- * 换一张图，跟随的关卡（含已发布的）下次打开就是新的。所以成功后要把
- * `themeKeys.all` 底下的一切一起失效 —— 播放页与谜题抽屉都按编码去查这份数据。
- *
- * 卡片里选好文件就上传、点移除就清掉，不再走「编辑 → 保存」。所以这里没有草稿：
- * 成功与失败都要当场有回音，且必须让工作空间里那份 `theme`（`WorkspaceLayout`
- * 从 `useThemes()` 取）一起刷新 —— 否则概览页的预览图要等下一次进页面才变。
+ * 主题级「标记」即时保存（无草稿，成败当场回音）；成功后失效 `themeKeys.all`，并刷新工作空间那份 `theme`。
  */
 export function useUploadThemeMark(code: string) {
   const queryClient = useQueryClient();
@@ -108,10 +90,7 @@ export function useUploadThemeMark(code: string) {
   });
 }
 
-/**
- * 移除主题级标记 = 删掉 `data.mark`：本主题里跟随的谜题回到默认的
- * `×` 字形（自己配过的那几题不受影响）。
- */
+/** 移除主题级标记 = 删掉 `data.mark`：跟随的谜题回到默认 `×` 字形。 */
 export function useRemoveThemeMark(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -124,13 +103,7 @@ export function useRemoveThemeMark(code: string) {
   });
 }
 
-/**
- * v0.8.7 §7 —— 主题的工具按钮图标（清除 / 撤回 / 提交），**一次一枚、即时保存**。
- *
- * 一次一枚是故意的：作者通常只想换「清除」那一枚，重新上传另外两枚既费事又会让
- * 三枚的 `path` 各自变成新文件。成功后同样把 `themeKeys.all` 一起失效 —— 播放页与
- * 谜题抽屉都按编码查这份数据。
- */
+/** 主题的工具按钮图标，一次一枚、即时保存；成功后同样失效 `themeKeys.all`。 */
 export function useUploadThemeToolIcon(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -157,12 +130,7 @@ export function useRemoveThemeToolIcon(code: string) {
   });
 }
 
-/**
- * v0.9.2 §2 —— 长按放置参与者时的**计时环**图，即时保存。
- *
- * 与标记 / 工具图标同一条链路：成功即把 `themeKeys.all` 集体失效 —— 游戏页
- * 是按编码查这份数据的，换一张图所有关卡下次打开（或立即重取）就是新的。
- */
+/** 长按放置的计时环图，即时保存；成功后失效 `themeKeys.all`（游戏页按编码查）。 */
 export function useUploadThemeRing(code: string) {
   const queryClient = useQueryClient();
   return useMutation({
@@ -192,11 +160,7 @@ export function useDeleteTheme() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (code: string) => themesApi.remove(code),
-    /**
-     * v0.8.3（docs/v0.8.3.md §13）：删成功就把「上一次在哪个工作空间」这条记忆
-     * 一起清掉。留着它，接下来每一次「返回工坊」都会拼出 `/已删除的编码/overview`，
-     * 落到「没有编码是 xxx 的主题」—— 而那时候一间工坊明明还在。
-     */
+    /** 删成功就清掉「上一次在哪个工作空间」的记忆，否则「返回工坊」会落到已删除编码。 */
     onSuccess: (_data, code) => {
       forgetThemeCode(code);
       void queryClient.invalidateQueries({ queryKey: themeKeys.all });
@@ -206,18 +170,7 @@ export function useDeleteTheme() {
 }
 
 /**
- * v0.8.6 §3.6 —— 玩家侧要的「主题编码 → 难度分级」。
- *
- * 播放页（`/play`）在 `WorkspaceLayout` 外面，`useWorkspace()`
- * 拿到的是 `null`。`DifficultyBadge` 于是只能落到内置五档 —— 作者在概览页配的名字
- * 与颜色，到了玩家面前一个都不出现，第 6 档以后还直接变成「第 6 档」。
- *
- * 而 `MapGameSummary` 带着 `themeCode`（§19），所以
- * 这里把主题列表取一次、摊成一张表，卡按自己那一关的主题去查。
- *
- * **一次 `/themes` 换掉每张卡各问一次**：列表页二十几张卡，一张一个请求就是二十几次；
- * 主题数量是个位数，整份列表比分头取还小。分级的排序交给 `resolveDifficultyTiers`
- * ——「主题里存着什么顺序」不该由界面猜。
+ * 玩家侧「主题编码 → 难度分级」：播放页在 `WorkspaceLayout` 外，整份 `/themes` 取一次摊表；排序交给 `resolveDifficultyTiers`。
  */
 export function useDifficultyTiersByCode(): (
   code: string | null | undefined,
@@ -239,14 +192,7 @@ export function useDifficultyTiersByCode(): (
 }
 
 /**
- * v0.8.7 §4 —— 按主题编码查「标记」：本主题里**没有单独配置**的谜题读到的就是它。
- *
- * 与 `useDifficultyTiersByCode` 同一种做法（同一份 `/themes`，同一个理由）：播放页与
- * 谜题编辑器都在 `WorkspaceLayout` 外面，`useWorkspace()` 是 `null`，拿不到上下文里
- * 那份 `theme`；而它们要的只是这一个小字段。整份列表取一次摊成表，按编码查。
- *
- * 谜题自己配了就不该用这份 —— 顺序（谜题 → 主题 → ×）在
- * `lib/mark.ts`，两边都走它，不各写一遍。
+ * 按主题编码查「标记」：谜题编辑器在 `WorkspaceLayout` 外只能取一次 `/themes` 摊表；解析顺序（谜题 → 主题 → ×）见 `lib/mark.ts`。
  */
 export function useMarkByCode(): (
   code: string | null | undefined,
@@ -268,11 +214,7 @@ export function useMarkByCode(): (
 }
 
 /**
- * v0.8.7 §7 —— 按主题编码查「工具按钮图标」（清除 / 撤回 / 提交）。
- *
- * 与 `useMarkByCode` 同一个理由、同一份 `/themes`：播放页与谜题编辑器都
- * 在 `WorkspaceLayout` 外面，拿不到上下文那份 `theme`，只能按编码查表。三枚一起给，
- * 因为工具栏一屏要画全套；解析顺序（谜题 → 主题 → 内置）在 `lib/toolIcons.ts`。
+ * 按主题编码查工具按钮图标（三枚一起给）；解析顺序（谜题 → 主题 → 内置）在 `lib/toolIcons.ts`。
  */
 export function useToolIconsByCode(): (
   code: string | null | undefined,
@@ -293,12 +235,7 @@ export function useToolIconsByCode(): (
   );
 }
 /**
- * v0.9.2 §2；v0.9.5 起与校验圈**合并成一张**：按主题编码查**那一圈**。
- *
- * 与标记 / 工具图标同一份 `/themes`、同一个理由：游戏页在工作空间外面，
- * 只能按编码查表。只有一份（`{ image }`），所以不像工具图标那样摊成 `GameToolIcons`。
- *
- * 两个消费点读同一份：长按放置的进度环、提交校验的结果环。
+ * 按主题编码查那一圈（v0.9.5 起进度环与校验圈合并）：游戏页在工作空间外，只能查表。
  */
 export function useRingByCode(): (
   code: string | null | undefined,
@@ -320,15 +257,7 @@ export function useRingByCode(): (
 }
 
 /**
- * 按主题编码查**标尺的行列符号**（默认 `C` / `R`，中文图可能是「列」「行」）。
- *
- * 与标记 / 工具图标 / 那一圈同一份 `/themes`、同一个理由：游戏页、预览页、全屏编辑器
- * 都在 `WorkspaceLayout` 外面，`useWorkspace()` 是 `null`，只能按编码查表。
- *
- * **为什么只有主题有这一项**：符号是「这一套世界怎么念行与列」，跟主题的识别色、
- * 难度分级是同一层的东西；同一主题下的几十张图不该各自去填一遍，更不该出现
- * 「这张图印 C、那张印 列」。地图草稿里即使还留着旧值也**不参与渲染**（v0.10.8 起），
- * 保存时会被剥掉（`stripRulerSymbols`）。
+ * 按主题编码查标尺行列符号（符号属主题层）；地图草稿旧值不参与渲染（v0.10.8 起），保存时由 `stripRulerSymbols` 剥掉。
  */
 export function useRulerSymbolsByCode(): (
   code: string | null | undefined,
@@ -360,13 +289,7 @@ export function useRulerSymbolsByCode(): (
 }
 
 /**
- * v0.9.3 §3 —— 按主题编码查「提交校验」的样子（两档颜色 + 圈图）。
- *
- * 与上面两个 `*ByCode` 同一个理由：游戏页在工作空间外面，只能按编码查表。
- * 这里整份 `checkStyle` 一起给 —— 颜色与圈图是同一个配置的两半，分开取会让
- * 「作者刚改了颜色、圈图还是旧的」这种半新半旧的状态出现在同一帧里。
- *
- * 返回值可能是 `null`（主题没配过），由 `lib/checkStyle.ts` 填默认绿 / 红。
+ * 按主题编码查「提交校验」样式（颜色与圈图同一配置的两半）；未配过返回 `null`，由 `lib/checkStyle.ts` 填默认绿 / 红。
  */
 export function useCheckColorsByCode(): (
   code: string | null | undefined,
@@ -388,14 +311,7 @@ export function useCheckColorsByCode(): (
 }
 
 /**
- * 按主题编码查**结算卡**的配置（图标 + 标题）。
- *
- * 与上面几个 `*ByCode` 同一个理由：游戏页在工作空间外面，只能按编码查表。
- * 整份 `verdict` 一起给 —— 图与文字是同一张卡的两半，分开取会让「刚换了图、
- * 标题还是旧的」这种半新半旧出现在同一帧里。
- *
- * 返回值可能是 `null`（主题没配过），由 `resolveVerdictStyle` 填内置的
- * 🎉 + 「解题成功」。
+ * 按主题编码查结算卡配置（图标 + 标题一起给）；未配过返回 `null`，由 `resolveVerdictStyle` 填内置的 🎉 +「解题成功」。
  */
 export function useVerdictByCode(): (
   code: string | null | undefined,

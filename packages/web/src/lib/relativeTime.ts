@@ -1,12 +1,4 @@
-/**
- * OPT-H04 §4.2 (docs/v0.4.2.md §4): the map **grid card** shows a relative
- * timestamp — 「刚刚 / 5 分钟前 / 3 天前」 — because "how fresh is this map" is
- * what a browsing author actually asks. Past a month the relative form stops
- * meaning anything, so it falls back to an absolute `YYYY-MM-DD`. The list view
- * keeps the absolute `formatDateTime`; only the card switched.
- *
- * Pure and `now`-injectable, so every threshold is unit-testable.
- */
+/** OPT-H04 §4.2 (docs/v0.4.2.md §4): the map **grid card** shows a relative timestamp — 「刚刚 / 5 分钟前 / 3 天前」 — because "how fresh is this map" is what a browsing author actually asks. The list view keeps the absolute `formatDateTime`; only the card switched. Pure and `now`-injectable, so every threshold is unit-testable. */
 
 /** Below one minute → 「刚刚」. */
 export const RELATIVE_MINUTE_MS = 60_000;

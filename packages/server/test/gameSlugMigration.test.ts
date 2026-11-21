@@ -2,11 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GAME_SLUG_MAX_LENGTH, GAME_SLUG_PATTERN, slugError } from '@loredoku/shared';
 import { backfillGameSlugs, uniqueSlugFor } from '../src/service/gameSlugBackfill';
 
-/**
- * v0.4.1 OPT-W04 §4.5 / §12.6: the backfill half of the `map_games.slug`
- * migration. The delivery bar (§13.4) is "存量行回填后无空值、无重复", so the two
- * properties this file pins are exactly those.
- */
+/** v0.4.1 OPT-W04 §4.5 / §12.6: the backfill half of the `map_games.slug` migration. The delivery bar (§13.4) is "存量行回填后无空值、无重复", so the two properties this file pins are exactly those. */
 
 describe('backfillGameSlugs (OPT-W04 §4.5)', () => {
   // 难度不进路径，回填只看名称。

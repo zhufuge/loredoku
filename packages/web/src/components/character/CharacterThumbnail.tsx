@@ -6,30 +6,13 @@ import { cn } from '@/lib/utils';
 interface CharacterThumbnailProps {
   character: Character;
   className?: string;
-  /**
-   * OPT-H06 §6.2 (docs/v0.4.2.md §6): `'plain'` drops the component's own circle
-   * and border, so the **parent** can be the single circle — the participant card
-   * and the participant drawer sit on a theme-colour disc and must not stack a
-   * second (near-white) ring inside it.
-   *
-   * Defaults to `'circle'`: the other call sites (character list, items page,
-   * profiles) keep their v0.4.1 look pixel for pixel.
-   */
+  /** OPT-H06 §6.2 (docs/v0.4.2.md §6): `'plain'` drops the component's own circle and border, so the **parent** can be the single circle — the participant card and the participant drawer sit on a theme-colour disc and must not stack a second (near-white) ring inside it. */
   shape?: 'circle' | 'plain';
   /** OPT-H06: `false` removes the 1 px border. Default `true` (unchanged). */
   bordered?: boolean;
 }
 
-/**
- * CLAR-602 / MOD-703 + OPT-H06: one character's avatar.
- *
- * - `shape="circle"` (default): a round frame with its own border and a muted
- *   placeholder disc — unchanged since v0.4.1.
- * - `shape="plain"`: no frame, no border, no placeholder disc. The image fills
- *   whatever box the parent gives it (the parent clips it with
- *   `overflow-hidden rounded-full`), and a character without artwork shows its
- *   name's first character instead of a second circle.
- */
+/** CLAR-602 / MOD-703 + OPT-H06: one character's avatar.；`shape="circle"` (default): a round frame with its own border and a muted placeholder disc — unchanged since v0.4.1.；`shape="plain"`: no frame, no border, no placeholder disc. */
 export function CharacterThumbnail({
   character,
   className,

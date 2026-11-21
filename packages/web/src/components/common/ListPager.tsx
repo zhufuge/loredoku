@@ -8,12 +8,7 @@ interface ListPagerProps {
 }
 
 /**
- * 地图 / 谜题列表的**紧凑分页条**。
- *
- * 只留「当前位置」一个信息：`‹ 1 / 2 ›`，条数交回 section 标题，块的分界靠
- * 间距与标题承担。
- *
- * 只有一页时整条不渲染 —— 「1 / 1」是噪音。
+ * 地图 / 谜题列表的**紧凑分页条**。 只留「当前位置」一个信息：`‹ 1 / 2 ›`，条数交回 section 标题，块的分界靠间距与标题承担。 只有一页时整条不渲染 —— 「1 / 1」是噪音。
  */
 export function ListPager({ page, totalPages, onPage }: ListPagerProps): JSX.Element | null {
   if (totalPages <= 1) return null;

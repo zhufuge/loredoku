@@ -29,15 +29,7 @@ import { effectiveCellSize } from '@/lib/mapStyle';
 import { rulerStripSize } from '@/lib/ruler';
 
 /**
- * 「棋盘长多大、摆在哪儿、放大到几倍」—— 玩家页的视口。
- *
- * 这一块自成一套：格子大小由容器与视口算，
- * 缩放 / 平移由玩家操作，两者共用同一组 `pan` / `zoom`，而游戏逻辑（放置、
- * 计时、判卷）一次都不读它们。
- *
- * `fit` 的两个分支（竖屏按宽度铺满 / 其余按宽高取小）、标尺条带计入的四边留白、
- * 以及「玩家自己调过视图之后不再自动重排」的豁免，都是「自适应」这件事的全部
- * 输入输出。
+ * 「棋盘长多大、摆在哪儿、放大到几倍」—— 玩家页的视口：格子大小与 pan / zoom 共用一套，游戏逻辑一次不读；`fit`、四边留白、不自动重排是「自适应」的全部输入输出。
  */
 export interface GameViewport {
   /** 自适应算出来的格子边长（未套地图样式的 `cellSize`）。 */
@@ -79,50 +71,21 @@ export function useGameViewport({
   style: MapStyle;
   showRulers: boolean;
   /**
-   * 中列（`<main>`）**这一拍是不是真的挂在文档里**。
-   *
-   * 为什么不能只看 `containerRef.current`：进游戏页时，页面在 loading 期间整个
-   * `<main>` 都不渲染（数据 / 图片没齐就先给 loading），而「挂载」只发生一次 ——
-   * 主 effect 若只依赖 `containerRef` 这个**引用稳定的**对象，它会在 `<main>` 还
-   * 不存在的那一拍跑完并 `return`（`if (!node) return`），之后 `<main>` 长出来
-   * 也没有任何依赖变化把它叫醒：`fit()` 一次都没跑过，格子停在 `DEFAULT_CELL_SIZE`
-   * 的 32、`pan` 停在 `{0, 0}`，棋盘就小小地贴在左上角（用户报的「地图缩小在左
-   * 上方」）。
-   *
-   * 所以要由**页面**告诉它「可以量了」：这个标志从 `false` 翻到 `true` 的那一拍，
-   * 主 effect 重新跑一次，`fit()` 拿真实矩形算格子与居中偏移，ResizeObserver 也
-   * 才真正挂上。
+   * `<main>` 这一拍是否真的挂载：loading 期间不渲染，effect 只依赖稳定的 `containerRef` 不会自己醒，必须靠 `false → true` 重跑，否则 `fit()` 一次都不跑、格子停在 32、棋盘缩左上角。
    */
   ready: boolean;
 }): GameViewport {
   /**
-   * 当前是不是「竖屏窄屏」—— 棋盘按宽度铺满、视图簇收起。
-   *
-   * 判定口径是**窗口**的宽高（`window.innerWidth < 768 && innerHeight > innerWidth`），
-   * 与右栏那串 `portrait:max-md:` 媒体查询是同一个条件；之所以两边都写，是因为
-   * CSS 只能管「显示不显示」，管不了「格子怎么算」。数字必须一致，
-   * `PORTRAIT_BREAKPOINT` 是两边共同的出处（见 `lib/canvasSize.ts`）。
-   *
-   * 只影响渲染，不落盘：转屏、拖窗口都会重新 `fit` 一遍。
+   * 是否「竖屏窄屏」：按 window 宽高判定，必须与 `portrait:max-md:` 同一条件；阈值是 `PORTRAIT_BREAKPOINT`（`lib/canvasSize.ts`），只影响渲染不落盘。
    */
   const [portraitFit, setPortraitFit] = useState(false);
 
   /**
-   * `<main>` 量出来的可见区，只给「定案」遮罩估缩放用。
-   *
-   * 为什么不能只看棋盘：横屏手机上棋盘按作者配的 `cellSize` 能有 900 多，而
-   * `<main>` 只有一百来像素高 —— 按棋盘算出来是「不用缩」，字就顶出可见区了
-   * （用户：「大小要自适应屏幕」）。这里量的是画布容器本身，`<main>` 就是那个
-   * 容器（`containerRef`），`fit` 与它的 `ResizeObserver` 每次都会经过，顺手同步。
-   *
-   * `null` 表示还没量过；那时 `verdictMarkScale` 只按棋盘算（挂载瞬间不闪小的）。
+   * `<main>` 量出来的可见区，只给定案遮罩估缩放用（横屏手机上棋盘可比 `<main>` 大得多）；`null` = 还没量过，那时只按棋盘算。
    */
   const [stageBox, setStageBox] = useState<{ width: number; height: number } | null>(null);
 
-  /**
-   * 视图缩放与拖拽平移，与只读预览页同一套手感 ——
-   * 缩放簇（放大 / 百分比 / 缩小 / 重置）、Ctrl+滚轮、空格或中键拖拽。
-   */
+  /** 视图缩放与拖拽平移：缩放簇、Ctrl+滚轮、空格或中键拖拽，与只读预览页同一套手感。 */
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -130,11 +93,7 @@ export function useGameViewport({
   const userAdjustedRef = useRef(false);
 
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
-  /*
-   * 竖屏下格子大小只认「按宽度铺满」算出来的那个数 —— 地图样式里写死的
-   * cellSize（比如 36）会让 24×24 又变成 864px 宽，把「自适应宽度」抵消掉。
-   * 横屏与桌面仍然听样式的（作者配了就用他的）。
-   */
+  /* 竖屏只认「按宽度铺满」的值，否则样式写死的 cellSize 会抵消自适应。 */
   const cellSize = portraitFit ? autoCellSize : effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
 
@@ -157,10 +116,7 @@ export function useGameViewport({
     [containerRef, gridSize, pan, zoom, cellSize],
   );
 
-  /**
-   * v0.8.7 §8：同一套换算，但不除格子大小 —— 得到的是「光标在纸上的哪个像素」。
-   * 物品名称提示要用它，格子多大都不影响「指头在哪儿」这件事。
-   */
+  /** 同一套换算但不除格子大小，得到「光标在纸上哪个像素」；物品提示用它。 */
   const toCanvasPoint = useCallback(
     (clientX: number, clientY: number): CanvasPoint | null => {
       const node = containerRef.current;
@@ -176,11 +132,7 @@ export function useGameViewport({
   );
 
   /**
-   * OPT-A01 §1.2: measure the viewport and re-fit the board. The game page has
-   * no floating bottom toolbar, hence `showBottomBar: false`.
-   *
-   * 这也是「重置视图」——回到 100% 并居中，同时清掉「用户调整过」
-   * 的标记，让容器尺寸变化重新接管布局。
+   * 测量视口并重排（OPT-A01 §1.2），也是「重置视图」：回 100% 居中并清掉「用户调整过」；游戏页没有浮动底栏，故 `showBottomBar: false`。
    */
   const fit = useCallback((): void => {
     const node = containerRef.current;
@@ -195,30 +147,13 @@ export function useGameViewport({
         : { width: rect.width, height: rect.height },
     );
     /*
-     * 竖屏下棋盘**按宽度铺满**，而不是「宽高取小」。
-     *
-     * 窄屏上那一簇放大 / 缩小 / 重置已经收掉（见右栏视图簇的 `portrait:` 类），
-     * 玩家既没法把棋盘缩小、也没有中键 / 空格去平移 —— 一旦按老算法取「宽高较
-     * 小的那个」，24×24 的棋盘会被 32px 的下限撑到 864 宽，屏幕里只看得到左上
-     * 一角，剩下的永远够不着。改成以宽度为准、下限放到 8px，整张图就在屏内。
-     *
-     * 标尺在竖屏下也一起不画：开关都收起来了，还把 28px 的刻度条留着，等于
-     * 让玩家为一条关不掉的边付宽度。
-     *
-     * 量的是 **window** 而不是画布容器 —— 要和 `portrait:max-md:` 那串媒体查询
-     * 判同一件事，否则会出现「按钮收起来了、棋盘还按桌面排」。jsdom 里窗口是
-     * 1024×768，所以既有用例仍走桌面分支。
+     * 竖屏按宽度铺满（下限 8px）：视图簇已收起、也没法平移，取「宽高较小」会把 24×24 撑到 864 只看左上角；量 window 而非容器才能与 `portrait:max-md:` 判同一件事，竖屏也不画标尺。
      */
     const viewportWidth = typeof window === 'undefined' ? 0 : window.innerWidth;
     const viewportHeight = typeof window === 'undefined' ? 0 : window.innerHeight;
     const portrait = isPortraitViewport(viewportWidth, viewportHeight);
     setPortraitFit(portrait);
-    /*
-     * 竖屏用自己那一套四边留白（四面都是 8），桌面那套
-     * （`CANVAS_PADDING + EXTRA_MARGIN` = 每边 40）在 375 宽的屏上等于白扔两列半
-     * 格子。上下不再比左右多 4px —— 那条缝已经由 `PORTRAIT_STAGE_EXTRA`
-     * 撑开，再各多 4px 只是从下面的线索与名册里硬扣。
-     */
+    /* 竖屏用自己那套四边留白（四面 8）；桌面那套每边 40，在 375 宽屏上白扔两列半。 */
     const insets = portrait
       ? portraitInsets()
       : canvasInsets({ showRulers, showBottomBar: false, rulerSize: rulerStrip });
@@ -238,11 +173,7 @@ export function useGameViewport({
   const fitRef = useRef(fit);
   fitRef.current = fit;
 
-  /*
-   * `ready` 为什么必须在依赖里，见它上面的入参注释 —— 一句话：loading
-   * 期间 `<main>` 不存在，这一拍 `apply()` 与 `observer.observe()` 全没跑，只有
-   * `ready` 翻成 `true` 才能把它们补上。
-   */
+  /* `ready` 必须在依赖里，否则 loading 期间 `<main>` 不在，apply 与 observe 全没跑。 */
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
@@ -271,12 +202,7 @@ export function useGameViewport({
     fitRef.current();
   }, [showRulers]);
 
-  /**
-   * v0.6.2 §4：按住空格 + 拖拽 = 平移画布，与只读预览页同一套手感。
-   *
-   * `preventDefault` 挡的是浏览器把空格当成「翻页 / 点击聚焦元素」——
-   * 这一页没有任何输入框，不会误伤打字。
-   */
+  /** 按住空格 + 拖拽 = 平移（v0.6.2 §4）；`preventDefault` 挡浏览器把空格当翻页。 */
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.code !== 'Space') return;
@@ -294,13 +220,7 @@ export function useGameViewport({
     };
   }, []);
 
-  /**
-   * v0.6.2 §4：按钮以**视口中心**为锚点缩放。按钮在右栏，但用户看的是画布
-   * 中间；以按钮位置为锚点会让棋盘每点一下就往一边跑。
-   *
-   * 缩小到底 / 放大到顶时 `clampZoom` 返回同一个值，这里直接短路 —— 不做无谓
-   * 的 pan 重算。
-   */
+  /** 以视口中心为锚点缩放（按钮在右栏）；`clampZoom` 同值时直接短路。 */
   const zoomBy = (direction: 1 | -1): void => {
     const next = clampZoom(zoom + direction * ZOOM_STEP);
     if (next === zoom) return;

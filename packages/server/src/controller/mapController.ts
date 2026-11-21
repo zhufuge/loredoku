@@ -17,11 +17,7 @@ export async function list(ctx: Context): Promise<void> {
   success(ctx, result);
 }
 
-/**
- * FEAT-K03 (docs/v0.5.0.md §2.4): every published map version, for the
- * 「地图版本」 picker. Registered **before** `/:id` in the router, otherwise
- * `versions` would be parsed as an id.
- */
+/** FEAT-K03 (docs/v0.5.0.md §2.4): every published map version, for the 「地图版本」 picker. Registered **before** `/:id` in the router, otherwise `versions` would be parsed as an id. */
 export async function listPublishedVersions(ctx: Context): Promise<void> {
   success(ctx, await mapService.listPublishedVersions());
 }

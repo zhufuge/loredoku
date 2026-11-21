@@ -9,12 +9,7 @@ import type {
 } from '@loredoku/shared';
 import { PuzzleInfoDrawer, type PuzzleInfoDrawerHandle } from './PuzzleInfoDrawer';
 
-/**
- * SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 holds what the
- * puzzle owns — 名称 / 封面（v0.7.3）、描述、联动主题色 and (v0.6.3 §3)
- * 参与者布局 — and it is a **form** (draft → 保存), the same contract
- * `MapInfoDrawer` follows.
- */
+/** SPEC-K05 (docs/v0.5.0.md §4.2): the puzzle's 「基本信息」 holds what the puzzle owns — 名称 / 封面（v0.7.3）、描述、联动主题色 and (v0.6.3 §3) 参与者布局 — and it is a **form** (draft → 保存), the same contract `MapInfoDrawer` follows. */
 
 function setValue(element: HTMLInputElement | HTMLTextAreaElement, value: string): void {
   const setter = Object.getOwnPropertyDescriptor(
@@ -38,10 +33,7 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
   const palette: MapLinkageColor[] = DEFAULT_LINKAGE_COLORS.map((entry) => ({ ...entry }));
   const onCommit = vi.fn();
   const onRequestClose = vi.fn();
-  /**
-   * Seven slots — one past the column maximum, so a clamp to 6 can be told
-   * apart from a clamp to the roster size (which would allow 7).
-   */
+  /** Seven slots — one past the column maximum, so a clamp to 6 can be told apart from a clamp to the roster size (which would allow 7). */
   const slots: Array<CharacterSlotEntry | null> = [
     {
       characterId: 7,
@@ -260,10 +252,7 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
   });
 });
 
-/**
- * v0.7.3 §2：名称与封面在「基本信息」里。名称进草稿（一个撤销步、随保存落库）；
- * 封面只交 `{ file, removed }` —— 上传是页面的第二步。
- */
+/** v0.7.3 §2：名称与封面在「基本信息」里。名称进草稿（一个撤销步、随保存落库）； 封面只交 `{ file, removed }` —— 上传是页面的第二步。 */
 describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -409,13 +398,7 @@ describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {
   });
 });
 
-/**
- * v0.7.14（docs/v0.7.14.md §2）：题面 —— 全局线索（多条）与结束语。
- *
- * 钉的是**落库后的形状**：空行绝不进数据（否则游戏页会渲染出一行空白），
- * 顺序不能被打乱，结束语要 trim。增长上限在数据侧（`PUZZLE_CLUES_MAX_COUNT`），
- * 界面上表现为「新增」按不动而不是弹一句错。
- */
+/** v0.7.14（docs/v0.7.14.md §2）：题面 —— 全局线索（多条）与结束语。 钉的是**落库后的形状**：空行绝不进数据（否则游戏页会渲染出一行空白）， 顺序不能被打乱，结束语要 trim。增长上限在数据侧（`PUZZLE_CLUES_MAX_COUNT`）， 界面上表现为「新增」按不动而不是弹一句错。 */
 describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -563,13 +546,7 @@ describe('PuzzleInfoDrawer 题面（v0.7.14）', () => {
   });
 });
 
-/**
- * v0.8.6 §4：标记 —— 玩家在游戏页标记排除项时显示的那枚符号。
- *
- * 抽屉负责「选图 → 立即上传 → 把返回的 path 写进本地草稿」这一段，与名称 / 描述
- * 同一个「保存」/ 撤销步；「移除」把草稿清回默认的 `×`（提交 `null`）。上传失败
- * 保留原值并给出提示，绝不静默。
- */
+/** v0.8.6 §4：标记 —— 玩家在游戏页标记排除项时显示的那枚符号。 抽屉负责「选图 → 立即上传 → 把返回的 path 写进本地草稿」这一段，与名称 / 描述同一个「保存」/ 撤销步；「移除」把草稿清回默认的 `×`（提交 `null`）。上传失败保留原值并给出提示，绝不静默。 */
 describe('PuzzleInfoDrawer 标记（v0.8.6 §4）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -694,10 +671,7 @@ describe('PuzzleInfoDrawer 标记（v0.8.6 §4）', () => {
     expect(handle?.isDirty()).toBe(false);
   });
 
-  /**
-   * v0.8.7 §4：这一题没配就跟随主题 —— 预览必须画主题那张，否则作者在抽屉里看到
-   * `×`、玩家在游戏页看到一张图。说明文字也要点明它从哪来。
-   */
+  /** v0.8.7 §4：这一题没配就跟随主题 —— 预览必须画主题那张，否则作者在抽屉里看到 `×`、玩家在游戏页看到一张图。说明文字也要点明它从哪来。 */
   it('这一题没配、主题配了：预览画主题那张，说明写着「跟随主题」', () => {
     const themeSymbol = { path: 'themes/3/forbidden-symbol/theme.webp' };
     remount(null, themeSymbol);

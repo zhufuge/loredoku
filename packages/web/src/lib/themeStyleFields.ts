@@ -24,44 +24,12 @@ import {
   type MapStyle,
 } from '@loredoku/shared';
 
-/**
- * v0.8.3（docs/v0.8.3.md §2）—— 概览页「地图初始样式」表单的字段表。
- *
- * **标签与顺序不在这里**：那是 `MAP_STYLE_FIELDS`（`shared/mapStyleDiff.ts`）的
- * 活儿 —— 差异弹窗已经按它列了二十几项，概览页再抄一份，两份迟早会漂。这里只补
- * 一件那边没有的信息：**怎么改回去**（控件类型与区间）。
- *
- * 于是「显示什么」和「怎么改」严格同一个集合：`MAP_STYLE_FIELDS` 里多一项而这里
- * 没跟，`THEME_STYLE_FIELDS` 会带上 `kind: 'unknown'`，`themeStyleFields.test.ts`
- * 直接失败 —— 而不是在界面上悄悄少一行。
- */
+/** v0.8.3（docs/v0.8.3.md §2）—— 概览页「地图初始样式」表单的字段表。 **标签与顺序不在这里**：那是 `MAP_STYLE_FIELDS`（`shared/mapStyleDiff.ts`）的 活儿 —— 差异弹窗已经按它列了二十几项，概览页再抄一份，两份迟早会漂。 于是「显示什么」和「怎么改」严格同一个集合：`MAP_STYLE_FIELDS` 里多一项而这里 没跟，`THEME_STYLE_FIELDS` 会带上 `kind: 'unknown'`，`themeStyleFields.test.ts` 直接失败 —— 而不是在界面上悄悄少一行。 */
 
-/**
- * v0.8.6 §1：概览页**不列**「方格大小」。
- *
- * 它不是风格，是这张图自己的事 —— 由画布尺寸与「定尺寸」那一刻算出来的值决定
- * （`null` = 按画布自适应），一张图一个数。要改它就去那张图的「基本信息」。
- *
- * 主题的缺省风格里这一项仍然存在，只是这个空间级清单不提供入口。所以这里只做
- * **显示过滤**，不是把字段从 `MapStyle` 里拿掉。
- *
- * 这份「主题设置里不出现的键」是**共用**的：「基本信息」抽屉底部的差异弹窗
- * （`ThemeStyleRow`）不该把「方格大小 168px → 146px」当成「与主题风格不同」报给
- * 作者；两个方向的动作（应用 / 设为）也不该顺手把它带过去。同一份清单管住这三处，
- * 就不会冒出第四处。
- */
+/** v0.8.6 §1：概览页**不列**「方格大小」。 它不是风格，是这张图自己的事 —— 由画布尺寸与「定尺寸」那一刻算出来的值决定 （`null` = 按画布自适应），一张图一个数。 要改它就去那张图的「基本信息」。 主题的缺省风格里这一项仍然存在，只是这个空间级清单不提供入口。 所以这里只做 **显示过滤**，不是把字段从 `MapStyle` 里拿掉。 这份「主题设置里不出现的键」是**共用**的：「基本信息」抽屉底部的差异弹窗 （`ThemeStyleRow`）不该把「方格大小 168px → 146px」当成「与主题风格不同」报给 作者； 同一份清单管住这三处， 就不会冒出第四处。 */
 export const THEME_HIDDEN_STYLE_KEYS = new Set(['cellSize']);
 
-/**
- * **地图草稿里**不参与比对、也不该留存的键 —— 目前是标尺的行列符号。
- *
- * 符号只由主题配置（`MapRulerStrips` 按 `themeCode` 查主题）。地图的「基本信息」
- * 抽屉里从来没有这两个输入框，所以一张旧图里残留的 `C` / `R` 与主题的「列」/「行」
- * 之间的差异，作者在界面上**无处可改** —— 报在差异弹窗里只会让人以为是坏数据。
- *
- * 与 {@link THEME_HIDDEN_STYLE_KEYS} 的区别：那份是「主题设置里不给入口」，
- * 这份是「地图侧根本不留存」，所以主题表单仍然要能配这两项。
- */
+/** 地图草稿不参与比对、也不留存的键（标尺行列符号）；主题侧仍可配，区别见 {@link THEME_HIDDEN_STYLE_KEYS}。 */
 export const MAP_DRAFT_HIDDEN_STYLE_KEYS = new Set(['ruler.columnSymbol', 'ruler.rowSymbol']);
 
 export type ThemeStyleFieldKind = 'number' | 'color' | 'shadow' | 'text' | 'unknown';
@@ -74,20 +42,11 @@ interface WriteSpec {
   suffix?: string;
   /** v0.10.8：`kind: 'text'` 的输入长度上限（标尺符号 4 个字符）。 */
   maxLength?: number;
-  /**
-   * 允许把这个文本字段清空。
-   *
-   * 标尺符号留空是**有意义**的（只显示数字），而字体名留空没有意义 —— 所以默认
-   * 不允许清空，只有标尺符号两行打开它。
-   */
+  /** 允许把这个文本字段清空。 标尺符号留空是**有意义**的（只显示数字），而字体名留空没有意义 —— 所以默认不允许清空，只有标尺符号两行打开它。 */
   allowEmpty?: boolean;
 }
 
-/**
- * 线宽的上下界是同一组（1 ~ 12），字体与间距各有各的；颜色一律走取色控件，
- * 只有阴影环例外 —— 它允许 `rgba()`（`MAP_STYLE_SHADOW_PATTERN`），取色器给不出
- * 带透明度的值。
- */
+/** 线宽的上下界是同一组（1 ~ 12），字体与间距各有各的；颜色一律走取色控件， 只有阴影环例外 —— 它允许 `rgba()`（`MAP_STYLE_SHADOW_PATTERN`），取色器给不出带透明度的值。 */
 const WRITE_SPECS: Record<string, WriteSpec> = {
   'gridSeparator.width': { kind: 'number', min: MAP_STYLE_LINE_WIDTH_MIN, max: MAP_STYLE_LINE_WIDTH_MAX, suffix: 'px' },
   'gridSeparator.color': { kind: 'color' },
@@ -128,13 +87,7 @@ const WRITE_SPECS: Record<string, WriteSpec> = {
   'operationCursorBox.offset': { kind: 'number', min: MAP_STYLE_OPERATION_OFFSET_MIN, max: MAP_STYLE_OPERATION_OFFSET_MAX, suffix: '%' },
 };
 
-/**
- * v0.8.6 §1.6：每项一句解释，跟在地图「基本信息」抽屉的标签后面 —— 两边说的是
- * 同一件事，用的也是同一套写法（英文名先出场，再一句中文）。
- *
- * 为什么放在这里而不是页面里：这里的字段是 `MAP_STYLE_FIELDS` 派生的，页面只
- * 负责排版；解释跟着字段走，才不会出现「表里加了一项、页面上那一行没有问号」。
- */
+/** v0.8.6 §1.6：每项一句解释，跟在地图「基本信息」抽屉的标签后面 —— 两边说的是同一件事，用的也是同一套写法（英文名先出场，再一句中文）。 为什么放在这里而不是页面里：这里的字段是 `MAP_STYLE_FIELDS` 派生的，页面只负责排版；解释跟着字段走，才不会出现「表里加了一项、页面上那一行没有问号」。 */
 const FIELD_HINTS: Record<string, string> = {
   'gridSeparator.width':
     'Grid Separator — 方格之间的内部分隔线。相邻两格共享同一条线，n × n 的画布只有 n − 1 条横线与 n − 1 条竖线。',
@@ -232,19 +185,7 @@ export const THEME_STYLE_FIELDS: readonly ThemeStyleField[] = MAP_STYLE_FIELDS.f
   };
 });
 
-/**
- * 写回一个值，返回**新的** `MapStyle`。
- *
- * 走「深拷贝 + 按路径写」而不是二十几个手写展开：路径就是 `MAP_STYLE_FIELDS` 里的
- * key，两者永远对得上；手写展开则每个字段都要记得把三层对象都铺开，漏一层就会
- * 把兄弟字段抹掉（那份代码在这仓里已经出现过一次）。
- *
- * **没在字段表里的键原样带着** —— 概览页不再列「方格大小」，但主题的风格里那一项
- * 仍然是有效的，改别的字段不该把它抹成 `undefined`（v0.8.6 §1）。
- *
- * `MapStyle` 是纯 JSON，`JSON.parse(JSON.stringify())` 足够，也不必担心 structuredClone
- * 在旧 jsdom 里缺席。
- */
+/** 写回一个值，返回**新的** `MapStyle`。 走「深拷贝 + 按路径写」而不是二十几个手写展开：路径就是 `MAP_STYLE_FIELDS` 里的 key，两者永远对得上； **没在字段表里的键原样带着** —— 概览页不再列「方格大小」，但主题的风格里那一项 仍然是有效的，改别的字段不该把它抹成 `undefined`（v0.8.6 §1）。 `MapStyle` 是纯 JSON，`JSON.parse(JSON.stringify())` 足够，也不必担心 structuredClone 在旧 jsdom 里缺席。 */
 export function writeStyleValue(
   style: MapStyle,
   key: string,
@@ -261,10 +202,7 @@ export function writeStyleValue(
   return next as unknown as MapStyle;
 }
 
-/**
- * v0.8.6 §1：「恢复默认」只把**表单上看得见的**字段拨回出厂值 —— 表单上没有
- * 入口的键改不到，也不该被顺手改掉。
- */
+/** v0.8.6 §1：「恢复默认」只把**表单上看得见的**字段拨回出厂值 —— 表单上没有入口的键改不到，也不该被顺手改掉。 */
 export function resetThemeStyle(style: MapStyle): MapStyle {
   return THEME_STYLE_FIELDS.reduce(
     (next, field) => writeStyleValue(next, field.key, field.read(DEFAULT_MAP_STYLE)),
@@ -272,13 +210,7 @@ export function resetThemeStyle(style: MapStyle): MapStyle {
   );
 }
 
-/**
- * 「应用主题风格」只灌**看得见的**字段，本图自己的方格大小原样留着。
- *
- * 与 `resetThemeStyle` 是同一个招式（逐项写回，而不是整份替换）：整份替换会把
- * 主题里可能残留的 `cellSize` 一起盖上来 —— 作者刚把这张图定成 146px，点一下
- * 「应用主题风格」就变回 168px，而那一项在主题设置里已经看不见了，没处找回来。
- */
+/** 「应用主题风格」只灌**看得见的**字段，本图自己的方格大小原样留着。 与 `resetThemeStyle` 是同一个招式（逐项写回，而不是整份替换）：整份替换会把主题里可能残留的 `cellSize` 一起盖上来 —— 作者刚把这张图定成 146px，点一下「应用主题风格」就变回 168px，而那一项在主题设置里已经看不见了，没处找回来。 */
 export function applyThemeStyle(style: MapStyle, themeStyle: MapStyle): MapStyle {
   return THEME_STYLE_FIELDS.filter((field) => !MAP_DRAFT_HIDDEN_STYLE_KEYS.has(field.key)).reduce(
     (next, field) => writeStyleValue(next, field.key, field.read(themeStyle)),
@@ -286,14 +218,7 @@ export function applyThemeStyle(style: MapStyle, themeStyle: MapStyle): MapStyle
   );
 }
 
-/**
- * 把一份风格收成「主题该存的样子」—— 看不见的键一律归零。
- *
- * 「设为主题风格」若把本图整份 `MapStyle`（含 `cellSize: 146`）写进主题，服务端
- * 建新地图时会自己把 `cellSize` 置 `null`（`mapCanvasService.ts` 的 `initialStyle`），
- * 所以那个数字从来不会生效；但库里会留着一个谁也改不到、谁也看不见的值，下一个读
- * 主题风格的地方就会再踩一次。所以在写进去的那一刻就归零。
- */
+/** 把一份风格收成「主题该存的样子」—— 看不见的键一律归零。 「设为主题风格」若把本图整份 `MapStyle`（含 `cellSize: 146`）写进主题，服务端建新地图时会自己把 `cellSize` 置 `null`（`mapCanvasService.ts` 的 `initialStyle`）， 所以那个数字从来不会生效；但库里会留着一个谁也改不到、谁也看不见的值，下一个读主题风格的地方就会再踩一次。所以在写进去的那一刻就归零。 */
 export function stripThemeHiddenStyle(style: MapStyle): MapStyle {
   return [...THEME_HIDDEN_STYLE_KEYS].reduce<MapStyle>(
     (next, key) => writeStyleValue(next, key, null),

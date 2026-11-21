@@ -53,22 +53,7 @@ interface AssetVariantCardProps {
   onRequestDelete: (variant: AssetVariant) => void;
 }
 
-/**
- * v0.6.1 (docs/v0.6.1.md §8.4): one card per variant. Everything on it saves
- * together; the uploaded file applies immediately, matching the old asset-level
- * rhythm.
- *
- * v0.7.6 (docs/v0.7.6.md §9): the footprint inputs were gone — a variant only
- * described how the asset **looks**. Where it sits and how big it draws was the
- * placement's business (1 cell + `scale`).
- * The footprint lives on the variant (item assets only) — a bed spanning two
- * cells is a property of the look. Editing it here keeps every placement of
- * this variant the same size; the game page just follows along.
- *
- * v0.7.7 (docs/v0.7.7.md §9): the card folds down to its title line, so an asset
- * with many variants stays scannable. The 背景层 / 物品层 subtitle is gone — the
- * type is stated once at the top of the page, not per variant.
- */
+/** v0.6.1 (docs/v0.6.1.md §8.4): one card per variant. The footprint lives on the variant (item assets only) — a bed spanning two cells is a property of the look. The 背景层 / 物品层 subtitle is gone — the type is stated once at the top of the page, not per variant. */
 export function AssetVariantCard({
   asset,
   variant,
@@ -93,11 +78,7 @@ export function AssetVariantCard({
   const uploadMutation = useUploadAssetVariantImage();
   const deleteImageMutation = useDeleteAssetVariantImage();
 
-  /**
-   * 只在换成**另一个形态**时用服务器值重置表单 —— 理由同 `CharacterDetailForm`
-   * （v0.7.13 fix）：上传图片会让 query 失效重取，若跟着 `updatedAt` 重置，
-   * 纯色形态会立刻被按回 `bgColor ? 'color' : 'image'`，刚传上去的图看不见。
-   */
+  /** 只在换成**另一个形态**时用服务器值重置表单 —— 理由同 `CharacterDetailForm` （v0.7.13 fix）：上传图片会让 query 失效重取，若跟着 `updatedAt` 重置， 纯色形态会立刻被按回 `bgColor ? 'color' : 'image'`，刚传上去的图看不见。 */
   /* oxlint-disable react-hooks/exhaustive-deps -- 只在换形态时按服务器值重置，同一条形态的刷新不该覆盖草稿 */
   useEffect(() => {
     setName(variant.name);

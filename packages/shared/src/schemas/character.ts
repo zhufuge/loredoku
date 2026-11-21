@@ -20,29 +20,13 @@ export const characterCodeSchema = z
   .max(CHARACTER_CODE_MAX_LENGTH, `角色编码长度不能超过 ${CHARACTER_CODE_MAX_LENGTH}`)
   .regex(CHARACTER_CODE_PATTERN, '角色编码仅允许字母、数字与下划线');
 
-/**
- * CLAR-601: gender is restricted to `male` / `female`. Missing / null /
- * undefined values are normalised to `male` (default), so callers can never
- * observe `other` / `unknown`.
- */
+/** CLAR-601: gender is restricted to `male` / `female`. Missing / null / undefined values are normalised to `male` (default), so callers can never observe `other` / `unknown`. */
 export const characterGenderSchema = z
   .enum(CHARACTER_GENDERS)
   .default(DEFAULT_CHARACTER_GENDER)
   .describe('角色性别（仅男 / 女，缺省为男）');
 
-/**
- * v0.7.13 (docs/v0.7.13.md §11.4): the 主题色 the character hands to a roster
- * slot — `#RRGGBB`, or `null` for "no default".
- *
- * **`#FFFFFF` is the "no default" value, and is never stored.** The editor has
- * no checkbox: the swatch is always there, so 未指定 needs a colour to show,
- * and white is what the slot falls back to anyway (docs §11.4). Collapsing the
- * two here — rather than in the form — keeps the rule true for every writer,
- * including API clients that never saw the checkbox.
- *
- * The trade: a character genuinely cannot request a white slot. It already had
- * no way to ask for one that differed from "unset", so nothing is lost.
- */
+/** v0.7.13 (docs/v0.7.13.md §11.4): the 主题色 handed to a roster slot — `#RRGGBB`, or `null` for "no default". **`#FFFFFF` means "unset" and is never stored**; the collapse happens here (not in the form) so every writer, API clients included, obeys it. */
 export const characterColorSchema = z
   .string()
   .trim()
@@ -54,13 +38,7 @@ export const characterColorSchema = z
   .nullable()
   .optional();
 
-/**
- * v0.7.13 (docs/v0.7.13.md §11): the 编号 the character hands to a roster slot.
- *
- * Empty text and `null` are the same thing — "no default, use the sequence
- * number" — so they collapse to `null` here instead of reaching the repository
- * as two different ways of saying nothing.
- */
+/** v0.7.13 (docs/v0.7.13.md §11): 编号默认值；空串与 `null` 同义（无默认、用序号），在这里并成 `null`，仓库层只见到一种「没指定」。 */
 export const characterDisplayNameSchema = z
   .string()
   .trim()
@@ -82,10 +60,7 @@ export const createCharacterSchema = z.object({
   color: characterColorSchema,
   /** default 编号 for the roster slot; `null` = no default. */
   displayName: characterDisplayNameSchema,
-  /**
-   * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): enabled right away when the caller
-   * already supplies an appearance (avatar or colour block); omitted → `false`.
-   */
+  /** v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): enabled right away when the caller already supplies an appearance (avatar or colour block); omitted → `false`. */
   isActive: z.boolean().optional(),
 });
 

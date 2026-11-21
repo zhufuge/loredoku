@@ -14,11 +14,7 @@ assetsRouter.post('/:id/enable', controller.enable);
 assetsRouter.post('/:id/disable', controller.disable);
 assetsRouter.get('/:id/usages', controller.usages);
 
-/**
- * The look belongs to a variant, so the asset-level `/:id/image` pair
- * became these variant-scoped routes (docs/v0.6.1.md §5.3). v0.7.6: renamed
- * `forms` → `variants`; the footprint left both the payload and the table.
- */
+/** The look belongs to a variant, so the asset-level `/:id/image` pair became these variant-scoped routes (docs/v0.6.1.md §5.3). v0.7.6: renamed `forms` → `variants`; the footprint left both the payload and the table. */
 assetsRouter.get('/:id/variants', variantController.list);
 assetsRouter.post('/:id/variants', variantController.create);
 assetsRouter.patch('/:id/variants/:variantId', variantController.update);

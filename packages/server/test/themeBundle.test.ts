@@ -9,21 +9,7 @@ import { purgeTheme } from './purge';
 import { db } from '../src/db/knex';
 import { resolveUploadPath } from '../src/utils/paths';
 
-/**
- * v0.8.0（docs/v0.8.0.md §11）—— 资源包的接线测试。
- *
- * 包的**内容**（id 闭包、sha256、体积）在真实数据上验证过一遍（见 §11.2 的实测表），
- * 这里管的是三件在测试里能稳定复现的事：
- *
- * 1. 空主题不许导出（§11.1「0 关已部署」）；
- * 2. 一关已上线就能导出，且包里的引用已经是包内序号（§11.3）；
- * 3. HTTP 层真的流出一个 zip，文件名是 `<code>-bundle-<时间>.zip`（§11.6）。
- *
- * 三条优化（共享主题图 / 按引用裁形态 / 封面 768 webp）各有一条用例。
- *
- * 大部分素材用**纯色块**资源与角色：没有图片文件，包的内容完全确定；只有形态裁剪
- * 与封面两条用例需要真的传图（写进 `storage/uploads`，由 `symbolDirs` 兜底扫掉）。
- */
+/** v0.8.0（docs/v0.8.0.md §11）资源包接线：只覆盖测试里能稳定复现的部分（内容 id 闭包 / sha256 / 体积见 §11.2 实测表）；素材多用纯色块，包内容完全确定。 */
 
 /** 主题在测试里只以**编码**出现 —— 接口没有别的名字（v0.8.0 §19）。 */
 const createdThemes: string[] = [];
@@ -91,13 +77,7 @@ async function createSolidCharacter(themeCode: string): Promise<number> {
   return id;
 }
 
-/**
- * 一关「已经能玩」的谜题：底图 → 发布 → 建谜题 → 名册一位参与者 → 发布 →
- * 部署成一个游戏。返回游戏 slug。
- *
- * `mark: true` 时在发布前走一遍真实的上传端点并把 `path` 存进草稿 ——
- * 打包链路（v0.8.6 §4）要的正是「版本行里有一个上传图路径」这个状态。
- */
+/** 一关「已经能玩」的谜题：底图 → 发布 → 建谜题 → 名册一位参与者 → 发布 → 部署成一个游戏。返回游戏 slug。 `mark: true` 时在发布前走一遍真实的上传端点并把 `path` 存进草稿 —— 打包链路（v0.8.6 §4）要的正是「版本行里有一个上传图路径」这个状态。 */
 async function deployedGame(
   themeCode: string,
   options: { mark?: boolean; toolIcons?: boolean } = {},
@@ -228,13 +208,7 @@ afterAll(async () => {
   for (const code of createdThemes) await api.delete(`/api/themes/${code}`);
 
   /**
-   * 兜底清扫。`DELETE /api/assets/:id` 会因为**已软删的版本行**的草稿还引用着它
-   * 而拒绝 —— 那是产品行为（草稿引用检查不看 `deleted_at`），不是这个用例要验的东西。
-   * 夹具必须自己擦干净，否则每跑一次 `npm test` 都在库里留一个主题。
-   *
-   * §19 起不再「留成软删」：主题的 DELETE 本来就是一条 UPDATE，软删的行还占着
-   * `themes.code`（普通 UNIQUE），一次跑一具尸体，几十次之后表就没法看了。
-   * `purgeTheme` 按外键顺序把这一整个主题物理抬走 —— 包括上面这些删不掉的残留。
+   * 兜底清扫：软删版本行的草稿仍引用着资源，`DELETE /api/assets/:id` 会拒绝（产品行为）；`purgeTheme` 按外键顺序物理删掉整个主题，否则每跑一次库里留一行。
    */
   for (const code of createdThemes) await purgeTheme(code);
 
@@ -298,11 +272,7 @@ describe('资源包导出（§11）', () => {
     expect(built.entries.map((entry) => entry.path)).toContain('theme.json');
   });
 
-  /**
-   * 2026-11-09 补（docs/v0.9.0.md §13）：包里每关只有 `difficulty` **数字**，
-   * 名字与颜色是主题级的。不带它们，播放器列表页只能退回内置五档。
-   * 同时守住另一半：缺省主题不写这个键，老包读起来仍是「没配过」。
-   */
+  /** 2026-11-09 补（docs/v0.9.0.md §13）：包里每关只有 `difficulty` **数字**， 名字与颜色是主题级的。不带它们，播放器列表页只能退回内置五档。 同时守住另一半：缺省主题不写这个键，老包读起来仍是「没配过」。 */
   it('主题配了难度分级 → manifest.theme 带上；没配就一个键都不多', async () => {
     const levels = [
       { level: 1, label: '初' },
@@ -330,10 +300,7 @@ describe('资源包导出（§11）', () => {
     expect('difficultyLevels' in plain.manifest.theme).toBe(false);
   });
 
-  /**
-   * v0.8.6 §4：标记是一张**上传图**，所以打包时它和资源图走同一条「搬文件 +
-   * 改写为包内相对路径」的路 —— 只是目标目录是 `files/marks/`。
-   */
+  /** v0.8.6 §4：标记是一张**上传图**，所以打包时它和资源图走同一条「搬文件 + 改写为包内相对路径」的路 —— 只是目标目录是 `files/marks/`。 */
   it('标记图进包：files/marks 有条目、关卡 JSON 路径已改写、manifest 有 hash', async () => {
     const themeCode = await createTheme();
     const game = await deployedGame(themeCode, { mark: true });
@@ -358,13 +325,7 @@ describe('资源包导出（§11）', () => {
     expect(manifestFile?.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  /**
-   * v0.8.7 §4：谜题没配标记就**跟随主题**。包里必须把它一起装上 —— 否则
-   * 「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
-   *
-   * v0.11.0 §1：主题那张图只装**一份**，所有跟随的关都指向同一个包内地址
-   * `files/marks/theme.webp` —— `FileSink` 按目标路径去重，这里只是把名字取成同一串。
-   */
+  /** v0.8.7 §4：谜题没配标记就**跟随主题**。包里必须把它一起装上 —— 否则「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。 v0.11.0 §1：主题那张图只装**一份**，所有跟随的关都指向同一个包内地址 `files/marks/theme.webp` —— `FileSink` 按目标路径去重，这里只是把名字取成同一串。 */
   it('谜题没配 → 打包装上主题那张，多关共用同一份文件', async () => {
     const themeCode = await createTheme();
     const first = await deployedGame(themeCode);
@@ -395,14 +356,7 @@ describe('资源包导出（§11）', () => {
     }
   });
 
-  /**
-   * v0.9.2 §2；v0.9.6 起长按计时环与提交校验圈**合并成一张**（`ThemeData.ring`）。
-   *
-   * 它是一张**主题级**的图，全主题共用一张 —— 所以不进每一关的 JSON，只装在
-   * `files/ring/` 里一份，路径写进 `manifest.theme.ring.image`。
-   *
-   * 同时守住另一半：没配环的主题不写这个键（老包与新包都按「没有」处理）。
-   */
+  /** v0.9.2 §2；v0.9.6 起长按计时环与提交校验圈**合并成一张**（`ThemeData.ring`）。 它是一张**主题级**的图，全主题共用一张 —— 所以不进每一关的 JSON，只装在 `files/ring/` 里一份，路径写进 `manifest.theme.ring.image`。 同时守住另一半：没配环的主题不写这个键（老包与新包都按「没有」处理）。 */
   it('圆环图进包：files/ring 一份、manifest.theme.ring 指过去', async () => {
     const themeCode = await createTheme();
     await deployedGame(themeCode);
@@ -436,10 +390,7 @@ describe('资源包导出（§11）', () => {
     expect('ring' in plain.manifest.theme).toBe(false);
   });
 
-  /**
-   * 结算卡的图标图与圆环同一条路 —— 搬进 `files/verdict/`，manifest 指过去；
-   * 只配文字时也进 manifest，但不产生任何文件。
-   */
+  /** 结算卡的图标图与圆环同一条路 —— 搬进 `files/verdict/`，manifest 指过去； 只配文字时也进 manifest，但不产生任何文件。 */
   it('结算卡配置进包：图标图搬进 files/verdict、文字与标题原样进 manifest', async () => {
     const themeCode = await createTheme();
     await deployedGame(themeCode);
@@ -497,12 +448,7 @@ describe('资源包导出（§11）', () => {
     expect('verdict' in plain.manifest.theme).toBe(false);
   });
 
-  /**
-   * 列表页那两行字（「N 关可玩」/「已通过 N 关」）随包走。
-   *
-   * 与难度分级同一条规矩：配了就进 manifest（zip 里那份也得有），没配就一个键
-   * 都不多 —— 播放器那边按「有没有这个键」决定用内置那句还是用配的。
-   */
+  /** 列表页那两行字（「N 关可玩」/「已通过 N 关」）随包走。 与难度分级同一条规矩：配了就进 manifest（zip 里那份也得有），没配就一个键都不多 —— 播放器那边按「有没有这个键」决定用内置那句还是用配的。 */
   it('列表页文案进包：配了就带上，没配就一个键都不多', async () => {
     const gameList = { playable: '共 {n} 回', passed: '已了 {n} 桩' };
     const themedCode = await createTheme();
@@ -532,10 +478,7 @@ describe('资源包导出（§11）', () => {
     expect('gameList' in plain.manifest.theme).toBe(false);
   });
 
-  /**
-   * 文件不在了要在打包时中止 —— 与标记、工具图标同一条规矩，
-   * 免得流出一个「玩家打开才发现图 404」的包。
-   */
+  /** 文件不在了要在打包时中止 —— 与标记、工具图标同一条规矩， 免得流出一个「玩家打开才发现图 404」的包。 */
   it('结算图标图不在了 → 打包中止（400 + bundle-incomplete）', async () => {
     const themeCode = await createTheme();
     await deployedGame(themeCode);
@@ -556,10 +499,7 @@ describe('资源包导出（§11）', () => {
     expect(res.body.data).toMatchObject({ kind: 'bundle-incomplete' });
   });
 
-  /**
-   * v0.8.7 §7：三枚工具按钮图标与标记同一条路 —— 搬文件、改写为包内路径。
-   * 文件名带 `-<icon>`：一关最多三张，解压后一眼能看出是哪一枚。
-   */
+  /** v0.8.7 §7：三枚工具按钮图标与标记同一条路 —— 搬文件、改写为包内路径。 文件名带 `-<icon>`：一关最多三张，解压后一眼能看出是哪一枚。 */
   it('工具按钮图标进包：files/icons 三条、关卡 JSON 路径已改写、manifest 有 hash', async () => {
     const themeCode = await createTheme();
     const game = await deployedGame(themeCode, { toolIcons: true });
@@ -588,13 +528,7 @@ describe('资源包导出（§11）', () => {
     expect(manifestFile?.sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  /**
-   * 谜题没配就跟随主题 —— 与标记 §4 的理由一字不差：线上画主题那一套，包里
-   * 若没有，同一关的按钮在两种运行环境里长得不一样。
-   *
-   * v0.11.0 §1：与标记同一条规矩 —— 主题的图只装一份，路径是
-   * `files/icons/theme-<icon>.webp`，所有跟随的关共用。
-   */
+  /** 谜题没配就跟随主题 —— 与标记 §4 的理由一字不差：线上画主题那一套，包里若没有，同一关的按钮在两种运行环境里长得不一样。 v0.11.0 §1：与标记同一条规矩 —— 主题的图只装一份，路径是 `files/icons/theme-<icon>.webp`，所有跟随的关共用。 */
   it('谜题没配工具图标 → 打包装上主题那三枚，多关共用一份', async () => {
     const themeCode = await createTheme();
     const first = await deployedGame(themeCode);
@@ -658,11 +592,7 @@ describe('资源包导出（§11）', () => {
     expect(res.body.data).toMatchObject({ kind: 'bundle-incomplete' });
   });
 
-  /**
-   * v0.11.0 §2：形态按引用裁 —— 只留被格子引用的形态，外加每个被引资源的首形态
-   * （`resolveAssetVariant` 的兜底指着它，`Asset.variants` 也不能为空）。播放器只按
-   * 格子画图、不画资源面板，未引用的形态进包只是白占体积。
-   */
+  /** v0.11.0 §2：形态按引用裁 —— 只留被格子引用的形态，外加每个被引资源的首形态（`resolveAssetVariant` 的兜底指着它，`Asset.variants` 也不能为空）。播放器只按格子画图、不画资源面板，未引用的形态进包只是白占体积。 */
   it('资源的第二形态没被任何格子引用 → 形态和图都不进包', async () => {
     const themeCode = await createTheme();
     const game = await deployedGame(themeCode);
@@ -696,10 +626,7 @@ describe('资源包导出（§11）', () => {
     expect(imageEntries[0]!.path).toMatch(/-1\.webp$/);
   });
 
-  /**
-   * v0.11.0 §3：封面统一裁到 768px 长边、转 webp —— 播放器的列表卡片只有几百
-   * 像素宽，原图进包只会让 zip 变大、首屏多花一次流量。
-   */
+  /** v0.11.0 §3：封面统一裁到 768px 长边、转 webp —— 播放器的列表卡片只有几百像素宽，原图进包只会让 zip 变大、首屏多花一次流量。 */
   it('关卡封面进包：统一 768px webp，不再搬原图', async () => {
     const themeCode = await createTheme();
     const game = await deployedGame(themeCode);
@@ -754,10 +681,7 @@ describe('资源包导出（§11）', () => {
     expect(body.subarray(0, 4).toString('binary')).toBe('PK\x03\x04');
   });
 
-  /**
-   * `?games=` 只打勾上的那几关。两关都在线、只给第二关的 id ——
-   * manifest 与关卡 JSON 都只剩这一关，清单的另一头（取消勾选）由前端管。
-   */
+  /** `?games=` 只打勾上的那几关。两关都在线、只给第二关的 id —— manifest 与关卡 JSON 都只剩这一关，清单的另一头（取消勾选）由前端管。 */
   it('给了 gameIds 就只打选中的那几关', async () => {
     const themeCode = await createTheme();
     const kept = await deployedGame(themeCode);

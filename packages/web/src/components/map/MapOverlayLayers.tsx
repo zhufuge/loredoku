@@ -16,20 +16,7 @@ import { resolveRegionStyle } from '@/lib/regionStyle';
 import { cellRectStyle, parseKey } from './layerGeometry';
 import { RegionHighlightOutline } from './MapRegionLayers';
 
-/**
- * the overlay layers (cell decoration, cursor boxes, labels, linkage
- * highlight), split out of the old `MapLayers.tsx`.
- */
-
-/**
- * 层 8 · 阻挡遮罩（Blocking Mask）— a `rgba(0,0,0,0.18)` mask for
- * cells whose item-layer item has `blocking === true`.
- *
- * The mask sits **below** 区域轮廓线 and **above** 区域高亮线
- * (see `docs/layer-priority.md` §2). The artwork is above it, but every item
- * image keeps a transparent `itemPadding` ring, so the mask stays visible
- * around it. It is inset to the grid separator so it never paints over it.
- */
+/** 层 8 · 阻挡遮罩：在轮廓线之下、高亮线之上（docs/layer-priority.md §2）；内缩到格线，不压线。 */
 export function MapBlockingMaskLayer({
   blockingCells,
   cellSize,
@@ -67,11 +54,7 @@ export function MapBlockingMaskLayer({
   );
 }
 
-/**
- * 层 1 · 鼠标光标框（Mouse Cursor Box）— follows the pointer and is always the
- * top-most element on the board. Width, colours and the shadow ring come from
- * `style.mouseCursorBox`.
- */
+/** 层 1 · 鼠标光标框：跟指针，盘面最上层；宽度、颜色、阴影取自 `style.mouseCursorBox`。 */
 export function MapMouseCursorBoxLayer({
   cell,
   blocked,
@@ -100,11 +83,7 @@ export function MapMouseCursorBoxLayer({
   );
 }
 
-/**
- * 层 2 · 操作光标框（Operation Cursor Box）— pinned to the clicked cell. Drawn
- * as an Outline outside the grid line, so when it shares a cell with the mouse
- * box the mouse line reads as the inner one.
- */
+/** 层 2 · 操作光标框：画在格线外侧，与鼠标框同格时鼠标线读作内线。 */
 export function MapOperationCursorBoxLayer({
   cell,
   cellSize,
@@ -134,14 +113,7 @@ export function MapOperationCursorBoxLayer({
 /** 没有联动高亮时的空清单 —— 免得每次渲染都造一个 `[]`。 */
 const NO_HIGHLIGHTED_REGIONS: readonly string[] = [];
 
-/**
- * 层 3 · 区域标签（Region Label）— the region name text, drawn above the
- * artwork with stroke + fill colours and a hover pair.
- *
- * The label is three-level (map default + region override): this layer reads
- * each region's resolved style, like the outline and highlight layers do, which
- * is what makes the per-region `fontFamily` field meaningful.
- */
+/** 层 3 · 区域标签：读每块区域已解析的样式，逐区域的 `fontFamily` 才生效。 */
 export function MapRegionLabelLayer({
   regions,
   cellSize,
@@ -155,11 +127,7 @@ export function MapRegionLabelLayer({
   cellSize: number;
   style: MapStyle;
   hoveredRegionId?: string | null;
-  /**
-   * 联动高亮（参与者 → 关联区域）命中的区域 id。
-   *
-   * 与悬停一样用那一套样式 —— 两者都是「这块区域正被指着」。
-   */
+  /** 联动高亮命中的区域 id；与悬停同一套样式 —— 都是「正被指着」。 */
   highlightedRegionIds?: readonly string[];
   onHover?: (id: string | null) => void;
   onSelect?: (id: string) => void;
@@ -173,36 +141,19 @@ export function MapRegionLabelLayer({
       {regions.map((region) => {
         const anchor = region.labelCell ?? computeLabelCell(region.cells);
         if (!anchor) return null;
-        /*
-         * 圆心的横坐标取「锚点这一行里本区域格子的像素跨度中点」，而不是格心 ——
-         * 底部行是偶数格时格心会右偏半格。锚点被挪到别的行 / 盘面之外时退回格心。
-         */
+        /* 横坐标取锚点行内本区域格子的像素跨度中点，非格心 —— 底部行偶数格时格心会右偏半格。 */
         const centerX = labelRowCenterX(region.cells, anchor[1]) ?? anchor[0] + 0.5;
         const hovered = hoveredRegionId === region.id;
         /** 悬停与联动高亮是同一件事 —— 这块区域正被指着，标题就亮。 */
         const lit = hovered || highlightedRegionIds.includes(region.id);
         const resolved = resolveRegionStyle(style, region.style);
         const label = resolved.label;
-        /*
-         * 每块区域自己那份**位置偏移**，单位是**格的百分比**（100 = 一格）。
-         * 作者填的数直接乘格子尺寸就是像素，所以「往右四分之一格」在任何格子
-         * 大小下都落在同一个位置。
-         *
-         * 它跟着纸一起 `transform`（父层带着 zoom / pan），所以缩放时不用另算。
-         */
+        /* 位置偏移单位是格的百分比（100 = 一格），乘格子尺寸即像素；随父层 transform，缩放不必另算。 */
         const offset = resolved.labelOffset;
         const offsetX = (offset.x / 100) * cellSize;
         const offsetY = (offset.y / 100) * cellSize;
         const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
-        /*
-         * 标签**不接管点击**：按下沿 React 树冒泡到画布容器的 `onPointerDown`，
-         * 由它按 `clientToCell` 换算成格子，再做放置 / 选择 —— 与点盘面上任何
-         * 一处像素完全同一条路。
-         *
-         * 保留 `pointer-events-auto`：悬停要能点亮它自己那块区域（标签可能被
-         * `labelCell` / 偏移推到盘面之外，那里没有格子可悬停）。`select-none`
-         * 是为了按住拖动时不选中文字。
-         */
+        /* 标签不接管点击（冒泡给画布按 `clientToCell` 算格）；保留 `pointer-events-auto` 才能悬停点亮被偏移到盘面外的标签。 */
         return (
           <span
             key={`label-${region.id}`}
@@ -227,19 +178,7 @@ export function MapRegionLabelLayer({
             }
             onMouseEnter={() => onHover?.(region.id)}
             onMouseLeave={() => onHover?.(null)}
-            /*
-             * 地图编辑里标签要**吃掉**这次按下，游戏页 / 谜题预览里不能吃。
-             *
-             * 画布选格发生在容器自己的 `onPointerDown` 里（`EditorCanvas`
-             * `handlePointerDown` → `selectCellAt`），而 `pointerdown` 早于
-             * `click` —— 只拦 `click` 的话，按下那一刻格子就已经被选中了。
-             *
-             * 判据是 `onSelect` 在不在：只有地图编辑器会传它（点击弹信息框），
-             * 游戏页与谜题预览不传 —— 那里「点标签 = 点底下那格」。
-             *
-             * 不 `preventDefault()`：后者会抑制兼容的 `click`，标签就点不开了；
-             * 按住拖动不选中文字，这一点另有处理。
-             */
+            /* 只有编辑器（传了 `onSelect`）吃掉按下：`pointerdown` 早于 `click`，只拦 `click` 时格子已被选中；不 `preventDefault`，否则标签点不开。 */
             onPointerDown={
               onSelect
                 ? (event) => {
@@ -247,11 +186,7 @@ export function MapRegionLabelLayer({
                   }
                 : undefined
             }
-            /*
-             * `click` 的拦截同样跟着 `onSelect` 走：没传它的页面（谜题编辑器、
-             * 游戏页、预览页）抬手那一下要能冒到容器的 `onClick`（`dispatchCell`），
-             * 否则点标签等于什么都没发生 —— 标签在这些页面「等于点它底下那一格」。
-             */
+            /* 拦 `click` 同样跟着 `onSelect`：没传的页面要能冒到容器 `dispatchCell` —— 点标签等于点它底下那格。 */
             onClick={
               onSelect
                 ? (event) => {
@@ -270,20 +205,7 @@ export function MapRegionLabelLayer({
   );
 }
 
-/**
- * Highlight layer (OPT-903, updated by MOD-802 / FEAT-D02).
- *
- * CLAR-603: characters no longer occupy cells, so the layer only draws the
- * cell / background / region overlays; the roster panel handles the
- * `characters` outline directly.
- *
- * The three groups are rendered as separate z-indexed groups instead of one
- * wrapper — a wrapper with a `z-index` would form a stacking context and clip
- * its children's order.
- *
- * MOD-802: highlights are persistent (no auto-expiry). `leaving` applies the
- * 150ms fade-out when an activation ends.
- */
+/** 高亮层（OPT-903 / MOD-802）：三组各自 z-index，套一层会成层叠上下文打乱次序；持久，结束时 150ms 淡出。 */
 export function MapHighlightLayer({
   highlight,
   regions = [],

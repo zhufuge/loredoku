@@ -30,10 +30,7 @@ export interface CreateCharacterData {
   color?: string | null;
   /** 编号 handed to a roster slot; `null` / omitted = no default. */
   displayName?: string | null;
-  /**
-   * Create enabled when the caller already supplied an
-   * appearance; omitted keeps the OPT-305 default (`false`).
-   */
+  /** Create enabled when the caller already supplied an appearance; omitted keeps the OPT-305 default (`false`). */
   isActive?: boolean;
 }
 
@@ -178,15 +175,8 @@ function asRecord(raw: unknown): Record<string, unknown> | null {
   return raw as Record<string, unknown>;
 }
 
-/**
- * the roster moved from the map draft to the puzzle, so a character can
- * be referenced in **two** places while stored data ages:
- *
- * - `puzzles.data.characterSlots` — where it lives now;
- * - `maps.data.characterSlots` — v0.4.x drafts, still in the
- *   database (the reader ignores them, but they must not keep a dangling
- *   character id after a hard delete).
- */
+/** 名册已从地图草稿移到谜题；存量 v0.4.x `maps.data.characterSlots` 仍可能引用它，
+ *  硬删时必须一并清掉，否则留下悬挂 id。 */
 export async function clearCharacterFromDrafts(trx: Knex.Transaction, id: number): Promise<void> {
   const puzzles = (await trx('puzzles')
     .whereNotNull('data')
@@ -231,14 +221,8 @@ export async function hardDelete(id: number, clearReferences: boolean): Promise<
   });
 }
 
-/**
- * FEAT-K01: where a character is used. v0.5.0 reads **puzzles** first (the
- * roster's new home) and reports any v0.4.x map draft that still holds one, so
- * a hard delete never leaves a dangling reference behind.
- *
- * 谜题自带底图，所以「在哪张图上」直接读 `data.map` 快照；软删的版本行不算使用
- * （它已经不在界面上）。
- */
+/** 角色被哪些地方引用：先读谜题（名册新家），再报存量 v0.4.x 地图草稿，硬删才不会留悬挂引用。
+ *  图来自 `data.map` 快照；软删的版本行不算使用。 */
 export async function getUsages(characterId: number): Promise<CharacterUsage[]> {
   const puzzleRows = (await db('puzzles')
     .whereNull('deleted_at')
@@ -296,12 +280,8 @@ export interface CharacterSlotMeta {
   hasAppearance: boolean;
 }
 
-/**
- * CLAR-603 P2 (docs/v0.3.1.md §3.3): participants without an avatar are
- * treated as not enabled and are not counted. v0.5.1 FEAT-L02 widens it —
- * a **colour block** is a valid appearance as well, so `hasAppearance` is the
- * value to test. Only ids that exist are present in the returned map.
- */
+/** CLAR-603 P2 (docs/v0.3.1.md §3.3)：无头像视为未启用、不计数；v0.5.1 起色块也算外观，应测 `hasAppearance`。
+ *  返回的 map 只含存在的 id。 */
 export async function characterSlotMetaByIds(
   ids: number[],
 ): Promise<Map<number, CharacterSlotMeta>> {

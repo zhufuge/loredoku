@@ -12,12 +12,7 @@ import { AppError } from '../utils/AppError';
 import { processAssetVariantImage } from '../utils/image';
 import { getAsset } from './assetService';
 
-/**
- * v0.6.1 (docs/v0.6.1.md §4) — the variant rules that need the sibling rows, so
- * they cannot live in zod:
- *   - an asset keeps at least one variant;
- *   - a variant may only be deleted while no draft canvas points at it.
- */
+/** v0.6.1 (docs/v0.6.1.md §4) — the variant rules that need the sibling rows, so they cannot live in zod:；an asset keeps at least one variant;；a variant may only be deleted while no draft canvas points at it. */
 
 async function requireAsset(assetId: number): Promise<Asset> {
   const asset = await assetRepo.getAsset(assetId);
@@ -105,11 +100,7 @@ export async function uploadImage(
   return getAsset(assetId);
 }
 
-/**
- * v0.6.1 (docs/v0.6.1.md §4.5): deleting the last look leaves nothing to render,
- * so the asset deactivates — the v0.5.1 rule, widened from "no image and no
- * colour" to "no variant has either".
- */
+/** v0.6.1 (docs/v0.6.1.md §4.5): deleting the last look leaves nothing to render, so the asset deactivates — the v0.5.1 rule, widened from "no image and no colour" to "no variant has either". */
 export async function deleteImage(assetId: number, variantId: number): Promise<Asset> {
   await requireAsset(assetId);
   if (!(await variantRepo.findById(assetId, variantId))) {

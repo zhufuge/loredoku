@@ -5,15 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Theme } from '@loredoku/shared';
 import { ThemeSwitcher } from './ThemeSwitcher';
 
-/**
- * v0.8.0 §18：顶栏的主题切换器。
- *
- * v0.8.3（docs/v0.8.3.md §16）：只留**路由与非空行为** —— 换主题保留当前
- * 模块、认不出模块落概览、出口通向系统配置、没有工作空间上下文就整块不渲染。
- *
- * 触发器上的文字、那颗识别色圆点、菜单里标出当前项这些是观感，界面还要大改，
- * 钉在这里只会每天早上叫一次；观感交给 `docs/design-system.md` 与真实页面。
- */
+/** v0.8.0 §18：顶栏的主题切换器。 v0.8.3（docs/v0.8.3.md §16）：只留**路由与非空行为** —— 换主题保留当前模块、认不出模块落概览、出口通向系统配置、没有工作空间上下文就整块不渲染。 触发器上的文字、那颗识别色圆点、菜单里标出当前项这些是观感，界面还要大改， 钉在这里只会每天早上叫一次；观感交给 `docs/design-system.md` 与真实页面。 */
 
 const workspaceRef: { value: ReturnType<typeof workspace> | null } = { value: null };
 
@@ -105,12 +97,7 @@ describe('ThemeSwitcher（v0.8.0 §18）', () => {
     expect(window.localStorage.getItem('loredoku.lastTheme')).toBe('default');
   });
 
-  /**
-   * 认不出模块（`/hlm` 本身、或一个不存在的段）时落**概览**。
-   *
-   * 概览才是这个空间的首页，也是导航第一项 —— 不在一个不认识的地址上替作者
-   * 挑定一间房。
-   */
+  /** 认不出模块（`/hlm` 本身、或一个不存在的段）时落**概览**。 概览才是这个空间的首页，也是导航第一项 —— 不在一个不认识的地址上替作者挑定一间房。 */
   it('认不出模块时落概览 —— 不在陌生地址上替作者挑一间房', () => {
     initialPath = '/hlm/nope';
     render();

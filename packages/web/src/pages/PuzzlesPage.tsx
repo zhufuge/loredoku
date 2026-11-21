@@ -46,16 +46,7 @@ const VIEW_STORAGE_KEY = 'loredoku.puzzles.view';
 
 type SortOption = 'updatedAt' | 'name';
 
-/**
- * 谜题列表与地图列表同构（v0.7.1 §6）：正文拆「草稿」「版本」两块，
- * **两块各自分页** —— 同一端点带 `kind` 发两个请求，各带自己的页号与 `total`；
- * 共用一页的话，版本密集时某一页可能只出现版本块、草稿全在别页。
- *
- * 关键词与排序都走服务端（客户端只能排当前页）。排序两块共用一套。
- *
- * 按钮集与地图一致（编辑信息 / 预览 / 复制 / 删除），只多一个**部署**：
- * 它只出现在版本条目上 —— 草稿永远不满足「已发布」，按钮连渲染都不渲染。
- */
+/** 谜题列表与地图列表同构（v0.7.1 §6）：正文拆「草稿」「版本」两块， **两块各自分页** —— 同一端点带 `kind` 发两个请求，各带自己的页号与 `total`； 共用一页的话，版本密集时某一页可能只出现版本块、草稿全在别页。 关键词与排序都走服务端（客户端只能排当前页）。排序两块共用一套。 按钮集与地图一致（编辑信息 / 预览 / 复制 / 删除），只多一个**部署**： 它只出现在版本条目上 —— 草稿永远不满足「已发布」，按钮连渲染都不渲染。 */
 export function PuzzlesPage(): JSX.Element {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -64,10 +55,7 @@ export function PuzzlesPage(): JSX.Element {
   const [keywordInput, setKeywordInput] = useState('');
   const [keyword, setKeyword] = useState('');
   const [sort, setSort] = useState<SortOption>('updatedAt');
-  /**
-   * v0.8.0 §18：主题来自地址（`/:code/puzzles`）。谜题的边界来自底图，所以这里筛的是
-   * 「底图属于哪个主题」—— 与列表里那些谜题实际所属的主题一致。
-   */
+  /** v0.8.0 §18：主题来自地址（`/:code/puzzles`）。谜题的边界来自底图，所以这里筛的是「底图属于哪个主题」—— 与列表里那些谜题实际所属的主题一致。 */
   const workspace = useWorkspace();
   const themeCode = workspace?.themeCode ?? null;
   const [view, setView] = useStoredView(VIEW_STORAGE_KEY);
@@ -146,11 +134,7 @@ export function PuzzlesPage(): JSX.Element {
     return map;
   }, [gamesQuery.data]);
 
-  /**
-   * 部署一条**新版本**时：同一谜题（同一个 rootId）的别的版本若已部署过，把它
-   * 的难度与顺序当作默认值带进弹窗。这里另取整条血统 —— 列表页的 `versions`
-   * 只是当前页 12 条，兄弟版本常在别的页上。
-   */
+  /** 部署一条**新版本**时：同一谜题（同一个 rootId）的别的版本若已部署过，把它的难度与顺序当作默认值带进弹窗。这里另取整条血统 —— 列表页的 `versions` 只是当前页 12 条，兄弟版本常在别的页上。 */
   const bloodlineQuery = usePuzzleVersions(deployTarget?.id ?? null);
   const siblingGame = useMemo<MapGameSummary | null>(() => {
     if (!deployTarget) return null;
@@ -165,19 +149,12 @@ export function PuzzlesPage(): JSX.Element {
 
   const isVersionEntry = (entry: PuzzleEntrySummary): boolean => entry.kind === 'version';
 
-  /**
-   * 封面 / 名称的主点击：草稿行进编辑器。**版本条目不从这里走** —— v0.7.2
-   * 起版本行的封面 / 名称是「预览」（见 `PuzzleListRow`），改版本走独立的
-   * 「编辑」按钮（{@link handleEdit}），不再「点一下就在库里多一条草稿」。
-   */
+  /** 封面/名称的主点击：草稿行进编辑器；版本条目走「预览」，改版本走 {@link handleEdit}（带 ?v= 的 fork 态）。 */
   const handleOpen = (entry: PuzzleEntrySummary): void => {
     navigate(fullscreenPath(workspace?.themeCode, 'puzzles', entry.id, 'edit'));
   };
 
-  /**
-   * v0.7.2 §3：版本条目的「编辑」= 带 `?v=` 进编辑器的 fork 态 —— 进去**不建
-   * 行**、不触发保存，点「保存」时才 fork 出新草稿。
-   */
+  /** v0.7.2 §3：版本条目的「编辑」= 带 `?v=` 进编辑器的 fork 态 —— 进去**不建行**、不触发保存，点「保存」时才 fork 出新草稿。 */
   const handleEdit = (entry: PuzzleEntrySummary): void => {
     if (isVersionEntry(entry) && entry.versionNo !== null) {
       navigate(fullscreenPath(workspace?.themeCode, 'puzzles', entry.id, 'edit', `v=${entry.versionNo}`));
@@ -223,10 +200,7 @@ export function PuzzlesPage(): JSX.Element {
     onDeploy: handleDeploy,
   };
 
-  /**
-   * v0.7.9 §1.1（修正）：两块共用一套渲染，但**视图不同** —— 草稿跟着开关走，
-   * 版本恒为列表（与地图页同构）。
-   */
+  /** v0.7.9 §1.1（修正）：两块共用一套渲染，但**视图不同** —— 草稿跟着开关走， 版本恒为列表（与地图页同构）。 */
   function renderOrderBlock(
     entries: PuzzleEntrySummary[],
     page: number,

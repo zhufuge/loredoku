@@ -11,18 +11,10 @@ export const API_PREFIX = '/api';
 export const FILES_ROUTE_PREFIX = `${API_PREFIX}/files`;
 
 // ---- FIX-N01 提示位置 / FIX-N11 UI 层叠 ----
-/**
- * FIX-N01 (docs/v0.5.3.md §1): the toast stack's distance from the top edge. The
- * header bar is `h-14` (56px), so 64px drops the first toast **below** it while
- * staying on the right — the side with the fewest controls.
- */
+/** FIX-N01 (docs/v0.5.3.md §1): the toast stack's distance from the top edge. The header bar is `h-14` (56px), so 64px drops the first toast **below** it while staying on the right — the side with the fewest controls. */
 export const TOAST_OFFSET = 64;
 
-/**
- * FIX-N11 (docs/v0.5.3.md §6.4): the editor's overlay stacking order, in one
- * place — the strips hard-coded `z-30` while the drawer hard-coded `z-20`, so the
- * ruler painted over it. Sparse (10 / 20 / 30) so a future layer can slot in.
- */
+/** FIX-N11 (docs/v0.5.3.md §6.4): the editor's overlay stacking order, in one place — the strips hard-coded `z-30` while the drawer hard-coded `z-20`, so the ruler painted over it. Sparse (10 / 20 / 30) so a future layer can slot in. */
 export const UI_Z = {
   /** 标尺条带 — always under every drawer. */
   ruler: 10,
@@ -64,10 +56,7 @@ export const HTTP_STATUS_BY_ERROR_CODE: Record<ErrorCodeValue, number> = {
 };
 
 // ---- 主题（v0.8.0，docs/v0.8.0.md §4） ----
-/**
- * `themes.code` 是**稳定标识**：进 URL、进资源包 manifest、将来导入时对账。
- * 与地图 / 谜题的 slug 同理 —— 显示名可以改，`code` 不能。
- */
+/** `themes.code` 是**稳定标识**：进 URL、进资源包 manifest、将来导入时对账。 与地图 / 谜题的 slug 同理 —— 显示名可以改，`code` 不能。 */
 export const THEME_CODE_MAX_LENGTH = 64;
 export const THEME_CODE_PATTERN = /^[a-z0-9][a-z0-9_-]*$/;
 export const THEME_NAME_MAX_LENGTH = 100;
@@ -77,17 +66,9 @@ export const THEME_DATA_VERSION = 1;
 /** 恰好一个默认主题，`code` 固定。迁移里写死这两条（§12）。 */
 export const DEFAULT_THEME_CODE = 'default';
 export const DEFAULT_THEME_NAME = '默认';
-/**
- * v0.8.0 §9：`/play/theme/:slug` 与 `/play/:slug` 是两个命名空间，但 `theme`
- * 这一段被路由占了。slug 允许它（`GAME_SLUG_PATTERN` 只认字符集），所以必须
- * 在 `slugError` 里显式拦 —— 否则某个作者把自己那关命名成 `theme` 就撞了。
- */
+/** v0.8.0 §9：`/play/theme/:slug` 与 `/play/:slug` 是两个命名空间，但 `theme` 这一段被路由占了。slug 允许它（`GAME_SLUG_PATTERN` 只认字符集），所以必须在 `slugError` 里显式拦 —— 否则某个作者把自己那关命名成 `theme` 就撞了。 */
 export const GAME_SLUG_RESERVED: readonly string[] = ['theme'];
-/**
- * v0.8.0 §18：主题编码成了 URL 的**第一段**（`/hlm/maps`），于是顶层那些静态路径
- * 都成了保留字 —— 一个叫 `settings` 的主题，自己的工作台永远打不开（前端会先
- * 匹配到系统配置）。列在创建时拦下，比事后让作者对着 404 猜要好。
- */
+/** v0.8.0 §18：主题编码成了 URL 的**第一段**（`/hlm/maps`），于是顶层那些静态路径都成了保留字 —— 一个叫 `settings` 的主题，自己的工作台永远打不开（前端会先匹配到系统配置）。列在创建时拦下，比事后让作者对着 404 猜要好。 */
 export const THEME_CODE_RESERVED: readonly string[] = [
   'settings',
   'play',

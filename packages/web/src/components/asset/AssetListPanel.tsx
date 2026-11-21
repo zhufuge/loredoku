@@ -14,10 +14,7 @@ interface AssetListPanelProps {
   onSelect: (id: number) => void;
 }
 
-/**
- * One row per resource: the subtitle names the look, not a size — a single
- * variant by name, several by count.
- */
+/** One row per resource: the subtitle names the look, not a size — a single variant by name, several by count. */
 function variantSummary(asset: Asset): string {
   const first = asset.variants[0];
   if (!first) return '无形态';
@@ -25,14 +22,7 @@ function variantSummary(asset: Asset): string {
   return `${asset.variants.length} 个形态`;
 }
 
-/**
- * v0.5.2 FEAT-M01 (docs/v0.5.2.md §1.3): windowed — only the rows inside the
- * viewport are mounted, so a 1000-asset list no longer fires 1000 thumbnail
- * requests on first paint.
- *
- * v0.5.2 FEAT-M04 (§4): 「阻挡」 is an item-only trait, so the size line
- * only mentions it for `type = 'item'`.
- */
+/** v0.5.2 FEAT-M01 (docs/v0.5.2.md §1.3): windowed — only the rows inside the viewport are mounted, so a 1000-asset list no longer fires 1000 thumbnail requests on first paint. v0.5.2 FEAT-M04 (§4): 「阻挡」 is an item-only trait, so the size line only mentions it for `type = 'item'`. */
 export function AssetListPanel({ assets, selectedId, onSelect }: AssetListPanelProps): JSX.Element {
   return (
     // FIX-O09 (docs/v0.5.4.md §5.2): `overflow-hidden` clips the scrollbar and

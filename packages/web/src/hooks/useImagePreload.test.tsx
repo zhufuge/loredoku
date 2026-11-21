@@ -3,11 +3,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useImagePreload } from './useImagePreload';
 
-/**
- * jsdom 里 `<img>` 永远不派发 load（实测：赋值 src 后 `complete` 一直是 false，
- * 300ms 内 onload / onerror 都不来），所以这里替掉全局 `Image`，由用例自己决定
- * 什么时候「加载完」。
- */
+/** jsdom 里 `<img>` 永远不派发 load（实测：赋值 src 后 `complete` 一直是 false， 300ms 内 onload / onerror 都不来），所以这里替掉全局 `Image`，由用例自己决定什么时候「加载完」。 */
 class FakeImage {
   static instances: FakeImage[] = [];
 

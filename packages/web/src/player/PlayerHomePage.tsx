@@ -24,17 +24,7 @@ import { gameCoverUrls } from '@/lib/pageImages';
 import { useBundleManifest } from './PlayerBundleProvider';
 
 /**
- * v0.9.0（docs/v0.9.0.md §6）—— 播放器的关卡列表页 `/loredoku/:code/play`。
- *
- * 与线上那个 `/play/theme/:slug` 长得像，但没有「全部游戏」的上一级（这个产物只有
- * 一个主题）、没有 `/themes` 查询、没有接口。数据只有一处：`manifest` —— 关卡清单是
- * `manifest.games`，难度分级的名字与颜色是 `manifest.theme.difficultyLevels`
- * （2026-11-09 补，见 §13）。线上那页要按 `themeCode` 去 `/themes` 查分级，这里
- * 不用：包本身就是那个主题，导出时已经把配置冻进来了。
- *
- * 卡片用同一张 `GameCard`（v0.9.0 §6 把它的入参收窄成五个字段），所以在工坊里
- * 改卡片长得什么样，播放器会跟着变 —— 两边不会各长一张脸。`tiers` 必须显式传：
- * 这一页在 `WorkspaceLayout` 外面，`DifficultyBadge` 不传就退回内置五档（v0.8.6 §3.6）。
+ * v0.9.0（docs/v0.9.0.md §6）—— 播放器的关卡列表页 `/loredoku/:code/play`：数据只有 `manifest`（`games` + `theme.difficultyLevels`，2026-11-09 补 §13），没有 `/themes` 查询。`tiers` 必须显式传 —— 这页在 `WorkspaceLayout` 外，不传 `DifficultyBadge` 就退回内置五档（v0.8.6 §3.6）。
  */
 export function PlayerHomePage(): JSX.Element {
   const { code = '' } = useParams<{ code: string }>();
@@ -45,23 +35,13 @@ export function PlayerHomePage(): JSX.Element {
     [manifest, code],
   );
 
-  /**
-   * 2026-11-09 补（docs/v0.9.0.md §13）：一份包一个主题，分级对每张卡都一样，
-   * 所以算一次传下去，不在 `map` 里给每张卡重算。老包没这个键时
-   * `resolveDifficultyTiers` 给内置五档 —— 与修复前的行为一致。
-   */
+  /** 2026-11-09 补（docs/v0.9.0.md §13）：一份包一个主题，分级对每张卡都一样， 所以算一次传下去，不在 `map` 里给每张卡重算。老包没这个键时 `resolveDifficultyTiers` 给内置五档 —— 与修复前的行为一致。 */
   const tiers = useMemo(() => (manifest ? bundleDifficultyTiers(manifest) : undefined), [manifest]);
 
   /** 包的目录名与包里的身份对不上 —— 部署错了，不是玩家的问题，但得说清楚。 */
   const mismatched = manifest ? manifest.theme.code !== code : false;
 
-  /**
-   * 每张卡的通过记录。存档键是 `bundle:<主题code>:<key>`（与游戏页
-   * `storageId` 同一条），所以**离线包的进度不会串到线上**，反之亦然。
-   *
-   * 指纹只有 `gridSize`：`manifest.games` 里正好有它，读一个坏记录的概率降到
-   * 「网格变了」这一种 —— 那确实就是另一道题了。
-   */
+  /** 每张卡的通过记录。存档键是 `bundle:<主题code>:<key>`（与游戏页 `storageId` 同一条），所以**离线包的进度不会串到线上**，反之亦然。 指纹只有 `gridSize`：`manifest.games` 里正好有它，读一个坏记录的概率降到「网格变了」这一种 —— 那确实就是另一道题了。 */
   const completions = useMemo(() => {
     const map = new Map<string, GameCompletion>();
     for (const game of manifest?.games ?? []) {
@@ -85,17 +65,10 @@ export function PlayerHomePage(): JSX.Element {
     return map;
   }, [manifest, code]);
 
-  /**
-   * 两行字（「N 关可玩」/「已通过 N 关」）由主题配置，包导出时已经冻进
-   * `manifest.theme.gameList`；没配过就退回内置那两句。与工坊那边同一份解析，
-   * 免得同一句话在两处长得不一样。
-   */
+  /** 两行字（「N 关可玩」/「已通过 N 关」）由主题配置，包导出时已经冻进 `manifest.theme.gameList`；没配过就退回内置那两句。与工坊那边同一份解析， 免得同一句话在两处长得不一样。 */
   const texts = useMemo(() => resolveGameListTexts(manifest?.theme.gameList), [manifest]);
 
-  /**
-   * 难度过滤。默认「全部」—— 玩家第一次进来该看到所有关，而不是被
-   * 按在一个档位上。「已通过 N 关」跟着**全部**走：切档不该让这个数字变小。
-   */
+  /** 难度过滤。默认「全部」—— 玩家第一次进来该看到所有关，而不是被按在一个档位上。「已通过 N 关」跟着**全部**走：切档不该让这个数字变小。 */
   const [difficulty, setDifficulty] = useState<number | null>(null);
   const visibleGames = useMemo(
     () => (difficulty === null ? games : games.filter((game) => game.difficulty === difficulty)),
@@ -103,29 +76,13 @@ export function PlayerHomePage(): JSX.Element {
   );
 
   /**
-   * 与工坊那边的列表页同一条 —— 封面都预加载完才把加载件换成卡片。播放器是玩家
-   * 真正打开的那一页，这一帧尤其不该出现「卡片先出、封面后跳」。
-   *
-   * 加载件是整屏的品牌字标，不是骨架屏：玩家从站外点进来，第一眼看到的是骨架屏
-   * 还是字标，是两件不同的事 —— 骨架屏说的是「内容马上到」，而这里要等的是
-   * 包 + 字体 + 六张封面，可能是几百 KB；先亮字标再看内容，中间不会有「半天没动静」
-   * 的空白。`useImagePreload` 的契约不变（封面都到 / 出错都算完）。
-   *
-   * 只等**当前这一档**的封面 —— 切档时不该为别的档的封面再挡一次屏。
+   * 包 + 字体 + 封面都齐了才一次画成，中途只亮整屏品牌字标（不是骨架屏）；只等**当前这一档**的封面，切档不为别的档再挡一次屏（`useImagePreload` 契约：封面都到 / 出错都算完）。
    */
   const fontsReady = useBundledFontsReady();
   const coversReady = useImagePreload(gameCoverUrls(visibleGames));
   const loading = isLoading || !fontsReady || (visibleGames.length > 0 && !coversReady);
 
-  /**
-   * loading 期间整页只有加载件 —— 页头也不先画。
-   *
-   * 放在页头之前是刻意的：主题名本身是 `.font-kai`，先画出来再换字形就是这里要
-   * 消灭的那一帧。等包、字体、封面都齐了，一次画成。
-   *
-   * `!isError`：包读不出来是配置错误，那一刻已经没什么可等 —— 立刻把原因说清楚，
-   * 别让玩家对着字标等一份永远不会到的包。
-   */
+  /** loading 期间整页只有加载件 —— 页头也不先画。 放在页头之前是刻意的：主题名本身是 `.font-kai`，先画出来再换字形就是这里要消灭的那一帧。等包、字体、封面都齐了，一次画成。 `!isError`：包读不出来是配置错误，那一刻已经没什么可等 —— 立刻把原因说清楚， 别让玩家对着字标等一份永远不会到的包。 */
   if (loading && !isError) {
     return <LoadingScreen caption="正在加载主题…" />;
   }
@@ -199,10 +156,7 @@ export function PlayerHomePage(): JSX.Element {
             </Button>
           </Card>
         ) : visibleGames.length === 0 ? (
-          /*
-           * 这一档确实没有关卡。给回「全部」的出口 —— 否则玩家会以为
-           * 包坏了（列表刚才还在，点一下档位就空了）。
-           */
+          /* 这一档确实没有关卡。给回「全部」的出口 —— 否则玩家会以为包坏了（列表刚才还在，点一下档位就空了）。 */
           <Card className="flex flex-col items-center gap-3 p-12 text-center">
             <Layers className="h-8 w-8 text-muted-foreground/60" />
             <p className="text-sm text-muted-foreground">这一档还没有关卡。</p>

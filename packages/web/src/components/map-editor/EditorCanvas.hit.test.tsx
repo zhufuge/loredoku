@@ -6,26 +6,13 @@ import { EditorCanvas } from './EditorCanvas';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/hitTest';
 
-/**
- * 标尺符号由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），而这里直接
- * 挂 `createRoot`，没有 Provider。这组用例关心的是落点，不是符号。
- */
+/** 标尺符号由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），而这里直接挂 `createRoot`，没有 Provider。这组用例关心的是落点，不是符号。 */
 vi.mock('@/hooks/useThemes', () => ({
   useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
 }));
 
 /**
- * 点「区域标题」与「物品溢出位置」，也要按地图方格分割线落点。
- *
- * 这两处都不该按元素自身归属命中：
- *
- * - 区域标签悬在格子上沿，盖住的往往不是自己区域的格子 —— 点标签覆盖的那块像素
- *   要选中它底下的格子，而不是**区域**；
- * - 物品被 `scale` 撑出去、压在隔壁格上的那圈画属于隔壁那格 —— 点它要选中那一格，
- *   而不是回传它脚位的锚点格。
- *
- * 按下沿 React 树冒泡到容器的 `onPointerDown`，由它按 `clientToCell` 换算成格子。
- * 这里钉的正是这条行为 —— 事件从标签 / 物品元素上发出，落在哪个像素就选中哪一格。
+ * 点区域标题 / 物品溢出位置也按像素落点换算格子，不按元素归属：标签悬在格子上沿、盖住的是上一格；物品被 `scale` 撑出、压在隔壁格上的那圈属于隔壁那格。
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -167,11 +154,7 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
         disconnect(): void {}
       },
     );
-    /*
-     * jsdom 没有排版，所有尺寸都是 0，而自适应居中要看到真实矩形才会算出
-     * `cellSize` —— 没有它连 `clientToCell` 都无从换算。挂到原型上，让**挂载
-     * 那一刻**（自适应 effect 首次运行）就已经看得到这个视口。
-     */
+    /* jsdom 没有排版，所有尺寸都是 0，而自适应居中要看到真实矩形才会算出 `cellSize` —— 没有它连 `clientToCell` 都无从换算。挂到原型上，让**挂载那一刻**（自适应 effect 首次运行）就已经看得到这个视口。 */
     originalRect = HTMLElement.prototype.getBoundingClientRect;
     HTMLElement.prototype.getBoundingClientRect = () => rect(900, 700);
     onSelect = vi.fn();
@@ -193,12 +176,7 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
 
   it('点区域标题覆盖的那块像素：选中它底下那一格，不是区域', () => {
     /*
-     * 区域的格子在第 3 行，标签却配在第 1 行（`labelCell`）—— 这正是真实的
-     * 「标签悬在格子上沿、盖住的是上一格」：标签底边落在 `2 × cellSize` 上方
-     * 一点点，指头压上去的那块像素属于第 1 行。
-     *
-     * 这条钉的是**游戏页 / 谜题预览**的行为 —— 那里不传
-     * `onSelectRegionLabel`，标签不接管按下，仍按底下那一格落点。
+     * 区域格子在第 3 行、标签配在第 1 行 —— 标签底边落在 `2 × cellSize` 上方，压到的像素属于第 1 行（游戏页 / 预览不传 `onSelectRegionLabel`）。
      */
     regions = [{ id: 'rg_a', name: '回廊', cells: [[1, 3]], labelCell: [1, 1] }];
     render();

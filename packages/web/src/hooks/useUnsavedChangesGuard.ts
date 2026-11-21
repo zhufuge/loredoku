@@ -7,15 +7,7 @@ export interface UnsavedChangesGuard {
   cancelLeave: () => void;
 }
 
-/**
- * BUG-101: unified unsaved-changes guard built on the Data Router blocker.
- *
- * - In-app navigation is intercepted by `useBlocker`; the confirmation dialog
- *   is driven solely by `blocker.state === 'blocked'` (no local open state).
- * - Refresh / tab close is caught by `beforeunload`.
- * - `proceed()` / `reset()` are called synchronously while the blocker state is
- *   still `blocked`; the latest blocker is held in a ref to avoid stale closures.
- */
+/**  */
 export function useUnsavedChangesGuard(dirty: boolean): UnsavedChangesGuard {
   const navigate = useNavigate();
   const blocker = useBlocker(

@@ -13,32 +13,9 @@ import {
   type ThemeDifficultyTier,
 } from '@loredoku/shared';
 
-/**
- * v0.9.0（docs/v0.9.0.md §5）—— 播放器读一个**已导出的主题资源包**。
- *
- * 这个文件里全是纯函数 + 两个 fetch：没有 React、不知道路由、不认识 axios。
- * 好处是它们能单测（`bundleLoad.test.ts` 用假的 manifest 与关卡 JSON 跑），
- * 而且「包长什么样」这一件事只在这里被解释一次。
- *
- * 包的结构（v0.8.0 §11.2，服务端 `bundleService` 产出）：
- *
- * ```
- * manifest.json          身份 + 难度分级 + 关卡清单 + 每个文件的校验和
- * theme.json             主题名 / 描述（只装身份，没有 style）
- * assets.json            全量资源，URL 已换成包内相对路径
- * characters.json        全量角色，同上
- * puzzles/<key>.json     { key, summary, map, puzzle }，引用已重编号
- * files/**               图片、封面
- * ```
- */
+/** v0.9.0（docs/v0.9.0.md §5）—— 纯函数 + fetch 读一个已导出的主题资源包：无 React / 路由 / axios，包结构只在服务端 `bundleService` 解释一次（v0.8.0 §11.2）。 */
 
-/**
- * 包挂在哪 —— **站点 base 之下的 `<code>/`**。
- *
- * 不硬编码 `/loredoku/`：构建产物的 base 是 `vite.player.config.ts` 里的常量，
- * 换一个部署路径（`/games/`）时这里的地址要跟着换，而 `import.meta.env.BASE_URL`
- * 是 Vite 帮我们对齐好的那一个值（以 `/` 结尾）。
- */
+/** 包挂在哪 —— **站点 base 之下的 `<code>/`**。 不硬编码 `/loredoku/`：构建产物的 base 是 `vite.player.config.ts` 里的常量， 换一个部署路径（`/games/`）时这里的地址要跟着换，而 `import.meta.env.BASE_URL` 是 Vite 帮我们对齐好的那一个值（以 `/` 结尾）。 */
 export function playerBase(): string {
   return import.meta.env.BASE_URL;
 }
@@ -54,27 +31,12 @@ export function bundleFileUrl(root: string, path: string | null | undefined): st
   return `${root}${path.replace(/^\/+/, '')}`;
 }
 
-/**
- * 存档键的身份段（v0.8.0 §11.6 定的形状）。
- *
- * 与线上（原样用 slug）**刻意不通**：离线包里的进度不该出现在线上，反之亦然。
- * `localStorage` 里加不加前缀由 `gameProgressKey()` 那一层决定，这里只给中段。
- */
+/** 存档键的身份段（v0.8.0 §11.6 定的形状）。 与线上（原样用 slug）**刻意不通**：离线包里的进度不该出现在线上，反之亦然。 `localStorage` 里加不加前缀由 `gameProgressKey()` 那一层决定，这里只给中段。 */
 export function bundleStorageId(code: string, key: string): string {
   return `bundle:${code}:${key}`;
 }
 
-/**
- * 路由地址。返回值是**站内路径**（相对 router 的 basename）：播放器的 router 挂在
- * `/loredoku` 下，所以这里写 `/<code>/play/`，浏览器里看到的完整地址是
- * `/loredoku/<code>/play/`。
- *
- * 结尾那个斜杠是 v0.11.1 起有意为之：产物里每个路由都是一份**真目录**
- * （`<code>/play/index.html`、`<code>/play/<key>/index.html`，见
- * `packages/web/scripts/staticPages.mjs`），静态服务器对目录的标准地址就是带斜杠
- * 的那一个。少了它会先吃一个 301 再回来 —— 地址栏里也会从「不带斜杠」跳成
- * 「带斜杠」，复制分享时像是两个地址。
- */
+/** 站内路径（router 挂在 `/loredoku` 下，完整地址是 `/loredoku/<code>/play/`）；结尾斜杠必须留：每个路由都是真目录，少了它先吃 301、地址栏还会跳变（v0.11.1）。 */
 export function themeHrefOf(code: string): string {
   return `/${code}/play/`;
 }
@@ -103,16 +65,7 @@ export function toGameCard(game: BundleManifestGame, root: string): BundleGameCa
 }
 
 /**
- * 2026-11-09 补（docs/v0.9.0.md §13）：列表页徽章上的**字与颜色**。
- *
- * 包里每关只带 `difficulty` 数字；名字、颜色、有哪几档都是主题级的，导出时冻在
- * `manifest.theme.difficultyLevels`。不读它，`DifficultyBadge` 就走内置五档 ——
- * 作者配的「初 / 通」在下载包里变成「极简 / 简单」，第 6 档以后还会显示「第 6 档」。
- *
- * 为什么在这里包一层而不是页面直接调 `resolveDifficultyTiers`：老包（v0.9.0 导出的）
- * 没有这个键，缺省 / 空数组 / 乱序三种情况都要按同一条规矩兜底 —— 那条规矩在
- * `shared/difficulty.ts`，线上 `useDifficultyTiersByCode` 用的也是它。让「包长什么样」
- * 继续只在这个文件里被解释一次。
+ * 2026-11-09 补（docs/v0.9.0.md §13）：包里每关只带 `difficulty` 数字，徽章的字与颜色取自 `manifest.theme.difficultyLevels`；老包没有这个键，缺省 / 空 / 乱序都由 `shared/difficulty.ts` 的 `resolveDifficultyTiers` 兜底。
  */
 export function bundleDifficultyTiers(
   manifest: BundleManifest,
@@ -120,16 +73,7 @@ export function bundleDifficultyTiers(
   return resolveDifficultyTiers(manifest.theme.difficultyLevels);
 }
 
-/**
- * 把 `assets.json` 里的相对路径换成可用的 URL。
- *
- * **图片挂在形态（variant）上，不在资源上**（v0.6.1 §5.1：一个资源可以有几个样子），
- * 所以这里要下钻一层 —— 只改资源那一层会得到一个「名字都在、图全是破的」的画布。
- *
- * 为什么在**读包这一层**做，而不是让渲染层每次拼：画布 / 名册 / 标记三处的
- * `<img>` 都在深层组件里，各拼一次前缀，迟早漏一处；而且渲染层认的是「`imageUrl`
- * 就是能用的地址」这条老约定（v0.8.0 §11.2 的 `resolveFile` 就是干这个的）。
- */
+/** 相对路径 → 可用 URL：图片挂在形态（variant）上而非资源上，必须下钻一层，否则画布上「名字都在、图全破」（v0.6.1 §5.1）。 */
 export function resolveAssetFileUrls(assets: readonly Asset[], root: string): Asset[] {
   return assets.map((asset) => ({
     ...asset,
@@ -154,13 +98,7 @@ export function toGameDetail(file: BundlePuzzleFile): MapGameDetail {
   return { ...file.summary, map: file.map, puzzle: file.puzzle };
 }
 
-/**
- * 版本对不上就直说，不要试着「尽量读」。
- *
- * 包之间没有升级关系（v0.8.0 §11.4：身份是 `exportedAt`，不是版本号），所以
- * 格式版本不同意味着「这个播放器不认识这个包」，唯一的正确做法是让作者重新导出 ——
- * 硬读只会得到一片空白画布，比一句明确的错误难查得多。
- */
+/** 版本对不上就直说，不要试着「尽量读」。 包之间没有升级关系（v0.8.0 §11.4：身份是 `exportedAt`，不是版本号），所以格式版本不同意味着「这个播放器不认识这个包」，唯一的正确做法是让作者重新导出 —— 硬读只会得到一片空白画布，比一句明确的错误难查得多。 */
 export function assertBundleFormat(manifest: BundleManifest): void {
   if (manifest.format !== BUNDLE_FORMAT) {
     throw new Error(`这不是格物的主题资源包（format=${String(manifest.format)}）`);
@@ -186,10 +124,7 @@ export async function loadManifest(root: string): Promise<BundleManifest> {
   return manifest;
 }
 
-/**
- * 一关。`key` 必须出现在 `manifest.games` 里 —— 它同时是文件名与存档键的尾段，
- * 不在清单里就是「没有这一关」，不必再去猜文件路径。
- */
+/** 一关。`key` 必须出现在 `manifest.games` 里 —— 它同时是文件名与存档键的尾段， 不在清单里就是「没有这一关」，不必再去猜文件路径。 */
 export async function loadGame(
   root: string,
   manifest: BundleManifest,

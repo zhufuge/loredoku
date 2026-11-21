@@ -4,19 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { VerdictMark } from './VerdictMark';
 
 /**
- * v0.11.3（docs/v0.11.3.md §5）—— iOS 上「定案」字变大、印章右偏。
- *
- * 根因是外层用 CSS `zoom` 承载比例。iOS Safari 对这个属性 unreliable：
- * 比例没生效，而 `translate` 那点位移仍是绝对像素 —— 于是字按 1 倍画出来
- * （相对已经缩小的棋盘就显得「变大」），印被那点位移推到右边。
- *
- * 现在比例落在**字号**上，块内所有尺寸都是 em。这里钉三件事：
- * 1. 比例真的作用到字号上（`fontSize` 随 scale 变）；
- * 2. 不再出现 `zoom`（这是 iOS 上失效的那条路径）；
- * 3. 大字档的印**不参与横向排版**（绝对定位），「定案」才能真的居中。
- *
- * 不断言具体字号数字之外的排版细节（尺寸 / 颜色不算行为），只断言
- * 「比例生效的方向」「失效那条路径没被用回来」「印在不在行内」。
+ * v0.11.3（docs/v0.11.3.md §5）：iOS Safari 的 CSS `zoom` 不可靠（比例不生效、`translate` 仍按绝对像素），所以比例改落在字号上、块内尺寸用 em；大字档的印绝对定位、不参与横向排版。
  */
 describe('VerdictMark — 比例落在字号上（v0.11.3）', () => {
   let container: HTMLDivElement;
@@ -84,11 +72,7 @@ describe('VerdictMark — 比例落在字号上（v0.11.3）', () => {
     }
   });
 
-  /*
-   * 大字档的印脱离文档流（`absolute left-full`）挂在字列右缘外，行里只剩字列 ——
-   * `justify-center` 居中的才是字列本身。印若留在行内（`-ml-[0.55em]`），行宽
-   * 是「字列 + 印 − 叠压」，字会被推到中心右边。
-   */
+  /* 大字档的印脱离文档流（`absolute left-full`）挂在字列右缘外，行里只剩字列 —— `justify-center` 居中的才是字列本身。印若留在行内（`-ml-[0.55em]`），行宽是「字列 + 印 − 叠压」，字会被推到中心右边。 */
   it('大字档的印脱离文档流 —— 否则居中对象变成「字列 + 印」', () => {
     mount(1);
     const image = stamp();

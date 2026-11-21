@@ -2,16 +2,8 @@ import { MAP_JSON_VERSION, PUZZLE_JSON_VERSION } from '@loredoku/shared';
 import type { MapDraft, PuzzleDraft } from '@loredoku/shared';
 import { absorbLegacyMapDraft } from './mapDraftCompat';
 
-/**
- * 谜题 JSON v1 ⇄ v2 的**纯转换**（v0.7.1 §5.4）。
- *
- * 迁到别处就没有第二个入口了：`up()` 用它把「引用式底图」换成「自带画布」，
- * `down()` 用它反向拆回「来源 id + 版本号 + 尺寸」，两份逻辑共用同一组函数，
- * 往返才能对得上。不碰 DB，可以脱离 Postgres 单测。
- *
- * v1（`docs/v0.5.0.md` §5.1）：`map: { mapId, versionNo, gridSize }`，画布靠 join。
- * v2（`docs/v0.7.1.md` §5.3）：`map: { mapId, versionNo, mapName, data }`，画布自带。
- */
+/** 谜题 JSON v1 ⇄ v2 的纯转换（v0.7.1 §5.4）：`up()` 换成自带画布、`down()` 拆回来源 id，共用以保证往返一致。
+ *  v1 是 `map: { mapId, versionNo, gridSize }`（docs/v0.5.0.md §5.1），v2 多 `mapName` 与画布 `data`（docs/v0.7.1.md §5.3）；不碰 DB。 */
 
 function asRecord(raw: unknown): Record<string, unknown> | null {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null;
@@ -46,15 +38,8 @@ export interface PuzzleCanvasSource {
   data: unknown;
 }
 
-/**
- * 把一行存量谜题的 `data` 升成 v2 —— 画布从 {@link PuzzleCanvasSource} 复制进来。
- *
- * `canvas` 传 `null` / 解析不出画布时给一份空画布，尺寸优先取 v1 `map.gridSize`、
- * 其次 `fallbackGridSize`（旧的 `grid_size` 列）：**名册长度不变**，否则参与者
- * 与格子对不上，编辑器一打开就崩。
- *
- * 返回 `null` = 这份 data 根本不是谜题草稿（没有 `characterSlots`）。
- */
+/** 把存量谜题 `data` 升成 v2，画布从 {@link PuzzleCanvasSource} 复制；无画布给空画布，尺寸取 v1 `map.gridSize` 再退 `fallbackGridSize`。
+ *  名册长度必须不变（否则编辑器一开就崩）；返回 null = 不是谜题草稿（无 `characterSlots`）。 */
 export function buildPuzzleDraftV2(
   raw: unknown,
   source: PuzzleCanvasSource,
@@ -92,13 +77,7 @@ export interface LegacyPuzzleRecord {
   gridSize: number;
 }
 
-/**
- * v2 → v1：`map` 只剩 `{ mapId, versionNo, gridSize }`，画布丢弃（`down` 之后
- * 画布又能从 `maps` 的版本行 join 到，所以这不丢信息）。来源字段从 v2 的
- * `map` 块读出，正是 `up()` 当时写进去的那三个。
- *
- * 返回 `null` = 不是谜题草稿。
- */
+/** v2 → v1：`map` 只剩 `{ mapId, versionNo, gridSize }`，画布丢弃（`down` 之后画布又能从 `maps` 的版本行 join 到，所以这不丢信息）。来源字段从 v2 的 `map` 块读出，正是 `up()` 当时写进去的那三个。 返回 `null` = 不是谜题草稿。 */
 export function puzzleDraftToLegacy(raw: unknown): LegacyPuzzleRecord | null {
   const record = asRecord(raw);
   if (!record || !Array.isArray(record['characterSlots'])) return null;

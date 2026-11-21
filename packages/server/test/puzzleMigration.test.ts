@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { db } from '../src/db/knex';
 
-/**
- * 迁移的 schema 层验收：迁移本身在 `npm run db:migrate` 时应用（往返由命令行
- * 完成），这里钉住的是**当前表形状**。每一节对应发起它的那个版本，后面的版本
- * 改过形状时，旧断言跟着改（测试只描述现状，不描述履历）。
- */
+/** 迁移的 schema 层验收：迁移本身在 `npm run db:migrate` 时应用（往返由命令行完成），这里钉住的是**当前表形状**。每一节对应发起它的那个版本，后面的版本改过形状时，旧断言跟着改（测试只描述现状，不描述履历）。 */
 
 async function columns(table: string): Promise<string[]> {
   const rows = await db('information_schema.columns')
@@ -22,12 +18,7 @@ describe('v0.5.0 migration shape (§11.1)', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0].is_nullable).toBe('NO');
 
-    // 回填的契约是「每行都有血缘根」：root_id 不为空，且要么自为根
-    // （root_id = id，普通地图），要么指向**另一张已存在的地图**
-    // （fork 出来的工作条目，SPEC-K11 Q3 = B）。
-    //
-    // 早期这里断言「漂移行数为 0」，但那把「用户真的 fork 过一张图」也算成了
-    // 失败——库里有手工数据就会误报。改成校验引用完整性。
+    // 回填的契约是「每行都有血缘根」：root_id 不为空，且要么自为根（root_id = id，普通地图），要么指向**另一张已存在的地图** （fork 出来的工作条目，SPEC-K11 Q3 = B）。 早期这里断言「漂移行数为 0」，但那把「用户真的 fork 过一张图」也算成了失败——库里有手工数据就会误报。改成校验引用完整性。
     const nulls = await db('maps').whereNull('root_id').count('* as c');
     expect(Number(nulls[0]?.c ?? 0)).toBe(0);
 
@@ -48,12 +39,7 @@ describe('v0.5.0 migration shape (§11.1)', () => {
 
 });
 
-/**
- * v0.7.1（docs/v0.7.1.md §5.1 / §7.2）：`puzzles` 版本化、`games` 只引用谜题行。
- *
- * 这两条是数据模型的地基，靠代码兜不住 —— 列真的没了、约束真的在，才谈得上
- * 「草稿不能部署」「删掉的 slug 能重用」。
- */
+/** v0.7.1（docs/v0.7.1.md §5.1 / §7.2）：`puzzles` 版本化、`games` 只引用谜题行。 这两条是数据模型的地基，靠代码兜不住 —— 列真的没了、约束真的在，才谈得上「草稿不能部署」「删掉的 slug 能重用」。 */
 describe('v0.7.1 puzzles versioning shape', () => {
   it('adds the lineage columns and drops the map reference', async () => {
     const cols = await columns('puzzles');
@@ -154,13 +140,7 @@ describe('v0.7.1 games reference puzzles shape', () => {
   });
 });
 
-/**
- * v0.5.1 FEAT-L01 / FEAT-L02（docs/v0.5.1.md §6.1）：迁移 18 给 `assets` 与
- * `characters` 各加一列可空的 `bg_color`。
- *
- * 可空是刻意的 —— 存量行 `NULL` 表示「图片类型」，渲染走原分支，行为逐像素不变
- * （§6.3），所以没有回填、也不需要改任何已存的 JSON。
- */
+/** v0.5.1 FEAT-L01 / FEAT-L02（docs/v0.5.1.md §6.1）：迁移 18 给 `assets` 与 `characters` 各加一列可空的 `bg_color`。 可空是刻意的 —— 存量行 `NULL` 表示「图片类型」，渲染走原分支，行为逐像素不变（§6.3），所以没有回填、也不需要改任何已存的 JSON。 */
 describe('v0.5.1 colour-block migration (§6.1)', () => {
   // The colour block lives on `asset_variants` with the rest of the
   // appearance; the column's shape (nullable, `text`, no default) is unchanged.
@@ -195,10 +175,7 @@ describe('v0.5.1 colour-block migration (§6.1)', () => {
   });
 });
 
-/**
- * v0.5.2 FEAT-M03 / FEAT-M04（docs/v0.5.2.md §3.1 / §4 / §9.1）：
- * 迁移 19 删掉 `assets.meta` 与 `item_triggers` 表，并把背景资源抬成不阻挡。
- */
+/** v0.5.2 FEAT-M03 / FEAT-M04（docs/v0.5.2.md §3.1 / §4 / §9.1）： 迁移 19 删掉 `assets.meta` 与 `item_triggers` 表，并把背景资源抬成不阻挡。 */
 describe('v0.5.2 asset slimming migration (§9.1)', () => {
   it('drops assets.meta', async () => {
     const rows = await db('information_schema.columns')
@@ -229,12 +206,7 @@ describe('v0.5.2 asset slimming migration (§9.1)', () => {
   });
 });
 
-/**
- * v0.6.1（docs/v0.6.1.md §7）：资源和形态分家后的形状。
- *
- * 迁移把九列从 `assets` 搬到 `asset_variants`，并给已存的画布锚点补上 `variantId`。
- * 这里钉住三件不能靠代码兜底的事：列真的搬走了、每个资源都有形态、画布真的指向形态。
- */
+/** v0.6.1（docs/v0.6.1.md §7）：资源和形态分家后的形状。 迁移把九列从 `assets` 搬到 `asset_variants`，并给已存的画布锚点补上 `variantId`。 这里钉住三件不能靠代码兜底的事：列真的搬走了、每个资源都有形态、画布真的指向形态。 */
 describe('v0.6.1 asset-variant migration shape', () => {
   /** 从 `assets` 搬走的那九列（完整清单）。 */
   const movedColumns = [
@@ -310,12 +282,7 @@ describe('v0.6.1 asset-variant migration shape', () => {
   });
 });
 
-/**
- * 背景资源也多形态：背景格同样显式带上自己选的是哪个形态。
- *
- * 表结构没动（`asset_variants` 早就能容纳多个形态），改的只有画布 JSON：补
- * `variantId` 并把 version 从 5 推到 6。存量背景资源都只有一个形态，补的就是它。
- */
+/** 背景资源也多形态：背景格同样显式带上自己选的是哪个形态。 表结构没动（`asset_variants` 早就能容纳多个形态），改的只有画布 JSON：补 `variantId` 并把 version 从 5 推到 6。存量背景资源都只有一个形态，补的就是它。 */
 describe('v0.6.1 background-variant migration shape', () => {
   it('points every stored background cell at a variant, and stamps version 6', async () => {
     const maps = (await db('maps').whereNotNull('data').select('id', 'data')) as Array<{

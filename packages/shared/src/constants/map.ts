@@ -1,81 +1,33 @@
 import { MAX_CELL_SIZE, MIN_CELL_SIZE } from './grid';
 import { HIGHLIGHT_BLUE, HIGHLIGHT_RED } from './highlight';
 
-// 地图：入口行、草稿 JSON、初始样式、基本信息缺省值。
-// 按主题收拢地图相关的常量：值、注释、次序稳定，「谁在用」相近的放在一起，改一处
-// 不必翻遍整个 `constants/`。
-// 对外是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
-
-// ---- MapEntry ----
+// 地图常量：入口行、草稿 JSON、初始样式与缺省值；index.ts 统一再导出。
 export const MAP_NAME_MAX_LENGTH = 100;
 export const MAP_DESCRIPTION_MAX_LENGTH = 500;
 export const MAP_STATUSES = ['draft', 'published'] as const;
 export const DEFAULT_MAP_STATUS = 'draft';
 export const MAP_NOTE_MAX_LENGTH = 200;
 
-// ---- Puzzle ----
-// The puzzle owns participants + the linkage-colour palette and only
-// **references** a published map version (`PuzzleDraft.map`).
-//
-// v0.7.1 (docs/v0.7.1.md §5.3): v2 — `map` carries a **copy of the canvas**
-// (`{ mapId, versionNo, mapName, data }`), so a puzzle can be published and
-// frozen on its own. v1 payloads (reference only, no canvas) are still readable
-// but cannot be imported: they have no board to render.
+// 谜题含参与者与联动调色板，只引用已发布的 map 版本；v2 载荷带画布副本，v1 无画布不可导入。
 export const PUZZLE_JSON_VERSION = 2;
 export const PUZZLE_NAME_MAX_LENGTH = 100;
 export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
 
-/**
- * v0.8.5 §7：谜题编码。
- *
- * 与资源 / 角色的编码**故意不同字符集**：那两个用下划线（`hlm_big_tree`），因为
- * 它们只在 JSON 里被引用；这个用连字符，因为它会直接变成访问路径的中段
- * （`/play/puzzle-hlm-sishan`），而路径只认小写字母、数字与连字符。让编码本身
- * 就合法，部署时就不用再翻译一次 —— 「作者写的」和「地址里的」是同一个串。
- */
+/** 谜题编码用连字符（会进访问路径），资源/角色用下划线（只在 JSON 引用）；编码本身即路径合法段。 */
 export const PUZZLE_CODE_MAX_LENGTH = 48;
 export const PUZZLE_CODE_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 // ---- 题面：全局线索与结束语 ----
-/**
- * 全局线索**最多 8 条**（docs/v0.7.14.md §2）。
- *
- * 这个数字不是随手定的：题面纸片贴在画布左上角，玩家一边看盘一边扫它。
- * 八条已经是一屏能一眼扫完的上限（每条一行、行距 1.7，加描述合计约 300px），
- * 再多就得滚动 —— 一张需要滚动才能读完的线索表，会逼玩家把视线从盘面挪开
- * 去做「找线索」这件事。真要写第九条，说明这条线索该并进描述里。
- */
+/** 全局线索**最多 8 条**（docs/v0.7.14.md §2）。 这个数字不是随手定的：题面纸片贴在画布左上角，玩家一边看盘一边扫它。 八条已经是一屏能一眼扫完的上限（每条一行、行距 1.7，加描述合计约 300px）， 再多就得滚动 —— 一张需要滚动才能读完的线索表，会逼玩家把视线从盘面挪开去做「找线索」这件事。真要写第九条，说明这条线索该并进描述里。 */
 export const PUZZLE_CLUES_MAX_COUNT = 8;
 /** 单条线索 120 字：够写两句条件，再长就不像线索、像段落。 */
 export const PUZZLE_CLUE_MAX_LENGTH = 120;
-/**
- * 结束语 200 字。它是**过关后的一句话**，不是后记 —— 弹窗只有 448px 宽，
- * 200 字已经占满八行。
- */
+/** 结束语 200 字。它是**过关后的一句话**，不是后记 —— 弹窗只有 448px 宽， 200 字已经占满八行。 */
 export const PUZZLE_ENDING_MAX_LENGTH = 200;
 
 // ---- Map draft JSON ----
 /**
- * A cell's object layer is `item`, every asset reference is `assetId`, and an
- * anchor's key is `variantId`. `w` / `h` describe **this placement**, not the
- * variant, so multi-cell footprints survive.
- *
- * A map draft carries no `characterSlots` and no `style.linkageColors` — both
- * belong to the puzzle. `style` is optional: a missing one resolves to
- * `DEFAULT_MAP_STYLE`.
- *
- * A canvas item anchor may carry `variantId`, pointing at one of the asset's
- * variants (docs/v0.6.1.md §6). A background cell may carry it too, since a
- * background asset can own several variants. The field is optional: payloads
- * without it keep validating and fall back to the asset's first variant.
- *
- * A region's display style is `style`, a deep partial over the map-level
- * defaults; there is no fill.
- *
- * Schemas are `.strict()`: a payload from an older version is rejected on
- * write and absorbed on read by `service/mapDraftCompat.ts`; stored rows were
- * rewritten by migrations `20260101000025`, `20260101000030` and
- * `20260101000035`.
+ * 草稿**不含** `characterSlots` / `style.linkageColors`（属谜题）；`style` 可缺 → `DEFAULT_MAP_STYLE`。schema 是 `.strict()`：老版本载荷写入被拒、读取由 `service/mapDraftCompat.ts` 吸收（存量行已由迁移重写），改字段必须同时改版本号。
  */
 export const MAP_JSON_VERSION = 8;
 
@@ -104,49 +56,24 @@ export const DEFAULT_THEME_COLOR = '#FFFFFF';
 // 色表只会让后来者以为「主题色只能从这几个里挑」。
 
 // ---- Map style ----
-/**
- * Map-level defaults edited by the 「地图基本信息」 drawer. Sizes are authored at
- * `BASE_CELL` and scaled by `cellSize / BASE_CELL` (OPT-B03), so one config reads
- * the same at `n = 2` and `n = 24`.
- */
+/** Map-level defaults edited by the 「地图基本信息」 drawer. Sizes are authored at `BASE_CELL` and scaled by `cellSize / BASE_CELL` (OPT-B03), so one config reads the same at `n = 2` and `n = 24`. */
 export const MAP_STYLE_LINE_WIDTH_MIN = 1;
 export const MAP_STYLE_LINE_WIDTH_MAX = 12;
-/**
- * v0.9.1 §5：物品描边的宽度区间。**0 = 不描边**，也是出厂默认 —— 描边是可选
- * 强调，不是每张图都得有；真要加时 1 ~ 12 与线宽同一档手感。
- */
+/** v0.9.1 §5：物品描边的宽度区间。**0 = 不描边**，也是出厂默认 —— 描边是可选强调，不是每张图都得有；真要加时 1 ~ 12 与线宽同一档手感。 */
 export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN = 0;
 export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX = 12;
-/**
- * 操作光标框的**外扩距离**，单位是**格的百分比**（`100` = 一格）—— 画布像素下
- * 同一份 `2` 在大格子上只往外扩一点点、在小格子上却几乎盖住邻格；用百分比，
- * 框与格子的相对关系在任何格子大小下都一样。
- */
+/** 操作光标框的**外扩距离**，单位是**格的百分比**（`100` = 一格）—— 画布像素下同一份 `2` 在大格子上只往外扩一点点、在小格子上却几乎盖住邻格；用百分比， 框与格子的相对关系在任何格子大小下都一样。 */
 export const MAP_STYLE_OPERATION_OFFSET_MIN = 0;
 export const MAP_STYLE_OPERATION_OFFSET_MAX = 100;
 export const MAP_STYLE_REGION_LABEL_FONT_MIN = 9;
 export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
 export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
 export const MAP_STYLE_REGION_LABEL_STROKE_MAX = 12;
-/**
- * 区域标签的位置偏移（画布像素，正负都收）。
- *
- * 偏移只要求是有限数字：上下限本是为了「别让标签跑没」，但标签推到画面外之后照样
- * 能从区域列表点回来，而作者想把标签推到远处、给整块区域留白时，这个限制先把路
- * 堵死了。web 侧的两处 clamp 只负责取整、不封顶。
- */
+/** 区域标签的位置偏移（画布像素，正负都收）。 偏移只要求是有限数字：上下限本是为了「别让标签跑没」，但标签推到画面外之后照样能从区域列表点回来，而作者想把标签推到远处、给整块区域留白时，这个限制先把路堵死了。web 侧的两处 clamp 只负责取整、不封顶。 */
 
 // ---- v0.7.4 区域标签字体（docs/v0.7.4.md §2） ----
 /**
- * 区域标签用的字体。
- *
- * 草稿里存的是**字体名**（例如 `WenKai`、`霞鹜文楷`），不是 CSS 字符串：一份
- * 草稿会被导出 / 导入、被复制成版本快照，存一个名字意味着换机器、换字号都还是
- * 同一款字体；而拼好的 `font-family` 一进 JSON 就再也没法安全地和别的回退链
- * 合并。字体文件由前端自己带（`packages/web/src/assets/fonts/`），本包只认名字。
- *
- * 下面这几个 key 是**内置字族**：不需要任何字体文件，靠系统里同名字族 + 回退链
- * 兜住。它们仍然合法（老草稿里存的就是它们），但选择器现在主推具体字体。
+ * 区域标签用的字体：草稿里存**字体名**（例如 `WenKai`、`霞鹜文楷`）而不是 CSS 字符串 —— 导出 / 导入、换机器都还是同一款；拼好的 `font-family` 进 JSON 就没法和别的回退链安全合并。内置字族 key 仍合法（老草稿里就是它们）。字体文件由前端自带，本包只认名字。
  */
 export const MAP_STYLE_FONT_FAMILY_KEYS = ['system', 'sans', 'serif', 'kai', 'mono'] as const;
 export type MapStyleFontFamilyKey = (typeof MAP_STYLE_FONT_FAMILY_KEYS)[number];
@@ -167,13 +94,7 @@ export const MAP_STYLE_FONT_FAMILY_STACKS: Record<MapStyleFontFamilyKey, string>
 };
 export const DEFAULT_REGION_LABEL_FONT_FAMILY = 'system';
 
-/**
- * 字体名的长度与字符集。
- *
- * 宽到能装下 `Source Han Serif SC` / `LXGW WenKai` / `霞鹜文楷`，但把**引号、
- * 逗号、分号、圆括号**排除在外 —— 拼回退链时唯一能注入 CSS 的位置就是字体名，
- * 而回退链本身由 `fontFamilyStack` 加引号包住，名字里再出现引号就会把它撕开。
- */
+/** 字体名的长度与字符集。 宽到能装下 `Source Han Serif SC` / `LXGW WenKai` / `霞鹜文楷`，但把**引号、 逗号、分号、圆括号**排除在外 —— 拼回退链时唯一能注入 CSS 的位置就是字体名， 而回退链本身由 `fontFamilyStack` 加引号包住，名字里再出现引号就会把它撕开。 */
 export const MAP_STYLE_FONT_FAMILY_NAME_MAX_LENGTH = 64;
 export const MAP_STYLE_FONT_FAMILY_NAME_PATTERN =
   /^[A-Za-z0-9\u4e00-\u9fff][A-Za-z0-9\u4e00-\u9fff ._-]*$/;
@@ -196,13 +117,7 @@ export function isMapStyleFontFamilyKey(value: unknown): value is MapStyleFontFa
   );
 }
 
-/**
- * 字体名 → 可直接放进 `style.fontFamily` 的回退链。
- *
- * 内置 key 用自己的回退链；具体字体名被引号包住、后面再挂系统默认那一串 ——
- * 字体文件没加载出来（或草稿来自没带这款字体的构建）时，标签退回系统字体而不是
- * 变成浏览器默认的衬线体。非法名字一律回退系统默认，绝不透传。
- */
+/** 字体名 → 可直接放进 `style.fontFamily` 的回退链。 内置 key 用自己的回退链；具体字体名被引号包住、后面再挂系统默认那一串 —— 字体文件没加载出来（或草稿来自没带这款字体的构建）时，标签退回系统字体而不是变成浏览器默认的衬线体。非法名字一律回退系统默认，绝不透传。 */
 export function fontFamilyStack(name: string): string {
   if (isMapStyleFontFamilyKey(name)) return MAP_STYLE_FONT_FAMILY_STACKS[name];
   if (!isMapStyleFontFamilyName(name)) {
@@ -222,11 +137,7 @@ export const MAP_STYLE_CELL_SIZE_MAX = MAX_CELL_SIZE;
 export const MAP_STYLE_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 // ---- v0.5.2 SPEC-M07: 「基本信息」默认值（docs/v0.5.2.md §7.1）----
-/**
- * Defaults only. The older `BORDER_WIDTH` / `RULER_FONT_SIZE` … stay untouched
- * because `canvasMetrics` and its tests still read them; `DEFAULT_MAP_STYLE`
- * points at this set instead.
- */
+/** Defaults only. The older `BORDER_WIDTH` / `RULER_FONT_SIZE` … stay untouched because `canvasMetrics` and its tests still read them; `DEFAULT_MAP_STYLE` points at this set instead. */
 export const STYLE_DEFAULT_RULER_FONT_SIZE = 24;
 export const STYLE_DEFAULT_RULER_GAP = 24;
 export const STYLE_DEFAULT_REGION_OUTLINE_WIDTH = 12;
@@ -235,31 +146,12 @@ export const STYLE_DEFAULT_REGION_HIGHLIGHT_WIDTH = 12;
 export const STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR = '#3B82F6';
 export const STYLE_DEFAULT_CANVAS_FRAME_WIDTH = 12;
 /**
- * v0.8.7 §6：画布这张纸的**投影** —— 向右下偏移一段、不带模糊的硬影，颜色取
- * 画布外框色（`style.canvasFrame.color`）再压一层透明度。
- *
- * 它不走 `--shadow-paper` / `--shadow-lifted` 那三档界面阴影：那三档是暖色、随浅色 /
- * 深色主题换，而这张影子是**作品**的一部分（和画框、网格线一样，不随界面变）。
- * 偏移量是画布像素 —— 和其它线宽一样，跟着 `zoom` 缩放。
- *
- * 2026-11-09（docs/v0.9.0.md §16）：6 → **24**。首发那个 6px 实测只露出约 3px
- * —— 外框的 SVG 描边骑在画布边界上、以边界为中心画，外半边正好压掉 2.8px，
- * 影子几乎看不见。用户要「地图阴影再偏移 20px」，最终定为总偏移 24px。
- *
- * 2026-11-09（docs/v0.9.1.md §2）：24 → **36**，并且偏移量与颜色不再是常量 ——
- * 它们进了 `MapStyle.canvasShadow`（地图「基本信息」与主题缺省风格都能改）。
- * 下面这几个常量只剩「出厂默认值」与区间，`canvasShadowStyle` 读的是风格里的值。
+ * v0.8.7 §6：画布这张纸的**投影** —— 向右下偏移、不带模糊的硬影，颜色取画布外框色（`style.canvasFrame.color`）再压一层透明度。它是**作品**的一部分，不走 `--shadow-paper` / `--shadow-lifted` 那几档随浅色 / 深色主题换的界面阴影。
  */
 export const CANVAS_SHADOW_OFFSET_PERCENT = 30;
 /** 固定透明度：阴影颜色只配 `#RRGGBB`，落成影子时统一压这一档。 */
 export const CANVAS_SHADOW_ALPHA = 0.3;
-/**
- * 阴影偏移的可调区间。0 = 不投阴影。
- *
- * 单位是**格的百分比**（`100` = 一格）：出厂 `30` 在基准格子（120px）上正好是
- * 36px，格子被自适应缩放时阴影跟着按比例走，不会在大图上显得像一条细缝、在小图上
- * 糊住棋盘。
- */
+/** 阴影偏移的可调区间。0 = 不投阴影。 单位是**格的百分比**（`100` = 一格）：出厂 `30` 在基准格子（120px）上正好是 36px，格子被自适应缩放时阴影跟着按比例走，不会在大图上显得像一条细缝、在小图上糊住棋盘。 */
 export const MAP_STYLE_SHADOW_OFFSET_MIN = 0;
 export const MAP_STYLE_SHADOW_OFFSET_MAX = 200;
 export const STYLE_DEFAULT_GRID_SEPARATOR_WIDTH = 4;
@@ -282,11 +174,7 @@ export const LINKAGE_COLOR_MAX_COUNT = 12;
 export const LINKAGE_COLOR_KEY_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/;
 export const LINKAGE_COLOR_LABEL_MAX_LENGTH = 16;
 
-/**
- * FEAT-D04 §「默认至少有红蓝」: the shipped palette. `red` / `blue` are the
- * historical `EFFECT_COLORS` keys, so old drafts keep working. v0.5.0 moved it
- * onto the puzzle (`PuzzleDraft.linkageColors`); this is its default.
- */
+/** FEAT-D04 §「默认至少有红蓝」: the shipped palette. `red` / `blue` are the historical `EFFECT_COLORS` keys, so old drafts keep working. v0.5.0 moved it onto the puzzle (`PuzzleDraft.linkageColors`); this is its default. */
 export const DEFAULT_LINKAGE_COLORS = [
   { key: 'red', label: '红', color: HIGHLIGHT_RED },
   { key: 'blue', label: '蓝', color: HIGHLIGHT_BLUE },
@@ -294,11 +182,7 @@ export const DEFAULT_LINKAGE_COLORS = [
 
 // ---- FEAT-D02 地图基本信息（地图级缺省值） ----
 /**
- * Map-level display constants edited by the 「地图基本信息」 drawer (FEAT-D02).
- * Everything here is a **default** — per-item settings still win. The one
- * exception is 区域轮廓线 colour, which is global (the region's own `color`
- * only drives the fill). SPEC-E01 renamed fields to the layer names:
- * `border` → `gridSeparator`, `regionBorder` → `regionOutline`, etc.
+ * Map-level display constants edited by the 「地图基本信息」 drawer (FEAT-D02)：全是**默认值**，逐项设置仍然优先。唯一例外是区域轮廓线颜色 —— 它是全局的（区域自己的 `color` 只决定填充）。
  */
 export interface MapStyleLine {
   width: number;
@@ -313,18 +197,12 @@ export interface MapStyleMouseCursorBox extends MapStyleLine {
 }
 
 export interface MapStyleOperationCursorBox extends MapStyleLine {
-  /**
-   * 相对方格向外扩多少 —— 单位是**格的百分比**（`100` = 一格）：Outline 画在
-   * 格子外面，所以这一项通常很小（出厂 `1`）。
-   */
+  /** 相对方格向外扩多少 —— 单位是**格的百分比**（`100` = 一格）：Outline 画在格子外面，所以这一项通常很小（出厂 `1`）。 */
   offset: number;
 }
 
 export interface MapStyleRegionLabel {
-  /**
-   * v0.7.4 (docs/v0.7.4.md §2): the label's typeface — a concrete font family
-   * name (`WenKai`) or one of the built-in `MAP_STYLE_FONT_FAMILY_KEYS`.
-   */
+  /** v0.7.4 (docs/v0.7.4.md §2): the label's typeface — a concrete font family name (`WenKai`) or one of the built-in `MAP_STYLE_FONT_FAMILY_KEYS`. */
   fontFamily: string;
   fontSize: number;
   strokeWidth: number;
@@ -338,16 +216,7 @@ export interface MapStyleRegionLabel {
 }
 
 /**
- * 区域标签的**位置偏移**（相对「格子上沿居中」这个锚点）。
- *
- * 锚点由 `labelCell` 决定，但同一个格子在不同区域里可能被别的东西占着 —— 一条
- * 只占两格的长区域、标签又压在桌沿上时，作者需要把它推开一点点。偏移是
- * **每块区域各自一份**，所以放在 `DraftRegion.style.label` 的覆盖里（而不是
- * 地图级缺省）：地图级的缺省偏移对一块区域合适，对另一块就不合适。
- *
- * 单位是**格的百分比**（`100` = 一格）：同一份 `12` 在大格子上和小格子上挪出的
- * 相对位置一样，「往右四分之一格」这种意图在任何格子大小下都落在同一个位置。
- * `0` = 不偏移（出厂值）。
+ * 区域标签的**位置偏移**（相对「格子上沿居中」这个锚点）；单位是**格的百分比**（`100` = 一格），`0` = 不偏移（出厂值）。同一格子在不同区域里可能被别的东西占着，所以它是**每块区域各自一份**，放在 `DraftRegion.style.label` 的覆盖里而不是地图级缺省。
  */
 export interface RegionLabelOffset {
   x: number;
@@ -358,14 +227,7 @@ export interface RegionLabelOffset {
 export interface MapStyleRuler {
   fontSize: number;
   gap: number;
-  /**
-   * 列 / 行标尺的前缀符号，默认 `C` / `R`。
-   *
-   * **只有主题在配**：符号是「这一套世界怎么念行与列」，与识别色、难度分级同一层，
-   * 同一主题下的几十张图不该各自填一遍。`mapStyleSchema` 同时给地图草稿与主题的
-   * `data.style` 用着，所以字段留在这层接口里；但地图草稿里的旧值不参与渲染
-   * （`MapRulerStrips` 按 `themeCode` 查主题），保存时也会被剥掉。
-   */
+  /** 列 / 行标尺的前缀符号，默认 `C` / `R`。 **只有主题在配**：符号是「这一套世界怎么念行与列」，与识别色、难度分级同一层， 同一主题下的几十张图不该各自填一遍。`mapStyleSchema` 同时给地图草稿与主题的 `data.style` 用着，所以字段留在这层接口里；但地图草稿里的旧值不参与渲染（`MapRulerStrips` 按 `themeCode` 查主题），保存时也会被剥掉。 */
   columnSymbol?: string;
   rowSymbol?: string;
 }
@@ -373,24 +235,14 @@ export interface MapStyleRuler {
 /** 标尺符号的长度上限 —— 再长就不是「前缀」而是句子了。 */
 export const MAP_STYLE_RULER_SYMBOL_MAX_LENGTH = 4;
 
-/**
- * 标尺行列符号的出厂值。
- *
- * 单独提出来是因为 `MapStyleRuler` 上这两个字段是**可选**的：它们只有主题配，
- * 地图草稿里那份会被剥掉（`stripRulerSymbols`），所以读一份地图的风格时这两个
- * 键本来就可能是缺席的，任何兜底都该落回这里而不是各自写 `'C'` / `'R'`。
- */
+/** 标尺行列符号的出厂值。 单独提出来是因为 `MapStyleRuler` 上这两个字段是**可选**的：它们只有主题配， 地图草稿里那份会被剥掉（`stripRulerSymbols`），所以读一份地图的风格时这两个键本来就可能是缺席的，任何兜底都该落回这里而不是各自写 `'C'` / `'R'`。 */
 export const MAP_STYLE_RULER_DEFAULT_SYMBOLS = {
   columnSymbol: 'C',
   rowSymbol: 'R',
 } as const;
 
 /**
- * v0.9.1（docs/v0.9.1.md §2）：画布这张纸投下的影子。
- *
- * v0.8.7 §6 时它是两个常量（偏移 24px、颜色取外框色）。这一版把偏移与颜色
- * 都搬进风格，于是「地图基本信息」与主题的缺省风格都能各改各的；透明度仍
- * 固定为 {@link CANVAS_SHADOW_ALPHA}（颜色只收 `#RRGGBB`，不开放 alpha）。
+ * v0.9.1（docs/v0.9.1.md §2）：画布这张纸投下的影子 —— 偏移与颜色都进了风格（「地图基本信息」与主题缺省各改各的），透明度仍固定为 {@link CANVAS_SHADOW_ALPHA}（颜色只收 `#RRGGBB`，不开放 alpha）。
  */
 export interface MapStyleCanvasShadow {
   /** 向右下偏移多少画布像素（随 `zoom` 缩放）。 */
@@ -399,12 +251,7 @@ export interface MapStyleCanvasShadow {
   color: string;
 }
 
-/**
- * v0.9.1 §5（docs/v0.9.1.md §5）：地图上**物品**的描边。
- *
- * 沿物品图片的 alpha 画一圈剪影描边（不是矩形框），用来把物品从底纹里拔出来。
- * `width = 0` 是出厂默认 —— 不描边。
- */
+/** v0.9.1 §5（docs/v0.9.1.md §5）：地图上**物品**的描边。 沿物品图片的 alpha 画一圈剪影描边（不是矩形框），用来把物品从底纹里拔出来。 `width = 0` 是出厂默认 —— 不描边。 */
 export interface MapStyleItemOutline {
   /** 基准宽度（随方格尺寸等比缩放）；0 = 不描边。 */
   width: number;

@@ -1,27 +1,12 @@
 import type { Knex } from 'knex';
 import { GRID_SIZE_MAX, GRID_SIZE_MIN } from '@loredoku/shared';
 
-/**
- * v0.7.1 §7.2 —— `games` 只引用**谜题版本行**，不再自带快照。
- *
- * 删掉的 8 列都是「谜题里已经有了」的冗余：`snapshot`（画布 + 名册全量拷贝）、
- * `project_id` / `version_no`（底图信息在 `puzzle.data.map` 里）、
- * `cover_mime` / `cover_size` / `cover_width` / `cover_height`（封面只需要 path
- * 就能服务）、`grid_size`（从画布派生）。加 `deleted_at` 让「取消部署」变成假删。
- *
- * 两个唯一约束**分工不同**，别混：
- *
- * - `puzzle_id` 普通 UNIQUE = 一个谜题版本行 ⇄ 一个 game 行。它对已删行也生效，
- *   但覆盖部署是同事务内 delete-then-insert，所以「取消部署 → 重新部署」不会被
- *   自己挡住。
- * - `slug` 的 partial UNIQUE（`WHERE deleted_at IS NULL`）= 「删除的 slug 可
- *   重用」的机制，与上一条无关。
- */
+/** v0.7.1 §7.2：games 只引用谜题版本行、不再自带快照，删 8 个冗余列并加 deleted_at 假删；puzzle_id 普通 UNIQUE=一行一游戏且对已删行也生效（取消部署靠同事务 delete-then-insert），slug 的 partial UNIQUE(WHERE deleted_at IS NULL) 管「删掉的 slug 可重用」，两者无关别混。 */
 export async function up(knex: Knex): Promise<void> {
-  // 1. v0.4.x 遗留的无主行：没有 puzzle 就没有画布，硬删等于取消部署，slug 释放。
+  // v0.4.x 遗留的无主行：没有 puzzle 就没有画布，硬删等于取消部署，slug 释放。
   await knex.raw('DELETE FROM games WHERE puzzle_id IS NULL');
 
-  // 2. `puzzle_id` 收紧：版本行挂着游戏时不可删（RESTRICT），一个版本行一个游戏。
+  // `puzzle_id` 收紧：版本行挂着游戏时不可删（RESTRICT），一个版本行一个游戏。
   await knex.raw('ALTER TABLE games DROP CONSTRAINT games_puzzle_id_foreign');
   await knex.raw('ALTER TABLE games ALTER COLUMN puzzle_id SET NOT NULL');
   await knex.raw(`
@@ -32,13 +17,13 @@ export async function up(knex: Knex): Promise<void> {
   await knex.raw('DROP INDEX games_puzzle_id_unique');
   await knex.raw('CREATE UNIQUE INDEX games_puzzle_id_unique ON games (puzzle_id)');
 
-  // 3. 假删 + 「删除的 slug 可重用」。旧对象是 knex `table.unique()` 建的
-  //    **constraint**（`00015` 建、`00027` 改名），必须 DROP CONSTRAINT。
+  // 假删 + 「删除的 slug 可重用」。旧对象是 knex `table.unique()` 建的
+  // **constraint**（`00015` 建、`00027` 改名），必须 DROP CONSTRAINT。
   await knex.raw('ALTER TABLE games ADD COLUMN deleted_at timestamptz');
   await knex.raw('ALTER TABLE games DROP CONSTRAINT games_slug_unique');
   await knex.raw('CREATE UNIQUE INDEX uq_games_slug_active ON games (slug) WHERE deleted_at IS NULL');
 
-  // 4. 删冗余列（`project_id` 的 FK / `grid_size` 的 CHECK 随列一起消失）。
+  // 删冗余列（`project_id` 的 FK / `grid_size` 的 CHECK 随列一起消失）。
   for (const column of [
     'project_id',
     'version_no',
@@ -53,14 +38,7 @@ export async function up(knex: Knex): Promise<void> {
   }
 }
 
-/**
- * 结构可逆、**数据近似**（与 `00021` 的 down 同口径）：底图信息与 gridSize 能从
- * 谜题行的 JSON 读回来，`snapshot` 由它重建；`project_id` 用谜题记录的地图 id，
- * 那个 id 已被硬删时退到现有 `maps` 里最小的 id（旧模型只能表达「挂在一张图上」）。
- *
- * 已取消部署的假删行先硬删：旧模型没有 `deleted_at`，且它们的 slug 可能已经
- * 被后来的部署复用，留着会让全覆盖的 `games_slug_unique` 建不起来。
- */
+/** down 结构可逆、数据近似（同 00021 口径）：底图与 gridSize 从谜题 JSON 读回、snapshot 由它重建，project_id 取谜题记录的地图 id、缺失退到最小 maps id；已取消部署的假删行先硬删，否则全覆盖 games_slug_unique 建不起来。 */
 export async function down(knex: Knex): Promise<void> {
   await knex.raw('DELETE FROM games WHERE deleted_at IS NOT NULL');
 

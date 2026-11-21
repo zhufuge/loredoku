@@ -1,24 +1,5 @@
 #!/usr/bin/env node
-/**
- * v0.9.0（docs/v0.9.0.md §8）—— 播放器的 dev / build / preview 包装。
- *
- * 为什么不让 `package.json` 直接调 `vite`：vite 的 CLI 用 cac，**未知选项直接报错**
- * （实测 `--bundle=…` 会抛 `CACError: Unknown option`）。这一层把 `--bundle` 摘出来，
- * 剩下的参数原样递给 vite（`--host`、`--port`、`--mode` 都还能用）。
- *
- * 2026-11-09 补（§14）：**默认包路径改放在仓库根的 `.env`**，所以最常用的一条命令
- * 现在不带任何参数：
- *
- * ```
- * npm run dev:player                                 # 用 .env 里的默认包
- * npm run build:player                               # 同上
- * npm run build:player -- --bundle=/path/to/hlm.zip  # 临时换一个包，不改 .env
- * LOREDOKU_BUNDLE=/path/to/hlm.zip npm run build:player
- * npm run preview:player                             # 不需要包（产物里已经烤好了）
- * ```
- *
- * 优先级 `--bundle > 显式环境变量 > .env` 由 `scripts/playerEnv.mjs` 统一回答。
- */
+/** v0.9.0（docs/v0.9.0.md §8 / §14）：播放器 dev/build/preview 包装 —— vite 的 cac 遇未知选项直接报错，所以这一层摘掉 `--bundle`、其余参数原样递给 vite；默认包路径在仓库根的 `.env` 里。 */
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -53,10 +34,7 @@ if (sawBundleFlag && cliBundle === null) {
   process.exit(2);
 }
 
-/**
- * `.env` / 显式环境变量里那条。`argv` 传空数组：命令行那一路已经在上面单独处理了，
- * 这里只回答「不敲 --bundle 时用哪个」。
- */
+/** `.env` / 显式环境变量里那条。`argv` 传空数组：命令行那一路已经在上面单独处理了， 这里只回答「不敲 --bundle 时用哪个」。 */
 const configured = resolveBundlePath({
   argv: [],
   env: process.env,
@@ -91,11 +69,7 @@ if (!wanted && needBundle) {
   process.exit(2);
 }
 
-/**
- * 相对路径按**仓库根**解析 —— `.env` 就放在那里，写 `./resources/themes/hlm.zip`
- * 的人心里想的是仓库根，而不是 npm 切过去的 `packages/web`。cwd 那条只是兜底：
- * 有人从 `packages/web` 里直接敲 `./x.zip` 时也该能找到。
- */
+/** 相对路径按**仓库根**解析 —— `.env` 就放在那里，写 `./resources/themes/hlm.zip` 的人心里想的是仓库根，而不是 npm 切过去的 `packages/web`。cwd 那条只是兜底： 有人从 `packages/web` 里直接敲 `./x.zip` 时也该能找到。 */
 function resolveExisting(candidate) {
   if (!candidate) return null;
   if (path.isAbsolute(candidate)) return existsSync(candidate) ? candidate : null;

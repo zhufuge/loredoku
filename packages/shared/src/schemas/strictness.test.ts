@@ -3,18 +3,7 @@ import { mapDraftSchema } from './mapDraft';
 import { puzzleDraftSchema } from './puzzle';
 
 /**
- * `docs/data-json.md` §3 有一张表，把「哪些层多写键会报错、哪些层会静默丢掉」
- * 钉死了。这个文件是那张表的可执行版本 —— 手写 JSON 的人按它写，所以任何一层
- * 加上了 `.strict()`（或者反过来忘了加）都必须先把这里改红，而不是让文档慢慢
- * 变成谎话。
- *
- * 分两类断言：
- *
- * - **报错**：`.strict()` 的层，多一个键就是 `unrecognized_keys`；
- * - **静默丢弃**：没写 `.strict()` 的层，解析通过，但那个键不会出现在结果里。
- *
- * 第二类不是「无所谓」—— `formId` 的兼容预处理（`withLegacyAnchorKey`）正是
- * 为了补救它：锚点对象不吃 strict，旧键不改名就会被悄悄扔掉。
+ * `docs/data-json.md` §3 那张表（哪些层多写键报错、哪些层静默丢弃）的可执行版本 —— 任何一层加 / 去 `.strict()` 都必须先改红这里，而不是让文档变谎话。锚点对象不吃 strict，旧键 `formId` 靠 `withLegacyAnchorKey` 补救。
  */
 
 const canvas = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({

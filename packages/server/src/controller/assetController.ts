@@ -57,7 +57,4 @@ export async function usages(ctx: Context): Promise<void> {
   success(ctx, await assetService.getUsages(id));
 }
 
-/**
- * v0.5.2 FEAT-M03 (docs/v0.5.2.md §3.1): no triggers route is registered — a
- * stale client gets 404 rather than a 500 from a dead schema.
- */
+/** v0.5.2 FEAT-M03 (docs/v0.5.2.md §3.1): no triggers route is registered — a stale client gets 404 rather than a 500 from a dead schema. */

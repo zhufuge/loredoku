@@ -21,16 +21,7 @@ import {
   STYLE_DEFAULT_RULER_GAP,
 } from '@loredoku/shared';
 
-/**
- * v0.5.2 SPEC-M07 (docs/v0.5.2.md §7) — the 「基本信息」defaults were all
- * raised. Two things must hold, and this file pins both:
- *
- * 1. `DEFAULT_MAP_STYLE` carries the new numbers (already covered from the
- *    resolver side in `lib/mapStyle.test.ts` — repeated here because the drawer
- *    is the surface the user actually reads).
- * 2. Every new default still fits inside the clamp range its `NumberField`
- *    enforces, otherwise the drawer would silently snap the value back.
- */
+/** v0.5.2 SPEC-M07（docs/v0.5.2.md §7）：「基本信息」的默认值集体上调，此处钉两件事 —— `DEFAULT_MAP_STYLE` 带着新数值（抽屉是用户真正读到的界面，故在这里重钉一遍），且每个新默认值都在 `NumberField` 的钳制范围内（否则抽屉会静默把值弹回去）。 */
 describe('基本信息默认值（v0.5.2 SPEC-M07）', () => {
   it('matches the §7 table field by field', () => {
     expect(DEFAULT_MAP_STYLE.ruler).toEqual({

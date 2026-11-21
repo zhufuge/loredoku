@@ -4,16 +4,7 @@ import { join } from 'node:path';
 import type { Knex } from 'knex';
 import { uploadRoot } from '../../utils/paths';
 
-/**
- * 封面目录从 `storage/uploads/projects/` 迁到 `maps/`。
- *
- * 旧目录名来自已经消失的 `projects` 表；`maps` 才是现在的元素名。`cover_path`
- * 里存的是相对 `UPLOAD_ROOT` 的路径，所以只改 `maps` 行还不够 —— 磁盘上的
- * 目录要跟着搬，否则旧封面全部 404。两件事放在同一个迁移里做：这是唯一能
- * 保证「库里指向的文件真的在那儿」的地方。
- *
- * 已经手工搬过目录的环境（目标已存在）跳过搬运；`down` 方向同理。
- */
+/** 封面目录 storage/uploads/projects/ → maps/：cover_path 是相对 UPLOAD_ROOT 的路径，DB 改名必须与磁盘搬目录在同一迁移里做，否则旧封面全 404；目标目录已存在则跳过（down 同理）。 */
 export async function up(knex: Knex): Promise<void> {
   await moveCoverDir('projects', 'maps');
   await knex.raw(`

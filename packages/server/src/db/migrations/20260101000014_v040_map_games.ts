@@ -6,20 +6,7 @@ import {
   GRID_SIZE_MIN,
 } from '@loredoku/shared';
 
-/**
- * v0.4.0 FEAT-G02 (docs/v0.4.0.md §5.1) — deployed games.
- *
- * A game is a **fixed copy** of one published work: `snapshot` holds the draft
- * the work carried when it was deployed, so later re-publishes of the same map
- * never change a game that is already playable.
- *
- * `project_id` is UNIQUE: one map can only ever hold one deployed game, and
- * deploying another version of the same map overwrites the row (delete + insert
- * in one transaction — see `gameRepository.upsert`).
- *
- * `grid_size` is denormalised so the games home page can show `n×n` without
- * parsing every snapshot.
- */
+/** v0.4.0 FEAT-G02（docs/v0.4.0.md §5.1）：map_games.snapshot 是部署时的固定副本，之后重发布不影响已部署游戏；project_id UNIQUE=一图一游戏，覆盖部署走同事务 delete+insert（gameRepository.upsert）；grid_size 反范式供列表页。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.createTable('map_games', (table) => {
     table.bigIncrements('id').primary();

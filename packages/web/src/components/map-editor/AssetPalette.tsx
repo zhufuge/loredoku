@@ -17,10 +17,7 @@ interface AssetPaletteProps {
   onSelect: (asset: Asset | null, variant: AssetVariant | null) => void;
   /** True while the asset query is fetching; spins the refresh icon. */
   refreshing?: boolean;
-  /**
-   * 搜索框右侧的刷新。**可选** —— 不传就不渲染按钮，调色板仍能单独用
-   * （它不认识 react-query，取数方式由调用方决定）。
-   */
+  /** 搜索框右侧的刷新。**可选** —— 不传就不渲染按钮，调色板仍能单独用（它不认识 react-query，取数方式由调用方决定）。 */
   onRefresh?: () => void;
 }
 
@@ -33,24 +30,10 @@ interface Tile {
   multi: boolean;
 }
 
-/**
- * v0.6.1 (docs/v0.6.1.md §8.5): the tiles are **variants**, not assets — you place
- * 「宝箱·打开」, not 「宝箱」. Both layers work the same way: a background asset
- * may own several variants too, and the tile says which look you are about to
- * paint.
- *
- * The second line carries no footprint (a variant does not declare one):
- * several variants → the variant name, a single variant → 「1 格」.
- */
+/** v0.6.1 (docs/v0.6.1.md §8.5): the tiles are **variants**, not assets — you place 「宝箱·打开」, not 「宝箱」. The second line carries no footprint (a variant does not declare one): several variants → the variant name, a single variant → 「1 格」. */
 function buildTiles(assets: Asset[], layer: EditorLayer): Tile[] {
   const tiles: Tile[] = [];
-  /*
-   * 按资源名排序（中文按拼音首字母）。
-   *
-   * 排的是**资源**、不是 tile —— 一个资源的几个形态必须挨在一起，否则
-   * 「宝箱·关着」和「宝箱·打开」会被别的资源隔开，作者找形态时得来回扫。
-   * 排序放在建 tile 之前，形态之间的相对次序仍是资源自己声明的那个。
-   */
+  /* 按资源名排序（中文按拼音首字母）。 排的是**资源**、不是 tile —— 一个资源的几个形态必须挨在一起，否则「宝箱·关着」和「宝箱·打开」会被别的资源隔开，作者找形态时得来回扫。 排序放在建 tile 之前，形态之间的相对次序仍是资源自己声明的那个。 */
   for (const asset of sortByName(assets)) {
     if (assetLayerFor(asset) !== layer) continue;
     const multi = asset.variants.length > 1;

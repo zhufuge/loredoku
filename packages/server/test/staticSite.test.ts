@@ -5,11 +5,7 @@ import { ErrorCode } from '@loredoku/shared';
 import { api } from './helpers';
 import { webDistRoot } from '../src/utils/paths';
 
-/**
- * The server hosts packages/web/dist so `npm start` alone serves the
- * whole app. These cases need a build — without one the fallback stands down
- * and every path answers the JSON 404 (which is the dev-mode behaviour).
- */
+/** The server hosts packages/web/dist so `npm start` alone serves the whole app. These cases need a build — without one the fallback stands down and every path answers the JSON 404 (which is the dev-mode behaviour). */
 const built = existsSync(resolve(webDistRoot, 'index.html'));
 
 describe.skipIf(!built)('前端 build 产物托管', () => {

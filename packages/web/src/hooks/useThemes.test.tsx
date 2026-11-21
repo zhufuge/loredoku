@@ -5,12 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { themesApi } from '@/api/themes';
 import { useDeleteTheme } from './useThemes';
 
-/**
- * v0.8.3（docs/v0.8.3.md §13）：删除成功时顺手忘掉「上一次在哪个工作空间」。
- *
- * 系统配置正是删完主题落脚的地方，而它的「返回工坊」读的就是这条记忆。留着被删
- * 的编码，点回去得到的是「没有编码是 xxx 的主题」—— 明明还有别的工坊开着。
- */
+/** v0.8.3（docs/v0.8.3.md §13）：删除成功时顺手忘掉「上一次在哪个工作空间」。 系统配置正是删完主题落脚的地方，而它的「返回工坊」读的就是这条记忆。留着被删的编码，点回去得到的是「没有编码是 xxx 的主题」—— 明明还有别的工坊开着。 */
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock('@/api/themes', () => ({
   themesApi: { remove: vi.fn() },

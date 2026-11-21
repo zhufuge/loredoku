@@ -7,20 +7,13 @@ export interface HighlightController {
   highlight: HighlightState | null;
   /** True while a previous highlight is fading out (150ms). */
   leaving: boolean;
-  /**
-   * Shows `state` persistently (MOD-802: no auto-expiry). Re-triggering
-   * replaces the current highlight and cancels any fade-out.
-   */
+  /** Shows `state` persistently (MOD-802: no auto-expiry). Re-triggering replaces the current highlight and cancels any fade-out. */
   show: (state: HighlightState | null) => void;
   /** Starts the 150ms fade-out; the layer unmounts afterwards. */
   clear: () => void;
 }
 
-/**
- * MOD-802 (docs/v0.3.3.md): highlights no longer expire on a timer. They
- * stay until the activation state machine clears them, with a short
- * 150ms fade-out transition (spec §1.2.4).
- */
+/** MOD-802 (docs/v0.3.3.md): highlights no longer expire on a timer. They stay until the activation state machine clears them, with a short 150ms fade-out transition (spec §1.2.4). */
 export function useHighlight(): HighlightController {
   const [highlight, setHighlight] = useState<HighlightState | null>(null);
   const [leaving, setLeaving] = useState(false);

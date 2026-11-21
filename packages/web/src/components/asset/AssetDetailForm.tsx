@@ -41,17 +41,7 @@ interface AssetDetailFormProps {
   onRequestDelete: (asset: Asset) => void;
 }
 
-/**
- * v0.6.1 (docs/v0.6.1.md §8.4): the pane splits in two.
- *
- * - **资源区** — identity and behaviour only: name / type / blocking.
- * - **形态区** — one card per variant; each card owns its look.
- *
- * The split mirrors the data: an asset is 「what it is」, a variant is 「how it
- * looks」. Both types get the same treatment — a background asset may own several
- * variants as well. (v0.7.6: the footprint left both the data and the card; where
- * an item sits and how big it draws is the placement's business.)
- */
+/** v0.6.1 (docs/v0.6.1.md §8.4): the pane splits in two.；**资源区** — identity and behaviour only: name / type / blocking.；**形态区** — one card per variant; each card owns its look. (v0.7.6: the footprint left both the data and the card; where an item sits and how big it draws is the placement's business.) */
 export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps): JSX.Element {
   const [name, setName] = useState(asset.name);
   const [type, setType] = useState(asset.type);
@@ -64,13 +54,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
   const createVariantMutation = useCreateAssetVariant();
   const deleteVariantMutation = useDeleteAssetVariant();
 
-  /**
-   * 只在换成**另一个资源**时用服务器值重置表单。
-   *
-   * 依赖 `asset.updatedAt` 会让「启用 / 停用」「添加形态」「删除形态」这些同样
-   * 会重取的动作，把用户改了一半的名字 / 类型按回服务器值。
-   * 表单是草稿，后台刷新不该写它。
-   */
+  /** 只在换成**另一个资源**时用服务器值重置表单。 依赖 `asset.updatedAt` 会让「启用 / 停用」「添加形态」「删除形态」这些同样会重取的动作，把用户改了一半的名字 / 类型按回服务器值。 表单是草稿，后台刷新不该写它。 */
   /* oxlint-disable react-hooks/exhaustive-deps -- 只在换资源时按服务器值重置，同一条资源的刷新不该覆盖草稿 */
   useEffect(() => {
     setName(asset.name);

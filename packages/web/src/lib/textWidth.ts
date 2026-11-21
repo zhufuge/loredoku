@@ -1,12 +1,4 @@
-/**
- * The shared glyph-width **model** — an estimate, good enough to decide
- * whether text still fits a box.
- *
- * A wide (CJK / fullwidth) glyph counts as a full em, everything else as
- * ~0.62em. v0.6.4 introduced the model for `glyphFontSize` (participant
- * 编号 in the 9-grid); v0.7.0 reuses it for the ruler strips, whose thin
- * axis has to fit the `C24` / `R24` label *width*, not just its height.
- */
+/** The shared glyph-width **model** — an estimate, good enough to decide whether text still fits a box. */
 export function textEmUnits(text: string): number {
   let units = 0;
   for (const char of text) {

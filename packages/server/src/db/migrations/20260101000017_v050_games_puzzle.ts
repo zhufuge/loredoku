@@ -1,22 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * v0.5.0 CONS-K16 (docs/v0.5.0.md §10.1 / §11.1) — the unit of deployment moves
- * from "one published version" to "one puzzle".
- *
- * - `puzzle_id` is added, nullable, `ON DELETE SET NULL`; deleting a puzzle
- *   therefore demotes its game to a legacy (puzzle-less) one instead of
- *   cascading the delete over a game players may be using.
- * - A **partial** unique index keeps "one game per puzzle" while allowing any
- *   number of legacy rows with `puzzle_id IS NULL` — a plain UNIQUE constraint
- *   would let at most one NULL-puzzle row survive on some engines, and on
- *   PostgreSQL it would also silently permit duplicates among NULLs.
- * - The old `project_id` UNIQUE is **dropped**: different versions of the same
- *   map may now be deployed by different puzzles at the same time.
- *
- * `project_id` / `version_no` keep their meaning as the referenced map version,
- * which is why the drop above is safe — nothing else reads them as an identity.
- */
+/** v0.5.0 CONS-K16（docs/v0.5.0.md §10.1/§11.1）：部署单位由「发布版本」改为「谜题」——puzzle_id 可空 + ON DELETE SET NULL（删谜题只降级为 legacy 行，不级联删游戏）；partial UNIQUE(WHERE puzzle_id IS NOT NULL) 保证一谜题一游戏又容许多条 legacy；旧 project_id UNIQUE 删除，同图不同版本可并行部署。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.schema.alterTable('map_games', (table) => {
     table

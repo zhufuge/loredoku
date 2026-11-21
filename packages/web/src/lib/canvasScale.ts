@@ -14,13 +14,7 @@ import {
   RULER_FONT_SIZE_ACTIVE,
 } from '@loredoku/shared';
 
-/**
- * OPT-B03 (docs/v0.3.6.md §3): the cell width spans 32 ~ 240px, so a fixed 2px
- * grid line is heavy at one end and hairline at the other. Everything geometric is
- * authored against `BASE_CELL` and multiplied by `scale = cellSize / BASE_CELL`.
- * §3.3: only `cellSize` re-scales — canvas zoom is a container `transform`, so
- * re-scaling here would double it.
- */
+/** OPT-B03 (docs/v0.3.6.md §3): the cell width spans 32 ~ 240px, so a fixed 2px grid line is heavy at one end and hairline at the other. */
 export function cellScale(cellSize: number): number {
   if (!Number.isFinite(cellSize) || cellSize <= 0) return 1;
   return cellSize / BASE_CELL;
@@ -33,22 +27,14 @@ export function scaleLineWidth(width: number, scale: number): number {
   return Math.min(LINE_WIDTH_MAX, Math.max(LINE_WIDTH_MIN, scaled));
 }
 
-/**
- * v0.5.2 FIX-M08 (docs/v0.5.2.md §8): fonts clamp to `FONT_SIZE_MIN` only — **no
- * upper bound**. The old 28px ceiling flattened everything above it ("set 32px,
- * rendered 28px"). Line widths need a ceiling or they smear; a large label is a
- * deliberate authoring choice and must survive.
- */
+/** v0.5.2 FIX-M08 (docs/v0.5.2.md §8): fonts clamp to `FONT_SIZE_MIN` only — **no upper bound**. The old 28px ceiling flattened everything above it ("set 32px, rendered 28px"). Line widths need a ceiling or they smear; a large label is a deliberate authoring choice and must survive. */
 export function scaleFontSize(size: number, scale: number): number {
   const scaled = size * scale;
   if (!Number.isFinite(scaled)) return size;
   return Math.max(FONT_SIZE_MIN, scaled);
 }
 
-/**
- * OPT-C06 (docs/v0.3.7.md §OPT-C06): object-layer artwork is inset inside its
- * cell. Clamped to `[ITEM_PADDING_MIN, ITEM_PADDING_MAX]`.
- */
+/** OPT-C06 (docs/v0.3.7.md §OPT-C06): object-layer artwork is inset inside its cell. Clamped to `[ITEM_PADDING_MIN, ITEM_PADDING_MAX]`. */
 export function itemPadding(cellSize: number): number {
   const scaled = ITEM_PADDING_BASE * cellScale(cellSize);
   if (!Number.isFinite(scaled)) return ITEM_PADDING_BASE;

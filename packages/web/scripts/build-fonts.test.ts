@@ -5,12 +5,7 @@ import { join } from 'node:path';
 import { promisify } from 'node:util';
 import { describe, expect, it } from 'vitest';
 
-/**
- * v0.7.4 (docs/v0.7.4.md §2.6): 字体体积靠「裁字」解决，字集就是这个脚本的全部
- * 价值。脚本是 CLI（`.mjs`，不进 `tsc`），所以这里按 CLI 测：起子进程、看输出。
- *
- * 只测「不碰字体文件」的路径 —— 真去裁一款 25 MB 的字体是集成测试，不该进单测。
- */
+/** v0.7.4 (docs/v0.7.4.md §2.6): 字体体积靠「裁字」解决，字集就是这个脚本的全部价值。脚本是 CLI（`.mjs`，不进 `tsc`），所以这里按 CLI 测：起子进程、看输出。 只测「不碰字体文件」的路径 —— 真去裁一款 25 MB 的字体是集成测试，不该进单测。 */
 const run = promisify(execFile);
 // jsdom 环境下 `import.meta.url` 是 http:// 的，不能用它定位脚本 —— vitest 的
 // 工作目录就是 packages/web。
@@ -55,11 +50,7 @@ describe('build-fonts CLI', () => {
   });
 });
 
-/**
- * 补字清单是「谁遇到缺字谁加一行」的人工清单，被误删不会让构建报错 ——
- * 只是那个字悄悄退回系统字体。这里把「雯 / 麝 / 怡」钉在清单上：它们要进
- * `font-kai`，才能和名册里的晴雯、麝月、怡红院用同一种手写体。
- */
+/** 补字清单是「谁遇到缺字谁加一行」的人工清单，被误删不会让构建报错 —— 只是那个字悄悄退回系统字体。这里把「雯 / 麝 / 怡」钉在清单上：它们要进 `font-kai`，才能和名册里的晴雯、麝月、怡红院用同一种手写体。 */
 describe('补字清单（v0.9.4）', () => {
   it('雯 / 麝 / 怡 都在清单里，且清单不带 # 注释进字集', async () => {
     const text = await readFile(join(process.cwd(), 'scripts/font-extra-chars.txt'), 'utf8');

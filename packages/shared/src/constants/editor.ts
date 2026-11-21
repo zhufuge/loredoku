@@ -28,15 +28,7 @@ export const UPLOAD_ALLOWED_MIME = [
 ] as const;
 export const THUMBNAIL_MAX_DIMENSION = 512;
 
-/**
- * v0.8.6（docs/v0.8.6.md §4）：**符号级小图**的长边上限（像素）。
- *
- * 这一类图不只是「禁止符号」：标记、清除 / 回退 / 提交三枚按钮图标、
- * 长按计时环与校验圈都是同一种「作者上传的一张图」，尺寸档也相同 —— 它们最终都
- * 画在「一格」这个尺度上（最大是格子直径，实测 152px 上下），256 已经够 4K 屏。
- * 再大只是让一份谜题 JSON 从几 KB 变成几 MB（图是内联在数据里的，
- * 见 `UploadedImage`）。
- */
+/** v0.8.6（docs/v0.8.6.md §4）：**符号级小图**的长边上限（像素）。 这一类图不只是「禁止符号」：标记、清除 / 回退 / 提交三枚按钮图标、 长按计时环与校验圈都是同一种「作者上传的一张图」，尺寸档也相同 —— 它们最终都画在「一格」这个尺度上（最大是格子直径，实测 152px 上下），256 已经够 4K 屏。 再大只是让一份谜题 JSON 从几 KB 变成几 MB（图是内联在数据里的， 见 `UploadedImage`）。 */
 export const SYMBOL_IMAGE_MAX_DIMENSION = 256;
 
 /** `UploadedImage.path` 的长度上限（`storage/uploads` 下的相对路径）。 */

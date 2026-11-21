@@ -10,13 +10,7 @@ export function regionCellSet(region: DraftRegion): Set<string> {
   return new Set(region.cells.map(([x, y]) => coordKey(x, y)));
 }
 
-/**
- * 区域自由笔刷这一笔是「添加」还是「清除」。
- *
- * 矩形模式退役后，纠正单个错格不能再靠「再点一次取消」——规则改成看**起点
- * 格**：起点格已在选区里，整笔就是清除；`Alt` 永远强制清除。一笔之内方向固
- * 定，不会出现画到一半反过来把刚抹上的又擦掉。
- */
+/** 区域自由笔刷这一笔是「添加」还是「清除」。 矩形模式退役后，纠正单个错格不能再靠「再点一次取消」——规则改成看**起点格**：起点格已在选区里，整笔就是清除；`Alt` 永远强制清除。一笔之内方向固定，不会出现画到一半反过来把刚抹上的又擦掉。 */
 export function brushStrokeErases(startSelected: boolean, alt: boolean): boolean {
   return alt || startSelected;
 }
@@ -28,28 +22,7 @@ export interface Edge {
   y2: number;
 }
 
-/**
- * FIX-E02 (docs/v0.3.9.md §2): the region highlight must be a **continuous**
- * outline — the v0.3.7/v0.3.8 implementation drew one independently inset
- * segment per cell edge, which left a `2 × inset` gap at every cell boundary
- * along a straight run and a gap at every concave corner.
- *
- * This builds the region's boundary as closed rectilinear loops and offsets
- * each loop **inward by `inset`** in one shot:
- *
- * 1. every cell edge that is not shared with another region cell becomes a
- *    **directed** edge (travel direction chosen so the region interior is on
- *    the right — a clockwise loop in screen coordinates);
- * 2. the directed edges are chained into loops;
- * 3. each edge's supporting line is shifted inward by `inset` along its own
- *    inward normal, and the new vertices are the intersections of consecutive
- *    shifted lines.
- *
- * Because consecutive edges of a rectilinear loop are perpendicular, the
- * shifted lines always intersect in exactly one point, so the offset outline is
- * gap-free and every corner closes. `d` is capped at `size / 2` so a one-cell
- * region can never invert.
- */
+/** Because consecutive edges of a rectilinear loop are perpendicular, the shifted lines always intersect in exactly one point, so the offset outline is gap-free and every corner closes. `d` is capped at `size / 2` so a one-cell region can never invert. */
 export interface RegionHighlightPath {
   /** SVG path data — a closed rectilinear loop, already inset. */
   d: string;
@@ -75,13 +48,7 @@ interface BoundaryEdge {
   dy: number;
 }
 
-/**
- * Ranks a candidate direction by how tightly it turns **right** relative to the
- * incoming direction. A boundary that touches itself at a single point (a
- * "pinch") has two outgoing edges at that vertex; always taking the tightest
- * right turn keeps the interior on the right, which is what separates the
- * loops correctly.
- */
+/** Ranks a candidate direction by how tightly it turns **right** relative to the incoming direction. A boundary that touches itself at a single point (a "pinch") has two outgoing edges at that vertex; always taking the tightest right turn keeps the interior on the right, which is what separates the loops correctly. */
 function turnRank(dir: [number, number], candidate: [number, number]): number {
   const [dx, dy] = dir;
   const right: [number, number] = [-dy, dx];
@@ -104,7 +71,7 @@ export function buildRegionHighlightPaths(
   const set = new Set(cells.map(([x, y]) => coordKey(x, y)));
   const has = (x: number, y: number): boolean => set.has(coordKey(x, y));
 
-  // 1. Directed boundary edges, interior on the right (clockwise loop).
+  // Directed boundary edges, interior on the right (clockwise loop).
   const edges: BoundaryEdge[] = [];
   for (const [x, y] of cells) {
     const px = x * size;
@@ -126,7 +93,7 @@ export function buildRegionHighlightPaths(
   }
   if (edges.length === 0) return [];
 
-  // 2. Chain the directed edges into loops.
+  // Chain the directed edges into loops.
   const startsAt = new Map<string, number[]>();
   edges.forEach((edge, index) => {
     const key = coordKey(edge.x1, edge.y1);
@@ -163,13 +130,7 @@ export function buildRegionHighlightPaths(
     }
     if (loop.length < 4) continue;
 
-    // 3. Offset each supporting line inward and rebuild the vertices.
-    //
-    //    A vertex is the shared corner of two consecutive edges. Each edge that
-    //    is perpendicular to an axis fixes that axis (its offset line); when
-    //    the two edges are **collinear** — a straight run across a cell border
-    //    — neither offsets the varying axis, so the vertex keeps its original
-    //    coordinate there and the run simply stays straight.
+    // Offset each supporting line inward and rebuild the vertices. A vertex is the shared corner of two consecutive edges. Each edge that is perpendicular to an axis fixes that axis (its offset line); when the two edges are **collinear** — a straight run across a cell border — neither offsets the varying axis, so the vertex keeps its original coordinate there and the run simply stays straight.
     const points: Array<[number, number]> = [];
     for (let index = 0; index < loop.length; index += 1) {
       const previous = edges[loop[(index - 1 + loop.length) % loop.length]!]!;
@@ -193,12 +154,7 @@ export function buildRegionHighlightPaths(
   return paths;
 }
 
-/**
- * OPT-A04 (docs/v0.3.5.md §3.3.2): the region outline is a **Border-type**
- * stroke drawn around the outer contour of the region's cells, wider than the
- * grid Border. `size` is the adaptive cell width (OPT-A01) and is required so
- * the outline can never silently drift from the renderer.
- */
+/** OPT-A04 (docs/v0.3.5.md §3.3.2): the region outline is a **Border-type** stroke drawn around the outer contour of the region's cells, wider than the grid Border. `size` is the adaptive cell width (OPT-A01) and is required so the outline can never silently drift from the renderer. */
 export function buildRegionEdges(cells: Coord[], size: number): Edge[] {
   const set = new Set(cells.map(([x, y]) => coordKey(x, y)));
   const has = (x: number, y: number): boolean => set.has(coordKey(x, y));
@@ -260,13 +216,7 @@ export function isConnected(cells: Coord[]): boolean {
   return seen.size === set.size;
 }
 
-/**
- * Label anchor (see docs/v0.2.1.md §2.1.3): bottom-most row, then the cell at
- * the median x of that row.
- *
- * The anchor is a **cell**, so the rendered label is only as centered as that
- * cell allows — see `labelRowCenterX` for the pixel-accurate horizontals.
- */
+/** Label anchor (see docs/v0.2.1.md §2.1.3): bottom-most row, then the cell at the median x of that row. The anchor is a **cell**, so the rendered label is only as centered as that cell allows — see `labelRowCenterX` for the pixel-accurate horizontals. */
 export function computeLabelCell(cells: Coord[]): Coord | null {
   if (cells.length === 0) return null;
   const maxY = Math.max(...cells.map(([, y]) => y));
@@ -276,20 +226,7 @@ export function computeLabelCell(cells: Coord[]): Coord | null {
   return [middle, maxY];
 }
 
-/**
- * 标签圆心的横坐标，单位是**格**（允许 `.5`）。
- *
- * `computeLabelCell` 只能整格地给一个锚点，于是「底部行有偶数格」时取到的是
- * 中位偏右那一格，标签中心落在**那一格的格心**、而不是这一行像素跨度的中心 ——
- * 看上去就是右偏半格。这里按 `anchorY` 这一行里属于本区域的格子取
- * `[minX, maxX + 1]` 的中点，把半格补回来：
- *
- * - 行内 3 格（0/1/2）→ 1.5，与「中间那格 + 半格」一致；
- * - 行内 2 格（3/4）→ 4，落在两格接缝上，不偏右。
- *
- * 锚点那一行没有本区域的格子时返回 `null`（作者把 `labelCell` 挪到了盘面之外
- * 或别的行），调用方退回「锚点格 + 半格」。
- */
+/** 标签圆心的横坐标，单位是**格**（允许 `.5`）。 `computeLabelCell` 只能整格地给一个锚点，于是「底部行有偶数格」时取到的是 中位偏右那一格，标签中心落在**那一格的格心**、而不是这一行像素跨度的中心 —— 看上去就是右偏半格。 这里按 `anchorY` 这一行里属于本区域的格子取 `[minX, maxX + 1]` 的中点，把半格补回来：；行内 3 格（0/1/2）→ 1.5，与「中间那格 + 半格」一致； 锚点那一行没有本区域的格子时返回 `null`（作者把 `labelCell` 挪到了盘面之外 或别的行），调用方退回「锚点格 + 半格」。 */
 export function labelRowCenterX(cells: Coord[], anchorY: number): number | null {
   const row = cells.filter(([, y]) => y === anchorY).map(([x]) => x);
   if (row.length === 0) return null;

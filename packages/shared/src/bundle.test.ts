@@ -68,11 +68,7 @@ describe('buildBundleIdMaps', () => {
     expect([...ids.characters.entries()]).toEqual([[3062, 1]]);
   });
 
-  /**
-   * 背景修饰层。真实事故（2026-11-17，「一从二令三人木」）：
-   * 修饰层引用没进引用闭包 ⇒ assets.json 少了「地毯」、包里没有它的图，
-   * 播放器那一格画不出东西。
-   */
+  /** 背景修饰层。真实事故（2026-11-17，「一从二令三人木」）： 修饰层引用没进引用闭包 ⇒ assets.json 少了「地毯」、包里没有它的图， 播放器那一格画不出东西。 */
   it('背景修饰层的资源与形态也进引用闭包', () => {
     const source = puzzle();
     source.map.data.cells['1,1'] = { decoration: { assetId: 13390, variantId: 11920 } };
@@ -166,11 +162,7 @@ describe('buildBundlePuzzleFile', () => {
     expect(file.key).toBe('puzzle-sishan-medium');
   });
 
-  /**
-   * v0.9.0 §5：包里有**两份画布**（`map` 与 `puzzle.map.data`），两份都必须已经
-   * 重编号 —— `map` 若还指着数据库原 id，播放器读它就会得到一张没有背景的空棋盘
-   * （实测撞上的就是这一条）。
-   */
+  /** v0.9.0 §5：包里有**两份画布**（`map` 与 `puzzle.map.data`），两份都必须已经重编号 —— `map` 若还指着数据库原 id，播放器读它就会得到一张没有背景的空棋盘（实测撞上的就是这一条）。 */
   it('map 与 puzzle.map.data 是同一份、且引用已重编号', () => {
     const source = puzzle();
     const ids = buildBundleIdMaps([
@@ -191,11 +183,7 @@ describe('buildBundlePuzzleFile', () => {
   });
 });
 
-/**
- * 2026-11-09 补（docs/v0.9.0.md §13）：包里要带上作者配的难度名字与颜色。
- * 只测「原样透传 / 没配就不写键」两件事 —— 排序和内置五档的兜底属于
- * `resolveDifficultyTiers`，不在这里重做一遍。
- */
+/** 2026-11-09 补（docs/v0.9.0.md §13）：包里要带上作者配的难度名字与颜色。 只测「原样透传 / 没配就不写键」两件事 —— 排序和内置五档的兜底属于 `resolveDifficultyTiers`，不在这里重做一遍。 */
 describe('buildBundleManifest 的主题难度分级', () => {
   function input(theme: BuildBundleManifestInput['theme']): BuildBundleManifestInput {
     return {

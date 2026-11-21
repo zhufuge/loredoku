@@ -42,21 +42,7 @@ import { AppError } from '../utils/AppError';
 import { resolveUploadPath } from '../utils/paths';
 
 /**
- * v0.8.0（docs/v0.8.0.md §11）—— 资源包的产出侧。
- *
- * 取材是**已上线的游戏**（§11.1）：包里那一关就是把 `getGameDetail` 的结果搬走，
- * 所以「包里和线上是否一致」不需要人工核对 —— 它们本来就是同一份数据。
- *
- * 这一层做四件事，顺序不能换：
- *
- * 1. **取材**：主题下活跃的 `games` 行 → `MapGameDetail`；有合辑就按作者的顺序。
- * 2. **体检**：引用闭包里的每一行、每一个文件都得在，缺一个就**中止**（§11.2）。
- *    宁可一个包都不产出，也不要交付一个少一张图的包。
- * 3. **重编号**：`shared/bundle` 的纯函数，按首次出现顺序发 1..N（§11.3）。
- * 4. **组包**：文件按路径去重、算 sha256、写 manifest。
- *
- * 产物是**数据包**，不是站点：没有 `player/`、没有 `index.html`、没有 `bundles` 表、
- * 不落盘也不托管（§11.6）。所以这里是「构造一个 zip 流」而不是「生成一个文件」。
+ * v0.8.0（docs/v0.8.0.md §11）：资源包产出侧。顺序不可换：取材 → 体检（缺一个就中止，§11.2）→ 重编号（§11.3）→ 组包（zip 流，不落盘，§11.6）。
  */
 
 export interface BundleEntry {
@@ -85,19 +71,13 @@ const KIND_LABEL: Record<ThemeRefTarget['kind'], string> = {
   character: '角色',
 };
 
-/**
- * 一关的取材单位。`summary` 只带卡片字段 —— 千万别把 `toDetail` 的整个对象当
- * summary 塞进 `puzzles/*.json`，那会把 `map` / `puzzle` 再复制一遍。
- */
+/** 一关的取材单位；`summary` 只带卡片字段，别把 `toDetail` 整个塞进去。 */
 interface TakenGame {
   row: gameRepo.GameRowWithPuzzle;
   input: BundleGameInput;
 }
 
-/**
- * 打包一个主题（§11）。入口收的是**编码**（§19）—— 包名、manifest 里的 `theme.code`
- * 都用它，让「地址里的主题」与「包里的主题」是同一个字符串。
- */
+/** 打包一个主题（§11）；入口收编码（§19），包名与 manifest 的 `theme.code` 同源。 */
 export async function buildThemeBundle(
   themeCode: string,
   options: { gameIds?: readonly number[] } = {},
@@ -120,25 +100,11 @@ export async function buildThemeBundle(
   const puzzleEntries: BundleEntry[] = [];
   /** 主题的 `data` 是 JSON 列，取一次给下面三处用。 */
   const themeData = (themeRow.data as ThemeData | null) ?? null;
-  /**
-   * v0.8.7 §4；v0.9.5 更名：主题的**标记**是**读取时**的缺省。包里必须把它一起装上
-   * —— 否则「线上跟着主题画一张图、包里退回 ×」，同一关在两种运行环境里长得不一样。
-   * 谜题自己配了就不看这份（那一关的 JSON 里已经有路径）。
-   */
+  /** 主题标记是读取时缺省，不进包则线上有图、播放器退 ×（v0.8.7 §4）。 */
   const themeMark: UploadedImage | null = themeData?.mark ?? null;
-  /**
-   * v0.8.7 §7：工具按钮图标同样要进包，理由与禁止符号一字不差 —— 线上画的是主题
-   * 那张，包里若没有，同一关的按钮在两种运行环境里长得不一样。
-   */
+  /** 工具图标同理：主题那张不进包，线上与播放器长得不一样（v0.8.7 §7）。 */
   const themeToolIcons: GameToolIcons | null = themeData?.toolIcons ?? null;
-  /**
-   * 2026-11-09 补（docs/v0.9.0.md §13）：主题的难度分级。包里每关只带 `difficulty`
-   * **数字**，名字与颜色是主题级的；不带上它，播放器的列表页只能退回内置五档，
-   * 作者配的「初 / 通」在下载包里变成「极简 / 简单」。
-   *
-   * 存原始配置、不在导出时排序：`resolveDifficultyTiers` 在读包那一侧统一排，
-   * 与线上 `useDifficultyTiersByCode` 是同一条规矩。
-   */
+  /** 主题级难度分级必须进包，否则退回内置五档；原序存、读侧排（v0.9.0 §13）。 */
   const themeDifficultyLevels = themeData?.difficultyLevels;
 
   for (const [index, game] of games.entries()) {
@@ -171,12 +137,7 @@ export async function buildThemeBundle(
 
   if (problems.length > 0) throw incomplete(problems);
 
-  /**
-   * v0.9.2 §2；v0.9.5 合并：**那一圈** —— 长按计时环与提交校验圈共用一张图。
-   *
-   * 主题级、所有关卡共用一张，所以只装一份，路径进 `manifest.theme.ring`。不逐关
-   * 复制：同一张图进 8 份没有意义，而播放器进列表页时已经读了 manifest。
-   */
+  /** 主题级「那一圈」，全主题只装一份，路径进 `manifest.theme.ring`（v0.9.5 §2）。 */
   const ringSource = themeData?.ring?.image?.path ?? null;
   let manifestRing: ThemeRing | null = null;
   if (ringSource) {
@@ -193,12 +154,7 @@ export async function buildThemeBundle(
     manifestRing = { image: { path: taken } };
   }
 
-  /**
-   * v0.9.3 §3：只剩两档颜色（圈图并进 `ring`）。
-   *
-   * 颜色是几个字节，一起写进 manifest，播放器因此不必为了配色再读一次 theme.json。
-   * 只配了颜色没配图是常态（默认就是绿 / 红），所以两种都要能过去。
-   */
+  /** 两档颜色写进 manifest，播放器不必再读 theme.json；只配色不配图也要能过（v0.9.3 §3）。 */
   const manifestCheckStyle: ThemeCheckColors | null = themeData?.checkStyle
     ? {
         passColor: themeData.checkStyle.passColor,
@@ -206,12 +162,7 @@ export async function buildThemeBundle(
       }
     : null;
 
-  /**
-   * 结算卡那枚图标（若作者传过图）。与圆环同一条 —— 主题级只装一份，
-   * 路径进 `manifest.theme.verdict.icon`。
-   *
-   * 文字（`iconText` / `title`）本身是字符串，原样进 manifest 即可；只有图要落盘。
-   */
+  /** 结算图标主题级只装一份，路径进 `manifest.theme.verdict.icon`；文字原样进 manifest。 */
   const verdictData = themeData?.verdict ?? null;
   const verdictIconSource = verdictData?.icon?.path ?? null;
   let manifestVerdict: ThemeVerdict | null = null;
@@ -294,16 +245,7 @@ export async function buildThemeBundle(
   };
 }
 
-/**
- * 把构造好的条目压成 zip 流。**先构造、后压缩** —— 体检必须能在任何字节被写出去
- * 之前中止，否则作者会拿到一个「能解压但少东西」的包（§11.2）。
- *
- * 为什么中间还要过一个 `PassThrough`：`archiver` 8 的 `ZipArchive` 继承的是
- * `readable-stream` 的 `Transform`，**不是** Node 的 `stream.Stream`。koa 的
- * `respond()` 用 `body instanceof Stream` 判断是不是流，判不出来就当 JSON 去
- * `JSON.stringify` —— 于是「Converting circular structure to JSON」＋ 500。
- * 转接一层真 Node 流之后 koa 才会 chunked 输出；错误也顺手转发过去。
- */
+/** 先构造后压缩：体检必须在写出任何字节前中止（§11.2）；`PassThrough` 不可省（`ZipArchive` 非 Node 流）。 */
 export function zipStream(built: BuiltBundle): Readable {
   const archive = new ZipArchive({ zlib: { level: 6 } });
   for (const entry of built.entries) archive.append(entry.data, { name: entry.path });
@@ -315,23 +257,7 @@ export function zipStream(built: BuiltBundle): Readable {
   return out;
 }
 
-// ---- 取材 ----
-
-/**
- * 取材：主题里所有已上线的关卡。
- *
- * 包的关卡顺序取 `listGameRowsByTheme` 的顺序（`sort_weight` 升序、`slug` 兜底，
- * v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
- */
-/**
- * 取材：主题里所有已上线的关卡。
- *
- * 包的关卡顺序取 `listGameRowsByTheme` 的顺序（`sort_weight` 升序、`slug` 兜底，
- * v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
- *
- * `gameIds` 给了就只打这几关。缺的 id（不在线、或者根本不是这个主题的）
- * 单独报出来，作者才分得清「我选错了」和「这关出问题了」。
- */
+/** 素材取主题里全部已上线关卡，顺序按 `sort_weight` 升序、`slug` 兜底；`gameIds` 给了就只打这几关（v0.8.3 §6.2）。 */
 async function takeGames(
   themeId: number,
   gameIds?: readonly number[],
@@ -374,16 +300,7 @@ function toTaken(row: gameRepo.GameRowWithPuzzle): TakenGame {
   };
 }
 
-// ---- 侧表（assets.json / characters.json） ----
-
-/**
- * 引用闭包 → 资源 / 角色两行。
- *
- * 形态只保留**被格子引用**的，外加每个被引资源的首形态（docs/v0.11.0.md §2）：
- * 播放器只按格子画图、不画资源面板，未引用的形态进包只是白占体积。
- * `Asset.variants` 永不为空是约定（`resolveAssetVariant` 的兜底也指着它），
- * 首形态画的就是那些没写 `variantId` 的格子。
- */
+/** 引用闭包 → 资源/角色；形态只留被格子引用的 + 每个被引资源的首形态（v0.11.0 §2）。 */
 async function collectSideTables(
   games: TakenGame[],
   ids: BundleIdMaps,
@@ -494,17 +411,7 @@ async function rewriteAssets(
   return out;
 }
 
-/**
- * 一张图。**只带缩略图**，缩略图缺失才退回原图（2026-10-29 实测后的修正，见 §11.2）：
- *
- * | | 原图 | 缩略图（`_thumb.webp`） |
- * |---|---|---|
- * | 单张 | 平均 450 KB，最大 2 MB | 平均 12 KB |
- * | 红楼梦 8 关 | 108 MB（包 111 MB） | 约 2 MB |
- *
- * 画布层本来就优先用 `imageThumbUrl`（`MapAssetLayers.tsx`），512px 对几十像素的
- * 格子绰绰有余；把原图塞进包，等于作者下载一个 111 MB 的 zip 去玩四十格棋盘。
- */
+/** 只带缩略图（平均 12 KB，原图 450 KB~2 MB），缩略图缺失才退回原图（§11.2）。 */
 async function rewriteImage(
   variant: AssetVariant,
   base: string,
@@ -573,13 +480,7 @@ async function rewriteCharacters(
   return out;
 }
 
-/**
- * 关卡封面：卡片要（§11.2），地图封面不要 —— 游戏页不显示它。
- *
- * 统一裁到 768px 长边、转 webp（docs/v0.11.0.md §3）：播放器的列表卡片只有几百
- * 像素宽，原图进包只会让 zip 变大、首屏多花一次流量。从原图现转，不用上传时那份
- * 960 的缩略图：那是给工坊展示用的，尺寸和这里要的不一样，二次压缩还掉画质。
- */
+/** 关卡封面统一裁到 768/webp（原图现转，不用上传缩略图），地图封面不要（v0.11.0 §3）。 */
 async function takeCover(
   row: gameRepo.GameRowWithPuzzle,
   index: number,
@@ -600,20 +501,7 @@ async function scaleBundleCover(data: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-/**
- * v0.8.6 §4：一关的禁止符号图进包，并把该关 JSON 里的 `path` 改写成包内相对路径
- * （与资源图同一条「包内相对地址」约定，由播放器的 `resolveFile` 拼到包根）。
- *
- * 用主题那张兜底的关，**全都指向同一个包内地址** `files/marks/theme.webp`
- * （docs/v0.11.0.md §1）：`FileSink` 按目标路径去重，这里只是把名字取成同一串。
- * 自己配过的关仍是 `files/marks/<slug>.webp`，两边的图本来就不一样。
- *
- * 源文件缺失时**不改写**，只记一条 `file` 问题 —— 反正 `problems` 非空时打包会在
- * 构造下一律中止（§11.2），产出的 `path` 不会被交给任何人。
- *
- * 返回的是新的 `BundleGameInput`：`buildBundlePuzzleFile` 会 clone 谜题，但输入
- * 本身还被别处用来算引用闭包，不能原地改。
- */
+/** 主题兜底的关都指向 `files/marks/theme.webp`；源缺失不改写只记问题，且必须返回新输入。 */
 async function takeMark(
   game: BundleGameInput,
   gameKey: string,
@@ -621,10 +509,7 @@ async function takeMark(
   files: FileSink,
   problems: BundleProblem[],
 ): Promise<BundleGameInput> {
-  /**
-   * v0.8.7 §4：自己配了用自己的，没配就用主题那张（与玩家侧同一个顺序）。
-   * 只有一条出路 —— 两边都没有，这一关进包时就不带标记图，播放器画 `×`。
-   */
+  /** 自己配的用自己，否则用主题那张；两边都没有就不带，播放器画 `×`（v0.8.7 §4）。 */
   const own = game.puzzle.mark?.path;
   const sourcePath = own ?? fallback?.path;
   if (!sourcePath) return game;
@@ -643,16 +528,7 @@ async function takeMark(
   return { ...game, puzzle: { ...game.puzzle, mark: { path: taken } } };
 }
 
-/**
- * v0.8.7 §7：一关的三枚工具按钮图标进包，并把该关 JSON 里各自的 `path` 改写成包内
- * 相对路径。解析顺序与玩家侧一致：谜题自己的 → 主题的 → （都没有就不带，播放器用
- * 内置图标）。
- *
- * 与标记图同一条规矩（docs/v0.11.0.md §1）：用主题兜底的那枚指向
- * `files/icons/theme-<icon>.webp`，全主题只存一份；谜题自己配的仍是
- * `<slug>-<icon>.webp`。某一枚的源文件缺失**只跳过那一枚** —— 另外两枚照样进包，
- * 打包仍会因为 `problems` 非空而中止（§11.2）。
- */
+/** 主题兜底的图标指向 `files/icons/theme-<icon>.webp`；某一枚缺失只跳过那枚（v0.8.7 §7）。 */
 async function takeToolIcons(
   game: BundleGameInput,
   gameKey: string,
@@ -684,8 +560,6 @@ async function takeToolIcons(
   return { ...game, puzzle: { ...game.puzzle, toolIcons: resolved } };
 }
 
-// ---- 小工具 ----
-
 class FileSink {
   readonly buffers: BundleEntry[] = [];
   readonly manifest: BundleManifestFile[] = [];
@@ -701,10 +575,7 @@ class FileSink {
     return targetPath;
   }
 
-  /**
-   * v0.11.0（docs/v0.11.0.md §3）：读出来过一道转换再存（封面缩到 768 / 转 webp）。
-   * 去重规矩和 `take` 一样按目标路径走。
-   */
+  /** 读出来过一道转换再存（封面 768/webp），去重同 `take`，按目标路径（v0.11.0 §3）。 */
   async takeProcessed(
     sourcePath: string,
     targetPath: string,
@@ -774,10 +645,7 @@ function stamp(at: Date): string {
   return `${iso.slice(0, 10).replace(/-/g, '')}-${iso.slice(11, 13)}${iso.slice(14, 16)}`;
 }
 
-/**
- * 这 N 关用到哪些字体族。**本版只记名字、不带文件**（§11.5）：字体是播放器的
- * 构建期资源，塞进包里就是 N 份同样的 925 KB。
- */
+/** 只记字体族名、不带文件：字体是播放器的构建期资源，进包就是 N 份 925 KB（§11.5）。 */
 function collectFonts(maps: MapDraft[]): string[] {
   const out: string[] = [];
   const push = (name: string | null | undefined): void => {

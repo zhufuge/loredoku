@@ -22,14 +22,7 @@ export interface ThemeControls {
 }
 
 /**
- * 订阅 `lib/theme.ts` 那份外部状态。
- *
- * 两个 `useSyncExternalStore` 共用同一个 subscribe：`mode` 变了要重渲染，
- * **系统外观变了（mode 仍是 `system`）也要重渲染** —— 只订阅 mode 的话，
- * 系统切到深色时图标不会变。
- *
- * 上色本身由 `setThemeMode` / storage / matchMedia 在 store 层同步完成，不放在
- * 这里；`useEffect` 只是兜底，保证「HTML 的内联脚本没跑」时也能自愈。
+ * 订阅 `lib/theme.ts` 那份外部状态。两个 `useSyncExternalStore` 共用同一个 subscribe：**系统外观在 `mode === 'system'` 时变了也必须重渲染** —— 只订阅 mode 的话，系统切深色时图标不会变。上色由 store 层同步完成，这里的 `useEffect` 只是兜底（HTML 内联脚本没跑时自愈）。
  */
 export function useTheme(): ThemeControls {
   const mode = useSyncExternalStore(subscribeTheme, getThemeMode, () => 'system' as ThemeMode);

@@ -12,10 +12,7 @@ export function formatDateTime(value: string): string {
   });
 }
 
-/**
- * OPT-905 §5.2: the works table shows 发布时间 as `YYYY-MM-DD HH:mm` (local
- * time) rather than the locale-dependent format above.
- */
+/** OPT-905 §5.2: the works table shows 发布时间 as `YYYY-MM-DD HH:mm` (local time) rather than the locale-dependent format above. */
 export function formatDateTimeMinute(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {

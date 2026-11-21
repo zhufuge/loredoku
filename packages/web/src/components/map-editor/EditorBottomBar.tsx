@@ -37,11 +37,7 @@ const TOOLS: Array<{
     icon: Eraser,
   },
   { id: 'pan', label: '平移', hint: 'H', tip: '拖动画布平移视图', icon: Hand },
-  // OPT-H11: the character-placement button (C) is gone — since CLAR-603
-  // characters never enter the map, so the entry point was a dead end.
-  // Participants reach the board through the left 「角色」 tab → 加入 → drag from
-  // the participant area. `EditorTool` keeps the `'character'` member on purpose
-  // (§17 Q8).
+  // OPT-H11: 角色放置按钮（C）已移除 —— CLAR-603 起角色从不上地图，入口是死路；`EditorTool` 故意保留 `'character'` 成员（§17 Q8）。
 ];
 
 interface EditorBottomBarProps {
@@ -67,10 +63,7 @@ interface EditorBottomBarProps {
   onOpenResize: () => void;
   /** 点「当前资源」芯片：把左面板找回来（收起态下唯一的选中资源指示器）。 */
   onRevealItems: () => void;
-  /**
-   * 芯片右侧的 ×，取消当前选中资源 —— 不用再去左面板里点同一张瓦片，
-   * 也不用把面板展开（面板收起时本来也点不到）。
-   */
+  /** 芯片右侧的 ×，取消当前选中资源 —— 不用再去左面板点同一张瓦片（面板收起时本来也点不到）。 */
   onClearSelection: () => void;
 }
 
@@ -133,15 +126,7 @@ export function EditorBottomBar({
           物品
         </Button>
 
-        {/*
-          当前放置资源：左面板收起后这里是唯一的选中指示。**未选中时整块不渲染**
-          （没有占位框、也没有「未选择资源」文案）——工具条保持干净，槽位不存在
-          也就无所谓跳动。选中态用与工具按钮同一档的实心淡灰。
-
-          芯片拆成两段可点区 —— 左边（缩略图 + 名字）展开资源面板，右边的 ×
-          取消选中。拆开而不是整块加 × 是因为面板收起时点不到瓦片，没有 × 就
-          只能靠快捷键猜。
-        */}
+        {/* 当前放置资源：左面板收起后这里是唯一的选中指示，**未选中时整块不渲染**（没有占位框，槽位不存在就无所谓跳动）。拆成两段可点区 —— 左边展开资源面板，右边的 × 取消选中（面板收起时点不到瓦片，没有 × 只能靠快捷键猜）。 */}
         {selectedAsset && selectedVariant ? (
           <div
             className={cn(

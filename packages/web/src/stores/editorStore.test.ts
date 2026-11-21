@@ -5,12 +5,7 @@ import { useEditorStore, type RegionInput } from './editorStore';
 
 const store = () => useEditorStore.getState();
 
-/**
- * v0.5.0 SPEC-K12 §9.2: the map editor's store lost the whole participant half
- * (`characterSlots`, `setParticipantConfig`, `assignSlot`, the activation
- * machine and the linkage palette). Those tests moved to `puzzleStore.test.ts`
- * together with the code — what is left here is the canvas / style / undo stack.
- */
+/** v0.5.0 SPEC-K12 §9.2: the participant half moved to `puzzleStore.test.ts` with its code; what is left here is the canvas / style / undo stack. */
 function draft(gridSize = 6): MapDraft {
   return {
     version: 3,
@@ -362,12 +357,7 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
     expect(output.style && 'linkageColors' in output.style).toBe(false);
   });
 
-  /**
-   * 标尺的行列符号只由主题配置，地图草稿里不留副本。
-   *
-   * 留着的话库里会出现两处互相矛盾的值（主题写「列」、这张图还是 `C`），而渲染
-   * 只认主题那一份 —— 那张图看起来就像「改不动」。
-   */
+  /** 标尺的行列符号只由主题配置，地图草稿里不留副本。 留着的话库里会出现两处互相矛盾的值（主题写「列」、这张图还是 `C`），而渲染只认主题那一份 —— 那张图看起来就像「改不动」。 */
   it('v0.10.8: drops the ruler symbols — they belong to the theme, not the map', () => {
     const output = store().toDraft();
     expect(output.style?.ruler).toEqual({ fontSize: 24, gap: 24 });
@@ -542,11 +532,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
   });
 });
 
-/**
- * v0.7.5 (docs/v0.7.5.md §5): 展示变换存在**脚位锚点**上，缺省不写键。
- * 信息框可能停在脚位里的任意一格（2×2 的中间那格也是合法选中），所以
- * 动作自己解析锚点，调用方只管传当前格。
- */
+/** v0.7.5 (docs/v0.7.5.md §5): 展示变换存在**脚位锚点**上，缺省不写键。 信息框可能停在脚位里的任意一格（2×2 的中间那格也是合法选中），所以动作自己解析锚点，调用方只管传当前格。 */
 describe('setItemTransform', () => {
   it('records only the fields that differ from the default', () => {
     store().placeItem({ assetId: 5, w: 1, h: 1 }, 1, 1);
@@ -604,12 +590,7 @@ describe('setItemTransform', () => {
   });
 });
 
-/**
- * 区域标签位置偏移 —— 每块区域独立配置，缺省不落盘。
- *
- * 这一层钉的是**存储契约**：偏移非 0 时跟着区域一起存下来，两轴都 0 时不写
- * `style` 键（与其它字段同一条「只记差异」的规矩）。
- */
+/** 区域标签位置偏移 —— 每块区域独立配置，缺省不落盘。 这一层钉的是**存储契约**：偏移非 0 时跟着区域一起存下来，两轴都 0 时不写 `style` 键（与其它字段同一条「只记差异」的规矩）。 */
 describe('区域标签位置偏移（v0.9.6）', () => {
   const baseRegionStyle = (): RegionStyle => ({
     outline: { width: DEFAULT_MAP_STYLE.regionOutline.width, color: DEFAULT_MAP_STYLE.regionOutline.color },

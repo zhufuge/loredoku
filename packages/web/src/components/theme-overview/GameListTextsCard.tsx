@@ -10,16 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { useUpdateTheme } from '@/hooks/useThemes';
 
-/**
- * 游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。
- *
- * 为什么是**模板**而不是整句：同一个数字在两句里说的是不同的事（一共几关 /
- * 已经过了几关），作者要改的是说法，不是那个数。所以两格都留着 `{n}`，
- * 渲染时换成数字 —— 少了它，数字就没地方落，界面只剩一句与这一页无关的话。
- *
- * 为什么即时保存（失焦就存）：这两格是「一句话」，没有别的字段要一起提交，
- * 也没有需要先看一眼预览才敢按的后果 —— 与「操作提示」那张卡里的结算标题同一个手感。
- */
+/** 游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。 为什么是**模板**而不是整句：同一个数字在两句里说的是不同的事（一共几关 / 已经过了几关），作者要改的是说法，不是那个数。所以两格都留着 `{n}`， 渲染时换成数字 —— 少了它，数字就没地方落，界面只剩一句与这一页无关的话。 为什么即时保存（失焦就存）：这两格是「一句话」，没有别的字段要一起提交， 也没有需要先看一眼预览才敢按的后果 —— 与「操作提示」那张卡里的结算标题同一个手感。 */
 export function GameListTextsCard({ theme }: { theme: Theme }): JSX.Element {
   const update = useUpdateTheme(theme.code);
   const texts = resolveGameListTexts(theme.data.gameList);
@@ -33,11 +24,7 @@ export function GameListTextsCard({ theme }: { theme: Theme }): JSX.Element {
     setPassed(texts.passed);
   }, [texts.playable, texts.passed]);
 
-  /**
-   * 空串 = 用内置那句（schema 允许空串，读取时按缺省处理）。
-   * 非空却少了 `{n}` 就不发 —— 服务端会 400，而在输入框旁边说清楚比弹一条
-   * 「保存失败」有用。
-   */
+  /** 空串 = 用内置那句（schema 允许空串，读取时按缺省处理）。 非空却少了 `{n}` 就不发 —— 服务端会 400，而在输入框旁边说清楚比弹一条「保存失败」有用。 */
   const persist = (field: 'playable' | 'passed', raw: string): void => {
     const next = raw.trim();
     if (next.length > 0 && !next.includes(THEME_GAME_LIST_COUNT_TOKEN)) {

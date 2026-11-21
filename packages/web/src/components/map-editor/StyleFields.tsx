@@ -3,29 +3,9 @@ import { HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-/**
- * The number / colour controls the two info drawers share.
- *
- * They used to live inside `MapInfoDrawer`; the region branch of
- * `EditorInfoDrawer` needed the exact same behaviour (write-through on every
- * keystroke, blur only rolls back non-numeric text), so they moved here — one
- * implementation, two hosts.
- */
+/** The number / colour controls the two info drawers share. They used to live inside `MapInfoDrawer`; the region branch of `EditorInfoDrawer` needed the exact same behaviour (write-through on every keystroke, blur only rolls back non-numeric text), so they moved here — one implementation, two hosts. */
 
-/**
- * A number field that writes through on **every** change.
- *
- * The previous implementation kept the parsed value in a local text buffer and
- * only committed on `blur` / `Enter`, so clicking the input's stepper buttons
- * left the draft (and therefore 保存) untouched. Now every keystroke and every
- * stepper click pushes the parsed value into the draft immediately; `blur` /
- * `Enter` only serve to roll back non-numeric input.
- *
- * The text buffer is deliberately **not** re-synced while the field has focus,
- * otherwise a clamped commit (e.g. typing `1` into a 32 ~ 240 field) would
- * rewrite the text under the user's cursor and make multi-digit entry
- * impossible.
- */
+/** A number field that writes through on **every** change. The text buffer is deliberately **not** re-synced while the field has focus, otherwise a clamped commit (e.g. typing `1` into a 32 ~ 240 field) would rewrite the text under the user's cursor and make multi-digit entry impossible. */
 export function NumberField({
   id,
   value,
@@ -37,10 +17,7 @@ export function NumberField({
 }: {
   id: string;
   value: number;
-  /**
-   * 上下限可选 —— 区域标签的位置偏移不封顶，那两个框只保留步进。
-   * 其余所有数值字段照旧传死上下限。
-   */
+  /** 上下限可选 —— 区域标签的位置偏移不封顶，那两个框只保留步进。 其余所有数值字段照旧传死上下限。 */
   min?: number;
   max?: number;
   step?: number;
@@ -107,11 +84,7 @@ export function NumberField({
   );
 }
 
-/**
- * SPEC-F01: every explanation lives behind a circular question-mark icon that
- * trails the label — no more `title` on the label itself and no more grey
- * paragraphs floating under the fields.
- */
+/** SPEC-F01: every explanation lives behind a circular question-mark icon that trails the label — no more `title` on the label itself and no more grey paragraphs floating under the fields. */
 export function Hint({ text }: { text: string }): JSX.Element {
   return (
     <span

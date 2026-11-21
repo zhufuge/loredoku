@@ -17,11 +17,7 @@ import { TOOLTIP_SURFACE_CLASS } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { cellRectStyle, itemRectStyle, parseKey } from './layerGeometry';
 
-/**
- * the item layers, split out of the old `MapLayers.tsx`.
- *
- * 层 12 · 背景图层（Background Layer）— artwork filling the whole cell.
- */
+/** 层 12 · 背景图层：资源铺满整格。 */
 export function MapBackgroundLayer({
   cells,
   assetsById,
@@ -79,15 +75,7 @@ export function MapBackgroundLayer({
   );
 }
 
-/**
- * v0.10.9 (docs/v0.10.9.md §2) · 层 10 · 背景修饰层（Background Decoration Layer）
- * — one ornament per cell, sitting **above** the background artwork but below
- * the grid separators and the blocking mask: it decorates the floor, so the
- * cell's grid lines stay crisp on top of it.
- *
- * It shares the cell with `background` and `item`; whatever it paints is 1×1
- * (the requirement says so, and a footprint would fight the item's own).
- */
+/** 层 10 · 背景修饰（docs/v0.10.9.md §2）：在背景之上、格线与遮挡遮罩之下；恒 1×1，不带脚位。 */
 export function MapDecorationLayer({
   cells,
   assetsById,
@@ -140,33 +128,7 @@ export function MapDecorationLayer({
   );
 }
 
-/**
- * 层 4 · 物品图层（Object Layer）— above the grid separators so items are
- * never visually cut by them.
- *
- * OPT-902 §2.3: on hover the image stretches upward by
- * `ITEM_HOVER_LIFT_PX` with a 120ms ease-out transition.
- *
- * v0.7.5 (docs/v0.7.5.md §4): the box is the item's **display** rect, not its
- * footprint — `scale` grows it around the footprint centre and the offsets push
- * it by whole cells, so artwork may legitimately poke outside its cells. The
- * hover test still runs against the footprint: hovering the overhang of a
- * neighbouring cell must not light this item up.
- *
- * v0.7.13 (docs/v0.7.13.md §2): 停一会儿就把资源名报出来。**不走 Radix Tooltip**
- * —— 物品层不接收指针事件（点击一律留给画布容器按格子分发，见下面
- * `pointer-events` 那段），`TooltipTrigger` 根本收不到 hover；命中本来就已经由
- * 画布坐标算好了，直接复用。于是这里只借 Tooltip 的**长相**
- * （`TOOLTIP_SURFACE_CLASS`），自己算位置。
- *
- * v0.8.7 §8：位置**跟着光标**（`pointer`，画布像素）：物品被作者缩放过 / 偏移过之后，
- * 贴在物品上方的纸片会飘在离指头很远的地方，读起来像另一件东西的名字；靠边时按
- * 画布边界翻边，不靠估算的物品宽度。
- *
- * 这一层整层 `pointer-events: none`，没有 `interactive` 开关 —— 物品的显示框被
- * `scale` / 偏移撑到脚位之外，让它接管指针会让「压在别的格子上的那圈画」抢走
- * 本该落在那一格的点击。
- */
+/** 层 4 · 物品（格线之上，不被切开）。整层 `pointer-events: none` 不可开：显示框被 scale / 偏移撑出脚位，接管指针会抢走别格的点击，故名称提示不走 Radix。 */
 export function MapItemLayer({
   cells,
   assetsById,
@@ -185,10 +147,7 @@ export function MapItemLayer({
   /** v0.9.1 §5：物品描边（宽度 0 或 `null` = 不描边）。 */
   itemOutline?: MapStyleItemOutline | null;
   hover?: CellCoord | null;
-  /**
-   * v0.8.7 §8：光标的**画布坐标**（像素，原点在画布左上角）。给了就把名称提示贴在
-   * 光标旁边；不给（触屏、测试、还没动过鼠标）就退回「贴在物品上方」。
-   */
+  /** v0.8.7 §8：光标画布坐标；给了提示贴光标，不给则贴物品上方。 */
   pointer?: CanvasPoint | null;
   /** OPT-902: disable when the caller renders its own hover affordance. */
   liftOnHover?: boolean;
@@ -204,11 +163,7 @@ export function MapItemLayer({
     [cells, hover],
   );
 
-  /**
-   * 只有**同一个**物品连着停满 1s 才出提示：鼠标从宝箱划到木桶，宝箱的名字
-   * 必须立刻收掉，而不是在木桶头上继续挂着一秒。所以计时器按 key 记，渲染时
-   * 还要再对一次 key —— 光清 state 会有一帧的错位。
-   */
+  /** 计时器按 key 记、渲染时再对一次 key：划过别的物品必须立刻收掉旧名。 */
   const [tipKey, setTipKey] = useState<string | null>(null);
   useEffect(() => {
     if (!showNameOnHover || hoveredKey === null) {
@@ -220,17 +175,7 @@ export function MapItemLayer({
   }, [hoveredKey, showNameOnHover]);
   const tipOn = showNameOnHover && tipKey !== null && tipKey === hoveredKey;
 
-  /**
-   * 纸片的内容与位置。
-   *
-   * 纸片挂在**物品层之外**的独立壳子里（见下面的返回值与 `ITEM_NAME_TIP_Z`），
-   * 不进入物品层那个带 `zIndex` 的层叠上下文 —— 否则它会被钉在物品层（38）里，
-   * 压在区域标签（42）、工具提示（41）之下，连鼠标光标框（46）都盖不过去。
-   * 作者要的是「出现在地图最上层」。
-   *
-   * 位置用**画布绝对坐标**：壳子在 `left-0 top-0`，纸片用 `left/top` 直接
-   * 落在画布坐标里，不必再减物品框的偏移。
-   */
+  /** 纸片挂在物品层**之外**的壳子里，否则被困在物品层叠上下文里压不过上层；位置用画布坐标。 */
   const describeTip = (key: string): { name: string; style: CSSProperties } | null => {
     const anchor = cells.get(key)?.item;
     if (!anchor) return null;
@@ -267,21 +212,9 @@ export function MapItemLayer({
             // 抬手的位移与名字提示都跟着**显示框**走（作者缩放过 /
             // 偏移过的物品，画和名字要一起动），宽高与位置都从 `itemRectStyle` 来。
             const rect = itemRectStyle(x, y, cellSize, anchor);
-            /**
-             * v0.9.1 §5：物品描边。宽度 0 时 `undefined`（不挂 filter），所以默认
-             * 无描边的物品在 DOM 上和一个 `filter` 都没有时完全一样。
-             */
+            /** v0.9.1 §5：宽 0 时 `undefined`，不挂 filter。 */
             const outlineFilter = itemOutline ? itemOutlineFilter(itemOutline, cellSize) : undefined;
-            /*
-             * 有描边时把这层提升成独立的合成层。
-             *
-             * Safari（含 iOS）在元素没有自己的合成层时，会**整条** filter 不画 —— 表现
-             * 就是「Chrome 有描边、Safari 没有」。`will-change: filter` 强制它先落到
-             * 一块自己的离屏缓冲里再合成，filter 链因此一定会被光栅化。
-             *
-             * 只在这一件物品真有描边时才加：没描边的物品不该为了这事白拿一块合成层
-             * （盘面上物品数量多，多出来的层会直接换成滚动时的掉帧）。
-             */
+            /* Safari（含 iOS）无独立合成层时整条 filter 不画；有描边才加 `will-change: filter`，给全部物品加会白拿合成层。 */
             const outlineLayer: CSSProperties | undefined = outlineFilter
               ? { willChange: 'filter' }
               : undefined;
@@ -326,19 +259,7 @@ export function MapItemLayer({
                   // OPT-C06: the padding applies to the whole footprint, not per cell.
                   padding,
                   boxSizing: 'border-box',
-                  /*
-                   * 物品层**不接管点击**。
-                   *
-                   * 显示框是 `itemRectStyle` 给出的 ── 被 `scale`（25%~400%）与
-                   * `offsetX/Y` 撑到脚位之外后，它的像素范围远大于脚位。若这一层
-                   * 接管点击，「落在溢出画里、却压在别的格子上」的点也会命中这件物品，
-                   * 并且回传的还是**锚点格**：作者看到树冠画在隔壁格，点它却选中了
-                   * 树脚下那一格。所以点击一律冒泡到画布容器，由它按 `clientToCell`
-                   * 换算成格子 —— 与盘面上任何一处像素同一条路。
-                   *
-                   * 脚位内的点击不会因此丢掉「选中物品」：画布的 `hitTestCell` 用
-                   * `resolveItemAnchor` 把落在 `w × h` 里的点映射回锚点格。
-                   */
+                  /* 物品层不接管点击：显示框被 scale / 偏移撑出脚位，命中会回传锚点格；点击由画布按 `clientToCell` 分发。 */
                   pointerEvents: 'none',
                 }}
               >
@@ -347,12 +268,7 @@ export function MapItemLayer({
             );
           })}
       </div>
-      {/*
-        名字纸片的独立层。
-        作者要求它「出现在地图最上层」—— 挂在物品层里做不到（那是层叠上下文），
-        所以单开一个壳子，`zIndex` 取 `ITEM_NAME_TIP_Z`（鼠标光标框 +1）。
-        壳子只做定位，纸片自己在画布坐标里。
-      */}
+      {/* 名称纸片的独立层：挂在物品层里会被困在它的层叠上下文，故单开壳子，`zIndex` 取 `ITEM_NAME_TIP_Z`。 */}
       {tip ? (
         <div
           className="no-drag pointer-events-none absolute left-0 top-0"
@@ -377,13 +293,7 @@ export function MapItemLayer({
   );
 }
 
-/**
- * 提示浮出时，被悬停的那件物品压过同伴。`MAP_LAYER_Z.itemLayer` 是 38，
- * 39 空着，40 是游戏放置层。
- *
- * 名字纸片挂在独立的层（见 `ITEM_NAME_TIP_Z`），这个常量只管
- * 「被悬停的这件压住压在它身上的同伴」这一件事。
- */
+/** 提示浮出时被悬停物品压过同伴：38 → 39（40 是游戏放置层）。 */
 const HOVERED_ITEM_Z = MAP_LAYER_Z.itemLayer + 1;
 
 /** 提示纸片与物品（或光标）之间的空隙，跟 `TooltipContent` 的 `sideOffset` 一样是 6。 */
@@ -395,12 +305,7 @@ const TIP_FLIP_MIN_TOP_PX = 32;
 /** 提示半宽的保守估计：比它更靠边就直接贴边对齐，免得被画布切掉一截。 */
 const TIP_EDGE_BUDGET_PX = 56;
 
-/**
- * 命中哪件物品 —— 返回**最后**命中的那个，与渲染顺序里压在最上面的那件一致。
- *
- * 落在脚位上才算（`w` × `h`），落在被 `scale` 撑出去的那圈画里不算，跟悬停
- * 抬手的判定同一条规矩。
- */
+/** 返回**最后**命中的物品（与渲染叠放一致）；只认脚位 `w × h`，不算 scale 溢出。 */
 function hitItemKey(cells: CellMap, hover: CellCoord): string | null {
   let found: string | null = null;
   for (const [key, cell] of cells.entries()) {
@@ -419,23 +324,7 @@ function hitItemKey(cells: CellMap, hover: CellCoord): string | null {
   return found;
 }
 
-/**
- * 名称提示的位置（**画布绝对坐标**）。
- *
- * 纸片挂在物品层之外的独立壳子里（见 `ITEM_NAME_TIP_Z`），坐标直接落在画布
- * 坐标系里，不减物品框的偏移，也不按 padding box 与 border box 的差写百分比。
- *
- * - **有光标坐标**（鼠标）：默认浮在指针**正上方**居中，与指针隔 18px；头顶不够
- *   就翻到下方。这是作者要的「标签默认在鼠标上方」。
- * - **没有光标坐标**（触屏、测试）：挂在物品显示框的正上方 6px；同样头顶不够就
- *   翻到下方。
- * - **左右**：默认以锚点居中；离画布左 / 右边不足 56px 时改成从锚点向右 / 向左
- *   展开，保证整片纸留在画布内（画布外面是 `overflow-hidden`，出去就没了）。
- *
- * 翻边用的是**预算**（{@link TIP_EDGE_BUDGET_PX} / {@link TIP_FLIP_MIN_TOP_PX}）
- * 而不是真实尺寸：提示要跟着鼠标动，等一帧量了宽高再放会追不上指针，而少算一点
- * 顶多是贴边多留几像素白，算多了才会被切掉。
- */
+/** 画布绝对坐标；有光标贴光标、无光标贴显示框；靠边用预算翻边 —— 提示追着鼠标动，不能等一帧实测宽高。 */
 function nameTipStyle(
   rect: CSSProperties,
   cellSize: number,
@@ -465,12 +354,7 @@ function nameTipStyle(
   );
 }
 
-/**
- * 把纸片摆到锚点的上方（`above`）或下方，横向按画布边界决定展开方向。
- *
- * `anchorX` 是纸片想居中的那条竖线，`y` 是纸片贴着的那个边（上方时是它的下边、
- * 下方时是它的上边）—— 收尾用 `translate`，所以不必知道纸片的真实宽高。
- */
+/** `above` 时 `y` 是纸片下边、否则上边；横向用 translate 收尾，无需真实宽高。 */
 function placeTip(
   anchorX: number,
   y: number,

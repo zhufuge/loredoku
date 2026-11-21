@@ -8,10 +8,7 @@ import type {
 } from '@loredoku/shared';
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from './client';
 
-/**
- * 谜题模块的端点（v0.7.1 §6.3）。谜题自带底图画布，所以 `/puzzles/:id/map`
- * 读的是**自己那份副本**（只读），不再 join 地图版本。
- */
+/** 谜题模块的端点（v0.7.1 §6.3）。谜题自带底图画布，所以 `/puzzles/:id/map` 读的是**自己那份副本**（只读），不再 join 地图版本。 */
 export type PuzzleSort = 'updatedAt' | 'name' | 'createdAt';
 
 /** 与 `/api/maps` 同参数 —— `kind` 让「草稿」「版本」两块各自分页。 */
@@ -46,10 +43,7 @@ export interface UpdatePuzzlePayload {
 export interface SavePuzzlePayload {
   data: PuzzleDraft;
   updatedAt?: string | null;
-  /**
-   * v0.7.3 §3.4：引入新地图时只交来源，画布由服务端从那份已发布版本读。
-   * 与服务端存量的来源相同 → 服务端直接短路，不查版本。
-   */
+  /** v0.7.3 §3.4：引入新地图时只交来源，画布由服务端从那份已发布版本读。 与服务端存量的来源相同 → 服务端直接短路，不查版本。 */
   mapSource?: { mapId: number; versionNo: number };
 }
 
@@ -87,19 +81,13 @@ export const puzzlesApi = {
   removeCover(id: number): Promise<PuzzleDetail> {
     return apiDelete<PuzzleDetail>(`/puzzles/${id}/cover`);
   },
-  /**
-   * v0.8.6 §4：上传「标记」那张图（multipart 字段 `file`）。返回落盘后的相对
-   * 路径与站内地址 —— 路径要写进草稿的 `mark`，地址只给调用方预览用。
-   */
+  /** v0.8.6 §4：上传「标记」那张图（multipart 字段 `file`）。返回落盘后的相对路径与站内地址 —— 路径要写进草稿的 `mark`，地址只给调用方预览用。 */
   uploadMark(id: number, file: File): Promise<{ path: string; url: string }> {
     const form = new FormData();
     form.append('file', file);
     return apiPost<{ path: string; url: string }>(`/puzzles/${id}/mark`, form);
   },
-  /**
-   * v0.8.7 §7：上传一枚工具按钮图标（清除 / 撤回 / 提交）。与标记逐条相同 ——
-   * 返回的 `path` 写进草稿的 `toolIcons[icon]`，`url` 只给抽屉预览用。
-   */
+  /** v0.8.7 §7：上传一枚工具按钮图标（清除 / 撤回 / 提交）。与标记逐条相同 —— 返回的 `path` 写进草稿的 `toolIcons[icon]`，`url` 只给抽屉预览用。 */
   uploadToolIcon(
     id: number,
     icon: GameToolIconKind,
@@ -120,12 +108,7 @@ export const puzzlesApi = {
   versionDetail(id: number, versionNo: number): Promise<PuzzleDetail> {
     return apiGet<PuzzleDetail>(`/puzzles/${id}/versions/${versionNo}`);
   },
-  /**
-   * 「编辑此版本」= fork 出一条新草稿行（版本行不动）。
-   *
-   * `data` 可选：编辑器 `?v=` 态「保存时才生成草稿」，带的是作者此刻的草稿；
-   * 不传就用版本快照（版本历史面板的老用法）。`mapSource` 同理（v0.7.3）。
-   */
+  /** 「编辑此版本」= fork 出一条新草稿行（版本行不动）。 `data` 可选：编辑器 `?v=` 态「保存时才生成草稿」，带的是作者此刻的草稿； 不传就用版本快照（版本历史面板的老用法）。`mapSource` 同理（v0.7.3）。 */
   forkVersion(
     id: number,
     versionNo: number,

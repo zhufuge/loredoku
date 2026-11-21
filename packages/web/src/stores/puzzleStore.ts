@@ -26,32 +26,12 @@ import {
   type ActivationMode,
 } from '@/lib/linkageActivation';
 
-/**
- * v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.6) — the puzzle editor's store.
- *
- * Why a second store instead of bending `editorStore` to fit: the map editor
- * edits its canvas, while the puzzle only **references** one (read-only). If the
- * two shared a store, every read-only canvas field would become writable by
- * accident. So:
- *
- * - `mapContext` is loaded from `GET /api/puzzles/:id/map`, and the only writer
- *   after that is `replaceMapContext`（引入新地图）—— 它跟着其余字段一起进快照，
- *   撤销能把底图也换回来；
- * - the undo stack covers the puzzle's own data (`linkageColors` /
- *   `characterSlots` / `description` / `name`) **and** the referenced canvas;
- * - `activeTool` is not a thing here — SPEC-K07 pins the canvas to `select`.
- */
+/** v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.6)：谜题编辑器 store；`mapContext` 只读，唯一写入口是 `replaceMapContext`。 */
 export type PuzzleSelection =
   | { type: 'cell'; x: number; y: number }
   | { type: 'region'; regionId: string };
 
-/**
- * v0.7.13 (docs/v0.7.13.md §11): what a character carries into a roster slot.
- *
- * Both fields are nullable and both mean "no default" when null — the slot then
- * falls back to `DEFAULT_THEME_COLOR` / the sequence number, which is exactly
- * the pre-v0.7.13 behaviour for every character created before today.
- */
+/** v0.7.13 (docs/v0.7.13.md §11)：角色带入槽位的默认值；`null` = 无默认，回落到 `DEFAULT_THEME_COLOR` / 序号。 */
 export interface ParticipantDefaults {
   /** `characters.color` — the participant 主题色. */
   themeColor?: string | null;
@@ -68,18 +48,7 @@ export function genSlotArray(
 }
 
 /**
- * Normalises a roster entry so it always carries theme + clue + linkages.
- *
- * BUG-J04 (docs/v0.4.3.md §4.2) moved here verbatim with the roster: this used
- * to copy exactly **four** fields and silently dropped `positionConditions`,
- * which then survived neither `commit` (`snapshot()` runs on every edit), nor
- * `init()` (a page reload), nor `toDraft()` (what reaches the server — so the
- * game page's position check never saw it either). §15 Q11 keeps the fix by
- * declaring every field of `CharacterSlotEntry`.
- *
- * An already-normalised entry is returned **by identity** so the
- * `ParticipantDrawer`'s seeding effect (`[open, slot]`) stops firing — and
- * discarding unsaved local edits — on every unrelated commit.
+ * BUG-J04 (docs/v0.4.3.md §4.2)：必须覆盖 `CharacterSlotEntry` 的每个字段，漏掉会丢数据；已归一化的条目按**同一引用**返回（依赖 `[open, slot]` 的 seeding effect 靠它停火）。
  */
 export function ensureEntry(entry: CharacterSlotEntry | null): CharacterSlotEntry | null {
   if (!entry) return null;
@@ -122,12 +91,7 @@ interface Snapshot {
    * v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交）。`null` = 三枚都跟随主题。
    */
   toolIcons: GameToolIcons | null;
-  /**
-   * v0.7.3 §4：底图也是可撤销的一部分。
-   *
-   * 「引入新地图」换的是 `mapContext`，撤销要能把它换回来 —— 否则会出现
-   * 「底图是新的、联动是旧的的」这种半截状态。引用级存放，不做深拷贝：它只读。
-   */
+  /** v0.7.3 §4：底图也可撤销（否则会留下「新底图 + 旧联动」的半截状态）；引用级存放，只读，不深拷贝。 */
   mapContext: PuzzleMapContext | null;
 }
 
@@ -139,30 +103,17 @@ export interface PuzzleState {
   // ---- puzzle-owned, undoable ----
   name: string;
   description: string;
-  /**
-   * v0.7.14（docs/v0.7.14.md §2）：全局线索。空行在提交时被过滤掉，
-   * 所以进入 store 的每一条都是「作者真写了东西」的。
-   */
+  /** v0.7.14（docs/v0.7.14.md §2）：全局线索。空行在提交时被过滤掉， 所以进入 store 的每一条都是「作者真写了东西」的。 */
   clues: string[];
   /** 结束语；空串 = 不显示。 */
   ending: string;
   linkageColors: MapLinkageColor[];
   characterSlots: Array<CharacterSlotEntry | null>;
-  /**
-   * v0.6.3 (docs/v0.6.3.md §3): the roster matrix's column count, owned by the
-   * puzzle. It rides in the undo stack with the rest of the basics, so
-   * 撤销 takes a layout change back too.
-   */
+  /** v0.6.3 (docs/v0.6.3.md §3): the roster matrix's column count, owned by the puzzle. It rides in the undo stack with the rest of the basics, so 撤销 takes a layout change back too. */
   rosterCols: number | null;
-  /**
-   * v0.8.6（docs/v0.8.6.md §4）：玩家在游戏页标记排除项时画面上显示的那枚符号。
-   * `null` = 默认的 `×` 字形；非 null 时渲染上传的那张图。
-   */
+  /** v0.8.6（docs/v0.8.6.md §4）：玩家在游戏页标记排除项时画面上显示的那枚符号。 `null` = 默认的 `×` 字形；非 null 时渲染上传的那张图。 */
   mark: UploadedImage | null;
-  /**
-   * v0.8.7 §7：游戏页右列三枚动作按钮的画。`null` = 三枚都跟随主题的
-   * `ThemeData.toolIcons`，主题也没有就用内置图标。
-   */
+  /** v0.8.7 §7：游戏页右列三枚动作按钮的画。`null` = 三枚都跟随主题的 `ThemeData.toolIcons`，主题也没有就用内置图标。 */
   toolIcons: GameToolIcons | null;
 
   // ---- view / focus (never in the undo stack) ----
@@ -186,12 +137,7 @@ export interface PuzzleState {
   setLinkageColors: (colors: MapLinkageColor[]) => void;
   removeLinkageColor: (key: string) => void;
   /**
-   * SPEC-K05 (docs/v0.5.0.md §4.2) + v0.6.3 §3 + v0.7.3 §2.2: the 「谜题基本
-   * 信息」 drawer commits the name, the description, the palette, the roster
-   * **and** its column count as one gesture — one 保存, one undo step.
-   *
-   * 名称走这里（而不是单独 PATCH）：它本来就在 `PuzzleDraft.name` 里，
-   * `savePuzzleDraft` 会把它镜像回 `puzzles.name`，顺带拿到撤销。
+   * SPEC-K05 (docs/v0.5.0.md §4.2) + v0.6.3 §3 + v0.7.3 §2.2: the 「谜题基本信息」 drawer commits name / description / palette / roster / column count as one gesture — one 保存, one undo step; the name must go through here (`savePuzzleDraft` mirrors it back to `puzzles.name`).
    */
   setBasicInfo: (patch: {
     name: string;
@@ -213,25 +159,11 @@ export interface PuzzleState {
       clue?: string;
       linkages?: ParticipantTarget[];
       positionConditions?: Array<{ x: number; y: number }>;
-      /**
-       * v0.6.4 (docs/v0.6.4.md §2): the configured 编号展示 text. Omitted =
-       * keep what is stored; a blank string clears it back to the sequence
-       * number.
-       */
+      /** v0.6.4 (docs/v0.6.4.md §2): the configured 编号展示 text. Omitted = keep what is stored; a blank string clears it back to the sequence number. */
       displayNumber?: string | null;
     },
   ) => void;
-  /**
-   * Puts the character in the first free slot.
-   *
-   * v0.7.13 (docs/v0.7.13.md §11): `defaults` carries the character's own
-   * 主题色 / 编号 (`characters.color` / `characters.displayName`). They are
-   * applied **at assignment time only** — later edits to either side never
-   * reach across: the slot owns a *copy*, exactly like it already owns a copy
-   * of nothing else about the character (its name / avatar are still read from
-   * `characters` at render time, on purpose — those are not participant
-   * configuration).
-   */
+  /** Puts the character in the first free slot; `defaults` copies the character's own 主题色 / 编号 in **at assignment time only** — the slot then owns a copy (v0.7.13, docs/v0.7.13.md §11). */
   assignSlot: (characterId: number, defaults?: ParticipantDefaults) => number | null;
   clearCharacterSlot: (index: number) => void;
   swapSlots: (from: number, to: number) => void;
@@ -241,14 +173,7 @@ export interface PuzzleState {
   activateParticipantClick: (participantId: number) => void;
   clearActivation: () => void;
   setSelection: (selection: PuzzleSelection | null) => void;
-  /**
-   * v0.7.3 §3.3：引入新地图 —— 只换底图（连同它的名称 / 版本 / 画布），谜题自己
-   * 的字段一个不动。一个撤销步，撤销后底图也一起换回来。
-   *
-   * `characterSlots` 是**同一笔**改动的一部分：换底图时，指向旧画布的联动目标
-   * （`asset` / `region`）已经不存在，必须一起摘掉，否则这份草稿再也存不进去
-   * （服务端 `assertReferenceIssues` 会 400）。分开提交就会变成两个撤销步。
-   */
+  /** v0.7.3 §3.3：引入新地图 —— 只换底图（连同它的名称 / 版本 / 画布），谜题自己的字段一个不动。一个撤销步，撤销后底图也一起换回来。 `characterSlots` 是**同一笔**改动的一部分：换底图时，指向旧画布的联动目标（`asset` / `region`）已经不存在，必须一起摘掉，否则这份草稿再也存不进去（服务端 `assertReferenceIssues` 会 400）。分开提交就会变成两个撤销步。 */
   replaceMapContext: (
     context: PuzzleMapContext,
     characterSlots?: Array<CharacterSlotEntry | null>,
@@ -259,11 +184,7 @@ export interface PuzzleState {
   undo: () => void;
   redo: () => void;
   markSaved: (updatedAt: string) => void;
-  /**
-   * 「保存时才生成草稿」落库之后接管新行：只换身份（id / 名称 / 描述 /
-   * `updatedAt` / `status`），画布、撤销栈与视口一个都不动 —— 内容就是刚写进去
-   * 的那份，重新 `init` 只会把缩放打回 1×、把历史清空。
-   */
+  /** 「保存时才生成草稿」落库之后接管新行：只换身份（id / 名称 / 描述 / `updatedAt` / `status`），画布、撤销栈与视口一个都不动 —— 内容就是刚写进去的那份，重新 `init` 只会把缩放打回 1×、把历史清空。 */
   adoptSavedEntry: (detail: PuzzleDetail) => void;
   /** FEAT-K08: the whole draft, ready for save / export. */
   toDraft: () => PuzzleDraft;
@@ -271,18 +192,12 @@ export interface PuzzleState {
   applyDraft: (draft: PuzzleDraft) => void;
 }
 
-/**
- * v0.8.6 §4：标记图是平坦的 `{ path }`，复制一层就和来源脱钩了（撤销栈 /
- * 草稿都不能和「此刻」共用一个对象）。
- */
+/** v0.8.6 §4：标记图是平坦的 `{ path }`，复制一层就和来源脱钩了（撤销栈 / 草稿都不能和「此刻」共用一个对象）。 */
 function cloneMark(ref: UploadedImage | null): UploadedImage | null {
   return ref ? { ...ref } : null;
 }
 
-/**
- * v0.8.7 §7：三枚工具图标也是平坦的 `{ path }`，逐枚复制一层。空的 / 全是空位的
- * 对象归一化成 `null` —— 与「从没配过」同一个口径，序列化时也就不留空壳。
- */
+/** v0.8.7 §7：三枚工具图标也是平坦的 `{ path }`，逐枚复制一层。空的 / 全是空位的对象归一化成 `null` —— 与「从没配过」同一个口径，序列化时也就不留空壳。 */
 function cloneToolIcons(icons: GameToolIcons | null | undefined): GameToolIcons | null {
   if (!icons) return null;
   const next: GameToolIcons = {};
@@ -361,13 +276,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     past: [],
     future: [],
 
-    /**
-     * FIX-O18 (docs/v0.5.4.md §7.5): `init` used to reset `zoom` / `pan`
-     * unconditionally, so any re-seed — including the one a successful save
-     * triggers through React Query — threw the board back to the top-left
-     * corner. Re-initialising the **same** puzzle keeps the view; switching to
-     * another puzzle still starts centred at 1×.
-     */
+    /** FIX-O18 (docs/v0.5.4.md §7.5): re-initialising the **same** puzzle keeps `zoom` / `pan` (a successful save re-seeds through React Query); switching to another puzzle still starts centred at 1×. */
     init: (detail, mapContext) =>
       set((state) => {
         const samePuzzle = state.puzzleId === detail.id;
@@ -571,12 +480,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
     setPan: (pan) => set({ pan }),
     resetView: () => set({ zoom: 1, pan: { x: 0, y: 0 } }),
 
-    /**
-     * 与 {@link commit} 同一套历史记账，但换的是 `mapContext`（唯一会写它的地方）。
-     *
-     * 换底图后格子坐标的含义变了，所以顺带清掉选择与参与者激活 —— 留着它们只会
-     * 让信息框 / 高亮描述一块已经不存在的地。
-     */
+    /** 与 {@link commit} 同一套历史记账，但写的是 `mapContext`（唯一写它的地方）；换底图后格子坐标含义变了，选择与参与者激活必须一起清掉。 */
     replaceMapContext: (context, characterSlots) => {
       const state = get();
       if (

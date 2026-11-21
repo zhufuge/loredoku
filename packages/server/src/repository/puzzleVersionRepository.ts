@@ -3,25 +3,11 @@ import { absorbLegacyPuzzleDraft } from '@loredoku/shared';
 import type { PuzzleDraft, PuzzleRow } from '@loredoku/shared';
 import * as versioning from './versioning';
 
-/**
- * 谜题的版本仓储（v0.7.1 §5.2）—— 与 `versionRepository`（地图）平行的一份，
- * 唯一的差别是表名与行数据类型；版本号 / 占用检查的 SQL 在
- * `repository/versioning.ts`，两条路径共用一份口径。
- *
- * 三条语义与 `maps` 完全同构：
- *
- * 1. 发布 = **INSERT 一条新行**（`version` 是号，`name` / `description` /
- *    `cover_path` / `data` 是此刻快照），草稿行不动。
- * 2. 删草稿行 = 硬删（走 `puzzleRepository.deletePuzzle`）；删版本行 = **软删**
- *    （界面消失、行保留、号仍占 MAX）。
- * 3. 版本行**只读**：`data` 与元信息都不写，改内容只能 fork 出新草稿行。
- */
+/** 谜题版本仓储（v0.7.1 §5.2），与地图 `versionRepository` 同构；版本号 SQL 共用 `repository/versioning.ts` 一份口径。
+ *  发布 = 插入新快照行（草稿不动）；删草稿硬删、删版本软删（号仍占 MAX）；版本行只读，改内容只能 fork。 */
 export type PuzzleVersionRow = PuzzleRow;
 
-/**
- * `:id` → 血统根。**不过滤 `deleted_at`**：软删的版本行仍可作为 `:id` 解析出
- * 血统（过滤只管可见性，不管直达读取）。
- */
+/** `:id` → 血统根。**不过滤 `deleted_at`**：软删的版本行仍可作为 `:id` 解析出血统（过滤只管可见性，不管直达读取）。 */
 async function resolveRootId(id: number): Promise<number | undefined> {
   const row = (await db('puzzles').where({ id }).select('root_id').first()) as
     | { root_id: string | number }
@@ -41,11 +27,7 @@ export async function listVersions(id: number): Promise<PuzzleRow[]> {
   return listVersionRows(rootId);
 }
 
-/**
- * 版本行按号读取。两个口径必须分开（同 `versionRepository`）：
- * `includeDeleted: false` 供**详情**（软删行的直达链接也 404），`true` 供
- * **fork 源**（行还在就能拿来生成草稿）。
- */
+/** 版本行按号读取。两个口径必须分开（同 `versionRepository`）： `includeDeleted: false` 供**详情**（软删行的直达链接也 404），`true` 供 **fork 源**（行还在就能拿来生成草稿）。 */
 export async function getVersion(
   id: number,
   versionNo: number,
@@ -104,17 +86,7 @@ export async function deleteVersion(id: number, versionNo: number): Promise<bool
   return affected > 0;
 }
 
-/**
- * 「编辑此版本」= 在同血统里新建一条**草稿行**，版本行一个字节都不动。
- *
- * `name` 由 service 传入（「{name} (自 v{n})」+ 查重兜底）；`data.name` 也要
- * 跟着改 —— 行名与 JSON 名是两个必须同源的副本。
- *
- * `data` 可传编辑器当前的草稿（v0.7.2 §3.3「保存时才生成草稿」那条路，画布与
- * 参与者配置都是作者刚改过的版本）；不传则用版本快照。
- *
- * fork 源**不过滤软删**：软删版本也能拿来开新草稿。
- */
+/** 「编辑此版本」= 在同血统里新建一条**草稿行**，版本行一个字节都不动。 `name` 由 service 传入（「{name} (自 v{n})」+ 查重兜底）；`data.name` 也要跟着改 —— 行名与 JSON 名是两个必须同源的副本。 `data` 可传编辑器当前的草稿（v0.7.2 §3.3「保存时才生成草稿」那条路，画布与参与者配置都是作者刚改过的版本）；不传则用版本快照。 fork 源**不过滤软删**：软删版本也能拿来开新草稿。 */
 export async function forkVersion(
   id: number,
   versionNo: number,

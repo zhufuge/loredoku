@@ -6,27 +6,14 @@ import { cn } from '@/lib/utils';
 interface RefreshButtonProps {
   /** Re-fetch the list behind the panel. */
   onRefresh: () => void;
-  /**
-   * True while the query is fetching (including the first load). The icon spins
-   * and the button is disabled, so a double click cannot stack requests.
-   */
+  /** True while the query is fetching (including the first load). The icon spins and the button is disabled, so a double click cannot stack requests. */
   refreshing?: boolean;
   /** Tooltip + accessible name, e.g. 「刷新资源」. */
   label: string;
   className?: string;
 }
 
-/**
- * A panel-local refresh. The editors' left panels read two shared lists
- * (资源 / 角色) that other pages can change; reloading the whole editor to pick
- * up the new rows would lose the undo stack.
- *
- * A plain `<button>`, not `<Button size="icon">`: the panel headers are 40px
- * tall and every other control there is a 28px hit box, which the shared sizes
- * (`icon` = 40px) would overflow.
- *
- * v0.7.9 §5：提示走统一的 Tooltip —— 同一个提示在工坊里只该有一种长相。
- */
+/** A panel-local refresh. A plain `<button>`, not `<Button size="icon">`: the panel headers are 40px tall and every other control there is a 28px hit box, which the shared sizes (`icon` = 40px) would overflow. v0.7.9 §5：提示走统一的 Tooltip —— 同一个提示在工坊里只该有一种长相。 */
 export function RefreshButton({
   onRefresh,
   refreshing = false,

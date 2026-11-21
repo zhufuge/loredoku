@@ -6,10 +6,7 @@ import { absorbLegacyMapDraft } from '../service/mapDraftCompat';
 import { THEME_CODE, type MapRowWithLineage } from './mapRepository';
 
 export interface DraftRecord {
-  /**
-   * `null` = 这张地图还没初始化：创建地图时不写草稿，第一次进编辑器时
-   * 才由初始化弹窗（填尺寸 / 导入）写入。
-   */
+  /** `null` = 这张地图还没初始化：创建地图时不写草稿，第一次进编辑器时才由初始化弹窗（填尺寸 / 导入）写入。 */
   draft: MapDraft | null;
 }
 
@@ -27,24 +24,14 @@ export function emptyDraft(gridSize: number): MapDraft {
   };
 }
 
-/**
- * stored drafts may still be the v2 shape (roster + palette). They are
- * absorbed on every read rather than migrated in the database, so the
- * migration stays reversible and no bytes are rewritten.
- *
- * `data` 为 `null` 就是「未初始化」，这个状态要一路透到前端让编辑器弹初始化
- * 弹窗，所以这里不用 `emptyDraft()` 兜底（兜底会把未初始化伪装成「已有一个
- * 默认画布」）。
- */
+/** 存量草稿可能还是 v2 形状：每次读取时吸收，不在库里迁移 —— 迁移可回滚、不改字节。
+ *  `data` 为 null 表示未初始化，必须透给前端弹初始化，不能拿 `emptyDraft()` 兜底。 */
 function parseDraft(mapRow: MapRow): DraftRecord {
   const draft = absorbLegacyMapDraft(mapRow.data) as MapDraft | null;
   return { draft };
 }
 
-/**
- * v0.8.0 §19：带上主题编码。这一行要变成接口里的 `MapEntry`，而 `MapEntry` 用编码
- * 说主题 —— 在主键上做一次标量子查询，比让每个调用方各自再查一次便宜。
- */
+/** v0.8.0 §19：带上主题编码。这一行要变成接口里的 `MapEntry`，而 `MapEntry` 用编码说主题 —— 在主键上做一次标量子查询，比让每个调用方各自再查一次便宜。 */
 export async function getMapRow(mapId: number): Promise<MapRowWithLineage | undefined> {
   return db('maps as m')
     .select('m.*', THEME_CODE)
@@ -57,13 +44,7 @@ export async function getDraft(mapId: number): Promise<DraftRecord | undefined> 
   return row ? parseDraft(row) : undefined;
 }
 
-/**
- * **后写覆盖**（不做锁）：两个会话同时编辑同一张图时，最后一次保存胜出。
- * 用户刚点的这次保存一定落地，丢的是对方那份。
- *
- * - `undefined`   -> map not found
- * - `DraftRecord` -> saved
- */
+/** **后写覆盖**（不做锁）：两个会话同时编辑同一张图时，最后一次保存胜出。 用户刚点的这次保存一定落地，丢的是对方那份。；`undefined` -> map not found；`DraftRecord` -> saved */
 export async function saveDraft(
   mapId: number,
   draft: MapDraft,
@@ -78,14 +59,7 @@ export async function saveDraft(
 export async function resizeDraft(
   mapId: number,
   gridSize: number,
-  /**
-   * v0.8.0（docs/v0.8.0.md §5 的 S3）—— **初始化那一刻**要把主题的缺省风格
-   * 深拷贝进草稿。放在这里而不是 `POST /maps`：v0.5.8 起创建地图不带尺寸、
-   * `data` 是 `null`，写草稿要等到第一次定尺寸（或首次导入）。
-   *
-   * 只在 `row.data === null`（真正未初始化）时生效 —— 已有草稿的地图不追溯，
-   * 那正是 S3 与「引用式」的分界。
-   */
+  /** v0.8.0（docs/v0.8.0.md §5 的 S3）—— **初始化那一刻**要把主题的缺省风格深拷贝进草稿。放在这里而不是 `POST /maps`：v0.5.8 起创建地图不带尺寸、 `data` 是 `null`，写草稿要等到第一次定尺寸（或首次导入）。 只在 `row.data === null`（真正未初始化）时生效 —— 已有草稿的地图不追溯， 那正是 S3 与「引用式」的分界。 */
   options?: { initialStyle?: MapStyle },
 ): Promise<ResizeOutcome | undefined> {
   return db.transaction(async (trx) => {

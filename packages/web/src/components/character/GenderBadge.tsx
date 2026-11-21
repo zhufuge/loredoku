@@ -11,11 +11,7 @@ interface GenderBadgeProps {
   withLabel?: boolean;
 }
 
-/**
- * OPT-601 (docs/v0.3.1.md §2): the ♂/♀ glyph is tinted (male = light blue,
- * female = light pink). CLAR-601 guarantees a character always has a gender,
- * so there is no "unset" branch any more.
- */
+/** OPT-601 (docs/v0.3.1.md §2): the ♂/♀ glyph is tinted (male = light blue, female = light pink). CLAR-601 guarantees a character always has a gender, so there is no "unset" branch any more. */
 export function GenderBadge({ gender, withLabel = false }: GenderBadgeProps): JSX.Element {
   // CLAR-601: missing values are normalised to `male` upstream, but we keep a
   // fallback so a transient `undefined` (e.g. while a query is loading) still

@@ -5,11 +5,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { TOOLBAR_ICON_HOVER_CLASS } from '@/lib/toolbarButtons';
 import { cn } from '@/lib/utils';
 
-/**
- * 搜索框的尺寸档位。三档是对现有六处搜索框的归纳 ——
- * 列表页 40px、资源调色板 36px、角色面板 32px，不只是缩字号，放大镜与
- * 右侧留白都得跟着缩，否则小框里的图标会顶到边。
- */
+/** 搜索框的尺寸档位。三档是对现有六处搜索框的归纳 —— 列表页 40px、资源调色板 36px、角色面板 32px，不只是缩字号，放大镜与右侧留白都得跟着缩，否则小框里的图标会顶到边。 */
 export type SearchInputSize = 'md' | 'sm' | 'xs';
 
 const SIZE_CLASSES: Record<SearchInputSize, { icon: string; input: string }> = {
@@ -21,28 +17,14 @@ const SIZE_CLASSES: Record<SearchInputSize, { icon: string; input: string }> = {
 export interface SearchInputProps
   extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type' | 'size'> {
   value: string;
-  /**
-   * 回传**未经裁剪**的原始输入。四处列表页把 `keywordInput` 交给 300ms 防抖
-   * 再 `trim()` 后提交，调色板与角色面板本地过滤时也自己裁剪 —— 所以这里
-   * 不替调用方 trim，否则防抖期间「输入空格」会被吞成同一次提交。
-   */
+  /** 回传**未经裁剪**的原始输入。四处列表页把 `keywordInput` 交给 300ms 防抖再 `trim()` 后提交，调色板与角色面板本地过滤时也自己裁剪 —— 所以这里不替调用方 trim，否则防抖期间「输入空格」会被吞成同一次提交。 */
   onValueChange: (next: string) => void;
   size?: SearchInputSize;
   /** 清空按钮的提示与 `aria-label`，默认「清空搜索」。 */
   clearLabel?: string;
 }
 
-/**
- * 所有搜索框加一个 × 清空按钮。
- *
- * 键盘退格之外要有一个一次清空的入口：列表页有 300ms 防抖，退格到空要按三四次
- * 才看到列表回来。这里收成一个共享件，顺带把三档尺寸固定下来。
- *
- * 三处细节：
- * - `pr-9` 常驻（不是只在有内容时留），否则清空按钮出现的那一刻文字会跳。
- * - 只有有内容时才渲染按钮 —— 空框上挂一枚点不动的 ×，读屏还会念出来。
- * - 清空后把焦点还回输入框：这是「重新搜」的起点，不该再点一次。
- */
+/** 所有搜索框加一个 × 清空按钮。 键盘退格之外要有一个一次清空的入口：列表页有 300ms 防抖，退格到空要按三四次才看到列表回来。这里收成一个共享件，顺带把三档尺寸固定下来。 三处细节：；`pr-9` 常驻（不是只在有内容时留），否则清空按钮出现的那一刻文字会跳。；只有有内容时才渲染按钮 —— 空框上挂一枚点不动的 ×，读屏还会念出来。；清空后把焦点还回输入框：这是「重新搜」的起点，不该再点一次。 */
 export function SearchInput({
   value,
   onValueChange,

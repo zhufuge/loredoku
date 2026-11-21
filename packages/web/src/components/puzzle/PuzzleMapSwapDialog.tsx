@@ -19,17 +19,7 @@ import { LoadingBlock } from '@/components/common/LoredokuLoader';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
 import { workshopPath } from '@/lib/workspace';
 
-/**
- * v0.7.3 §3：「引入新地图」。
- *
- * 只列**方格尺寸与当前底图相同**的已发布地图版本，并且排除当前这一份：
- *
- * - 尺寸必须相同是硬约束 —— 底图尺寸决定名册长度与所有格子坐标，换尺寸等于换
- *   坐标系（那是「新建谜题」的事）；
- * - 只收已发布版本 —— 冻结快照才能被复制走，草稿随时会变。
- *
- * 选中之后只换底图（画布 / 地图名 / 版本号），谜题自己的字段一概不动。
- */
+/** v0.7.3 §3：「引入新地图」。 只列**方格尺寸与当前底图相同**的已发布地图版本，并且排除当前这一份：；尺寸必须相同是硬约束 —— 底图尺寸决定名册长度与所有格子坐标，换尺寸等于换坐标系（那是「新建谜题」的事）；；只收已发布版本 —— 冻结快照才能被复制走，草稿随时会变。 选中之后只换底图（画布 / 地图名 / 版本号），谜题自己的字段一概不动。 */
 interface PuzzleMapSwapDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

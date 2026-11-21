@@ -14,11 +14,7 @@ const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 const coordTupleSchema = z.tuple([coordSchema, coordSchema]);
 const regionIdSchema = z.string().trim().min(1).max(64);
 
-/**
- * MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed.
- * MOD-801 (docs/v0.3.3.md): the high-luminance warning is removed too —
- * any `#RRGGBB` is accepted with no hints or blocking.
- */
+/** MOD-710 (docs/v0.3.2.md): the blue-hue restriction is removed. MOD-801 (docs/v0.3.3.md): the high-luminance warning is removed too — any `#RRGGBB` is accepted with no hints or blocking. */
 export const themeColorSchema = z
   .string()
   .trim()
@@ -29,11 +25,7 @@ export const themeColorSchema = z
   )
   .default(DEFAULT_THEME_COLOR);
 
-/**
- * FEAT-D04: a linkage colour is the **key** of an entry in the puzzle's
- * linkage palette. The key format is validated here; the "key must exist"
- * cross-check lives in `puzzleRefs` (it needs the whole draft).
- */
+/** FEAT-D04: a linkage colour is the **key** of an entry in the puzzle's linkage palette. The key format is validated here; the "key must exist" cross-check lives in `puzzleRefs` (it needs the whole draft). */
 export const effectColorSchema = z
   .string()
   .trim()
@@ -42,10 +34,7 @@ export const effectColorSchema = z
 export const participantEffectTypeSchema = z.enum(EFFECT_TYPES);
 export const participantTargetTypeSchema = z.enum(PARTICIPANT_TARGET_TYPES);
 
-/**
- * MOD-708 (docs/v0.3.2.md): cell targets carry a `cells` array instead of
- * a single {x, y}. Item targets gain a `scope` field.
- */
+/** MOD-708 (docs/v0.3.2.md): cell targets carry a `cells` array instead of a single {x, y}. Item targets gain a `scope` field. */
 export const participantTargetSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('character'),
@@ -76,11 +65,7 @@ export const participantTargetSchema = z.discriminatedUnion('type', [
   }),
 ]);
 
-/**
- * MOD-801 (docs/v0.3.3.md): the click/touch grouping is gone. A slot keeps
- * one flat, de-duplicated list of linkages; hover and click both play the
- * whole list (MOD-802).
- */
+/** MOD-801 (docs/v0.3.3.md): the click/touch grouping is gone. A slot keeps one flat, de-duplicated list of linkages; hover and click both play the whole list (MOD-802). */
 export const participantLinkagesSchema = z.array(participantTargetSchema).default([]);
 
 export type ParticipantTargetInput = z.infer<typeof participantTargetSchema>;

@@ -9,16 +9,7 @@ import { ClampedText } from '@/components/common/ClampedText';
 import { formatDateTime } from '@/lib/format';
 import { formatRelativeTime } from '@/lib/relativeTime';
 
-/**
- * 谜题卡片（网格视图，服务草稿块）：封面 + 名称 + 描述 + 「尺寸 · 编码 · 时间」
- * 一行 + 主按钮。
- *
- * 主按钮按 kind 分叉：草稿行进编辑器，版本行走「编辑此版本」（`?v=` fork 态 ——
- * 进去不建行，保存才 fork）。三点菜单里的可见项同理由 `EntryActionsMenu` 按
- * `entry.kind` 分流，卡片本身不掺和。
- *
- * 版本块恒为列表行，所以卡片上这条分支平时用不到，留着是为了两块行为一致。
- */
+/** 谜题卡片（网格视图，服务草稿块）：封面 + 名称 + 描述 + 「尺寸 · 编码 · 时间」 一行 + 主按钮。 主按钮按 kind 分叉：草稿行进编辑器，版本行走「编辑此版本」（`?v=` fork 态 —— 进去不建行，保存才 fork）。三点菜单里的可见项同理由 `EntryActionsMenu` 按 `entry.kind` 分流，卡片本身不掺和。 版本块恒为列表行，所以卡片上这条分支平时用不到，留着是为了两块行为一致。 */
 interface PuzzleGridCardProps {
   entry: PuzzleEntrySummary;
   onOpen: (entry: PuzzleEntrySummary) => void;

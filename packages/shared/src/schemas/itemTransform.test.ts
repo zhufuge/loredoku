@@ -11,12 +11,7 @@ import {
 } from '../constants';
 import { draftAnchorItemSchema, mapDraftSchema } from './mapDraft';
 
-/**
- * v0.7.5 (docs/v0.7.5.md §3): 物品的展示变换（等比例缩放 + 按格偏移）。
- *
- * 三个字段都是**可选**的：老草稿没有它们，语义就是恒等。`draftCellSchema`
- * 是 `.strict()`，所以 schema 必须显式声明，否则新写的草稿会被自己拒掉。
- */
+/** v0.7.5 (docs/v0.7.5.md §3): 物品的展示变换（等比例缩放 + 按格偏移）。 三个字段都是**可选**的：老草稿没有它们，语义就是恒等。`draftCellSchema` 是 `.strict()`，所以 schema 必须显式声明，否则新写的草稿会被自己拒掉。 */
 const anchor = (extra: Record<string, unknown> = {}): Record<string, unknown> => ({
   assetId: 5,
   w: 1,

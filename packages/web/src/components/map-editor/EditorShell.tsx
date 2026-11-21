@@ -13,16 +13,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 
-/**
- * the chrome both editors render identically, lifted out of
- * `MapEditorPage` / `PuzzleEditorPage` — the save mask, the leave guard, the
- * 「基本信息有未保存的修改」 confirmation, the loading / error states and the
- * hidden JSON import input.
- *
- * Only **invariants** live here. What differs between the two editors (the
- * writable map canvas vs the read-only puzzle reference, the panels, the
- * dialogs) stays in the pages.
- */
+/** Only **invariants** live here. What differs between the two editors (the writable map canvas vs the read-only puzzle reference, the panels, the dialogs) stays in the pages. */
 
 /** 保存中蒙版 — delayed fade-out is `useEditorSave`'s job; this only paints. */
 export function EditorSaveMask({
@@ -55,10 +46,7 @@ export function EditorSaveMask({
   );
 }
 
-/**
- * FEAT-E01: leaving the 基本信息 form (or the editor) with unsaved edits is
- * confirmed. Esc inside the dialog cancels instead of confirming.
- */
+/** FEAT-E01: leaving the 基本信息 form (or the editor) with unsaved edits is confirmed. Esc inside the dialog cancels instead of confirming. */
 export function EditorUnsavedLeaveDialog({
   guard,
 }: {
@@ -120,11 +108,7 @@ export function EditorPendingInfoActionDialog({
   );
 }
 
-/**
- * Both editors show the same loading mark while the map / puzzle pair lands.
- *
- * 整屏等待统一走 `LoadingScreen` —— 一句话 + 一个转圈只有这一处定义。
- */
+/** Both editors show the same loading mark while the map / puzzle pair lands. 整屏等待统一走 `LoadingScreen` —— 一句话 + 一个转圈只有这一处定义。 */
 export function EditorLoadingState(): JSX.Element {
   return <LoadingScreen caption="正在加载画布…" />;
 }

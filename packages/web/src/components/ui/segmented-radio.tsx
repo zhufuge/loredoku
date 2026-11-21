@@ -1,16 +1,6 @@
 import { cn } from '@/lib/utils';
 
-/**
- * v0.5.4 FEAT-O11 (docs/v0.5.4.md §5.4): a `<select>` turned into **buttons**.
- *
- * The item category has two or three values and is picked constantly, so a
- * dropdown costs two clicks and a scroll; buttons cost one. Visually this is
- * the same segmented control `AppearanceField` already uses for 外观, so the
- * whole form reads as one family.
- *
- * It is a real radio group for assistive tech (`role="radiogroup"` +
- * `role="radio"` + `aria-checked`), not just a row of buttons.
- */
+/** v0.5.4 FEAT-O11 (docs/v0.5.4.md §5.4): a `<select>` turned into **buttons**. It is a real radio group for assistive tech (`role="radiogroup"` + `role="radio"` + `aria-checked`), not just a row of buttons. */
 export interface SegmentedRadioOption<T extends string> {
   value: T;
   label: string;

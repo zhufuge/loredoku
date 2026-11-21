@@ -4,12 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PublishedMapVersion } from '@loredoku/shared';
 import { PuzzleMapSwapDialog } from './PuzzleMapSwapDialog';
 
-/**
- * v0.7.3 §3.2：「引入新地图」只列**同尺寸**的已发布版本，并排除当前这一份 ——
- * 尺寸不同等于换坐标系，当前这份点它没有意义。
- *
- * Radix 把面板 portal 到 `document.body`，所以查询走 `document`。
- */
+/** v0.7.3 §3.2：「引入新地图」只列**同尺寸**的已发布版本，并排除当前这一份 —— 尺寸不同等于换坐标系，当前这份点它没有意义。 Radix 把面板 portal 到 `document.body`，所以查询走 `document`。 */
 const state = vi.hoisted(() => ({
   versions: [] as PublishedMapVersion[],
   isLoading: false,
@@ -144,10 +139,7 @@ describe('PuzzleMapSwapDialog (v0.7.3 §3.2)', () => {
     expect(onOpenChange).not.toHaveBeenCalled();
   });
 
-  /**
-   * 这枚弹窗是**常挂**在谜题编辑页上的（`open` 只控制内容显不显示），
-   * 所以已发布版本列表不能跟着页面一起取 —— 只有真的点开那一刻才该发请求。
-   */
+  /** 这枚弹窗是**常挂**在谜题编辑页上的（`open` 只控制内容显不显示）， 所以已发布版本列表不能跟着页面一起取 —— 只有真的点开那一刻才该发请求。 */
   it('关着的时候不请求已发布版本', () => {
     render(false, false);
 

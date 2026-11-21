@@ -5,10 +5,7 @@ import {
   upgradeRegionStyleDraft,
 } from '../src/service/regionStyleMigration';
 
-/**
- * v0.7.0 (docs/v0.7.0.md §4) — the region style transform behind migration
- * `20260101000030_v070_region_style` and the `mapDraftCompat` absorption.
- */
+/** v0.7.0 (docs/v0.7.0.md §4) — the region style transform behind migration `20260101000030_v070_region_style` and the `mapDraftCompat` absorption. */
 
 /** A v0.6.x draft: two regions, one at the default width, one custom. */
 function legacyDraft(): Record<string, unknown> {

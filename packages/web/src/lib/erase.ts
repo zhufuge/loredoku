@@ -19,14 +19,7 @@ export interface ItemAnchorHit {
   item: NonNullable<DraftCell['item']>;
 }
 
-/**
- * The item anchor covering `x, y`, whether the coordinate is the anchor itself
- * or a cell inside a multi-cell footprint.
- *
- * The item's info box edits the anchor (`scale` / offsets), and the user
- * may well have selected a cell in the middle of a 3×3 footprint — the anchor is
- * the only cell that carries the item, so every edit has to resolve it first.
- */
+/** The item's info box edits the anchor (`scale` / offsets), and the user may well have selected a cell in the middle of a 3×3 footprint — the anchor is the only cell that carries the item, so every edit has to resolve it first. */
 export function findItemAnchor(
   cells: CellMap,
   x: number,
@@ -46,13 +39,7 @@ export function findItemAnchor(
   return null;
 }
 
-/**
- * Eraser resolution order: object layer → decoration layer → background layer
- * (top-most visual layer first). `activeLayer` is deliberately ignored.
- *
- * CLAR-603: participants no longer occupy cells, so there is no character
- * layer to clear.
- */
+/** Eraser resolution order: object layer → decoration layer → background layer (top-most visual layer first). `activeLayer` is deliberately ignored. CLAR-603: participants no longer occupy cells, so there is no character layer to clear. */
 export function resolveEraseTarget(
   cells: CellMap,
   x: number,

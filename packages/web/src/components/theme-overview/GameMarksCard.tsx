@@ -31,27 +31,7 @@ import {
 import { resolveCheckColors } from '@/lib/checkStyle';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
 
-/**
- * **操作提示** —— 玩家在盘面上操作时看到的那些提示，都在这一张卡里。
- *
- * 五项：
- *
- * | 项 | 玩家看到它的地方 |
- * |---|---|
- * | 标记 | 标「这格排除」时画在格子里的那枚符号（谜题可以单独换一张） |
- * | 清除 / 回退 / 提交 | 游戏页右列那三枚按钮上的画 |
- * | 圆环 | 按住一格放头像的进度环、提交后逐人校验的结果环 |
- *
- * 为什么合成一张：它们回答的是同一个问题 —— **这个世界的操作手感长什么样**。
- * 分四张卡会让人以为四件事互不相干，而作者调的时候往往是一起调的。
- *
- * 五枚都是**读取时**兜底，不是「新建时抄一份」：换一张图，本主题下跟随的关卡
- * （含已发布的）下次打开就是新的。所以这里没有「保存」，选中文件即上传、
- * 点移除即清掉。已在谜题里单独上传过的仍用自己那张（覆盖）。
- *
- * 圆环那一项**同时管两处**：长按计时环与提交校验圈——玩家看到的都是「一圈绕着
- * 一格走」，配两张图只会让作者传两次、而且很难保证它们看起来是一家人。
- */
+/** **操作提示** —— 玩家在盘面上操作时看到的那些提示，都在这一张卡里。 五项： | 项 | 玩家看到它的地方 | |---|---| | 标记 | 标「这格排除」时画在格子里的那枚符号（谜题可以单独换一张） | | 清除 / 回退 / 提交 | 游戏页右列那三枚按钮上的画 | | 圆环 | 按住一格放头像的进度环、提交后逐人校验的结果环 | 为什么合成一张：它们回答的是同一个问题 —— **这个世界的操作手感长什么样**。 所以这里没有「保存」，选中文件即上传、 点移除即清掉。 圆环那一项**同时管两处**：长按计时环与提交校验圈——玩家看到的都是「一圈绕着 一格走」，配两张图只会让作者传两次、而且很难保证它们看起来是一家人。 */
 export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
   const markInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
@@ -74,13 +54,7 @@ export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
   const icons = theme.data.toolIcons ?? {};
   const ring = theme.data.ring?.image ?? null;
   const checkStyle = resolveCheckColors(theme.data.checkStyle);
-  /**
-   * 结算卡的两句文字。
-   *
-   * 输入框里放的是「作者显式填的那份」，空串时退回内置默认值 —— 空输入框加上
-   * placeholder 里的默认值，比直接把默认值填进 state 更诚实：后者会让人以为
-   * 这个主题存了「解题成功」，其实存的是 `undefined`。
-   */
+  /** 结算卡的两句文字。 输入框里放的是「作者显式填的那份」，空串时退回内置默认值 —— 空输入框加上 placeholder 里的默认值，比直接把默认值填进 state 更诚实：后者会让人以为这个主题存了「解题成功」，其实存的是 `undefined`。 */
   const verdict = resolveVerdictStyle(theme.data.verdict);
   const [verdictIconText, setVerdictIconText] = useState(theme.data.verdict?.iconText ?? '');
   const [verdictTitle, setVerdictTitle] = useState(theme.data.verdict?.title ?? '');

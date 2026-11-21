@@ -35,19 +35,7 @@ import { absorbLegacyMapDraft, readLegacyLinkageColors } from './mapDraftCompat'
 import { processMarkImage, processPuzzleCover, processToolIconImage } from '../utils/image';
 import { buildFileUrl } from '../utils/paths';
 
-/**
- * 谜题模块的服务层（v0.7.1 §5）。
- *
- * 这里守住四条边界：
- *
- * 1. **谜题自带底图**：创建时把地图版本画布整份复制进 `data.map.data`，此后再
- *    也不问地图要数据（`getPuzzleMapContext` 读自己的副本）。JSON 里那份画布是
- *    服务端资产 —— 保存时一律用存量覆盖客户端送来的副本，画布不可能被改掉。
- * 2. **尺寸只有一个来源**：`puzzleGridSize(draft)`，没有任何列参与。
- * 3. **版本行只读**：改名 / 描述 / 封面 / 保存一律先过 {@link findWritable}。
- * 4. **联动引用对自带画布校验**：schema 看不见跨表的 `asset` / `region`，写在
- *    这里，导入的 JSON 也绕不过去。
- */
+/** 四条边界：底图自带、尺寸只取 `puzzleGridSize`、版本行只读（`findWritable`）、联动引用对自带画布校验（v0.7.1 §5）。 */
 
 /** Raised when `POST /api/puzzles/:id/cover` arrives without a file part. */
 export function coverRequired(): AppError {
@@ -69,20 +57,7 @@ function rowDraft(row: { data: unknown }): PuzzleDraft | null {
   return absorbLegacyPuzzleDraft(row.data);
 }
 
-/**
- * 本次保存该用哪份底图（v0.7.3 §3.4）。
- *
- * 客户端只交来源（`mapSource`），画布永远从这里读 —— 与「保存时用存量覆盖
- * `data.map`」同一条护栏：底图只可能是某个**已发布版本**的冻结快照，绝不来自
- * 请求体。三种情形：
- *
- * 1. 没带 `mapSource`，或它与存量相同 → 用存量（老行为，零查询）；
- * 2. 不同 → 读那份已发布版本（过滤软删）并换成它的画布；
- * 3. 版本不存在 / 没有画布 / 方格尺寸不同 → 400。
- *
- * 尺寸必须一致不是客气：底图尺寸决定名册长度与所有格子坐标，换尺寸等于换坐标系
- * （那是「新建谜题」的事）。
- */
+/** 底图只取已发布版本的快照，绝不来自请求体；尺寸不同直接 400，换尺寸等于换坐标系（v0.7.3 §3.4）。 */
 async function resolveMapSnapshot(
   current: PuzzleMapSnapshot,
   mapSource?: PuzzleMapSource,
@@ -144,10 +119,7 @@ function emptyDraft(entry: PuzzleEntrySummary): PuzzleDraft {
   };
 }
 
-/**
- * 复制 / fork 的取名兜底：`{base} 副本`、`{base} 副本 2`… 直到不撞名。
- * 只看草稿行（版本名是发布快照，拿它占位会让序号莫名跳号）。
- */
+/** 取名兜底：`{base} 副本`、`{base} 副本 2`…；只看草稿行，拿版本快照占位会让序号跳号。 */
 async function uniqueCopyName(base: string): Promise<string> {
   let candidate = `${base} 副本`;
   let index = 2;
@@ -164,24 +136,14 @@ async function uniqueName(base: string): Promise<string> {
   return uniqueCopyName(base);
 }
 
-/**
- * v0.8.5 §7：编码在主题内不重。
- *
- * 为什么不是数据库唯一约束：同一条谜题的草稿行与版本行**共用**一个编码（那是
- * 这一关的身份，不是版本的属性），唯一索引会把它们判成冲突。所以只在「新建」
- * 与「改编码」这两个真正的入口查一次。
- */
+/** 编码在主题内不重；不能建唯一索引：草稿行与版本行共用编码，会被判成冲突（v0.8.5 §7）。 */
 async function assertCodeFree(themeId: number, code: string): Promise<void> {
   if (await puzzleRepo.codeTaken(themeId, code)) {
     throw AppError.conflict(`编码「${code}」已经被这个主题的另一个谜题用过了`);
   }
 }
 
-/**
- * 复制出一条新谜题时给它找一个空编码：先试原样，撞了就 `-2`、`-3`……
- *
- * 原谜题没有编码时也返回 `null` —— 不为了「每个谜题都要有编码」去发明一个。
- */
+/** 复制时找空编码：原样、`-2`、`-3`…；原谜题没有编码就返回 `null`，不凭空发明一个。 */
 async function freeCode(themeId: number, base: string | null): Promise<string | null> {
   if (!base) return null;
   const stem = base.slice(0, 44).replace(/-+$/g, '');
@@ -202,10 +164,7 @@ async function requireRow(id: number): Promise<puzzleRepo.PuzzleRowWithLineage> 
   return row;
 }
 
-/**
- * 版本行也是合法的 `puzzles` 行，所以每个「条目级」写操作都要先过这里 ——
- * 版本是冻结快照，改名 / 封面 / 保存都会让已部署的游戏悄悄变形。
- */
+/** 版本行也是合法的 `puzzles` 行，所以条目级写操作都先过这里 —— 版本是冻结快照。 */
 async function findWritable(id: number): Promise<puzzleRepo.PuzzleRowWithLineage> {
   const row = await requireRow(id);
   if (row.version !== 'draft') {
@@ -229,11 +188,7 @@ export async function getPuzzle(id: number): Promise<PuzzleDetail> {
   return toDetail(await requireRow(id));
 }
 
-/**
- * 谜题编辑器渲染的只读画布 —— 从**自己的副本**读（v0.7.1 起不再 join 地图）。
- * `style` 里没有 `linkageColors`：调色板的唯一真源是谜题自己的
- * `linkageColors`，编辑器渲染时再合并。
- */
+/** 编辑器只读画布取谜题自己的副本（v0.7.1 起不 join 地图）；`style` 不含 `linkageColors`，那是谜题自己的。 */
 export async function getPuzzleMapContext(id: number): Promise<PuzzleMapContext> {
   const row = await requireRow(id);
   const draft = rowDraft(row);
@@ -252,13 +207,7 @@ export async function getPuzzleMapContext(id: number): Promise<PuzzleMapContext>
   };
 }
 
-/**
- * 创建谜题（仍是 JSON，先建行才有 id 能挂封面）：把所选**已发布**地图版本的
- * 画布复制进 `data.map.data`，名册按画布尺寸开空位，调色板继承源版本的
- * 老调色板（没有就用随包的红 / 蓝对）。
- *
- * 底图从此固定 —— 地图后来发布新版本不影响既有谜题（要换底图只能新建谜题）。
- */
+/** 创建时把已发布版本的画布复制进 `data.map.data`；底图从此固定，要换只能新建谜题。 */
 export async function createPuzzle(input: CreatePuzzleInput): Promise<PuzzleDetail> {
   // 创建时选版本要**过滤软删**：已删版本不能作为新谜题的底图（可见性）。
   const version = await versionRepo.getVersion(input.mapId, input.mapVersionNo);
@@ -371,10 +320,7 @@ async function assertKnownCharacters(data: PuzzleDraft): Promise<void> {
   }
 }
 
-/**
- * 跨表那半：`asset` / `region` 目标必须在**谜题自己的画布**上。前端的检查不算
- * 数 —— 导入的 JSON 能绕过它，所以每次写入前服务端重跑一遍。
- */
+/** 跨表引用必须对谜题自己的画布校验：前端检查与导入的 JSON 都会绕过，服务端每次重跑。 */
 function assertReferenceIssues(data: PuzzleDraft): void {
   const issues = validatePuzzleReferences(data, {
     cells: data.map.data.cells ?? {},
@@ -387,10 +333,7 @@ function assertReferenceIssues(data: PuzzleDraft): void {
 
 export async function updatePuzzle(id: number, input: UpdatePuzzleInput): Promise<PuzzleDetail> {
   const current = await findWritable(id);
-  /**
-   * v0.8.5 §7：改编码前查一次重。相同值直接放过 —— 查重看不见「自己」，同血统的
-   * 草稿行与版本行本来就都带着这个编码。
-   */
+  /** 改编码前查重；相同值放过（查重看不见自己，草稿行与版本行本就共用一个编码）。 */
   if (input.code !== undefined && input.code !== current.code) {
     await assertCodeFree(Number(current.theme_id), input.code);
   }
@@ -401,10 +344,7 @@ export async function updatePuzzle(id: number, input: UpdatePuzzleInput): Promis
   return toDetail(updated);
 }
 
-/**
- * `DELETE /api/puzzles/:id` 对两种行分流（同地图）：草稿行**硬删**，版本行
- * **软删**（另有专属端点，这里兜住「拿版本行 id 直接调通用删除」）。
- */
+/** 草稿行硬删；版本行走 `deleteVersion` 软删（兜住「拿版本行 id 直接调通用删除」）。 */
 export async function deletePuzzle(id: number): Promise<void> {
   const row = await requireRow(id);
   if (row.version !== 'draft') {
@@ -430,10 +370,7 @@ export async function duplicatePuzzle(id: number): Promise<PuzzleDetail> {
   return toDetail(created);
 }
 
-/**
- * 封面是二进制、创建 / 改名是 JSON，所以单独一条 multipart 路由（同地图）。
- * 建行之后才能上传 —— 新建弹窗里的封面因此是「创建成功后自动传」。
- */
+/** 封面是二进制、建行后才能传，所以单独一条 multipart 路由（新建弹窗创建成功后自动传）。 */
 export async function uploadCover(id: number, buffer: Buffer): Promise<PuzzleDetail> {
   await findWritable(id);
   const image = await processPuzzleCover(id, buffer);
@@ -453,16 +390,7 @@ export async function removeCover(id: number): Promise<PuzzleDetail> {
   return toDetail(row);
 }
 
-/**
- * v0.8.6 §4：禁止符号图上传（multipart）。
- *
- * 三点与封面不同：
- *
- * 1. **只写文件、不写库** —— `path` 住在草稿 JSON 里，由作者随保存请求带回来。
- * 2. 所以**版本行也允许**（`requireRow`，不是 `findWritable`）：编辑器 `?v=` 的
- *    fork 态拿到的就是版本行 id，上传发生在保存草稿之前；写文件不碰冻结快照。
- * 3. 回执是 `{ path, url }` 而不是整条谜题 —— 行本来就没变。
- */
+/** 只写文件不写库：`path` 住在草稿 JSON 里，所以版本行也允许（fork 态先上传后保存），回执非整条谜题（v0.8.6 §4）。 */
 export async function uploadMark(
   id: number,
   buffer: Buffer,
@@ -472,12 +400,7 @@ export async function uploadMark(
   return { path: image.relativePath, url: buildFileUrl(image.relativePath) };
 }
 
-/**
- * v0.8.7 §7：工具按钮图标上传（清除 / 撤回 / 提交）。
- *
- * 与禁止符号逐条相同 —— 只写文件、`path` 随保存请求回草稿、版本行也允许（fork 态
- * 先上传后保存）。差别只在目录与「哪一枚」。
- */
+/** 与禁止符号逐条相同，差别只在目录与哪一枚（v0.8.7 §7）。 */
 export async function uploadToolIcon(
   id: number,
   icon: GameToolIconKind,
@@ -488,10 +411,7 @@ export async function uploadToolIcon(
   return { path: image.relativePath, url: buildFileUrl(image.relativePath) };
 }
 
-/**
- * 发布校验（§5.5，阻断式）：名册至少 1 位参与者（否则部署出去也没法玩）、
- * 角色 id 都存在、联动引用对自带画布合法。
- */
+/** 发布校验（阻断式）：至少 1 位参与者、角色 id 存在、联动引用对自带画布合法（§5.5）。 */
 export async function validatePuzzle(draft: PuzzleDraft): Promise<PublishViolation[]> {
   const violations: PublishViolation[] = [];
 
@@ -522,10 +442,7 @@ export async function validatePuzzle(draft: PuzzleDraft): Promise<PublishViolati
   return violations;
 }
 
-/**
- * 发布 = 在 `puzzles` 里 INSERT 一条版本行（§5.2），草稿行不动。号来自整个
- * 血统的最大值（含软删行），可由用户指定（填空洞号），撞号直接 400。
- */
+/** 发布 = INSERT 一条版本行，草稿行不动；号取血统最大值（含软删），可指定，撞号 400（§5.2）。 */
 export async function publishPuzzle(id: number, versionNo?: number): Promise<PuzzleEntrySummary> {
   const row = await findWritable(id);
   const draft = rowDraft(row);
@@ -564,17 +481,7 @@ export async function getVersion(id: number, versionNo: number): Promise<PuzzleD
   return toDetail(row);
 }
 
-/**
- * 「编辑此版本」= fork 出一条新草稿行（§5.5）。
- *
- * v0.7.2 §3.3：编辑器不再「点一下就 fork」，而是 `?v=` 进编辑器、**保存时**才
- * 带着当前草稿来这里落行。`data` 缺省 = 用版本快照（版本历史面板老行为）。
- *
- * 护栏与 `savePuzzle` 同一套，只是基准画布取**版本自己的** `map` —— 客户端送来
- * 的副本可以被改，服务端只用它的谜题侧字段，底图永远以版本行里的那份为准。
- *
- * fork 源不过滤软删：软删版本也能开新草稿（过滤只管可见性）。
- */
+/** `data` 缺省用版本快照；底图永远取版本行那份（客户端副本可改），fork 源不过滤软删（§5.5）。 */
 export async function forkVersion(
   id: number,
   versionNo: number,
@@ -607,10 +514,7 @@ export async function forkVersion(
     assertReferenceIssues(next);
   }
 
-  /**
-   * fork 出来的行名：作者在「基本信息」里改过名就用他的，否则用
-   * `{版本名} (自 v{n})` —— 血统里多份草稿才分得清。
-   */
+  /** 作者改过名用他的，否则 `{版本名} (自 v{n})` —— 血统里多份草稿才分得清。 */
   const authored = data?.name?.trim();
   const name =
     authored && authored !== target.name
@@ -623,10 +527,7 @@ export async function forkVersion(
   return toDetail(created);
 }
 
-/**
- * 删版本 = 软删。挂着**未取消部署**的游戏时拒绝 —— 删了会让已在线的
- * `/play/{slug}` 指向一份不存在的谜题。
- */
+/** 删版本 = 软删；挂着未取消部署的游戏时拒绝，否则在线 `/play/{slug}` 会指向不存在的谜题。 */
 export async function deleteVersion(id: number, versionNo: number): Promise<void> {
   const row = await puzzleVersionRepo.getVersion(id, versionNo);
   if (!row) {

@@ -4,13 +4,7 @@ import { useTheme } from '@/hooks/useTheme';
 import { cn } from '@/lib/utils';
 import type { ThemeMode } from '@/lib/theme';
 
-/**
- * 三态循环按钮 —— 浅色 → 深色 → 跟随系统 → 浅色。
- *
- * 图标表示**当前模式**（不是「点完会变成什么」）：跟随系统是 SunMoon，手动选定
- * 的是太阳/月亮。这样扫一眼就知道自己是「跟着系统」还是「钉死了」，否则用户
- * 会在系统切外观时怀疑页面坏了。
- */
+/** 三态循环按钮 —— 浅色 → 深色 → 跟随系统 → 浅色。 图标表示**当前模式**（不是「点完会变成什么」）：跟随系统是 SunMoon，手动选定的是太阳/月亮。这样扫一眼就知道自己是「跟着系统」还是「钉死了」，否则用户会在系统切外观时怀疑页面坏了。 */
 const MODE_LABEL: Record<ThemeMode, string> = {
   system: '跟随系统',
   light: '浅色',

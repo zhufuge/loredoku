@@ -6,23 +6,7 @@ import {
   type PuzzleCanvasSource,
 } from '../../service/puzzleDraftMigration';
 
-/**
- * v0.7.1 §5.4 —— `puzzles` 版本化，并把底图从「引用」改成「自带副本」。
- *
- * 单事务内的四步：
- *
- * 1. 加 `root_id` / `version` / `deleted_at` / `cover_path`；存量行 `root_id = id`。
- * 2. 逐行把 `data.map` 从 v1 的 `{ mapId, versionNo, gridSize }` 换成 v2 的
- *    `{ mapId, versionNo, mapName, data }`：`data` 取原 `map_project_id` 指向的
- *    **地图版本行**的画布（过 `absorbLegacyMapDraft` 升到当前 JSON 版本）。
- *    引用的版本行已被硬删的历史脏数据给一份空画布 —— schema 合法、名册长度
- *    不变，编辑器能打开。
- * 3. 建四个索引 / 约束（与 `maps` 一一对应）。
- * 4. 删 `map_project_id` / `map_version_no` / `grid_size` / `status`。
- *
- * `down()` **完全可逆**：来源信息留在 JSON 里（`data.map.mapId` /
- * `versionNo` + `data.map.data.gridSize`），能拆回 v1 形状并回填四列。
- */
+/** v0.7.1 §5.4：puzzles 版本化——加 root_id/version/deleted_at/cover_path（存量 root_id=id），data.map 由 v1 {mapId,versionNo,gridSize} 升到 v2 自带画布副本（引用版本行已硬删则给空画布），建索引约束后删 map_project_id/map_version_no/grid_size/status；down 结构可逆但会硬删版本行。 */
 export async function up(knex: Knex): Promise<void> {
   await knex.raw('ALTER TABLE puzzles ADD COLUMN root_id bigint');
   await knex.raw("ALTER TABLE puzzles ADD COLUMN version text NOT NULL DEFAULT 'draft'");
@@ -86,13 +70,7 @@ export async function up(knex: Knex): Promise<void> {
   await knex.raw('ALTER TABLE puzzles DROP COLUMN status');
 }
 
-/**
- * 结构完全可逆：`data.map` 拆回 v1 形状，四列按它回填（`status` = `'draft'`，
- * 语义与旧列一致 —— 旧模型里它永远写 `'draft'`）。
- *
- * 版本化之后的额外行（发布产生的版本行）在旧模型里无处安放：`down` 只保留草稿
- * 行，版本行**硬删**（它们的数据是草稿的副本，草稿行还在，信息不丢）。
- */
+/** 结构完全可逆：`data.map` 拆回 v1 形状，四列按它回填（`status` = `'draft'`， 语义与旧列一致 —— 旧模型里它永远写 `'draft'`）。 版本化之后的额外行（发布产生的版本行）在旧模型里无处安放：`down` 只保留草稿行，版本行**硬删**（它们的数据是草稿的副本，草稿行还在，信息不丢）。 */
 export async function down(knex: Knex): Promise<void> {
   await knex.raw("DELETE FROM puzzles WHERE version <> 'draft'");
 

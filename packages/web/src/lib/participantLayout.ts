@@ -9,18 +9,7 @@ import {
   type CharacterSlotEntry,
 } from '@loredoku/shared';
 
-/**
- * CLAR-602 (docs/v0.3.1.md §2.2): matrix layout for the participant panel.
- *
- * Given `n` slots, find the integer `cols ∈ [1, n]` minimising
- * `|cols / rows - 1 / φ|` where `rows = ceil(n / cols)` and
- * `φ ≈ 1.618`. Ties break toward the smaller `cols` (taller panel,
- * better fit for a left side column).
- *
- * The last row may be short; the spec asks for it to be centred rather
- * than left-aligned, so we expose `leadingOffset(count, cols, lastRowCount)`
- * returning how many leading empty cells the last row needs.
- */
+/** CLAR-602 (docs/v0.3.1.md §2.2): matrix layout for the participant panel. Given `n` slots, find the integer `cols ∈ [1, n]` minimising `|cols / rows；1 / φ|` where `rows = ceil(n / cols)` and `φ ≈ 1.618`. Ties break toward the smaller `cols` (taller panel, better fit for a left side column). */
 
 export interface ParticipantLayout {
   /** Number of columns the matrix uses. */
@@ -29,16 +18,9 @@ export interface ParticipantLayout {
   rows: number;
   /** Total slot count, kept for convenience. */
   total: number;
-  /**
-   * Number of cells the last row occupies. Equal to `total % cols` when not
-   * zero, otherwise `cols` (i.e. the matrix is full).
-   */
+  /** Number of cells the last row occupies. Equal to `total % cols` when not zero, otherwise `cols` (i.e. the matrix is full). */
   lastRowCount: number;
-  /**
-   * Leading offset (in cells) to centre the last row when it is short.
-   * Callers should render `leadingOffset` empty placeholders before the
-   * actual last-row slots.
-   */
+  /** Leading offset (in cells) to centre the last row when it is short. Callers should render `leadingOffset` empty placeholders before the actual last-row slots. */
   leadingOffset: number;
 }
 
@@ -63,11 +45,7 @@ export function deriveLayout(n: number, cols: number): ParticipantLayout {
   };
 }
 
-/**
- * MOD-803: the widest column count ≤ `maxCols` whose cells still fit into
- * `width` (`cols * cell + (cols - 1) * gap`). Falls back to 1 column — the
- * caller then scrolls vertically (spec §MOD-803 布局自适应).
- */
+/** MOD-803: the widest column count ≤ `maxCols` whose cells still fit into `width` (`cols * cell + (cols；1) * gap`). Falls back to 1 column — the caller then scrolls vertically (spec §MOD-803 布局自适应). */
 export function fitColumns(
   width: number,
   maxCols: number,
@@ -82,10 +60,7 @@ export function fitColumns(
   return 1;
 }
 
-/**
- * Pick the column count minimising `|cols/rows - TARGET_ASPECT|`.
- * Iterates every `cols ∈ [1, n]`, ties broken by smaller `cols`.
- */
+/** Pick the column count minimising `|cols/rows；TARGET_ASPECT|`. Iterates every `cols ∈ [1, n]`, ties broken by smaller `cols`. */
 export function computeParticipantLayout(n: number): ParticipantLayout {
   if (!Number.isFinite(n) || n <= 0) {
     return { cols: 1, rows: 0, total: 0, lastRowCount: 0, leadingOffset: 0 };
@@ -105,17 +80,7 @@ export function computeParticipantLayout(n: number): ParticipantLayout {
   return deriveLayout(n, bestCols);
 }
 
-/**
- * v0.6.3 (docs/v0.6.3.md §3): the roster's column count, once the puzzle says
- * what it is.
- *
- * Returns `null` for "the puzzle has no opinion" — absent, or the user emptied
- * the field — which is the signal to fall back to {@link computeParticipantLayout}
- * (and to the container-fit shrink). Otherwise the value is forced into
- * `[1, total]`: a stored `cols` may exceed today's roster because the board
- * was resized or an import brought its own number, and a layout hint that lies
- * would push slots outside the matrix.
- */
+/** v0.6.3 §3：解析名册列数；null/空 = 谜题没意见，回退 {@link computeParticipantLayout}；否则夹到 [1, total]。 */
 export function resolveRosterCols(
   cols: number | null | undefined,
   total: number,
@@ -125,14 +90,7 @@ export function resolveRosterCols(
   return Math.min(Math.max(1, Math.round(cols)), upper);
 }
 
-/**
- * v0.6.3 §3.3: the panel width for a roster of `total` slots.
- *
- * The single entry point for both the panel and the pages that have to size
- * their left column around it (the game page's aside wraps the panel, so it
- * needs the same number). 自动 keeps the panel at its historical fixed width —
- * that is where the shrink-to-fit layout does its work.
- */
+/** v0.6.3 §3.3: the panel width for a roster of `total` slots. */
 export function rosterPanelWidthFor(cols: number | null | undefined, total: number): number {
   const fixed = resolveRosterCols(cols, total);
   return fixed === null ? ROSTER_PANEL_MIN_WIDTH : rosterPanelWidth(fixed);
@@ -144,18 +102,7 @@ export function rosterRows(total: number, cols: number): number {
   return Math.ceil(Math.max(0, total) / safeCols);
 }
 
-/**
- * v0.6.3 §3.3: how wide the panel has to be for `cols` fixed-size slots.
- *
- * The slot cell keeps its size — that is the point of the whole change — so
- * the only thing that can give is the panel. Up to {@link ROSTER_COLS_MAX}
- * columns the panel grows to exactly fit its matrix **plus its own 1px
- * separator border** (the aside is `border-box`, so the border has to be part
- * of the sum): the scroll container's content box then equals the matrix's
- * width to the pixel, so no horizontal scrollbar can ever appear. Past that
- * the cap wins and the matrix scrolls inside it, because a column count the
- * editor no longer offers must not squeeze the canvas out of the page.
- */
+/** v0.6.3 §3.3：cols 列固定槽位所需的面板宽；≤ {@link ROSTER_COLS_MAX} 时精确容纳（含 1px 边框），超过则封顶并让矩阵内部滚动。 */
 export function rosterPanelWidth(cols: number): number {
   const safeCols = Math.max(1, Math.floor(cols));
   const inner = safeCols * PARTICIPANT_MIN_WIDTH + (safeCols - 1) * PARTICIPANT_CELL_GAP;
@@ -164,24 +111,12 @@ export function rosterPanelWidth(cols: number): number {
   return Math.min(natural, ROSTER_PANEL_MAX_WIDTH);
 }
 
-/**
- * OPT-B06 (docs/v0.3.6.md §6.3): the sequence badge shown in a cell's
- * top-left corner. The number matches `characterSlots` order, which is the
- * row-major order {@link slotIndex} produces.
- */
+/** OPT-B06 §6.3：格子左上角序号 = 槽位下标 + 1，次序与 {@link slotIndex} 的行优先一致。 */
 export function participantSequence(index: number): number {
   return index + 1;
 }
 
-/**
- * v0.6.4 (docs/v0.6.4.md §2): the text the top-left badge actually shows.
- *
- * The configured 编号展示 wins; anything blank (absent, empty, whitespace)
- * falls back to the sequence number. The fallback is derived from the slot's
- * position, so rearranging the roster renumbers the badges — while a
- * configured text stays with its participant, because it lives on the slot
- * entry and `swapSlots` moves whole entries.
- */
+/** v0.6.4 (docs/v0.6.4.md §2): the text the top-left badge actually shows. The fallback is derived from the slot's position, so rearranging the roster renumbers the badges — while a configured text stays with its participant, because it lives on the slot entry and `swapSlots` moves whole entries. */
 export function participantBadgeText(
   slot: CharacterSlotEntry | null | undefined,
   index: number,
@@ -190,11 +125,7 @@ export function participantBadgeText(
   return configured ? configured : String(participantSequence(index));
 }
 
-/**
- * OPT-B06 §6.3: the order the matrix renders slots in — top to bottom, then
- * left to right. Returns `[0 … n-1]`; the centred gap of a short last row is
- * skipped without disturbing the order.
- */
+/** OPT-B06 §6.3: the order the matrix renders slots in — top to bottom, then left to right. Returns `[0 … n-1]`; the centred gap of a short last row is skipped without disturbing the order. */
 export function matrixOrder(layout: ParticipantLayout): number[] {
   const order: number[] = [];
   for (let row = 0; row < layout.rows; row += 1) {
@@ -206,10 +137,7 @@ export function matrixOrder(layout: ParticipantLayout): number[] {
   return order;
 }
 
-/**
- * Maps a flat index (0..n-1) to a `{ row, col }` position inside the matrix.
- * The last row is centred, so its first cell sits at `col = leadingOffset`.
- */
+/** Maps a flat index (0..n-1) to a `{ row, col }` position inside the matrix. The last row is centred, so its first cell sits at `col = leadingOffset`. */
 export function slotPosition(
   index: number,
   layout: ParticipantLayout,
@@ -229,12 +157,7 @@ export function slotPosition(
   };
 }
 
-/**
- * Inverse of {@link slotPosition}: given `{ row, col }` (with col measured
- * from the matrix's left edge, before applying `leadingOffset`), return the
- * flat slot index. Returns `null` when the cell sits in the centred gap of
- * the last row or outside the matrix.
- */
+/** {@link slotPosition} 的逆运算：把 {row, col} 映射回槽位下标；落在末行居中空隙或矩阵外时返回 null。 */
 export function slotIndex(
   position: { row: number; col: number },
   layout: ParticipantLayout,

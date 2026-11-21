@@ -30,10 +30,7 @@ export function useVersionDetail(mapId: number | null, versionNo: number | null)
   });
 }
 
-/**
- * 发布结果：验证未通过（422）是**结果**而不是异常，`ok: false` 带着问题清单
- * 让调用方展开；`version` 是刚发布的那一行（地图 / 谜题各自的行类型）。
- */
+/** 发布结果：验证未通过（422）是**结果**而不是异常，`ok: false` 带着问题清单让调用方展开；`version` 是刚发布的那一行（地图 / 谜题各自的行类型）。 */
 export interface PublishResult<T = MapVersionSummary> {
   ok: boolean;
   violations?: PublishViolation[];
@@ -61,13 +58,7 @@ export function usePublishMap(id: number) {
     },
     onSuccess: (result) => {
       if (result.ok) {
-        /*
-         * FEAT-H05 §5.3: no toast any more — the editor raises a success dialog
-         * instead, because it carries the two next steps (preview / map list).
-         *
-         * Publishing **adds an entry to the map list**, so
-         * the map list has to be invalidated too.
-         */
+        /* FEAT-H05 §5.3: no toast here — the editor's success dialog carries the next steps; publishing **adds an entry to the map list**, so that list has to be invalidated too. */
         void queryClient.invalidateQueries({ queryKey: mapCanvasKeys.detail(id) });
         void queryClient.invalidateQueries({ queryKey: versionKeys.list(id) });
         void queryClient.invalidateQueries({ queryKey: mapKeys.all });
@@ -80,13 +71,7 @@ export function usePublishMap(id: number) {
 }
 
 /**
- * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): 「编辑此版本」 opens a new **work
- * entry** in the same lineage — `map_versions` is never written. The editor is
- * entered on the freshly created row.
- *
- * `data` 可选（编辑器里「保存时才生成草稿」带当前画布）；
- * `navigate: false` 供编辑器自己接管落盘后的跳转（它要 replace 而不是
- * push，且跳之前还得先把 store 标记成已保存）。
+ * SPEC-K11 / Q3 = B (docs/v0.5.0.md §7.3): 「编辑此版本」 opens a new **work entry** in the same lineage — `map_versions` is never written; the editor is entered on the freshly created row. `navigate: false` leaves the redirect to the editor (it must replace and mark the store saved first, or one save pops two toasts).
  */
 export function useForkVersion(options: { navigate?: boolean } = {}) {
   const queryClient = useQueryClient();
@@ -97,11 +82,7 @@ export function useForkVersion(options: { navigate?: boolean } = {}) {
     onSuccess: (mapEntry, { versionNo }) => {
       void queryClient.invalidateQueries({ queryKey: mapKeys.all });
       void queryClient.invalidateQueries({ queryKey: versionKeys.list(mapEntry.id) });
-      /*
-       * `navigate: false` = 调用方（编辑器）自己接管落盘后的跳转与提示 —— 它
-       * 要 replace 到新行 URL，提示语也按「已基于 v{n} 生成新地图」写。这里再
-       * 提示一次就成了同一次保存弹两条 toast。
-       */
+      /* `navigate: false` = 调用方（编辑器）自己接管落盘后的跳转与提示 —— 它要 replace 到新行 URL，提示语也按「已基于 v{n} 生成新地图」写。这里再提示一次就成了同一次保存弹两条 toast。 */
       if (options.navigate !== false) {
         toast.success(`已从 v${versionNo} 新增一个条目`);
         navigate(`/maps/${mapEntry.id}/edit`);

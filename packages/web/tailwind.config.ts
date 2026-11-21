@@ -32,11 +32,7 @@ const config: Config = {
           foreground: 'hsl(var(--destructive-foreground))',
           hover: 'hsl(var(--destructive-hover))',
         },
-        /*
-         * 状态色。工坊里「已启用 / 已发布 / 未保存」这些状态要一眼可辨，所以有自己的
-         * token：文字用 `text-success`，徽标底用 `bg-success/12` —— 不借用中性灰，
-         * 也不散成组件里的 `amber-100` / `emerald-600` 定色。只表达状态，不做装饰。
-         */
+        /* 状态色。工坊里「已启用 / 已发布 / 未保存」这些状态要一眼可辨，所以有自己的 token：文字用 `text-success`，徽标底用 `bg-success/12` —— 不借用中性灰， 也不散成组件里的 `amber-100` / `emerald-600` 定色。只表达状态，不做装饰。 */
         success: {
           DEFAULT: 'hsl(var(--success))',
           foreground: 'hsl(var(--success-foreground))',
@@ -61,24 +57,15 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
-        /*
-         * v0.7.8 §1：工具栏图标按钮的底色。只有这三个值支持 `/透明度`
-         * （`<alpha-value>`），因为「未选中只是悬停」需要 `bg-toolbar/70`；
-         * 其余老 token 保持原样，不动。
-         */
+        /* v0.7.8 §1：工具栏图标按钮的底色。只有这三个值支持 `/透明度` （`<alpha-value>`），因为「未选中只是悬停」需要 `bg-toolbar/70`； 其余老 token 保持原样，不动。 */
         toolbar: {
           DEFAULT: 'hsl(var(--toolbar) / <alpha-value>)',
           foreground: 'hsl(var(--toolbar-foreground))',
           hover: 'hsl(var(--toolbar-hover) / <alpha-value>)',
         },
       },
-      /*
-       * 动效 token（取值在 `index.css` 的 `--motion-*`）。
-       *
-       * 两个 `DEFAULT` 是关键：它们决定了**不带修饰**的 `transition-colors` 用什么
-       * 时长与曲线 —— 全仓 41 处裸 `transition-colors` 因此不改一个字就统一了，
-       * 需要别的节奏的地方才显式写 `duration-base` / `duration-slow`。
-       */
+      /* 动效 token（取值在 index.css 的 --motion-*）：两个 DEFAULT 决定裸 transition-colors 的时长/曲线，
+         要别的节奏才显式写 duration-base / duration-slow。 */
       transitionDuration: {
         DEFAULT: 'var(--motion-fast)',
         fast: 'var(--motion-fast)',
@@ -92,22 +79,9 @@ const config: Config = {
         'in-out': 'var(--motion-ease-in-out)',
         in: 'var(--motion-ease-in)',
       },
-      /*
-       * v0.7.9 §4：字号梯级的最小一档。
-       *
-       * `2xs = 11px`：徽标 / 计数 / 「格」这类附注只有一个去处 —— 10px 与 11px 只差
-       * 1px 却没有各自的语义（谁写哪个全看当时手边是哪个），而中文 10px 在 1x 屏上
-       * 已经在糊。
-       */
-      /*
-       * v0.7.9 §3：两层暖色阴影，取值在 `index.css` 的 `--shadow-card` /
-       * `--shadow-float`（明暗各一套）。
-       *
-       * 为什么写进 theme 而不是用 `shadow-[var(--shadow-card)]`：Tailwind 的
-       * 任意值阴影**先判断是不是颜色**，`var(...)` 分不出来，于是被编译成
-       * `--tw-shadow-color: var(--shadow-card)` —— 类存在、产物里查得到、页面上
-       * 一点阴影都没有。`/12` 那次是同一个教训：静默失败。
-       */
+      /* v0.7.9 §4：字号梯级的最小一档。 `2xs = 11px`：徽标 / 计数 / 「格」这类附注只有一个去处 —— 10px 与 11px 只差 1px 却没有各自的语义（谁写哪个全看当时手边是哪个），而中文 10px 在 1x 屏上已经在糊。 */
+      /* v0.7.9 §3：两层暖色阴影（--shadow-card / --shadow-float，明暗各一套）。
+         必须写进 theme —— Tailwind 对 shadow-[var(...)] 会当颜色解析，类在但页面上没阴影（/12 同理静默失败）。 */
       boxShadow: {
         /* 名字避开 `card` —— 调色板里已有 `card`，`shadow-card` 会同时命中
            「阴影」和「阴影颜色」两条工具类（后者把 box-shadow 覆盖成纯色）。 */
@@ -122,15 +96,7 @@ const config: Config = {
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
-      /*
-       * 本仓没有 accordion 组件，故不提供 `accordion-down` / `accordion-up`
-       * 关键帧。
-       *
-       * `blink` / `glow` 保留：它们与 shared 的 `EFFECT_TYPES`
-       * （`highlight | glow | blink | tooltip`）逐字对应，是联动效果的状态提示，
-       * 与 `.impeccable.md` 原则 6 里点名的「既有状态提示」是同一件事 ——
-       * 目前还没有调用点，但删掉会让那组枚举失去后半截。
-       */
+      /* 本仓无 accordion，不提供 accordion-down/up；blink/glow 保留 —— 与 shared EFFECT_TYPES 逐字对应，删掉枚举后半截就没了。 */
       keyframes: {
         blink: {
           '0%, 100%': { opacity: '1' },

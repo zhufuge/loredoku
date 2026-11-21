@@ -33,10 +33,7 @@ function asset(variants: AssetVariant[]): Asset {
   };
 }
 
-/**
- * v0.5.2 FEAT-M04 (docs/v0.5.2.md §4): 「背景」类型的资源一定不阻挡，
- * 「阻挡」只对「物品」类型有意义。v0.6.0 把这个标记从 `canStand` 反过来。
- */
+/** v0.5.2 FEAT-M04 (docs/v0.5.2.md §4): 「背景」类型的资源一定不阻挡， 「阻挡」只对「物品」类型有意义。v0.6.0 把这个标记从 `canStand` 反过来。 */
 describe('blockingFor (FEAT-M04)', () => {
   it('forces false for a background asset', () => {
     expect(blockingFor('background', false)).toBe(false);
@@ -49,11 +46,7 @@ describe('blockingFor (FEAT-M04)', () => {
   });
 });
 
-/**
- * v0.6.1 (docs/v0.6.1.md §6.2): one function decides which variant a canvas anchor
- * renders with — the editor, the preview and the game all call it, so the three
- * can never disagree about a fallback.
- */
+/** v0.6.1 (docs/v0.6.1.md §6.2): one function decides which variant a canvas anchor renders with — the editor, the preview and the game all call it, so the three can never disagree about a fallback. */
 describe('resolveAssetVariant', () => {
   const two = [variant(7), variant(9)];
 
@@ -71,10 +64,7 @@ describe('resolveAssetVariant', () => {
   });
 });
 
-/**
- * v0.6.1 (docs/v0.6.1.md §4.5): the enable switch needs **some** variant to have a
- * look. With several variants, "the asset has an image" is no longer one field.
- */
+/** v0.6.1 (docs/v0.6.1.md §4.5): the enable switch needs **some** variant to have a look. With several variants, "the asset has an image" is no longer one field. */
 describe('assetHasAppearance', () => {
   it('is true as soon as any variant carries an image or a colour', () => {
     expect(assetHasAppearance(asset([variant(1, { imageUrl: '/a.png' })]))).toBe(true);

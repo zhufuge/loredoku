@@ -5,14 +5,7 @@ import type { Asset, AssetVariant, DraftCell, MapStyle } from '@loredoku/shared'
 import { EditorInfoDrawer } from './EditorInfoDrawer';
 import { resolveMapStyle } from '@/lib/mapStyle';
 
-/**
- * v0.7.5 (docs/v0.7.5.md §6): 已放置物品的展示变换在**格子信息框**里配。
- *
- * 三条约定：
- * 1. 控件显示的是解析后的值（缺省 100% / 0 / 0），提交的是补丁，store 负责夹边界；
- * 2. 停在脚位里的**任意一格**都能编辑到锚点上的那个物品（2×2 的中间那格也是合法选中）；
- * 3. 只读环境（谜题编辑器）不给控件，只在有变换时显示一行摘要。
- */
+/** v0.7.5（docs/v0.7.5.md §6）：已放置物品的展示变换在**格子信息框**里配。三条约定 —— 控件显示解析后的值（缺省 100% / 0 / 0）、提交的是补丁且 store 负责夹边界；脚位里任意一格都能编辑到锚点上的物品；只读环境只给一行摘要。 */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 

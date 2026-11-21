@@ -4,16 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_MAP_STYLE, type MapStyle } from '@loredoku/shared';
 import { ThemeStyleRow } from './ThemeStyleRow';
 
-/**
- * v0.8.0（docs/v0.8.0.md §16.8）—— 「基本信息」抽屉底部那一行。
- *
- * 这个文件钉的是**两个方向**，因为方向就是这功能的全部：
- *
- * - `应用主题风格` → 改**本图**（写入抽屉草稿，落库仍等右上角「保存」）；
- * - `设为主题风格` → 改**主题**（本图成为缺省）。
- *
- * 以及 §16.8 里那条被改掉的判断：**常态也要有一行字**（无差异时不躲起来）。
- */
+/** v0.8.0（docs/v0.8.0.md §16.8）—— 「基本信息」抽屉底部那一行。 这个文件钉的是**两个方向**，因为方向就是这功能的全部：；`应用主题风格` → 改**本图**（写入抽屉草稿，落库仍等右上角「保存」）；；`设为主题风格` → 改**主题**（本图成为缺省）。 以及 §16.8 里那条被改掉的判断：**常态也要有一行字**（无差异时不躲起来）。 */
 
 const themeRef: { data: unknown } = { data: undefined };
 const mutateAsync = vi.fn(() => Promise.resolve());
@@ -125,10 +116,7 @@ describe('ThemeStyleRow（§16.8）', () => {
     expect(button('应用主题风格')).toBeUndefined();
   });
 
-  /**
-   * 方格大小不属于主题设置 —— 它是这张图自己的尺寸，两张图天然会不一样。
-   * 差异弹窗列它，等于把「一张图自己的事」报成「与主题风格不同」。
-   */
+  /** 方格大小不属于主题设置 —— 它是这张图自己的尺寸，两张图天然会不一样。 差异弹窗列它，等于把「一张图自己的事」报成「与主题风格不同」。 */
   it('方格大小不参与比对 —— 不报差异、不列进弹窗', () => {
     render({ ...themeStyle, cellSize: 146 });
     expect(text()).toContain('与主题一致');

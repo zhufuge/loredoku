@@ -27,15 +27,9 @@ export const mapDescriptionSchema = z
   .trim()
   .max(MAP_DESCRIPTION_MAX_LENGTH, `描述不能超过 ${MAP_DESCRIPTION_MAX_LENGTH} 字`);
 
-/**
- * 创建地图只要名称和描述：画布尺寸在编辑器首次进入时由初始化弹窗写进草稿
- * （`data.gridSize`）。
- */
+/** 创建地图只要名称和描述：画布尺寸在编辑器首次进入时由初始化弹窗写进草稿（`data.gridSize`）。 */
 export const createMapSchema = z.object({
-  /**
-   * v0.8.0：地图是边界的第二公民 —— 它引用的资源必须同主题（docs/v0.8.0.md §3.1）。
-   * §19 起必填、用编码：没有默认主题可落。
-   */
+  /** v0.8.0：地图是边界的第二公民 —— 它引用的资源必须同主题（docs/v0.8.0.md §3.1）。 §19 起必填、用编码：没有默认主题可落。 */
   themeCode: themeCodeSchema,
   name: mapNameSchema,
   description: mapDescriptionSchema.optional().nullable(),
@@ -46,10 +40,7 @@ export const updateMapSchema = z.object({
   description: mapDescriptionSchema.optional().nullable(),
 });
 
-/**
- * `kind` 让「草稿」「版本」两块各自分页 —— 前端对同一端点发
- * 两个请求，各自的 `total` 才准；不传则仍是并集口径（兼容既有调用方）。
- */
+/** `kind` 让「草稿」「版本」两块各自分页 —— 前端对同一端点发两个请求，各自的 `total` 才准；不传则仍是并集口径（兼容既有调用方）。 */
 export const listMapEntriesKindSchema = z.enum(['draft', 'version']);
 
 export const listMapsQuerySchema = z.object({

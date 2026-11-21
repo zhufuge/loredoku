@@ -4,13 +4,7 @@ import { createApp } from '../src/app';
 export const app = createApp();
 export const api = supertest(app.callback());
 
-/**
- * v0.8.0 §19 —— 主题没有缺省，新建资源必须指名一个主题。
- *
- * 大部分用例并不想验主题本身，它们只是需要一个能放下资源的落点。这里给一个
- * **固定编码**的夹具主题，幂等创建（已经有了就当成功）：每个用例各建一个
- * `t-xxxxxxxx` 只会把库变成测试的垃圾场。
- */
+/** v0.8.0 §19 —— 主题没有缺省，新建资源必须指名一个主题。 大部分用例并不想验主题本身，它们只是需要一个能放下资源的落点。这里给一个 **固定编码**的夹具主题，幂等创建（已经有了就当成功）：每个用例各建一个 `t-xxxxxxxx` 只会把库变成测试的垃圾场。 */
 export const FIXTURE_THEME_CODE = 'test-fixture';
 
 let pending: Promise<string> | undefined;

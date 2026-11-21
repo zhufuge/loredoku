@@ -22,15 +22,7 @@ export interface HighlightRect {
   color: string;
 }
 
-/**
- * CLAR-603 + MOD-802 (docs/v0.3.3.md): characters are no longer placed on
- * the map; highlight requests resolve roster slots. The renderer doesn't
- * draw a map character layer, so the remaining highlight branches are
- * objects, cells, backgrounds and regions.
- *
- * MOD-802: highlights are persistent — they live until the activation ends
- * (pointer-leave for hover, toggle for click, Esc). No durations.
- */
+/** CLAR-603 + MOD-802 (docs/v0.3.3.md): characters are no longer placed on the map; highlight requests resolve roster slots. MOD-802: highlights are persistent — they live until the activation ends (pointer-leave for hover, toggle for click, Esc). No durations. */
 export interface HighlightCharacter {
   /** Slot index of the participant to outline in the roster panel. */
   slotIndex: number;
@@ -40,24 +32,11 @@ export interface HighlightCharacter {
 /** Fully resolved highlight request: everything the renderer needs. */
 export interface HighlightState {
   characters: HighlightCharacter[];
-  /**
-   * OPT-903 §1.2.7 方块高亮: an opaque block that lights up the **whole
-   * cell** (background layer included). Used by `cell` linkages and by
-   * linkages on **物品层** items — the v0.3.3 translucent item overlay is
-   * gone. A multi-cell item emits one rect per covered cell (§7.3).
-   */
+  /** OPT-903 §1.2.7 方块高亮: an opaque block that lights up the **whole cell** (background layer included). Used by `cell` linkages and by linkages on **物品层** items — the v0.3.3 translucent item overlay is gone. A multi-cell item emits one rect per covered cell (§7.3). */
   cellHighlights: HighlightRect[];
-  /**
-   * OPT-903 §1.2.8 背景高亮: only emitted for placements on the
-   * **background layer**; it replaces the background layer colour block and
-   * leaves the object layer visible.
-   */
+  /** OPT-903 §1.2.8 背景高亮: only emitted for placements on the **background layer**; it replaces the background layer colour block and leaves the object layer visible. */
   backgroundHighlights: HighlightRect[];
-  /**
-   * MOD-802: region highlights are always an inner blue border
-   * (`REGION_HIGHLIGHT_BORDER_COLOR`), regardless of how the linkage
-   * was activated.
-   */
+  /** MOD-802: region highlights are always an inner blue border (`REGION_HIGHLIGHT_BORDER_COLOR`), regardless of how the linkage was activated. */
   regionBorders: Array<{ regionId: string; color: string }>;
 }
 
@@ -66,12 +45,7 @@ export interface HighlightContext {
   cells: CellMap;
   characterSlots: Array<CharacterSlotEntry | null>;
   regions: DraftRegion[];
-  /**
-   * FEAT-D04: linkage colours are palette keys, so the resolved hex depends on
-   * the palette. v0.5.0 FEAT-K14 (docs/v0.5.0.md §2.6 / Q16) moved the palette
-   * out of `MapStyle` and onto the puzzle, so it is passed separately. Missing →
-   * the shipped red / blue defaults.
-   */
+  /** FEAT-D04: linkage colours are palette keys, so the resolved hex depends on the palette. v0.5.0 FEAT-K14 (docs/v0.5.0.md §2.6 / Q16) moved the palette out of `MapStyle` and onto the puzzle, so it is passed separately. Missing → the shipped red / blue defaults. */
   linkageColors?: MapLinkageColor[];
   style?: MapStyle;
 }
@@ -111,11 +85,7 @@ export interface TargetSummary {
   target: ParticipantTarget;
 }
 
-/**
- * MOD-801: the flat `linkages` list, de-duplicated by target identity
- * (later wins). The colour is kept per entry, so the same object can be
- * highlighted in two colours by two linkages.
- */
+/** MOD-801: the flat `linkages` list, de-duplicated by target identity (later wins). The colour is kept per entry, so the same object can be highlighted in two colours by two linkages. */
 export function collectLinkages(
   linkages: ParticipantTarget[] | undefined,
 ): TargetSummary[] {
@@ -141,11 +111,7 @@ export interface ItemPlacement {
   anchorY: number;
 }
 
-/**
- * OPT-903 §3: an item linkage can point at an object-layer placement (→ 方块
- * 高亮) or a background-layer placement (→ 背景高亮), so both layers are
- * scanned. `scope: 'instances'` is matched against the anchor coord.
- */
+/** OPT-903 §3: an item linkage can point at an object-layer placement (→ 方块高亮) or a background-layer placement (→ 背景高亮), so both layers are scanned. `scope: 'instances'` is matched against the anchor coord. */
 export function findItemPlacements(cells: CellMap, assetId: number): ItemPlacement[] {
   const result: ItemPlacement[] = [];
   for (const [key, cell] of cells.entries()) {
@@ -184,14 +150,7 @@ export function findAllItemAnchors(
     }));
 }
 
-/**
- * Turns one participant's flat linkage list into concrete rectangles.
- *
- * MOD-708: `cell` targets have `cells` array; `item` targets have `scope`.
- * MOD-802: `region` targets always produce an inner blue border.
- * OPT-903: item targets produce 方块高亮 (物品层) or 背景高亮 (背景层) —
- * never a translucent overlay.
- */
+/** Turns one participant's flat linkage list into concrete rectangles. MOD-708: `cell` targets have `cells` array; `item` targets have `scope`. MOD-802: `region` targets always produce an inner blue border. OPT-903: item targets produce 方块高亮 (物品层) or 背景高亮 (背景层) — never a translucent overlay. */
 export function resolveHighlight(
   linkages: ParticipantTarget[] | undefined,
   ctx: HighlightContext,

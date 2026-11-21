@@ -3,10 +3,7 @@ import { DEFAULT_MAP_STYLE, REGION_BORDER_WIDTH_MAX, REGION_BORDER_WIDTH_MIN } f
 import type { MapStyle, RegionStyle, RegionStyleOverride } from '@loredoku/shared';
 import { regionStyleEquals, regionStyleOverride, resolveRegionStyle } from './regionStyle';
 
-/**
- * v0.7.0 (docs/v0.7.0.md §4) — the region style merge. The map-level block is
- * the default; a region records only the differences.
- */
+/** v0.7.0 (docs/v0.7.0.md §4) — the region style merge. The map-level block is the default; a region records only the differences. */
 
 /** A map style whose region defaults differ from the shipped ones. */
 function baseStyle(): MapStyle {
@@ -145,12 +142,7 @@ describe('regionStyleOverride', () => {
   });
 });
 
-/**
- * 区域标签的**位置偏移** —— 每块区域独立配置，缺省 `{ x: 0, y: 0 }`。
- *
- * 它不在 `label` 里面（地图级没有这一项），所以 `RegionStyle.labelOffset` 是
- * 单独一层；存储侧也单独记，两轴都 0 时整块不落盘。
- */
+/** 区域标签的**位置偏移** —— 每块区域独立配置，缺省 `{ x: 0, y: 0 }`。 它不在 `label` 里面（地图级没有这一项），所以 `RegionStyle.labelOffset` 是单独一层；存储侧也单独记，两轴都 0 时整块不落盘。 */
 describe('区域标签位置偏移（v0.9.6）', () => {
   it('没配就是 0 / 0 —— 标签停在「格子上沿居中」', () => {
     expect(resolveRegionStyle(baseStyle()).labelOffset).toEqual({ x: 0, y: 0 });

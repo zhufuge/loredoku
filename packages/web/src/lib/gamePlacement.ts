@@ -8,15 +8,7 @@ import {
 import type { CellPlacement, GamePlacementBoard } from '@loredoku/shared';
 import { estimateTextWidth } from './textWidth';
 
-/**
- * SPEC-G01 / SPEC-G03 / SPEC-G04 (docs/v0.4.0.md §7 ~ §10): the game board's
- * placement rules, as pure functions.
- *
- * Every mutator returns a **new** `GamePlacementState` and pushes the previous
- * board onto the undo stack — except when the operation is a no-op (a rejected
- * placement, a clear on an empty cell), which returns the state untouched so a
- * rejected click never eats an undo step.
- */
+/** SPEC-G01 / SPEC-G03 / SPEC-G04 (docs/v0.4.0.md §7 ~ §10): the game board's placement rules, as pure functions. */
 
 /** Which of the mutually exclusive interaction modes the toolbar is in. */
 export type GameOperationMode =
@@ -39,14 +31,7 @@ export type GameToolHint =
   | { kind: 'forbidden' }
   | { kind: 'eraser' };
 
-/**
- * v0.4.0 验收补充（SPEC-G03 §9.2）：同一次「放置参与者」手势的两种落点——
- * **短按（点击）放标号**，**长按放头像**。
- *
- * - `number`：往该格的 9 宫格里追加一个标号（空格 → 第 1 格）；
- * - `image`：整格替换为该参与者的头像（`{ kind: 'participant' }`），
- *   即「确认这格就是这位参与者」，原有标号被覆盖。
- */
+/** v0.4.0 验收补充（SPEC-G03 §9.2）：同一次「放置参与者」手势的两种落点—— **短按（点击）放标号**，**长按放头像**。；`number`：往该格的 9 宫格里追加一个标号（空格 → 第 1 格）；；`image`：整格替换为该参与者的头像（`{ kind: 'participant' }`）， 即「确认这格就是这位参与者」，原有标号被覆盖。 */
 export type ParticipantPlacementVariant = 'number' | 'image';
 
 export function cellKey(x: number, y: number): string {
@@ -82,26 +67,7 @@ export function showsAvatar(placement: CellPlacement | null): boolean {
   return placement?.kind === 'participant';
 }
 
-/**
- * SPEC-G05 §5.2 (docs/v0.4.1.md §5) + SPEC-J05 (docs/v0.4.3.md §3.6): where this
- * participant "is" — the confirmed cell, or `null` when nothing counts.
- *
- * SPEC-J05: a 编号 is a **candidate** mark and may sit on several cells at once,
- * so "where is this participant" is decided in three steps:
- *
- * 1. an **avatar** wins outright — that is the confirmed cell (there is at most
- *    one, which `placementBlockReason` enforces);
- * 2. with no avatar, the participant's 编号 must sit on **exactly one** cell —
- *    the v0.4.1 leniency: a lone mark still answers the question;
- * 3. several candidate marks and no avatar → `null`: nothing is confirmed, so
- *    the caller can tell "never touched" from "marked candidates but never
- *    confirmed".
- *
- * **提交校验不用它**。判卷只认头像（`avatarCellOf`）—— 见
- * `validatePlacement` 的注释。这个函数保留下来，是因为「编号也算一个位置」
- * 在**画面上**仍然成立（提示层、联动高亮都按它指的地方画），交卷结果则由头像
- * 决定。
- */
+/** SPEC-G05 §5.2 (docs/v0.4.1.md §5) + SPEC-J05 (docs/v0.4.3.md §3.6): where this participant "is" — the confirmed cell, or `null` when nothing counts. 判卷只认头像（`avatarCellOf`）—— 见 `validatePlacement` 的注释。 这个函数保留下来，是因为「编号也算一个位置」 在**画面上**仍然成立（提示层、联动高亮都按它指的地方画），交卷结果则由头像 决定。 */
 export function participantPlacementAt(
   board: GamePlacementBoard,
   participantId: number,
@@ -120,11 +86,7 @@ export function participantPlacementAt(
   return candidates === 1 ? candidate : null;
 }
 
-/**
- * SPEC-J05: how many cells carry this participant as a **candidate 编号** (an
- * avatar cell is not counted). The submit check uses it to tell "never touched"
- * apart from "marked candidates but never confirmed".
- */
+/** SPEC-J05: how many cells carry this participant as a **candidate 编号** (an avatar cell is not counted). The submit check uses it to tell "never touched" apart from "marked candidates but never confirmed". */
 export function candidateCellCount(board: GamePlacementBoard, participantId: number): number {
   let count = 0;
   for (const placement of Object.values(board)) {
@@ -134,14 +96,7 @@ export function candidateCellCount(board: GamePlacementBoard, participantId: num
   return count;
 }
 
-/**
- * SPEC-G05 §5.3: every participant with **any** mark on the board — a 编号
- * counts, and so does an avatar. The uniqueness rule consults this set.
- *
- * SPEC-L05: the roster card **does not fade** on a 编号, so the game page
- * fades with {@link avatarPlacedParticipantIds} instead. This function
- * keeps its original meaning for the uniqueness rule and its tests.
- */
+/** SPEC-G05 §5.3：棋盘上任何标记（编号或头像）都算在场，编号唯一性用它；SPEC-L05：名册卡只按头像淡出，用 {@link avatarPlacedParticipantIds}。 */
 export function placedParticipantIds(board: GamePlacementBoard): Set<number> {
   const placed = new Set<number>();
   for (const placement of Object.values(board)) {
@@ -151,14 +106,7 @@ export function placedParticipantIds(board: GamePlacementBoard): Set<number> {
   return placed;
 }
 
-/**
- * v0.5.1 SPEC-L05 (docs/v0.5.1.md §5.1): the participants whose **avatar** is
- * on the board — a 编号 alone does **not** count.
- *
- * Before v0.5.1 the roster card faded for any mark, which made placing a
- * candidate number dim the card as if it were done. Only an avatar means
- * "placed", so this is the set the game page fades with.
- */
+/** v0.5.1 SPEC-L05 (docs/v0.5.1.md §5.1): the participants whose **avatar** is on the board — a 编号 alone does **not** count. Before v0.5.1 the roster card faded for any mark, which made placing a candidate number dim the card as if it were done. Only an avatar means "placed", so this is the set the game page fades with. */
 export function avatarPlacedParticipantIds(board: GamePlacementBoard): Set<number> {
   const placed = new Set<number>();
   for (const placement of Object.values(board)) {
@@ -168,12 +116,7 @@ export function avatarPlacedParticipantIds(board: GamePlacementBoard): Set<numbe
   return placed;
 }
 
-/**
- * 名单上的每一位都**已经有头像**了吗？—— 提交按钮的可用条件。
- *
- * 只数头像（`avatarPlacedParticipantIds`），编号不算：编号是草稿，草稿不是交卷。
- * 空槽（`null`）不参与判断，一份 3 人名单里的第 4 格是空格时不该拦着玩家提交。
- */
+/** 名单上的每一位都**已经有头像**了吗？—— 提交按钮的可用条件。 只数头像（`avatarPlacedParticipantIds`），编号不算：编号是草稿，草稿不是交卷。 空槽（`null`）不参与判断，一份 3 人名单里的第 4 格是空格时不该拦着玩家提交。 */
 export function allParticipantsPlaced(
   board: GamePlacementBoard,
   slots: Array<CharacterSlotEntry | null>,
@@ -187,26 +130,10 @@ export function formatCellLabel(coord: CellCoord): string {
   return `R${coord.y + 1} C${coord.x + 1}`;
 }
 
-/**
- * SPEC-G05 §5.2: why a participant placement was refused, for the toast.
- *
- * `'elsewhere'` 不在这个联合里：长按另一个格子不会因为「已经放在别处」
- * 被拒，而是**把头像搬过去**（旧格释放，见 `placeParticipant`）。玩家改主意
- * 不是错误。
- *
- * SPEC-J03 §9 Q6 (docs/v0.4.3.md): `'duplicate'` stays in the union even though
- * no path returns it any more — tapping a cell that already carries this number
- * is the **toggle-off** case now (allowed), not a refusal. Keeping the member
- * avoids churning the union / the page's `switch` for a purely cosmetic win.
- */
+/** SPEC-G05 §5.2: why a participant placement was refused, for the toast. `'elsewhere'` 不在这个联合里：长按另一个格子不会因为「已经放在别处」 被拒，而是**把头像搬过去**（旧格释放，见 `placeParticipant`）。 玩家改主意 不是错误。 Keeping the member avoids churning the union / the page's `switch` for a purely cosmetic win. */
 export type PlacementBlock = 'non-standable' | 'forbidden' | 'avatar' | 'duplicate' | 'grid-full';
 
-/**
- * SPEC-G01 §7.2 + SPEC-G03 §9.2 + SPEC-G05 §5.2 + SPEC-J03 §3.2 + SPEC-J05 §3.6:
- * the single source of truth for "may this participant land here?".
- * `canPlaceParticipant` is a thin reading of it, and the page turns the code into
- * a toast — so the rule and its explanation can never drift apart.
- */
+/** SPEC-G01 §7.2 + SPEC-G03 §9.2 + SPEC-G05 §5.2 + SPEC-J03 §3.2 + SPEC-J05 §3.6: the single source of truth for "may this participant land here?". `canPlaceParticipant` is a thin reading of it, and the page turns the code into a toast — so the rule and its explanation can never drift apart. */
 export function placementBlockReason(input: {
   board: GamePlacementBoard;
   x: number;
@@ -218,25 +145,12 @@ export function placementBlockReason(input: {
   const { board, x, y, participantId, blockingCells, variant = 'number' } = input;
   if (blockingCells.has(cellKey(x, y))) return 'non-standable';
 
-  // SPEC-J05 §3.6 (docs/v0.4.3.md): a 编号 is a **candidate** mark and one
-  // participant may carry it on many cells at once — so a short press is never
-  // blocked by uniqueness.
-  //
-  // The **avatar** is unique too, but that is never a refusal — 长按另一格就是
-  // **搬家**（旧格释放、同行同列的自动 `×` 跟着回滚）。唯一性因此由「搬家」
-  // 满足，而不是由「报错」满足。
+  // SPEC-J05 §3.6 (docs/v0.4.3.md): a 编号 is a **candidate** mark and one participant may carry it on many cells at once — so a short press is never blocked by uniqueness. The **avatar** is unique too, but that is never a refusal — 长按另一格就是 *搬家**（旧格释放、同行同列的自动 `×` 跟着回滚）。唯一性因此由「搬家」 满足，而不是由「报错」满足。
   const placement = placementAt(board, x, y);
   if (!placement) return null;
   if (placement.kind === 'forbidden') return 'forbidden';
   if (placement.kind === 'participant') {
-    /**
-     * 头像格上**短按无效果**。
-     *
-     * 已放置参与者的格子，编号点上去什么都不发生 —— 不论那张脸是谁的。
-     *
-     * 长按（`variant: 'image'`）仍允许落在**别人**的头像格上 —— 那是「换人站
-     * 这里」，与「编号盖掉头像」不是一回事；自己的头像格一律无效果。
-     */
+    /** 头像格上**短按无效果**。 已放置参与者的格子，编号点上去什么都不发生 —— 不论那张脸是谁的。 长按（`variant: 'image'`）仍允许落在**别人**的头像格上 —— 那是「换人站这里」，与「编号盖掉头像」不是一回事；自己的头像格一律无效果。 */
     if (hasParticipant(placement, participantId)) return 'avatar';
     return variant === 'image' ? null : 'avatar';
   }
@@ -259,11 +173,7 @@ export function canPlaceParticipant(input: {
   return placementBlockReason(input) === null;
 }
 
-/**
- * SPEC-G04 §10.1: `×` may be placed on any standable cell that does not show a
- * participant avatar. A numbers-only cell (two or more participants) is
- * overwritten — the numbers are cleared and replaced by the `×`.
- */
+/** SPEC-G04 §10.1: `×` may be placed on any standable cell that does not show a participant avatar. A numbers-only cell (two or more participants) is overwritten — the numbers are cleared and replaced by the `×`. */
 export function canPlaceForbidden(input: {
   board: GamePlacementBoard;
   x: number;
@@ -289,16 +199,7 @@ function commit(
   return { board, past, future: [] };
 }
 
-/**
- * SPEC-G06 §6.1 (docs/v0.4.1.md §6): after a participant lands on (x, y), the
- * rest of that **row** and **column** is closed off with `×` — a standable cell
- * with no `×` and no avatar. A cell that only carries other participants'
- * numbers is overwritten (§6.2 方案 A): the `×` wins and those participants lose
- * their only marker, so they become placeable again.
- *
- * Returns the cells that should carry a `×` (the caller merges them in), so the
- * placement + the sweep stay **one** undo step.
- */
+/** SPEC-G06 §6.1 (docs/v0.4.1.md §6): after a participant lands on (x, y), the rest of that **row** and **column** is closed off with `×` — a standable cell with no `×` and no avatar. Returns the cells that should carry a `×` (the caller merges them in), so the placement + the sweep stay **one** undo step. */
 export function autoForbiddenCells(input: {
   board: GamePlacementBoard;
   x: number;
@@ -319,13 +220,7 @@ export function autoForbiddenCells(input: {
   };
   for (let column = 0; column < gridSize; column += 1) consider(column, y);
   for (let row = 0; row < gridSize; row += 1) consider(x, row);
-  /*
-   * **由近及远**。这里的顺序就是界面上那一圈圈扩散的次序（见
-   * `GamePage` 的 `forbiddenWave`）—— 先落在头像脚边，再一格格往外推。
-   *
-   * 距离相同的一圈里再按「上→下、左→右」定序，只为让结果**确定**：同一盘棋
-   * 无论扫多少遍，出来的数组都一样，测试与重放才站得住。
-   */
+  /* **由近及远**。这里的顺序就是界面上那一圈圈扩散的次序（见 `GamePage` 的 `forbiddenWave`）—— 先落在头像脚边，再一格格往外推。 距离相同的一圈里再按「上→下、左→右」定序，只为让结果**确定**：同一盘棋无论扫多少遍，出来的数组都一样，测试与重放才站得住。 */
   cells.sort((a, b) => a.distance - b.distance || Number(a.key.split(',')[1]) - Number(b.key.split(',')[1]) || Number(a.key.split(',')[0]) - Number(b.key.split(',')[0]));
   return cells.map((cell) => cell.key);
 }
@@ -336,19 +231,7 @@ export function forbiddenWaveRing(key: string, origin: { x: number; y: number })
   return Math.abs(x - origin.x) + Math.abs(y - origin.y);
 }
 
-/**
- * 这一手会**新添**哪些 `×`，以及它们各自距落子格几圈。
- *
- * 只在 `variant === 'image'` 上有意义 —— 短按放标号不动行列。
- *
- * 为什么在**落子之前**算一遍（而不是从 `placeParticipant` 的返回值里挑）：
- * `placeParticipant` 只回一个 `GamePlacementState`，没有「这次新添了哪几格」的
- * 信息；而水波纹要的是**按圈分组**的次序。在调用处用同一份输入、同一个
- * `autoForbiddenCells` 算一次，次序天然与真正落盘的一致，不必另开一条返回通道
- * 去改那个纯函数的签名。
- *
- * 返回 `null` 表示这一手不落头像（没有波纹可演）。
- */
+/** 这一手会**新添**哪些 `×`，以及它们各自距落子格几圈。 只在 `variant === 'image'` 上有意义 —— 短按放标号不动行列。 为什么在**落子之前**算一遍（而不是从 `placeParticipant` 的返回值里挑）： `placeParticipant` 只回一个 `GamePlacementState`，没有「这次新添了哪几格」的 信息； 而水波纹要的是**按圈分组**的次序。 在调用处用同一份输入、同一个 `autoForbiddenCells` 算一次，次序天然与真正落盘的一致，不必另开一条返回通道 去改那个纯函数的签名。 返回 `null` 表示这一手不落头像（没有波纹可演）。 */
 export function autoForbiddenWavePlan(input: {
   board: GamePlacementBoard;
   x: number;
@@ -358,11 +241,7 @@ export function autoForbiddenWavePlan(input: {
   variant?: ParticipantPlacementVariant;
 }): Array<{ key: string; ring: number }> | null {
   if ((input.variant ?? 'number') !== 'image') return null;
-  /*
-   * 先把头像摆上虚拟棋盘再扫 —— `autoForbiddenCells` 会跳过「已有头像」的格子，
-   * 而刚落下的这位就站在 `(x, y)`，它自己也在跳过之列（`consider` 里
-   * `cx === x && cy === y` 直接 return）。所以不必真的写进板子，结果一样。
-   */
+  /* 先把头像摆上虚拟棋盘再扫 —— `autoForbiddenCells` 会跳过「已有头像」的格子， 而刚落下的这位就站在 `(x, y)`，它自己也在跳过之列（`consider` 里 `cx === x && cy === y` 直接 return）。所以不必真的写进板子，结果一样。 */
   const origin = { x: input.x, y: input.y };
   return autoForbiddenCells(input).map((key) => ({
     key,
@@ -371,16 +250,7 @@ export function autoForbiddenWavePlan(input: {
 }
 
 
-/**
- * 同行同列自动补出来的 `×` 的清理（v0.7.11）。
- *
- * 自动 `×` 是**派生**的：某位头像站在那里，它的整行整列就不许放东西。头像一旦
- * 搬走，那些 `×` 就没有依据了 —— 留在棋盘上等于告诉玩家「这一行还是不能放」。
- *
- * 只删**带 `auto` 标记**且**不在任何头像的行列上**的格子。玩家自己点的 `×`
- * 不带标记，一条都不动；另一位头像仍然占着的行 / 列也照旧保留（那些格子的
- * 「不能放」依然成立）。
- */
+/** 同行同列自动补出来的 `×` 的清理（v0.7.11）。 自动 `×` 是**派生**的：某位头像站在那里，它的整行整列就不许放东西。头像一旦搬走，那些 `×` 就没有依据了 —— 留在棋盘上等于告诉玩家「这一行还是不能放」。 只删**带 `auto` 标记**且**不在任何头像的行列上**的格子。玩家自己点的 `×` 不带标记，一条都不动；另一位头像仍然占着的行 / 列也照旧保留（那些格子的「不能放」依然成立）。 */
 export function pruneAutoForbidden(board: GamePlacementBoard): GamePlacementBoard {
   const rows = new Set<number>();
   const columns = new Set<number>();
@@ -421,20 +291,7 @@ export function avatarCellOf(
   return null;
 }
 
-/**
- * SPEC-H01 (docs/v0.4.2.md §1.2) + SPEC-J05 §3.6 (docs/v0.4.3.md): once a
- * participant is **confirmed** (long-press → avatar), their number must survive
- * in exactly one cell — the confirmed one. Candidate marks elsewhere are stale.
- *
- * SPEC-J05 narrowed the caller: only `placeParticipant`'s **image** branch runs
- * this. Short presses are free to leave the same number on many cells.
- *
- * A cell that loses its only entry is **deleted** (it becomes empty, not `×`).
- * Cells that still hold other participants' numbers keep their form.
- *
- * Returns the board unchanged (same reference) when there is nothing to sweep,
- * so the caller's single `commit` stays a no-op.
- */
+/** SPEC-H01 (docs/v0.4.2.md §1.2) + SPEC-J05 §3.6 (docs/v0.4.3.md): once a participant is **confirmed** (long-press → avatar), their number must survive in exactly one cell — the confirmed one. Candidate marks elsewhere are stale. SPEC-J05 narrowed the caller: only `placeParticipant`'s **image** branch runs this. */
 export function sweepParticipantNumbers(
   board: GamePlacementBoard,
   input: { participantId: number; except: CellCoord },
@@ -456,24 +313,7 @@ export function sweepParticipantNumbers(
   return changed ? next : board;
 }
 
-/**
- * SPEC-G03 §9.2+ SPEC-G06+ SPEC-H01
- * + SPEC-J02 / SPEC-J03 / SPEC-J05：
- *
- * - `variant: 'number'`（**短按**，默认）—— 放的是这位参与者的**编号**，而且是一次
- *   **切换**（SPEC-J03 §3.2）：
- *   - 该格**已有**该编号 → **删除**这一个 entry；删到空则**整格删除**（回到空格，
- *     **不是** `×`）；
- *   - 该格**没有**该编号 → 追加为九宫格的下一格（空格得到第 1 格）。
- *   - SPEC-J02：**不**补同行同列的 `×`。
- *   - SPEC-J05：**不看唯一性** —— 同一位参与者的编号可以同时留在多个格子上（都是
- *     候选标记），所以加入路径**也不做** SPEC-H01 的清理。
- * - `variant: 'image'`（**长按**）—— 这才是「把参与者放到格子上」：整格替换为该
- *   参与者的头像；该格已是同一头像时无效果（`commit` 的结构比较会拦住）。
- *   - SPEC-G06：落格之后**同行同列自动补 `×`**。
- *   - SPEC-H01：把该参与者留在**其它格子的候选编号**清除（头像只有一个），
- *     与本次放置合并为**一个**历史步。
- */
+/** SPEC-G03 §9.2+ SPEC-G06+ SPEC-H01 + SPEC-J02 / SPEC-J03 / SPEC-J05：；`variant: 'number'`（**短按**，默认）—— 放的是这位参与者的**编号**，而且是一次 **切换**（SPEC-J03 §3.2）：；该格**已有**该编号 → **删除**这一个 entry；；SPEC-J02：**不**补同行同列的 `×`。；SPEC-J05：**不看唯一性** —— 同一位参与者的编号可以同时留在多个格子上（都是 候选标记），所以加入路径**也不做** SPEC-H01 的清理。 */
 export function placeParticipant(
   state: GamePlacementState,
   input: {
@@ -509,10 +349,7 @@ export function placeParticipant(
   let board: GamePlacementBoard;
   if (variant === 'image') {
     board = { ...state.board };
-    /**
-     * 长按另一格 = **搬家**。旧格先释放，否则同一个人的两个头像会同时
-     * 站在棋盘上（唯一性是画出来的，不是拒绝出来的）。
-     */
+    /** 长按另一格 = **搬家**。旧格先释放，否则同一个人的两个头像会同时站在棋盘上（唯一性是画出来的，不是拒绝出来的）。 */
     const previousAvatar = avatarCellOf(state.board, input.participantId);
     if (previousAvatar) delete board[cellKey(previousAvatar.x, previousAvatar.y)];
     board[key] = { kind: 'participant', index: input.participantId };
@@ -564,20 +401,7 @@ export function placeForbidden(
   return commit(state, { ...state.board, [key]: { kind: 'forbidden' } });
 }
 
-/**
- * `×` 工具是一支**开关** —— 同一格再点一次就把那个 `×` 收回去。
- *
- * 撤销一个点错的 `×` 不必先切到橡皮、再切回来：两次工具切换只为了一个单格动作，
- * 而橡皮擦的是**整格**（这一步本身也多了一层心理成本）。允许在同一个工具里反向
- * 操作，是因为 `×` 是唯一「只代表自己」的格子内容：擦掉它不会伤到任何别的标记
- * （编号要留、头像要留，`×` 不留）。
- *
- * 自动补的 `×`（`auto: true`）同样可以这样收回。玩家手动取消一个排除项是明确的
- * 意思表示；等下一次有头像落下，`placeParticipant` 会按**当时**的行列重新补。
- *
- * 这里不做 `pruneAutoForbidden`：删掉一格不会让任何别的格子「失去依据」，与擦
- * 头像不同，没有需要连带回滚的东西。
- */
+/** `×` 工具是一支**开关** —— 同一格再点一次就把那个 `×` 收回去。 撤销一个点错的 `×` 不必先切到橡皮、再切回来：两次工具切换只为了一个单格动作， 而橡皮擦的是**整格**（这一步本身也多了一层心理成本）。 允许在同一个工具里反向 操作，是因为 `×` 是唯一「只代表自己」的格子内容：擦掉它不会伤到任何别的标记 （编号要留、头像要留，`×` 不留）。 自动补的 `×`（`auto: true`）同样可以这样收回。 这里不做 `pruneAutoForbidden`：删掉一格不会让任何别的格子「失去依据」，与擦 头像不同，没有需要连带回滚的东西。 */
 export function toggleForbidden(
   state: GamePlacementState,
   input: { x: number; y: number; blockingCells: Set<string> },
@@ -590,12 +414,7 @@ export function toggleForbidden(
   return placeForbidden(state, input);
 }
 
-/**
- * SPEC-G04 §10.2: clearing one cell; a cell with nothing is a no-op.
- *
- * 擦掉一个头像之后，它的自动 `×` 也跟着走（`pruneAutoForbidden`）——
- * 否则棋盘上会留下「这一行仍然不能放」的假提示。玩家的手放 `×` 不受影响。
- */
+/** SPEC-G04 §10.2: clearing one cell; a cell with nothing is a no-op. 擦掉一个头像之后，它的自动 `×` 也跟着走（`pruneAutoForbidden`）—— 否则棋盘上会留下「这一行仍然不能放」的假提示。玩家的手放 `×` 不受影响。 */
 export function clearCell(
   state: GamePlacementState,
   input: { x: number; y: number },
@@ -658,13 +477,7 @@ export function countPlacements(board: GamePlacementBoard): number {
   return count;
 }
 
-/**
- * SPEC-G02 §2: the hint follows the mode, not the board — placing a symbol
- * never clears it, only leaving the cell does (that part lives in the page).
- *
- * A non-standable cell accepts no placement at all, so it shows no hint; the
- * eraser is the one exception the spec calls out and is always shown.
- */
+/** SPEC-G02 §2: the hint follows the mode, not the board — placing a symbol never clears it, only leaving the cell does (that part lives in the page). A non-standable cell accepts no placement at all, so it shows no hint; the eraser is the one exception the spec calls out and is always shown. */
 export function resolveToolHint(input: {
   mode: GameOperationMode;
   placement: CellPlacement | null;
@@ -675,41 +488,17 @@ export function resolveToolHint(input: {
   if (mode.kind === 'clearing') return { kind: 'eraser' };
   if (mode.kind === 'placing') {
     if (nonStandable) return null;
-    /**
-     * 头像格与 `×` 格**不预览编号**。
-     *
-     * 这两种格子点击是**无效果**的（头像格属于别人，`×` 格是排除项），悬停时
-     * 画出一个编号等于预告一件不会发生的事。提示层的职责是「松手会
-     * 发生什么」，既然什么都不会发生，就不该有那一格字。
-     */
+    /** 头像格与 `×` 格**不预览编号**。 这两种格子点击是**无效果**的（头像格属于别人，`×` 格是排除项），悬停时画出一个编号等于预告一件不会发生的事。提示层的职责是「松手会发生什么」，既然什么都不会发生，就不该有那一格字。 */
     if (placement?.kind === 'forbidden' || placement?.kind === 'participant') return null;
     return { kind: 'number', participantId: mode.participantId };
   }
   if (nonStandable) return null;
   if (placement?.kind === 'participant') return null;
-  /**
-   * `×` 工具在**已经有 `×`** 的格子上，预告仍然是 `×`。
-   *
-   * 那一格再点一次确实是**收回**（见 `toggleForbidden`），但提示层的字形不该
-   * 跟着换成橡皮 —— 换字形等于在指针底下改变这支工具的**身份**：同一支笔，压到
-   * 这一格就变成另一支笔，比「同一个箭头按下去方向会反过来」更难解释。工具是
-   * 玩家选定的，提示只说明「这一格归这支工具管」。
-   */
+  /** `×` 工具在**已经有 `×`** 的格子上，预告仍然是 `×`。 那一格再点一次确实是**收回**（见 `toggleForbidden`），但提示层的字形不该跟着换成橡皮 —— 换字形等于在指针底下改变这支工具的**身份**：同一支笔，压到这一格就变成另一支笔，比「同一个箭头按下去方向会反过来」更难解释。工具是玩家选定的，提示只说明「这一格归这支工具管」。 */
   return { kind: 'forbidden' };
 }
 
-/**
- * 一次放置落下之后，工具栏该停在哪个模式。
- *
- * **头像（`image`）放下 = 这位参与者已经就位**，手上不再举着任何东西 —— 名册
- * 那张卡的选中环随之退掉。否则界面在宣称「你还举着他」，下一次点格子会让人以为
- * 要放第二个（而头像本来就只有一张）。
- *
- * **编号（`number`）不退出**：同一位参与者的编号会落在很多格上（一行线索里常有
- * 好几个数字），每落一次都要回名册重点一下，等于把连续标注变成反复点卡片。
- *
- * 模式没变时**返回同一个对象**，调用方可以靠引用相等跳过 `setState`。
- */
+/** 一次放置落下之后，工具栏该停在哪个模式。 **头像（`image`）放下 = 这位参与者已经就位**，手上不再举着任何东西 —— 名册 那张卡的选中环随之退掉。 否则界面在宣称「你还举着他」，下一次点格子会让人以为 要放第二个（而头像本来就只有一张）。 **编号（`number`）不退出**：同一位参与者的编号会落在很多格上（一行线索里常有 好几个数字），每落一次都要回名册重点一下，等于把连续标注变成反复点卡片。 模式没变时**返回同一个对象**，调用方可以靠引用相等跳过 `setState`。 */
 export function modeAfterPlacement(
   mode: GameOperationMode,
   variant: ParticipantPlacementVariant,
@@ -718,10 +507,7 @@ export function modeAfterPlacement(
   return variant === 'image' ? { kind: 'idle' } : mode;
 }
 
-/**
- * SPEC-G01 §7.1: the 3×3 sub-grid position of the i-th number inside its cell,
- * as a 0..1 anchor pair (the renderer multiplies by `cellSize`).
- */
+/** SPEC-G01 §7.1: the 3×3 sub-grid position of the i-th number inside its cell, as a 0..1 anchor pair (the renderer multiplies by `cellSize`). */
 export function numberSlotAnchor(index: number): { x: number; y: number } {
   const column = index % GAME_NUMBER_GRID;
   const row = Math.floor(index / GAME_NUMBER_GRID);
@@ -731,17 +517,7 @@ export function numberSlotAnchor(index: number): { x: number; y: number } {
   };
 }
 
-/**
- * v0.6.4 fix (docs/v0.6.4.md §4): the font size at which `text` still fits a
- * `boxWidth`-wide box.
- *
- * A 编号 is no longer necessarily a digit — the puzzle can configure any text
- * for a participant, and a 3×3 slot is only a third of a cell wide. Wide (CJK /
- * fullwidth) glyphs count as a full em, everything else as ~0.62em (see
- * `textWidth.ts`); when the estimate exceeds the box the font shrinks
- * proportionally, so a long label never spills over its neighbours. Digits —
- * the historical case — never trigger the shrink.
- */
+/** v0.6.4 fix (docs/v0.6.4.md §4): the font size at which `text` still fits a `boxWidth`-wide box. A 编号 is no longer necessarily a digit — the puzzle can configure any text for a participant, and a 3×3 slot is only a third of a cell wide. Digits — the historical case — never trigger the shrink. */
 export function glyphFontSize(text: string, boxWidth: number, fontSize: number): number {
   if (!Number.isFinite(boxWidth) || boxWidth <= 0) return fontSize;
   if (!Number.isFinite(fontSize) || fontSize <= 0) return fontSize;
@@ -749,10 +525,7 @@ export function glyphFontSize(text: string, boxWidth: number, fontSize: number):
   return width <= boxWidth ? fontSize : (fontSize * boxWidth) / width;
 }
 
-/**
- * Structural comparison — `commit` uses it to detect a no-op placement, so a
- * rejected click never occupies an undo step.
- */
+/** Structural comparison — `commit` uses it to detect a no-op placement, so a rejected click never occupies an undo step. */
 export function boardEquals(a: GamePlacementBoard, b: GamePlacementBoard): boolean {
   const keysA = Object.keys(a);
   const keysB = Object.keys(b);
@@ -795,34 +568,13 @@ export interface PlacementValidation {
 
 export interface ValidatePlacementInput {
   board: GamePlacementBoard;
-  /**
-   * The roster, in display order. Index + 1 is the participant number; `null`
-   * entries are empty frames and are not validated. Position conditions are
-   * read straight off each slot (§7.4), so there is exactly one source of truth.
-   */
+  /** The roster, in display order. Index + 1 is the participant number; `null` entries are empty frames and are not validated. Position conditions are read straight off each slot (§7.4), so there is exactly one source of truth. */
   slots: Array<CharacterSlotEntry | null>;
   /** Optional name lookup so a message can read `编号 3（张三）尚未放置`. */
   nameOf?: (participantId: number) => string | undefined;
 }
 
-/**
- * SPEC-FEAT-V01 §8.1: walk the participants in number order and collect **every**
- * problem (the dialog lists them all, so no early exit):
- *
- * 1. the participant must be on the board — **only an avatar counts** (v0.7.12；
- *    编号是候选标记，`avatarCellOf` 才是判据，见下）；
- * 2. nobody else may share its row;
- * 3. nobody else may share its column;
- * 4. if the participant carries position conditions, its cell must be one of
- *    them — an empty list means "no positional constraint" (§14 Q11).
- *
- * Rows/columns are reported from both sides of a clash (each participant gets
- * its own issue), which keeps the list a straight projection of the roster.
- *
- * 提交校验**只认头像**（`avatarCellOf`），候选编号不算。标号的作用是
- * **自己数格子时的草稿**，它可能只是玩家随手点过的一格；把草稿当交卷，
- * 等于替玩家宣布「我确定了」。
- */
+/** SPEC-FEAT-V01 §8.1: walk the participants in number order and collect **every** problem (the dialog lists them all, so no early exit): 1. the participant must be on the board — **only an avatar counts** (v0.7.12； 编号是候选标记，`avatarCellOf` 才是判据，见下）； 标号的作用是 **自己数格子时的草稿**，它可能只是玩家随手点过的一格； 把草稿当交卷， 等于替玩家宣布「我确定了」。 */
 export function validatePlacement(input: ValidatePlacementInput): PlacementValidation {
   const { board, slots } = input;
   const issues: PlacementIssue[] = [];

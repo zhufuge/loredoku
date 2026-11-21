@@ -9,19 +9,7 @@ import { formatRelativeTime } from '@/lib/relativeTime';
 import { EntryActionsMenu } from '@/components/common/EntryActionsMenu';
 import { ClampedText } from '@/components/common/ClampedText';
 
-/**
- * 卡片：封面 + 名称 + 描述 + 「尺寸 … 时间」一行。
- *
- * 卡片目前只服务草稿块，所以名称后没有徽标；`v{n}` 只出现在版本条目上。
- * 副信息行尺寸贴左、时间贴右，未初始化时尺寸位打 `—` 占位。
- *
- *
- * 主按钮按 kind 分叉：工作条目进编辑器，版本条目走「以此为底稿新建」——
- * 同样进编辑器，但带 `?v={n}` 装载版本快照，**保存时才生成草稿**。
- *
- * 三点菜单里的「复制」与「编辑信息」都只属于工作条目（版本是冻结快照），
- * 由 `MapEntryActionsMenu` 内部按 `entry.kind` 分流，卡片本身不掺和。
- */
+/** 卡片：封面 + 名称 + 描述 + 「尺寸 … 时间」一行。 卡片目前只服务草稿块，所以名称后没有徽标； `v{n}` 只出现在版本条目上。 副信息行尺寸贴左、时间贴右，未初始化时尺寸位打 `—` 占位。 主按钮按 kind 分叉：工作条目进编辑器，版本条目走「以此为底稿新建」—— 同样进编辑器，但带 `?v={n}` 装载版本快照，**保存时才生成草稿**。 三点菜单里的「复制」与「编辑信息」都只属于工作条目（版本是冻结快照）， 由 `MapEntryActionsMenu` 内部按 `entry.kind` 分流，卡片本身不掺和。 */
 interface MapGridCardProps {
   entry: MapEntrySummary;
   onOpen: (entry: MapEntrySummary) => void;
@@ -53,10 +41,7 @@ export function MapGridCard({
         type="button"
         onClick={() => onOpen(entry)}
         title={`${isVersion ? '以此为底稿新建' : '进入编辑'}：${entry.name}`}
-        // 封面框用 `MAP_COVER_ASPECT`（16:10）：与编辑器「基本信息」抽屉、
-        // 新建 / 编辑对话框里的预览框**同一把尺**，同一张封面在几处裁切一致。
-        // 比例写进行内样式而不是 `aspect-[16/10]`：常量才是唯一真源，改一处
-        // 三处一起变。
+        // 封面框用 `MAP_COVER_ASPECT`（16:10）：与编辑器「基本信息」抽屉、 新建 / 编辑对话框里的预览框**同一把尺**，同一张封面在几处裁切一致。 比例写进行内样式而不是 `aspect-[16/10]`：常量才是唯一真源，改一处三处一起变。
         style={{ aspectRatio: String(MAP_COVER_ASPECT) }}
         className="relative block w-full cursor-pointer overflow-hidden border-b bg-muted/40"
       >

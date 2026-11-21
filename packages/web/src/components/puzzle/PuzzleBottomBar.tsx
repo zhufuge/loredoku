@@ -18,19 +18,7 @@ interface PuzzleBottomBarProps {
   onToggleRuler: () => void;
 }
 
-/**
- * SPEC-K07 (docs/v0.5.0.md §4.4): the puzzle's bottom bar.
- *
- * The canvas is a **read-only reference** (§5.1), so every tool that would
- * write to it is gone: 选择 / 放置, 区域选择 (and its 矩形 / 自由笔刷 shapes),
- * 橡皮擦 and the 物品 drawer button. The page therefore never switches
- * `activeTool` away from `select`, which is also what keeps the read-only cell
- * info box reachable (§15 Q1).
- *
- * 尺寸 n×n stays but is **display only** — a `<span>`, no click, no hover state,
- * and no 「调整画布尺寸」 dialog anywhere on this screen: the size comes from the
- * referenced map version and cannot be changed here.
- */
+/** SPEC-K07 (docs/v0.5.0.md §4.4): the puzzle's bottom bar. The canvas is a **read-only reference** (§5.1), so every tool that would write to it is gone: 选择 / 放置, 区域选择 (and its 矩形 / 自由笔刷 shapes), 橡皮擦 and the 物品 drawer button. */
 export function PuzzleBottomBar({
   canUndo,
   canRedo,

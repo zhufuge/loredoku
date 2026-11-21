@@ -1,22 +1,5 @@
 #!/usr/bin/env node
-/**
- * v0.7.4 (docs/v0.7.4.md §2.6): 把 `fonts-source/` 里的字体裁成 woff2，
- * 输出到 `src/assets/fonts/` —— 后者才是被打包、被下拉看见的那份。
- *
- * 为什么必须有这一步：霞鹜文楷 Regular 的 TTF 是 **24.7 MB**，直接丢进
- * `assets/fonts/` 会原样进 `dist/`、进 git、进每个玩家的首屏。同款字体
- * 只保留 GB2312 一级（3755 字）+ ASCII + 标点后是 **约 800 KB**，整款转
- * woff2 不裁字是 7.7 MB —— 裁字才是数量级上的那一刀。
- *
- * 用法：
- *
- *   npm run fonts                       # 默认 charset=common（+ 补充字表）
- *   npm run fonts -- --charset gb2312   # 6763 字，约 1.4 MB
- *   npm run fonts -- --charset full     # 只转 woff2，不裁字（慢，30s 级）
- *   npm run fonts -- --charset file:chars.txt
- *   npm run fonts -- --extra 薇倩      # 临时补几个字，不进字表
- *   npm run fonts -- --budget 600       # 超过 600 KB 时标出来
- */
+/** v0.7.4 (docs/v0.7.4.md §2.6): 把 `fonts-source/` 里的字体裁成 woff2 输出到 `src/assets/fonts/`（后者才是被打包、被下发的那份）—— 不裁字 24.7 MB，裁到 GB2312 一级 + ASCII + 标点约 800 KB，这一刀才是数量级的差别。 */
 
 import { mkdir, readdir, readFile, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -30,14 +13,7 @@ const WEB_ROOT = resolve(HERE, '..');
 const DEFAULT_SRC = resolve(WEB_ROOT, 'fonts-source');
 const DEFAULT_OUT = resolve(WEB_ROOT, 'src/assets/fonts');
 
-/**
- * `common` 只覆盖 GB2312 **一级**（3755 字），一级之外的字会被裁掉 ——
- * 渲染时靠回退链顶上，代价是那一个字不是手写体。「薇」就是这么丢的。
- *
- * 这份表是**跟着仓库走**的补字清单（不是运行时数据）：谁遇到缺字就往里加一行，
- * 重跑一次 `npm run fonts` 即可；字号只有几 KB，比把整档换成 `gb2312`（约 1.6 MB）
- * 便宜得多。
- */
+/** `common` 只覆盖 GB2312 **一级**（3755 字），一级之外的字会被裁掉 —— 渲染时靠回退链顶上，代价是那一个字不是手写体。「薇」就是这么丢的。 这份表是**跟着仓库走**的补字清单（不是运行时数据）：谁遇到缺字就往里加一行， 重跑一次 `npm run fonts` 即可；字号只有几 KB，比把整档换成 `gb2312`（约 1.6 MB） 便宜得多。 */
 const SUPPLEMENT_FILE = resolve(HERE, 'font-extra-chars.txt');
 
 
@@ -47,25 +23,14 @@ const SOURCE_EXTS = new Set(['.ttf', '.otf']);
 /** 默认预算：一款字体超过这个大小，说明字集没裁干净。 */
 const DEFAULT_BUDGET_KB = 1200;
 
-// ---- 字集 ------------------------------------------------------------------
-
 export const ASCII = Array.from({ length: 0x7e - 0x20 + 1 }, (_, i) =>
   String.fromCharCode(0x20 + i),
 ).join('');
 
-/**
- * 标签上真会出现的标点。GB2312 的符号区也会带一批全角形式，这里只补
- * 中文排版里最常用、且落在符号区之外的那几个（省略号、破折号、间隔号）。
- */
+/** 标签上真会出现的标点。GB2312 的符号区也会带一批全角形式，这里只补中文排版里最常用、且落在符号区之外的那几个（省略号、破折号、间隔号）。 */
 export const EXTRA_PUNCT = '·—…‰′″‹›⁄';
 
-/**
- * GB2312 的字符表：符号区（0xA1–0xA9）+ 一级汉字（0xB0–0xD7）+ 可选二级
- * （0xD8–0xF7）。
- *
- * 用 `TextDecoder('gbk')` 现算，而不是往代码里贴 6763 个汉字：贴进去的字符串
- * 没法审阅、改一个字集就得整段重贴，而 GB2312 的映射是标准的一部分。
- */
+/** GB2312 的字符表：符号区（0xA1–0xA9）+ 一级汉字（0xB0–0xD7）+ 可选二级（0xD8–0xF7）。 用 `TextDecoder('gbk')` 现算，而不是往代码里贴 6763 个汉字：贴进去的字符串没法审阅、改一个字集就得整段重贴，而 GB2312 的映射是标准的一部分。 */
 export function gb2312Charset({ level2 }) {
   const decoder = new TextDecoder('gbk');
   const zones = [
@@ -105,10 +70,7 @@ export async function resolveCharset(spec, extra = '') {
   throw new Error(`未知 charset：${spec}（可选 common / gb2312 / full / file:<path>）`);
 }
 
-/**
- * 读仓库里的补字清单：每行若干字，`#` 之后是注释，空白一律丢掉。
- * 文件不存在就当没有 —— 这是「可选增强」，不该让缺文件变成构建失败。
- */
+/** 读仓库里的补字清单：每行若干字，`#` 之后是注释，空白一律丢掉。 文件不存在就当没有 —— 这是「可选增强」，不该让缺文件变成构建失败。 */
 export async function readSupplement() {
   if (!existsSync(SUPPLEMENT_FILE)) return '';
   const raw = await readFile(SUPPLEMENT_FILE, 'utf8');
@@ -133,8 +95,6 @@ async function resolveExtraArg(values) {
   }
   return parts.join('');
 }
-
-// ---- 参数 ------------------------------------------------------------------
 
 export function parseArgs(argv) {
   const options = {
@@ -181,8 +141,6 @@ function usage() {
     '  --src <dir> / --out <dir>                  换目录',
   ].join('\n');
 }
-
-// ---- 主流程 ----------------------------------------------------------------
 
 const kb = (bytes) => `${Math.round(bytes / 1024)} KB`;
 const mb = (bytes) => `${(bytes / 1048576).toFixed(1)} MB`;

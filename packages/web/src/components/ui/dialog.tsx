@@ -8,12 +8,7 @@ export const DialogTrigger = DialogPrimitive.Trigger;
 export const DialogClose = DialogPrimitive.Close;
 export const DialogPortal = DialogPrimitive.Portal;
 
-/**
- * 弹窗与「逐人校验」的聚焦遮罩共用这一层黑色薄纱。
- *
- * 两处都写 `bg-black/60` 的话，改弹窗那天校验遮罩就会悄悄留在旧颜色上；抽成
- * 一个 class 常量，Tailwind 仍能扫到这个字面量并生成对应 CSS。
- */
+/** 弹窗与「逐人校验」的聚焦遮罩共用这一层黑色薄纱。 两处都写 `bg-black/60` 的话，改弹窗那天校验遮罩就会悄悄留在旧颜色上；抽成一个 class 常量，Tailwind 仍能扫到这个字面量并生成对应 CSS。 */
 export const DIALOG_OVERLAY_TINT_CLASS = 'bg-black/60';
 
 export const DialogOverlay = forwardRef<
@@ -40,10 +35,7 @@ export const DialogContent = forwardRef<
     <DialogOverlay />
     <DialogPrimitive.Content
       ref={ref}
-      // Clicking the dimmed overlay must NOT close the dialog — a mis-click
-      // would throw away whatever the user had typed.
-      // Callers can still opt back in by passing their own handler (spread
-      // below wins over this default).
+      // Clicking the dimmed overlay must NOT close the dialog — a mis-click would throw away whatever the user had typed. Callers can still opt back in by passing their own handler (spread below wins over this default).
       onInteractOutside={(event) => event.preventDefault()}
       className={cn(
         // `sheet-fade` 见 `index.css` —— 180ms 淡入、135ms 淡出，

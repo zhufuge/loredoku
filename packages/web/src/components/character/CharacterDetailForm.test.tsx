@@ -9,15 +9,7 @@ import {
 } from '@loredoku/shared';
 
 /**
- * 纯色角色传完头像后，外观不能再跳回纯色块。
- *
- * 根因不在上传本身：上传成功会 `invalidate()` → 角色列表重取 → `updatedAt` 变 →
- * 那条「同步服务器值」的 effect 把 `appearanceMode` 按回
- * `character.bgColor ? 'color' : 'image'`。保存之前库里 `bgColor` 还在，于是刚
- * 传上去的图被一张色块盖掉，提示却已经说「头像已上传」。
- *
- * 这些用例都在**同一个记录**上换 props（`updatedAt` 变、`avatarUrl` 出现），
- * 模拟重取的时机；`id` 变了才算换角色。
+ * 纯色角色传完头像后外观不能跳回色块：上传触发 `invalidate()` → 重取 → `updatedAt` 变 → 同步 effect 按 `bgColor` 把 `appearanceMode` 按回 `color`。
  */
 
 const { uploadMutate, updateMutate } = vi.hoisted(() => ({
@@ -185,15 +177,7 @@ describe('CharacterDetailForm — 外观模式（v0.7.13 fix）', () => {
   });
 });
 
-/**
- * v0.7.13（docs/v0.7.13.md §11）—— 角色页上新增的两个默认值。
- *
- * 主题色**没有开关**：取色器常驻，白色就是「没指定」（§11.4）。所以这里验的
- * 不是控件开合，而是**白色的来龙去脉** —— 库里没值要显示白、选了白不落库、
- * 库里有值要读得出来。白色→`null` 的塌缩在 shared 的 schema 里，表单不重复
- * 实现，所以断言走一遍 `updateCharacterSchema.parse(payload)`，而不是只看
- * payload 的字面值。
- */
+/** v0.7.13（docs/v0.7.13.md §11）：主题色没有开关，白色即「没指定」；断言走 `updateCharacterSchema.parse(payload)` 验证白 → `null` 的塌缩。 */
 describe('CharacterDetailForm — 参与者默认值（v0.7.13 §11）', () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -216,10 +200,7 @@ describe('CharacterDetailForm — 参与者默认值（v0.7.13 §11）', () => {
     });
   }
 
-  /**
-   * 指定 aria-label：外观区在纯色块模式下还有**第二个**取色器（那是角色自己
-   * 的长相 `bgColor`，不是参与者主题色），`input[type="color"]` 会先撞上它。
-   */
+  /** 指定 aria-label：外观区在纯色块模式下还有**第二个**取色器（那是角色自己的长相 `bgColor`，不是参与者主题色），`input[type="color"]` 会先撞上它。 */
   function colorInput(): HTMLInputElement | null {
     return container.querySelector<HTMLInputElement>(
       'input[type="color"][aria-label="默认主题色"]',

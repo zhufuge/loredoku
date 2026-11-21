@@ -290,12 +290,7 @@ describe('ruler style config (FEAT-E02)', () => {
   });
 });
 
-/**
- * 标尺前缀符号可配（默认 `C` / `R`）。
- *
- * 三件事值得钉住：默认值不变（老地图一像素不改）、自定义符号真的进了文本、
- * 留空 = 只显示数字。
- */
+/** 标尺前缀符号可配（默认 `C` / `R`）。 三件事值得钉住：默认值不变（老地图一像素不改）、自定义符号真的进了文本、 留空 = 只显示数字。 */
 describe('ruler symbols (v0.10.8)', () => {
   it('defaults to `C` for columns and `R` for rows', () => {
     const base = { gridSize: 2, hoverIndex: null, operationIndex: null, scale: 1 } as const;

@@ -1,18 +1,4 @@
-/**
- * v0.9.0（docs/v0.9.0.md §8）：把一个**主题资源包**读进内存。
- *
- * 接受两种形状：
- *
- * - 一个 `.zip`（作者从主题概览页导出的原件）；
- * - 一个已经解开的目录（里面直接是 `manifest.json`、`puzzles/`、`files/`）。
- *
- * zip 用**自己写的解析**，不引新依赖：包里只有 `stored`（0）与 `deflate`（8）
- * 两种压缩方法，`zlib.inflateRawSync` 就够了 —— 为一个构建期工具链加一个解压库，
- * 比这段 80 行贵（v0.8.0 §11.6 的取舍同一条：依赖只进不出）。
- *
- * **不支持 zip64**（>4GB 或 >65535 个条目）：主题资源包远到不了，真遇到就报错并
- * 让人先解压成目录 —— 明确失败好过悄悄读错。
- */
+/** v0.9.0（docs/v0.9.0.md §8）：把**主题资源包**（`.zip` 原件或已解压目录）读进内存 —— 自写 zip 解析、只认 `stored`/`deflate` 两种方法，不支持 zip64（>4GB 或 >65535 个条目）时明确报错、请人先解压成目录。 */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { inflateRawSync } from 'node:zlib';
@@ -85,13 +71,7 @@ function readDirEntries(root) {
   return entries;
 }
 
-/**
- * 包内路径统一成用 `/` 分隔、不以 `/` 开头、不含 `..`。
- *
- * 后两条是**安全边界**而不只是洁癖：这些名字会被拼进产物路径（`emitFile`），
- * 一个 `../../etc/passwd` 就能写到 dist 外面去。包是我们自己导出的，但构建脚本
- * 不该假设输入一定乖巧。
- */
+/** 包内路径统一成用 `/` 分隔、不以 `/` 开头、不含 `..`。 后两条是**安全边界**而不只是洁癖：这些名字会被拼进产物路径（`emitFile`）， 一个 `../../etc/passwd` 就能写到 dist 外面去。包是我们自己导出的，但构建脚本不该假设输入一定乖巧。 */
 function normalizeEntryName(name) {
   const unified = name.replaceAll('\\', '/').replace(/^\/+/, '');
   if (unified.split('/').includes('..')) {
@@ -100,12 +80,7 @@ function normalizeEntryName(name) {
   return unified;
 }
 
-/**
- * 读一个包，返回 `{ manifest, code, files }`。
- *
- * `files` 是 `Map<包内相对路径, Buffer>`，**包含** `manifest.json` 自己 ——
- * 产物里也要能单独取到它（列表页第一件事就是读它）。
- */
+/** 读一个包，返回 `{ manifest, code, files }`。 `files` 是 `Map<包内相对路径, Buffer>`，**包含** `manifest.json` 自己 —— 产物里也要能单独取到它（列表页第一件事就是读它）。 */
 export function readBundle(inputPath) {
   const resolved = path.resolve(inputPath);
   let stat;

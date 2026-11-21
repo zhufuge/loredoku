@@ -11,13 +11,7 @@ import {
 } from './difficulty';
 import type { ThemeDifficultyTier } from './types/domain';
 
-/**
- * v0.8.6（docs/v0.8.6.md §3）：难度是**数字档位**，文字与颜色由主题映射。
- *
- * 这一组钉五件事：没配就是内置五档（存量主题不受影响）、列表按档位排序（存进
- * JSON 的顺序不可信）、徽章按位置取色（没选色时与 v0.8.3 完全一样）、选了色就
- * 由它混出底色与字色、档位不在分级里时不炸。
- */
+/** v0.8.6（docs/v0.8.6.md §3）：难度是**数字档位**，文字与颜色由主题映射。 这一组钉五件事：没配就是内置五档（存量主题不受影响）、列表按档位排序（存进 JSON 的顺序不可信）、徽章按位置取色（没选色时与 v0.8.3 完全一样）、选了色就由它混出底色与字色、档位不在分级里时不炸。 */
 
 const twoTiers: ThemeDifficultyTier[] = [
   { level: 1, label: '热身' },
@@ -37,10 +31,7 @@ describe('resolveDifficultyTiers', () => {
     expect(resolveDifficultyTiers(twoTiers)).toEqual(twoTiers);
   });
 
-  /**
-   * 库里那份 JSON 谁都能手改，而「第 2 档排在第 1 档前面」不会让任何一处报错 ——
-   * 只会让徽章取错坡上的颜色。排序收在这一层，取色与列表就永远同一顺序。
-   */
+  /** 库里那份 JSON 谁都能手改，而「第 2 档排在第 1 档前面」不会让任何一处报错 —— 只会让徽章取错坡上的颜色。排序收在这一层，取色与列表就永远同一顺序。 */
   it('按档位升序返回，即使存进去的顺序是乱的', () => {
     const shuffled: ThemeDifficultyTier[] = [
       { level: 3, label: '终' },

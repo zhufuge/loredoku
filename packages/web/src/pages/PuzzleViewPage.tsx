@@ -61,10 +61,7 @@ import {
   type LinkageActivationState,
 } from '@/lib/linkageActivation';
 
-/**
- * FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this
- * key only persists the reader's preference across reloads.
- */
+/** FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this key only persists the reader's preference across reloads. */
 const RULER_STORAGE_KEY = 'loredoku.puzzleview.ruler';
 
 /** Reads the persisted toggle, defaulting to visible (the editor's default). */
@@ -73,19 +70,7 @@ function readStoredRulerVisible(): boolean {
   return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
 }
 
-/**
- * v0.5.0 FEAT-K01 / §15 Q18 (docs/v0.5.0.md): the puzzle's read-only preview,
- * at `/puzzles/:puzzleId/view`.
- *
- * - the **canvas** comes from `GET /api/puzzles/:id/map` (the referenced map
- *   version, §5.1);
- * - the **roster** and the **palette** come from the puzzle's own draft
- *   (§5.1 / Q16).
- *
- * Everything else — layout, rulers, hover affordances, the read-only
- * `ParticipantPanel` (FIX-F07) and the MOD-802 linkage preview — is unchanged,
- * so the preview stays pixel-identical to the editor's canvas.
- */
+/** v0.5.0 FEAT-K01 / §15 Q18 (docs/v0.5.0.md): the puzzle's read-only preview, at `/puzzles/:puzzleId/view`.；the **canvas** comes from `GET /api/puzzles/:id/map` (the referenced map version, §5.1);；the **roster** and the **palette** come from the puzzle's own draft (§5.1 / Q16). */
 export function PuzzleViewPage(): JSX.Element {
   // 主题段在地址里，资源 / 角色列表按它隔离。
   const { puzzleId, themeCode = '' } = useParams<{ puzzleId: string; themeCode: string }>();
@@ -159,24 +144,14 @@ export function PuzzleViewPage(): JSX.Element {
   );
   const regions = useMemo(() => mapContext?.regions ?? [], [mapContext]);
   const gridSize = mapContext?.gridSize ?? 0;
-  /**
-   * FEAT-D02: the referenced version carries the map's display
-   * constants, so a puzzle preview renders exactly like the editor it came
-   * from. Q16: the linkage palette is **not** part of `style` any more — the
-   * puzzle owns it.
-   */
+  /** FEAT-D02: the referenced version carries the map's display constants, so a puzzle preview renders exactly like the editor it came from. Q16: the linkage palette is **not** part of `style` any more — the puzzle owns it. */
   const style = useMemo(() => resolveMapStyle(mapContext?.style), [mapContext]);
   const linkageColors = useMemo(() => draft?.linkageColors ?? [], [draft]);
   /** OPT-A01 §1.1: adaptive cell width at 100% zoom (shared with the editor). */
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   const cellSize = effectiveCellSize(autoCellSize, style);
   const total = gridSize * cellSize;
-  /**
-   * FEAT-F01 / FEAT-F02: the strip thickness is derived from the map's
-   * `style.ruler` with the **same** `rulerStripSize` pass the editor uses, and
-   * the result is fed back into the adaptive insets so the reserved top / left
-   * bands match the rendered strips pixel for pixel.
-   */
+  /** FEAT-F01 / FEAT-F02: the strip thickness is derived from the map's `style.ruler` with the **same** `rulerStripSize` pass the editor uses, and the result is fed back into the adaptive insets so the reserved top / left bands match the rendered strips pixel for pixel. */
   const rulerScale = cellScale(cellSize);
   const rulerMaxFont =
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
@@ -222,14 +197,7 @@ export function PuzzleViewPage(): JSX.Element {
     });
   };
 
-  /**
-   * OPT-A01 §1.2: measure the viewport and re-fit the board. Clears the
-   * manual-adjustment flag, so this doubles as "重置视图".
-   *
-   * FEAT-F02: the inset carries `showRulers` / `rulerSize`, so the adaptive
-   * pass reserves exactly the bands the ruler strips occupy. The preview has no
-   * floating bottom toolbar, hence `showBottomBar: false`.
-   */
+  /** OPT-A01 §1.2: measure the viewport and re-fit the board. FEAT-F02: the inset carries `showRulers` / `rulerSize`, so the adaptive pass reserves exactly the bands the ruler strips occupy. The preview has no floating bottom toolbar, hence `showBottomBar: false`. */
   const fit = useCallback((): void => {
     const node = containerRef.current;
     userAdjustedRef.current = false;
@@ -304,11 +272,7 @@ export function PuzzleViewPage(): JSX.Element {
     setZoom(next);
   };
 
-  /**
-   * MOD-802: the highlight is a projection of the single-active state
-   * machine, so it stays up until the activation ends and then fades out
-   * over 150ms.
-   */
+  /** MOD-802: the highlight is a projection of the single-active state machine, so it stays up until the activation ends and then fades out over 150ms. */
   const activeSlot =
     activation.activeParticipantId === null
       ? null
@@ -331,10 +295,7 @@ export function PuzzleViewPage(): JSX.Element {
     );
   }, [activeSlot, gridSize, cells, slots, regions, style, linkageColors, showHighlight, clearHighlight]);
 
-  /**
-   * MOD-802 §1.2.5: characters referenced by the active linkage get a
-   * param-colour outline (a single `boxShadow` ring, FIX-E04) in the roster.
-   */
+  /** MOD-802 §1.2.5: characters referenced by the active linkage get a param-colour outline (a single `boxShadow` ring, FIX-E04) in the roster. */
   const highlightedSlots = useMemo(() => {
     const set = new Set<number>();
     for (const character of highlight?.characters ?? []) set.add(character.slotIndex);

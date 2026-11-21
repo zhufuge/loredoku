@@ -14,12 +14,7 @@ import {
 import { useDeleteTheme } from '@/hooks/useThemes';
 import { SETTINGS_THEMES_PATH } from '@/lib/workspace';
 
-/**
- * 删主题（§8 护栏 3）：**有东西就不给删**，而且先把数量说清楚。
- *
- * 真正的拦截在服务端（那里才有计数与 `is_default` 判定），这里只负责把「为什么
- * 可能删不掉」提前写在按钮旁边 —— 让人点了才知道失败，比先说一句贵得多。
- */
+/** 删主题（§8 护栏 3）：**有东西就不给删**，而且先把数量说清楚。 真正的拦截在服务端（那里才有计数与 `is_default` 判定），这里只负责把「为什么可能删不掉」提前写在按钮旁边 —— 让人点了才知道失败，比先说一句贵得多。 */
 export function DeleteThemeDialog({
   theme,
   open,

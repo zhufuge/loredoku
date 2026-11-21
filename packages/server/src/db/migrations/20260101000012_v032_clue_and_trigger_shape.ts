@@ -1,17 +1,6 @@
 import type { Knex } from 'knex';
 
-/**
- * MOD-702 / MOD-708 (docs/v0.3.2.md)
- *
- * For every `map_projects.draft_data` and `map_versions.data`:
- *   1. Add `clue: ''` to each non-null `characterSlots[i]` entry if missing.
- *   2. Convert `triggers[].targets[]`:
- *      - `type: 'cell'` with `{ x, y }` → `{ cells: [[x, y]] }`
- *      - Legacy `{ type: 'cell', x, y }` without `cells` → becomes array form.
- *      - `type: 'item'` → add `scope: 'all'` if missing.
- *
- * Runs in a transaction. `MIGRATION_DRY_RUN=true` prints summary + rolls back.
- */
+/** MOD-702/MOD-708（docs/v0.3.2.md）：map JSON 的 characterSlots[i] 补 clue: ''；triggers[].targets[] 里 cell 目标由 {x,y} 转 cells:[[x,y]]、item 目标补 scope: 'all'；单事务，MIGRATION_DRY_RUN=true 打印统计后回滚。 */
 export async function up(knex: Knex): Promise<void> {
   const dryRun = process.env.MIGRATION_DRY_RUN === 'true';
 
@@ -20,12 +9,7 @@ export async function up(knex: Knex): Promise<void> {
     let cellTargetsMigrated = 0;
     let itemScopesAdded = 0;
 
-    /**
-     * Patch one draft JSON object in-place:
-     * - characterSlots[i].clue → '' if missing
-     * - triggers[].targets[] cell target → cells array
-     * - triggers[].targets[] item target → scope: 'all'
-     */
+    /** Patch one draft JSON object in-place:；characterSlots[i].clue → '' if missing；triggers[].targets[] cell target → cells array；triggers[].targets[] item target → scope: 'all' */
     function patchDraft(draft: Record<string, unknown>): void {
       const slots = draft['characterSlots'];
       if (!Array.isArray(slots)) return;

@@ -3,15 +3,7 @@ import type { CharacterSlotEntry, MapLinkageColor } from '@loredoku/shared';
 import { readLegacyCharacterSlots, readLegacyLinkageColors } from './mapDraftCompat';
 
 /**
- * v0.5.0 §11.2 (docs/v0.5.0.md) — the data half of the puzzle backfill
- * migration, kept pure so it can be unit tested without a database (knex treats
- * every file in `db/migrations` as a migration, so helpers live here instead).
- *
- * Before v0.5.0 a map's participants sat inside `draft_data` / `map_versions.data`.
- * They now belong to a puzzle, and a puzzle **must** reference a published
- * version. So the migration gives every map that has at least one version a
- * puzzle holding the **highest** version's roster, and leaves the old JSON
- * untouched (the reader absorbs it — see `mapDraftCompat.ts`).
+ * v0.5.0 §11.2：puzzle 回填迁移的数据半边，保持纯函数以便无库单测（knex 把 migrations 下每个文件当迁移）；每个有版本的图建一条 puzzle，取**最高版本**的名单，旧 JSON 不动（读者在 `mapDraftCompat.ts` 吸收）。
  */
 
 export interface PuzzleSeedMap {
@@ -28,10 +20,7 @@ export interface PuzzleSeedVersion {
   data: unknown;
 }
 
-/**
- * Pads / truncates a legacy roster to `gridSize`, the puzzle's slot-length
- * convention. A missing roster becomes an all-`null` array of the right length.
- */
+/** 名单按 `gridSize` 补齐 / 截断，缺失的补 `null`（puzzle 槽位长度约定）。 */
 export function slotsFromLegacyDraft(
   raw: unknown,
   gridSize: number,
@@ -44,11 +33,7 @@ export function slotsFromLegacyDraft(
   return slots;
 }
 
-/**
- * The palette the seed puzzle should carry: the version's own palette when it
- * had one, otherwise the shipped red / blue default. Copies the entries so the
- * constant is never handed out by reference.
- */
+/** 版本自带调色板优先，否则内置红 / 蓝默认；条目浅拷贝，不把常量引用发出去。 */
 export function linkageColorsFromLegacyDraft(raw: unknown): MapLinkageColor[] {
   const legacy = readLegacyLinkageColors(raw);
   if (legacy.length > 0) return legacy.map((entry) => ({ ...entry }));
@@ -56,10 +41,7 @@ export function linkageColorsFromLegacyDraft(raw: unknown): MapLinkageColor[] {
 }
 
 /**
- * 迁移 `00016` 写进行里的**历史形状**：v1 的引用式底图（`{ mapId, versionNo,
- * gridSize }`，画布不复制）。迁移 `00031` 会把每一行升成 v2 并补齐画布副本，
- * 所以这里刻意写死 `version: 1` —— 迁移产物必须与 `PUZZLE_JSON_VERSION` 当前
- * 取值无关，否则重放一段历史迁移的结果会随版本号漂移。
+ * 迁移 `00016` 写进的历史形状：v1 引用式底图；`version: 1` 刻意写死，迁移产物不随 `PUZZLE_JSON_VERSION` 漂移（`00031` 再升 v2 补画布副本）。
  */
 export interface PuzzleSeedDraft {
   version: 1;
@@ -70,11 +52,7 @@ export interface PuzzleSeedDraft {
   characterSlots: Array<CharacterSlotEntry | null>;
 }
 
-/**
- * Builds the puzzle row a map's participants should move into. Returns `null`
- * when the map has **no published version**: a puzzle without a canvas cannot
- * exist, so the roster stays where it is (readable, just not shown).
- */
+/** 没有已发布版本返 `null`（无画布的 puzzle 不存在），名单留在原处可读、不展示。 */
 export function buildPuzzleSeedFromMap(
   mapRow: PuzzleSeedMap,
   version: PuzzleSeedVersion | null,
