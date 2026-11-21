@@ -15,6 +15,7 @@
  */
 import path from 'node:path';
 import process from 'node:process';
+import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 export const DEV_DEFAULT_SERVER_PORT = 3000;
@@ -22,9 +23,6 @@ export const DEV_DEFAULT_WEB_PORT = 5173;
 
 export const PORT_MIN = 1;
 export const PORT_MAX = 65535;
-
-const SERVER_PORT_FLAGS = ['-s', '--server-port'];
-const WEB_PORT_FLAGS = ['-w', '--web-port'];
 
 /**
  * 把 `-1` / `abc` / `70000` / `0` 这类输入统一挡在启动之前。
@@ -50,58 +48,37 @@ function parsePortValue(raw, label) {
  * @returns {{ serverPort: number; webPort: number }}
  */
 export function parseDevArgs(argv = []) {
-  /** @type {{ server?: number; web?: number }} */
-  const parsed = {};
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const token = String(argv[index]);
-    let flag = token;
-    /** @type {string | undefined} */
-    let inlineValue;
-
-    // 同时支持 `--server-port 4000` 与 `--server-port=4000`。
-    if (token.startsWith('--')) {
-      const equalsAt = token.indexOf('=');
-      if (equalsAt !== -1) {
-        flag = token.slice(0, equalsAt);
-        inlineValue = token.slice(equalsAt + 1);
-      }
-    }
-
-    const isServer = SERVER_PORT_FLAGS.includes(flag);
-    const isWeb = WEB_PORT_FLAGS.includes(flag);
-    if (!isServer && !isWeb) {
-      throw new Error(`未知参数：${token}（可用：-s / --server-port、-w / --web-port）`);
-    }
-
-    const key = isServer ? 'server' : 'web';
-    const label = isServer ? '后端端口（-s / --server-port）' : '前端端口（-w / --web-port）';
-    if (parsed[key] !== undefined) {
-      throw new Error(`参数重复：${isServer ? '--server-port' : '--web-port'} 只能传一次`);
-    }
-
-    let value = inlineValue;
-    if (value === undefined) {
-      value = argv[index + 1];
-      index += 1;
-    }
-    // 缺值，或把下一个参数当成了值（`-s -w 5180`）。
-    if (
-      value === undefined ||
-      String(value).trim() === '' ||
-      SERVER_PORT_FLAGS.includes(String(value)) ||
-      WEB_PORT_FLAGS.includes(String(value))
-    ) {
-      throw new Error(`参数 ${flag} 缺少端口值（示例：${flag} 4000）`);
-    }
-
-    // 立刻校验，保证报错信息指向第一个出错的参数。
-    parsed[key] = parsePortValue(value, label);
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args: argv.map(String),
+      options: {
+        'server-port': { type: 'string', short: 's' },
+        'web-port': { type: 'string', short: 'w' },
+      },
+      strict: true,
+      allowPositionals: false,
+      tokens: true,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`参数错误：${message}`, { cause: error });
   }
 
+  const counts = new Map();
+  for (const token of parsed.tokens) {
+    if (token.kind === 'option') counts.set(token.name, (counts.get(token.name) ?? 0) + 1);
+  }
+  for (const [name, count] of counts) {
+    if (count > 1) throw new Error(`参数重复：--${name} 只能传一次`);
+  }
+
+  const server = parsed.values['server-port'];
+  const web = parsed.values['web-port'];
   return validateDevPorts({
-    serverPort: parsed.server ?? DEV_DEFAULT_SERVER_PORT,
-    webPort: parsed.web ?? DEV_DEFAULT_WEB_PORT,
+    serverPort:
+      server === undefined ? DEV_DEFAULT_SERVER_PORT : parsePortValue(server, '后端端口（-s / --server-port）'),
+    webPort: web === undefined ? DEV_DEFAULT_WEB_PORT : parsePortValue(web, '前端端口（-w / --web-port）'),
   });
 }
 

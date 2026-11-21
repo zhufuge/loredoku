@@ -30,7 +30,6 @@ import {
   MAP_STYLE_REGION_LABEL_STROKE_MIN,
   REGION_BORDER_WIDTH_MAX,
   REGION_BORDER_WIDTH_MIN,
-  RULER_ACTIVE_FONT_DELTA,
   type CharacterSlotEntry,
   type MapLinkageColor,
   type MapStyleCanvasShadow,
@@ -44,7 +43,7 @@ import {
   type ParticipantTarget,
 } from '@loredoku/shared';
 import type { CSSProperties } from 'react';
-import { cellScale, scaleFontSize, scaleLineWidth } from '@/lib/canvasScale';
+import { cellScale, scaleLineWidth } from '@/lib/canvasScale';
 
 /** v0.3.8 FEAT-D02 (docs/v0.3.8.md §FEAT-D02): the map style is a set of **map-level defaults**. `resolveMapStyle` is the single place that turns a possibly-missing / possibly-out-of-range block into a fully populated, clamped `MapStyle`, so the renderer never has to defend itself. */
 export function clampNumber(value: number, min: number, max: number): number {
@@ -390,7 +389,3 @@ export function mapStyleEquals(a: MapStyle, b: MapStyle): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** The operated row / column glyph stays `delta` px larger. */
-export function rulerActiveFontSize(fontSize: number, scale: number): number {
-  return scaleFontSize(fontSize + RULER_ACTIVE_FONT_DELTA, scale);
-}

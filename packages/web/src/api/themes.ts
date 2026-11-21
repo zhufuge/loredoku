@@ -20,7 +20,6 @@ export const themesApi = {
   /** `light` 只回 code / name —— 切换器与新建对话框用不到计数。 */
   list: (light = false) =>
     apiGet<Theme[] | ThemeOption[]>(`/themes${light ? '?light=true' : ''}`),
-  options: () => apiGet<ThemeOption[]>('/themes?light=true'),
   detail: (code: string) => apiGet<Theme>(`/themes/${code}`),
   create: (payload: CreateThemePayload) => apiPost<Theme>('/themes', payload),
   update: (code: string, payload: UpdateThemePayload) =>

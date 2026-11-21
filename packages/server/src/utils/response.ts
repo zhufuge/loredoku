@@ -1,5 +1,5 @@
 import type { Context } from 'koa';
-import { ErrorCode, type ApiFailure, type ApiSuccess } from '@loredoku/shared';
+import type { ApiFailure, ApiSuccess } from '@loredoku/shared';
 
 export function success<T>(ctx: Context, data: T, message = 'ok'): void {
   const body: ApiSuccess<T> = { code: 0, message, data };
@@ -13,6 +13,3 @@ export function failure(ctx: Context, code: number, message: string, httpStatus 
   ctx.body = body;
 }
 
-export function notImplemented(ctx: Context, message = '接口尚未实现'): void {
-  failure(ctx, ErrorCode.INTERNAL_ERROR, message, 501);
-}

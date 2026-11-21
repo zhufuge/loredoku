@@ -35,14 +35,6 @@ export function useMaps(params: MapListParams) {
   });
 }
 
-export function useMapEntry(id: number | null) {
-  return useQuery({
-    queryKey: mapKeys.detail(id ?? 0),
-    queryFn: () => mapsApi.detail(id as number),
-    enabled: id !== null && Number.isFinite(id),
-  });
-}
-
 /**
  * FEAT-K03 (docs/v0.5.0.md §2.4): every **published** map version, for the 「地图版本」 picker. `enabled` 由调用方给（弹窗常挂，传 `open` 才能把请求推迟到真点开）；不设 `staleTime`，每次重开重取，免得选到已作废的图。
  */

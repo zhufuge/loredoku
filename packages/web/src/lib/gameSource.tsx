@@ -62,13 +62,6 @@ export function GameSourceScope({
   return <GameSourceContext.Provider value={source}>{children}</GameSourceContext.Provider>;
 }
 
-/** 取当前的数据来源。**只在 `GameView` 里用** —— 它由 `GamePage` 保证一定在 scope 里渲染（自己套一层 api 实现，或被播放器套一层 bundle 实现）。 */
-export function useGameSource(): GameSource {
-  const source = useContext(GameSourceContext);
-  if (!source) throw new Error('GamePage 必须在 GameSourceScope 里渲染');
-  return source;
-}
-
 /** 「有没有人给我一个来源」—— `GamePage` 靠它决定自己走哪条分支。 */
 export function useProvidedGameSource(): GameSource | null {
   return useContext(GameSourceContext);

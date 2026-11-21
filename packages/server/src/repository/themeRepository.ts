@@ -4,7 +4,6 @@ import type {
   Theme,
   ThemeCounts,
   ThemeData,
-  ThemeOption,
   ThemeRow,
 } from '@loredoku/shared';
 import { THEME_DATA_VERSION } from '@loredoku/shared';
@@ -18,10 +17,6 @@ function toData(raw: unknown): ThemeData {
   const record = raw as Record<string, unknown>;
   const version = typeof record['version'] === 'number' ? record['version'] : THEME_DATA_VERSION;
   return { ...(record as unknown as ThemeData), version };
-}
-
-function toOption(row: ThemeRow): ThemeOption {
-  return { code: row.code, name: row.name };
 }
 
 export function toTheme(row: ThemeRow, counts: ThemeCounts): Theme {
@@ -41,10 +36,6 @@ export async function listThemeRows(): Promise<ThemeRow[]> {
     // 按创建顺序。§19 之前这里靠 `is_default` 把默认主题顶到第一位 —— 那让列表
     // 顺序承载了一个语义（「这行特殊」），删掉语义之后顺序就只是顺序。
     .orderBy('id', 'asc')) as ThemeRow[];
-}
-
-export async function listThemeOptions(): Promise<ThemeOption[]> {
-  return (await listThemeRows()).map(toOption);
 }
 
 export async function findById(id: number): Promise<ThemeRow | undefined> {

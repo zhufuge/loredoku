@@ -99,23 +99,30 @@ async function themeDataOf(code: string): Promise<{ id: number; data: ThemeData 
   };
 }
 
+async function mutateTheme(
+  code: string,
+  mutate: (id: number, data: ThemeData) => ThemeData | Promise<ThemeData>,
+): Promise<Theme> {
+  const { id, data } = await themeDataOf(code);
+  await repo.updateTheme(id, { data: await mutate(id, data) });
+  return getTheme(code);
+}
+
 /** 主题不版本化，改完即时生效；旧图不删 —— 存量谜题与版本行可能还指着它（v0.8.6 §4）。 */
 export async function uploadMark(code: string, buffer: Buffer): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const image = await processMarkImage({ kind: 'theme', id }, buffer);
-  await repo.updateTheme(id, {
-    data: { ...data, mark: { path: image.relativePath } },
+  return mutateTheme(code, async (id, data) => {
+    const image = await processMarkImage({ kind: 'theme', id }, buffer);
+    return { ...data, mark: { path: image.relativePath } };
   });
-  return getTheme(code);
 }
 
 /** v0.8.6 §4：清掉主题缺省 —— 键整个删掉（`null` 与缺席等价，但少一种口径）。 */
 export async function removeMark(code: string): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const next: ThemeData = { ...data };
-  delete next.mark;
-  await repo.updateTheme(id, { data: next });
-  return getTheme(code);
+  return mutateTheme(code, (_id, data) => {
+    const next: ThemeData = { ...data };
+    delete next.mark;
+    return next;
+  });
 }
 
 /** v0.8.7 §7：`POST /api/themes/:code/tool-icons/:icon` 少了文件部分。 */
@@ -129,25 +136,25 @@ export async function uploadToolIcon(
   icon: GameToolIconKind,
   buffer: Buffer,
 ): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const image = await processToolIconImage({ kind: 'theme', id }, icon, buffer);
-  const toolIcons: GameToolIcons = {
-    ...data.toolIcons,
-    [icon]: { path: image.relativePath },
-  };
-  await repo.updateTheme(id, { data: { ...data, toolIcons } });
-  return getTheme(code);
+  return mutateTheme(code, async (id, data) => {
+    const image = await processToolIconImage({ kind: 'theme', id }, icon, buffer);
+    const toolIcons: GameToolIcons = {
+      ...data.toolIcons,
+      [icon]: { path: image.relativePath },
+    };
+    return { ...data, toolIcons };
+  });
 }
 
 export async function removeToolIcon(code: string, icon: GameToolIconKind): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const next: ThemeData = { ...data };
-  const rest: GameToolIcons = { ...next.toolIcons };
-  delete rest[icon];
-  if (Object.keys(rest).length === 0) delete next.toolIcons;
-  else next.toolIcons = rest;
-  await repo.updateTheme(id, { data: next });
-  return getTheme(code);
+  return mutateTheme(code, (_id, data) => {
+    const next: ThemeData = { ...data };
+    const rest: GameToolIcons = { ...next.toolIcons };
+    delete rest[icon];
+    if (Object.keys(rest).length === 0) delete next.toolIcons;
+    else next.toolIcons = rest;
+    return next;
+  });
 }
 
 /**
@@ -158,21 +165,19 @@ export function ringRequired(): AppError {
 }
 
 export async function uploadRing(code: string, buffer: Buffer): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const image = await processRingImage({ kind: 'theme', id }, buffer);
-  await repo.updateTheme(id, {
-    data: { ...data, ring: { image: { path: image.relativePath } } },
+  return mutateTheme(code, async (id, data) => {
+    const image = await processRingImage({ kind: 'theme', id }, buffer);
+    return { ...data, ring: { image: { path: image.relativePath } } };
   });
-  return getTheme(code);
 }
 
 /** 移除 = 删掉 `data.ring`，所有关卡回到各自的内置细弧（长按白弧 / 校验本色环）。 */
 export async function removeRing(code: string): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const next: ThemeData = { ...data };
-  delete next.ring;
-  await repo.updateTheme(id, { data: next });
-  return getTheme(code);
+  return mutateTheme(code, (_id, data) => {
+    const next: ThemeData = { ...data };
+    delete next.ring;
+    return next;
+  });
 }
 
 /** 结算卡图标图：只碰 `verdict.icon`，同一格的 `iconText` / `title` 原样留着（删图回到作者写的 emoji）。 */
@@ -181,26 +186,24 @@ export function verdictIconRequired(): AppError {
 }
 
 export async function uploadVerdictIcon(code: string, buffer: Buffer): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const image = await processVerdictIconImage({ kind: 'theme', id }, buffer);
-  await repo.updateTheme(id, {
-    data: { ...data, verdict: { ...data.verdict, icon: { path: image.relativePath } } },
+  return mutateTheme(code, async (id, data) => {
+    const image = await processVerdictIconImage({ kind: 'theme', id }, buffer);
+    return { ...data, verdict: { ...data.verdict, icon: { path: image.relativePath } } };
   });
-  return getTheme(code);
 }
 
 /** 移除那枚图（保留文字与标题）；三项都空了就把整个 `verdict` 删掉。 */
 export async function removeVerdictIcon(code: string): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const next: ThemeData = { ...data };
-  const rest: ThemeVerdict = { ...next.verdict };
-  delete rest.icon;
-  const hasText = (rest.iconText ?? '').trim().length > 0;
-  const hasTitle = (rest.title ?? '').trim().length > 0;
-  if (!hasText && !hasTitle) delete next.verdict;
-  else next.verdict = rest;
-  await repo.updateTheme(id, { data: next });
-  return getTheme(code);
+  return mutateTheme(code, (_id, data) => {
+    const next: ThemeData = { ...data };
+    const rest: ThemeVerdict = { ...next.verdict };
+    delete rest.icon;
+    const hasText = (rest.iconText ?? '').trim().length > 0;
+    const hasTitle = (rest.title ?? '').trim().length > 0;
+    if (!hasText && !hasTitle) delete next.verdict;
+    else next.verdict = rest;
+    return next;
+  });
 }
 
 /** 只改给的项（改标题不该抹掉图标文字）；给空串 = 恢复内置，三项都空就删整个键。 */
@@ -208,17 +211,17 @@ export async function updateVerdictText(
   code: string,
   patch: { iconText?: string; title?: string },
 ): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const current: ThemeVerdict = { ...data.verdict };
-  if (patch.iconText !== undefined) current.iconText = patch.iconText.trim();
-  if (patch.title !== undefined) current.title = patch.title.trim();
-  const next: ThemeData = { ...data };
-  const hasText = (current.iconText ?? '').length > 0;
-  const hasTitle = (current.title ?? '').length > 0;
-  if (!hasText && !hasTitle && !current.icon?.path) delete next.verdict;
-  else next.verdict = current;
-  await repo.updateTheme(id, { data: next });
-  return getTheme(code);
+  return mutateTheme(code, (_id, data) => {
+    const current: ThemeVerdict = { ...data.verdict };
+    if (patch.iconText !== undefined) current.iconText = patch.iconText.trim();
+    if (patch.title !== undefined) current.title = patch.title.trim();
+    const next: ThemeData = { ...data };
+    const hasText = (current.iconText ?? '').length > 0;
+    const hasTitle = (current.title ?? '').length > 0;
+    if (!hasText && !hasTitle && !current.icon?.path) delete next.verdict;
+    else next.verdict = current;
+    return next;
+  });
 }
 
 /** 配色与换图各改各的：改颜色不该顺手动那一圈图（v0.9.3 §3）。 */
@@ -226,18 +229,16 @@ export async function updateCheckStyle(
   code: string,
   patch: { passColor?: string; failColor?: string },
 ): Promise<Theme> {
-  const { id, data } = await themeDataOf(code);
-  const current: Partial<ThemeCheckColors> = data.checkStyle ?? {};
-  await repo.updateTheme(id, {
-    data: {
+  return mutateTheme(code, (_id, data) => {
+    const current: Partial<ThemeCheckColors> = data.checkStyle ?? {};
+    return {
       ...data,
       checkStyle: {
         passColor: patch.passColor ?? current.passColor ?? THEME_CHECK_PASS_COLOR,
         failColor: patch.failColor ?? current.failColor ?? THEME_CHECK_FAIL_COLOR,
       },
-    },
+    };
   });
-  return getTheme(code);
 }
 
 /** 还有东西就拦（§8 护栏 3）：只数活跃行，软删版本行由 `repo.deleteTheme` 顺手抬走。 */

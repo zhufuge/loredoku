@@ -54,6 +54,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
+import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 // 读 `.env` 的方式（覆盖顺序、不写 process.env）在播放器那边已经定好了，不重复实现。
 import { loadRootEnv } from '../packages/web/scripts/playerEnv.mjs';
@@ -90,34 +91,35 @@ const USAGE = [
  * @returns {{ site: string | null, bundle: string | null, noBuild: boolean, dryRun: boolean }}
  */
 export function parsePublishArgs(argv) {
-  const options = { site: null, bundle: null, noBuild: false, dryRun: false };
-  const needValue = (flag, next) => {
-    if (next === undefined) throw new Error(`${flag} 后面要跟一个值`);
-    return next;
-  };
-  for (let i = 0; i < argv.length; i += 1) {
-    const arg = argv[i];
-    const next = argv[i + 1];
-    if (arg.startsWith('--site=')) options.site = arg.slice('--site='.length) || null;
-    else if (arg === '--site') {
-      options.site = needValue('--site', next);
-      i += 1;
-    }
-    else if (arg.startsWith('--bundle=')) options.bundle = arg.slice('--bundle='.length) || null;
-    else if (arg === '--bundle') {
-      options.bundle = needValue('--bundle', next);
-      i += 1;
-    }
-    else if (arg === '--no-build') options.noBuild = true;
-    else if (arg === '--dry-run') options.dryRun = true;
-    else if (arg === '--help' || arg === '-h') {
-      console.log(USAGE);
-      process.exit(0);
-    } else {
-      throw new Error(`不认识的参数：${arg}\n\n${USAGE}`);
-    }
+  if (argv.includes('--help') || argv.includes('-h')) {
+    console.log(USAGE);
+    process.exit(0);
   }
-  return options;
+  let parsed;
+  try {
+    parsed = parseArgs({
+      args: argv,
+      options: {
+        site: { type: 'string' },
+        bundle: { type: 'string' },
+        'no-build': { type: 'boolean' },
+        'dry-run': { type: 'boolean' },
+      },
+      strict: true,
+      allowPositionals: false,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`不认识的参数或格式错误：${message}\n\n${USAGE}`, { cause: error });
+  }
+  const site = parsed.values.site;
+  const bundle = parsed.values.bundle;
+  return {
+    site: site === undefined || site === '' ? null : site,
+    bundle: bundle === undefined || bundle === '' ? null : bundle,
+    noBuild: parsed.values['no-build'] === true,
+    dryRun: parsed.values['dry-run'] === true,
+  };
 }
 
 /**

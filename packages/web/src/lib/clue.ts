@@ -47,11 +47,6 @@ export function parseClue(clue: string): ClueSegment[] {
   return segments;
 }
 
-/** Inline rendering: renders segments as React children. Bold segments get `font-weight: 700`. */
-export function renderClueSegments(segments: ClueSegment[]): Array<{ text: string; bold: boolean }> {
-  return segments;
-}
-
 /** Truncates clue text for display (2 lines on the participant box). */
 export function truncateClue(clue: string, maxLen = 40): string {
   if (clue.length <= maxLen) return clue;

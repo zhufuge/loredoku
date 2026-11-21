@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseDotenv } from 'dotenv';
 
 /** `packages/web/scripts/` 往上三级 = 仓库根（`.env` 在那里）。 */
 export const REPO_ROOT = path.resolve(
@@ -21,29 +22,12 @@ export function envFileNames(mode = 'production') {
   return ['.env', '.env.local', `.env.${mode}`, `.env.${mode}.local`];
 }
 
-/** 够用的 `.env` 解析：注释、`export`、单行 `KEY=VALUE`、成对的单双引号、行尾 `# 注释`。 不做变量展开（`$FOO`）—— 包路径用不上，而展开正是 dotenv 那类库最容易踩的坑。 */
+/** `dotenv.parse` 的薄包装：只保留合法环境变量名，坏行不影响其余条目。 */
 export function parseEnv(text) {
-  const out = {};
-  for (const raw of text.split(/\r?\n/)) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const body = line.replace(/^export\s+/, '');
-    const eq = body.indexOf('=');
-    if (eq < 0) continue;
-    const key = body.slice(0, eq).trim();
-    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
-    let value = body.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    } else {
-      value = value.replace(/\s+#.*$/, '').trim();
-    }
-    out[key] = value;
-  }
-  return out;
+  const parsed = parseDotenv(text);
+  return Object.fromEntries(
+    Object.entries(parsed).filter(([key]) => /^[A-Za-z_][A-Za-z0-9_]*$/.test(key)),
+  );
 }
 
 /** 读那几份 `.env`，返回合并后的普通对象（**不写 `process.env`**）。 `root` 可换，单测因此在临时目录里就能验覆盖顺序，不依赖本机那份 `.env`。 */

@@ -274,27 +274,3 @@ export async function existingCharacterIds(ids: number[]): Promise<Set<number>> 
   return new Set(rows.map((row) => Number(row.id)));
 }
 
-export interface CharacterSlotMeta {
-  hasAvatar: boolean;
-  /** A colour block counts as an appearance too. */
-  hasAppearance: boolean;
-}
-
-/** CLAR-603 P2 (docs/v0.3.1.md §3.3)：无头像视为未启用、不计数；v0.5.1 起色块也算外观，应测 `hasAppearance`。
- *  返回的 map 只含存在的 id。 */
-export async function characterSlotMetaByIds(
-  ids: number[],
-): Promise<Map<number, CharacterSlotMeta>> {
-  const meta = new Map<number, CharacterSlotMeta>();
-  if (ids.length === 0) return meta;
-  const rows = (await db('characters').whereIn('id', ids).select('id', 'avatar_path', 'bg_color')) as Array<{
-    id: number | string;
-    avatar_path: string | null;
-    bg_color: string | null;
-  }>;
-  for (const row of rows) {
-    const hasAvatar = row.avatar_path !== null;
-    meta.set(Number(row.id), { hasAvatar, hasAppearance: hasAvatar || row.bg_color !== null });
-  }
-  return meta;
-}
