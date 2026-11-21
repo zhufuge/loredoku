@@ -1,6 +1,5 @@
 import type {
   MapStyle,
-  RegionLabelStyle,
   RegionLineStyle,
   RegionStyle,
   RegionStyleOverride,

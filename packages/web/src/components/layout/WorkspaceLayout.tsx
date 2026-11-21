@@ -28,7 +28,7 @@ import {
 export function WorkspaceLayout(): JSX.Element {
   const { themeCode = '' } = useParams<{ themeCode: string }>();
   const themesQuery = useThemes();
-  const themes = themesQuery.data ?? [];
+  const themes = useMemo(() => themesQuery.data ?? [], [themesQuery.data]);
   const theme = themes.find((entry) => entry.code === themeCode.toLowerCase()) ?? null;
 
   // 记住最后一个工作空间，只为旧地址（`/maps`）与全屏页面（编辑器）兜底。
@@ -125,7 +125,7 @@ export function ThemeEntryRedirect({
   module,
 }: { module?: ModuleKey | 'play' } = {}): JSX.Element {
   const themesQuery = useThemes();
-  const themes = themesQuery.data ?? [];
+  const themes = useMemo(() => themesQuery.data ?? [], [themesQuery.data]);
 
   if (themesQuery.isLoading) return <LoadingScreen caption="正在加载工作台…" />;
 

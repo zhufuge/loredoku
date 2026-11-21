@@ -40,8 +40,6 @@ const uploadRingMutate = vi.fn((_file: File) => Promise.resolve());
 const removeRingMutate = vi.fn(() => Promise.resolve());
 /** v0.9.3 §3：校验样式 —— 改颜色收一个 patch，圈图同标记那样上传 / 移除。 */
 const updateCheckStyleMutate = vi.fn((_patch: unknown) => Promise.resolve());
-const uploadCheckRingMutate = vi.fn((_file: File) => Promise.resolve());
-const removeCheckRingMutate = vi.fn(() => Promise.resolve());
 /** 结算卡的图标图与两句话。 */
 const uploadVerdictIconMutate = vi.fn((_file: File) => Promise.resolve());
 const removeVerdictIconMutate = vi.fn(() => Promise.resolve());

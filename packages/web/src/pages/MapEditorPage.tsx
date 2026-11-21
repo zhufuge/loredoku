@@ -28,7 +28,6 @@ import {
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -73,7 +72,7 @@ import { useEditorShortcuts } from '@/hooks/useEditorShortcuts';
 import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { isInBounds } from '@/lib/grid';
 import { canPlaceAssetOnLayer } from '@/lib/canvasLayers';
-import { infoDrawerOpen, reduceEditorFocus, regionFocusSelection } from '@/lib/editorFocus';
+import { infoDrawerOpen, regionFocusSelection } from '@/lib/editorFocus';
 import { resolveEditorInit } from '@/lib/editorInit';
 import type { Coord } from '@/lib/region';
 import { findOverlap, isConnected } from '@/lib/region';
@@ -460,13 +459,6 @@ export function MapEditorPage(): JSX.Element {
     uploadCoverMutation.isPending ||
     removeCoverMutation.isPending ||
     resizeMutation.isPending;
-  const maskVisible =
-    savingBusy ||
-    saveMaskVisible ||
-    forkSaveMutation.isPending ||
-    updateMapMutation.isPending ||
-    uploadCoverMutation.isPending ||
-    removeCoverMutation.isPending;
 
   /** 抽屉里改过、但还没写库的条目字段 —— 与画布的 dirty 并列。 */
   const entryDirty = pendingEntryInfo !== null;

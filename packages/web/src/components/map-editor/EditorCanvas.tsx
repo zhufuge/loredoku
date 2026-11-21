@@ -226,7 +226,6 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   /** Keeps `centerView` stable when only unrelated style fields change. */
   const styleRef = useRef(style);
   styleRef.current = style;
-  const styleCellSize = style.cellSize;
 
   const total = gridSize * cellSize;
 
@@ -274,7 +273,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     viewRef.current.onPan(
       centeredPan(rect, insets, gridSize, effectiveCellSize(next, styleRef.current), 1),
     );
-  }, [gridSize, showRulers, styleCellSize, rulerStrip]);
+  }, [gridSize, showRulers, rulerStrip]);
 
   /**
    * One zoom step around the viewport centre — the bottom bar's ±
@@ -575,7 +574,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
   };
 
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>): void => {
+  const handlePointerUp = (_event: ReactPointerEvent<HTMLDivElement>): void => {
     const interaction = interactionRef.current;
     interactionRef.current = null;
 

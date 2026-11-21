@@ -63,6 +63,7 @@ export function useBundleGameSource(code: string): GameSource {
 
   return useMemo<GameSource>(
     () => ({
+      /* oxlint-disable react/hooks -- GameSource 的方法在 useMemo 工厂里调用 query hook；调用点固定在渲染期，顺序稳定 */
       kind: 'bundle',
       /**
        * 主题名来自 `manifest.theme` —— 不需要按编码再查一次（包自己就是那个主题）。
@@ -130,6 +131,7 @@ export function useBundleGameSource(code: string): GameSource {
        * 排好，见 `gameRepository.listGameRowsByTheme`）。
        */
       useCatalog() {
+        /* oxlint-disable react-hooks/exhaustive-deps -- manifest 在工厂闭包里，外层 useMemo 已重建；这里必须跟着它变 */
         const data = useMemo<GameLevelRef[] | null>(
           () =>
             manifest
@@ -137,8 +139,10 @@ export function useBundleGameSource(code: string): GameSource {
               : null,
           [manifest],
         );
+        /* oxlint-enable react-hooks/exhaustive-deps */
         return { data, isLoading: manifestQuery.isLoading, isError: manifestQuery.isError };
       },
+      /* oxlint-enable react/hooks */
     }),
     [
       code,

@@ -13,16 +13,18 @@ import { useEffect, useMemo, useState } from 'react';
  * - 入参数组每次渲染都是新引用，所以依赖用**内容拼出来的签名**，不是数组本身。
  */
 export function useImagePreload(urls: (string | null | undefined)[]): boolean {
+  // 先用内容拼出稳定签名，再让 hook 依赖这个字符串；直接依赖数组会让每次渲染都重算。
+  const joined = urls.join('\n');
   const signature = useMemo(() => {
     const unique: string[] = [];
     const seen = new Set<string>();
-    for (const url of urls) {
+    for (const url of joined.split('\n')) {
       if (!url || seen.has(url)) continue;
       seen.add(url);
       unique.push(url);
     }
     return unique.join('\n');
-  }, [urls.join('\n')]);
+  }, [joined]);
 
   const [loaded, setLoaded] = useState<string | null>(null);
 
@@ -38,16 +40,16 @@ export function useImagePreload(urls: (string | null | undefined)[]): boolean {
     };
     for (const url of list) {
       const image = new Image();
-      image.onload = finish;
-      image.onerror = finish;
+      image.addEventListener('load', finish);
+      image.addEventListener('error', finish);
       image.src = url;
       images.push(image);
     }
     return () => {
       cancelled = true;
       for (const image of images) {
-        image.onload = null;
-        image.onerror = null;
+        image.removeEventListener('load', finish);
+        image.removeEventListener('error', finish);
       }
     };
   }, [signature]);

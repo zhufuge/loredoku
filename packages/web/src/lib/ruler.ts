@@ -5,7 +5,7 @@ import {
   RULER_FONT_SIZE,
   RULER_SIZE,
 } from '@loredoku/shared';
-import { cellScale, scaleFontSize } from '@/lib/canvasScale';
+import { scaleFontSize } from '@/lib/canvasScale';
 import { estimateTextWidth } from '@/lib/textWidth';
 
 /**

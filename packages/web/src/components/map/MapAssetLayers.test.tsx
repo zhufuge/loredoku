@@ -539,12 +539,13 @@ describe('层 4 · 物品层 — 名称提示在最上层、默认在指针上�
     });
   };
 
-  const picture = (): CellMap => new Map([['0,0', { item: { assetId: 2, w: 1, h: 1 } }]]);
+  const singleItemPicture = (): CellMap =>
+    new Map([['0,0', { item: { assetId: 2, w: 1, h: 1 } }]]);
   const tip = (): HTMLElement | null =>
     container.querySelector('[data-testid="item-name-tip"]');
 
   it('纸片自己挂一层，压得比物品层高', () => {
-    paint(picture(), { x: 50, y: 50 });
+    paint(singleItemPicture(), { x: 50, y: 50 });
     const span = tip();
     expect(span).not.toBeNull();
 
@@ -556,7 +557,7 @@ describe('层 4 · 物品层 — 名称提示在最上层、默认在指针上�
   });
 
   it('有光标坐标时，纸片落在指针正上方', () => {
-    paint(picture(), { x: 250, y: 300 });
+    paint(singleItemPicture(), { x: 250, y: 300 });
     const style = tip()!.style;
     expect(style.left).toBe('250px');
     // 底边贴在指针上方 18px 处 —— `translateY(-100%)` 把纸片往上提。
@@ -565,14 +566,14 @@ describe('层 4 · 物品层 — 名称提示在最上层、默认在指针上�
   });
 
   it('指针贴着画布顶边时翻到下方，仍然水平居中', () => {
-    paint(picture(), { x: 250, y: 20 });
+    paint(singleItemPicture(), { x: 250, y: 20 });
     const style = tip()!.style;
     expect(style.top).toBe('38px');
     expect(style.transform).toBe('translate(-50%, 0)');
   });
 
   it('指针贴着画布右边时从锚点向左展开', () => {
-    paint(picture(), { x: 480, y: 300 });
+    paint(singleItemPicture(), { x: 480, y: 300 });
     expect(tip()!.style.transform).toBe('translate(-100%, -100%)');
   });
 

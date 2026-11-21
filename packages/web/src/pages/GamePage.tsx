@@ -147,6 +147,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const slug = (params.slug ?? params.key) || null;
   const navigate = useNavigate();
 
+  // oxlint-disable-next-line react/hooks -- GameSource 的 hook 适配器；调用点在渲染期、顺序固定
   const gameQuery = source.useGame(slug);
   /**
    * 存档按游戏自己的 slug 分键（数据比路由参数更可信）。
@@ -159,7 +160,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
       ? source.storageId(slug)
       : null;
   // A deployed snapshot may reference items/characters that are now inactive.
+  // oxlint-disable-next-line react/hooks -- GameSource 的 hook 适配器；调用点在渲染期、顺序固定
   const assetsQuery = source.useAssets();
+  // oxlint-disable-next-line react/hooks -- 同上
   const charactersQuery = source.useCharacters();
   /**
    * 整份关卡清单 —— 只为定案卡上那枚「下一关」。顺序就是列表页看到的
@@ -168,6 +171,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    *
    * 读不出来（接口失败 / 包里没清单）→ `null`，那枚按钮不出现。
    */
+  // oxlint-disable-next-line react/hooks -- 同上
   const catalogQuery = source.useCatalog();
 
   const {
@@ -959,7 +963,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
      * issue，所以不会混进 `x`。数字与玩家看见的圈一一对应，不另算一套。
      */
     const correct = items.filter((item) => item.passed).length;
-    const total = slots.filter((slot) => slot !== null).length;
+    const slotTotal = slots.filter((slot) => slot !== null).length;
 
     checkRunIdRef.current += 1;
     setCheckRun({ items, revealed: 0, runId: checkRunIdRef.current });
@@ -990,7 +994,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
      */
     pendingResultRef.current = validation.passed
       ? { kind: 'passed', elapsedMs: elapsed }
-      : { kind: 'failed', correct, total };
+      : { kind: 'failed', correct, total: slotTotal };
   };
 
   /**

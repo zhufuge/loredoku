@@ -11,12 +11,25 @@ import { useImagePreload } from './useImagePreload';
 class FakeImage {
   static instances: FakeImage[] = [];
 
-  onload: (() => void) | null = null;
-  onerror: (() => void) | null = null;
   src = '';
+  private listeners = new Map<string, Set<() => void>>();
 
   constructor() {
     FakeImage.instances.push(this);
+  }
+
+  addEventListener(type: string, listener: () => void): void {
+    const set = this.listeners.get(type) ?? new Set<() => void>();
+    set.add(listener);
+    this.listeners.set(type, set);
+  }
+
+  removeEventListener(type: string, listener: () => void): void {
+    this.listeners.get(type)?.delete(listener);
+  }
+
+  emit(type: 'load' | 'error'): void {
+    for (const listener of this.listeners.get(type) ?? []) listener();
   }
 
   static take(): FakeImage[] {
@@ -73,10 +86,10 @@ describe('useImagePreload — 页面等着的那几张图（v0.11.2）', () => {
     const images = FakeImage.take();
     expect(images).toHaveLength(2);
 
-    act(() => images[0]?.onload?.());
+    act(() => images[0]?.emit('load'));
     expect(ready()).toBe('no');
 
-    act(() => images[1]?.onload?.());
+    act(() => images[1]?.emit('load'));
     expect(ready()).toBe('yes');
   });
 
@@ -85,7 +98,7 @@ describe('useImagePreload — 页面等着的那几张图（v0.11.2）', () => {
     expect(ready()).toBe('no');
 
     const [image] = FakeImage.take();
-    act(() => image?.onerror?.());
+    act(() => image?.emit('error'));
     expect(ready()).toBe('yes');
   });
 
@@ -97,20 +110,20 @@ describe('useImagePreload — 页面等着的那几张图（v0.11.2）', () => {
   it('地址换了要重新等 —— 上一轮的就绪不能顶替这一轮', () => {
     render(['/a.webp']);
     const [first] = FakeImage.take();
-    act(() => first?.onload?.());
+    act(() => first?.emit('load'));
     expect(ready()).toBe('yes');
 
     render(['/b.webp']);
     expect(ready()).toBe('no');
     const [second] = FakeImage.take();
-    act(() => second?.onload?.());
+    act(() => second?.emit('load'));
     expect(ready()).toBe('yes');
   });
 
   it('每次渲染都传新数组也不会反复重新加载', () => {
     render(['/a.webp']);
     const [first] = FakeImage.take();
-    act(() => first?.onload?.());
+    act(() => first?.emit('load'));
     expect(ready()).toBe('yes');
 
     render(['/a.webp']);

@@ -9,7 +9,6 @@ import {
   puzzleDraftSchema,
   validatePuzzleReferences,
   type Character,
-  type CharacterSlotEntry,
   type Asset,
   type ParticipantTarget,
   type PublishedMapVersion,

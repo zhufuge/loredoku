@@ -2,7 +2,7 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { MapGameSummary, Theme, ThemeData, ThemeDifficultyTier } from '@loredoku/shared';
+import type { MapGameSummary, Theme, ThemeData } from '@loredoku/shared';
 import { recordGameCompletion } from '@/lib/gameCompletion';
 import { gameTimerKey } from '@/lib/gameTimer';
 import { GamesPage } from './GamesPage';
@@ -88,13 +88,13 @@ describe('GamesPage', () => {
       (node) => node.textContent?.trim().includes(label) === true,
     );
 
-  function mount(path = '/play'): void {
+  function mount(initialPath = '/play'): void {
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
     act(() => {
       root.render(
-        <MemoryRouter initialEntries={[path]}>
+        <MemoryRouter initialEntries={[initialPath]}>
           <Routes>
             <Route path="/play" element={<GamesPage />} />
             <Route path="/:themeCode/play" element={<GamesPage />} />
@@ -321,11 +321,11 @@ describe('GamesPage', () => {
       container.remove();
       mount();
 
-      const covers = Array.from(
+      const coverNodes = Array.from(
         document.querySelectorAll<HTMLElement>('[data-testid="game-cover"]'),
       );
-      expect(covers).toHaveLength(2);
-      const glows = covers.map((cover) => cover.querySelectorAll('[data-testid="game-glow"]').length);
+      expect(coverNodes).toHaveLength(2);
+      const glows = coverNodes.map((cover) => cover.querySelectorAll('[data-testid="game-glow"]').length);
       // 第一张是定案卡：0 层光；第二张没完成：光源照旧。
       expect(glows[0]).toBe(0);
       expect(glows[1]).toBeGreaterThan(0);

@@ -154,7 +154,7 @@ export function useGameViewport({
       });
       return isInBounds(coord, gridSize) ? coord : null;
     },
-    [gridSize, pan, zoom, cellSize],
+    [containerRef, gridSize, pan, zoom, cellSize],
   );
 
   /**
@@ -172,7 +172,7 @@ export function useGameViewport({
         cellSize,
       });
     },
-    [pan, zoom, cellSize],
+    [containerRef, pan, zoom, cellSize],
   );
 
   /**

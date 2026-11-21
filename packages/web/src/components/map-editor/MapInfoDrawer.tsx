@@ -26,7 +26,6 @@ import {
   MAP_STYLE_SHADOW_OFFSET_MIN,
   UI_Z,
   type MapStyle,
-  type RegionStyle,
 } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 import { ColorInput } from '@/components/ui/color-input';

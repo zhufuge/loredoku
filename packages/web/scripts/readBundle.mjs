@@ -128,7 +128,7 @@ export function readBundle(inputPath) {
   try {
     manifest = JSON.parse(rawManifest.toString('utf8'));
   } catch (error) {
-    throw new Error(`manifest.json 不是合法 JSON：${error.message}`);
+    throw new Error(`manifest.json 不是合法 JSON：${error.message}`, { cause: error });
   }
 
   const code = manifest?.theme?.code;

@@ -24,7 +24,6 @@ import {
   INACTIVE_ACTIVATION,
   reduceLinkageActivation,
   type ActivationMode,
-  type LinkageActivationState,
 } from '@/lib/linkageActivation';
 
 /**

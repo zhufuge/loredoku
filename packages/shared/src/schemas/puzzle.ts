@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import {
-  DEFAULT_LINKAGE_COLORS,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   LINKAGE_COLOR_MAX_COUNT,
@@ -18,8 +17,6 @@ import {
 import { characterSlotEntrySchema, mapDraftSchema, mapLinkageColorSchema } from './mapDraft';
 import { gameToolIconsSchema, moveLegacyImageKeys, optionalUploadedImageSchema } from './common';
 import { themeCodeSchema } from './theme';
-
-const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 
 /**
  * **v1** 的底图引用（docs/v0.5.0.md §5.1）：只记「哪张图的哪个版本 + 尺寸」，

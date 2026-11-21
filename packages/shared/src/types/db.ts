@@ -3,7 +3,6 @@ import type {
   AssetType,
   CardRotation,
   CharacterGender,
-  GameDifficulty,
   MapDraft,
   ThemeData,
 } from './domain';

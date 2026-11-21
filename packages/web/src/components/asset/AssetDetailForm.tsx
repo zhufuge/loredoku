@@ -71,12 +71,14 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
    * 会重取的动作，把用户改了一半的名字 / 类型按回服务器值。
    * 表单是草稿，后台刷新不该写它。
    */
+  /* oxlint-disable react-hooks/exhaustive-deps -- 只在换资源时按服务器值重置，同一条资源的刷新不该覆盖草稿 */
   useEffect(() => {
     setName(asset.name);
     setType(asset.type);
     setBlocking(asset.blocking);
     setDecoration(asset.decoration === true);
   }, [asset.id]);
+  /* oxlint-enable react-hooks/exhaustive-deps */
 
   const saving = updateMutation.isPending;
   // An asset needs a look somewhere before it can be enabled.

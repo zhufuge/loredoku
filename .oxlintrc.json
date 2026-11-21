@@ -1,9 +1,7 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "react", "unicorn", "import", "oxc"],
+  "plugins": ["eslint", "typescript", "react", "unicorn", "import", "oxc"],
   "env": {
-    "browser": true,
-    "node": true,
     "es2024": true
   },
   "categories": {
@@ -20,28 +18,59 @@
         "ignoreRestSiblings": true
       }
     ],
-    "eslint/no-control-regex": "off",
-    "eslint/no-underscore-dangle": "off",
-    "eslint/preserve-caught-error": "off",
-    "import/no-named-as-default-member": "off",
-    "import/no-unassigned-import": "off",
-    "react/exhaustive-effect-dependencies": "off",
-    "react/globals": "off",
-    "react/incompatible-library": "off",
-    "react/memo-dependencies": "off",
-    "react/preserve-manual-memoization": "off",
+    "eslint/no-underscore-dangle": [
+      "warn",
+      {
+        "allow": ["__dirname", "__PLAYER_BUNDLE_CODE__"]
+      }
+    ],
+    "import/no-unassigned-import": [
+      "warn",
+      {
+        "allow": ["**/*.css", "dotenv/config"]
+      }
+    ],
     "react/react-in-jsx-scope": "off",
-    "react/refs": "off",
     "react/set-state-in-effect": "off",
+    "react/refs": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/incompatible-library": "off",
     "react/use-memo": "off",
-    "react-hooks/exhaustive-deps": "off",
+    "react/globals": "off",
+    "react/exhaustive-effect-dependencies": "off",
+    "react/memo-dependencies": "off",
+    "react-hooks/exhaustive-deps": "warn",
     "unicorn/consistent-function-scoping": "off",
     "unicorn/no-array-sort": "off",
-    "unicorn/no-useless-fallback-in-spread": "off",
-    "unicorn/no-useless-spread": "off",
-    "unicorn/prefer-add-event-listener": "off",
-    "unicorn/require-module-specifiers": "off"
+    "unicorn/require-module-specifiers": "off",
+    "import/no-named-as-default-member": "off"
   },
+  "overrides": [
+    {
+      "files": ["packages/web/src/**"],
+      "env": {
+        "browser": true
+      }
+    },
+    {
+      "files": [
+        "packages/server/**",
+        "packages/web/scripts/**",
+        "packages/web/*.ts",
+        "packages/web/*.mjs",
+        "scripts/**"
+      ],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/test/**/*.ts"],
+      "env": {
+        "vitest": true
+      }
+    }
+  ],
   "ignorePatterns": [
     "**/node_modules/**",
     "**/dist/**",

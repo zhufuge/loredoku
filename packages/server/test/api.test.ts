@@ -2487,7 +2487,7 @@ describe('v0.7.1 谜题版本与部署', () => {
   });
 
   it('同一谜题两个版本的默认路径相同 —— 第二个被服务端挡住（Q10）', async () => {
-    const { draftId, versionId, puzzleName } = await deployablePuzzle(`Same ${uniqueCode('p')}`);
+    const { versionId, puzzleName } = await deployablePuzzle(`Same ${uniqueCode('p')}`);
     const first = await api
       .post(`/api/puzzles/${versionId}/games`)
       .send({ name: puzzleName, difficulty: 3 });
@@ -2829,22 +2829,6 @@ describe('删除主题是硬删 (v0.8.3 §15)', () => {
     return code;
   }
 
-  /** 一个能在指定主题里部署的谜题版本：发布要有名册，名册上得有位带头像的人。 */
-  async function deployableIn(code: string, name: string): Promise<number> {
-    const mapId = await createMap({ name, gridSize: 6, themeCode: code });
-    const versionNo = await publish(mapId);
-    const draftId = await createPuzzle({ name: `${name} 谜题`, mapId, mapVersionNo: versionNo });
-    const characterId = await createCharacterWithAvatar({ themeCode: code });
-    const initial = await api.get(`/api/puzzles/${draftId}`);
-    const draft = initial.body.data.data;
-    draft.characterSlots[0] = { characterId };
-    const saved = await api
-      .put(`/api/puzzles/${draftId}`)
-      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
-    expect(saved.status).toBe(200);
-    return publishPuzzle(draftId);
-  }
-
   it('空主题删掉之后，同一个编码可以立刻重建', async () => {
     const code = await newTheme('hard');
 
@@ -2912,23 +2896,23 @@ describe('删除主题是硬删 (v0.8.3 §15)', () => {
 });
 
 afterAll(async () => {
-  const { db } = await import('../src/db/knex');
+  const { db: knexDb } = await import('../src/db/knex');
   // 游戏先删：`games.puzzle_id` 是 ON DELETE RESTRICT，谜题还挂着游戏时删不掉。
   if (createdPuzzles.length) {
-    await db('games').whereIn('puzzle_id', createdPuzzles).del();
-    await db('puzzles').whereIn('id', createdPuzzles).del();
+    await knexDb('games').whereIn('puzzle_id', createdPuzzles).del();
+    await knexDb('puzzles').whereIn('id', createdPuzzles).del();
   }
   // 先删这批用例自己记账的版本行（有些工作条目已被删，按 root_id 扫不到），再按
   // 血统兜一遍，最后删草稿行。
-  if (createdVersionRows.length) await db('maps').whereIn('id', createdVersionRows).del();
+  if (createdVersionRows.length) await knexDb('maps').whereIn('id', createdVersionRows).del();
   if (createdMapEntries.length) {
-    const roots = db('maps').whereIn('id', createdMapEntries).select('root_id');
-    await db('maps').whereNot('version', 'draft').whereIn('root_id', roots).del();
-    await db('maps').whereIn('id', createdMapEntries).del();
+    const roots = knexDb('maps').whereIn('id', createdMapEntries).select('root_id');
+    await knexDb('maps').whereNot('version', 'draft').whereIn('root_id', roots).del();
+    await knexDb('maps').whereIn('id', createdMapEntries).del();
   }
-  if (createdAssets.length) await db('assets').whereIn('id', createdAssets).del();
-  if (createdCharacters.length) await db('characters').whereIn('id', createdCharacters).del();
-  await db.destroy();
+  if (createdAssets.length) await knexDb('assets').whereIn('id', createdAssets).del();
+  if (createdCharacters.length) await knexDb('characters').whereIn('id', createdCharacters).del();
+  await knexDb.destroy();
   for (const dir of uploadedAvatarDirs) {
     await rm(dir, { recursive: true, force: true });
   }

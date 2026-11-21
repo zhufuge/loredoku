@@ -35,6 +35,7 @@ export function useApiGameSource(): GameSource {
 
   return useMemo<GameSource>(
     () => ({
+      /* oxlint-disable react/hooks -- GameSource 的方法在 useMemo 工厂里调用 query hook；调用点固定在渲染期，顺序稳定 */
       kind: 'api',
       useGame(key) {
         const query = useGameDetail(key);
@@ -87,6 +88,7 @@ export function useApiGameSource(): GameSource {
         );
         return { data, isLoading: query.isLoading, isError: query.isError };
       },
+      /* oxlint-enable react/hooks */
     }),
     [markOf, toolIconsOf, ringOf, checkColorsOf, verdictOf],
   );

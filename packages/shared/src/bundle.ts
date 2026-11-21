@@ -2,7 +2,6 @@ import { BUNDLE_FORMAT, BUNDLE_FORMAT_VERSION } from './constants';
 import type {
   Asset,
   Character,
-  GameDifficulty,
   MapDraft,
   MapGameSummary,
   ParticipantTarget,

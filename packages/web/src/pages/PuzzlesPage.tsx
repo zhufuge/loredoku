@@ -80,7 +80,7 @@ export function PuzzlesPage(): JSX.Element {
 
   useEffect(() => {
     document.title = workspace ? `${workspace.theme.name} · 谜题 · 格物` : '谜题 · 格物';
-  }, [workspace?.theme.name]);
+  }, [workspace]);
 
   const resetPages = (): void => {
     setDraftPage(1);

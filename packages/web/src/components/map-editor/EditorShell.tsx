@@ -3,8 +3,6 @@ import { UI_Z } from '@loredoku/shared';
 import { LoadingScreen, LoredokuLoader } from '@/components/common/LoredokuLoader';
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,

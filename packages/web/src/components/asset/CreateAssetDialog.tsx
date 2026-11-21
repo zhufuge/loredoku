@@ -106,7 +106,6 @@ export function CreateAssetDialog({
     resolver: zodResolver(schema),
     defaultValues: defaultsFor(boundaryThemeCode),
   });
-  const appearanceMode = watch('appearanceMode');
   const type = watch('type');
   // The picked file waits for the create call to hand back an id; a colour
   // block needs no image at all.

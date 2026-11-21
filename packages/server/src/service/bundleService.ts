@@ -438,7 +438,7 @@ async function collectSideTables(
 
   // 序号补齐：被格子引用的形态 `buildBundleIdMaps` 已经发过号，
   // 这里只给每个被引资源的**首形态**补一个 —— 没写 variantId 的格子画的就是它。
-  for (const assetId of [...ids.assets.keys()]) {
+  for (const assetId of ids.assets.keys()) {
     if (!assets.has(assetId)) continue;
     const first = assets.get(assetId)!.variants[0];
     if (first && !ids.variants.has(first.id)) {

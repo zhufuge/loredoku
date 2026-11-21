@@ -18,7 +18,6 @@ import {
 import {
   applyRectClick,
   cellKey,
-  clearCells,
   selectAllCells,
   selectColumn,
   selectRectangle,

@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   GAME_TOOL_ICON_LABELS,
-  DEFAULT_MAP_STYLE,
   MAP_STYLE_RULER_DEFAULT_SYMBOLS,
   resolveDifficultyTiers,
 } from '@loredoku/shared';

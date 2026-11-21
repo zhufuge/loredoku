@@ -6,7 +6,6 @@ import {
   LINKAGE_COLOR_KEY_PATTERN,
   LINKAGE_COLOR_LABEL_MAX_LENGTH,
   LINKAGE_COLOR_MAX_COUNT,
-  LINKAGE_COLOR_MIN_COUNT,
   MAP_STYLE_CELL_SIZE_MAX,
   MAP_STYLE_CELL_SIZE_MIN,
   MAP_STYLE_COLOR_PATTERN,
@@ -471,12 +470,12 @@ export function itemOutlineFilter(
   const scaled = styleLineWidth(outline.width, cellSize);
   if (!(scaled > 0)) return undefined;
   const px = Math.max(1, Math.round(scaled));
-  const { color } = outline;
+  const { color: outlineColor } = outline;
   return [
-    `drop-shadow(${px}px 0 0 ${color})`,
-    `drop-shadow(-${px}px 0 0 ${color})`,
-    `drop-shadow(0 ${px}px 0 ${color})`,
-    `drop-shadow(0 -${px}px 0 ${color})`,
+    `drop-shadow(${px}px 0 0 ${outlineColor})`,
+    `drop-shadow(-${px}px 0 0 ${outlineColor})`,
+    `drop-shadow(0 ${px}px 0 ${outlineColor})`,
+    `drop-shadow(0 -${px}px 0 ${outlineColor})`,
   ].join(' ');
 }
 

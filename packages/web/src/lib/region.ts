@@ -75,13 +75,6 @@ interface BoundaryEdge {
   dy: number;
 }
 
-const DIR_ORDER: Array<[number, number]> = [
-  [0, 1],
-  [1, 0],
-  [0, -1],
-  [-1, 0],
-];
-
 /**
  * Ranks a candidate direction by how tightly it turns **right** relative to the
  * incoming direction. A boundary that touches itself at a single point (a

@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { themeCodeSchema } from './theme';
 import {
-  GRID_SIZE_DEFAULT,
   GRID_SIZE_MAX,
   GRID_SIZE_MIN,
   MAP_DESCRIPTION_MAX_LENGTH,

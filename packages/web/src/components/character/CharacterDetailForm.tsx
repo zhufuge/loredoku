@@ -80,6 +80,7 @@ export function CharacterDetailForm({
    * 表单是**用户正在编辑的草稿**，不该被后台刷新覆盖；以记录 id 为界更符合它的
    * 语义（换记录 = 换内容，同一条记录的刷新 = 别的按钮干的活）。
    */
+  /* oxlint-disable react-hooks/exhaustive-deps -- 只在换记录时按服务器值重置，同一条记录的刷新不该覆盖草稿 */
   useEffect(() => {
     setName(character.name);
     setGender(character.gender ?? 'male');
@@ -89,6 +90,7 @@ export function CharacterDetailForm({
     setColor(character.color ?? DEFAULT_THEME_COLOR);
     setDisplayName(character.displayName ?? '');
   }, [character.id]);
+  /* oxlint-enable react-hooks/exhaustive-deps */
 
   // An uploaded avatar **or** a colour block can be activated.
   const activatable = hasAppearance(Boolean(character.avatarUrl), character.bgColor);

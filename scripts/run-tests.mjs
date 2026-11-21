@@ -55,6 +55,7 @@ function collect(dir, out = []) {
 }
 
 const files = collect(cwd).sort();
+// oxlint-disable-next-line eslint/no-control-regex -- 这里就是要匹配 ANSI 颜色转义
 const strip = (text) => text.replace(/\u001b\[[0-9;]*m/g, '');
 
 function run(args) {

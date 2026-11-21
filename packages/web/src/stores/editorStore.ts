@@ -14,7 +14,6 @@ import {
   type MapDraft,
   type MapStyle,
   type RegionStyle,
-  type RegionStyleOverride,
 } from '@loredoku/shared';
 import { computeLabelCell, coordKey, type Coord } from '@/lib/region';
 import { findItemAnchor, isEmptyCell, itemFootprintKeys, resolveEraseTarget } from '@/lib/erase';
@@ -271,7 +270,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       commit((next) => {
         const key = cellKey(x, y);
         const cell: DraftCell = {
-          ...(next.cells.get(key) ?? {}),
+          ...next.cells.get(key),
           background: {
             assetId,
             ...(variantId === undefined ? {} : { variantId }),
@@ -284,7 +283,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       commit((next) => {
         const key = cellKey(x, y);
         const cell: DraftCell = {
-          ...(next.cells.get(key) ?? {}),
+          ...next.cells.get(key),
           decoration: {
             assetId,
             ...(variantId === undefined ? {} : { variantId }),
@@ -298,7 +297,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         for (let dy = 0; dy < item.h; dy += 1) {
           for (let dx = 0; dx < item.w; dx += 1) {
             const key = cellKey(x + dx, y + dy);
-            const cell: DraftCell = { ...(next.cells.get(key) ?? {}) };
+            const cell: DraftCell = { ...next.cells.get(key) };
             delete cell.item;
             if (dx === 0 && dy === 0) {
               cell.item = {
@@ -496,7 +495,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
       commit((next) => {
         const inBounds = (x: number, y: number): boolean =>
           x >= 0 && y >= 0 && x < size && y < size;
-        for (const key of [...next.cells.keys()]) {
+        for (const key of next.cells.keys()) {
           const [x, y] = key.split(',').map(Number) as [number, number];
           if (!inBounds(x, y)) next.cells.delete(key);
         }

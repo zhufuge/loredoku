@@ -31,7 +31,6 @@ import {
 } from '@loredoku/shared';
 import { CoverPicker } from '@/components/common/CoverPicker';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
-import { resolveMarkImage } from '@/lib/mark';
 import {
   computeParticipantLayout,
   resolveRosterCols,
@@ -554,7 +553,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
           setToolIconError('图片上传失败，请重试。');
           return;
         }
-        setDraftToolIcons({ ...(draftToolIcons ?? {}), [icon]: { path: uploaded.path } });
+        setDraftToolIcons({ ...draftToolIcons, [icon]: { path: uploaded.path } });
       } catch {
         setToolIconError('图片上传失败，请重试。');
       } finally {
@@ -820,7 +819,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
                           className="h-7 text-xs text-destructive hover:text-destructive"
                           disabled={toolIconUploading !== null || own === null}
                           onClick={() => {
-                            const rest: GameToolIcons = { ...(draftToolIcons ?? {}) };
+                            const rest: GameToolIcons = { ...draftToolIcons };
                             delete rest[icon];
                             setDraftToolIcons(Object.keys(rest).length > 0 ? rest : null);
                             setToolIconError(null);

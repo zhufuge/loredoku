@@ -78,7 +78,7 @@ export function DeploymentsPage(): JSX.Element {
 
   useEffect(() => {
     document.title = workspace ? `${workspace.theme.name} · 部署 · 格物` : '部署 · 格物';
-  }, [workspace?.theme.name]);
+  }, [workspace]);
 
   const games = useMemo(() => {
     const all = gamesQuery.data ?? [];

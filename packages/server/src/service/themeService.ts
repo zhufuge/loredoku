@@ -1,5 +1,4 @@
 import {
-  ErrorCode,
   THEME_CHECK_FAIL_COLOR,
   THEME_CHECK_PASS_COLOR,
   THEME_DATA_VERSION,
@@ -157,7 +156,7 @@ export async function uploadToolIcon(
   const { id, data } = await themeDataOf(code);
   const image = await processToolIconImage({ kind: 'theme', id }, icon, buffer);
   const toolIcons: GameToolIcons = {
-    ...(data.toolIcons ?? {}),
+    ...data.toolIcons,
     [icon]: { path: image.relativePath },
   };
   await repo.updateTheme(id, { data: { ...data, toolIcons } });
@@ -167,7 +166,7 @@ export async function uploadToolIcon(
 export async function removeToolIcon(code: string, icon: GameToolIconKind): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
   const next: ThemeData = { ...data };
-  const rest: GameToolIcons = { ...(next.toolIcons ?? {}) };
+  const rest: GameToolIcons = { ...next.toolIcons };
   delete rest[icon];
   if (Object.keys(rest).length === 0) delete next.toolIcons;
   else next.toolIcons = rest;
@@ -220,7 +219,7 @@ export async function uploadVerdictIcon(code: string, buffer: Buffer): Promise<T
   const { id, data } = await themeDataOf(code);
   const image = await processVerdictIconImage({ kind: 'theme', id }, buffer);
   await repo.updateTheme(id, {
-    data: { ...data, verdict: { ...(data.verdict ?? {}), icon: { path: image.relativePath } } },
+    data: { ...data, verdict: { ...data.verdict, icon: { path: image.relativePath } } },
   });
   return getTheme(code);
 }
@@ -229,7 +228,7 @@ export async function uploadVerdictIcon(code: string, buffer: Buffer): Promise<T
 export async function removeVerdictIcon(code: string): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
   const next: ThemeData = { ...data };
-  const rest: ThemeVerdict = { ...(next.verdict ?? {}) };
+  const rest: ThemeVerdict = { ...next.verdict };
   delete rest.icon;
   const hasText = (rest.iconText ?? '').trim().length > 0;
   const hasTitle = (rest.title ?? '').trim().length > 0;
@@ -248,7 +247,7 @@ export async function updateVerdictText(
   patch: { iconText?: string; title?: string },
 ): Promise<Theme> {
   const { id, data } = await themeDataOf(code);
-  const current: ThemeVerdict = { ...(data.verdict ?? {}) };
+  const current: ThemeVerdict = { ...data.verdict };
   if (patch.iconText !== undefined) current.iconText = patch.iconText.trim();
   if (patch.title !== undefined) current.title = patch.title.trim();
   const next: ThemeData = { ...data };

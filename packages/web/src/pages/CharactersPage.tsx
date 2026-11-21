@@ -70,7 +70,7 @@ export function CharactersPage(): JSX.Element {
 
   useEffect(() => {
     document.title = workspace ? `${workspace.theme.name} · 角色 · 格物` : '角色 · 格物';
-  }, [workspace?.theme.name]);
+  }, [workspace]);
 
   useEffect(() => {
     if (characters && characters.length > 0) {

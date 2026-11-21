@@ -76,7 +76,7 @@ export function MapsPage(): JSX.Element {
 
   useEffect(() => {
     document.title = workspace ? `${workspace.theme.name} · 地图 · 格物` : '地图 · 格物';
-  }, [workspace?.theme.name]);
+  }, [workspace]);
 
   const resetPages = (): void => {
     setDraftPage(1);

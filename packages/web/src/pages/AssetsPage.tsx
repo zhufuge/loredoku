@@ -80,7 +80,7 @@ export function AssetsPage(): JSX.Element {
 
   useEffect(() => {
     document.title = workspace ? `${workspace.theme.name} · 资源 · 格物` : '资源 · 格物';
-  }, [workspace?.theme.name]);
+  }, [workspace]);
 
   useEffect(() => {
     if (assets && assets.length > 0) {

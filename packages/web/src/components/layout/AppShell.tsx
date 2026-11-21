@@ -1,4 +1,4 @@
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { ArrowRight, Settings2 } from 'lucide-react';
 import { BrandLogo } from '@/components/layout/BrandLogo';
 import { ThemeSwitcher } from '@/components/layout/ThemeSwitcher';
@@ -47,7 +47,6 @@ const navItems: ReadonlyArray<{ key: ModuleKey; label: string }> = [
  */
 export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'config' }): JSX.Element {
   const navigate = useNavigate();
-  const location = useLocation();
   const workspace = useWorkspace();
   const config = variant === 'config';
 

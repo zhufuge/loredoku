@@ -4,7 +4,6 @@ import {
   GAME_DIFFICULTY_SLUGS,
   GAME_SLUG_MAX_LENGTH,
   GAME_SLUG_MIN_LENGTH,
-  GAME_SLUG_PREFIX,
 } from './constants';
 import {
   buildDefaultSlug,

@@ -219,8 +219,8 @@ describe('asset variants API', () => {
 });
 
 afterAll(async () => {
-  const { db } = await import('../src/db/knex');
-  for (const id of createdMaps) await db('maps').where('id', id).del();
-  for (const id of createdAssets) await db('assets').where('id', id).del();
-  await db.destroy();
+  const { db: knexDb } = await import('../src/db/knex');
+  for (const id of createdMaps) await knexDb('maps').where('id', id).del();
+  for (const id of createdAssets) await knexDb('assets').where('id', id).del();
+  await knexDb.destroy();
 });

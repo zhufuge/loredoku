@@ -24,7 +24,6 @@ import {
   useUpdateMap,
   useUploadMapCover,
 } from '@/hooks/useMaps';
-import { cn } from '@/lib/utils';
 
 const createSchema = z.object({
   name: z.string().trim().min(1, '请输入地图名称').max(100, '名称不能超过 100 字'),

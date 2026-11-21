@@ -98,6 +98,7 @@ export function AssetVariantCard({
    * （v0.7.13 fix）：上传图片会让 query 失效重取，若跟着 `updatedAt` 重置，
    * 纯色形态会立刻被按回 `bgColor ? 'color' : 'image'`，刚传上去的图看不见。
    */
+  /* oxlint-disable react-hooks/exhaustive-deps -- 只在换形态时按服务器值重置，同一条形态的刷新不该覆盖草稿 */
   useEffect(() => {
     setName(variant.name);
     setFitMode(variant.fitMode);
@@ -107,6 +108,7 @@ export function AssetVariantCard({
     setFootprintW(variant.w ?? ASSET_VARIANT_FOOTPRINT_DEFAULT);
     setFootprintH(variant.h ?? ASSET_VARIANT_FOOTPRINT_DEFAULT);
   }, [variant.id]);
+  /* oxlint-enable react-hooks/exhaustive-deps */
 
   const saving = updateMutation.isPending;
 

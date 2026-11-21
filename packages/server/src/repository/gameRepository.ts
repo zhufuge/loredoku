@@ -1,7 +1,6 @@
 import { db } from '../db/knex';
 import { MAP_JSON_VERSION, absorbLegacyPuzzleDraft, puzzleGridSize } from '@loredoku/shared';
 import type {
-  GameDifficulty,
   MapGameDetail,
   MapGameRow,
   MapGameSummary,

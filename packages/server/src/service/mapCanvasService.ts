@@ -3,7 +3,6 @@ import type {
   DraftRegion,
   MapDraft,
   MapResponse,
-  MapRow,
   ResizeResult,
   SaveMapDraftInput,
 } from '@loredoku/shared';

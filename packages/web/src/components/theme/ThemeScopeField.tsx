@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Select } from '@/components/ui/select';
 import { useThemes } from '@/hooks/useThemes';
 import { cn } from '@/lib/utils';
@@ -36,7 +36,7 @@ export function ThemeScopeField({
   className,
 }: ThemeScopeFieldProps): JSX.Element | null {
   const { data: themes } = useThemes();
-  const options = themes ?? [];
+  const options = useMemo(() => themes ?? [], [themes]);
 
   // 没显式选过（`null`）时落列表第一个（服务端按创建顺序排）。§19 起没有「默认主题」
   // 这一档，所以这里的「第一个」只是「列表的第一个」，不是「特殊的那一个」。
