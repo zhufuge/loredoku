@@ -121,7 +121,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     expect(texts).not.toContain('中等');
   });
 
-  it('包里乱序也没关系：按 level 排，颜色同样跟着主题', () => {
+  it('包里乱序也没关系：徽章按 level 排', () => {
     manifestRef.data = manifest({
       ...identity,
       difficultyLevels: [
@@ -132,10 +132,9 @@ describe('PlayerHomePage 的难度徽章', () => {
     });
     mount();
 
-    const styled = Array.from(document.querySelectorAll('[role="button"] span')).find(
-      (node) => node.textContent?.trim() === '精',
-    ) as HTMLElement | undefined;
-    expect(styled?.style.backgroundColor).toContain('#B93A32');
+    const texts = badges();
+    expect(texts.indexOf('初')).toBeLessThan(texts.indexOf('通'));
+    expect(texts.indexOf('通')).toBeLessThan(texts.indexOf('精'));
   });
 
   it('v0.9.0 的老包不带分级 → 仍是内置五档，不报错也不空白', () => {

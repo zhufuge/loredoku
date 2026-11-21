@@ -27,16 +27,15 @@ beforeEach(() => {
 });
 
 describe('placement', () => {
-  it('places a background and marks the map dirty', () => {
+  it('places a background with or without a variant and marks the map dirty', () => {
     store().placeBackground(7, 41, 2, 3);
     expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7, variantId: 41 } });
     expect(store().dirty).toBe(true);
     expect(store().past).toHaveLength(1);
-  });
 
-  it('leaves the variant out when the caller has none to name', () => {
-    store().placeBackground(7, undefined, 2, 3);
-    expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7 } });
+    // 调用方没有 variant 可给时，格子里只记 assetId。
+    store().placeBackground(7, undefined, 4, 4);
+    expect(store().cells.get('4,4')).toEqual({ background: { assetId: 7 } });
   });
 
   // 背景修饰与背景 / 物品各占一格、互不顶替。
@@ -57,15 +56,13 @@ describe('placement', () => {
     expect(store().cells.get('2,3')?.decoration).toEqual({ assetId: 10, variantId: 43 });
   });
 
-  it('places a multi-cell object with a single anchor', () => {
+  it('places a multi-cell object with a single anchor and erases its whole footprint', () => {
     store().placeItem({ assetId: 5, variantId: 1, w: 2, h: 2 }, 0, 0);
     expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, variantId: 1, w: 2, h: 2 });
     expect(store().cells.get('1,0')?.item).toBeUndefined();
     expect(store().cells.has('1,1')).toBe(true);
-  });
 
-  it('removes a multi-cell object footprint together with its placeholders', () => {
-    store().placeItem({ assetId: 2, variantId: 1, w: 2, h: 2 }, 0, 0);
+    // 从任意占位格擦除都会带走整套脚位。
     store().eraseAt(1, 1);
     expect(store().cells.size).toBe(0);
   });
@@ -144,16 +141,13 @@ describe('eraseAt', () => {
 });
 
 describe('history', () => {
-  it('undoes and redoes a placement', () => {
+  it('undoes and redoes a placement, and a new action clears the redo stack', () => {
     store().placeBackground(1, 11, 0, 0);
     store().undo();
     expect(store().cells.size).toBe(0);
     store().redo();
     expect(store().cells.get('0,0')?.background).toEqual({ assetId: 1, variantId: 11 });
-  });
 
-  it('clears the redo stack after a new action', () => {
-    store().placeBackground(1, 11, 0, 0);
     store().undo();
     expect(store().future).toHaveLength(1);
     store().placeBackground(2, 12, 1, 1);
@@ -170,18 +164,15 @@ describe('history', () => {
 });
 
 describe('regions', () => {
-  it('creates a region with the provided id and selects it', () => {
+  it('creates a region with the provided id and selects it, overriding conflicting cells', () => {
     const id = store().createRegion(regionInput('rg_a', [[0, 0], [1, 0]]), 'override');
     expect(id).toBe('rg_a');
     expect(store().selectedRegionId).toBe(id);
     expect(store().regions[0]?.cells).toEqual([[0, 0], [1, 0]]);
     expect(store().regions[0]?.labelCell).toEqual([1, 0]);
-  });
 
-  it('overrides conflicting cells from other regions', () => {
-    const first = store().createRegion(regionInput('rg_a', [[0, 0], [1, 0]]), 'override');
     store().createRegion(regionInput('rg_b', [[1, 0], [2, 0]]), 'override');
-    expect(store().regions.find((region) => region.id === first)?.cells).toEqual([[0, 0]]);
+    expect(store().regions.find((region) => region.id === id)?.cells).toEqual([[0, 0]]);
   });
 
   it('skips conflicting cells when requested', () => {
@@ -210,12 +201,16 @@ describe('regions', () => {
   });
 
   describe('setRegionCells（v0.11.5 区域格子编辑的提交）', () => {
-    it('换成新格子并重算标签格', () => {
+    it('换成新格子并重算标签格，整段编辑只占一步撤销', () => {
       const id = store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
+      const before = store().past.length;
       store().setRegionCells(id, [[0, 0], [0, 1], [0, 2]]);
       expect(store().regions[0]?.cells).toEqual([[0, 0], [0, 1], [0, 2]]);
       // labelCell 落在最底行（`computeLabelCell`）。
       expect(store().regions[0]?.labelCell).toEqual([0, 2]);
+      expect(store().past.length).toBe(before + 1);
+      store().undo();
+      expect(store().regions[0]?.cells).toEqual([[0, 0]]);
     });
 
     it('把别人的格子挪过来，被搬空的那块随之删掉', () => {
@@ -232,15 +227,6 @@ describe('regions', () => {
       store().createRegion(regionInput('rg_b', [[1, 0], [2, 0]]), 'override');
       store().setRegionCells(a, [[0, 0], [1, 0]]);
       expect(store().regions.find((region) => region.id === 'rg_b')?.cells).toEqual([[2, 0]]);
-    });
-
-    it('整段编辑只占一步撤销', () => {
-      const id = store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
-      const before = store().past.length;
-      store().setRegionCells(id, [[0, 0], [0, 1], [0, 2]]);
-      expect(store().past.length).toBe(before + 1);
-      store().undo();
-      expect(store().regions[0]?.cells).toEqual([[0, 0]]);
     });
 
     it('区域不存在时什么都不做（不记空撤销）', () => {
@@ -338,7 +324,7 @@ describe('init', () => {
 });
 
 describe('toDraft (FEAT-K14: MapDraft v3)', () => {
-  it('serialises cells and regions — and carries no roster (SPEC-K12)', () => {
+  it('serialises cells and the resolved style — no roster (SPEC-K12), no palette (Q16)', () => {
     store().placeItem({ assetId: 5, variantId: 1, w: 1, h: 1 }, 1, 1);
     const output = store().toDraft();
     // the map JSON is v7 — regions carry only their style differences;
@@ -347,10 +333,7 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
     expect(output.cells['1,1']?.item).toEqual({ assetId: 5, variantId: 1, w: 1, h: 1 });
     expect('characterSlots' in output).toBe(false);
     expect('placedCharacters' in output).toBe(false);
-  });
 
-  it('FEAT-D02: serialises the resolved map style — without the palette (Q16)', () => {
-    const output = store().toDraft();
     // The grid separator defaults to 4px.
     expect(output.style?.gridSeparator).toEqual({ width: 4, color: '#000000' });
     // The linkage palette moved to PuzzleDraft; MapStyle no longer carries it.
@@ -366,15 +349,13 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
 });
 
 describe('map style (v0.3.8 FEAT-D02/D03)', () => {
-  it('starts from the shipped defaults and is always fully resolved', () => {
+  it('starts from the shipped defaults, always fully resolved, and adopts the loaded style block', () => {
     const style = store().style;
     expect(style.cellSize).toBeNull();
     // 12px frame, 32px region label.
     expect(style.canvasFrame.width).toBe(12);
     expect(style.regionLabel.fontSize).toBe(32);
-  });
 
-  it('adopts the style block of the loaded draft', () => {
     store().init(
       2,
       {
@@ -405,25 +386,10 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     expect(store().style.canvasFrame.width).toBe(12);
   });
 
-  it('v0.7.0: the map-level outline width no longer writes into regions', () => {
+  it('v0.7.0: the map-level outline width only moves the default, never the regions', () => {
     store().createRegion(regionInput('rg_a', [[0, 0]]), 'override');
-    store().createRegion(regionInput('rg_b', [[2, 2]]), 'override');
-    store().setMapStyle((current) => ({
-      ...current,
-      regionOutline: { ...current.regionOutline, width: 10 },
-    }));
-    expect(store().style.regionOutline.width).toBe(10);
-    // Both regions follow the new default — neither carries an override.
-    expect(store().regions.map((region) => region.style)).toEqual([undefined, undefined]);
-    // One undo step for the style itself.
-    expect(store().past).toHaveLength(3);
-    store().undo();
-    expect(store().style.regionOutline.width).toBe(12);
-  });
-
-  it('v0.7.0: a region keeps the override it recorded across a default change', () => {
     store().createRegion(
-      regionInput('rg_a', [[0, 0]], {
+      regionInput('rg_b', [[2, 2]], {
         outline: { width: 6, color: '#111111' },
         highlight: { width: 5, color: '#3B82F6' },
         label: {
@@ -443,16 +409,24 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     );
     // Only the outline width / colour and the highlight width differ from the
     // shipped defaults (outline 12 / #000000, highlight 12 / #3B82F6).
-    expect(store().regions[0]?.style).toEqual({
+    expect(store().regions[1]?.style).toEqual({
       outline: { width: 6, color: '#111111' },
       highlight: { width: 5 },
     });
+
     store().setMapStyle((current) => ({
       ...current,
       regionOutline: { ...current.regionOutline, width: 10 },
     }));
-    // The recorded override survives; only the *default* moved.
-    expect(store().regions[0]?.style?.outline?.width).toBe(6);
+    expect(store().style.regionOutline.width).toBe(10);
+    // The plain region follows the new default and carries no override …
+    expect(store().regions[0]?.style).toBeUndefined();
+    // … while the recorded override survives; only the *default* moved.
+    expect(store().regions[1]?.style?.outline?.width).toBe(6);
+    // One undo step for the style itself.
+    expect(store().past).toHaveLength(3);
+    store().undo();
+    expect(store().style.regionOutline.width).toBe(12);
   });
 
   it('v0.7.0: creating a region whose style equals the defaults stores no style key', () => {
@@ -567,20 +541,19 @@ describe('setItemTransform', () => {
     });
   });
 
-  it('drops the keys again when everything is back at the default', () => {
+  it('drops the keys again when everything is back at the default, without a no-op history step', () => {
     store().placeItem({ assetId: 5, variantId: 7, w: 2, h: 1 }, 0, 0);
     store().setItemTransform(0, 0, { scale: 2, offsetY: 1 });
+    const before = store().past.length;
     store().setItemTransform(0, 0, { scale: 1, offsetX: 0, offsetY: 0 });
     expect(store().cells.get('0,0')?.item).toEqual({ assetId: 5, variantId: 7, w: 2, h: 1 });
-  });
+    expect(store().past.length).toBe(before + 1);
 
-  it('does not push a history step when the resolved value is unchanged', () => {
-    store().placeItem({ assetId: 5, w: 1, h: 1 }, 0, 0);
-    const before = store().past.length;
-    // 已经是 1（默认），再提交一次 1 / 夹到边界的重复值都不该进撤销栈。
+    // 已经是 1（默认），再提交一次 1 不该进撤销栈；夹到边界的值才算一步。
     store().setItemTransform(0, 0, { scale: 1 });
+    expect(store().past.length).toBe(before + 1);
     store().setItemTransform(0, 0, { offsetX: 99 });
-    expect(store().past.length).toBe(before + 1); // 只有 offsetX=99 → 4 那一步
+    expect(store().past.length).toBe(before + 2);
   });
 
   it('ignores a cell with no item', () => {

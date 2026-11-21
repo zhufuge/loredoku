@@ -256,32 +256,20 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     });
   }
 
-  it('单点不闪环，按住过了延迟才出现（v0.7.11）', async () => {
+  it('单点/按下就抬手不闪环，按住过了延迟才出现、抬手即收（v0.7.11）', async () => {
     render();
     sizeCanvas();
     enterPlacing(0);
-
-    const at = cellCenter(4, 4);
-    pointer('pointerdown', at);
-    // 按下那一刻什么都不该出现：单点的抬手往往比 160ms 还早。
-    expect(ring()).toBeNull();
-
-    await wait(200);
-    expect(ring()).not.toBeNull();
-
-    pointer('pointerup', at);
-    expect(ring()).toBeNull();
-  });
-
-  it('按一下就抬手，整段手势都不出现环', async () => {
-    render();
-    sizeCanvas();
-    enterPlacing(0);
-
     const at = cellCenter(4, 4);
     pointer('pointerdown', at);
     pointer('pointerup', at);
     await wait(220);
+    expect(ring()).toBeNull();
+    pointer('pointerdown', at);
+    expect(ring()).toBeNull();
+    await wait(200);
+    expect(ring()).not.toBeNull();
+    pointer('pointerup', at);
     expect(ring()).toBeNull();
   });
 
@@ -289,25 +277,21 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     render();
     sizeCanvas();
     enterPlacing(0);
-
     const at = cellCenter(4, 4);
     pointer('pointerdown', at);
     expect(container.querySelector('.place-settle')).toBeNull();
-
     await wait(560);
 
     // 落下的头像带一次落定动效（v0.7.11），环还在 —— 满环与动作是同一刻。
     expect(container.querySelector('.place-settle')).not.toBeNull();
     expect(ring()).not.toBeNull();
-
     pointer('pointerup', at);
     expect(ring()).toBeNull();
-    // 抬手后窗口关闭，落定标记撤掉（头像本身留在棋盘上）。
     expect(container.querySelector('.place-settle')).toBeNull();
   });
 
-  /** 头像落下 = 这一手做完了 —— 名册那张卡不能继续留在「触碰态」。 落下之后只把 `mode` 收回 `idle` 不够：`activation` 还停在 `click` 上，卡片外面那道 2px 主色环、棋盘上这位参与者的联动高亮、以及 `activeParticipantId` 带来的 1.3× 放大头像，会一起留在屏幕上 —— 头像已经落定，界面却还在说「这位正被拿着」。 短按（放编号）不在此列：那位参与者确实还在手上，卡片该亮着 —— 见下一条。 */
-  it('头像落下之后，名册卡不再留在触碰态（v0.8.7）', async () => {
+  /** 头像落下 = 这一手做完了，名册卡不能继续留在触碰态；短按落的是编号（草稿），参与者仍在手上，卡片该继续亮着。 */
+  it('短按只放编号时名册卡仍亮着，头像落下后退出触碰态（v0.8.7）', async () => {
     render();
     sizeCanvas();
     enterPlacing(0);
@@ -317,8 +301,13 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       if (!node) throw new Error('名册第一张卡没渲染出来');
       return node;
     };
+    expect(card().style.boxShadow).toContain('--primary');
+    expect(card().getAttribute('data-tint')).toBe('on');
 
-    // 点卡之后是「拿着」：选中那道边 + 主题色铺开。
+    const tap = cellCenter(2, 2);
+    pointer('pointerdown', tap);
+    pointer('pointerup', tap);
+    clickAt(tap);
     expect(card().style.boxShadow).toContain('--primary');
     expect(card().getAttribute('data-tint')).toBe('on');
 
@@ -326,32 +315,14 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     pointer('pointerdown', at);
     await wait(560);
     pointer('pointerup', at);
-
-    // 头像落下：环与铺色一起退掉，棋盘上也找不到被放大的头像。
     expect(card().style.boxShadow).toBe('');
     expect(card().getAttribute('data-tint')).toBeNull();
     const magnified = `main [style*="scale(${GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE})"]`;
     expect(container.querySelector(magnified)).toBeNull();
   });
 
-  /** 同一件事的另一半：短按落的是**编号（草稿）**，这位参与者仍然拿在手上 —— 卡片该继续亮着。`modeAfterPlacement` 只对头像把模式收回 `idle`，所以「退触碰态」也只发生在头像那一路。 */
-  it('短按只放编号：名册卡还亮着（v0.8.7）', () => {
-    render();
-    sizeCanvas();
-    enterPlacing(0);
-
-    const at = cellCenter(4, 4);
-    pointer('pointerdown', at);
-    pointer('pointerup', at);
-    clickAt(at);
-
-    const card = container.querySelector<HTMLElement>('[data-slot-index="0"]');
-    expect(card?.style.boxShadow).toContain('--primary');
-    expect(card?.getAttribute('data-tint')).toBe('on');
-  });
-
-  /** 需求：「不能站立的格子和标记在的格子，选参与者长按时，不出现圆圈， 不提示，就是无效果」。 按下的一刻就知道这一格放不进去，于是整段手势根本不开始：没有环、没有 toast、 棋盘一格不动。 */
-  it('在 × 格上长按：不出现圆环、不提示，也不落下任何东西', async () => {
+  /** 需求：「不能站立的格子和标记在的格子，选参与者长按时，不出现圆圈，不提示，就是无效果」；同一格上的短按同样安静（v0.7.12）。 */
+  it('在 × 格上长按或点编号：不出现圆环、不提示，也不落下任何东西', async () => {
     seedSave({ board: { '4,4': { kind: 'forbidden' } } });
     render();
     sizeCanvas();
@@ -361,24 +332,13 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     pointer('pointerdown', at);
     await wait(220);
     expect(ring()).toBeNull();
-
     await wait(360);
-
     expect(ring()).toBeNull();
     expect(container.querySelector('.place-settle')).toBeNull();
     expect(toasts.errors).toHaveLength(0);
     expect(savedBoard()).toEqual({ '4,4': { kind: 'forbidden' } });
-  });
-
-  /** 同一格上的**短按**也该是安静的：`×` 格在放置态下点击无效果、也无提示（v0.7.12）—— 悬停时提示层都已经不画那个编号了。 */
-  it('在 × 格上点编号：无效果，也不弹提示', () => {
-    seedSave({ board: { '4,4': { kind: 'forbidden' } } });
-    render();
-    sizeCanvas();
-    enterPlacing(0);
-
-    clickAt(cellCenter(4, 4));
-
+    pointer('pointerup', at);
+    clickAt(at);
     expect(toasts.errors).toHaveLength(0);
     expect(savedBoard()).toEqual({ '4,4': { kind: 'forbidden' } });
   });
@@ -387,7 +347,6 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     render();
     sizeCanvas();
     enterPlacing(0);
-
     pointer('pointerdown', cellCenter(1, 1));
     pointer('pointermove', cellCenter(2, 1));
     pointer('pointermove', cellCenter(3, 1));
@@ -403,7 +362,6 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     ]);
   });
 
-  /** 擦掉一格是**两拍**——先演退场动效，动画放完才真的从棋盘上删掉。 断言因此要等一小段，而不是抬手立刻读存档。 */
   it('按住清除橡皮擦滑过的格子一起清掉', async () => {
     seedSave({
       board: {
@@ -419,24 +377,20 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       node.getAttribute('title')?.startsWith('清除放置'),
     );
     if (!eraser) throw new Error('清除按钮没渲染出来');
-    // 短按 = 切换成清除工具（长按才是清空全部）—— 两个事件都要给，缺一个就当长按。
+    // 短按 = 切换成清除工具（长按才是清空全部），两个事件都要给。
     act(() => {
       eraser.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
       eraser.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
     });
-
     pointer('pointerdown', cellCenter(0, 0));
     pointer('pointermove', cellCenter(1, 0));
     pointer('pointermove', cellCenter(2, 0));
     pointer('pointerup', cellCenter(2, 0));
     clickAt(cellCenter(2, 0));
-
     await wait(400);
-
     expect(savedBoard()).toEqual({});
   });
 
-  /** 擦掉的那一格**先退场再消失**。 直接删的话玩家只看到画面重绘了一次，分不清刚擦掉的是哪一格；按住滑过一片时更是跟不上。这里钉的是「点下去之后、删掉之前」那一段：格子上挂上了退场类，存档里却还在。 */
   it('橡皮点掉一格：先演退场，动效放完才从存档里删', async () => {
     seedSave({ board: { '4,4': { kind: 'numbers', entries: [2] } } });
     render();
@@ -450,20 +404,15 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       eraser.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
       eraser.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
     });
-
     clickAt(cellCenter(4, 4));
-
     // 退场进行中：棋盘上还留着，只是已经在淡出。
     expect(savedBoard()['4,4']).toEqual({ kind: 'numbers', entries: [2] });
     expect(container.querySelector('.erase-out')).not.toBeNull();
-
     await wait(400);
-
     expect(savedBoard()).toEqual({});
     expect(container.querySelector('.erase-out')).toBeNull();
   });
 
-  /** 空格上按橡皮：本来就没东西可擦，不播动效、也不写存档。 */
   it('橡皮点空格：什么都不发生', async () => {
     render();
     sizeCanvas();
@@ -476,38 +425,13 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       eraser.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
       eraser.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0 }));
     });
-
     clickAt(cellCenter(4, 4));
-
     expect(container.querySelector('.erase-out')).toBeNull();
     await wait(400);
     expect(savedBoard()).toEqual({});
   });
 
-  /**
-   * `×` 是一支开关（「标记点已经放置了标记的格子时，清空该格子的标记」）。 点一下放上，再点一下收回 —— 否则撤销一个点错的 `×` 要切到橡皮、擦掉整格、 再切回来，两次工具切换只为了一个单格动作。
-   */
-  it('× 工具点已有的 ×：把那一格的 × 收回', () => {
-    seedSave({ board: { '4,4': { kind: 'forbidden' } } });
-    render();
-    sizeCanvas();
-    enterForbidden();
-
-    clickAt(cellCenter(4, 4));
-
-    // 空盘 —— 收回之后存档把整条键都删了。
-    expect(savedBoard()).toEqual({});
-    // v0.9.0 §17：右下角「可回退 M 步」删了，改用按钮本身验「收回是一步历史」：
-    // 撤回按钮点亮 → 点一下 → 那枚 × 回到棋盘。比读一行数字更直接。
-    const undo = container.querySelector<HTMLButtonElement>('button[title="回退上一步"]');
-    expect(undo).not.toBeNull();
-    expect(undo?.disabled).toBe(false);
-    act(() => undo?.click());
-    expect(savedBoard()['4,4']).toEqual({ kind: 'forbidden' });
-  });
-
-  /** **按住拖动的一笔只做添加**。 开关（v0.7.12）是单击的语义：点错一枚 `×`，再点一下就收回，不必绕去橡皮。 但按住拖动时手指来回划过同一格是常态 —— 划回来就把刚画的擦掉，等于这一笔自己跟自己打架。所以笔画里遇到已经有 `×` 的格子直接跳过，只有单击才走开关。 */
-  it('按住划过已有 × 的格子：不再收回，那一笔只是白划', () => {
+  it('× 工具：单击已有的 × 收回，按住划过则不再收回', () => {
     seedSave({
       board: {
         '3,4': { kind: 'forbidden' },
@@ -518,14 +442,23 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     render();
     sizeCanvas();
     enterForbidden();
-
+    clickAt(cellCenter(4, 4));
+    expect(savedBoard()).toEqual({
+      '3,4': { kind: 'forbidden' },
+      '5,4': { kind: 'forbidden' },
+    });
+    // v0.9.0 §17：用撤回按钮本身验「收回是一步历史」。
+    const undo = container.querySelector<HTMLButtonElement>('button[title="回退上一步"]');
+    expect(undo).not.toBeNull();
+    expect(undo?.disabled).toBe(false);
+    act(() => undo?.click());
+    expect(savedBoard()['4,4']).toEqual({ kind: 'forbidden' });
     pointer('pointerdown', cellCenter(3, 4));
     pointer('pointermove', cellCenter(4, 4));
     pointer('pointermove', cellCenter(5, 4));
     pointer('pointerup', cellCenter(5, 4));
     // 抬手后浏览器补的那记 click 是这一笔的尾巴，不该被当成一次单击。
     clickAt(cellCenter(5, 4));
-
     expect(savedBoard()).toEqual({
       '3,4': { kind: 'forbidden' },
       '4,4': { kind: 'forbidden' },
@@ -533,13 +466,11 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     });
   });
 
-  /** 笔画之后单独来的一记单击，仍然是开关 —— 上一笔的尾巴已被吞掉。 */
   it('笔画之后再单击同一格：照样把那一枚 × 收回', () => {
     seedSave({ board: { '4,4': { kind: 'forbidden' } } });
     render();
     sizeCanvas();
     enterForbidden();
-
     pointer('pointerdown', cellCenter(3, 4));
     pointer('pointermove', cellCenter(4, 4));
     pointer('pointerup', cellCenter(4, 4));
@@ -549,25 +480,25 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       '3,4': { kind: 'forbidden' },
       '4,4': { kind: 'forbidden' },
     });
-
     clickAt(cellCenter(4, 4)); // 真正的单击
-
     expect(savedBoard()).toEqual({ '3,4': { kind: 'forbidden' } });
   });
 
-  /** 编号那一半：同一格再点一下会取消编号（SPEC-J03 §3.2 的开关），但拖动时划回自己刚写过的格子不该把它抹掉 —— 画一串编号时手指必然压回上一格。 */
-  it('按住划编号时重复滑过同一格：编号留着，前后的格子照常写上', () => {
+  it('编号：单击已有自己编号的格子会取消，按住划回同一格则留着', () => {
     seedSave({ board: { '1,1': { kind: 'numbers', entries: [1] } } });
     render();
     sizeCanvas();
     enterPlacing(0);
+    clickAt(cellCenter(1, 1));
+    expect(savedBoard()).toEqual({});
 
+    // 重新点上，再从 0,1 按住划回 1,1 到 2,1：划回不抹编号，前后的格子照常写上。
+    clickAt(cellCenter(1, 1));
     pointer('pointerdown', cellCenter(0, 1));
     pointer('pointermove', cellCenter(1, 1));
     pointer('pointermove', cellCenter(2, 1));
     pointer('pointerup', cellCenter(2, 1));
     clickAt(cellCenter(2, 1)); // 这一笔的尾巴
-
     expect(savedBoard()).toEqual({
       '0,1': { kind: 'numbers', entries: [1] },
       '1,1': { kind: 'numbers', entries: [1] },
@@ -575,31 +506,15 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     });
   });
 
-  /** 单击同一格仍是开关：编号再点一下取消（上一条只改了笔画）。 */
-  it('单击已有自己编号的格子：编号照样取消', () => {
-    seedSave({ board: { '1,1': { kind: 'numbers', entries: [1] } } });
-    render();
-    sizeCanvas();
-    enterPlacing(0);
-
-    clickAt(cellCenter(1, 1));
-
-    expect(savedBoard()).toEqual({});
-  });
-
-  /** 空格上照旧放下一个 × —— 开关的另一半。 */
   it('空格上仍然放上一个 ×', () => {
     render();
     sizeCanvas();
     enterForbidden();
-
     clickAt(cellCenter(2, 2));
-
     expect(savedBoard()).toEqual({ '2,2': { kind: 'forbidden' } });
   });
 
-  /** v0.9.2 §5：清除按钮的长按不再画环，改成**按钮方块内的扇形扫描**。 这里钉的是同一套时序（延迟 160ms 才出现、抬手即消失），只把观察对象从 `.press-ring-arc` 换成 `.press-sweep` —— 环的几何归 `ring.test.tsx`， 扇形的几何归 `PressSweep.test.tsx`。 */
-  /** v0.9.2 §3：「清空全部」的阈值比棋格长（800 vs 500）。 两个长按的后果不是一个量级 —— 放错一位撤销一步就回来了，清空是整盘抹掉。 所以钉的是**时间差**本身：过了棋格那个 500ms 还不能触发，扇形还在扫； 到 800ms 才清，而且清的那一刻扇形已经收掉（不能停在满格上冒充还在按）。 */
+  /** 清除按钮的长按不再画环，改成按钮方块内的扇形扫描；「清空全部」的阈值（800ms）比棋格（500ms）长 —— 放错一位撤销一步就回来，清空是整盘抹掉。 */
   it('清空全部按 800ms 才算，比棋格的 500ms 长', async () => {
     seedSave({ board: { '0,0': { kind: 'participant', index: 1 } } });
     render();
@@ -614,13 +529,13 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
       button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
     });
 
-    // 棋格在这一刻早就落子了；清空必须还没发生。
+    // 棋格在这一刻早就落子了；清空必须还没发生，扇形还在扫。
     await wait(560);
     expect(savedBoard()).toEqual({ '0,0': { kind: 'participant', index: 1 } });
     expect(sweep()).not.toBeNull();
-
     await wait(320);
     expect(savedBoard()).toEqual({});
+    // 清的那一刻扇形已经收掉，不能停在满格上冒充还在按。
     expect(sweep()).toBeNull();
 
     act(() => {
@@ -640,11 +555,9 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     act(() => {
       button.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0 }));
     });
-    // 与棋格同一个延迟 —— 单点只是切换工具，不该闪一下。
+    // 与棋格同一个延迟 —— 单点只是切换工具，不该闪一下；环也不该被顺手画出来。
     expect(sweep()).toBeNull();
-    // 棋格那圈环不该被这里顺手画出来：这是两种反馈，不能混。
     expect(ring()).toBeNull();
-
     await wait(200);
     expect(sweep()).not.toBeNull();
     expect(ring()).toBeNull();
@@ -655,55 +568,40 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     expect(sweep()).toBeNull();
   });
 
-  /** `×` 的动效属于**落笔**，不属于「指针进入方格」。 预览的 `key` 一旦绑在格子坐标上，每换一格都重挂载、都弹一次 —— 鼠标扫过棋盘像一路在划。玩家要的是点下去那一下。 */
-  it('标记态：指针移进方格不演动效', () => {
+  it('标记态：指针移进方格不演动效，点下去放置才弹一次', async () => {
     render();
     sizeCanvas();
     enterForbidden();
-
     pointer('pointermove', cellCenter(2, 2));
     expect(popClass()).toBeNull();
-
-    // 换一格也不演。
     pointer('pointermove', cellCenter(3, 2));
     expect(popClass()).toBeNull();
-  });
-
-  /** 落笔那一刻才演：点下去、悬停的那枚 `×` 弹一次，过一会儿类退掉。 */
-  it('标记态：点下去放置时，悬停的 × 弹一次', async () => {
-    render();
-    sizeCanvas();
-    enterForbidden();
 
     const at = cellCenter(2, 2);
     pointer('pointermove', at);
     clickAt(at);
-
     expect(savedBoard()).toEqual({ '2,2': { kind: 'forbidden' } });
     expect(popClass()).not.toBeNull();
 
-    // 窗口关上之后类退掉 —— 否则指针再进来时新元素一挂载就带着类又演一遍。
+    // 窗口关上之后类退掉，否则指针再进来时新元素一挂载就带着类又演一遍。
     await wait(500);
     expect(popClass()).toBeNull();
     pointer('pointermove', cellCenter(4, 2));
     expect(popClass()).toBeNull();
   });
 
-  /** 动效钉在**落笔那一格**：点完立刻把指针挪到隔壁，隔壁不能跟着弹。 悬停预览是同一个 DOM 节点跟着指针走 —— 只用一个「窗口开着」的布尔量， 类会被它带过去，新格子莫名其妙也演一遍。 */
   it('标记态：落笔后立刻挪到隔壁格，隔壁不弹', () => {
     render();
     sizeCanvas();
     enterForbidden();
-
     pointer('pointermove', cellCenter(2, 2));
     clickAt(cellCenter(2, 2));
     pointer('pointermove', cellCenter(3, 2));
-
     expect(savedBoard()).toEqual({ '2,2': { kind: 'forbidden' } });
     expect(popClass()).toBeNull();
   });
 
-  /** 放下头像时，补出来的那些 `×` 由近及远依次浮现。 钉两件事：**每一格都拿到一个按环号递增的延迟**（这是「水波纹」的全部含义）， 以及**这一遍演完类会退掉** —— 否则下一次落子时，棋盘上原有的 `×` 会跟着再演一遍，看起来像整块屏幕闪了一下。 */
+  /** 放下头像时补出的 × 按环号递增延迟依次浮现（水波纹）；这一遍演完类会退掉。 */
   function waveCells(): Array<{ key: string; delay: string; className: string }> {
     return Array.from(container.querySelectorAll<HTMLElement>('[data-testid^="forbidden-"]'))
       .map((node) => ({
@@ -728,14 +626,12 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     // 9×9 的棋盘，放 (4,4)：整行剩 8 格、整列剩 8 格。
     expect(waves.length).toBe(16);
     const delays = waves.map((cell) => Number.parseFloat(cell.delay));
-    // 最近的一环就是自己那一行的左右邻居 —— 45ms。
     expect(Math.min(...delays)).toBe(45);
-    // 最远的一环是行的两头、列的两头：4 格距离。
     expect(Math.max(...delays)).toBe(180);
     // 两个环之间必须错开，否则一起出现就只是「同时亮了」。
     expect(new Set(delays).size).toBe(4);
 
-    // 动效结束之后类要退干净：留着它，下一次落子会让老 × 也重演一遍。
+    // 类要退干净：留着它，下一次落子会让老 × 也重演一遍。
     await wait(1300);
     expect(waveCells()).toHaveLength(0);
   });
@@ -749,7 +645,6 @@ describe('GamePage — 长按的过程反馈（v0.7.11）', () => {
     pointer('pointerdown', at);
     pointer('pointerup', at);
     clickAt(at);
-
     expect(waveCells()).toHaveLength(0);
   });
 });

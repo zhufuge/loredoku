@@ -203,21 +203,19 @@ async function deployablePuzzle(name: string): Promise<{
 }
 
 describe('旧接口前缀', () => {
-  it('/api/projects 308 重定向到 /api/maps', async () => {
-    const res = await api.get('/api/projects').redirects(0);
-    expect(res.status).toBe(308);
-    expect(res.headers.location).toBe('/api/maps');
-  });
+  it('旧前缀 308 重定向到 /api/maps，并保留子路径', async () => {
+    const root = await api.get('/api/projects').redirects(0);
+    expect(root.status).toBe(308);
+    expect(root.headers.location).toBe('/api/maps');
 
-  it('重定向保留子路径', async () => {
-    const res = await api.get('/api/projects/12/versions').redirects(0);
-    expect(res.status).toBe(308);
-    expect(res.headers.location).toBe('/api/maps/12/versions');
+    const sub = await api.get('/api/projects/12/versions').redirects(0);
+    expect(sub.status).toBe(308);
+    expect(sub.headers.location).toBe('/api/maps/12/versions');
   });
 });
 
 describe('maps API', () => {
-  it('v0.5.8 §1: creates a map with no canvas size at all', async () => {
+  it('v0.5.8 §1: creates a map with no canvas size and ignores a legacy gridSize field', async () => {
     const res = await api
       .post('/api/maps')
       .send({ name: `Smoke ${uniqueCode('p')}`, themeCode: await fixtureTheme() });
@@ -225,16 +223,14 @@ describe('maps API', () => {
     // 创建时不再写尺寸 —— 第一次进编辑器时才由初始化弹窗写入草稿。
     expect(res.body.data.gridSize).toBeNull();
     createdMapEntries.push(res.body.data.id);
-  });
 
-  it('v0.5.8 §1: ignores a legacy gridSize field instead of validating it', async () => {
-    const res = await api
+    const legacy = await api
       .post('/api/maps')
       .send({ name: `Bad ${uniqueCode('p')}`, gridSize: 1, themeCode: await fixtureTheme() });
     // schema 不再认识这个字段（非 strict，直接忽略），尺寸仍为空。
-    expect(res.status).toBe(200);
-    expect(res.body.data.gridSize).toBeNull();
-    createdMapEntries.push(res.body.data.id);
+    expect(legacy.status).toBe(200);
+    expect(legacy.body.data.gridSize).toBeNull();
+    createdMapEntries.push(legacy.body.data.id);
   });
 
   it('v0.5.8 第六阶段: 允许同名创建与同名改名，但复制仍自动避开重名', async () => {
@@ -358,7 +354,7 @@ describe('maps API', () => {
   });
 
   /** FEAT-H03（docs/v0.4.2.md §3.2c）：封面是二进制，走自己的 `POST` / `DELETE`。 `cover_path` 是唯一真相，`coverUrl` 由它拼出来（`buildFileUrl`），所以换端口时必须同步 `PUBLIC_BASE_URL` —— 这里顺带验证 URL 真的能取到文件。 */
-  it('uploads a cover, serves it, then clears it (FEAT-H03)', async () => {
+  it('uploads a cover, serves it, copies it on duplicate, then clears it (FEAT-H03)', async () => {
     const id = await createMap({ name: `Cover ${uniqueCode('p')}` });
     uploadedMapCoverDirs.push(resolveUploadPath(`maps/${id}`));
 
@@ -380,28 +376,20 @@ describe('maps API', () => {
     const served = await api.get(`${url.pathname}${url.search}`);
     expect(served.status).toBe(200);
 
+    // FEAT-H03 §3.2: a duplicate shares the cover reference.
+    const dup = await api.post(`/api/maps/${id}/duplicate`);
+    expect(dup.status).toBe(200);
+    createdMapEntries.push(dup.body.data.id as number);
+    expect(dup.body.data.coverPath).toBe(uploaded.body.data.coverPath);
+    expect(dup.body.data.coverUrl).toBe(uploaded.body.data.coverUrl);
+
     const cleared = await api.delete(`/api/maps/${id}/cover`);
     expect(cleared.status).toBe(200);
     expect(cleared.body.data.coverPath).toBeNull();
     expect(cleared.body.data.coverUrl).toBeNull();
   });
 
-  it('copies the cover reference when a map is duplicated (FEAT-H03 §3.2)', async () => {
-    const id = await createMap({ name: `Cover dup ${uniqueCode('p')}` });
-    uploadedMapCoverDirs.push(resolveUploadPath(`maps/${id}`));
-    const uploaded = await api
-      .post(`/api/maps/${id}/cover`)
-      .attach('file', TINY_PNG, 'cover.png');
-    expect(uploaded.status).toBe(200);
-
-    const dup = await api.post(`/api/maps/${id}/duplicate`);
-    expect(dup.status).toBe(200);
-    createdMapEntries.push(dup.body.data.id as number);
-    expect(dup.body.data.coverPath).toBe(uploaded.body.data.coverPath);
-    expect(dup.body.data.coverUrl).toBe(uploaded.body.data.coverUrl);
-  });
-
-  it('rejects a non-image cover and leaves cover_path untouched (FEAT-H03 §3.2c)', async () => {
+  it('rejects a non-image cover as 415 and asks for a file as 400 (FEAT-H03)', async () => {
     const id = await createMap({ name: `Cover bad ${uniqueCode('p')}` });
     const res = await api
       .post(`/api/maps/${id}/cover`)
@@ -412,16 +400,14 @@ describe('maps API', () => {
     const detail = await api.get(`/api/maps/${id}`);
     expect(detail.body.data.coverPath).toBeNull();
     expect(detail.body.data.coverUrl).toBeNull();
-  });
 
-  it('asks for a file when the cover request has none (FEAT-H03)', async () => {
-    const id = await createMap({ name: `Cover none ${uniqueCode('p')}` });
-    const res = await api.post(`/api/maps/${id}/cover`);
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    const missing = await createMap({ name: `Cover none ${uniqueCode('p')}` });
+    const noFile = await api.post(`/api/maps/${missing}/cover`);
+    expect(noFile.status).toBe(400);
+    expect(noFile.body.code).toBe(ErrorCode.VALIDATION_FAILED);
 
-    const detail = await api.get(`/api/maps/${id}`);
-    expect(detail.body.data.coverPath).toBeNull();
+    const after = await api.get(`/api/maps/${missing}`);
+    expect(after.body.data.coverPath).toBeNull();
   });
 });
 
@@ -737,7 +723,7 @@ describe('map draft API', () => {
     expect(legacy.body.data.draft.style).toBeUndefined();
   });
 
-  it('rejects a v2 style palette rather than stripping it (FEAT-K14)', async () => {
+  it('rejects a v2 style palette and an out-of-range style value (FEAT-K14)', async () => {
     const mapId = await createMap({ name: `StylePalette ${uniqueCode('p')}`, gridSize: 6 });
     const res = await api.put(`/api/maps/${mapId}/map`).send({
       data: {
@@ -750,15 +736,12 @@ describe('map draft API', () => {
     });
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
-  });
 
-  it('rejects an out-of-range style value', async () => {
-    const mapId = await createMap({ name: `StyleRange ${uniqueCode('p')}`, gridSize: 6 });
-    const res = await api
+    const range = await api
       .put(`/api/maps/${mapId}/map`)
       .send({ data: { ...emptyDraft(6), style: { cellSize: 500 } } });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(range.status).toBe(400);
+    expect(range.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   /** docs/v0.5.0.md §8.4: a v2 file must be **rejected with a pointer**, not silently stripped — otherwise the author would believe their participants came along with the canvas. */
@@ -1049,23 +1032,23 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(detail.body.data.data.cells).toBeUndefined();
   });
 
-  it('rejects a puzzle whose map version was never published', async () => {
+  it('rejects a puzzle with a blank name or a map version that was never published', async () => {
     const mapId = await createMap({ name: `NoVer ${uniqueCode('p')}`, gridSize: 6 });
-    const res = await api
+    const unpublished = await api
       .post('/api/puzzles')
       .send({ name: '无版本', code: uniqueSlug('pc'), mapId: mapId, mapVersionNo: 1 });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
-    expect(res.body.message).toContain('地图版本');
-  });
+    expect(unpublished.status).toBe(400);
+    expect(unpublished.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    expect(unpublished.body.message).toContain('地图版本');
 
-  it('rejects a puzzle with a blank name', async () => {
-    const { mapId, versionNo } = await publishedMapWithItem(`BadName ${uniqueCode('p')}`);
-    const res = await api
+    const { mapId: publishedId, versionNo } = await publishedMapWithItem(
+      `BadName ${uniqueCode('p')}`,
+    );
+    const blank = await api
       .post('/api/puzzles')
-      .send({ name: '   ', code: uniqueSlug('pc'), mapId: mapId, mapVersionNo: versionNo });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+      .send({ name: '   ', code: uniqueSlug('pc'), mapId: publishedId, mapVersionNo: versionNo });
+    expect(blank.status).toBe(400);
+    expect(blank.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   /** §5.3: 编辑器渲染的画布来自谜题自己的副本，且 style 里没有调色板。 */
@@ -1144,8 +1127,8 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(saved.body.data.data.map.data.cells['0,0'].item).toBeDefined();
   });
 
-  /** §5.2: `asset` / `region` targets are checked against the referenced canvas. */
-  it('rejects an asset linkage whose target is not on the referenced canvas', async () => {
+  /** §5.2: `asset` / `cell` targets are checked against the referenced canvas. */
+  it('rejects linkage targets that are off the referenced canvas (asset and cell)', async () => {
     const { mapId, versionNo } = await publishedMapWithItem(`BadRef ${uniqueCode('p')}`);
     const id = await createPuzzle({ name: '坏引用', mapId: mapId, mapVersionNo: versionNo });
     const characterId = await createCharacter();
@@ -1162,25 +1145,29 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(res.status).toBe(400);
     expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
     expect((res.body.data as string[]).some((message) => message.includes('不在地图中'))).toBe(true);
-  });
 
-  /** §5.2: the self-consistent half — a `cell` target must be inside the board. */
-  it('rejects a linkage target outside the canvas', async () => {
-    const { mapId, versionNo } = await publishedMapWithItem(`CellRef ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '越界', mapId: mapId, mapVersionNo: versionNo });
-    const characterId = await createCharacter();
+    // §5.2: the self-consistent half — a `cell` target must be inside the board.
+    const { mapId: cellMapId, versionNo: cellVersionNo } = await publishedMapWithItem(
+      `CellRef ${uniqueCode('p')}`,
+    );
+    const cellPuzzleId = await createPuzzle({
+      name: '越界',
+      mapId: cellMapId,
+      mapVersionNo: cellVersionNo,
+    });
+    const cellCharacterId = await createCharacter();
 
-    const initial = await api.get(`/api/puzzles/${id}`);
-    const draft = initial.body.data.data;
-    draft.characterSlots[0] = {
-      characterId,
+    const cellInitial = await api.get(`/api/puzzles/${cellPuzzleId}`);
+    const cellDraft = cellInitial.body.data.data;
+    cellDraft.characterSlots[0] = {
+      characterId: cellCharacterId,
       linkages: [{ type: 'cell', cells: [[9, 9]], effect: 'glow', color: 'blue' }],
     };
-    const res = await api
-      .put(`/api/puzzles/${id}`)
-      .send({ data: draft, updatedAt: initial.body.data.updatedAt });
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    const cellRes = await api
+      .put(`/api/puzzles/${cellPuzzleId}`)
+      .send({ data: cellDraft, updatedAt: cellInitial.body.data.updatedAt });
+    expect(cellRes.status).toBe(400);
+    expect(cellRes.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 
   it('renames and re-describes, mirroring into the exported JSON', async () => {
@@ -1218,22 +1205,15 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   /** v0.8.5 §7：复制出来的是一条独立的谜题，编码不能原样带走。 */
-  it('复制谜题时换一个没被占用的编码', async () => {
-    const { draftId, code } = await deployablePuzzle(`DupCode ${uniqueCode('p')}`);
-
-    const copied = await api.post(`/api/puzzles/${draftId}/duplicate`);
-    expect(copied.status).toBe(200);
-    createdPuzzles.push(copied.body.data.id);
-    expect(copied.body.data.code).toBe(`${code}-2`);
-  });
-
-  it('duplicates a puzzle under a unique copy name', async () => {
+  it('复制谜题时换一个没被占用的编码，并起一个不重名的副本名', async () => {
     const { mapId, versionNo } = await publishedMapWithItem(`Dup ${uniqueCode('p')}`);
-    const id = await createPuzzle({ name: '原件', mapId: mapId, mapVersionNo: versionNo });
+    const id = await createPuzzle({ name: '原件', mapId, mapVersionNo: versionNo });
+    const code = (await api.get(`/api/puzzles/${id}`)).body.data.code as string;
 
     const first = await api.post(`/api/puzzles/${id}/duplicate`);
     expect(first.status).toBe(200);
     createdPuzzles.push(first.body.data.id);
+    expect(first.body.data.code).toBe(`${code}-2`);
     expect(first.body.data.name).toBe('原件 副本');
 
     const second = await api.post(`/api/puzzles/${id}/duplicate`);
@@ -1241,7 +1221,7 @@ describe('puzzles API (FEAT-K01)', () => {
     expect(second.body.data.name).toBe('原件 副本 2');
   });
 
-  it('deletes a puzzle', async () => {
+  it('deletes a puzzle and 404s for an unknown canvas', async () => {
     const { mapId, versionNo } = await publishedMapWithItem(`Del ${uniqueCode('p')}`);
     const created = await api
       .post('/api/puzzles')
@@ -1253,12 +1233,10 @@ describe('puzzles API (FEAT-K01)', () => {
     const missing = await api.get(`/api/puzzles/${id}`);
     expect(missing.status).toBe(404);
     expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
-  });
 
-  it('404s for an unknown puzzle canvas', async () => {
-    const res = await api.get('/api/puzzles/99999999/map');
-    expect(res.status).toBe(404);
-    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
+    const canvas = await api.get('/api/puzzles/99999999/map');
+    expect(canvas.status).toBe(404);
+    expect(canvas.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
   /** v0.8.6（docs/v0.8.6.md §4）：禁止符号是一张**上传图**（不是资源引用）， 主题还可以配一份「新建谜题缺省」。四件事一起钉： ① 谜题上传 → `{ path, url }`，随草稿保存后读回一致； ② 主题上传 / 删除 → `themes.data.mark`； ③ 新建谜题拷贝主题缺省，之后主题换图不追溯； ④ 版本行 id 也能上传（fork 态只写文件、不写库）。 */
@@ -1668,22 +1646,18 @@ describe('games API (FEAT-G02 + CONS-K16)', () => {
     expect(detail.body.data.snapshot).toBeUndefined();
   });
 
-  it('defaults the game name to the puzzle name and the difficulty to medium', async () => {
-    const { versionId, puzzleName } = await deployablePuzzle(`Defaulted ${uniqueCode('p')}`);
+  it('defaults the game name to the puzzle name, the difficulty to medium, and the path to puzzle-{code}', async () => {
+    const { versionId, puzzleName, code } = await deployablePuzzle(`Defaulted ${uniqueCode('p')}`);
 
     const deploy = await api.post(`/api/puzzles/${versionId}/games`).send({});
     expect(deploy.status).toBe(200);
     expect(deploy.body.data.name).toBe(puzzleName);
     expect(deploy.body.data.difficulty).toBe(3);
-  });
 
-  /** v0.8.5 §7.4：请求里没有路径时，兜底**先看谜题编码**（`puzzle-{code}`）， 没有编码的存量谜题才退回按名称推导 —— 中文名推不出东西。 */
-  it('不给访问路径时用谜题编码派生', async () => {
-    const { versionId, code } = await deployablePuzzle(`Coded ${uniqueCode('p')}`);
-
-    const deploy = await api.post(`/api/puzzles/${versionId}/games`).send({});
-    expect(deploy.status).toBe(200);
-    expect(deploy.body.data.slug).toBe(`puzzle-${code}`);
+    // v0.8.5 §7.4：请求里没有路径时，兜底**先看谜题编码**。
+    const derived = await api.post(`/api/puzzles/${versionId}/games`).send({});
+    expect(derived.status).toBe(200);
+    expect(derived.body.data.slug).toBe(`puzzle-${code}`);
   });
 
   it('keeps one game per puzzle — a later deploy overwrites the earlier one', async () => {
@@ -1890,15 +1864,12 @@ describe('games API slug (OPT-W04)', () => {
     expect(rows).toHaveLength(1);
   });
 
-  it('rejects an explicitly blank path instead of silently deriving one', async () => {
+  it('rejects an explicitly blank, malformed or over-long path before it reaches the database', async () => {
     const { versionId } = await deployablePuzzle(`Blank ${token()}`);
-    const res = await api.post(`/api/puzzles/${versionId}/games`).send({ slug: '   ' });
-    expect(res.status).toBe(400);
-    expect(res.body.message).toBe('访问路径必填');
-  });
+    const blank = await api.post(`/api/puzzles/${versionId}/games`).send({ slug: '   ' });
+    expect(blank.status).toBe(400);
+    expect(blank.body.message).toBe('访问路径必填');
 
-  it('rejects a malformed or over-long path before it reaches the database', async () => {
-    const { versionId } = await deployablePuzzle(`Bad ${token()}`);
     const rejected = [
       'with space',
       'under_score',
@@ -1944,16 +1915,14 @@ describe('games API slug (OPT-W04)', () => {
     expect(typed.status).toBe(200);
   });
 
-  it('404s for a path that does not exist', async () => {
-    const res = await api.get(`/api/games/slug/no-such-game-${token()}`);
-    expect(res.status).toBe(404);
-    expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
-  });
+  it('404s for a path that does not exist and 400s for a malformed segment', async () => {
+    const missing = await api.get(`/api/games/slug/no-such-game-${token()}`);
+    expect(missing.status).toBe(404);
+    expect(missing.body.code).toBe(ErrorCode.NOT_FOUND);
 
-  it('404s for a malformed path segment rather than querying the database', async () => {
-    const res = await api.get('/api/games/slug/Not%20A%20Slug');
-    expect(res.status).toBe(400);
-    expect(res.body.code).toBe(ErrorCode.VALIDATION_FAILED);
+    const malformed = await api.get('/api/games/slug/Not%20A%20Slug');
+    expect(malformed.status).toBe(400);
+    expect(malformed.body.code).toBe(ErrorCode.VALIDATION_FAILED);
   });
 });
 
@@ -1995,7 +1964,7 @@ describe('games API 展示顺序 (v0.8.3)', () => {
     expect(ours.map((row) => row.sortWeight)).toEqual([-1, 5, 5]);
   });
 
-  it('重新部署不带顺序时沿用上一次的值', async () => {
+  it('重新部署不带顺序时沿用上一次的值；没设过顺序时是 0，且越界的数字被拒', async () => {
     const hex = token();
     const slug = `keep-${hex}`;
     const { versionId } = await deployablePuzzle(`Keep ${hex}`);
@@ -2012,21 +1981,18 @@ describe('games API 展示顺序 (v0.8.3)', () => {
       .send({ slug, difficulty: 4 });
     expect(second.status).toBe(200);
     expect(second.body.data.sortWeight).toBe(7);
-  });
 
-  it('没设过顺序时是 0，且越界的数字被拒', async () => {
-    const hex = token();
-    const { versionId } = await deployablePuzzle(`Plain ${hex}`);
-
+    const plainHex = token();
+    const plainPuzzle = await deployablePuzzle(`Plain ${plainHex}`);
     const plain = await api
-      .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug: `plain-${hex}` });
+      .post(`/api/puzzles/${plainPuzzle.versionId}/games`)
+      .send({ slug: `plain-${plainHex}` });
     expect(plain.body.data.sortWeight).toBe(0);
 
     for (const sortWeight of [1000, -1000, 1.5]) {
       const res = await api
-        .post(`/api/puzzles/${versionId}/games`)
-        .send({ slug: `plain-${hex}`, sortWeight });
+        .post(`/api/puzzles/${plainPuzzle.versionId}/games`)
+        .send({ slug: `plain-${plainHex}`, sortWeight });
       expect(res.status, String(sortWeight)).toBe(400);
       expect(res.body.code, String(sortWeight)).toBe(ErrorCode.VALIDATION_FAILED);
     }
@@ -2075,7 +2041,7 @@ describe('部署页就地改顺序 (v0.8.5)', () => {
     expect((await ours(hex)).map((row) => row.slug)).toEqual([`wp-b-${hex}`, `wp-a-${hex}`]);
   });
 
-  it('缺键 / 越界 / 非整数都是 400，不落库', async () => {
+  it('缺键 / 越界 / 非整数都是 400，不落库；不存在或已取消部署的游戏是 404', async () => {
     const hex = token();
     const { versionId } = await deployablePuzzle(`PatchBad ${hex}`);
     const created = await api
@@ -2093,19 +2059,17 @@ describe('部署页就地改顺序 (v0.8.5)', () => {
     // 值没被任何一次失败的请求改动。
     const row = (await ours(hex)).find((item) => item.id === id);
     expect(row?.sortWeight).toBe(3);
-  });
 
-  it('不存在或已取消部署的游戏是 404', async () => {
     expect((await api.patch('/api/games/99999999').send({ sortWeight: 1 })).status).toBe(404);
 
-    const hex = token();
-    const { versionId } = await deployablePuzzle(`PatchGone ${hex}`);
-    const created = await api
-      .post(`/api/puzzles/${versionId}/games`)
-      .send({ slug: `pg-${hex}` });
-    const id = created.body.data.id as number;
-    expect((await api.delete(`/api/games/${id}`)).status).toBe(200);
-    expect((await api.patch(`/api/games/${id}`).send({ sortWeight: 1 })).status).toBe(404);
+    const goneHex = token();
+    const gonePuzzle = await deployablePuzzle(`PatchGone ${goneHex}`);
+    const gone = await api
+      .post(`/api/puzzles/${gonePuzzle.versionId}/games`)
+      .send({ slug: `pg-${goneHex}` });
+    const goneId = gone.body.data.id as number;
+    expect((await api.delete(`/api/games/${goneId}`)).status).toBe(200);
+    expect((await api.patch(`/api/games/${goneId}`).send({ sortWeight: 1 })).status).toBe(404);
   });
 });
 

@@ -328,52 +328,49 @@ describe('character roster', () => {
 
 /** v0.7.13（docs/v0.7.13.md §11）—— 角色的 `color` / `displayName` 在「加入」 这一刻抄进槽位。 关键在于**只在有值时覆盖**：绝大多数角色两个字段都是 `null`，那必须得到和今天完全一样的槽位（白色 + 无 `displayNumber` 键），否则老谜题的存档会变。 */
 describe('assignSlot 套用角色默认值（v0.7.13 §11）', () => {
-  it('不传默认值 = 今天的行为：白色主题色，没有 displayNumber 键', () => {
+  it('不传默认值、或两项都是 null：白色主题色，没有 displayNumber 键', () => {
     store().assignSlot(9);
     const slot = store().characterSlots[0]!;
     expect(slot.themeColor).toBe(DEFAULT_THEME_COLOR);
     expect(slot).not.toHaveProperty('displayNumber');
+
+    // 两个 null 与不传等价。
+    store().assignSlot(4, { themeColor: null, displayNumber: null });
+    expect(store().characterSlots[1]!.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(store().characterSlots[1]!).not.toHaveProperty('displayNumber');
   });
 
-  it('两个 null 与不传等价', () => {
-    store().assignSlot(9, { themeColor: null, displayNumber: null });
-    expect(store().characterSlots[0]!.themeColor).toBe(DEFAULT_THEME_COLOR);
-    expect(store().characterSlots[0]!).not.toHaveProperty('displayNumber');
-  });
-
-  it('有值的两项都抄进槽位', () => {
+  it('有值的两项都抄进槽位；只给一项时另一项保持默认', () => {
     store().assignSlot(9, { themeColor: '#AABBCC', displayNumber: '甲' });
     const slot = store().characterSlots[0]!;
     expect(slot.themeColor).toBe('#AABBCC');
     expect(slot.displayNumber).toBe('甲');
+
+    // 只给主题色：编号照旧缺席。
+    store().assignSlot(4, { themeColor: '#AABBCC' });
+    expect(store().characterSlots[1]!.displayNumber).toBeUndefined();
+
+    // 只给编号：主题色照旧是白。
+    store().assignSlot(7, { displayNumber: '乙' });
+    expect(store().characterSlots[2]!.themeColor).toBe(DEFAULT_THEME_COLOR);
+    expect(store().characterSlots[2]!.displayNumber).toBe('乙');
   });
 
-  it('只给主题色，编号照旧缺席；只给编号，主题色照旧是白', () => {
-    store().assignSlot(9, { themeColor: '#AABBCC' });
-    expect(store().characterSlots[0]!.displayNumber).toBeUndefined();
-
-    store().assignSlot(4, { displayNumber: '乙' });
-    expect(store().characterSlots[1]!.themeColor).toBe(DEFAULT_THEME_COLOR);
-    expect(store().characterSlots[1]!.displayNumber).toBe('乙');
-  });
-
-  it('空白字符串当作「没有默认」，不落一个空角标', () => {
+  it('空白字符串当作「没有默认」；默认值是副本，加入之后改角色不再影响槽位', () => {
     store().assignSlot(9, { themeColor: '   ', displayNumber: '   ' });
     expect(store().characterSlots[0]!.themeColor).toBe(DEFAULT_THEME_COLOR);
     expect(store().characterSlots[0]!).not.toHaveProperty('displayNumber');
-  });
 
-  it('默认值是副本：加入之后改角色不再影响槽位', () => {
-    store().assignSlot(9, { themeColor: '#AABBCC', displayNumber: '甲' });
+    store().assignSlot(4, { themeColor: '#AABBCC', displayNumber: '甲' });
     // 参与者抽屉里改掉 —— 槽位自己的值，改完就是改完。
-    store().setParticipantConfig(0, {
+    store().setParticipantConfig(1, {
       themeColor: '#000000',
       clue: '',
       linkages: [],
       positionConditions: [],
       displayNumber: '',
     });
-    const slot = store().characterSlots[0]!;
+    const slot = store().characterSlots[1]!;
     expect(slot.themeColor).toBe('#000000');
     expect(slot).not.toHaveProperty('displayNumber');
   });
@@ -505,33 +502,28 @@ describe('mark（v0.8.6 §4）', () => {
     };
   }
 
-  it('init 读入草稿里的引用；旧行的缺席读成 null（默认 ×）', () => {
+  it('init 与 applyDraft 都读入草稿里的引用；旧行的缺席读成 null（默认 ×）', () => {
     store().init(detail({ mark: chosen }), mapContext());
     expect(store().mark).toEqual(chosen);
 
     store().init(detail(), mapContext());
     expect(store().mark).toBeNull();
-  });
 
-  it('setBasicInfo 写入，toDraft 带出去', () => {
-    store().setBasicInfo({ ...basicInfo(), mark: chosen });
-    expect(store().mark).toEqual(chosen);
-    expect(store().toDraft().mark).toEqual(chosen);
-  });
-
-  it('null 不写进草稿 —— 默认 × 用缺席表达', () => {
-    store().setBasicInfo({ ...basicInfo(), mark: chosen });
-    store().setBasicInfo({ ...basicInfo(), mark: null });
-    expect(store().mark).toBeNull();
-    expect(store().toDraft()).not.toHaveProperty('mark');
-  });
-
-  it('applyDraft 往返', () => {
     store().applyDraft({ ...detail().data, mark: chosen });
     expect(store().mark).toEqual(chosen);
 
     store().applyDraft(detail().data);
     expect(store().mark).toBeNull();
+  });
+
+  it('setBasicInfo 写入并带进 toDraft；null 不写进草稿 —— 默认 × 用缺席表达', () => {
+    store().setBasicInfo({ ...basicInfo(), mark: chosen });
+    expect(store().mark).toEqual(chosen);
+    expect(store().toDraft().mark).toEqual(chosen);
+
+    store().setBasicInfo({ ...basicInfo(), mark: null });
+    expect(store().mark).toBeNull();
+    expect(store().toDraft()).not.toHaveProperty('mark');
   });
 
   it('一步撤销回到之前的值', () => {
@@ -563,7 +555,7 @@ describe('replaceMapContext (v0.7.3 §3.3)', () => {
     };
   }
 
-  it('swaps only the canvas and leaves the puzzle-owned fields alone', () => {
+  it('swaps only the canvas, writes it into the draft, and undo restores the old one', () => {
     store().setBasicInfo({
       name: '改过的名字',
       description: '改过的描述',
@@ -592,24 +584,20 @@ describe('replaceMapContext (v0.7.3 §3.3)', () => {
     expect(store().selection).toBeNull();
     expect(store().activeParticipantId).toBeNull();
     expect(store().selectedSlotIndex).toBeNull();
-  });
 
-  it('undo brings the old canvas back', () => {
-    store().replaceMapContext(swapped());
-    store().undo();
-    expect(store().mapContext?.mapId).toBe(217);
-    expect(store().mapContext?.versionNo).toBe(3);
-    expect(store().toDraft().map.data.regions.map((region) => region.id)).toEqual(['rg_1']);
-  });
-
-  it('writes the new canvas into the draft', () => {
-    store().replaceMapContext(swapped());
+    // 新底图写进草稿快照。
     expect(store().toDraft().map).toMatchObject({
       mapId: 318,
       versionNo: 1,
       mapName: '新地图',
     });
     expect(store().toDraft().map.data.regions.map((region) => region.id)).toEqual(['rg_new']);
+
+    // 撤销把旧底图换回来。
+    store().undo();
+    expect(store().mapContext?.mapId).toBe(217);
+    expect(store().mapContext?.versionNo).toBe(3);
+    expect(store().toDraft().map.data.regions.map((region) => region.id)).toEqual(['rg_1']);
   });
 
   it('lands the pruned roster and the new canvas in one undo step', () => {
@@ -676,7 +664,7 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
     expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
   });
 
-  it('survives the next save — filling participant 2 keeps participant 1 intact', () => {
+  it('survives the next save and an unrelated commit — filling participant 2 keeps participant 1 intact', () => {
     load(withRoster());
     store().assignSlot(9);
     store().setParticipantConfig(0, {
@@ -693,16 +681,8 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
     });
     expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
     expect(store().characterSlots[1]?.positionConditions).toEqual([{ x: 0, y: 0 }]);
-  });
 
-  it('survives an unrelated commit', () => {
-    load(withRoster());
-    store().setParticipantConfig(0, {
-      themeColor: '#FFCC00',
-      clue: '',
-      linkages: [],
-      positionConditions: CONDITIONS,
-    });
+    // 与参与者无关的提交同样不动它。
     store().setDescription('无关的编辑');
     store().setLinkageColors([
       { key: 'red', label: '红', color: '#EF9A9A' },
@@ -711,7 +691,7 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
     expect(store().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
   });
 
-  it('reaches toDraft — what the server stores now carries it', () => {
+  it('reaches toDraft, copies defensively, and stores an empty list as an absent field', () => {
     load(withRoster());
     store().setParticipantConfig(0, {
       themeColor: '#FFCC00',
@@ -720,10 +700,8 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
       positionConditions: CONDITIONS,
     });
     expect(store().toDraft().characterSlots[0]?.positionConditions).toEqual(CONDITIONS);
-  });
 
-  it('defensively copies the list on the way in', () => {
-    load(withRoster());
+    // 副本：写进去之后改原数组不影响槽位。
     const conditions = [{ x: 1, y: 1 }];
     store().setParticipantConfig(0, {
       themeColor: '#FFFFFF',
@@ -736,10 +714,8 @@ describe('positionConditions survives (BUG-J04 §4, §15 Q11)', () => {
     expect(stored?.[0]).not.toBe(conditions[0]);
     conditions[0]!.x = 9;
     expect(store().characterSlots[0]?.positionConditions).toEqual([{ x: 1, y: 1 }]);
-  });
 
-  it('stores an empty list as an absent field, never a dead array', () => {
-    load(withRoster());
+    // 空列表 = 缺席字段，不留一个死数组。
     store().setParticipantConfig(0, {
       themeColor: '#FFFFFF',
       clue: '',
@@ -811,17 +787,13 @@ describe('displayNumber survives (v0.6.4 §2)', () => {
     expect(store().characterSlots[0]?.displayNumber).toBe('甲');
   });
 
-  it('reaches toDraft — what the server stores now carries it', () => {
+  it('reaches toDraft and survives an unrelated commit', () => {
     load(withRoster());
     store().setParticipantConfig(0, patch('K1'));
     expect(store().toDraft().characterSlots[0]?.displayNumber).toBe('K1');
-  });
 
-  it('survives an unrelated commit', () => {
-    load(withRoster());
-    store().setParticipantConfig(0, patch('甲'));
     store().setDescription('无关的编辑');
-    expect(store().characterSlots[0]?.displayNumber).toBe('甲');
+    expect(store().characterSlots[0]?.displayNumber).toBe('K1');
   });
 
   it('keeps the entry across a swapSlots — the label travels with its participant', () => {
@@ -835,7 +807,7 @@ describe('displayNumber survives (v0.6.4 §2)', () => {
     expect(store().characterSlots[0]?.displayNumber).toBeUndefined();
   });
 
-  it('trims on the way in and stores a cleared label as absent', () => {
+  it('trims on the way in, stores a cleared label as absent, and keeps what is stored when the patch omits it', () => {
     load(withRoster());
     store().setParticipantConfig(0, patch('  7  '));
     expect(store().characterSlots[0]?.displayNumber).toBe('7');
@@ -844,10 +816,8 @@ describe('displayNumber survives (v0.6.4 §2)', () => {
     const entry = store().characterSlots[0];
     expect(entry).not.toBeNull();
     expect(entry && 'displayNumber' in entry).toBe(false);
-  });
 
-  it('an omitted patch field keeps what is stored', () => {
-    load(withRoster());
+    // 省略字段 = 保持槽位里已有的值。
     store().setParticipantConfig(0, patch('甲'));
     store().setParticipantConfig(0, {
       themeColor: '#123456',
@@ -876,8 +846,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(output.characterSlots[0]).toMatchObject({ characterId: 4, linkages: [] });
   });
 
-  /** v0.6.3 §3.1: the column count has to leave the editor, because the game page reads it straight out of the deployed snapshot. */
-  it('carries the layout column count to the server', () => {
+  /** v0.6.3 §3.1: the column count has to leave the editor, because the game page reads it straight out of the deployed snapshot. 题面同理 —— 全局线索与结束语不到服务端，游戏页拿到的就永远是一张只有描述的纸片。 */
+  it('carries the layout column count and the 题面 to the server', () => {
     store().setBasicInfo({
       name: '午夜花园',
       description: '六人六格，注意花丛的位置条件。',
@@ -905,10 +875,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       toolIcons: null,
     });
     expect(store().toDraft().rosterCols).toBeNull();
-  });
 
-  /** 题面必须跟着草稿走 —— 全局线索与结束语不到服务端，游戏页拿到的就永远是一张只有描述的纸片，玩家侧的结束语也无从出现。 */
-  it('carries the 题面 to the server (全局线索 + 结束语)', () => {
+    // 题面随「基本信息」一起提交。
     store().setBasicInfo({
       name: '午夜花园',
       description: '六人六格。',
@@ -926,8 +894,8 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(draft.ending).toBe('灯灭了，花园还在。');
   });
 
-  /** 旧数据没有这两个键（v0.7.14 之前保存的草稿、已发布的版本行）。导入或恢复之后 store 里必须是「空」而不是 `undefined` —— 抽屉的草稿与 dirty 比较都假设它们是 `string[]` / `string`。 */
-  it('absorbs a v0.7.14-less draft as empty 题面', () => {
+  /** 旧数据没有题面这两个键（v0.7.14 之前保存的草稿、已发布的版本行）。导入或恢复之后 store 里必须是「空」而不是 `undefined` —— 抽屉的草稿与 dirty 比较都假设它们是 `string[]` / `string`。 */
+  it('round-trips through applyDraft and absorbs a v0.7.14-less draft as empty 题面', () => {
     const legacy: PuzzleDraft = {
       version: PUZZLE_JSON_VERSION,
       map: mapSnapshot(),
@@ -937,12 +905,6 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       characterSlots: store().characterSlots,
       rosterCols: null,
     };
-    store().applyDraft(legacy);
-    expect(store().clues).toEqual([]);
-    expect(store().ending).toBe('');
-  });
-
-  it('round-trips through applyDraft', () => {
     const imported: PuzzleDraft = {
       version: PUZZLE_JSON_VERSION,
       map: mapSnapshot(),
@@ -963,6 +925,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
       // v0.6.3 §3: an imported layout survives the import.
       rosterCols: 3,
     };
+
     store().applyDraft(imported);
     const state = store();
     expect(state.name).toBe('导入的谜题');
@@ -975,6 +938,11 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
     expect(state.mapContext?.versionNo).toBe(3);
     store().undo();
     expect(store().name).toBe('午夜花园');
+
+    // 旧草稿缺题面两键 → 读成空，而不是 undefined。
+    store().applyDraft(legacy);
+    expect(store().clues).toEqual([]);
+    expect(store().ending).toBe('');
   });
 
   it('applyDraft resizes the roster to the referenced grid size', () => {
@@ -1049,11 +1017,9 @@ describe('adoptSavedEntry (v0.7.2 §3.3 fork 落库后接管新行)', () => {
 });
 
 describe('ensureEntry / genSlotArray (pure helpers)', () => {
-  it('ensureEntry returns null for an empty slot', () => {
+  it('ensureEntry passes null through, keeps a normalised entry by identity, and fills missing fields with defaults', () => {
     expect(ensureEntry(null)).toBeNull();
-  });
 
-  it('ensureEntry returns an already-normalised entry by identity', () => {
     const entry: CharacterSlotEntry = {
       characterId: 1,
       themeColor: '#FFFFFF',
@@ -1061,11 +1027,9 @@ describe('ensureEntry / genSlotArray (pure helpers)', () => {
       linkages: [],
     };
     expect(ensureEntry(entry)).toBe(entry);
-  });
 
-  it('ensureEntry fills the missing fields with defaults', () => {
-    const entry = ensureEntry({ characterId: 1 });
-    expect(entry).toEqual({
+    const filled = ensureEntry({ characterId: 1 });
+    expect(filled).toEqual({
       characterId: 1,
       themeColor: DEFAULT_THEME_COLOR,
       clue: '',

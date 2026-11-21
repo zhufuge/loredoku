@@ -74,21 +74,22 @@ const layers = [
   },
 ] as const;
 
+/** 各 describe 共用同一套挂载：每例一只新容器与 root，测后卸载，故只在这里起一次。 */
+let container: HTMLDivElement;
+let root: Root;
+
+beforeEach(() => {
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+});
+
 describe.each(layers)('$name — 纯色块（v0.5.1 SPEC-L03 §3.1）', ({ layer, cells }) => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   function paint(map: CellMap): void {
     act(() => {
       root.render(layer(map));
@@ -117,20 +118,6 @@ describe.each(layers)('$name — 纯色块（v0.5.1 SPEC-L03 §3.1）', ({ layer
 });
 
 describe('层 4 · 物品层 — 物品描边（v0.9.1 §5）', () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   function paint(assetId: number, outline: { width: number; color: string } | null): void {
     act(() => {
       root.render(
@@ -144,16 +131,22 @@ describe('层 4 · 物品层 — 物品描边（v0.9.1 §5）', () => {
     });
   }
 
-  it('宽度 0（出厂默认）不挂 filter', () => {
-    paint(2, { width: 0, color: '#000000' });
-    expect(container.querySelector('img')?.style.filter ?? '').toBe('');
+  /* 宽度 0 是出厂默认：不挂 filter，也不白拿合成层。 */
+  it('宽度 0（出厂默认）不挂 filter、不提升合成层', () => {
+    paint(2, { width: 0, color: '#FF0000' });
+    const img = container.querySelector('img');
+    expect(img?.style.filter ?? '').toBe('');
+    expect(img?.style.willChange ?? '').toBe('');
   });
 
-  it('宽度 > 0 时图片带 4 向 drop-shadow，颜色取配置', () => {
+  /* Safari 在元素没有独立合成层时整条 filter 不画；只在有描边时提层，物品多的盘面白拿层会掉帧。 */
+  it('宽度 > 0 时图片带 4 向 drop-shadow（颜色取配置），并提升成独立合成层', () => {
     paint(2, { width: 4, color: '#FF0000' });
-    const filter = container.querySelector('img')?.style.filter ?? '';
+    const img = container.querySelector('img');
+    const filter = img?.style.filter ?? '';
     expect(filter.match(/drop-shadow/g)).toHaveLength(4);
     expect(filter.match(/#FF0000/g)).toHaveLength(4);
+    expect(img?.style.willChange).toBe('filter');
   });
 
   it('色块同样带描边', () => {
@@ -161,34 +154,9 @@ describe('层 4 · 物品层 — 物品描边（v0.9.1 §5）', () => {
     const painted = container.querySelector<HTMLDivElement>('[data-color-block]');
     expect(painted?.style.filter ?? '').toContain('drop-shadow');
   });
-
-  /* Safari 在元素没有独立合成层时整条 filter 不画；只在有描边时提层，物品多的盘面白拿层会掉帧。 */
-  it('有描边时把这一层提升成独立合成层', () => {
-    paint(2, { width: 4, color: '#FF0000' });
-    expect(container.querySelector('img')?.style.willChange).toBe('filter');
-  });
-
-  it('没描边时不提升合成层', () => {
-    paint(2, { width: 0, color: '#FF0000' });
-    expect(container.querySelector('img')?.style.willChange ?? '').toBe('');
-  });
 });
 
 describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   it('fills the whole footprint, not one cell', () => {
     act(() => {
       root.render(
@@ -209,20 +177,6 @@ describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () =>
 
 /** 多格物品是整体：悬停任一占据格，整件物品的显示框一起抬手（`scale` 撑出的画不抢指针）。 */
 describe('层 4 · 物品层 — 多格物品悬停联动（v0.10.6）', () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   const paint = (
     cells: CellMap,
     hover: CellCoord | null,
@@ -300,20 +254,6 @@ describe('层 4 · 物品层 — 形态回退（v0.6.1 §6.2）', () => {
   };
   const byId = new Map<number, Asset>([[9, chest]]);
 
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   function paint(variantId?: number): void {
     act(() => {
       root.render(
@@ -330,12 +270,11 @@ describe('层 4 · 物品层 — 形态回退（v0.6.1 §6.2）', () => {
     return container.querySelector<HTMLDivElement>('[data-color-block]')?.dataset.colorBlock;
   }
 
-  it('renders the variant the anchor names', () => {
+  it('renders the variant the anchor names, falling back to the first when it names none', () => {
     paint(101);
     expect(paintedColour()).toBe('#EEEEEE');
-  });
 
-  it('falls back to the first variant when the anchor carries no variantId', () => {
+    // 颜色从「打开」变回「关闭」⇒ 确实重画了，且兜底到第一个形态。
     paint(undefined);
     expect(paintedColour()).toBe('#111111');
   });
@@ -363,20 +302,6 @@ describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
   };
   const byId = new Map<number, Asset>([[19, ground]]);
 
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   function paint(variantId?: number): void {
     act(() => {
       root.render(
@@ -393,12 +318,11 @@ describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
     return container.querySelector<HTMLDivElement>('[data-color-block]')?.dataset.colorBlock;
   }
 
-  it('renders the variant the background cell names', () => {
+  it('renders the variant the background cell names, falling back to the first when it names none', () => {
     paint(201);
     expect(paintedColour()).toBe('#DDCC88');
-  });
 
-  it('falls back to the first variant when the cell carries no variantId', () => {
+    // 颜色从「沙地」变回「草地」⇒ 确实重画了，且兜底到第一个形态。
     paint(undefined);
     expect(paintedColour()).toBe('#33AA33');
   });
@@ -411,20 +335,6 @@ describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
 
 /** 背景、背景修饰、物品可同格共存：每层只画自己那一份，不多画也不漏画。 */
 describe('三层同格共存（v0.10.9）', () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
-  });
-
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
-
   const both = new Map([
     [
       '0,0',
@@ -467,19 +377,11 @@ describe('三层同格共存（v0.10.9）', () => {
  * 作者要求「物品提示出现在地图最上层，且标签默认在鼠标上方」。
  */
 describe('层 4 · 物品层 — 名称提示在最上层、默认在指针上方（v0.11.4）', () => {
-  let container: HTMLDivElement;
-  let root: Root;
-
   beforeEach(() => {
     vi.useFakeTimers();
-    container = document.createElement('div');
-    document.body.append(container);
-    root = createRoot(container);
   });
 
   afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
     vi.useRealTimers();
   });
 
@@ -532,16 +434,17 @@ describe('层 4 · 物品层 — 名称提示在最上层、默认在指针上�
     expect(style.transform).toBe('translate(-50%, -100%)');
   });
 
-  it('指针贴着画布顶边时翻到下方，仍然水平居中', () => {
+  it('指针贴近画布顶边 / 右边时翻边，仍不越界', () => {
+    // 贴着顶边：翻到下方，仍然水平居中。
     paint(singleItemPicture(), { x: 250, y: 20 });
-    const style = tip()!.style;
+    let style = tip()!.style;
     expect(style.top).toBe('38px');
     expect(style.transform).toBe('translate(-50%, 0)');
-  });
 
-  it('指针贴着画布右边时从锚点向左展开', () => {
+    // 贴着右边：从锚点向左展开。
     paint(singleItemPicture(), { x: 480, y: 300 });
-    expect(tip()!.style.transform).toBe('translate(-100%, -100%)');
+    style = tip()!.style;
+    expect(style.transform).toBe('translate(-100%, -100%)');
   });
 
   it('没有光标坐标（触屏、测试）时挂在物品显示框上方', () => {

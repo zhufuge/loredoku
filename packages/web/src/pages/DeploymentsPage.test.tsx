@@ -30,33 +30,23 @@ const weightMutate = vi.fn();
 vi.mock('@/hooks/useGames', () => ({
   useGames: () => ({ ...gamesRef, refetch: () => {} }),
   useCancelGame: () => ({ mutate: cancelMutate, isPending: false }),
-  // 部署弹窗也是这一页渲染的（默认关着），它得能拿到这个 hook。
+  // 部署弹窗与顺序列的就地编辑也是这一页渲染的，它们得能拿到这两个 hook。
   useDeployGame: () => ({ mutate: deployMutate, isPending: false }),
-  // 顺序列的就地编辑。
-  useUpdateGameWeight: () => ({
-    mutate: weightMutate,
-    isPending: false,
-    variables: undefined,
-  }),
+  useUpdateGameWeight: () => ({ mutate: weightMutate, isPending: false, variables: undefined }),
 }));
 
 vi.mock('@/hooks/usePuzzles', () => ({
   usePuzzles: () => ({ data: versionsRef.data, isLoading: false, isError: false }),
 }));
 
-/** `useThemes` mock 掉 —— 它走 react-query，而这套测试没有 `QueryClientProvider` （也不需要：平铺逻辑是纯展示）。v0.9.2 起这一页不再需要合辑列表。 */
+/** `useThemes` 走 react-query，而这套测试没有 `QueryClientProvider`（也不需要：平铺逻辑是纯展示）。 */
 const themesRef: { data: Theme[]; isLoading: boolean } = { data: [], isLoading: false };
-
-vi.mock('@/hooks/useThemes', () => ({
-  useThemes: () => themesRef,
-}));
+vi.mock('@/hooks/useThemes', () => ({ useThemes: () => themesRef }));
 
 /** 没有上下文时页面退回「全部行平铺」的老行为，所以默认给 `null`；
  *  需要验「工作空间视角」的用例自己塞一个值进去。 */
 const workspaceRef: { value: unknown } = { value: null };
-vi.mock('@/components/layout/WorkspaceContext', () => ({
-  useWorkspace: () => workspaceRef.value,
-}));
+vi.mock('@/components/layout/WorkspaceContext', () => ({ useWorkspace: () => workspaceRef.value }));
 
 function theme(overrides: Partial<Theme> = {}): Theme {
   return {
@@ -140,34 +130,57 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     act(() => found?.click());
   };
 
+  /** 弹窗也 portal 到 body，按可见文案点；页头按钮先于 portal 出现，「部署」先命中页头那颗。 */
+  const clickText = (label: string): void => {
+    const found = Array.from(document.querySelectorAll<HTMLButtonElement>('button')).find(
+      (node) => node.textContent?.trim() === label,
+    );
+    act(() => found?.click());
+  };
+
+  /** 工作空间视角：红楼梦主题；「只列当前主题」的两个用例共用这一份上下文。 */
+  const hlmWorkspace = (): void => {
+    const hlm = theme({ code: 'hlm', name: '红楼梦' });
+    workspaceRef.value = {
+      theme: hlm,
+      themes: [theme(), hlm],
+      themeCode: 'hlm',
+      href: (module: string) => `/hlm/${module}`,
+    };
+  };
+
+  /** 红楼梦主题下的一条在线行 —— 与默认主题的 `game()` 区分开。 */
+  const hlmGame = (id: number, name: string): MapGameSummary =>
+    game({ id, themeCode: 'hlm', name, puzzleName: name, slug: `puzzle-hlm-${id}` });
+
   beforeEach(() => {
-    cancelMutate.mockClear();
-    deployMutate.mockClear();
-    weightMutate.mockClear();
+    cancelMutate.mockClear(); deployMutate.mockClear(); weightMutate.mockClear();
     downloadThemeBundleMock.mockClear();
-    downloadThemeBundleMock.mockResolvedValue({
-      blob: new Blob([]),
-      filename: 'hlm-bundle-20261116.zip',
-    });
-    workspaceRef.value = null;
-    themesRef.data = [theme()];
-    themesRef.isLoading = false;
-    gamesRef.data = [game()];
-    gamesRef.isLoading = false;
-    gamesRef.isError = false;
+    downloadThemeBundleMock.mockResolvedValue({ blob: new Blob([]), filename: 'hlm-bundle-20261116.zip' });
+    workspaceRef.value = null; themesRef.data = [theme()]; themesRef.isLoading = false;
+    gamesRef.data = [game()]; gamesRef.isLoading = false; gamesRef.isError = false;
     versionsRef.data = { list: [version()] };
     container = document.createElement('div');
     document.body.appendChild(container);
     root = createRoot(container);
   });
 
-  afterEach(() => {
-    act(() => root.unmount());
-    container.remove();
-  });
+  afterEach(() => { act(() => root.unmount()); container.remove(); });
 
-  it('取消部署要二次确认，且写明链接立刻失效、路径可以再用', () => {
+  /** v0.8.5 §3：路径列只留中段（连 `puzzle-` 也剥掉），`/play/` 与 `puzzle-` 每行都一样却占着最宽一列；完整地址在 `title` 里，复制按钮随全路径一起撤掉 —— 不是完整地址，复制出去也用不了。取消部署走二次确认：明写「链接立刻失效 / 同一路径可以再用」，确认前不发请求。 */
+  it('行的路径列只显示中段；取消部署要二次确认，且写明链接立刻失效、路径可以再用', () => {
     render();
+
+    expect(text()).toContain('midnight-garden-medium');
+    expect(text()).not.toContain('puzzle-midnight-garden-medium');
+    expect(text()).not.toContain('/play/');
+    // 完整地址没丢，挪到了 `title` 里（悬停可见，也是「打开游戏」那颗按钮的去处）。
+    expect(container.querySelector('[title="/play/puzzle-midnight-garden-medium"]')).not.toBeNull();
+    const labels = Array.from(container.querySelectorAll('button'), (node) =>
+      node.getAttribute('aria-label'),
+    );
+    expect(labels.some((label) => label?.includes('复制'))).toBe(false);
+
     clickButton('取消部署');
     expect(text()).toContain('玩家通过 /play/puzzle-midnight-garden-medium 将立即无法访问');
     expect(text()).toContain('可以再用同一个访问路径重新部署');
@@ -177,17 +190,8 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
 
   /** 工作空间里只列**这个主题**的关，别的主题一行都不混进来（§18）。 */
   it('在工作空间里只列当前主题的关 —— 别的主题既不分组也不并进「未归入」', () => {
-    const hlm = theme({ code: 'hlm', name: '红楼梦' });
-    workspaceRef.value = {
-      theme: hlm,
-      themes: [theme(), hlm],
-      themeCode: 'hlm',
-      href: (module: string) => `/hlm/${module}`,
-    };
-    gamesRef.data = [
-      game(),
-      game({ id: 4, themeCode: 'hlm', name: '撕扇', puzzleName: '撕扇', slug: 'puzzle-hlm-sishan' }),
-    ];
+    hlmWorkspace();
+    gamesRef.data = [game(), hlmGame(4, '撕扇')];
     render();
 
     expect(text()).toContain('撕扇');
@@ -197,90 +201,87 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     expect(text()).toContain('共 1 个游戏在线。');
   });
 
-  it('页头也有「部署」按钮，点开就是部署弹窗（v0.7.11）', () => {
+  /** 页头也有「部署」按钮（v0.7.11），点开第一步就是选谜题版本；选中后名称按这个版本回填，路径留给作者自己填 —— 中文名 slug 化之后什么都不剩。 */
+  it('页头也有「部署」按钮：弹窗先选版本，选中后名称 / 路径按它回填', () => {
     render();
     const buttons = Array.from(container.querySelectorAll('button'));
     expect(buttons.some((node) => node.textContent?.includes('前往谜题列表'))).toBe(false);
+    expect(buttons.some((node) => node.textContent?.trim() === '部署')).toBe(true);
 
-    const deployButton = buttons.find((node) => node.textContent?.trim() === '部署');
-    expect(deployButton).not.toBeUndefined();
-    act(() => deployButton?.click());
-
-    // 弹窗第一步就是选谜题版本。
+    clickText('部署');
     expect(text()).toContain('谜题版本');
     const select = document.querySelector<HTMLSelectElement>('#game-deploy-version');
     expect(select).not.toBeNull();
     expect(select?.options[1]?.textContent).toContain('海边的灯塔 v3');
-  });
-
-  it('选中谜题版本后，名称 / 路径都按这个版本回填（v0.7.11）', () => {
-    render();
-    act(() =>
-      Array.from(container.querySelectorAll('button'))
-        .find((node) => node.textContent?.trim() === '部署')
-        ?.click(),
-    );
-
-    const nameInput = document.querySelector<HTMLInputElement>('#game-deploy-name');
-    expect(nameInput?.value).toBe('');
-
-    const select = document.querySelector<HTMLSelectElement>('#game-deploy-version');
+    expect(document.querySelector<HTMLInputElement>('#game-deploy-name')?.value).toBe('');
     if (!select) throw new Error('版本下拉没渲染出来');
     act(() => {
       select.value = '21';
       select.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
-    expect(document.querySelector<HTMLInputElement>('#game-deploy-name')?.value).toBe(
-      '海边的灯塔',
-    );
-    // 中文名 slug 化之后什么都不剩，所以路径留给作者自己填 —— 与部署弹窗一贯的规则一致。
+    expect(document.querySelector<HTMLInputElement>('#game-deploy-name')?.value).toBe('海边的灯塔');
     expect(text()).toContain('无法根据名称生成访问路径');
   });
 
-  /** 导出清单与服务端同一把尺子 —— **只列当前主题的在线关**。 把全站的 `gamesQuery.data` 直接交给弹窗，清单就会列出别的主题的关，而服务端只打这个主题 ——「清单 8 关、包里 2 关」这种差无从解释。 */
-  it('导出清单只列当前主题的关', () => {
-    const hlm = theme({ code: 'hlm', name: '红楼梦' });
-    workspaceRef.value = {
-      theme: hlm,
-      themes: [theme(), hlm],
-      themeCode: 'hlm',
-      href: (module: string) => `/hlm/${module}`,
-    };
-    gamesRef.data = [
-      game(),
-      game({ id: 4, themeCode: 'hlm', name: '撕扇', puzzleName: '撕扇', slug: 'puzzle-hlm-sishan' }),
-    ];
+  /** 导出清单与服务端同一把尺子 —— **只列当前主题的在线关**；每关前面有勾选框，默认全勾上，清空后「导出 zip」才灰掉，收起的请求只带选中的 id。 */
+  it('导出清单只列当前主题的关，并能逐关勾选：全选 / 清空 / 只导出选中的', async () => {
+    hlmWorkspace();
+    gamesRef.data = [game(), hlmGame(4, '撕扇'), hlmGame(5, '葬花')];
     render();
 
-    act(() =>
-      Array.from(container.querySelectorAll('button'))
-        .find((node) => node.textContent?.trim() === '导出包')
-        ?.click(),
-    );
-
-    expect(text()).toContain('导出资源包 · 红楼梦');
     expect(text()).toContain('撕扇');
+    expect(text()).toContain('葬花');
     expect(text()).not.toContain('午夜花园');
-    expect(text()).toContain('共 1 关');
-  });
+    expect(text()).toContain('共 2 个游戏在线。');
 
-  /** v0.8.5：路径列只留尾部。v0.8.5 §3：连 `puzzle-` 那段也剥掉。 `/play/` 与 `puzzle-` 在每一行都一样，却占着最宽的一列；复制按钮也随全路径一起撤掉 —— 一个不是完整地址的字符串，复制出去也用不了。 */
-  it('路径列只显示中段（不显示 /play/ 与 puzzle-），也没有复制按钮', () => {
-    render();
+    clickText('导出包');
+    expect(text()).toContain('导出资源包 · 红楼梦');
+    expect(text()).not.toContain('午夜花园');
+    expect(text()).toContain('共 2 关');
+    // 弹窗 portal 到 body，所以勾选框也从 document 上找。
+    const checkboxes = (): HTMLInputElement[] =>
+      Array.from(document.querySelectorAll('input[type="checkbox"]'));
+    const exportButton = (): HTMLButtonElement | undefined =>
+      Array.from(document.querySelectorAll('button')).find((node) =>
+        node.textContent?.includes('导出 zip'),
+      );
+    const again = (): HTMLButtonElement | undefined =>
+      Array.from(document.querySelectorAll('button')).find(
+        (node) => node.textContent?.trim() === '再导一次',
+      );
 
-    expect(text()).toContain('midnight-garden-medium');
-    expect(text()).not.toContain('puzzle-midnight-garden-medium');
-    expect(text()).not.toContain('/play/');
-    // 完整地址没丢，挪到了 `title` 里（悬停可见，也是「打开游戏」那颗按钮的去处）。
-    expect(
-      container.querySelector('[title="/play/puzzle-midnight-garden-medium"]'),
-    ).not.toBeNull();
-    expect(
-      Array.from(container.querySelectorAll('button')).some((node) =>
-        node.getAttribute('aria-label')?.includes('复制'),
-      ),
-    ).toBe(false);
+    expect(checkboxes()).toHaveLength(2);
+    expect(checkboxes().every((node) => node.checked)).toBe(true);
+    expect(text()).toContain('已选 2 / 共 2 关');
+    // 默认全选 —— 导出就是两关都带。
+    act(() => exportButton()?.click());
+    await vi.waitFor(() => expect(text()).toContain('已生成'));
+    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [4, 5]);
+    act(() => again()?.click());
+
+    // 取消第一关：计数与请求都跟着变。
+    act(() => checkboxes()[0]!.click());
+    expect(text()).toContain('已选 1 / 共 2 关');
+    act(() => exportButton()?.click());
+    await vi.waitFor(() => expect(text()).toContain('已生成'));
+    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [5]);
+    act(() => again()?.click());
+
+    // 清空：导出按钮灰掉，点也不发请求。
+    clickText('清空');
+    expect(checkboxes().every((node) => !node.checked)).toBe(true);
+    expect(text()).toContain('已选 0 / 共 2 关');
+    expect(exportButton()?.disabled).toBe(true);
+    act(() => exportButton()?.click());
+    expect(downloadThemeBundleMock).toHaveBeenCalledTimes(2);
+
+    // 全选：回到默认。
+    clickText('全选');
+    expect(checkboxes().every((node) => node.checked)).toBe(true);
+    act(() => exportButton()?.click());
+    await vi.waitFor(() => expect(text()).toContain('已生成'));
+    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [4, 5]);
   });
 
   /** 顺序列 —— 平时是数字，点开是输入框；回车与失焦是同一条收尾路径， **值真的变了**才写回。 三条都在这里：改了要发；没改不发（点开看一眼是常事）；不合法不发（这一格没有弹窗可以承载错误，把 `1.5` 交给服务端只会得到一句 400）。 */
@@ -299,22 +300,16 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
       return input;
     };
     const type = (input: HTMLInputElement, value: string): void => {
-      const setter = Object.getOwnPropertyDescriptor(
-        Object.getPrototypeOf(input),
-        'value',
-      )?.set;
+      const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(input), 'value')?.set;
       setter?.call(input, value);
       act(() => input.dispatchEvent(new Event('input', { bubbles: true })));
     };
     const pressEnter = (input: HTMLInputElement): void => {
-      act(() =>
-        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
-      );
+      act(() => input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })));
     };
 
     // 收起时就是一个数字（前面那个「序」是这一列的标签，没有表头，得自己说清楚）。
     expect(cellButton().textContent).toContain('0');
-
     // 回车提交。
     let input = openEditor();
     type(input, '5');
@@ -341,79 +336,5 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
     type(input, '1.5');
     pressEnter(input);
     expect(weightMutate).not.toHaveBeenCalled();
-  });
-
-  /** 导出清单的每一关前面有勾选框 —— 主题十几关时作者经常只想归档新的那几关。默认全勾上，取消后「导出 zip」 才会灰掉，收起的请求只带选中的 id。 */
-  it('导出清单能逐关勾选：全选 / 清空 / 只导出选中的', async () => {
-    const hlm = theme({ code: 'hlm', name: '红楼梦' });
-    workspaceRef.value = {
-      theme: hlm,
-      themes: [theme(), hlm],
-      themeCode: 'hlm',
-      href: (module: string) => `/hlm/${module}`,
-    };
-    gamesRef.data = [
-      game({ id: 3, themeCode: 'hlm', name: '撕扇', slug: 'puzzle-hlm-sishan' }),
-      game({ id: 4, themeCode: 'hlm', name: '葬花', slug: 'puzzle-hlm-zanghua' }),
-    ];
-    render();
-
-    act(() =>
-      Array.from(container.querySelectorAll('button'))
-        .find((node) => node.textContent?.trim() === '导出包')
-        ?.click(),
-    );
-
-    // 弹窗 portal 到 body，所以勾选框也从 document 上找。
-    const checkboxes = (): HTMLInputElement[] =>
-      Array.from(document.querySelectorAll('input[type="checkbox"]'));
-    expect(checkboxes()).toHaveLength(2);
-    expect(checkboxes().every((node) => node.checked)).toBe(true);
-    expect(text()).toContain('已选 2 / 共 2 关');
-    const exportButton = (): HTMLButtonElement | undefined =>
-      Array.from(document.querySelectorAll('button')).find(
-        (node) => node.textContent?.includes('导出 zip'),
-      );
-    const again = (): HTMLButtonElement | undefined =>
-      Array.from(document.querySelectorAll('button')).find(
-        (node) => node.textContent?.trim() === '再导一次',
-      );
-
-    // 默认全选 —— 导出就是两关都带。
-    act(() => exportButton()?.click());
-    await vi.waitFor(() => expect(text()).toContain('已生成'));
-    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [3, 4]);
-    act(() => again()?.click());
-
-    // 取消第一关：计数与请求都跟着变。
-    act(() => checkboxes()[0]!.click());
-    expect(text()).toContain('已选 1 / 共 2 关');
-    act(() => exportButton()?.click());
-    await vi.waitFor(() => expect(text()).toContain('已生成'));
-    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [4]);
-    act(() => again()?.click());
-
-    // 清空：导出按钮灰掉，点也不发请求。
-    act(() =>
-      Array.from(document.querySelectorAll('button'))
-        .find((node) => node.textContent?.trim() === '清空')
-        ?.click(),
-    );
-    expect(checkboxes().every((node) => !node.checked)).toBe(true);
-    expect(text()).toContain('已选 0 / 共 2 关');
-    expect(exportButton()?.disabled).toBe(true);
-    act(() => exportButton()?.click());
-    expect(downloadThemeBundleMock).toHaveBeenCalledTimes(2);
-
-    // 全选：回到默认。
-    act(() =>
-      Array.from(document.querySelectorAll('button'))
-        .find((node) => node.textContent?.trim() === '全选')
-        ?.click(),
-    );
-    expect(checkboxes().every((node) => node.checked)).toBe(true);
-    act(() => exportButton()?.click());
-    await vi.waitFor(() => expect(text()).toContain('已生成'));
-    expect(downloadThemeBundleMock).toHaveBeenLastCalledWith('hlm', [3, 4]);
   });
 });

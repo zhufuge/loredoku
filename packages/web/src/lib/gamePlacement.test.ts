@@ -97,15 +97,13 @@ function slot(characterId: number, positionConditions?: Array<{ x: number; y: nu
 }
 
 describe('placing a participant (SPEC-G03 §9.2)', () => {
-  it('puts number 1 in the 3×3 grid on an empty cell with a tap', () => {
-    const next = place(createGamePlacementState(), 2, 3, 1);
-    expect(placementAt(next.board, 2, 3)).toEqual({ kind: 'numbers', entries: [1] });
-    expect(numbersIn(placementAt(next.board, 2, 3))).toEqual([1]);
-  });
+  it('点按落编号、长按落头像', () => {
+    const tapped = place(createGamePlacementState(), 2, 3, 1);
+    expect(placementAt(tapped.board, 2, 3)).toEqual({ kind: 'numbers', entries: [1] });
+    expect(numbersIn(placementAt(tapped.board, 2, 3))).toEqual([1]);
 
-  it('puts the avatar on an empty cell with a long-press', () => {
-    const next = place(createGamePlacementState(), 2, 3, 1, { variant: 'image' });
-    expect(placementAt(next.board, 2, 3)).toEqual({ kind: 'participant', index: 1 });
+    const longPressed = place(createGamePlacementState(), 2, 3, 1, { variant: 'image' });
+    expect(placementAt(longPressed.board, 2, 3)).toEqual({ kind: 'participant', index: 1 });
   });
 
   /** 需求：「已放置参与者和标记的格子，参与者编号点击时无效果」：短按在头像格上一律无效果 —— 要换人请长按（那是另一条规则）。 */
@@ -125,19 +123,18 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
     ).toBe('avatar');
   });
 
-  it('still lets a long-press replace somebody else’s avatar', () => {
+  it('长按可换人，也可把编号升级成头像', () => {
     let state = place(createGamePlacementState(), 1, 1, 1, { variant: 'image' });
     state = place(state, 1, 1, 2, { variant: 'image' });
     expect(placementAt(state.board, 1, 1)).toEqual({ kind: 'participant', index: 2 });
-  });
 
-  it('promotes a carried number to the avatar on long-press', () => {
-    let state = place(createGamePlacementState(), 0, 0, 2);
+    // 还没确认的编号同样能就地升级。
+    state = place(state, 0, 0, 2);
     state = place(state, 0, 0, 2, { variant: 'image' });
     expect(placementAt(state.board, 0, 0)).toEqual({ kind: 'participant', index: 2 });
   });
 
-  it('toggles the number off when the same cell is tapped again (SPEC-J03)', () => {
+  it('同一格重复手势：编号收回，头像无效果', () => {
     const first = place(createGamePlacementState(), 0, 0, 3);
     const second = place(first, 0, 0, 3);
     // a tap on the cell that already carries this 编号 removes it —
@@ -145,16 +142,14 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
     expect(placementAt(second.board, 0, 0)).toBeNull();
     expect(forbiddenCells(second.board).size).toBe(0);
     expect(second.past).toHaveLength(2);
+
+    const avatar = place(second, 0, 0, 3, { variant: 'image' });
+    const again = place(avatar, 0, 0, 3, { variant: 'image' });
+    expect(again).toBe(avatar);
+    expect(placementAt(again.board, 0, 0)).toEqual({ kind: 'participant', index: 3 });
   });
 
-  it('ignores a long-press on the cell already showing that avatar', () => {
-    const first = place(createGamePlacementState(), 0, 0, 3, { variant: 'image' });
-    const second = place(first, 0, 0, 3, { variant: 'image' });
-    expect(second).toBe(first);
-    expect(placementAt(second.board, 0, 0)).toEqual({ kind: 'participant', index: 3 });
-  });
-
-  it('rejects a non-standable cell in both variants', () => {
+  it('拒绝不可站立格，也拒绝已带 × 的格', () => {
     const state = createGamePlacementState();
     const noStand = nostand('1,1');
     expect(canPlaceParticipant({ board: state.board, x: 1, y: 1, participantId: 1, blockingCells: noStand })).toBe(false);
@@ -163,14 +158,12 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
     expect(
       placementBlockReason({ board: state.board, x: 1, y: 1, participantId: 1, blockingCells: noStand }),
     ).toBe('non-standable');
-  });
 
-  it('rejects a cell that already carries a × in both variants', () => {
-    const state = forbid(createGamePlacementState(), 4, 4);
-    expect(canPlaceParticipant({ board: state.board, x: 4, y: 4, participantId: 1, blockingCells: EMPTY_NOSTAND })).toBe(false);
-    expect(canPlaceParticipant({ board: state.board, x: 4, y: 4, participantId: 1, blockingCells: EMPTY_NOSTAND, variant: 'image' })).toBe(false);
-    expect(place(state, 4, 4, 1)).toBe(state);
-    expect(place(state, 4, 4, 1, { variant: 'image' })).toBe(state);
+    const marked = forbid(createGamePlacementState(), 4, 4);
+    expect(canPlaceParticipant({ board: marked.board, x: 4, y: 4, participantId: 1, blockingCells: EMPTY_NOSTAND })).toBe(false);
+    expect(canPlaceParticipant({ board: marked.board, x: 4, y: 4, participantId: 1, blockingCells: EMPTY_NOSTAND, variant: 'image' })).toBe(false);
+    expect(place(marked, 4, 4, 1)).toBe(marked);
+    expect(place(marked, 4, 4, 1, { variant: 'image' })).toBe(marked);
   });
 
   it('rejects a tenth number on a tap — but a long-press still confirms', () => {
@@ -228,7 +221,7 @@ describe('uniqueness is about the avatar only (SPEC-J05 §3.6)', () => {
     ).toBeNull();
   });
 
-  it('confirms a long-press while candidate 编号 wait on other cells', () => {
+  it('候选编号在别的格子上也能长按确认', () => {
     // 候选不是答案：长按其中任一格就是「确认」，随后 SPEC-H01 把候选清掉。
     let state = place(createGamePlacementState(), 0, 0, 3, { gridSize: 5 });
     state = place(state, 1, 1, 3, { gridSize: 5 });
@@ -236,11 +229,10 @@ describe('uniqueness is about the avatar only (SPEC-J05 §3.6)', () => {
     state = place(state, 1, 1, 3, { gridSize: 5, variant: 'image' });
     expect(placementAt(state.board, 1, 1)).toEqual({ kind: 'participant', index: 3 });
     expect(placementAt(state.board, 0, 0)).toBeNull();
-  });
 
-  it('allows promoting the participant on its own cell', () => {
-    const first = place(createGamePlacementState(), 1, 1, 2);
-    const promoted = place(first, 1, 1, 2, { variant: 'image' });
+    // 只有一格候选时，就地确认同理。
+    const solo = place(createGamePlacementState(), 1, 1, 2);
+    const promoted = place(solo, 1, 1, 2, { variant: 'image' });
     expect(placementAt(promoted.board, 1, 1)).toEqual({ kind: 'participant', index: 2 });
   });
 
@@ -257,6 +249,12 @@ describe('uniqueness is about the avatar only (SPEC-J05 §3.6)', () => {
     expect(participantPlacementAt(state.board, 5)).toBeNull();
     expect(placedParticipantIds(state.board).has(4)).toBe(true);
     expect(formatCellLabel({ x: 3, y: 6 })).toBe('R7 C4');
+
+    // 单格判定：这一格带不带这位参与者（空格 → false）。
+    const numbers: CellPlacement = { kind: 'numbers', entries: [1, 4] };
+    expect(hasParticipant(numbers, 4)).toBe(true);
+    expect(hasParticipant(numbers, 2)).toBe(false);
+    expect(hasParticipant(null, 1)).toBe(false);
   });
 });
 
@@ -287,7 +285,7 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
     expect(undo(undo(off)).board).toEqual({});
   });
 
-  it('never toggles an avatar away — a tap there is refused (Q5)', () => {
+  it('唯一拒绝码是 avatar —— 重复编号不再被拒（Q5）', () => {
     const avatar = place(createGamePlacementState(), 1, 1, 4, { variant: 'image' });
     expect(place(avatar, 1, 1, 4)).toBe(avatar);
     expect(
@@ -300,13 +298,11 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
       }),
     ).toBe('avatar');
     expect(placementAt(avatar.board, 1, 1)).toEqual({ kind: 'participant', index: 4 });
-  });
 
-  it('stops refusing a repeat — `duplicate` is not a block reason any more', () => {
-    const state = place(createGamePlacementState(), 6, 6, 7);
+    const repeated = place(createGamePlacementState(), 6, 6, 7);
     expect(
       placementBlockReason({
-        board: state.board,
+        board: repeated.board,
         x: 6,
         y: 6,
         participantId: 7,
@@ -315,7 +311,7 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
     ).toBeNull();
     expect(
       canPlaceParticipant({
-        board: state.board,
+        board: repeated.board,
         x: 6,
         y: 6,
         participantId: 7,
@@ -338,12 +334,10 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
     });
   });
 
-  it('still refuses a tap on a cell carrying a ×', () => {
-    const state = forbid(createGamePlacementState(), 4, 4);
-    expect(place(state, 4, 4, 1)).toBe(state);
-  });
+  it('× 格仍拒，另一格上的同号则允许（§3.6）', () => {
+    const marked = forbid(createGamePlacementState(), 4, 4);
+    expect(place(marked, 4, 4, 1)).toBe(marked);
 
-  it('no longer refuses a tap on another cell — the 编号 may repeat (§3.6)', () => {
     const first = place(createGamePlacementState(), 1, 1, 1);
     const second = place(first, 4, 4, 1);
     expect(second).not.toBe(first);
@@ -353,13 +347,12 @@ describe('placing a number toggles (SPEC-J03 §3)', () => {
 });
 
 describe('the automatic × is a long-press consequence only (SPEC-J02 §2)', () => {
-  it('leaves the row and the column alone when a 编号 lands', () => {
-    const next = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6 });
-    expect(forbiddenCells(next.board).size).toBe(0);
-    expect(Object.keys(next.board)).toEqual([cellKey(2, 3)]);
-  });
+  it('落编号不碰行与列，也不参加判卷', () => {
+    const single = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6 });
+    expect(forbiddenCells(single.board).size).toBe(0);
+    expect(Object.keys(single.board)).toEqual([cellKey(2, 3)]);
 
-  it('lets several 编号 share a row — exclusions are the player’s own business', () => {
+    // 同一排三个人全是编号：排除项是玩家自己的事。
     let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
     state = place(state, 1, 0, 2, { gridSize: 5 });
     state = place(state, 2, 0, 3, { gridSize: 5 });
@@ -419,7 +412,7 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
     expect(placementAt(next.board, 1, 4)).toEqual({ kind: 'forbidden', auto: true });
   });
 
-  it('is idempotent — a repeated sweep records no extra step', () => {
+  it('重复扫同一片是幂等的，且放置与补 × 只占一步', () => {
     const first = place(createGamePlacementState(), 2, 2, 1, { gridSize: 4, variant: 'image' });
     const again = autoForbiddenCells({
       board: first.board,
@@ -433,11 +426,9 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
       const [x, y] = key.split(',').map(Number) as [number, number];
       expect(placementAt(first.board, x, y)).toEqual({ kind: 'forbidden', auto: true });
     }
-  });
 
-  it('merges the placement and the sweep into one undo step', () => {
-    const placed = place(createGamePlacementState(), 2, 3, 1, { gridSize: 6, variant: 'image' });
-    const undone = undo(placed);
+    // 放置 + 整片补 × 折成同一个历史步。
+    const undone = undo(first);
     expect(countPlacements(undone.board)).toBe(0);
   });
 
@@ -505,18 +496,15 @@ describe('the forbidden × (SPEC-G04 §10.1)', () => {
 
 /** 需求：「标记点已经放置了标记的格子时，清空该格子的标记」。 `×` 工具是一支开关：同一格再点一次就收回 —— 撤销一个点错的 `×` 不必先切橡皮、 再切回来。 */
 describe('toggleForbidden（v0.7.12）', () => {
-  it('puts a × down on an empty cell', () => {
-    const state = toggleForbidden(createGamePlacementState(), {
+  it('同一格再点一次收回 ×，再点又放回来', () => {
+    let state = toggleForbidden(createGamePlacementState(), {
       x: 2,
       y: 3,
       blockingCells: EMPTY_NOSTAND,
     });
     expect(placementAt(state.board, 2, 3)).toEqual({ kind: 'forbidden' });
     expect(state.past).toHaveLength(1);
-  });
 
-  it('takes the × back when the same cell is hit again', () => {
-    let state = forbid(createGamePlacementState(), 2, 3);
     state = toggleForbidden(state, { x: 2, y: 3, blockingCells: EMPTY_NOSTAND });
     expect(placementAt(state.board, 2, 3)).toBeNull();
     // 放 + 收 = 两步可回退（和「擦一格」同等的历史粒度）。
@@ -559,16 +547,12 @@ describe('toggleForbidden（v0.7.12）', () => {
 });
 
 describe('clearing (SPEC-G04 §10.2)', () => {
-  it('empties one cell and records the step', () => {
+  it('擦掉一格并记一步；空格上是 no-op', () => {
     const placed = place(createGamePlacementState(), 1, 1, 1);
     const cleared = clearCell(placed, { x: 1, y: 1 });
     expect(placementAt(cleared.board, 1, 1)).toBeNull();
     expect(canUndo(cleared)).toBe(true);
-  });
-
-  it('is a no-op on an empty cell', () => {
-    const state = createGamePlacementState();
-    expect(clearCell(state, { x: 9, y: 9 })).toBe(state);
+    expect(clearCell(cleared, { x: 9, y: 9 })).toBe(cleared);
   });
 
   it('long-press clears the whole board in a single undo step', () => {
@@ -606,21 +590,16 @@ describe('undo / redo (SPEC-G04 §10.3)', () => {
     expect(redo(state)).toBe(state);
   });
 
-  it('a new placement clears the redo stack', () => {
-    let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 4 });
-    state = undo(state);
+  it('被撤销的放置可以重做，新放置则清空 redo 栈', () => {
+    const placed = place(createGamePlacementState(), 0, 0, 1, { gridSize: 4 });
+    expect(numbersIn(placementAt(redo(undo(placed)).board, 0, 0))).toEqual([1]);
+
+    let state = undo(placed);
     expect(canRedo(state)).toBe(true);
     state = place(state, 4, 4, 2, { gridSize: 6 });
     expect(canRedo(state)).toBe(false);
     expect(placementAt(state.board, 0, 0)).toBeNull();
     expect(numbersIn(placementAt(state.board, 4, 4))).toEqual([2]);
-  });
-
-  it('redoes an undone placement', () => {
-    const placed = place(createGamePlacementState(), 1, 1, 1, { gridSize: 4 });
-    const undone = undo(placed);
-    const redone = redo(undone);
-    expect(numbersIn(placementAt(redone.board, 1, 1))).toEqual([1]);
   });
 
   it('caps the history at the configured maximum', () => {
@@ -889,17 +868,6 @@ describe('the tool hint (SPEC-G02 §2)', () => {
 });
 
 describe('helpers', () => {
-  it('builds cell keys', () => {
-    expect(cellKey(3, 7)).toBe('3,7');
-  });
-
-  it('reports whether a cell holds a participant', () => {
-    const numbers: CellPlacement = { kind: 'numbers', entries: [1, 4] };
-    expect(hasParticipant(numbers, 4)).toBe(true);
-    expect(hasParticipant(numbers, 2)).toBe(false);
-    expect(hasParticipant(null, 1)).toBe(false);
-  });
-
   it('spreads the nine numbers over a 3×3 grid', () => {
     expect(numberSlotAnchor(0)).toEqual({ x: 1 / 6, y: 1 / 6 });
     expect(numberSlotAnchor(2)).toEqual({ x: 5 / 6, y: 1 / 6 });
@@ -912,24 +880,21 @@ describe('helpers', () => {
   const SLOT = 40 / GAME_NUMBER_GRID;
   const FONT = 40 * GAME_NUMBER_FONT_RATIO;
 
-  it('keeps the font size for a label that fits its slot', () => {
+  it('字号只在放不下时收缩，量不出格子时原样返回', () => {
     // Digits — the historical case — never shrink, even two of them.
     expect(glyphFontSize('7', SLOT, FONT)).toBe(FONT);
     expect(glyphFontSize('12', SLOT, FONT)).toBe(FONT);
     // A single wide glyph is exactly one em and still fits.
     expect(glyphFontSize('甲', SLOT, FONT)).toBe(FONT);
-  });
 
-  it('shrinks a label that would spill over its slot', () => {
     const fitted = glyphFontSize('甲乙', SLOT, FONT);
     expect(fitted).toBeLessThan(FONT);
     // The estimate at the fitted size is exactly the box: 2 em × font = slot.
     expect(fitted * 2).toBeCloseTo(SLOT, 6);
     // Three digits are wider than a slot too.
     expect(glyphFontSize('123', SLOT, FONT)).toBeLessThan(FONT);
-  });
 
-  it('leaves the font size alone when the box is unusable', () => {
+    // 量不出格子（0 / NaN）或是空串时不收缩。
     expect(glyphFontSize('甲乙', 0, FONT)).toBe(FONT);
     expect(glyphFontSize('甲乙', Number.NaN, FONT)).toBe(FONT);
     expect(glyphFontSize('', SLOT, FONT)).toBe(FONT);
@@ -938,7 +903,7 @@ describe('helpers', () => {
 
 /** SPEC-H01（docs/v0.4.2.md §1.2）+ CLAR-H13 §1.1：一位参与者的**编号**只能留在一个格子上。落位时把该编号从其它格子清除，并与放置合并成同一个历史步。 */
 describe('number cleanup on placement (SPEC-H01 §1.2)', () => {
-  it('keeps the number on the cell just placed and clears it elsewhere', () => {
+  it('把该编号从别的格子清掉，最后一格摘空就留空格而非 ×', () => {
     const board: GamePlacementBoard = {
       '1,1': { kind: 'numbers', entries: [1] },
       '4,4': { kind: 'numbers', entries: [1] },
@@ -946,19 +911,18 @@ describe('number cleanup on placement (SPEC-H01 §1.2)', () => {
     const swept = sweepParticipantNumbers(board, { participantId: 1, except: { x: 1, y: 1 } });
     expect(swept['1,1']).toEqual({ kind: 'numbers', entries: [1] });
     expect(swept['4,4']).toBeUndefined();
-  });
 
-  it('drops only the target entry from a shared cell', () => {
-    const board: GamePlacementBoard = { '4,4': { kind: 'numbers', entries: [1, 2, 3] } };
-    const swept = sweepParticipantNumbers(board, { participantId: 2, except: { x: 0, y: 0 } });
-    expect(swept['4,4']).toEqual({ kind: 'numbers', entries: [1, 3] });
-  });
+    // 共享格只摘掉自己那一个条目。
+    const shared: GamePlacementBoard = { '4,4': { kind: 'numbers', entries: [1, 2, 3] } };
+    expect(
+      sweepParticipantNumbers(shared, { participantId: 2, except: { x: 0, y: 0 } })['4,4'],
+    ).toEqual({ kind: 'numbers', entries: [1, 3] });
 
-  it('leaves an empty cell behind — never a × — when the last entry goes', () => {
-    const board: GamePlacementBoard = { '4,4': { kind: 'numbers', entries: [2] } };
-    const swept = sweepParticipantNumbers(board, { participantId: 2, except: { x: 0, y: 0 } });
-    expect(swept['4,4']).toBeUndefined();
-    expect(Object.keys(swept)).toHaveLength(0);
+    // 最后一个条目也走了：留空格，绝不是 `×`。
+    const last: GamePlacementBoard = { '4,4': { kind: 'numbers', entries: [2] } };
+    const emptied = sweepParticipantNumbers(last, { participantId: 2, except: { x: 0, y: 0 } });
+    expect(emptied['4,4']).toBeUndefined();
+    expect(Object.keys(emptied)).toHaveLength(0);
   });
 
   it('sweeps 编号 only: the anchor cell and a same-participant avatar stay put', () => {
@@ -1071,7 +1035,7 @@ describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
 
 /** 提交按钮的可用条件 —— 名单上每位都**已经有头像**。 「编号不算参与者」在这里是同一句话的另一个说法：点出来的一格编号只是草稿， 不能把按钮点亮。 */
 describe('allParticipantsPlaced（v0.7.12）', () => {
-  it('needs an avatar for every slot — 编号 顶不上', () => {
+  it('每位都要有头像才算齐，空槽不参与判断', () => {
     let state = place(createGamePlacementState(), 0, 0, 1, { gridSize: 5 });
     state = place(state, 2, 2, 2, { gridSize: 5 });
     expect(allParticipantsPlaced(state.board, [slot(101), slot(102)])).toBe(false);
@@ -1082,9 +1046,7 @@ describe('allParticipantsPlaced（v0.7.12）', () => {
 
     state = place(state, 0, 0, 1, { gridSize: 5, variant: 'image' });
     expect(allParticipantsPlaced(state.board, [slot(101), slot(102)])).toBe(true);
-  });
 
-  it('ignores empty roster frames and an empty roster', () => {
     expect(allParticipantsPlaced({}, [null, null])).toBe(true);
     expect(allParticipantsPlaced({}, [])).toBe(true);
   });
@@ -1092,16 +1054,14 @@ describe('allParticipantsPlaced（v0.7.12）', () => {
 
 /** v0.5.1 SPEC-L05（docs/v0.5.1.md §5.1）：参与者框的变淡只对**头像**生效。 `placedParticipantIds`（「有任何标记」）语义不变，新增的 `avatarPlacedParticipantIds`（「只有头像」）才是游戏页变淡用的集合 —— 所以放编号时卡片保持原样，确认头像后才淡下去。 */
 describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
-  it('ignores a plain 编号 — the card must not fade', () => {
-    const state = place(createGamePlacementState(), 2, 2, 1);
-    expect(placementAt(state.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
+  it('编号不算已放置 —— 单格、多格候选都不淡卡片', () => {
+    const single = place(createGamePlacementState(), 2, 2, 1);
+    expect(placementAt(single.board, 2, 2)).toEqual({ kind: 'numbers', entries: [1] });
     // The old set still sees it (it is the uniqueness rule's view)…
-    expect(placedParticipantIds(state.board)).toEqual(new Set([1]));
+    expect(placedParticipantIds(single.board)).toEqual(new Set([1]));
     // …but the fade no longer does.
-    expect(avatarPlacedParticipantIds(state.board)).toEqual(new Set());
-  });
+    expect(avatarPlacedParticipantIds(single.board)).toEqual(new Set());
 
-  it('ignores several candidate 编号 for the same participant', () => {
     let state = place(createGamePlacementState(), 0, 0, 3);
     state = place(state, 4, 4, 3);
     expect(placedParticipantIds(state.board)).toEqual(new Set([3]));
@@ -1126,7 +1086,7 @@ describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
     expect(avatarPlacedParticipantIds(cleared.board)).toEqual(new Set());
   });
 
-  it('never counts an × as a placement', () => {
+  it('× 与空棋盘都不算', () => {
     const state = placeForbidden(createGamePlacementState(), {
       x: 3,
       y: 3,
@@ -1134,9 +1094,6 @@ describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
     });
     expect(avatarPlacedParticipantIds(state.board)).toEqual(new Set());
     expect(placedParticipantIds(state.board)).toEqual(new Set());
-  });
-
-  it('returns an empty set for an untouched board', () => {
     expect(avatarPlacedParticipantIds(createGamePlacementState().board)).toEqual(new Set());
   });
 });
@@ -1147,15 +1104,11 @@ describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
 describe('modeAfterPlacement (v0.8.5)', () => {
   const placing = { kind: 'placing', participantId: 3 } as const;
 
-  it('头像放下之后回到 idle —— 手上不再举着那位参与者', () => {
+  it('头像落地才退出放置态，其他工具态原样返回', () => {
     expect(modeAfterPlacement(placing, 'image')).toEqual({ kind: 'idle' });
-  });
-
-  it('编号不退出放置态，而且是同一个对象（调用方据此跳过 setState）', () => {
+    // 编号不退出放置态，而且是同一个对象（调用方据此跳过 setState）。
     expect(modeAfterPlacement(placing, 'number')).toBe(placing);
-  });
 
-  it('其他工具态原样返回', () => {
     const forbidden = { kind: 'forbidden' } as const;
     expect(modeAfterPlacement(forbidden, 'image')).toBe(forbidden);
     expect(modeAfterPlacement({ kind: 'idle' }, 'image')).toEqual({ kind: 'idle' });
