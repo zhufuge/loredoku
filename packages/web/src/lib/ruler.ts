@@ -114,7 +114,7 @@ export function buildRulerGlyphs(input: {
  * configured gap between the text and the board — the text is anchored to the
  * board side of the strip, so `gap` is literally the text→board distance.
  *
- * v0.7.0 fix: the **row** strip's thin axis is horizontal, so it must also fit
+ * The **row** strip's thin axis is horizontal, so it must also fit
  * the label *width* — `C24` is ≈ 3 × 0.62em wide, which outgrows a strip sized
  * by glyph height alone as soon as the font passes ~7px (masked at zoom 1 by
  * `RULER_SIZE`, obvious the moment you zoom in). Pass `maxLabelWidth` for the
@@ -144,10 +144,10 @@ export function rulerStripSize(input: {
 }
 
 /**
- * v0.7.0 fix: estimated width of the widest label (`C{gridSize}` / `R{gridSize}`)
+ * Estimated width of the widest label (`C{gridSize}` / `R{gridSize}`)
  * at `fontSize` — both strips share the digit count, so one value covers both.
  *
- * v0.10.8: the widest symbol of the two axes wins — `列24` is wider than `行24`,
+ * The widest symbol of the two axes wins — `列24` is wider than `行24`,
  * and sizing the strip for `C` would clip a two-character prefix.
  */
 export function rulerLabelWidth(gridSize: number, fontSize: number, symbols?: readonly string[]): number {
@@ -160,7 +160,7 @@ export function rulerLabelWidth(gridSize: number, fontSize: number, symbols?: re
 }
 
 /**
- * v0.7.0 fix: where a strip's **thin axis** starts.
+ * Where a strip's **thin axis** starts.
  *
  * The strips follow the board, so zooming / panning can slide one outside the
  * viewport — the container then clips the strip mid-glyph, and because the

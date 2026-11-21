@@ -4,7 +4,7 @@ import { CHARACTER_DISPLAY_NAME_MAX, DEFAULT_THEME_COLOR } from '../constants'
 import { characterSlotEntrySchema } from './mapDraft'
 
 /**
- * v0.7.6：`characters.avatar_mime` / `characters.meta` 两列删除
+ * 角色表没有 `characters.avatar_mime` / `characters.meta` 两列
  * （docs/v0.7.6.md）。schema 这边只做一件事——**不再声明 `meta`**，
  * 于是老前端多塞的键被 zod 默认剥掉，而不是把请求打成 400。
  */

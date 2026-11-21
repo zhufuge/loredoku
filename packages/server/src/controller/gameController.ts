@@ -47,7 +47,7 @@ export async function uploadCover(ctx: Context): Promise<void> {
 }
 
 /**
- * v0.8.5：部署页就地改权重。body 只有 `{ sortWeight }`，校验在 service ——
+ * 部署页就地改权重。body 只有 `{ sortWeight }`，校验在 service ——
  * 控制器把整个 body 原样交过去，同 `deploy` 的做法。
  */
 export async function updateSortWeight(ctx: Context): Promise<void> {

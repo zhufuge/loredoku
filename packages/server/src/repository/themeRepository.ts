@@ -99,15 +99,11 @@ export async function updateTheme(
 }
 
 /**
- * v0.8.3（docs/v0.8.3.md §15）—— 删主题 = **物理删除**。
+ * 删主题 = **物理删除**（docs/v0.8.3.md §15）。
  *
- * 之前是软删（一条 UPDATE 写 `deleted_at`），理由是从 `maps` / `puzzles` / `games`
- * 照抄过来的，但那三张表的软删各有明确用途（版本号不回收、slug 靠部分唯一索引
- * 释放、软删行仍能按 `:id` 解析血统根），主题一条都不占：没有版本号，也没有任何
- * 行按 id 引用它 —— `theme_id` 全是 `ON DELETE RESTRICT`，删之前必须清空。
- *
- * 代价反而落在软删身上：`themes.code` 是普通 UNIQUE，尸体行永远占着编码，同编码
- * 重建直接撞唯一约束（→ 500），尸体还会一直堆在库里。
+ * 主题没有版本号，也没有任何行按 id 引用它 —— `theme_id` 全是 `ON DELETE RESTRICT`，
+ * 删之前必须清空。软删反而添麻烦：`themes.code` 是普通 UNIQUE，尸体行永远占着编码，
+ * 同编码重建直接撞唯一约束（→ 500），尸体还会一直堆在库里。
  *
  * **顺手清掉这个主题的「僵尸子行」**：地图与谜题删的是草稿行，版本行是软删留下的；
  * 这些行肉眼看不见（所有列表都过滤 `deleted_at`），却仍然挂着 `theme_id` —— 不先
@@ -142,7 +138,7 @@ export async function deleteTheme(id: number): Promise<boolean> {
  * 走软删，就必须过滤 —— 否则作者会看到「3 个谜题」却一个都点不开，`deleteTheme`
  * 拿这份计数当护栏也会把人锁死。
  *
- * 主题自己从 v0.8.3 起是硬删（§15），所以这张表里没有「已删主题」的行要跳。
+ * 主题自己是硬删（§15），所以这张表里没有「已删主题」的行要跳。
  */
 export async function countsByTheme(): Promise<Map<number, ThemeCounts>> {
   const result = new Map<number, ThemeCounts>();

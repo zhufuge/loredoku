@@ -43,9 +43,8 @@ export function EditorSaveMask({
       )}
       style={{
         zIndex: UI_Z.saveMask,
-        /* v0.7.8：原来是写死的 `rgba(255,255,255,0.6)` —— 深色模式下点保存会在
-           一整屏深色上糊一层白。改成跟着 `--background` 走：浅色是宣纸，深色是
-           夜墨，两层都是「把画布蒙住」而不是「打光」。 */
+        /* 蒙层跟着 `--background` 走：浅色是宣纸，深色是夜墨。两层都是「把画布
+           蒙住」而不是「打光」—— 定死一个亮色，深色模式下就是一整屏白。 */
         background: 'hsl(var(--background) / 0.7)',
         pointerEvents: 'auto',
       }}
@@ -126,8 +125,7 @@ export function EditorPendingInfoActionDialog({
 /**
  * Both editors show the same loading mark while the map / puzzle pair lands.
  *
- * v0.7.12：整屏等待统一走 `LoadingScreen` —— 地图 / 谜题 / 游戏的查看页此前
- * 各写了一遍同样的「转圈 + 一句话」，现在只剩一处定义。
+ * 整屏等待统一走 `LoadingScreen` —— 一句话 + 一个转圈只有这一处定义。
  */
 export function EditorLoadingState(): JSX.Element {
   return <LoadingScreen caption="正在加载画布…" />;

@@ -39,11 +39,11 @@ const ARROW_STEPS: Record<string, [number, number]> = {
 };
 
 /**
- * v0.7.9：**焦点在原生下拉里时，字母键不该落到画布上**。
+ * **焦点在原生下拉里时，字母键不该落到画布上**。
  *
- * 原来只挡 `INPUT` / `TEXTAREA` / `contentEditable`。`<select>` 不在其中，于是
- * 下拉获得焦点后按 V / R / E（选地区、选形态时很自然会按）会顺带切换编辑工具，
- * 而屏幕上看不出任何原因 —— 工具条离得远，用户只会觉得「按了个键，工具自己变了」。
+ * `<select>` 获得焦点后按 V / R / E（选地区、选形态时很自然会按）会顺带切换编辑
+ * 工具，而屏幕上看不出任何原因 —— 工具条离得远，用户只会觉得「按了个键，工具
+ * 自己变了」。
  */
 function isTextEntry(target: EventTarget | null): boolean {
   const node = target as HTMLElement | null;
@@ -96,9 +96,9 @@ export function useEditorShortcuts(shortcuts: EditorShortcuts): void {
         return;
       }
       if (event.code === 'Space') {
-        // v0.7.9：只吞下「没有落在按钮上」的 Space。原来一律 preventDefault，
-        // 于是键盘焦点停在工具条任一按钮上时按 Space 激活不了它 ——
-        // 对只能用键盘的人，这等于把整条工具条锁死。
+        // 只吞下「没有落在按钮上」的 Space —— 焦点停在工具条任一按钮上时，
+        // Space 是「按下这个按钮」；一律 preventDefault 等于把整条工具条锁死，
+        // 对只能用键盘的人尤其致命。
         if (isActivatable(event.target)) return;
         event.preventDefault();
         shortcuts.onSpaceHeldChange(true);

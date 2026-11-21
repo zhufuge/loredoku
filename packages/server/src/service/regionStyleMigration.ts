@@ -87,7 +87,7 @@ export function upgradeRegionStyleDraft(
 }
 
 /**
- * v0.7.0 → v0.6.x: restores the flat trio. `borderWidth` comes back from
+ * Restores the flat trio. `borderWidth` comes back from
  * `style.outline.width` when the region recorded one, otherwise from the
  * map-level default — the exact inverse of {@link upgradeRegionStyleDraft}.
  * `color` / `fillOpacity` return as their old defaults (`#000000` / `0`); a

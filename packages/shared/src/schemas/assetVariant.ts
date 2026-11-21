@@ -14,8 +14,7 @@ import {
  * asset」 — live in the service, because they need the sibling rows, not just
  * the payload.
  *
- * v0.7.6: `widthCells` / `heightCells` were removed. v0.10.6: the footprint
- * comes back as optional `w` / `h` on the variant — a bed spanning two cells is
+ * The footprint is optional `w` / `h` on the variant — a bed spanning two cells is
  * a property of the look. Optional (not `.default()`!): a default would make an
  * empty PATCH pass the "at least one field" refine. Defaults live in the repo.
  */
@@ -39,9 +38,9 @@ export const updateAssetVariantSchema = z
   .object({
     name: assetVariantNameSchema.optional(),
     fitMode: assetFitModeSchema.optional(),
-    /** v0.5.1 FEAT-L01: pass `null` to drop back to the image mode. */
+    /** FEAT-L01: pass `null` to drop back to the image mode. */
     bgColor: bgColorSchema,
-    /** v0.10.6: 占格足迹（缺省 1×1），仅物品形态有意义。 */
+    /** 占格足迹（缺省 1×1），仅物品形态有意义。 */
     w: footprintSchema.optional(),
     h: footprintSchema.optional(),
   })

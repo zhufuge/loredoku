@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compareByName, sortByName } from './nameOrder';
 
 /**
- * v0.11.4：资源 / 角色列表按名字排序，中文按拼音首字母。
+ * 资源 / 角色列表按名字排序，中文按拼音首字母。
  *
  * 断言的是**次序**（谁在谁前面），不是某个具体排序算法的实现 —— 换成拼音表或
  * 别的 collator 只要次序不变，这些用例仍然成立。

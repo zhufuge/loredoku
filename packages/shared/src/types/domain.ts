@@ -18,7 +18,7 @@ import type {
 export type EffectType = (typeof EFFECT_TYPES)[number];
 export type EditorTool = (typeof EDITOR_TOOLS)[number];
 export type CardRotation = (typeof CARD_ROTATIONS)[number];
-/** v0.6.0: `background` | `item` — an asset's kind, and the layer it may be placed on. */
+/** `background` | `item` — an asset's kind, and the layer it may be placed on. */
 export type AssetType = (typeof ASSET_TYPES)[number];
 export type AssetFitMode = (typeof ASSET_FIT_MODES)[number];
 export type EditorLayer = (typeof EDITOR_LAYERS)[number];
@@ -85,11 +85,11 @@ export interface MapDetail extends MapEntry {
 /** `EffectType` stays — participant linkages still use it. */
 
 /**
- * v0.6.1: the appearance half of an asset. It lives on a **variant**, never on the
+ * The appearance half of an asset. It lives on a **variant**, never on the
  * asset itself (docs/v0.6.1.md §5.1) — one asset may carry several looks.
  *
- * v0.7.6: the four upload-receipt columns (`imageMime` / `imageSize` /
- * `imageWidth` / `imageHeight`) are gone (docs/v0.7.6.md §9) — the mime is the
+ * Upload receipt fields (`imageMime` / `imageSize` / `imageWidth` /
+ * `imageHeight`) are not stored (docs/v0.7.6.md §9): the mime is the
  * path's extension, and the other three only fed one line of uploader copy.
  */
 export interface AssetAppearance {
@@ -97,16 +97,16 @@ export interface AssetAppearance {
   imagePath: string | null;
   imageUrl: string | null;
   imageThumbUrl: string | null;
-  /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  /** Colour-block colour (`#RRGGBB`); `null` = image mode. */
   bgColor: string | null;
 }
 
 /**
- * v0.6.1: one way an asset can look on the canvas. An asset always has at least
+ * One way an asset can look on the canvas. An asset always has at least
  * one.
  *
- * v0.7.6: the four upload-receipt columns are gone — the image is just its path.
- * v0.10.6: `w` / `h` come back, but this time on the **variant** as an optional
+ * The image is just its path.
+ * `w` / `h` live on the **variant** as an optional
  * pair (缺省 1×1) — a bed that spans two cells is a property of the look, not
  * of one placement. Optional so older bundles and every literal test fixture
  * keep working; the single default lives in `resolveVariantFootprint()`.
@@ -116,9 +116,9 @@ export interface AssetVariant extends AssetAppearance {
   id: number;
   assetId: number;
   name: string;
-  /** v0.10.6: 占格宽（格）；缺省 1。 */
+  /** 占格宽（格）；缺省 1。 */
   w?: number;
-  /** v0.10.6: 占格高（格）；缺省 1。 */
+  /** 占格高（格）；缺省 1。 */
   h?: number;
   /** Palette order; the list response is sorted by `sortOrder, id`. */
   sortOrder: number;
@@ -130,12 +130,12 @@ export interface Asset {
   id: number;
   code: string;
   name: string;
-  /** v0.6.0: was `category`; the values are the two canvas layers. */
+  /** The values are the two canvas layers. */
   type: AssetType;
-  /** v0.6.0: was `canStand`, inverted — `true` = 阻挡（不可站立/不可放置）. */
+  /** `true` = 阻挡（不可站立/不可放置）. */
   blocking: boolean;
   /**
-   * v0.10.9: 「背景修饰」— an item asset marked this way is placed on the
+   * 「背景修饰」— an item asset marked this way is placed on the
    * **背景修饰** layer instead of the item layer, and only ever occupies one
    * cell. Always `false` for `type === 'background'` (same rule as `blocking`).
    *
@@ -145,7 +145,7 @@ export interface Asset {
    */
   decoration?: boolean;
   isActive: boolean;
-  /** v0.6.1: never empty; ordered by `sortOrder, id`. */
+  /** Never empty; ordered by `sortOrder, id`. */
   variants: AssetVariant[];
   createdAt: string;
   updatedAt: string;
@@ -160,7 +160,7 @@ export interface Character {
   avatarPath: string | null;
   avatarUrl: string | null;
   avatarThumbUrl: string | null;
-  /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  /** Colour-block colour (`#RRGGBB`); `null` = image mode. */
   bgColor: string | null;
   /**
    * v0.7.13 (docs/v0.7.13.md §11): the 主题色 this character brings into a
@@ -184,7 +184,7 @@ export interface Character {
 /**
  * A background cell: one asset, no footprint (it fills the single cell).
  *
- * v0.6.1: `variantId` names which of the asset's variants was painted. Optional so a
+ * `variantId` names which of the asset's variants was painted. Optional so a
  * payload written before background assets could have several variants keeps
  * validating — rendering then falls back to the asset's first variant
  * (docs/v0.6.1.md §6.2).
@@ -195,9 +195,9 @@ export interface DraftAssetRef {
 }
 
 /**
- * v0.6.0: the item layer. The anchor cell stores the footprint (`w` × `h`).
+ * The item layer. The anchor cell stores the footprint (`w` × `h`).
  *
- * v0.6.1: `variantId` names the asset **variant** that was placed. It is optional so a
+ * `variantId` names the asset **variant** that was placed. It is optional so a
  * v4 payload (written before variants existed) keeps validating — rendering then
  * falls back to the asset's first variant (docs/v0.6.1.md §6.2).
  */
@@ -220,15 +220,14 @@ export interface DraftAnchorItem {
 export interface DraftCell {
   background?: DraftAssetRef;
   /**
-   * v0.10.9: the 背景修饰 layer — one ornament per cell, on top of the
+   * The 背景修饰 layer — one ornament per cell, on top of the
    * background but under the grid lines and the blocking mask. It shares the
    * cell with `background` and `item` (at most one of each); it never occupies
    * or blocks the cell.
    */
   decoration?: DraftAssetRef;
-  /** v0.6.0: was `object` — the item layer. */
+  /** The item layer. */
   item?: DraftAnchorItem;
-  /** v0.6.0: was `objectRef`. */
   itemRef?: string;
 }
 
@@ -248,14 +247,13 @@ export interface DraftRegion {
 
 // ---- Participant linkage (docs/v0.3.1.md CLAR-603, updated v0.3.3 MOD-801) ----
 /**
- * v0.3.8 FEAT-D04: `color` is a **palette key** from `MapDraft.style.linkageColors`
- * (the built-in `red` / `blue` keys keep older drafts valid), no longer a
- * closed `'red' | 'blue'` enum.
+ * `color` is a **palette key** from `MapDraft.style.linkageColors`
+ * (the built-in `red` / `blue` keys keep older drafts valid).
  */
 export type ParticipantTarget =
   | { type: 'character'; id: number; effect: EffectType; color: LinkageColorKey }
   | {
-      /** v0.6.0: was `item` — a linkage points at a resource, not at a placed item. */
+      /** A linkage points at a resource, not at a placed item. */
       type: 'asset';
       id: number;
       /** MOD-708: `'all'` highlights every instance of `assetId`; `'instances'` only `instances`. */
@@ -320,11 +318,8 @@ export interface MapDraft {
   cells: Record<string, DraftCell>;
   regions: DraftRegion[];
   /**
-   * v0.3.8 FEAT-D02: map-level display constants. Optional so `version = 1`
+   * Map-level display constants. Optional so `version = 1`
    * drafts stay valid — a missing block resolves to `DEFAULT_MAP_STYLE`.
-   *
-   * v0.5.0 FEAT-K14: the roster (`characterSlots`) and the linkage palette
-   * (`style.linkageColors`) are **gone** — they moved to {@link PuzzleDraft}.
    */
   style?: MapStyle;
 }
@@ -350,7 +345,7 @@ export interface PuzzleMapSnapshot {
 }
 
 /**
- * v0.5.0 FEAT-K01: a puzzle is the "出题" half of the product. It owns the
+ * A puzzle is the "出题" half of the product. It owns the
  * roster + palette and — since v0.7.1 — a **copy** of the map canvas it was
  * created from (see {@link PuzzleMapSnapshot}).
  */
@@ -384,7 +379,7 @@ export interface PuzzleDraft {
    * 读的地方一律 `?? []`，不假设服务端补过默认值。
    */
   clues?: string[];
-  /** v0.7.14：结束语 —— 玩家通过时出现在结算弹窗里的一句话。缺失 = 不显示。 */
+  /** 结束语 —— 玩家通过时出现在结算弹窗里的一句话。缺失 = 不显示。 */
   ending?: string;
   /**
    * v0.8.6（docs/v0.8.6.md §4 / v0.8.7 §4；v0.9.5 更名）：「标记」用哪张图。
@@ -426,7 +421,7 @@ export interface MapResponse {
 export interface MapVersionSummary {
   id: number;
   versionNo: number;
-  /** v0.5.8: 列删了，从快照 `data.gridSize` 派生。 */
+  /** 从快照 `data.gridSize` 派生，没有对应的列。 */
   gridSize: number;
   publishedAt: string;
   /**
@@ -471,7 +466,7 @@ export interface PublishedMapVersion {
   rootId: number;
   versionNo: number;
   mapName: string;
-  /** v0.5.8: 列删了，从快照 `data.gridSize` 派生。 */
+  /** 从快照 `data.gridSize` 派生，没有对应的列。 */
   gridSize: number;
   publishedAt: string;
   /**
@@ -505,7 +500,7 @@ export interface MapEntrySummary {
   description: string | null;
   /** v0.8.0：同上，作用域与「风格来自主题」那一行都要它（§19 起是编码）。 */
   themeCode: string;
-  /** v0.5.8: 取自草稿 `gridSize`；未初始化的地图为 `null`。 */
+  /** 取自草稿 `gridSize`；未初始化的地图为 `null`。 */
   gridSize: number | null;
   coverPath: string | null;
   coverUrl: string | null;
@@ -529,7 +524,7 @@ export interface MapEntrySummary {
  * puzzle list renders. Mirrors {@link MapEntrySummary} so the two list pages
  * share the same skeleton, buttons and pager.
  *
- * v0.7.1 起谜题与地图同构：`kind` 由 `version` 列判定，草稿行硬删、版本行软删。
+ * 谜题与地图同构：`kind` 由 `version` 列判定，草稿行硬删、版本行软删。
  */
 export interface PuzzleEntrySummary {
   id: number;
@@ -540,7 +535,7 @@ export interface PuzzleEntrySummary {
   name: string;
   description: string | null;
   /**
-   * v0.8.5 §7（docs/v0.8.5 §7.md §3）：谜题编码 —— 部署弹窗按它预填访问路径。
+   * v0.8.5 §7（docs/v0.8.5.md）：谜题编码 —— 部署弹窗按它预填访问路径。
    * `null` = v0.8.5 之前建的谜题还没补过，部署时退回「按名称推导」。
    */
   code: string | null;
@@ -585,7 +580,7 @@ export interface PuzzleMapContext {
 /**
  * FEAT-G02 (docs/v0.4.0.md §5) + v0.7.1 §7.3: a deployed game.
  *
- * v0.7.1: the game only **references** one puzzle row (`puzzles_id` unique) —
+ * The game only **references** one puzzle row (`puzzles_id` unique) —
  * the canvas and the roster are read from that row instead of a snapshot copy.
  * Because a game can only be deployed from a **published** puzzle version
  * (and version rows are read-only), the content stays frozen without a copy.
@@ -614,16 +609,15 @@ export interface MapGameSummary {
   slug: string;
   coverUrl: string | null;
   /**
-   * v0.8.6：难度**档位数字**。落库的就是这个数字（`games.difficulty` 是 smallint），
+   * 难度**档位数字**。落库的就是这个数字（`games.difficulty` 是 smallint），
    * 文字是主题给的映射（`ThemeData.difficultyLevels[].label`）—— 展示前先用
    * `difficultyBadge` 对一遍当前分级，对不上就显示「第 N 档」。
    *
-   * v0.8.3 起这里存的是字符串标识（`medium` / `tier-1`）；数字的好处是它自带
-   * 顺序，删掉中间一档也不必给后面的重新编号。
+   * 数字的好处是它自带顺序，删掉中间一档也不必给后面的重新编号。
    */
   difficulty: number;
   /**
-   * v0.8.3：展示顺序（越小越靠前）。列表接口已按它排好序，前端不必再排 ——
+   * 展示顺序（越小越靠前）。列表接口已按它排好序，前端不必再排 ——
    * 这个字段出现在这里，是为了让部署弹窗回填「上一次设的序号」，以及让导出
    * 清单和列表说同一个顺序。
    */
@@ -661,9 +655,9 @@ export interface CharacterUsage {
 
 export interface ResizeRemoved {
   background: number;
-  /** v0.6.0: was `object` — the item layer. */
+  /** The item layer. */
   item: number;
-  /** v0.10.9: 背景修饰层 —— 缩画布时同样会被裁掉，得单独计数。 */
+  /** 背景修饰层 —— 缩画布时同样会被裁掉，得单独计数。 */
   decoration: number;
   regions: number;
   charactersReturnedToSlot: number;
@@ -761,14 +755,14 @@ export interface ThemeData {
   /**
    * v0.9.2（docs/v0.9.2.md §2）：玩家**戳在格子上等待**时那圈进度环的图。
    *
-   * v0.9.5 起它和提交校验的圈**合并成一套**（`ThemeRing`）：玩家看到的都是
+   * 它和提交校验的圈是**同一套**（`ThemeRing`）：玩家看到的都是
    * 「一圈绕着一格走」，长按是等它满、校验是等它扫完 —— 同一个世界的同一种回应，
    * 不该配两张图。旧键 `pressRing` / `checkStyle.ring` 由 `withLegacyImageKeys`
    * 与 `themeRingSchema` 搬到 `ring`。
    */
   ring?: ThemeRing | null;
   /**
-   * v0.8.3：这个空间的**难度分级**。
+   * 这个空间的**难度分级**。
    *
    * 缺省（`undefined`）= 内置五档（极简 / 简单 / 中等 / 困难 / 专家）。给了就用
    * 给的这几档 —— 按 `level` 从小到大即「由易到难」，徽章也只认 `level`。
@@ -779,20 +773,20 @@ export interface ThemeData {
    */
   difficultyLevels?: ThemeDifficultyTier[];
   /**
-   * v0.9.3（docs/v0.9.3.md §3）：**提交校验**时的样子 —— 两档颜色 + 可选的圈图。
+   * v0.9.3（docs/v0.9.3.md §3）：**提交校验**时的样子 —— 两档颜色。
    *
    * 与 `mark` / `toolIcons` / `ring` 同一条规矩：**读取时**兜底，不是「新建时拷一份」。
    * 改一档颜色，所有关卡（含已发布的）下次提交就是新的。
    *
-   * v0.9.5：**圈图从这里搬走了**（并进 `ring`），这里只剩两档颜色 —— 校验的颜色
-   * 是「对 / 错」的语义，和环长什么样是两件事。旧数据里的 `checkStyle.ring` 仍然
-   * 读得出来（`themeRingSchema` 兜底），迁移会把存量行搬到新键。
+   * 圈图在 `ring` 里：校验的颜色是「对 / 错」的语义，和环长什么样是两件事。
+   * 旧数据里的 `checkStyle.ring` 仍然读得出来（`themeRingSchema` 兜底），迁移会把
+   * 存量行搬到新键。
    *
    * 缺失 / `null` = 内置的绿（通过）/ 红（未通过）。
    */
   checkStyle?: ThemeCheckColors | null;
   /**
-   * v0.11.3：**结算卡通过那一面**的样子 —— 一枚图标 + 一句标题。
+   * **结算卡通过那一面**的样子 —— 一枚图标 + 一句标题。
    *
    * 与 `mark` / `toolIcons` / `ring` / `checkStyle` 同一条规矩：**读取时**兜底，
    * 不是「新建时拷一份」。改一句标题，所有关卡（含已发布的）下次结案就是新的。
@@ -804,7 +798,7 @@ export interface ThemeData {
    */
   verdict?: ThemeVerdict | null;
   /**
-   * v0.11.6：游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。
+   * 游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。
    *
    * 与 `verdict` 同一条规矩：**读取时**兜底 —— 改一句文案，工坊的 `/play` 与
    * 播放器里的列表页同时变，不必重新导出包。
@@ -816,7 +810,7 @@ export interface ThemeData {
 }
 
 /**
- * v0.11.3：结算卡（通过那一面）的两份配置。
+ * 结算卡（通过那一面）的两份配置。
  *
  * 「图标」可以是一段文字（含 emoji），也可以是一张上传的图；**配了图就用图**，
  * 不再画文字 —— 图能表达的东西文字表达不了，两者同时出现只会让标题行挤成两截。
@@ -841,7 +835,7 @@ export interface ThemeVerdict {
 }
 
 /**
- * v0.11.6：游戏列表页那两行字的模板。
+ * 游戏列表页那两行字的模板。
  *
  * 为什么要可配：这两行是**这个主题自己**的话。「6 关可玩」在红楼里也许该说
  * 「六出戏可点」，在别的主题里也许该说「6 张地图」。写死在界面里，作者只能
@@ -858,7 +852,7 @@ export interface ThemeGameListTexts {
 }
 
 /**
- * v0.9.5：主题的**那一圈** —— 长按计时环与提交校验圈共用一张图。
+ * 主题的**那一圈** —— 长按计时环与提交校验圈共用一张图。
  *
  * 为什么合并：玩家看到的都是「一圈绕着一格走」。长按是等它装满（放头像）、校验是
  * 等它扫完（宣布这一位对错）—— 同一种回应、同一个尺度、同一个世界的语言。分成
@@ -873,7 +867,7 @@ export interface ThemeRing {
 }
 
 /**
- * v0.9.3 / v0.9.5：提交校验的两档颜色。
+ * 提交校验的两档颜色。
  *
  * 颜色是「对 / 错」的语义色（绿 / 红），不是股市那套涨跌色。圈图 v0.9.5 起并进
  * `ThemeData.ring`，这里只剩颜色。
@@ -892,7 +886,7 @@ export interface ThemeCheckColors {
  * 相对路径（{@link fileUrlFromPath} 拼地址）。标记（主题缺省 / 谜题覆盖）、三枚
  * 按钮图标、那一圈图共用这个形状。
  *
- * v0.9.5 从 `ForbiddenSymbolImage` 改名：它服务的早就不止「禁止符号」一种图。
+ * 它服务的不止「禁止符号」一种图。
  */
 export interface UploadedImage {
   /**
@@ -919,7 +913,7 @@ export interface GameToolIcons {
 }
 
 /**
- * v0.8.6：一档难度 = **数字 + 名字 + 可选颜色**。
+ * 一档难度 = **数字 + 名字 + 可选颜色**。
  *
  * `level` 落库（`games.difficulty`），所以它是身份：改名、换色都不动它，改它等于
  * 把这一档在难度轴上的位置挪走。数字同时是顺序 —— 不必再另存一个「第几个」。

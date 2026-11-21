@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
  */
 const navItems: ReadonlyArray<{ key: ModuleKey; label: string }> = [
   /*
-   * v0.8.0 §18：第一项从「主题列表」换成「概览」。主题列表搬去了系统配置页 ——
+   * v0.8.0 §18：第一项是「概览」，主题列表在系统配置页 ——
    * 它是**换工作空间**的地方，不是任何一个空间内部的一页；把两者挤在同一个
    * 顶栏里，等于让「我在哪」和「去哪儿」共用一格。
    */
@@ -53,12 +53,12 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
 
   return (
     /*
-     * v0.10.3：工坊是桌面工具，窄屏不做重排，改为整页横向滚动。
+     * 工坊是桌面工具，窄屏不做重排，整页横向滚动。
      *
      * 评审实测（375 宽）：顶栏右侧那一簇（主题切换器 94 + 日夜 36 + 游戏 76
      * + 两道 8px 间距）固定 222px，`ml-auto` 不给它收缩的余地，于是整份文档
-     * 被撑到 561px —— 多出来的 186px 落在一个**不可滚**的裁切区里。加一条
-     * 下限宽度之后，撑出去的部分至少能滚到。
+     * 被撑到 561px —— 多出来的 186px 落在一个**不可滚**的裁切区里。下限宽度
+     * 让撑出去的部分至少能滚到。
      *
      * 为什么不是 `flex-wrap`：`nav` 已经是 `flex-wrap`，再让右边那簇也换行，
      * 375 宽上顶栏会长成三四行、每行一两个字（实测 nav 62px 宽 × 356px 高，
@@ -74,7 +74,7 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
 
           {config ? (
             /*
-             * v0.8.2：不再在品牌后面加一条 `/`。
+             * 品牌后面不加一条 `/`。
              *
              * 斜杠是「面包屑」的语法 —— 它告诉读者右边这一段挂在左边那一段之下。
              * 可「系统配置」并不挂在「格物」之下，它是同一层级的另一处地方；而且
@@ -100,10 +100,9 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
                       cn(
                         'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
                         /*
-                         * v0.7.8：选中态从「中性灰实心」换成 primary 淡染 + primary 字。
-                         * 这里是全站唯一的「你在哪」提示 —— 冷蓝时代它是一片灰，整块
-                         * 顶栏没有任何颜色，导航等于没有反馈。工具条（`--toolbar*`）保持
-                         * 中性，因为画布上已经铺着 primary 的选框，两处都染色会打架。
+                         * 选中态是 primary 淡染 + primary 字。这里是全站唯一的「你在哪」
+                         * 提示 —— 整块顶栏若不染色，导航等于没有反馈。工具条（`--toolbar*`）
+                         * 保持中性，因为画布上已经铺着 primary 的选框，两处都染色会打架。
                          */
                         isActive
                           ? 'bg-primary/10 text-primary hover:bg-primary/20'
@@ -128,19 +127,16 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
             {/* v0.5.7: theme switch — every console page rides this header. */}
             <ThemeToggle className="h-9 w-9" />
             {/*
-              * v0.8.2：配置页的「返回工坊」挪到日夜开关之后。
-              *
-              * 两个外壳的**右上角最后一位**从此是同一个位置：工坊是「游戏」，
-              * 配置页是「返回工坊」—— 都是「离开这一处」的出口。原来它排在日夜
-              * 开关前面，于是同一趟来回，出口会在顶栏里左右横跳一格。
+              * 配置页的「返回工坊」在日夜开关之后：两个外壳的**右上角最后一位**
+              * 是同一个位置 —— 工坊是「游戏」，配置页是「返回工坊」，都是「离开
+              * 这一处」的出口，同一趟来回不会左右横跳。
               */}
             {config ? (
               /*
                * v0.8.3（docs/v0.8.3.md §13）：回工坊去**入口**，不自己拼地址。
                *
-               * 原来这里写 `workshopPath('overview')`，也就是 `/记住的编码/overview`。
-               * 可那个编码可能是刚被删掉的那一间 —— 系统配置正是「删主题」之后落脚的
-               * 地方，于是点「返回工坊」得到的是「没有编码是 xxx 的主题」，明明还有
+               * 记住的编码可能是刚被删掉的那一间 —— 系统配置正是「删主题」之后落脚的
+               * 地方，于是拼出来的地址只会得到「没有编码是 xxx 的主题」，明明还有
                * 别的工坊开着。
                *
                * `/` 是 `ThemeEntryRedirect`：它把记住的编码对着**现有主题列表**验

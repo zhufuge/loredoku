@@ -13,7 +13,7 @@ export function NotFoundPage(): JSX.Element {
       <p className="text-sm text-muted-foreground">页面不存在。</p>
       <Button asChild>
         {/*
-         * v0.8.2：回**概览**，不是地图列表。
+         * 回**概览**，不是地图列表。
          *
          * 工作空间有自己的首页（`/:code/overview`，v0.8.0 §18），404 该把人送回
          * 屋子的门口，而不是某一间房 —— 何况「地图列表」这个名字在导航里已经

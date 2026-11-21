@@ -37,7 +37,7 @@ export function slugify(input: string): string {
  * {@link composeSlug}. This stays the one derivation used by the dialog default,
  * 「重新生成」 and the server's fallback.
  *
- * v0.8.1：**难度不再进路径**。路径是给持链接的人的承诺，改个难度不该把地址改掉
+ * **难度不进路径**。路径是给持链接的人的承诺，改个难度不该把地址改掉
  * —— 难度是这关的属性，不是它的地址。老路径（带 `-hard` 这类后缀）仍然有效，
  * {@link splitSlug} 反解时会把它剥掉。
  */
@@ -63,7 +63,7 @@ export function composeSlug(middle: string): string {
  * v0.7.1 §7.6.1: the inverse for the deploy dialog's prefill — an already
  * published slug back to the editable middle.
  *
- * v0.8.1：剥掉前缀之后，再把**任何**已知难度后缀剥掉 —— 存量路径是带
+ * 剥掉前缀之后，再把**任何**已知难度后缀剥掉 —— 存量路径是带
  * `-hard` 这类后缀发布的，回填中段时应当把后缀留给「剥掉」而不是当成名字
  * 的一部分，否则重新部署会把后缀写死进新路径。
  */

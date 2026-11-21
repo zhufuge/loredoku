@@ -44,7 +44,7 @@ describe('placement', () => {
     expect(store().cells.get('2,3')).toEqual({ background: { assetId: 7 } });
   });
 
-  // v0.10.9: 背景修饰与背景 / 物品各占一格、互不顶替。
+  // 背景修饰与背景 / 物品各占一格、互不顶替。
   it('v0.10.9: places a background decoration without touching the other two', () => {
     store().placeBackground(7, 41, 2, 3);
     store().placeItem({ assetId: 5, variantId: 1, w: 1, h: 1 }, 2, 3);
@@ -102,7 +102,7 @@ describe('eraseAt', () => {
     expect(store().cells.has('0,0')).toBe(false);
   });
 
-  // v0.10.9: 三样东西同格时，橡皮按 物品 → 背景修饰 → 背景 一路擦下去。
+  // 三样东西同格时，橡皮按 物品 → 背景修饰 → 背景 一路擦下去。
   it('v0.10.9: erases item, then decoration, then background', () => {
     store().placeBackground(1, 11, 0, 0);
     store().placeDecoration(3, 31, 0, 0);
@@ -356,14 +356,14 @@ describe('toDraft (FEAT-K14: MapDraft v3)', () => {
 
   it('FEAT-D02: serialises the resolved map style — without the palette (Q16)', () => {
     const output = store().toDraft();
-    // v0.5.2 SPEC-M07: the grid separator now defaults to 4px.
+    // The grid separator defaults to 4px.
     expect(output.style?.gridSeparator).toEqual({ width: 4, color: '#000000' });
     // The linkage palette moved to PuzzleDraft; MapStyle no longer carries it.
     expect(output.style && 'linkageColors' in output.style).toBe(false);
   });
 
   /**
-   * v0.10.8：标尺的行列符号只由主题配置，地图草稿里不留副本。
+   * 标尺的行列符号只由主题配置，地图草稿里不留副本。
    *
    * 留着的话库里会出现两处互相矛盾的值（主题写「列」、这张图还是 `C`），而渲染
    * 只认主题那一份 —— 那张图看起来就像「改不动」。
@@ -379,7 +379,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
   it('starts from the shipped defaults and is always fully resolved', () => {
     const style = store().style;
     expect(style.cellSize).toBeNull();
-    // v0.5.2 SPEC-M07: 12px frame, 32px region label.
+    // 12px frame, 32px region label.
     expect(style.canvasFrame.width).toBe(12);
     expect(style.regionLabel.fontSize).toBe(32);
   });
@@ -411,7 +411,7 @@ describe('map style (v0.3.8 FEAT-D02/D03)', () => {
     expect(store().dirty).toBe(true);
     expect(store().past).toHaveLength(1);
     store().undo();
-    // v0.5.2 SPEC-M07: the pre-change default is 12px now.
+    // The default is 12px.
     expect(store().style.canvasFrame.width).toBe(12);
   });
 
@@ -605,7 +605,7 @@ describe('setItemTransform', () => {
 });
 
 /**
- * v0.9.6：区域标签位置偏移 —— 每块区域独立配置，缺省不落盘。
+ * 区域标签位置偏移 —— 每块区域独立配置，缺省不落盘。
  *
  * 这一层钉的是**存储契约**：偏移非 0 时跟着区域一起存下来，两轴都 0 时不写
  * `style` 键（与其它字段同一条「只记差异」的规矩）。

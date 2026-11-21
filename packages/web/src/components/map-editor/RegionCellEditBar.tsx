@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 
 /**
- * v0.11.5：区域格子编辑的浮动工具条 —— 与创建区域时的 `RegionSelectionBar`
+ * 区域格子编辑的浮动工具条 —— 与创建区域时的 `RegionSelectionBar`
  * 同一处、同一副样子，作者不用学第二套位置。
  *
  * 它比创建那条多两件事：

@@ -9,7 +9,7 @@ import {
 } from '@loredoku/shared';
 
 /**
- * v0.7.13 fix —— 纯色角色传完头像后，外观不能再跳回纯色块。
+ * 纯色角色传完头像后，外观不能再跳回纯色块。
  *
  * 根因不在上传本身：上传成功会 `invalidate()` → 角色列表重取 → `updatedAt` 变 →
  * 那条「同步服务器值」的 effect 把 `appearanceMode` 按回

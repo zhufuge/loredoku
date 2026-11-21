@@ -80,7 +80,7 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(style.regionLabel.hoverFontSize).toBeGreaterThan(style.regionLabel.fontSize);
     expect(style.regionLabel.hoverStrokeColor).toBe(STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR);
     expect(style.ruler).toEqual({ fontSize: 24, gap: 24, columnSymbol: 'C', rowSymbol: 'R' });
-    // v0.5.0 FEAT-K14: the palette left `MapStyle` — see the puzzle section.
+    // FEAT-K14: the palette is on the puzzle, not on `MapStyle` — see the puzzle section.
     expect(style).not.toHaveProperty('linkageColors');
   });
 
@@ -114,7 +114,7 @@ describe('resolveMapStyle (FEAT-D02)', () => {
     expect(style.regionHighlight.width).toBe(MAP_STYLE_LINE_WIDTH_MIN);
     // Region outlines have their own 4 ~ 12 range.
     expect(style.regionOutline.width).toBe(12);
-    // v0.10.7：外扩距离的区间是 0 ~ 100（格的百分比）。
+    // 外扩距离的区间是 0 ~ 100（格的百分比）。
     expect(style.operationCursorBox.offset).toBe(100);
     expect(style.regionLabel.fontSize).toBe(48);
     expect(style.regionLabel.strokeWidth).toBe(12);
@@ -153,9 +153,9 @@ describe('clamp helpers (FEAT-D02 §关键规则 6)', () => {
     expect(clampRegionLabelFont(999)).toBe(48);
     expect(clampRegionLabelFont(17.6)).toBe(18);
     expect(clampRegionLabelStroke(-3)).toBe(0);
-    // v0.10.7：外扩距离改成格的百分比，上限 100。
+    // 外扩距离是格的百分比，上限 100。
     expect(clampOperationOffset(200)).toBe(100);
-    // v0.7.4: 轮廓线下限 4 → 1，0 仍然被夹到 1。
+    // 轮廓线下限 1，0 仍然被夹到 1。
     expect(clampRegionBorderWidth(0)).toBe(1);
     expect(clampRegionBorderWidth(1)).toBe(1);
     expect(clampRegionBorderWidth(99)).toBe(12);
@@ -208,7 +208,7 @@ describe('linkage palette (FEAT-D04)', () => {
   });
 
   it('resolves a key to its hex, falling back to the first entry', () => {
-    // v0.5.0 FEAT-K14: the lookups take the palette itself (the puzzle owns it).
+    // FEAT-K14: the lookups take the palette itself (the puzzle owns it).
     const palette = resolveLinkageColors([
       { key: 'red', label: '红', color: '#FF0000' },
       { key: 'blue', label: '蓝', color: '#0000FF' },
@@ -297,7 +297,7 @@ describe('canvas shadow (v0.8.7 §6 / v0.9.1 §2 / v0.10.7 百分比)', () => {
 
   it('偏移与颜色读 canvasShadow，与画布外框解耦', () => {
     const style = resolveMapStyle({
-      // 外框染红也不该把影子带红 —— 这是 v0.9.1 拆开它们的重点。
+      // 外框染红也不该把影子带红 —— 两者是分开的。
       canvasFrame: { width: 12, color: '#FF0000' },
       canvasShadow: { offset: 40, color: '#2F2A24' },
     } as Partial<MapStyle>);
@@ -343,7 +343,7 @@ describe('item outline (v0.9.1 §5)', () => {
     expect(resolveMapStyle({ itemOutline: { width: 99, color: '#000000' } } as Partial<MapStyle>).itemOutline.width).toBe(12);
   });
 
-  // v0.11.2：缩放后的宽度取整、且不小于 1px —— Safari 对小数偏移的 drop-shadow
+  // 缩放后的宽度取整、且不小于 1px —— Safari 对小数偏移的 drop-shadow
   // 会整条不画，竖屏小格子下尤其明显。
   it('宽度取整到整数像素，不把小数交给 drop-shadow', () => {
     const style = resolveMapStyle({
@@ -368,11 +368,11 @@ describe('item outline (v0.9.1 §5)', () => {
   });
 });
 
-// ---- v0.3.9 SPEC-E01: 规范图层命名 ----
+// ---- SPEC-E01: 规范图层命名 ----
 describe('layer naming (SPEC-E01)', () => {
   it('exposes the规范 field names', () => {
     const style = resolveMapStyle(undefined);
-    // v0.5.2 SPEC-M07 defaults.
+    // SPEC-M07 defaults.
     expect(style.canvasFrame).toEqual({ width: 12, color: '#000000' });
     expect(style.gridSeparator).toEqual({ width: 4, color: '#000000' });
     expect(style.mouseCursorBox.width).toBe(8);
@@ -398,7 +398,7 @@ describe('layer naming (SPEC-E01)', () => {
   });
 });
 
-// ---- v0.3.9 FEAT-E02: 标尺文本大小与间距 ----
+// ---- FEAT-E02: 标尺文本大小与间距 ----
 describe('ruler style (FEAT-E02)', () => {
   it('SPEC-M07: defaults to 24px / 24px', () => {
     expect(resolveMapStyle(undefined).ruler).toEqual({
@@ -429,7 +429,7 @@ describe('ruler style (FEAT-E02)', () => {
   });
 
   /**
-   * v0.10.8：符号只由主题配置 —— 地图草稿里那份不参与渲染，保存时也不该留着。
+   * 符号只由主题配置 —— 地图草稿里那份不参与渲染，保存时也不该留着。
    * 留着的话，作者改主题的符号，这张图的标尺还是老样子，而界面上没有入口能改。
    */
   it('v0.10.8：stripRulerSymbols 把符号从地图草稿的风格里剥掉', () => {
@@ -452,7 +452,7 @@ describe('ruler style (FEAT-E02)', () => {
   });
 });
 
-// ---- v0.3.9 FEAT-E01: 草稿比较 ----
+// ---- FEAT-E01: 草稿比较 ----
 describe('mapStyleEquals (FEAT-E01)', () => {
   it('treats two independently resolved defaults as equal', () => {
     expect(mapStyleEquals(resolveMapStyle(undefined), resolveMapStyle(undefined))).toBe(true);
@@ -466,7 +466,7 @@ describe('mapStyleEquals (FEAT-E01)', () => {
     expect(
       mapStyleEquals(base, resolveMapStyle({ ruler: { gap: 7 } } as Partial<MapStyle>)),
     ).toBe(false);
-    // v0.5.0 FEAT-K14: the palette left `MapStyle`, so a resolved style carries
+    // FEAT-K14: the palette is on the puzzle, so a resolved style carries
     // no `linkageColors` field for the comparison to trip over.
     expect(base).not.toHaveProperty('linkageColors');
   });

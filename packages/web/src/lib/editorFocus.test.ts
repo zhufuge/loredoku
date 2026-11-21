@@ -115,7 +115,7 @@ describe('focusOwner (OPT-C07 §5)', () => {
   });
 
   it('hover alone does not take the drawer away from a selected cell', () => {
-    // v0.3.3 MOD-802: hover never changes the drawer.
+    // Hover never changes the drawer.
     const state = withSelection(1, 'hover', CELL_X);
     expect(focusOwner(state)).toBe('cell');
   });
@@ -131,7 +131,7 @@ describe('focusOwner (OPT-C07 §5)', () => {
   });
 });
 
-// ---- v0.7.0 fix: the region list must focus like the region label ----
+// ---- the region list must focus like the region label ----
 describe('regionFocusSelection', () => {
   it('mirrors the canvas label click — both axes end on the region', () => {
     // The list used to set only `selectedRegionId`, so the info drawer opened

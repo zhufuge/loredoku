@@ -3,7 +3,7 @@ import { GAME_SORT_WEIGHT_MAX, GAME_SORT_WEIGHT_MIN } from '@loredoku/shared';
 import { cn } from '@/lib/utils';
 
 /**
- * v0.8.5：部署列表里的「顺序」一格 —— 平时是一个数字，点开变成输入框。
+ * 部署列表里的「顺序」一格 —— 平时是一个数字，点开变成输入框。
  *
  * 三条界面规矩：
  *

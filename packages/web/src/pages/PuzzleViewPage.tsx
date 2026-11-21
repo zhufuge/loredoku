@@ -87,7 +87,7 @@ function readStoredRulerVisible(): boolean {
  * so the preview stays pixel-identical to the editor's canvas.
  */
 export function PuzzleViewPage(): JSX.Element {
-  // v0.8.1：主题段在地址里，资源 / 角色列表按它隔离。
+  // 主题段在地址里，资源 / 角色列表按它隔离。
   const { puzzleId, themeCode = '' } = useParams<{ puzzleId: string; themeCode: string }>();
   const navigate = useNavigate();
 
@@ -97,7 +97,7 @@ export function PuzzleViewPage(): JSX.Element {
   const detailQuery = usePuzzle(valid ? id : null);
   const mapQuery = usePuzzleMapContext(valid ? id : null);
   // A referenced version may point at items/characters that are now inactive.
-  // v0.8.1：只取这个主题的资源与角色。
+  // 只取这个主题的资源与角色。
   const assetsQuery = useAssets({ themeCode });
   const charactersQuery = useCharacters({ themeCode });
 
@@ -160,7 +160,7 @@ export function PuzzleViewPage(): JSX.Element {
   const regions = useMemo(() => mapContext?.regions ?? [], [mapContext]);
   const gridSize = mapContext?.gridSize ?? 0;
   /**
-   * v0.3.8 FEAT-D02: the referenced version carries the map's display
+   * FEAT-D02: the referenced version carries the map's display
    * constants, so a puzzle preview renders exactly like the editor it came
    * from. Q16: the linkage palette is **not** part of `style` any more — the
    * puzzle owns it.
@@ -564,7 +564,7 @@ export function PuzzleViewPage(): JSX.Element {
               cellSize={cellSize}
               style={style}
               hoveredRegionId={hoveredRegionId}
-              /* v0.11.4：联动高亮的区域，标题跟着亮（不只是边框线）。 */
+              /* 联动高亮的区域，标题跟着亮（不只是边框线）。 */
               highlightedRegionIds={highlight?.regionBorders.map((border) => border.regionId)}
               onHover={setLabelRegionId}
             />

@@ -48,7 +48,7 @@ export function collectMapThemeRefs(draft: MapDraft | null | undefined): ThemeRe
         });
       }
     }
-    // v0.10.9 的第三层：不收它，导出包就少一个资源（播放器画不出来），
+    // 背景修饰层：不收它，导出包就少一个资源（播放器画不出来），
     // 主题边界检查也漏掉它。
     if (cell?.decoration) {
       refs.push({ kind: 'asset', id: cell.decoration.assetId, where: `单元格 ${key} 的背景修饰` });

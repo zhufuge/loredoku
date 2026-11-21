@@ -65,9 +65,7 @@ export function resolveToolIcon(
 /**
  * 三枚一起解的结果。
  *
- * v0.10.4：给这个形状起了名字 —— 玩家页、工具栏、提示层、图层栈四处都要写它，
- * 从前各处写成 `Partial<Record<GameToolIconKind, ToolIconRender>>`，改一处总要
- * 一起改三处。
+ * 玩家页、工具栏、提示层、图层栈四处都要写这个形状，所以给它一个名字。
  */
 export type ToolIconsRender = Partial<Record<GameToolIconKind, ToolIconRender>>;
 

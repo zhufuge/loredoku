@@ -23,7 +23,7 @@ export interface ItemAnchorHit {
  * The item anchor covering `x, y`, whether the coordinate is the anchor itself
  * or a cell inside a multi-cell footprint.
  *
- * v0.7.5: the item's info box edits the anchor (`scale` / offsets), and the user
+ * The item's info box edits the anchor (`scale` / offsets), and the user
  * may well have selected a cell in the middle of a 3×3 footprint — the anchor is
  * the only cell that carries the item, so every edit has to resolve it first.
  */

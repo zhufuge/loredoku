@@ -31,7 +31,7 @@ const DEFAULT_SRC = resolve(WEB_ROOT, 'fonts-source');
 const DEFAULT_OUT = resolve(WEB_ROOT, 'src/assets/fonts');
 
 /**
- * v0.7.7：`common` 只覆盖 GB2312 **一级**（3755 字），一级之外的字会被裁掉 ——
+ * `common` 只覆盖 GB2312 **一级**（3755 字），一级之外的字会被裁掉 ——
  * 渲染时靠回退链顶上，代价是那一个字不是手写体。「薇」就是这么丢的。
  *
  * 这份表是**跟着仓库走**的补字清单（不是运行时数据）：谁遇到缺字就往里加一行，

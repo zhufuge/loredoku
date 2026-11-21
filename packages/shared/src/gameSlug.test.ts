@@ -54,7 +54,7 @@ describe('slugify (OPT-W04 §4.3)', () => {
 });
 
 describe('buildDefaultSlug (OPT-W04 §4.3)', () => {
-  // v0.8.1：难度不进路径 —— 两个文档用例只由名称决定。
+  // 难度不进路径 —— 两个文档用例只由名称决定。
   it('builds puzzle-{name} for the two documented examples', () => {
     expect(buildDefaultSlug({ name: 'Flower Garden' })).toBe('puzzle-flower-garden');
     expect(buildDefaultSlug({ name: 'Fireside Beach' })).toBe('puzzle-fireside-beach');

@@ -42,7 +42,7 @@ interface EditorInfoDrawerProps {
   regions: DraftRegion[];
   assetsById: Map<number, Asset>;
   /**
-   * v0.7.0: the map-level style block. The region branch edits **resolved**
+   * The map-level style block. The region branch edits **resolved**
    * values, and this is the default every field falls back to (docs/v0.7.0.md §5).
    */
   style: MapStyle;
@@ -59,13 +59,13 @@ interface EditorInfoDrawerProps {
   /** Reports the region branch's dirty flag so the page can guard a leave. */
   onRegionDirtyChange?: (dirty: boolean) => void;
   /**
-   * v0.11.5: 这块区域的格子正在画布上编辑（草稿会话进行中）。
+   * 这块区域的格子正在画布上编辑（草稿会话进行中）。
    *
    * 只影响区域分支里那个「编辑格子」按钮的字样与可点性 —— 会话本身由页面
    * 与画布负责，抽屉不该知道草稿长什么样。
    */
   cellEditActive?: boolean;
-  /** v0.11.5: 点「编辑格子」。缺省 = 不提供入口（谜题编辑器的只读画布）。 */
+  /** 点「编辑格子」。缺省 = 不提供入口（谜题编辑器的只读画布）。 */
   onStartCellEdit?: (regionId: string) => void;
   /**
    * v0.5.0 SPEC-K06 (docs/v0.5.0.md §4.3): the puzzle editor renders this same
@@ -77,11 +77,11 @@ interface EditorInfoDrawerProps {
   /**
    * v0.7.4 (docs/v0.7.4.md §4): how the host arranges the panel.
    *
-   * `split`（默认）— 面板**占据**编辑区右侧一块空间，画布跟着收窄，不再压在
-   * 画布上。地图编辑器的两个右侧面板都是这个形态。
+   * `split`（默认）— 面板**占据**编辑区右侧一块空间，画布跟着收窄。地图编辑器的
+   * 两个右侧面板都是这个形态。
    *
-   * `overlay` — 仍旧浮在画布上（原来的行为）。谜题编辑器用它：那边的参与者面板
-   * 与谜题基本信息面板都是浮层，只把信息框改成占据空间反而更不一致。
+   * `overlay` — 浮在画布上。谜题编辑器用它：那边的参与者面板与谜题基本信息面板
+   * 都是浮层，只把信息框做成占据空间反而更不一致。
    */
   layout?: 'split' | 'overlay';
 }
@@ -112,7 +112,7 @@ function RegionEditBranch({
   region: DraftRegion;
   regions: DraftRegion[];
   style: MapStyle;
-  /** v0.11.5：这块区域的格子编辑会话正在进行。 */
+  /** 这块区域的格子编辑会话正在进行。 */
   cellEditActive?: boolean;
   onStartCellEdit?: (regionId: string) => void;
   onSubmitRegion: (regionId: string, input: RegionInput) => void;
@@ -186,9 +186,9 @@ function RegionEditBranch({
           包含 {region.cells.length} 格
         </span>
         {/*
-         * v0.11.5：改格子的入口。在此之前只有「选中区域后 Shift + 点击」这一条
-         * 没写在任何界面上的捷径，作者找不到；这里把它做成一个按钮，点进去
-         * 就是草稿式的编辑会话（画布上蓝加红减，上方工具条保存）。
+         * 改格子的入口是一个按钮：点进去就是草稿式的编辑会话（画布上蓝加红减，
+         * 上方工具条保存）。「选中区域后 Shift + 点击」这条捷径没写在任何界面上，
+         * 作者找不到 —— 所以摆在区域分支的标题行上。
          */}
         <Button
           size="sm"
@@ -241,7 +241,7 @@ function RegionEditBranch({
         idPrefix="region-info"
         value={draft}
         onChange={(next) => setDraft(next)}
-        /* v0.9.6：位置偏移只在这一屏出现 —— 它属于这块区域自己的标签。 */
+        /* 位置偏移只在这一屏出现 —— 它属于这块区域自己的标签。 */
         showOffset
       />
 
@@ -333,9 +333,8 @@ function CellBranch({
   selection: Extract<Selection, { type: 'cell' }>;
   cell: DraftCell | undefined;
   /**
-   * v0.7.5: the item anchor covering this cell — the selected cell itself, or
-   * the anchor of a multi-cell footprint it sits inside. The drawer used to read
-   * `cell.item` directly, which meant clicking the middle of a 2×2 said 「空」.
+   * The item anchor covering this cell — the selected cell itself, or
+   * the anchor of a multi-cell footprint it sits inside.
    */
   item: DraftAnchorItem | undefined;
   region: DraftRegion | undefined;
@@ -349,7 +348,7 @@ function CellBranch({
   const backgroundAsset =
     cell?.background?.assetId !== undefined ? assetsById.get(cell.background.assetId) : undefined;
   const itemAsset = item?.assetId !== undefined ? assetsById.get(item.assetId) : undefined;
-  // v0.6.1: both layers show the variant the cell was painted with; a missing or
+  // Both layers show the variant the cell was painted with; a missing or
   // dangling `variantId` falls back to the asset's first variant.
   const backgroundLook = backgroundAsset
     ? resolveAssetVariant(backgroundAsset, cell?.background?.variantId)
@@ -392,7 +391,7 @@ function CellBranch({
       <section className="space-y-1">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-medium text-muted-foreground">物品层</h3>
-          {/* v0.7.5: a way back to "as placed" that does not require typing 100 and two zeroes. */}
+          {/* A way back to "as placed" that does not require typing 100 and two zeroes. */}
           {item && !readOnly && onItemTransform && !identity ? (
             <button
               type="button"
@@ -518,9 +517,7 @@ function CellBranch({
 
 /**
  * SPEC-K06 (docs/v0.5.0.md §4.3): the drawer shows cell / region detail only.
- * v0.5.0 removed the roster from the map (and from this drawer with it), so the
- * old 「未落地角色」prompt and its clear button are gone — the empty state is a
- * single line of guidance.
+ * The empty state is a single line of guidance.
  */
 export function EditorInfoDrawer({
   open,

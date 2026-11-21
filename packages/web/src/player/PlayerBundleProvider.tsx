@@ -117,7 +117,7 @@ export function useBundleGameSource(code: string): GameSource {
        */
       themeCheckColors: () => manifest?.theme.checkStyle ?? null,
       /**
-       * v0.11.3：结算卡的图标与标题也只在 manifest 里一份（`manifest.theme.verdict`）。
+       * 结算卡的图标与标题也只在 manifest 里一份（`manifest.theme.verdict`）。
        * 「没配就不写键」，所以老包与没配过的主题都是 `null` → 内置 🎉 +「解题成功」。
        */
       themeVerdict: () => manifest?.theme.verdict ?? null,
@@ -125,7 +125,7 @@ export function useBundleGameSource(code: string): GameSource {
       listHref: () => themeHrefOf(code),
       gameHref: (key) => gameHrefOf(code, key),
       /**
-       * v0.9.5：定案卡的「下一关」。清单就是 `manifest.games` —— 播放器列表页
+       * 定案卡的「下一关」。清单就是 `manifest.games` —— 播放器列表页
        * 画的也是它，连顺序都不必再排一次（服务端导出时已按 `sort_weight, slug`
        * 排好，见 `gameRepository.listGameRowsByTheme`）。
        */

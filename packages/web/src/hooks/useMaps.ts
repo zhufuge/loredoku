@@ -58,7 +58,7 @@ export function useMapEntry(id: number | null) {
  * FEAT-K03 (docs/v0.5.0.md §2.4): every **published** map version, for the
  * 「地图版本」 picker of the create-puzzle dialog.
  *
- * v0.11.6：`enabled` 由调用方决定 —— 谜题编辑页那枚「切换地图」弹窗是**常挂**的
+ * `enabled` 由调用方决定 —— 谜题编辑页那枚「切换地图」弹窗是**常挂**的
  * （`open` 只控制内容显示与否），于是打开编辑页就等于请求了一次全部已发布版本，
  * 而作者可能整场编辑都没碰过那个按钮。传 `open` 之后，请求推迟到真的点开那一刻；
  * `staleTime` 没设，所以每次重新打开都会再取一次（版本列表随时会被别处发布改写，

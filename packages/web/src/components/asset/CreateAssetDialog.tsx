@@ -51,7 +51,7 @@ const schema = z.object({
     .regex(ASSET_CODE_PATTERN, '编码仅允许字母、数字与下划线'),
   type: z.enum(ASSET_TYPES),
   blocking: z.boolean(),
-  /** v0.5.1 FEAT-L01: image mode (default) or a colour block. */
+  /** Image mode (default) or a colour block. */
   appearanceMode: z.enum(APPEARANCE_MODES),
   bgColor: z.string().regex(BG_COLOR_PATTERN, '颜色需为 #RRGGBB 格式'),
 });
@@ -68,7 +68,7 @@ const DEFAULTS: FormValues = {
 };
 
 /**
- * v0.8.1：编码预填 `主题编码_`。同一个编码在不同主题里各自存在，作者敲的
+ * 编码预填 `主题编码_`。同一个编码在不同主题里各自存在，作者敲的
  * 其实只有后半段 —— 前缀替他写好，顺手就把「这东西属于哪个世界」带进了 ID。
  */
 function defaultsFor(themeCode: string | null): FormValues {
@@ -108,8 +108,8 @@ export function CreateAssetDialog({
   });
   const appearanceMode = watch('appearanceMode');
   const type = watch('type');
-  // v0.5.2 FEAT-M05: the picked file waits for the create call to hand back an
-  // id; a colour block needs no image at all.
+  // The picked file waits for the create call to hand back an id; a colour
+  // block needs no image at all.
   const [file, setFile] = useState<File | null>(null);
   /**
    * v0.8.0 §18：在工作空间里主题已经由地址定了（`/hlm/assets`），对话框里不再让人换
@@ -131,7 +131,7 @@ export function CreateAssetDialog({
   const busy = createMutation.isPending || uploadMutation.isPending || updateMutation.isPending;
 
   const onSubmit = handleSubmit(async (values) => {
-    // v0.5.1 FEAT-L01: colour block → colour; image mode → null.
+    // Colour block → colour; image mode → null.
     const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;
     /**
      * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an appearance handed over at create
@@ -208,7 +208,7 @@ export function CreateAssetDialog({
               <p className="text-xs text-destructive">{errors.code.message}</p>
             ) : (
               /*
-               * v0.8.1 预填了 `主题编码_`，但那个值在框里就是普通文字 —— 作者看不出
+               * 编码框预填 `主题编码_`，但那个值在框里就是普通文字 —— 作者看不出
                * 它是前缀，可以整段删掉，也可以改成别的主题的。这条小字把「已经替你
                * 写好了什么」说清，剩下的仍然是他的自由。
                */
@@ -234,8 +234,8 @@ export function CreateAssetDialog({
               )}
             />
           </div>
-          {/* v0.5.2 FEAT-M04: a background asset is never blocking, so the
-              checkbox only exists for 物品. */}
+          {/* A background asset is never blocking, so the checkbox only
+              exists for 物品. */}
           {type === 'item' ? (
             <label className="flex items-center gap-2 text-sm">
               <Controller
@@ -264,8 +264,8 @@ export function CreateAssetDialog({
                 bgColor={watch('bgColor')}
                 onBgColorChange={(value) => setValue('bgColor', value)}
               >
-                {/* v0.5.2 FEAT-M05: upload right here, no "create first"
-                    round trip for the user. */}
+                {/* Upload right here, no "create first" round trip for the
+                    user. */}
                 <PendingImageField
                   id="asset-image"
                   label="资源图片"

@@ -71,7 +71,7 @@ export function useApiGameSource(): GameSource {
       listHref: (themeCode) => (themeCode ? `/${themeCode}/play` : '/play'),
       gameHref: (key) => `/play/${key}`,
       /**
-       * v0.9.5：定案卡的「下一关」要知道整份清单。这里读的就是列表页那一份
+       * 定案卡的「下一关」要知道整份清单。这里读的就是列表页那一份
        * `/api/games`（同一个 `gameKeys.all`，react-query 去重，不会多一个请求），
        * 顺序也沿用它返回的 `sortWeight, slug` —— 卡片网格排成什么样，「下一关」
        * 就按什么走。

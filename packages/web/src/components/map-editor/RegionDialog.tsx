@@ -20,7 +20,7 @@ import { findOverlap, isConnected, type Coord } from '@/lib/region';
 import { genRegionId, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 
 /**
- * v0.7.0: 创建专用。区域的外观编辑搬到了右边信息框（`EditorInfoDrawer` 的区域
+ * 创建专用。区域的外观编辑在右边信息框（`EditorInfoDrawer` 的区域
  * 段）——那里默认填入「地图基本信息」的缺省值，只把不同的字段记到区域自己
  * 身上，所以新建时同样从缺省开始，这里不再问颜色与线宽。
  */

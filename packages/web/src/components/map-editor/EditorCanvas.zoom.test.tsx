@@ -7,14 +7,12 @@ import { resolveMapStyle } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/hitTest';
 
 /**
- * v0.6.3 fix: the bottom bar's ± buttons used to look dead.
+ * The bottom bar's ± buttons must zoom the canvas like the wheel does.
  *
  * A zoom step changes the ruler strip, which re-creates `centerView`, which
  * re-runs the adaptive auto-centre effect — and that effect resets the view
- * to 100% unless the interaction marked it as user-adjusted. The wheel path
- * set that flag; the button path did not, so the store took the new zoom for
- * exactly one render before the effect centred it away. A single wheel zoom
- * set the flag and everything (buttons included) worked again afterwards.
+ * to 100% unless the view is marked as user-adjusted. Both the wheel path and
+ * the button path set that flag (`userPannedRef`).
  *
  * These tests pin the observable contract: a button zoom reaches the store,
  * and the adaptive pass that re-runs right after must leave it alone.
@@ -24,9 +22,9 @@ import type { CellMap } from '@/lib/hitTest';
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /**
- * v0.10.8：标尺的行列符号改由主题提供（`useRulerSymbolsByCode` 内部走 TanStack
- * Query），而这里直接把 `EditorCanvas` 挂进一个裸 `createRoot`，没有 Provider。
- * 按同一个签名返回常量即可 —— 这一组用例关心的是缩放，不是符号。
+ * 标尺的行列符号由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），而
+ * 这里直接把 `EditorCanvas` 挂进一个裸 `createRoot`，没有 Provider。按同一个签名
+ * 返回常量即可 —— 这一组用例关心的是缩放，不是符号。
  */
 vi.mock('@/hooks/useThemes', () => ({
   useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),

@@ -194,7 +194,7 @@ export async function buildThemeBundle(
   }
 
   /**
-   * v0.9.3 §3；v0.9.5 起只剩两档颜色（圈图并进 `ring`）。
+   * v0.9.3 §3：只剩两档颜色（圈图并进 `ring`）。
    *
    * 颜色是几个字节，一起写进 manifest，播放器因此不必为了配色再读一次 theme.json。
    * 只配了颜色没配图是常态（默认就是绿 / 红），所以两种都要能过去。
@@ -207,7 +207,7 @@ export async function buildThemeBundle(
     : null;
 
   /**
-   * v0.11.3：结算卡那枚图标（若作者传过图）。与圆环同一条 —— 主题级只装一份，
+   * 结算卡那枚图标（若作者传过图）。与圆环同一条 —— 主题级只装一份，
    * 路径进 `manifest.theme.verdict.icon`。
    *
    * 文字（`iconText` / `title`）本身是字符串，原样进 manifest 即可；只有图要落盘。
@@ -261,7 +261,7 @@ export async function buildThemeBundle(
       ...(manifestRing ? { ring: manifestRing } : {}),
       ...(manifestCheckStyle ? { checkStyle: manifestCheckStyle } : {}),
       ...(manifestVerdict ? { verdict: manifestVerdict } : {}),
-      // v0.11.6：列表页那两行字。纯字符串，不落盘，没配就不写键。
+      // 列表页那两行字。纯字符串，不落盘，没配就不写键。
       ...(themeData?.gameList ? { gameList: themeData.gameList } : {}),
     },
     exportedAt,
@@ -320,18 +320,16 @@ export function zipStream(built: BuiltBundle): Readable {
 /**
  * 取材：主题里所有已上线的关卡。
  *
- * v0.9.2：`orderByCollection` 没了 —— 合辑（`theme_deployments`）已被删除，包的
- * 关卡顺序就是 `listGameRowsByTheme` 自己的那个顺序（`sort_weight` 升序、`slug`
- * 兜底，v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
+ * 包的关卡顺序取 `listGameRowsByTheme` 的顺序（`sort_weight` 升序、`slug` 兜底，
+ * v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
  */
 /**
  * 取材：主题里所有已上线的关卡。
  *
- * v0.9.2：`orderByCollection` 没了 —— 合辑（`theme_deployments`）已被删除，包的
- * 关卡顺序就是 `listGameRowsByTheme` 自己的那个顺序（`sort_weight` 升序、`slug`
- * 兜底，v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
+ * 包的关卡顺序取 `listGameRowsByTheme` 的顺序（`sort_weight` 升序、`slug` 兜底，
+ * v0.8.3 §6.2）。作者要调整阅读顺序，改的就是部署页那一列权重。
  *
- * v0.10.10：`gameIds` 给了就只打这几关。缺的 id（不在线、或者根本不是这个主题的）
+ * `gameIds` 给了就只打这几关。缺的 id（不在线、或者根本不是这个主题的）
  * 单独报出来，作者才分得清「我选错了」和「这关出问题了」。
  */
 async function takeGames(
@@ -381,12 +379,10 @@ function toTaken(row: gameRepo.GameRowWithPuzzle): TakenGame {
 /**
  * 引用闭包 → 资源 / 角色两行。
  *
- * v0.11.0 改（docs/v0.11.0.md §2）：形态不再整表进包。以前给每个被引资源的**全部**
- * 形态补发序号，理由是「播放器要画资源面板」—— 这个面板从来没做过，播放器只按
- * 格子画图，未引用的形态于是白占体积（实测 3 张 163 KB，形态越多的主题浪费越多）。
- * 现在只保留**被格子引用**的形态，外加每个被引资源的首形态：`Asset.variants` 永不
- * 为空是约定（`resolveAssetVariant` 的兜底也指着它），首形态画的就是那些没写
- * `variantId` 的格子。
+ * 形态只保留**被格子引用**的，外加每个被引资源的首形态（docs/v0.11.0.md §2）：
+ * 播放器只按格子画图、不画资源面板，未引用的形态进包只是白占体积。
+ * `Asset.variants` 永不为空是约定（`resolveAssetVariant` 的兜底也指着它），
+ * 首形态画的就是那些没写 `variantId` 的格子。
  */
 async function collectSideTables(
   games: TakenGame[],
@@ -440,7 +436,7 @@ async function collectSideTables(
     }
   }
 
-  // 序号补齐（v0.11.0 改）：被格子引用的形态 `buildBundleIdMaps` 已经发过号，
+  // 序号补齐：被格子引用的形态 `buildBundleIdMaps` 已经发过号，
   // 这里只给每个被引资源的**首形态**补一个 —— 没写 variantId 的格子画的就是它。
   for (const assetId of [...ids.assets.keys()]) {
     if (!assets.has(assetId)) continue;
@@ -580,10 +576,9 @@ async function rewriteCharacters(
 /**
  * 关卡封面：卡片要（§11.2），地图封面不要 —— 游戏页不显示它。
  *
- * v0.11.0 改（docs/v0.11.0.md §3）：以前搬**原图**（实测 5 张近 4 MB，占整个包的三成），
- * 现在统一裁到 768px 长边、转 webp —— 播放器的列表卡片只有几百像素宽，原图进包
- * 只是让 zip 变大、首屏多花一次流量。从原图现转，不用上传时那份 960 的缩略图：
- * 那是给工坊展示用的，尺寸和这里要的不一样，二次压缩还掉画质。
+ * 统一裁到 768px 长边、转 webp（docs/v0.11.0.md §3）：播放器的列表卡片只有几百
+ * 像素宽，原图进包只会让 zip 变大、首屏多花一次流量。从原图现转，不用上传时那份
+ * 960 的缩略图：那是给工坊展示用的，尺寸和这里要的不一样，二次压缩还掉画质。
  */
 async function takeCover(
   row: gameRepo.GameRowWithPuzzle,
@@ -609,10 +604,9 @@ async function scaleBundleCover(data: Buffer): Promise<Buffer> {
  * v0.8.6 §4：一关的禁止符号图进包，并把该关 JSON 里的 `path` 改写成包内相对路径
  * （与资源图同一条「包内相对地址」约定，由播放器的 `resolveFile` 拼到包根）。
  *
- * v0.11.0 改（docs/v0.11.0.md §1）：用主题那张兜底的关，**全都指向同一个包内地址**
- * `files/marks/theme.webp` —— 以前每关复制一份（实测 18 关 = 18 份同字节文件），
- * `FileSink` 本来就按目标路径去重，这里只是把名字取成同一串。自己配过的关仍是
- * `files/marks/<slug>.webp`，两边的图本来就不一样。
+ * 用主题那张兜底的关，**全都指向同一个包内地址** `files/marks/theme.webp`
+ * （docs/v0.11.0.md §1）：`FileSink` 按目标路径去重，这里只是把名字取成同一串。
+ * 自己配过的关仍是 `files/marks/<slug>.webp`，两边的图本来就不一样。
  *
  * 源文件缺失时**不改写**，只记一条 `file` 问题 —— 反正 `problems` 非空时打包会在
  * 构造下一律中止（§11.2），产出的 `path` 不会被交给任何人。
@@ -654,7 +648,7 @@ async function takeMark(
  * 相对路径。解析顺序与玩家侧一致：谜题自己的 → 主题的 → （都没有就不带，播放器用
  * 内置图标）。
  *
- * v0.11.0 改（docs/v0.11.0.md §1）：与标记图同一条规矩 —— 用主题兜底的那枚指向
+ * 与标记图同一条规矩（docs/v0.11.0.md §1）：用主题兜底的那枚指向
  * `files/icons/theme-<icon>.webp`，全主题只存一份；谜题自己配的仍是
  * `<slug>-<icon>.webp`。某一枚的源文件缺失**只跳过那一枚** —— 另外两枚照样进包，
  * 打包仍会因为 `problems` 非空而中止（§11.2）。

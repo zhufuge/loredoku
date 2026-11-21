@@ -2,7 +2,7 @@ import type { ThemeDifficultyTier } from '@loredoku/shared';
 import { cn } from '@/lib/utils';
 
 /**
- * v0.11.6：难度过滤条 —— 「全部」在前，后面是**这个主题**的分级。
+ * 难度过滤条 —— 「全部」在前，后面是**这个主题**的分级。
  *
  * 两个列表页（工坊的 `/:code/play` 与播放器的 `/:code/play`）共用这一个，
  * 免得一处改了档位顺序、另一处还是老样子。

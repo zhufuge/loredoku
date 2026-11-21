@@ -121,7 +121,7 @@ function readStoredRulerVisible(): boolean {
  * 新行的 URL。没落库之前没有发布按钮 —— 这一屏既不是草稿也不是版本。
  */
 export function PuzzleEditorPage(): JSX.Element {
-  // v0.8.1：主题段在地址里 —— 角色 / 资源列表按它隔离（选料只属于这个工作空间）。
+  // 主题段在地址里 —— 角色 / 资源列表按它隔离（选料只属于这个工作空间）。
   const { puzzleId, themeCode = '' } = useParams<{ puzzleId: string; themeCode: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -187,7 +187,7 @@ export function PuzzleEditorPage(): JSX.Element {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const puzzleInfoRef = useRef<PuzzleInfoDrawerHandle | null>(null);
   /**
-   * v0.7.13：角色列收起后整列都不渲染，「展开」的按钮搬到参与者标题行上。
+   * 角色列收起后整列都不渲染，「展开」的按钮搬到参与者标题行上。
    * 面板自己是这条状态的 owner（自动收起的记忆在里面），页面只拿一个镜像，
    * 用来决定那颗箭头要不要出现；真的展开还是叫面板自己做（`expand()`）。
    */
@@ -404,7 +404,7 @@ export function PuzzleEditorPage(): JSX.Element {
    * MOD-802 §1.2.4: the highlight is a pure projection of the single-active
    * state machine — persistent while active, faded out (150ms) afterwards.
    *
-   * v0.5.0 Q16: the palette is the puzzle's own, so it is passed explicitly
+   * The palette is the puzzle's own, so it is passed explicitly
    * instead of being read off `MapStyle`.
    */
   useEffect(() => {
@@ -760,7 +760,7 @@ export function PuzzleEditorPage(): JSX.Element {
   };
 
   /**
-   * v0.6.3: the zoom maths lives in the canvas (next to the wheel handler) so
+   * The zoom maths lives in the canvas (next to the wheel handler) so
    * the button path marks the view as user-adjusted too — otherwise the
    * adaptive auto-centre pass centres the new zoom away on the next render
    * and the buttons look dead until a wheel zoom sets that flag.
@@ -907,7 +907,7 @@ export function PuzzleEditorPage(): JSX.Element {
 
         <ParticipantPanel
           /*
-           * v0.7.13：角色列收起之后，「展开角色列表」只剩这一个落点 —— 那颗
+           * 角色列收起之后，「展开角色列表」只剩这一个落点 —— 那颗
            * 箭头挂在「参与者 n/n」标题行的左侧（绝对定位，标题仍然居中）。
            */
           headerLeading={
@@ -1048,8 +1048,8 @@ export function PuzzleEditorPage(): JSX.Element {
             onSubmitRegion={() => undefined}
             onDeleteRegion={() => undefined}
             /**
-             * v0.7.4：地图编辑器的面板改成占据空间，谜题编辑器保持浮层 ——
-             * 这边的参与者面板与谜题基本信息都是浮层，只改一个反而更不一致。
+             * 与地图编辑器不同：那边面板占据空间，这边保持浮层 —— 参与者面板与
+             * 谜题基本信息都是浮层，只改一个反而更不一致。
              */
             layout="overlay"
             readOnly

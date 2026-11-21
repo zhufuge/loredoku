@@ -11,8 +11,7 @@ import { GameView } from '@/pages/GamePage';
  * 是两件事。静态 import 会把 axios 打进播放器的主 chunk，动态 import 之后它退化成
  * 一个**永远不会被请求**的独立 chunk。
  *
- * 实测（v0.9.0 §10）：改之前 dev 里进关卡页会额外拉 7 个 `src/api/*.ts` 模块，
- * 改之后一个都没有。
+ * 实测（v0.9.0 §10）：dev 里进关卡页一个 `src/api/*.ts` 模块都不会额外拉。
  */
 export default function ApiGamePage(): JSX.Element {
   const source = useApiGameSource();

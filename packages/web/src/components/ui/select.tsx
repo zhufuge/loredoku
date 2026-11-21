@@ -6,10 +6,10 @@ import { cn } from '@/lib/utils';
  * Thin wrapper around the native `<select>` so dialogs can offer dropdowns
  * without pulling in a heavy popover primitive.
  *
- * v0.7.8 §3：高度与焦点环对齐 `Input`（`h-10` / `ring-2`）。原来是
- * `h-9` / `ring-1`，与它并排的搜索框底边差 4px，同一行看起来"错位"。
- * v0.8.5 §5：跟着 `Input` 去掉 `ring-offset`（环贴着描边，不再隔一层底色）。
- * 环宽仍是 `ring-2`、高度仍是 `h-10` —— 那一半的结论没变。
+ * v0.7.8 §3：高度与焦点环对齐 `Input`（`h-10` / `ring-2`），与并排的搜索框
+ * 底边齐平，同一行不会看起来"错位"。
+ * v0.8.5 §5：环贴着描边，不再隔一层底色（与 `Input` 一致）。
+ * 环宽是 `ring-2`、高度是 `h-10`。
  * 需要按内容收窄时在调用处加 `w-auto`（默认 `w-full`）。
  */
 export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(

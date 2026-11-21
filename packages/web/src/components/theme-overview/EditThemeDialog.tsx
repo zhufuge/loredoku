@@ -8,10 +8,10 @@ import { ColorField } from '@/components/ui/color-input';
 import { useUpdateTheme } from '@/hooks/useThemes';
 
 /**
- * v0.8.2：选色的起点。石青是浅色下的 `--primary`，第一次按下取色器就从这里开始 ——
+ * 选色的起点。石青是浅色下的 `--primary`，第一次按下取色器就从这里开始 ——
  * 它不是「默认识别色」，只是不让取色器从一个随机黑开始。
  *
- * v0.10.4：跟着 `EditThemeDialog` 一起搬过来 —— 它只在这一个弹窗里用到。
+ * 放在这里，是因为它只在这一个弹窗里用到。
  */
 const ACCENT_FALLBACK = '#326385';
 

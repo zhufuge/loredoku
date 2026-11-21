@@ -8,7 +8,7 @@ import { ThemeColorDialog } from './ThemeColorDialog';
  * FEAT-H08（docs/v0.4.2.md §8）：主题色弹窗是**受控**组件 —— 抽屉只展示当前选中，
  * 选色在这里完成，且只把结果交回抽屉，自己绝不写 store。
  *
- * v0.8.3：色板去掉了，选色只走统一取色控件（色块 + hex）。
+ * 选色只走统一取色控件（色块 + hex）。
  */
 
 describe('ThemeColorDialog — 渲染行为（FEAT-H08）', () => {
@@ -51,7 +51,7 @@ describe('ThemeColorDialog — 渲染行为（FEAT-H08）', () => {
     render('#123456');
     const picker = document.querySelector<HTMLInputElement>('input[type="color"]');
     expect(picker?.value).toBe('#123456');
-    // v0.8.3：hex 框的标签跟着统一取色控件走 —— 「<字段名>（hex）」。
+    // hex 框的标签跟着统一取色控件走 —— 「<字段名>（hex）」。
     expect(hex()?.value).toBe('#123456');
   });
 

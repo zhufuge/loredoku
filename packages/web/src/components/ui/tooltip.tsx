@@ -28,7 +28,7 @@ import { cn } from '@/lib/utils';
 const DELAY_DURATION = 320;
 
 /**
- * v0.7.13：提示纸片的那层皮，抽出来给**不走 Radix** 的提示复用。
+ * 提示纸片的那层皮，供**不走 Radix** 的提示复用。
  *
  * 地图画布上的物品提示挂不上 Radix —— 物品层的 `pointer-events` 在各页面是
  * `none`（游戏页要在格子上放棋子），而且它按画布坐标自己算命中。硬套
@@ -65,9 +65,8 @@ export const TooltipContent = forwardRef<
         // 不能指望「后挂载所以压得住」—— 同一个对话框里再开一个浮层就会翻车。
         'z-[60]',
         TOOLTIP_SURFACE_CLASS,
-        // v0.7.10：`zoom-in-95` 保留（提示是「贴上来的一小片纸」，缩放比纯淡入
-        // 更像被推到你面前），但把时长显式钉成 `duration-fast` —— 之前吃的是
-        // tailwindcss-animate 的默认值，与全站的 120/180/260 三档无对应关系。
+        // 提示是「贴上来的一小片纸」，入场带一点放大比纯淡入更像被推到你面前；
+        // 时长显式钉在 120ms 那一档，与全站的 120/180/260 三档对齐。
         'animate-in fade-in-0 zoom-in-95 duration-fast data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-fast',
         className,
       )}

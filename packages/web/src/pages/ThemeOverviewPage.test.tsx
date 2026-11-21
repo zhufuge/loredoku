@@ -6,7 +6,7 @@ import { DEFAULT_MAP_STYLE, type Theme } from '@loredoku/shared';
 import { ThemeOverviewPage } from './ThemeOverviewPage';
 
 /**
- * v0.8.3：概览页只回答两件事 —— 「这个空间是什么」与「它按什么规矩长」。
+ * 概览页只回答两件事 —— 「这个空间是什么」与「它按什么规矩长」。
  *
  * v0.8.3 精简（docs/v0.8.3.md §16）：这里只留**写回数据的契约** —— 缺省风格改成
  * `data.style`、难度分级改成 `data.difficultyLevels`（含两条边界：什么都没改就
@@ -42,7 +42,7 @@ const removeRingMutate = vi.fn(() => Promise.resolve());
 const updateCheckStyleMutate = vi.fn((_patch: unknown) => Promise.resolve());
 const uploadCheckRingMutate = vi.fn((_file: File) => Promise.resolve());
 const removeCheckRingMutate = vi.fn(() => Promise.resolve());
-/** v0.11.3：结算卡的图标图与两句话。 */
+/** 结算卡的图标图与两句话。 */
 const uploadVerdictIconMutate = vi.fn((_file: File) => Promise.resolve());
 const removeVerdictIconMutate = vi.fn(() => Promise.resolve());
 const updateVerdictMutate = vi.fn((_patch: unknown) => Promise.resolve());
@@ -64,7 +64,7 @@ vi.mock('@/hooks/useThemes', () => ({
   /** v0.9.3 §3：两档颜色走同一个 mutate。 */
   useUpdateThemeCheckStyle: () => ({ mutate: updateCheckStyleMutate, isPending: false }),
   /**
-   * v0.11.3：结算卡的图标图上传 / 移除，以及那两句文字的 PATCH —— 三个动作分开。
+   * 结算卡的图标图上传 / 移除，以及那两句文字的 PATCH —— 三个动作分开。
    */
   useUploadThemeVerdictIcon: () => ({ mutate: uploadVerdictIconMutate, isPending: false }),
   useRemoveThemeVerdictIcon: () => ({ mutate: removeVerdictIconMutate, isPending: false }),
@@ -261,7 +261,7 @@ describe('ThemeOverviewPage（v0.8.3）', () => {
   });
 
   /**
-   * v0.9.5：**操作提示**这一张卡把五项并到一起（标记 / 清除 / 回退 / 提交 / 圆环）。
+   * **操作提示**这一张卡把五项并到一起（标记 / 清除 / 回退 / 提交 / 圆环）。
    *
    * 这几条钉的是数据契约而不是排版：哪一项配了、页面就拿那项的地址去画，
    * 点上传 / 移除就直接发请求（即时保存，没有「编辑 → 保存」那一层）。

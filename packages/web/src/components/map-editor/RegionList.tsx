@@ -3,8 +3,8 @@ import type { DraftRegion } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
 
 /**
- * v0.7.0: 编辑入口删了 —— 点条目即在右边信息框里改（与点画布上的区域标签
- * 同一个面板），这里只留选择与删除。
+ * 点条目即在右边信息框里改（与点画布上的区域标签同一个面板），这里只留选择
+ * 与删除。
  */
 interface RegionListProps {
   regions: DraftRegion[];
@@ -49,13 +49,13 @@ export function RegionList({
             variant="ghost"
             size="icon"
             /*
-             * v0.7.10：三处补丁。
+             * 三处补丁。
              *
-             * ① `transition-opacity duration-fast`：原来是从 0 到 1 硬切，鼠标
-             *    扫过列表时一串删除图标集体闪一下。
+             * ① `transition-opacity duration-fast`：不做过场的话，鼠标扫过列表时
+             *    一串删除图标会集体闪一下。
              * ② `focus-visible:opacity-100`：键盘用户 tab 到这枚按钮时它是**全透明**
              *    的 —— 焦点环画在一个看不见的按钮上，等于这行删不掉。
-             * ③ 顺带说明为什么它不换成 `<IconButton>`：24px 的行内微按钮属于
+             * ③ 为什么它不换成 `<IconButton>`：24px 的行内微按钮属于
              *    v0.7.9 §5 记下的三条例外之一（悬停才出现，套悬浮提示会跟着闪），
              *    所以这里的 `title` 是刻意留的。
              */

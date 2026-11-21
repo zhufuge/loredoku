@@ -2,10 +2,9 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-/** v0.7.13: `ColorField` 搬到 `@/components/ui/color-input`，两处抽屉改从那儿取。 */
 
 /**
- * v0.7.0: the number / colour controls the two info drawers share.
+ * The number / colour controls the two info drawers share.
  *
  * They used to live inside `MapInfoDrawer`; the region branch of
  * `EditorInfoDrawer` needed the exact same behaviour (write-through on every
@@ -14,7 +13,7 @@ import { Label } from '@/components/ui/label';
  */
 
 /**
- * v0.3.10 FIX-F02: a number field that writes through on **every** change.
+ * A number field that writes through on **every** change.
  *
  * The previous implementation kept the parsed value in a local text buffer and
  * only committed on `blur` / `Enter`, so clicking the input's stepper buttons
@@ -39,7 +38,7 @@ export function NumberField({
   id: string;
   value: number;
   /**
-   * v0.10.7：上下限改成可选 —— 区域标签的位置偏移不再封顶，那两个框只保留步进。
+   * 上下限可选 —— 区域标签的位置偏移不封顶，那两个框只保留步进。
    * 其余所有数值字段照旧传死上下限。
    */
   min?: number;

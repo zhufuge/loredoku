@@ -19,16 +19,10 @@ import { gameCoverUrls } from '@/lib/pageImages';
 import { workshopPath } from '@/lib/workspace';
 
 /**
- * v0.8.0（docs/v0.8.0.md §10 / §16.5）—— `/play` 曾是**两段互斥**：上面「主题大卡」，
- * 下面「单个游戏」；进了合辑的关不再在列表里出现，两段数量才对得上。
- *
- * v0.9.2：合辑（`theme_deployments`）连同两张表一起删了，那一段目录层没有落点了 ——
- * 这一页回到**一张列表**：在线的一关就是一张卡，点进去就玩。
- *
- * v0.11.6：这一页从「全站一张平铺表」改成**一个主题一张表**（`/:code/play`），
- * 与播放器里那页同一副骨架 —— 同一批关卡在两个入口里长得一样，玩家不必猜
- * 「线上那版和工坊这版是不是同一个东西」。地址里的编码就是筛选条件，于是：
- * 主题名成了标题，难度分级只列**这个主题**那几档，工坊的门也落在这个主题上。
+ * 这一页是**一个主题一张表**（`/:code/play`，docs/v0.8.0.md §10 / §16.5），与播放器
+ * 里那页同一副骨架 —— 同一批关卡在两个入口里长得一样，玩家不必猜「线上那版和工坊
+ * 这版是不是同一个东西」。地址里的编码就是筛选条件，于是：主题名成了标题，难度
+ * 分级只列**这个主题**那几档，工坊的门也落在这个主题上。
  */
 export function GamesPage(): JSX.Element {
   const navigate = useNavigate();
@@ -65,18 +59,18 @@ export function GamesPage(): JSX.Element {
   const texts = useMemo(() => resolveGameListTexts(theme?.data.gameList), [theme]);
 
   /**
-   * v0.11.2：loading 等「当前页资源全部加载完」才撤。列表页的资源就是每张卡的
+   * loading 等「当前页资源全部加载完」才撤。列表页的资源就是每张卡的
    * 封面图 —— 数据到齐且封面都预加载完，骨架屏才换成卡片，中间不会出现
    * 「卡片先出、封面一张张跳出来」的那一帧。没有封面的卡视为已加载。
    *
-   * v0.11.6：只等**当前这一档**的封面 —— 切到某一档不该等别的档的图。
+   * 只等**当前这一档**的封面 —— 切到某一档不该等别的档的图。
    */
   const coversReady = useImagePreload(gameCoverUrls(games));
   const loading =
     gamesQuery.isLoading || themesQuery.isLoading || (games.length > 0 && !coversReady);
 
   /**
-   * v0.9.6：每一关的**最后离开时间**。它与通过记录分两条键（完成是既成事实、
+   * 每一关的**最后离开时间**。它与通过记录分两条键（完成是既成事实、
    * 离开是上次玩到几点），所以这里分开算一张表；卡片按「完成优先，否则离开」
    * 自己挑一个。
    */
@@ -93,7 +87,7 @@ export function GamesPage(): JSX.Element {
     return map;
   }, [allGames]);
 
-  /** v0.9.5：每张卡各自的通过记录（键是游戏 slug）。 */
+  /** 每张卡各自的通过记录（键是游戏 slug）。 */
   const completions = useMemo(() => {
     const map = new Map<string, GameCompletion>();
     for (const game of allGames) {
@@ -129,14 +123,13 @@ export function GamesPage(): JSX.Element {
               size="sm"
               className="gap-1.5"
               /*
-               * v0.8.2：进工坊落到**概览**，不是地图。
+               * 进工坊落到**概览**，不是地图。
                *
-               * v0.8.0 给每个工作空间配了自己的首页（`/:code/overview`），导航第一项
-               * 也是它；只有这枚从玩家侧进来的门还落在地图 —— 两处对「工坊的首页」
-               * 说法不一致。概览本来就是回答「这个空间是什么、有什么」的那一页，
-               * 从外面进来先看它，比先看一张画布合理。
+               * 每个工作空间有自己的首页（`/:code/overview`），导航第一项也是它。
+               * 概览本来就是回答「这个空间是什么、有什么」的那一页，从外面进来先看
+               * 它，比先看一张画布合理。
                *
-               * v0.11.6：带上主题编码 —— 从 A 主题的列表页进工坊，该落到 A 的概览，
+               * 带上主题编码 —— 从 A 主题的列表页进工坊，该落到 A 的概览，
                * 而不是「上一次待过的那个主题」。
                */
               onClick={() => navigate(workshopPath('overview', code))}
@@ -149,7 +142,7 @@ export function GamesPage(): JSX.Element {
         </div>
 
         {/*
-         * v0.11.6：主题这一层信息 —— 名字、一句话介绍、两行计数。
+         * 主题这一层信息 —— 名字、一句话介绍、两行计数。
          * 与播放器里那页同一个次序：先回答「这是哪个世界」，再回答「有多少关」。
          */}
         <div className="space-y-2">
@@ -175,7 +168,7 @@ export function GamesPage(): JSX.Element {
         </div>
 
         {/*
-         * v0.11.6：难度过滤。「全部」在前，后面是**这个主题**的分级 —— 分级是主题
+         * 难度过滤。「全部」在前，后面是**这个主题**的分级 —— 分级是主题
          * 自己定的，别的主题的档名在这里没有意义。零关的档也列出来：它回答的是
          * 「这个主题有哪几档」，藏起来反而让人以为分级少了。
          */}
@@ -228,7 +221,7 @@ export function GamesPage(): JSX.Element {
               <GameCard
                 key={game.id}
                 game={game}
-                /* v0.11.6：卡片的落点也带主题段 —— 与列表页同一个世界。 */
+                /* 卡片的落点也带主题段 —— 与列表页同一个世界。 */
                 href={code ? `/${code}/play/${game.slug}` : `/play/${game.slug}`}
                 tiers={tiers}
                 completion={completions.get(game.slug) ?? null}

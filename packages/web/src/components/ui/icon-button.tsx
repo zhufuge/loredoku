@@ -8,9 +8,8 @@ export interface IconButtonProps extends Omit<ButtonProps, 'size' | 'children' |
   /**
    * **唯一真源**：既是悬浮提示，也是 `aria-label`。
    *
-   * 过去这两件事分散在 `title` 和（偶尔才有的）`aria-label` 里，于是同一排按钮
-   * 有的两样都有、有的只有 title（屏幕阅读器读得到，但样式是系统气泡）。
-   * 现在只写一次。
+   * 两件事写在一处，同一排按钮就不会有的两样都有、有的只有 title（屏幕阅读器
+   * 读得到，但样式是系统气泡）。
    */
   label: string;
   /** 有快捷键的动作，把组合键挂在提示右侧，例如 `Ctrl+Z`。 */

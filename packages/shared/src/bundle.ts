@@ -9,8 +9,6 @@ import type {
   PuzzleDraft,
   ThemeCheckColors,
   ThemeDifficultyTier,
-  // v0.9.5：原来的 `ForbiddenSymbolImage` / `ThemeCheckStyle` 改名为 `UploadedImage`
-  // 与 `ThemeCheckColors`，圈图并进 `ThemeRing`。
   ThemeRing,
   ThemeVerdict,
   ThemeGameListTexts,
@@ -113,7 +111,7 @@ function clone<T>(value: T): T {
  * 画布副本里的 `map.mapId` / `map.versionNo` **不动**：它们是「画布从哪来」的追溯
  * 字段，不是引用（v0.7.1 §5.3）。
  *
- * v0.8.6 的禁止符号不在这张表里：它是上传文件而不是资源 id，包内路径的改写发生在
+ * 禁止符号不在这张表里：它是上传文件而不是资源 id，包内路径的改写发生在
  * 服务端的 `bundleService`（它要真的把文件搬进包里）。
  */
 export function renumberPuzzleDraft(puzzle: PuzzleDraft, ids: BundleIdMaps): PuzzleDraft {
@@ -132,7 +130,7 @@ export function renumberPuzzleDraft(puzzle: PuzzleDraft, ids: BundleIdMaps): Puz
       if (variantId == null) delete cell.item.variantId;
       else cell.item.variantId = variantId;
     }
-    // v0.10.9 的背景修饰层：漏掉它，包里的这一格还指着数据库原 id，
+    // 背景修饰层：漏掉它，包里的这一格还指着数据库原 id，
     // 而 assets.json 里那个资源根本不存在（collectMapThemeRefs 没收它）。
     if (cell.decoration) {
       cell.decoration.assetId = remap(ids.assets, cell.decoration.assetId);
@@ -180,7 +178,7 @@ export interface BundleManifestGame {
   puzzleName: string;
   gridSize: number;
   /**
-   * v0.8.6：**档位数字**（v0.8.3 时是字符串标识）。导入方按自己的分级解释 ——
+   * 难度是**档位数字**。导入方按自己的分级解释 ——
    * 数字对不上就显示「第 N 档」，不用猜是哪个名字。
    */
   difficulty: number;
@@ -219,8 +217,8 @@ export interface BundleManifestTheme {
    *
    * 可选：没配过环的主题没有这个键，播放器画内置细弧。
    *
-   * v0.9.5 之前这里是 `pressRing: { path }` 与 `checkStyle.ring: { path }` 两个键
-   * —— 播放器读老包时由 `migrateLegacyBundleRing` 换成新形状。
+   * 老包里的 `pressRing: { path }` 与 `checkStyle.ring: { path }` 两个键由
+   * `migrateLegacyBundleRing` 换成这个形状。
    */
   ring?: ThemeRing | null;
   /**
@@ -233,7 +231,7 @@ export interface BundleManifestTheme {
    */
   checkStyle?: ThemeCheckColors | null;
   /**
-   * v0.11.3：结算卡通过那一面的图标与标题。
+   * 结算卡通过那一面的图标与标题。
    *
    * 与 `ring` / `checkStyle` 同一条「主题级共用一份」：它不随关卡变，进 manifest
    * 之后播放器结算时不必再读一次 theme.json。`icon.path`（若配了图）是**包内相对
@@ -243,7 +241,7 @@ export interface BundleManifestTheme {
    */
   verdict?: ThemeVerdict | null;
   /**
-   * v0.11.6：游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。
+   * 游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。
    *
    * 与 `verdict` 同一条规矩：没配过的主题没有这个键，列表页用内置那两句。
    * 文案随包走，于是**不重新导出**就改不掉 —— 这是有意的：包是一份可离线运行的
@@ -301,9 +299,9 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
       ...(input.theme.ring ? { ring: input.theme.ring } : {}),
       // v0.9.3 §3：校验颜色同理。只配了颜色没配图是常态。
       ...(input.theme.checkStyle ? { checkStyle: input.theme.checkStyle } : {}),
-      // v0.11.3：结算卡的图标与标题，同一条「没配就不写键」。
+      // 结算卡的图标与标题，同一条「没配就不写键」。
       ...(input.theme.verdict ? { verdict: input.theme.verdict } : {}),
-      // v0.11.6：列表页那两行字的模板，同一条「没配就不写键」。
+      // 列表页那两行字的模板，同一条「没配就不写键」。
       ...(input.theme.gameList ? { gameList: input.theme.gameList } : {}),
     },
     games: input.games,
@@ -338,14 +336,11 @@ export function buildBundlePuzzleFile(
     /**
      * v0.9.0 §5 修正：`map` 必须是**重编号之后**的那份。
      *
-     * v0.8.0 这里写的是 `map: game.map` —— 它是 `puzzle.map.data` 的原始引用
-     * （服务端 `toDetail` 就是这么给的），而 `renumberPuzzleDraft` 是 clone 一份
-     * 再改引用 id。于是包里出现**两份画布**：`puzzle.map.data` 里的 `assetId`
-     * 是 1..N，`map` 里的还是数据库原 id。播放器读前者正常，读后者就是一张
-     * 没有背景的空棋盘。
-     *
-     * 为什么到现在才暴露：v0.8.0 到 v0.8.7 都没有播放器，没人真的消费过这个字段；
-     * v0.9.0 的播放器第一眼看到的就是它。
+     * 写 `map: game.map` 拿到的是 `puzzle.map.data` 的**原始**引用（服务端
+     * `toDetail` 就是这么给的），而 `renumberPuzzleDraft` 是 clone 一份再改
+     * 引用 id。于是包里出现**两份画布**：`puzzle.map.data` 里的 `assetId` 是
+     * 1..N，`map` 里的还是数据库原 id。播放器读前者正常，读后者就是一张没有
+     * 背景的空棋盘。
      */
     map: puzzle.map.data,
     puzzle,

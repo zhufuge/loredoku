@@ -6,7 +6,7 @@ import {
 import type { ThemeGameListTexts } from './types';
 
 /**
- * v0.11.6：游戏列表页那两行字。
+ * 游戏列表页那两行字。
  *
  * 两处渲染点（工坊的 `/:code/play` 与播放器的 `/:code/play`）共用这一份解析，
  * 免得同一个主题在两个入口里说两种话 —— 它们本来就是同一页，只是一个在线上、

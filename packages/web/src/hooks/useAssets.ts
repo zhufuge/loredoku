@@ -47,8 +47,6 @@ export function useCreateAsset(onSuccess?: (asset: { id: number }) => void) {
   return useMutation({
     mutationFn: (payload: CreateAssetPayload) => assetsApi.create(payload),
     onSuccess: (asset) => {
-      // v0.5.2 FEAT-M05: the image can now be picked inside the create dialog,
-      // so "go upload it afterwards" is no longer the only path.
       toast.success('资源创建成功');
       invalidate();
       onSuccess?.(asset);
@@ -104,7 +102,7 @@ export function useSetAssetActive() {
   });
 }
 
-// ---- v0.6.1: variants ----
+// ---- variants ----
 
 export function useCreateAssetVariant() {
   const invalidate = useInvalidateAssets();

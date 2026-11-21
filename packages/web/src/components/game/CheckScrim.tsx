@@ -3,9 +3,7 @@ import { DIALOG_OVERLAY_TINT_CLASS } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 
 /**
- * v0.9.4：核对期间四处**各自完整**的遮罩 —— 左栏、右栏、中列留白、画布底色层。
- *
- * 不再用全屏四块挖洞：
+ * 核对期间四处**各自完整**的遮罩 —— 左栏、右栏、中列留白、画布底色层：
  * - 左右两栏本来就是独立的 `aside`，各盖一层即可（挡点击）；
  * - 中列（`main`）那一层铺满整个地图区，`z = saveMask(40)`，压住标尺条带与画布
  *   四周的留白；它**低于**画布纸（`canvasBase` 容器在校验时抬到 `saveMask+1`），
@@ -15,10 +13,9 @@ import { cn } from '@/lib/utils';
  *
  * 颜色统一取弹窗 overlay 的 `DIALOG_OVERLAY_TINT_CLASS`，四处不会各说一套。
  *
- * v0.10.4：从 `GamePage` 搬到自己的文件 —— 四处的尺寸 / 层级仍由调用方给，
- * 这里只管「一般遮罩颜色 + 一处 aria 标记」。
+ * 四处的尺寸 / 层级由调用方给，这里只管「一般遮罩颜色 + 一处 aria 标记」。
  *
- * v0.10.5：竖屏（`display: contents` 的左栏没有盒子）额外多一处整屏遮罩
+ * 竖屏（`display: contents` 的左栏没有盒子）多一处整屏遮罩
  * `area="portrait"`。它和上面四处不并存：竖屏只画这一处，桌面 / 横屏只画那四处。
  */
 export function CheckScrim({

@@ -218,7 +218,7 @@ function paletteEquals(a: MapLinkageColor[], b: MapLinkageColor[]): boolean {
 }
 
 /**
- * v0.7.14：线索按**落库后的样子**比较 —— trim 掉首尾空格、丢掉空行。
+ * 线索按**落库后的样子**比较 —— trim 掉首尾空格、丢掉空行。
  *
  * 少了这一步会有一种很别扭的状态：作者点「新增线索」又什么都没写就点保存，
  * 数组长度变了、dirty 为真，于是白白多一个撤销步；而落库时那行又会被过滤掉，
@@ -503,7 +503,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
     const descriptionOverLimit = draftDescription.length > PUZZLE_DESCRIPTION_MAX_LENGTH;
 
     /**
-     * v0.7.14：线索的增删改都只动草稿。**新增**会先插一条空行 —— 作者点一下
+     * 线索的增删改都只动草稿。**新增**会先插一条空行 —— 作者点一下
      * 就有地方写，不必先想好措辞再找入口。空行在提交时消失（见 `normalizeClues`），
      * 所以「点错了又没写」不会在数据里留下一条空线索。
      */

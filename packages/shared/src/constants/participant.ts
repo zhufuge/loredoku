@@ -1,6 +1,4 @@
-// // 参与者区与名册布局。
-// v0.10.4：从 `constants.ts`（1324 行、287 个导出）按主题拆开。值、注释、次序一律
-// 照搬 —— 只是把「谁在用」相近的那些放在一个文件里，改一处不必在一千行里翻。
+// 参与者区与名册布局。
 // 对外仍是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
 
 // ---- OPT-B06 参与者区（docs/v0.3.6.md §6） ----
@@ -33,7 +31,7 @@ export const PARTICIPANT_SEQ_BORDER = '1px solid rgba(0,0,0,0.1)';
  * the badge sits flush in the corner (inset 0), so a square corner there would
  * poke past the card's rounded frame.
  *
- * v0.7.14：TL 是 `卡片半径 − 描边`（6 − 1 = 5），不是卡片半径本身。
+ * TL 是 `卡片半径 − 描边`（6 − 1 = 5），不是卡片半径本身。
  * 徽标贴在**padding box** 的角上（`position:absolute; top/left: 0`，也就是描边
  * 内侧 1px），那一圈内圆角的半径比外圆角小 1px。徽标用外圆角时弧比内弧「切得
  * 更深」，两者之间露出一道月牙形的卡纸 —— 选中时徽标是主色、描边也是主色，
@@ -77,7 +75,7 @@ export const ROSTER_PANEL_MIN_WIDTH = 256;
 /** Past ROSTER_COLS_MAX the panel stops growing here and scrolls instead. */
 export const ROSTER_PANEL_MAX_WIDTH = 512;
 /**
- * v0.6.3: the widest column count the 基本信息 field accepts — and, at the
+ * The widest column count the 基本信息 field accepts — and, at the
  * same time, the widest the panel still fits without a horizontal scrollbar.
  * A stored count above it (an import, or a puzzle authored before the cap)
  * keeps the capped-and-scrolling layout instead of pushing the canvas away.

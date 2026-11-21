@@ -54,7 +54,7 @@ export function reduceEditorFocus(focus: EditorFocus, event: FocusEvent): Editor
 }
 
 /**
- * v0.7.0 fix: what a click on a region **list item** (left panel) focuses.
+ * What a click on a region **list item** (left panel) focuses.
  *
  * The canvas label click sets both axes — `onSelect({ type: 'region' })` plus
  * `onSelectRegion(id)`. The list used to set only `selectedRegionId`, so the

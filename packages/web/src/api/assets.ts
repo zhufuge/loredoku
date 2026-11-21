@@ -10,7 +10,7 @@ export interface ListAssetsParams {
 }
 
 /**
- * v0.6.1: the look left the asset — what is left here is identity, behaviour,
+ * What is left here is identity, behaviour,
  * and the **initial** variant's look (docs/v0.6.1.md §5.2). v0.7.6: the
  * footprint left too, so creating an asset says nothing about size — every
  * placement is 1×1 and 「大小」 only changes how big it looks.
@@ -22,21 +22,20 @@ export interface CreateAssetPayload {
   themeCode: string;
   type?: AssetType;
   blocking?: boolean;
-  /** v0.10.9: 「背景修饰」— an item asset placed on the decoration layer. */
+  /** 「背景修饰」— an item asset placed on the decoration layer. */
   decoration?: boolean;
   fitMode?: AssetFitMode;
-  /** v0.5.1 FEAT-L01: colour-block colour; `null` = image mode. */
+  /** Colour-block colour; `null` = image mode. */
   bgColor?: string | null;
-  /** v0.5.3 FEAT-N06: `true` creates the asset already enabled. */
+  /** `true` creates the asset already enabled. */
   isActive?: boolean;
-  // v0.5.2 FEAT-M03: `meta` and `triggers` were deleted with the columns.
 }
 
 export interface UpdateAssetPayload {
   name?: string;
   type?: AssetType;
   blocking?: boolean;
-  /** v0.10.9: 「背景修饰」— an item asset placed on the decoration layer. */
+  /** 「背景修饰」— an item asset placed on the decoration layer. */
   decoration?: boolean;
   isActive?: boolean;
 }
@@ -48,9 +47,9 @@ export interface CreateAssetVariantPayload {
 export interface UpdateAssetVariantPayload {
   name?: string;
   fitMode?: AssetFitMode;
-  /** v0.5.1 FEAT-L01: `null` drops back to the image mode. */
+  /** `null` drops back to the image mode. */
   bgColor?: string | null;
-  /** v0.10.6: 占格足迹（缺省 1×1），仅物品形态有意义。 */
+  /** 占格足迹（缺省 1×1），仅物品形态有意义。 */
   w?: number;
   h?: number;
 }
@@ -84,7 +83,7 @@ export const assetsApi = {
   },
 };
 
-/** v0.6.1: variants live under their asset, one level below `assetsApi`. */
+/** Variants live under their asset, one level below `assetsApi`. */
 export const assetVariantsApi = {
   list(assetId: number): Promise<AssetVariant[]> {
     return apiGet<AssetVariant[]>(`/assets/${assetId}/variants`);

@@ -17,10 +17,8 @@ interface DifficultyBadgeProps {
 /**
  * v0.8.3（docs/v0.8.3.md §3.4）：难度徽章。
  *
- * 以前这里（以及部署页、导出清单、部署弹窗）各自 `GAME_DIFFICULTY_COLORS[key]` ——
- * 四份同样的三行代码，四份都假设「档位只有那五个」。收成一个组件之后，取色只剩
- * `difficultyBadge` 一处：没选色的档按位置落在内置坡上，选了色的档由那颗色混出
- * 淡底与深字（v0.8.6）。
+ * 取色只剩 `difficultyBadge` 一处：没选色的档按位置落在内置坡上，选了色的档由
+ * 那颗色混出淡底与深字。
  */
 export function DifficultyBadge({
   difficulty,

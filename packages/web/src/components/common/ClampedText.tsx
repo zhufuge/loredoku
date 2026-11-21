@@ -3,7 +3,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 
 /**
- * 被截断的长文本（v0.7.12）。
+ * 被截断的长文本。
  *
  * 谜题 / 地图卡片上的「描述」是 `line-clamp-2`，列表行上是单行省略 —— 版式上
  * 必须如此（一块卡片的高度不能被一段随手写的说明撑开），但**读不到全文**是

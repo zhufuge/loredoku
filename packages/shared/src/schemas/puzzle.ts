@@ -203,11 +203,11 @@ const puzzleDraftObjectSchema = z
     name: puzzleNameSchema,
     description: puzzleDescriptionSchema.default(''),
     /**
-     * v0.7.14：全局线索。**默认 `[]`**，因为 v0.7.14 之前发布出去的谜题版本行
+     * 全局线索。**默认 `[]`**，因为早先发布出去的谜题版本行
      * 是一份冻住的 JSON，里面没有这两个键 —— 解析时补齐，读取方不必到处判空。
      */
     clues: puzzleCluesSchema.default([]),
-    /** v0.7.14：结束语，默认空串（= 不显示）。 */
+    /** 结束语，默认空串（= 不显示）。 */
     ending: puzzleEndingSchema.default(''),
     linkageColors: puzzleLinkageColorsSchema,
     /**
@@ -244,11 +244,11 @@ const puzzleDraftObjectSchema = z
   .strict();
 
 /**
- * v0.9.5：谜题草稿先过一次「旧键搬运」（`forbiddenSymbol → mark`）。
+ * 谜题草稿先过一次「旧键搬运」（`forbiddenSymbol → mark`）。
  *
- * 与主题侧同一条道理：`.strict()` 不接受未知键，而 v0.9.5 之前落库的版本行、
- * 旧导出包里还带着 `forbiddenSymbol` —— 必须**先**搬再校验，所以 `preprocess`
- * 套在最外层。字段级的 `withLegacyImageKeys` 只改自己的值，看不到同级的旧键。
+ * 与主题侧同一条道理：`.strict()` 不接受未知键，而库里的老版本行、旧导出包里
+ * 还带着 `forbiddenSymbol` —— 必须**先**搬再校验，所以 `preprocess` 套在最外层。
+ * 字段级的 `withLegacyImageKeys` 只改自己的值，看不到同级的旧键。
  */
 const puzzleDraftBaseSchema = z.preprocess(
   (raw) => moveLegacyImageKeys(raw),
@@ -260,7 +260,7 @@ export const puzzleDraftSchema = puzzleDraftBaseSchema.superRefine((draft, ctx) 
 );
 
 /**
- * v0.8.5 §7（docs/v0.8.5 §7.md §3）：谜题编码 —— 部署时用它预填访问路径。
+ * v0.8.5 §7（docs/v0.8.5.md）：谜题编码 —— 部署时用它预填访问路径。
  *
  * 形状就是「路径中段」的形状（见 `PUZZLE_CODE_PATTERN`），所以 `puzzle-code`
  * 可以直接落进 `/play/puzzle-puzzle-code`，中间不做任何转写。大小写只收小写：

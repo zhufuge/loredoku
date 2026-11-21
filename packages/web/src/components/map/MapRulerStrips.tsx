@@ -15,9 +15,9 @@ export interface MapRulerStripsProps {
   total: number;
   style: MapStyle;
   /**
-   * v0.10.8：行列前缀符号**只由主题给**（`.ruler.columnSymbol` / `rowSymbol`）。
+   * 行列前缀符号**只由主题给**（`.ruler.columnSymbol` / `rowSymbol`）。
    *
-   * 地图草稿里同名两项不再参与渲染：符号是「这一套世界怎么念行与列」，与主题的
+   * 地图草稿里同名两项不参与渲染：符号是「这一套世界怎么念行与列」，与主题的
    * 识别色、难度分级同一层，同一主题下的几十张图不该各自填一遍。这里按编码查表，
    * 而不是让每个调用方各查一次再传进来 —— 四处调用点已经有六七个别名要传了。
    */
@@ -29,7 +29,7 @@ export interface MapRulerStripsProps {
 }
 
 /**
- * v0.3.10 FEAT-F01: the two ruler strips, shared by the editor
+ * The two ruler strips, shared by the editor
  * (`EditorCanvas`) and the work preview (`WorkViewPage`) so both render the
  * exact same geometry.
  *
@@ -46,10 +46,9 @@ export interface MapRulerStripsProps {
  * `rulerStripStart` — it hugs the board edge when the label fits between it and
  * the viewport edge, and otherwise pins inward so the label stays whole.
  *
- * v0.7.0 fix: the two thin axes are sized **independently** — the column strip
+ * The two thin axes are sized **independently** — the column strip
  * needs the glyph height (+ gap), the row strip additionally the label *width*
- * (`C24` ≈ 3 × 0.62em). Sharing one height-derived thickness left the row
- * labels clipped by the strip's own `overflow: hidden` at any real zoom.
+ * (`C24` ≈ 3 × 0.62em).
  */
 export function MapRulerStrips({
   gridSize,
@@ -68,9 +67,9 @@ export function MapRulerStrips({
   const rulerGap = style.ruler.gap;
   const rulerMaxFont =
     scaleFontSize(style.ruler.fontSize + RULER_ACTIVE_FONT_DELTA, rulerScale) * zoom;
-  // v0.7.0 fix: the row strip's thin axis is horizontal — size it for the
+  // The row strip's thin axis is horizontal — size it for the
   // widest label, not just the glyph height.
-  // v0.10.8: 两轴的符号来自主题（默认 `C` / `R`，中文图可能用「列」「行」），
+  // 两轴的符号来自主题（默认 `C` / `R`，中文图可能用「列」「行」），
   // 所以取两者里更宽的那个来定条厚 —— 只按 `C` 算会把 `列24` 切掉半截。
   const rulerLabel = rulerLabelWidth(gridSize, rulerMaxFont, [
     symbols.columnSymbol,

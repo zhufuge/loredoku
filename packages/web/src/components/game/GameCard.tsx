@@ -62,7 +62,7 @@ const LIGHT_LAYERS = ['paper-shade', 'paper-core'] as const;
 
 /**
  * v0.8.0（docs/v0.8.0.md §16.6）：`href` 让同一张卡也能指向**主题里的**那一关
- * （`/play/theme/:slug/:key`）。不传就是原来的单局地址 —— 存档键在两个入口下
+ * （`/play/theme/:slug/:key`）。不传就是单局地址 —— 存档键在两个入口下
  * 都是 `game.slug`，所以两条路玩同一关仍是同一份进度。
  */
 /**
@@ -94,7 +94,7 @@ export function GameCard({
    */
   tiers?: readonly ThemeDifficultyTier[];
   /**
-   * v0.9.5：这一关的通过记录（`lib/gameCompletion.ts`）。有值时封面盖一层印、
+   * 这一关的通过记录（`lib/gameCompletion.ts`）。有值时封面盖一层印、
    * 页脚写出完成用时。
    *
    * 由**页面**读好传进来，不在卡片里自己读 localStorage：卡片是纯展示，
@@ -104,14 +104,14 @@ export function GameCard({
    */
   completion?: GameCompletion | null;
   /**
-   * v0.9.6：**最后离开时间**（ISO）—— 没有完成记录时那一格显示它。
+   * **最后离开时间**（ISO）—— 没有完成记录时那一格显示它。
    *
    * 与 completion 分开传：它们是两份不同的记录（完成是既成事实、离开是上次
    * 玩到几点），合并成一个「时间」字段会让「有完成记录时该不该继续更新它」
    * 变成一道选择题。
    */
   lastLeftAt?: string | null;
-  /** v0.9.6：最后离开时的计时读数（毫秒）—— 卡片那一格显示的是它。 */
+  /** 最后离开时的计时读数（毫秒）—— 卡片那一格显示的是它。 */
   lastLeftElapsedMs?: number | null;
 }): JSX.Element {
   const navigate = useNavigate();
@@ -132,7 +132,7 @@ export function GameCard({
       }}
       className={cn(
         'group cursor-pointer overflow-hidden',
-        // v0.7.13：卡片本身不位移，只留封面推进这一个几何动作。两个叠在一起
+        // 卡片本身不位移，只留封面推进这一个几何动作。两个叠在一起
         // 时指针一扫过边缘就「往上抬 + 往外胀」同时起收，读起来是「抖」。
         'transition-[box-shadow,border-color] duration-base ease-out',
         'hover:border-primary/30 hover:shadow-lifted',
@@ -144,20 +144,20 @@ export function GameCard({
           its top and bottom off. */}
       <div
         data-testid="game-cover"
-        /* v0.9.7：已结案的卡片不演鼠标光源 —— 那一层是「挑关卡时找手感」的，
+        /* 已结案的卡片不演鼠标光源 —— 那一层是「挑关卡时找手感」的，
            定案卡是既成事实，指针扫过去不该再亮一下。 */
         onPointerMove={completed ? undefined : followPointerWithGlow}
         className="relative isolate aspect-square w-full overflow-hidden border-b bg-muted/50"
       >
         {game.coverUrl ? (
-          // v0.7.13：封面推进回来了，卡片本身仍然不位移 —— 只留一个几何动作，
+          // 封面推进，卡片本身不位移 —— 只留一个几何动作，
           // 指针扫过边缘时不会「往上抬 + 往外胀」同时发生。
           <img
             src={game.coverUrl}
             alt={game.name}
             draggable={false}
             /*
-             * v0.9.8：定案卡也演 hover 放大 —— 与封面光源不同，几何推进是
+             * 定案卡也演 hover 放大 —— 与封面光源不同，几何推进是
              * 「这张卡可点」的通用手感，结案卡仍能点进去看成绩，不该独缺这一下。
              */
             className={cn(
@@ -177,7 +177,7 @@ export function GameCard({
         )}
         {/* 光的三层。`aria-hidden` + `pointer-events-none`：纯装饰，既不进
             无障碍树，也不会把指针事件从卡片手里抢走。
-            v0.9.7：定案卡整组不画 —— 盖着「定案 + 印」的封面上再浮一层光斑，
+            定案卡整组不画 —— 盖着「定案 + 印」的封面上再浮一层光斑，
             两件装饰抢同一块地方，也让「结案」读起来像还能再玩一次。 */}
         {completed
           ? null
@@ -190,7 +190,7 @@ export function GameCard({
               />
             ))}
         {/*
-          v0.9.5：结案的那一层。放在封面里、光的三层之后 —— 它压的是**封面本身**
+          结案的那一层。放在封面里、光的三层之后 —— 它压的是**封面本身**
           （含那层纸光），而不是压住整张卡片：标题与页脚仍要读得清，玩家在挑关卡时
           还得看得见这一关叫什么、多难。
         */}
@@ -198,7 +198,7 @@ export function GameCard({
       </div>
       <div className="space-y-2 p-3 sm:p-4">
         {/*
-          v0.11.7：定案卡的标题降一档颜色 —— 封面已经盖了「定案 + 印」，
+          定案卡的标题降一档颜色 —— 封面已经盖了「定案 + 印」，
           这一关的结论写在封面上；标题再和没做过的那几张一样黑，整张卡会
           读成「还能再挑一次」。名字仍要看得清，所以只退到 muted，不写更淡。
         */}
@@ -210,8 +210,7 @@ export function GameCard({
         </h3>
         <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">
           {/*
-            v0.9.6：页脚按用户给的版式重排 ——
-            左边「n × n」+ 难度，右边【时间图标】+ 时间。
+            页脚：左边「n × n」+ 难度，右边【时间图标】+ 时间。
             时间取「完成优先，否则最后离开」，见 `CompletionTime`。
           */}
           <span className="flex items-baseline gap-2">
@@ -221,7 +220,7 @@ export function GameCard({
             <DifficultyBadge difficulty={game.difficulty} tiers={tiers} className="rounded" />
           </span>
           {/*
-            v0.9.7：**时间格分两种** ——
+            **时间格分两种** ——
             - 已完成：时钟图标 + 完成用时（图标说的是「这是一份成绩」）；
             - 只玩过、没完成：只写「3 分钟前」这样的相对时间，**不画图标**。
               相对时间本身就说清了「什么时候」，再挂一枚时钟会把它读成一份

@@ -51,13 +51,13 @@ export function PuzzleGridCard({
         type="button"
         onClick={() => onOpen(entry)}
         title={`${isVersion ? '编辑此版本' : '进入编辑'}：${entry.name}`}
-        // v0.10.2：与地图卡片同一处改动 —— 封面框改用 `MAP_COVER_ASPECT`
-        // （16:10），跟编辑器「基本信息」抽屉和新建 / 编辑对话框的预览框一致。
+        // 与地图卡片一致：封面框用 `MAP_COVER_ASPECT`（16:10），跟编辑器「基本信息」
+        // 抽屉和新建 / 编辑对话框的预览框一致。
         style={{ aspectRatio: String(MAP_COVER_ASPECT) }}
         className="relative block w-full cursor-pointer overflow-hidden border-b bg-muted/40"
       >
         {entry.coverUrl ? (
-          // v0.10.2：不再默认 `scale-[1.2]` —— 那层放大等于在 16:10 之上
+          // 不默认放大 1.2 倍 —— 那层放大等于在 16:10 之上
           // 再裁一刀，卡片永远比配置时看到的更近。
           <img
             src={entry.coverUrl}
@@ -87,7 +87,7 @@ export function PuzzleGridCard({
             ) : null}
           </h3>
           {entry.description ? (
-            /* v0.7.12：描述被截断时，悬停 / 触碰可看全文。 */
+            /* 描述被截断时，悬停 / 触碰可看全文。 */
             <ClampedText text={entry.description} lines={2} className="text-xs text-muted-foreground" />
           ) : null}
         </div>
@@ -95,7 +95,7 @@ export function PuzzleGridCard({
           <span className="shrink-0 tabular-nums">
             {entry.gridSize} × {entry.gridSize}
           </span>
-          {/* v0.8.5 §6：这里原来是底图来源（`地图名 vN`），换成编码 —— 见 PuzzleListRow 同处。 */}
+          {/* v0.8.5 §6：这一列是编码 —— 见 PuzzleListRow 同处。 */}
           <span className="truncate font-mono" title={entry.code ?? undefined}>
             {entry.code ?? '—'}
           </span>

@@ -70,7 +70,7 @@ describe('ruler glyph styling (§5.1~§5.3)', () => {
     const scale = cellScale(BASE_CELL * 0.75);
     expect(rulerFontSize('normal', scale)).toBeCloseTo(12.75, 6);
     expect(rulerFontSize('operation', scale)).toBeCloseTo(14.25, 6);
-    // v0.5.2 FIX-M08: 17 × 2 = 34 / 19 × 2 = 38 — no 28px ceiling any more.
+    // 17 × 2 = 34 / 19 × 2 = 38 —— 只按比例缩放，没有上限。
     expect(rulerFontSize('normal', cellScale(MAX_CELL_SIZE))).toBeCloseTo(34, 6);
     expect(rulerFontSize('operation', cellScale(MAX_CELL_SIZE))).toBeCloseTo(38, 6);
   });
@@ -181,8 +181,8 @@ describe('ruler zoom (§3.3)', () => {
   });
 
   it('applies the guard rails before the zoom factor', () => {
-    // v0.5.2 FIX-M08: 17 × 2 (cell scale) = 34 — **not** capped any more —
-    // then × 3 for zoom.
+    // 17 × 2（格子比例）= 34 —— 只按比例，**不**设上限；
+    // 再 × 3 是缩放倍数。
     expect(
       buildRulerGlyphs({
         gridSize: 1,
@@ -209,7 +209,7 @@ describe('ruler zoom (§3.3)', () => {
   });
 });
 
-// ---- v0.3.9 FEAT-E02: 可配置的文本大小与间距 ----
+// ---- FEAT-E02: 可配置的文本大小与间距 ----
 describe('ruler style config (FEAT-E02)', () => {
   it('keeps the +2 relationship for the operated row / column', () => {
     expect(rulerFontSize('normal', 1, 24)).toBe(24);
@@ -220,7 +220,7 @@ describe('ruler style config (FEAT-E02)', () => {
   });
 
   it('clamps the configured base before applying the scale', () => {
-    // v0.5.2 FIX-M08: 40 × 1 = 40 survives; the +2 active size follows.
+    // 40 × 1 = 40 原样保留；选中态是 +2。
     expect(rulerFontSize('normal', 1, 40)).toBe(40);
     expect(rulerFontSize('operation', 1, 40)).toBe(42);
     // 6 × 1 = 6 → floored at 9.
@@ -291,7 +291,7 @@ describe('ruler style config (FEAT-E02)', () => {
 });
 
 /**
- * v0.10.8：标尺前缀符号可配（默认 `C` / `R`）。
+ * 标尺前缀符号可配（默认 `C` / `R`）。
  *
  * 三件事值得钉住：默认值不变（老地图一像素不改）、自定义符号真的进了文本、
  * 留空 = 只显示数字。

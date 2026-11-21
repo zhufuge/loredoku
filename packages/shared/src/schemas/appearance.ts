@@ -2,17 +2,17 @@ import { z } from 'zod';
 import { APPEARANCE_MODES, BG_COLOR_PATTERN, DEFAULT_APPEARANCE_MODE } from '../constants';
 
 /**
- * v0.5.1 FEAT-L01 / FEAT-L02: items and characters carry an uploaded image **or**
+ * FEAT-L01 / FEAT-L02: items and characters carry an uploaded image **or**
  * render as a colour block. `bgColor` is that colour — `null` / omitted means
  * image mode; a `#RRGGBB` string activates the entry with no upload at all.
  */
 /**
  * An optional `#RRGGBB` colour — absent and `null` both mean "none".
  *
- * v0.5.1 introduced it for `bgColor` (`null` = image mode); v0.7.13 reuses the
- * very same shape for `characters.color`, where `null` means "this character
- * brings no participant default". One definition, because "no colour" has to
- * behave identically in both places or the editor's 清除 button stops working.
+ * The same shape serves `bgColor` (`null` = image mode) and `characters.color`;
+ * there, `null` means "this character brings no participant default". One
+ * definition, because "no colour" has to behave identically in both places or
+ * the editor's 清除 button stops working.
  */
 export const optionalColorSchema = z
   .string()

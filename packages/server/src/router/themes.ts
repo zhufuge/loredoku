@@ -58,7 +58,7 @@ themesRouter.delete('/:code/ring', controller.removeRing);
 themesRouter.patch('/:code/check-style', controller.updateCheckStyle);
 
 /**
- * v0.11.3：结算卡通过那一面的**图标图**与**两句文字**。
+ * 结算卡通过那一面的**图标图**与**两句文字**。
  *
  * 与圆环 / 校验颜色同一个分工：图走上传删除，文字走 PATCH —— 换图不该顺手把作者
  * 写的标题覆盖掉，改标题也不该动那张图。图只影响图标位置；「移除」之后回到文字

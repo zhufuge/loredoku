@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SearchInput } from './SearchInput';
 
 /**
- * v0.10.2：所有搜索框加 × 清空。
+ * 所有搜索框都有 × 清空。
  *
  * 要钉的是行为，不是长相：空框上不该挂一枚点不动的按钮；有内容时点一下
  * 就把值交回空串、并且把焦点还给输入框（「重新搜」的起点）；输入过程中

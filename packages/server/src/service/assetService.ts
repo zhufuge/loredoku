@@ -25,7 +25,7 @@ export async function getAsset(id: number): Promise<Asset> {
 }
 
 /**
- * v0.6.1: creating an asset creates its first variant in the same transaction
+ * Creating an asset creates its first variant in the same transaction
  * (docs/v0.6.1.md §5.2). v0.7.6: that variant says nothing about size — every
  * placement is 1×1 and 「大小」 only changes how big it looks.
  */
@@ -54,7 +54,7 @@ export async function createAsset(input: CreateAssetInput): Promise<Asset> {
 }
 
 /**
- * v0.6.1: switching the type keeps every variant — a background asset may own
+ * Switching the type keeps every variant — a background asset may own
  * several variants just like an item, so there is nothing to ask the caller to
  * drop first. (v0.7.6: the footprint clause is gone — no variant declares one
  * any more, and every placement is 1×1.)

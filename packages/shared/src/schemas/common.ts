@@ -55,7 +55,7 @@ export const uploadedImageSchema = z
   .strict();
 
 /**
- * v0.9.5：这一枚**可选**的符号图。`null` / 缺席 = 跟随上一层（谜题→主题→内置）。
+ * 这一枚**可选**的符号图。`null` / 缺席 = 跟随上一层（谜题→主题→内置）。
  *
  * 不改名会把「谁在用哪一种」搅在一起：`uploadedImageSchema` 是**形状**，
  * 这个是「可以被覆盖掉的那一格」。
@@ -63,9 +63,9 @@ export const uploadedImageSchema = z
 export const optionalUploadedImageSchema = uploadedImageSchema.nullable().optional();
 
 /**
- * v0.9.5：**旧键兼容** —— 把 `forbiddenSymbol` 搬到 `mark`。
+ * **旧键兼容** —— 把 `forbiddenSymbol` 搬到 `mark`。
  *
- * v0.9.5 之前这个字段叫 `forbiddenSymbol`，库里的 JSON 与已发布的版本行、已导出的
+ * 存量数据里这个字段叫 `forbiddenSymbol`，库里的 JSON 与已发布的版本行、已导出的
  * 资源包都还带着旧名字。用 `z.preprocess` 在读入那一刻搬过来，而不是写一份
  * 「新旧两套字段」：两份字段会让每个读点都要判「哪个有值」，而它们本来就该是
  * 同一个东西。写出去时只写新键（迁移会把存量行改完，之后这条兜底只服务旧包 /

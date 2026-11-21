@@ -67,7 +67,7 @@ export function detectImageType(buffer: Buffer): DetectedImage | null {
 }
 
 /**
- * v0.6.1: the variant owns the appearance, so the file lands one level deeper —
+ * The variant owns the appearance, so the file lands one level deeper —
  * `assets/<assetId>/variants/<variantId>/` — and the directory stays owned by the
  * asset (a hard delete of the asset still takes the whole subtree with it).
  */
@@ -155,7 +155,7 @@ export async function processRingImage(
 }
 
 /**
- * v0.11.3：结算卡上那枚图标 —— 与标记同一档小图（画在结算标题前面，20px 上下），
+ * 结算卡上那枚图标 —— 与标记同一档小图（画在结算标题前面，20px 上下），
  * 目录是 `.../verdict/`。
  *
  * 只有主题有这一项（结算是主题级的话术），所以所有者固定是主题。

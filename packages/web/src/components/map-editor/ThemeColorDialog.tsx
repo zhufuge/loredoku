@@ -23,8 +23,8 @@ interface ThemeColorDialogProps {
  * own layer. The drawer only shows **what is selected now**; picking a colour
  * happens here.
  *
- * v0.8.3：色板去掉了（用户要求界面不提供调色板），这一层现在只是把统一取色控件
- * 放在一块够大的地方 —— 原生取色器 + hex 输入。
+ * 界面不提供调色板，这一层只把统一取色控件放在一块够大的地方 —— 原生取色器 +
+ * hex 输入。
  *
  * Fully **controlled**: it holds a draft, never touches the store, and never
  * creates an undo step. 「确定」 hands the colour back to the drawer, whose own

@@ -60,7 +60,7 @@ export function CreatePuzzleDialog({
   const versionsQuery = usePublishedVersions();
   const create = useCreatePuzzle((id) => {
     onOpenChange(false);
-    // v0.8.1：编辑器在同一个工作空间里（`/:themeCode/puzzles/:id/edit`）。
+    // 编辑器在同一个工作空间里（`/:themeCode/puzzles/:id/edit`）。
     navigate(fullscreenPath(workspace?.themeCode, 'puzzles', id, 'edit'));
   });
 

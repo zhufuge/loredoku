@@ -27,7 +27,7 @@ import { parseKey } from './layerGeometry';
  */
 
 /**
- * v0.8.6：标记的图片在格内四周各留 9% —— 贴边画会让一枚小图标撑满整格，
+ * 标记的图片在格内四周各留 9% —— 贴边画会让一枚小图标撑满整格，
  * 和格子里的编号、头像抢同一条视觉基线。两层共用同一个比例，提示层的预览与
  * 放置层落下的那张图才会严丝合缝地对上。
  */
@@ -51,7 +51,7 @@ const GAME_TOOL_HINT_CLEAR_ICON_RATIO = 0.6;
  *
  * v0.9.3 §4：清除图标与**标记的悬停预览**共用它 —— 两者都是「跟着指针走的
  * 预告」，落在照片上都需要从底纹里浮出来。已放置的 `×` 不在这条路上（那是内容，
- * 不是预告），仍是原来的黑描边。
+ * 不是预告），仍是黑描边。
  */
 function hintOutlineFilter(cellSize: number): string {
   const radius = Math.max(1, Math.round(cellSize * 0.02));
@@ -98,12 +98,12 @@ export function MapGameToolHintLayer({
   cellSize: number;
   /** The roster, for the number glyph's colour and 编号展示 text. */
   slots: Array<CharacterSlotEntry | null>;
-  /** v0.8.6：标记配置的上传图；`null` = 画那枚绿色 `×` 字形。 */
+  /** 标记配置的上传图；`null` = 画那枚绿色 `×` 字形。 */
   mark?: MarkRender | null;
   /** v0.9.1 §3：清除工具配的上传图；`null` = 画内置橡皮字形。 */
   clearIcon?: ToolIconRender | null;
   /**
-   * v0.9.8：落笔令牌 —— 每次点下去放一枚 `×` 就 +1。它决定**用哪一支**动效
+   * 落笔令牌 —— 每次点下去放一枚 `×` 就 +1。它决定**用哪一支**动效
    * （奇偶两支，见 `index.css` 的 `forbidden-pop` / `forbidden-pop-alt`）。
    *
    * 靠换 `animation-name` 重启动画，而不是换 React `key` 重挂载元素：重挂载会
@@ -112,7 +112,7 @@ export function MapGameToolHintLayer({
    */
   pop?: number;
   /**
-   * v0.9.8：**刚落笔的那一格**（`"x,y"`），`null` = 动效窗口已关。
+   * **刚落笔的那一格**（`"x,y"`），`null` = 动效窗口已关。
    *
    * 动效只演在落笔的这一格上。只用一个「窗口开着」的布尔量是不够的：窗口有
    * 400ms，玩家点完立刻把指针挪到隔壁格，那枚跟着指针走的 `×`（同一个 DOM 节点）
@@ -149,10 +149,10 @@ export function MapGameToolHintLayer({
         style={{ zIndex: MAP_LAYER_Z.gameToolHint }}
       >
         {/*
-          外层必须是**一格大小**的定位盒。这里原来直接在 0×0 的浮层里放绝对定位的
-          `img`，Tailwind preflight 的 `img { max-width: 100% }` 会以父级宽度（0）为
-          上限，把预览压成 0 宽 —— 真页面上只剩一条看不见的竖条（实测量到 0×152）。
-          父级给回一格宽高，`max-width: 100%` 才是「不超过这一格」。
+          外层必须是**一格大小**的定位盒：Tailwind preflight 的 `img { max-width: 100% }`
+          以父级宽度为上限，放在 0×0 的浮层里会让绝对定位的 `img` 被压成 0 宽，
+          只剩一条看不见的竖条。父级给回一格宽高，`max-width: 100%` 才是
+          「不超过这一格」。
         */}
         <div
           className="absolute"
@@ -195,7 +195,7 @@ export function MapGameToolHintLayer({
     );
   };
   /**
-   * v0.8.6：作者给标记挑了图，工具提示层就画**同一张图**的预览 ——
+   * 作者给标记挑了图，工具提示层就画**同一张图**的预览 ——
    * 悬停时预告的东西必须就是落下的东西（v0.6.4 给编号立的同一条规矩）。
    * 落下位置与尺寸和格子一致，所以预览直接画在格子上。
    *
@@ -203,8 +203,7 @@ export function MapGameToolHintLayer({
    */
   if (hint.kind === 'forbidden' && mark) {
     /*
-     * v0.9.8 §5：动效搬到**悬浮的**这一枚上（原先演在放置层刚落下的 `×` 上，
-     * 指针底下的预告却是静止的，因果是反的），并收窄到**只在落笔那一刻**演 ——
+     * v0.9.8 §5：动效演在**悬浮的**这一枚上，并且**只在落笔那一刻**演 ——
      * 指针进入 / 换格不算动作。见 `imageHint` 的 `key` 注释。
      */
     return imageHint(
@@ -255,13 +254,13 @@ export function MapGameToolHintLayer({
       const fontSize = cellSize * GAME_FORBIDDEN_FONT_RATIO;
       return (
         <text
-          /* v0.9.8：动效只在**落笔那一刻**演，指针换格不演（见 `imageHint`）。 */
+          /* 动效只在**落笔那一刻**演，指针换格不演（见 `imageHint`）。 */
           className={popClass}
           x={total / 2}
           y={total / 2}
           fill={GAME_TOOL_HINT_FORBIDDEN_COLOR}
           /*
-           * v0.9.3 §4：悬停预览的 `×` 换成**白**描边（原先与已放置的一样是黑的）。
+           * v0.9.3 §4：悬停预览的 `×` 用**白**描边。
            * 理由同清除图标：这一枚跟着指针走，压在地图照片上，黑边在暗处等于没有边。
            * 已放置的那一枚仍由放置层画、仍是黑边 —— 内容与预告用两种描边区分。
            */
@@ -312,7 +311,7 @@ export function MapGameToolHintLayer({
     >
       <svg
         /*
-         * v0.9.8：不换 `key` —— 同 `imageHint`，重挂载会让元素有一帧没画出来。
+         * 不换 `key` —— 同 `imageHint`，重挂载会让元素有一帧没画出来。
          * 重播靠 `popClass` 换 `animation-name`（类挂在里面的字形上）。
          */
         className="absolute left-0 top-0"
@@ -455,12 +454,10 @@ export function MapGameCheckLayer({
           }}
         >
           {/*
-           * v0.9.3 §5（按用户澄清改定）：**颜色只由那张已上传的圆圈图片表达**。
+           * v0.9.3 §5：**颜色只由那张已上传的圆圈图片表达**。
            *
            * 配了图 → 只画它，整张染成通过 / 未通过色（扇形揭开照旧）；没配图 →
-           * 才回落到内置的本色细弧。上一版「原色图 + 旁边一道结果色弧」是两个
-           * 信号在说同一件事，反而让人分不清哪个是结论；用户要的是给图片染色，
-           * 不是在图外面再补一圈。
+           * 才回落到内置的本色细弧 —— 用户要的是给图片染色，不是在图外面再补一圈。
            *
            * 图与弧都走同一段 `sweepMs`，所以有没有图，节奏完全一致。
            */}
@@ -489,16 +486,16 @@ export function MapGameCheckLayer({
 }
 
 /**
- * v0.7.11：「刚放下的编号」按格子索引 —— 值是那一格的参与者编号。
+ * 「刚放下的编号」按格子索引 —— 值是那一格的参与者编号。
  * 只用来挂一次性的缩放动效，过期就由页面摘掉（见 `GamePage` 的 `markPulse`）。
  *
- * v0.9.8：`×` 不再进这张表。放下的 `×` 是静默出现的，演动效的是**跟着指针
+ * `×` 不进这张表。放下的 `×` 是静默出现的，演动效的是**跟着指针
  * 悬停的那一枚**（见 `MapGameToolHintLayer`）—— 那才是玩家手指尖上的东西。
  */
 export type GamePlacementPulse = Readonly<Record<string, number>>;
 
 /**
- * v0.10.1：刚落子那一圈 `×` 的水波纹 —— 格子键 → **入场延迟（毫秒）**。
+ * 刚落子那一圈 `×` 的水波纹 —— 格子键 → **入场延迟（毫秒）**。
  *
  * 为什么是延迟而不是「第几圈」：一圈多少毫秒是动效参数，页面已经按
  * `GAME_FORBIDDEN_WAVE_STEP_MS` 换算过一次了，这一层只管照着数字挂样式。
@@ -549,14 +546,14 @@ export function MapGamePlacementLayer({
   /** 1-based participant id (the board's numbering); `null` = nobody active. */
   activeParticipantId?: number | null;
   /**
-   * v0.7.11：刚刚由「长按落下」的那一格（`x,y`）。命中的头像播一次落定。
+   * 刚刚由「长按落下」的那一格（`x,y`）。命中的头像播一次落定。
    *
    * 为什么不给所有头像都挂入场动画：进页面时棋盘是从存档恢复的，十几个头像
    * 同时弹一下，会读成「刚刚发生了一连串操作」。只有这一格是真的刚放下的。
    */
   settleKey?: string | null;
   /**
-   * v0.7.11：刚放下的**编号**，按格子键索引 —— 值是参与者编号。命中的那一个
+   * 刚放下的**编号**，按格子键索引 —— 值是参与者编号。命中的那一个
    * 字形播一次「盖章」缩放。
    *
    * 用表而不是单个「最后一格」：按住滑动会连着放好几格，单值会让前一格的字形
@@ -564,7 +561,7 @@ export function MapGamePlacementLayer({
    */
   pulse?: GamePlacementPulse;
   /**
-   * v0.10.1：刚落子那一圈自动补出来的 `×` —— 格子键 → 入场延迟（毫秒）。
+   * 刚落子那一圈自动补出来的 `×` —— 格子键 → 入场延迟（毫秒）。
    *
    * 放下一枚头像会同时划掉整行整列，几十个 `×` 一起出现读成「屏幕闪了一下」。
    * 页面按曼哈顿距离算好每格该晚多少毫秒（见 `GamePage` 的 `forbiddenWave`），
@@ -572,21 +569,21 @@ export function MapGamePlacementLayer({
    */
   wave?: GamePlacementWave;
   /**
-   * v0.10.1：这一波用哪支动画名（`forbidden-wave` / `forbidden-wave-alt`）。
+   * 这一波用哪支动画名（`forbidden-wave` / `forbidden-wave-alt`）。
    *
    * 连放两位参与者时，第一波挂着的类名还在元素上，同名再挂一次不会从头播 ——
    * 换名字才重播，而不必换 React `key`（换 key 会让 `<img>` 有一帧空白）。
    */
   waveAlt?: boolean;
   /**
-   * v0.9.8：**正在退场**的格子。橡皮点掉一格时先演一次缩小淡出，动画放完页面
+   * **正在退场**的格子。橡皮点掉一格时先演一次缩小淡出，动画放完页面
    * 才真的把它从棋盘上删掉（见 `GamePage` 的 `eraseCell`）。
    *
    * 三种放置形态共用同一支动效：玩家要看见的是「刚才那一格被我擦掉了」，不是
    * 「编号有编号的擦法、头像有头像的擦法」。
    */
   erasing?: ReadonlySet<string>;
-  /** v0.8.6：标记配置的图片；`null` = 画那枚 `×` 字形。 */
+  /** 标记配置的图片；`null` = 画那枚 `×` 字形。 */
   mark?: MarkRender | null;
 }): JSX.Element | null {
   const entries = Object.entries(board).filter(([, placement]) => placement !== null && placement !== undefined);
@@ -604,7 +601,7 @@ export function MapGamePlacementLayer({
         const [x, y] = parseKey(key);
         if (!placement) return null;
         /*
-         * v0.10.1：这一格要不要演水波纹。正在被橡皮擦掉的格子让位给 `erase-out`
+         * 这一格要不要演水波纹。正在被橡皮擦掉的格子让位给 `erase-out`
          * —— 两个 `animation` 同时挂是一条竞态，退场比入场要紧。
          */
         const waveDelay = erasing.has(key) ? undefined : wave[key];
@@ -631,9 +628,7 @@ export function MapGamePlacementLayer({
                   inset: 0,
                   // v0.6.4 §3: the active participant's avatar magnifies around
                   // the cell centre so it reads as "this one" at a glance.
-                  // v0.7.12: the magnification is the **only** cue now — the
-                  // 2px `--primary` ring was dropped (it collided with each
-                  // character's own theme colour and read as a second badge).
+                  // The magnification is the **only** cue.
                   transform:
                     placement.index === activeParticipantId
                       ? `scale(${GAME_ACTIVE_PARTICIPANT_AVATAR_SCALE})`
@@ -685,7 +680,7 @@ export function MapGamePlacementLayer({
                         fontWeight={700}
                         textAnchor="middle"
                         dominantBaseline="central"
-                        // v0.7.11：刚放下的这个编号「盖章」一次（180ms 缩放）。
+                        // 刚放下的这个编号「盖章」一次（180ms 缩放）。
                         className={pulse[key] === participantId ? 'place-pop' : undefined}
                       >
                         {label}
@@ -699,12 +694,12 @@ export function MapGamePlacementLayer({
             {placement.kind === 'forbidden' ? (
               mark ? (
                 /**
-                 * v0.8.6：这条谜题给标记配了一张图 —— 画图，不再画 `×`。
+                 * 这条谜题给标记配了一张图 —— 画图，不画 `×`。
                  * `data-testid` 留在同一个元素上，页面测试不必知道这次画的是
                  * 字形还是图片。
                  *
-                 * v0.9.8：手点的那枚 `×` 不再演入场动效（演的是悬停那一枚）。
-                 * v0.10.1：落子自动补出来的那些**要**演 —— 它们是一整行一整列
+                 * 手点的那枚 `×` 不演入场动效（演的是悬停那一枚）。
+                 * 落子自动补出来的那些**要**演 —— 它们是一整行一整列
                  * 一起出现的，没有入场就是一次闪光。
                  */
                 <img
@@ -735,8 +730,8 @@ export function MapGamePlacementLayer({
                     textAnchor="middle"
                     dominantBaseline="central"
                     data-testid={`forbidden-${key}`}
-                    // v0.9.8：手点的入场静默，退场（被擦掉）走 `erase-out`。
-                    // v0.10.1：自动补的那批带延迟入场，见 `.forbidden-wave`。
+                    // 手点的入场静默，退场（被擦掉）走 `erase-out`。
+                    // 自动补的那批带延迟入场，见 `.forbidden-wave`。
                     className={cn(
                       waveDelay !== undefined && waveClass,
                       erasing.has(key) && 'erase-out',
@@ -767,7 +762,7 @@ function ParticipantAvatar({
 }): JSX.Element | null {
   const character = slot ? charactersById.get(slot.characterId) : undefined;
   const src = character?.avatarThumbUrl ?? character?.avatarUrl;
-  // v0.5.1 FEAT-L02 / SPEC-L03: a colour block paints the avatar disc instead
+  // FEAT-L02 / SPEC-L03: a colour block paints the avatar disc instead
   // of an uploaded picture.
   if (character?.bgColor) {
     return (

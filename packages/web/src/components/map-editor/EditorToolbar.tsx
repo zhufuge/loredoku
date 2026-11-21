@@ -24,7 +24,7 @@ interface EditorToolbarProps {
    */
   status: MapStatus | null;
   currentVersionNo: number | null;
-  /** v0.3.8 FEAT-D01: toggles the 「地图基本信息」drawer. */
+  /** FEAT-D01: toggles the 「地图基本信息」drawer. */
   mapInfoOpen: boolean;
   /**
    * the same button opens the **puzzle**'s 基本信息 on the puzzle
@@ -190,7 +190,7 @@ export function EditorToolbar({
          * 动作（实心 primary），发布是描边次按钮，且不因 dirty 置灰 —— 能不能发
          * 由确认弹窗按 dirty 分形态处理。
          *
-         * v0.5.0 Q17: the puzzle editor passes no `onPublish`, so the whole
+         * The puzzle editor passes no `onPublish`, so the whole
          * button (not a disabled one) is left out.
          */}
         <Button size="sm" onClick={onSave} disabled={saving || !(canSave ?? dirty)}>

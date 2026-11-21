@@ -162,7 +162,7 @@ describe('v0.7.1 games reference puzzles shape', () => {
  * （§6.3），所以没有回填、也不需要改任何已存的 JSON。
  */
 describe('v0.5.1 colour-block migration (§6.1)', () => {
-  // v0.6.1: the colour block moved to `asset_variants` with the rest of the
+  // The colour block lives on `asset_variants` with the rest of the
   // appearance; the column's shape (nullable, `text`, no default) is unchanged.
   it('adds a nullable bg_color to the asset appearance row', async () => {
     const rows = await db('information_schema.columns')
@@ -214,7 +214,6 @@ describe('v0.5.2 asset slimming migration (§9.1)', () => {
     expect(rows).toHaveLength(0);
   });
 
-  // v0.5.2 当时只瘦身资源侧，角色侧「留待后续」；v0.7.6 一并删掉（docs/v0.7.6.md）。
   it('drops characters.meta too (v0.7.6 补刀)', async () => {
     const rows = await db('information_schema.columns')
       .where({ table_name: 'characters', column_name: 'meta', table_schema: 'public' })
@@ -237,7 +236,7 @@ describe('v0.5.2 asset slimming migration (§9.1)', () => {
  * 这里钉住三件不能靠代码兜底的事：列真的搬走了、每个资源都有形态、画布真的指向形态。
  */
 describe('v0.6.1 asset-variant migration shape', () => {
-  /** v0.6.1 从 `assets` 搬走的那九列（当时的完整清单）。 */
+  /** 从 `assets` 搬走的那九列（完整清单）。 */
   const movedColumns = [
     'width_cells',
     'height_cells',
@@ -249,7 +248,7 @@ describe('v0.6.1 asset-variant migration shape', () => {
     'image_height',
     'bg_color',
   ];
-  /** v0.7.6 又把占格 + 上传回执六列删了，`asset_variants` 上只剩这三样。 */
+  /** `asset_variants` 上只剩这三样。 */
   const survivingColumns = ['fit_mode', 'image_path', 'bg_color'];
   const droppedByV077 = movedColumns.filter((col) => !survivingColumns.includes(col));
 
@@ -269,7 +268,7 @@ describe('v0.6.1 asset-variant migration shape', () => {
     for (const col of [...survivingColumns, 'asset_id', 'name', 'sort_order']) {
       expect(cols).toContain(col);
     }
-    // v0.7.6：占格（width/height_cells）与上传回执（image_mime/size/width/height）已删。
+    // 占格（width/height_cells）与上传回执（image_mime/size/width/height）都不在表里。
     for (const col of droppedByV077) {
       expect(cols).not.toContain(col);
     }
@@ -312,7 +311,7 @@ describe('v0.6.1 asset-variant migration shape', () => {
 });
 
 /**
- * v0.6.1 续（背景资源也多形态）：背景格同样显式带上自己选的是哪个形态。
+ * 背景资源也多形态：背景格同样显式带上自己选的是哪个形态。
  *
  * 表结构没动（`asset_variants` 早就能容纳多个形态），改的只有画布 JSON：补
  * `variantId` 并把 version 从 5 推到 6。存量背景资源都只有一个形态，补的就是它。

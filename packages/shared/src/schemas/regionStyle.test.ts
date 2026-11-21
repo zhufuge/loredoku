@@ -70,7 +70,7 @@ describe('regionStyleOverrideSchema (v0.7.0)', () => {
     expect(regionStyleOverrideSchema.safeParse({ outline: { width: REGION_BORDER_WIDTH_MAX } }).success).toBe(
       true,
     );
-    // v0.7.4: 轮廓线下限降到 1，0 仍然不合法。
+    // 轮廓线下限是 1，0 不合法。
     expect(regionStyleOverrideSchema.safeParse({ outline: { width: 0 } }).success).toBe(false);
     expect(regionStyleOverrideSchema.safeParse({ outline: { width: 8.5 } }).success).toBe(false);
     expect(regionStyleOverrideSchema.safeParse({ highlight: { width: 1.5 } }).success).toBe(true);
@@ -204,7 +204,7 @@ describe('区域标签字体 (v0.7.4)', () => {
 });
 
 /**
- * v0.9.6：区域标签的**位置偏移**（每块区域独立配置）。
+ * 区域标签的**位置偏移**（每块区域独立配置）。
  *
  * 两件事：只在区域级出现（地图级 `MapStyle.regionLabel` 没有这一项），以及
  * 两轴都可缺（v0.10.7 起不封顶）。

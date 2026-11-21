@@ -9,19 +9,17 @@ import type { CanvasPoint } from '@/lib/grid';
 import { MapBackgroundLayer, MapDecorationLayer, MapItemLayer } from './MapAssetLayers';
 
 /**
- * v0.5.1 FEAT-L01 / SPEC-L03 — 「在背景展示该色块」.
+ * FEAT-L01 / SPEC-L03 — 「在背景展示该色块」.
  *
  * A colour-block variant fills its cell(s) with the colour on **both** item layers
  * (层 12 背景层 / 层 4 物品层), with no `<img>` anywhere. An ordinary image variant
- * keeps rendering its `<img>` exactly as before.
+ * keeps rendering its `<img>`.
  *
- * v0.6.1: the look lives on a variant, and an item anchor names one — with the first
- * variant as the fallback for v4 payloads and for variants deleted after publication.
+ * The look lives on a variant, and an item anchor names one — with the first variant
+ * as the fallback for v4 payloads and for variants deleted after publication.
  *
- * v0.8.3 精简（docs/v0.8.3.md §16）：删掉「展示变换」与「名称提示」两组 —— 前者是
- * 盒子怎么长、后者是浮层落在哪、什么时候出现，都是几何与观感。留下的是**回退
- * 规则**：锚点没写 variantId、或写了一个已经不存在的 id 时，画第一个形态。那条
- * 规则错了，玩家的物品会整块消失。
+ * **回退规则**（docs/v0.8.3.md §16）：锚点没写 variantId、或写了一个已经不存在的
+ * id 时，画第一个形态。那条规则错了，玩家的物品会整块消失。
  */
 
 function variant(id: number, overrides: Partial<AssetVariant> = {}): AssetVariant {
@@ -180,7 +178,7 @@ describe('层 4 · 物品层 — 物品描边（v0.9.1 §5）', () => {
   });
 
   /*
-   * v0.11.2：Safari 在元素没有自己的合成层时会整条 filter 不画。有描边时才要求
+   * Safari 在元素没有自己的合成层时会整条 filter 不画。有描边时才要求
    * 提升合成层（`will-change: filter`），没描边的物品不要白拿一层 —— 盘面上物品
    * 多，多出来的层直接换成滚动掉帧。
    */
@@ -229,7 +227,7 @@ describe('层 4 · 物品层 — 多格色块（v0.5.1 SPEC-L03 §3.1）', () =>
 });
 
 /**
- * v0.10.6：多格物品的整体动效 —— 悬停任一占据格，同一件物品的显示框作为
+ * 多格物品的整体动效 —— 悬停任一占据格，同一件物品的显示框作为
  * 整体被悬停（hoveredKey 按锚点命中，被 `scale` 撑出去的那圈画也不抢指针）。
  * 抬手、名称提示都随这个整体走。
  */
@@ -442,7 +440,7 @@ describe('层 12 · 背景层 — 形态回退（v0.6.1 §6.2）', () => {
 });
 
 /**
- * v0.10.9：三种东西可以同格共存，每层只画自己那一份 —— 背景修饰层不会因为
+ * 三种东西可以同格共存，每层只画自己那一份 —— 背景修饰层不会因为
  * 格子同时还有物品就把物品一起画出来，也不会漏掉自己那格。
  */
 describe('三层同格共存（v0.10.9）', () => {
@@ -499,11 +497,7 @@ describe('三层同格共存（v0.10.9）', () => {
 });
 
 /**
- * v0.11.4：作者要求「物品提示出现在地图最上层，且标签默认在鼠标上方」。
- *
- * 改之前纸片渲染在物品自己那个 `div` 里 —— 那层带 `zIndex`，是个层叠上下文，
- * 于是纸片永远压在区域标签、工具提示之下，鼠标光标框更是画在它上面；位置也是
- * 贴指针**右下** `+14 / +18`。
+ * 作者要求「物品提示出现在地图最上层，且标签默认在鼠标上方」。
  */
 describe('层 4 · 物品层 — 名称提示在最上层、默认在指针上方（v0.11.4）', () => {
   let container: HTMLDivElement;

@@ -50,7 +50,7 @@ describe('themeCodeSchema（v0.8.0 §18）', () => {
 });
 
 /**
- * v0.8.2：`data.accent` 是主题的识别色 —— 只给界面认人用，不进包、不参与渲染。
+ * `data.accent` 是主题的识别色 —— 只给界面认人用，不进包、不参与渲染。
  * 它可选，且只收 `#RRGGBB`：颜色以字符串进 JSONB，写错了就是一个没人能改的脏值。
  */
 describe('themeDataSchema.accent（v0.8.2）', () => {
@@ -192,7 +192,7 @@ describe('themeDataSchema 的标记（v0.8.6 §4 / v0.9.5 更名）', () => {
     }
   });
 
-  /** v0.9.5：v0.9.5 之前存的主题还带着 `forbiddenSymbol`，读进来要落到 `mark`。 */
+  /** 旧主题还带着 `forbiddenSymbol`，读进来要落到 `mark`。 */
   it('读得懂旧的 forbiddenSymbol', () => {
     const parsed = themeDataSchema.parse({
       version: 1,
@@ -204,7 +204,7 @@ describe('themeDataSchema 的标记（v0.8.6 §4 / v0.9.5 更名）', () => {
 });
 
 /**
- * v0.9.5：**那一圈** —— 长按计时环与提交校验圈合并成一个配置键。
+ * **那一圈** —— 长按计时环与提交校验圈共用一个配置键。
  *
  * 旧数据两条来路都要读得出来：主题顶层的 `pressRing: { path }`、
  * 校验的 `checkStyle.ring: { path }`；新形状是 `ring: { image: { path } }`。
@@ -315,7 +315,7 @@ describe('themeDataSchema.checkStyle（v0.9.3）', () => {
 });
 
 /**
- * v0.11.3：结算卡的图标与标题进主题配置。
+ * 结算卡的图标与标题进主题配置。
  *
  * 三件事要在这一层钉住：可整块不写、文字有长度上限、多出来的键一律拒 —— `data` 是
  * 一份 JSONB，写进去的脏值没人能改回来。
@@ -360,7 +360,7 @@ describe('themeDataSchema.verdict（v0.11.3）', () => {
 });
 
 /**
- * v0.11.6：列表页那两行字（「N 关可玩」/「已通过 N 关」）进主题配置。
+ * 列表页那两行字（「N 关可玩」/「已通过 N 关」）进主题配置。
  *
  * 这一层要钉住的是**占位符**：文案里少了 `{n}`，那一句就再也说不出关数，
  * 界面上只剩一句与这一页无关的话 —— 所以非空文案必须含一个 `{n}`。
@@ -412,7 +412,7 @@ describe('themeDataSchema.gameList（v0.11.6）', () => {
 });
 
 /**
- * v0.11.3：改文字走单独的 PATCH（与换图分开），至少要给一项 —— 空补丁不该发出请求。
+ * 改文字走单独的 PATCH（与换图分开），至少要给一项 —— 空补丁不该发出请求。
  */
 describe('updateThemeVerdictSchema（v0.11.3）', () => {
   it('给一项就通过', () => {

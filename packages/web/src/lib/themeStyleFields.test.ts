@@ -18,7 +18,7 @@ import {
 } from './themeStyleFields';
 
 /**
- * v0.8.3：概览页「地图初始样式」表单的字段表。
+ * 概览页「地图初始样式」表单的字段表。
  *
  * 这里只钉两件在别处看不出来的事：
  *
@@ -119,11 +119,6 @@ describe('writeStyleValue', () => {
 });
 
 describe('resetThemeStyle（v0.8.6 §1）', () => {
-  /**
-   * 「恢复默认」原来是一句 `setStyle(DEFAULT_MAP_STYLE)` —— 那会把 `cellSize`
-   * 也拨回 `null`。方格大小已经不在清单上，作者按了「恢复默认」，看不见的那一项
-   * 被改掉了，保存后新地图就不再是原来那个格子尺寸。
-   */
   it('把看得见的字段拨回出厂值，看不见的方格大小不动', () => {
     const mine: MapStyle = {
       ...DEFAULT_MAP_STYLE,

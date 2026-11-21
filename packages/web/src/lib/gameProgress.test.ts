@@ -113,8 +113,7 @@ describe('parseStoredProgress', () => {
   });
 
   it('treats an empty board as "nothing to restore"', () => {
-    // v0.7.11：存档里只剩棋盘，「提交过」不再是一条能独立存在的记录 ——
-    // 空盘就是空盘，没什么可恢复的。
+    // 存档里只有棋盘 —— 空盘就是空盘，没什么可恢复的。
     expect(parseStoredProgress(payload(), meta)).toBeNull();
     expect(parseStoredProgress(payload({ submitted: true }), meta)).toBeNull();
   });

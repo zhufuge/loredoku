@@ -98,7 +98,7 @@ export async function listPuzzleEntries(
     .select(...SELECT_WITH_LINEAGE)
     .whereNull('pz.deleted_at')
     .modify((query) => {
-      // v0.8.0：过滤放进 SQL，`total` 才是这个边界的总数。
+      // 过滤放进 SQL，`total` 才是这个边界的总数。
       if (params.themeId !== undefined) query.where('pz.theme_id', params.themeId);
     })) as PuzzleRowWithLineage[];
 

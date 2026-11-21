@@ -133,8 +133,8 @@ export function resolveHoverEffects(input: {
 }
 
 /**
- * v0.3.8 FEAT-D02: the mouse box geometry is now driven by the map style
- * (`style.mouseCursorBox` + `style.border`) instead of module constants, so the
+ * The mouse box geometry is driven by the map style
+ * (`style.mouseCursorBox` + `style.border`) rather than module constants, so the
  * 「地图基本信息」drawer can retune it per map.
  *
  * §4.1/§3.3.1 (mouse box) — an Inner Line in the state colour (white for a
@@ -179,8 +179,8 @@ export function operationCursorStyle(
   outline: string;
   outlineOffset: string;
 } {
-  // v0.10.7：`offset` 是格的百分比（100 = 一格），乘 `cellSize` 换成像素 ——
-  // 以前它直接就是像素，同一份 `1` 在小格子上几乎贴着线、在大格子上被摊薄。
+  // `offset` 是格的百分比（100 = 一格），乘 `cellSize` 换成像素 —— 直接当像素用
+  // 的话，同一份 `1` 在小格子上几乎贴着线、在大格子上被摊薄。
   const offset = (cursor.offset / 100) * cellSize;
   return {
     outline: operationCursorOutline(cellSize, cursor),
@@ -227,7 +227,7 @@ export function resolveCursorBoxes(input: {
  * blocking item is still placeable on the item layer while never being
  * placeable on the background layer.
  *
- * v0.10.9: a 「背景修饰」 item goes to the decoration layer **instead of** the
+ * A 「背景修饰」 item goes to the decoration layer **instead of** the
  * item layer — the two are halves of the item world, not aliases, so ticking
  * the box moves the asset rather than duplicating it.
  */

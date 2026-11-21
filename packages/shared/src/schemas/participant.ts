@@ -30,7 +30,7 @@ export const themeColorSchema = z
   .default(DEFAULT_THEME_COLOR);
 
 /**
- * v0.3.8 FEAT-D04: a linkage colour is the **key** of an entry in the puzzle's
+ * FEAT-D04: a linkage colour is the **key** of an entry in the puzzle's
  * linkage palette. The key format is validated here; the "key must exist"
  * cross-check lives in `puzzleRefs` (it needs the whole draft).
  */
@@ -54,7 +54,7 @@ export const participantTargetSchema = z.discriminatedUnion('type', [
     color: effectColorSchema,
   }),
   z.object({
-    /** v0.6.0: was `item` — the linkage targets a resource. */
+    /** The linkage targets a resource. */
     type: z.literal('asset'),
     id: z.number().int().positive(),
     scope: z.enum(['all', 'instances']).default('all'),

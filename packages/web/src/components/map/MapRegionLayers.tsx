@@ -46,7 +46,7 @@ function regionHighlightInset(
  * Exported for {@link MapHighlightLayer} (`MapOverlayLayers.tsx`), which draws
  * the same continuous outline for linkage-targeted regions.
  *
- * v0.7.0: takes the region's **resolved** style — the highlight width / colour
+ * Takes the region's **resolved** style — the highlight width / colour
  * and the outline width the inset nests inside may all be region-specific.
  */
 export function RegionHighlightOutline({

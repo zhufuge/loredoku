@@ -32,7 +32,7 @@ describe('resolveEraseTarget', () => {
     });
   });
 
-  // v0.10.9: 三种东西同格共存时，擦的顺序是 物品 → 背景修饰 → 背景。
+  // 三种东西同格共存时，擦的顺序是 物品 → 背景修饰 → 背景。
   it('v0.10.9：物品与背景修饰同格时先擦物品', () => {
     const cells = map({
       '0,0': { decoration: { assetId: 3 }, item: { assetId: 2, w: 1, h: 1 } },

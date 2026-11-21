@@ -46,7 +46,7 @@ export function RegionStyleEditor({
   value: RegionStyle;
   onChange: (next: RegionStyle) => void;
   /**
-   * v0.9.6：**位置偏移只在区域信息里出现**。
+   * **位置偏移只在区域信息里出现**。
    *
    * 偏移是「这块区域的标签该往哪挪一点」—— 它只对某一块区域有意义，地图级缺省
    * 里没有这一项（`MapStyle.regionLabel` 不带 offset）。所以编辑器在「地图基本
@@ -60,7 +60,7 @@ export function RegionStyleEditor({
     options: { keepHoverAboveFont?: boolean } = {},
   ): void => {
     const label = { ...value.label, ...patch };
-    // v0.5.2 FIX-M02: the hovered label is never smaller than the idle one.
+    // The hovered label is never smaller than the idle one.
     // Enforced here as well as at render time so the two fields can never
     // disagree about what the canvas will draw.
     if (options.keepHoverAboveFont !== false && label.fontSize > label.hoverFontSize) {
@@ -70,14 +70,14 @@ export function RegionStyleEditor({
   };
 
   /**
-   * v0.9.6：位置偏移不是 `label` 的字段（地图级没有这一项），所以单独一个 patch。
+   * 位置偏移不是 `label` 的字段（地图级没有这一项），所以单独一个 patch。
    */
   const patchLabelOffset = (patch: Partial<RegionStyle['labelOffset']>): void => {
     onChange({ ...value, labelOffset: { ...value.labelOffset, ...patch } });
   };
 
   /**
-   * v0.7.4: the picker lists **concrete fonts** — whatever lives in
+   * The picker lists **concrete fonts** — whatever lives in
    * `src/assets/fonts/` — plus 系统默认. Resolved once per render: the list is a
    * build-time constant, so there is nothing to subscribe to.
    */

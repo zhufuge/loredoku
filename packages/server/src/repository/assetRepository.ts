@@ -8,25 +8,25 @@ export interface ListAssetsParams {
   keyword?: string;
   isActive?: boolean;
   type?: string;
-  /** v0.8.0：作用域条；`undefined` = 全部主题。 */
+  /** 作用域条；`undefined` = 全部主题。 */
   themeId?: number;
 }
 
 export interface CreateAssetData {
-  /** v0.8.0：边界。缺省由 `assetService` 落到默认主题，仓库层不接受「没有主题」。 */
+  /** 边界。缺省由 `assetService` 落到默认主题，仓库层不接受「没有主题」。 */
   themeId: number;
   code: string;
   name: string;
   type: AssetType;
   blocking: boolean;
-  /** v0.10.9: 「背景修饰」— item assets only (see `decorationFor`). */
+  /** 「背景修饰」— item assets only (see `decorationFor`). */
   decoration: boolean;
   /**
-   * v0.5.3 FEAT-N06: create enabled when the caller already supplied an
+   * Create enabled when the caller already supplied an
    * appearance; omitted keeps the OPT-305 default (`false`).
    */
   isActive?: boolean;
-  /** v0.6.1: the initial variant the create call writes alongside the asset. */
+  /** The initial variant the create call writes alongside the asset. */
   initialVariant: variantRepo.CreateAssetVariantData;
 }
 
@@ -34,7 +34,7 @@ export interface UpdateAssetData {
   name?: string;
   type?: AssetType;
   blocking?: boolean;
-  /** v0.10.9: 「背景修饰」— item assets only. */
+  /** 「背景修饰」— item assets only. */
   decoration?: boolean;
   isActive?: boolean;
 }
@@ -67,7 +67,7 @@ export async function listAssets(params: ListAssetsParams): Promise<Asset[]> {
   }
 
   const rows = await query.orderBy('updated_at', 'desc').select('*');
-  // v0.6.1: 形态一次 `IN (…)` 取完，列表不做 N+1。
+  // 形态一次 `IN (…)` 取完，列表不做 N+1。
   const variantsByAsset = await variantRepo.listByAssetIds(rows.map((row) => Number(row.id)));
   return rows.map((row) => toAsset(row, variantsByAsset.get(Number(row.id)) ?? []));
 }
@@ -77,7 +77,7 @@ export async function findById(id: number): Promise<AssetRow | undefined> {
 }
 
 /**
- * v0.8.0：`code` 的唯一性从全局收紧到**主题内**，所以查重必须带主题。
+ * `code` 的唯一性在**主题内**，所以查重必须带主题。
  * 不传 `themeId` 时查全局（只给「这条 code 有没有人用过」这类提示用，不用于写入判断）。
  */
 export async function findByCode(code: string, themeId?: number): Promise<AssetRow | undefined> {
@@ -93,7 +93,7 @@ export async function getAsset(id: number): Promise<Asset | null> {
 }
 
 /**
- * v0.6.1: the asset and its first variant are one step for the caller, two rows for
+ * The asset and its first variant are one step for the caller, two rows for
  * the database — hence the transaction.
  */
 export async function create(data: CreateAssetData): Promise<number> {
@@ -104,12 +104,12 @@ export async function create(data: CreateAssetData): Promise<number> {
         code: data.code,
         name: data.name,
         type: data.type,
-        // v0.5.2 FEAT-M04: a background asset never blocks.
+        // A background asset never blocks.
         blocking: blockingFor(data.type, data.blocking),
-        // v0.10.9: 同理，背景资源也不可能是「背景修饰」。
+        // 同理，背景资源也不可能是「背景修饰」。
         decoration: decorationFor(data.type, data.decoration),
         // OPT-305: 新建资源未上传图片，初始状态为停用。
-        // v0.5.3 FEAT-N06: 上传了图片或选了纯色块 → 直接启用。
+        // 上传了图片或选了纯色块 → 直接启用。
         is_active: data.isActive ?? false,
       })
       .returning('id');
@@ -126,10 +126,10 @@ export async function update(id: number, data: UpdateAssetData): Promise<boolean
   if (data.blocking !== undefined) patch.blocking = data.blocking;
   if (data.decoration !== undefined) patch.decoration = data.decoration;
   if (data.isActive !== undefined) patch.is_active = data.isActive;
-  // v0.5.2 FEAT-M04: switching an asset to 「背景」 makes it non-blocking;
+  // Switching an asset to 「背景」 makes it non-blocking;
   // leaving the type alone keeps whatever `blocking` the caller sent.
   if (data.type === 'background') patch.blocking = false;
-  // v0.10.9: 同上 —— 背景资源既不能阻挡，也不是「背景修饰」。
+  // 同上 —— 背景资源既不能阻挡，也不是「背景修饰」。
   if (data.type === 'background') patch.decoration = false;
   const affected = await db('assets').where({ id }).update(patch);
   return affected > 0;

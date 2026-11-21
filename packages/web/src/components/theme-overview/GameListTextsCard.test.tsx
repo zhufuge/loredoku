@@ -5,7 +5,7 @@ import type { Theme } from '@loredoku/shared';
 import { GameListTextsCard } from './GameListTextsCard';
 
 /**
- * v0.11.6：游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）是主题配置。
+ * 游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）是主题配置。
  *
  * 这一层钉三件事：没配过时输入框里摆的是内置那句、失焦就存、少了 `{n}` 不许存
  * （那句会失去关数 —— 服务端也会拒，但在输入框旁边说清楚比弹一条「保存失败」有用）。

@@ -12,7 +12,7 @@ import { AssetPalette } from './AssetPalette';
  * background layer works the same way: a background asset may own several
  * variants, and each look is its own tile.
  *
- * v0.7.6: the tile no longer prints a footprint (a variant does not have one).
+ * The tile prints no footprint (a variant does not have one).
  * Several variants → the tile reads the variant name; a single variant → 「1 格」.
  */
 
@@ -102,7 +102,7 @@ describe('AssetPalette — 形态瓦片（v0.6.1 §8.5）', () => {
   }
 
   function tiles(): HTMLButtonElement[] {
-    // v0.10.2：搜索框自带一枚 × 清空按钮，它也是 `button` —— 只数瓦片。
+    // 搜索框自带一枚 × 清空按钮，它也是 `button` —— 只数瓦片。
     return [...container.querySelectorAll<HTMLButtonElement>('button')].filter(
       (node) => node.getAttribute('aria-label') !== '清空搜索',
     );
@@ -155,7 +155,7 @@ describe('AssetPalette — 形态瓦片（v0.6.1 §8.5）', () => {
 });
 
 /**
- * v0.7.7: 搜索框右侧的刷新。按钮是**可选**的 —— 调色板不认识 react-query，取数
+ * 搜索框右侧的刷新。按钮是**可选**的 —— 调色板不认识 react-query，取数
  * 由调用方负责；不传 `onRefresh` 就没有按钮（上面 6 例都走这条路，所以 `tiles()`
  * 按 `button` 计数不受影响）。
  */
@@ -222,7 +222,7 @@ describe('AssetPalette — 刷新按钮（v0.7.7）', () => {
 });
 
 /**
- * v0.11.4：调色板按资源名排序（中文按拼音首字母），同一资源的形态挨在一起。
+ * 调色板按资源名排序（中文按拼音首字母），同一资源的形态挨在一起。
  *
  * 断言里读的是**资源名**（夹具给的，不是界面文案）—— 排序要验的就是「哪个资源
  * 排在哪」，而形态必须跟着自己的资源走，不能被别的资源隔开。

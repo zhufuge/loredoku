@@ -16,13 +16,13 @@ export interface CreateCharacterPayload {
   /** FEAT-501 */
   gender?: CharacterGender;
   description?: string | null;
-  /** v0.5.1 FEAT-L02: colour-block colour; `null` = image mode. */
+  /** Colour-block colour; `null` = image mode. */
   bgColor?: string | null;
-  /** v0.7.13: default 主题色 for the roster slot; `null` = no default. */
+  /** Default 主题色 for the roster slot; `null` = no default. */
   color?: string | null;
-  /** v0.7.13: default 编号 for the roster slot; `null` = no default. */
+  /** Default 编号 for the roster slot; `null` = no default. */
   displayName?: string | null;
-  /** v0.5.3 FEAT-N06: `true` creates the character already enabled. */
+  /** `true` creates the character already enabled. */
   isActive?: boolean;
 }
 
@@ -30,11 +30,11 @@ export interface UpdateCharacterPayload {
   name?: string;
   gender?: CharacterGender;
   description?: string | null;
-  /** v0.5.1 FEAT-L02: `null` drops back to the image mode. */
+  /** `null` drops back to the image mode. */
   bgColor?: string | null;
-  /** v0.7.13: `null` drops the participant 主题色 default. */
+  /** `null` drops the participant 主题色 default. */
   color?: string | null;
-  /** v0.7.13: `null` drops the 编号 default back to the sequence number. */
+  /** `null` drops the 编号 default back to the sequence number. */
   displayName?: string | null;
   isActive?: boolean;
 }

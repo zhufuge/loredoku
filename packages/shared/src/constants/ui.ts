@@ -1,6 +1,4 @@
-// // 界面：分页、路由、层叠、错误码、主题。
-// v0.10.4：从 `constants.ts`（1324 行、287 个导出）按主题拆开。值、注释、次序一律
-// 照搬 —— 只是把「谁在用」相近的那些放在一个文件里，改一处不必在一千行里翻。
+// 界面：分页、路由、层叠、错误码、主题。
 // 对外仍是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
 
 // ---- Pagination ----
@@ -12,7 +10,7 @@ export const MAX_PAGE_SIZE = 100;
 export const API_PREFIX = '/api';
 export const FILES_ROUTE_PREFIX = `${API_PREFIX}/files`;
 
-// ---- v0.5.3 FIX-N01 提示位置 / FIX-N11 UI 层叠 ----
+// ---- FIX-N01 提示位置 / FIX-N11 UI 层叠 ----
 /**
  * FIX-N01 (docs/v0.5.3.md §1): the toast stack's distance from the top edge. The
  * header bar is `h-14` (56px), so 64px drops the first toast **below** it while

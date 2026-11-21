@@ -12,7 +12,7 @@ import type {
  * Web (before save / import) and server (`puzzleService.save`) both call this, so
  * an imported JSON cannot slip past a front-end-only check.
  *
- * v0.7.3：判定本身收在 {@link collectReferenceIssues}，因为「引入新地图」要拿同
+ * 判定本身收在 {@link collectReferenceIssues}，因为「引入新地图」要拿同
  * 一份判定做**反向**用途 —— 不是报错，而是把换底图后悬空的联动摘掉。
  */
 

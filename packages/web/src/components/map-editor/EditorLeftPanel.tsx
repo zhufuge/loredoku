@@ -29,7 +29,7 @@ interface EditorLeftPanelProps {
   assetsLoading: boolean;
   assetsError: boolean;
   /**
-   * v0.7.7: 资源列表来自共享查询，别处可能刚加过资源 —— 搜索框右侧给了个刷新
+   * 资源列表来自共享查询，别处可能刚加过资源 —— 搜索框右侧给了个刷新
    * 按钮，不用整页重载（重载会丢掉撤销栈与视口）。
    */
   assetsRefreshing: boolean;

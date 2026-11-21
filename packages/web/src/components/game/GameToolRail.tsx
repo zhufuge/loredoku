@@ -15,12 +15,11 @@ import { cn } from '@/lib/utils';
  * 玩家页右列：四枚「对棋盘做什么」（标记 / 清除 / 撤回 / 提交）+「怎么看棋盘」
  * 的视图簇。
  *
- * v0.10.4：从 `GamePage` 搬出来。这一栏没有任何自有状态 —— 按下的时长、缩放的
+ * 这一栏没有任何自有状态 —— 按下的时长、缩放的
  * 比例、按钮能不能点，全都是外面算好递进来的；留在这里的只有「哪一枚该亮成
  * 选中色」「禁用时为什么点不动」这些**呈现规则**。
  *
- * 窄屏上它是底部横条（`max-md:flex-row`），竖屏再收成 54 高的一排 —— 版式细节
- * 与 v0.10.0 / v0.10.1 那两版一致，没有改动。
+ * 窄屏上它是底部横条（`max-md:flex-row`），竖屏再收成 54 高的一排。
  */
 export interface GameToolRailProps {
   /** 这一局已结案：四枚动作按钮全部置灰。 */
@@ -45,7 +44,7 @@ export interface GameToolRailProps {
   onZoomBy: (direction: 1 | -1) => void;
   onResetView: () => void;
   onToggleRulers: () => void;
-  /** v0.11.7：打开玩法说明。竖屏那枚在头部（见 `GamePlayerAside`），这里只管桌面。 */
+  /** 打开玩法说明。竖屏那枚在头部（见 `GamePlayerAside`），这里只管桌面。 */
   onOpenHelp: () => void;
 }
 
@@ -78,12 +77,10 @@ export function GameToolRail({
     <aside
       className={cn(
         'relative flex shrink-0 flex-col items-center gap-2 border-l bg-background p-2',
-        /* v0.10.0：窄屏上这一栏从「右侧竖条」变成「底部横条」—— 竖条写死的
-           84px 在竖屏手机上正好吃掉棋盘最宝贵的一条宽度；横条沉到底部，
-           四枚工具 + 视图簇按行折行。 */
+        /* 窄屏上这一栏是「底部横条」：竖条写死的 84px 在竖屏手机上正好吃掉
+           棋盘最宝贵的一条宽度；横条沉到底部，四枚工具 + 视图簇按行折行。 */
         'max-md:w-full max-md:max-w-full max-md:flex-row max-md:flex-wrap max-md:justify-center max-md:gap-1 max-md:border-l-0 max-md:border-t max-md:py-1.5 portrait:max-md:h-[54px] portrait:max-md:py-0',
-        /* v0.10.1 竖屏：排到最末（`order-4`），跟题面名册（`order-3`）一起
-           落在棋盘下面。 */
+        /* 竖屏：排到最末，跟题面名册一起落在棋盘下面。 */
         'max-md:order-4',
       )}
     >
@@ -105,8 +102,8 @@ export function GameToolRail({
         className={cn(
           'h-12 w-full',
           /*
-           * v0.10.1 竖屏：图标 2rem、底栏 54 高之后，44px 的方钮装不下了。
-           * 底栏改成四枚等宽的长方形 —— 一排放得下、也不必有正方形那套对称。
+           * 竖屏：图标 2rem、底栏 54 高，44px 的方钮装不下 —— 底栏用四枚等宽
+           * 的长方形，一排放得下，也不必有正方形那套对称。
            */
           'max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:shrink max-md:px-0 portrait:max-md:h-full',
           mode.kind === 'forbidden' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
@@ -142,14 +139,14 @@ export function GameToolRail({
         variant="ghost"
         className={cn(
           'relative h-12 w-full',
-          /* v0.10.1 竖屏：同上面那枚标记键 —— 图标 2rem，按钮长到 54 高、四枚等分。 */
+          /* 竖屏：同上面那枚标记键 —— 图标 2rem，按钮 54 高、四枚等分。 */
           'max-md:w-auto max-md:min-w-0 max-md:flex-1 max-md:px-0 portrait:max-md:h-full',
           mode.kind === 'clearing' ? TOOLBAR_ICON_ACTIVE_CLASS : TOOLBAR_ICON_HOVER_CLASS,
         )}
         title="清除放置，长按清空全部"
         disabled={toolsLocked}
         /*
-         * v0.11.3：指针事件**不外传**。
+         * 指针事件**不外传**。
          *
          * 竖屏下这一枚沉在底部横条里，与棋盘同在一个 `flex` 列 —— 按住不放的
          * 800ms 里，指针事件会沿 React 树冒泡上去，让外层当成「在棋盘上按住了
@@ -200,8 +197,8 @@ export function GameToolRail({
       <span
         className={cn(
           'block w-full',
-          /* v0.10.1 竖屏：底栏四枚等分，包层跟着一起撑开。`w-auto` 不能少 ——
-             `w-full` 会把 flex 基准算成整条栏宽，四枚就分不匀。 */
+          /* 竖屏：底栏四枚等分，包层跟着一起撑开。宽度不能写满 —— 满宽会把
+             flex 基准算成整条栏宽，四枚就分不匀。 */
           'max-md:w-auto max-md:min-w-0 max-md:flex-1 portrait:max-md:h-full',
           (!canUndoNow || toolsLocked) && 'cursor-not-allowed',
         )}
@@ -211,7 +208,7 @@ export function GameToolRail({
           variant="ghost"
           className={cn(
             'h-12 w-full',
-            /* v0.10.1 竖屏：底栏四枚等分的长方形，高度 54 容得下 2rem 的图标。 */
+            /* 竖屏：底栏四枚等分的长方形，高度 54 容得下 2rem 的图标。 */
             'max-md:px-0 portrait:max-md:h-full',
             TOOLBAR_ICON_HOVER_CLASS,
           )}
@@ -223,9 +220,9 @@ export function GameToolRail({
         </Button>
       </span>
       {/*
-        * v0.7.11：提交按钮不再变成勾 —— 提交是一次**结算**，不是一个要记住
-        * 的状态。勾只会在下一次进来时变成一句谎话（玩家看到自己没做过的勾）。
-        * v0.7.12：没放完不能提交（编号不算放置）。
+        * 提交按钮不变成勾 —— 提交是一次**结算**，不是一个要记住
+        * 状态。勾只会在下一次进来时变成一句谎话（玩家看到自己没做过的勾）。
+        * 没放完不能提交（编号不算放置）。
         * v0.9.1 §1：没放完时同样包一层 span，给禁用光标和提示。
         */}
       <span
@@ -253,17 +250,17 @@ export function GameToolRail({
 
       {/*
        * v0.6.2 §4：视图簇 —— 放大 / 百分比 / 缩小 / 重置视图，下面接标尺开关。
-       * v0.9.0 §17：右下角那两行统计删掉之后，这一簇由 `mt-auto` 顶到**最下面**
+       * v0.9.0 §17：这一簇由 `mt-auto` 顶到**最下面**
        * —— 上面四枚是「对棋盘做什么」，下面这簇是「怎么看棋盘」，中间留白正好
-       * 把两组分开。分隔线跟着这一簇走，不再横在两枚工具按钮之间。
+       * 把两组分开。分隔线跟着这一簇走，不横在两枚工具按钮之间。
        */}
       <div
         className={cn(
           'mt-auto flex w-full flex-col items-center gap-1 border-t pt-2',
-          /* v0.10.0：竖条里这一簇沉在底边（`mt-auto`）；横条里它跟着工具按钮
-             排成一行，不再占一整行、也不要那条分隔线。 */
+          /* 竖条里这一簇沉在底边；横条里它跟着工具按钮排成一行，不再占一整行、
+             也不要那条分隔线。 */
           'max-md:mt-0 max-md:w-auto max-md:flex-row max-md:border-t-0 max-md:pt-0',
-          /* v0.10.1：竖屏（窄且竖着）**整簇不显示** —— 棋盘已经按宽度铺满
+          /* 竖屏（窄且竖着）**整簇不显示** —— 棋盘已经按宽度铺满
              整屏，没有可放大的余量；收掉放大 / 缩小 / 重置 / 标尺，底部横条
              就只剩四枚「对棋盘做什么」的按钮，不再挤第二行。
              用 CSS 而不是条件渲染：媒体查询是这件事唯一的真源（转屏即时生效，
@@ -314,11 +311,11 @@ export function GameToolRail({
       </div>
 
       {/*
-       * v0.11.7：玩法说明沉在这一栏**最下面**，与上面两组都不挤在一起 ——
+       * 玩法说明沉在这一栏**最下面**，与上面两组都不挤在一起 ——
        * 四枚动作是「对棋盘做什么」，视图簇是「怎么看棋盘」，这一枚是「这些都是
        * 干什么的」，三种问题不同类。
        *
-       * 竖屏不画：那时这一栏是底部横条，问号改挂在头部（日夜模式按钮左边），
+       * 竖屏不画：这一栏收成底部横条，问号改挂在头部（日夜模式按钮左边），
        * 见 `GamePlayerAside`。两边各画一枚、各管一个断点，不必把按钮搬到别处。
        */}
       <IconButton
@@ -331,11 +328,9 @@ export function GameToolRail({
       />
 
       {/*
-       * v0.9.0 §17：原来这里有两行「已放置 N 个 / 可回退 M 步」的统计。
-       * 删掉的理由：棋盘上的头像、`×`、编号本身就是计数，撤回按钮的
-       * enabled / disabled 本身就是可回退状态 —— 右下角再写一遍是同一份
-       * 信息的第二次表述，还把视图簇从底边挤了上去。计时早在 v0.7.12
-       * 就搬到了标题行，这里不再有任何文字。
+       * v0.9.0 §17：这里不再有任何文字 —— 棋盘上的头像、`×`、编号本身就是
+       * 计数，撤回按钮的 enabled / disabled 本身就是可回退状态，再写一遍是
+       * 同一份信息的第二次表述，还把视图簇从底边挤了上去。计时在标题行。
        */}
     </aside>
   );

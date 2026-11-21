@@ -75,7 +75,7 @@ describe('asset variants API', () => {
       sortOrder: 0,
       bgColor: null,
     });
-    // v0.7.6: 形态不再声明占格。
+    // 形态不声明占格。
     expect(asset.variants[0]).not.toHaveProperty('widthCells');
     expect(asset.variants[0]).not.toHaveProperty('heightCells');
   });
@@ -154,7 +154,7 @@ describe('asset variants API', () => {
     expect(look.status).toBe(200);
     expect(look.body.data.bgColor).toBe('#AABBCC');
 
-    // v0.7.6: `widthCells` 已不存在 —— 老客户端发过来会被 schema 剥掉，
+    // `widthCells` 会被 schema 剥掉 —— 老客户端发过来时，
     // 剥完是空补丁，按「至少要修改一个字段」拒掉。
     const footprint = await api
       .patch(`/api/assets/${asset.id}/variants/${add.body.data.id}`)

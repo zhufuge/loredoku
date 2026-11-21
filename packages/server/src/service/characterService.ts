@@ -35,12 +35,12 @@ export async function createCharacter(input: CreateCharacterInput): Promise<Char
     name: input.name,
     gender: input.gender,
     description: input.description ?? null,
-    // v0.5.1 FEAT-L02: colour-block colour (`null` = image mode).
+    // Colour-block colour (`null` = image mode).
     bgColor: input.bgColor ?? null,
-    // v0.7.13: 参与者默认值（`null` = 没有默认，加入时照旧走缺省）。
+    // 参与者默认值（`null` = 没有默认，加入时照旧走缺省）。
     color: input.color ?? null,
     displayName: input.displayName ?? null,
-    // v0.5.3 FEAT-N06: 带外观创建 → 直接启用。
+    // 带外观创建 → 直接启用。
     isActive: input.isActive,
   });
   return getCharacter(id);

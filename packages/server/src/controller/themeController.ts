@@ -120,7 +120,7 @@ export async function updateCheckStyle(ctx: Context): Promise<void> {
 }
 
 /**
- * v0.11.3：结算卡上那枚图标图。与圆环同一个形状 —— 一次一张、即时保存、
+ * 结算卡上那枚图标图。与圆环同一个形状 —— 一次一张、即时保存、
  * 回执是更新后的整份主题；「移除」是回到内置的庆祝 emoji，不是把配置清空。
  */
 export async function uploadVerdictIcon(ctx: Context): Promise<void> {
@@ -138,7 +138,7 @@ export async function removeVerdictIcon(ctx: Context): Promise<void> {
 }
 
 /**
- * v0.11.3：结算卡的两句文字。与校验颜色同一条理由：单独一个端点，避免两个输入框
+ * 结算卡的两句文字。与校验颜色同一条理由：单独一个端点，避免两个输入框
  * 每敲一个字就把整份 `data` 覆盖一遍。
  */
 export async function updateVerdict(ctx: Context): Promise<void> {
@@ -154,7 +154,7 @@ export async function updateVerdict(ctx: Context): Promise<void> {
  * 二次访问。体检在 `buildThemeBundle` 里先跑完；出错时这里根本还没碰响应体，
  * 于是得到一个正常的 JSON 错误，而不是一个半截的 zip。
  *
- * v0.10.10：`?games=1,2` 只打选中的几关；不给 query 就是全部在线关。
+ * `?games=1,2` 只打选中的几关；不给 query 就是全部在线关。
  */
 export async function bundle(ctx: Context): Promise<void> {
   const { code } = parseOrThrow(themeCodeParamSchema, ctx.params);

@@ -100,13 +100,13 @@ interface RegionDialogState {
  * FEAT-F01 的标尺开关，偏好落在 `localStorage`（同 `MapViewPage` / `PuzzleEditorPage`
  * 的 `RULER_STORAGE_KEY` 模式）。
  *
- * v0.8.6 §2：**缺省改成不展示**。标尺画在画布外面那两条边带上，它占的正是画布
+ * v0.8.6 §2：**缺省不展示**。标尺画在画布外面那两条边带上，它占的正是画布
  * 能用的高度与宽度 —— 一张 20×20 的图在窗口里能不能一屏放下，取决于这两条带子
  * 在不在。而它回答的问题（「第几列」）只在数格子时才有意义，不是每次打开都要看。
  *
  * 「可配置」就是底栏右上角那枚标尺按钮：点开一次，`localStorage` 记成 `visible`，
- * 之后一直是展示的。所以判断条件从「不等于 `hidden`」翻成「等于 `visible`」——
- * 老读者**点过**开关的保持原样，从没点过的从此收起来。
+ * 之后一直是展示的。判断条件因此是「等于 `visible`」—— 存着 `visible` 就展示，
+ * 否则收起来。
  */
 const RULER_STORAGE_KEY = 'loredoku.editor.ruler';
 
@@ -124,7 +124,7 @@ function readStoredRulerVisible(): boolean {
  * canvas state only.
  */
 export function MapEditorPage(): JSX.Element {
-  // v0.8.1：主题段在地址里 —— 它同时是资源选板的筛选值（只看本工作空间的料）。
+  // 主题段在地址里 —— 它同时是资源选板的筛选值（只看本工作空间的料）。
   const { mapId, themeCode = '' } = useParams<{ mapId: string; themeCode: string }>();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -187,7 +187,7 @@ export function MapEditorPage(): JSX.Element {
    */
   const [pendingMapInfoAction, setPendingMapInfoAction] = useState<(() => void) | null>(null);
   /**
-   * v0.10.8：「方格大小上限」那行要显示「本次按窗口算出来是多少」。
+   * 「方格大小上限」那行要显示「本次按窗口算出来是多少」。
    * `EditorCanvas` 的自适应 pass 通过 `onAutoCellSize` 报上来，这里只存着给抽屉看，
    * 不参与任何渲染决策 —— 真正生效的格子边长在画布内部算。
    */
@@ -216,7 +216,7 @@ export function MapEditorPage(): JSX.Element {
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [itemsOpen, setItemsOpen] = useState(true);
   const [infoOpen, setInfoOpen] = useState(false);
-  /** v0.3.8 FEAT-D01: the 「地图基本信息」drawer. */
+  /** FEAT-D01: the 「地图基本信息」drawer. */
   const [mapInfoOpen, setMapInfoOpen] = useState(false);
   const [regionDialog, setRegionDialog] = useState<RegionDialogState>({
     open: false,
@@ -224,7 +224,7 @@ export function MapEditorPage(): JSX.Element {
   });
   const [deleteRegionTarget, setDeleteRegionTarget] = useState<DraftRegion | null>(null);
   /**
-   * v0.11.5: 区域格子的编辑会话。非 null 时画布上的点按/拖动改的是这份草稿，
+   * 区域格子的编辑会话。非 null 时画布上的点按/拖动改的是这份草稿，
    * 而不是选格、落笔或擦除；保存前一律可取消。
    */
   const [regionCellEdit, setRegionCellEdit] = useState<RegionCellEdit | null>(null);
@@ -246,7 +246,7 @@ export function MapEditorPage(): JSX.Element {
   }, [assetsQuery.data]);
 
   /**
-   * v0.6.1: the palette selects a (asset, variant) pair — the variant supplies the
+   * The palette selects a (asset, variant) pair — the variant supplies the
    * footprint, the asset supplies the layer rules and the name.
    */
   const pendingVariant = useMemo(() => {
@@ -514,7 +514,7 @@ export function MapEditorPage(): JSX.Element {
   });
 
   /**
-   * v0.7.7: 左面板刷新（以及别处改资源后触发的失效重取）之后，选中项可能已经
+   * 左面板刷新（以及别处改资源后触发的失效重取）之后，选中项可能已经
    * 不在列表里 —— 资源被删 / 被停用，或者只是那个形态被删。悬空选中会让画布
    * 把一个不存在的 `variantId` 写进草稿，渲染再回退到首形态，看着像「点了没
    * 反应」。这里清掉选中，让作者从新列表里重挑。
@@ -551,7 +551,7 @@ export function MapEditorPage(): JSX.Element {
   }, [editor.selection, editor.selectedRegionId, mapInfoOpen]);
 
   /**
-   * v0.11.5：被编辑的那块区域没了（删除、撤销、换版本）就结束格子编辑会话 ——
+   * 被编辑的那块区域没了（删除、撤销、换版本）就结束格子编辑会话 ——
    * 草稿挂在一个不存在的区域上，保存时只会被静默丢掉。
    */
   useEffect(() => {
@@ -714,13 +714,13 @@ export function MapEditorPage(): JSX.Element {
     editor.setTool(tool);
     if (tool !== 'select') {
       editor.setSelectedItem(null);
-      // v0.11.5：换掉选择工具之后画布的点击语义变了，格子编辑会话就此结束。
+      // 换掉选择工具之后画布的点击语义变了，格子编辑会话就此结束。
       setRegionCellEdit(null);
     }
   };
 
   /**
-   * v0.7.0: 区域的外观编辑在右边信息框里完成（默认填入「地图基本信息」的
+   * 区域的外观编辑在右边信息框里完成（默认填入「地图基本信息」的
    * 缺省值，保存时只记差异）；对话框只剩「创建」这一步 ——  ID 与名称。
    */
   const submitRegion = (input: RegionInput, conflictMode: ConflictMode): void => {
@@ -736,7 +736,7 @@ export function MapEditorPage(): JSX.Element {
   };
 
   /*
-   * v0.11.5：区域格子编辑。
+   * 区域格子编辑。
    *
    * 开会话时先把这块区域的格子抄成一份草稿（`seedRegionCellEdit`），之后画布上
    * 的每一笔只改草稿 —— 作者可以先补成凸字形、再削掉一条边，看准了才保存。
@@ -788,7 +788,7 @@ export function MapEditorPage(): JSX.Element {
     }
   };
 
-  /** v0.11.5：工具条要显示的名字与差量（草稿相对已提交的格子）。 */
+  /** 工具条要显示的名字与差量（草稿相对已提交的格子）。 */
   const regionCellEditInfo = useMemo(() => {
     if (!regionCellEdit) return null;
     const region = editor.regions.find((item) => item.id === regionCellEdit.regionId);
@@ -879,7 +879,7 @@ export function MapEditorPage(): JSX.Element {
   };
 
   /**
-   * v0.6.3: the zoom maths lives in the canvas (next to the wheel handler) so
+   * The zoom maths lives in the canvas (next to the wheel handler) so
    * the button path marks the view as user-adjusted too — otherwise the
    * adaptive auto-centre pass centres the new zoom away on the next render
    * and the buttons look dead until a wheel zoom sets that flag.
@@ -1064,8 +1064,7 @@ export function MapEditorPage(): JSX.Element {
               }}
               onSelectRegion={(regionId) => {
                 // 与画布上的区域标签同一套动作：聚焦区域 + 信息框渲染区域分支。
-                // 此前这里只设了 `selectedRegionId`，`selection` 仍是 null ——
-                // 抽屉会弹出来却是空的（点列表项信息框空白）。
+                // 两条轴都要设 —— 只设 `selectedRegionId` 时抽屉会弹出来却是空的。
                 // 区域 / 平移 / 橡皮擦工具下点击 = 取消当前功能，回到选择。
                 guardMapInfo(() => {
                   if (regionId !== null && editor.activeTool !== 'select') setTool('select');
@@ -1145,7 +1144,7 @@ export function MapEditorPage(): JSX.Element {
                   toast.error('该物品不能放在当前图层');
                   return;
                 }
-                // v0.10.6: 多格物品放不下（越过画布边界）就提示，不静默落一半。
+                // 多格物品放不下（越过画布边界）就提示，不静默落一半。
                 if (fitsHere === false) {
                   toast.error('这个形态占的格子放不下，请换一个位置');
                   return;
@@ -1158,7 +1157,7 @@ export function MapEditorPage(): JSX.Element {
                     coord.y,
                   );
                 } else if (pendingVariant.asset.decoration) {
-                  // v0.10.9: 背景修饰恒占 1 格，与背景 / 物品同格共存。
+                  // 背景修饰恒占 1 格，与背景 / 物品同格共存。
                   editor.placeDecoration(
                     pendingVariant.asset.id,
                     pendingVariant.variant.id,
@@ -1382,9 +1381,9 @@ export function MapEditorPage(): JSX.Element {
                       style={{
                         width: previewCellSize,
                         height: previewCellSize,
-                        /* v0.7.8：原来是写死的红绿（`rgba(239,68,68/34,197,94,.25)`）
-                           —— 深色模式下两团高饱和色糊在墨底上，而且和调色板无关。
-                           现在走 `destructive` / `success`：要移除的格子是绛，留下的是竹青。 */
+                        /* 走 `destructive` / `success` 语义色 —— 写死的红绿在深色模式下是
+                           两团高饱和色糊在墨底上，而且和调色板无关。要移除的格子是绛，
+                           留下的是竹青。 */
                         backgroundColor: removed
                           ? 'hsl(var(--destructive) / 0.22)'
                           : 'hsl(var(--success) / 0.22)',

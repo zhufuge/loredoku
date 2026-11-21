@@ -102,9 +102,9 @@ export function GamePage(): JSX.Element {
 
 /**
  * 渲染层。两个入口共用这一份 —— 它不认识 axios，也不认识包，只认一个 `GameSource`。
- * 去掉数据来源之后剩下的就是这 1500 行画布 / 名册 / 工具栏。
+ * 去掉数据来源之后剩下的就是这一千四百多行画布 / 名册 / 工具栏。
  *
- * v0.9.5 追加：**换关 = 换一局**，所以这里按关卡把实际渲染层整个换掉。
+ * **换关 = 换一局**，所以这里按关卡把实际渲染层整个换掉。
  *
  * 为什么 `key` 必须下到这一层：`GameView` 是所有入口的汇合点 —— 线上 / 工坊是
  * `ApiGamePage → GameView`，播放器是 `PlayerGamePage → GamePage → GameView`。
@@ -140,9 +140,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * v0.9.0 §3：播放器的路由参数叫 `key`（`/loredoku/:code/play/:key`），工坊叫
    * `slug`。两个入口共用一个组件，参数名就都收在这里，别处只认 `slug`。
    *
-   * v0.9.2：合辑（`/play/theme/:themeSlug/:slug`）连同 `theme_deployments` 两张表
-   * 一起删了，于是这里不再有「从哪个主题进来」这一档 —— 顶栏恒为 `loredoku` 与
-   * 「返回游戏列表」，与播放器、工坊单局入口三处一致。
+   * 这里没有「从哪个主题进来」这一档 —— 顶栏恒为 `loredoku` 与「返回游戏列表」，
+   * 与播放器、工坊单局入口三处一致。
    */
   const params = useParams<{ slug?: string; key?: string; code?: string; themeCode?: string }>();
   const slug = (params.slug ?? params.key) || null;
@@ -150,7 +149,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
 
   const gameQuery = source.useGame(slug);
   /**
-   * v0.6.2：存档按游戏自己的 slug 分键（数据比路由参数更可信）。
+   * 存档按游戏自己的 slug 分键（数据比路由参数更可信）。
    * v0.9.0 §4：**键的身份交给 source** —— 线上仍是 slug（已有进度不能作废），
    * 播放器是 `bundle:<主题code>:<key>`，两套键互不相通。
    */
@@ -163,7 +162,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const assetsQuery = source.useAssets();
   const charactersQuery = source.useCharacters();
   /**
-   * v0.9.5：整份关卡清单 —— 只为定案卡上那枚「下一关」。顺序就是列表页看到的
+   * 整份关卡清单 —— 只为定案卡上那枚「下一关」。顺序就是列表页看到的
    * 那一份（线上 `/api/games`、播放器 `manifest.games`，两者都已按作者排的
    * `sort_weight, slug` 排好），所以「下一关」永远是「列表里下一张卡」。
    *
@@ -185,12 +184,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     createGamePlacementState,
   );
   /**
-   * v0.7.11：提交的结果。`null` = 弹窗关着。
+   * 提交的结果。`null` = 弹窗关着。
    *
    * 通过 / 未通过共用同一个弹窗：两者都是「这一局到这里有个结论」，只是下一个
    * 动作不同（再玩一次 / 继续游戏）。
    *
-   * v0.9.4：未通过**不再带名单**。棋盘上那几圈已经把谁不对画出来了，弹窗再
+   * 未通过**不带名单**。棋盘上那几圈已经把谁不对画出来了，弹窗再
    * 列一遍编号 / 位置是第三遍重复；这里只留一句「未能结案」，外加一个不带
    * 身份信息的计数（`x/n 正确`）—— 数量告诉玩家差多远，不点名。
    *
@@ -227,7 +226,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
 
   /**
-   * v0.10.1：描述弹框是否开着（见头部那枚「谜题描述」图标）。
+   * 描述弹框是否开着（见头部那枚「谜题描述」图标）。
    *
    * 只跟 `portraitFit` 配套使用：竖屏上面板里不再画描述（`GameBrief` 的
    * `hideDescription`），改成右上角一枚图标点开。桌面端描述仍留在左栏面板里，
@@ -236,7 +235,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [descriptionOpen, setDescriptionOpen] = useState(false);
 
   /**
-   * v0.11.7：玩法说明弹框是否开着。
+   * 玩法说明弹框是否开着。
    *
    * 三处能打开它：右栏最下面那枚问号（桌面）、头部日夜模式左边那枚（竖屏）、
    * 以及**第一次进任意关卡时自动弹一次**（见下面那个 effect）。三处共用一个
@@ -245,7 +244,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
 
   /**
-   * v0.9.6：这一关**已完成**（进页面时读到的通过记录）。
+   * 这一关**已完成**（进页面时读到的通过记录）。
    *
    * 它和 `result` 不是一件事：`result` 是「刚刚结算完、结算卡开着」，`finished`
    * 是「这一关以前就结案了」。后者让页面一进来就摆出结案遮罩、表停在 00:00，
@@ -256,18 +255,18 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    */
   const [finished, setFinished] = useState(false);
   /**
-   * v0.10.2：**结算卡关上之后，遮罩上才补出「再玩一次」**。
+   * **结算卡关上之后，遮罩上才补出「再玩一次」**。
    *
-   * 用户：「从一开始就不要渲染，后面再渲染出来」。以前判据是 `!result`，
-   * 于是刚通过那 1 秒（`finished` 已真、`result` 还是 null）按钮先画出来，
-   * 结算卡一弹又撤掉，关上再补回来 —— 一进一出等于闪了两下。现在它在这一局
-   * 里**一次都不提前出现**：只有「已完成再进入」那一版（`revisitedRef`）或
-   * 「卡已经关过」（本 state）才画。
+   * 用户要的是「从一开始就不要渲染，后面再渲染出来」。拿 `!result` 当判据不行：
+   * 刚通过的那 1 秒（`finished` 已真、`result` 还是 null）按钮先画出来，结算卡
+   * 一弹又撤掉，关上再补回来 —— 一进一出等于闪了两下。所以它在这一局里**一次都
+   * 不提前出现**：只有「已完成再进入」那一版（`revisitedRef`）或「卡已经关过」
+   * （本 state）才画。
    */
   const [verdictDismissed, setVerdictDismissed] = useState(false);
 
   /**
-   * v0.9.7：**结案的那一局，整块画布与名册都不再接指针**。
+   * **结案的那一局，整块画布与名册都不再接指针**。
    *
    * 用户：「定案的游戏里，有地图遮罩，就不要有鼠标和地图及物品人物的交互」。
    *
@@ -286,7 +285,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const [hoverPoint, setHoverPoint] = useState<CanvasPoint | null>(null);
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
   /**
-   * v0.7.11：按住滑动连续操作。
+   * 按住滑动连续操作。
    *
    * `lastKey` 是这一笔最后落过的格子；`painted` 一旦为真，这一笔就不再是「点击」，
    * 抬手后的 `click` 必须吞掉。`start` 记着按下的那一格 —— 滑动时第一格也要落，
@@ -302,7 +301,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   /** 本次指针手势有没有真的拖过画布 —— 拖完那次 click 要吞掉。 */
   const pannedRef = useRef(false);
   /**
-   * v0.7.11：本次手势有没有**按住滑过格子**（连续放置 / 连续擦除）。有的话，
+   * 本次手势有没有**按住滑过格子**（连续放置 / 连续擦除）。有的话，
    * 抬手时那一记 `click` 是手势的尾巴，已经处理过了 —— 必须吞掉，否则同一格会
    * 被切换两次（放上又取消）。
    */
@@ -319,7 +318,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
 
   const detail = gameQuery.data;
   /**
-   * v0.11.6：「返回游戏列表」落在**这一关所属主题**的列表页上（`/:code/play`）。
+   * 「返回游戏列表」落在**这一关所属主题**的列表页上（`/:code/play`）。
    *
    * 优先用数据里的 `themeCode`（它顺着谜题查出来，最可信），其次才是地址里的
    * 主题段 —— 工坊那条路是 `/:themeCode/play/:slug`，播放器那条路是 `:code`，
@@ -328,7 +327,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    */
   const backHref = source.listHref(detail?.themeCode ?? params.themeCode ?? params.code ?? null);
   /**
-   * v0.10.4：一关的「内容」（谜题行 + 地图 JSON + 资源 / 角色表）整块交给
+   * 一关的「内容」（谜题行 + 地图 JSON + 资源 / 角色表）整块交给
    * `useGameContent` —— 它是纯派生，不碰这一页的任何状态。
    */
   const {
@@ -362,7 +361,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   }, [gameQuery.data]);
 
   /**
-   * v0.11.2：进这一页要等的图 —— 画布上这一关**用到的**资源、名册里**坐着的**
+   * 进这一页要等的图 —— 画布上这一关**用到的**资源、名册里**坐着的**
    * 角色、标记、工具图标、校验圈。等它们都就绪才撤 loading，玩家看到的第一帧
    * 就是画好的盘面，不会先空一下再一张张跳出来。
    *
@@ -385,7 +384,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const imagesReady = useImagePreload(pageImages);
 
   /**
-   * v0.11.2：这一页要的东西齐了没有 —— 关卡的 JSON、资源表、角色表、清单，以及
+   * 这一页要的东西齐了没有 —— 关卡的 JSON、资源表、角色表、清单，以及
    * 画布上要画的那些图。没齐就先给 loading，不渲染半张盘面。
    *
    * 它同时是「`<main>` 挂上了没有」的信号：`useGameViewport` 要靠它才知道什么
@@ -399,7 +398,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     !imagesReady;
 
   /*
-   * v0.11.7：第一次进**任意**关卡时自动弹一次玩法说明。
+   * 第一次进**任意**关卡时自动弹一次玩法说明。
    *
    * 三个条件：这一关的数据到了（说明里说的「点参与者」「长按格子」得有对象可指）、
    * 资源齐了（别让弹框压在骨架屏上）、这台设备还没看过（`lib/gameHelp.ts`）。
@@ -418,10 +417,10 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   /**
-   * v0.10.4：视口（格子大小 / 缩放 / 平移 / 竖屏 / 可见区）交给 `useGameViewport`。
+   * 视口（格子大小 / 缩放 / 平移 / 竖屏 / 可见区）交给 `useGameViewport`。
    * 它不读任何一局的状态 —— 只认 `gridSize`、地图样式与标尺开关。
    *
-   * v0.11.2：`ready` 传「资源齐了、`<main>` 这一拍存在」，否则 loading 期间那次
+   * `ready` 传「资源齐了、`<main>` 这一拍存在」，否则 loading 期间那次
    * 挂载会白跑（容器还是 `null`），棋盘事后不会自己重排 —— 用户报的「地图缩小在
    * 左上方」就是这么来的。
    */
@@ -450,17 +449,17 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   });
 
   /*
-   * v0.10.0：手机上棋盘只有 236 见方，而「定案」遮罩那套版式（128px 的两个字）
+   * 手机上棋盘只有 236 见方，而「定案」遮罩那套版式（128px 的两个字）
    * 是照桌面 480 起的棋盘定的 —— 不缩就会竖着顶出遮罩、印甩到棋盘外，底下那颗
    * 「再玩一次」也被压住。按棋盘边长等比缩，字、印、偏移的相对位置一点都不变。
    *
-   * v0.10.2：棋盘大不等于屏上够地方 —— 横屏手机棋盘能有 900 多，而中列只剩
+   * 棋盘大不等于屏上够地方 —— 横屏手机棋盘能有 900 多，而中列只剩
    * 一百来像素高。再把量出来的可见区传进去，两者取小（用户：「大小要自适应屏幕」）。
    */
   const verdictScale = verdictMarkScale(total, stageBox);
 
   /**
-   * v0.11.3：结算卡通过那一面的图标与标题 —— 主题级的、读取时兜底（同标记 / 圆环 /
+   * 结算卡通过那一面的图标与标题 —— 主题级的、读取时兜底（同标记 / 圆环 /
    * 校验色那一套）。`resolveVerdictStyle` 把「没配」「配了空串」一并收成默认的
    * 🎉 +「解题成功」，所以这里拿到的永远是能直接画的值。
    *
@@ -489,7 +488,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   );
 
   /**
-   * v0.9.5：定案卡的「下一关」。
+   * 定案卡的「下一关」。
    *
    * 「下一关」＝列表里排在**当前这一关之后、还没通过**的第一关。三件事各自的出处：
    * - 顺序：`source.useCatalog()`（两个入口都是列表页那一份，作者排好的先后说了算）；
@@ -527,7 +526,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   );
 
   /**
-   * v0.10.4：四样一次性动效（盖章 / 退场 / 落笔 / 水波）交给 `usePlacementFx`。
+   * 四样一次性动效（盖章 / 退场 / 落笔 / 水波）交给 `usePlacementFx`。
    * 它只负责演 —— 唯一的例外是 `eraseCell`：退场演完才真的删那一格。
    */
   const {
@@ -549,7 +548,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const itemCells = useMemo(() => collectItemCells(cells), [cells]);
 
   /**
-   * v0.11.2：**结案之后，指针不点亮棋盘**。
+   * **结案之后，指针不点亮棋盘**。
    *
    * 空手时悬停也照常画 —— 光标框、物品抬起与名称 tip 与「已经选好工具」时一样，
    * 玩家不必先点一个工具才能看清这一格是什么。触屏没有 hover，由
@@ -563,7 +562,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     () =>
       resolveHoverEffects({
         /*
-         * v0.9.7：**结案后不画任何 hover 效果**。
+         * **结案后不画任何 hover 效果**。
          *
          * 光靠 CSS `pointer-events-none` 挡不住：定案遮罩自己 `pointer-events-auto`
          * 接住指针之后，事件会沿 React 树冒泡回 `<main>` 的 `onPointerMove`，
@@ -571,7 +570,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
          * 这里从源头给 `resolveHoverEffects` 一个 `hover: null`，让三样效果一起
          * 归零 —— 不管冒泡把状态写成什么，画出来的都是 `NO_HOVER_EFFECTS`。
          *
-         * v0.11.2：同一个口子也用来挡「空手悬停」，见上面 `hoverEnabled`。
+         * 同一个口子也用来挡「空手悬停」，见上面 `hoverEnabled`。
          */
         hover: hoverEnabled ? hover : null,
         blockingCells,
@@ -624,18 +623,18 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   }, []);
 
   /**
-   * v0.9.5：这一局的水合跑完了吗 —— 计时落盘的那条 effect 靠它挡住「读之前先写」
-   * （见 `useGameTimer` 里那条落盘 effect 的注释 —— 那是 v0.7.11 续计时在真浏览器里失效的根因）。
+   * 这一局的水合跑完了吗 —— 计时落盘的那条 effect 靠它挡住「读之前先写」
+   * （见 `useGameTimer` 里那条落盘 effect 的注释）。
    */
   const [hydrated, setHydrated] = useState(false);
 
   /**
-   * v0.9.6：定案遮罩停完之后弹结算卡的那个定时器。它必须能被打断 ——
+   * 定案遮罩停完之后弹结算卡的那个定时器。它必须能被打断 ——
    * 玩家在 1 秒内点「再玩一次」或离开时，晚到的弹窗会盖在一个已经重置的棋盘上。
    */
   const verdictTimerRef = useRef<number | null>(null);
   /**
-   * v0.9.6：这一版结案遮罩是「刚通过」还是「已完成再进入」。
+   * 这一版结案遮罩是「刚通过」还是「已完成再进入」。
    *
    * 只用来决定**印章动效**：刚通过时演一次「印下去」，再进入是既成事实不演。
    * 其余表现（定案 + 印 + 再玩一次）两版一样。
@@ -643,9 +642,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const revisitedRef = useRef(false);
 
   /**
-   * v0.10.4：秒表交给 `useGameTimer`。
+   * 秒表交给 `useGameTimer`。
    *
-   * `active` 就是原来那道闸：水合跑完、且网格已经读到，才允许落盘。
+   * `active` 是落盘的那道闸：水合跑完、且网格已经读到，才允许落盘。
    */
   const { elapsedMs, pauseTimer, resumeTimer, resetTimer, hydrateTimer } = useGameTimer({
     storageId,
@@ -654,7 +653,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   });
 
   /**
-   * v0.9.6：定案遮罩那颗「停一秒再弹窗」的定时器要撤 —— 否则离开页面后它还会
+   * 定案遮罩那颗「停一秒再弹窗」的定时器要撤 —— 否则离开页面后它还会
    * 对着一个已经卸载的组件 setState。动效那一批定时器由 `usePlacementFx` 自己收。
    */
   useEffect(
@@ -668,7 +667,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   );
 
   /**
-   * v0.9.7：结案那一刻把残留的悬停 / 激活 / 放置态收干净。
+   * 结案那一刻把残留的悬停 / 激活 / 放置态收干净。
    *
    * 玩家可能是「鼠标正停在某格上」时通过的；指针被 `pointer-events-none` 挡住
    * 之后，那个格子的操作光标框 / 名册高亮不会自己收到 `pointerleave`，会一直
@@ -690,13 +689,13 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * `hydratedKeyRef` 记住已经水合过哪一局 —— StrictMode 的双调用和后续重渲染
    * 都不会把玩家刚摆的东西盖回存档里的那一版。
    *
-   * v0.7.11：计时也在这里接上（同一条指纹），并且**不再提示**「已恢复上次的
+   * 计时也在这里接上（同一条指纹），并且**不提示**「已恢复上次的
    * 摆放」—— 棋盘回来了是默认行为，不是一条需要读的新闻。
    */
   const hydratedKeyRef = useRef<string | null>(null);
   useEffect(() => {
     /**
-     * v0.9.5：**先关闸，再决定要不要开**。
+     * **先关闸，再决定要不要开**。
      *
      * 换关时这一页不重建：`slug` 变了、新一关的数据还没到，`draft` 是空。这个
      * 瞬间必须让计时落盘停下来 —— 否则旧闭包会拿着上一关的累计毫秒去写新一关
@@ -718,7 +717,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     setLabelRegionId(null);
     setMode({ kind: 'idle' });
     setResult(null);
-    // v0.10.2：换一关 / 重新读档时，上一版「卡关过了」的记号不该跟着走。
+    // 换一关 / 重新读档时，上一版「卡关过了」的记号不该跟着走。
     setVerdictDismissed(false);
     if (!firstLoad) return;
 
@@ -732,7 +731,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
 
     const savedElapsed = storageId ? readGameTimer(storageId, progressMeta) : 0;
     /**
-     * v0.9.6：**已完成再进入 → 定格 00:00**。
+     * **已完成再进入 → 定格 00:00**。
      *
      * 用户给的规则：「已完成再次进入，定格 00:00，点再玩一次时再开始计时」。
      * 所以这一局不是「接着上次走」，而是「已经结案了，等你想重玩」。表停着、
@@ -747,7 +746,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     hydrateTimer(startFrom, !alreadyDone);
     setFinished(alreadyDone);
     /**
-     * v0.9.5：读完了才允许落盘。这一行必须排在 `readGameProgress` /
+     * 读完了才允许落盘。这一行必须排在 `readGameProgress` /
      * `readGameTimer` 之后 —— 它一置真，计时那条 effect 立即开始每 5 秒写一次。
      */
     setHydrated(true);
@@ -775,7 +774,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
       : slots[activation.activeParticipantId] ?? null;
 
   /**
-   * v0.7.12：提交的前置条件 —— 名单上每位都**已经有头像**。
+   * 提交的前置条件 —— 名单上每位都**已经有头像**。
    *
    * 没放完就允许提交，只能得到一份「谁还没放」的清单，而这份清单在棋盘上本来
    * 就看得见（名册里淡掉的是已放的，亮着的就是还没放的）。禁掉这个按钮，把
@@ -789,7 +788,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   );
 
   /**
-   * v0.9.6：**这一关已经结案** —— 右侧四枚动作按钮全部置灰。
+   * **这一关已经结案** —— 右侧四枚动作按钮全部置灰。
    *
    * 用户：「校验通过后，右侧按钮都置灰不能用」。理由也成立：棋盘已经定格在
    * 结案那一帧，再让玩家摆一颗头像、退一步、提交一次，改的是一局已经结束的
@@ -831,7 +830,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   }, [highlight]);
 
   const handleActivation = (event: LinkageActivationEvent): void => {
-    /* v0.9.7：结案后名册不再联动高亮（冒泡可能绕过 pointer-events-none）。 */
+    /* 结案后名册不联动高亮（冒泡可能绕过 pointer-events-none）。 */
     if (interactionLocked) return;
     setActivation((state) => reduceLinkageActivation(state, event));
   };
@@ -857,14 +856,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   };
 
   /**
-   * v0.10.4：名册卡片移开。
+   * 名册卡片移开。
    *
    * SPEC-G03+ BUG-G02：放置态下移开**任意卡片**都恢复已武装参与者的激活。必须走
    * 幂等的 `restore` —— 用 `click` 时，离开的恰是武装者自己的卡片就等同于
    * 「再点一次」，激活会被 toggle 关掉。
    *
-   * 这段判断原先写在名册的 `onDeactivateHover` 里；名册搬进 `GamePlayerAside`
-   * 之后，它是**这一页的模式**（`mode` / `activation`）在读，所以跟着留下。
+   * 这段判断由**这一页的模式**（`mode` / `activation`）决定，所以留在页面里，
+   * 不跟着名册搬进 `GamePlayerAside`。
    */
   const handleCardHoverLeave = (index: number): void => {
     if (mode.kind === 'placing') {
@@ -892,7 +891,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   };
 
   /**
-   * v0.10.4：棋盘手势（一格一落 / 长按放头像 / 清除按钮的单击与长按）交给
+   * 棋盘手势（一格一落 / 长按放头像 / 清除按钮的单击与长按）交给
    * `useBoardGestures`。指针事件仍在下面那份 JSX 里 —— 它读的是鼠标 / 手指，
    * 属于渲染层；「这一手怎么落到棋盘上」才是这个 hook 的事。
    */
@@ -930,23 +929,22 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   );
 
   /**
-   * v0.7.11：提交 = **结算**，不是打勾。
+   * 提交 = **结算**，不是打勾。
    *
    * - 停表：点下提交这一刻的用时就是这一局的成绩（读弹窗的时间不算）；
    * - 通过 → 定案（结束语 + 再玩一次）；
    * - 未通过 → v0.9.4 给「x/n 正确。未能结案」，不列名单，给
    *   「继续游戏 / 重新开始」。继续游戏会重新走表 —— 玩家要接着想。
    *
-   * 提交状态不再落盘、按钮也不再变成勾：那是上一版把「核对过」当成进度的做法，
-   * 而进度本来就是棋盘本身。
+   * 提交状态不落盘、按钮也不变成勾：进度本来就是棋盘本身。
    *
    * v0.9.3 §2：结论不再立刻弹 —— 先按序号把参与者**逐个圈一遍**，圈完再结算。
    * 判卷结果照旧一次算完（`validatePlacement`），只是分了先后呈现：玩家得看得见
    * 「哪一位被圈成了什么颜色」，否则那几句「位置不对」仍然要自己回去找。
    */
   const submit = (): void => {
-    // v0.7.12：按钮已经禁用，这里再做一次守卫 —— 快捷键 / 测试 / 旧闭包都可能绕过。
-    // v0.9.3：校验进行中再按也不算 —— 那会让棋盘被圈第二遍。
+    // 按钮已经禁用，这里再做一次守卫 —— 快捷键 / 测试 / 旧闭包都可能绕过。
+    // 校验进行中再按也不算 —— 那会让棋盘被圈第二遍。
     if (!readyToSubmit || checkRun) return;
     const elapsed = pauseTimer();
     const board = placementRef.current.board;
@@ -954,7 +952,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
 
     const items = buildCheckItems(board, slots, validation.issues);
     /**
-     * v0.9.4 追加：失败卡里的 `x/n 正确`。
+     * 失败卡里的 `x/n 正确`。
      *
      * `x` 就是这一轮会被圈成**绿色**的人数（`buildCheckItems` 用同一份 issues
      * 判 passed），`n` 是名单里真正要找的人数；没落头像的人必然带 `unplaced`
@@ -966,7 +964,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     checkRunIdRef.current += 1;
     setCheckRun({ items, revealed: 0, runId: checkRunIdRef.current });
     /**
-     * v0.9.5：通过 = **结案**，要落一条记录（用时 + 完成时刻 + 那枚印），列表页
+     * 通过 = **结案**，要落一条记录（用时 + 完成时刻 + 那枚印），列表页
      * 据此盖印并写出完成用时。
      *
      * 写在这里而不是等结算卡出现：读者是「玩家按下了提交、答对了」这一刻，与
@@ -1001,7 +999,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
    * 每 `GAME_CHECK_STEP_MS` 揭一位：先把这一位的圈画上，再等下一拍。最后一位
    * 揭完之后再等一拍才落结论 —— 让最末那一圈也扫满，不然它会在半路上被弹窗盖住。
    *
-   * v0.9.6：**通过**的那一路不直接弹窗 —— 先把地图方格蒙住、盖上「定案 + 印章」
+   * **通过**的那一路不直接弹窗 —— 先把地图方格蒙住、盖上「定案 + 印章」
    * （印章带动效），停 `GAME_VERDICT_HOLD_MS` 让印落定，再弹结算卡。
    * 未通过照旧立刻弹（`x/n 正确` 那张卡没有仪式，玩家要接着改）。
    */
@@ -1033,12 +1031,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   }, [checkRun]);
 
   /**
-   * v0.7.11：重新开始 / 再玩一次 —— 棋盘、历史、计时一起归零。
+   * 重新开始 / 再玩一次 —— 棋盘、历史、计时一起归零。
    *
    * 「清空历史记录」是字面意义上的：`past` / `future` 都丢掉，所以重开这一局
    * 之后撤销不会把上一局的摆放捞回来。
    *
-   * v0.9.6：它同时是「从结案状态回到奔跑状态」的唯一出口 —— 已完成那一版遮罩上
+   * 它同时是「从结案状态回到奔跑状态」的唯一出口 —— 已完成那一版遮罩上
    * 的「再玩一次」也走这里（见 `replay`）。
    */
   const restart = useCallback((): void => {
@@ -1056,7 +1054,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   }, [saveProgress, resetTimer, resetBoardFx]);
 
   /**
-   * v0.9.6：已完成那一版遮罩上的「再玩一次」。
+   * 已完成那一版遮罩上的「再玩一次」。
    *
    * 与 `restart` 的差别只有一处：**先撤掉定案遮罩再重置**。清盘之后再撤遮罩会让
    * 玩家看见一帧空棋盘顶着「定案」，像结算卡还没收干净。
@@ -1064,7 +1062,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const replay = (): void => {
     setFinished(false);
     /*
-     * v0.10.2：这一局从头来过，遮罩上那颗按钮收回去 —— 下次再通过时它要等到
+     * 这一局从头来过，遮罩上那颗按钮收回去 —— 下次再通过时它要等到
      * 结算卡关上之后才重新出现（见 `verdictDismissed`）。
      */
     setVerdictDismissed(false);
@@ -1074,7 +1072,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   };
 
   /**
-   * v0.7.12：关上未通过的弹窗 = 继续这一局，秒表也要接着走。
+   * 关上未通过的弹窗 = 继续这一局，秒表也要接着走。
    *
    * 之前只有「继续游戏」按钮会重启计时；点右上角的 × 或按 Esc 关掉，秒表就
    * 停在那里 —— 同一个动作两条路径，其中一条把玩家的成绩冻住了。通过的弹窗
@@ -1083,7 +1081,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const closeResult = (): void => {
     if (result?.kind === 'failed') resumeTimer();
     /*
-     * v0.10.2：通过那一局关上卡 = 这一屏只剩定案与印，此时才让「再玩一次」
+     * 通过那一局关上卡 = 这一屏只剩定案与印，此时才让「再玩一次」
      * 出场（见 `verdictDismissed`）。未通过那一路遮罩上从来就没有这颗按钮。
      */
     if (result?.kind === 'passed') setVerdictDismissed(true);
@@ -1118,12 +1116,11 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   const game = gameQuery.data;
 
   /**
-   * v0.10.4：页面与三个面板之间的接口，都是从上面那些状态算一次的投影。
+   * 页面与三个面板之间的接口，都是从上面那些状态算一次的投影。
    *
    * 为什么宁可多两个短名：面板不该知道「校验进行中」与「结算卡开着」是两件事
-   * （`checking` 要求 `!result`），也不该知道「结案就等于工具都锁了」—— 这两条
-   * 判据在 v0.9.6 / v0.9.7 各改过一次。让它们只在这里出现一次，改的时候只有
-   * 一处要读，面板那边不必跟着再判一遍。
+   * （`checking` 要求 `!result`），也不该知道「结案就等于工具都锁了」。让这两条
+   * 判据只在这里出现一次，改的时候只有一处要读，面板那边不必跟着再判一遍。
    */
   const checking = checkRun !== null && !result && !finished;
   const canUndoNow = canUndo(placementState);
@@ -1132,9 +1129,8 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     <div className="flex h-dvh flex-col overflow-hidden">
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
         {/*
-          v0.10.4：左列（品牌 / 游戏名 / 计时 / 题面 / 名册）整块交给
-          `GamePlayerAside`。版式与 v0.10.1 完全一致 —— 连注释一起搬过去，
-          改版时只读那一个文件。
+          左列（品牌 / 游戏名 / 计时 / 题面 / 名册）整块交给 `GamePlayerAside`，
+          版式与注释都在那个文件里，改版时只读那一处。
         */}
         <GamePlayerAside
           rosterWidth={rosterWidth}
@@ -1167,29 +1163,29 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
           ref={containerRef}
           className={cn(
             'relative min-h-0 flex-1 select-none overflow-hidden bg-muted/30',
-            /* v0.10.1 竖屏：左栏 `display: contents` 后，头 / 棋盘 / 面板 / 工具栏
+            /* 竖屏：左栏 `display: contents` 后，头 / 棋盘 / 面板 / 工具栏
                成了同一个 flex 列里的四个兄弟，靠 `order` 排：头 1、棋盘 2（就是
                这里）、题面名册 3、工具栏 4。桌面端 `order` 不参与，三栏照旧。 */
             'max-md:order-2',
-            /* v0.10.1 竖屏：棋盘的高度已经由「格数 × 格子」定死了，不再 `flex-1`
+            /* 竖屏：棋盘的高度已经由「格数 × 格子」定死了，不再 `flex-1`
                吃掉剩下的全部高度 —— 剩下的要留给下面的线索与名册。 */
             portraitFit && 'max-md:flex-none',
             // v0.9.3 §2：核对期间棋盘只读 —— 圈到一半还能落子就说不清在核对什么。
             checkRun && 'pointer-events-none',
-            // v0.9.7：结案后地图 / 物品 / 格子的指针交互全停（遮罩接管这一屏）。
+            // 结案后地图 / 物品 / 格子的指针交互全停（遮罩接管这一屏）。
             interactionLocked && 'pointer-events-none',
           )}
           style={{
-            // v0.6.2：按住空格 / 中键时是抓手，格内放东西是 pointer，其余普通光标。
+            // 按住空格 / 中键时是抓手，格内放东西是 pointer，其余普通光标。
             cursor: spaceHeld ? 'grab' : hoverEffects.cell ? 'pointer' : 'default',
             touchAction: 'none',
-            /* v0.10.1 竖屏：高度正好是棋盘 + 上下各 `PORTRAIT_MARGIN_Y`。
+            /* 竖屏：高度正好是棋盘 + 上下各 `PORTRAIT_MARGIN_Y`。
                桌面端不给这个值，仍旧由 flex 分配。 */
             height: stageHeight,
           }}
           onPointerDown={(event) => {
             /*
-             * v0.9.7：结案后所有指针动作从入口短路。CSS `pointer-events-none`
+             * 结案后所有指针动作从入口短路。CSS `pointer-events-none`
              * 挡的是 hit-testing，遮罩 `pointer-events-auto` 接住的事件仍会冒泡
              * 到这里；不守住这一层，格子还是会被落笔。
              */
@@ -1217,7 +1213,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             const cell = pressed;
             if (!cell) return;
             /**
-             * v0.7.11：按住滑动连续操作。按下这一刻**不落任何东西** ——
+             * 按住滑动连续操作。按下这一刻**不落任何东西** ——
              * 放置态下它还可能是长按（放头像）的起点，先落编号会让同一手势
              * 先闪一个编号再变成头像。真正落笔发生在指针进入第二个格子时。
              */
@@ -1329,14 +1325,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             dispatchCell(cell.x, cell.y, 'number');
           }}
         >
-          {/* v0.9.4：中列整层遮罩 —— 铺满地图区，压住标尺条带与画布四周留白；
+          {/* 中列整层遮罩 —— 铺满地图区，压住标尺条带与画布四周留白；
             它低于画布纸（纸在校验时抬到 saveMask+1），所以棋盘照常明亮。
             只在校验进行中、结算弹窗未出时存在，与左右两栏同色同档。 */}
           {checking ? (
             <CheckScrim
               area="center"
               /*
-               * v0.10.5 竖屏：整屏那层遮罩已经把留白一起压暗了，这里再留一层会同档
+               * 竖屏：整屏那层遮罩已经把留白一起压暗了，这里再留一层会同档
                * 同色叠成两层黑。`portrait:max-md:hidden` 与 `isPortraitViewport` 同口径
                * （宽 < 768 且竖着拿），横屏手机 / 桌面照旧保留这一层。
                */
@@ -1349,7 +1345,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             data-testid="game-canvas"
             className="absolute left-0 top-0"
             style={{
-              // v0.9.4：校验期间把这张纸抬到遮罩之上（saveMask+1），于是中列那层
+              // 校验期间把这张纸抬到遮罩之上（saveMask+1），于是中列那层
               // 铺满地图区的遮罩只压暗标尺与留白、压不到棋盘；正常游戏时这层不挂，
               // 不影响标尺压在纸边之上的默认层级。
               zIndex: checking ? UI_Z.saveMask + 1 : undefined,
@@ -1362,7 +1358,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             {/*
               v0.8.7 §6：这张纸的投影 —— 外框色压一层透明度，向右下偏 6px 的硬影。
 
-              v0.10.1 竖屏：**不画投影**。棋盘这时是按屏宽铺满的，纸比视口宽不了
+              竖屏：**不画投影**。棋盘这时是按屏宽铺满的，纸比视口宽不了
               多少，右下那圈硬影只会从格子缝里露出来当脏边；桌面那套投影说的是
               「一张纸摆在桌上」，铺满屏的纸本来就没有「桌」。
             */}
@@ -1376,7 +1372,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
               }}
             >
               {/*
-                * v0.9.4：地图区的完整遮罩**就在画布底色层里**。
+                * 地图区的完整遮罩**就在画布底色层里**。
                 *
                 * 父层 z-index = canvasBase(10)，其余内容层最小是 backgroundLayer(20)，
                 * 所以这一层只压暗「纸的底色」；铺了背景图 / 物品 / 头像 / 校验圈的
@@ -1388,9 +1384,9 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
             </div>
 
             {/*
-              v0.10.4：定案遮罩单独一份（`GameVerdictScrim`），图层栈交给
+              定案遮罩单独一份（`GameVerdictScrim`），图层栈交给
               `GameBoardLayers`。这一屏剩下的只有「纸 / 遮罩 / 图层栈」三层关系，
-              以及标尺 —— 顺序仍与 v0.9.6 一致。
+              以及标尺。
             */}
             {finished ? (
               <GameVerdictScrim
@@ -1458,7 +1454,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         </main>
 
         {/*
-          v0.10.4：右列（四枚动作按钮 + 视图簇）交给 `GameToolRail`。
+          右列（四枚动作按钮 + 视图簇）交给 `GameToolRail`。
           它没有自有状态 —— 按下的时长、缩放的比例、按钮能不能点，全在这里算好。
         */}
         <GameToolRail
@@ -1485,12 +1481,12 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
       </div>
 
       {/*
-        v0.10.5 竖屏：校验期间一层整屏遮罩，盖住头部 / 题面 / 名册 / 工具栏。
-        左栏在竖屏是 `display: contents`（没有盒子），原来那层 `absolute` 的
-        left 遮罩显式 `max-md:hidden`，竖屏彻底没遮罩；而题面名册那一块又是
+        竖屏：校验期间一层整屏遮罩，盖住头部 / 题面 / 名册 / 工具栏。
+        左栏在竖屏是 `display: contents`（没有盒子），`absolute` 的 left 遮罩
+        显式 `max-md:hidden`，竖屏没有遮罩；而题面名册那一块又是
         `overflow-y-auto` 的滚动容器，`absolute inset-0` 的子层会随内容滚走。
-        用 `fixed inset-0` 相对视口、挂在最外层（不进任何滚动容器）一次盖全，
-        两层同档的 center / right 遮罩则用 `portrait:max-md:hidden` 撤掉，避免叠黑。
+        所以用 `fixed inset-0` 相对视口、挂在最外层（不进任何滚动容器）一次盖全，
+        同档的 center / right 两层遮罩用 `portrait:max-md:hidden` 撤掉，避免叠黑。
 
         `zIndex = saveMask(40)`：画布纸在校验时抬到 `saveMask+1(41)`，所以棋盘
         照常明亮，压暗的只有纸以外的部分。`pointer-events-auto` 接住点击，
@@ -1504,14 +1500,14 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
         />
       ) : null}
 
-      {/* v0.10.4：两个弹框各一份，触发条件仍在上面那些状态里。 */}
+      {/* 两个弹框各一份，触发条件仍在上面那些状态里。 */}
       <GameDescriptionDialog
         open={descriptionOpen}
         onOpenChange={setDescriptionOpen}
         description={puzzleDescription}
       />
 
-      {/* v0.11.7：玩法说明（自动弹的那一次与问号按钮共用这一个）。 */}
+      {/* 玩法说明（自动弹的那一次与问号按钮共用这一个）。 */}
       <GameHelpDialog
         open={helpOpen}
         onOpenChange={setHelpOpen}

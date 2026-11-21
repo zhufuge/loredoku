@@ -3,12 +3,11 @@ import { MAP_JSON_VERSION } from '../constants'
 import { draftAnchorItemSchema, draftAssetRefSchema } from './mapDraft'
 
 /**
- * v0.7.6：`asset_forms` 改名 `asset_variants`，画布锚点的键也跟着从 `formId`
- * 变成 `variantId`（docs/v0.7.6.md §10）。
+ * 画布锚点的键是 `variantId`（docs/v0.7.6.md §10）。
  *
  * 库里的草稿由迁移 `20260101000035` 改写；这里盯的是**读取路径**：v0.7.6 之前
- * 导出的 JSON 文件仍然带着旧键，必须被认出来并归一化，而不是悄悄丢掉——那样
- * 多形态资源会退化成第一个长相。
+ * 导出的 JSON 文件仍然带着旧键 `formId`，必须被认出来并归一化，而不是悄悄丢掉
+ * ——那样多形态资源会退化成第一个长相。
  */
 describe('锚点旧键 formId → variantId', () => {
   it('旧键被认出来并改写', () => {

@@ -31,9 +31,9 @@ function uniqueSlug(prefix = 'game'): string {
 }
 
 /**
- * v0.5.0 FEAT-K14: the map draft is pure canvas — the roster and the palette
- * moved to the puzzle, so `characterSlots` is gone and `version` is the v3
- * stamp (`MAP_JSON_VERSION`).
+ * The map draft is pure canvas — the roster and the palette live on the
+ * puzzle, so `characterSlots` is gone and `version` is the v3 stamp
+ * (`MAP_JSON_VERSION`).
  */
 function emptyDraft(gridSize: number): MapDraft {
   return {
@@ -45,7 +45,7 @@ function emptyDraft(gridSize: number): MapDraft {
 }
 
 /**
- * v0.5.8: 创建地图不再带画布尺寸（`maps.grid_size` 已删）。测试里的
+ * 创建地图不带画布尺寸（`maps.grid_size` 已不存在）。测试里的
  * `createMap({ name, gridSize: n })` 语义不变 —— helper 把 gridSize 转成
  * 建后的一次初始化调用，这样所有既有用例一行不用改。
  */
@@ -56,8 +56,8 @@ async function initMap(mapId: number, gridSize: number): Promise<void> {
 }
 
 /**
- * v0.5.8 第八阶段：保存画布不再需要先读 revision —— 乐观锁取消，服务端后写
- * 覆盖。这个 helper 只负责「写一次并且必须成功」。
+ * 保存画布不需要先读 revision，服务端直接后写覆盖。这个 helper 只负责
+ * 「写一次并且必须成功」。
  */
 /** supertest 的 Response（不是 DOM 那个）—— 用推断类型，避免撞名。 */
 type ApiResponse = Awaited<ReturnType<typeof api.get>>;
@@ -120,15 +120,15 @@ async function createCharacterWithAvatar(body: Record<string, unknown> = {}): Pr
 
 /** Publishes the map's working draft and returns the freshly minted version. */
 async function publish(mapId: number): Promise<number> {
-  // v0.5.8: 发布弹窗去掉备注，请求体为空对象。
+  // 发布请求体为空对象。
   const res = await api.post(`/api/maps/${mapId}/versions`).send({});
   expect(res.status).toBe(200);
   return res.body.data.versionNo as number;
 }
 
 /**
- * v0.5.8 第三阶段：发布 = INSERT 一条 `maps` 行，所以版本行的 id 也要单独记账
- * —— 这些用例会软删 / 硬删工作条目，`root_id` 扫不到它们。
+ * 发布 = INSERT 一条 `maps` 行，所以版本行的 id 也要单独记账 —— 这些用例会软删 /
+ * 硬删工作条目，`root_id` 扫不到它们。
  */
 const createdVersionRows: number[] = [];
 
@@ -371,7 +371,7 @@ describe('maps API', () => {
       }>
     ).find((entry) => entry.mapName === name && entry.versionNo === versionNo);
     expect(row?.mapName).toBe(name);
-    // v0.5.8: `grid_size` 列删了，这里是从快照自身派生的同一个值。
+    // 从快照自身派生 —— 表里没有 `grid_size` 列。
     expect(row?.gridSize).toBe(6);
     expect(typeof row?.rootId).toBe('number');
   });
@@ -469,8 +469,8 @@ describe('assets API', () => {
     // The trigger array — and the free-form meta blob — are gone.
     expect(res.body.data).not.toHaveProperty('triggers');
     expect(res.body.data).not.toHaveProperty('meta');
-    // v0.6.1: the look moved to the initial variant; v0.7.6: the footprint left
-    // the variant entirely (every placement is one cell now).
+    // The look lives on the initial variant; the variant carries no footprint
+    // (every placement is one cell).
     expect(res.body.data).not.toHaveProperty('widthCells');
     expect(res.body.data.variants).toHaveLength(1);
     expect(res.body.data.variants[0]).toMatchObject({ name: '默认' });
@@ -536,7 +536,7 @@ describe('assets API', () => {
   });
 
   /**
-   * v0.10.9 的背景修饰层：占用检查（资源与形态两处）同样要扫 `cell.decoration`，
+   * 背景修饰层：占用检查（资源与形态两处）同样要扫 `cell.decoration`，
    * 否则一张只放了地毯的画布报「0 处使用」，作者就敢把地毯删了。
    */
   it('v0.10.9: a decoration-layer placement counts as usage (asset and variant)', async () => {
@@ -721,7 +721,7 @@ describe('map draft API', () => {
 
     const list = await api.get(`/api/maps/${mapId}/regions`);
     expect(list.body.data).toHaveLength(1);
-    // v0.7.0: the region's own style rides through the CRUD untouched.
+    // The region's own style rides through the CRUD untouched.
     expect(list.body.data[0].style).toEqual({ outline: { width: 8, color: '#3b82f6' } });
 
     const patched = await api
@@ -741,9 +741,9 @@ describe('map draft API', () => {
     expect(res.body.code).toBe(ErrorCode.NOT_FOUND);
   });
 
-  // v0.3.8 FEAT-D02: the map style block round-trips through the draft JSON.
-  // v0.5.0 FEAT-K14: it no longer carries `linkageColors` — the palette moved to
-  // the puzzle, and the strict schema rejects the old key outright.
+  // The map style block round-trips through the draft JSON. It carries no
+  // `linkageColors` — the palette lives on the puzzle, and the strict schema
+  // rejects the old key outright.
   it('persists and reloads the map style, and still accepts a style-less draft', async () => {
     const mapId = await createMap({ name: `Style ${uniqueCode('p')}`, gridSize: 6 });
 
@@ -832,8 +832,7 @@ describe('versions API', () => {
 
     const list = await api.get(`/api/maps/${mapId}/versions`);
     expect(list.body.data).toHaveLength(1);
-    // v0.5.8 第三阶段：版本行自己就是 maps 行，面板拿 mapId 拼 URL，所以
-    // 它等于版本行 id（合并前是「拥有它的工作条目 id」）。
+    // 版本行自己就是 maps 行，面板拿 mapId 拼 URL，所以它等于版本行 id。
     expect(list.body.data[0].mapId).toBe(published.body.data.id);
 
     const detail = await api.get(`/api/maps/${mapId}/versions/1`);
@@ -1245,7 +1244,7 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 
   /**
-   * v0.8.5 §7（docs/v0.8.5 §7.md §3）：编码在主题内不重，且写整条血统。
+   * v0.8.5 §7（docs/v0.8.5.md）：编码在主题内不重，且写整条血统。
    *
    * 「同血统共用」这一条是这次最容易写错的地方：版本行是快照，编码却不是版本的
    * 属性 —— 只写草稿行的话，部署那条版本时预填的还是旧编码。
@@ -1557,8 +1556,8 @@ describe('puzzles API (FEAT-K01)', () => {
     });
 
     /**
-     * v0.9.6：圈图不再是校验自己的那一份 —— 它并进了主题的 `ring`。
-     * 所以这里钉的是**两者互不干扰**：改颜色不碰 `ring`，换圆环也不碰颜色。
+     * 圈图并进主题的 `ring`，所以这里钉的是**两者互不干扰**：改颜色不碰 `ring`，
+     * 换圆环也不碰颜色。
      */
     it('换圆环不动两档颜色，改颜色也不碰圆环', async () => {
       const created = await theme();
@@ -1709,7 +1708,7 @@ describe('puzzles API (FEAT-K01)', () => {
   });
 });
 
-// ---- v0.4.0 FEAT-G02 + v0.5.0 CONS-K16: the unit of deployment is a puzzle ----
+// ---- FEAT-G02 + CONS-K16: the unit of deployment is a puzzle ----
 describe('games API (FEAT-G02 + CONS-K16)', () => {
   it('deploys a puzzle and lists it on the games home page', async () => {
     const { versionId } = await deployablePuzzle(`Game ${uniqueCode('p')}`);
@@ -1929,7 +1928,7 @@ describe('games API slug (OPT-W04)', () => {
       .send({ name: '被顶掉的那一个', slug, difficulty: 2 });
     expect(kept.status).toBe(200);
 
-    // v0.7.11：冲突除了说「被占用」，还要说清占位的是谁 —— 覆盖弹窗要问
+    // 冲突除了说「被占用」，还要说清占位的是谁 —— 覆盖弹窗要问
     // 「覆盖它吗」，光有一条路径回答不了这句话。
     const claimant = await deployablePuzzle(`Claimant ${token()}`);
     const clash = await api
@@ -2048,7 +2047,7 @@ describe('games API slug (OPT-W04)', () => {
 });
 
 /**
- * v0.8.3：展示顺序（`games.sort_weight`）。
+ * 展示顺序（`games.sort_weight`）。
  *
  * 三件事必须钉住：排序的两级（权重 → 路径）、重新部署**不**把顺序清掉、越界的
  * 数字被拒而不是静默改成 0。第三条最容易悄悄坏掉 —— 一个 `.default(0)` 就能让
@@ -2130,7 +2129,7 @@ describe('games API 展示顺序 (v0.8.3)', () => {
 });
 
 /**
- * v0.8.5：部署页的顺序列直接 `PATCH /api/games/:id`，不再绕去部署弹窗重发整份负载。
+ * 部署页的顺序列直接 `PATCH /api/games/:id`，不经部署弹窗重发整份负载。
  *
  * 这条端点只认 `sortWeight` 一个键 —— 重发整份负载会把名称 / 路径 / 难度一起写
  * 回去，而列表上的那些值可能已经比弹窗里的新。所以第一条用例顺手钉住「别的字段
@@ -2223,7 +2222,7 @@ describe('部署页就地改顺序 (v0.8.5)', () => {
 describe('难度分级由主题定义 (v0.8.3)', () => {
   const THEME_CODE = 'test-tiers';
 
-  // v0.8.3 §15：主题是硬删了，固定编码的夹具不再「留着复用」—— 跑完直接收掉。
+  // v0.8.3 §15：主题是硬删，固定编码的夹具跑完直接收掉。
   // 走 `purgeTheme` 而不是接口：这个主题里还有地图 / 谜题 / 角色，接口只会回 409。
   afterAll(async () => {
     const { purgeTheme } = await import('./purge');
@@ -2809,9 +2808,8 @@ describe('v0.5.8 第四阶段：草稿与版本两块各自分页', () => {
 /**
  * v0.8.3（docs/v0.8.3.md §15）：删主题 = **物理删除**，编码立刻回到可用状态。
  *
- * 以前是软删：行还在、`themes.code`（普通 UNIQUE）仍被占着，同编码重建只能撞唯一
- * 约束 —— 接口回的是 500「服务器内部错误」。四条用例各钉一件事：编码释放、数量
- * 护栏、软删子行（外键）不挡路。
+ * 行真的没了，同编码重建不会撞 `themes.code` 的唯一约束。四条用例各钉一件事：编码
+ * 释放、数量护栏、软删子行（外键）不挡路。
  */
 describe('删除主题是硬删 (v0.8.3 §15)', () => {
   /** 用例自己建的主题：跑完一律物理清掉（游戏 / 谜题的外键也由它一并处理）。 */
@@ -2920,8 +2918,8 @@ afterAll(async () => {
     await db('games').whereIn('puzzle_id', createdPuzzles).del();
     await db('puzzles').whereIn('id', createdPuzzles).del();
   }
-  // v0.5.8 第三阶段：先删这批用例自己记账的版本行（有些工作条目已被删，按
-  // root_id 扫不到），再按血统兜一遍，最后删草稿行。
+  // 先删这批用例自己记账的版本行（有些工作条目已被删，按 root_id 扫不到），再按
+  // 血统兜一遍，最后删草稿行。
   if (createdVersionRows.length) await db('maps').whereIn('id', createdVersionRows).del();
   if (createdMapEntries.length) {
     const roots = db('maps').whereIn('id', createdMapEntries).select('root_id');

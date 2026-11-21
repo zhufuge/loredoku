@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GameBrief } from './GameBrief';
 
 /**
- * v0.10.1：竖屏把描述挪进弹框之后，`GameBrief` 要能「只画线索」。
+ * 竖屏下描述挪进弹框，`GameBrief` 要能「只画线索」。
  *
  * 这里断言的是**画了什么**（描述那段文字在不在、线索在不在），不是类名或尺寸。
  */

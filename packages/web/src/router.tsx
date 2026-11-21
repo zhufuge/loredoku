@@ -7,15 +7,15 @@ import { readLastThemeCode, SETTINGS_THEMES_PATH } from '@/lib/workspace';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 /**
- * v0.8.1：编辑 / 预览这些整屏页搬进了 `/:themeCode` 前缀，但书签里的旧地址
- * （`/maps/12/edit`）没有主题段。先落到**记住的**工作空间，让链接至少还能用；
- * 记不住（换了浏览器、清了存储）就去挑主题的入口，地图 id 保不住 —— 宁可
- * 多一跳，也不编一个不存在的编码出来。
+ * 编辑 / 预览这些整屏页在 `/:themeCode` 前缀下，书签里的旧地址（`/maps/12/edit`）
+ * 没有主题段 —— 先落到**记住的**工作空间，让链接至少还能用；记不住（换了浏览器、
+ * 清了存储）就去挑主题的入口，地图 id 保不住 —— 宁可多一跳，也不编一个不存在的
+ * 编码出来。
  */
 /**
- * v0.9.2：合辑删掉之后，`/play/theme/:slug`（合辑页）与 `/play/theme/:slug/:key`
- * （合辑里的一关）都不存在了。这两条地址却可能是玩家收藏过的，直接删会让它们
- * 匹配到 `/play/:slug` 里、把 `theme` 当成一个游戏 —— 所以留两条重定向：
+ * `/play/theme/:slug`（合辑页）与 `/play/theme/:slug/:key`（合辑里的一关）这两条
+ * 地址可能是玩家收藏过的，直接删会让它们匹配到 `/play/:slug` 里、把 `theme` 当成
+ * 一个游戏 —— 所以留两条重定向：
  *
  * - 合辑页 → `/play`（单局列表里仍然有那几关）；
  * - 合辑里的一关 → `/play/:key`（**存档键一直是游戏 slug，进度不丢**）。
@@ -42,7 +42,7 @@ function FullscreenLegacyRedirect({
 }
 
 /**
- * v0.7.12：分包还没到位时的那一屏从「转圈 + 正在加载…」换成品牌字标。
+ * 分包还没到位时的那一屏是品牌字标。
  *
  * 这是全站**第一笔**会动的东西 —— 从工坊里点进任何一页，先看到的就是它。
  * 正因如此它不该是一个任何模板都有的圈。
@@ -131,7 +131,7 @@ const DeploymentsPage = lazyPage(() =>
 const ThemeOverviewPage = lazyPage(() =>
   import('@/pages/ThemeOverviewPage').then((m) => ({ default: m.ThemeOverviewPage })),
 );
-/** v0.8.0 v0.8.0 §18：系统配置 —— 主题列表搬到这里，它是「换工作空间」的唯一入口。 */
+/** v0.8.0 §18：系统配置 —— 主题列表在这里，它是「换工作空间」的唯一入口。 */
 const ThemesPage = lazyPage(() => import('@/pages/ThemesPage').then((m) => ({ default: m.ThemesPage })));
 
 /**
@@ -213,14 +213,14 @@ export const routes: RouteObject[] = [
   { path: '/play', element: <ThemeEntryRedirect module="play" /> },
   { path: '/play/:slug', element: <GamePage /> },
   /**
-   * v0.11.6：玩家侧也按主题分（与播放器的 `/:code/play` 同一副骨架）。
+   * 玩家侧也按主题分（与播放器的 `/:code/play` 同一副骨架）。
    *
    * 这两条必须排在 `/:themeCode` 那一组**之后**也没关系 —— react-router 按段的
    * 具体程度排序，`/:themeCode/play` 比 `/:themeCode/*` 更具体，不会掉进工作空间。
    */
   { path: '/:themeCode/play', element: <GamesPage /> },
   { path: '/:themeCode/play/:slug', element: <GamePage /> },
-  /** v0.9.2：合辑的两条旧地址改成重定向（见 `PlayThemeLegacyRedirect`）。 */
+  /** 合辑的两条旧地址走重定向（见 `PlayThemeLegacyRedirect`）。 */
   { path: '/play/theme/:themeSlug', element: <PlayThemeLegacyRedirect to="list" /> },
   { path: '/play/theme/:themeSlug/:slug', element: <PlayThemeLegacyRedirect to="game" /> },
 ];

@@ -26,9 +26,8 @@ interface ScopedEmptyProps {
  * 按钮带主题是这条规则的重点：把作者丢回「全部」去新建，他得再选一次主题，
  * 而 `theme_id` 建行之后不可改（§8 护栏 2）—— 选错了就只能重建。
  *
- * v0.8.0 §18：主题名不再自己查一遍（原来这里 `useThemes()`），由调用方从工作空间
- * 上下文里递进来 —— 一个主题在顶栏、页头、空态里各查一次，改名时就会有三份
- * 不同步的名字。
+ * v0.8.0 §18：主题名由调用方从工作空间上下文里递进来 —— 一个主题在顶栏、页头、
+ * 空态里各查一次，改名时就会有三份不同步的名字。
  */
 export function ScopedEmpty({ themeName, noun, action, onCreate }: ScopedEmptyProps): JSX.Element {
   return (

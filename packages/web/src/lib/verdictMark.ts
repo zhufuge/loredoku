@@ -1,7 +1,7 @@
 import { MAX_CELL_SIZE } from '@loredoku/shared';
 
 /**
- * v0.10.0：游戏内那块「定案」遮罩（`VerdictMark` 的 `large` 档）按棋盘大小等比缩。
+ * 游戏内那块「定案」遮罩（`VerdictMark` 的 `large` 档）按棋盘大小等比缩。
  *
  * 理由：那一档的版式是照**桌面**定的 —— 128px 的两个字 + 192px 的印，再往右上
  * 让开 150px。桌面上棋盘动辄 480 起，压得住；手机上 2×2 棋盘只有 236px 见方，
@@ -20,7 +20,7 @@ export const VERDICT_BASE_BOARD = MAX_CELL_SIZE * 2;
 export const VERDICT_MIN_SCALE = 0.5;
 
 /**
- * v0.10.2：`large` 档在 `scale === 1` 时**实际占的盒子**（含印章外挑与整体右移）。
+ * `large` 档在 `scale === 1` 时**实际占的盒子**（含印章外挑与整体右移）。
  *
  * 为什么要有这两个数：棋盘大小不总能代表屏幕上剩多少地方 —— 横屏手机棋盘按作者
  * 配的 `cellSize` 能到 900 多，而 `<main>` 只有一百来像素高；这时按棋盘算出来
@@ -46,7 +46,7 @@ export interface VerdictStageBox {
 }
 
 /**
- * v0.10.2：**卡片档**（`large === false`，`text-7xl` + `h-24` 的印）原样摆开时
+ * **卡片档**（`large === false`，72px 的字 + 96px 高的印）原样摆开时
  * 占的盒子。
  *
  * 为什么卡片也要按比例缩：卡片封面是 `aspect-square`，`/play` 四列时只有 136px
@@ -94,7 +94,7 @@ export function verdictMarkScale(boardSize: number, stage?: VerdictStageBox | nu
   const byBoard =
     Number.isFinite(boardSize) && boardSize > 0 ? boardSize / VERDICT_BASE_BOARD : 1;
   /*
-   * v0.10.2：再按可见区算一次。宽高都给不出有效值时（`fit` 还没跑、尺寸是 0）
+   * 再按可见区算一次。宽高都给不出有效值时（`fit` 还没跑、尺寸是 0）
    * 不参与，免得挂载瞬间闪一下小的。
    */
   const byStage =

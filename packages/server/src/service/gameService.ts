@@ -27,7 +27,7 @@ export interface DeployGameInput {
   slug?: string;
   /** OPT-W03 §3: 显式「移除已存封面」。 */
   clearCover?: boolean;
-  /** v0.7.11：路径被别的谜题版本占着时，覆盖它（把占位那条假删）。 */
+  /** 路径被别的谜题版本占着时，覆盖它（把占位那条假删）。 */
   overwriteSlug?: boolean;
   difficulty?: MapGameSummary['difficulty'];
   /** v0.8.3：展示顺序（升序）。缺省 = 沿用上一行，都没有就 0。 */
@@ -44,8 +44,8 @@ export interface DeployGameInput {
  * 再次部署**同一版本** = 覆盖那一行（`upsertGame` 的 delete-then-insert），
  * 不同版本各有一个游戏、各有一个访问路径，可以同时在线。
  *
- * v0.7.11：路径撞车从「直接 400」变成可覆盖 —— `overwriteSlug` 为真时把占位
- * 的那条部署假删（`deleted_at`），slug 随之释放，再落自己的行。
+ * 路径撞车可覆盖 —— `overwriteSlug` 为真时把占位的那条部署假删
+ * （`deleted_at`），slug 随之释放，再落自己的行。
  */
 export async function deployGame(puzzleId: number, input: DeployGameInput): Promise<MapGameSummary> {
   const body = parseOrThrow(gameDeploySchema, input);
@@ -96,7 +96,7 @@ export async function deployGame(puzzleId: number, input: DeployGameInput): Prom
  * 路径由前端按「前缀 + 中段」拼好再提交（§7.6.1；v0.8.1 起难度不进路径），
  * 这里只做最后一道格式与占用检查 —— 服务端不再二次加工。
  *
- * v0.7.11：撞车时返回 `replaceGameId`（要被覆盖的那条部署），而不是只抛错。
+ * 撞车时返回 `replaceGameId`（要被覆盖的那条部署），而不是只抛错。
  * 抛出来的错的 `details` 是一份 {@link GameSlugConflict} —— 前端的覆盖弹窗
  * 靠它说明「覆盖谁」，不靠正则去猜中文消息。
  */
@@ -113,7 +113,7 @@ async function resolveSlug(
   }
 
   /**
-   * v0.8.1：难度不进路径 —— 部署兜底也只从名称派生。
+   * 难度不进路径 —— 部署兜底也只从名称派生。
    * v0.8.5 §7.4：**先看谜题编码**。编码本来就是路径形状（`hlm-sishan`），拿它当兜底
    * 比拿名称靠谱 —— 中文名 slug 化之后什么都不剩，而那正是「作者得自己填」的
    * 老毛病。没有编码的存量谜题照旧退回名称。
@@ -150,7 +150,7 @@ async function resolveSlug(
 }
 
 /**
- * v0.8.6：难度档位必须是**这个谜题所属主题**里的一档。
+ * 难度档位必须是**这个谜题所属主题**里的一档。
  *
  * `gameDeploySchema` 只把守「1…99 的整数」，因为「这一档存不存在」的答案在
  * `themes.data.difficultyLevels` 里，而 schema 不认识数据库。这一层拿主题去核对。
@@ -213,7 +213,7 @@ export async function uploadGameCover(id: number, buffer: Buffer): Promise<MapGa
 }
 
 /**
- * v0.8.5：部署页就地改展示顺序（`PATCH /api/games/:id`）。
+ * 部署页就地改展示顺序（`PATCH /api/games/:id`）。
  *
  * 只认 `sortWeight` 一个键：这条端点是「排序」这一个动作，不是「编辑部署」。
  * 校验交给 shared 的 `gameWeightUpdateSchema`（区间 ±999、必须是整数），

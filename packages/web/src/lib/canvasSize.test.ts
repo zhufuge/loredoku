@@ -341,7 +341,6 @@ describe('竖屏四边留白与棋盘高度（v0.10.1，v0.11.2 起上下小于�
   });
 
   it('上下留白比左右还小，但仍留得下一条缝', () => {
-    // v0.11.2：上下从 8 再收到 4（用户要求「上下边距再减小一些」）。
     expect(PORTRAIT_MARGIN_Y).toBe(4);
     expect(PORTRAIT_MARGIN_Y).toBeLessThan(PORTRAIT_MARGIN_X);
     expect(PORTRAIT_MARGIN_Y).toBeGreaterThan(0);

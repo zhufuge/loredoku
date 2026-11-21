@@ -20,7 +20,7 @@ interface VersionHistoryDialogProps {
   currentVersionNo: number | null;
   /**
    * SPEC-K13 §7.4: a version row's 「查看效果」 opens this read-only preview.
-   * v0.7.1：预览路由只认 `:mapId`，所以这里把**版本行自己的 `id`** 一起交出去。
+   * 预览路由只认 `:mapId`，所以这里把**版本行自己的 `id`** 一起交出去。
    */
   onPreview: (version: MapVersionSummary) => void;
 }

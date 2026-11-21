@@ -108,7 +108,7 @@ export function ensureEntry(entry: CharacterSlotEntry | null): CharacterSlotEntr
 interface Snapshot {
   name: string;
   description: string;
-  /** v0.7.14：题面 —— 全局线索与结束语，和描述一样属于「谜题自己写的东西」。 */
+  /** 题面 —— 全局线索与结束语，和描述一样属于「谜题自己写的东西」。 */
   clues: string[];
   ending: string;
   linkageColors: MapLinkageColor[];
@@ -145,7 +145,7 @@ export interface PuzzleState {
    * 所以进入 store 的每一条都是「作者真写了东西」的。
    */
   clues: string[];
-  /** v0.7.14：结束语；空串 = 不显示。 */
+  /** 结束语；空串 = 不显示。 */
   ending: string;
   linkageColors: MapLinkageColor[];
   characterSlots: Array<CharacterSlotEntry | null>;
@@ -377,7 +377,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         mapContext,
         name: detail.data.name,
         description: detail.data.description ?? '',
-        // v0.7.14：旧行没有这两个键，读进来一律给「空」而不是 undefined ——
+        // 旧行没有这两个键，读进来一律给「空」而不是 undefined ——
         // 抽屉的草稿与 dirty 比较都假设它们是 string / string[]。
         clues: [...(detail.data.clues ?? [])],
         ending: detail.data.ending ?? '',
@@ -654,7 +654,7 @@ export const usePuzzleStore = create<PuzzleState>((set, get) => {
         },
         name: state.name,
         description: state.description,
-        // v0.7.14：两条都在草稿顶层 —— 与描述同层，因为玩家侧它们本来就被
+        // 两条都在草稿顶层 —— 与描述同层，因为玩家侧它们本来就被
         // 贴在同一张纸片上（§3）。
         clues: [...state.clues],
         ending: state.ending,

@@ -89,7 +89,7 @@ export async function validateDraft(draft: MapDraft): Promise<PublishViolation[]
     if (!cell) continue;
     if (cell.item) assetIds.add(cell.item.assetId);
     if (cell.background) assetIds.add(cell.background.assetId);
-    // v0.10.9 的背景修饰层：发布校验与导出体检（themeScope）同一把尺子。
+    // 背景修饰层：发布校验与导出体检（themeScope）同一把尺子。
     if (cell.decoration) assetIds.add(cell.decoration.assetId);
   }
   const meta = await assetRepo.assetMetaByIds([...assetIds]);

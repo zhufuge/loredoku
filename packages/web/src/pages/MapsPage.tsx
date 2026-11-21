@@ -332,8 +332,7 @@ export function MapsPage(): JSX.Element {
       />
 
       {/* v0.7.8 §10：工具条从属于列表，所以和列表一起构成「正文」这一块 ——
-          页头到正文 24px，工具条到列表 16px。原来三块间距一样（都是 20px），
-          层级读不出来。 */}
+          页头到正文 24px，工具条到列表 16px；三块间距一样的话层级读不出来。 */}
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
           <SearchInput

@@ -56,7 +56,7 @@ export function PlayerHomePage(): JSX.Element {
   const mismatched = manifest ? manifest.theme.code !== code : false;
 
   /**
-   * v0.9.5：每张卡的通过记录。存档键是 `bundle:<主题code>:<key>`（与游戏页
+   * 每张卡的通过记录。存档键是 `bundle:<主题code>:<key>`（与游戏页
    * `storageId` 同一条），所以**离线包的进度不会串到线上**，反之亦然。
    *
    * 指纹只有 `gridSize`：`manifest.games` 里正好有它，读一个坏记录的概率降到
@@ -73,7 +73,7 @@ export function PlayerHomePage(): JSX.Element {
     return map;
   }, [manifest, code]);
 
-  /** v0.9.6：最后离开时间（键同 storageId，走 undleStorageId）。 */
+  /** 最后离开时间（键同 storageId，走 undleStorageId）。 */
   const lastLeft = useMemo(() => {
     const map = new Map<string, { elapsedMs: number; at: string | null }>();
     for (const game of manifest?.games ?? []) {
@@ -86,14 +86,14 @@ export function PlayerHomePage(): JSX.Element {
   }, [manifest, code]);
 
   /**
-   * v0.11.6：两行字（「N 关可玩」/「已通过 N 关」）由主题配置，包导出时已经冻进
+   * 两行字（「N 关可玩」/「已通过 N 关」）由主题配置，包导出时已经冻进
    * `manifest.theme.gameList`；没配过就退回内置那两句。与工坊那边同一份解析，
    * 免得同一句话在两处长得不一样。
    */
   const texts = useMemo(() => resolveGameListTexts(manifest?.theme.gameList), [manifest]);
 
   /**
-   * v0.11.6：难度过滤。默认「全部」—— 玩家第一次进来该看到所有关，而不是被
+   * 难度过滤。默认「全部」—— 玩家第一次进来该看到所有关，而不是被
    * 按在一个档位上。「已通过 N 关」跟着**全部**走：切档不该让这个数字变小。
    */
   const [difficulty, setDifficulty] = useState<number | null>(null);
@@ -103,22 +103,22 @@ export function PlayerHomePage(): JSX.Element {
   );
 
   /**
-   * v0.11.2：与工坊那边的列表页同一条 —— 封面都预加载完才把骨架屏换成卡片。
-   * 播放器是玩家真正打开的那一页，这一帧尤其不该出现「卡片先出、封面后跳」。
+   * 与工坊那边的列表页同一条 —— 封面都预加载完才把加载件换成卡片。播放器是玩家
+   * 真正打开的那一页，这一帧尤其不该出现「卡片先出、封面后跳」。
    *
-   * v0.11.3：骨架屏换成整屏加载件。玩家从站外点进来，第一眼看到的是骨架屏还是
-   * 品牌字标，是两件不同的事 —— 骨架屏说的是「内容马上到」，而这里要等的是
+   * 加载件是整屏的品牌字标，不是骨架屏：玩家从站外点进来，第一眼看到的是骨架屏
+   * 还是字标，是两件不同的事 —— 骨架屏说的是「内容马上到」，而这里要等的是
    * 包 + 字体 + 六张封面，可能是几百 KB；先亮字标再看内容，中间不会有「半天没动静」
    * 的空白。`useImagePreload` 的契约不变（封面都到 / 出错都算完）。
    *
-   * v0.11.6：只等**当前这一档**的封面 —— 切档时不该为别的档的封面再挡一次屏。
+   * 只等**当前这一档**的封面 —— 切档时不该为别的档的封面再挡一次屏。
    */
   const fontsReady = useBundledFontsReady();
   const coversReady = useImagePreload(gameCoverUrls(visibleGames));
   const loading = isLoading || !fontsReady || (visibleGames.length > 0 && !coversReady);
 
   /**
-   * v0.11.3：loading 期间整页只有加载件 —— 页头也不先画。
+   * loading 期间整页只有加载件 —— 页头也不先画。
    *
    * 放在页头之前是刻意的：主题名本身是 `.font-kai`，先画出来再换字形就是这里要
    * 消灭的那一帧。等包、字体、封面都齐了，一次画成。
@@ -135,9 +135,9 @@ export function PlayerHomePage(): JSX.Element {
       <div className="mx-auto w-full max-w-6xl space-y-8 px-6 py-6">
         <div className="flex flex-col gap-2">
           {/*
-            v0.11.3：日夜切换跟着 LOGO 这一行走 —— 它管的是「这一页怎么显示」，
-            与主题标题不是一件事；原先它挂在整块页头的右端（`items-end`），
-            标题一长就会被挤到描述文字的旁边，看着像另一栏的东西。
+            日夜切换跟着 LOGO 这一行走 —— 它管的是「这一页怎么显示」，与主题标题
+            不是一件事；挂在整块页头的右端（`items-end`）的话，标题一长就会被挤到
+            描述文字的旁边，看着像另一栏的东西。
           */}
           <div className="flex items-center justify-between gap-4">
             <BrandLogo height={16} withWordmark />
@@ -164,7 +164,7 @@ export function PlayerHomePage(): JSX.Element {
           </div>
         </div>
 
-        {/* v0.11.6：难度过滤 —— 与工坊列表页同一个组件，档名就是这个主题自己的。 */}
+        {/* 难度过滤 —— 与工坊列表页同一个组件，档名就是这个主题自己的。 */}
         {isError || mismatched || games.length === 0 ? null : (
           <DifficultyFilter tiers={tiers ?? []} value={difficulty} onChange={setDifficulty} />
         )}
@@ -200,7 +200,7 @@ export function PlayerHomePage(): JSX.Element {
           </Card>
         ) : visibleGames.length === 0 ? (
           /*
-           * v0.11.6：这一档确实没有关卡。给回「全部」的出口 —— 否则玩家会以为
+           * 这一档确实没有关卡。给回「全部」的出口 —— 否则玩家会以为
            * 包坏了（列表刚才还在，点一下档位就空了）。
            */
           <Card className="flex flex-col items-center gap-3 p-12 text-center">

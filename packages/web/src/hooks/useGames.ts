@@ -65,7 +65,7 @@ function errorMessage(error: unknown, fallback: string): string {
  * v0.7.2 §4：`coverFromPuzzleUrl` = 作者没选文件、游戏也还没有封面，于是把
  * **谜题自己的封面**复制成游戏封面（读成 File 再走同一条上传端点）。
  *
- * v0.7.11：路径冲突不再只是一条 toast。传了 `onSlugConflict` 的调用方（部署
+ * 路径冲突可以在 toast 之外由调用方接管。传了 `onSlugConflict` 的调用方（部署
  * 弹窗）会收到一份结构化说明，由它弹出「覆盖 / 取消」；没传的调用方保持原样
  * —— 直接 toast 报错。冲突本身不会被这条 hook 吞掉，`isError` 仍然成立。
  */
@@ -135,7 +135,7 @@ export function useDeployGame(options: { onSlugConflict?: SlugConflictHandler } 
 }
 
 /**
- * v0.8.5：部署页把某一行的权重改掉。
+ * 部署页把某一行的权重改掉。
  *
  * 成功后只刷列表（服务端按 `sort_weight` 重新排过，本地不需要再排一次）—— 顺序
  * 是服务端的一件事实，前端照抄就好。失败照样 toast：这一格是**就地编辑**，没有

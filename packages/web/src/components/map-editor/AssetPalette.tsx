@@ -18,7 +18,7 @@ interface AssetPaletteProps {
   /** True while the asset query is fetching; spins the refresh icon. */
   refreshing?: boolean;
   /**
-   * v0.7.7: 搜索框右侧的刷新。**可选** —— 不传就不渲染按钮，调色板仍能单独用
+   * 搜索框右侧的刷新。**可选** —— 不传就不渲染按钮，调色板仍能单独用
    * （它不认识 react-query，取数方式由调用方决定）。
    */
   onRefresh?: () => void;
@@ -39,13 +39,13 @@ interface Tile {
  * may own several variants too, and the tile says which look you are about to
  * paint.
  *
- * v0.7.6: the second line lost its footprint (a variant does not declare one):
+ * The second line carries no footprint (a variant does not declare one):
  * several variants → the variant name, a single variant → 「1 格」.
  */
 function buildTiles(assets: Asset[], layer: EditorLayer): Tile[] {
   const tiles: Tile[] = [];
   /*
-   * v0.11.4：按资源名排序（中文按拼音首字母）。
+   * 按资源名排序（中文按拼音首字母）。
    *
    * 排的是**资源**、不是 tile —— 一个资源的几个形态必须挨在一起，否则
    * 「宝箱·关着」和「宝箱·打开」会被别的资源隔开，作者找形态时得来回扫。

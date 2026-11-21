@@ -321,7 +321,7 @@ export function useRingByCode(): (
 }
 
 /**
- * v0.10.8 —— 按主题编码查**标尺的行列符号**（默认 `C` / `R`，中文图可能是「列」「行」）。
+ * 按主题编码查**标尺的行列符号**（默认 `C` / `R`，中文图可能是「列」「行」）。
  *
  * 与标记 / 工具图标 / 那一圈同一份 `/themes`、同一个理由：游戏页、预览页、全屏编辑器
  * 都在 `WorkspaceLayout` 外面，`useWorkspace()` 是 `null`，只能按编码查表。
@@ -389,7 +389,7 @@ export function useCheckColorsByCode(): (
 }
 
 /**
- * v0.11.3 —— 按主题编码查**结算卡**的配置（图标 + 标题）。
+ * 按主题编码查**结算卡**的配置（图标 + 标题）。
  *
  * 与上面几个 `*ByCode` 同一个理由：游戏页在工作空间外面，只能按编码查表。
  * 整份 `verdict` 一起给 —— 图与文字是同一张卡的两半，分开取会让「刚换了图、
@@ -418,7 +418,7 @@ export function useVerdictByCode(): (
 }
 
 /**
- * v0.11.3：改结算卡的两句文字。与上传图标图分开 —— 换图不该顺手改标题。
+ * 改结算卡的两句文字，与上传图标图分开 —— 换图不该顺手改标题。
  */
 export function useUpdateThemeVerdict(code: string) {
   const queryClient = useQueryClient();
@@ -434,7 +434,7 @@ export function useUpdateThemeVerdict(code: string) {
 }
 
 /**
- * v0.11.3：结算卡那枚图标图，即时保存 —— 回执是更新后的整份主题。
+ * 结算卡那枚图标图，即时保存 —— 回执是更新后的整份主题。
  */
 export function useUploadThemeVerdictIcon(code: string) {
   const queryClient = useQueryClient();

@@ -76,11 +76,11 @@ export const createCharacterSchema = z.object({
   name: z.string().trim().min(1, '角色名称不能为空').max(CHARACTER_NAME_MAX_LENGTH),
   gender: characterGenderSchema,
   description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH).optional().nullable(),
-  /** v0.5.1 FEAT-L02: colour-block colour; `null` keeps the image mode. */
+  /** FEAT-L02: colour-block colour; `null` keeps the image mode. */
   bgColor: bgColorSchema,
-  /** v0.7.13: default 主题色 for the roster slot; white = 没有默认值。 */
+  /** default 主题色 for the roster slot; white = 没有默认值。 */
   color: characterColorSchema,
-  /** v0.7.13: default 编号 for the roster slot; `null` = no default. */
+  /** default 编号 for the roster slot; `null` = no default. */
   displayName: characterDisplayNameSchema,
   /**
    * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): enabled right away when the caller
@@ -94,11 +94,11 @@ export const updateCharacterSchema = z
     name: z.string().trim().min(1).max(CHARACTER_NAME_MAX_LENGTH).optional(),
     gender: z.enum(CHARACTER_GENDERS).optional(),
     description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH).optional().nullable(),
-    /** v0.5.1 FEAT-L02: pass `null` to drop back to the image mode. */
+    /** FEAT-L02: pass `null` to drop back to the image mode. */
     bgColor: bgColorSchema,
-    /** v0.7.13: `null` / 白色 drops the participant default back to white. */
+    /** `null` / 白色 drops the participant default back to white. */
     color: characterColorSchema,
-    /** v0.7.13: `null` / `''` drops the 编号 default back to the sequence number. */
+    /** `null` / `''` drops the 编号 default back to the sequence number. */
     displayName: characterDisplayNameSchema,
     isActive: z.boolean().optional(),
   })

@@ -51,7 +51,7 @@ import { cn } from '@/lib/utils';
  * - MOD-703: theme color background layer behind avatar
  * - MOD-705: removal confirmation handled by parent (via onClearRequest)
  * - MOD-706: title bar shares the item panel header height
- * - v0.3.10 FIX-F07: `readOnly` renders the **same** panel on the work preview
+ * - FIX-F07: `readOnly` renders the **same** panel on the work preview
  *   page — no drag, no remove button, pointer cursor — so the preview roster is
  *   pixel-identical to the editor's.
  * - v0.6.3 (docs/v0.6.3.md §3): the column count is the puzzle's, not the
@@ -73,7 +73,7 @@ interface ParticipantPanelProps {
   highlightedSlots?: Set<number>;
   highlightColors?: Map<number, string>;
   /**
-   * v0.3.10 FIX-F07: the work preview reuses this component. Read-only mode
+   * FIX-F07: the work preview reuses this component. Read-only mode
    * drops every editing affordance (drag, × button, grab cursor) and keeps the
    * layout, the metrics and the highlight frame identical.
    */
@@ -88,7 +88,7 @@ interface ParticipantPanelProps {
    */
   placedSlotIndices?: Set<number>;
   /**
-   * v0.7.11：游戏页不要「参与者 5/5」那行标题。
+   * 游戏页不要「参与者 5/5」那行标题。
    *
    * 那一行是编辑器的语法（这块面板是「参与者」这个资源本身，标题在说它有多少
    * 格）；玩家端的名册只是工具栏的一部分，上面已经有一行「游戏名 + 尺寸」。
@@ -96,8 +96,8 @@ interface ParticipantPanelProps {
    */
   hideHeader?: boolean;
   /**
-   * v0.10.1：竖屏窄屏下换一套卡片布局 —— 每行固定 2 张、卡片本身横过来
-   * （左头像，右上名称、右下线索）。
+   * 竖屏窄屏下一套卡片布局 —— 每行固定 2 张、卡片本身横过来（左头像，右上名称、
+   * 右下线索）。
    *
    * 名册这时不在左栏里，而是横躺在棋盘下面一整条，宽度是屏宽而不是 256 像素；
    * 竖着的 110×196 卡片在这条里既浪费宽度又占高度。**只有游戏页会传**
@@ -105,13 +105,12 @@ interface ParticipantPanelProps {
    */
   compactPortrait?: boolean;
   /**
-   * v0.7.13：标题行**左侧**可以挂一颗按钮。
+   * 标题行**左侧**可以挂一颗按钮。
    *
-   * 谜题编辑器把「角色」列整列收起（连 40px 细条也不留）之后，「展开角色列表」
-   * 就只剩这一个落点 —— 那一列原来自己带着的 40px 细条被整段删掉了，入口必须
-   * 挪到还站着的那一列上（参与者面板紧贴它原来的位置）。
+   * 谜题编辑器的「角色」列整列收起，连 40px 细条也不留，于是「展开角色列表」
+   * 只剩这一个落点 —— 入口必须挂在还站着的那一列上（参与者面板就挨着那一列）。
    *
-   * 只有谜题编辑器会传；地图编辑器与作品预览不传，那两处的标题行与以前逐像素一样。
+   * 只有谜题编辑器会传；地图编辑器与作品预览不传，那两处的标题行没有这颗按钮。
    */
   headerLeading?: ReactNode;
   onSelect?: (slotIndex: number | null) => void;
@@ -152,7 +151,7 @@ const AVATAR_MIN_SIZE = PARTICIPANT_AVATAR_MIN;
 /** MOD-802: don't hover-activate while a slot is being dragged. */
 const DRAG_HOVER_LOCK = true;
 /**
- * v0.10.1：竖屏横卡里头像的直径。
+ * 竖屏横卡里头像的直径。
  *
  * 桌面那张竖卡头像能到 94px，是因为它自己占满一整块 104 高的区域；横卡里
  * 头像只在左边占一列，右边还要放两行字。第一版给 44（与序号徽标同量级），
@@ -162,27 +161,27 @@ const DRAG_HOVER_LOCK = true;
 const COMPACT_AVATAR_SIZE = 56;
 
 /**
- * v0.10.5：竖屏横卡的横向内边距（网格那串类里的 `px-1.5`）。
+ * 竖屏横卡的横向内边距（网格那串工具类里的左右内边距）。
  *
  * 单独提出来是因为「头像圆心在哪」要拿它算：主题色那层是从头像圆心长出来的，
- * 圆心横坐标 = 这个内边距 + 头像半径 + 下面那个右移量。类名里的 `px-1.5` 与
+ * 圆心横坐标 = 这个内边距 + 头像半径 + 下面那个右移量。网格里的左右内边距与
  * 这个常量必须同步改，否则扩散起点会慢慢偏到头像外面去。
  */
 const COMPACT_CARD_PADDING_X = 6;
 
 /**
- * v0.10.5：竖屏横卡里头像相对网格第一列的右移量（见头像那段的 `translateX`）。
+ * 竖屏横卡里头像相对网格第一列的右移量（见头像那段的 `translateX`）。
  *
  * 同样只为「算出头像圆心」而存在 —— 它是纯视觉位移，不参与网格布局。
  */
 const COMPACT_AVATAR_OFFSET_X = 6;
 
 /**
- * v0.10.1：竖屏横卡的最小高度。
+ * 竖屏横卡的最小高度。
  *
- * 卡片高度原本由右边那两行字撑（名称 20 + 线索最多 60），头像只是居中摆着，
- * 于是「有头像的那一格」和「两行短字的格子」一样高，头像显得局促。给一个
- * 下限之后整行卡片等高、头像四周也有了呼吸。
+ * 卡片高度由右边那两行字撑（名称 20 + 线索最多 60），头像只是居中摆着 ——
+ * 不给下限，「有头像的那一格」就和「两行短字的格子」一样高，头像显得局促。
+ * 给一个下限之后整行卡片等高、头像四周也有了呼吸。
  *
  * 这个数就是卡片高度本身：网格的 `align-content` 默认 `stretch`，多出来的
  * 空间会摊到那两条 `auto` 行上，所以调它等于直接调框高。
@@ -192,25 +191,24 @@ const COMPACT_CARD_MIN_HEIGHT = 80;
 /**
  * **选中**的框：一条**连续**的主色边（1px 描边 + 2px 外扩，中间不留纸色）。
  *
- * 演变：v0.7.11 是双环（里圈 2px 纸色把卡片与外环隔开），因此与「预览激活」的
- * 单环能靠**层数**区分；v0.7.14 拿掉双环里那圈纸色（用户说「中间不要有空白」），
- * 描边也跟着改回主色 —— 两段同色相接，读作一条 3px 的粗边，而不是两条线。
+ * 1px 描边与 2px 外扩同为主色、中间不留纸色，两段同色相接，读作一条 3px 的粗边，
+ * 而不是两条线 —— 用户要的就是「中间不要有空白」。
  *
- * 与预览（2px）的区分因此落在**别的维度**上，而且不靠数层数：
+ * 与预览（2px）的区分落在**别的维度**上，不靠「多套一圈」：
  * - 边更粗（3px vs 2px）；
  * - 卡片 `translate` 上移 2px，影子落在下方（负 spread、向下 14px）—— 这一层是
  *   **投影**，不是又一道光圈；发光描边是 `.impeccable.md` 明令避开的 AI 味。
  * - 序号徽标反色（主色底 + 纸色字）。看清「是谁」靠徽标，它本来就在最显眼的位置。
  *
- * 边框自己占最里面 1px、阴影从 border-box 外沿起算 2px，所以合起来是 `0 → 3px`
- * 一整条，没有缝。名册内边距 8px、格间距 14px，最边上的卡片也不会被 `overflow-auto`
+ * 边框自己占最里面 1px、阴影从边框盒外沿起算 2px，所以合起来是 `0 → 3px`
+ * 一整条，没有缝。名册内边距 8px、格间距 14px，最边上的卡片也不会被滚动容器
  * 切掉。
  */
 const PARTICIPANT_SELECTED_RING =
   '0 0 0 2px hsl(var(--primary)), 0 14px 22px -16px hsl(var(--primary) / 0.65)';
 
 /**
- * 卡片里铺的那层「主题色的淡透明色」（v0.7.14）。
+ * 卡片里铺的那层「主题色的淡透明色」。
  *
  * 0.12 / 0.16 / 0.20 三档并排看过（1440×900，无头 Chrome 截图逐格比对）：
  * 0.12 与纸底（`248,246,242`）只差 15 个色阶，一屏并排才看得出来；0.20 开始
@@ -235,7 +233,7 @@ function themeTint(themeColor: string, isWhite: boolean): string {
 }
 
 /**
- * 联动金色那层的淡透明色（v0.10.11）。
+ * 联动金色那层的淡透明色。
  *
  * 与 `themeTint` 同一套解析（`#RGB` / `#RRGGBB`），透明度同档 0.16：联动色与
  * 主题色都是「铺一层染纸的淡色」，区别只在**谁的颜色**，不在多淡。解不出来
@@ -287,7 +285,7 @@ export function ParticipantPanel({
     pointerId: number | null;
   } | null>(null);
   /**
-   * v0.10.12：每一格**最近一次**的联动色。`--link-hole` 撤回要跑完整条
+   * 每一格**最近一次**的联动色。`--link-hole` 撤回要跑完整条
    * `--motion-retract`，而 `highlightColors` 在撤掉的那一帧就空了 —— 不记着，
    * 退场的那几百毫秒就变成缺省蓝（见 `.participant-link-tint` 的注释）。
    */
@@ -308,7 +306,7 @@ export function ParticipantPanel({
 
   // MOD-803: shrink the column count when the panel can't hold it; when even
   // one column doesn't fit, the scroll container takes over.
-  // v0.10.1 竖屏：横躺的一条名册，固定每行 2 张 —— 谜题配的列数在这条里没有意义
+  // 竖屏：横躺的一条名册，固定每行 2 张 —— 谜题配的列数在这条里没有意义
   // （2 张卡就把屏宽占满了），所以直接压过 `fixedCols`。
   const layout = useMemo<ParticipantLayout>(() => {
     if (compactPortrait) return deriveLayout(slots.length, 2);
@@ -374,18 +372,18 @@ export function ParticipantPanel({
       ref={measuredRef}
       className={cn(
         'flex shrink-0 flex-col border-r bg-background',
-        // v0.10.1 竖屏：这张面板不再是左栏的一条竖条，而是棋盘下面横躺的一整行 ——
+        // 竖屏：这张面板不再是左栏的一条竖条，而是棋盘下面横躺的一整行 ——
         // 宽度跟着外面的容器走，右边框与「只占自己那点宽度」的收缩都取消。
         compactPortrait && 'w-full flex-1 border-r-0',
       )}
       style={compactPortrait ? undefined : { width: panelBoxWidth }}
     >
       {/* OPT-B06 §6.1: title bar 40px, aligned with the item panel header.
-          v0.7.11：游戏页不用（`hideHeader`）—— 玩家端名册头上已经有一行了。
+          游戏页不用（`hideHeader`）—— 玩家端名册头上已经有一行了。
 
-          v0.7.13：颜色从写死的 `#1F2937` 换成 `text-foreground`。那个值是
-          为纸底挑的深灰（slate-800），落在夜墨 `28 12% 9%` 上只剩 1.22:1 ——
-          夜间模式里这行标题几乎是黑的。标题属于「前景」这一层，跟着主题走。 */}
+          颜色用前景色：标题属于「前景」这一层，跟着主题走 —— 写死的
+          深灰（slate-800）落在夜墨 `28 12% 9%` 上只剩 1.22:1，夜间模式里这行标题
+          几乎是黑的。 */}
       {hideHeader ? null : (
         <div
           data-testid="participant-header"
@@ -398,10 +396,10 @@ export function ParticipantPanel({
           }}
         >
           {/*
-            v0.7.13：`headerLeading` 用**绝对定位**挂，而不是在标题行里分一格。
+            `headerLeading` 用**绝对定位**挂，而不是在标题行里分一格。
             分了格，标题就会在「面板宽 − 28px」里居中 —— 往右偏 14px，而这一行
             只有「参与者」三个字加一个分数，偏一点点就看得出来。绝对定位让按钮
-            浮在左侧，文本仍按 `text-center` 居中于整块面板。
+            浮在左侧，文本仍居中于整块面板。
           */}
           {headerLeading ? (
             <span className="absolute left-0.5 top-1/2 flex -translate-y-1/2 leading-none">
@@ -420,7 +418,7 @@ export function ParticipantPanel({
         would make the panel 8px too narrow for its own matrix. `overflow-auto`
         so a column count wider than the cap scrolls instead of clipping.
 
-        v0.10.2 竖屏：这里**不再自己滚**。竖屏下外面的容器（游戏页的「题面 +
+        竖屏：这一层不自己滚。竖屏下外面的容器（游戏页的「题面 +
         名册」那一块）已经是唯一滚动区，全局线索要跟着名册一起滚；这一层再
         套一个滚动条，手指滑到卡片上时线索就停住了。桌面端与编辑器照旧 ——
         `compactPortrait` 只有游戏页会传。
@@ -438,7 +436,7 @@ export function ParticipantPanel({
             className="grid"
             data-testid="roster-matrix"
             style={{
-              // v0.10.1 竖屏：两条等宽的弹性轨道（屏宽两边分），而不是 110px 定宽。
+              // 竖屏：两条等宽的弹性轨道（屏宽两边分），而不是 110px 定宽。
               gridTemplateColumns: compactPortrait
                 ? `repeat(${layout.cols}, minmax(0, 1fr))`
                 : `repeat(${layout.cols}, ${PANEL_CELL_WIDTH}px)`,
@@ -447,7 +445,7 @@ export function ParticipantPanel({
               // v0.6.3 §3.3: never narrower than its own tracks. Without this,
               // a matrix wider than the panel would be centred and its left
               // edge clipped — the part `overflow` can never scroll back to.
-              // v0.10.1 竖屏：轨道是弹性的，`max-content` 会让它按内容最小宽度
+              // 竖屏：轨道是弹性的，`max-content` 会让它按内容最小宽度
               // 撑出去、反而溢出，所以这一条只在定宽轨道时生效。
               minWidth: compactPortrait ? undefined : 'max-content',
             }}
@@ -472,19 +470,18 @@ export function ParticipantPanel({
               /**
                * FIX-E04: the slot draws **one** outline. A referenced slot uses
                * its linkage colour; the previewed slot falls back to the primary
-               * colour. Implemented as a single `box-shadow` ring (no
-               * `ring-offset`) so it hugs the border and reads as one frame.
+               * colour. Implemented as a single `box-shadow` ring with no offset
+               * ring, so it hugs the border and reads as one frame.
                *
-               * v0.7.11：**选中**不再和「预览」共用同一圈 —— 选中是玩家要持续
-               * 操作的那一格（编辑器里抽屉开着，游戏里是手上这位），预览只是
-               * 指针路过。v0.7.14 起两者靠粗细（3px / 2px）与抬起、反色徽标区分，
-               * 不再靠「中间那圈纸色缝隙」。
+               * **选中**与「预览」不共用同一圈 —— 选中是玩家要持续操作的那一格
+               * （编辑器里抽屉开着，游戏里是手上这位），预览只是指针路过。两者靠
+               * 粗细（3px / 2px）与抬起、反色徽标区分，不靠「中间那圈纸色缝隙」。
                */
               const themeColor = slot?.themeColor ?? '#FFFFFF';
               const isWhiteTheme = themeColor.toUpperCase() === '#FFFFFF';
               const clueSegments = slot?.clue ? parseClue(slot.clue) : [];
               /**
-               * v0.7.14「触碰悬浮」：指针压上去 = 这张卡片被拎起来。
+               * 「触碰悬浮」：指针压上去 = 这张卡片被拎起来。
                *
                * 抬起 2px、影子换成 `--shadow-hover`（`--shadow-float` 的 28px 扩散
                * 在 110px 宽、格间距 14px 的名册里会漫到邻居的缝里，看着像整片脏了）。
@@ -495,7 +492,7 @@ export function ParticipantPanel({
               const hoverShadow = isHovered && !isSelected ? 'var(--shadow-hover)' : null;
               /**
                * 一圈**或者**不画。高亮的三档（选中 / 联动预览 / 指针激活）互斥，
-               * 选中优先，所以至多一条线；`hover` 不再给描边上色（v0.7.14）——
+               * 选中优先，所以至多一条线；悬停不给描边上色 ——
                * 那条 1px 主色边框紧贴外面的 2px 环，正是「两层高亮线」的来源。
                */
               const ringLayers: string[] = isSelected
@@ -514,12 +511,12 @@ export function ParticipantPanel({
                   key={index}
                   data-slot-index={index}
                   /*
-                    v0.7.14：`data-tint` 是那层主题色的开关。悬停与选中都算「点亮」，
+                    `data-tint` 是那层主题色的开关。悬停与选中都算「点亮」，
                     收回交给 CSS 的基线规则（`.participant-tint` 的 `--tint-r`）——
                     属性一撤，颜色自己慢慢缩回头像那枚圆，不必在 React 里留一个
                     「正在收回」的状态。
 
-                    v0.10.11：`data-link-tint` 是另一条轴 —— 被**别人的联动**指着的
+                    `data-link-tint` 是另一条轴 —— 被**别人的联动**指着的
                     那张卡铺一层淡金，从金框向头像蔓延（`.participant-link-tint` 的
                     `--link-hole`）。两条轴各开各的：联动指着同时也可能正被碰着，
                     两层色叠一起就是了。
@@ -531,7 +528,7 @@ export function ParticipantPanel({
                     // touchAction: 'none' 会把手指上下划动锁在卡片上，导致整块名册划不动。
                     // 非竖屏（编辑器等）仍保留 'none'，避免卡片被意外拖动/缩放。
                     touchAction: compactPortrait ? 'auto' : 'none',
-                    // v0.10.1 竖屏：卡片是弹性轨道里的一格，宽度交给轨道，
+                    // 竖屏：卡片是弹性轨道里的一格，宽度交给轨道，
                     // 高度由内容（横排的头像与两行文字）决定，但不低于
                     // COMPACT_CARD_MIN_HEIGHT —— 否则短线索那张卡会比旁边矮一截。
                     width: compactPortrait ? '100%' : PANEL_CELL_WIDTH,
@@ -540,17 +537,17 @@ export function ParticipantPanel({
                       ? undefined
                       : PANEL_CELL_HEIGHT + NAME_AREA_HEIGHT + CLUE_AREA_HEIGHT,
                     minHeight: compactPortrait ? COMPACT_CARD_MIN_HEIGHT : undefined,
-                    // The radius is inline (not `rounded-md`) because the
+                    // The radius is inline, not a utility class, because the
                     // sequence badge rounds its top-left corner with it — the
                     // two must never drift apart.
                     borderRadius: PARTICIPANT_SLOT_RADIUS,
                     // FIX-E04: the slot's single highlight frame.
                     ...focusRingStyle,
                     /*
-                      v0.7.12：选中 = 从纸页上抽起来的卡片 —— 抬起 2px，投影落在下方
+                      选中 = 从纸页上抽起来的卡片 —— 抬起 2px，投影落在下方
                       （见 `PARTICIPANT_SELECTED_RING` 第三层）。
 
-                      v0.7.14：**悬停也抬**。用 `translate` 不用 `transform`：选中时的
+                      **悬停也抬**。用 `translate` 不用 `transform`：选中时的
                       鼓起（`roster-select-pop`）动的是 `translate`，两者同一条轨才能
                       接着走 —— 抬起不会在动画开头被抹平，落下也不会跳。
                     */
@@ -566,7 +563,7 @@ export function ParticipantPanel({
                     // badge + avatar + clue). One opacity, on the root only, so
                     // nothing multiplies down to 0.45 × 0.45.
                     //
-                    // v0.7.12：**选中的那张不淡**。玩家把一位已经落子的参与者
+                    // **选中的那张不淡**。玩家把一位已经落子的参与者
                     // 重新拿在手上（要给他搬家）时，淡掉的卡片会把双环、抬起和
                     // 反色徽标一起压暗 —— 那正是此刻最该看清的一格。
                     opacity: isPlaced && !isSelected ? GAME_PLACED_OPACITY : undefined,
@@ -647,7 +644,7 @@ export function ParticipantPanel({
                   }
                   className={cn(
                     /*
-                     * v0.7.14：`isolate` 是主题色那层能待在内容**下面**的前提。
+                     * `isolate` 是主题色那层能待在内容**下面**的前提。
                      *
                      * `.participant-tint` 是绝对定位的，绝对定位的兄弟在绘制顺序里
                      * 排在普通流内容（头像 / 名字 / 线索）之上 —— 不隔离的话，那层
@@ -656,13 +653,13 @@ export function ParticipantPanel({
                      * 干净的一枚圆。
                      */
                     'relative isolate flex flex-col items-center justify-start border',
-                    /* v0.10.1 竖屏：卡片横过来 —— 左头像（纵向跨满两行），右边一列
+                    /* 竖屏：卡片横过来 —— 左头像（纵向跨满两行），右边一列
                        上下两行：名称在上、线索在下。不搬动 DOM，只换一套网格：
-                       头像 `row-span-2` 占第一列，名称与线索顺次落进第二列。
-                       `gap-x-3.5`（14px）：头像与文字之间要有一点间隔，8px 时
-                       56 的头像几乎贴到名字上；横向内边距从 `p-2` 的 8px 收到
-                       `px-1.5` 的 6px，把省下的宽度让给这一列间隔 —— 卡片总宽
-                       不变、右边那列还是 88.5，头像也因此更靠左一点。 */
+                       头像纵向占满第一列的两行，名称与线索顺次落进第二列。
+                       列间距 14px：头像与文字之间要有一点间隔，8px 时
+                       56 的头像几乎贴到名字上；横向内边距 6px，把省下的宽度让给
+                       这一列间隔 —— 卡片总宽不变、右边那列还是 88.5，头像也因此
+                       更靠左一点。 */
                     compactPortrait &&
                       'grid grid-cols-[auto_minmax(0,1fr)] grid-rows-[auto_auto] content-center items-center justify-items-start gap-x-3.5 gap-y-0 px-1.5 py-2',
                     readOnly
@@ -681,13 +678,13 @@ export function ParticipantPanel({
                             （1px + 2px = 3px 一整条），中间不留纸色 —— 用户说的
                             「外出蓝色高亮线和内部中间不要有空白」。粗细与预览的
                             2px 单环区分开，另外还有抬起 2px 与反色徽标。
-                            底色不用 `bg-primary/10`，用下面那层**主人自己的**颜色。
+                            底色不用主色的淡透明色，用下面那层**主人自己的**颜色。
                           */
                           'border-primary bg-background roster-select-pop'
                         : /*
-                            悬停不再给描边上色。那条 `hover:border-primary` 与「指针激活」
-                            的 2px 环叠在同一条边上，正是用户说的「两层高亮线」；现在悬停
-                            的反馈交给抬起 + 影子 + 主题色铺开（v0.7.14）。
+                            悬停不给描边上色。那条悬停描边与「指针激活」
+                            的 2px 环叠在同一条边上，正是用户说的「两层高亮线」；悬停
+                            的反馈交给抬起 + 影子 + 主题色铺开。
                           */
                           'border-border bg-background'
                       : 'border-dashed border-muted-foreground/40 bg-muted/30',
@@ -695,18 +692,16 @@ export function ParticipantPanel({
                   )}
                 >
                   {/*
-                    v0.7.14：卡片里那层「主题色的淡透明色」。它是一层**底色**，
-                    不是盖在卡片上的一层膜 —— `.participant-tint` 用 `z-index: -1`
-                    躲在所有兄弟下面（卡片根节点有 `isolate` 兜住这个负层级）。
-                    半径从头像圆心长出来（`--tint-x` / `--tint-y` 由组件按头像
-                    实际中心算），铺满整张卡时是均一的一层（`.participant-tint`
-                    的注释里有算式）。
+                    卡片里那层「主题色的淡透明色」：它是一层**底色**，不是盖在卡片上的
+                    一层膜 —— `.participant-tint` 用 `z-index: -1` 躲在所有兄弟下面
+                    （卡片根节点新建了层叠上下文，兜住这个负层级）。半径从头像圆心长出来
+                    （`--tint-x` / `--tint-y` 由组件按头像实际中心算），铺满整张卡时是
+                    均一的一层（`.participant-tint` 的注释里有算式）。
 
-                    v0.10.5：竖屏横卡里头像**不在横向中间**，它贴着左边。原先只有
-                    `--tint-y` 一个量、横坐标写死在 `50%`，扩散就从卡片中线那块
-                    文字区冒出来 —— 现在把横坐标也交出来：竖屏给头像圆心的实际
-                    横坐标（内边距 + 半径 + 右移量），纵向仍是 `50%`（卡片高度
-                    随线索行数变，`content-center` 让头像始终落在中线）。
+                    竖屏横卡里头像**不在横向中间**，它贴着左边，所以横坐标也交给组件：
+                    竖屏给头像圆心的实际横坐标（内边距 + 半径 + 右移量），纵向仍是
+                    `50%`（卡片高度随线索行数变，纵向居中让头像始终落在中线）。
+                    横向写死 `50%` 的话，扩散就从卡片中线那块文字区冒出来。
                   */}
                   {slot ? (
                     <>
@@ -727,7 +722,7 @@ export function ParticipantPanel({
                         }
                       />
                       {/*
-                        v0.10.11：联动金色的那层。与上面那层主题色**同一枚圆心、相反的
+                        联动金色的那层。与上面那层主题色**同一枚圆心、相反的
                         方向**：主题色从头像往外长，这层从金框往头像收（`--link-hole`
                         是「空出来的孔」的半径，见 `index.css` 的注释）。圆心两个变量
                         原样复用 —— 蔓延的终点必须是头像的边缘，偏一点金色就会从脸的
@@ -737,7 +732,7 @@ export function ParticipantPanel({
                         支，缺省蓝），透明度与主题色同档（0.16）。`isHighlighted` 只可能
                         落在有角色的槽位上，所以这里不必再判空。
 
-                        v0.10.12：撤掉高亮的那一帧 `highlightColors` 就空了，而孔要过
+                        撤掉高亮的那一帧 `highlightColors` 就空了，而孔要过
                         完整条 `--motion-retract` 才缩回去 —— 用 `lastLinkColorsRef` 记
                         住的最近一支，退场才仍是金色（否则变成缺省蓝）。
                       */}
@@ -782,7 +777,7 @@ export function ParticipantPanel({
                       fontSize: PARTICIPANT_SEQ_FONT_SIZE,
                       fontWeight: 700,
                       lineHeight: `${PARTICIPANT_SEQ_SIZE - 1}px`,
-                      // v0.7.12：选中时徽标反色（主色底 + 纸色字）。这是「是谁」
+                      // 选中时徽标反色（主色底 + 纸色字）。这是「是谁」
                       // 的那一笔 —— 位置固定、对比最高，扫一眼就知道手上是哪位。
                       color: isSelected ? 'hsl(var(--primary-foreground))' : PARTICIPANT_SEQ_COLOR,
                       background: isSelected ? 'hsl(var(--primary))' : PARTICIPANT_SEQ_BACKGROUND,
@@ -791,7 +786,7 @@ export function ParticipantPanel({
                       borderTopWidth: 0,
                       borderLeftWidth: 0,
                       /*
-                        v0.7.14：选中时徽标填的是主色，卡片描边也是主色 —— 两段弧
+                        选中时徽标填的是主色，卡片描边也是主色 —— 两段弧
                         紧挨着（内圆角 5px 与外圆角 6px 同心），但各自都要抗锯齿，
                         交界那一像素两边都只盖了一半，纸白就漏成一道细弧。用户看到
                         的「高亮环和序号之间有白色区」正是它。
@@ -809,20 +804,20 @@ export function ParticipantPanel({
                   <div
                     className={cn(
                       'flex items-center justify-center',
-                      // v0.10.1 竖屏：头像在左，纵向跨两行（名称 + 线索）。
+                      // 竖屏：头像在左，纵向跨两行（名称 + 线索）。
                       compactPortrait && 'col-start-1 row-span-2 self-center',
                     )}
                     style={
                       compactPortrait
                         ? /*
-                            v0.10.1 竖屏：横卡里不留左侧内边距 —— 卡片够高之后，
+                            竖屏：横卡里不留左侧内边距 —— 卡片够高之后，
                             序号徽标（左上角 20×20）与居中的头像**纵向错开**，
                             不必再为它让出 20px；省下来的那一截正好把头像推回左边。
                             再往右挪 6px 用 `translateX` 而不是 `padding`：网格的
                             第一列是 `auto` 宽，加内边距会把列撑宽、把右边那列
                             挤窄，线索于是多折一行、卡片又长回去。
 
-                            v0.10.5：这个右移量提成 `COMPACT_AVATAR_OFFSET_X`，
+                            这个右移量提成 `COMPACT_AVATAR_OFFSET_X`，
                             因为主题色那层的扩散起点要拿它和半径、内边距一起算
                             头像圆心 —— 两处必须同一个数。
                           */
@@ -837,7 +832,7 @@ export function ParticipantPanel({
                       /*
                        * OPT-H06 §6.2 (docs/v0.4.2.md §6): exactly **one** circle.
                        * This span is the theme-colour disc and the only clip
-                       * (`overflow-hidden rounded-full`); the thumbnail fills it
+                       * (the circular overflow crop); the thumbnail fills it
                        * and draws neither a ring nor its own round frame, so a
                        * character without artwork shows its first character
                        * instead of a white inner disc.
@@ -850,7 +845,7 @@ export function ParticipantPanel({
                           height: compactPortrait ? COMPACT_AVATAR_SIZE : avatarSize,
                           backgroundColor: themeColor,
                           // MOD-802 §1.2.5 / FIX-E04：高亮只剩那一道 2px 框 ——
-                          // 头像不画第二道环。v0.10.11 起**也不再放大**：被联动指着的
+                          // 头像不画第二道环，**也不放大**：被联动指着的
                           // 反馈交给那层从金框蔓延过来的淡金（`data-link-tint` 上面的
                           // `.participant-link-tint`），脸自己不动 —— 放大读成「这位
                           // 自己要干嘛」，而联动说的是「别人指着他」。
@@ -882,7 +877,7 @@ export function ParticipantPanel({
                   <div
                     className={cn(
                       'flex w-full items-center justify-center px-1',
-                      // v0.10.1 竖屏：名称在右上。
+                      // 竖屏：名称在右上。
                       compactPortrait && 'col-start-2 row-start-1 w-auto justify-start px-0',
                     )}
                     style={{ height: compactPortrait ? undefined : NAME_AREA_HEIGHT }}
@@ -902,12 +897,12 @@ export function ParticipantPanel({
                   </div>
 
                   {/* OPT-A02: clue area 72px, 3 lines @ 11px/20px, ellipsis + title tooltip
-                      v0.9.8：线索短的时候（一两行）也要在 72px 里上下居中 ——
-                      原来 items-start 让一两行的卡看着「上半截有字、下半截空」。 */}
+                      线索短的时候（一两行）也要在 72px 里上下居中 —— 否则一两行的卡
+                      看着「上半截有字、下半截空」。 */}
                   <div
                     className={cn(
                       'flex w-full items-center justify-center px-1',
-                      // v0.10.1 竖屏：线索在右下。
+                      // 竖屏：线索在右下。
                       compactPortrait && 'col-start-2 row-start-2 w-auto justify-start px-0',
                     )}
                     style={{ height: compactPortrait ? undefined : CLUE_AREA_HEIGHT }}
@@ -916,17 +911,17 @@ export function ParticipantPanel({
                       <span
                         className={cn(
                           /*
-                           * v0.10.2 竖屏：线索要**读全**。桌面那张竖卡有 72px 的
-                           * 线索区，三行之后 `line-clamp` 收成省略号是版式的一部分
+                           * 竖屏：线索要**读全**。桌面那张竖卡有 72px 的
+                           * 线索区，三行之后收成省略号是版式的一部分
                            * （卡片大小固定、名册像一张表格）；横卡的高度本来就跟着
                            * 内容走，再截断就只是把玩家最需要的那半句话藏起来。
-                           * 所以竖屏不挂 `line-clamp-3`，卡片自己长高。
+                           * 所以竖屏不做三行截断，卡片自己长高。
                            */
                           compactPortrait ? 'text-left' : 'line-clamp-3 text-center',
                         )}
                         style={{
                           fontSize: 11,
-                          /* v0.10.1 竖屏：横卡里行距收到 16px。桌面那张竖卡线索区
+                          /* 竖屏：横卡里行距是 16px。桌面那张竖卡线索区
                              独占 72px、三行 20px 行距是版式的一部分；横卡里线索
                              只是头像右边的一小块字，20px 行距在 11px 的字上看是
                              三条平行的虚线，读不出是一段话。 */

@@ -77,7 +77,7 @@ export interface CreatePuzzleVersionData {
 export async function createVersion(data: CreatePuzzleVersionData): Promise<PuzzleRow> {
   const [row] = (await db<PuzzleRow>('puzzles')
     .insert({
-      // v0.8.0：版本行继承草稿的主题 —— 同一血统必须同主题（迁移里有断言）。
+      // 版本行继承草稿的主题 —— 同一血统必须同主题（迁移里有断言）。
       theme_id: data.owner.theme_id,
       root_id: data.owner.root_id,
       version: String(data.versionNo),

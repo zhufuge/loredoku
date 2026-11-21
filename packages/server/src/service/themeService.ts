@@ -207,7 +207,7 @@ export async function removeRing(code: string): Promise<Theme> {
 }
 
 /**
- * v0.11.3：结算卡上那枚**图标图**。与标记 / 圆环同一档（上传即生效、回整份主题）。
+ * 结算卡上那枚**图标图**。与标记 / 圆环同一档（上传即生效、回整份主题）。
  *
  * 只碰 `verdict.icon` —— 同一格里那句文字（`iconText`）与标题（`title`）原样留着：
  * 作者传一张图只是「先用这张」，把图删掉之后应该回到他自己写的那句 emoji。
@@ -240,7 +240,7 @@ export async function removeVerdictIcon(code: string): Promise<Theme> {
 }
 
 /**
- * v0.11.3：结算卡上那两句文字。与校验颜色同一种「只改给的项」：改标题不该顺手
+ * 结算卡上那两句文字。与校验颜色同一种「只改给的项」：改标题不该顺手
  * 抹掉图标文字，反之亦然。给空串 = 恢复内置（三项都空时整个键删掉）。
  */
 export async function updateVerdictText(
@@ -286,15 +286,9 @@ export async function updateCheckStyle(
 /**
  * 删主题。只有一条规矩：还有东西就先把数量说清楚，再拦（§8 护栏 3）。
  *
- * §19 之前这里还有「默认主题不能删」—— 那是 `is_default` 的一半存在理由，列删掉
- * 之后它也一起没了。剩下的这条对每个主题都成立，反而更简单。
- *
- * v0.8.3（§15）：这一层守的是**看得见的东西**，删下去是 `DELETE`。计数只数活跃行，
+ * 这一层守的是**看得见的东西**（§15），删下去是 `DELETE`。计数只数活跃行，
  * 外键却看所有行；地图 / 谜题软删的版本行由 `repo.deleteTheme` 顺手抬走（注释写在
- * 那儿），这里只管「还有没有活的」。
- *
- * v0.9.2：`theme_deployments`（合辑）两张表已删，原来那条「主题下还有合辑，请先
- * 删除合辑」的单独拦截随之消失 —— 现在只剩「卡片上看得见的那四类」。
+ * 那儿），这里只管「还有没有活的」—— 拦的就是卡片上看得见的那四类。
  */
 export async function deleteTheme(code: string): Promise<void> {
   const id = await repo.idOfCode(code);

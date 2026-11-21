@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { nextUnfinishedLevel, type GameLevelRef } from './gameCatalog';
 
 /**
- * v0.9.5：定案卡的「下一关」。
+ * 定案卡的「下一关」。
  *
  * 「下一关」＝列表顺序里排在当前这一关之后、**还没通过**的第一关。三件行为分开钉：
  * 跳过已通过的、不回头、不缠绕。

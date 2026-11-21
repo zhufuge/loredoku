@@ -53,9 +53,8 @@ export async function listGames(): Promise<MapGameSummary[]> {
   const rows = (await liveQuery()
     .select(...GAME_SELECT)
     .orderBy([
-      // v0.8.3：作者填的顺序优先，同权重按访问路径 —— 一个确定的兜底。
-      // 原来这里是 `created_at desc`（「最近部署的在前」），它只回答「刚做了什么」，
-      // 不回答「玩家该先玩哪一关」；而真正在排序的那件事，此前只能靠改 slug 做。
+      // 作者填的顺序优先，同权重按访问路径 —— 一个确定的兜底：按部署时间排
+      // 只回答「刚做了什么」，不回答「玩家该先玩哪一关」。
       { column: 'g.sort_weight', order: 'asc' },
       { column: 'g.slug', order: 'asc' },
     ])) as GameRowWithPuzzle[];
@@ -118,7 +117,7 @@ export interface UpsertGameData {
   /** v0.8.6：`gameService` 已按主题分级校验过档位，这里只负责写数字。 */
   difficulty: number;
   /**
-   * v0.8.3：展示顺序。`undefined` = 这次没提 —— 沿用上一行的值（重新部署不该
+   * 展示顺序。`undefined` = 这次没提 —— 沿用上一行的值（重新部署不该
    * 把作者排好的顺序清零）；都没有就落 `0`。
    *
    * 注意这个值必须在这里兜住：`upsertGame` 是 delete-then-insert，行换新 id，
@@ -126,7 +125,7 @@ export interface UpsertGameData {
    */
   sortWeight?: number;
   /**
-   * v0.7.11：这条 slug 原本归另一条部署所有，作者选择了**覆盖**。
+   * 这条 slug 原本归另一条部署所有，作者选择了**覆盖**。
    *
    * 覆盖 = 把对方假删（`deleted_at`），部分唯一索引随即释放 —— 与「取消部署」
    * 同一种退场方式，只是由一次部署顺带完成。硬删会让对方连审计记录都不剩。
@@ -138,7 +137,7 @@ export interface UpsertGameData {
  * 同一版本行再次部署 = **覆盖**（delete-then-insert，行换新 id）；取消部署后
  * 再部署是新增行（旧行已假删，`puzzle_id` 唯一约束不拦）。
  *
- * v0.7.11：`replaceGameId` 在场时先让出那条被占用的部署（假删），再把新行插进去。
+ * `replaceGameId` 在场时先让出那条被占用的部署（假删），再把新行插进去。
  */
 export async function upsertGame(data: UpsertGameData): Promise<MapGameSummary> {
   const id = await db.transaction(async (trx) => {
@@ -187,7 +186,7 @@ export async function updateGameCover(
 }
 
 /**
- * v0.8.5：部署页就地改展示顺序。
+ * 部署页就地改展示顺序。
  *
  * 只写 `sort_weight` 一列 —— 这是「排序」这件事最小的一次写，走部署端点重发
  * 整份负载会把 `name` / `slug` / `difficulty` 一起带回去，任何一个字段在弹窗

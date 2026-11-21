@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
 /**
- * v0.3.10 FIX-F04: a borderless native colour picker.
+ * A borderless native colour picker.
  *
  * The raw `<input type="color">` ships with a near-black border (and browsers
  * draw their own swatch border), which reads as a heavy outline next to the
@@ -52,17 +52,15 @@ export const ColorInput = forwardRef<HTMLInputElement, ColorInputProps>(function
 /**
  * 取色器 + hex 文本框，**一处实现的统一面孔**。
  *
- * v0.7.13：从 `components/map-editor/StyleFields` 搬到这里 —— 角色页的「默认
- * 主题色」要同一副面孔，而角色页不该从 map-editor 里借控件。
+ * 放在这里，是因为角色页的「默认主题色」要同一副面孔，而角色页不该从
+ * `map-editor` 里借控件。
  *
- * v0.8.3：这一版把它收成**唯一**的取色控件。此前同一件事有三种长相 ——
- * 地图抽屉里是「色块 + hex」，角色页只有色块（hex 是死的一行字），主题色弹窗
- * 反过来只有一整块调色板。作者在不同页面学到的是三套操作。
+ * 这是**唯一**的取色控件：同一件事有三种长相，作者就得学三套操作。
  *
- * 现在固定为两个东西：色块（原生取色器）与 hex 输入框。**没有调色板**（v0.8.3
- * 收尾时按用户要求去掉）：一份十几种颜色的固定色板，能选的永远只有那十几种，
- * 而「这个空间到底用什么颜色」本来就该由作者决定 —— 原生取色器给出的色域比
- * 任何预设都宽，预设只会把界面推向同一套配色。
+ * 固定为两个东西：色块（原生取色器）与 hex 输入框。**没有调色板**：一份十几种
+ * 颜色的固定色板，能选的永远只有那十几种，而「这个空间到底用什么颜色」本来就
+ * 该由作者决定 —— 原生取色器给出的色域比任何预设都宽，预设只会把界面推向同一
+ * 套配色。
  *
  * hex 是**草稿**：一边打字一边要把非法中间态留在框里（`#f`、`#ff00`），只在
  * 失焦 / 回车时提交；提交不合法就回滚到当前值。取色器则即时生效。

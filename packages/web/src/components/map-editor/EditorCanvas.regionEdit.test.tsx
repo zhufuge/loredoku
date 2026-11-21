@@ -8,7 +8,7 @@ import type { CellMap } from '@/lib/hitTest';
 import { seedRegionCellEdit, type RegionCellEdit } from '@/lib/regionEdit';
 
 /**
- * v0.11.5：区域格子的编辑会话里，画布上的点按 / 拖动只做一件事 —— 把这一笔的
+ * 区域格子的编辑会话里，画布上的点按 / 拖动只做一件事 —— 把这一笔的
  * 格子报给页面（`onRegionEditStroke`），由页面改草稿。
  *
  * 三条要钉住的行为：
@@ -18,7 +18,7 @@ import { seedRegionCellEdit, type RegionCellEdit } from '@/lib/regionEdit';
  * 3. 会话期间点格子**不再选格** —— 否则每点一下就顺手改掉了右边抽屉的对象。
  */
 
-// v0.10.8：标尺符号走 `useRulerSymbolsByCode`（内部是 TanStack Query），这里没有 Provider。
+// 标尺符号走 `useRulerSymbolsByCode`（内部是 TanStack Query），这里没有 Provider。
 vi.mock('@/hooks/useThemes', () => ({
   useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
 }));

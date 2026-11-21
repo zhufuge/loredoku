@@ -6,7 +6,7 @@ import type { Theme } from '@loredoku/shared';
 import { ThemesPage } from './ThemesPage';
 
 /**
- * v0.8.2：系统配置 · 主题。
+ * 系统配置 · 主题。
  *
  * v0.8.3 精简（docs/v0.8.3.md §16）：只留两条会咬人的 ——
  *

@@ -6,7 +6,7 @@ import { createAssetSchema } from './asset'
 import { updateAssetVariantSchema } from './assetVariant'
 
 /**
- * v0.5.1 FEAT-L01 / FEAT-L02 — the colour-block field.
+ * FEAT-L01 / FEAT-L02 — the colour-block field.
  *
  * `bgColor` is optional and nullable: omitted / `null` means image mode (the
  * pre-v0.5.1 behaviour), a `#RRGGBB` string means colour block. Anything else
@@ -96,8 +96,8 @@ describe('create schemas — isActive (FEAT-N06)', () => {
   })
 })
 
-// v0.6.1: the colour block moved from the asset to its variants, so this is the
-// update path that carries it now.
+// The colour block lives on the variant, so this is the
+// update path that carries it.
 describe('updateAssetVariantSchema — bgColor (FEAT-L01)', () => {
   it('accepts null, which drops back to the image mode', () => {
     expect(updateAssetVariantSchema.parse({ bgColor: null }).bgColor).toBeNull()

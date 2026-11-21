@@ -27,31 +27,28 @@ import { cn } from '@/lib/utils';
 import { InlineLoading, LoredokuTick } from '@/components/common/LoredokuLoader';
 
 /**
- * 部署模块（v0.7.1 §7.4）—— **一行 = 一条在线的东西**，v0.8.1 起恢复平铺列表。
+ * 部署模块（v0.7.1 §7.4）—— **一行 = 一条在线的东西**，列表是平铺的一张卡。
  *
- * v0.8.0 §16.4 曾把它改成按主题分卡片，§19.9 又给认不出的行留了个兜底桶再撤掉。
- * 但这一页在 §18 之后本来就**只在一个工作空间里**：标题就是这个主题，分组头
- * 「红楼梦 · 8 关在线 · 导出包」等于把页头抄了一遍。所以列表回到 v0.7 的形状 ——
- * 一张卡、行即一切；「导出包」上移到页头（它本来就是主题级动作）。
+ * 这一页**只在一个工作空间里**：标题就是这个主题，分组头「红楼梦 · 8 关在线 ·
+ * 导出包」等于把页头抄了一遍。所以一张卡、行即一切；「导出包」在页头（它本来
+ * 就是主题级动作）。
  *
- * v0.9.2：合辑（`theme_deployments`）连同两张表一起删了，这一页只剩**单局**。
- * 原来「合辑一段 + 单局一段」里那段目录行、它的「取消上线」确认框、以及
- * `useThemeDeployments` / `useRemoveDeployment` 两个 hook 全都不在了；
- * 关卡顺序只剩 `sort_weight` 一列（v0.8.3 §6.2 起它才是顺序的唯一真源）。
+ * 这一页只剩**单局**；关卡顺序只剩 `sort_weight` 一列（v0.8.3 §6.2：顺序的唯一
+ * 真源）。
  *
  * 取消部署是**假删**（`deleted_at`）：玩家的 `/play/{slug}` 立刻打不开，但同一个
  * 访问路径可以再用。
  *
- * v0.8.5：这一行不再承担「给你一条可复制的链接」。
+ * 这一行不承担「给你一条可复制的链接」。
  * - 路径只显示**尾部**（`puzzle-xxxx`），前缀 `/play/` 在每一行都一样，占着最宽的
  *   一列却不提供任何信息；要真去玩，右边那颗新标签页按钮一直在。
- * - 复制按钮与「已复制」勾号一起撤掉 —— 路径已经不是一个完整的地址，复制它没有意义。
- * - 多了一列「顺序」（`sort_weight`）：点开就地改，回车或失焦时**值真的变了**才写回。
+ * - 路径不是一个完整的地址，所以没有复制按钮 —— 复制它没有意义。
+ * - 「顺序」列（`sort_weight`）：点开就地改，回车或失焦时**值真的变了**才写回。
  *
- * v0.8.5 §3：路径连 `puzzle-` 那一段也不显示了（`stripSlugPrefix`）。
- * - 它是 v0.4.1 给 `/play/` 底下留的命名空间，不是这一关的信息 —— 每行都以它开头，
- *   读起来像页头的复读。地址本身没变，完整路径仍在 `title` 里。
- * - 同一次改动把名称下面那行「来源：xxx vN」撤了：部署页回答的是「在线的是什么」，
+ * v0.8.5 §3：路径不显示 `puzzle-` 那段（`stripSlugPrefix`）。
+ * - 它是给 `/play/` 底下留的命名空间，不是这一关的信息 —— 每行都以它开头，
+ *   读起来像页头的复读。完整路径仍在 `title` 里。
+ * - 名称下面没有「来源：xxx vN」那一行：部署页回答的是「在线的是什么」，
  *   不是「它是从哪一版谜题生成的」—— 后者要追溯，去谜题列表看版本号。
  */
 export function DeploymentsPage(): JSX.Element {
@@ -89,11 +86,11 @@ export function DeploymentsPage(): JSX.Element {
   }, [gamesQuery.data, workspace]);
 
   /**
-   * 导出清单要的是**当前主题全部的在线关**。
+   * 导出清单要的是**当前主题全部的在线关** —— 包的范围由服务端定，界面就照同一
+   * 把尺子取数。
    *
-   * v0.8.2：原来这里直接把 `gamesQuery.data`（全站）交给导出弹窗 —— 清单会列出
-   * 别的主题的关，而服务端只打当前主题，于是「清单 12 关、包里 8 关」；当前主题
-   * 一关都没有时按钮还能点。包的范围由服务端定，界面就照同一把尺子取数。
+   * 把全站的 `gamesQuery.data` 交给导出弹窗，清单会列出别的主题的关，而服务端只打
+   * 当前主题，于是「清单 12 关、包里 8 关」；当前主题一关都没有时按钮还能点。
    */
   const deployedGames = useMemo(() => {
     const all = gamesQuery.data ?? [];
@@ -197,7 +194,7 @@ export function DeploymentsPage(): JSX.Element {
     if (gamesQuery.isLoading) {
       return (
         <div className="space-y-2">
-          {/* v0.7.9：骨架高 64（= 行高），原来是 80 —— 加载完成后整页会往上跳 16px。 */}
+          {/* 骨架高 64（= 行高），加载完成后整页不会往上跳。 */}
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton key={index} className="h-16 w-full" />
           ))}
@@ -222,7 +219,7 @@ export function DeploymentsPage(): JSX.Element {
     if (games.length === 0) {
       return (
         // v0.7.8 §5：工坊五个列表页的空状态统一为「一句说明 + 一个主按钮」。
-        // v0.7.11：按钮就是「部署」—— 空状态下一步要做的事，不再让人先去别处。
+        // 按钮就是「部署」—— 空状态下一步要做的事。
         <Card className="flex flex-col items-center gap-3 p-12 text-center">
           <p className="text-sm text-muted-foreground">还没有部署任何游戏</p>
           <Button onClick={() => setDeployOpen(true)}>
@@ -254,8 +251,7 @@ export function DeploymentsPage(): JSX.Element {
         actions={
           <>
             {workspace ? (
-              /* v0.8.1：「导出包」从分组头挪到页头 —— 它是主题级动作，
-                  在平铺列表里没有组头可挂了。 */
+              /* 「导出包」是主题级动作，放在页头。 */
               <Button variant="outline" onClick={() => setExportOpen(true)}>
                 <Package className="mr-1 h-4 w-4" />
                 导出包

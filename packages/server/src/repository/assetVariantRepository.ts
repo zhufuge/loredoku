@@ -208,7 +208,7 @@ export async function getUsages(variantId: number): Promise<AssetUsage[]> {
     const cells: Array<{ x: number; y: number }> = [];
     for (const key of Object.keys(draft.cells)) {
       const cell = draft.cells[key];
-      // v0.10.9 的背景修饰层也带 variantId —— 漏了它，删除形态时就拦不住修饰格。
+      // 背景修饰层也带 variantId —— 漏了它，删除形态时就拦不住修饰格。
       if (cell?.item?.variantId !== variantId && cell?.decoration?.variantId !== variantId) continue;
       const [xs, ys] = key.split(',');
       cells.push({ x: Number(xs), y: Number(ys) });

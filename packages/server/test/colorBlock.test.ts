@@ -5,15 +5,15 @@ import { api, fixtureTheme } from './helpers';
 import { resolveUploadPath } from '../src/utils/paths';
 
 /**
- * v0.5.1 FEAT-L01 / FEAT-L02 — colour blocks, end to end through the HTTP API.
+ * Colour blocks, end to end through the HTTP API.
  *
  * The two rules that matter:
  * - `bgColor` round-trips through create / patch and is rejected when malformed;
  * - deleting the media no longer deactivates an entry that is a colour block
  *   (the v0.3.5 OPT-305 rule is narrowed, not removed).
  *
- * 角色 carries the colour on the row itself. 资源 carries it on a **variant** since
- * v0.6.1, so its contract runs through `/api/assets/:id/variants/:variantId` — same
+ * 角色 carries the colour on the row itself. 资源 carries it on a **variant**, so its
+ * contract runs through `/api/assets/:id/variants/:variantId` — same
  * rules, one level deeper.
  */
 

@@ -443,7 +443,7 @@ export async function forkFromVersion(
     const draft = (data ?? version.data) as MapDraft;
     const [row] = (await trx<MapRow>('maps')
       .insert({
-        // v0.8.0：fork 出的草稿沿用血统的主题（同血统必须同主题）。
+        // fork 出的草稿沿用血统的主题（同血统必须同主题）。
         theme_id: owner.theme_id,
         name,
         description: owner.description,

@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 
 /**
- * v0.11.7：玩法说明。右栏最下面那枚圆形问号打开它；**第一次进任意关卡时自动
+ * 玩法说明。右栏最下面那枚圆形问号打开它；**第一次进任意关卡时自动
  * 打开一次**（`lib/gameHelp.ts` 记着「已经看过」）。
  *
  * 为什么是一段静态说明而不是从谜题里读：这四段说的是**这套界面怎么操作** ——
@@ -68,7 +68,7 @@ const HELP_TOOL_FALLBACKS: Record<HelpToolKind, LucideIcon> = {
 };
 
 /**
- * v0.11.7：图标按「关卡 → 主题 → 内置」的顺序取（`lib/toolIcons.ts`）——
+ * 图标按「关卡 → 主题 → 内置」的顺序取（`lib/toolIcons.ts`）——
  * 工具条上画的是什么，说明里就是什么，换成主题的图之后两边不会各说各的。
  */
 function ToolLines({

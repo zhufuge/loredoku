@@ -30,8 +30,8 @@ import {
 /**
  * v0.8.6（docs/v0.8.6.md §3）：主题自己的一档难度 = **数字 + 名字 + 可选颜色**。
  *
- * `level` 是身份，落进 `games.difficulty`。v0.8.3 用的是字符串标识，v0.8.6 换成
- * 数字：数字自带顺序（难度本来就是一条轴），删掉中间一档也不必给后面的重新编号。
+ * `level` 是身份，落进 `games.difficulty`。数字自带顺序（难度本来就是一条轴），
+ * 删掉中间一档也不必给后面的重新编号。
  *
  * `color` 可缺 —— 缺了仍按位置落在内置五档热力坡上，存量主题因此不用补数据。
  * 填了则是一个**绝对的** `#rrggbb`：徽章的底色与字色都由它混出来（`difficultyBadge`），
@@ -80,14 +80,14 @@ export const themeCodeSchema = z
   );
 
 /**
- * v0.9.3（docs/v0.9.3.md §3）；v0.9.5 起只剩颜色。
+ * v0.9.3（docs/v0.9.3.md §3）：校验的两档颜色。
  *
  * 颜色给了 `.default()`：作者只换环图、没动颜色时，写进去的仍是一份**完整**的
  * `{ passColor, failColor }`。好处是不必在服务端再补一遍默认值 —— 缺什么
  * 解析时就补齐了，库里不会出现「有 checkStyle 但缺一个颜色」的半成品。
  *
- * 圈图 v0.9.5 搬去了 `ThemeData.ring`（与长按计时环共用）。旧数据里的
- * `checkStyle.ring` 仍能读出来 —— 见下面 `themeRingSchema` 的兜底。
+ * 圈图在 `ThemeData.ring`（与长按计时环共用）；旧数据里的 `checkStyle.ring`
+ * 仍能读出来 —— 见下面 `themeRingSchema` 的兜底。
  */
 export const themeCheckColorsSchema = z
   .object({
@@ -101,7 +101,7 @@ export const themeCheckColorsSchema = z
   .optional();
 
 /**
- * v0.9.5：主题的**那一圈**（长按计时环 + 提交校验圈共用）。
+ * 主题的**那一圈**（长按计时环 + 提交校验圈共用）。
  *
  * 形状是 `{ image?: { path } }` 而不是直接一张 `{ path }`：那一圈将来可能不只
  * 「一张图」（比如速度、粗细），而现在先把「图」这一格留出名字，读点就不必写
@@ -118,7 +118,7 @@ export const themeRingSchema = z
   .optional();
 
 /**
- * v0.11.3：结算卡的两份配置 —— 图标（文字 / emoji 或一张图）+ 标题。
+ * 结算卡的两份配置 —— 图标（文字 / emoji 或一张图）+ 标题。
  *
  * 三项都可缺，且每一项都**允许空串**：作者把标题删空就是「用内置那句」，
  * 不必再点一次「恢复默认」。空串在上层按缺省处理（见 `resolveVerdictStyle`）。
@@ -142,7 +142,7 @@ export const themeVerdictSchema = z
   .optional();
 
 /**
- * v0.11.6：游戏列表页那两行字的模板。
+ * 游戏列表页那两行字的模板。
  *
  * 与结算卡那三项一样**允许空串**（= 用内置那句）。比它多一条：文案里必须留一个
  * `{n}` —— 数字没地方落，这两行就成了与这一页无关的废话，而这种「配了但没配全」
@@ -175,7 +175,7 @@ const themeDataObjectSchema = z
   .object({
     version: z.number().int().positive().default(THEME_DATA_VERSION),
     /**
-     * v0.8.2：主题的**识别色**。
+     * 主题的**识别色**。
      *
      * 它和 `style` / `linkageColors` 不是一类东西：那两个是「新建内容时拷贝过去的
      * 初始值」，会进画布、进导出包；`accent` 只回答「这一屏属于哪个世界」——
@@ -199,17 +199,17 @@ const themeDataObjectSchema = z
     /** v0.8.7 §7：工具按钮图标（清除 / 撤回 / 提交），解析顺序同标记。 */
     toolIcons: gameToolIconsSchema,
     /**
-     * v0.9.5：**那一圈** —— 长按计时环与提交校验圈共用一张图。缺了 = 各自的内置
+     * 主题的**那一圈** —— 长按计时环与提交校验圈共用一张图。缺了 = 各自的内置
      * 细弧（长按白弧 / 校验本色环）。旧键 `pressRing` 与 `checkStyle.ring` 由
      * `themeRingSchema` 的预处理搬过来。
      */
     ring: themeRingSchema,
     /**
-     * v0.11.3：结算卡通过那一面的图标与标题。缺了 = 内置 🎉 + 「解题成功」。
+     * 结算卡通过那一面的图标与标题。缺了 = 内置 🎉 + 「解题成功」。
      */
     verdict: themeVerdictSchema,
     /**
-     * v0.11.6：游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。缺了 = 内置。
+     * 游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。缺了 = 内置。
      */
     gameList: themeGameListSchema,
     /**
@@ -217,7 +217,7 @@ const themeDataObjectSchema = z
      */
     checkStyle: themeCheckColorsSchema,
     /**
-     * v0.8.3：难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
+     * 难度分级。缺省 = 内置五档；给了就**整份替换**，不是「在内置之上
      * 追加」—— 追加语义会让作者删不掉「专家」这一档，而删掉正是最常见的诉求。
      */
     difficultyLevels: z
@@ -253,9 +253,9 @@ const themeDataObjectSchema = z
  * `themes.data`：主题级**缺省**，几个键都可缺 —— 缺 `style` 按 `DEFAULT_MAP_STYLE`
  * 补齐，缺 `linkageColors` 沿用谜题 schema 的默认调色板（§5 的 S3 快照式）。
  *
- * v0.8.2 起多一个 `accent`：它**不是**缺省，是这个空间的门牌色。
+ * 另有一个 `accent`：它**不是**缺省，是这个空间的门牌色。
  *
- * v0.9.5：外面再包一层「旧键搬运」（`stripLegacyThemeKeys`）。读的顺序很重要 ——
+ * 外面包一层「旧键搬运」（`stripLegacyThemeKeys`）。读的顺序很重要 ——
  * `.strict()` 不接受未知键，而旧主题的顶层带着 `pressRing` / `checkStyle.ring`，
  * 所以必须**先**搬再校验，于是把 `preprocess` 套在最外层。
  */
@@ -265,13 +265,13 @@ export const themeDataSchema = z.preprocess(
 );
 
 /**
- * v0.9.5：把 `themes.data` 的**旧键**搬到新键上，丢掉已经不存在的那几个。
+ * 把 `themes.data` 的**旧键**搬到新键上，丢掉已经不存在的那几个。
  *
  * 三件事：
  * 1. `forbiddenSymbol → mark`（与谜题侧同一对，复用 `moveLegacyImageKeys`）；
  * 2. `pressRing → ring.image`、`checkStyle.ring → ring.image`（`pressRing` 优先：
- *    它是先有的那个，校验圈是后加的补充）；
- * 3. 摘掉 `checkStyle.ring` 本身 —— v0.9.5 起 `checkStyle` 只剩两档颜色，
+ *    校验圈是后加的补充）；
+ * 3. 摘掉 `checkStyle.ring` 本身 —— `checkStyle` 只剩两档颜色，
  *    留着它会被 `themeCheckColorsSchema` 的 `.strict()` 判成多余键。
  *
  * 为什么在**外层**预处理而不是各字段自己搬：`.strict()` 是在对象层判「有没有多余
@@ -371,7 +371,7 @@ export const updateThemeCheckStyleSchema = z
   );
 
 /**
- * v0.11.3：结算卡的两句文字（图标位置的文字 + 标题）—— 与上传图标图分开。
+ * 结算卡的两句文字（图标位置的文字 + 标题）—— 与上传图标图分开。
  *
  * 与校验颜色同一个口径：两项都可选、**至少给一项**；给空串就是恢复内置。
  */
@@ -403,7 +403,7 @@ export const listThemesQuerySchema = z.object({
 });
 
 /**
- * v0.10.10：导出包可以**只打选中的几关**。`games` 是逗号分隔的游戏 id；缺席 =
+ * 导出包可以**只打选中的几关**。`games` 是逗号分隔的游戏 id；缺席 =
  * 这个主题全部在线关（v0.8.0 起的默认行为，老调用方与老包不受影响）。
  *
  * 放在 query 上而不是 body：接口仍然是 `GET`，幂等的打包动作没必要改成 POST。

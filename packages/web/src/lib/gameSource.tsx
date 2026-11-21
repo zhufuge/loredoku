@@ -69,7 +69,7 @@ export interface GameSource {
    */
   themeCheckColors(themeCode: string | null | undefined): ThemeCheckColors | null;
   /**
-   * v0.11.3：主题级的**结算卡配置** —— 图标（文字 / emoji 或一张图）与标题。
+   * 主题级的**结算卡配置** —— 图标（文字 / emoji 或一张图）与标题。
    *
    * 同一条「读取时兜底」：`null` 表示没配过，由 `resolveVerdictStyle` 补内置的
    * 🎉 + 「解题成功」。bundle 从 `manifest.theme.verdict` 取，api 从主题列表查。
@@ -95,15 +95,12 @@ export interface GameSource {
    *
    * 返回值都是**路由内路径**（不带站点 base）：工坊挂 basename `/`，播放器挂
    * `/loredoku`，两者由各自的 router 补前缀。
-   *
-   * v0.9.2：`themeHref` 随合辑一起删了 —— `/play/theme/:slug` 那个「回到主题」的
-   * 落点已经不存在，顶栏也不再显示主题名。
    */
   /** v0.11.6：列表页带主题段（/:code/play）；传 null 时由实现退回老地址。 */
   listHref(themeCode?: string | null): string;
   gameHref(key: string): string;
   /**
-   * v0.9.5：**这个列表里全部关卡**，按玩家在列表页看到的顺序。
+   * **这个列表里全部关卡**，按玩家在列表页看到的顺序。
    *
    * 定案卡上那枚「下一关」要回答「排在当前这一关之后、还没通过的第一关是哪一关」，
    * 而这个答案只有「整份清单」知道 —— 两个入口的清单来源不同（api 是 `/api/games`，

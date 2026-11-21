@@ -40,7 +40,7 @@ export function CharacterThumbnail({
   const src = failed ? character.avatarUrl : character.avatarThumbUrl ?? character.avatarUrl;
   const plain = shape === 'plain';
 
-  // v0.5.1 FEAT-L02 / SPEC-L03: a colour block wins over the avatar.
+  // A colour block wins over the avatar.
   if (character.bgColor) {
     return (
       <div

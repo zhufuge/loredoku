@@ -71,11 +71,11 @@ export function clampRegionLabelStroke(value: number): number {
 }
 
 /**
- * v0.9.6：区域标签位置偏移（可正可负，取整）。
+ * 区域标签位置偏移（可正可负，取整）。
  *
  * 与 `clampRegionLabelStroke` 同一条路：输入框里可能是 `-`、空串、小数，这里
- * 统一取整。v0.10.7 起**不再封顶**（原来的 ±200 会把「推到远处留白」挡死），
- * 只把非有限数落回 0。单位是格的百分比（100 = 一格，v0.10.7 起）。
+ * 统一取整。**不封顶** —— 封顶会把「推到远处留白」挡死；只把非有限数落回 0。
+ * 单位是格的百分比（100 = 一格）。
  */
 export function clampRegionLabelOffset(value: number): number {
   if (!Number.isFinite(value)) return 0;
@@ -86,7 +86,7 @@ export function clampOperationOffset(value: number): number {
   return clampNumber(value, MAP_STYLE_OPERATION_OFFSET_MIN, MAP_STYLE_OPERATION_OFFSET_MAX);
 }
 
-/** v0.9.1：画布阴影的偏移量（格的百分比，v0.10.7 起；100 = 一格），整数 0 ~ 200。 */
+/** 画布阴影的偏移量（格的百分比，100 = 一格），整数 0 ~ 200。 */
 export function clampCanvasShadowOffset(value: number): number {
   return Math.round(clampNumber(value, MAP_STYLE_SHADOW_OFFSET_MIN, MAP_STYLE_SHADOW_OFFSET_MAX));
 }
@@ -96,18 +96,18 @@ export function clampItemOutlineWidth(value: number): number {
   return clampNumber(value, MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN, MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX);
 }
 
-/** v0.3.9 FEAT-E02: ruler text size (integer px). */
+/** Ruler text size (integer px). */
 export function clampRulerFontSize(value: number): number {
   return Math.round(clampNumber(value, MAP_STYLE_RULER_FONT_MIN, MAP_STYLE_RULER_FONT_MAX));
 }
 
-/** v0.3.9 FEAT-E02: gap between the ruler text and the board. */
+/** Gap between the ruler text and the board. */
 export function clampRulerGap(value: number): number {
   return clampNumber(value, MAP_STYLE_RULER_GAP_MIN, MAP_STYLE_RULER_GAP_MAX);
 }
 
 /**
- * v0.10.8: the prefix printed in front of a ruler number (`C` / `R` by default).
+ * The prefix printed in front of a ruler number (`C` / `R` by default).
  *
  * Not clamped to a range — it is a short piece of text. Only the length is
  * capped, and an empty string is preserved on purpose: it means "numbers only".
@@ -119,7 +119,7 @@ export function clampRulerSymbol(value: unknown, fallback: string): string {
 }
 
 /**
- * v0.10.8：把标尺符号从一份**地图草稿的**风格里剥掉。
+ * 把标尺符号从一份**地图草稿的**风格里剥掉。
  *
  * 符号只由主题配置（见 `useRulerSymbolsByCode`）：库里那两行旧值既不参与渲染，
  * 也不该在保存时被重新写回去 —— 否则作者改进主题、某张图的渲染却早已被自己那份
@@ -137,7 +137,7 @@ export function clampRegionBorderWidth(value: number): number {
 }
 
 /**
- * v0.7.4: the label typeface is a **font name**, so there is nothing to clamp —
+ * The label typeface is a **font name**, so there is nothing to clamp —
  * only a shape to check. A name that fails it (a hand-edited JSON, a draft
  * written by a newer build, an empty string) falls back to the shipped default
  * instead of leaking into `style.fontFamily`; a well-formed name that this
@@ -255,7 +255,7 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
           : fallback.regionLabel.strokeWidth,
       color: color(fallback.regionLabel.color, regionLabel.color),
       strokeColor: color(fallback.regionLabel.strokeColor, regionLabel.strokeColor),
-      // v0.5.2 FIX-M02: the hovered label is **never smaller** than the idle
+      // The hovered label is **never smaller** than the idle
       // one — a bad draft / import that says otherwise is lifted back up.
       hoverFontSize: Math.max(
         baseLabelFontSize,
@@ -265,7 +265,7 @@ export function resolveMapStyle(style?: Partial<MapStyle> | null): MapStyle {
       ),
       hoverColor: color(fallback.regionLabel.hoverColor, regionLabel.hoverColor),
       hoverStrokeColor: color(fallback.regionLabel.hoverStrokeColor, regionLabel.hoverStrokeColor),
-      // v0.7.0: the hovered label's own stroke size — no "never smaller" rule
+      // The hovered label's own stroke size — no "never smaller" rule
       // here, the author may thin the hovered stroke on purpose.
       hoverStrokeWidth:
         typeof regionLabel.hoverStrokeWidth === 'number'
@@ -399,13 +399,13 @@ export function countLinkageColorUsage(
 /**
  * The effective cell width at 100% zoom。
  *
- * FEAT-D03 起，作者可以在「地图基本信息」里写死一个 `cellSize`。v0.10.3 把它从
- * **定值**降级成**上限**：渲染永远不超过视口算出来的那个数。
+ * 作者可以在「地图基本信息」里写死一个 `cellSize`，它是**上限**：渲染永远不超过
+ * 视口算出来的那个数。
  *
- * 为什么必须降级：`fit()` 先按 `<main>` 的宽高算出一个刚好的格子，旧写法又把这个
- * 结果整个换成作者写的值 —— 26 关里有 23 关的作者值比视口装得下的大，于是棋盘从
- * 上下两头被 `overflow-hidden` 切掉（`<main>` 不可滚，也没有任何提示）。棋盘是玩
- * 这件东西的唯一界面，宁可格子比作者写的略小，也不能缺一角。
+ * 为什么是上限：`fit()` 先按 `<main>` 的宽高算出一个刚好的格子；若把结果整个换成
+ * 作者写的值，作者值大于视口时棋盘就从上下两头被 `overflow-hidden` 切掉（`<main>`
+ * 不可滚，也没有任何提示）。棋盘是玩这件东西的唯一界面，宁可格子比作者写的略小，
+ * 也不能缺一角。
  *
  * 为什么只压上限、不干脆忽略：存量里 78 张图带着 36 ~ 168 的值，那是作者当时
  * 「别铺得太大」的意思。屏幕变大时允许它跟着长到 240（`MAX_CELL_SIZE`），但不
@@ -423,8 +423,8 @@ export function styleLineWidth(base: number, cellSize: number): number {
 }
 
 /**
- * v0.8.7 §6：画布纸片的投影。v0.9.1 §2 起偏移量与颜色都读 `style.canvasShadow`
- * —— 作者能在「地图基本信息」或主题缺省风格里各配各的，不再跟着外框色走。
+ * v0.8.7 §6：画布纸片的投影。偏移量与颜色都读 `style.canvasShadow`（v0.9.1 §2）
+ * —— 作者能在「地图基本信息」或主题缺省风格里各配各的，不跟着外框色走。
  *
  * 为什么是硬影（`blur = 0`）：这张图的气质是一条线画到底的（网格、框、标签都在
  * 1 ~ 12px 的细线里），一团弥散阴影会第一个跳出来抢注意力。向右下偏移的硬影说的
@@ -436,9 +436,9 @@ export function styleLineWidth(base: number, cellSize: number): number {
  * 返回值直接摊进画布底色那一层（`MAP_LAYER_Z.canvasBase`）的 `style`：它在缩放
  * 容器里，所以偏移量随 `zoom` 一起缩放，和线宽同一套规矩。
  *
- * v0.10.7：`canvasShadow.offset` 改成**格的百分比**（100 = 一格），这里乘
- * `cellSize` 换成像素。以前它直接就是像素，于是同一份 `36` 在 104px 的格子上是
- * 三分之一格、在 168px 的格子上只有五分之一格 —— 阴影大小跟着格子大小变。
+ * `canvasShadow.offset` 是**格的百分比**（100 = 一格），这里乘 `cellSize` 换成
+ * 像素 —— 同一份 `36` 在 104px 的格子上是三分之一格、在 168px 的格子上是五分之一
+ * 格，阴影大小跟着格子大小同步变化。
  */
 export function canvasShadowStyle(style: MapStyle, cellSize: number): CSSProperties {
   const { r, g, b } = hexToRgb(style.canvasShadow.color);
@@ -456,10 +456,10 @@ export function canvasShadowStyle(style: MapStyle, cellSize: number): CSSPropert
  * 背景的物品得到的是一圈贴着实物的边，而不是一个矩形框。宽度先按方格尺寸缩放
  * （`styleLineWidth`，与线宽同一套规矩），颜色直接用配置的 `#RRGGBB`。
  *
- * v0.11.2：缩放后的宽度**取整、且至少 1px**。原来直接把 `styleLineWidth` 的小数
- * 塞进 `drop-shadow`，竖屏 7×7 时格子约 49px（`cellScale = 49/120`），作者写的 6
- * 缩成 2.45px —— Safari 对小数偏移的离屏渲染会把这个边缘整个抹掉，于是 Chrome 有
- * 描边、Safari 没有。取整到整数像素后各引擎算出来的都是同一条硬边；下限 1px 保证
+ * 缩放后的宽度**取整、且至少 1px**。小数宽度塞进 `drop-shadow` 时，竖屏 7×7 的
+ * 格子约 49px（`cellScale = 49/120`），作者写的 6 缩成 2.45px —— Safari 对小数偏移
+ * 的离屏渲染会把这个边缘整个抹掉，于是 Chrome 有描边、Safari 没有。取整到整数像素
+ * 后各引擎算出来的都是同一条硬边；下限 1px 保证
  * 小格子下不会缩成 0（与 `MapGameLayers.tsx` 里清除图标白描边的
  * `Math.max(1, Math.round(cellSize * 0.02))` 同一处理方式）。
  */
@@ -481,18 +481,18 @@ export function itemOutlineFilter(
 }
 
 /**
- * v0.3.9 FEAT-E01: the 「地图基本信息」drawer keeps a draft and only commits on
- * save, so it needs to know whether anything actually changed. Comparing the
- * two resolved styles field by field is enough — both sides have already been
- * normalised by {@link resolveMapStyle}. (v0.5.0 FEAT-K14: the palette is no
- * longer part of `MapStyle`, so it is out of scope here.)
+ * The 「地图基本信息」drawer keeps a draft and only commits on save, so it needs
+ * to know whether anything actually changed. Comparing the two resolved styles
+ * field by field is enough — both sides have already been normalised by
+ * {@link resolveMapStyle}. The palette is not part of `MapStyle`, so it is out
+ * of scope here.
  */
 export function mapStyleEquals(a: MapStyle, b: MapStyle): boolean {
   if (a === b) return true;
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
-/** v0.3.9 FEAT-E02: the operated row / column glyph stays `delta` px larger. */
+/** The operated row / column glyph stays `delta` px larger. */
 export function rulerActiveFontSize(fontSize: number, scale: number): number {
   return scaleFontSize(fontSize + RULER_ACTIVE_FONT_DELTA, scale);
 }

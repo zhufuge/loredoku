@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ColorField } from './color-input';
 
 /**
- * v0.8.3：统一取色控件。
+ * 统一取色控件。
  *
  * 这一版把几种长相收成一种：色块（原生取色器）+ hex 输入框。钉三件事：
  *

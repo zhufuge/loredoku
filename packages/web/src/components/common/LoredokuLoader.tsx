@@ -2,7 +2,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * v0.7.12：「加载中」从此只有一个长相 —— 品牌字标 LOREDOKU 自己。
+ * 「加载中」只有一个长相 —— 品牌字标 LOREDOKU 自己。
  *
  * 改之前的十个加载点画的是同一个东西：Lucide 的 `Loader2` 转圈。它是这套界面里
  * 出现次数最多、辨识度最低的一笔 —— 任何模板都长这样，而它恰好是用户在等待时
@@ -116,7 +116,7 @@ export type LoredokuLoaderSize = 'sm' | 'md' | 'lg';
  * `loredoku-word--${size}` 这种模板串在源码里出现的是 `${size}`，Tailwind 的
  * 扫描器只会看到 `loredoku-word--`，三档 `font-size` 会被当成未使用的自定义
  * 工具类**整段删掉** —— 构建不报错，运行时字标全部退回 16px。这一类静默失败
- * 在这个仓库里已经记过两次（v0.7.9 的 `shadow-[var(--x)]`、v0.7.10 的
+ * 在这个仓库里已经记过两次（v0.7.9 的任意值阴影类、v0.7.10 的
  * `animate-in` 时长压不动），所以这里用表把它们钉死。
  */
 const SIZE_CLASS: Record<LoredokuLoaderSize, string> = {
@@ -254,8 +254,7 @@ export function LoadingBlock({
 }
 
 /**
- * 整屏加载：地图 / 谜题 / 游戏三处此前各写了一遍「转圈 + 一句话」，
- * 连 className 都一字不差。现在它们共用一个。
+ * 整屏加载：地图 / 谜题 / 游戏三处共用一个。
  *
  * 三层都按同一套判定挂 `load-delayed`（`useLoadDelayed`），但真正跑动画的只有
  * 最外面这一层（`index.css` 的 `.load-delayed .load-delayed { animation: none }`）

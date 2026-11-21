@@ -41,7 +41,7 @@ export interface FieldSpec {
 }
 
 const px = (value: StyleLeaf): string => (value === null ? '自适应' : `${value}px`);
-/** v0.10.7：偏移类字段按格的百分比显示（100% = 一格）。 */
+/** 偏移类字段按格的百分比显示（100% = 一格）。 */
 const pc = (value: StyleLeaf): string => (value === null ? '—' : `${value}%`);
 const raw = (value: StyleLeaf): string => (value === null ? '—' : String(value));
 
@@ -49,7 +49,7 @@ const raw = (value: StyleLeaf): string => (value === null ? '—' : String(value
  * 字段表 —— **顺序即显示顺序**。新增一个 `MapStyle` 字段时在这里加一行，否则
  * 弹窗会悄悄漏掉它（漏掉比多一行更糟：作者会以为那一项相同）。
  *
- * v0.8.3：**导出**了。概览页的「缺省风格」表单要按同一份顺序与同一套中文名列出
+ * 导出：概览页的「缺省风格」表单要按同一份顺序与同一套中文名列出
  * 这二十几项 —— 两份表迟早会漂。`web` 那边只额外带一个「怎么写回去」的表，
  * 标签与顺序仍然只有这里一份。
  */
@@ -62,7 +62,7 @@ export const MAP_STYLE_FIELDS: readonly FieldSpec[] = [
   // 边框
   { key: 'canvasFrame.width', group: '边框', label: '画布外框线宽', read: (style) => style.canvasFrame.width, format: px },
   { key: 'canvasFrame.color', group: '边框', label: '画布外框颜色', read: (style) => style.canvasFrame.color, format: raw },
-  // v0.9.1：画布阴影独立成两项（原来偏移是常量、颜色跟外框走，没法比对也没法改）。
+  // 画布阴影独立成两项：偏移与颜色各自可改，也各自参与比对。
   { key: 'canvasShadow.offset', group: '边框', label: '画布阴影偏移', read: (style) => style.canvasShadow.offset, format: pc },
   { key: 'canvasShadow.color', group: '边框', label: '画布阴影颜色', read: (style) => style.canvasShadow.color, format: raw },
   { key: 'regionOutline.width', group: '边框', label: '区域轮廓线线宽', read: (style) => style.regionOutline.width, format: px },

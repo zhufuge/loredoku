@@ -97,10 +97,10 @@ export function showsAvatar(placement: CellPlacement | null): boolean {
  *    the caller can tell "never touched" from "marked candidates but never
  *    confirmed".
  *
- * v0.7.12：**提交校验不再用它**。判卷只认头像（`avatarCellOf`）—— 见
+ * **提交校验不用它**。判卷只认头像（`avatarCellOf`）—— 见
  * `validatePlacement` 的注释。这个函数保留下来，是因为「编号也算一个位置」
- * 在**画面上**仍然成立（提示层、联动高亮都按它指的地方画），只是不再决定
- * 交卷的结果。
+ * 在**画面上**仍然成立（提示层、联动高亮都按它指的地方画），交卷结果则由头像
+ * 决定。
  */
 export function participantPlacementAt(
   board: GamePlacementBoard,
@@ -138,8 +138,8 @@ export function candidateCellCount(board: GamePlacementBoard, participantId: num
  * SPEC-G05 §5.3: every participant with **any** mark on the board — a 编号
  * counts, and so does an avatar. The uniqueness rule consults this set.
  *
- * v0.5.1 SPEC-L05: the roster card **no longer fades** on a 编号, so the game
- * page fades with {@link avatarPlacedParticipantIds} instead. This function
+ * SPEC-L05: the roster card **does not fade** on a 编号, so the game page
+ * fades with {@link avatarPlacedParticipantIds} instead. This function
  * keeps its original meaning for the uniqueness rule and its tests.
  */
 export function placedParticipantIds(board: GamePlacementBoard): Set<number> {
@@ -169,7 +169,7 @@ export function avatarPlacedParticipantIds(board: GamePlacementBoard): Set<numbe
 }
 
 /**
- * v0.7.12：名单上的每一位都**已经有头像**了吗？—— 提交按钮的可用条件。
+ * 名单上的每一位都**已经有头像**了吗？—— 提交按钮的可用条件。
  *
  * 只数头像（`avatarPlacedParticipantIds`），编号不算：编号是草稿，草稿不是交卷。
  * 空槽（`null`）不参与判断，一份 3 人名单里的第 4 格是空格时不该拦着玩家提交。
@@ -190,7 +190,7 @@ export function formatCellLabel(coord: CellCoord): string {
 /**
  * SPEC-G05 §5.2: why a participant placement was refused, for the toast.
  *
- * v0.7.11: `'elsewhere'` 不再存在 —— 长按另一个格子不会因为「已经放在别处」
+ * `'elsewhere'` 不在这个联合里：长按另一个格子不会因为「已经放在别处」
  * 被拒，而是**把头像搬过去**（旧格释放，见 `placeParticipant`）。玩家改主意
  * 不是错误。
  *
@@ -222,19 +222,17 @@ export function placementBlockReason(input: {
   // participant may carry it on many cells at once — so a short press is never
   // blocked by uniqueness.
   //
-  // The **avatar** is unique too, but v0.7.11 不再拒绝：长按另一格就是**搬家**
-  // （旧格释放、同行同列的自动 `×` 跟着回滚）。唯一性因此由「搬家」满足，
-  // 而不是由「报错」满足。
+  // The **avatar** is unique too, but that is never a refusal — 长按另一格就是
+  // **搬家**（旧格释放、同行同列的自动 `×` 跟着回滚）。唯一性因此由「搬家」
+  // 满足，而不是由「报错」满足。
   const placement = placementAt(board, x, y);
   if (!placement) return null;
   if (placement.kind === 'forbidden') return 'forbidden';
   if (placement.kind === 'participant') {
     /**
-     * v0.7.12：头像格上**短按无效果**。
+     * 头像格上**短按无效果**。
      *
-     * 之前只有「这一格已经是自己的头像」会被拒；点别人的头像格仍会走九宫格
-     * 追加，于是那张脸被编号顶掉（`placeParticipant` 的 numbers 分支整格替换）。
-     * 需求要的是：已放置参与者的格子，编号点上去什么都不发生。
+     * 已放置参与者的格子，编号点上去什么都不发生 —— 不论那张脸是谁的。
      *
      * 长按（`variant: 'image'`）仍允许落在**别人**的头像格上 —— 那是「换人站
      * 这里」，与「编号盖掉头像」不是一回事；自己的头像格一律无效果。
@@ -322,7 +320,7 @@ export function autoForbiddenCells(input: {
   for (let column = 0; column < gridSize; column += 1) consider(column, y);
   for (let row = 0; row < gridSize; row += 1) consider(x, row);
   /*
-   * v0.10.1：**由近及远**。这里的顺序就是界面上那一圈圈扩散的次序（见
+   * **由近及远**。这里的顺序就是界面上那一圈圈扩散的次序（见
    * `GamePage` 的 `forbiddenWave`）—— 先落在头像脚边，再一格格往外推。
    *
    * 距离相同的一圈里再按「上→下、左→右」定序，只为让结果**确定**：同一盘棋
@@ -339,7 +337,7 @@ export function forbiddenWaveRing(key: string, origin: { x: number; y: number })
 }
 
 /**
- * v0.10.1：这一手会**新添**哪些 `×`，以及它们各自距落子格几圈。
+ * 这一手会**新添**哪些 `×`，以及它们各自距落子格几圈。
  *
  * 只在 `variant === 'image'` 上有意义 —— 短按放标号不动行列。
  *
@@ -512,7 +510,7 @@ export function placeParticipant(
   if (variant === 'image') {
     board = { ...state.board };
     /**
-     * v0.7.11：长按另一格 = **搬家**。旧格先释放，否则同一个人的两个头像会同时
+     * 长按另一格 = **搬家**。旧格先释放，否则同一个人的两个头像会同时
      * 站在棋盘上（唯一性是画出来的，不是拒绝出来的）。
      */
     const previousAvatar = avatarCellOf(state.board, input.participantId);
@@ -548,7 +546,7 @@ export function placeParticipant(
       except: { x: input.x, y: input.y },
     });
 
-    // v0.7.11：搬家之后，旧行旧列的自动 `×` 失去依据 —— 这里一并收回。
+    // 搬家之后，旧行旧列的自动 `×` 失去依据 —— 这里一并收回。
     board = pruneAutoForbidden(board);
   }
 
@@ -567,12 +565,12 @@ export function placeForbidden(
 }
 
 /**
- * v0.7.12：`×` 工具是一支**开关** —— 同一格再点一次就把那个 `×` 收回去。
+ * `×` 工具是一支**开关** —— 同一格再点一次就把那个 `×` 收回去。
  *
- * 此前这一下什么都不做，想撤销一个点错的 `×` 得先切到橡皮、再切回来：两次工具
- * 切换只为了一个单格动作，而橡皮擦的是**整格**（这一步本身也多了一层心理成本）。
- * 允许在同一个工具里反向操作，是因为 `×` 是唯一「只代表自己」的格子内容：擦掉它
- * 不会伤到任何别的标记（编号要留、头像要留，`×` 不留）。
+ * 撤销一个点错的 `×` 不必先切到橡皮、再切回来：两次工具切换只为了一个单格动作，
+ * 而橡皮擦的是**整格**（这一步本身也多了一层心理成本）。允许在同一个工具里反向
+ * 操作，是因为 `×` 是唯一「只代表自己」的格子内容：擦掉它不会伤到任何别的标记
+ * （编号要留、头像要留，`×` 不留）。
  *
  * 自动补的 `×`（`auto: true`）同样可以这样收回。玩家手动取消一个排除项是明确的
  * 意思表示；等下一次有头像落下，`placeParticipant` 会按**当时**的行列重新补。
@@ -595,7 +593,7 @@ export function toggleForbidden(
 /**
  * SPEC-G04 §10.2: clearing one cell; a cell with nothing is a no-op.
  *
- * v0.7.11：擦掉一个头像之后，它的自动 `×` 也跟着走（`pruneAutoForbidden`）——
+ * 擦掉一个头像之后，它的自动 `×` 也跟着走（`pruneAutoForbidden`）——
  * 否则棋盘上会留下「这一行仍然不能放」的假提示。玩家的手放 `×` 不受影响。
  */
 export function clearCell(
@@ -678,10 +676,10 @@ export function resolveToolHint(input: {
   if (mode.kind === 'placing') {
     if (nonStandable) return null;
     /**
-     * v0.7.12：头像格与 `×` 格**不预览编号**。
+     * 头像格与 `×` 格**不预览编号**。
      *
-     * 这两种格子点击是**无效果**的（头像格属于别人，`×` 格是排除项），却曾经
-     * 在悬停时画出一个编号 —— 预告了一件不会发生的事。提示层的职责是「松手会
+     * 这两种格子点击是**无效果**的（头像格属于别人，`×` 格是排除项），悬停时
+     * 画出一个编号等于预告一件不会发生的事。提示层的职责是「松手会
      * 发生什么」，既然什么都不会发生，就不该有那一格字。
      */
     if (placement?.kind === 'forbidden' || placement?.kind === 'participant') return null;
@@ -690,7 +688,7 @@ export function resolveToolHint(input: {
   if (nonStandable) return null;
   if (placement?.kind === 'participant') return null;
   /**
-   * v0.7.12：`×` 工具在**已经有 `×`** 的格子上，预告仍然是 `×`。
+   * `×` 工具在**已经有 `×`** 的格子上，预告仍然是 `×`。
    *
    * 那一格再点一次确实是**收回**（见 `toggleForbidden`），但提示层的字形不该
    * 跟着换成橡皮 —— 换字形等于在指针底下改变这支工具的**身份**：同一支笔，压到
@@ -701,7 +699,7 @@ export function resolveToolHint(input: {
 }
 
 /**
- * v0.8.5：一次放置落下之后，工具栏该停在哪个模式。
+ * 一次放置落下之后，工具栏该停在哪个模式。
  *
  * **头像（`image`）放下 = 这位参与者已经就位**，手上不再举着任何东西 —— 名册
  * 那张卡的选中环随之退掉。否则界面在宣称「你还举着他」，下一次点格子会让人以为
@@ -821,10 +819,9 @@ export interface ValidatePlacementInput {
  * Rows/columns are reported from both sides of a clash (each participant gets
  * its own issue), which keeps the list a straight projection of the roster.
  *
- * v0.7.12（"提交校验时，参与者标号不能代表参与者"）：这里从
- * `participantPlacementAt`（没有头像时，唯一的候选编号也认）换成
- * `avatarCellOf`（只认头像）。标号的作用是**自己数格子时的草稿**，它可能只是
- * 玩家随手点过的一格；把草稿当交卷，等于替玩家宣布「我确定了」。
+ * 提交校验**只认头像**（`avatarCellOf`），候选编号不算。标号的作用是
+ * **自己数格子时的草稿**，它可能只是玩家随手点过的一格；把草稿当交卷，
+ * 等于替玩家宣布「我确定了」。
  */
 export function validatePlacement(input: ValidatePlacementInput): PlacementValidation {
   const { board, slots } = input;

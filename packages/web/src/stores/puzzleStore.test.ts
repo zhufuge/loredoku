@@ -450,7 +450,7 @@ describe('setBasicInfo (SPEC-K05: one gesture = one undo step)', () => {
     store().setBasicInfo({
       name: '午夜花园',
       description: '改过的描述',
-      // v0.7.14：题面随「基本信息」一起提交，空值也要显式写出来。
+      // 题面随「基本信息」一起提交，空值也要显式写出来。
       clues: [],
       ending: '',
       linkageColors: [
@@ -941,7 +941,7 @@ describe('toDraft / applyDraft (FEAT-K08)', () => {
   });
 
   /**
-   * v0.7.14：题面必须跟着草稿走 —— 全局线索与结束语不到服务端，游戏页拿到的
+   * 题面必须跟着草稿走 —— 全局线索与结束语不到服务端，游戏页拿到的
    * 就永远是一张只有描述的纸片，玩家侧的结束语也无从出现。
    */
   it('carries the 题面 to the server (全局线索 + 结束语)', () => {

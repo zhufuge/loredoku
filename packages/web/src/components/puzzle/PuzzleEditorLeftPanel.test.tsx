@@ -11,15 +11,13 @@ import {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 /**
- * v0.6.3 fix: a full roster collapses the 角色 panel **by default** — every
- * 加入 button is disabled at that point, so the list has nothing left to offer
- * and the canvas deserves the width. It is a default, not a lock: the first
- * manual 展开 / 收起 takes over for the rest of the session.
+ * A full roster collapses the 角色 panel **by default** — every 加入 button is
+ * disabled at that point, so the list has nothing left to offer and the canvas
+ * deserves the width. It is a default, not a lock: the first manual 展开 / 收起
+ * takes over for the rest of the session.
  *
- * v0.7.13: 收起 = **整列不渲染**。原来那条 40px 的竖排细条（一个箭头 + 竖排
- * 「角色」）被删掉了，箭头搬到参与者面板的标题行上。所以这一组用例里
- * 「是否收起」的观察点从「细条在不在」换成了「容器里有没有 `aside`」，
- * 展开动作也从「点细条里的箭头」换成了 `ref.expand()`。
+ * 收起 = **整列不渲染**，所以这一组用例里「是否收起」的观察点是容器里有没有
+ * `aside`，展开动作用 `ref.expand()`。展开那颗箭头挂在参与者面板的标题行上。
  */
 
 const CHARACTERS: Character[] = [
@@ -116,7 +114,7 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
 
   it('collapses by default once every slot is taken', () => {
     render(roster(2));
-    // v0.7.13: 整列不渲染 —— 不是「留一条细条」，是这块地方整个还给画布。
+    // 整列不渲染 —— 这块地方整个还给画布。
     expect(aside()).toBeNull();
     // 页面靠这个回调决定要不要在参与者标题行上挂那颗箭头。
     expect(onCollapsedChange).toHaveBeenLastCalledWith(true);
@@ -132,7 +130,7 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
   it('leaves the state alone once the user has taken over', () => {
     render(roster(2));
     expect(aside()).toBeNull();
-    // v0.7.13: 箭头长在参与者标题行上，通过 ref 叫回来（与点它等价）。
+    // 箭头长在参与者标题行上，通过 ref 叫回来（与点它等价）。
     act(() => {
       panelRef.current?.expand();
     });
@@ -157,7 +155,7 @@ describe('PuzzleEditorLeftPanel — 参与者满时默认收起（v0.6.3 fix）'
 });
 
 /**
- * v0.7.13：收起之后那颗箭头已经不在这个组件里了，它由参与者面板的标题行渲染。
+ * 那颗箭头由参与者面板的标题行渲染，不在这个组件里。
  * 这里只验它自己：标签、折叠语义、点击回传。
  */
 describe('RosterExpandButton（v0.7.13）', () => {
@@ -189,7 +187,7 @@ describe('RosterExpandButton（v0.7.13）', () => {
 });
 
 /**
- * v0.7.7: 角色面板头部的刷新按钮。角色列表是共享查询，角色页刚加过角色时
+ * 角色面板头部的刷新按钮。角色列表是共享查询，角色页刚加过角色时
  * 不用整页重载（重载会丢撤销栈与视口）。
  *
  * 收起后整个面板不渲染，刷新按钮自然也不在 —— 而收起出现的时机（参与者已满）
@@ -243,7 +241,7 @@ describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
 
   it('is gone with the whole column once the panel collapses', () => {
     render(roster(2));
-    // v0.7.13: 不是「按钮藏起来」，是这一列根本不渲染。
+    // 不是「按钮藏起来」，是这一列根本不渲染。
     expect(container.firstElementChild).toBeNull();
   });
 
@@ -256,7 +254,7 @@ describe('PuzzleEditorLeftPanel — 刷新按钮（v0.7.7）', () => {
 });
 
 /**
- * v0.11.4：角色库按名字排序（中文按拼音首字母）。
+ * 角色库按名字排序（中文按拼音首字母）。
  *
  * 排的是**角色库这一列**。参与者槽位那一列（`ParticipantPanel`）的顺序是作者排
  * 的「1 号、2 号」，那是谜题内容，不能跟着字母走 —— 这里只钉角色库这一边。

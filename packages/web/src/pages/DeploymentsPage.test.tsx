@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MapGameSummary, PuzzleEntrySummary, Theme } from '@loredoku/shared';
 import { DeploymentsPage } from './DeploymentsPage';
 
-/** v0.10.10：导出弹窗的「只导出选中的几关」。弹窗只在点击时才调接口，mock 掉
+/** 导出弹窗的「只导出选中的几关」。弹窗只在点击时才调接口，mock 掉
  *  `@/api/themes` 才能断言「带上了选中的 id」，而不真的发请求。 */
 const downloadThemeBundleMock = vi.fn().mockResolvedValue({
   blob: new Blob([]),
@@ -20,14 +20,13 @@ vi.mock('@/api/themes', () => ({
  * 部署模块（v0.7.1 §7.4）：一行 = 一条在线的东西；取消部署走二次确认，弹窗里
  * 明写「玩家立刻无法访问 / 同一路径可以再用」两件事。
  *
- * v0.8.1：列表恢复 v0.8 之前的**平铺**样式，一张卡；「导出包」挪到页头（它是
- * 主题级动作）。工作空间里只列当前主题的行。
+ * 列表是**平铺**的一张卡；「导出包」在页头（它是主题级动作）。工作空间里只列
+ * 当前主题的行。
  *
- * v0.9.2：合辑那一段连同两张表删了，这一页只剩单局 —— 原来那两个「合辑某某」
- * 的用例也随之删除。
+ * 这一页只剩**单局**。
  *
- * v0.7.11：这一页有了自己的「部署」按钮 —— 空状态里也是它。原先那个
- * 「前往谜题列表」的出口随之删掉：它唯一的用处是绕路去做同一件事。
+ * 这一页有自己的「部署」按钮 —— 空状态里也是它；没有「前往谜题列表」的出口：
+ * 它唯一的用处是绕路去做同一件事。
  */
 const gamesRef: { data: MapGameSummary[]; isLoading: boolean; isError: boolean } = {
   data: [],
@@ -44,7 +43,7 @@ vi.mock('@/hooks/useGames', () => ({
   useCancelGame: () => ({ mutate: cancelMutate, isPending: false }),
   // 部署弹窗也是这一页渲染的（默认关着），它得能拿到这个 hook。
   useDeployGame: () => ({ mutate: deployMutate, isPending: false }),
-  // v0.8.5：顺序列的就地编辑。
+  // 顺序列的就地编辑。
   useUpdateGameWeight: () => ({
     mutate: weightMutate,
     isPending: false,
@@ -254,10 +253,10 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
   });
 
   /**
-   * v0.8.2：导出清单与服务端同一把尺子 —— **只列当前主题的在线关**。
+   * 导出清单与服务端同一把尺子 —— **只列当前主题的在线关**。
    *
-   * 原来这里把 `gamesQuery.data`（全站）直接交给弹窗：清单会列出别的主题的关，
-   * 而服务端只打这个主题，于是「清单 8 关、包里 2 关」这种无从解释的差。
+   * 把全站的 `gamesQuery.data` 直接交给弹窗，清单就会列出别的主题的关，而服务端
+   * 只打这个主题 ——「清单 8 关、包里 2 关」这种差无从解释。
    */
   it('导出清单只列当前主题的关', () => {
     const hlm = theme({ code: 'hlm', name: '红楼梦' });
@@ -309,7 +308,7 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
   });
 
   /**
-   * v0.8.5：顺序列 —— 平时是数字，点开是输入框；回车与失焦是同一条收尾路径，
+   * 顺序列 —— 平时是数字，点开是输入框；回车与失焦是同一条收尾路径，
    * **值真的变了**才写回。
    *
    * 三条都在这里：改了要发；没改不发（点开看一眼是常事）；不合法不发（这一格
@@ -375,8 +374,8 @@ describe('DeploymentsPage (v0.7.1 §7.4)', () => {
   });
 
   /**
-   * v0.10.10：导出清单的每一关前面有勾选框 —— 主题十几关时作者经常只想归档
-   * 新的那几关。默认全勾上（与「全部导出」的老行为一致），取消后「导出 zip」
+   * 导出清单的每一关前面有勾选框 —— 主题十几关时作者经常只想归档
+   * 新的那几关。默认全勾上，取消后「导出 zip」
    * 才会灰掉，收起的请求只带选中的 id。
    */
   it('导出清单能逐关勾选：全选 / 清空 / 只导出选中的', async () => {

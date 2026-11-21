@@ -1,9 +1,8 @@
 /**
  * v0.9.0 §8 / 2026-11-09 补（docs/v0.9.0.md §14）—— 播放器「包在哪」的**单一答案**。
  *
- * 以前这个答案散在两处：`scripts/player.mjs` 摘 `--bundle`、`scripts/bundleAssets.mjs`
- * 又各自读一遍 `process.env.LOREDOKU_BUNDLE`。现在默认路径进了仓库根的 `.env`，两处
- * 再各读一遍必然走岔，所以收成一个函数，优先级写在一处：
+ * 默认路径在仓库根的 `.env` 里，`scripts/player.mjs` 与 `scripts/bundleAssets.mjs`
+ * 各自再读一遍必然走岔，所以收成一个函数，优先级只写在一处：
  *
  * ```
  * --bundle=<路径>  >  显式环境变量 LOREDOKU_BUNDLE  >  .env 里的 LOREDOKU_BUNDLE  >  没有

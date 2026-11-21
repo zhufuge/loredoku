@@ -46,11 +46,11 @@ function AccentDot({
 /**
  * v0.8.0 §18：顶栏里的**主题切换器**，位置在日夜图标之前。
  *
- * 上一版顶栏还是「六个模块」平铺，其中「主题」是第一项 —— 于是「换个主题」这件事
- * 藏在导航里，像去另一个页面，可它其实是换个世界接着干活：你在 `hlm/puzzles`，
- * 换到默认主题就该落到 `default/puzzles`，而不是主题列表。
+ * 「换个主题」是换个世界接着干活，不是去另一个页面：你在 `hlm/puzzles`，
+ * 换到默认主题就该落到 `default/puzzles`，而不是主题列表 —— 所以它不该藏在
+ * 导航里。
  *
- * 所以它现在是一个**下拉**，与日夜图标并列（两者都是「外壳的开关」，不是内容），
+ * 它是一个**下拉**，与日夜图标并列（两者都是「外壳的开关」，不是内容），
  * 触发器直接写出当前主题名 —— 顶栏里始终有一句「你在哪个世界」。
  *
  * 菜单里只有两件事：
@@ -59,7 +59,7 @@ function AccentDot({
  * 2. 去系统配置页管主题（新建 / 改名 / 删）。
  *
  * 第二件事单独在菜单底部、隔着一条分隔线：它是一个出口，不是第三个主题。出口
- * 不需要副标题解释自己 —— v0.8.2 删掉了原来那行「新建、改名、删除」。
+ * 不需要副标题解释自己。
  */
 export function ThemeSwitcher(): JSX.Element | null {
   const workspace = useWorkspace();
@@ -75,7 +75,7 @@ export function ThemeSwitcher(): JSX.Element | null {
     const segment = location.pathname.split('/').filter(Boolean)[1];
     const found = WORKSHOP_MODULES.find((module) => module.key === segment);
     // 认不出模块（`/hlm` 本身、或一个不存在的段）就落**概览** —— 那是这个空间的
-    // 首页。原来落 `maps`，等于在一个不认识的地址上还要替作者挑一间房（v0.8.2）。
+    // 首页，不在一个不认识的地址上替作者挑一间房。
     return found?.key ?? 'overview';
   })();
 
@@ -161,7 +161,7 @@ export function ThemeSwitcher(): JSX.Element | null {
               aria-hidden
             />
             {/*
-             * v0.8.2：每一行也带自己的门牌色。
+             * 每一行也带自己的门牌色。
              *
              * 触发器上那颗点只说明「你现在在哪」，可换主题时真正要做的判断是
              * 「另一间是什么样」—— 只看名字（默认主题 / 红楼梦）与编码，两行在
@@ -205,11 +205,11 @@ export function ThemeSwitcher(): JSX.Element | null {
         onClick={() => setOpen((value) => !value)}
       >
         {/*
-         * v0.8.2：门牌色就是这枚圆点。
+         * 门牌色就是这枚圆点。
          *
-         * 原先是通用的 `Layers` 图标 —— 它说的是「叠起来的一堆作品」，和这一格
-         * 真正在回答的问题（**我在哪个世界**）不是一回事，而且每个主题长得一样。
-         * 换成一个颜色，顶栏才第一次有「换个主题，连这里也会变」的可见证据。
+         * 这一格要回答的是**我在哪个世界** —— 一枚通用图标说的是「叠起来的一堆
+         * 作品」，而且每个主题长得一样；换成颜色，顶栏才有「换个主题，连这里
+         * 也会变」的可见证据。
          */}
         <AccentDot accent={accent} testId="theme-switcher-accent" />
         <span className="truncate font-kai text-sm">{workspace.theme.name}</span>

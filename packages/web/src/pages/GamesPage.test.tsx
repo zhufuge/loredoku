@@ -8,13 +8,13 @@ import { gameTimerKey } from '@/lib/gameTimer';
 import { GamesPage } from './GamesPage';
 
 /**
- * v0.8.2：玩家侧 → 制作侧的**唯一那道门**（右上角「进入工坊」）。
+ * 玩家侧 → 制作侧的**唯一那道门**（右上角「进入工坊」）。
  *
- * 它原来落 `/maps`。可工作空间从 v0.8.0 起有自己的首页（`/:code/overview`，也是
- * 导航第一项）—— 只有这枚从外面进来的按钮还落在某一间房里。这里钉住它落概览。
+ * 工作空间有自己的首页（`/:code/overview`，也是导航第一项），这枚从外面进来的
+ * 按钮也落概览 —— 这里钉住它。
  *
- * v0.8.6 §3.6：这一页的难度徽章原来一律是内置五档的叫法（页在工作空间外面，
- * 徽章读不到主题）。现在按关卡的 `themeCode` 查主题配的分级 —— 后半段钉这条。
+ * v0.8.6 §3.6：这一页的难度徽章按关卡的 `themeCode` 查主题配的分级（这页在工作
+ * 空间外面，读不到主题内置的五档叫法）—— 后半段钉这条。
  */
 
 const gamesRef: { data: MapGameSummary[]; isLoading: boolean; error: null; refetch: () => void } = {
@@ -25,7 +25,7 @@ const gamesRef: { data: MapGameSummary[]; isLoading: boolean; error: null; refet
 };
 
 /**
- * v0.11.6：这一页从「全站游戏平铺」变成「一个主题的关卡列表」—— 主题自己带
+ * 这一页是「一个主题的关卡列表」—— 主题自己带
  * 名字、描述、分级和那两行文案，所以 `useThemes` 也得摆一份出来。
  */
 const themesRef: { data: Theme[]; isLoading: boolean; error: null } = {
@@ -39,7 +39,7 @@ function theme(code: string, data: Partial<ThemeData> = {}, name = code): Theme 
 }
 
 /**
- * v0.11.2：预加载由 `useImagePreload` 负责（它自己的用例在
+ * 预加载由 `useImagePreload` 负责（它自己的用例在
  * `src/hooks/useImagePreload.test.tsx`，替掉全局 `Image` 自己派发 load）。
  * 这一层只钉「页面拿这些地址去等、等到才撤 loading」，所以把 hook 换成开关，
  * 顺手把传进去的地址记下来。
@@ -133,10 +133,10 @@ describe('GamesPage', () => {
   });
 
   /**
-   * v0.11.6：`/:code/play` 只列这个主题的关卡，徽章用这个主题配的分级。
+   * `/:code/play` 只列这个主题的关卡，徽章用这个主题配的分级。
    *
-   * 原来这一页是全站平铺的，同一个第 2 档在一张页上有两个叫法；现在地址里带着
-   * 主题编码，分级只有一份 —— 别的主题的关卡连出现的机会都不该有。
+   * 地址里带着主题编码，分级只有一份（同一个第 2 档不会在一张页上有两个叫法）——
+   * 别的主题的关卡连出现的机会都不该有。
    */
   it('按主题展示：只列这个主题的关卡，用它的分级叫法', () => {
     gamesRef.data = [
@@ -172,12 +172,10 @@ describe('GamesPage', () => {
   });
 
   /**
-   * v0.9.6：完成的关卡在列表页留三样东西 —— 封面上的**大面积覆盖（定案 + 印章）**、
+   * 完成的关卡在列表页留三样东西 —— 封面上的**大面积覆盖（定案 + 印章）**、
    * 页脚那一格的**时间**、以及「完成优先，否则最后离开」的取舍。
    *
-   * 覆盖现在**总是**出现（有完成记录就画）：v0.9.5 是「没印就整块不画」，理由是
-   * 「空蒙版只会弄脏封面」；加了「定案」两个字之后这条理由不成立 —— 文字本身就说清
-   * 了状态。印那一格仍然只在配了图时才有。
+   * 覆盖**总是**出现（有完成记录就画）；印那一格只在配了图时才有。
    */
   describe('已完成的谜题（v0.9.5 / v0.9.6）', () => {
     const stampUrl = '/api/files/themes/2/tool-icons/submit/a.webp';
@@ -198,7 +196,7 @@ describe('GamesPage', () => {
 
       const cover = covers();
       expect(cover).toHaveLength(1);
-      // v0.9.6：用户要求「已完成的谜题卡片在印章基础上添加『定案』两个字」。
+      // 已完成的谜题卡片在印章基础上还要有『定案』两个字。
       expect(cover[0]?.textContent).toContain('定案');
       expect(cover[0]?.querySelector('img')?.getAttribute('src')).toBe(stampUrl);
 
@@ -206,7 +204,7 @@ describe('GamesPage', () => {
       expect(text).toContain('03:07');
       // 只有一张卡有那一格。
       expect(document.querySelectorAll('[data-testid="game-completion-time"]')).toHaveLength(1);
-      /* v0.9.7：完成用时那一格仍带时钟图标（只有相对时间那格不带）。 */
+      /* 完成用时那一格仍带时钟图标（只有相对时间那格不带）。 */
       expect(document.querySelectorAll('svg.lucide-clock')).toHaveLength(1);
     });
 
@@ -263,8 +261,8 @@ describe('GamesPage', () => {
     });
 
     /**
-     * v0.9.7：没完成但玩过的关卡，那一格显示**相对时间**（「刚刚 / N 分钟前」），
-     * 不再显示计时读数。用动态时间戳，免得断言随墙上时钟漂移。
+     * 没完成但玩过的关卡，那一格显示**相对时间**（「刚刚 / N 分钟前」），
+     * 不显示计时读数。用动态时间戳，免得断言随墙上时钟漂移。
      */
     it('没完成但玩过：显示「N 分钟前」这样的相对时间', () => {
       gamesRef.data = [game({ id: 1, slug: 'left-before', gridSize: 5 })];
@@ -286,11 +284,11 @@ describe('GamesPage', () => {
       expect(document.querySelector('[data-testid="game-last-left"]')?.textContent).toContain(
         '3 分钟前',
       );
-      /* v0.9.7：相对时间那一格**不画时钟图标**（图标只配完成用时）。 */
+      /* 相对时间那一格**不画时钟图标**（图标只配完成用时）。 */
       expect(document.querySelector('svg.lucide-clock')).toBeNull();
     });
 
-    /** v0.9.7：从未玩过的游戏，时间格连图标一起不画。 */
+    /** 从未玩过的游戏，时间格连图标一起不画。 */
     it('未开始的游戏：不展示时间，也没有时间图标', () => {
       gamesRef.data = [game({ id: 1, slug: 'never-played', gridSize: 5 })];
 
@@ -307,7 +305,7 @@ describe('GamesPage', () => {
     });
 
     /**
-     * v0.9.7：**定案的卡片不演鼠标光源动效**。
+     * **定案的卡片不演鼠标光源动效**。
      *
      * 断言的是「光层在不在 / 封面还接不接 pointermove」这两个行为，不是颜色或
      * 排版。没完成的卡仍要有光层 —— 别把整站的光源一起关掉。
@@ -333,7 +331,7 @@ describe('GamesPage', () => {
       expect(glows[1]).toBeGreaterThan(0);
     });
 
-    /** v0.9.7：只有计时存档、没有离开时刻的旧数据 —— 不画孤零零的时间图标。 */
+    /** 只有计时存档、没有离开时刻的旧数据 —— 不画孤零零的时间图标。 */
     it('旧计时存档（无 leftAt）：不展示时间图标', () => {
       gamesRef.data = [game({ id: 1, slug: 'legacy-timer', gridSize: 5 })];
       window.localStorage.setItem(
@@ -350,7 +348,7 @@ describe('GamesPage', () => {
     });
   });
 
-  /** v0.11.2：loading 等「当前页资源全部加载完」才撤。列表页的资源是封面图。 */
+  /** loading 等「当前页资源全部加载完」才撤。列表页的资源是封面图。 */
   describe('v0.11.2 loading 等封面图', () => {
     const covers = (): number =>
       document.querySelectorAll('[data-testid="game-cover"]').length;
@@ -424,7 +422,7 @@ describe('GamesPage', () => {
   });
 
   /**
-   * v0.11.6：列表页顶上那两行字。
+   * 列表页顶上那两行字。
    *
    * 它们是**主题的口气**，不是全站统一文案 —— 与难度分级同一类东西。默认那两句
    * 是内置的，主题配过就用配的（`{n}` 换成数字）。
@@ -470,7 +468,7 @@ describe('GamesPage', () => {
   });
 
   /**
-   * v0.11.6：难度过滤。默认「全部」；点某一档只留那一档；再点「全部」回来。
+   * 难度过滤。默认「全部」；点某一档只留那一档；再点「全部」回来。
    *
    * 切档时**计数行不跟着变** —— 「已通过 N 关」说的是这个主题一共过了几关，
    * 换个看法不该让它变小。
@@ -539,7 +537,7 @@ describe('GamesPage', () => {
     });
   });
 
-  /** v0.11.6：卡片与「进入工坊」都带着当前主题编码走，不再落到全站那页。 */
+  /** 卡片与「进入工坊」都带着当前主题编码走。 */
   it('带主题编码进来时，进工坊落到这个主题的概览', () => {
     themesRef.data = [theme('hlm', {}, '红楼梦')];
     act(() => root.unmount());

@@ -94,7 +94,7 @@ describe('absorbLegacyMapDraft (FEAT-K14)', () => {
     // Everything else is passed through untouched.
     expect(absorbed['gridSize']).toBe(4);
     expect(absorbed['cells']).toEqual({ '0,0': { item: { assetId: 3, w: 1, h: 1 } } });
-    // v0.7.0: the region's retired trio is gone; the custom width (4 ≠ the
+    // The region's retired trio is gone; the custom width (4 ≠ the
     // map-level default 12) survives as the outline override.
     expect((absorbed['regions'] as unknown[])[0]).toEqual({
       id: 'rg_a',

@@ -75,12 +75,12 @@ export function GameDeployDialog({
    * 第 2 层拦截（v0.7.1 §7.1）：只有**版本条目**能进来 —— 草稿行不满足「已发布」，
    * 部署单元就是一个谜题版本行。
    *
-   * v0.7.11：部署页从「自己挑一个版本」出发，所以这里允许传 `null`，由
+   * 部署页从「自己挑一个版本」出发，所以这里允许传 `null`，由
    * `versions` 在弹窗里选（见下）。
    */
   puzzle: PuzzleEntrySummary | null;
   /**
-   * v0.7.11：可选版本列表 —— 只有部署页会传。
+   * 可选版本列表 —— 只有部署页会传。
    *
    * 它一在场，弹窗顶部就多一个「谜题版本」下拉；选中之后名称 / 路径 / 封面 /
    * 难度全部按那个版本回填（作者在部署页并不先选谜题，是先按「部署」）。
@@ -131,12 +131,12 @@ export function GameDeployDialog({
   const [name, setName] = useState('');
   /**
    * v0.7.1 §7.6.1：访问路径拆成「前缀 + 可编辑中段」。前缀（`puzzle-`）是只读
-   * 文本，唯一可编辑的是中段。v0.8.1：**难度不再是后缀** —— 改难度不该把
+   * 文本，唯一可编辑的是中段。**难度不是后缀** —— 改难度不该把
    * 对外的地址改掉，路径只表达「这是哪一关」。
    */
   const [middle, setMiddle] = useState('');
   /**
-   * v0.8.3：难度选项来自**当前主题**的分级（概览页可改）。缺省仍是内置五档 ——
+   * 难度选项来自**当前主题**的分级（概览页可改）。缺省仍是内置五档 ——
    * 没配过分级的主题照旧。
    */
   const workspace = useWorkspace();
@@ -146,7 +146,7 @@ export function GameDeployDialog({
   );
   const [difficulty, setDifficulty] = useState<number>(() => defaultDifficultyLevel(tiers));
   /**
-   * v0.8.3：展示顺序。存成**字符串**而不是数字 —— 输入框里允许出现「空」这个
+   * 展示顺序。存成**字符串**而不是数字 —— 输入框里允许出现「空」这个
    * 中间状态（清空再重打），用数字承载会把空读成 0，于是作者清空的那一瞬就已经
    * 决定「排 0」，而他还没打完。空串在提交时才翻译成「这次不提，沿用原值」。
    */
@@ -160,7 +160,7 @@ export function GameDeployDialog({
   const [middleTouched, setMiddleTouched] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   /**
-   * v0.7.11：路径撞车时不再是「一句 toast 报错」，而是问一次要不要**覆盖**。
+   * 路径撞车时问一次要不要**覆盖**，而不是只报一句 toast。
    * 存的是服务端给的冲突说明（被占的路径 + 占位的那条部署），`null` = 没冲突。
    */
   const [conflict, setConflict] = useState<GameSlugConflict | null>(null);
@@ -197,7 +197,7 @@ export function GameDeployDialog({
     const startDifficulty = activeExisting?.difficulty ?? defaultDifficultyLevel(tiers);
     setName(startName);
     setDifficulty(startDifficulty);
-    // v0.8.3：重新部署时回填那条部署自己的顺序 —— 否则每次再部署都会把它悄悄
+    // 重新部署时回填那条部署自己的顺序 —— 否则每次再部署都会把它悄悄
     // 归 0，作者排好的先后在「改个封面」之后就散了。
     setSortWeight(String(activeExisting?.sortWeight ?? GAME_SORT_WEIGHT_DEFAULT));
     difficultyTouchedRef.current = false;
@@ -207,7 +207,7 @@ export function GameDeployDialog({
     if (activeExisting) {
       // 已发布的路径是给持链接的人的承诺：回填并当作「已经改过」，改名字或难度
       // 都不会悄悄重写它，只会在下面显式提示「原路径将失效」。
-      // v0.8.1：存量路径可能带着难度后缀，反解时剥掉（splitSlug）。
+      // 存量路径可能带着难度后缀，反解时剥掉（splitSlug）。
       setMiddle(splitSlug(activeExisting.slug));
       setMiddleTouched(true);
     } else {
@@ -255,7 +255,7 @@ export function GameDeployDialog({
     setMiddle(activePuzzle?.code ? slugify(activePuzzle.code) : slugify(next));
   };
 
-  // v0.8.1：难度不参与拼接 —— 路径只由中段决定。
+  // 难度不参与拼接 —— 路径只由中段决定。
   const slug = middle.trim().length > 0 ? composeSlug(middle) : '';
 
   const coverPreview = useMemo(
@@ -308,7 +308,7 @@ export function GameDeployDialog({
     activeExisting != null && slug.length > 0 && slug !== activeExisting.slug;
 
   /**
-   * v0.8.3：顺序的三种提交语义，别把它们混成一个值。
+   * 顺序的三种提交语义，别把它们混成一个值。
    *
    * - 空串 → `undefined`：这次不提，服务端沿用上一行（第一次部署则落 0）；
    * - 合法整数 → 就排这个数；
@@ -325,7 +325,7 @@ export function GameDeployDialog({
       : null;
 
   /**
-   * v0.7.11：一次部署请求的完整形状。抽成类型是因为冲突时要用**同一份**内容
+   * 一次部署请求的完整形状。抽成类型是因为冲突时要用**同一份**内容
    * 重发一遍（只多一个 `overwriteSlug`）—— 让作者只回答「覆盖吗」，而不是
    * 重新填一遍表单。
    */
@@ -376,7 +376,7 @@ export function GameDeployDialog({
       name: trimmed,
       slug: trimmedSlug,
       difficulty,
-      // v0.8.3：空着就不发这个键 —— 服务端会沿用上一次的值，而不是把它清成 0。
+      // 空着就不发这个键 —— 服务端会沿用上一次的值，而不是把它清成 0。
       ...(weightValue === undefined ? {} : { sortWeight: weightValue }),
       // Only an explicit removal clears the stored cover (OPT-W03 §3).
       clearCover: coverRemoved && !cover,
@@ -419,7 +419,7 @@ export function GameDeployDialog({
 
         <div className="space-y-4">
           {/*
-            v0.7.11：部署页不先挑谜题，而是先按「部署」—— 版本选择因此搬进
+            部署页不先挑谜题，而是先按「部署」—— 版本选择因此搬进
             弹窗第一位。选中之后下面四项（名称 / 路径 / 封面 / 难度）全部按那个
             版本回填：作者改的永远是「这一次部署」，不是重新描述一遍谜题。
           */}
@@ -665,7 +665,7 @@ export function GameDeployDialog({
           </div>
 
           {/*
-            v0.8.3：展示顺序。玩家首页、部署页与资源包里的游戏都按它排 ——
+            展示顺序。玩家首页、部署页与资源包里的游戏都按它排 ——
             数字小的在前，同权重按访问路径。放在难度之后：它是「这次部署」
             的第五项，不是「这个谜题」的属性。
           */}
@@ -722,10 +722,8 @@ export function GameDeployDialog({
       </DialogContent>
 
       {/*
-        v0.7.11：路径撞车的第二个问题 —— 「覆盖」。
-        以前这里只有一句 toast「访问路径已被占用，请更换」，作者得先去部署页把
-        对方撤掉再回来重填一遍。现在冲突是一个**选择**：说清是谁占着，给出
-        「覆盖」；确认后原样重发（只多 `overwriteSlug`），占位那条被假删。
+        路径撞车时，冲突是一个**选择**：说清是谁占着，给出「覆盖」；
+        确认后原样重发（只多 `overwriteSlug`），占位那条被假删。
         用 AlertDialog 而不是又把主弹窗换一套表单：这不是编辑，是一次确认。
       */}
       <AlertDialog

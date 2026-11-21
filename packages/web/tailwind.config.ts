@@ -33,10 +33,9 @@ const config: Config = {
           hover: 'hsl(var(--destructive-hover))',
         },
         /*
-         * v0.7.8：状态色。工坊里「已启用 / 已发布 / 未保存」这些状态原来全是
-         * `bg-secondary` 中性灰，或者散在组件里的 `amber-100` / `emerald-600`
-         * 定色。收成两个 token：文字用 `text-success`，徽标底用 `bg-success/12`。
-         * 只表达状态，不做装饰。
+         * 状态色。工坊里「已启用 / 已发布 / 未保存」这些状态要一眼可辨，所以有自己的
+         * token：文字用 `text-success`，徽标底用 `bg-success/12` —— 不借用中性灰，
+         * 也不散成组件里的 `amber-100` / `emerald-600` 定色。只表达状态，不做装饰。
          */
         success: {
           DEFAULT: 'hsl(var(--success))',
@@ -74,13 +73,11 @@ const config: Config = {
         },
       },
       /*
-       * v0.7.10：动效 token（取值在 `index.css` 的 `--motion-*`）。
+       * 动效 token（取值在 `index.css` 的 `--motion-*`）。
        *
-       * 两个 `DEFAULT` 是这一步的关键：它们决定了**不带修饰**的
-       * `transition-colors` 用什么时长与曲线。全仓 41 处写着裸 `transition-colors`，
-       * 原本各自吃 Tailwind 的 150ms + `cubic-bezier(0.4, 0, 0.2, 1)`；把
-       * DEFAULT 指过来之后这 41 处不改一个字就统一了 —— 而需要别的节奏的地方
-       * 才显式写 `duration-base` / `duration-slow`。
+       * 两个 `DEFAULT` 是关键：它们决定了**不带修饰**的 `transition-colors` 用什么
+       * 时长与曲线 —— 全仓 41 处裸 `transition-colors` 因此不改一个字就统一了，
+       * 需要别的节奏的地方才显式写 `duration-base` / `duration-slow`。
        */
       transitionDuration: {
         DEFAULT: 'var(--motion-fast)',
@@ -96,12 +93,11 @@ const config: Config = {
         in: 'var(--motion-ease-in)',
       },
       /*
-       * v0.7.9 §4：字号梯级补上最小一档。
+       * v0.7.9 §4：字号梯级的最小一档。
        *
-       * 原来 10px 与 11px 都用方括号直接写（10px 19 处、11px 62 处），两者相差
-       * 1px 却没有各自的语义 —— 谁写哪个全看当时手边是哪个。定成 `2xs = 11px`
-       * 之后，徽标 / 计数 / 「格」这类附注只有一个去处；10px 全部并入 11px
-       * （中文 10px 在 1x 屏上已经在糊）。
+       * `2xs = 11px`：徽标 / 计数 / 「格」这类附注只有一个去处 —— 10px 与 11px 只差
+       * 1px 却没有各自的语义（谁写哪个全看当时手边是哪个），而中文 10px 在 1x 屏上
+       * 已经在糊。
        */
       /*
        * v0.7.9 §3：两层暖色阴影，取值在 `index.css` 的 `--shadow-card` /
@@ -127,8 +123,8 @@ const config: Config = {
         sm: 'calc(var(--radius) - 4px)',
       },
       /*
-       * v0.7.10：`accordion-down` / `accordion-up` 删掉了 —— 仓库里没有
-       * accordion 组件，这两条是 shadcn 脚手架带进来的残留关键帧。
+       * 本仓没有 accordion 组件，故不提供 `accordion-down` / `accordion-up`
+       * 关键帧。
        *
        * `blink` / `glow` 保留：它们与 shared 的 `EFFECT_TYPES`
        * （`highlight | glow | blink | tooltip`）逐字对应，是联动效果的状态提示，

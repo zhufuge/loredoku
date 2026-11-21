@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { useUpdateTheme } from '@/hooks/useThemes';
 
 /**
- * v0.11.6：游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。
+ * 游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。
  *
  * 为什么是**模板**而不是整句：同一个数字在两句里说的是不同的事（一共几关 /
  * 已经过了几关），作者要改的是说法，不是那个数。所以两格都留着 `{n}`，

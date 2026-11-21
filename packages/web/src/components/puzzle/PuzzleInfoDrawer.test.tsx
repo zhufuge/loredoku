@@ -127,14 +127,14 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
     expect(text).toContain('描述');
     expect(text).toContain('联动主题色');
     expect(text).toContain('参与者布局');
-    // v0.7.3 §2: 名称与封面搬进来了。
+    // v0.7.3 §2: 名称与封面属于这一栏。
     expect(text).toContain('名称');
     expect(text).toContain('封面');
     // The map drawer's own blocks are gone for good.
     for (const gone of ['画布', '方格大小', '画布外框', '网格分隔线', '区域标签', '标尺']) {
       expect(text, gone).not.toContain(gone);
     }
-    // v0.6.3: the roster block is the bare control — no 列数 label (the field
+    // The roster block is the bare control — no 列数 label (the field
     // carries the number) and no participant-count hint under it.
     expect(text).not.toContain('列数');
     expect(text).not.toContain('位参与者');
@@ -261,7 +261,7 @@ describe('PuzzleInfoDrawer (SPEC-K05)', () => {
 });
 
 /**
- * v0.7.3 §2：名称与封面搬进「基本信息」。名称进草稿（一个撤销步、随保存落库）；
+ * v0.7.3 §2：名称与封面在「基本信息」里。名称进草稿（一个撤销步、随保存落库）；
  * 封面只交 `{ file, removed }` —— 上传是页面的第二步。
  */
 describe('PuzzleInfoDrawer 基本块（v0.7.3 §2）', () => {

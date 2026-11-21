@@ -122,7 +122,7 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
   it('keeps the ordering rules the spec calls out explicitly', () => {
     // "「物品」位于 Border 之上" — items are never cut by the grid lines.
     expect(layerZ('itemLayer')).toBeGreaterThan(layerZ('gridSeparator'));
-    // v0.7.0 fix: 区域轮廓线跃过 画布外框 / 网格分隔线（用户指定次序）,
+    // 区域轮廓线跃过 画布外框 / 网格分隔线（用户指定次序）,
     // 但仍压在物品图层之下 —— 物品图不被轮廓线割断。
     expect(layerZ('regionOutline')).toBeGreaterThan(layerZ('canvasFrame'));
     expect(layerZ('regionOutline')).toBeGreaterThan(layerZ('gridSeparator'));
@@ -130,10 +130,10 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
     // The board frame sits below the items, above the separators.
     expect(layerZ('canvasFrame')).toBeLessThan(layerZ('itemLayer'));
     expect(layerZ('canvasFrame')).toBeGreaterThan(layerZ('gridSeparator'));
-    // v0.3.8 SPEC-D01: the mask moves below 区域边界线, above 区域高亮线.
+    // The mask sits below 区域边界线, above 区域高亮线.
     expect(layerZ('blockingMask')).toBeLessThan(layerZ('regionOutline'));
     expect(layerZ('blockingMask')).toBeGreaterThan(layerZ('regionHighlight'));
-    // v0.10.9: 阻挡遮罩压在背景修饰层之上（用户指定次序）——「这格不能站」的提示
+    // 阻挡遮罩压在背景修饰层之上（用户指定次序）——「这格不能站」的提示
     // 得盖住底下的修饰图；修饰层则压在网格分隔线之下、区域高亮线之上。
     expect(layerZ('blockingMask')).toBeGreaterThan(layerZ('backgroundDecoration'));
     expect(layerZ('backgroundDecoration')).toBeLessThan(layerZ('gridSeparator'));
@@ -153,7 +153,7 @@ describe('canvas layer priority (OPT-901 §1.1)', () => {
     expect(layerZ('mouseCursorBox') - layerZ('operationCursorBox')).toBe(1);
   });
 
-  // ---- v0.4.0 SPEC-G01 / SPEC-G02: the two game-only layers ----
+  // ---- SPEC-G01 / SPEC-G02: the two game-only layers ----
   it('SPEC-G01/G02: 区域标签 > 工具提示层 > 游戏放置层 > 物品图层', () => {
     expect(layerZ('regionLabel')).toBeGreaterThan(layerZ('gameToolHint'));
     expect(layerZ('gameToolHint')).toBeGreaterThan(layerZ('gamePlacement'));
@@ -306,8 +306,8 @@ describe('hover effects (OPT-902 §2.1~2.4)', () => {
 
 describe('cell cursor box (OPT-A05 §3.3.1)', () => {
   it('uses a 1px inner stroke in the state colour plus the grey Border shadow', () => {
-    // v0.5.2 SPEC-M07: both rings now default off `DEFAULT_MAP_STYLE`
-    // (mouse cursor box 8px, grid separator 4px), not the legacy constants.
+    // Both rings default off `DEFAULT_MAP_STYLE` (mouse cursor box 8px, grid
+    // separator 4px).
     expect(cellCursorShadow(false, BASE_CELL)).toContain(
       `inset 0 0 0 ${STYLE_DEFAULT_MOUSE_CURSOR_WIDTH}px ${CELL_CURSOR_COLOR}`,
     );
@@ -378,7 +378,7 @@ describe('cursor boxes (OPT-A05 §4.1~§4.3)', () => {
   });
 
   it('§3.2.2: the operation box is an Outline outside the Border', () => {
-    // v0.5.2 SPEC-M07: the box defaults to 8px now (was 2px).
+    // The operation box defaults to 8px.
     expect(operationCursorOutline(BASE_CELL)).toBe(
       `${STYLE_DEFAULT_OPERATION_CURSOR_WIDTH}px solid ${OPERATION_CURSOR_COLOR}`,
     );
@@ -400,7 +400,7 @@ describe('line constants (OPT-A04 §3.2)', () => {
 
   it('keeps the shipped region outline wider than the grid Border', () => {
     expect(REGION_BORDER_WIDTH).toBeGreaterThan(BORDER_WIDTH);
-    // v0.7.4：作者可调的**下限**从 4 降到 1，出厂的默认线宽不变。
+    // 作者可调的**下限**是 1，出厂的默认线宽不变。
     expect(REGION_BORDER_WIDTH_MIN).toBe(1);
     expect(REGION_BORDER_WIDTH_MAX).toBe(12);
   });
@@ -454,7 +454,7 @@ describe('placement validation (OPT-904 §4.1)', () => {
     expect(canPlaceAssetOnLayer(null, 'item')).toBe(false);
   });
 
-  // v0.10.9: 「背景修饰」 is a separate home, not a second alias for the item layer.
+  // 「背景修饰」 is a separate home, not a second alias for the item layer.
   it('v0.10.9：勾了「背景修饰」的物品只能放背景修饰层，不能放物品层', () => {
     const decoration = item({ decoration: true });
     expect(canPlaceAssetOnLayer(decoration, 'decoration')).toBe(true);
@@ -525,7 +525,7 @@ describe('OPT-B03: scaled cursor geometry', () => {
     expect(shadow).toContain(`0 0 0 8px ${CELL_CURSOR_SHADOW_COLOR}`);
     // 8 × 2 = 16 → clamped to 12px as well.
     expect(operationCursorOutline(240)).toBe(`12px solid ${OPERATION_CURSOR_COLOR}`);
-    // v0.10.7：外扩距离是格的百分比（1%），240px 格子上 = 2.4px。
+    // 外扩距离是格的百分比（1%），240px 格子上 = 2.4px。
     expect(operationCursorStyle(240).outlineOffset).toBe(
       `${(OPERATION_CURSOR_OUTLINE_OFFSET / 100) * 240}px`,
     );

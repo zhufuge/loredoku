@@ -2,7 +2,7 @@ import type { Knex } from 'knex';
 import { PUZZLE_CODE_MAX_LENGTH } from '@loredoku/shared';
 
 /**
- * v0.8.5 §7（docs/v0.8.5 §7.md §3）：谜题的**编码** —— 部署时用它预填访问路径。
+ * v0.8.5 §7（docs/v0.8.5.md §7）：谜题的**编码** —— 部署时用它预填访问路径。
  *
  * 可空，且迁移**不发明**编码：v0.8.5 之前建的谜题没有这一列，凭空给它们编一串
  * 号（`puzzle-12` 之类）只是把「没有」伪装成「有」。它们仍然部署得了，弹窗退回

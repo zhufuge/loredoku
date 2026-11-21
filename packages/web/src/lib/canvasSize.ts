@@ -8,12 +8,12 @@ import {
 } from '@loredoku/shared';
 
 /**
- * v0.10.3：渲染下限 —— 桌面与竖屏共用这一档。
+ * 渲染下限 —— 桌面与竖屏共用这一档。
  *
- * 原来是 32（`MIN_CELL_SIZE`，理由是「格子还点得准」）。可 24×24 的棋盘在
- * 1280×800 的窗口里，可用高 692 减掉 23 条格间只剩 646，一格最多 26.9——
+ * 8 而不是 32（`MIN_CELL_SIZE`，理由是「格子还点得准」）：24×24 的棋盘在
+ * 1280×800 的窗口里，可用高 692 减掉 23 条格间只剩 646，一格最多 26.9 ——
  * 守 32 就必然溢出，而 `<main>` 是 `overflow-hidden`，多出来的那截**永远看不见**。
- * 缩小还有救（缩放按钮随手能放大回来），切掉的一角没救，所以把下限放到 8。
+ * 缩小还有救（缩放按钮随手能放大回来），切掉的一角没救。
  *
  * 8 而不是更小：24×24 在 1024×768 上算出来 22px、在 375 宽的竖屏上 12px，
  * 都在这一档之上；真正触底只有窗口小到棋盘本就不该整张显示的时候。
@@ -66,7 +66,7 @@ export function computeCellSize(input: CellSizeInput): number {
   const ideal = Math.min(share(availableWidth), share(availableHeight));
   if (!Number.isFinite(ideal)) return min;
   /*
-   * v0.10.3：`Math.round` 改成 `Math.floor`。取舍和竖屏那条（`computeWidthFitCellSize`）
+   * 用 `Math.floor` 而不是 `Math.round`：取舍和竖屏那条（`computeWidthFitCellSize`）
    * 一样 —— 宁可每格少半像素，也不让棋盘比可用区域宽出一线：`<main>` 是
    * `overflow-hidden`，多出来的那几像素不是「滚一下就能看到」，是永远看不到的。
    */
@@ -107,8 +107,8 @@ export function canvasInsets(options: {
   /** OPT-C01 extra margin; pass 0 to opt out (e.g. in tests). */
   extraMargin?: number;
   /**
-   * v0.3.9 FEAT-E02: the ruler strip grows with the configured text size and
-   * gap, so the reserved band has to follow it (defaults to `RULER_SIZE`).
+   * The ruler strip grows with the configured text size and gap, so the reserved
+   * band has to follow it (defaults to `RULER_SIZE`).
    */
   rulerSize?: number;
 } = {}): CanvasInsets {
@@ -156,7 +156,7 @@ export function computeCellSizeForInsets(input: {
   return computeCellSize({ ...input, availableWidth: box.width, availableHeight: box.height });
 }
 
-// ---- v0.10.1: portrait width-first fitting ----
+// ---- portrait width-first fitting ----
 
 /**
  * Tailwind 的 `md` 断点（768px）。
@@ -175,7 +175,7 @@ export const PORTRAIT_BREAKPOINT = 768;
  * 必须平移 —— 而竖屏把放大 / 缩小 / 重置那一簇收掉了，玩家没有把棋盘挪回来的
  * 手段。两害相权，允许它缩到 8px：先保证整张图在屏幕里。
  *
- * v0.10.3 起桌面也降到 8（`RENDER_MIN_CELL_SIZE`）—— 桌面虽然还有缩放按钮，
+ * 桌面也取 8（`RENDER_MIN_CELL_SIZE`）—— 桌面虽然还有缩放按钮，
  * 但 `<main>` 同样是 `overflow-hidden`，切掉的角一样找不回来。两个常量暂时同值，
  * 仍分开留着：它们回答的是两个问题（「竖屏允许小到什么程度」和「任何地方渲染
  * 允许小到什么程度」），将来若桌面要更保守只需改一处。
@@ -183,27 +183,24 @@ export const PORTRAIT_BREAKPOINT = 768;
 export const PORTRAIT_MIN_CELL_SIZE = 8;
 
 /**
- * v0.10.1：竖屏下棋盘四周留多少。
+ * 竖屏下棋盘四周留多少。
  *
  * 左右只留 8px —— 375 宽的屏上每 8px 就是一整列格子，桌面那圈
  * `CANVAS_PADDING + EXTRA_MARGIN` 的 40px 在手机上等于白扔两列半。
  *
- * 上下比左右还小（v0.11.2 起 4px，原先是与左右相同的 8px）：竖屏一屏就
- * 812 高，上下多给的每一像素都是从「全局线索 + 参与者」那块里扣的。上下本来
- * 已经由 `PORTRAIT_STAGE_EXTRA` 撑开了缝，再各留 8px 纯属浪费，还会让 7×7 的
- * 棋盘被压到更小的格子、小倍率下描边更容易被抹掉。
+ * 上下比左右还小（4px）：竖屏一屏就 812 高，上下多给的每一像素都是从「全局线索 +
+ * 参与者」那块里扣的。上下本来已经由 `PORTRAIT_STAGE_EXTRA` 撑开了缝，再各留 8px
+ * 纯属浪费，还会让 7×7 的棋盘被压到更小的格子、小倍率下描边更容易被抹掉。
  */
 export const PORTRAIT_MARGIN_X = 8;
 export const PORTRAIT_MARGIN_Y = 4;
 
 /**
- * v0.10.1：竖屏棋盘那一块（`<main>`）在「棋盘 + 上下留白」之外再垫多少。
+ * 竖屏棋盘那一块（`<main>`）在「棋盘 + 上下留白」之外再垫多少。
  *
  * 棋盘装得下时由 `centeredPan` 居中（每边各摊一半），装不下时由 `topAlignedPan`
  * 贴上边 —— 所以这 24px 撑开的是「标题栏与棋盘之间」「棋盘与题面面板之间」两条缝，
  * 让三块钱不至于贴成一片。
- *
- * v0.11.2：从 32 收到 24 —— 用户两次提到竖屏上下还是太宽松，缝留着但不该这么宽。
  */
 export const PORTRAIT_STAGE_EXTRA = 24;
 
@@ -218,13 +215,12 @@ export function portraitInsets(): CanvasInsets {
 }
 
 /**
- * v0.10.1：竖屏下棋盘那一块（`<main>`）应当占多高。
+ * 竖屏下棋盘那一块（`<main>`）应当占多高。
  *
  * 竖屏的棋盘是按宽度定死的 —— 宽高都是 `gridSize × cellSize`，上下各留
- * `PORTRAIT_MARGIN_Y`，再加一段 `PORTRAIT_STAGE_EXTRA`。把这块高度**算出来**
- * 而不是让它 `flex-1` 吃掉剩余空间，是因为剩下的高度要留给下面的「全局线索 +
- * 参与者」：棋盘若继续 `flex-1`，小棋盘（2×2）会在下面拖出一大片空白，而面板
- * 反而只有 38svh。
+ * `PORTRAIT_MARGIN_Y`，再加一段 `PORTRAIT_STAGE_EXTRA`。这块高度**算出来**而不是
+ * 按比例吃掉剩余空间，是因为剩下的高度要留给下面的「全局线索 + 参与者」：棋盘若
+ * 继续撑满剩余高度，小棋盘（2×2）会在下面拖出一大片空白，而面板反而只有 38svh。
  */
 export function portraitStageHeight(gridSize: number, cellSize: number): number {
   return gridSize * cellSize + PORTRAIT_MARGIN_Y * 2 + PORTRAIT_STAGE_EXTRA;
@@ -292,11 +288,11 @@ export function centeredPan(
 }
 
 /**
- * v0.10.1：竖屏用的居中 —— **横向居中，纵向不许顶出上边**。
+ * 竖屏用的居中 —— **横向居中，纵向不许顶出上边**。
  *
  * 竖屏把放大 / 缩小 / 重置那一簇收掉了，玩家没有把棋盘挪回来的手段（触屏上
  * 也没有中键 / 空格平移）。棋盘按宽度铺满之后若比可视高度还高，`centeredPan`
- * 会把上下两头各切掉一部分、而且顶上一截永远够不着；这里改成贴住上边，让
+ * 会把上下两头各切掉一部分、而且顶上一截永远够不着；这里贴住上边，让
  * 「第 1 行」始终看得见。
  */
 export function topAlignedPan(

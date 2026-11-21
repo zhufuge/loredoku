@@ -43,13 +43,10 @@ import type { CanvasPoint } from '@/lib/grid';
 /**
  * 游戏页画布纸上的**整个图层栈**（自下而上，钉在 `MAP_LAYER_Z` 上）。
  *
- * v0.10.4：从 `GamePage` 搬出来。这一段原本是「背景 → 高亮 → 区域 → 遮罩 →
- * 网格 → 物品 → 区域标签 → 工具提示 → 长按环 → 放置层 → 校验圈 → 画布边框 →
- * 鼠标框」十几层平铺，每层都在读同一批 props（格子、资源、样式、格子大小），
- * 与放置 / 计时 / 判卷的状态机没有一行耦合 —— 它只是「这一帧的棋盘长什么样」。
+ * 每层都在读同一批 props（格子、资源、样式、格子大小），与放置 / 计时 / 判卷的
+ * 状态机没有一行耦合 —— 它只是「这一帧的棋盘长什么样」。
  *
- * 顺序是规范的一部分（docs/layer-priority.md 是唯一权威）：这里只搬位置，
- * **没有动任何一层的相对次序**，也没有改 z 值来源。
+ * 顺序是规范的一部分（docs/layer-priority.md 是唯一权威）。
  */
 export interface GameBoardLayersProps {
   board: GamePlacementBoard;
@@ -72,7 +69,7 @@ export interface GameBoardLayersProps {
   toolHint: GameToolHint | null;
   mark: MarkRender | null;
   toolIcons: ToolIconsRender;
-  /** v0.9.8：落笔令牌与落笔格 —— 只有点下去那一刻、那一格的 `×` 才弹。 */
+  /** 落笔令牌与落笔格 —— 只有点下去那一刻、那一格的 `×` 才弹。 */
   forbiddenPop: number;
   forbiddenPopCell: string | null;
   /** 主题配的长按环 / 校验圈图（`null` = 各自的内置细弧）。 */
@@ -154,7 +151,7 @@ export function GameBoardLayers({
         // v0.9.1 §5：物品描边（宽度 0 = 不描边）。
         itemOutline={style.itemOutline}
         padding={itemPadding(cellSize)}
-        /* v0.9.7：结案后不给物品层任何悬停 / 指针坐标，物品不会隔着遮罩抬起。 */
+        /* 结案后不给物品层任何悬停 / 指针坐标，物品不会隔着遮罩抬起。 */
         hover={interactionLocked ? null : hover}
         pointer={interactionLocked ? null : hoverPoint}
       />
@@ -164,7 +161,7 @@ export function GameBoardLayers({
         cellSize={cellSize}
         style={style}
         hoveredRegionId={hoveredRegionId}
-        /* v0.11.4：联动高亮的区域，标题跟着亮（不只是边框线）。 */
+        /* 联动高亮的区域，标题跟着亮（不只是边框线）。 */
         highlightedRegionIds={highlight?.regionBorders.map((border) => border.regionId)}
         onHover={onLabelHover}
       />
@@ -178,7 +175,7 @@ export function GameBoardLayers({
         mark={mark}
         // v0.9.1 §3：清除工具配了图，指针底下就画同一张（与按钮一致）。
         clearIcon={toolIcons.clear ?? null}
-        /* v0.9.8：落笔令牌与落笔格 —— 只有点下去那一刻、那一格的 `×` 才弹。 */
+        /* 落笔令牌与落笔格 —— 只有点下去那一刻、那一格的 `×` 才弹。 */
         pop={forbiddenPop}
         popCell={forbiddenPopCell}
       />
@@ -207,19 +204,19 @@ export function GameBoardLayers({
          */
         activeParticipantId={activeParticipantId}
         /*
-         * v0.7.11：正在长按的那一格 —— 长按落地后头像在这里落定。
+         * 正在长按的那一格 —— 长按落地后头像在这里落定。
          * 环还在（抬手前）就说明这一格是「刚刚」放下的，不需要再记一个
          * 时间戳：抬手即清环，窗口自然结束。
          */
         settleKey={pressCell ? `${pressCell.x},${pressCell.y}` : null}
-        /* v0.7.11：刚放下的编号各「盖章」一次。 */
+        /* 刚放下的编号各「盖章」一次。 */
         pulse={pulse}
-        /* v0.9.8：橡皮点掉的格子先演退场，动效放完才真删。 */
+        /* 橡皮点掉的格子先演退场，动效放完才真删。 */
         erasing={erasing}
-        /* v0.10.1：落子补出来的 `×` 按圈错峰浮出，像水波从落点推出去。 */
+        /* 落子补出来的 `×` 按圈错峰浮出，像水波从落点推出去。 */
         wave={forbiddenWave}
         waveAlt={forbiddenWaveAlt}
-        /* v0.8.6：配置了图片时，放下的标记画那张图而不是 `×`。 */
+        /* 配置了图片时，放下的标记画那张图而不是 `×`。 */
         mark={mark}
       />
 

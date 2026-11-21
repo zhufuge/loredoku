@@ -123,10 +123,10 @@ export function EntryActionsMenu<E extends EntryLike>({
       role="menu"
       style={{ position: 'fixed', top: position?.top ?? 0, left: position?.left ?? 0, zIndex: UI_Z.drawer }}
       /*
-       * v0.7.10：入场 120ms 淡入 + 从右上角轻微放大。
+       * 入场 120ms 淡入 + 从右上角轻微放大。
        *
-       * 这是列表行上最常点的浮层（每行一枚「更多操作」），此前是「啪」地整块
-       * 出现在鼠标边 —— 眼睛还没从按钮上移开，一列菜单已经压在那儿了。
+       * 这是列表行上最常点的浮层（每行一枚「更多操作」）—— 突然整块出现在鼠标边，
+       * 眼睛还没从按钮上移开，一列菜单已经压在那儿了。
        * `origin-top-right` 对齐它的定位方式：菜单右边缘贴着按钮右边缘、向下展开，
        * 所以放大要从那个角长出来，否则会像被别人推过来。
        *

@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { db } from '../src/db/knex';
 
 /**
- * v0.7.6 —— `characters` 只剩「一条路径」：头像相关列从 5 个收到 1 个
+ * `characters` 只有一条头像路径：头像相关列只有 1 个
  * （docs/v0.7.6.md）。
  *
  * 第一刀 00033：`avatar_mime`（可由扩展名推出）、`meta`（零读方、零信息）；

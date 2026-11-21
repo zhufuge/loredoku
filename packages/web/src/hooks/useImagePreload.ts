@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 /**
- * v0.11.2：一张页面要画的图片全都**预加载完**才算就绪。
+ * 一张页面要画的图片全都**预加载完**才算就绪。
  *
  * 为什么不用「渲染出来的 `<img onLoad>`」来数：那样必须先渲染，而渲染又被 loading
  * 挡着 —— 图片永远没机会 load，loading 就永远撤不掉。预加载与渲染分开，两个方向

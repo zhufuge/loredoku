@@ -57,7 +57,7 @@ describe('resolveRegionStyle', () => {
   });
 
   it('keeps the outline inside its own 1 ~ 12 range', () => {
-    // v0.7.4：下限 4 → 1，细到 1px 的轮廓也允许。
+    // 下限 1：细到 1px 的轮廓也允许。
     expect(resolveRegionStyle(baseStyle(), { outline: { width: 0 } }).outline.width).toBe(
       REGION_BORDER_WIDTH_MIN,
     );
@@ -146,7 +146,7 @@ describe('regionStyleOverride', () => {
 });
 
 /**
- * v0.9.6：区域标签的**位置偏移** —— 每块区域独立配置，缺省 `{ x: 0, y: 0 }`。
+ * 区域标签的**位置偏移** —— 每块区域独立配置，缺省 `{ x: 0, y: 0 }`。
  *
  * 它不在 `label` 里面（地图级没有这一项），所以 `RegionStyle.labelOffset` 是
  * 单独一层；存储侧也单独记，两轴都 0 时整块不落盘。

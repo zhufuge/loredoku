@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ClampedText } from './ClampedText';
 
 /**
- * v0.7.12：描述被截断时，触碰 / 悬停能看到全文。
+ * 描述被截断时，触碰 / 悬停能看到全文。
  *
  * jsdom 不排版，所有尺寸恒为 0，所以「有没有溢出」在这里是**造**出来的：给
  * span 覆盖一对 `scrollHeight / clientHeight`，再让组件重新量一次。真正要钉的

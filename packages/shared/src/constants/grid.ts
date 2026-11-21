@@ -1,8 +1,6 @@
 import { HIGHLIGHT_BLUE, HIGHLIGHT_RED } from './highlight';
 
-// // 网格 / 画布 / 线宽 / 图层次序 / 标尺 —— 「一格有多大、线画在哪」。
-// v0.10.4：从 `constants.ts`（1324 行、287 个导出）按主题拆开。值、注释、次序一律
-// 照搬 —— 只是把「谁在用」相近的那些放在一个文件里，改一处不必在一千行里翻。
+// 网格 / 画布 / 线宽 / 图层次序 / 标尺 —— 「一格有多大、线画在哪」。
 // 对外仍是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
 
 // Cross-package constants. Keep this file dependency-free (plain values only).
@@ -110,7 +108,7 @@ export const MAP_LAYER_Z: Record<MapLayerName, number> = {
   /**
    * 10 阻挡遮罩 — below 区域轮廓线, above 背景修饰层。
    *
-   * v0.10.9 起它压在背景修饰层上面：一格被标成「不能站」时，先是网格线，
+   * 它压在背景修饰层上面：一格被标成「不能站」时，先是网格线，
    * 然后是遮罩，最后才是修饰 —— 遮罩的意思是「这格不通」，它得盖住底下的画。
    */
   blockingMask: 31,
@@ -172,7 +170,7 @@ export const RULER_FONT_SIZE_ACTIVE = 19;
 /** OPT-C02 + v0.3.9 FEAT-E02: gap between the ruler text and the board. */
 export const RULER_GAP = 6;
 /**
- * v0.3.9 FEAT-E02: the operated row / column glyph is always this many px above
+ * FEAT-E02: the operated row / column glyph is always this many px above
  * the idle one, so the relationship survives a custom `style.ruler.fontSize`.
  */
 export const RULER_ACTIVE_FONT_DELTA = RULER_FONT_SIZE_ACTIVE - RULER_FONT_SIZE;

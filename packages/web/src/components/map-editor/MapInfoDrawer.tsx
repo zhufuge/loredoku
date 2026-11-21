@@ -98,7 +98,7 @@ interface MapInfoDrawerProps {
   /** The local state already marks the stored cover as removed. */
   coverRemoved: boolean;
   /**
-   * v0.10.8：画布当前按窗口算出来的格子边长。只用于「方格大小上限」那行的
+   * 画布当前按窗口算出来的格子边长。只用于「方格大小上限」那行的
    * 提示与 ↺ 按钮的 title —— 真正的上限值在 `style.cellSize` 里。
    */
   autoCellSize: number;
@@ -108,7 +108,7 @@ interface MapInfoDrawerProps {
    */
   onRequestClose: () => void;
   /**
-   * v0.3.10 FIX-F01 + 「保存不请求」：applies the whole draft locally — style,
+   * 「保存不请求」：applies the whole draft locally — style,
    * canvas size and the map's own fields. `MapEditorPage` closes the drawer and
    * writes everything on the toolbar's 保存.
    */
@@ -151,8 +151,7 @@ function Section({
 }
 
 /**
- * v0.3.8 FEAT-D01/D02 + v0.3.9 FEAT-E01 + v0.3.10 FIX-F01/FIX-F02/FIX-F04/FIX-F05/SPEC-F01:
- * the 「地图基本信息」drawer.
+ * The 「地图基本信息」drawer.
  *
  * The drawer is a **form**: every control edits a local draft (written through in
  * real time), the canvas only changes when 保存 is pressed, and 取消 / × /
@@ -286,7 +285,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
     };
 
     /**
-     * v0.10.8：「方格大小」这行填的是**上限**，不是定值。
+     * 「方格大小」这行填的是**上限**，不是定值。
      *
      * 渲染时走 `effectiveCellSize` = `min(这个值, 按窗口算出的自适应值)` —— 作者
      * 写 140 的意思是「别铺得比 140 还大」，窗口小的时候仍然会缩下去。留空
@@ -716,7 +715,7 @@ export const MapInfoDrawer = forwardRef<MapInfoDrawerHandle, MapInfoDrawerProps>
                 outline: draft.regionOutline,
                 highlight: draft.regionHighlight,
                 label: draft.regionLabel,
-                // v0.9.6：地图级没有标签偏移这一项（它只属于某一块区域），
+                // 地图级没有标签偏移这一项（它只属于某一块区域），
                 // 这里给 0 占位；`showOffset` 不开，所以它不会出现在这一屏。
                 labelOffset: { x: 0, y: 0 },
               }}

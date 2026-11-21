@@ -1,15 +1,15 @@
-// // 游戏：难度、结算、工具图标、部署清单。
-// v0.10.4：从 `constants.ts`（1324 行、287 个导出）按主题拆开。值、注释、次序一律
-// 照搬 —— 只是把「谁在用」相近的那些放在一个文件里，改一处不必在一千行里翻。
-// 对外仍是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
+// 游戏：难度、结算、工具图标、部署清单。
+// 按主题收拢游戏相关的常量：值、注释、次序稳定，「谁在用」相近的放在一起，改一处
+// 不必翻遍整个 `constants/`。
+// 对外是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
 
 // ---- v0.4.0 games (docs/v0.4.0.md §5 / §7 / §10) ----
 /**
  * v0.4 的内置五档**名字**。
  *
- * v0.8.6 起难度在库里存的是**数字档位**（`games.difficulty` 已经是 smallint），
- * 这五个名字只剩两处还在用：v0.8.1 之前的老路径里剥难度后缀
- * （`GAME_DIFFICULTY_SLUGS`），以及 v0.8.6 那条迁移把旧值换成数字。
+ * 难度在库里存的是**数字档位**（`games.difficulty` 已经是 smallint），这五个名字
+ * 只剩两处还在用：v0.8.1 之前的老路径里剥难度后缀（`GAME_DIFFICULTY_SLUGS`），
+ * 以及 v0.8.6 那条迁移把旧值换成数字。
  * 界面上一个都不会出现 —— 徽章上的字来自主题的 `difficultyLevels[].label`。
  */
 export const GAME_DIFFICULTY_LEVELS = ['veryEasy', 'easy', 'medium', 'hard', 'expert'] as const;
@@ -26,18 +26,18 @@ export const GAME_DIFFICULTY_LABELS_ZH: Record<(typeof GAME_DIFFICULTY_LEVELS)[n
 /**
  * FEAT-O01 (docs/v0.5.4.md §2): the badge is a **tint**, so cover + name stay the loudest thing.
  *
- * v0.7.8：值从 5 个写死的浅色 hex 换成 CSS 变量。原来是浅色专用 —— 深色界面里
+ * 值是 CSS 变量，浅色与深色界面各有一套取值 —— 写死的浅色 hex 在深色界面里
  * 会跳出 5 块亮色补丁。变量的两套取值定义在 `web/src/index.css`（竹青 → 芽绿 →
  * 赭黄 → 柿橙 → 绛，一根单向热力坡，不是五个分类色）。调用处是内联 style，
  * 所以这里只能是 `var(...)` 字符串，不参与任何服务端逻辑。
  *
- * v0.7.13：外面必须补一层 `hsl(...)`。`index.css` 里存的是 HSL **三元组**
+ * 外面必须补一层 `hsl(...)`。`index.css` 里存的是 HSL **三元组**
  * （`150 34% 92%`，与 `--background` 等所有 token 同一约定），而内联
  * `background-color: var(--difficulty-*-bg)` 展开后是 `background-color: 150 34% 92%`
  * —— 不是合法颜色值，浏览器整条丢弃，徽章就只剩文字、没有底色。`hsl()` 写在
  * 这里而不是变量里，是为了不破坏「三元组供 `hsl(var(--x) / <alpha>)` 复用」的约定。
  *
- * v0.8.6：主题可以给每一档指定颜色了，这两张表退成**兜底** —— 没指定颜色的档
+ * 主题可以给每一档指定颜色，这两张表是**兜底** —— 没指定颜色的档
  * 仍按位置落在坡上，存量主题一个像素都不变。
  */
 export const GAME_DIFFICULTY_COLORS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
@@ -64,7 +64,7 @@ export const GAME_DIFFICULTY_TEXT_COLORS: Record<
 export const GAME_DIFFICULTY_DEFAULT_LEVEL = 3;
 
 /**
- * v0.8.6：档位数字的取值区间。
+ * 档位数字的取值区间。
  *
  * 数字**就是**顺序 —— 1 是最容易的一档，也是落进 `games.difficulty` 的值。上限
  * 99 而不是 5：主题可以删档，删掉中间一档后后面那些不必重编号（重编号等于把
@@ -74,10 +74,10 @@ export const GAME_DIFFICULTY_LEVEL_MIN = 1;
 export const GAME_DIFFICULTY_LEVEL_MAX = 99;
 
 /**
- * v0.8.6：内置那条热力坡的**取色点**（浅色主题下的前景色 hex）。
+ * 内置那条热力坡的**取色点**（浅色主题下的前景色 hex）。
  *
- * 主题没给某一档指定颜色时，徽章仍按这一档在分级里的位置落在这条坡上 —— 视觉与
- * v0.8.3 完全一致，存量主题不需要补数据。分级弹窗里的取色器也拿它当初始值，
+ * 主题没给某一档指定颜色时，徽章按这一档在分级里的位置落在这条坡上 —— 视觉与
+ * 内置五档完全一致，存量主题不需要补数据。分级弹窗里的取色器也拿它当初始值，
  * 于是「打开弹窗看到的那颗色」就是徽章此刻正在用的色。
  */
 export const GAME_DIFFICULTY_RAMP_HEX = [
@@ -88,19 +88,19 @@ export const GAME_DIFFICULTY_RAMP_HEX = [
   '#802b28',
 ] as const;
 
-/** v0.8.6：主题自定义的难度色 —— 只收 `#rrggbb`（取色器给的就是这个）。 */
+/** 主题自定义的难度色 —— 只收 `#rrggbb`（取色器给的就是这个）。 */
 export const THEME_DIFFICULTY_COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
 
-/** v0.8.3：一个主题最多定义几档难度 —— 超过一屏就没人读得完，也没人会做。 */
+/** 一个主题最多定义几档难度 —— 超过一屏就没人读得完，也没人会做。 */
 export const THEME_DIFFICULTY_TIER_MAX = 12;
-/** v0.8.3：档位名是徽章上的字，太长会把徽章撑成一整行。 */
+/** 档位名是徽章上的字，太长会把徽章撑成一整行。 */
 export const THEME_DIFFICULTY_LABEL_MAX_LENGTH = 12;
 
 /** FEAT-G02: game name bounds (same width as a map name). */
 export const GAME_NAME_MAX_LENGTH = 100;
 
 /**
- * v0.8.3：展示顺序的取值区间（`games.sort_weight`）。
+ * 展示顺序的取值区间（`games.sort_weight`）。
  *
  * 有上下界不是洁癖：这一列是作者手填的整数，没有界的整数输入框意味着
  * `999999999` 也能提交，然后所有其他行都被这一行挤到后面去。±999 够排任何
@@ -162,7 +162,7 @@ export const GAME_CLEAR_LONG_PRESS_MS = 800;
 
 // ---- v0.9.3 submit check (docs/v0.9.3.md) ----
 /**
- * v0.9.3：提交后**逐人校验**的节奏。
+ * 提交后**逐人校验**的节奏。
  *
  * 一次提交要把所有参与者挨个圈一遍。两段时间分开：
  *   - `GAME_CHECK_RING_SWEEP_MS`：那一圈从 0 扫到满 —— 它表示「正在核对这一位」；
@@ -176,7 +176,7 @@ export const GAME_CHECK_RING_SWEEP_MS = 360;
 export const GAME_CHECK_STEP_MS = 480;
 
 /**
- * v0.9.6：校验**通过**之后，「定案 + 印章」在地图遮罩上停多久再弹结算卡。
+ * 校验**通过**之后，「定案 + 印章」在地图遮罩上停多久再弹结算卡。
  *
  * 用途是让那枚印落定：`.stamp-press` 的动效 420ms（从 1.7 倍 −18° 落到正位），
  * 停 1s 意味着动画跑完还留了半秒让玩家看见。短于动画时长就成了「弹窗盖着印在
@@ -185,7 +185,7 @@ export const GAME_CHECK_STEP_MS = 480;
 export const GAME_VERDICT_HOLD_MS = 1000;
 
 /**
- * v0.9.3：校验圈的两档颜色（主题里可改，这里是缺省）。
+ * 校验圈的两档颜色（主题里可改，这里是缺省）。
  *
  * 绿 = 通过、红 = 未通过 —— 是「对 / 错」的语义，不是股市那套涨跌色。地图是作者
  * 上传的照片，什么底色都有，所以这两个值刻意取深一档（600 而不是 500）：浅绿
@@ -195,10 +195,10 @@ export const THEME_CHECK_PASS_COLOR = '#16A34A';
 export const THEME_CHECK_FAIL_COLOR = '#DC2626';
 
 /**
- * v0.11.3：结算卡通过那一面的**内置图标与标题**（主题里可改，这里是缺省）。
+ * 结算卡通过那一面的**内置图标与标题**（主题里可改，这里是缺省）。
  *
- * 标题从 v0.9.7 那句「恭喜定案！」改成「解题成功」：定案说的是「已落槌」，
- * 而玩家刚做完的是一道题 —— 这一屏在夸的是解题这件事本身。
+ * 标题取「解题成功」：定案说的是「已落槌」，而玩家刚做完的是一道题 —— 这一屏
+ * 在夸的是解题这件事本身。
  *
  * 图标与标题分开配，所以这个 emoji **不写进** `THEME_VERDICT_TITLE_FALLBACK`。
  */
@@ -208,7 +208,7 @@ export const THEME_VERDICT_TITLE_FALLBACK = '解题成功';
 export const THEME_VERDICT_TEXT_MAX_LENGTH = 24;
 
 /**
- * v0.11.6：游戏列表页那两行字的内置模板（主题里可改，这里是缺省）。
+ * 游戏列表页那两行字的内置模板（主题里可改，这里是缺省）。
  *
  * 模板里那个 `{n}` 是**关数**的占位符，界面渲染时换成数字 —— 给模板而不是给整句，
  * 是因为同一个数字在这两行里说的事不一样（一共几关 / 已经过了几关），作者要改的
@@ -222,11 +222,11 @@ export const THEME_GAME_LIST_COUNT_TOKEN = '{n}';
 export const THEME_GAME_LIST_TEXT_MAX_LENGTH = 24;
 
 /**
- * v0.7.11：长按进度环的**出场延迟**。
+ * 长按进度环的**出场延迟**。
  *
- * 环此前在 pointerdown 的第一帧就画出来，于是「点一下放编号」也会闪一下环 ——
- * 单点根本不会长按，闪出来的环只是在说一件不会发生的事。延迟到 160ms 之后再
- * 挂载，单点（绝大多数点击都在 120ms 内抬手）就什么都看不见。
+ * 环延迟到 160ms 之后再挂载：单点根本不会长按，第一帧就画出来的话，「点一下放编号」
+ * 也会闪一下环 —— 那只是在说一件不会发生的事；而单点（绝大多数点击都在 120ms 内
+ * 抬手）因此什么都看不见。
  *
  * 环因此只画**剩下的** `GAME_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS`，
  * 画满的那一帧仍是动作发生的那一帧（见 `PressRing`）。清除按钮用的是同一个
@@ -251,8 +251,7 @@ export const GAME_SLUG_PATTERN = /^[a-z0-9-]+$/;
 /**
  * OPT-W04 §4.3: difficulty → URL segment (never leak `veryEasy` camelCase).
  *
- * v0.8.6：难度不再落进新路径（v0.8.1 就去掉了后缀），这张表只剩「剥掉老路径
- * 尾部的难度后缀」一个用途。
+ * 难度不进新路径，这张表只剩一个用途：剥掉老路径尾部的难度后缀。
  */
 export const GAME_DIFFICULTY_SLUGS: Record<(typeof GAME_DIFFICULTY_LEVELS)[number], string> = {
   veryEasy: 'very-easy',
@@ -287,8 +286,8 @@ export const GAME_ACTIVE_PARTICIPANT_NUMBER_SCALE = 1.5;
  * 工具栏三处同图），而这三枚只是按钮上的画。所以存储也分开（`toolIcons` 与
  * `mark` 各一个键），解析顺序却相同：谜题自己的 → 主题的 → 内置图标。
  *
- * v0.9.5：这四样（标记 + 三枚按钮）在配置页里并进了**同一个模块**，
- * 因为作者改的是「这一套操作长什么样」，分两处会让人以为它们无关。
+ * 这四样（标记 + 三枚按钮）在配置页里是**同一个模块**：作者改的是
+ * 「这一套操作长什么样」，分两处会让人以为它们无关。
  */
 export const GAME_TOOL_ICON_KINDS = ['clear', 'undo', 'submit'] as const;
 export type GameToolIconKind = (typeof GAME_TOOL_ICON_KINDS)[number];

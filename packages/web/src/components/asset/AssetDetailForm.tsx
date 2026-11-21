@@ -65,10 +65,10 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
   const deleteVariantMutation = useDeleteAssetVariant();
 
   /**
-   * 只在换成**另一个资源**时用服务器值重置表单（v0.7.13 fix）。
+   * 只在换成**另一个资源**时用服务器值重置表单。
    *
-   * 原来还依赖 `asset.updatedAt`，于是「启用 / 停用」「添加形态」「删除形态」
-   * 这些同样会重取的动作，都能把用户改了一半的名字 / 类型按回服务器值。
+   * 依赖 `asset.updatedAt` 会让「启用 / 停用」「添加形态」「删除形态」这些同样
+   * 会重取的动作，把用户改了一半的名字 / 类型按回服务器值。
    * 表单是草稿，后台刷新不该写它。
    */
   useEffect(() => {
@@ -79,7 +79,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
   }, [asset.id]);
 
   const saving = updateMutation.isPending;
-  // v0.6.1: an asset needs a look somewhere before it can be enabled.
+  // An asset needs a look somewhere before it can be enabled.
   const activatable = assetHasAppearance(asset);
   const blockable = type === 'item';
   const canDeleteVariant = asset.variants.length > 1;
@@ -196,8 +196,8 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
               onChange={(next) => setType(next as Asset['type'])}
             />
           </div>
-          {/* v0.5.2 FEAT-M04: a background asset is never blocking, so the
-              checkbox would be a lie — it is only offered for 物品. */}
+          {/* A background asset is never blocking, so the checkbox would be a
+              lie — it is only offered for 物品. */}
           {blockable ? (
             <label className="mt-6 flex items-center gap-2 text-sm">
               <input
@@ -209,7 +209,7 @@ export function AssetDetailForm({ asset, onRequestDelete }: AssetDetailFormProps
               阻挡
             </label>
           ) : null}
-          {/* v0.10.9: 勾选后这个物品改放「背景修饰层」——与背景、物品同格共存，
+          {/* 勾选后这个物品放在「背景修饰层」——与背景、物品同格共存，
               所以它和「阻挡」一样只对物品开放（背景资源本来就铺满整格）。 */}
           {blockable ? (
             <label className="mt-6 flex items-center gap-2 text-sm">

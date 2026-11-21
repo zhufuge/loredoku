@@ -57,7 +57,7 @@ export function readLegacyLinkageColors(raw: unknown): MapLinkageColor[] {
  * `style.linkageColors`, and stamps `version = MAP_JSON_VERSION`. Every other
  * field is passed through untouched.
  *
- * v0.7.0: a region still carrying the retired `color` / `borderWidth` /
+ * A region still carrying the retired `color` / `borderWidth` /
  * `fillOpacity` trio is upgraded the same way (see
  * `service/regionStyleMigration.ts`).
  *

@@ -1,10 +1,10 @@
 import { MAX_CELL_SIZE, MIN_CELL_SIZE } from './grid';
 import { HIGHLIGHT_BLUE, HIGHLIGHT_RED } from './highlight';
 
-// // 地图：入口行、草稿 JSON、初始样式、基本信息缺省值。
-// v0.10.4：从 `constants.ts`（1324 行、287 个导出）按主题拆开。值、注释、次序一律
-// 照搬 —— 只是把「谁在用」相近的那些放在一个文件里，改一处不必在一千行里翻。
-// 对外仍是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
+// 地图：入口行、草稿 JSON、初始样式、基本信息缺省值。
+// 按主题收拢地图相关的常量：值、注释、次序稳定，「谁在用」相近的放在一起，改一处
+// 不必翻遍整个 `constants/`。
+// 对外是同一组名字：`constants/index.ts` 全部再导出，`@loredoku/shared` 不变。
 
 // ---- MapEntry ----
 export const MAP_NAME_MAX_LENGTH = 100;
@@ -14,8 +14,8 @@ export const DEFAULT_MAP_STATUS = 'draft';
 export const MAP_NOTE_MAX_LENGTH = 200;
 
 // ---- Puzzle ----
-// v0.5.0 FEAT-K08: the puzzle owns participants + the linkage-colour palette and
-// only **references** a published map version (`PuzzleDraft.map`).
+// The puzzle owns participants + the linkage-colour palette and only
+// **references** a published map version (`PuzzleDraft.map`).
 //
 // v0.7.1 (docs/v0.7.1.md §5.3): v2 — `map` carries a **copy of the canvas**
 // (`{ mapId, versionNo, mapName, data }`), so a puzzle can be published and
@@ -36,7 +36,7 @@ export const PUZZLE_DESCRIPTION_MAX_LENGTH = 500;
 export const PUZZLE_CODE_MAX_LENGTH = 48;
 export const PUZZLE_CODE_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
-// ---- v0.7.14 题面：全局线索与结束语 ----
+// ---- 题面：全局线索与结束语 ----
 /**
  * 全局线索**最多 8 条**（docs/v0.7.14.md §2）。
  *
@@ -56,34 +56,26 @@ export const PUZZLE_ENDING_MAX_LENGTH = 200;
 
 // ---- Map draft JSON ----
 /**
- * v0.6.0: v4 — a cell's object layer is `item` (was `object`) and every asset
- * reference is `assetId` (was `itemId`). Schemas are `.strict()`, so a v3
- * payload is rejected on write and absorbed on read by
- * `service/mapDraftCompat.ts` (migration `20260101000025` has already
- * rewritten the stored rows).
+ * A cell's object layer is `item`, every asset reference is `assetId`, and an
+ * anchor's key is `variantId`. `w` / `h` describe **this placement**, not the
+ * variant, so multi-cell footprints survive.
  *
- * v0.5.0 FEAT-K14: v3 — no `characterSlots` and no `style.linkageColors` (both
- * moved to the puzzle). v2 added `style` (FEAT-D02); v1 stays valid because a
- * missing `style` resolves to `DEFAULT_MAP_STYLE`.
+ * A map draft carries no `characterSlots` and no `style.linkageColors` — both
+ * belong to the puzzle. `style` is optional: a missing one resolves to
+ * `DEFAULT_MAP_STYLE`.
  *
- * v0.6.1: v5 — a canvas item anchor may carry `variantId`, pointing at one of the
- * asset's variants (docs/v0.6.1.md §6). The field is optional, so v4 payloads keep
- * validating and fall back to the asset's first variant.
+ * A canvas item anchor may carry `variantId`, pointing at one of the asset's
+ * variants (docs/v0.6.1.md §6). A background cell may carry it too, since a
+ * background asset can own several variants. The field is optional: payloads
+ * without it keep validating and fall back to the asset's first variant.
  *
- * v0.6.1 (background variants): v6 — a background cell may carry `variantId` too, now
- * that a background asset may own several variants. Same deal: optional, and the
- * fallback is the asset's first variant.
+ * A region's display style is `style`, a deep partial over the map-level
+ * defaults; there is no fill.
  *
- * v0.7.0: v7 — a region's own display style moved off `color` / `borderWidth` /
- * `fillOpacity` onto `style`, a deep partial over the map-level defaults (the
- * fill is gone entirely). Schemas are `.strict()`, so a v6 region payload is
- * rejected on write and rewritten on read by migration `20260101000030`.
- *
- * v0.7.6: v8 — the anchor key `formId` became `variantId` (the table went
- * `asset_forms` → `asset_variants`). Only the key moved: `w` / `h` stay, because
- * they describe **this placement** rather than the variant, and old drafts keep
- * their multi-cell footprints. Migration `20260101000035` rewrites the key and
- * bumps the number.
+ * Schemas are `.strict()`: a payload from an older version is rejected on
+ * write and absorbed on read by `service/mapDraftCompat.ts`; stored rows were
+ * rewritten by migrations `20260101000025`, `20260101000030` and
+ * `20260101000035`.
  */
 export const MAP_JSON_VERSION = 8;
 
@@ -92,7 +84,7 @@ export const EFFECT_TYPES = ['highlight', 'glow', 'blink', 'tooltip'] as const;
 
 // ---- Participant linkage (docs/v0.3.0.md FEAT-502, v0.3.3 MOD-801) ----
 // MOD-801: click/touch trigger grouping is gone — linkages are a flat list.
-/** v0.6.0: `item` became `asset` — a linkage points at a resource, not at a placed item. */
+/** A linkage points at a resource (`asset`), not at a placed item. */
 export const PARTICIPANT_TARGET_TYPES = ['character', 'asset', 'cell', 'region'] as const;
 export const EFFECT_COLORS = ['red', 'blue'] as const;
 export const EFFECT_COLOR_HEX: Record<(typeof EFFECT_COLORS)[number], string> = {
@@ -108,9 +100,8 @@ export const REGION_HIGHLIGHT_BORDER_COLOR = HIGHLIGHT_BLUE;
 /** OPT-B01 (docs/v0.3.6.md §1.1): 2px → 4px, growing **inwards**. */
 export const REGION_HIGHLIGHT_WIDTH = 4;
 export const DEFAULT_THEME_COLOR = '#FFFFFF';
-// v0.8.3：`THEME_COLOR_PALETTE`（v0.3.3 MOD-801 的 15 色板）已删除 —— 界面不再提供
-// 调色板，参与者主题色只由原生取色器与 hex 输入决定。留一张没人读的色表只会让后来者
-// 以为「主题色只能从这 15 个里挑」。
+// 参与者主题色只由原生取色器与 hex 输入决定，没有预设色板 —— 留一张没人读的
+// 色表只会让后来者以为「主题色只能从这几个里挑」。
 
 // ---- Map style ----
 /**
@@ -127,10 +118,9 @@ export const MAP_STYLE_LINE_WIDTH_MAX = 12;
 export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MIN = 0;
 export const MAP_STYLE_ITEM_OUTLINE_WIDTH_MAX = 12;
 /**
- * v0.10.7：操作光标框的**外扩距离**，单位是**格的百分比**（`100` = 一格）。
- *
- * 以前记的是画布像素：同一份 `2` 在大格子上只往外扩一点点、在小格子上却几乎盖住
- * 邻格。改成百分比后，框与格子的相对关系在任何格子大小下都一样。
+ * 操作光标框的**外扩距离**，单位是**格的百分比**（`100` = 一格）—— 画布像素下
+ * 同一份 `2` 在大格子上只往外扩一点点、在小格子上却几乎盖住邻格；用百分比，
+ * 框与格子的相对关系在任何格子大小下都一样。
  */
 export const MAP_STYLE_OPERATION_OFFSET_MIN = 0;
 export const MAP_STYLE_OPERATION_OFFSET_MAX = 100;
@@ -139,12 +129,11 @@ export const MAP_STYLE_REGION_LABEL_FONT_MAX = 48;
 export const MAP_STYLE_REGION_LABEL_STROKE_MIN = 0;
 export const MAP_STYLE_REGION_LABEL_STROKE_MAX = 12;
 /**
- * v0.9.6：区域标签位置偏移（画布像素，正负都收）。
+ * 区域标签的位置偏移（画布像素，正负都收）。
  *
- * v0.10.7：原本这里有一对 `REGION_LABEL_OFFSET_MIN/MAX = ∓200`，已经删掉 ——
- * 上下限本是为了「别让标签跑没」，但标签被推到画面外之后照样能从区域列表点回来，
- * 而作者想把标签推到远处、给整块区域留白时，这个限制先把路堵死了。现在偏移只
- * 要求是有限数字；web 侧的两处 clamp 只负责取整，不再封顶。
+ * 偏移只要求是有限数字：上下限本是为了「别让标签跑没」，但标签推到画面外之后照样
+ * 能从区域列表点回来，而作者想把标签推到远处、给整块区域留白时，这个限制先把路
+ * 堵死了。web 侧的两处 clamp 只负责取整、不封顶。
  */
 
 // ---- v0.7.4 区域标签字体（docs/v0.7.4.md §2） ----
@@ -221,7 +210,7 @@ export function fontFamilyStack(name: string): string {
   }
   return `"${name}", ${MAP_STYLE_FONT_FAMILY_STACKS.system}`;
 }
-/** v0.3.9 FEAT-E02: ruler text size and text→board gap. */
+/** Ruler text size and text→board gap. */
 export const MAP_STYLE_RULER_FONT_MIN = 9;
 export const MAP_STYLE_RULER_FONT_MAX = 32;
 export const MAP_STYLE_RULER_GAP_MIN = 0;
@@ -265,11 +254,11 @@ export const CANVAS_SHADOW_OFFSET_PERCENT = 30;
 /** 固定透明度：阴影颜色只配 `#RRGGBB`，落成影子时统一压这一档。 */
 export const CANVAS_SHADOW_ALPHA = 0.3;
 /**
- * v0.9.1：阴影偏移的可调区间。0 = 不投阴影。
+ * 阴影偏移的可调区间。0 = 不投阴影。
  *
- * v0.10.7 起单位是**格的百分比**（`100` = 一格）：出厂 `30` 在基准格子（120px）
- * 上正好是原来的 36px，格子被自适应缩放时阴影跟着按比例走，不会在大图上显得
- * 像一条细缝、在小图上糊住棋盘。
+ * 单位是**格的百分比**（`100` = 一格）：出厂 `30` 在基准格子（120px）上正好是
+ * 36px，格子被自适应缩放时阴影跟着按比例走，不会在大图上显得像一条细缝、在小图上
+ * 糊住棋盘。
  */
 export const MAP_STYLE_SHADOW_OFFSET_MIN = 0;
 export const MAP_STYLE_SHADOW_OFFSET_MAX = 200;
@@ -280,10 +269,10 @@ export const STYLE_DEFAULT_REGION_LABEL_FONT_SIZE = 32;
 export const STYLE_DEFAULT_REGION_LABEL_STROKE_WIDTH = 10;
 /** §2: the hovered label must be **larger** than the idle one (32 → 36). */
 export const STYLE_DEFAULT_REGION_LABEL_HOVER_FONT_SIZE = 36;
-/** v0.7.0: the hovered label keeps the idle stroke size by default. */
+/** The hovered label keeps the idle stroke size by default. */
 export const STYLE_DEFAULT_REGION_LABEL_HOVER_STROKE_WIDTH = 10;
 
-// ---- v0.5.2 FEAT-M01: 虚拟列表 ----
+// ---- FEAT-M01: 虚拟列表 ----
 /** Fixed row height (px) shared by the asset and character lists. */
 export const LIST_ROW_HEIGHT = 64;
 
@@ -303,7 +292,7 @@ export const DEFAULT_LINKAGE_COLORS = [
   { key: 'blue', label: '蓝', color: HIGHLIGHT_BLUE },
 ] as const;
 
-// ---- v0.3.8 FEAT-D02 地图基本信息（地图级缺省值） ----
+// ---- FEAT-D02 地图基本信息（地图级缺省值） ----
 /**
  * Map-level display constants edited by the 「地图基本信息」 drawer (FEAT-D02).
  * Everything here is a **default** — per-item settings still win. The one
@@ -325,8 +314,8 @@ export interface MapStyleMouseCursorBox extends MapStyleLine {
 
 export interface MapStyleOperationCursorBox extends MapStyleLine {
   /**
-   * 相对方格向外扩多少 —— 单位是**格的百分比**（`100` = 一格，v0.10.7 起；原先
-   * 是画布像素）。Outline 画在格子外面，所以这一项通常很小（出厂 `1`）。
+   * 相对方格向外扩多少 —— 单位是**格的百分比**（`100` = 一格）：Outline 画在
+   * 格子外面，所以这一项通常很小（出厂 `1`）。
    */
   offset: number;
 }
@@ -349,28 +338,28 @@ export interface MapStyleRegionLabel {
 }
 
 /**
- * v0.9.6：区域标签的**位置偏移**（相对「格子上沿居中」这个锚点）。
+ * 区域标签的**位置偏移**（相对「格子上沿居中」这个锚点）。
  *
  * 锚点由 `labelCell` 决定，但同一个格子在不同区域里可能被别的东西占着 —— 一条
  * 只占两格的长区域、标签又压在桌沿上时，作者需要把它推开一点点。偏移是
  * **每块区域各自一份**，所以放在 `DraftRegion.style.label` 的覆盖里（而不是
  * 地图级缺省）：地图级的缺省偏移对一块区域合适，对另一块就不合适。
  *
- * 单位是**格的百分比**（`100` = 一格，v0.10.7 起）：「往右四分之一格」这种意图
- * 在任何格子大小下都落在同一个位置；以前记的是画布像素，同一份 `12` 在大格子上
- * 只挪一小截、在小格子上却能跨过一整格。`0` = 不偏移（出厂值）。
+ * 单位是**格的百分比**（`100` = 一格）：同一份 `12` 在大格子上和小格子上挪出的
+ * 相对位置一样，「往右四分之一格」这种意图在任何格子大小下都落在同一个位置。
+ * `0` = 不偏移（出厂值）。
  */
 export interface RegionLabelOffset {
   x: number;
   y: number;
 }
 
-/** v0.3.9 FEAT-E02: ruler text size + the text→board gap. */
+/** Ruler text size + the text→board gap. */
 export interface MapStyleRuler {
   fontSize: number;
   gap: number;
   /**
-   * v0.10.8：列 / 行标尺的前缀符号，默认 `C` / `R`。
+   * 列 / 行标尺的前缀符号，默认 `C` / `R`。
    *
    * **只有主题在配**：符号是「这一套世界怎么念行与列」，与识别色、难度分级同一层，
    * 同一主题下的几十张图不该各自填一遍。`mapStyleSchema` 同时给地图草稿与主题的
@@ -381,11 +370,11 @@ export interface MapStyleRuler {
   rowSymbol?: string;
 }
 
-/** v0.10.8：标尺符号的长度上限 —— 再长就不是「前缀」而是句子了。 */
+/** 标尺符号的长度上限 —— 再长就不是「前缀」而是句子了。 */
 export const MAP_STYLE_RULER_SYMBOL_MAX_LENGTH = 4;
 
 /**
- * v0.10.8：标尺行列符号的出厂值。
+ * 标尺行列符号的出厂值。
  *
  * 单独提出来是因为 `MapStyleRuler` 上这两个字段是**可选**的：它们只有主题配，
  * 地图草稿里那份会被剥掉（`stripRulerSymbols`），所以读一份地图的风格时这两个
@@ -434,7 +423,7 @@ export interface MapStyle {
   /** `null` = use the adaptive cell size; otherwise an explicit override. */
   cellSize: number | null;
   canvasFrame: MapStyleLine;
-  /** v0.9.1：画布纸片的投影（偏移 + 颜色）。 */
+  /** 画布纸片的投影（偏移 + 颜色）。 */
   canvasShadow: MapStyleCanvasShadow;
   /** v0.9.1 §5：物品的描边（默认宽度 0 = 不描边）。 */
   itemOutline: MapStyleItemOutline;

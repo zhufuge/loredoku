@@ -2,7 +2,7 @@ import type { DraftRegion } from '@loredoku/shared';
 import { coordKey, isConnected, type Coord } from '@/lib/region';
 
 /**
- * v0.11.5：已有区域的**格子编辑**会话。
+ * 已有区域的**格子编辑**会话。
  *
  * 创建区域是一条路（涂抹选区 → 对话框 → `createRegion`），改已有区域的格子
  * 在此之前只有一条没公开的捷径 —— 选中区域后 `Shift + 点击` 立刻增删一格

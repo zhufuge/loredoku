@@ -61,7 +61,7 @@ export function useEditorResize(spec: EditorResizeSpec): EditorResizeFlow {
         const item = assetsById.get(cell.background.assetId);
         items.push(`物品「${item?.name ?? `#${cell.background.assetId}`}」位于 C${x + 1},R${y + 1}`);
       }
-      // v0.10.9 的背景修饰层：恒占 1 格，越界时会被 resize 接口裁掉，提前报个数。
+      // 背景修饰层恒占 1 格，越界时会被 resize 接口裁掉，提前报个数。
       if (cell.decoration && !inBounds(x, y)) {
         const item = assetsById.get(cell.decoration.assetId);
         items.push(`物品「${item?.name ?? `#${cell.decoration.assetId}`}」位于 C${x + 1},R${y + 1}`);

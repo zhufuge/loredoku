@@ -31,7 +31,7 @@ describe('build-fonts CLI', () => {
     const { code, stdout } = await cli(['--help']);
     expect(code).toBe(0);
     expect(stdout).toContain('--charset');
-    // v0.7.7: 补字是「缺字怎么办」的正解，用法里得能看见。
+    // 补字是「缺字怎么办」的正解，用法里得能看见。
     expect(stdout).toContain('--extra');
   });
 
@@ -56,7 +56,7 @@ describe('build-fonts CLI', () => {
 });
 
 /**
- * v0.9.4：补字清单是「谁遇到缺字谁加一行」的人工清单，被误删不会让构建报错 ——
+ * 补字清单是「谁遇到缺字谁加一行」的人工清单，被误删不会让构建报错 ——
  * 只是那个字悄悄退回系统字体。这里把「雯 / 麝 / 怡」钉在清单上：它们要进
  * `font-kai`，才能和名册里的晴雯、麝月、怡红院用同一种手写体。
  */

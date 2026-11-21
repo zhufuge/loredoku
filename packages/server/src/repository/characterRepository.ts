@@ -13,26 +13,25 @@ import { readLegacyCharacterSlots } from '../service/mapDraftCompat';
 export interface ListCharactersParams {
   keyword?: string;
   isActive?: boolean;
-  /** v0.8.0：作用域条；`undefined` = 全部主题。 */
+  /** 作用域条；`undefined` = 全部主题。 */
   themeId?: number;
 }
 
 export interface CreateCharacterData {
-  /** v0.8.0：边界。 */
   themeId: number;
   code: string;
   name: string;
   /** FEAT-501 */
   gender: CharacterGender;
   description: string | null;
-  /** v0.5.1 FEAT-L02: colour-block colour; `null` / omitted = image mode. */
+  /** Colour-block colour; `null` / omitted = image mode. */
   bgColor?: string | null;
-  /** v0.7.13: 主题色 handed to a roster slot; `null` / omitted = no default. */
+  /** 主题色 handed to a roster slot; `null` / omitted = no default. */
   color?: string | null;
-  /** v0.7.13: 编号 handed to a roster slot; `null` / omitted = no default. */
+  /** 编号 handed to a roster slot; `null` / omitted = no default. */
   displayName?: string | null;
   /**
-   * v0.5.3 FEAT-N06: create enabled when the caller already supplied an
+   * Create enabled when the caller already supplied an
    * appearance; omitted keeps the OPT-305 default (`false`).
    */
   isActive?: boolean;
@@ -42,11 +41,11 @@ export interface UpdateCharacterData {
   name?: string;
   gender?: CharacterGender;
   description?: string | null;
-  /** v0.5.1 FEAT-L02: `null` clears the colour block (back to image mode). */
+  /** `null` clears the colour block (back to image mode). */
   bgColor?: string | null;
-  /** v0.7.13: `null` clears the participant 主题色 default. */
+  /** `null` clears the participant 主题色 default. */
   color?: string | null;
-  /** v0.7.13: `null` clears the participant 编号 default. */
+  /** `null` clears the participant 编号 default. */
   displayName?: string | null;
   isActive?: boolean;
 }
@@ -62,7 +61,7 @@ function toCharacter(row: CharacterRow): Character {
     avatarUrl: row.avatar_path ? buildFileUrl(row.avatar_path) : null,
     avatarThumbUrl: row.avatar_path ? buildThumbUrl(row.avatar_path) : null,
     bgColor: row.bg_color ?? null,
-    // v0.7.13: the participant defaults. `?? null` also covers rows written
+    // The participant defaults. `?? null` also covers rows written
     // before the columns existed — a `select('*')` on an old row simply has no
     // such key, and "no default" is exactly the pre-v0.7.13 behaviour.
     color: row.color ?? null,
@@ -91,7 +90,7 @@ export async function findById(id: number): Promise<CharacterRow | undefined> {
   return db<CharacterRow>('characters').where({ id }).first();
 }
 
-/** v0.8.0：`code` 只在主题内唯一，查重必须带主题。 */
+/** `code` 只在主题内唯一，查重必须带主题。 */
 export async function findByCode(code: string, themeId?: number): Promise<CharacterRow | undefined> {
   const query = db<CharacterRow>('characters').where({ code });
   if (themeId !== undefined) query.where('theme_id', themeId);
@@ -119,11 +118,11 @@ export async function create(data: CreateCharacterData): Promise<number> {
       gender: data.gender,
       description: data.description,
       bg_color: data.bgColor ?? null,
-      // v0.7.13: participant defaults; omitted = `null` = "no default".
+      // Participant defaults; omitted = `null` = "no default".
       color: data.color ?? null,
       display_name: data.displayName ?? null,
       // OPT-305: 新建角色未上传头像，初始状态为停用。
-      // v0.5.3 FEAT-N06: 上传了头像或选了纯色块 → 直接启用。
+      // 上传了头像或选了纯色块 → 直接启用。
       is_active: data.isActive ?? false,
     })
     .returning('id');
@@ -154,7 +153,7 @@ export async function clearAvatar(id: number): Promise<void> {
   await db('characters').where({ id }).update({
     avatar_path: null,
     // OPT-305: 删除头像后自动停用（数据引用保留）。
-    // v0.5.1 FEAT-L02 收窄：纯色块（有 bg_color）不依赖头像，删头像只是删头像。
+    // 纯色块（有 bg_color）不依赖头像，删头像只是删头像。
     is_active: db.raw('CASE WHEN bg_color IS NULL THEN false ELSE is_active END'),
     updated_at: db.fn.now(),
   });
@@ -237,8 +236,8 @@ export async function hardDelete(id: number, clearReferences: boolean): Promise<
  * roster's new home) and reports any v0.4.x map draft that still holds one, so
  * a hard delete never leaves a dangling reference behind.
  *
- * v0.7.1: 谜题自带底图，所以「在哪张图上」直接读 `data.map` 快照，不再 join
- * `maps`；软删的版本行不算使用（它已经不在界面上）。
+ * 谜题自带底图，所以「在哪张图上」直接读 `data.map` 快照；软删的版本行不算使用
+ * （它已经不在界面上）。
  */
 export async function getUsages(characterId: number): Promise<CharacterUsage[]> {
   const puzzleRows = (await db('puzzles')
@@ -293,7 +292,7 @@ export async function existingCharacterIds(ids: number[]): Promise<Set<number>> 
 
 export interface CharacterSlotMeta {
   hasAvatar: boolean;
-  /** v0.5.1 FEAT-L02: a colour block counts as an appearance too. */
+  /** A colour block counts as an appearance too. */
   hasAppearance: boolean;
 }
 

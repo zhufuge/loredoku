@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { GAME_HELP_SEEN_KEY, markGameHelpSeen, readGameHelpSeen } from './gameHelp';
 
 /**
- * v0.11.7：玩法说明「看过没有」的记账。
+ * 玩法说明「看过没有」的记账。
  *
  * 只验两件事：写进去之后读得出来；读不出来 / 写不进去时**不炸**、当作没看过
  * （隐私模式、存储被禁的那一路 —— 那种环境下页面还得能玩）。

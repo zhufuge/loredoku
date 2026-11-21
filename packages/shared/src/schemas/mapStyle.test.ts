@@ -22,7 +22,7 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
     expect(result.success).toBe(true);
     if (!result.success) return;
     expect(result.data.regionHighlight.width).toBe(6);
-    // v0.5.2 SPEC-M07: the highlight line is the strong blue, and the grid
+    // SPEC-M07: the highlight line is the strong blue, and the grid
     // separator is 4px (was the pale blue / 2px).
     expect(result.data.regionHighlight.color).toBe(STYLE_DEFAULT_REGION_HIGHLIGHT_COLOR);
     expect(result.data.gridSeparator).toEqual({
@@ -39,7 +39,7 @@ describe('mapStyleSchema (v0.3.8 FEAT-D02)', () => {
     expect(mapStyleSchema.safeParse({ cellSize: 400 }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ regionOutline: { width: 99 } }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ regionLabel: { fontSize: 400 } }).success).toBe(false);
-    // v0.10.7：外扩距离按格的百分比，上限 100。
+    // 外扩距离按格的百分比，上限 100。
     expect(mapStyleSchema.safeParse({ operationCursorBox: { offset: 101 } }).success).toBe(false);
     expect(mapStyleSchema.safeParse({ operationCursorBox: { offset: 100 } }).success).toBe(true);
   });

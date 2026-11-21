@@ -38,7 +38,7 @@ export interface CreatePuzzlePayload {
 
 export interface UpdatePuzzlePayload {
   name?: string;
-  /** v0.8.5 §7：改编码（v0.8.5 之前建的谜题靠它补写）。 */
+  /** v0.8.5 §7：改编码（更早建的谜题靠它补写）。 */
   code?: string;
   description?: string | null;
 }

@@ -9,7 +9,7 @@ import type { MarkRender } from '@/lib/mark';
 import type { ToolIconsRender } from '@/lib/toolIcons';
 
 /**
- * v0.11.2：**这一页会画到的图**清单 —— 交给 `useImagePreload` 去等。
+ * **这一页会画到的图**清单 —— 交给 `useImagePreload` 去等。
  *
  * 只收「画布 / 名册真的会画」的那些，不收上传原图：图层里取的一直是
  * `imageThumbUrl ?? imageUrl`（见 `components/map/MapAssetLayers.tsx`），

@@ -77,7 +77,7 @@ export interface EditorState {
   selection: Selection | null;
   selectedRegionId: string | null;
   selectedAssetId: number | null;
-  /** v0.6.1: the palette selects an asset **and** one of its variants. */
+  /** The palette selects an asset **and** one of its variants. */
   selectedVariantId: number | null;
   regionDraftSelection: Set<string>;
   zoom: number;
@@ -93,7 +93,7 @@ export interface EditorState {
   setLayer: (layer: EditorLayer) => void;
   setSelection: (selection: Selection | null) => void;
   setSelectedRegion: (id: string | null) => void;
-  /** v0.6.1: pass both, or neither — the selection is the (asset, variant) pair. */
+  /** Pass both, or neither — the selection is the (asset, variant) pair. */
   setSelectedItem: (assetId: number | null, variantId?: number | null) => void;
 
   toggleDraftCell: (x: number, y: number) => void;
@@ -102,7 +102,7 @@ export interface EditorState {
   clearDraftSelection: () => void;
 
   /**
-   * v0.6.1: the background cell records which variant was painted. `variantId` is
+   * The background cell records which variant was painted. `variantId` is
    * optional so a payload written before background assets could own several
    * variants keeps loading — rendering falls back to the asset's first variant.
    */
@@ -113,7 +113,7 @@ export interface EditorState {
    */
   placeDecoration: (assetId: number, variantId: number | undefined, x: number, y: number) => void;
   /**
-   * v0.6.1: the caller hands over the chosen variant's id; the anchor freezes the
+   * The caller hands over the chosen variant's id; the anchor freezes the
    * footprint, so later variant edits never move placed items. v0.7.6: 新放置的
    * `w` / `h` 恒为 1（调用方显式传 1，让老草稿的多格锚点仍是合法值）。
    */
@@ -136,7 +136,7 @@ export interface EditorState {
   toggleRegionCell: (id: string, x: number, y: number) => void;
   updateRegion: (regionId: string, input: RegionInput) => void;
   /**
-   * v0.11.5: 把一块区域的格子整体换成 `cells` —— 区域格子编辑会话的提交。
+   * 把一块区域的格子整体换成 `cells` —— 区域格子编辑会话的提交。
    *
    * 与逐格 `toggleRegionCell` 的差别就是「一步」：编辑十格撤销一次就回到原样。
    * 顺带处理占用：`cells` 里若含别的区域已经占着的格子，从那些区域移走（与创建
@@ -148,7 +148,7 @@ export interface EditorState {
   setGridSize: (size: number) => void;
   applyDraft: (draft: MapDraft) => void;
   /**
-   * v0.3.8 FEAT-D02: composes the whole 「地图基本信息」drawer. The updater
+   * Composes the whole 「地图基本信息」drawer. The updater
    * receives the resolved style and returns the next one; the change lands in
    * the undo stack as a single step.
    */
@@ -578,7 +578,7 @@ export const useEditorStore = create<EditorState>((set, get) => {
         gridSize: state.gridSize,
         cells,
         regions: state.regions,
-        // v0.10.8：标尺的行列符号只由主题配置，地图草稿里不留副本 —— 留了就是
+        // 标尺的行列符号只由主题配置，地图草稿里不留副本 —— 留了就是
         // 「库里两处互相矛盾的值」，而渲染只认主题那一份。存量草稿里的旧值在读入
         // 时就被忽略，这一行保证它们也不会被再写回去。
         style: stripRulerSymbols(state.style),

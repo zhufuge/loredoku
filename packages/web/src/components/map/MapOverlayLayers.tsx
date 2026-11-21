@@ -25,7 +25,7 @@ import { RegionHighlightOutline } from './MapRegionLayers';
  * 层 8 · 阻挡遮罩（Blocking Mask）— a `rgba(0,0,0,0.18)` mask for
  * cells whose item-layer item has `blocking === true`.
  *
- * v0.3.8 SPEC-D01: the mask sits **below** 区域轮廓线 and **above** 区域高亮线
+ * The mask sits **below** 区域轮廓线 and **above** 区域高亮线
  * (see `docs/layer-priority.md` §2). The artwork is above it, but every item
  * image keeps a transparent `itemPadding` ring, so the mask stays visible
  * around it. It is inset to the grid separator so it never paints over it.
@@ -138,11 +138,9 @@ const NO_HIGHLIGHTED_REGIONS: readonly string[] = [];
  * 层 3 · 区域标签（Region Label）— the region name text, drawn above the
  * artwork with stroke + fill colours and a hover pair.
  *
- * v0.7.0 made the label three-level (map default + region override), but this
- * layer kept reading the **map-level** block for every region — a region that
- * set its own label size / colour / typeface showed nothing of it. v0.7.4 reads
- * the region's resolved style like the outline and highlight layers already do,
- * which is also what makes the new `fontFamily` field meaningful per region.
+ * The label is three-level (map default + region override): this layer reads
+ * each region's resolved style, like the outline and highlight layers do, which
+ * is what makes the per-region `fontFamily` field meaningful.
  */
 export function MapRegionLabelLayer({
   regions,
@@ -158,11 +156,9 @@ export function MapRegionLabelLayer({
   style: MapStyle;
   hoveredRegionId?: string | null;
   /**
-   * v0.11.4：联动高亮（参与者 → 关联区域）命中的区域 id。
+   * 联动高亮（参与者 → 关联区域）命中的区域 id。
    *
-   * 在此之前只有边框线会亮，标题不动 —— 作者配的 `hoverColor` /
-   * `hoverFontSize` / `hoverStrokeColor` 那一套就等于白配了一半。现在这两件事
-   * 都是「这块区域正被指着」，用同一套样式。
+   * 与悬停一样用那一套样式 —— 两者都是「这块区域正被指着」。
    */
   highlightedRegionIds?: readonly string[];
   onHover?: (id: string | null) => void;
@@ -178,27 +174,19 @@ export function MapRegionLabelLayer({
         const anchor = region.labelCell ?? computeLabelCell(region.cells);
         if (!anchor) return null;
         /*
-         * v0.10.7：圆心的横坐标取「锚点这一行里本区域格子的像素跨度中点」，
-         * 不再是「锚点格的格心」。底部行是偶数格时后者右偏半格（17155 的
-         * 「穿廊」压在 [3,4]+[4,4] 上就是典型）。锚点被挪到别的行 / 盘面之外
-         * 时退回格心。
+         * 圆心的横坐标取「锚点这一行里本区域格子的像素跨度中点」，而不是格心 ——
+         * 底部行是偶数格时格心会右偏半格。锚点被挪到别的行 / 盘面之外时退回格心。
          */
         const centerX = labelRowCenterX(region.cells, anchor[1]) ?? anchor[0] + 0.5;
         const hovered = hoveredRegionId === region.id;
-        /** v0.11.4：悬停与联动高亮是同一件事 —— 这块区域正被指着，标题就亮。 */
+        /** 悬停与联动高亮是同一件事 —— 这块区域正被指着，标题就亮。 */
         const lit = hovered || highlightedRegionIds.includes(region.id);
         const resolved = resolveRegionStyle(style, region.style);
         const label = resolved.label;
         /*
-         * v0.9.6：每块区域自己那份**位置偏移**。
-         *
-         * v0.10.7：单位改成**格的百分比**（100 = 一格）。作者填的数直接乘格子
-         * 尺寸就是像素，所以「往右四分之一格」在任何格子大小下都落在同一个位置。
-         *
-         * 在此之前它是画布像素：先是裸像素（开关标尺会重算 `cellSize`，偏移量在
-         * 格子上占的比例就跟着变 —— 实测 17155「穿廊」填 200：标尺开占 1.70 格、
-         * 关掉 1.87 格，标签肉眼可见地挪位），后来按 `BASE_CELL` 折算，占比稳了，
-         * 但作者看到的是「200」这种与格子无关的数字，写不出「半格」这种意图。
+         * 每块区域自己那份**位置偏移**，单位是**格的百分比**（100 = 一格）。
+         * 作者填的数直接乘格子尺寸就是像素，所以「往右四分之一格」在任何格子
+         * 大小下都落在同一个位置。
          *
          * 它跟着纸一起 `transform`（父层带着 zoom / pan），所以缩放时不用另算。
          */
@@ -207,18 +195,13 @@ export function MapRegionLabelLayer({
         const offsetY = (offset.y / 100) * cellSize;
         const strokeWidth = styleLineWidth(label.strokeWidth, cellSize);
         /*
-         * v0.10.2：标签**不再接管点击**。
-         *
-         * 它原来是一枚 `stopPropagation()` 的 `<button>`，于是「区域标题占的那块
-         * 像素」点下去选中的是区域，而不是标题底下那一格 —— 而标签用
-         * `translate(-50%, -100%)` 悬在格子上沿，盖住的往往根本不是自己区域的格子。
-         * 现在把点击放回画布容器：按下沿 React 树冒泡到容器的 `onPointerDown`，
+         * 标签**不接管点击**：按下沿 React 树冒泡到画布容器的 `onPointerDown`，
          * 由它按 `clientToCell` 换算成格子，再做放置 / 选择 —— 与点盘面上任何
          * 一处像素完全同一条路。
          *
-         * 仍留 `pointer-events-auto`：悬停要能点亮它自己那块区域（标签可能被
-         * `labelCell` / 偏移推到盘面之外，那里没有格子可悬停）。`select-none` 是因为
-         * 它已经不是按钮了，按住拖动不该选中文字。
+         * 保留 `pointer-events-auto`：悬停要能点亮它自己那块区域（标签可能被
+         * `labelCell` / 偏移推到盘面之外，那里没有格子可悬停）。`select-none`
+         * 是为了按住拖动时不选中文字。
          */
         return (
           <span
@@ -245,19 +228,17 @@ export function MapRegionLabelLayer({
             onMouseEnter={() => onHover?.(region.id)}
             onMouseLeave={() => onHover?.(null)}
             /*
-             * v0.10.7：地图编辑里标签要**吃掉**这次按下，游戏页 / 谜题预览里
-             * 不能吃。
+             * 地图编辑里标签要**吃掉**这次按下，游戏页 / 谜题预览里不能吃。
              *
              * 画布选格发生在容器自己的 `onPointerDown` 里（`EditorCanvas`
              * `handlePointerDown` → `selectCellAt`），而 `pointerdown` 早于
-             * `click`。只 `stopPropagation()` 一个 `click` 的话，按下那一刻格子
-             * 已经被选中了，信息框虽然弹出，选区却跑到了标题底下那一格。
+             * `click` —— 只拦 `click` 的话，按下那一刻格子就已经被选中了。
              *
              * 判据是 `onSelect` 在不在：只有地图编辑器会传它（点击弹信息框），
-             * 游戏页与谜题预览不传 —— 那里仍保持 v0.10.2 的「点标签 = 点底下那格」。
+             * 游戏页与谜题预览不传 —— 那里「点标签 = 点底下那格」。
              *
-             * 不 `preventDefault()`：后者会抑制兼容的 `click`，标签就点不开了
-             * （文字选中已由 `select-none` 挡住）。
+             * 不 `preventDefault()`：后者会抑制兼容的 `click`，标签就点不开了；
+             * 按住拖动不选中文字，这一点另有处理。
              */
             onPointerDown={
               onSelect
@@ -267,13 +248,9 @@ export function MapRegionLabelLayer({
                 : undefined
             }
             /*
-             * v0.10.8：`click` 的拦截也要跟着 `onSelect` 走。
-             *
-             * v0.10.7 只按需拦了 `pointerdown`，`click` 那层却是无条件
-             * `stopPropagation()`。于是没传 `onSelect` 的页面（谜题编辑器、游戏页、
-             * 预览页）里，按下能冒到画布、抬手那一下却断在标签上 —— 游戏页的
-             * 数字落笔就在容器的 `onClick` 里（`dispatchCell`），点标签等于什么都没
-             * 发生。用户报的正是这个：标签在这些页面应当「等于点它底下那一格」。
+             * `click` 的拦截同样跟着 `onSelect` 走：没传它的页面（谜题编辑器、
+             * 游戏页、预览页）抬手那一下要能冒到容器的 `onClick`（`dispatchCell`），
+             * 否则点标签等于什么都没发生 —— 标签在这些页面「等于点它底下那一格」。
              */
             onClick={
               onSelect

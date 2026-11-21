@@ -43,7 +43,7 @@ import { participantLinkagesSchema, themeColorSchema } from './participant';
 const coordSchema = z.number().int().min(0).max(GRID_SIZE_MAX * 4);
 const cellKeySchema = z.string().regex(/^\d+,\d+$/, '单元格坐标格式应为 "x,y"');
 
-// ---- v0.3.8 FEAT-D02 地图样式（地图级缺省值） ----
+// ---- FEAT-D02 地图样式（地图级缺省值） ----
 /** Colours are `#RRGGBB`; the only exception is the cursor shadow ring. */
 const styleColorSchema = z
   .string()
@@ -72,12 +72,12 @@ const regionOutlineWidthSchema = z
   .default(DEFAULT_MAP_STYLE.regionOutline.width);
 
 /**
- * v0.7.4: the region label's typeface — a **font name** (`WenKai`, `霞鹜文楷`)
+ * The region label's typeface — a **font name** (`WenKai`, `霞鹜文楷`)
  * or one of the built-in keys (`system` / `serif` …).
  *
- * Not an enum any more: the set of selectable fonts is whatever lives in
+ * The set of selectable fonts is whatever lives in
  * `packages/web/src/assets/fonts/`, which `shared` must not know about. What is
- * still enforced is the *shape* of the name — length plus a character set that
+ * enforced is the *shape* of the name — length plus a character set that
  * cannot break out of the quoted slot in the CSS fallback chain
  * (`MAP_STYLE_FONT_FAMILY_NAME_PATTERN`). A name that survives here is safe to
  * render, and a name that came from another build simply falls back at render
@@ -107,7 +107,7 @@ export const mapStyleSchema = z.object({
   canvasFrame: styleLineSchema(DEFAULT_MAP_STYLE.canvasFrame).default(() => ({
     ...DEFAULT_MAP_STYLE.canvasFrame,
   })),
-  // v0.9.1：画布阴影 —— 偏移（格的百分比，v0.10.7 起；100 = 一格）+ 颜色（透明度固定 0.3）。
+  // 画布阴影 —— 偏移（格的百分比；100 = 一格）+ 颜色（透明度固定 0.3）。
   canvasShadow: z
     .object({
       offset: z
@@ -144,7 +144,7 @@ export const mapStyleSchema = z.object({
   }).default(() => ({
     ...DEFAULT_MAP_STYLE.mouseCursorBox,
   })),
-  // v0.5.2 SPEC-M07：操作光标框。`offset` 是外扩距离，v0.10.7 起按格的百分比记（100 = 一格）。
+  // 操作光标框。`offset` 是外扩距离，按格的百分比记（100 = 一格）。
   operationCursorBox: z.object({
     width: z
       .number()
@@ -200,7 +200,7 @@ export const mapStyleSchema = z.object({
   regionHighlight: styleLineSchema(DEFAULT_MAP_STYLE.regionHighlight).default(() => ({
     ...DEFAULT_MAP_STYLE.regionHighlight,
   })),
-  // v0.3.9 FEAT-E02: ruler text size + the text→board gap.
+  // Ruler text size + the text→board gap.
   ruler: z
     .object({
       fontSize: z
@@ -215,11 +215,11 @@ export const mapStyleSchema = z.object({
         .max(MAP_STYLE_RULER_GAP_MAX)
         .default(DEFAULT_MAP_STYLE.ruler.gap),
       /**
-       * v0.10.8：标尺前缀符号（默认 C / R）。允许为空串 —— 只显示数字也是一种读法。
+       * 标尺前缀符号（默认 C / R）。允许为空串 —— 只显示数字也是一种读法。
        *
        * 这两项**只有主题在配**：`mapStyleSchema` 同时被地图草稿与主题的 `data.style`
        * 用着，所以字段留在 schema 里（主题要靠它存）；但地图草稿里的同名值
-       * v0.10.8 起**不参与渲染**（`MapRulerStrips` 按 `themeCode` 查主题），
+       * **不参与渲染**（`MapRulerStrips` 按 `themeCode` 查主题），
        * 保存地图时也会被剥掉（`stripRulerSymbols`），免得库里留着两处互相矛盾的值。
        *
        * **刻意不给 `.default()`**：给了的话，任何一张地图只要存一次盘，就会把
@@ -232,7 +232,7 @@ export const mapStyleSchema = z.object({
     .default(() => ({ ...DEFAULT_MAP_STYLE.ruler })),
 })
   /**
-   * v0.5.0 FEAT-K14: `.strict()` so a v2 `style.linkageColors` block is
+   * FEAT-K14: `.strict()` so a v2 `style.linkageColors` block is
    * **rejected** instead of silently stripped — the web import path relies on
    * that to tell the author "this JSON is the old shape" (docs/v0.5.0.md §8.4).
    */
@@ -257,12 +257,12 @@ function withLegacyAnchorKey<T extends z.ZodTypeAny>(schema: T): T {
   }, schema) as unknown as T;
 }
 
-/** v0.6.0: the background layer — one asset, no footprint. */
+/** The background layer — one asset, no footprint. */
 export const draftAssetRefSchema = withLegacyAnchorKey(
   z.object({
     assetId: z.number().int().positive(),
     /**
-     * v0.6.1: optional for the same reason as the item anchor — a payload
+     * Optional for the same reason as the item anchor — a payload
      * written before background assets could have several variants keeps
      * validating, and rendering falls back to the asset's first variant.
      * `draftCellSchema` is `.strict()`, so the key has to be declared here.
@@ -272,9 +272,9 @@ export const draftAssetRefSchema = withLegacyAnchorKey(
 );
 
 /**
- * v0.6.0: the item layer — the anchor cell carries the footprint.
+ * The item layer — the anchor cell carries the footprint.
  *
- * v0.6.1: `variantId` is **optional on purpose** — a v4 payload has no such key and
+ * `variantId` is **optional on purpose** — a v4 payload has no such key and
  * must keep validating; rendering falls back to the asset's first variant.
  * `draftCellSchema` is `.strict()`, so the key has to be declared here or new
  * writes would be rejected.
@@ -284,9 +284,8 @@ export const draftAnchorItemSchema = withLegacyAnchorKey(
     assetId: z.number().int().positive(),
     variantId: z.number().int().positive().optional(),
     /**
-     * v0.7.6: the footprint is still stored **per placement** — it just no longer
-     * comes from the variant (every new placement writes 1). Old drafts keep
-     * their 2×2 so published maps render exactly as before.
+     * The footprint is stored **per placement** (every new placement writes 1).
+     * Old drafts keep their 2×2 so published maps render exactly as before.
      */
     w: z.number().int().min(1),
     h: z.number().int().min(1),
@@ -305,7 +304,7 @@ export const draftAnchorItemSchema = withLegacyAnchorKey(
 export const draftCellSchema = z
   .object({
     background: draftAssetRefSchema.optional(),
-    /** v0.10.9: the 背景修饰 layer — always 1×1, coexists with background / item. */
+    /** The 背景修饰 layer — always 1×1, coexists with background / item. */
     decoration: draftAssetRefSchema.optional(),
     item: draftAnchorItemSchema.optional(),
     itemRef: z.string().trim().min(1).max(64).optional(),
@@ -361,14 +360,14 @@ const regionLabelOverrideSchema = z
       .max(MAP_STYLE_REGION_LABEL_STROKE_MAX)
       .optional(),
     /**
-     * v0.9.6：这块区域的标签往哪偏（画布像素，相对「格子上沿居中」）。
+     * 这块区域的标签往哪偏（画布像素，相对「格子上沿居中」）。
      *
      * x / y 都可缺：只改一个方向的作者不该被迫填另一个。整块缺席 = 不偏移。
      *
-     * v0.10.7：**去掉了 ±200 的上下限**。原来那对常量是为了「别让标签跑没」，
-     * 但标签被推到画面外之后照样能点回来（区域列表里点一下就能选中），而这个
-     * 限制反而把「把标签推到远处、让一整块区域留白」这种排版挡死了。现在只要求
-     * 是有限数字，取整的夹取在 web 侧的两处 clamp 里做。
+     * 不设上下限：±200 那对常量本是为了「别让标签跑没」，但标签被推到画面外之后
+     * 照样能点回来（区域列表里点一下就能选中），这个限制反而把「把标签推到远处、
+     * 让一整块区域留白」这种排版挡死了。只要求是有限数字，取整的夹取在 web 侧的
+     * 两处 clamp 里做。
      */
     offset: z
       .object({
@@ -395,9 +394,7 @@ export const draftRegionSchema = z
     cells: z.array(z.tuple([coordSchema, coordSchema])).min(1, '区域至少包含一个单元格'),
     labelCell: z.tuple([coordSchema, coordSchema]).nullable().optional(),
     /**
-     * v0.7.0: replaces the flat `color` / `borderWidth` / `fillOpacity` trio.
-     * `.strict()` rejects a v6 region payload on write; migration
-     * `20260101000030` rewrote the stored rows.
+     * `.strict()` rejects a v6 region payload on write.
      */
     style: regionStyleOverrideSchema.optional(),
   })
@@ -441,11 +438,10 @@ export const characterSlotEntrySchema = z
   .strict();
 
 /**
- * v0.5.0 FEAT-K14: the map draft is pure canvas — `characterSlots` and
- * `style.linkageColors` moved to {@link PuzzleDraft}, so the old
- * `superRefine` that cross-checked participant linkages is gone with them.
- * Every remaining reference (regions / cells) is inside this payload, which is
- * why the schema is now a plain `.strict()` object.
+ * The map draft is pure canvas — `characterSlots` and
+ * `style.linkageColors` belong to {@link PuzzleDraft}. Every remaining
+ * reference (regions / cells) is inside this payload, which is why the schema
+ * is a plain `.strict()` object.
  *
  * `.strict()` also means a **v2 payload is rejected**; the server absorbs those
  * on read (`service/mapDraftCompat.ts`) rather than rewriting stored data.
@@ -457,7 +453,7 @@ export const mapDraftSchema = z
     cells: z.record(cellKeySchema, draftCellSchema),
     regions: z.array(draftRegionSchema),
     /**
-     * v0.3.8 FEAT-D02: optional so `version = 1` drafts keep validating; a
+     * Optional so `version = 1` drafts keep validating; a
      * missing block resolves to `DEFAULT_MAP_STYLE` at render time.
      */
     style: mapStyleSchema.optional(),

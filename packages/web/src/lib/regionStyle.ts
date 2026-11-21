@@ -35,7 +35,7 @@ function pickColor(fallback: string, value: unknown): string {
 }
 
 /**
- * v0.9.6：标签偏移的取整。`undefined` / 非数字 → 0（不偏移），v0.10.7 起不再封顶。
+ * 标签偏移的取整。`undefined` / 非数字 → 0（不偏移），也不封顶。
  *
  * 为什么容错而不是拒：这两个数来自输入框，作者打到一半（空串、`-`）时值会短暂是
  * 非数字 —— 那一刻把标签弹回原位再弹回来比留在原地更晃眼。
@@ -76,7 +76,7 @@ export function resolveRegionStyle(
       color: pickColor(base.regionHighlight.color, highlight.color),
     },
     label: {
-      // v0.7.4: the typeface is a font name, so the only failure mode is a
+      // The typeface is a font name, so the only failure mode is a
       // malformed name — that falls back to the map-level value, not to the
       // shipped default. A name this build does not ship is still honoured:
       // the renderer quotes it and lets the browser walk the fallback chain.
@@ -91,7 +91,7 @@ export function resolveRegionStyle(
           : base.regionLabel.strokeWidth,
       color: pickColor(base.regionLabel.color, label.color),
       strokeColor: pickColor(base.regionLabel.strokeColor, label.strokeColor),
-      // v0.5.2 FIX-M02: the hovered label is **never smaller** than the idle
+      // The hovered label is **never smaller** than the idle
       // one — measured against the resolved fontSize, so a region that only
       // grows its own label cannot end up with a smaller hovered one.
       hoverFontSize: Math.max(
@@ -107,7 +107,7 @@ export function resolveRegionStyle(
           ? clampRegionLabelStroke(label.hoverStrokeWidth)
           : base.regionLabel.hoverStrokeWidth,
     },
-    // v0.9.6：每块区域自己那份位置偏移。地图级缺省没有这一项 —— 偏移只对
+    // 每块区域自己那份位置偏移。地图级缺省没有这一项 —— 偏移只对
     // 某一块区域的排版有意义，所以缺省恒为 0。
     labelOffset: {
       x: clampLabelOffset(label.offset?.x),
@@ -170,7 +170,7 @@ export function regionStyleOverride(
     label.hoverStrokeWidth = style.label.hoverStrokeWidth;
   }
   /*
-   * v0.9.6：偏移没有「地图级缺省」可比 —— 缺省永远是 0，所以只有**非 0 的那一侧**
+   * 偏移没有「地图级缺省」可比 —— 缺省永远是 0，所以只有**非 0 的那一侧**
    * 才记进覆盖。两轴都 0 时整块 `offset` 不落盘，与「从没调过」同一个口径。
    */
   const offset: { x?: number; y?: number } = {};

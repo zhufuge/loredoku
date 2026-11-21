@@ -15,10 +15,8 @@ interface AssetListPanelProps {
 }
 
 /**
- * v0.6.1: one row per resource, so the size line summarises the variants.
- *
- * v0.7.6: a variant no longer carries a footprint, so there is no size to print —
- * the line names the look instead (a single variant by name, several by count).
+ * One row per resource: the subtitle names the look, not a size — a single
+ * variant by name, several by count.
  */
 function variantSummary(asset: Asset): string {
   const first = asset.variants[0];

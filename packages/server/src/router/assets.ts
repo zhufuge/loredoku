@@ -13,10 +13,9 @@ assetsRouter.delete('/:id', controller.remove);
 assetsRouter.post('/:id/enable', controller.enable);
 assetsRouter.post('/:id/disable', controller.disable);
 assetsRouter.get('/:id/usages', controller.usages);
-// v0.5.2 FEAT-M03: the `PUT /:id/triggers` route was removed with the table.
 
 /**
- * v0.6.1: the look belongs to a variant, so the old asset-level `/:id/image` pair
+ * The look belongs to a variant, so the asset-level `/:id/image` pair
  * became these variant-scoped routes (docs/v0.6.1.md §5.3). v0.7.6: renamed
  * `forms` → `variants`; the footprint left both the payload and the table.
  */

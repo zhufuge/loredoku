@@ -18,9 +18,6 @@ import {
 
 /**
  * 地图初始样式的整份编辑：字段表 + 分组 + 四种控件。
- *
- * v0.10.4：原先它与「难度分级」「删除主题」两个弹窗一起住在一个 1200 行的页面
- * 文件末尾。三者各占一两百行，谁也不调谁 —— 现在一个弹窗一个文件。
  */
 
 /**
@@ -60,7 +57,7 @@ export function ThemeStyleDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }): JSX.Element {
-  // v0.9.1：老主题的 `style` 可能是旧形状（缺 `canvasShadow`）；先解析补齐，
+  // 老主题的 `style` 可能是旧形状（缺 `canvasShadow`）；先解析补齐，
   // 否则字段表读 `canvasShadow.offset` 会拿到 undefined。
   const [style, setStyle] = useState<MapStyle>(() => resolveMapStyle(theme.data.style));
   const update = useUpdateTheme(theme.code);
@@ -102,13 +99,12 @@ export function ThemeStyleDialog({
    * v0.8.6 §1.6：正文的骨架照「地图基本信息」抽屉 —— 分区之间有下边框、标题后面
    * 一个问号、行是「标签 —— 控件」（`Row`），光标那七个字段收成两个带框的小节。
    *
-   * 弹窗原来读起来散：672px 宽的对话框里，标签贴着左边缘、控件贴着右边缘，中间
-   * 空出一百多像素，二十几行之间既没有线也没有分区；而同一批字段在抽屉里是 320px
-   * 一栏的表单，一行挨着一行。**同一件事在两处长成两样**，作者每次都要重学一遍
-   * 「这一行改的是哪一项」。
+   * 标签和控件分居两边时不好读：中间空出一百多像素，二十几行之间既没有线也没有
+   * 分区；而同一批字段在抽屉里是 320px 一栏的表单，一行挨着一行。**同一件事在
+   * 两处长成两样**，作者每次都要重学一遍「这一行改的是哪一项」。
    *
-   * 于是这里只改版式，不加字段：宽度收到一栏，分组标题从「灰字」变成「分区」，
-   * 行离得近一点，光标两个框各自围一个边。
+   * 所以这里只改版式，不加字段：宽度收到一栏，分组标题做成「分区」，行离得近
+   * 一点，光标两个框各自围一个边。
    */
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -247,7 +243,7 @@ export function StyleFieldControl({
       value={text}
       onChange={(event) => {
         const next = event.target.value;
-        // v0.10.8：标尺符号允许留空（只显示数字），字体名之类仍然不许清空。
+        // 标尺符号允许留空（只显示数字），字体名之类仍然不许清空。
         if (!field.allowEmpty && next.trim().length === 0) return;
         onChange(next);
       }}

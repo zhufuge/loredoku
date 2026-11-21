@@ -51,7 +51,7 @@ const schema = z.object({
     .regex(CHARACTER_CODE_PATTERN, '编码仅允许字母、数字与下划线'),
   gender: z.enum(CHARACTER_GENDERS),
   description: z.string().trim().max(CHARACTER_DESCRIPTION_MAX_LENGTH, '描述过长').optional(),
-  /** v0.5.1 FEAT-L02: image mode (default) or a colour block. */
+  /** Image mode (default) or a colour block. */
   appearanceMode: z.enum(APPEARANCE_MODES),
   bgColor: z.string().regex(BG_COLOR_PATTERN, '颜色需为 #RRGGBB 格式'),
 });
@@ -68,7 +68,7 @@ const DEFAULTS: FormValues = {
 };
 
 /**
- * v0.8.1：编码预填 `主题编码_` —— 作者只敲后半段，前缀替他写好。
+ * 编码预填 `主题编码_` —— 作者只敲后半段，前缀替他写好。
  */
 function defaultsFor(themeCode: string | null): FormValues {
   return { ...DEFAULTS, code: themeCode ? `${themeCode}_` : '' };
@@ -108,7 +108,7 @@ export function CreateCharacterDialog({
   const uploadMutation = useUploadCharacterAvatar();
   /** FEAT-N06 §5.4: reverts an auto-enable whose avatar never landed. */
   const updateMutation = useUpdateCharacter();
-  // v0.5.2 FEAT-M05: the avatar can be picked before the character exists.
+  // The avatar can be picked before the character exists.
   const [file, setFile] = useState<File | null>(null);
   /**
    * v0.8.0 §18：在工作空间里主题已由地址定了（`/hlm/characters`），对话框不再让人换
@@ -126,7 +126,7 @@ export function CreateCharacterDialog({
     createMutation.isPending || uploadMutation.isPending || updateMutation.isPending;
 
   const onSubmit = handleSubmit(async (values) => {
-    // v0.5.1 FEAT-L02: colour block → colour; image mode → null.
+    // Colour block → colour; image mode → null.
     const bgColor = values.appearanceMode === 'color' ? values.bgColor : null;
     /**
      * v0.5.3 FEAT-N06 (docs/v0.5.3.md §5): an avatar or a colour block handed
@@ -194,7 +194,7 @@ export function CreateCharacterDialog({
             {errors.code ? (
               <p className="text-xs text-destructive">{errors.code.message}</p>
             ) : (
-              /* v0.8.2：把「前缀已经替你写好」说出来，见 CreateAssetDialog 同一处。 */
+              /* 把「前缀已经替你写好」说出来，见 CreateAssetDialog 同一处。 */
               <p id="character-code-hint" className="text-2xs text-muted-foreground">
                 {themeCode ? `前缀 ${themeCode}_ 已填好，接着写后半段` : '只允许字母、数字与下划线'}
               </p>
@@ -244,7 +244,7 @@ export function CreateCharacterDialog({
             bgColor={watch('bgColor')}
             onBgColorChange={(value) => setValue('bgColor', value.toUpperCase(), { shouldDirty: true })}
           >
-            {/* v0.5.2 FEAT-M05: upload the avatar right here. */}
+            {/* Upload the avatar right here. */}
             <PendingImageField
               id="character-avatar"
               label="角色头像"

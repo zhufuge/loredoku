@@ -16,9 +16,9 @@ export interface MapRow {
   description: string | null;
   cover_path: string | null;
   /**
-   * v0.5.0 SPEC-K11 / Q3 = B: the blood-lineage root. A plain map points at
-   * itself; a map forked from a published version keeps the original's root,
-   * so both stay in one group and share one version numbering.
+   * The blood-lineage root. A plain map points at itself; a map forked from a
+   * published version keeps the original's root, so both stay in one group and
+   * share one version numbering.
    */
   root_id: string | number;
   /**
@@ -38,9 +38,7 @@ export interface MapRow {
 }
 
 /**
- * v0.6.0: the `assets` table (was `items`); `category` → `type`, `can_stand` → `blocking`.
- *
- * v0.6.1: the asset row keeps only identity + behaviour; the appearance lives on
+ * The asset row keeps only identity + behaviour; the appearance lives on
  * {@link AssetVariantRow} (docs/v0.6.1.md §3).
  */
 export interface AssetRow {
@@ -51,22 +49,19 @@ export interface AssetRow {
   name: string;
   type: AssetType;
   blocking: boolean;
-  /** v0.10.9: 「背景修饰」— an item asset placed on the decoration layer. */
+  /** 「背景修饰」— an item asset placed on the decoration layer. */
   decoration: boolean;
-  /** v0.5.2 FEAT-M03: the free-form `meta` blob was dropped with the column. */
   is_active: boolean;
   created_at: Date | string;
   updated_at: Date | string;
 }
 
 /**
- * v0.6.1: one row of `asset_variants` (then `asset_forms`) — how an asset looks.
- * `asset_id` cascades, so deleting the asset deletes its variants.
+ * One row of `asset_variants` — how an asset looks. `asset_id` cascades, so
+ * deleting the asset deletes its variants.
  *
- * v0.7.6: the table lost the four upload-receipt columns. The footprint left
- * the table (`width_cells` / `height_cells`) as a per-placement constant of 1.
- * v0.10.6: the footprint returns as `w` / `h` (default 1) — owned by the variant
- * again, but with short names matching `DraftAnchorItem`.
+ * The variant owns the footprint: `w` / `h`, default 1, with short names
+ * matching `DraftAnchorItem`.
  */
 export interface AssetVariantRow {
   id: string | number;
@@ -74,9 +69,9 @@ export interface AssetVariantRow {
   name: string;
   fit_mode: AssetFitMode;
   image_path: string | null;
-  /** v0.5.1 FEAT-L01: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  /** Colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
-  /** v0.10.6: 占格宽 / 高；旧行没有这两列，读处按 1 兜底。 */
+  /** 占格宽 / 高；旧行没有这两列，读处按 1 兜底。 */
   w?: number;
   h?: number;
   sort_order: number;
@@ -93,18 +88,18 @@ export interface AssetVariantRow {
  */
 export interface CharacterRow {
   id: string | number;
-  /** v0.8.0：边界，同 `AssetRow.theme_id`。 */
+  /** 边界，同 `AssetRow.theme_id`。 */
   theme_id: string | number;
   code: string;
   name: string;
   gender: CharacterGender;
   description: string | null;
   avatar_path: string | null;
-  /** v0.5.1 FEAT-L02: colour-block colour (`#RRGGBB`); `null` = image mode. */
+  /** Colour-block colour (`#RRGGBB`); `null` = image mode. */
   bg_color: string | null;
-  /** v0.7.13: default 主题色 handed to a roster slot; `null` = no default. */
+  /** Default 主题色 handed to a roster slot; `null` = no default. */
   color: string | null;
-  /** v0.7.13: default 编号 handed to a roster slot; `null` = no default. */
+  /** Default 编号 handed to a roster slot; `null` = no default. */
   display_name: string | null;
   is_active: boolean;
   created_at: Date | string;
@@ -127,10 +122,10 @@ export interface MapGameRow {
   /** OPT-W04: the unique access path (`/play/{slug}`). */
   slug: string;
   cover_path: string | null;
-  /** v0.8.6：难度**档位数字**（`smallint`）。文字与颜色由主题的分级映射。 */
+  /** 难度**档位数字**（`smallint`）。文字与颜色由主题的分级映射。 */
   difficulty: number;
   /**
-   * v0.8.3：作者手填的展示顺序。**升序** —— 数字小的排前面，同权重按 `slug`；
+   * 作者手填的展示顺序。**升序** —— 数字小的排前面，同权重按 `slug`；
    * 默认 `0`，所以存量行等于「按访问路径排」。
    */
   sort_weight: number;
@@ -162,7 +157,7 @@ export interface PuzzleRow {
   name: string;
   description: string | null;
   /**
-   * v0.8.5 §7（docs/v0.8.5 §7.md §3）：这一关的编码 —— 部署时预填访问路径的那一串。
+   * v0.8.5 §7（docs/v0.8.5.md）：这一关的编码 —— 部署时预填访问路径的那一串。
    *
    * 可空：v0.8.5 之前的谜题没有它，迁移也不会凭空造一个。**同血统共用**：
    * 草稿行与版本行各存一份同样的值（版本行是快照，编码不是版本属性），改编码

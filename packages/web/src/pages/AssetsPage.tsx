@@ -67,7 +67,7 @@ export function AssetsPage(): JSX.Element {
 
   const { data: rows, isLoading, isError, error, refetch } = useAssets(params);
   /**
-   * v0.11.4：列表按名字排序（中文按拼音首字母）。
+   * 列表按名字排序（中文按拼音首字母）。
    *
    * 排在页面这一层而不是面板里 —— 下面那段「没选中就选第一个」挑的是
    * `assets[0]`，它得和列表第一行是同一份数据，否则打开页面时高亮的是一条、
@@ -168,7 +168,7 @@ export function AssetsPage(): JSX.Element {
 
   return (
     <section className="space-y-6">
-      {/* v0.7.8 §10：主操作从搜索行搬到页头，五个工坊页共用同一个页头模板。 */}
+      {/* v0.7.8 §10：主操作在页头，五个工坊页共用同一个页头模板。 */}
       <PageHeader
         title="资源"
         description="维护背景 / 物品图案与外观形态。"

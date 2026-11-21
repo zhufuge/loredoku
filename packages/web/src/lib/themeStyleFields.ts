@@ -42,18 +42,18 @@ import {
  * 它不是风格，是这张图自己的事 —— 由画布尺寸与「定尺寸」那一刻算出来的值决定
  * （`null` = 按画布自适应），一张图一个数。要改它就去那张图的「基本信息」。
  *
- * 主题的缺省风格里这一项仍然存在，只是这个空间级清单不再提供入口。所以这里只做
+ * 主题的缺省风格里这一项仍然存在，只是这个空间级清单不提供入口。所以这里只做
  * **显示过滤**，不是把字段从 `MapStyle` 里拿掉。
  *
- * v0.10.2：这份「主题设置里不出现的键」现在是**共用**的 —— 「基本信息」抽屉底部
- * 的差异弹窗（`ThemeStyleRow`）原来还会列出「方格大小 168px → 146px」，等于把
- * 一张图自己的尺寸当成「与主题风格不同」报给作者；两个方向的动作（应用 / 设为）
- * 也会顺手把它带过去。同一份清单管住这三处，就不会再冒出第四处。
+ * 这份「主题设置里不出现的键」是**共用**的：「基本信息」抽屉底部的差异弹窗
+ * （`ThemeStyleRow`）不该把「方格大小 168px → 146px」当成「与主题风格不同」报给
+ * 作者；两个方向的动作（应用 / 设为）也不该顺手把它带过去。同一份清单管住这三处，
+ * 就不会冒出第四处。
  */
 export const THEME_HIDDEN_STYLE_KEYS = new Set(['cellSize']);
 
 /**
- * v0.10.8：**地图草稿里**不参与比对、也不该留存的键 —— 目前是标尺的行列符号。
+ * **地图草稿里**不参与比对、也不该留存的键 —— 目前是标尺的行列符号。
  *
  * 符号只由主题配置（`MapRulerStrips` 按 `themeCode` 查主题）。地图的「基本信息」
  * 抽屉里从来没有这两个输入框，所以一张旧图里残留的 `C` / `R` 与主题的「列」/「行」
@@ -75,7 +75,7 @@ interface WriteSpec {
   /** v0.10.8：`kind: 'text'` 的输入长度上限（标尺符号 4 个字符）。 */
   maxLength?: number;
   /**
-   * v0.10.8：允许把这个文本字段清空。
+   * 允许把这个文本字段清空。
    *
    * 标尺符号留空是**有意义**的（只显示数字），而字体名留空没有意义 —— 所以默认
    * 不允许清空，只有标尺符号两行打开它。
@@ -115,7 +115,7 @@ const WRITE_SPECS: Record<string, WriteSpec> = {
   'regionLabel.hoverStrokeColor': { kind: 'color' },
   'ruler.fontSize': { kind: 'number', min: MAP_STYLE_RULER_FONT_MIN, max: MAP_STYLE_RULER_FONT_MAX, suffix: 'px' },
   'ruler.gap': { kind: 'number', min: MAP_STYLE_RULER_GAP_MIN, max: MAP_STYLE_RULER_GAP_MAX, suffix: 'px' },
-  // v0.10.8：列 / 行标尺的前缀符号，默认 `C` / `R`。允许为空（只显示数字）。
+  // 列 / 行标尺的前缀符号，默认 `C` / `R`。允许为空（只显示数字）。
   'ruler.columnSymbol': { kind: 'text', maxLength: MAP_STYLE_RULER_SYMBOL_MAX_LENGTH, allowEmpty: true },
   'ruler.rowSymbol': { kind: 'text', maxLength: MAP_STYLE_RULER_SYMBOL_MAX_LENGTH, allowEmpty: true },
 
@@ -262,11 +262,8 @@ export function writeStyleValue(
 }
 
 /**
- * v0.8.6 §1：「恢复默认」只把**表单上看得见的**字段拨回出厂值。
- *
- * 原来是一句 `setStyle(DEFAULT_MAP_STYLE)`，那会把 `cellSize` 也一起拨回 `null`。
- * 方格大小已经不在清单上 —— 作者按了「恢复默认」，看不见的那一项被改掉了，
- * 保存后新地图就不再是原来那个格子尺寸。改不到的东西不该被顺手改掉。
+ * v0.8.6 §1：「恢复默认」只把**表单上看得见的**字段拨回出厂值 —— 表单上没有
+ * 入口的键改不到，也不该被顺手改掉。
  */
 export function resetThemeStyle(style: MapStyle): MapStyle {
   return THEME_STYLE_FIELDS.reduce(
@@ -276,7 +273,7 @@ export function resetThemeStyle(style: MapStyle): MapStyle {
 }
 
 /**
- * v0.10.2：「应用主题风格」只灌**看得见的**字段，本图自己的方格大小原样留着。
+ * 「应用主题风格」只灌**看得见的**字段，本图自己的方格大小原样留着。
  *
  * 与 `resetThemeStyle` 是同一个招式（逐项写回，而不是整份替换）：整份替换会把
  * 主题里可能残留的 `cellSize` 一起盖上来 —— 作者刚把这张图定成 146px，点一下
@@ -290,12 +287,12 @@ export function applyThemeStyle(style: MapStyle, themeStyle: MapStyle): MapStyle
 }
 
 /**
- * v0.10.2：把一份风格收成「主题该存的样子」—— 看不见的键一律归零。
+ * 把一份风格收成「主题该存的样子」—— 看不见的键一律归零。
  *
- * 「设为主题风格」原来把本图整份 `MapStyle`（含 `cellSize: 146`）写进主题。服务端
+ * 「设为主题风格」若把本图整份 `MapStyle`（含 `cellSize: 146`）写进主题，服务端
  * 建新地图时会自己把 `cellSize` 置 `null`（`mapCanvasService.ts` 的 `initialStyle`），
- * 所以那个数字从来没生效过；但库里留着一个谁也改不到、谁也看不见的值，下一个读
- * 主题风格的地方就会再踩一次。不如在写进去的那一刻就归零。
+ * 所以那个数字从来不会生效；但库里会留着一个谁也改不到、谁也看不见的值，下一个读
+ * 主题风格的地方就会再踩一次。所以在写进去的那一刻就归零。
  */
 export function stripThemeHiddenStyle(style: MapStyle): MapStyle {
   return [...THEME_HIDDEN_STYLE_KEYS].reduce<MapStyle>(

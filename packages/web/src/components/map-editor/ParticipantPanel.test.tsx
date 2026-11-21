@@ -5,8 +5,7 @@ import { HIGHLIGHT_BLUE, type Character, type CharacterSlotEntry } from '@loredo
 import { ParticipantPanel } from './ParticipantPanel';
 
 /**
- * v0.10.11（m20424）：被联动指着的参与者，反馈从「头像放大一档」换成「一层淡金
- * 从那道 2px 金框向头像蔓延」。
+ * 被联动指着的参与者：反馈是「一层淡金从那道 2px 金框向头像蔓延」。
  *
  * 页面那一层把 `resolveHighlight` 解析出的 `{ slotIndex, color }` 收成两个 prop
  * 传进来（`highlightedSlots` / `highlightColors`），这里只钉**面板拿到这两个 prop
@@ -135,8 +134,7 @@ describe('ParticipantPanel — 联动指向的淡金（v0.10.11）', () => {
   it('头像不再放大：整张面板里找不到 scale(1.08)', () => {
     render(new Set([1]), new Map([[1, HIGHLIGHT_BLUE]]));
 
-    // v0.10.11 之前被指着的头像是 `transform: scale(1.08)`，读成「这位自己
-    // 要干嘛」；联动说的是「别人指着他」，脸自己不动。
+    // 被指着的头像不放大：联动说的是「别人指着他」，脸自己不动。
     expect(container.querySelector('[style*="scale(1.08)"]')).toBeNull();
   });
 
@@ -168,9 +166,9 @@ describe('ParticipantPanel — 联动指向的淡金（v0.10.11）', () => {
 });
 
 /**
- * v0.11.2（用户反馈）：竖屏玩家页里，名册上下划不动 —— 手指落在参与者框上时
- * 手势被卡片吃掉了。卡片的 `touch-action: none` 是编辑器里拖拽换位要的（不能让
- * 浏览器把拖动解释成滚动），但竖屏玩家页是只读的，那一条只剩副作用。
+ * 竖屏玩家页里名册可以上下划动 —— 手指落在参与者框上时手势不会被卡片吃掉。卡片
+ * 的 `touch-action: none` 是编辑器里拖拽换位要的（不能让浏览器把拖动解释成滚动），
+ * 但竖屏玩家页是只读的，那一条只剩副作用，必须放开。
  */
 describe('ParticipantPanel — 竖屏名册不拦触摸滚动（v0.11.2）', () => {
   let container: HTMLDivElement;

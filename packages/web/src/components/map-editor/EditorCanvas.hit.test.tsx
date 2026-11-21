@@ -7,27 +7,25 @@ import { resolveMapStyle } from '@/lib/mapStyle';
 import type { CellMap } from '@/lib/hitTest';
 
 /**
- * v0.10.8：标尺符号改由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），
- * 而这里直接挂 `createRoot`，没有 Provider。这组用例关心的是落点，不是符号。
+ * 标尺符号由主题提供（`useRulerSymbolsByCode` 内部走 TanStack Query），而这里直接
+ * 挂 `createRoot`，没有 Provider。这组用例关心的是落点，不是符号。
  */
 vi.mock('@/hooks/useThemes', () => ({
   useRulerSymbolsByCode: () => () => ({ columnSymbol: 'C', rowSymbol: 'R' }),
 }));
 
 /**
- * v0.10.2：点「区域标题」与「物品溢出位置」，也要按地图方格分割线落点。
+ * 点「区域标题」与「物品溢出位置」，也要按地图方格分割线落点。
  *
- * 这两处原来各自接管指针（区域标签是一枚 `stopPropagation()` 的按钮、物品层在
- * 选择类工具下 `pointer-events: auto`），于是：
+ * 这两处都不该按元素自身归属命中：
  *
- * - 点标签覆盖的那块像素选中的是**区域**，而标签悬在格子上沿、盖住的往往不是
- *   自己区域的格子；
- * - 点物品被 `scale` 撑出去、压在隔壁格上的那圈画，命中的是**物品**，回传的
- *   还是它脚位的锚点格。
+ * - 区域标签悬在格子上沿，盖住的往往不是自己区域的格子 —— 点标签覆盖的那块像素
+ *   要选中它底下的格子，而不是**区域**；
+ * - 物品被 `scale` 撑出去、压在隔壁格上的那圈画属于隔壁那格 —— 点它要选中那一格，
+ *   而不是回传它脚位的锚点格。
  *
- * 现在两处都让位给画布容器：按下沿 React 树冒泡到容器的 `onPointerDown`，由它
- * 按 `clientToCell` 换算成格子。这里钉的正是这条行为 —— 事件从标签 / 物品元素
- * 上发出，落在哪个像素就选中哪一格。
+ * 按下沿 React 树冒泡到容器的 `onPointerDown`，由它按 `clientToCell` 换算成格子。
+ * 这里钉的正是这条行为 —— 事件从标签 / 物品元素上发出，落在哪个像素就选中哪一格。
  */
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -83,7 +81,7 @@ function assetWithVariant(id: number): { asset: Asset; variant: AssetVariant } {
   };
 }
 
-/** v0.10.6: 尺寸存在形态上，测试里就把 w / h 放进 variant。 */
+/** 尺寸存在形态上，测试里就把 w / h 放进 variant。 */
 function assetWithFootprint(w: number, h: number): { asset: Asset; variant: AssetVariant } {
   const pair = assetWithVariant(2);
   return { asset: pair.asset, variant: { ...pair.variant, w, h } };
@@ -199,7 +197,7 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
      * 「标签悬在格子上沿、盖住的是上一格」：标签底边落在 `2 × cellSize` 上方
      * 一点点，指头压上去的那块像素属于第 1 行。
      *
-     * v0.10.7：这条钉的是**游戏页 / 谜题预览**的行为 —— 那里不传
+     * 这条钉的是**游戏页 / 谜题预览**的行为 —— 那里不传
      * `onSelectRegionLabel`，标签不接管按下，仍按底下那一格落点。
      */
     regions = [{ id: 'rg_a', name: '回廊', cells: [[1, 3]], labelCell: [1, 1] }];
@@ -264,7 +262,7 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
   });
 
   /**
-   * v0.10.6：多格物品放置。
+   * 多格物品放置。
    */
   describe('EditorCanvas — 多格物品放置（v0.10.6）', () => {
     let placed: { coord: CellCoord; w?: number; h?: number; fits?: boolean } | null;

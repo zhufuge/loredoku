@@ -61,9 +61,9 @@ interface AssetVariantCardProps {
  * v0.7.6 (docs/v0.7.6.md §9): the footprint inputs were gone — a variant only
  * described how the asset **looks**. Where it sits and how big it draws was the
  * placement's business (1 cell + `scale`).
- * v0.10.6: the footprint is back on the variant (item assets only) — a bed
- * spanning two cells is a property of the look. Editing it here keeps every
- * placement of this variant the same size; the game page just follows along.
+ * The footprint lives on the variant (item assets only) — a bed spanning two
+ * cells is a property of the look. Editing it here keeps every placement of
+ * this variant the same size; the game page just follows along.
  *
  * v0.7.7 (docs/v0.7.7.md §9): the card folds down to its title line, so an asset
  * with many variants stays scannable. The 背景层 / 物品层 subtitle is gone — the
@@ -205,7 +205,7 @@ export function AssetVariantCard({
                 onUpload={(file) =>
                   uploadMutation.mutate(
                     { assetId: asset.id, variantId: variant.id, file },
-                    // v0.7.13 fix: 传完就站在图片这一侧，别把纯色形态又切回去。
+                    // 传完就站在图片这一侧，别把纯色形态又切回去。
                     { onSuccess: () => setAppearanceMode('image') },
                   )
                 }
@@ -275,7 +275,7 @@ export function AssetVariantCard({
           <AlertDialogHeader>
             <AlertDialogTitle>删除图片？</AlertDialogTitle>
             <AlertDialogDescription>
-              {/* v0.5.1 FEAT-L01: a colour block does not depend on the image. */}
+              {/* A colour block does not depend on the image. */}
               {variant.bgColor
                 ? '该形态是纯色块，删除图片后仍可继续使用。'
                 : '删除后若资源下所有形态都没有外观，资源将自动停用。'}

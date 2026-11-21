@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { routes } from './router';
 
 /**
- * v0.11.6：游戏列表从「全站一页」改成「一个主题一页」。
+ * 游戏列表是「一个主题一页」。
  *
  * 这一层只钉**地址表**：哪条路径落在哪个路由上、参数是什么。页面内部的行为在
  * `src/pages/GamesPage.test.tsx` 里钉 —— 两边合起来才说明「点进来看到的是什么」。

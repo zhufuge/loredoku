@@ -27,15 +27,6 @@ export const WORKSHOP_MODULES = [
 
 export type ModuleKey = (typeof WORKSHOP_MODULES)[number]['key'];
 
-/*
- * v0.8.3：`CONTENT_MODULES` / `ContentModuleKey` 删掉了。
- *
- * 它曾经只服务概览页那四张计数卡（「一个主题里的四个内容模块」）。加了部署那一格
- * 之后，卡片集合不再等于「内容模块集合」—— 而那张卡片表本身就写着顺序与标签，
- * 于是这个常量只剩下「说一句已经有别处说的话」。`WORKSHOP_MODULES` 还在，它才是
- * 顶栏导航的真相。
- */
-
 export const SETTINGS_THEMES_PATH = '/settings/themes';
 
 /**

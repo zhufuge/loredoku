@@ -32,7 +32,7 @@ import { resolveCheckColors } from '@/lib/checkStyle';
 import { TOOL_ICON_FALLBACKS } from '@/lib/toolIcons';
 
 /**
- * v0.9.5：**操作提示** —— 玩家在盘面上操作时看到的那些提示，都在这一张卡里。
+ * **操作提示** —— 玩家在盘面上操作时看到的那些提示，都在这一张卡里。
  *
  * 五项：
  *
@@ -75,7 +75,7 @@ export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
   const ring = theme.data.ring?.image ?? null;
   const checkStyle = resolveCheckColors(theme.data.checkStyle);
   /**
-   * v0.11.3：结算卡的两句文字。
+   * 结算卡的两句文字。
    *
    * 输入框里放的是「作者显式填的那份」，空串时退回内置默认值 —— 空输入框加上
    * placeholder 里的默认值，比直接把默认值填进 state 更诚实：后者会让人以为
@@ -230,7 +230,7 @@ export function GameMarksCard({ theme }: { theme: Theme }): JSX.Element {
       </div>
 
       {/*
-       * v0.11.3：**结算卡的那一行** —— 图标 + 标题。
+       * **结算卡的那一行** —— 图标 + 标题。
        *
        * 为什么单开一段而不是塞进上面那个 `row()` 列表：`row()` 是「一张图 + 上传」
        * 的固定形状，而这里一半是图、一半是两句文字，形状不一样，硬塞进去只会让

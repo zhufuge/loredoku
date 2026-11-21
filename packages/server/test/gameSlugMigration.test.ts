@@ -9,7 +9,7 @@ import { backfillGameSlugs, uniqueSlugFor } from '../src/service/gameSlugBackfil
  */
 
 describe('backfillGameSlugs (OPT-W04 §4.5)', () => {
-  // v0.8.1：难度不进路径，回填只看名称。
+  // 难度不进路径，回填只看名称。
   it('derives puzzle-{name} for every existing row', () => {
     const slugs = backfillGameSlugs([
       { id: 1, name: 'Flower Garden', difficulty: 'veryEasy' },

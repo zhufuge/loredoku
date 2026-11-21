@@ -14,14 +14,14 @@ import { entryPreviewable, entryPreviewTitle } from '@/components/common/EntryAc
  * 操作列：编辑信息 / 预览 / **编辑** / 复制 / 删除。**「复制」与「编辑信息」
  * 都只属于工作条目** —— 版本是冻结快照，想基于某版本继续做走「编辑」。
  *
- * v0.7.2：版本行的封面与名称**点击即预览**（与眼睛按钮同一个动作），改版本
- * 走预览后面那个「编辑」按钮 —— 看和改分成两个入口，误点封面不会再直接进
- * 编辑态。草稿行的封面 / 名称点击仍是「进编辑器」。
+ * 版本行的封面与名称**点击即预览**（与眼睛按钮同一个动作），改版本走预览后面
+ * 那个「编辑」按钮 —— 看和改分成两个入口，封面误点不会直接进编辑态。草稿行
+ * 的封面 / 名称点击仍是「进编辑器」。
  */
 interface MapListRowProps {
   entry: MapEntrySummary;
   onOpen: (entry: MapEntrySummary) => void;
-  /** v0.7.2：版本行的「编辑」—— 带 `?v=` 进编辑器的 fork 态。 */
+  /** 版本行的「编辑」—— 带 `?v=` 进编辑器的 fork 态。 */
   onEdit: (entry: MapEntrySummary) => void;
   onRename: (entry: MapEntrySummary) => void;
   onDuplicate: (entry: MapEntrySummary) => void;

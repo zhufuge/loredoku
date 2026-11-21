@@ -205,7 +205,7 @@ describe('puzzleDraftSchema —— v0.7.1 底图快照 + 名册结构', () => {
     }
   });
 
-  /** v0.9.5：v0.9.5 之前落库的谜题行还带着旧键，读进来必须落到 `mark` 上。 */
+  /** 旧谜题行还带着旧键，读进来必须落到 `mark` 上。 */
   it('读得懂 v0.9.5 之前的 forbiddenSymbol（旧键搬到 mark）', () => {
     const legacy = puzzleDraftSchema.parse(
       draft({ forbiddenSymbol: { path: 'puzzles/12/forbidden-symbol/a1b2.webp' } }),

@@ -31,13 +31,13 @@ import { rulerStripSize } from '@/lib/ruler';
 /**
  * 「棋盘长多大、摆在哪儿、放大到几倍」—— 玩家页的视口。
  *
- * v0.10.4：从 `GamePage` 搬出来。这一块自成一套：格子大小由容器与视口算，
+ * 这一块自成一套：格子大小由容器与视口算，
  * 缩放 / 平移由玩家操作，两者共用同一组 `pan` / `zoom`，而游戏逻辑（放置、
- * 计时、判卷）一次都不读它们。原先它散在页面里三处（state 区、`fit` 那一带、
- * 末尾的 `zoomBy`），搬出来才看得清「自适应」这件事的全部输入输出。
+ * 计时、判卷）一次都不读它们。
  *
- * 一像素都没改：`fit` 的两个分支（竖屏按宽度铺满 / 其余按宽高取小）、标尺条带
- * 计入的四边留白、以及「玩家自己调过视图之后不再自动重排」的豁免，全部照旧。
+ * `fit` 的两个分支（竖屏按宽度铺满 / 其余按宽高取小）、标尺条带计入的四边留白、
+ * 以及「玩家自己调过视图之后不再自动重排」的豁免，都是「自适应」这件事的全部
+ * 输入输出。
  */
 export interface GameViewport {
   /** 自适应算出来的格子边长（未套地图样式的 `cellSize`）。 */
@@ -79,7 +79,7 @@ export function useGameViewport({
   style: MapStyle;
   showRulers: boolean;
   /**
-   * v0.11.2：中列（`<main>`）**这一拍是不是真的挂在文档里**。
+   * 中列（`<main>`）**这一拍是不是真的挂在文档里**。
    *
    * 为什么不能只看 `containerRef.current`：进游戏页时，页面在 loading 期间整个
    * `<main>` 都不渲染（数据 / 图片没齐就先给 loading），而「挂载」只发生一次 ——
@@ -96,7 +96,7 @@ export function useGameViewport({
   ready: boolean;
 }): GameViewport {
   /**
-   * v0.10.1：当前是不是「竖屏窄屏」—— 棋盘按宽度铺满、视图簇收起。
+   * 当前是不是「竖屏窄屏」—— 棋盘按宽度铺满、视图簇收起。
    *
    * 判定口径是**窗口**的宽高（`window.innerWidth < 768 && innerHeight > innerWidth`），
    * 与右栏那串 `portrait:max-md:` 媒体查询是同一个条件；之所以两边都写，是因为
@@ -108,7 +108,7 @@ export function useGameViewport({
   const [portraitFit, setPortraitFit] = useState(false);
 
   /**
-   * v0.10.2：`<main>` 量出来的可见区，只给「定案」遮罩估缩放用。
+   * `<main>` 量出来的可见区，只给「定案」遮罩估缩放用。
    *
    * 为什么不能只看棋盘：横屏手机上棋盘按作者配的 `cellSize` 能有 900 多，而
    * `<main>` 只有一百来像素高 —— 按棋盘算出来是「不用缩」，字就顶出可见区了
@@ -120,7 +120,7 @@ export function useGameViewport({
   const [stageBox, setStageBox] = useState<{ width: number; height: number } | null>(null);
 
   /**
-   * v0.6.2：视图缩放与拖拽平移，与只读预览页同一套手感 ——
+   * 视图缩放与拖拽平移，与只读预览页同一套手感 ——
    * 缩放簇（放大 / 百分比 / 缩小 / 重置）、Ctrl+滚轮、空格或中键拖拽。
    */
   const [zoom, setZoom] = useState(1);
@@ -131,7 +131,7 @@ export function useGameViewport({
 
   const [autoCellSize, setAutoCellSize] = useState<number>(DEFAULT_CELL_SIZE);
   /*
-   * v0.10.1：竖屏下格子大小只认「按宽度铺满」算出来的那个数 —— 地图样式里写死的
+   * 竖屏下格子大小只认「按宽度铺满」算出来的那个数 —— 地图样式里写死的
    * cellSize（比如 36）会让 24×24 又变成 864px 宽，把「自适应宽度」抵消掉。
    * 横屏与桌面仍然听样式的（作者配了就用他的）。
    */
@@ -179,7 +179,7 @@ export function useGameViewport({
    * OPT-A01 §1.2: measure the viewport and re-fit the board. The game page has
    * no floating bottom toolbar, hence `showBottomBar: false`.
    *
-   * v0.6.2：这也是「重置视图」——回到 100% 并居中，同时清掉「用户调整过」
+   * 这也是「重置视图」——回到 100% 并居中，同时清掉「用户调整过」
    * 的标记，让容器尺寸变化重新接管布局。
    */
   const fit = useCallback((): void => {
@@ -188,14 +188,14 @@ export function useGameViewport({
     if (!node || gridSize === 0) return;
     const rect = node.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    /* v0.10.2：顺手把可见区记下来，给「定案」遮罩估缩放（见 `stageBox`）。 */
+    /* 顺手把可见区记下来，给「定案」遮罩估缩放（见 `stageBox`）。 */
     setStageBox((previous) =>
       previous && previous.width === rect.width && previous.height === rect.height
         ? previous
         : { width: rect.width, height: rect.height },
     );
     /*
-     * v0.10.1：竖屏下棋盘**按宽度铺满**，而不是「宽高取小」。
+     * 竖屏下棋盘**按宽度铺满**，而不是「宽高取小」。
      *
      * 窄屏上那一簇放大 / 缩小 / 重置已经收掉（见右栏视图簇的 `portrait:` 类），
      * 玩家既没法把棋盘缩小、也没有中键 / 空格去平移 —— 一旦按老算法取「宽高较
@@ -214,9 +214,9 @@ export function useGameViewport({
     const portrait = isPortraitViewport(viewportWidth, viewportHeight);
     setPortraitFit(portrait);
     /*
-     * v0.10.1：竖屏用自己那一套四边留白（四面都是 8），桌面那套
+     * 竖屏用自己那一套四边留白（四面都是 8），桌面那套
      * （`CANVAS_PADDING + EXTRA_MARGIN` = 每边 40）在 375 宽的屏上等于白扔两列半
-     * 格子。v0.11.2 起上下不再比左右多 4px —— 那条缝已经由 `PORTRAIT_STAGE_EXTRA`
+     * 格子。上下不再比左右多 4px —— 那条缝已经由 `PORTRAIT_STAGE_EXTRA`
      * 撑开，再各多 4px 只是从下面的线索与名册里硬扣。
      */
     const insets = portrait
@@ -239,7 +239,7 @@ export function useGameViewport({
   fitRef.current = fit;
 
   /*
-   * v0.11.2：`ready` 为什么必须在依赖里，见它上面的入参注释 —— 一句话：loading
+   * `ready` 为什么必须在依赖里，见它上面的入参注释 —— 一句话：loading
    * 期间 `<main>` 不存在，这一拍 `apply()` 与 `observer.observe()` 全没跑，只有
    * `ready` 翻成 `true` 才能把它们补上。
    */
@@ -247,7 +247,7 @@ export function useGameViewport({
     const node = containerRef.current;
     if (!node) return;
     const apply = (): void => {
-      /* v0.10.2：可见区与「玩家有没有自己调过视图」无关，先记下来再决定要不要重排。 */
+      /* 可见区与「玩家有没有自己调过视图」无关，先记下来再决定要不要重排。 */
       const rect = node.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         setStageBox((previous) =>
@@ -256,7 +256,7 @@ export function useGameViewport({
             : { width: rect.width, height: rect.height },
         );
       }
-      // v0.6.2：玩家放大 / 平移之后，改窗口大小不该把视图打回原形。
+      // 玩家放大 / 平移之后，改窗口大小不该把视图打回原形。
       if (userAdjustedRef.current) return;
       fitRef.current();
     };

@@ -79,7 +79,7 @@ export interface EditorCanvasHandle {
   getRect: () => DOMRect | null;
   centerView: () => void;
   /**
-   * v0.6.3: one zoom step around the viewport centre — the bottom bar's ±
+   * One zoom step around the viewport centre — the bottom bar's ±
    * buttons. It lives here, next to the wheel path, because both have to do
    * the same one extra thing: mark the view as user-adjusted (see
    * `zoomByStep`'s comment).
@@ -92,7 +92,7 @@ interface EditorCanvasProps {
   cells: CellMap;
   assetsById: Map<number, Asset>;
   regions: DraftRegion[];
-  /** v0.3.8 FEAT-D02: the map's display constants. */
+  /** FEAT-D02: the map's display constants. */
   style: MapStyle;
   selectedRegionId: string | null;
   zoom: number;
@@ -101,13 +101,13 @@ interface EditorCanvasProps {
   activeTool: EditorTool;
   spaceHeld: boolean;
   showRulers: boolean;
-  /** v0.10.8：标尺的行列符号按主题编码查 —— 地图草稿里那份不再参与渲染。 */
+  /** 标尺的行列符号按主题编码查。 */
   themeCode: string;
-  /** v0.6.1: the armed (asset, variant) pair. v0.10.6: 足迹尺寸在 variant 上。 */
+  /** The armed (asset, variant) pair. 足迹尺寸在 variant 上。 */
   pendingVariant: { asset: Asset; variant: AssetVariant } | null;
   regionDraftSelection: Set<string>;
   /**
-   * v0.11.5：区域格子编辑会话（`null` = 没在编辑）。
+   * 区域格子编辑会话（`null` = 没在编辑）。
    *
    * 有值时点按 / 拖动格子不再是「选中」，而是往这份草稿里增删 —— 画布同时把
    * 草稿画出来（蓝 = 将要加入、红 = 将要移除），作者在提交前就能看到结果。
@@ -126,7 +126,7 @@ interface EditorCanvasProps {
   onAutoCellSize?: (cellSize: number) => void;
   onSelect: (selection: Selection | null) => void;
   onSelectRegion: (id: string | null) => void;
-  /** v0.10.7: 地图编辑点击区域标题弹信息框；谜题/游戏页不传此 prop。 */
+  /** 地图编辑点击区域标题弹信息框；谜题/游戏页不传此 prop。 */
   onSelectRegionLabel?: (id: string) => void;
   onDraftAdd: (cells: Coord[]) => void;
   onDraftRemove: (cells: Coord[]) => void;
@@ -154,14 +154,14 @@ type Interaction =
     }
   | { kind: 'erase'; visited: Set<string> }
   /**
-   * v0.7.0: the region tool is a free brush only — the rectangle mode is gone.
+   * The region tool is a free brush only.
    * `erase` is fixed for the whole stroke: `Alt` always removes, otherwise the
    * first cell decides (already selected → the stroke subtracts), which is what
    * makes a wrong single cell correctable without a separate clear step.
    */
   | { kind: 'brush'; keys: Set<string>; erase: boolean }
   /**
-   * v0.11.5：区域格子编辑的一笔。形状与 `brush` 一样，区别只在松手后交给
+   * 区域格子编辑的一笔。形状与 `brush` 一样，区别只在松手后交给
    * `onRegionEditStroke`（改的是编辑草稿，不是创建选区）。
    */
   | { kind: 'regionEdit'; keys: Set<string>; erase: boolean }
@@ -218,7 +218,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const [brushCells, setBrushCells] = useState<Coord[]>([]);
   /** Set when the pointer sits directly on a region label (§2.2). */
   const [labelRegionId, setLabelRegionId] = useState<string | null>(null);
-  /** v0.3.9 FEAT-E03: dragging the empty area outside the board pans it. */
+  /** FEAT-E03: dragging the empty area outside the board pans it. */
   const [panning, setPanning] = useState(false);
 
   const viewRef = useRef({ zoom, pan, onZoom, onPan, onAutoCellSize });
@@ -231,7 +231,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   const total = gridSize * cellSize;
 
   /**
-   * v0.3.9 FEAT-E02: ruler geometry comes from the map style — the text size
+   * FEAT-E02: ruler geometry comes from the map style — the text size
    * scales like every other font (× `cellSize / BASE_CELL` × `zoom`) and `gap`
    * is the literal text→board distance, so the strip has to grow with them.
    */
@@ -277,7 +277,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   }, [gridSize, showRulers, styleCellSize, rulerStrip]);
 
   /**
-   * v0.6.3: one zoom step around the viewport centre — the bottom bar's ±
+   * One zoom step around the viewport centre — the bottom bar's ±
    * buttons. It is the button-shaped twin of the Ctrl+wheel handler below
    * (same anchor maths, pointer swapped for the viewport centre), and it has
    * to live here for one reason the pages cannot supply: a zoom step changes
@@ -468,7 +468,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     }
 
     /*
-     * v0.11.5：区域格子编辑优先于其它工具 —— 会话期间点格子就是在增减它，
+     * 区域格子编辑优先于其它工具 —— 会话期间点格子就是在增减它，
      * 不是在选格、落笔或擦除。起点格已在草稿里则这一笔整段移除（`Alt` 永远
      * 强制移除），与区域笔刷 `brushStrokeErases` 同一条规则。
      */
@@ -496,7 +496,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
         return;
       }
       if (pendingVariant) {
-        // v0.10.6: 尺寸由形态给；左上角 = 点中的格子，放不下交给调用方提示。
+        // 尺寸由形态给；左上角 = 点中的格子，放不下交给调用方提示。
         const size = resolveVariantFootprint(
           pendingVariant.variant,
           pendingVariant.asset.type,
@@ -651,7 +651,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
 
   // Cell content is clickable (selection only) unless a brush item is armed or
   // the user is panning; it never carries drag handlers (BUG-405).
-  // v0.10.2：物品层与区域标签不再各自接管指针，画布容器是唯一的入口。
+  // 物品层与区域标签不接管指针，画布容器是唯一的入口。
   const selectionCell =
     selection?.type === 'cell'
       ? { x: selection.x, y: selection.y }
@@ -690,7 +690,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   /**
-   * v0.11.5：区域格子编辑的预览 —— 蓝 = 将要加入，红 = 将要移除。
+   * 区域格子编辑的预览 —— 蓝 = 将要加入，红 = 将要移除。
    *
    * 移除的那部分**不在**草稿里（草稿存的是编辑之后的完整集合），所以必须拿
    * 已提交的格子减一次才画得出来；否则作者只能看到「加了什么」，看不到
@@ -773,7 +773,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   );
 
   /**
-   * v0.3.10 FEAT-F01: the ruler strips are a shared component
+   * FEAT-F01: the ruler strips are a shared component
    * (`MapRulerStrips`) so the work preview renders the identical geometry.
    * Their thickness comes from the same `rulerStripSize` pass the editor uses
    * to reserve the top / left bands (FEAT-E02).
@@ -852,7 +852,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
           cellSize={cellSize}
           style={style}
           hoveredRegionId={hoveredRegionId}
-          /* v0.11.4：联动高亮的区域，标题跟着亮（不只是边框线）。 */
+          /* 联动高亮的区域，标题跟着亮（不只是边框线）。 */
           highlightedRegionIds={highlight?.regionBorders.map((border) => border.regionId)}
           onHover={setLabelRegionId}
           onSelect={onSelectRegionLabel}

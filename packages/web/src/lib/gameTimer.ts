@@ -1,7 +1,7 @@
 import type { GameProgressMeta } from './gameProgress';
 
 /**
- * v0.7.11：游戏页的**计时**（秒级）。
+ * 游戏页的**计时**（秒级）。
  *
  * 需求是「打开游戏时开始，关闭时记到本地，第二次进来接着走，直到点提交」，
  * 所以这里存的是**累计用时**而不是开始时间戳：跨会话的墙钟差里混着睡觉、吃饭、
@@ -16,7 +16,7 @@ export const GAME_TIMER_PREFIX = 'loredoku.game.timer.';
 export interface StoredGameTimer extends GameProgressMeta {
   elapsedMs: number;
   /**
-   * v0.9.6：**最后离开时间** —— 写这一条的那一刻（ISO）。
+   * **最后离开时间** —— 写这一条的那一刻（ISO）。
    *
    * 和累计用时同一条存档：两者都在「离开这一局」时落盘，分开两条键只会让
    * 「什么时候写哪个」多一种可能。列表页的卡片读它（有完成记录时改用完成时间）。
@@ -97,7 +97,7 @@ export function clearGameTimer(slug: string): void {
 }
 
 /**
- * v0.9.6：**只把计时归零，保留最后离开时间**。
+ * **只把计时归零，保留最后离开时间**。
  *
  * 「重新开始」= 这一局从 00:00 重来，但它仍然是「我来玩过」—— 卡片上那一格该
  * 显示的是「上次玩到几点」，不该因为点了重新开始就回到「从没玩过」（`00:00`）。
@@ -121,7 +121,7 @@ export function resetGameTimer(slug: string, meta: GameProgressMeta): void {
 }
 
 /**
- * v0.9.6：**最后离开时的计时读数** —— 上次离开这一关时表上显示的那个 `mm:ss`。
+ * **最后离开时的计时读数** —— 上次离开这一关时表上显示的那个 `mm:ss`。
  *
  * 用户规范里的 a / b / c 都是**计时读数，不是墙钟时刻**：「离开时记录时间 a」
    「再次进入，从 a 开始继续」「提交暂停计时 b」「通过记录完成时间 c」。
@@ -158,7 +158,7 @@ export function readLastLeftElapsed(
 }
 
 /**
- * v0.9.6：**最后离开时刻**（墙钟，ISO）—— 只给卡片的 `title` 用，不占版面。
+ * **最后离开时刻**（墙钟，ISO）—— 只给卡片的 `title` 用，不占版面。
  * 卡片主体显示的是 {@link readLastLeftElapsed} 那个 `mm:ss` 读数。
  */
 export function readLastLeftAt(

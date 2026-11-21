@@ -27,11 +27,11 @@ interface AppearanceFieldProps {
 }
 
 /**
- * v0.5.1 FEAT-L01 / FEAT-L02 — the shared 「外观」 control for items and
+ * FEAT-L01 / FEAT-L02 — the shared 「外观」 control for items and
  * characters.
  *
  * Two mutually exclusive modes:
- * - `image` — the pre-v0.5.1 behaviour; the caller's uploader is shown.
+ * - `image` — an uploaded image; the caller's uploader is shown.
  * - `color` — a colour block: only a colour picker, **no upload needed**. The
  *   colour defaults to {@link DEFAULT_BG_COLOR} (white) and is required.
  */
@@ -83,8 +83,7 @@ export function AppearanceField({
       </div>
 
       {mode === 'color' ? (
-        /* v0.8.3：统一取色控件 —— 色块 + hex 输入。原来这里只有一个色块，
-           右边那串 hex 是一行不能改的字。 */
+        /* 统一取色控件 —— 色块 + hex 输入。 */
         <ColorField
           label="纯色块颜色"
           value={color}

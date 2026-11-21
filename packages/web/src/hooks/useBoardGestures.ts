@@ -18,7 +18,7 @@ import {
 /**
  * 棋盘上的**手势**：一格一次落下、一格一次长按、清除按钮的单击与长按。
  *
- * v0.10.4：从 `GamePage` 搬出来。这一块的特点是「定时器里做事」—— 长按 500ms 才
+ * 这一块的特点是「定时器里做事」—— 长按 500ms 才
  * 放头像、清空要 800ms，单点与长按还共用同一颗按钮，于是每个手势都要处理
  * 「抬手早于阈值」「长按已生效、随后那一记 click 要吞掉」这些尾巴。它只读
  * `mode`（现在是哪支工具），只管「把这一手变成棋盘上的变化」，与计时、判卷、
@@ -79,13 +79,13 @@ export function useBoardGestures({
   eraseCell: (x: number, y: number) => void;
 }): BoardGestures {
   /**
-   * v0.7.11：正在被长按的格子 —— 有值时棋盘上画一圈进度环，抬手 / 移出 /
+   * 正在被长按的格子 —— 有值时棋盘上画一圈进度环，抬手 / 移出 /
    * 中断即清。`seq` 每次按下递增，环靠它重新挂载、从头画（同一格连按两次
    * 也要重来，不能接着上一轮的满环）。
    */
   const [pressCell, setPressCell] = useState<{ x: number; y: number; seq: number } | null>(null);
   /**
-   * v0.7.11：清除按钮上的长按进度环。存的是轮次号（非空 = 环在画），
+   * 清除按钮上的长按进度环。存的是轮次号（非空 = 环在画），
    * 与格子环共用 `pressSeqRef` —— 两个环不会同时出现，共用一个递增器足够。
    */
   const [clearPress, setClearPress] = useState<number | null>(null);
@@ -93,12 +93,12 @@ export function useBoardGestures({
   /** Long-press on the clear button wipes the whole board (SPEC-G04 §10.2). */
   const clearPressRef = useRef<{ timer: number; ringTimer: number; fired: boolean } | null>(null);
   /**
-   * v0.4.0 验收补充 + v0.4.3 CLAR-J01 / SPEC-J02：放置态下在格子上长按 → 放置
+   * CLAR-J01 / SPEC-J02：放置态下在格子上长按 → 放置
    * **参与者头像**（这才是「把参与者放到格子上」，也只有它补同行同列的 ×）；
    * 短按放的是**编号**。与工具栏清除按钮同一模式：定时器触发即生效，随后到来的
    * click 必须被吞掉，否则同一手势会既放头像又放编号。
    *
-   * v0.7.11：两个长按都多一个 `ringTimer` —— 进度环延迟 160ms 才挂载，单点
+   * 两个长按都带一个 `ringTimer` —— 进度环延迟 160ms 才挂载，单点
    * （抬手早于 160ms）就什么都不闪。
    */
   const cellPressRef = useRef<{ timer: number; ringTimer: number; fired: boolean } | null>(null);
@@ -108,19 +108,16 @@ export function useBoardGestures({
    * SPEC-J05: one cell interaction, dispatched by mode. 放置态下 `variant` 区分
    * **短按（切换编号）**与**长按（放头像）**；其余工具态忽略它。
    *
-   * v0.7.11：
    * - 棋盘一律读 `placementRef.current`。按住滑动会在**同一个事件循环**里连着
    *   调用好几次，读渲染闭包里的 `placementState` 会让后一次把前一次覆盖掉。
    * - 返回**是否真的执行了**：长按的进度环靠它决定收场 —— 环画满却什么都没发生，
    *   会读成「按成功了但没反应」，比不画环更糟。
    *
-   * v0.9.1 §4：放置被拒一律**静默** —— 不再弹吐司。原先唯一还会说话的是
-   * 「该格编号已满」，但它和之前删掉的几条一样属于噪音：格子上的编号已经写满
-   * 九个，玩家看得见；再弹一句只是挡住棋盘。`quiet`（滑动时压掉提示）因此也
-   * 一并退场，拒绝路径只剩 `return false`。
+   * v0.9.1 §4：放置被拒一律**静默** —— 格子上的编号已经写满九个，玩家看得见；
+   * 再弹一句只是挡住棋盘。拒绝路径只剩 `return false`。
    *
    * v0.11.5 §6：**按住拖动的一笔只做添加**。单击是开关 —— 同一格再点一下收回编号
-   * （SPEC-J03 §3.2）、已有 `×` 再点一下收回它（v0.7.12）；但按住拖动时手指
+   * （SPEC-J03 §3.2）、已有 `×` 再点一下收回它；但按住拖动时手指
    * 来回划过同一格是常态，开关语义会让玩家眼睁睁看着自己刚写下的东西被抹掉，
    * 而且拖动本意是「一次画一串」。所以笔画里遇到「这一格已经是这个状态」就跳过，
    * 只有单击才走开关那一支。
@@ -153,7 +150,7 @@ export function useBoardGestures({
       });
       if (block) return false;
       /**
-       * v0.10.1：落头像（长按 / 拖动确认）之后，同行同列补出来的 `×` 按圈依次
+       * 落头像（长按 / 拖动确认）之后，同行同列补出来的 `×` 按圈依次
        * 浮出来，像水波从落点推出去。
        *
        * 计划必须在**落子之前**算：`placeParticipant` 只回一个状态，说不出「这一手
@@ -181,14 +178,13 @@ export function useBoardGestures({
       if (wavePlan) pulseForbiddenWave(wavePlan);
       if (variant === 'number') markPulse(cellKey(x, y), mode.participantId);
       /**
-       * v0.8.5：头像落下之后，手上就没有东西了 —— 名册那张卡的选中环跟着退掉。
+       * 头像落下之后，手上就没有东西了 —— 名册那张卡的选中环跟着退掉。
        * 规则本身在 `modeAfterPlacement` 里（编号不受影响，见那里的注释）。
        *
-       * v0.8.7：退的还有**触碰态**。之前这里只 `setMode`，于是名册上那道 2px
-       * 主色环、棋盘上这位参与者的联动高亮与放大头像一起留了下来 —— 头像明明
-       * 已经落定，界面还在说「这位正被拿着」。放置态结束就是整手操作结束，
-       * 走 `applyMode`（它已经把「离开放置态 → `escape`」这条规矩收在一处，
-       * 见 SPEC-G04）。
+       * 退的还有**触碰态**：名册上那道 2px 主色环、棋盘上这位参与者的联动高亮
+       * 与放大头像 —— 头像已经落定，界面不该再说「这位正被拿着」。放置态结束
+       * 就是整手操作结束，所以这里走 `applyMode`：它已经把「离开放置态
+       * → `escape`」这条规矩收在一处（见 SPEC-G04），不必再各自收拾一次。
        */
       const nextMode = modeAfterPlacement(mode, variant);
       if (nextMode !== mode) applyMode(nextMode);
@@ -198,7 +194,7 @@ export function useBoardGestures({
       const key = cellKey(x, y);
       const before = placementRef.current.board[key] ?? null;
       /**
-       * v0.7.12：`×` 是一支开关 —— 已经有 `×` 的格子再点一下就收回它
+       * `×` 是一支开关 —— 已经有 `×` 的格子再点一下就收回它
        * （`toggleForbidden`）。这一支要求来自「点错了只好切橡皮」的绕路。
        *
        * v0.11.5 §6：但只在**单击**时是开关。按住拖动划回来时这一格已经有 `×`，
@@ -209,12 +205,12 @@ export function useBoardGestures({
         updatePlacement((state) => toggleForbidden(state, { x, y, blockingCells }));
         return true;
       }
-      // v0.7.12：放不进去（不可站立 / 头像格）时什么都不做 —— 那一格本来就没有
+      // 放不进去（不可站立 / 头像格）时什么都不做 —— 那一格本来就没有
       // `×` 可放。
       if (!canPlaceForbidden({ board: placementRef.current.board, x, y, blockingCells })) {
         return false;
       }
-      // v0.9.8：放下的 `×` 静默出现，不再挂 `markPulse` —— 演入场动效的是跟着
+      // 放下的 `×` 静默出现，不挂 `markPulse` —— 演入场动效的是跟着
       // 指针悬停的那一枚（`MapGameToolHintLayer`），放置本身没有可看的动作。
       //
       // 而且是**落笔这一刻、在这一格**才演：提示层按 `forbiddenPop` 换动画名，
@@ -237,16 +233,15 @@ export function useBoardGestures({
    * 放置态下在格子上按下：启动长按定时器（到点放**头像**）。没到点就抬手的
    * 短按由随后到来的 `click` 收尾 —— 那一路走 SPEC-J03 的**编号切换**。
    *
-   * v0.7.11 两件事：
-   * - 环**延迟** 160ms 才挂载。单点根本不会长按，之前它却会在按下的第一帧就
-   *   闪出来 —— 那是在预告一件不会发生的事。因此环只画剩下的 340ms，画满的
-   *   那一帧仍然是头像落下的那一帧。
+   * - 环**延迟** 160ms 才挂载 —— 单点根本不会长按，不该在按下的第一帧就闪
+   *   出来（那是在预告一件不会发生的事）。环只画剩下的 340ms，画满的那一帧
+   *   仍然是头像落下的那一帧。
    * - 动作被规则拒绝时 `dispatchCell` 返回 false，环立刻收回：不能让一个满环
    *   停在那里冒充「已经放好了」。
    */
   const startCellPress = (x: number, y: number, participantId: number): void => {
     /**
-     * v0.7.12：这一格根本放不进去 —— 整段手势都不开始。
+     * 这一格根本放不进去 —— 整段手势都不开始。
      *
      * 不可站立的格子、已经标了 `×` 的格子、以及这位参与者自己的头像格：长按
      * 500ms 的**结果**是不存在的（`placeParticipant` 会原样返回）。但环会照画
@@ -313,7 +308,7 @@ export function useBoardGestures({
   };
 
   /**
-   * v0.7.11：按住滑动 = 不是长按。定时器与环一起作废，`fired` 也不需要保留 ——
+   * 按住滑动 = 不是长按。定时器与环一起作废，`fired` 也不需要保留 ——
    * 这一笔后面的 click 由 `paintedRef` 吞掉，不靠 `fired`。
    */
   const cancelCellPress = (): void => {

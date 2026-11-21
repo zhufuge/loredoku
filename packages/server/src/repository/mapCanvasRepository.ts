@@ -143,7 +143,7 @@ export async function resizeDraft(
       gridSize,
       cells: nextCells,
       regions: nextRegions,
-      // v0.3.8 FEAT-D02: resizing must not drop the map-level style block.
+      // Resizing must not drop the map-level style block.
       ...(style ? { style } : {}),
     };
 

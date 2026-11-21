@@ -65,7 +65,7 @@ export function usePublishMap(id: number) {
          * FEAT-H05 §5.3: no toast any more — the editor raises a success dialog
          * instead, because it carries the two next steps (preview / map list).
          *
-         * v0.5.0 FEAT-K10: publishing now **adds an entry to the map list**, so
+         * Publishing **adds an entry to the map list**, so
          * the map list has to be invalidated too.
          */
         void queryClient.invalidateQueries({ queryKey: mapCanvasKeys.detail(id) });

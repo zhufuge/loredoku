@@ -6,7 +6,7 @@ import { api } from './helpers';
 import { webDistRoot } from '../src/utils/paths';
 
 /**
- * v0.5.6: the server hosts packages/web/dist so `npm start` alone serves the
+ * The server hosts packages/web/dist so `npm start` alone serves the
  * whole app. These cases need a build — without one the fallback stands down
  * and every path answers the JSON 404 (which is the dev-mode behaviour).
  */

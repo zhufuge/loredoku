@@ -5,7 +5,7 @@ import {
 import type { ThemeVerdict } from './types/domain';
 
 /**
- * v0.11.3：结算卡通过那一面，**填好缺省**之后的形状。
+ * 结算卡通过那一面，**填好缺省**之后的形状。
  *
  * 三样都给成「一定能画」的值：
  *

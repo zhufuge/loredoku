@@ -112,7 +112,7 @@ describe('AssetDetailForm — 形态管理区（v0.6.1 §8.4）', () => {
     render(asset([variant(11, 1)], { type: 'background', blocking: false }));
     expect(container.textContent).not.toContain('占格宽');
     expect(container.textContent).not.toContain('占格高');
-    // v0.7.7: 层类型在页面顶部说一次就够了，卡片上不再重复。
+    // 层类型在页面顶部说一次就够了，卡片上不重复。
     expect(container.textContent).not.toContain('背景层：每格铺满');
     expect(container.textContent).not.toContain('物品层：放置后占');
   });
@@ -132,7 +132,7 @@ describe('AssetDetailForm — 形态管理区（v0.6.1 §8.4）', () => {
   });
 
   /**
-   * v0.7.13 fix：启用 / 停用、增删形态都会让资源重取（`updatedAt` 变），
+   * 启用 / 停用、增删形态都会让资源重取（`updatedAt` 变），
    * 表单不该跟着回滚 —— 否则「改完名字点了停用，名字自己变回去」。
    */
   it('keeps an unsaved rename when the asset refreshes', () => {

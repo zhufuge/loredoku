@@ -86,7 +86,7 @@ export const themesApi = {
     apiPatch<Theme>(`/themes/${code}/check-style`, patch),
 
   /**
-   * v0.11.3 —— 结算卡通过那一面：一枚图标图 + 两句文字。
+   * 结算卡通过那一面：一枚图标图 + 两句文字。
    *
    * 与圆环 / 校验颜色同一个分工：图走上传删除、文字走 PATCH。换图不该覆盖作者写的
    * 标题，改标题也不该动那张图；「移除」之后回到文字（或内置的庆祝 emoji）。
@@ -106,7 +106,7 @@ export const themesApi = {
  * —— 它的成功响应不是 `ApiResponse`，失败响应才是。所以失败时要把 blob
  * 读回文本再解析一次，否则作者只会看到「下载失败」而不知道是「先至少上线一关」。
  *
- * v0.10.10：`gameIds` 给了就只打这几关；不给就是全部在线关。
+ * `gameIds` 给了就只打这几关；不给就是全部在线关。
  */
 export async function downloadThemeBundle(
   code: string,

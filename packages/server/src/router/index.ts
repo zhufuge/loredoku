@@ -15,13 +15,11 @@ apiRouter.use(healthRouter.routes(), healthRouter.allowedMethods());
 apiRouter.use('/maps', mapsRouter.routes(), mapsRouter.allowedMethods());
 apiRouter.use('/assets', assetsRouter.routes(), assetsRouter.allowedMethods());
 apiRouter.use('/characters', charactersRouter.routes(), charactersRouter.allowedMethods());
-// v0.5.0 FEAT-K01: the puzzle module. It replaced the flat `/api/versions`
-// listing (the old works table) — the table's data source is `/api/puzzles`.
+// FEAT-K01: the puzzle module. Its data source is `/api/puzzles`.
 apiRouter.use('/puzzles', puzzlesRouter.routes(), puzzlesRouter.allowedMethods());
 // FEAT-G02: cross-map deployed games listing for the games home page.
 apiRouter.use('/games', gamesRouter.routes(), gamesRouter.allowedMethods());
-// v0.8.0: 主题（边界与缺省风格）。v0.9.2 起没有 `/theme-deployments` —— 合辑
-// 连同它的两张表一起删了，上线一关就是 `/api/puzzles/:id/games`。
+// 主题（边界与缺省风格）。上线一关就是 `/api/puzzles/:id/games`。
 apiRouter.use('/themes', themesRouter.routes(), themesRouter.allowedMethods());
 
 // 地图模块的接口前缀是 /api/maps。`/api/projects` 是已消失的 projects 表留下的
@@ -30,7 +28,7 @@ redirectLegacyPrefix('/projects', '/maps');
 
 // Legacy v0.1 route: /api/cards -> /api/assets (permanent redirect).
 redirectLegacyPrefix('/cards', '/assets');
-// v0.6.0: /api/items -> /api/assets (permanent redirect).
+// /api/items -> /api/assets (permanent redirect).
 redirectLegacyPrefix('/items', '/assets');
 
 /**

@@ -113,9 +113,8 @@ describe('placing a participant (SPEC-G03 §9.2)', () => {
   });
 
   /**
-   * v0.7.12 改口径（需求：「已放置参与者和标记的格子，参与者编号点击时
-   * 无效果」）：以前点别人的头像格会给九宫格追加一个编号、把那张脸顶掉；
-   * 现在短按在头像格上一律无效果 —— 要换人请长按（那是另一条规则）。
+   * 需求：「已放置参与者和标记的格子，参与者编号点击时
+   * 无效果」：短按在头像格上一律无效果 —— 要换人请长按（那是另一条规则）。
    */
   it('ignores a short press on somebody else’s avatar cell', () => {
     const first = place(createGamePlacementState(), 1, 1, 1, { variant: 'image' });
@@ -377,7 +376,7 @@ describe('the automatic × is a long-press consequence only (SPEC-J02 §2)', () 
     state = place(state, 2, 0, 3, { gridSize: 5 });
     expect(forbiddenCells(state.board).size).toBe(0);
     expect(countPlacements(state.board)).toBe(3);
-    // v0.7.12：编号根本不参加判卷（见 `validatePlacement`），所以这一排也不会
+    // 编号根本不参加判卷（见 `validatePlacement`），所以这一排也不会
     // 以「同行」的形式出现在失败名单里 —— 它读起来就是三个人都还没放。
     const result = validatePlacement({
       board: state.board,
@@ -476,8 +475,8 @@ describe('the automatic × on the row and column (SPEC-G06)', () => {
   });
 
   it('does not sweep when the placement itself was refused', () => {
-    // v0.7.11：唯一性不再是拒绝理由（长按另一格 = 搬家），所以这里改用仍然存在
-    // 的拒绝路径 —— 不可站立格。被拒时棋盘一格都不该动，自然也不补 ×。
+    // 唯一性不是拒绝理由（长按另一格 = 搬家），所以这里用仍然存在的拒绝路径 ——
+    // 不可站立格。被拒时棋盘一格都不该动，自然也不补 ×。
     const first = place(createGamePlacementState(), 1, 1, 1, { gridSize: 5, variant: 'image' });
     const refused = place(first, 2, 2, 1, {
       gridSize: 5,
@@ -516,10 +515,10 @@ describe('the forbidden × (SPEC-G04 §10.1)', () => {
 });
 
 /**
- * v0.7.12（「标记点已经放置了标记的格子时，清空该格子的标记」）。
+ * 需求：「标记点已经放置了标记的格子时，清空该格子的标记」。
  *
- * `×` 工具从此是一支开关：同一格再点一次就收回。此前这一下什么都不做，撤销一个
- * 点错的 `×` 要先切橡皮、再切回来。
+ * `×` 工具是一支开关：同一格再点一次就收回 —— 撤销一个点错的 `×` 不必先切橡皮、
+ * 再切回来。
  */
 describe('toggleForbidden（v0.7.12）', () => {
   it('puts a × down on an empty cell', () => {
@@ -743,7 +742,7 @@ describe('submit validation (FEAT-V01 §8)', () => {
   });
 
   /**
-   * v0.7.12（「点击提交校验时，参与者标号不能代表参与者」）：编号是草稿。
+   * 需求：「点击提交校验时，参与者标号不能代表参与者」：编号是草稿。
    * 两位参与者各点了一格编号、都没长按确认头像 —— 这一局就是**两个人都没放**。
    */
   it('does not let a 编号 stand in for the participant', () => {
@@ -865,7 +864,7 @@ describe('the tool hint (SPEC-G02 §2)', () => {
   });
 
   /**
-   * v0.7.12：头像格与 `×` 格在放置态下是**无效果**的，所以也不预告编号。
+   * 头像格与 `×` 格在放置态下是**无效果**的，所以也不预告编号。
    */
   it('shows no number on a cell that already holds an avatar or a ×', () => {
     expect(
@@ -885,7 +884,7 @@ describe('the tool hint (SPEC-G02 §2)', () => {
   });
 
   /**
-   * v0.7.12：`×` 工具在**已经有 `×`** 的格子上一按是**收回**，但预告仍是 `×`
+   * `×` 工具在**已经有 `×`** 的格子上一按是**收回**，但预告仍是 `×`
    * —— 不能把字形换成橡皮。指针压到哪一格，工具就还是那一支；换字形会让同一支
    * 笔在格子之间改变身份，比「按下去方向反过来」更难解释。
    */
@@ -1101,7 +1100,7 @@ describe('a 编号 repeats across cells (SPEC-J05 §3.6)', () => {
 });
 
 /**
- * v0.7.12：提交按钮的可用条件 —— 名单上每位都**已经有头像**。
+ * 提交按钮的可用条件 —— 名单上每位都**已经有头像**。
  *
  * 「编号不算参与者」在这里是同一句话的另一个说法：点出来的一格编号只是草稿，
  * 不能把按钮点亮。
@@ -1184,7 +1183,7 @@ describe('avatarPlacedParticipantIds（v0.5.1 SPEC-L05）', () => {
 });
 
 /**
- * v0.8.5：头像落下之后名册的选中态要退掉；编号不能退 —— 那是一次连续动作。
+ * 头像落下之后名册的选中态要退掉；编号不能退 —— 那是一次连续动作。
  */
 describe('modeAfterPlacement (v0.8.5)', () => {
   const placing = { kind: 'placing', participantId: 3 } as const;
@@ -1205,7 +1204,7 @@ describe('modeAfterPlacement (v0.8.5)', () => {
 });
 
 /**
- * v0.10.1：放下头像时，自动补的那些 × 由近及远依次浮现（水波纹）。
+ * 放下头像时，自动补的那些 × 由近及远依次浮现（水波纹）。
  *
  * 排序与环号都在纯函数里定死，界面只负责把 `ring` 乘成延迟。
  */

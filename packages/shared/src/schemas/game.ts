@@ -29,15 +29,15 @@ export const gameDeploySchema = z.object({
   /** OPT-W03 §3: explicit "remove the cover" — no cover bytes are involved. */
   clearCover: z.boolean().optional(),
   /**
-   * v0.7.11：访问路径已被别的谜题版本占着时，**覆盖**它。
+   * 访问路径已被别的谜题版本占着时，**覆盖**它。
    *
-   * 部署页的路径冲突原先只回一句「已被占用，请更换」—— 作者真正想要的往往是
+   * 部署页的路径冲突只回一句「已被占用，请更换」时，作者真正想要的往往是
    * 「这条链接就归我」，于是只能先去部署页把对方撤掉再回来重试。这个开关让冲突
-   * 变成一次选择：不传真（照旧 400），传真则把占位的那条部署假删后再落自己的。
+   * 变成一次选择：不传真（400），传真则把占位的那条部署假删后再落自己的。
    */
   overwriteSlug: z.boolean().optional(),
   /**
-   * v0.8.6：难度是**档位数字**（v0.8.3 时是字符串标识）。schema 只知道「一个
+   * 难度是**档位数字**。schema 只知道「一个
    * 1…99 的整数」，至于这个数字在这个主题里存不存在，由服务端拿着主题去核对 ——
    * schema 不认识数据库，而这一步必须知道是哪个主题。
    *
@@ -52,7 +52,7 @@ export const gameDeploySchema = z.object({
     .max(GAME_DIFFICULTY_LEVEL_MAX)
     .optional(),
   /**
-   * v0.8.3：展示顺序 —— **升序**，数字小的排前面，同权重按访问路径。
+   * 展示顺序 —— **升序**，数字小的排前面，同权重按访问路径。
    *
    * 缺省（`undefined`）与「显式给 0」要分开：前者是「这次没提这件事」，服务端
    * 沿用上一行的值（重新部署不该把作者排好的顺序悄悄清零）；后者是「就排 0」。
@@ -62,7 +62,7 @@ export const gameDeploySchema = z.object({
 });
 
 /**
- * v0.8.5：部署页就地改权重（`PATCH /api/games/:id`）。
+ * 部署页就地改权重（`PATCH /api/games/:id`）。
  *
  * 与 `gameDeploySchema.sortWeight` 的区别只有一条：那里**缺省**是「这次没提」，
  * 这里 `sortWeight` 是**必填** —— 这条端点的唯一职责就是改它，少一个键的请求
@@ -94,7 +94,7 @@ export const cellPlacementSchema = z.union([
   z.object({
     kind: z.literal('forbidden'),
     /**
-     * v0.7.11：这个 `×` 是**同行同列的自动补白**，不是玩家自己点的。
+     * 这个 `×` 是**同行同列的自动补白**，不是玩家自己点的。
      *
      * 头像可以整格搬走（长按另一格），搬走之后旧行旧列的自动 `×` 就成了谎话 ——
      * 有了这个标记，「哪些能跟着回滚」不再靠猜。玩家手动放的 `×` 不带它，
@@ -122,7 +122,7 @@ export type GamePlacementBoard = Record<string, CellPlacement | null>;
 export type GameDeployInput = z.infer<typeof gameDeploySchema>;
 
 /**
- * v0.7.11：部署时「访问路径已被占用」这一种错误的结构化说明。
+ * 部署时「访问路径已被占用」这一种错误的结构化说明。
  *
  * 放进 `error.details` 而不是只留一句中文 —— 前端要弹一个带**覆盖**按钮的
  * 弹窗，它得知道被占的是哪条路径、占位的是哪个游戏，才说得清「覆盖谁」。

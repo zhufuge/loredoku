@@ -4,7 +4,7 @@ import type { AssetAppearance } from '@loredoku/shared';
 import { cn } from '@/lib/utils';
 
 interface AssetThumbnailProps {
-  /** v0.6.1: the look lives on a form, so the caller picks the form first. */
+  /** The look lives on a form, so the caller picks the form first. */
   appearance: AssetAppearance;
   name: string;
   className?: string;
@@ -14,8 +14,8 @@ export function AssetThumbnail({ appearance, name, className }: AssetThumbnailPr
   const [failed, setFailed] = useState(false);
   const src = failed ? appearance.imageUrl : appearance.imageThumbUrl ?? appearance.imageUrl;
 
-  // v0.5.1 FEAT-L01 / SPEC-L03: a colour block wins over the image — the
-  // background simply shows the block.
+  // A colour block wins over the image — the background simply shows the
+  // block.
   if (appearance.bgColor) {
     return (
       <div
