@@ -46,17 +46,12 @@ import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { rulerStripSize } from '@/lib/ruler';
 import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { readRulerVisible, saveRulerVisible } from '@/lib/rulerPreference';
 import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 
 /** FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this key only persists the reader's preference across reloads. */
 const RULER_STORAGE_KEY = 'loredoku.mapview.ruler';
-
-/** Reads the persisted toggle, defaulting to visible (the editor's default). */
-function readStoredRulerVisible(): boolean {
-  if (typeof window === 'undefined') return true;
-  return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
-}
 
 /** 只读画布预览，路由 `/:themeCode/maps/:mapId/view`（v0.8.1 起带主题段）。 **一条 URL 只由 `:mapId` 决定看什么**。 Everything else (layout, rulers, hover affordances, the OPT-A01 adaptive fit) is unchanged from the page this replaced. */
 export function MapViewPage(): JSX.Element {
@@ -78,7 +73,7 @@ export function MapViewPage(): JSX.Element {
   // 只取这个主题的资源 —— 别的世界的料画进这一张图才是事故。
   const assetsQuery = useAssets({ themeCode });
 
-  const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
+  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -214,7 +209,7 @@ export function MapViewPage(): JSX.Element {
   useEffect(() => {
     fitRef.current();
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(RULER_STORAGE_KEY, showRulers ? 'visible' : 'hidden');
+      saveRulerVisible(RULER_STORAGE_KEY, showRulers);
     }
   }, [showRulers]);
 

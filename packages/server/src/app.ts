@@ -1,6 +1,5 @@
 import Koa from 'koa';
 import cors from 'koa2-cors';
-import logger from 'koa-logger';
 import { koaBody } from 'koa-body';
 import mount from 'koa-mount';
 import serve from 'koa-static';
@@ -8,6 +7,7 @@ import { resolve } from 'node:path';
 import { FILES_ROUTE_PREFIX } from '@loredoku/shared';
 import { errorHandler } from './middleware/errorHandler';
 import { notFoundHandler } from './middleware/notFound';
+import { requestLogger } from './middleware/requestLogger';
 import { spaFallback } from './middleware/spaFallback';
 import { apiRouter } from './router';
 import { uploadRoot, webDistRoot } from './utils/paths';
@@ -17,7 +17,7 @@ export function createApp(): Koa {
   app.proxy = true;
 
   app.use(errorHandler);
-  app.use(logger());
+  app.use(requestLogger);
   app.use(cors());
   app.use(
     koaBody({

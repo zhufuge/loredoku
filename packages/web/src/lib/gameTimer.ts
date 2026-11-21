@@ -1,4 +1,5 @@
 import type { GameProgressMeta } from './gameProgress';
+import { isRecord } from './isRecord';
 
 /** 游戏页的**计时**（秒级）。 需求是「打开游戏时开始，关闭时记到本地，第二次进来接着走，直到点提交」， 所以这里存的是**累计用时**而不是开始时间戳：跨会话的墙钟差里混着睡觉、吃饭、 换设备的时间，那不是玩家在想的时长。每秒落一次盘，关页面时再补一次。 键按 slug 分，并带与摆放存档同一份指纹（网格 / 名单）—— 同一路径重新部署成另一个谜题后，旧计时不再属于这一局，整条作废。 */
 
@@ -14,10 +15,6 @@ export interface StoredGameTimer extends GameProgressMeta {
 
 export function gameTimerKey(slug: string): string {
   return `${GAME_TIMER_PREFIX}${slug}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** 读到的 JSON → 毫秒；任何说不通的东西都当「没有计时」（0）。 */

@@ -13,7 +13,7 @@ import * as versionRepo from '../repository/versionRepository';
 import * as mapCanvasRepo from '../repository/mapCanvasRepository';
 import * as assetRepo from '../repository/assetRepository';
 import { AppError } from '../utils/AppError';
-import { uniqueName } from './mapService';
+import { uniqueName } from './uniqueName';
 import { absorbLegacyMapDraft } from './mapDraftCompat';
 
 function parseCellKey(key: string): [number, number] {
@@ -240,7 +240,7 @@ export async function forkVersion(
   if (!owner) {
     throw AppError.notFound('地图不存在');
   }
-  const name = await uniqueName(`${owner.name} (自 v${versionNo})`);
+  const name = await uniqueName(`${owner.name} (自 v${versionNo})`, mapRepo.existsByName);
   const created = await mapRepo.forkFromVersion(mapId, versionNo, name, data);
   if (!created) {
     throw AppError.notFound('版本不存在');

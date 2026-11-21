@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { asGameSlugConflict, type GameSlugConflict } from '@loredoku/shared';
 import { gamesApi, type DeployGamePayload } from '@/api/games';
 import { ApiError } from '@/api/client';
+import { errorMessage } from '@/lib/errorMessage';
 import { fileFromImageUrl } from '@/lib/fileFromImageUrl';
 import { puzzleKeys } from './usePuzzles';
 
@@ -46,9 +47,6 @@ export function useGameDetail(slug: string | null) {
   });
 }
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 /**
  * 部署谜题为游戏（CONS-K16）：行建好后再传封面，两步共用一个 pending 与一次成功 toast；`clearCover` 只在作者明确移除时传，`coverFromPuzzleUrl` = 没选文件时复制谜题封面；路径冲突可经 `onSlugConflict` 交给调用方问「覆盖 / 取消」，否则直接 toast。

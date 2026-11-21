@@ -80,6 +80,7 @@ import { versionsApi } from '@/api/versions';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
 import { resolveHighlight } from '@/lib/highlight';
 import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { readRulerVisible, saveRulerVisible } from '@/lib/rulerPreference';
 import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 import { resolveMapStyle } from '@/lib/mapStyle';
@@ -93,11 +94,6 @@ import {
 
 /** FEAT-F01 (kept from the work preview): the reader's ruler preference. */
 const RULER_STORAGE_KEY = 'loredoku.puzzle.ruler';
-
-function readStoredRulerVisible(): boolean {
-  if (typeof window === 'undefined') return true;
-  return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
-}
 
 /** v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.5 / §4 / §5): the puzzle editor. There is no 「调整画布尺寸」 dialog: the canvas inside the puzzle is a copy the author never edits from here (SPEC-K11). v0.7.2 §3：`?v={n}` = 「编辑此版本」的 fork 态。 没落库之前没有发布按钮 —— 这一屏既不是草稿也不是版本。 */
 export function PuzzleEditorPage(): JSX.Element {
@@ -171,7 +167,7 @@ export function PuzzleEditorPage(): JSX.Element {
   /** Slot → slot reorder preview (CLAR-603: never drops onto the canvas). */
   const [slotDrag, setSlotDrag] = useState<number | null>(null);
   const [pendingImport, setPendingImport] = useState<PuzzleDraft | null>(null);
-  const [rulerVisible, setRulerVisible] = useState<boolean>(readStoredRulerVisible);
+  const [rulerVisible, setRulerVisible] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
   /** FEAT-E01: a drawer switch (or a close) waiting for the user to decide what happens to unsaved 基本信息 edits. */
   const [pendingPuzzleInfoAction, setPendingPuzzleInfoAction] = useState<(() => void) | null>(null);
   /** 「版本历史」面板（§5.5）。 */
@@ -179,7 +175,7 @@ export function PuzzleEditorPage(): JSX.Element {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(RULER_STORAGE_KEY, rulerVisible ? 'visible' : 'hidden');
+      saveRulerVisible(RULER_STORAGE_KEY, rulerVisible);
     }
   }, [rulerVisible]);
 

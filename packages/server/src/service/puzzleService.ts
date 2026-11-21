@@ -31,6 +31,7 @@ import * as characterRepo from '../repository/characterRepository';
 import * as mapRepo from '../repository/mapRepository';
 import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
+import { uniqueCopyName, uniqueName } from './uniqueName';
 import { absorbLegacyMapDraft, readLegacyLinkageColors } from './mapDraftCompat';
 import { processMarkImage, processPuzzleCover, processToolIconImage } from '../utils/image';
 import { buildFileUrl } from '../utils/paths';
@@ -117,23 +118,6 @@ function emptyDraft(entry: PuzzleEntrySummary): PuzzleDraft {
     characterSlots: Array.from({ length: entry.gridSize }, () => null),
     rosterCols: null,
   };
-}
-
-/** 取名兜底：`{base} 副本`、`{base} 副本 2`…；只看草稿行，拿版本快照占位会让序号跳号。 */
-async function uniqueCopyName(base: string): Promise<string> {
-  let candidate = `${base} 副本`;
-  let index = 2;
-  while (await puzzleRepo.existsByName(candidate)) {
-    candidate = `${base} 副本 ${index}`;
-    index += 1;
-  }
-  return candidate;
-}
-
-/** `base` 本身不撞名就用它，撞了才走副本序列（fork 的命名用）。 */
-async function uniqueName(base: string): Promise<string> {
-  if (!(await puzzleRepo.existsByName(base))) return base;
-  return uniqueCopyName(base);
 }
 
 /** 编码在主题内不重；不能建唯一索引：草稿行与版本行共用编码，会被判成冲突（v0.8.5 §7）。 */
@@ -359,7 +343,7 @@ export async function deletePuzzle(id: number): Promise<void> {
 
 export async function duplicatePuzzle(id: number): Promise<PuzzleDetail> {
   const source = await findWritable(id);
-  const name = await uniqueCopyName(source.name);
+  const name = await uniqueCopyName(source.name, puzzleRepo.existsByName);
   // v0.8.5 §7：副本是另一条谜题，编码要重新占一个 —— 原样复制会让两条谜题在部署
   // 时抢同一个路径。
   const code = await freeCode(Number(source.theme_id), source.code ?? null);
@@ -519,7 +503,7 @@ export async function forkVersion(
   const name =
     authored && authored !== target.name
       ? authored
-      : await uniqueName(`${target.name} (自 v${versionNo})`);
+      : await uniqueName(`${target.name} (自 v${versionNo})`, puzzleRepo.existsByName);
   const created = await puzzleVersionRepo.forkVersion(id, versionNo, name, next);
   if (!created) {
     throw AppError.notFound('版本不存在');

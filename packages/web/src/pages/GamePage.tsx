@@ -27,6 +27,7 @@ import { useGameTimer } from '@/hooks/useGameTimer';
 import { usePlacementFx } from '@/hooks/usePlacementFx';
 import { useBoardGestures } from '@/hooks/useBoardGestures';
 import { clampZoom, zoomAtPoint, ZOOM_STEP, type CanvasPoint } from '@/lib/grid';
+import { readRulerVisible, saveRulerVisible } from '@/lib/rulerPreference';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
 import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
@@ -65,11 +66,6 @@ import { buildCheckItems, type CheckItem } from '@/lib/gameCheck';
 
 /** FEAT-G03 §6.3: the ruler toggle, persisted per reader like the preview's. */
 const RULER_STORAGE_KEY = 'loredoku.gameview.ruler';
-
-function readStoredRulerVisible(): boolean {
-  if (typeof window === 'undefined') return true;
-  return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
-}
 /** v0.9.0（docs/v0.9.0.md §2）：这一层只剩「谁来供数据」这一个决定。；外面套了 `GameSourceScope`（播放器）：用外面给的那份，**一行 api 代码都不引**；；没套（工坊 / 线上）：自己套一份 api 实现 —— 也就是 v0.9.0 之前的行为，逐字节不变。 拆成两个组件而不是「条件调用 hook」：`useGameDetail` 一被调用就会发请求， 播放器里一次都不该发。 */
 export function GamePage(): JSX.Element {
   const provided = useProvidedGameSource();
@@ -143,7 +139,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     | { kind: 'failed'; correct: number; total: number }
     | null
   >(null);
-  const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
+  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
 
   /** 描述弹框是否开着（见头部那枚「谜题描述」图标）。 只跟 `portraitFit` 配套使用：竖屏上面板里不再画描述（`GameBrief` 的 `hideDescription`），改成右上角一枚图标点开。桌面端描述仍留在左栏面板里， 那枚图标根本不渲染 —— 它比主题开关还不常按。 */
   const [descriptionOpen, setDescriptionOpen] = useState(false);
@@ -376,7 +372,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   /** 标尺开关落盘（重排在 `useGameViewport` 那一侧，这里只管记住选择）。 */
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(RULER_STORAGE_KEY, showRulers ? 'visible' : 'hidden');
+      saveRulerVisible(RULER_STORAGE_KEY, showRulers);
     }
   }, [showRulers]);
 

@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import type { MapEntry, MapResponse } from '@loredoku/shared';
 import { mapsApi, type MapListParams } from '@/api/maps';
 import type { CreateMapPayload, UpdateMapPayload } from '@/api/maps';
+import { errorMessage } from '@/lib/errorMessage';
 
 export const mapKeys = {
   all: ['maps'] as const,
@@ -18,9 +19,6 @@ export const mapCanvasKeys = {
   detail: (id: number) => ['map', id] as const,
 };
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 /** 编辑器的 `GET /maps/:id/map` 把地图行**快照**放在 `map` 上，且缓存 `staleTime: Infinity`。改名 / 换封面后先就地改这份缓存，标题与封面不会在重取回来前闪回旧值；失效仍然照发，保证列表与别处的数据对齐。 */
 function patchCanvasEntry(queryClient: QueryClient, entry: MapEntry): void {

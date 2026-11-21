@@ -9,16 +9,13 @@ import {
   type UpdateAssetVariantPayload,
   type UpdateAssetPayload,
 } from '@/api/assets';
+import { errorMessage } from '@/lib/errorMessage';
 
 export const assetKeys = {
   all: ['assets'] as const,
   list: (params: ListAssetsParams) => [...assetKeys.all, 'list', params] as const,
   usages: (id: number) => [...assetKeys.all, 'usages', id] as const,
 };
-
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 export function useAssets(params: ListAssetsParams = {}) {
   return useQuery({

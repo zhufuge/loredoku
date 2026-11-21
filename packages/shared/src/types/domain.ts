@@ -8,7 +8,6 @@ import type {
   MAP_STATUSES,
   CHARACTER_GENDERS,
   PARTICIPANT_TARGET_TYPES,
-  EFFECT_COLORS,
   GAME_DIFFICULTY_LEVELS,
   MapLinkageColor,
   MapStyle,
@@ -26,8 +25,6 @@ export type MapStatus = (typeof MAP_STATUSES)[number];
 export type CharacterGender = (typeof CHARACTER_GENDERS)[number];
 export type ParticipantTargetType = (typeof PARTICIPANT_TARGET_TYPES)[number];
 export type GameDifficulty = (typeof GAME_DIFFICULTY_LEVELS)[number];
-/** Built-in linkage colour keys (`red` / `blue`); the palette is extensible, so a linkage may use **any** `MapStyle.linkageColors` key (v0.3.8 FEAT-D04). */
-export type EffectColor = (typeof EFFECT_COLORS)[number];
 /** A linkage colour reference: the `key` of a `MapStyle.linkageColors` entry. */
 export type LinkageColorKey = string;
 

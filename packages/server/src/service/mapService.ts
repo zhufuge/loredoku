@@ -12,6 +12,7 @@ import * as versionRepo from '../repository/versionRepository';
 import * as themeService from './themeService';
 import { AppError } from '../utils/AppError';
 import { processMapCover } from '../utils/image';
+import { uniqueCopyName } from './uniqueName';
 
 /** Raised when `POST /api/maps/:id/cover` arrives without a file part. */
 export function coverRequired(): AppError {
@@ -92,29 +93,12 @@ export async function deleteMap(id: number): Promise<void> {
 
 export async function duplicateMap(id: number): Promise<MapEntry> {
   const source = await findWritable(id);
-  const name = await uniqueCopyName(source.name);
+  const name = await uniqueCopyName(source.name, repo.existsByName);
   const created = await repo.duplicateMap(id, name);
   if (!created) {
     throw AppError.notFound('地图不存在');
   }
   return created;
-}
-
-/** 复制 / fork 的取名兜底：`{base} 副本`、`{base} 副本 2`… 直到不撞名；fork 以「{name} (自 v{n})」为 base。 */
-export async function uniqueCopyName(baseName: string): Promise<string> {
-  let candidate = `${baseName} 副本`;
-  let index = 2;
-  while (await repo.existsByName(candidate)) {
-    candidate = `${baseName} 副本 ${index}`;
-    index += 1;
-  }
-  return candidate;
-}
-
-/** `base` 不撞名就用它，撞了走 {@link uniqueCopyName}；血统内多草稿时第二次 fork 同一版本才加副本。 */
-export async function uniqueName(baseName: string): Promise<string> {
-  if (!(await repo.existsByName(baseName))) return baseName;
-  return uniqueCopyName(baseName);
 }
 
 /** 封面是二进制而创建 / 更新是 JSON，故单独走 multipart；两个方向都返回刷新后的详情（v0.4.2 §3）。 */

@@ -16,6 +16,7 @@ import {
   type UpdatePuzzlePayload,
 } from '@/api/puzzles';
 import { ApiError } from '@/api/client';
+import { errorMessage } from '@/lib/errorMessage';
 import { gameKeys } from './useGames';
 import type { PublishResult } from './useVersions';
 
@@ -30,9 +31,6 @@ export const puzzleKeys = {
     [...puzzleKeys.all, 'version', id, versionNo] as const,
 };
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 export function usePuzzles(params: PuzzleListParams) {
   return useQuery({

@@ -1,5 +1,7 @@
 /** **已完成的谜题**。 键按存档键（`storageId`）分： | 入口 | 存档键 | |---|---| | 线上 / 工坊（api） | 游戏 slug（原样） | | 播放器（bundle） | `bundle:<主题code>:<key>` | 两套键**刻意不通**（v0.8.0 §11.6）：离线包里通了关，不该让线上那一关也变成 「已完成」。 `participantCount` 不进指纹 —— 列表页的两份数据 （`MapGameSummary` / 播放器卡片）都只有 `gridSize` 可对，多存一个对不上的字段 只会让「读得回来吗」多一个不确定的分支。 */
 
+import { isRecord } from './isRecord';
+
 /** 存档结构变了就 +1；旧记录一律丢弃（宁可没盖印，不可错盖）。 */
 export const GAME_COMPLETION_VERSION = 1;
 export const GAME_COMPLETION_PREFIX = 'loredoku.game.completed.';
@@ -24,10 +26,6 @@ export interface StoredGameCompletion extends GameCompletionMeta, GameCompletion
 
 export function gameCompletionKey(storageId: string): string {
   return `${GAME_COMPLETION_PREFIX}${storageId}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function parseStampUrl(value: unknown): string | null {

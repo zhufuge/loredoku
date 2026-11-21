@@ -2,6 +2,7 @@ import {
   gamePlacementBoardSchema,
   type GamePlacementBoard,
 } from '@loredoku/shared';
+import { isRecord } from './isRecord';
 
 /** docs/v0.6.2.md §3: 游戏页的摆放进度落在 localStorage 里，键按 slug 分， 玩家关掉页面再回来接着摆 —— 头像、编号、标记三样都在。 为什么是 localStorage 而不是服务端：玩家没有账号，进度只对这台浏览器有意义。 存档带**指纹**（`gridSize` + `participantCount`）。 同一 slug 重新部署后网格或 名单可能变了，此时旧坐标与新编号都不再有意义，整条存档按失效处理，不尝试 「尽量恢复」——恢复出来的半截棋盘比空白更让人困惑。 棋盘是进度，提交是一次核对 —— 把「核对过」 写进存档，只会让玩家下次进来看到一个自己没做过的勾。 */
 
@@ -22,10 +23,6 @@ export interface StoredGameProgress extends GameProgressMeta {
 
 export function gameProgressKey(slug: string): string {
   return `${GAME_PROGRESS_PREFIX}${slug}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** `"x,y"` 的严格解析。棋盘键只有这一种写法，别的一律当无效格。 注意 `Number('')` 是 0、`Number(' 1')` 是 1，`split` + 隐式转换会把稀奇古怪的键悄悄变成合法坐标，所以这里走正则。 */

@@ -6,6 +6,7 @@ import {
   type ListCharactersParams,
   type UpdateCharacterPayload,
 } from '@/api/characters';
+import { errorMessage } from '@/lib/errorMessage';
 
 export const characterKeys = {
   all: ['characters'] as const,
@@ -13,9 +14,6 @@ export const characterKeys = {
   usages: (id: number) => [...characterKeys.all, 'usages', id] as const,
 };
 
-function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
-}
 
 export function useCharacters(params: ListCharactersParams = {}) {
   return useQuery({

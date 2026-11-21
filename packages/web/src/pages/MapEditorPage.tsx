@@ -87,6 +87,7 @@ import {
 import { useEditorStore, type ConflictMode, type RegionInput } from '@/stores/editorStore';
 import { LoredokuTick } from '@/components/common/LoredokuLoader';
 import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { readRulerVisible, saveRulerVisible } from '@/lib/rulerPreference';
 import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 
@@ -95,13 +96,8 @@ interface RegionDialogState {
   cells: Coord[];
 }
 
-/** FEAT-F01 的标尺开关，偏好落在 `localStorage`（同 `MapViewPage` / `PuzzleEditorPage` 的 `RULER_STORAGE_KEY` 模式）。 v0.8.6 §2：**缺省不展示**。 标尺画在画布外面那两条边带上，它占的正是画布 能用的高度与宽度 —— 一张 20×20 的图在窗口里能不能一屏放下，取决于这两条带子 在不在。 而它回答的问题（「第几列」）只在数格子时才有意义，不是每次打开都要看。 判断条件因此是「等于 `visible`」—— 存着 `visible` 就展示， 否则收起来。 */
+/** FEAT-F01：编辑器的标尺缺省不展示，存过 `visible` 才展示。 */
 const RULER_STORAGE_KEY = 'loredoku.editor.ruler';
-
-function readStoredRulerVisible(): boolean {
-  if (typeof window === 'undefined') return false;
-  return window.localStorage.getItem(RULER_STORAGE_KEY) === 'visible';
-}
 
 /** v0.5.0 SPEC-K12 (docs/v0.5.0.md §9.1): the map editor is 只编辑地图 again. The roster, the participant panel, the participant drawer and the whole linkage-highlight chain moved to the puzzle editor — the map no longer owns a participant. `editorStore` follows suit (§9.2), so everything below reads canvas state only. */
 export function MapEditorPage(): JSX.Element {
@@ -177,11 +173,11 @@ export function MapEditorPage(): JSX.Element {
   const [regionError, setRegionError] = useState<string | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [pendingImport, setPendingImport] = useState<MapDraft | null>(null);
-  const [rulerVisible, setRulerVisible] = useState<boolean>(readStoredRulerVisible);
+  const [rulerVisible, setRulerVisible] = useState(() => readRulerVisible(RULER_STORAGE_KEY, false));
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(RULER_STORAGE_KEY, rulerVisible ? 'visible' : 'hidden');
+      saveRulerVisible(RULER_STORAGE_KEY, rulerVisible);
     }
   }, [rulerVisible]);
 

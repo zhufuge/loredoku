@@ -51,6 +51,7 @@ import { cellScale, itemPadding, scaleFontSize } from '@/lib/canvasScale';
 import { canvasShadowStyle, effectiveCellSize, resolveMapStyle } from '@/lib/mapStyle';
 import { resolveHighlight } from '@/lib/highlight';
 import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
+import { readRulerVisible, saveRulerVisible } from '@/lib/rulerPreference';
 import { cn } from '@/lib/utils';
 import { workshopPath } from '@/lib/workspace';
 import { rulerStripSize } from '@/lib/ruler';
@@ -63,12 +64,6 @@ import {
 
 /** FEAT-F01: the preview's ruler toggle. The editor owns its own switch; this key only persists the reader's preference across reloads. */
 const RULER_STORAGE_KEY = 'loredoku.puzzleview.ruler';
-
-/** Reads the persisted toggle, defaulting to visible (the editor's default). */
-function readStoredRulerVisible(): boolean {
-  if (typeof window === 'undefined') return true;
-  return window.localStorage.getItem(RULER_STORAGE_KEY) !== 'hidden';
-}
 
 /** v0.5.0 FEAT-K01 / §15 Q18 (docs/v0.5.0.md): the puzzle's read-only preview, at `/puzzles/:puzzleId/view`.；the **canvas** comes from `GET /api/puzzles/:id/map` (the referenced map version, §5.1);；the **roster** and the **palette** come from the puzzle's own draft (§5.1 / Q16). */
 export function PuzzleViewPage(): JSX.Element {
@@ -94,7 +89,7 @@ export function PuzzleViewPage(): JSX.Element {
   } = useHighlight();
   // MOD-802: single-active linkage preview — hover activates, click toggles.
   const [activation, setActivation] = useState<LinkageActivationState>(INACTIVE_ACTIVATION);
-  const [showRulers, setShowRulers] = useState<boolean>(readStoredRulerVisible);
+  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);
@@ -240,7 +235,7 @@ export function PuzzleViewPage(): JSX.Element {
   useEffect(() => {
     fitRef.current();
     if (typeof window !== 'undefined') {
-      window.localStorage.setItem(RULER_STORAGE_KEY, showRulers ? 'visible' : 'hidden');
+      saveRulerVisible(RULER_STORAGE_KEY, showRulers);
     }
   }, [showRulers]);
 
