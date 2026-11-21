@@ -21,7 +21,9 @@
     "publish:player": "node scripts/publish-player.mjs",
     "start": "npm run start --workspace @loredoku/server",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "lint:deny": "oxlint --deny-warnings",
     "test": "npm run test --workspaces --if-present && vitest run scripts",
     "db:migrate": "npm run db:migrate --workspace @loredoku/server",
     "db:rollback": "npm run db:rollback --workspace @loredoku/server",
@@ -31,6 +33,7 @@
     "@types/supertest": "^7.2.1",
     "concurrently": "^9.1.2",
     "jsdom": "25.0.1",
+    "oxlint": "^1.94.0",
     "supertest": "7.0.0",
     "vitest": "2.1.8"
   },

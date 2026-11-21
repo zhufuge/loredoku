@@ -122,7 +122,7 @@ describe('renumberPuzzleDraft', () => {
     expect(next.characterSlots[0]?.linkages?.[1]).toMatchObject({ type: 'character', id: 1 });
     // 槽位上的 characterId 与联动指向同一个角色 ⇒ 同一个序号。
     expect(next.characterSlots[0]?.characterId).toBe(
-      (next.characterSlots[0]?.linkages?.[1] as { id: number }).id,
+      (next.characterSlots[0]!.linkages![1] as { id: number }).id,
     );
   });
 

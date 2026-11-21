@@ -142,7 +142,7 @@ export function buildRegionHighlightPaths(
     else startsAt.set(key, [index]);
   });
 
-  const used = new Array<boolean>(edges.length).fill(false);
+  const used = Array.from({ length: edges.length }, () => false);
   const paths: RegionHighlightPath[] = [];
 
   for (let seed = 0; seed < edges.length; seed += 1) {

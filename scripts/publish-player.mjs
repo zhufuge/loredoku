@@ -99,9 +99,15 @@ export function parsePublishArgs(argv) {
     const arg = argv[i];
     const next = argv[i + 1];
     if (arg.startsWith('--site=')) options.site = arg.slice('--site='.length) || null;
-    else if (arg === '--site') options.site = needValue('--site', next), (i += 1);
+    else if (arg === '--site') {
+      options.site = needValue('--site', next);
+      i += 1;
+    }
     else if (arg.startsWith('--bundle=')) options.bundle = arg.slice('--bundle='.length) || null;
-    else if (arg === '--bundle') options.bundle = needValue('--bundle', next), (i += 1);
+    else if (arg === '--bundle') {
+      options.bundle = needValue('--bundle', next);
+      i += 1;
+    }
     else if (arg === '--no-build') options.noBuild = true;
     else if (arg === '--dry-run') options.dryRun = true;
     else if (arg === '--help' || arg === '-h') {
