@@ -75,12 +75,7 @@ export function GameToolRail({
         'max-md:order-4',
       )}
     >
-      {/* v0.9.4：右栏自己一层完整遮罩 —— 与左栏同一层颜色、同一档层级。
-          `-left-px` 越过右栏自己的左边框，把「中列 / 右栏」那条分隔线也压暗
-          （理由同左栏，见 `GamePlayerAside` 里的注释）。
-
-          v0.10.5 竖屏：整屏那层遮罩已经盖住这一栏，同档同色再留一层会叠成
-          两层黑，所以只在非竖屏时画它（桌面 / 横屏手机照旧）。 */}
+      {/* 右栏独立遮罩：与左栏同色同层；-left-px 压过右边框的分隔线；竖屏已有整屏遮罩，不再叠第二层。 */}
       {checking ? (
         <CheckScrim
           area="right"
@@ -100,23 +95,14 @@ export function GameToolRail({
         disabled={toolsLocked}
         onClick={onToggleForbidden}
       >
-        {/*
-          v0.8.6：这条谜题给标记配了图，工具按钮就画**同一张图** ——
-          按钮上是什么，落下去就是什么（v0.6.4 给编号立下的规矩，v0.8.6 已用
-          在工具提示层）。没配时才退回那枚红色 `×` 字形。
-
-          深色界面要翻一次：这些图多半是「深墨画在透明底上」（作者是按浅色的
-          地图纸挑的），直接放在 `bg-background` 上等于没有。`invert` 把明度
-          翻过来，`hue-rotate-180` 再把色相转回去 —— 只用 `invert` 的话，一枚
-          红印在深色下会变成青色。
-        */}
+        {/* 谜题配了标记图就用同一张：按钮上是什么，落下去就是什么；深色下 invert + hue-rotate-180，避免红印变青。 */}
         {markImageUrl ? (
           <img
             src={markImageUrl}
             alt=""
             draggable={false}
             data-testid="forbidden-tool-icon"
-            /* v0.9.0 §17：与下面三枚内置图标同一档 32px（2rem）。 */
+            /* 与下面三枚图标同一档：32px（2rem）。 */
             className="h-8 w-8 select-none object-contain dark:invert dark:hue-rotate-180"
           />
         ) : (
@@ -147,18 +133,7 @@ export function GameToolRail({
           onEndClearPress();
         }}
       >
-        {/*
-         * v0.9.2 §3：长按 800ms 清空全部 —— 进度画在**按钮方块之内**，
-         * 一个从 12 点开始扫的扇形，不再是棋格那圈细环。48px 的方块里
-         * 已经有 32px 的图标，环套上去会和图标抢地方。
-         *
-         * 时长必须跟着 `GAME_CLEAR_LONG_PRESS_MS` 走（不是棋格那个 500）：
-         * 扫满的那一帧就是清空发生的那一帧，各写一个数就会出现
-         * 「扫满了还没清」或者「清完了还在扫」。
-         *
-         * 顺序要紧：扇形是绝对定位的，会盖在普通流内容之上；图标包一层
-         * `relative` 才是「填色在图标后面」这一层关系。
-         */}
+        {/* 长按清空：进度是按钮方块内的扇形（48px 里放 32px 图标，环会抢地方）；时长取 GAME_CLEAR_LONG_PRESS_MS，图标包 relative 让填色在图标后面。 */}
         {clearPress !== null ? (
           <PressSweep
             durationMs={GAME_CLEAR_LONG_PRESS_MS - GAME_PRESS_RING_DELAY_MS}

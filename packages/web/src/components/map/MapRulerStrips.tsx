@@ -84,12 +84,7 @@ export function MapRulerStrips({
 
   return (
     <>
-      {/* Column ruler — the glyphs are anchored to the strip's bottom edge with
-          `paddingBottom: rulerGap`, so `gap` is exactly the text→board distance.
-
-          FIX-N11 (docs/v0.5.3.md §6.4): `UI_Z.ruler` — the strips used to be
-          `z-30`, above the 方格信息框's `z-20`, so dragging the canvas slid the
-          ruler glyphs over the drawer. */}
+      {/* 列标尺用 UI_Z.ruler：曾用 z-30 压过方格信息框的 z-20，拖画布时字会滑到抽屉上（FIX-N11, docs/v0.5.3.md §6.4）。 */}
       <div
         className="pointer-events-none absolute"
         style={{

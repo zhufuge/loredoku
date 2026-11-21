@@ -91,11 +91,7 @@ export function PlayerHomePage(): JSX.Element {
     <div className="min-h-screen bg-background">
       <div className="mx-auto w-full max-w-6xl space-y-8 px-6 py-6">
         <div className="flex flex-col gap-2">
-          {/*
-            日夜切换跟着 LOGO 这一行走 —— 它管的是「这一页怎么显示」，与主题标题
-            不是一件事；挂在整块页头的右端（`items-end`）的话，标题一长就会被挤到
-            描述文字的旁边，看着像另一栏的东西。
-          */}
+          {/* 日夜切换跟着 LOGO 这一行走：它管整页显示，与主题标题无关；挂页头右端会被长标题挤成另一栏。 */}
           <div className="flex items-center justify-between gap-4">
             <BrandLogo height={16} withWordmark />
             <ThemeToggle className="h-9 w-9 shrink-0" />

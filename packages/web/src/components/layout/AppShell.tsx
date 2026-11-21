@@ -83,11 +83,7 @@ export function AppShell({ variant = 'workshop' }: { variant?: 'workshop' | 'con
             )}
             {/* v0.5.7: theme switch — every console page rides this header. */}
             <ThemeToggle className="h-9 w-9" />
-            {/*
-              * 配置页的「返回工坊」在日夜开关之后：两个外壳的**右上角最后一位**
-              * 是同一个位置 —— 工坊是「游戏」，配置页是「返回工坊」，都是「离开
-              * 这一处」的出口，同一趟来回不会左右横跳。
-              */}
+            {/* 配置页「返回工坊」放在日夜开关之后：两个外壳右上角最后一位都是「离开这里」的出口，来回不横跳。 */}
             {config ? (
               /* v0.8.3（docs/v0.8.3.md §13）：回工坊去**入口**，不自己拼地址。 记住的编码可能是刚被删掉的那一间 —— 系统配置正是「删主题」之后落脚的 地方，于是拼出来的地址只会得到「没有编码是 xxx 的主题」，明明还有 别的工坊开着。 `/` 是 `ThemeEntryRedirect`：它把记住的编码对着**现有主题列表**验 一遍，失效就落到第一间，一间都没有才去配置页。 判断只有那一处， 这里只负责说「回去」。 */
               <Button variant="outline" size="sm" className="gap-1.5" asChild>

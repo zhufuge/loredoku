@@ -75,10 +75,7 @@ export function SortWeightCell({ value, pending = false, onCommit }: SortWeightC
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
         )}
       >
-        {/*
-         * 一个孤零零的数字会被读成「上一列的残留」。这一列没有表头，所以给它一个
-         * 字宽的字做标签 —— 「序」比「权重 / 顺序」省地方，也正好是这一列在做的事。
-         */}
+        {/* 这一列没有表头，用单字「序」当标签，比「权重 / 顺序」省地方。 */}
         <span className="text-2xs text-muted-foreground/60">序</span>
         <span className="font-mono text-xs tabular-nums">{value}</span>
       </button>

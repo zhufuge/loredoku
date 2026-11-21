@@ -527,10 +527,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {/*
-            v0.7.3 §2：名称 / 描述 / 封面合成一块「基本」，与地图抽屉同一个排版。
-            名称与描述进草稿；封面只交 `{ file, removed }`，页面等保存成功后再上传。
-          */}
+          {/* 名称 / 描述 / 封面合成「基本」块：前两者进草稿，封面只交 { file, removed }，保存成功后再上传（docs/v0.7.3.md §2）。 */}
           <Section
             title="基本"
             hint="Info — 名称、描述与封面。封面图片在点「保存」后上传。"
@@ -591,18 +588,7 @@ export const PuzzleInfoDrawer = forwardRef<PuzzleInfoDrawerHandle, PuzzleInfoDra
               onRestore={() => setDraftCoverRemoved(false)}
             />
           </Section>
-          {/*
-            v0.9.5：**操作提示** —— 标记 + 三枚按钮图标，合成一个模块。
-
-            它们回答的是同一个问题：玩家在盘面上操作时看到的那些提示长什么样。
-            用户要的就是「标记 / 清除 / 回退 / 提交的配置放到一个模块」—— 分两节会
-            让人以为它们无关，而作者通常是一起调的。
-
-            一律**没配就跟随主题**：预览画的必须是这一题最终会用的那张（自己的，
-            否则主题的，再否则内置），不然作者在抽屉里看到 ×、玩家在游戏页看到一张
-            图 —— 两边说的不是同一件事。`data-source` 让测试能分清「自己的」和
-            「跟随的」。
-          */}
+          {/* 标记与三枚按钮图标合成「操作提示」：作者通常一起调；未配就跟随主题，预览必须等于玩家看到的最终图，data-source 区分来源。 */}
           <Section
             title="操作提示"
             hint="玩家在盘面上操作时看到的提示：标记是「这格排除」的那枚符号，另外三枚是游戏页右列按钮上的画。不单独配置就跟随主题（主题概览页的「操作提示」）；上传一张可以只给这一题换一枚。都没配时用内置样式。"
