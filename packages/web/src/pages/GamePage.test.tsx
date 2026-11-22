@@ -16,7 +16,6 @@ import { installMatchMedia, type MatchMediaStub } from '@/testing/matchMedia';
 import { imageTintMatrix } from '@/components/common/PressRing';
 import { GAME_PROGRESS_VERSION, gameProgressKey } from '@/lib/gameProgress';
 import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
-import { GAME_HELP_SEEN_KEY } from '@/lib/gameHelp';
 import { gameTimerKey } from '@/lib/gameTimer';
 import ApiGamePage from './ApiGamePage';
 
@@ -199,8 +198,6 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
   beforeEach(() => {
     window.localStorage.clear();
-    // 预置「玩法说明看过了」：否则首次进入自动弹窗压住棋盘，几十条用例一起红。
-    window.localStorage.setItem(GAME_HELP_SEEN_KEY, '1');
     fixture.detailPending = false;
     // 换关用例改过 slug / gridSize —— 它们是同一个夹具对象，必须逐条还原，
     // 否则后面所有用例都在「5×5 的 day-boat」上跑。
@@ -1305,7 +1302,6 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
           // 换一份主题再开一局：先清掉上一局的完成记录，否则一进来就是「已结案」。
           act(() => root.unmount()); root = createRoot(container);
           window.localStorage.clear();
-          window.localStorage.setItem(GAME_HELP_SEEN_KEY, '1');
           fixture.theme.verdict = { iconText: '🏮', title: '此案已了' };
           seedPassingBoard();
           render();
@@ -1316,7 +1312,6 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
 
           act(() => root.unmount()); root = createRoot(container);
           window.localStorage.clear();
-          window.localStorage.setItem(GAME_HELP_SEEN_KEY, '1');
           fixture.theme.verdict = {
             iconText: '🏮',
             icon: { path: 'themes/2/verdict/b.webp' },
@@ -1705,7 +1700,7 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     });
   });
 
-  /** 玩法说明。 判据只钉「玩家看得见的三件事」：第一次进来自己弹、第二次不弹、两枚问号随时能再打开。记账的键名与读写失败的行为在 `lib/gameHelp.test.ts` 里。 */
+  /** 玩法说明。 只钉玩家看得见的两件事：进关卡不自己弹（要看自己点），两枚问号随时能打开。 */
   describe('v0.11.7 玩法说明', () => {
     function helpDialog(): HTMLElement | null {
       // Radix 把弹框内容 portal 到 `document.body`，不在 `container` 里。
@@ -1718,27 +1713,13 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
       );
     }
 
-    /** 自动弹的那一次也记账：同一个「看过了」的键，刷新后不再弹（原本「看过再进来」那条也走这条路径）。 */
-    it('第一次进关卡：自动弹一次并记下，刷新后不再弹', () => {
-      window.localStorage.removeItem(GAME_HELP_SEEN_KEY);
-      render();
-      expect(helpDialog()).not.toBeNull();
-      expect(window.localStorage.getItem(GAME_HELP_SEEN_KEY)).toBe('1');
-
-      act(() => root.unmount());
-      container.remove();
-      container = document.createElement('div');
-      document.body.append(container);
-      root = createRoot(container);
+    it('进关卡不自己弹', () => {
       render();
       expect(helpDialog()).toBeNull();
     });
 
-    it('关掉之后再点问号：还能再打开（桌面右栏与竖屏头部各一枚）', () => {
-      window.localStorage.removeItem(GAME_HELP_SEEN_KEY);
+    it('点问号能打开（桌面右栏与竖屏头部各一枚）', () => {
       render();
-      expect(helpDialog()).not.toBeNull();
-      act(() => footerButton('知道了')?.click());
       expect(helpDialog()).toBeNull();
 
       const buttons = helpButtons();

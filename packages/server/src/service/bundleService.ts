@@ -214,6 +214,8 @@ export async function buildThemeBundle(
       ...(manifestVerdict ? { verdict: manifestVerdict } : {}),
       // 列表页那两行字。纯字符串，不落盘，没配就不写键。
       ...(themeData?.gameList ? { gameList: themeData.gameList } : {}),
+      // 列表页标题的字体（v0.11.10），同上。
+      ...(themeData?.fontFamily ? { fontFamily: themeData.fontFamily } : {}),
     },
     exportedAt,
     games: manifestGames,

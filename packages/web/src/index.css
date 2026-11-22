@@ -608,11 +608,12 @@
       load-skeleton-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
-  /* LOREDOKU 字标（LoredokuLoader）：逐字盖上再退下。用独立 translate/scale 而非 transform；幅度刻意小。 */
+  /* LOREDOKU 字标（LoredokuLoader）：逐字盖上再退下。用独立 translate/scale 而非 transform；幅度刻意小。
+     字形与页头那个字标同一条注册链（Courier Prime Sans），加载时看到的就是品牌自己的那支笔。 */
   .loredoku-word {
     display: inline-flex;
     align-items: baseline;
-    font-family: '霞鹜文楷', 'Kaiti SC', 'STKaiti', 'KaiTi', ui-serif, serif;
+    font-family: 'Courier Prime Sans', ui-monospace, 'Courier New', monospace;
     font-synthesis-weight: none;
     line-height: 1;
     letter-spacing: 0.16em;

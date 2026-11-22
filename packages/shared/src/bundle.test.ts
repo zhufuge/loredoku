@@ -220,4 +220,20 @@ describe('buildBundleManifest 的主题难度分级', () => {
       'description',
     ]);
   });
+
+  /** v0.11.10：列表页标题的字体也跟着包走 —— 播放器没有 `/themes` 查询，只能从 manifest 里读。 */
+  it('标题字体同样原样透传，没配就不写键', () => {
+    const withFont = buildBundleManifest(
+      input({
+        code: 'hlm',
+        name: '红楼梦',
+        description: null,
+        fontFamily: 'Courier Prime Sans',
+      }),
+    );
+    expect(withFont.theme.fontFamily).toBe('Courier Prime Sans');
+
+    const plain = buildBundleManifest(input({ code: 'hlm', name: '红楼梦', description: null }));
+    expect('fontFamily' in plain.theme).toBe(false);
+  });
 });

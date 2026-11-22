@@ -31,7 +31,6 @@ import { readRulerVisible, saveRulerVisible } from '@/lib/rulerPreference';
 import { readGameProgress, writeGameProgress } from '@/lib/gameProgress';
 import { nextUnfinishedLevel, type GameLevelRef } from '@/lib/gameCatalog';
 import { readGameCompletion, recordGameCompletion } from '@/lib/gameCompletion';
-import { markGameHelpSeen, readGameHelpSeen } from '@/lib/gameHelp';
 import { useProvidedGameSource, type GameSource } from '@/lib/gameSource';
 import { readGameTimer } from '@/lib/gameTimer';
 import { boardImageUrls } from '@/lib/pageImages';
@@ -232,14 +231,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     catalogQuery.isLoading ||
     !imagesReady;
 
-  /* 第一次进**任意**关卡时自动弹一次玩法说明。 三个条件：这一关的数据到了（说明里说的「点参与者」「长按格子」得有对象可指）、 资源齐了（别让弹框压在骨架屏上）、这台设备还没看过（`lib/gameHelp.ts`）。 记账在**打开这一刻**就写，而不是等玩家点「知道了」：他可能直接点遮罩外的 返回、或者直接开始下棋，那两种也都算「看过一次」—— 若等到关闭才记， 每次刷新都会再弹一遍，那就成了挡路的浮层而不是说明。 */
-  useEffect(() => {
-    if (!detail || resourcesLoading || readGameHelpSeen()) return;
-    markGameHelpSeen();
-    setHelpOpen(true);
-  }, [detail, resourcesLoading]);
-
-  /** 中列（`<main>`）—— 量可见区、算坐标、挂 `ResizeObserver` 都认它。 */
+  /* 中列（`<main>`）—— 量可见区、算坐标、挂 `ResizeObserver` 都认它。 */
   const containerRef = useRef<HTMLDivElement | null>(null);
 
   /** 视口（格子大小 / 缩放 / 平移 / 竖屏 / 可见区）交给 `useGameViewport`。 它不读任何一局的状态 —— 只认 `gridSize`、地图样式与标尺开关。 `ready` 传「资源齐了、`<main>` 这一拍存在」，否则 loading 期间那次挂载会白跑（容器还是 `null`），棋盘事后不会自己重排 —— 用户报的「地图缩小在左上方」就是这么来的。 */
@@ -702,7 +694,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
   };
 
   if (resourcesLoading) {
-    return <LoadingScreen caption="正在加载游戏…" />;
+    return <LoadingScreen caption="正在加载谜题…" />;
   }
 
   if (!gameQuery.data || gameQuery.isError) {

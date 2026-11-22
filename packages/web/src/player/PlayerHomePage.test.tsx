@@ -178,7 +178,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     mount();
 
     expect(document.querySelectorAll('[role="button"]')).toHaveLength(0);
-    expect(document.body.textContent).toContain('正在加载主题');
+    expect(document.body.textContent).toContain('正在加载游戏');
   });
 
   it('包还没到 → 同样只出加载件', () => {
@@ -187,7 +187,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     mount();
 
     expect(document.querySelectorAll('[role="button"]')).toHaveLength(0);
-    expect(document.body.textContent).toContain('正在加载主题');
+    expect(document.body.textContent).toContain('正在加载游戏');
   });
 
   it('字体与包都就绪 → 卡片出来，加载件退场', () => {
@@ -195,7 +195,7 @@ describe('PlayerHomePage 的难度徽章', () => {
     mount();
 
     expect(document.querySelectorAll('[role="button"]').length).toBeGreaterThan(0);
-    expect(document.body.textContent).not.toContain('正在加载主题');
+    expect(document.body.textContent).not.toContain('正在加载游戏');
   });
 
   /**
@@ -208,13 +208,13 @@ describe('PlayerHomePage 的难度徽章', () => {
     fontsRef.ready = false;
     mount();
 
-    expect(document.body.textContent).not.toContain('正在加载主题');
+    expect(document.body.textContent).not.toContain('正在加载游戏');
   });
 
   /** 顶上那两行字与工坊那边同一份配置（包导出时已经冻进 `manifest.theme.gameList`），没配过就退回内置那两句。 */
   describe('v0.11.6 计数行与难度过滤', () => {
-    const passedCount = (): string =>
-      document.querySelector('[data-testid="games-passed-count"]')?.textContent ?? '';
+    const passedCount = (): string | null =>
+      document.querySelector('[data-testid="games-passed-count"]')?.textContent ?? null;
     const cards = (): number => document.querySelectorAll('[role="button"]').length;
     const chips = (): HTMLButtonElement[] =>
       Array.from(
@@ -229,10 +229,14 @@ describe('PlayerHomePage 的难度徽章', () => {
 
     it('没配过就用内置那两句', () => {
       manifestRef.data = manifest({ ...identity, difficultyLevels: tiers });
+      recordGameCompletion(bundleStorageId('hlm', 'puzzle-sishan'), { gridSize: 4 }, {
+        elapsedMs: 61_000,
+        stampUrl: null,
+      });
       mount();
 
       expect(document.body.textContent).toContain('2 关可玩');
-      expect(passedCount()).toBe('已通过 0 关');
+      expect(passedCount()).toBe('已通过 1 关');
     });
 
     it('主题配过就用配的，{n} 换成关数', () => {
@@ -241,10 +245,22 @@ describe('PlayerHomePage 的难度徽章', () => {
         difficultyLevels: tiers,
         gameList: { playable: '共 {n} 回', passed: '已了 {n} 桩' },
       });
+      recordGameCompletion(bundleStorageId('hlm', 'puzzle-sishan'), { gridSize: 4 }, {
+        elapsedMs: 61_000,
+        stampUrl: null,
+      });
       mount();
 
       expect(document.body.textContent).toContain('共 2 回');
-      expect(passedCount()).toBe('已了 0 桩');
+      expect(passedCount()).toBe('已了 1 桩');
+    });
+
+    /** 0 解不提「已通过」—— 那一刻这个数字只会让人以为自己漏了什么。 */
+    it('一题没解就不写「已通过」那一行', () => {
+      manifestRef.data = manifest({ ...identity, difficultyLevels: tiers });
+      mount();
+
+      expect(passedCount()).toBeNull();
     });
 
     it('通过一关，那个数字跟着变', () => {
@@ -294,7 +310,7 @@ describe('PlayerHomePage 的难度徽章', () => {
       act(() => chips()[1]?.click());
 
       expect(cards()).toBe(0);
-      expect(document.body.textContent).toContain('这一档还没有关卡');
+      expect(document.body.textContent).toContain('空白纸，未落笔。');
 
       act(() =>
         Array.from(document.querySelectorAll('button'))

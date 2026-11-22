@@ -2,6 +2,7 @@ import { z } from 'zod';
 import {
   BG_COLOR_PATTERN,
   DEFAULT_THEME_CODE,
+  isMapStyleFontFamilyName,
   GAME_DIFFICULTY_LEVEL_MAX,
   GAME_DIFFICULTY_LEVEL_MIN,
   THEME_CODE_MAX_LENGTH,
@@ -136,6 +137,15 @@ const themeDataObjectSchema = z
      * 结算卡通过那一面的图标与标题。缺了 = 内置 🎉 + 「解题成功」。
      */
     verdict: themeVerdictSchema,
+    /**
+     * 列表页标题用的字体（v0.11.10）。取值与地图区域标签同一套：内置 key（`system` / `serif` …）
+     * 或 `assets/fonts/` 里的具体字族名。缺了 = 页面自己的衬线缺省。
+     */
+    fontFamily: z
+      .string()
+      .trim()
+      .refine(isMapStyleFontFamilyName, '字体名不合法（不能含引号、逗号等字符）')
+      .optional(),
     /**
      * 游戏列表页那两行字（「N 关可玩」/「已通过 N 关」）。缺了 = 内置。
      */

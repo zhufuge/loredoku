@@ -17,6 +17,7 @@ import { EditThemeDialog } from '@/components/theme-overview/EditThemeDialog';
 import { ThemeStyleDialog } from '@/components/theme-overview/ThemeStyleDialog';
 import { DifficultyTiersDialog } from '@/components/theme-overview/DifficultyTiersDialog';
 import { GameListTextsCard } from '@/components/theme-overview/GameListTextsCard';
+import { ThemeTitleFontCard } from '@/components/theme-overview/ThemeTitleFontCard';
 import { DeleteThemeDialog } from '@/components/theme-overview/DeleteThemeDialog';
 import { resolveMapStyle } from '@/lib/mapStyle';
 import { THEME_STYLE_FIELDS } from '@/lib/themeStyleFields';
@@ -242,6 +243,15 @@ export function ThemeOverviewPage(): JSX.Element {
       <Card className="space-y-3 px-4 py-4">
         <CardHead title="游戏列表文案" />
         <GameListTextsCard theme={theme} />
+      </Card>
+
+      {/*
+        标题字体：作者给这个主题挑一支字，前台列表页的标题就用那一支。
+        与上面的文案挨着放 —— 两者都是「这个主题在列表页上怎么说自己」。
+      */}
+      <Card className="space-y-3 px-4 py-4">
+        <CardHead title="标题字体" />
+        <ThemeTitleFontCard theme={theme} />
       </Card>
 
       <EditThemeDialog theme={theme} open={editOpen} onOpenChange={setEditOpen} />

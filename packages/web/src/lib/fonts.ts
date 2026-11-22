@@ -180,6 +180,16 @@ export function hasBundledFonts(): boolean {
   return BUNDLED_FONT_FACES.length > 0;
 }
 
+/** 页头字标与加载字标都走这支拉丁（`.font-brand`）：15 KB，和中文那几支（霞鹜文楷 900 KB 起）不是一个量级，先落它。 */
+export const BRAND_FONT_FAMILY = 'Courier Prime Sans';
+
+/** 品牌那支排到最前，其余保持「按字族名」的稳定顺序。 */
+function brandFirst(families: string[]): string[] {
+  return [...families].sort(
+    (a, b) => Number(b === BRAND_FONT_FAMILY) - Number(a === BRAND_FONT_FAMILY),
+  );
+}
+
 /** 把目录里的字体注册进 `document.fonts`。 用 `FontFace` 而不是往页面里插 `<style>`：不用拼 CSS 文本，也不会和 CSP 的 inline-style 规则打架。**不主动 `load()`** —— 注册只是让字族可用，真正下载发生在第一次有文字用到它的时候，所以十个字体文件不会在首屏一起拉。 */
 export function registerBundledFonts(): void {
   if (typeof document === 'undefined' || typeof FontFace === 'undefined') return;
@@ -201,17 +211,29 @@ export function registerBundledFonts(): void {
       // 浏览器不认这个字体文件：跳过它，标签按回退链继续画。
     }
   }
+
+  // 只把品牌字标那一支提前拉下来：首屏第一眼看到的就是它，15 KB 值得先要；
+  // 其余字体仍按「用到才下」，不能为了这一笔把中文那 900 KB 一起拖进首屏。
+  if (typeof document.fonts !== 'undefined' && bundledFontFamilies().includes(BRAND_FONT_FAMILY)) {
+    void document.fonts.load(`400 16px "${BRAND_FONT_FAMILY}"`).catch(() => undefined);
+  }
 }
 
 /** v0.11.3（docs/v0.11.3.md §2）—— 等自带字体真的能画了再放内容出来。 `registerBundledFonts()` 只是**登记**，下载发生在第一次有文字用到它的时候； 而播放器列表页的主题名、卡片关卡名全是 `.font-kai`，于是首帧先按回退链画一遍 （宋体/楷体），字体到了再换 —— 玩家看到的是整页文字「刷」地变一次字形。 任何一步失败都当作「已经就绪」—— 字体取不到不该把玩家卡在加载页，回退链 本来就是设计的一部分。 采样字串带上这一页一定会画的字（主题名 / 关卡名几乎都是汉字），避免用纯 ASCII 触发加载时命中的是字体里的拉丁子集、汉字仍要二次下载。 */
 export async function loadBundledFonts(): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts) return;
-  const families = bundledFontFamilies();
+  const families = brandFirst(bundledFontFamilies());
   if (families.length === 0) return;
+
+  // 品牌那支先到，再放中文那几支：字标和「格物」同时首帧画，先来的是哪支就先闪哪支的回退字形。
+  const [brand, ...rest] = families;
+  if (brand) {
+    await document.fonts.load(`400 16px "${brand}"`, 'LOREDOKU').catch(() => null);
+  }
 
   const sample = '格物定案解题成功红楼梦';
   await Promise.all(
-    families.map((family) =>
+    rest.map((family) =>
       document.fonts
         .load(`400 16px "${family}"`, sample)
         .catch(() => null),

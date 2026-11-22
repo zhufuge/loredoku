@@ -170,6 +170,11 @@ export interface BundleManifestTheme {
   verdict?: ThemeVerdict | null;
   /** 游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。 与 `verdict` 同一条规矩：没配过的主题没有这个键，列表页用内置那两句。 文案随包走，于是**不重新导出**就改不掉 —— 这是有意的：包是一份可离线运行的快照，它说的话应该和导出那一刻一致。 */
   gameList?: ThemeGameListTexts | null;
+  /**
+   * 列表页标题的字体（v0.11.10）。与 `gameList` 同一条规矩：跟着包走，不重新导出就改不掉。
+   * 可选 —— 老包没有这个键，标题按页面缺省的衬线画。
+   */
+  fontFamily?: string;
 }
 
 export interface BundleManifest {
@@ -222,6 +227,8 @@ export function buildBundleManifest(input: BuildBundleManifestInput): BundleMani
       ...(input.theme.verdict ? { verdict: input.theme.verdict } : {}),
       // 列表页那两行字的模板，同一条「没配就不写键」。
       ...(input.theme.gameList ? { gameList: input.theme.gameList } : {}),
+      // 列表页标题的字体（v0.11.10），同理。
+      ...(input.theme.fontFamily ? { fontFamily: input.theme.fontFamily } : {}),
     },
     games: input.games,
     assets: 'assets.json',

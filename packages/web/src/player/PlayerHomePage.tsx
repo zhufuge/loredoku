@@ -1,14 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { AlertTriangle, Layers } from 'lucide-react';
-import { formatGameListCount, resolveGameListTexts } from '@loredoku/shared';
+import { resolveGameListTexts } from '@loredoku/shared';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { LoadingScreen } from '@/components/common/LoredokuLoader';
-import { DifficultyFilter } from '@/components/game/DifficultyFilter';
+import { GameListShell } from '@/components/game/GameListShell';
 import { GameCard } from '@/components/game/GameCard';
-import { BrandLogo } from '@/components/layout/BrandLogo';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import {
   bundleDifficultyTiers,
   bundleRoot,
@@ -25,6 +21,9 @@ import { useBundleManifest } from './PlayerBundleProvider';
 
 /**
  * v0.9.0（docs/v0.9.0.md §6）—— 播放器的关卡列表页 `/loredoku/:code/play`：数据只有 `manifest`（`games` + `theme.difficultyLevels`，2026-11-09 补 §13），没有 `/themes` 查询。`tiers` 必须显式传 —— 这页在 `WorkspaceLayout` 外，不传 `DifficultyBadge` 就退回内置五档（v0.8.6 §3.6）。
+ *
+ * v0.11.10：骨架交给 `GameListShell` —— 与工坊的 `/:code/play` 同一张脸。两边的差别只剩数据从哪来
+ * （`/games` + `/themes` vs 一份 `manifest`）与没有「进入工坊」的出口。
  */
 export function PlayerHomePage(): JSX.Element {
   const { code = '' } = useParams<{ code: string }>();
@@ -82,48 +81,27 @@ export function PlayerHomePage(): JSX.Element {
   const coversReady = useImagePreload(gameCoverUrls(visibleGames));
   const loading = isLoading || !fontsReady || (visibleGames.length > 0 && !coversReady);
 
-  /** loading 期间整页只有加载件 —— 页头也不先画。 放在页头之前是刻意的：主题名本身是 `.font-kai`，先画出来再换字形就是这里要消灭的那一帧。等包、字体、封面都齐了，一次画成。 `!isError`：包读不出来是配置错误，那一刻已经没什么可等 —— 立刻把原因说清楚， 别让玩家对着字标等一份永远不会到的包。 */
-  if (loading && !isError) {
-    return <LoadingScreen caption="正在加载主题…" />;
-  }
+  /** 包读不出来是配置错误，那一刻已经没什么可等 —— 立刻把原因说清楚，别让玩家对着字标等一份永远不会到的包。 */
+  const failed = isError || mismatched;
 
   return (
-    <div className="min-h-screen bg-background">
-      <div className="mx-auto w-full max-w-6xl space-y-8 px-6 py-6">
-        <div className="flex flex-col gap-2">
-          {/* 日夜切换跟着 LOGO 这一行走：它管整页显示，与主题标题无关；挂页头右端会被长标题挤成另一栏。 */}
-          <div className="flex items-center justify-between gap-4">
-            <BrandLogo height={16} withWordmark />
-            <ThemeToggle className="h-9 w-9 shrink-0" />
-          </div>
-          <div className="min-w-0 space-y-2">
-            <h1 className="truncate font-kai text-2xl leading-tight">
-              {manifest?.theme.name ?? '主题'}
-            </h1>
-            {manifest?.theme.description ? (
-              <p className="max-w-2xl text-sm text-muted-foreground">
-                {manifest.theme.description}
-              </p>
-            ) : null}
-            {manifest ? (
-              <p className="text-xs text-muted-foreground">
-                {formatGameListCount(texts.playable, games.length)}
-                <span className="mx-1.5 text-muted-foreground/50">·</span>
-                <span data-testid="games-passed-count">
-                  {formatGameListCount(texts.passed, completions.size)}
-                </span>
-              </p>
-            ) : null}
-          </div>
-        </div>
-
-        {/* 难度过滤 —— 与工坊列表页同一个组件，档名就是这个主题自己的。 */}
-        {isError || mismatched || games.length === 0 ? null : (
-          <DifficultyFilter tiers={tiers ?? []} value={difficulty} onChange={setDifficulty} />
-        )}
-
-        {isError ? (
-          <Card className="flex flex-col items-center gap-3 p-12 text-center">
+    <GameListShell
+      themeName={manifest?.theme.name ?? null}
+      description={manifest?.theme.description ?? null}
+      titleFontFamily={manifest?.theme.fontFamily ?? null}
+      texts={texts}
+      allCount={games.length}
+      passedCount={completions.size}
+      tiers={tiers}
+      difficulty={difficulty}
+      onDifficultyChange={setDifficulty}
+      games={visibleGames}
+      loading={loading && !failed}
+      loadingCaption="正在加载游戏…"
+      error={isError ? (error ?? new Error('资源包读不出来')) : undefined}
+      errorContent={
+        isError ? (
+          <>
             <AlertTriangle className="h-8 w-8 text-muted-foreground/60" />
             <p className="text-sm text-muted-foreground">
               这个播放器里没有「{code}」这个主题的资源包。
@@ -135,47 +113,32 @@ export function PlayerHomePage(): JSX.Element {
               包要用 <code className="font-mono">--bundle</code> 交给构建（见 docs/v0.9.0.md），
               并且放在产物的 <code className="font-mono">{code}/</code> 目录下。
             </p>
-          </Card>
-        ) : mismatched ? (
-          <Card className="flex flex-col items-center gap-3 p-12 text-center">
-            <AlertTriangle className="h-8 w-8 text-muted-foreground/60" />
-            <p className="text-sm text-muted-foreground">
-              这个目录里装的不是「{code}」的包 —— 包里写的是「{manifest?.theme.code}」。
-            </p>
-          </Card>
-        ) : games.length === 0 ? (
-          <Card className="flex flex-col items-center gap-3 p-12 text-center">
-            <Layers className="h-8 w-8 text-muted-foreground/60" />
-            <p className="text-sm text-muted-foreground">这个主题还没有可玩的关卡。</p>
-            <Button variant="outline" onClick={() => window.location.reload()}>
-              重新加载
-            </Button>
-          </Card>
-        ) : visibleGames.length === 0 ? (
-          /* 这一档确实没有关卡。给回「全部」的出口 —— 否则玩家会以为包坏了（列表刚才还在，点一下档位就空了）。 */
-          <Card className="flex flex-col items-center gap-3 p-12 text-center">
-            <Layers className="h-8 w-8 text-muted-foreground/60" />
-            <p className="text-sm text-muted-foreground">这一档还没有关卡。</p>
-            <Button variant="outline" onClick={() => setDifficulty(null)}>
-              看全部
-            </Button>
-          </Card>
+          </>
         ) : (
-          <div className="grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-4">
-            {visibleGames.map((game) => (
-              <GameCard
-                key={game.slug}
-                game={game}
-                tiers={tiers}
-                href={gameHrefOf(code, game.slug)}
-                completion={completions.get(game.slug) ?? null}
-                lastLeftAt={lastLeft.get(game.slug)?.at ?? null}
-                lastLeftElapsedMs={lastLeft.get(game.slug)?.elapsedMs ?? null}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+          <p className="text-sm text-muted-foreground">
+            这个目录里装的不是「{code}」的包 —— 包里写的是「{manifest?.theme.code}」。
+          </p>
+        )
+      }
+      emptyContent={
+        <>
+          <Layers className="h-8 w-8 text-muted-foreground/60" />
+          <p className="text-sm text-muted-foreground">这个主题还没有可玩的关卡。</p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            重新加载
+          </Button>
+        </>
+      }
+      renderGame={(game) => (
+        <GameCard
+          game={game}
+          tiers={tiers}
+          href={gameHrefOf(code, game.slug)}
+          completion={completions.get(game.slug) ?? null}
+          lastLeftAt={lastLeft.get(game.slug)?.at ?? null}
+          lastLeftElapsedMs={lastLeft.get(game.slug)?.elapsedMs ?? null}
+        />
+      )}
+    />
   );
 }

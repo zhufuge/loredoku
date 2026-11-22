@@ -501,6 +501,11 @@ export interface ThemeData {
   verdict?: ThemeVerdict | null;
   /** 游戏列表页那两行字的模板（「N 关可玩」/「已通过 N 关」）。 与 `verdict` 同一条规矩：**读取时**兜底 —— 改一句文案，工坊的 `/play` 与播放器里的列表页同时变，不必重新导出包。 缺失 / `null` = 内置的两句（见 `THEME_GAME_LIST_PLAYABLE_FALLBACK` 与 `THEME_GAME_LIST_PASSED_FALLBACK`）。 */
   gameList?: ThemeGameListTexts | null;
+  /**
+   * v0.11.10：游戏列表页**标题**用的字体。取值与地图区域标签同一套 —— 内置 key
+   * （`system` / `serif` …）或 `assets/fonts/` 里的具体字族名；缺失 = 页面自己的衬线缺省。
+   */
+  fontFamily?: string;
 }
 
 /**

@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  BRAND_FONT_FAMILY,
   bundledFontFamilies,
   fontFamilyLabel,
   fontFamilyOptions,
+  loadBundledFonts,
   parseFontFileName,
 } from './fonts';
 
@@ -92,5 +94,38 @@ describe('fontFamilyOptions', () => {
   it('labels a built-in key in Chinese and a font name as itself', () => {
     expect(fontFamilyLabel('serif')).toBe('衬线');
     expect(fontFamilyLabel('WenKai')).toBe('WenKai');
+  });
+});
+
+/** 首屏第一眼看到的是字标，不是汉字：品牌那支 15 KB 必须先落地，中文那几支排它后面（见 `loadBundledFonts`）。 */
+describe('loadBundledFonts', () => {
+  it('等品牌那支回来，才去要中文那几支', async () => {
+    const asked: string[] = [];
+    let openBrandGate: () => void = () => undefined;
+    const brandGate = new Promise<void>((resolve) => {
+      openBrandGate = resolve;
+    });
+
+    const fakeFonts = {
+      load: async (spec: string) => {
+        const family = spec.split('"')[1] ?? spec;
+        asked.push(family);
+        if (family === BRAND_FONT_FAMILY) await brandGate;
+        return [];
+      },
+      ready: Promise.resolve(),
+    };
+    Object.defineProperty(document, 'fonts', {
+      value: fakeFonts as unknown as FontFaceSet,
+      configurable: true,
+    });
+
+    const run = loadBundledFonts();
+    await Promise.resolve();
+    expect(asked).toEqual([BRAND_FONT_FAMILY]);
+
+    openBrandGate();
+    await run;
+    expect(asked.length).toBeGreaterThan(1);
   });
 });
