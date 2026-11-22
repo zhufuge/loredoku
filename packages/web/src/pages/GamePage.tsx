@@ -454,11 +454,18 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     const startFrom = alreadyDone ? 0 : savedElapsed;
     // 已完成再进入：结案遮罩上要多一颗「再玩一次」、且不播印章动效。
     revisitedRef.current = alreadyDone;
-    hydrateTimer(startFrom, !alreadyDone);
+    /* 表先搭好但**不走**：加载中的那几秒（接口、画布上那些图）不算成绩，见下面那条起表 effect。 */
+    hydrateTimer(startFrom, false);
     setFinished(alreadyDone);
     /** 读完了才允许落盘。这一行必须排在 `readGameProgress` / `readGameTimer` 之后 —— 它一置真，计时那条 effect 立即开始每 5 秒写一次。 */
     setHydrated(true);
   }, [draft, storageId, gridSize, slots.length, progressMeta, hydrateTimer]);
+
+  /** **起表在加载完成之后**。 用户：「开始计时时间是加载完成后才开始计时，而不是开始加载就计时」—— 加载里那几秒是在等接口和画布上那些图，玩家还什么都没看见，不该算进成绩。 所以水合只把存档装进表、不放开走；等 `resourcesLoading` 落下来的第一拍才起表。 已完成再进入（`revisitedRef`）照旧定格 00:00，等「再玩一次」。 */
+  useEffect(() => {
+    if (!hydrated || resourcesLoading || revisitedRef.current) return;
+    resumeTimer();
+  }, [hydrated, resourcesLoading, resumeTimer]);
 
   /** SPEC-G05 §5.3: the roster cards of participants that are already on the board fade out. */
   const placedSlotIndices = useMemo(() => {
@@ -699,7 +706,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
 
   if (!gameQuery.data || gameQuery.isError) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <div className="flex h-dvh flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">游戏不存在或加载失败。</p>
         {/* FEAT-L04: the game list lives at /play now. */}
         <Button variant="outline" onClick={() => navigate('/play')}>

@@ -89,9 +89,8 @@ export function VerdictMark({
       <span
         className={cn(
           /* 文楷只有 400 且 `font-synthesis-weight: none`，必须显式放开合成粗体；其余处不受影响。 */
-          'relative z-0 font-kai font-bold [font-synthesis-weight:auto] tracking-[0.25em]',
-          /* 竖排用 `writing-mode`；必须禁换行，否则字距撑开会把两字排成两列。 */
-          '[writing-mode:vertical-rl] whitespace-nowrap',
+          'relative z-0 flex flex-col items-center gap-[0.25em] font-kai font-bold leading-none [font-synthesis-weight:auto]',
+          /* 竖排不用 `writing-mode`：Safari 给竖排里的 `letter-spacing` 收尾补的那一格和别的引擎不一样，两个字会整体蹿一截。 两字各占一行、间距用 `gap` 排，盒子在哪个引擎里都是同一块。 */
           /* 六成黑遮罩上必须始终浅色（主题 token 会随主题反转）；卡片档是半透明印迹。 */
           onDark
             ? 'text-primary-foreground dark:text-foreground'
@@ -100,7 +99,8 @@ export function VerdictMark({
           /* 字号由容器 `style.fontSize` 给：这里写字号类会盖掉它，比例就只对印生效。 */
         )}
       >
-        定案
+        <span>定</span>
+        <span>案</span>
       </span>
       <VerdictStamp
         stampUrl={stampUrl}

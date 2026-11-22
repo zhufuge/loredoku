@@ -147,7 +147,7 @@ export function LoadingBlock({
 /** 整屏加载：地图 / 谜题 / 游戏三处共用一个。 三层都按同一套判定挂 `load-delayed`（`useLoadDelayed`），但真正跑动画的只有最外面这一层（`index.css` 的 `.load-delayed .load-delayed { animation: none }`） —— 同节奏的 opacity 叠三层，中段会慢得像没对齐。 */
 export function LoadingScreen({ caption }: { caption?: string }): JSX.Element {
   return (
-    <div className={cn('flex h-screen items-center justify-center', useLoadDelayed())}>
+    <div className={cn('flex h-dvh items-center justify-center', useLoadDelayed())}>
       <LoadingBlock size="lg" caption={caption} />
     </div>
   );

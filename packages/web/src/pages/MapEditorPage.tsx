@@ -800,7 +800,7 @@ export function MapEditorPage(): JSX.Element {
   }
 
   return (
-    <div className={cn('flex h-screen flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
+    <div className={cn('flex h-dvh flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
       <EditorImportInput inputRef={importInputRef} onChange={handleImportFile} />
 
       <EditorToolbar

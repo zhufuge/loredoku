@@ -64,7 +64,7 @@ export function WorkspaceLayout(): JSX.Element {
 
 function MissingWorkspace({ code, reason }: { code: string; reason: string | null }): JSX.Element {
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
       <BrandLogo height={22} withWordmark />
       {reason === null ? (
         <p className="text-sm text-muted-foreground">

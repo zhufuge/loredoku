@@ -29,7 +29,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     if (!error) return this.props.children;
 
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="space-y-2">
           <h1 className="text-xl font-semibold">页面出错了</h1>
           <p className="max-w-md text-sm text-muted-foreground">

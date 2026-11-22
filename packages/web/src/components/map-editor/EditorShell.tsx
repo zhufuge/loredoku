@@ -124,7 +124,7 @@ export function EditorErrorState({
   onBack: () => void;
 }): JSX.Element {
   return (
-    <div className="flex h-screen flex-col items-center justify-center gap-4">
+    <div className="flex h-dvh flex-col items-center justify-center gap-4">
       <p className="text-sm text-muted-foreground">{message}</p>
       <Button variant="outline" onClick={onBack}>
         {backLabel}

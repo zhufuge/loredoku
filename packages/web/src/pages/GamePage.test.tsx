@@ -370,6 +370,26 @@ describe('GamePage — 本地存档与视图缩放（v0.6.2）', () => {
     expect(stored?.elapsedMs ?? 0).toBeGreaterThanOrEqual(187_000);
   });
 
+  /** v0.11.10：表等这一页真的画好才走。 加载里（画布上那些图还没到）玩家还什么都没看见，那几秒不该记进成绩 —— 旧做法水合即起表，慢网下等于替等待记账。 */
+  it('图还没到齐时表不走，画布就绪那一刻才从存档接着走', () => {
+    vi.useFakeTimers();
+    try {
+      window.localStorage.setItem(gameTimerKey('night-train'), JSON.stringify({ gridSize: 9, participantCount: 3, elapsedMs: 60_000 }));
+      preloadRef.ready = false;
+      render();
+      // 加载里先过去 10 秒 —— 这段不记账。
+      act(() => vi.advanceTimersByTime(10_000));
+      preloadRef.ready = true;
+      render();
+      expect(container.textContent).toContain('01:00');
+      act(() => vi.advanceTimersByTime(2_000));
+      expect(container.textContent).toContain('01:02');
+    } finally {
+      preloadRef.ready = true;
+      vi.useRealTimers();
+    }
+  });
+
   /** 第二个口子：**换关**。 从定案卡点「下一关」时组件不重建，新一关的数据还在路上。若此时拿上一关的累计毫秒去写新一关的键（指纹 `gridSize: 0`）—— 成绩串了关，留下的还是一条永远读不回来的垃圾。所以换关时先关闸，等新一关读完自己的存档。 */
   it('换关时不把上一关的用时写进下一关的计时键', () => {
     window.localStorage.setItem(gameTimerKey('night-train'), JSON.stringify({ gridSize: 9, participantCount: 3, elapsedMs: 187_000 }));

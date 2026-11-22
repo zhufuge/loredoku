@@ -322,7 +322,7 @@ export function PuzzleViewPage(): JSX.Element {
 
   if (!draft || !mapContext || detailQuery.isError || mapQuery.isError) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <div className="flex h-dvh flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">谜题不存在或加载失败。</p>
         <Button variant="outline" onClick={() => navigate(workshopPath('puzzles'))}>
           返回谜题列表
@@ -334,7 +334,7 @@ export function PuzzleViewPage(): JSX.Element {
   const viewed = detailQuery.data;
 
   return (
-    <div className={cn('flex h-screen flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
+    <div className={cn('flex h-dvh flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
         <div className="flex min-w-0 items-center gap-3">
           <IconButton

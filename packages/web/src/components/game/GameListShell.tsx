@@ -128,7 +128,7 @@ export function GameListShell<G extends { slug: string; difficulty: number }>({
   const hasGames = allCount > 0;
 
   return (
-    <div className="relative min-h-screen bg-background">
+    <div className="relative min-h-dvh bg-background">
       <PetalField />
       <div className="relative mx-auto w-full max-w-7xl px-3 sm:px-6">
         {/* 页头不盖色：纸和落花直接从字后面透过来。它钉在顶上，卡片区从它下沿才开始，

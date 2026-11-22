@@ -247,7 +247,7 @@ export function MapViewPage(): JSX.Element {
 
   if (!valid || mapQuery.isError || !entry) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <div className="flex h-dvh flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">地图不存在或加载失败。</p>
         <Button variant="outline" onClick={() => navigate(workshopPath('maps'))}>
           返回地图列表
@@ -258,7 +258,7 @@ export function MapViewPage(): JSX.Element {
 
   if (!draft) {
     return (
-      <div className="flex h-screen flex-col items-center justify-center gap-4">
+      <div className="flex h-dvh flex-col items-center justify-center gap-4">
         <p className="text-sm text-muted-foreground">该草稿还没有画布，去编辑器里先初始化。</p>
         <Button variant="outline" onClick={() => navigate(workshopPath('maps'))}>
           返回地图列表
@@ -268,7 +268,7 @@ export function MapViewPage(): JSX.Element {
   }
 
   return (
-    <div className={cn('flex h-screen flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
+    <div className={cn('flex h-dvh flex-col overflow-hidden', WORKSHOP_MIN_WIDTH_CLASS)}>
       <header className="flex h-14 shrink-0 items-center justify-between gap-4 border-b bg-background px-4">
         <div className="flex min-w-0 items-center gap-3">
           <IconButton

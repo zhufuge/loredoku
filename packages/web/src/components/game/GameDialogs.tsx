@@ -23,7 +23,8 @@ export function GameDescriptionDialog({
 }: GameDescriptionDialogProps): JSX.Element {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      {/* `pt-12` 让开右上角那枚 X：标题是 `sr-only`，正文原来直接顶在 `p-6` 的位置，第一行会被 X 盖住。 */}
+      <DialogContent className="max-w-md pb-4 pt-12">
         {/* 竖屏顶部窄：标题只给读屏（sr-only），视觉上不重复作者写的描述。 */}
         <DialogHeader className="sr-only">
           <DialogTitle>谜题描述</DialogTitle>
@@ -31,6 +32,12 @@ export function GameDescriptionDialog({
         <p className="max-h-[60svh] overflow-y-auto whitespace-pre-wrap text-sm leading-[1.8] text-muted-foreground">
           {description.trim()}
         </p>
+        {/* 竖屏单手够不到右上角那枚 X：底下再给一枚「关闭」，读完顺手就能收。 */}
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            关闭
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -140,8 +140,9 @@ export function GamePlayerAside({
           {/* 玩家端没有 AppShell 头部，主题开关挂在左栏这一行右侧。 */}
           <ThemeToggle className="ml-auto max-md:order-6 max-md:shrink-0" />
         </div>
-        {/* 计时在标题行最右：它是「这一局」的元信息，不放右栏底部（会像第三条统计）；不要图标，只留粗体淡色 `mm:ss`。 */}
-        <div className="flex items-baseline gap-2 pl-1 max-md:order-2 max-md:min-w-0 max-md:flex-1 max-md:items-center max-md:pl-0">
+        {/* 计时在标题行最右：它是「这一局」的元信息，不放右栏底部（会像第三条统计）；不要图标，只留粗体淡色 `mm:ss`。
+            对齐用 `items-center` 而不是 `items-baseline`：标题那个 `<p>` 带 `truncate`（`overflow: hidden`），Safari 给这种盒子取的基线是**盒底**而不是文字基线，iOS 上计时会整行往下沉一截；两者的行盒同为一行高，居中对齐才各浏览器一致。 */}
+        <div className="flex items-center gap-2 pl-1 max-md:order-2 max-md:min-w-0 max-md:flex-1 max-md:pl-0">
           {/* 竖屏标题行再收一档：字号更小、行高更紧，把省下的高度让给棋盘。 */}
           <p
             className="min-w-0 flex-1 truncate text-sm font-semibold max-md:text-xs max-md:leading-tight"
