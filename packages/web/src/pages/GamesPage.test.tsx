@@ -386,8 +386,8 @@ describe('GamesPage', () => {
 
   /** 列表页顶上那两行字。 它们是**主题的口气**，不是全站统一文案 —— 与难度分级同一类东西。默认那两句是内置的，主题配过就用配的（`{n}` 换成数字）。 */
   describe('v0.11.6 计数行：N 关可玩 / 已通过 N 关', () => {
-    const passedCount = (): string =>
-      document.querySelector('[data-testid="games-passed-count"]')?.textContent ?? '';
+    const passedCount = (): string | null =>
+      document.querySelector('[data-testid="games-passed-count"]')?.textContent ?? null;
 
     it('没配过就用内置那两句', () => {
       gamesRef.data = [game({ id: 1, themeCode: 'hlm' }), game({ id: 2, themeCode: 'hlm' })];
@@ -397,7 +397,7 @@ describe('GamesPage', () => {
       mount('/hlm/play');
 
       expect(document.body.textContent).toContain('2 关可玩');
-      expect(passedCount()).toBe('已通过 0 关');
+      expect(passedCount()).toBeNull();
     });
 
     it('主题配过就用配的，{n} 换成关数', () => {
@@ -410,7 +410,7 @@ describe('GamesPage', () => {
       mount('/hlm/play');
 
       expect(document.body.textContent).toContain('共 2 回');
-      expect(passedCount()).toBe('已了 0 桩');
+      expect(passedCount()).toBeNull();
     });
 
     it('通过一关，那个数字跟着变', () => {
@@ -465,7 +465,13 @@ describe('GamesPage', () => {
 
     it('切档不改变「已通过 N 关」', () => {
       setup();
+      recordGameCompletion('easy-one', { gridSize: 5 }, { elapsedMs: 61000, stampUrl: null });
+      act(() => root.unmount());
+      container.remove();
+      mount('/hlm/play');
+
       const before = document.querySelector('[data-testid="games-passed-count"]')?.textContent;
+      expect(before).toBe('已通过 1 关');
 
       act(() => chips()[2]?.click());
 
@@ -484,7 +490,7 @@ describe('GamesPage', () => {
       act(() => chips()[2]?.click());
 
       expect(covers()).toBe(0);
-      expect(document.body.textContent).toContain('这一档还没有关卡');
+      expect(document.body.textContent).toContain('空白纸，未落笔。');
       act(() => button('看全部')?.click());
       expect(covers()).toBe(1);
     });

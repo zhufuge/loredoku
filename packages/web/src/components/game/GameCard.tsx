@@ -77,6 +77,9 @@ export function GameCard({
       }}
       className={cn(
         'group cursor-pointer overflow-hidden',
+        /* 卡片本身没有底色：上半是封面（不透明），下半那条玻璃自己带底（见页脚）。
+           整块都罩玻璃的话，封面等于蒙了一层，而封面是作品内容，不该被虚化。 */
+        'bg-transparent',
         // 卡片本身不位移，只留封面推进这一个几何动作。两个叠在一起
         // 时指针一扫过边缘就「往上抬 + 往外胀」同时起收，读起来是「抖」。
         'transition-[box-shadow,border-color] duration-base ease-out',
@@ -114,7 +117,7 @@ export function GameCard({
               'group-hover:scale-[1.1] group-focus-visible:scale-[1.1]',
             )}
           >
-            <span className="text-3xl font-semibold text-muted-foreground/60 sm:text-4xl">{initial}</span>
+            <span className="text-2xl font-semibold text-muted-foreground/60 sm:text-4xl">{initial}</span>
           </div>
         )}
         {/* 纯装饰：`aria-hidden` + `pointer-events-none`，不进无障碍树、也不抢指针；定案卡整组不画 —— 盖着「定案 + 印」的封面上再浮光斑，两件装饰抢同一块地方。 */}
@@ -131,15 +134,16 @@ export function GameCard({
         {/* 结案那层放在封面里、光的三层之后：它压的是**封面本身**（含纸光），不是压整张卡片 —— 标题与页脚仍要读得清。 */}
         {completed ? <CompletionOverlay completion={completed} /> : null}
       </div>
-      <div className="space-y-2 p-3 sm:p-4">
+      {/* 玻璃只在这条页脚：封面是作品内容，整块蒙玻璃会把它糊掉；页脚下垫的是页面背景与落花，虚成一片正好。 */}
+      <div className="liquid-glass space-y-2 p-3 sm:p-4">
         {/* 定案卡标题降一档颜色：结论已经写在封面上，和没做过的卡一样黑会读成「还能再挑一次」；名字仍要看得清，只退到 muted。 */}
         <h3
-          className={cn('truncate font-medium', completed ? 'text-muted-foreground' : undefined)}
+          className={cn('truncate text-sm font-medium sm:text-base', completed ? 'text-muted-foreground/70' : undefined)}
           title={game.name}
         >
           {game.name}
         </h3>
-        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[11px] text-muted-foreground sm:text-xs">
           {/* 页脚：左「n × n」+ 难度，右时间图标 + 时间（完成优先，否则取最后离开，见 `CompletionTime`）。 */}
           <span className="flex items-baseline gap-2">
             <span className="tabular-nums transition-colors duration-base group-hover:text-foreground group-focus-visible:text-foreground">

@@ -11,7 +11,7 @@
 - `packages/shared`：跨端共享的 TS 类型、常量、zod schema。**不依赖任何运行时**。
 - `packages/server`：Koa + Knex + PostgreSQL。
 - `packages/web`：Vite + React 18 + Zustand + TanStack Query + shadcn/ui。
-- `docs/`：逐版需求文档（`v0.1.0` ~ `v0.5.9`），**每版文档最后一节是落点表 / 实现期裁定 / 验证证据 / 交付标准对照** —— 动手前先读对应版本的文档。
+- `docs/`：逐版需求文档，**每版文档最后一节是落点表 / 实现期裁定 / 验证证据 / 交付标准对照** —— 动手前先读对应版本的文档。
 - `docs/map-management-and-editor.md`：地图管理页与地图编辑器的**功能说明**（当前状态，不是需求）。要确认某个控件 / 规则的现状看它，别从旧版需求文档里推断。
 - `docs/data-json.md`：`maps.data` / `puzzles.data` 的 **JSON 结构参考**（字段、范围、默认值、版本史、导入导出行为）。手写或解析这份 JSON 前先看它。
 - `docs/layer-priority.md`：画布图层命名与次序的**唯一权威**。
@@ -35,6 +35,7 @@ npm run typecheck           # 全量 tsc --noEmit
 npm test                    # 各 workspace Vitest + 根目录 scripts/ 单测
 npm run db:migrate          # 迁移
 npm run db:rollback         # 回退最近一批（migrations/ 下手写新文件，无 make 命令）
+npm run lint
 ```
 
 新迁移文件名形如 `20260101000019_v052_item_fields.ts`（时间戳 + 版本 + 简述），放在 `packages/server/src/db/migrations/`。
@@ -92,7 +93,6 @@ server 测试**依赖本地 PostgreSQL**（库名 `loredoku`），跑前确保�
 
 ### 4.3 怎么跑
 
-- `bash scripts/run-tests.sh packages/<pkg>`：一次收集跑完，再拿报告对着磁盘上的测试文件核一遍，被环境漏收的那几个（EPERM 偶发）单独补跑。别改回逐文件循环 —— 那会把 12 秒变成 2 分半。
 - `server` 默认串行（共用同一个测试库，并行会偶发撞车）；其他包要强制串行加 `--serial`。
 - 使用 `agent-browser` 进行浏览器自动化。首次使用前，运行 `agent-browser skills get core` 并遵循其输出。
 

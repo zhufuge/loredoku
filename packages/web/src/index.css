@@ -226,6 +226,109 @@
     font-synthesis-weight: none;
   }
 
+  /* 品牌字标（`BrandLogo`）用的字体：产物由 `npm run fonts` 从 `fonts-source/` 裁出，
+     和其他自带字体同一个目录、同一条注册链。回退链给等宽，字还没到的时候宽度和字距都不跳。 */
+  .font-brand {
+    font-family: 'Courier Prime Sans', ui-monospace, 'Courier New', monospace;
+    font-synthesis-weight: none;
+  }
+
+  /* 液化玻璃（列表页的卡片与按钮）：纸面降到八分之一透明度，背后的花瓣和字被虚化成一团色 ——
+     半透明是「能看见背后」，虚化才是「隔着玻璃」。厚度只靠边框与那道斜向的亮面：
+     里面再加一圈内阴影，上下就一重一轻（上缘双重暗线、下缘几乎看不见），
+     而且 hover 换边框色时那圈内阴影还压在原处，看着像高亮没盖住旧边框。
+     只用语义 token，浅色下是暖白玻璃、深色下是墨色玻璃，跟着主题走。 */
+  .liquid-glass {
+    background-color: hsl(var(--card) / 0.125);
+    background-image: linear-gradient(
+      150deg,
+      hsl(var(--card) / 0.125),
+      hsl(var(--card) / 0) 44%,
+      hsl(var(--foreground) / 0.03)
+    );
+    backdrop-filter: blur(6px) saturate(120%);
+    -webkit-backdrop-filter: blur(6px) saturate(120%);
+    border-color: hsl(var(--foreground) / 0.12);
+  }
+
+  /* 落花背景（`PetalField`）：一片花瓣就是精灵图里切出来的一个 16px 格子，React 只发一次初始值
+     （格子、大小、远近的透明度/亮度/饱和度/时长）。
+     纵向和横向拆成两条动画：纵向匀速落走 `translate`，横向摆 + 自转走 `transform`，
+     横向那条 `alternate` + `ease-in-out`，掉头时先减速再加速，不会像一条折线那样突然反折。
+     两条各写各的属性，互不覆盖。 */
+  .petal {
+    position: absolute;
+    top: 0;
+    animation-name: petal-fall, petal-drift;
+    animation-timing-function: linear, ease-in-out;
+    animation-iteration-count: infinite, infinite;
+    animation-direction: normal, alternate;
+    translate: 0 -14vh;
+    transform: translateX(0) rotate(0deg);
+  }
+
+  /* 列表页页头钉在顶上，且不盖色：纸和落花从字后面透过来。它之所以敢透明，是因为卡片
+     不从它底下走 —— 卡片区（`.cards-viewport`）从它下沿才开始，并把自己裁住。
+     z-index 只是画序（远低于任何抽屉），不是浮层，所以不进 UI_Z。 */
+  .pinned-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+  }
+  /* 卡片区钉在页头下沿，高 = 一屏减页头，overflow 把滚出去的部分裁掉：于是它自己没有
+     滚动条，页面也没有第二条 —— 位移由窗口的 `scrollY` 推（见 GamesPage 的 effect），
+     看得见的那根就是全局滚动条。`100dvh` 跟着移动端工具栏收放，不会多出一条缝。 */
+  .cards-viewport {
+    position: sticky;
+    overflow: hidden;
+  }
+  .cards-track {
+    will-change: transform;
+  }
+  /* 翻面单独一层：它比摆动慢，一条动画塞不进两个时长。内层只负责翻面
+     （轴由 `--petal-flip-x` / `--petal-flip-y` 给：花平面里的任意一条线，
+     横轴是上下翻、竖轴是左右翻、斜轴就斜着翻），精灵图也挂在这一层，
+     于是翻的是花本身，外层照旧摆。 */
+  .petal-flip {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background-repeat: no-repeat;
+    animation-name: petal-flip;
+    animation-timing-function: ease-in-out;
+    animation-iteration-count: infinite;
+    animation-direction: alternate;
+  }
+
+  @keyframes petal-fall {
+    from {
+      translate: 0 -14vh;
+    }
+    to {
+      translate: 0 112vh;
+    }
+  }
+
+  @keyframes petal-drift {
+    from {
+      transform: translateX(calc(var(--petal-sway, 3vw) * -1)) rotate(calc(var(--petal-spin, 12deg) * -1));
+    }
+    to {
+      transform: translateX(var(--petal-sway, 3vw)) rotate(var(--petal-spin, 12deg));
+    }
+  }
+
+  @keyframes petal-flip {
+    from {
+      transform: perspective(240px)
+        rotate3d(var(--petal-flip-x, 0), var(--petal-flip-y, 1), 0, calc(var(--petal-flip, 120deg) * -1));
+    }
+    to {
+      transform: perspective(240px)
+        rotate3d(var(--petal-flip-x, 0), var(--petal-flip-y, 1), 0, var(--petal-flip, 120deg));
+    }
+  }
+
   .highlight-fade {
     animation: highlight-fade 1s linear forwards;
   }
@@ -783,6 +886,11 @@ html[data-theme-transition] *::after {
   .animate-pulse {
     animation-duration: 2.4s !important;
     animation-iteration-count: infinite !important;
+  }
+
+  /* 落花是纯装饰，减少动态下整层不画：留着只会是 30 片静止的花定在半空。 */
+  .petal-field {
+    display: none !important;
   }
 
   /* 迟到淡入在减少动态下只剩「迟到」；骨架的呼吸须单独恢复 2.4s 无限，否则停在半透明像坏了。 */

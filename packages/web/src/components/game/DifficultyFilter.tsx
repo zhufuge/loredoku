@@ -52,10 +52,12 @@ function Chip({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        'rounded-full border px-3 py-1 text-xs transition-colors duration-base',
+        'rounded-full border px-3 py-1 text-[11px] transition-colors duration-base sm:text-xs',
         active
           ? 'border-primary bg-primary text-primary-foreground'
-          : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground',
+          : /* 未选中的档位是同一块玻璃；选中那档仍是不透明的朱，玻璃底下压一层实色只会把红色弄脏。
+               hover 与其它按钮同一套（`hover:bg-accent`），边框不单独变色。 */
+            'liquid-glass text-muted-foreground hover:bg-accent hover:text-accent-foreground',
       )}
     >
       {children}

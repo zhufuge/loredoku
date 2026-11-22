@@ -15,7 +15,7 @@ export interface GameDescriptionDialogProps {
   description: string;
 }
 
-/** 竖屏下的谜题描述弹框。 触发的是头部那枚 `FileText` 图标。 为什么弹框而不是留在面板里：竖屏一屏只够放棋盘 + 名册，描述是三行也好 三十行也好，只在开局读一遍 —— 占着固定的高度不划算。 线索不同，它们要 反复对照，仍留在面板里（`GameBrief` 只关掉描述那一段）。 正文沿用面板里那套写法（`whitespace-pre-wrap`、`text-muted-foreground`）， 只是不再 `line-clamp-3` —— 弹框就是为了读全文，再收一次反而多一步。 */
+/** 竖屏下的谜题描述弹框。 触发的是头部那枚 `FileText` 图标。 为什么弹框而不是留在面板里：竖屏一屏只够放棋盘 + 名册，描述是三行也好 三十行也好，只在开局读一遍 —— 占着固定的高度不划算。 线索不同，它们要 反复对照，仍留在面板里（`GameBrief` 只关掉描述那一段）。 正文沿用面板里那套写法（`whitespace-pre-wrap`、`text-muted-foreground`）， 两边现在都是全文铺开 —— 只是面板自己带限高，弹框放开。 */
 export function GameDescriptionDialog({
   open,
   onOpenChange,

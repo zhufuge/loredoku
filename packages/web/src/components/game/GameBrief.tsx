@@ -1,5 +1,3 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 /** v0.7.14（docs/v0.7.14.md §4）：左栏「题面」= 描述 + 全局线索，排标题下、名册上且中间不画线（同一段话的段落）；左边距 16px 与标题行对齐。 */
@@ -54,67 +52,14 @@ export function GameBrief({
   );
 }
 
-/* 默认收三行；只在收起态量 `scrollHeight > clientHeight`，没溢出就不挂按钮 —— 展开后量会把按钮永久弄丢。 */
+/* 全文直接铺开，不收起 —— 面板自己带限高与滚动（见上面 section）。 */
 function BriefDescription({ text }: { text: string }): JSX.Element {
-  const [expanded, setExpanded] = useState(false);
-  const [overflows, setOverflows] = useState(false);
-  const ref = useRef<HTMLParagraphElement | null>(null);
-
-  const measure = useCallback((): void => {
-    if (expanded) return;
-    const node = ref.current;
-    if (!node) return;
-    setOverflows(node.scrollHeight > node.clientHeight + 1);
-  }, [expanded]);
-
-  useEffect(() => {
-    measure();
-    if (typeof window === 'undefined') return;
-    window.addEventListener('resize', measure);
-    // 侧栏宽度跟着参与者列数变（`rosterPanelWidthFor`）：窗口没动，文字也可能重新换行。
-    const node = ref.current;
-    const observer =
-      node && typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => measure()) : null;
-    observer?.observe(node as Element);
-    return () => {
-      window.removeEventListener('resize', measure);
-      observer?.disconnect();
-    };
-  }, [measure, text]);
-
-  const collapsed = !expanded;
-
   return (
-    <>
-      {/* 保留作者换行与连续空白；收起态必须先 clamp 三行再量 —— 先量时 scrollHeight === clientHeight，永远判为放得下。 */}
-      <p
-        ref={ref}
-        data-testid="game-brief-description"
-        data-collapsed={collapsed && overflows ? 'true' : undefined}
-        className={cn(
-          'whitespace-pre-wrap text-xs leading-[1.75] text-muted-foreground',
-          collapsed && 'line-clamp-3',
-        )}
-      >
-        {text}
-      </p>
-      {expanded || overflows ? (
-        /* 纯文字开关、靠右（否则读成正文第四行）；必须单独放开 `pointer-events-auto` —— 定案后整条左栏不接指针。 */
-        <button
-          type="button"
-          data-testid="game-brief-description-toggle"
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-          className={cn(
-            'pointer-events-auto ml-auto mt-1 flex w-fit items-center gap-0.5 text-2xs text-muted-foreground',
-            'transition-colors duration-fast ease-out hover:text-foreground',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          )}
-        >
-          {expanded ? '收起' : '展开全文'}
-          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-        </button>
-      ) : null}
-    </>
+    <p
+      data-testid="game-brief-description"
+      className="whitespace-pre-wrap text-xs leading-[1.75] text-muted-foreground"
+    >
+      {text}
+    </p>
   );
 }

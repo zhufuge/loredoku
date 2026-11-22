@@ -3,14 +3,14 @@ import { cn } from '@/lib/utils';
 
 /** 它是这套界面里 出现次数最多、辨识度最低的一笔 —— 任何模板都长这样，而它恰好是用户在等待时 唯一盯着看的东西。 骨架屏（`Skeleton`）保留：它比转圈更快地说明「内容长什么样」， 这是两种不同的职责，见 `docs/v0.7.12.md` §3。 用**产品自己的名字**当状态指示，是这套界面里唯一不需要额外 解释的图形； 字形走 `.font-kai` （霞鹜文楷的拉丁，手写衬线）—— 与页标题同一支笔，是「东方 · 手作」在 加载态上的唯一一笔投入。 周期 1500ms、字距错开 100ms， 任意时刻亮着大半、暗着三四个，边界在走：看得出在动，但不会催人。 */
 
-const WORD = 'LOREDOKU';
+export const BRAND_WORD = 'LOREDOKU';
 
-/** 字标里正好藏着 RED —— 第 3–5 个字母（L-O-**R-E-D**-O-K-U）。 品牌资产（`assets/LOREDOKU-logo.svg`）是**黑 + 朱双色墨迹**，图标就是这两色 画的。 于是这三个字母也上同一支朱（`#5C2223`，深色下的取值与推导见 `index.css` 的 `.loredoku-ink-red`）：字标不再是一串均匀的灰字，而和左上角的 图标对得上。 位置从 `indexOf` 算，不写死 `[2, 3, 4]`：名字若改，红自然跟着走； 改完拼不出 RED 时 `indexOf` 返回 -1，下面的判断全部不命中 —— 宁可没有红，也不要红在 错的位置上。 */
-const BRAND_RED_AT = WORD.indexOf('RED');
-const isBrandRed = (index: number): boolean =>
+/** 字标里正好藏着 RED —— 第 3–5 个字母（L-O-**R-E-D**-O-K-U）。 字标是**黑 + 朱双色**：八个字母走前景色，这三个走朱（`#5C2223`，深色下的取值与推导见 `index.css` 的 `.loredoku-ink-red`），与页头那个字标（`BrandLogo`）同一支朱 —— 它不是一串均匀的灰字。 位置从 `indexOf` 算，不写死 `[2, 3, 4]`：名字若改，红自然跟着走； 改完拼不出 RED 时 `indexOf` 返回 -1，下面的判断全部不命中 —— 宁可没有红，也不要红在 错的位置上。 */
+const BRAND_RED_AT = BRAND_WORD.indexOf('RED');
+export const isBrandRed = (index: number): boolean =>
   BRAND_RED_AT >= 0 && index >= BRAND_RED_AT && index < BRAND_RED_AT + 'RED'.length;
 
-const LETTERS = WORD.split('');
+const LETTERS = BRAND_WORD.split('');
 
 /** 迟到的门槛。**必须与 `index.css` 里 `.load-delayed` 的 `200ms` 一致** —— 这里只用来判断「上一次亮起来是什么时候」，改一处就要改另一处。 */
 const LOAD_DELAY_MS = 200;
