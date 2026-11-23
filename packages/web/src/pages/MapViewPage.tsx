@@ -73,7 +73,7 @@ export function MapViewPage(): JSX.Element {
   // 只取这个主题的资源 —— 别的世界的料画进这一张图才是事故。
   const assetsQuery = useAssets({ themeCode });
 
-  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
+  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, false));
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);

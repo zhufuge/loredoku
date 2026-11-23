@@ -89,7 +89,7 @@ export function PuzzleViewPage(): JSX.Element {
   } = useHighlight();
   // MOD-802: single-active linkage preview — hover activates, click toggles.
   const [activation, setActivation] = useState<LinkageActivationState>(INACTIVE_ACTIVATION);
-  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
+  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, false));
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [spaceHeld, setSpaceHeld] = useState(false);

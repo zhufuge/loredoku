@@ -138,7 +138,7 @@ function GameViewForLevel({ source }: { source: GameSource }): JSX.Element {
     | { kind: 'failed'; correct: number; total: number }
     | null
   >(null);
-  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
+  const [showRulers, setShowRulers] = useState(() => readRulerVisible(RULER_STORAGE_KEY, false));
 
   /** 描述弹框是否开着（见头部那枚「谜题描述」图标）。 只跟 `portraitFit` 配套使用：竖屏上面板里不再画描述（`GameBrief` 的 `hideDescription`），改成右上角一枚图标点开。桌面端描述仍留在左栏面板里， 那枚图标根本不渲染 —— 它比主题开关还不常按。 */
   const [descriptionOpen, setDescriptionOpen] = useState(false);
