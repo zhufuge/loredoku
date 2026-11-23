@@ -92,7 +92,7 @@ import {
   usePuzzleStore,
 } from '@/stores/puzzleStore';
 
-/** FEAT-F01 (kept from the work preview): the reader's ruler preference. */
+/** FEAT-F01 (kept from the work preview): the reader's ruler preference. v0.11.11：缺省隐藏 —— 与地图编辑器一致，作者要看行列号时再手动打开。 */
 const RULER_STORAGE_KEY = 'loredoku.puzzle.ruler';
 
 /** v0.5.0 FEAT-K01 (docs/v0.5.0.md §2.5 / §4 / §5): the puzzle editor. There is no 「调整画布尺寸」 dialog: the canvas inside the puzzle is a copy the author never edits from here (SPEC-K11). v0.7.2 §3：`?v={n}` = 「编辑此版本」的 fork 态。 没落库之前没有发布按钮 —— 这一屏既不是草稿也不是版本。 */
@@ -167,7 +167,7 @@ export function PuzzleEditorPage(): JSX.Element {
   /** Slot → slot reorder preview (CLAR-603: never drops onto the canvas). */
   const [slotDrag, setSlotDrag] = useState<number | null>(null);
   const [pendingImport, setPendingImport] = useState<PuzzleDraft | null>(null);
-  const [rulerVisible, setRulerVisible] = useState(() => readRulerVisible(RULER_STORAGE_KEY, true));
+  const [rulerVisible, setRulerVisible] = useState(() => readRulerVisible(RULER_STORAGE_KEY, false));
   /** FEAT-E01: a drawer switch (or a close) waiting for the user to decide what happens to unsaved 基本信息 edits. */
   const [pendingPuzzleInfoAction, setPendingPuzzleInfoAction] = useState<(() => void) | null>(null);
   /** 「版本历史」面板（§5.5）。 */
