@@ -1,9 +1,10 @@
 import { useMemo, type CSSProperties } from 'react';
-import petalsSpriteUrl from '@/assets/peach_petal_sprites_16.png';
+import petalsSpriteUrl from '@/assets/peach_petal_sprites__32.png';
 import { cn } from '@/lib/utils';
 
-/** 精灵图是 16px 一格的 8 × 8 排，格格有花 —— 64 片花瓣。切格子只用 `background-position`，
+/** 精灵图是 32px 一格的 8 × 8 排，格格有花 —— 64 片花瓣。切格子只用 `background-position`，
  *  不拆成 64 张图。 */
+const SHEET_CELL_PX = 32; // 一格原图的边长：缩到比它小要靠浏览器平滑，放到比它大才看得见像素边
 const SHEET_COLS = 8; // 一行切几格
 const SHEET_ROWS = 8; // 一列切几格
 const SHEET_PETALS = 64; // 格格都有花，取格子时按这个数取模
@@ -30,7 +31,7 @@ const TUNING = {
   /** 模糊半径：越远的层越糊。 */
   blurPx: [0, 1.4],
   /** 从顶上落到屏底一轮的时长；越远越慢。 */
-  durationS: [30, 72],
+  durationS: [24, 60],
   /** 横向摆动 / 自转那条往返动画的周期，比下落短，一朵花在半空里要摆好几回。 */
   driftS: [12, 24],
   /** 翻面的往返周期，单独一条：比摆动慢，花是慢慢侧过去又转回来，不是跟着摆一起抽。 */
@@ -154,7 +155,7 @@ export function PetalField({ className }: { className?: string }): JSX.Element {
                 backgroundSize: `${petal.size * SHEET_COLS}px ${petal.size * SHEET_ROWS}px`,
                 backgroundPosition: `-${petal.col * petal.size}px -${petal.row * petal.size}px`,
                 /* 放大时保住像素画的硬边（放到一格原始尺寸以上才看得出像素边），缩小时交给浏览器平滑。 */
-                imageRendering: petal.size >= 16 ? 'pixelated' : 'auto',
+                imageRendering: petal.size >= SHEET_CELL_PX ? 'pixelated' : 'auto',
                 animationDuration: `${petal.flipDuration}s`,
                 animationDelay: `-${petal.flipDelay}s`,
                 '--petal-flip': `${petal.flip}deg`,
