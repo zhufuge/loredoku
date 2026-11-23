@@ -32,9 +32,9 @@ export interface HighlightCharacter {
 /** Fully resolved highlight request: everything the renderer needs. */
 export interface HighlightState {
   characters: HighlightCharacter[];
-  /** OPT-903 §1.2.7 方块高亮: an opaque block that lights up the **whole cell** (background layer included). Used by `cell` linkages and by linkages on **物品层** items — the v0.3.3 translucent item overlay is gone. A multi-cell item emits one rect per covered cell (§7.3). */
+  /** OPT-903 §1.2.7 方块高亮: an opaque block that lights up the **whole cell** (background layer included). Used by `cell` linkages and by resource linkages — 物品层 / 背景层 / 背景修饰层 alike since v0.11.11. The v0.3.3 translucent item overlay is gone. A multi-cell item emits one rect per covered cell (§7.3). */
   cellHighlights: HighlightRect[];
-  /** OPT-903 §1.2.8 背景高亮: only emitted for placements on the **background layer**; it replaces the background layer colour block and leaves the object layer visible. */
+  /** OPT-903 §1.2.8 背景高亮. v0.11.11: nothing produces it any more — background / decoration linkages now light up the cell instead (docs/v0.11.11.md §2). The field and its canvas layer stay until someone decides to retire the layer as a whole (`docs/layer-priority.md` §3.14). */
   backgroundHighlights: HighlightRect[];
   /** MOD-802: region highlights are always an inner blue border (`REGION_HIGHLIGHT_BORDER_COLOR`), regardless of how the linkage was activated. */
   regionBorders: Array<{ regionId: string; color: string }>;
@@ -96,11 +96,11 @@ export function collectLinkages(
   return [...byIdentity.entries()].map(([identity, target]) => ({ identity, target }));
 }
 
-/** OPT-903: which map layer a placement lives on decides the highlight. */
-export type ItemPlacementLayer = 'item' | 'background';
+/** Which map layer a placement lives on. v0.11.11: the highlight effect no longer depends on it — every layer lights up the cell. */
+export type AssetPlacementLayer = 'item' | 'background' | 'decoration';
 
-export interface ItemPlacement {
-  layer: ItemPlacementLayer;
+export interface AssetPlacement {
+  layer: AssetPlacementLayer;
   /** Top-left cell of the placement (anchor for multi-cell objects). */
   x: number;
   y: number;
@@ -111,9 +111,9 @@ export interface ItemPlacement {
   anchorY: number;
 }
 
-/** OPT-903 §3: an item linkage can point at an object-layer placement (→ 方块高亮) or a background-layer placement (→ 背景高亮), so both layers are scanned. `scope: 'instances'` is matched against the anchor coord. */
-export function findItemPlacements(cells: CellMap, assetId: number): ItemPlacement[] {
-  const result: ItemPlacement[] = [];
+/** OPT-903 §3: an asset linkage points at a placement, and a placement can sit on the 物品层, the 背景层 or the 背景修饰层 — all three are scanned. `scope: 'instances'` is matched against the anchor coord. */
+export function findAssetPlacements(cells: CellMap, assetId: number): AssetPlacement[] {
+  const result: AssetPlacement[] = [];
   for (const [key, cell] of cells.entries()) {
     const [x, y] = key.split(',').map(Number) as [number, number];
     if (cell.item?.assetId === assetId) {
@@ -130,6 +130,9 @@ export function findItemPlacements(cells: CellMap, assetId: number): ItemPlaceme
     if (cell.background?.assetId === assetId) {
       result.push({ layer: 'background', x, y, w: 1, h: 1, anchorX: x, anchorY: y });
     }
+    if (cell.decoration?.assetId === assetId) {
+      result.push({ layer: 'decoration', x, y, w: 1, h: 1, anchorX: x, anchorY: y });
+    }
   }
   return result;
 }
@@ -139,7 +142,7 @@ export function findAllItemAnchors(
   cells: CellMap,
   assetId: number,
 ): Array<HighlightRect> {
-  return findItemPlacements(cells, assetId)
+  return findAssetPlacements(cells, assetId)
     .filter((placement) => placement.layer === 'item')
     .map((placement) => ({
       x: placement.x,
@@ -150,7 +153,7 @@ export function findAllItemAnchors(
     }));
 }
 
-/** Turns one participant's flat linkage list into concrete rectangles. MOD-708: `cell` targets have `cells` array; `item` targets have `scope`. MOD-802: `region` targets always produce an inner blue border. OPT-903: item targets produce 方块高亮 (物品层) or 背景高亮 (背景层) — never a translucent overlay. */
+/** Turns one participant's flat linkage list into concrete rectangles. MOD-708: `cell` targets have `cells` array; `item` targets have `scope`. MOD-802: `region` targets always produce an inner blue border. OPT-903: item targets produce 方块高亮, never a translucent overlay. v0.11.11: the same holds for 背景层 / 背景修饰层 placements. */
 export function resolveHighlight(
   linkages: ParticipantTarget[] | undefined,
   ctx: HighlightContext,
@@ -164,7 +167,6 @@ export function resolveHighlight(
   const palette = ctx.linkageColors ?? resolveLinkageColors(undefined);
   const characters = new Map<string, HighlightCharacter>();
   const cellHighlights = new Map<string, HighlightRect>();
-  const backgroundHighlights = new Map<string, HighlightRect>();
   const regionBorders: Array<{ regionId: string; color: string }> = [];
 
   for (const { target } of targets) {
@@ -180,7 +182,7 @@ export function resolveHighlight(
     }
 
     if (target.type === 'asset') {
-      const placements = findItemPlacements(ctx.cells, target.id);
+      const placements = findAssetPlacements(ctx.cells, target.id);
       if (placements.length === 0) continue;
       const wanted =
         target.scope === 'instances' && target.instances
@@ -188,18 +190,7 @@ export function resolveHighlight(
           : null;
       for (const placement of placements) {
         if (wanted && !wanted.has(`${placement.anchorX},${placement.anchorY}`)) continue;
-        if (placement.layer === 'background') {
-          // OPT-903 §1.2.8: 背景高亮 replaces only the background layer.
-          backgroundHighlights.set(`bg:${placement.x},${placement.y}`, {
-            x: placement.x,
-            y: placement.y,
-            w: 1,
-            h: 1,
-            color,
-          });
-          continue;
-        }
-        // OPT-903 §1.2.7 + §7.3: 方块高亮 covers every occupied cell.
+        // OPT-903 §1.2.7 + §7.3: 方块高亮 covers every occupied cell — on every layer (v0.11.11).
         for (let dy = 0; dy < placement.h; dy += 1) {
           for (let dx = 0; dx < placement.w; dx += 1) {
             const cx = placement.x + dx;
@@ -229,7 +220,6 @@ export function resolveHighlight(
   if (
     characters.size === 0 &&
     cellHighlights.size === 0 &&
-    backgroundHighlights.size === 0 &&
     regionBorders.length === 0
   ) {
     return null;
@@ -237,7 +227,7 @@ export function resolveHighlight(
   return {
     characters: [...characters.values()],
     cellHighlights: [...cellHighlights.values()],
-    backgroundHighlights: [...backgroundHighlights.values()],
+    backgroundHighlights: [],
     regionBorders,
   };
 }

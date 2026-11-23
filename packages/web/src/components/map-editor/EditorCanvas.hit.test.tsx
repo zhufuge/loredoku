@@ -104,12 +104,15 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
   const cells: CellMap = new Map();
   let regions: DraftRegion[] = [];
 
-  function render(props: { onSelectRegionLabel?: (id: string) => void } = {}): void {
+  function render(
+    props: { onSelectRegionLabel?: (id: string) => void; selectExactCell?: boolean } = {},
+  ): void {
     act(() => {
       root.render(
         <EditorCanvas
           gridSize={GRID_SIZE}
           onSelectRegionLabel={props.onSelectRegionLabel}
+          selectExactCell={props.selectExactCell}
           cells={cells}
           assetsById={assetsById}
           regions={regions}
@@ -237,6 +240,29 @@ describe('EditorCanvas — 点标签 / 物品溢出位置按方格落点（v0.10
     pointerDownAt(box!, 0.5 * cellSize, 0.5 * cellSize);
 
     expect(onSelect).toHaveBeenCalledWith({ type: 'cell', x: 0, y: 0 });
+  });
+
+  /** v0.11.12：位置条件拾取要的是点中的那一格，2 格宽的炕右边也必须能选。 */
+  describe('位置条件拾取（selectExactCell）', () => {
+    beforeEach(() => {
+      cells.clear();
+      // 2×1 的炕放在 (0,0)，右半格是覆盖格。
+      cells.set('0,0', { item: { assetId: picture.id, w: 2, h: 1 } });
+    });
+
+    it('默认在多格物品的覆盖格上仍回到锚点', () => {
+      render();
+      pointerDownAt(canvasNode(), 1.5 * cellSize, 0.5 * cellSize);
+
+      expect(onSelect).toHaveBeenCalledWith({ type: 'cell', x: 0, y: 0 });
+    });
+
+    it('selectExactCell 时覆盖格按原格上报', () => {
+      render({ selectExactCell: true });
+      pointerDownAt(canvasNode(), 1.5 * cellSize, 0.5 * cellSize);
+
+      expect(onSelect).toHaveBeenCalledWith({ type: 'cell', x: 1, y: 0 });
+    });
   });
 
   /**

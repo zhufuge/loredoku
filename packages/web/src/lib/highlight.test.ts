@@ -9,7 +9,7 @@ import type {
 import {
   collectLinkages,
   findAllItemAnchors,
-  findItemPlacements,
+  findAssetPlacements,
   resolveHighlight,
   type CellMap,
 } from './highlight';
@@ -56,18 +56,20 @@ const linkages: ParticipantTarget[] = [
   { type: 'region', id: 'rg_forest', effect: 'highlight', color: 'blue' },
 ];
 
-describe('findItemPlacements', () => {
-  it('reports the layer of every placement of an item id', () => {
+describe('findAssetPlacements', () => {
+  it('reports the layer of every placement of an asset id', () => {
     const mixed = cells([
       ['0,0', { item: { assetId: 12, w: 2, h: 1 } }],
       ['3,3', { background: { assetId: 12 } }],
+      ['5,5', { decoration: { assetId: 12 } }],
       ['4,4', { background: { assetId: 99 } }],
     ]);
-    expect(findItemPlacements(mixed, 12)).toEqual([
+    expect(findAssetPlacements(mixed, 12)).toEqual([
       { layer: 'item', x: 0, y: 0, w: 2, h: 1, anchorX: 0, anchorY: 0 },
       { layer: 'background', x: 3, y: 3, w: 1, h: 1, anchorX: 3, anchorY: 3 },
+      { layer: 'decoration', x: 5, y: 5, w: 1, h: 1, anchorX: 5, anchorY: 5 },
     ]);
-    expect(findItemPlacements(mixed, 42)).toEqual([]);
+    expect(findAssetPlacements(mixed, 42)).toEqual([]);
   });
 });
 
@@ -233,24 +235,22 @@ describe('resolveHighlight', () => {
     expect(state!.backgroundHighlights).toEqual([]);
   });
 
-  it('OPT-903 §1.2.8: a background linkage produces 背景高亮 only', () => {
+  it('v0.11.11: 背景层与背景修饰层的联动也产出方块高亮', () => {
     const mixed = cells([
       ['0,0', { background: { assetId: 21 } }],
-      ['2,2', { background: { assetId: 21 } }],
+      ['2,2', { decoration: { assetId: 21 } }],
       ['3,3', { item: { assetId: 21, w: 1, h: 1 } }],
     ]);
     const state = resolveHighlight(
       [{ type: 'asset', id: 21, scope: 'all', effect: 'highlight', color: 'blue' }],
       { gridSize: 6, cells: mixed, characterSlots: slots, regions },
     );
-    // Background placements → 背景高亮; the object placement → 方块高亮.
-    expect(state!.backgroundHighlights).toEqual([
-      { x: 0, y: 0, w: 1, h: 1, color: '#90CAF9' },
-      { x: 2, y: 2, w: 1, h: 1, color: '#90CAF9' },
+    expect(state!.cellHighlights.map((rect) => `${rect.x},${rect.y}`).sort()).toEqual([
+      '0,0',
+      '2,2',
+      '3,3',
     ]);
-    expect(state!.cellHighlights).toEqual([
-      { x: 3, y: 3, w: 1, h: 1, color: '#90CAF9' },
-    ]);
+    expect(state!.backgroundHighlights).toEqual([]);
   });
 
   it('OPT-903: 方块高亮 spans every cell of a 2×2 object', () => {

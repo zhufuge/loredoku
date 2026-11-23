@@ -26,6 +26,7 @@ import {
   toggleCell,
   type CellSelection,
 } from '@/lib/cellSelection';
+import type { AssetPlacementLayer } from '@/lib/highlight';
 
 /** MOD-801 (docs/v0.3.3.md §1.1.3): add / edit dialog for one participant's linkages. Multi-select lists expand to one stored linkage per object; the cell type embeds a matrix picker with row / column / rectangle quick selection. */
 
@@ -39,8 +40,10 @@ export interface LinkageAssetOption {
   name: string;
   /** v0.5.3 FIX-N12 (docs/v0.5.3.md §6.5): the item's **业务 ID**. The list used to lead with `#${assetId}` — a database primary key the author never sees. `''` means the item carries no code, and the label degrades to the name. */
   code: string;
-  /** Anchor coords of every placed instance of this item. */
+  /** Anchor coords of every placed instance of this asset. */
   instances: Array<[number, number]>;
+  /** v0.11.11: the layers this asset sits on (物品层 / 背景层 / 背景修饰层). */
+  layers: AssetPlacementLayer[];
 }
 
 const TARGET_TYPE_LABELS: Record<ParticipantTargetType, string> = {
@@ -49,6 +52,18 @@ const TARGET_TYPE_LABELS: Record<ParticipantTargetType, string> = {
   cell: '方格',
   region: '区域',
 };
+
+/** v0.11.11: only shown when the asset is not a plain 物品层 placement — the common rows stay as short as before. */
+const LAYER_LABELS: Record<AssetPlacementLayer, string> = {
+  item: '物品',
+  background: '背景',
+  decoration: '背景修饰',
+};
+
+function layerTag(layers: AssetPlacementLayer[]): string {
+  if (layers.length === 0 || (layers.length === 1 && layers[0] === 'item')) return '';
+  return ` · ${layers.map((layer) => LAYER_LABELS[layer]).join(' / ')}`;
+}
 
 type QuickMode = 'row' | 'column' | 'rect' | null;
 
@@ -326,7 +341,7 @@ export function LinkageDialog({
                 <div className="max-h-48 space-y-1 overflow-y-auto rounded-md border p-2">
                   {items.length === 0 ? (
                     <p className="py-2 text-center text-xs text-muted-foreground">
-                      地图中暂无物品
+                      地图中暂无可联动的资源
                     </p>
                   ) : (
                     items.map((item) => (
@@ -349,6 +364,7 @@ export function LinkageDialog({
                         <span className="truncate" title={item.code || undefined}>
                           {item.name}
                           {item.code ? `（${item.code}）` : ''} × {item.instances.length}
+                          {layerTag(item.layers)}
                         </span>
                       </label>
                     ))

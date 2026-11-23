@@ -27,9 +27,12 @@ export function collectReferenceIssues(
   slots: ReadonlyArray<CharacterSlotEntry | null>,
   context: PuzzleRefContext,
 ): PuzzleRefIssue[] {
-  const itemAssetIds = new Set<number>();
+  // v0.11.11：联动目标可以是物品层、背景层或背景修饰层的资源，三层都算「在地图中」。
+  const canvasAssetIds = new Set<number>();
   for (const cell of Object.values(context.cells)) {
-    if (cell?.item) itemAssetIds.add(cell.item.assetId);
+    if (cell?.item) canvasAssetIds.add(cell.item.assetId);
+    if (cell?.background) canvasAssetIds.add(cell.background.assetId);
+    if (cell?.decoration) canvasAssetIds.add(cell.decoration.assetId);
   }
   const regionIds = new Set(context.regions.map((region) => region.id));
 
@@ -37,7 +40,7 @@ export function collectReferenceIssues(
   slots.forEach((slot, slotIndex) => {
     if (!slot) return;
     (slot.linkages ?? []).forEach((target, targetIndex) => {
-      if (target.type === 'asset' && !itemAssetIds.has(target.id)) {
+      if (target.type === 'asset' && !canvasAssetIds.has(target.id)) {
         issues.push({
           slotIndex,
           targetIndex,

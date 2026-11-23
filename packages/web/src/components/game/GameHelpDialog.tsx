@@ -125,7 +125,6 @@ export function GameHelpDialog({
               items={[
                 '每行和每列各有一人。',
                 '「旁边」指的是，同一个区域内的上下左右一格。',
-                '「上方」指的是，参考物的所在行的北边所有行的格子。下/左/右方同理。',
               ]}
             />
           </Section>
@@ -149,7 +148,7 @@ export function GameHelpDialog({
                 {
                   kind: 'forbidden',
                   label: '标记',
-                  text: '将格子标记为不可能（排除选项），可拖动。',
+                  text: '将格子标记为不可能（排除选项）。',
                 },
                 { kind: 'clear', label: '清除', text: '点击以清除某个格子，长按清空全部。' },
                 { kind: 'undo', label: '撤回', text: '恢复你的上一步操作。' },

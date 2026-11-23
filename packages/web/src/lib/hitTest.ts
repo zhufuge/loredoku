@@ -26,13 +26,15 @@ export interface HitTestInput {
   y: number;
   gridSize: number;
   cells: CellMap;
+  /** 要的就是**这一格**（位置条件拾取）：多格物品的覆盖格不再回到锚点格。 */
+  exactCell?: boolean;
 }
 
 /** CLAR-603: characters no longer occupy cells, so the click hit-test only returns the cell itself (or its object anchor). */
-export function hitTestCell({ x, y, gridSize, cells }: HitTestInput): CellSelection | null {
+export function hitTestCell({ x, y, gridSize, cells, exactCell }: HitTestInput): CellSelection | null {
   if (x < 0 || y < 0 || x >= gridSize || y >= gridSize) return null;
 
-  const anchor = resolveItemAnchor(cells, x, y);
+  const anchor = exactCell ? null : resolveItemAnchor(cells, x, y);
   if (anchor) return { type: 'cell', x: anchor[0], y: anchor[1] };
 
   return { type: 'cell', x, y };

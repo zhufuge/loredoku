@@ -110,6 +110,8 @@ interface EditorCanvasProps {
   /** FEAT-D03: 上报自适应算出的值，供「地图基本信息」抽屉作为方格大小的默认值。 */
   onAutoCellSize?: (cellSize: number) => void;
   onSelect: (selection: Selection | null) => void;
+  /** 位置条件这类「要的就是点中的那一格」的场景：多格物品的覆盖格按原格上报，不回锚点。 */
+  selectExactCell?: boolean;
   onSelectRegion: (id: string | null) => void;
   /** 地图编辑点击区域标题弹信息框；谜题/游戏页不传此 prop。 */
   onSelectRegionLabel?: (id: string) => void;
@@ -166,6 +168,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
     highlightLeaving = false,
     onAutoCellSize,
     onSelect,
+    selectExactCell = false,
     onSelectRegion,
     onSelectRegionLabel,
     onDraftAdd,
@@ -351,7 +354,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
   // see docs/v0.2.5.md BUG-401 / BUG-405.
   const selectCellAt = useCallback(
     (coord: CellCoord): void => {
-      const hit = hitTestCell({ x: coord.x, y: coord.y, gridSize, cells });
+      const hit = hitTestCell({ x: coord.x, y: coord.y, gridSize, cells, exactCell: selectExactCell });
       if (!hit) {
         onSelect(null);
         return;
@@ -359,7 +362,7 @@ export const EditorCanvas = forwardRef<EditorCanvasHandle, EditorCanvasProps>(fu
       onSelect({ type: 'cell', x: hit.x, y: hit.y });
       onSelectRegion(regionAt(regions, hit.x, hit.y)?.id ?? null);
     },
-    [cells, gridSize, onSelect, onSelectRegion, regions],
+    [cells, gridSize, onSelect, onSelectRegion, regions, selectExactCell],
   );
 
   const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>): void => {

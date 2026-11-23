@@ -7,6 +7,7 @@ const context = {
     '0,0': { item: { assetId: 12, w: 1, h: 1 } },
     '1,1': { item: { assetId: 34, w: 1, h: 1 } },
     '2,2': { background: { assetId: 5 } },
+    '3,3': { decoration: { assetId: 7 } },
   },
   regions: [{ id: 'rg_a1b2c3', name: '森林区', cells: [[2, 2]] as Array<[number, number]> }],
 };
@@ -64,14 +65,19 @@ describe('validatePuzzleReferences (v0.5.0 §5.2)', () => {
     expect(issues).toEqual([]);
   });
 
-  it('ignores an item-layer asset id that only exists as a background', () => {
-    // Asset #5 sits on the background layer, so it is not an item anchor.
+  it('resolves targets that sit only on the background / decoration layer (v0.11.11)', () => {
+    // Asset #5 sits on the background layer, #7 on the 背景修饰 layer — neither is an item anchor,
+    // but both are legitimate linkage targets since v0.11.11.
     const issues = validatePuzzleReferences(
-      draft([slot([{ type: 'asset', id: 5, scope: 'all', effect: 'highlight', color: 'red' }])]),
+      draft([
+        slot([
+          { type: 'asset', id: 5, scope: 'all', effect: 'highlight', color: 'red' },
+          { type: 'asset', id: 7, scope: 'all', effect: 'highlight', color: 'red' },
+        ]),
+      ]),
       context,
     );
-    expect(issues).toHaveLength(1);
-    expect(issues[0]?.message).toContain('联动目标资源 #5 不在地图中');
+    expect(issues).toEqual([]);
   });
 
   it('reports a missing asset target with the slot + target index', () => {

@@ -78,7 +78,7 @@ import { useUnsavedChangesGuard } from '@/hooks/useUnsavedChangesGuard';
 import { versionKeys } from '@/hooks/useVersions';
 import { versionsApi } from '@/api/versions';
 import { infoDrawerOpen, reduceEditorFocus, type EditorFocus } from '@/lib/editorFocus';
-import { resolveHighlight } from '@/lib/highlight';
+import { resolveHighlight, type AssetPlacementLayer } from '@/lib/highlight';
 import { WORKSHOP_MIN_WIDTH_CLASS } from '@/lib/layout';
 import { readRulerVisible, saveRulerVisible } from '@/lib/rulerPreference';
 import { cn } from '@/lib/utils';
@@ -346,16 +346,23 @@ export function PuzzleEditorPage(): JSX.Element {
   const placedItems = useMemo<PlacedItemOption[]>(() => {
     const list: PlacedItemOption[] = [];
     for (const [key, cell] of cells.entries()) {
-      if (!cell.item) continue;
       const [x, y] = key.split(',').map(Number) as [number, number];
-      list.push({
-        assetId: cell.item.assetId,
-        name: assetsById.get(cell.item.assetId)?.name ?? '',
-        // FIX-N12 §6.5: carried through to the linkage picker.
-        code: assetsById.get(cell.item.assetId)?.code ?? '',
-        x,
-        y,
-      });
+      const push = (layer: AssetPlacementLayer, assetId: number | undefined): void => {
+        if (assetId === undefined) return;
+        list.push({
+          assetId,
+          name: assetsById.get(assetId)?.name ?? '',
+          // FIX-N12 §6.5: carried through to the linkage picker.
+          code: assetsById.get(assetId)?.code ?? '',
+          x,
+          y,
+          layer,
+        });
+      };
+      // v0.11.11: 背景层与背景修饰层的资源也能当联动目标（docs/v0.11.11.md）。
+      push('item', cell.item?.assetId);
+      push('background', cell.background?.assetId);
+      push('decoration', cell.decoration?.assetId);
     }
     return list;
   }, [cells, assetsById]);
@@ -829,6 +836,8 @@ export function PuzzleEditorPage(): JSX.Element {
             // SPEC-K07: the canvas is a read-only reference, so the tool is
             // pinned and nothing can be placed or erased on it.
             activeTool="select"
+            // 位置条件要的是点中的那一格：多格物品（如 2 格宽的炕）的右半格也要能选。
+            selectExactCell={positionPickSlot !== null}
             spaceHeld={spaceHeld}
             showRulers={rulerVisible}
             themeCode={themeCode}

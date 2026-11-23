@@ -70,4 +70,12 @@ describe('hitTestCell', () => {
     expect(hitTestCell({ x: 6, y: 0, gridSize: 6, cells })).toBeNull();
     expect(hitTestCell({ x: -1, y: 0, gridSize: 6, cells })).toBeNull();
   });
+
+  it('exactCell keeps the covered cell of a multi-cell object (位置条件拾取)', () => {
+    expect(hitTestCell({ x: 5, y: 4, gridSize: 6, cells, exactCell: true })).toEqual({
+      type: 'cell',
+      x: 5,
+      y: 4,
+    });
+  });
 });

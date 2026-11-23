@@ -12,6 +12,7 @@ import {
 } from '@loredoku/shared';
 import { parseClue } from '@/lib/clue';
 import { linkageColorFor, linkageLabelFor } from '@/lib/mapStyle';
+import type { AssetPlacementLayer } from '@/lib/highlight';
 import { CharacterThumbnail } from '@/components/character/CharacterThumbnail';
 import { GenderBadge } from '@/components/character/GenderBadge';
 import { Button } from '@/components/ui/button';
@@ -47,6 +48,8 @@ export interface PlacedItemOption {
   code: string;
   x: number;
   y: number;
+  /** v0.11.11: which layer the placement sits on — the picker labels it. */
+  layer: AssetPlacementLayer;
 }
 
 interface ParticipantDrawerProps {
@@ -165,7 +168,11 @@ export function ParticipantDrawer({
     for (const item of placedItems) {
       const existing = byId.get(item.assetId);
       if (existing) {
-        existing.instances.push([item.x, item.y]);
+        // One asset can sit on two layers of the same cell — keep one instance per coord.
+        if (!existing.instances.some(([x, y]) => x === item.x && y === item.y)) {
+          existing.instances.push([item.x, item.y]);
+        }
+        if (!existing.layers.includes(item.layer)) existing.layers.push(item.layer);
       } else {
         byId.set(item.assetId, {
           assetId: item.assetId,
@@ -174,6 +181,7 @@ export function ParticipantDrawer({
           // show 名称（业务 ID）instead of `#主键`.
           code: item.code,
           instances: [[item.x, item.y]],
+          layers: [item.layer],
         });
       }
     }
@@ -633,8 +641,8 @@ function describeLinkage(
       const item = items.find((entry) => entry.assetId === linkage.id);
       const label = item?.name ?? `#${linkage.id}`;
       return linkage.scope === 'instances'
-        ? `物品 · ${label} · ${linkage.instances?.length ?? 0} 实例`
-        : `物品 · ${label} × ${item?.instances.length ?? 0}`;
+        ? `资源 · ${label} · ${linkage.instances?.length ?? 0} 实例`
+        : `资源 · ${label} × ${item?.instances.length ?? 0}`;
     }
     case 'cell':
       return `方格 · ${linkage.cells.length} 格`;
